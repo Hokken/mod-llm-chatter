@@ -55,18 +55,11 @@ public:
 
         uint32 now = getMSTime();
 
-        // Check for message delivery - only poll if we're expecting messages
-        if (_expectingMessages && now - _lastDeliveryTime >= sLLMChatterConfig->_deliveryPollMs)
+        // Check for message delivery (simple polling - always check)
+        if (now - _lastDeliveryTime >= sLLMChatterConfig->_deliveryPollMs)
         {
             _lastDeliveryTime = now;
             DeliverPendingMessages();
-
-            // Timeout: stop expecting messages after 2 minutes with no delivery
-            if (now - _lastQueueTime > 120000)
-            {
-                _expectingMessages = false;
-                LOG_DEBUG("module", "LLMChatter: Stopped polling - no messages after timeout");
-            }
         }
 
         // Check for new chatter trigger
@@ -80,8 +73,6 @@ public:
 private:
     uint32 _lastTriggerTime = 0;
     uint32 _lastDeliveryTime = 0;
-    uint32 _lastQueueTime = 0;
-    bool _expectingMessages = false;
 
     // Get class name from class ID
     std::string GetClassName(uint8 classId)
@@ -404,10 +395,6 @@ private:
 
             LOG_INFO("module", "LLMChatter: Queued conversation in {} between {} ({} {}) and {} ({} {})",
                      zoneName, bot1Name, bot1Race, bot1Class, bot2Name, bot2Race, bot2Class);
-
-            // Start expecting messages from the bridge
-            _expectingMessages = true;
-            _lastQueueTime = getMSTime();
         }
         else
         {
@@ -420,10 +407,6 @@ private:
 
             LOG_INFO("module", "LLMChatter: Queued statement in {} for {} ({} {})",
                      zoneName, bot1Name, bot1Race, bot1Class);
-
-            // Start expecting messages from the bridge
-            _expectingMessages = true;
-            _lastQueueTime = getMSTime();
         }
     }
 
@@ -437,26 +420,7 @@ private:
             "ORDER BY deliver_at ASC LIMIT 1");
 
         if (!result)
-        {
-            // Check if there are ANY pending messages (including future scheduled ones)
-            QueryResult pendingMessages = CharacterDatabase.Query(
-                "SELECT 1 FROM llm_chatter_messages WHERE delivered = 0 LIMIT 1");
-
-            // Also check if there are pending REQUESTS that Python hasn't processed yet
-            QueryResult pendingRequests = CharacterDatabase.Query(
-                "SELECT 1 FROM llm_chatter_queue WHERE status IN ('pending', 'processing') LIMIT 1");
-
-            if (!pendingMessages && !pendingRequests)
-            {
-                // Both queues truly empty, stop polling
-                _expectingMessages = false;
-                LOG_DEBUG("module", "LLMChatter: All queues empty, stopped polling");
-            }
             return;
-        }
-
-        // We delivered something, reset the timeout window
-        _lastQueueTime = getMSTime();
 
         do
         {
