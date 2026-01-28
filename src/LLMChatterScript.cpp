@@ -1,0 +1,512 @@
+/*
+ * mod-llm-chatter - Dynamic bot conversations powered by AI
+ * Main WorldScript for triggering chatter and delivering messages
+ */
+
+#include "LLMChatterConfig.h"
+#include "ScriptMgr.h"
+#include "Player.h"
+#include "World.h"
+#include "WorldSession.h"
+#include "WorldSessionMgr.h"
+#include "DatabaseEnv.h"
+#include "DBCStores.h"
+#include "Log.h"
+#include "Channel.h"
+#include "ChannelMgr.h"
+#include "ObjectAccessor.h"
+#include "Playerbots.h"
+#include "RandomPlayerbotMgr.h"
+#include <vector>
+#include <map>
+#include <random>
+
+class LLMChatterWorldScript : public WorldScript
+{
+public:
+    LLMChatterWorldScript() : WorldScript("LLMChatterWorldScript") {}
+
+    void OnAfterConfigLoad(bool /*reload*/) override
+    {
+        sLLMChatterConfig->LoadConfig();
+    }
+
+    void OnStartup() override
+    {
+        if (!sLLMChatterConfig->IsEnabled())
+            return;
+
+        // Clear any stale undelivered messages from previous session
+        CharacterDatabase.Execute(
+            "DELETE FROM llm_chatter_messages WHERE delivered = 0");
+        CharacterDatabase.Execute(
+            "UPDATE llm_chatter_queue SET status = 'cancelled' "
+            "WHERE status IN ('pending', 'processing')");
+
+        LOG_INFO("module", "LLMChatter: Cleared stale messages, WorldScript initialized");
+        _lastTriggerTime = 0;
+        _lastDeliveryTime = 0;
+    }
+
+    void OnUpdate(uint32 /*diff*/) override
+    {
+        if (!sLLMChatterConfig->IsEnabled())
+            return;
+
+        uint32 now = getMSTime();
+
+        // Check for message delivery - only poll if we're expecting messages
+        if (_expectingMessages && now - _lastDeliveryTime >= sLLMChatterConfig->_deliveryPollMs)
+        {
+            _lastDeliveryTime = now;
+            DeliverPendingMessages();
+
+            // Timeout: stop expecting messages after 2 minutes with no delivery
+            if (now - _lastQueueTime > 120000)
+            {
+                _expectingMessages = false;
+                LOG_DEBUG("module", "LLMChatter: Stopped polling - no messages after timeout");
+            }
+        }
+
+        // Check for new chatter trigger
+        if (now - _lastTriggerTime >= sLLMChatterConfig->_triggerIntervalSeconds * 1000)
+        {
+            _lastTriggerTime = now;
+            TryTriggerChatter();
+        }
+    }
+
+private:
+    uint32 _lastTriggerTime = 0;
+    uint32 _lastDeliveryTime = 0;
+    uint32 _lastQueueTime = 0;
+    bool _expectingMessages = false;
+
+    // Get class name from class ID
+    std::string GetClassName(uint8 classId)
+    {
+        switch (classId)
+        {
+            case CLASS_WARRIOR:      return "Warrior";
+            case CLASS_PALADIN:      return "Paladin";
+            case CLASS_HUNTER:       return "Hunter";
+            case CLASS_ROGUE:        return "Rogue";
+            case CLASS_PRIEST:       return "Priest";
+            case CLASS_DEATH_KNIGHT: return "Death Knight";
+            case CLASS_SHAMAN:       return "Shaman";
+            case CLASS_MAGE:         return "Mage";
+            case CLASS_WARLOCK:      return "Warlock";
+            case CLASS_DRUID:        return "Druid";
+            default:                 return "Unknown";
+        }
+    }
+
+    // Get race name from race ID
+    std::string GetRaceName(uint8 raceId)
+    {
+        switch (raceId)
+        {
+            case RACE_HUMAN:         return "Human";
+            case RACE_ORC:           return "Orc";
+            case RACE_DWARF:         return "Dwarf";
+            case RACE_NIGHTELF:      return "Night Elf";
+            case RACE_UNDEAD_PLAYER: return "Undead";
+            case RACE_TAUREN:        return "Tauren";
+            case RACE_GNOME:         return "Gnome";
+            case RACE_TROLL:         return "Troll";
+            case RACE_BLOODELF:      return "Blood Elf";
+            case RACE_DRAENEI:       return "Draenei";
+            default:                 return "Unknown";
+        }
+    }
+
+    // Get zone name from zone ID
+    std::string GetZoneName(uint32 zoneId)
+    {
+        if (AreaTableEntry const* area = sAreaTableStore.LookupEntry(zoneId))
+        {
+            return area->area_name[0];  // English name
+        }
+        return "Unknown Zone";
+    }
+
+    // Check if player is a bot
+    bool IsPlayerBot(Player* player)
+    {
+        if (!player)
+            return false;
+
+        PlayerbotAI* ai = GET_PLAYERBOT_AI(player);
+        return ai != nullptr;
+    }
+
+    // Get faction (0 = Alliance, 1 = Horde)
+    uint32 GetFaction(Player* player)
+    {
+        return player->GetTeamId();  // TEAM_ALLIANCE = 0, TEAM_HORDE = 1
+    }
+
+    // Check if player is in the overworld (not an instance)
+    bool IsInOverworld(Player* player)
+    {
+        if (!player || !player->GetMap())
+            return false;
+
+        // Only allow chatter in common world maps (not dungeons, raids, BGs, arenas)
+        return !player->GetMap()->Instanceable();
+    }
+
+    // Find zones that have real (non-bot) players in the overworld
+    std::vector<uint32> GetZonesWithRealPlayers()
+    {
+        std::map<uint32, bool> zoneMap;
+
+        WorldSessionMgr::SessionMap const& sessions = sWorldSessionMgr->GetAllSessions();
+        for (auto const& pair : sessions)
+        {
+            if (WorldSession* session = pair.second)
+            {
+                if (Player* player = session->GetPlayer())
+                {
+                    // Only count real players (not bots) in the overworld
+                    if (!IsPlayerBot(player) && player->IsInWorld() && IsInOverworld(player))
+                    {
+                        uint32 zoneId = player->GetZoneId();
+                        if (zoneId > 0)
+                        {
+                            zoneMap[zoneId] = true;
+                        }
+                    }
+                }
+            }
+        }
+
+        std::vector<uint32> zones;
+        for (auto const& pair : zoneMap)
+        {
+            zones.push_back(pair.first);
+        }
+
+        return zones;
+    }
+
+    // Check if a bot is grouped with a real player
+    bool IsGroupedWithRealPlayer(Player* bot)
+    {
+        if (!bot)
+            return false;
+
+        Group* group = bot->GetGroup();
+        if (!group)
+            return false;  // Not in a group, so not grouped with real player
+
+        // Check all group members for real players
+        for (GroupReference* itr = group->GetFirstMember(); itr != nullptr; itr = itr->next())
+        {
+            if (Player* member = itr->GetSource())
+            {
+                if (member != bot && !IsPlayerBot(member))
+                {
+                    return true;  // Found a real player in the group
+                }
+            }
+        }
+
+        return false;  // Only bots in the group
+    }
+
+    // Get bots in a specific zone, filtered by faction
+    // Excludes bots that are grouped with real players
+    std::vector<Player*> GetBotsInZone(uint32 zoneId, uint32 faction)
+    {
+        std::vector<Player*> bots;
+        uint32 totalBots = 0;
+        uint32 inZone = 0;
+        uint32 rightFaction = 0;
+
+        // Get all playerbots from RandomPlayerbotMgr
+        PlayerBotMap allBots = sRandomPlayerbotMgr->GetAllBots();
+        totalBots = allBots.size();
+
+        for (auto const& pair : allBots)
+        {
+            Player* player = pair.second;
+            if (player && player->IsInWorld() && player->IsAlive())
+            {
+                if (player->GetZoneId() == zoneId)
+                {
+                    inZone++;
+                    if (GetFaction(player) == faction)
+                    {
+                        // Only include bots NOT grouped with real players
+                        if (!IsGroupedWithRealPlayer(player))
+                        {
+                            rightFaction++;
+                            bots.push_back(player);
+                        }
+                    }
+                }
+            }
+        }
+
+        LOG_INFO("module", "LLMChatter: GetBotsInZone - total bots: {}, in zone {}: {}, eligible: {}",
+                 totalBots, zoneId, inZone, rightFaction);
+
+        return bots;
+    }
+
+    // Get the dominant faction of real players in a zone
+    uint32 GetDominantFactionInZone(uint32 zoneId)
+    {
+        uint32 allianceCount = 0;
+        uint32 hordeCount = 0;
+
+        WorldSessionMgr::SessionMap const& sessions = sWorldSessionMgr->GetAllSessions();
+        for (auto const& pair : sessions)
+        {
+            if (WorldSession* session = pair.second)
+            {
+                if (Player* player = session->GetPlayer())
+                {
+                    if (!IsPlayerBot(player) &&
+                        player->IsInWorld() &&
+                        player->GetZoneId() == zoneId)
+                    {
+                        if (GetFaction(player) == TEAM_ALLIANCE)
+                            allianceCount++;
+                        else
+                            hordeCount++;
+                    }
+                }
+            }
+        }
+
+        // Return the faction with more players, or random if equal
+        if (allianceCount > hordeCount)
+            return TEAM_ALLIANCE;
+        else if (hordeCount > allianceCount)
+            return TEAM_HORDE;
+        else
+            return urand(0, 1);  // Random if equal
+    }
+
+    void TryTriggerChatter()
+    {
+        LOG_INFO("module", "LLMChatter: TryTriggerChatter called");
+
+        // Roll for trigger chance
+        if (urand(1, 100) > sLLMChatterConfig->_triggerChance)
+            return;
+
+        // Check pending requests
+        QueryResult countResult = CharacterDatabase.Query(
+            "SELECT COUNT(*) FROM llm_chatter_queue WHERE status IN ('pending', 'processing')");
+
+        if (countResult)
+        {
+            uint32 pending = countResult->Fetch()[0].Get<uint32>();
+            if (pending >= sLLMChatterConfig->_maxPendingRequests)
+            {
+                LOG_DEBUG("module", "LLMChatter: Max pending requests reached ({})", pending);
+                return;
+            }
+        }
+
+        // Find zones with real players
+        std::vector<uint32> validZones = GetZonesWithRealPlayers();
+        LOG_INFO("module", "LLMChatter: Found {} zones with real players", validZones.size());
+        if (validZones.empty())
+        {
+            return;
+        }
+
+        // Pick one zone randomly
+        std::random_device rd;
+        std::mt19937 g(rd());
+        std::shuffle(validZones.begin(), validZones.end(), g);
+        uint32 selectedZone = validZones[0];
+        std::string zoneName = GetZoneName(selectedZone);
+
+        // Get the dominant faction in this zone
+        uint32 faction = GetDominantFactionInZone(selectedZone);
+        LOG_INFO("module", "LLMChatter: Selected zone {} ({}), dominant faction: {}",
+                 selectedZone, zoneName, faction == TEAM_ALLIANCE ? "Alliance" : "Horde");
+
+        // Get bots in this zone with matching faction
+        std::vector<Player*> bots = GetBotsInZone(selectedZone, faction);
+        LOG_INFO("module", "LLMChatter: Found {} bots in zone {} with faction {}",
+                 bots.size(), zoneName, faction == TEAM_ALLIANCE ? "Alliance" : "Horde");
+
+        // Decide: statement or conversation
+        bool isConversation = (urand(1, 100) <= sLLMChatterConfig->_conversationChance);
+
+        // Check if we have enough bots
+        uint32 requiredBots = isConversation ? 2 : 1;
+        if (bots.size() < requiredBots)
+        {
+            // Try single statement if not enough for conversation
+            if (isConversation && bots.size() >= 1)
+            {
+                isConversation = false;
+                LOG_DEBUG("module", "LLMChatter: Not enough bots for conversation in {}, falling back to statement",
+                          zoneName);
+            }
+            else
+            {
+                LOG_DEBUG("module", "LLMChatter: No bots in {} (faction {})", zoneName, faction);
+                return;
+            }
+        }
+
+        // Shuffle bots and pick
+        std::shuffle(bots.begin(), bots.end(), g);
+
+        Player* bot1 = bots[0];
+        Player* bot2 = isConversation ? bots[1] : nullptr;
+
+        // Queue the request
+        QueueChatterRequest(bot1, bot2, isConversation, zoneName, selectedZone);
+    }
+
+    void QueueChatterRequest(Player* bot1, Player* bot2, bool isConversation, const std::string& zoneName, uint32 zoneId)
+    {
+        std::string requestType = isConversation ? "conversation" : "statement";
+        std::string bot1Name = bot1->GetName();
+        std::string bot1Class = GetClassName(bot1->getClass());
+        std::string bot1Race = GetRaceName(bot1->getRace());
+        uint8 bot1Level = bot1->GetLevel();
+
+        // Escape zone name for SQL (handle apostrophes)
+        std::string escapedZoneName = zoneName;
+        size_t pos = 0;
+        while ((pos = escapedZoneName.find('\'', pos)) != std::string::npos)
+        {
+            escapedZoneName.replace(pos, 1, "''");
+            pos += 2;
+        }
+
+        if (isConversation && bot2)
+        {
+            std::string bot2Name = bot2->GetName();
+            std::string bot2Class = GetClassName(bot2->getClass());
+            std::string bot2Race = GetRaceName(bot2->getRace());
+            uint8 bot2Level = bot2->GetLevel();
+
+            CharacterDatabase.Execute(
+                "INSERT INTO llm_chatter_queue "
+                "(request_type, bot1_guid, bot1_name, bot1_class, bot1_race, bot1_level, bot1_zone, zone_id, "
+                "bot2_guid, bot2_name, bot2_class, bot2_race, bot2_level, status) "
+                "VALUES ('{}', {}, '{}', '{}', '{}', {}, '{}', {}, {}, '{}', '{}', '{}', {}, 'pending')",
+                requestType,
+                bot1->GetGUID().GetCounter(), bot1Name, bot1Class, bot1Race, bot1Level, escapedZoneName, zoneId,
+                bot2->GetGUID().GetCounter(), bot2Name, bot2Class, bot2Race, bot2Level);
+
+            LOG_INFO("module", "LLMChatter: Queued conversation in {} between {} ({} {}) and {} ({} {})",
+                     zoneName, bot1Name, bot1Race, bot1Class, bot2Name, bot2Race, bot2Class);
+
+            // Start expecting messages from the bridge
+            _expectingMessages = true;
+            _lastQueueTime = getMSTime();
+        }
+        else
+        {
+            CharacterDatabase.Execute(
+                "INSERT INTO llm_chatter_queue "
+                "(request_type, bot1_guid, bot1_name, bot1_class, bot1_race, bot1_level, bot1_zone, zone_id, status) "
+                "VALUES ('{}', {}, '{}', '{}', '{}', {}, '{}', {}, 'pending')",
+                requestType,
+                bot1->GetGUID().GetCounter(), bot1Name, bot1Class, bot1Race, bot1Level, escapedZoneName, zoneId);
+
+            LOG_INFO("module", "LLMChatter: Queued statement in {} for {} ({} {})",
+                     zoneName, bot1Name, bot1Race, bot1Class);
+
+            // Start expecting messages from the bridge
+            _expectingMessages = true;
+            _lastQueueTime = getMSTime();
+        }
+    }
+
+    void DeliverPendingMessages()
+    {
+        // Find messages ready for delivery
+        QueryResult result = CharacterDatabase.Query(
+            "SELECT id, bot_guid, bot_name, message, channel "
+            "FROM llm_chatter_messages "
+            "WHERE delivered = 0 AND deliver_at <= NOW() "
+            "ORDER BY deliver_at ASC LIMIT 1");
+
+        if (!result)
+        {
+            // Check if there are ANY pending messages (including future scheduled ones)
+            QueryResult pendingMessages = CharacterDatabase.Query(
+                "SELECT 1 FROM llm_chatter_messages WHERE delivered = 0 LIMIT 1");
+
+            // Also check if there are pending REQUESTS that Python hasn't processed yet
+            QueryResult pendingRequests = CharacterDatabase.Query(
+                "SELECT 1 FROM llm_chatter_queue WHERE status IN ('pending', 'processing') LIMIT 1");
+
+            if (!pendingMessages && !pendingRequests)
+            {
+                // Both queues truly empty, stop polling
+                _expectingMessages = false;
+                LOG_DEBUG("module", "LLMChatter: All queues empty, stopped polling");
+            }
+            return;
+        }
+
+        // We delivered something, reset the timeout window
+        _lastQueueTime = getMSTime();
+
+        do
+        {
+            Field* fields = result->Fetch();
+            uint32 messageId = fields[0].Get<uint32>();
+            uint32 botGuid = fields[1].Get<uint32>();
+            std::string botName = fields[2].Get<std::string>();
+            std::string message = fields[3].Get<std::string>();
+            std::string channel = fields[4].Get<std::string>();
+
+            // Mark as delivered FIRST to prevent duplicate delivery
+            CharacterDatabase.DirectExecute(
+                "UPDATE llm_chatter_messages SET delivered = 1, delivered_at = NOW() WHERE id = {}",
+                messageId);
+
+            // Find the bot player from RandomPlayerbotMgr
+            Player* bot = nullptr;
+            PlayerBotMap allBots = sRandomPlayerbotMgr->GetAllBots();
+            for (auto const& pair : allBots)
+            {
+                if (Player* player = pair.second)
+                {
+                    if (player->GetGUID().GetCounter() == botGuid)
+                    {
+                        bot = player;
+                        break;
+                    }
+                }
+            }
+
+            if (bot && bot->IsInWorld())
+            {
+                // Send to channel using PlayerbotAI
+                if (PlayerbotAI* ai = GET_PLAYERBOT_AI(bot))
+                {
+                    ai->SayToChannel(message, ChatChannelId::GENERAL);
+                    LOG_INFO("module", "LLMChatter: [General] {}: {}", botName, message);
+                }
+            }
+            else
+            {
+                LOG_DEBUG("module", "LLMChatter: Bot {} not found or offline, skipping message", botName);
+            }
+
+        } while (result->NextRow());
+    }
+};
+
+// Register the script
+void AddLLMChatterScripts()
+{
+    new LLMChatterWorldScript();
+}

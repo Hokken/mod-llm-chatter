@@ -1,0 +1,164 @@
+#
+# LLM Chatter Module Configuration
+#
+# Dynamic bot conversations powered by AI (Anthropic Claude Haiku)
+# Replaces static database messages with contextual, personality-driven chatter
+#
+# SETUP INSTRUCTIONS:
+# 1. Copy this file to your server's config directory as mod_llm_chatter.conf
+# 2. Configure your Anthropic API key below
+# 3. Run the SQL migration to create the tables
+# 4. Start the Python bridge: python tools/llm_chatter_bridge.py --config /path/to/mod_llm_chatter.conf
+# 5. Set LLMChatter.Enable = 1 and restart the worldserver
+#
+
+###############################################################################
+# GENERAL SETTINGS
+###############################################################################
+
+#
+#   LLMChatter.Enable
+#       Enable or disable the LLM Chatter module
+#       Default: 0 (disabled)
+#
+LLMChatter.Enable = 0
+
+#
+#   LLMChatter.TriggerIntervalSeconds
+#       How often (in seconds) the server considers triggering new chatter
+#       Actual chatter may not happen every interval (depends on chance)
+#       Default: 60
+#
+LLMChatter.TriggerIntervalSeconds = 60
+
+#
+#   LLMChatter.ConversationChance
+#       Chance (0-100) that a trigger results in a conversation vs statement
+#       100 = always conversation, 0 = always single statement
+#       Default: 50
+#
+LLMChatter.ConversationChance = 50
+
+#
+#   LLMChatter.TriggerChance
+#       Chance (0-100) that each interval actually triggers chatter
+#       Adds randomness so chatter doesn't feel too regular
+#       Default: 30
+#
+LLMChatter.TriggerChance = 30
+
+#
+#   LLMChatter.MaxPendingRequests
+#       Maximum pending requests in queue before stopping new triggers
+#       Prevents queue buildup if bridge is slow
+#       Default: 5
+#
+LLMChatter.MaxPendingRequests = 5
+
+###############################################################################
+# MESSAGE DELIVERY SETTINGS
+###############################################################################
+
+#
+#   LLMChatter.DeliveryPollMs
+#       How often (ms) the server checks for messages to deliver
+#       Default: 1000
+#
+LLMChatter.DeliveryPollMs = 1000
+
+#
+#   LLMChatter.MessageDelayMin
+#       Minimum delay (ms) between conversation messages
+#       Used as lower bound for dynamic delay calculation
+#       Default: 1000
+#
+LLMChatter.MessageDelayMin = 1000
+
+#
+#   LLMChatter.MessageDelayMax
+#       Maximum delay (ms) between conversation messages
+#       Used as upper bound for dynamic delay calculation
+#       Default: 8000
+#
+LLMChatter.MessageDelayMax = 8000
+
+###############################################################################
+# LLM API SETTINGS (Used by Python bridge)
+###############################################################################
+
+#
+#   LLMChatter.Anthropic.ApiKey
+#       Your Anthropic API key (starts with sk-ant-)
+#       Get one at: https://console.anthropic.com/
+#       Default: (empty - must be configured)
+#
+LLMChatter.Anthropic.ApiKey =
+
+#
+#   LLMChatter.Anthropic.Model
+#       Anthropic model to use
+#       Recommend: claude-haiku-4-5-20251001 (fast and cheap)
+#       Default: claude-haiku-4-5-20251001
+#
+LLMChatter.Anthropic.Model = claude-haiku-4-5-20251001
+
+#
+#   LLMChatter.MaxTokens
+#       Maximum tokens in the LLM response
+#       Default: 200
+#
+LLMChatter.MaxTokens = 200
+
+#
+#   LLMChatter.Temperature
+#       LLM temperature (0.0 = focused, 1.0 = creative)
+#       Higher = more varied/creative chatter
+#       Default: 0.8
+#
+LLMChatter.Temperature = 0.8
+
+###############################################################################
+# DATABASE SETTINGS (Used by Python bridge)
+###############################################################################
+
+#
+#   LLMChatter.Database.Host
+#       Database server hostname
+#       Default: localhost
+#
+LLMChatter.Database.Host = localhost
+
+#
+#   LLMChatter.Database.Port
+#       Database server port
+#       Default: 3306
+#
+LLMChatter.Database.Port = 3306
+
+#
+#   LLMChatter.Database.User
+#       Database username
+#       Default: acore
+#
+LLMChatter.Database.User = acore
+
+#
+#   LLMChatter.Database.Password
+#       Database password
+#       Default: acore
+#
+LLMChatter.Database.Password = acore
+
+#
+#   LLMChatter.Database.Name
+#       Characters database name
+#       Default: acore_characters
+#
+LLMChatter.Database.Name = acore_characters
+
+#
+#   LLMChatter.Bridge.PollIntervalSeconds
+#       How often the Python bridge checks for new requests
+#       Default: 3
+#
+LLMChatter.Bridge.PollIntervalSeconds = 3
