@@ -811,8 +811,10 @@ def build_quest_statement_prompt(bot: dict, quest: dict) -> str:
     if random.random() < 0.5:
         parts.append(f"Player level: {bot['level']}")
 
-    # Quest info
-    parts.append(f"Quest: {quest['quest_name']} (use {{{{quest:{quest['quest_name']}}}}} as link placeholder)")
+    # Quest info - make placeholder requirement very explicit
+    quest_placeholder = f"{{{{quest:{quest['quest_name']}}}}}"
+    parts.append(f"Quest: {quest['quest_name']}")
+    parts.append(f"REQUIRED: Include exactly {quest_placeholder} in your message (this becomes a clickable link)")
 
     # Randomly include description
     if quest.get('description') and random.random() < 0.4:
@@ -837,10 +839,10 @@ def build_quest_statement_prompt(bot: dict, quest: dict) -> str:
 
     # Guidelines
     guidelines = build_dynamic_guidelines()
-    guidelines.append("Use the quest link placeholder ONCE")
     guidelines.append("Keep under 60 characters")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
+    parts.append(f"Example: anyone done {quest_placeholder} yet? seems rough")
     parts.append("Respond with ONLY the message.")
 
     return "\n".join(parts)
@@ -853,9 +855,10 @@ def build_loot_statement_prompt(bot: dict, item: dict, can_use: bool) -> str:
 
     parts = []
 
+    item_placeholder = f"{{{{item:{item['item_name']}}}}}"
     parts.append(f"Generate a brief WoW General chat message about a loot drop.")
-    parts.append(f"Item: {item['item_name']} (use {{{{item:{item['item_name']}}}}} as link placeholder)")
-    parts.append(f"Quality: {quality}")
+    parts.append(f"Item: {item['item_name']} ({quality} quality)")
+    parts.append(f"REQUIRED: Include exactly {item_placeholder} in your message (this becomes a clickable link)")
 
     # Randomly include class info (60% chance)
     if random.random() < 0.6:
@@ -886,9 +889,9 @@ def build_loot_statement_prompt(bot: dict, item: dict, can_use: bool) -> str:
 
     # Guidelines
     guidelines = build_dynamic_guidelines()
-    guidelines.append("Use the item link placeholder ONCE")
     guidelines.append("Keep under 60 characters")
     parts.append("Guidelines: " + "; ".join(guidelines))
+    parts.append(f"Example: nice {item_placeholder} just dropped lol")
 
     parts.append("Respond with ONLY the message.")
 
