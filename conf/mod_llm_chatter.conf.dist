@@ -105,9 +105,10 @@ LLMChatter.Anthropic.Model = claude-haiku-4-5-20251001
 #
 #   LLMChatter.MaxTokens
 #       Maximum tokens in the LLM response
-#       Default: 200
+#       NOTE: 350 recommended for multi-message conversations to avoid JSON truncation
+#       Default: 350
 #
-LLMChatter.MaxTokens = 200
+LLMChatter.MaxTokens = 350
 
 #
 #   LLMChatter.Temperature

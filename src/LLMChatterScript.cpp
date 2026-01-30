@@ -20,6 +20,133 @@
 #include <vector>
 #include <map>
 #include <random>
+#include <sstream>
+
+// Helper function to get item quality color
+static const char* GetQualityColor(uint8 quality)
+{
+    switch (quality)
+    {
+        case 0: return "9d9d9d";  // Poor (gray)
+        case 1: return "ffffff";  // Common (white)
+        case 2: return "1eff00";  // Uncommon (green)
+        case 3: return "0070dd";  // Rare (blue)
+        case 4: return "a335ee";  // Epic (purple)
+        case 5: return "ff8000";  // Legendary (orange)
+        default: return "ffffff";
+    }
+}
+
+// Convert [[item:ID:Name:Quality]] markers to WoW item links
+static std::string ConvertItemLinks(const std::string& text)
+{
+    std::string result = text;
+    size_t pos = 0;
+
+    while ((pos = result.find("[[item:", pos)) != std::string::npos)
+    {
+        size_t endPos = result.find("]]", pos);
+        if (endPos == std::string::npos) break;
+
+        std::string content = result.substr(pos + 7, endPos - pos - 7);
+        size_t firstColon = content.find(':');
+        size_t lastColon = content.rfind(':');
+
+        if (firstColon != std::string::npos && lastColon != std::string::npos && firstColon != lastColon)
+        {
+            std::string idStr = content.substr(0, firstColon);
+            std::string name = content.substr(firstColon + 1, lastColon - firstColon - 1);
+            std::string qualityStr = content.substr(lastColon + 1);
+
+            try
+            {
+                uint32 itemId = std::stoul(idStr);
+                uint8 quality = static_cast<uint8>(std::stoul(qualityStr));
+                std::ostringstream link;
+                link << "|cff" << GetQualityColor(quality)
+                     << "|Hitem:" << itemId << ":0:0:0:0:0:0:0:0|h[" << name << "]|h|r";
+                result.replace(pos, endPos - pos + 2, link.str());
+                pos += link.str().length();
+            }
+            catch (...) { pos = endPos + 2; }
+        }
+        else { pos = endPos + 2; }
+    }
+    return result;
+}
+
+// Convert [[quest:ID:Name:Level]] markers to WoW quest links
+static std::string ConvertQuestLinks(const std::string& text)
+{
+    std::string result = text;
+    size_t pos = 0;
+
+    while ((pos = result.find("[[quest:", pos)) != std::string::npos)
+    {
+        size_t endPos = result.find("]]", pos);
+        if (endPos == std::string::npos) break;
+
+        std::string content = result.substr(pos + 8, endPos - pos - 8);
+        size_t firstColon = content.find(':');
+        size_t lastColon = content.rfind(':');
+
+        if (firstColon != std::string::npos && lastColon != std::string::npos && firstColon != lastColon)
+        {
+            std::string idStr = content.substr(0, firstColon);
+            std::string name = content.substr(firstColon + 1, lastColon - firstColon - 1);
+            std::string levelStr = content.substr(lastColon + 1);
+
+            try
+            {
+                uint32 questId = std::stoul(idStr);
+                uint32 level = std::stoul(levelStr);
+                std::ostringstream link;
+                link << "|cffffff00|Hquest:" << questId << ":" << level << "|h[" << name << "]|h|r";
+                result.replace(pos, endPos - pos + 2, link.str());
+                pos += link.str().length();
+            }
+            catch (...) { pos = endPos + 2; }
+        }
+        else { pos = endPos + 2; }
+    }
+    return result;
+}
+
+// Convert [[npc:ID:Name]] markers to green colored NPC names
+static std::string ConvertNpcLinks(const std::string& text)
+{
+    std::string result = text;
+    size_t pos = 0;
+
+    while ((pos = result.find("[[npc:", pos)) != std::string::npos)
+    {
+        size_t endPos = result.find("]]", pos);
+        if (endPos == std::string::npos) break;
+
+        std::string content = result.substr(pos + 6, endPos - pos - 6);
+        size_t colonPos = content.find(':');
+
+        if (colonPos != std::string::npos)
+        {
+            std::string name = content.substr(colonPos + 1);
+            std::string coloredName = "|cff00ff00" + name + "|r";
+            result.replace(pos, endPos - pos + 2, coloredName);
+            pos += coloredName.length();
+        }
+        else { pos = endPos + 2; }
+    }
+    return result;
+}
+
+// Convert all link markers to WoW hyperlinks
+static std::string ConvertAllLinks(const std::string& text)
+{
+    std::string result = text;
+    result = ConvertItemLinks(result);
+    result = ConvertQuestLinks(result);
+    result = ConvertNpcLinks(result);
+    return result;
+}
 
 class LLMChatterWorldScript : public WorldScript
 {
@@ -456,8 +583,10 @@ private:
                 // Send to channel using PlayerbotAI
                 if (PlayerbotAI* ai = GET_PLAYERBOT_AI(bot))
                 {
-                    ai->SayToChannel(message, ChatChannelId::GENERAL);
-                    LOG_INFO("module", "LLMChatter: [General] {}: {}", botName, message);
+                    // Convert any link markers to WoW hyperlinks
+                    std::string processedMessage = ConvertAllLinks(message);
+                    ai->SayToChannel(processedMessage, ChatChannelId::GENERAL);
+                    LOG_INFO("module", "LLMChatter: [General] {}: {}", botName, processedMessage);
                 }
             }
             else

@@ -99,6 +99,68 @@ ZONE_LEVELS = {
     210: (77, 80),   # Icecrown
 }
 
+# Zone coordinate boundaries for accurate mob queries
+# Format: zone_id: (map_id, min_x, max_x, min_y, max_y)
+# These are approximate bounding boxes for each zone
+ZONE_COORDINATES = {
+    # Eastern Kingdoms (map = 0)
+    1: (0, -6100, -4700, -700, 900),        # Dun Morogh
+    12: (0, -9900, -8300, -1100, 500),      # Elwynn Forest
+    38: (0, -5800, -4200, -3400, -2200),    # Loch Modan
+    40: (0, -11500, -9800, 300, 2000),      # Westfall
+    44: (0, -9700, -8700, -2600, -1200),    # Redridge Mountains
+    47: (0, -600, 900, -4700, -3200),       # The Hinterlands
+    51: (0, -7400, -6100, -1400, -400),     # Searing Gorge
+    85: (0, 1600, 3000, -700, 1100),        # Tirisfal Glades
+    130: (0, 400, 2000, 700, 2100),         # Silverpine Forest
+    267: (0, -1200, 300, -500, 900),        # Hillsbrad Foothills
+    33: (0, -14800, -11200, -1400, 1700),   # Stranglethorn Vale
+    45: (0, -2400, -800, -3000, -1600),     # Arathi Highlands
+    3: (0, -7100, -5700, -3800, -2800),     # Badlands
+    8: (0, -10800, -9800, -4000, -2500),    # Swamp of Sorrows
+    4: (0, -12100, -10300, -3400, -2200),   # Blasted Lands
+    10: (0, -11300, -9800, -700, 600),      # Duskwood
+    11: (0, -4600, -2700, -3000, -1700),    # Wetlands
+    139: (0, 1300, 3300, -4800, -3000),     # Eastern Plaguelands
+    28: (0, 1300, 2700, -2200, -800),       # Western Plaguelands
+
+    # Kalimdor (map = 1)
+    14: (1, -800, 1700, -5200, -3500),      # Durotar
+    215: (1, -2700, -300, -1700, 400),      # Mulgore
+    141: (1, 8800, 10500, 500, 2100),       # Teldrassil
+    148: (1, 6200, 7900, -700, 1400),       # Darkshore
+    17: (1, -3600, 500, -5000, -1300),      # The Barrens
+    331: (1, 2200, 4500, -2400, 1100),      # Ashenvale
+    405: (1, -2000, 600, 1000, 3200),       # Desolace
+    400: (1, -5600, -4200, -1200, 1300),    # Thousand Needles
+    15: (1, -5100, -2700, -4300, -2400),    # Dustwallow Marsh
+    357: (1, -5200, -2800, 1700, 4700),     # Feralas
+    440: (1, -8500, -6000, -3700, -1400),   # Tanaris
+    16: (1, 2200, 4200, -5700, -3300),      # Azshara
+    361: (1, 3200, 5700, -2000, 900),       # Felwood
+    490: (1, -8100, -5700, -500, 1900),     # Un'Goro Crater
+    618: (1, 5300, 7500, -1400, 1100),      # Winterspring
+    1377: (1, -8200, -5900, 500, 2700),     # Silithus
+
+    # Outland (map = 530)
+    3483: (530, -1300, 1300, 5800, 8700),   # Hellfire Peninsula
+    3518: (530, -2200, 500, 3000, 5900),    # Nagrand
+    3519: (530, -3800, -1500, 2100, 5200),  # Terokkar Forest
+    3520: (530, -5200, -2100, 700, 3500),   # Shadowmoon Valley
+    3521: (530, -1500, 900, 2900, 6300),    # Zangarmarsh
+    3522: (530, 500, 3500, 3500, 7700),     # Blade's Edge Mountains
+    3523: (530, 1700, 4900, 800, 4200),     # Netherstorm
+
+    # Northrend (map = 571)
+    3537: (571, 2300, 5400, 3700, 7000),    # Borean Tundra
+    495: (571, -800, 2400, -2200, 1400),    # Howling Fjord
+    394: (571, 3200, 5000, -3400, -800),    # Grizzly Hills
+    3711: (571, 5000, 6500, 3700, 6200),    # Sholazar Basin
+    66: (571, 4400, 7000, -4800, -1700),    # Zul'Drak
+    67: (571, 6000, 9100, -1600, 2100),     # Storm Peaks
+    210: (571, 5600, 8700, 400, 3800),      # Icecrown
+}
+
 # Item quality colors for WoW links (FF prefix for alpha channel)
 ITEM_QUALITY_COLORS = {
     0: "FF9d9d9d",  # Poor (Gray)
@@ -127,10 +189,11 @@ CLASS_BITMASK = {
 }
 
 # Message type distribution (cumulative percentages)
+# Production values: 65% plain, 15% quest, 12% loot, 8% quest+reward
 MSG_TYPE_PLAIN = 65
-MSG_TYPE_QUEST = 80        # 15% chance (65-80)
-MSG_TYPE_LOOT = 92         # 12% chance (80-92)
-MSG_TYPE_QUEST_REWARD = 100  # 8% chance (92-100)
+MSG_TYPE_QUEST = 80        # 15% chance (66-80)
+MSG_TYPE_LOOT = 92         # 12% chance (81-92)
+MSG_TYPE_QUEST_REWARD = 100  # 8% chance (93-100)
 
 # =============================================================================
 # CACHING
@@ -218,6 +281,35 @@ def get_db_connection(config: dict, database: str = None):
     )
 
 
+def wait_for_database(config: dict, max_retries: int = 30, initial_delay: float = 2.0) -> bool:
+    """Wait for database to become available with exponential backoff.
+
+    Args:
+        config: Configuration dictionary
+        max_retries: Maximum number of connection attempts
+        initial_delay: Initial delay between retries (increases with backoff, max 30s)
+
+    Returns:
+        True if connected successfully, False if all retries exhausted
+    """
+    delay = initial_delay
+    for attempt in range(1, max_retries + 1):
+        try:
+            conn = get_db_connection(config)
+            conn.close()
+            logger.info(f"Database connection established (attempt {attempt})")
+            return True
+        except mysql.connector.Error as e:
+            if attempt == max_retries:
+                logger.error(f"Failed to connect to database after {max_retries} attempts: {e}")
+                return False
+            logger.info(f"Waiting for database... (attempt {attempt}/{max_retries}, retry in {delay:.1f}s)")
+            time.sleep(delay)
+            delay = min(delay * 1.5, 30.0)  # Exponential backoff, max 30s
+
+    return False
+
+
 # =============================================================================
 # ZONE DATA QUERIES
 # =============================================================================
@@ -253,19 +345,20 @@ def query_zone_quests(config: dict, zone_id: int, bot_level: int) -> List[dict]:
         db = get_db_connection(config, 'acore_world')
         cursor = db.cursor(dictionary=True)
 
+        # Query zone quests - use MIN(ID) to get one quest per title
         cursor.execute("""
             SELECT
-                q.ID as quest_id,
+                MIN(q.ID) as quest_id,
                 q.LogTitle as quest_name,
-                q.QuestLevel as quest_level,
-                LEFT(q.LogDescription, 150) as description,
-                q.RewardMoney as reward_money,
-                i1.entry as item1_id,
-                i1.name as item1_name,
-                i1.Quality as item1_quality,
-                i2.entry as item2_id,
-                i2.name as item2_name,
-                i2.Quality as item2_quality
+                MIN(q.QuestLevel) as quest_level,
+                MIN(LEFT(q.LogDescription, 150)) as description,
+                MIN(q.RewardMoney) as reward_money,
+                MIN(i1.entry) as item1_id,
+                MIN(i1.name) as item1_name,
+                MIN(i1.Quality) as item1_quality,
+                MIN(i2.entry) as item2_id,
+                MIN(i2.name) as item2_name,
+                MIN(i2.Quality) as item2_quality
             FROM quest_template q
             LEFT JOIN item_template i1 ON q.RewardItem1 = i1.entry
             LEFT JOIN item_template i2 ON q.RewardItem2 = i2.entry
@@ -274,6 +367,7 @@ def query_zone_quests(config: dict, zone_id: int, bot_level: int) -> List[dict]:
               AND q.LogTitle IS NOT NULL
               AND q.LogTitle != ''
               AND q.LogTitle NOT LIKE '<%%'
+            GROUP BY q.LogTitle
             ORDER BY RAND()
             LIMIT 20
         """, (zone_id, max(1, bot_level - 5), bot_level + 8))
@@ -378,11 +472,11 @@ def query_zone_mobs(config: dict, zone_id: int, bot_level: int) -> List[str]:
     """
     Query hostile mob names from the specific zone.
 
-    Uses a hybrid approach for community compatibility:
-    1. First tries to query by zoneId (most accurate, requires Calculate.Creature.Zone.Area.Data = 1)
-    2. Falls back to level-based query if zoneId isn't populated for the zone
+    Uses coordinate-based queries for accuracy:
+    1. First tries zone coordinate boundaries (most accurate, no server config needed)
+    2. Falls back to level-based query if zone not in coordinate map
 
-    Returns a list of mob names that can be randomly selected for context.
+    Returns a list of mob markers ([[npc:entry:name]]) that can be randomly selected for context.
     """
     min_level, max_level = get_zone_level_range(zone_id, bot_level)
 
@@ -397,51 +491,59 @@ def query_zone_mobs(config: dict, zone_id: int, bot_level: int) -> List[str]:
 
         mobs = []
 
-        # Common filters for hostile mobs
-        # faction 14 = hostile to all, others are various hostile factions
-        # type: 1=Beast, 2=Dragonkin, 4=Demon, 5=Elemental, 6=Giant, 7=Undead, 8=Humanoid, 10=Mechanical
-        hostile_filter = """
-            ct.faction IN (14, 16, 17, 21, 22, 24, 28, 32, 45, 48, 49, 50, 51, 54, 64, 91, 93)
-            AND ct.type IN (1, 2, 4, 5, 6, 7, 8, 10)
+        # Filter for valid mobs (beasts, humanoids, undead, etc.)
+        # type: 1=Beast, 2=Dragonkin, 3=Demon, 4=Elemental, 5=Giant, 6=Undead, 7=Humanoid, 8=Critter, 9=Mechanical, 10=NotSpecified
+        # Exclude friendly factions (35=Friendly, 79=Darnassus, 80=Undercity, 84=Stormwind, etc.)
+        # Note: We rely on coordinates + level + type to filter, rather than trying to list all hostile factions
+        mob_filter = """
+            ct.type IN (1, 2, 3, 4, 5, 6, 7, 9, 10)
+            AND ct.faction NOT IN (35, 55, 79, 80, 84, 126, 875, 876, 1078, 1080)
             AND ct.unit_flags = 0
+            AND ct.npcflag = 0
             AND ct.name NOT LIKE '%%Trigger%%'
             AND ct.name NOT LIKE '%%Invisible%%'
             AND ct.name NOT LIKE '%%Bunny%%'
             AND ct.name NOT LIKE '%%DND%%'
+            AND ct.name NOT LIKE '%%Spirit%%'
+            AND ct.name NOT LIKE '%%Quest%%'
             AND ct.name NOT LIKE '%%(%%'
             AND ct.name NOT LIKE '%%[%%'
             AND ct.name NOT LIKE '%%<%%'
             AND LENGTH(ct.name) > 3
         """
 
-        # APPROACH 1: Try zone-specific query using creature.zoneId
-        # This is accurate but requires Calculate.Creature.Zone.Area.Data = 1 in worldserver.conf
-        if zone_id > 0:
+        # APPROACH 1: Use coordinate boundaries (accurate, no server config needed)
+        if zone_id in ZONE_COORDINATES:
+            map_id, min_x, max_x, min_y, max_y = ZONE_COORDINATES[zone_id]
             cursor.execute(f"""
-                SELECT DISTINCT ct.name
+                SELECT DISTINCT ct.entry, ct.name
                 FROM creature c
                 JOIN creature_template ct ON c.id1 = ct.entry
-                WHERE c.zoneId = %s
-                  AND {hostile_filter}
+                WHERE c.map = %s
+                  AND c.position_x BETWEEN %s AND %s
+                  AND c.position_y BETWEEN %s AND %s
+                  AND ct.minlevel >= %s AND ct.maxlevel <= %s
+                  AND {mob_filter}
                 ORDER BY RAND()
                 LIMIT 50
-            """, (zone_id,))
-            mobs = [row['name'] for row in cursor.fetchall()]
+            """, (map_id, min_x, max_x, min_y, max_y, max(1, min_level - 3), max_level + 5))
+            # Format as NPC markers for link conversion
+            mobs = [f"[[npc:{row['entry']}:{row['name']}]]" for row in cursor.fetchall()]
 
             if mobs:
-                logger.debug(f"Found {len(mobs)} mobs for zone {zone_id} using zoneId")
+                logger.info(f"Found {len(mobs)} mobs for zone {zone_id} using coordinates")
 
-        # APPROACH 2: Fall back to level-based query if zoneId not populated
+        # APPROACH 2: Fall back to level-based query if zone not mapped
         if not mobs:
             cursor.execute(f"""
-                SELECT DISTINCT ct.name
+                SELECT DISTINCT ct.entry, ct.name
                 FROM creature_template ct
                 WHERE ct.minlevel >= %s AND ct.maxlevel <= %s
-                  AND {hostile_filter}
+                  AND {mob_filter}
                 ORDER BY RAND()
                 LIMIT 50
             """, (max(1, min_level - 2), max_level + 3))
-            mobs = [row['name'] for row in cursor.fetchall()]
+            mobs = [f"[[npc:{row['entry']}:{row['name']}]]" for row in cursor.fetchall()]
             logger.debug(f"Using level-based fallback: {len(mobs)} mobs for level {min_level}-{max_level}")
 
         db.close()
@@ -488,13 +590,20 @@ def replace_placeholders(message: str, quest_data: dict = None, item_data: dict 
     # Replace item placeholders: {item:ID:Quality:Name} or {item:Name}
     if item_data:
         item_pattern = r'\{item:[^}]+\}'
+        link = format_item_link(
+            item_data['item_id'],
+            item_data.get('item_quality', 2),
+            item_data['item_name']
+        )
         if re.search(item_pattern, result):
-            link = format_item_link(
-                item_data['item_id'],
-                item_data.get('item_quality', 2),
-                item_data['item_name']
-            )
             result = re.sub(item_pattern, link, result)
+        else:
+            # Fallback: LLM didn't use placeholder, look for [ItemName] patterns
+            # Replace first bracketed item-like word with the correct item link
+            # This catches hallucinated items like [Malachite] when LLM ignores prompt
+            bracket_pattern = r'\[([A-Z][a-zA-Z\' ]{2,25})\]'
+            if re.search(bracket_pattern, result):
+                result = re.sub(bracket_pattern, link, result, count=1)
 
     return result
 
@@ -502,6 +611,12 @@ def replace_placeholders(message: str, quest_data: dict = None, item_data: dict 
 def cleanup_message(message: str) -> str:
     """Clean up any formatting issues from LLM output."""
     result = message
+
+    # Convert npc:ID:Name markers to just the creature name (plain text)
+    # Handles: [[npc:1234:Creature Name]], [npc:1234:Creature Name], npc:1234:Creature Name
+    result = re.sub(r'\[\[npc:\d+:([^\]]+)\]\]', r'\1', result)
+    result = re.sub(r'\[npc:\d+:([^\]]+)\]', r'\1', result)
+    result = re.sub(r'npc:\d+:([A-Za-z][A-Za-z\' ]+)', r'\1', result)
 
     # Fix {[Name]} -> [Name] (curly braces around brackets)
     result = re.sub(r'\{\[([^\]]+)\]\}', r'[\1]', result)
@@ -779,7 +894,7 @@ def build_plain_statement_prompt(bot: dict, mob_name: str = None) -> str:
 
     # Mob context (if provided, make it optional)
     if mob_name:
-        parts.append(f"A creature nearby: {mob_name} (may mention or ignore)")
+        parts.append(f"A creature nearby: {mob_name} (if you mention this creature, include the [[npc:...]] marker exactly as shown)")
 
     # Random tone and mood - these shape the personality
     parts.append(f"Tone: {pick_random_tone()}")
@@ -791,7 +906,7 @@ def build_plain_statement_prompt(bot: dict, mob_name: str = None) -> str:
 
     # Build dynamic guidelines
     guidelines = build_dynamic_guidelines()
-    guidelines.append("Plain text only, no formatting or links")
+    guidelines.append("Plain text only, except [[npc:...]] markers for creature names")
     guidelines.append("Do NOT mention your race or class")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
@@ -953,6 +1068,7 @@ def build_plain_conversation_prompt(bot1: dict, bot2: dict, mob_name: str = None
 
     parts.append(f"Generate a casual General chat exchange between two WoW players in {bot1['zone']}.")
     parts.append(f"Speakers: {bot1['name']} and {bot2['name']}")
+    parts.append(f"IMPORTANT: When addressing each other directly (asking questions, offering items, greeting), use their name. Example: '{bot1['name']}: hey {bot2['name']} you need help?' NOT just '{bot1['name']}: hey you need help?'")
 
     # Randomly include some character details
     if random.random() < 0.4:
@@ -962,7 +1078,7 @@ def build_plain_conversation_prompt(bot1: dict, bot2: dict, mob_name: str = None
 
     # Mob context (if provided)
     if mob_name:
-        parts.append(f"A creature in the area: {mob_name} (may be mentioned)")
+        parts.append(f"A creature in the area: {mob_name} (if mentioned, include the [[npc:...]] marker exactly as shown)")
 
     # Random tone for the overall conversation
     parts.append(f"Overall tone: {pick_random_tone()}")
@@ -991,7 +1107,7 @@ def build_plain_conversation_prompt(bot1: dict, bot2: dict, mob_name: str = None
 
     # Guidelines
     guidelines = build_dynamic_guidelines()
-    guidelines.append("Plain text only")
+    guidelines.append("Plain text only, except [[npc:...]] markers for creature names")
     guidelines.append("Follow the mood sequence above")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
@@ -1013,6 +1129,7 @@ def build_quest_conversation_prompt(bot1: dict, bot2: dict, quest: dict) -> str:
 
     parts.append(f"Generate a casual General chat exchange about a quest in {bot1['zone']}.")
     parts.append(f"Speakers: {bot1['name']} and {bot2['name']}")
+    parts.append(f"IMPORTANT: When addressing each other directly (asking questions, offering help), use their name. Example: '{bot1['name']}: hey {bot2['name']} you done this quest?' NOT just '{bot1['name']}: hey you done this quest?'")
 
     # Quest info
     parts.append(f"Quest: {quest['quest_name']} (use {{{{quest:{quest['quest_name']}}}}} placeholder)")
@@ -1046,6 +1163,62 @@ def build_quest_conversation_prompt(bot1: dict, bot2: dict, quest: dict) -> str:
     # Guidelines
     guidelines = build_dynamic_guidelines()
     guidelines.append("Use quest placeholder at least once")
+    guidelines.append("Follow the mood sequence above")
+    parts.append("Guidelines: " + "; ".join(guidelines))
+
+    # JSON format instruction
+    parts.append(f"""
+Respond with EXACTLY {msg_count} messages in JSON:
+[
+  {{"speaker": "{bot1['name']}", "message": "..."}},
+  {{"speaker": "{bot2['name']}", "message": "..."}}
+]
+ONLY the JSON array, nothing else.""")
+
+    return "\n".join(parts)
+
+
+def build_loot_conversation_prompt(bot1: dict, bot2: dict, item: dict) -> str:
+    """Build a dynamically varied prompt for a loot conversation."""
+    parts = []
+
+    quality_names = {0: "gray", 1: "white", 2: "green", 3: "blue", 4: "purple"}
+    quality = quality_names.get(item.get('item_quality', 2), "green")
+    item_placeholder = f"{{{{item:{item['item_name']}}}}}"
+
+    parts.append(f"Generate a casual General chat exchange about a loot drop in {bot1['zone']}.")
+    parts.append(f"Speakers: {bot1['name']} and {bot2['name']}")
+    parts.append(f"IMPORTANT: When offering items or asking questions, use their name. Example: '{bot1['name']}: hey {bot2['name']} you need this?' NOT just '{bot1['name']}: hey you need this?'")
+
+    # Item info
+    parts.append(f"Item: {item['item_name']} ({quality} quality)")
+    parts.append(f"REQUIRED: Use {item_placeholder} placeholder when mentioning the item")
+
+    # Random tone for the overall conversation
+    parts.append(f"Overall tone: {pick_random_tone()}")
+
+    # Generate mood sequence
+    msg_count = random.randint(2, 4)
+    mood_sequence = generate_conversation_mood_sequence(msg_count)
+
+    parts.append(f"\nMOOD SEQUENCE (follow this for each message):")
+    for i, mood in enumerate(mood_sequence):
+        speaker = bot1['name'] if i % 2 == 0 else bot2['name']
+        parts.append(f"  Message {i+1} ({speaker}): {mood}")
+
+    # Loot conversation angles
+    angles = [
+        "one player got the drop and the other is jealous/congratulating",
+        "discussing if the item is good for their class",
+        "debating whether to vendor or auction it",
+        "one asking if the other needs the drop",
+        "comparing drops they've gotten today",
+    ]
+    parts.append(f"Angle: {random.choice(angles)}")
+
+    # Guidelines
+    guidelines = build_dynamic_guidelines()
+    guidelines.append("Use item placeholder at least once")
     guidelines.append("Follow the mood sequence above")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
@@ -1113,6 +1286,48 @@ def call_llm(client: Any, prompt: str, config: dict) -> str:
         return None
 
 
+def fuzzy_name_match(speaker: str, expected_name: str, max_distance: int = 2) -> bool:
+    """Check if speaker matches expected_name with tolerance for typos.
+
+    Uses simple Levenshtein-like distance: counts character differences.
+    Returns True if names match within max_distance edits.
+    """
+    s1 = speaker.lower()
+    s2 = expected_name.lower()
+
+    # Exact match
+    if s1 == s2:
+        return True
+
+    # Length difference too big
+    if abs(len(s1) - len(s2)) > max_distance:
+        return False
+
+    # Simple character-by-character comparison
+    # Count differences (substitutions, missing chars)
+    differences = 0
+    i, j = 0, 0
+    while i < len(s1) and j < len(s2):
+        if s1[i] != s2[j]:
+            differences += 1
+            # Try to align by skipping one char in longer string
+            if len(s1) > len(s2):
+                i += 1
+            elif len(s2) > len(s1):
+                j += 1
+            else:
+                i += 1
+                j += 1
+        else:
+            i += 1
+            j += 1
+
+    # Add remaining characters as differences
+    differences += (len(s1) - i) + (len(s2) - j)
+
+    return differences <= max_distance
+
+
 def parse_conversation_response(response: str, bot1_name: str, bot2_name: str) -> list:
     """Parse conversation JSON response into message list."""
     try:
@@ -1124,14 +1339,14 @@ def parse_conversation_response(response: str, bot1_name: str, bot2_name: str) -
                 speaker = msg.get('speaker', '').strip()
                 message = msg.get('message', '').strip()
                 if speaker and message:
-                    if speaker.lower() == bot1_name.lower():
+                    # Use fuzzy matching to handle minor typos in names
+                    if fuzzy_name_match(speaker, bot1_name):
                         result.append({'name': bot1_name, 'message': message})
-                    elif speaker.lower() == bot2_name.lower():
+                    elif fuzzy_name_match(speaker, bot2_name):
                         result.append({'name': bot2_name, 'message': message})
             return result
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse conversation JSON: {e}")
-        logger.debug(f"Response was: {response}")
     return []
 
 
@@ -1216,6 +1431,7 @@ def process_statement(db, cursor, client, config, request, bot: dict):
             (queue_id, sequence, bot_guid, bot_name, message, channel, deliver_at)
             VALUES (%s, 0, %s, %s, %s, %s, NOW())
         """, (request['id'], bot['guid'], bot['name'], message, channel))
+        db.commit()
 
         return True
     return False
@@ -1225,22 +1441,34 @@ def process_conversation(db, cursor, client, config, request, bot1: dict, bot2: 
     """Process a conversation request."""
     channel = 'general'
 
-    # Select message type (conversations can be plain or quest-related)
+    # Select message type (conversations can be plain, quest, or loot)
     roll = random.randint(1, 100)
-    if roll <= 75:
+    if roll <= 50:
         msg_type = "plain"
-    else:
+    elif roll <= 75:
         msg_type = "quest"
+    else:
+        msg_type = "loot"
 
-    logger.info(f"Conversation type: {msg_type}")
-
-    # Get quest data if needed
+    # Get quest/loot data if needed
     quest_data = None
+    item_data = None
+
     if msg_type == "quest":
         quests = query_zone_quests(config, request.get('zone_id', 0), bot1['level'])
         if quests:
             quest_data = random.choice(quests)
             logger.info(f"Selected quest: {quest_data['quest_name']}")
+        else:
+            msg_type = "plain"
+
+    if msg_type == "loot":
+        loot = query_zone_loot(config, request.get('zone_id', 0), bot1['level'])
+        if loot:
+            quality_weights = {0: 30, 1: 30, 2: 25, 3: 12, 4: 3}
+            weights = [quality_weights.get(item.get('item_quality', 2), 10) for item in loot]
+            item_data = random.choices(loot, weights=weights, k=1)[0]
+            logger.info(f"Selected loot for conversation: {item_data['item_name']}")
         else:
             msg_type = "plain"
 
@@ -1254,8 +1482,10 @@ def process_conversation(db, cursor, client, config, request, bot1: dict, bot2: 
                 mob_name = random.choice(mobs)
                 logger.debug(f"Including mob context in conversation: {mob_name}")
         prompt = build_plain_conversation_prompt(bot1, bot2, mob_name)
-    else:
+    elif msg_type == "quest":
         prompt = build_quest_conversation_prompt(bot1, bot2, quest_data)
+    else:  # loot
+        prompt = build_loot_conversation_prompt(bot1, bot2, item_data)
 
     # Call LLM
     response = call_llm(client, prompt, config)
@@ -1271,7 +1501,7 @@ def process_conversation(db, cursor, client, config, request, bot1: dict, bot2: 
                 bot_guid = bot1['guid'] if msg['name'] == bot1['name'] else bot2['guid']
 
                 # Replace placeholders and cleanup
-                final_message = replace_placeholders(msg['message'], quest_data, None)
+                final_message = replace_placeholders(msg['message'], quest_data, item_data)
                 final_message = cleanup_message(final_message)
 
                 if i > 0:
@@ -1286,6 +1516,7 @@ def process_conversation(db, cursor, client, config, request, bot1: dict, bot2: 
 
                 logger.info(f"  [{i}] +{cumulative_delay:.1f}s {msg['name']}: {final_message}")
 
+            db.commit()
             return True
     return False
 
@@ -1362,8 +1593,6 @@ def process_pending_requests(db, client: anthropic.Anthropic, config: dict):
 
     except Exception as e:
         logger.error(f"Error processing request #{request_id}: {e}")
-        import traceback
-        traceback.print_exc()
         cursor.execute(
             "UPDATE llm_chatter_queue SET status = 'failed' WHERE id = %s",
             (request_id,)
@@ -1412,16 +1641,22 @@ def main():
     poll_interval = int(config.get('LLMChatter.Bridge.PollIntervalSeconds', 3))
 
     logger.info("=" * 60)
-    logger.info("LLM Chatter Bridge v3.0 - Multi-Provider Support")
+    logger.info("LLM Chatter Bridge v3.1")
     logger.info("=" * 60)
     logger.info(f"Provider: {provider}")
     logger.info(f"Model: {model} (alias: {model_alias})")
     logger.info(f"Poll interval: {poll_interval}s")
+    logger.info(f"Max tokens: {config.get('LLMChatter.MaxTokens', 200)}")
     logger.info(f"Message type distribution: {MSG_TYPE_PLAIN}% plain, "
                 f"{MSG_TYPE_QUEST - MSG_TYPE_PLAIN}% quest, "
                 f"{MSG_TYPE_LOOT - MSG_TYPE_QUEST}% loot, "
                 f"{MSG_TYPE_QUEST_REWARD - MSG_TYPE_LOOT}% quest+reward")
     logger.info("=" * 60)
+
+    # Wait for database to be ready (handles Docker startup order)
+    if not wait_for_database(config):
+        logger.error("Could not connect to database. Exiting.")
+        sys.exit(1)
 
     # Main loop
     while True:
@@ -1441,8 +1676,6 @@ def main():
             break
         except Exception as e:
             logger.error(f"Unexpected error: {e}")
-            import traceback
-            traceback.print_exc()
             time.sleep(poll_interval)
 
 
