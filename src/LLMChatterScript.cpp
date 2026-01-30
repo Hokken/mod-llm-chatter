@@ -480,14 +480,34 @@ private:
         // Shuffle bots and pick
         std::shuffle(bots.begin(), bots.end(), g);
 
+        // For conversations, randomly decide 2-4 participants based on available bots
+        uint32 botCount = 1;
+        if (isConversation)
+        {
+            // Determine max possible bots (2-4, limited by available bots)
+            uint32 maxBots = std::min(static_cast<uint32>(bots.size()), 4u);
+            // Randomly pick 2-4 bots with weighted distribution (2 bots more common)
+            // 50% chance for 2 bots, 30% for 3 bots, 20% for 4 bots
+            uint32 roll = urand(1, 100);
+            if (roll <= 50 || maxBots == 2)
+                botCount = 2;
+            else if (roll <= 80 || maxBots == 3)
+                botCount = std::min(3u, maxBots);
+            else
+                botCount = maxBots;
+        }
+
         Player* bot1 = bots[0];
-        Player* bot2 = isConversation ? bots[1] : nullptr;
+        Player* bot2 = (botCount >= 2) ? bots[1] : nullptr;
+        Player* bot3 = (botCount >= 3) ? bots[2] : nullptr;
+        Player* bot4 = (botCount >= 4) ? bots[3] : nullptr;
 
         // Queue the request
-        QueueChatterRequest(bot1, bot2, isConversation, zoneName, selectedZone);
+        QueueChatterRequest(bot1, bot2, bot3, bot4, botCount, isConversation, zoneName, selectedZone);
     }
 
-    void QueueChatterRequest(Player* bot1, Player* bot2, bool isConversation, const std::string& zoneName, uint32 zoneId)
+    void QueueChatterRequest(Player* bot1, Player* bot2, Player* bot3, Player* bot4,
+                             uint32 botCount, bool isConversation, const std::string& zoneName, uint32 zoneId)
     {
         std::string requestType = isConversation ? "conversation" : "statement";
         std::string bot1Name = bot1->GetName();
@@ -511,24 +531,59 @@ private:
             std::string bot2Race = GetRaceName(bot2->getRace());
             uint8 bot2Level = bot2->GetLevel();
 
-            CharacterDatabase.Execute(
-                "INSERT INTO llm_chatter_queue "
-                "(request_type, bot1_guid, bot1_name, bot1_class, bot1_race, bot1_level, bot1_zone, zone_id, "
-                "bot2_guid, bot2_name, bot2_class, bot2_race, bot2_level, status) "
-                "VALUES ('{}', {}, '{}', '{}', '{}', {}, '{}', {}, {}, '{}', '{}', '{}', {}, 'pending')",
+            // Build the SQL dynamically based on how many bots we have
+            std::string columns = "request_type, bot1_guid, bot1_name, bot1_class, bot1_race, bot1_level, bot1_zone, zone_id, bot_count, "
+                                  "bot2_guid, bot2_name, bot2_class, bot2_race, bot2_level";
+            std::string values = fmt::format("'{}', {}, '{}', '{}', '{}', {}, '{}', {}, {}, {}, '{}', '{}', '{}', {}",
                 requestType,
-                bot1->GetGUID().GetCounter(), bot1Name, bot1Class, bot1Race, bot1Level, escapedZoneName, zoneId,
+                bot1->GetGUID().GetCounter(), bot1Name, bot1Class, bot1Race, bot1Level, escapedZoneName, zoneId, botCount,
                 bot2->GetGUID().GetCounter(), bot2Name, bot2Class, bot2Race, bot2Level);
 
-            LOG_INFO("module", "LLMChatter: Queued conversation in {} between {} ({} {}) and {} ({} {})",
-                     zoneName, bot1Name, bot1Race, bot1Class, bot2Name, bot2Race, bot2Class);
+            // Add bot3 if present
+            if (bot3)
+            {
+                std::string bot3Name = bot3->GetName();
+                std::string bot3Class = GetClassName(bot3->getClass());
+                std::string bot3Race = GetRaceName(bot3->getRace());
+                uint8 bot3Level = bot3->GetLevel();
+                columns += ", bot3_guid, bot3_name, bot3_class, bot3_race, bot3_level";
+                values += fmt::format(", {}, '{}', '{}', '{}', {}",
+                    bot3->GetGUID().GetCounter(), bot3Name, bot3Class, bot3Race, bot3Level);
+            }
+
+            // Add bot4 if present
+            if (bot4)
+            {
+                std::string bot4Name = bot4->GetName();
+                std::string bot4Class = GetClassName(bot4->getClass());
+                std::string bot4Race = GetRaceName(bot4->getRace());
+                uint8 bot4Level = bot4->GetLevel();
+                columns += ", bot4_guid, bot4_name, bot4_class, bot4_race, bot4_level";
+                values += fmt::format(", {}, '{}', '{}', '{}', {}",
+                    bot4->GetGUID().GetCounter(), bot4Name, bot4Class, bot4Race, bot4Level);
+            }
+
+            columns += ", status";
+            values += ", 'pending'";
+
+            CharacterDatabase.Execute("INSERT INTO llm_chatter_queue ({}) VALUES ({})", columns, values);
+
+            if (botCount == 2)
+                LOG_INFO("module", "LLMChatter: Queued {}-bot conversation in {} between {} and {}",
+                         botCount, zoneName, bot1Name, bot2Name);
+            else if (botCount == 3)
+                LOG_INFO("module", "LLMChatter: Queued {}-bot conversation in {} between {}, {}, and {}",
+                         botCount, zoneName, bot1Name, bot2Name, bot3->GetName());
+            else
+                LOG_INFO("module", "LLMChatter: Queued {}-bot conversation in {} between {}, {}, {}, and {}",
+                         botCount, zoneName, bot1Name, bot2Name, bot3->GetName(), bot4->GetName());
         }
         else
         {
             CharacterDatabase.Execute(
                 "INSERT INTO llm_chatter_queue "
-                "(request_type, bot1_guid, bot1_name, bot1_class, bot1_race, bot1_level, bot1_zone, zone_id, status) "
-                "VALUES ('{}', {}, '{}', '{}', '{}', {}, '{}', {}, 'pending')",
+                "(request_type, bot1_guid, bot1_name, bot1_class, bot1_race, bot1_level, bot1_zone, zone_id, bot_count, status) "
+                "VALUES ('{}', {}, '{}', '{}', '{}', {}, '{}', {}, 1, 'pending')",
                 requestType,
                 bot1->GetGUID().GetCounter(), bot1Name, bot1Class, bot1Race, bot1Level, escapedZoneName, zoneId);
 

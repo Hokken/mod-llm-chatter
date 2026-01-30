@@ -78,9 +78,9 @@ LLMChatter.MessageDelayMin = 1000
 #   LLMChatter.MessageDelayMax
 #       Maximum delay (ms) between conversation messages
 #       Used as upper bound for dynamic delay calculation
-#       Default: 8000
+#       Default: 30000
 #
-LLMChatter.MessageDelayMax = 8000
+LLMChatter.MessageDelayMax = 30000
 
 ###############################################################################
 # LLM API SETTINGS (Used by Python bridge)

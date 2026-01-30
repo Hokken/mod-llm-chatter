@@ -161,6 +161,296 @@ ZONE_COORDINATES = {
     210: (571, 5600, 8700, 400, 3800),      # Icecrown
 }
 
+# =============================================================================
+# ZONE FLAVOR - Rich context for immersive chat generation
+# =============================================================================
+# Each zone gets a description paragraph that gives the LLM world knowledge.
+# The LLM uses this as creative inspiration, not a template to copy.
+ZONE_FLAVOR = {
+    # -------------------------------------------------------------------------
+    # Eastern Kingdoms - Alliance Starting Zones
+    # -------------------------------------------------------------------------
+    1: """Dun Morogh: Snowy dwarven highlands surrounding Ironforge. Troggs have
+invaded from underground, and hostile ice trolls lurk in the mountains. Coldridge
+Valley is where young dwarves and gnomes begin their journey. The air is crisp,
+the ale is strong, and the mountains echo with the sound of gunfire and hammers.""",
+
+    12: """Elwynn Forest: Peaceful human farmland outside Stormwind, but trouble
+brews beneath the surface. Kobolds infest the mines crying "you no take candle,"
+the Defias Brotherhood threatens the roads, and gnolls raid from the borders.
+Goldshire inn is always lively. A deceptively calm zone with danger lurking.""",
+
+    38: """Loch Modan: A mountainous region dominated by a massive lake. Troggs
+and kobolds plague the area, while Dark Iron dwarves cause trouble near the dam.
+The great dam is an engineering marvel. Thelsamar is a quiet town of hunters and
+excavators. The landscape feels rugged and frontier-like.""",
+
+    40: """Westfall: Once fertile farmland, now dusty and abandoned. The Defias
+Brotherhood controls much of the region from their hidden base. Homeless farmers
+wander the roads, mechanical harvest watchers patrol empty fields, and gnolls
+scavenge the edges. Sentinel Hill stands as the last bastion of order.""",
+
+    44: """Redridge Mountains: A besieged human territory. Blackrock orcs pour
+down from the mountains, gnolls roam freely, and the town of Lakeshire desperately
+holds on. The bridge is always under threat. A zone that feels like a warfront,
+with citizens caught in the crossfire.""",
+
+    10: """Duskwood: Perpetually dark, cursed forest shrouded in eternal night.
+Undead shamble through the woods, worgen howl in the darkness, and giant spiders
+lurk everywhere. Darkshire's Night Watch barely holds back the horrors. An
+unsettling zone where something terrible happened and the land never recovered.""",
+
+    11: """Wetlands: Soggy marshland connecting the dwarven lands to Lordaeron.
+Hostile crocolisks and raptors everywhere, Dark Iron dwarves scheme in the hills,
+and dragonkin threaten from the northeast. Menethil Harbor is a rain-soaked port
+town. Everything here is damp and slightly miserable.""",
+
+    # -------------------------------------------------------------------------
+    # Eastern Kingdoms - Horde Starting Zones
+    # -------------------------------------------------------------------------
+    85: """Tirisfal Glades: Haunted forest surrounding the Undercity. The land
+itself feels diseased - sickly trees, green fog, and restless undead. Scarlet
+Crusade zealots hunt anything undead, while mindless zombies and bats roam freely.
+Brill is a grim town of the Forsaken. The atmosphere is gothic and melancholic.""",
+
+    130: """Silverpine Forest: Dark, misty woods south of Tirisfal. Worgen have
+overrun much of the forest, and the Scourge presence lingers. Shadowfang Keep
+looms ominously. The Forsaken fight for every inch of territory. A zone caught
+between multiple threats, feeling isolated and dangerous.""",
+
+    267: """Hillsbrad Foothills: Contested farmland where Horde and Alliance
+clash openly. Southshore and Tarren Mill are in constant conflict. Yetis roam
+the mountains, and the Syndicate bandits cause trouble. A zone defined by
+faction warfare and old grudges.""",
+
+    # -------------------------------------------------------------------------
+    # Eastern Kingdoms - Mid-Level Zones
+    # -------------------------------------------------------------------------
+    47: """The Hinterlands: Remote forested highlands, home to the Wildhammer
+dwarves and forest trolls locked in eternal conflict. Wolves and owlbeasts roam
+the wilds. Aerie Peak sits atop a massive cliff. The zone feels untamed and
+far from civilization.""",
+
+    45: """Arathi Highlands: Rolling grasslands dotted with ancient ruins. The
+Syndicate controls Stromgarde's ruins, ogres inhabit the caves, and raptors hunt
+the plains. Refuge Pointe and Hammerfall eye each other warily. A windswept
+frontier zone with echoes of fallen kingdoms.""",
+
+    33: """Stranglethorn Vale: Dense, dangerous jungle teeming with life. Trolls,
+pirates, raptors, tigers, and gorillas everywhere. Booty Bay is a lawless goblin
+port where anything goes. Nesingwary's hunting expedition draws adventurers.
+The zone is beautiful but deadly - something wants to eat you around every corner.""",
+
+    3: """Badlands: Harsh, barren desert of red rock and dust. Hostile troggs,
+coyotes, and black dragon whelps make travel dangerous. Scattered archaeology
+sites hint at ancient secrets. Kargath is a rough Horde outpost. A zone that
+feels desolate and unforgiving.""",
+
+    8: """Swamp of Sorrows: Murky, depressing swampland. Lost ones wander aimlessly,
+jaguars stalk the waters, and the Temple of Atal'Hakkar draws dark worshippers.
+Everything is wet, muddy, and slightly hopeless. A forgotten corner of the world.""",
+
+    4: """Blasted Lands: Scarred wasteland corrupted by the Dark Portal's energies.
+Demons, mutated wildlife, and fel creatures roam freely. The very ground feels
+wrong. Nethergarde Keep watches the Portal nervously. A zone that feels like the
+edge of the world, where everything went wrong.""",
+
+    51: """Searing Gorge: Volcanic wasteland controlled by Dark Iron dwarves.
+Lava flows, fire elementals, and slag pits dominate the landscape. Thorium Point
+is a small outpost of resistance. Brutally hot and industrially ravaged.""",
+
+    46: """Burning Steppes: Blackrock orcs and black dragons rule this scorched
+land. The Blackrock Spire looms overhead. Fire elementals and dragonkin patrol.
+A high-level warzone where the Dark Horde masses its forces.""",
+
+    # -------------------------------------------------------------------------
+    # Eastern Kingdoms - Plaguelands
+    # -------------------------------------------------------------------------
+    28: """Western Plaguelands: Diseased farmland crawling with undead. Andorhal
+is a ruined city contested by multiple factions. The Scourge presence is heavy,
+and Cauldrons spread plague across the land. The Scarlet Crusade fights
+fanatically. A zone of death, disease, and desperate struggles.""",
+
+    139: """Eastern Plaguelands: The Scourge's heartland. Undead everywhere -
+ghouls, abominations, necromancers. Stratholme burns eternally, Naxxramas floats
+overhead. Light's Hope Chapel is humanity's last stand. The most corrupted,
+dangerous zone on the continent. Hope is scarce here.""",
+
+    41: """Deadwind Pass: Desolate canyon leading to Karazhan. Deadwind ogres lurk
+in caves, restless spirits wander, and demonic corruption seeps from the tower.
+The land itself feels drained of life. Creepy, empty, and ominous - something
+terrible happened here.""",
+
+    # -------------------------------------------------------------------------
+    # Kalimdor - Alliance Starting Zones
+    # -------------------------------------------------------------------------
+    141: """Teldrassil: Massive world tree home to the night elves. The forest
+is ancient and magical but something feels wrong - corruption spreads through
+the wildlife. Gnarlpine furbolgs have gone hostile, and timberlings cause trouble.
+Darnassus sits serenely above. Beautiful but troubled.""",
+
+    148: """Darkshore: Long, misty coastline with an eerie atmosphere. Ancient
+night elf ruins scatter the landscape. Murlocs and naga plague the beaches,
+corrupted wildlife roams the forests. Auberdine is the main hub but feels
+isolated. Something dark is corrupting the land.""",
+
+    # -------------------------------------------------------------------------
+    # Kalimdor - Horde Starting Zones
+    # -------------------------------------------------------------------------
+    14: """Durotar: Harsh, rocky desert home to the orcs. Scorpids, raptors, and
+boars roam the red canyons. Quilboar raid from the south, and Burning Blade
+cultists hide in caves. Orgrimmar's gates welcome warriors. A zone that embodies
+the Horde's strength through adversity.""",
+
+    215: """Mulgore: Peaceful rolling plains of the tauren. Kodo beasts graze
+lazily, but harpies swoop from the mountains and Venture Co. goblins exploit the
+land. Thunder Bluff rises on its mesas. The most serene Horde zone - wide skies
+and gentle winds, though danger lurks at the edges.""",
+
+    # -------------------------------------------------------------------------
+    # Kalimdor - Mid-Level Zones
+    # -------------------------------------------------------------------------
+    17: """The Barrens: Vast, dry savanna stretching endlessly. Centaur, quilboar,
+raptors, lions, and zhevra everywhere. The Crossroads is a major hub where
+adventurers gather. Known for long travel times and memorable general chat.
+A defining Horde leveling experience.""",
+
+    331: """Ashenvale: Ancient night elf forest under siege. The Horde pushes in
+from the east, demons lurk in the shadows, and furbolgs have gone mad. Astranaar
+and Splintertree outpost represent the faction conflict. A beautiful forest
+marred by war and corruption.""",
+
+    405: """Desolace: Barren, grey wasteland. Centaur tribes war endlessly with
+each other and everyone else. Kodo graveyards dot the landscape. The zone feels
+empty and hopeless - even the sky seems drained of color. One of the most
+depressing places in Azeroth.""",
+
+    400: """Thousand Needles: Dramatic canyon of towering stone spires. Before
+the Cataclysm, a dry desert floor with the Shimmering Flats raceway. Centaur
+and harpies control various pillars. The Great Lift connects to the Barrens.
+Visually stunning but harsh to travel.""",
+
+    15: """Dustwallow Marsh: Hot, humid swampland. Black dragons scheme in the
+south, hostile crocolisks and spiders lurk in the murk, and Theramore stands as
+an Alliance fortress. The ruins of a burned inn hint at darker plots.
+Oppressively muggy and dangerous.""",
+
+    357: """Feralas: Lush, overgrown jungle and forest. Yetis in the mountains,
+naga on the coast, ogres and gnolls throughout. Twin Colossals are massive trees,
+and Dire Maul's ruins loom large. A wild, untamed zone that swallows travelers.""",
+
+    440: """Tanaris: Scorching desert surrounding the goblin port of Gadgetzan.
+Pirates, bandits, basilisks, and silithid insects everywhere. Zul'Farrak's trolls
+are hostile. The Caverns of Time hide nearby. Blazing hot during the day, the
+desert is unforgiving but profitable.""",
+
+    16: """Azshara: Ruined night elf coastline, hauntingly beautiful but empty.
+Naga control much of the shore, and the Blue Dragonflight maintains a presence.
+Giant sea creatures roam, and Legion remnants linger at Forlorn Ridge. The zone
+feels abandoned and sad - a monument to what was lost.""",
+
+    361: """Felwood: Corrupted forest oozing with demonic taint. Slimes, satyrs,
+and corrupted wildlife plague every corner. The trees themselves seem sick.
+Timbermaw furbolgs are wary but neutral; Deadwood furbolgs are hostile. A zone
+that makes you feel unclean just passing through.""",
+
+    490: """Un'Goro Crater: Prehistoric jungle crater teeming with dinosaurs.
+Devilsaurs are apex predators, raptors hunt in packs, and elementals guard
+pylons. It's like stepping back in time - lush, dangerous, and full of wonder.
+Crystal formations hold mysterious power.""",
+
+    493: """Moonglade: Sacred druid sanctuary. Largely peaceful and safe, with
+few hostile creatures. The Cenarion Circle gathers here, and the zone feels
+timeless and serene - a respite from the chaos of the world. Druids meet at
+Nighthaven.""",
+
+    618: """Winterspring: Frozen highland of eternal winter. Frostsaber cats,
+yetis, and ice giants roam the snow. Everlook is a goblin town of questionable
+dealings. Winterfall furbolgs are hostile throughout. Beautiful but deadly cold,
+the zone rewards only the well-prepared.""",
+
+    1377: """Silithus: Desert wasteland swarming with silithid insects. The
+Qiraji threat looms from Ahn'Qiraj. Cenarion Circle druids fight desperately
+against the hive. Sand storms, giant bugs, and an overwhelming sense that
+something ancient and evil stirs beneath the sands.""",
+
+    # -------------------------------------------------------------------------
+    # Outland
+    # -------------------------------------------------------------------------
+    3483: """Hellfire Peninsula: Shattered red wasteland, first zone through the
+Dark Portal. Fel orcs, demons, and Burning Legion forces everywhere. Honor Hold
+and Thrallmar are the faction bases. The sky is torn, the ground is cracked,
+and war rages constantly. Brutal introduction to Outland.""",
+
+    3521: """Zangarmarsh: Surreal mushroom swamp glowing with bioluminescence.
+Giant fungi tower overhead, sporebats float lazily, and naga drain the waters.
+Cenarion Refuge works to save the ecosystem. Strangely beautiful and alien -
+nothing here looks like Azeroth.""",
+
+    3518: """Nagrand: Floating islands and lush green plains - Outland's last
+paradise. Clefthoof and talbuks graze peacefully, but ogres and the Burning
+Blade threaten the land. Garadar and Telaar represent the factions. The most
+beautiful zone in Outland, a reminder of what Draenor once was.""",
+
+    3519: """Terokkar Forest: Divided between lush forest and the bone-littered
+wastes around Auchindoun. Arakkoa lurk in the trees, and the Shadow Council
+conducts dark rituals. Shattrath City is the neutral capital. A zone of
+contrasts between life and death.""",
+
+    3522: """Blade's Edge Mountains: Jagged, hostile landscape of towering spikes.
+Ogres rule here, and gronn giants are the apex predators. The Burning Legion
+maintains outposts, and dragons circle overhead. Dangerous terrain where the
+land itself seems to want to kill you.""",
+
+    3520: """Shadowmoon Valley: Dark, fel-corrupted wasteland. The Black Temple
+looms ominously, and Illidan's forces control the region. Demons, fel orcs, and
+death knights patrol. The sky burns green. The most dangerous and oppressive
+zone in Outland - hope feels distant here.""",
+
+    3523: """Netherstorm: Shattered islands floating in the Twisting Nether.
+Mana forges harvest the land's energy, blood elves and ethereals compete for
+resources, and mana creatures roam wildly. The eco-domes preserve life
+artificially. A zone tearing itself apart at the seams.""",
+
+    # -------------------------------------------------------------------------
+    # Northrend
+    # -------------------------------------------------------------------------
+    3537: """Borean Tundra: Frozen coastal tundra, one of two entry points to
+Northrend. Nerubians burrow beneath, the Scourge probes defenses, and tuskarr
+fish the shores. Warsong Hold and Valiance Keep are the faction strongholds.
+The cold bites hard - winter is just beginning.""",
+
+    495: """Howling Fjord: Dramatic Viking-inspired coastline with towering
+cliffs. Vrykul warriors raid from their villages, and the Scourge corrupts the
+dead. Valgarde and Vengeance Landing are the landing points. The fjords are
+breathtaking but the vrykul are relentless.""",
+
+    394: """Grizzly Hills: Forested frontier that feels almost peaceful. Furbolgs
+corrupted by the Scourge, iron dwarves dig for secrets, and the worgen curse
+spreads. Logging operations scar the hillsides. A zone that would be beautiful
+if not for the creeping corruption.""",
+
+    3711: """Sholazar Basin: Lush jungle crater untouched by the Scourge,
+maintained by titan technology. Dinosaurs, gorillas, and exotic beasts thrive.
+The Frenzyheart and Oracles wage petty war. An unexpected paradise in frozen
+Northrend - but something threatens the pylons.""",
+
+    66: """Zul'Drak: Frozen troll kingdom in collapse. The Drakkari sacrifice
+their own gods to fight the Scourge. Undead and desperate trolls clash
+everywhere. The zone feels like watching a civilization die - grim, cold,
+and hopeless.""",
+
+    67: """Storm Peaks: Towering frozen mountains home to titan secrets. Storm
+giants, iron dwarves, and proto-drakes dominate. Ulduar's entrance looms above.
+The Sons of Hodir are wary of outsiders. Epic scale, brutal conditions,
+ancient mysteries.""",
+
+    210: """Icecrown: The Lich King's domain. Endless undead armies, necropolis
+fortresses, and the Icecrown Citadel itself. The Argent Crusade makes its final
+stand. The air itself feels dead. This is the end of the road - victory
+or oblivion.""",
+}
+
 # Item quality colors for WoW links (FF prefix for alpha channel)
 ITEM_QUALITY_COLORS = {
     0: "FF9d9d9d",  # Poor (Gray)
@@ -319,6 +609,15 @@ def get_zone_level_range(zone_id: int, bot_level: int) -> Tuple[int, int]:
         return ZONE_LEVELS[zone_id]
     # Fallback: use bot level +/- 5
     return (max(1, bot_level - 5), bot_level + 5)
+
+
+def get_zone_flavor(zone_id: int) -> Optional[str]:
+    """Get rich zone flavor text for immersive context.
+
+    Returns a paragraph describing the zone's atmosphere, dangers, and feel.
+    Returns None if zone not in ZONE_FLAVOR.
+    """
+    return ZONE_FLAVOR.get(zone_id)
 
 
 def can_class_use_item(class_name: str, allowable_class: int) -> bool:
@@ -680,25 +979,31 @@ def calculate_dynamic_delay(message_length: int, config: dict) -> float:
     But very short replies (ty, np, lol) can be quick.
     """
     min_delay = int(config.get('LLMChatter.MessageDelayMin', 1000)) / 1000.0
-    max_delay = int(config.get('LLMChatter.MessageDelayMax', 15000)) / 1000.0
+    max_delay = int(config.get('LLMChatter.MessageDelayMax', 30000)) / 1000.0
 
-    # Very short messages (ty, np, lol, yes, no) - can be quick replies
+    # Very short messages (ty, np, lol, yes, no) - quick replies
     if message_length < 10:
-        if random.random() < 0.3:
-            return random.uniform(2.0, 4.0)
+        if random.random() < 0.4:
+            return random.uniform(2.0, 5.0)  # Quick response
         else:
-            return random.uniform(4.0, 10.0)
+            return random.uniform(5.0, 12.0)  # Slightly distracted
 
     # Short messages (< 30 chars) - moderate delays
     elif message_length < 30:
-        typing_time = message_length / random.uniform(4.0, 7.0)
-        distraction = random.triangular(2.0, 12.0, 8.0)
+        typing_time = message_length / random.uniform(3.0, 8.0)  # Varied typing speed
+        distraction = random.uniform(3.0, 15.0)  # Flat random, not clustered
         return min(typing_time + distraction, max_delay)
 
-    # Longer messages - longer delays
+    # Medium messages (30-80 chars)
+    elif message_length < 80:
+        typing_time = message_length / random.uniform(2.5, 6.0)
+        distraction = random.uniform(5.0, 18.0)
+        return min(typing_time + distraction, max_delay)
+
+    # Longer messages - longer delays (player taking time to type)
     else:
-        typing_time = message_length / random.uniform(3.0, 6.0)
-        distraction = random.triangular(4.0, 15.0, 10.0)
+        typing_time = message_length / random.uniform(2.0, 5.0)
+        distraction = random.uniform(8.0, 22.0)
         return min(typing_time + distraction, max_delay)
 
 
@@ -881,20 +1186,26 @@ def build_dynamic_guidelines(include_humor: bool = None,
 # =============================================================================
 # PROMPT BUILDERS
 # =============================================================================
-def build_plain_statement_prompt(bot: dict, mob_name: str = None) -> str:
+def build_plain_statement_prompt(bot: dict, zone_id: int = 0, zone_mobs: list = None) -> str:
     """Build a dynamically varied prompt for a plain text statement."""
     parts = []
 
     # Core context (always include zone)
     parts.append(f"Generate a brief WoW General chat message from a player in {bot['zone']}.")
 
+    # Zone flavor - rich context about the zone's atmosphere and feel
+    zone_flavor = get_zone_flavor(zone_id)
+    if zone_flavor:
+        parts.append(f"Zone context: {zone_flavor}")
+
     # Randomly include level (60% chance)
     if random.random() < 0.6:
         parts.append(f"Player level: {bot['level']}")
 
-    # Mob context (if provided, make it optional)
-    if mob_name:
-        parts.append(f"A creature nearby: {mob_name} (if you mention this creature, include the [[npc:...]] marker exactly as shown)")
+    # Zone creature context - tells the LLM what actually exists in this zone
+    if zone_mobs:
+        parts.append(f"Creatures here: {', '.join(zone_mobs)}")
+        parts.append("IMPORTANT: If mentioning any creature, ONLY use ones from the list above. Include the [[npc:...]] marker exactly as shown.")
 
     # Random tone and mood - these shape the personality
     parts.append(f"Tone: {pick_random_tone()}")
@@ -908,6 +1219,8 @@ def build_plain_statement_prompt(bot: dict, mob_name: str = None) -> str:
     guidelines = build_dynamic_guidelines()
     guidelines.append("Plain text only, except [[npc:...]] markers for creature names")
     guidelines.append("Do NOT mention your race or class")
+    if zone_mobs:
+        guidelines.append("Only mention creatures from the provided list - do NOT invent creatures")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
     parts.append("Respond with ONLY the message, nothing else.")
@@ -1062,34 +1375,55 @@ def build_quest_reward_statement_prompt(bot: dict, quest: dict) -> str:
     return "\n".join(parts)
 
 
-def build_plain_conversation_prompt(bot1: dict, bot2: dict, mob_name: str = None) -> str:
-    """Build a dynamically varied prompt for a plain conversation."""
+def build_plain_conversation_prompt(bots: List[dict], zone_id: int = 0, zone_mobs: list = None) -> str:
+    """Build a dynamically varied prompt for a plain conversation with 2-4 bots.
+
+    Args:
+        bots: List of 2-4 bot dicts with name, race, class, level, zone
+        zone_id: Zone ID for flavor text lookup
+        zone_mobs: Optional list of mob markers from the zone
+    """
     parts = []
+    bot_count = len(bots)
+    bot_names = [b['name'] for b in bots]
 
-    parts.append(f"Generate a casual General chat exchange between two WoW players in {bot1['zone']}.")
-    parts.append(f"Speakers: {bot1['name']} and {bot2['name']}")
-    parts.append(f"IMPORTANT: When addressing each other directly (asking questions, offering items, greeting), use their name. Example: '{bot1['name']}: hey {bot2['name']} you need help?' NOT just '{bot1['name']}: hey you need help?'")
+    if bot_count == 2:
+        parts.append(f"Generate a casual General chat exchange between two WoW players in {bots[0]['zone']}.")
+    else:
+        parts.append(f"Generate a casual General chat exchange between {bot_count} WoW players in {bots[0]['zone']}.")
 
-    # Randomly include some character details
-    if random.random() < 0.4:
-        parts.append(f"{bot1['name']} is a {bot1['race']} {bot1['class']}")
-    if random.random() < 0.4:
-        parts.append(f"{bot2['name']} is a {bot2['race']} {bot2['class']}")
+    # Zone flavor - rich context about the zone's atmosphere and feel
+    zone_flavor = get_zone_flavor(zone_id)
+    if zone_flavor:
+        parts.append(f"Zone context: {zone_flavor}")
 
-    # Mob context (if provided)
-    if mob_name:
-        parts.append(f"A creature in the area: {mob_name} (if mentioned, include the [[npc:...]] marker exactly as shown)")
+    parts.append(f"Speakers: {', '.join(bot_names)}")
+    parts.append(f"Names: Sometimes use their name when addressing directly (maybe 1-2 times in a conversation), but not every message - vary it naturally like real players.")
+
+    # Randomly include some character details (40% chance per bot)
+    for bot in bots:
+        if random.random() < 0.4:
+            parts.append(f"{bot['name']} is a {bot['race']} {bot['class']}")
+
+    # Zone creature context - tells the LLM what actually exists in this zone
+    if zone_mobs:
+        parts.append(f"Creatures here: {', '.join(zone_mobs)}")
+        parts.append("IMPORTANT: If mentioning any creature, ONLY use ones from the list above. Include the [[npc:...]] marker exactly as shown.")
 
     # Random tone for the overall conversation
     parts.append(f"Overall tone: {pick_random_tone()}")
 
     # Generate mood sequence - this is the "script" the LLM must follow
-    msg_count = random.randint(2, 5)
+    # More messages for more participants
+    min_msgs = bot_count
+    max_msgs = bot_count + 3
+    msg_count = random.randint(min_msgs, max_msgs)
     mood_sequence = generate_conversation_mood_sequence(msg_count)
 
     parts.append(f"\nMOOD SEQUENCE (follow this for each message):")
     for i, mood in enumerate(mood_sequence):
-        speaker = bot1['name'] if i % 2 == 0 else bot2['name']
+        # Cycle through speakers
+        speaker = bot_names[i % bot_count]
         parts.append(f"  Message {i+1} ({speaker}): {mood}")
 
     # Conversation topics to suggest
@@ -1109,27 +1443,36 @@ def build_plain_conversation_prompt(bot1: dict, bot2: dict, mob_name: str = None
     guidelines = build_dynamic_guidelines()
     guidelines.append("Plain text only, except [[npc:...]] markers for creature names")
     guidelines.append("Follow the mood sequence above")
+    if zone_mobs:
+        guidelines.append("Only mention creatures from the provided list - do NOT invent creatures")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
-    # JSON format instruction
+    # JSON format instruction with examples for all speakers
+    example_msgs = ',\n  '.join([f'{{"speaker": "{name}", "message": "..."}}' for name in bot_names])
     parts.append(f"""
 Respond with EXACTLY {msg_count} messages in JSON:
 [
-  {{"speaker": "{bot1['name']}", "message": "..."}},
-  {{"speaker": "{bot2['name']}", "message": "..."}}
+  {example_msgs}
 ]
 ONLY the JSON array, nothing else.""")
 
     return "\n".join(parts)
 
 
-def build_quest_conversation_prompt(bot1: dict, bot2: dict, quest: dict) -> str:
-    """Build a dynamically varied prompt for a quest conversation."""
-    parts = []
+def build_quest_conversation_prompt(bots: List[dict], quest: dict) -> str:
+    """Build a dynamically varied prompt for a quest conversation with 2-4 bots.
 
-    parts.append(f"Generate a casual General chat exchange about a quest in {bot1['zone']}.")
-    parts.append(f"Speakers: {bot1['name']} and {bot2['name']}")
-    parts.append(f"IMPORTANT: When addressing each other directly (asking questions, offering help), use their name. Example: '{bot1['name']}: hey {bot2['name']} you done this quest?' NOT just '{bot1['name']}: hey you done this quest?'")
+    Args:
+        bots: List of 2-4 bot dicts with name, race, class, level, zone
+        quest: Quest data dict with quest_name, description, etc.
+    """
+    parts = []
+    bot_count = len(bots)
+    bot_names = [b['name'] for b in bots]
+
+    parts.append(f"Generate a casual General chat exchange about a quest in {bots[0]['zone']}.")
+    parts.append(f"Speakers: {', '.join(bot_names)}")
+    parts.append(f"Names: Sometimes use their name when addressing directly (maybe 1-2 times in a conversation), but not every message - vary it naturally.")
 
     # Quest info
     parts.append(f"Quest: {quest['quest_name']} (use {{{{quest:{quest['quest_name']}}}}} placeholder)")
@@ -1140,12 +1483,14 @@ def build_quest_conversation_prompt(bot1: dict, bot2: dict, quest: dict) -> str:
     parts.append(f"Overall tone: {pick_random_tone()}")
 
     # Generate mood sequence - the "script" for the conversation
-    msg_count = random.randint(2, 5)
+    min_msgs = bot_count
+    max_msgs = bot_count + 3
+    msg_count = random.randint(min_msgs, max_msgs)
     mood_sequence = generate_conversation_mood_sequence(msg_count)
 
     parts.append(f"\nMOOD SEQUENCE (follow this for each message):")
     for i, mood in enumerate(mood_sequence):
-        speaker = bot1['name'] if i % 2 == 0 else bot2['name']
+        speaker = bot_names[i % bot_count]
         parts.append(f"  Message {i+1} ({speaker}): {mood}")
 
     # Quest conversation angles
@@ -1166,29 +1511,36 @@ def build_quest_conversation_prompt(bot1: dict, bot2: dict, quest: dict) -> str:
     guidelines.append("Follow the mood sequence above")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
-    # JSON format instruction
+    # JSON format instruction with examples for all speakers
+    example_msgs = ',\n  '.join([f'{{"speaker": "{name}", "message": "..."}}' for name in bot_names])
     parts.append(f"""
 Respond with EXACTLY {msg_count} messages in JSON:
 [
-  {{"speaker": "{bot1['name']}", "message": "..."}},
-  {{"speaker": "{bot2['name']}", "message": "..."}}
+  {example_msgs}
 ]
 ONLY the JSON array, nothing else.""")
 
     return "\n".join(parts)
 
 
-def build_loot_conversation_prompt(bot1: dict, bot2: dict, item: dict) -> str:
-    """Build a dynamically varied prompt for a loot conversation."""
+def build_loot_conversation_prompt(bots: List[dict], item: dict) -> str:
+    """Build a dynamically varied prompt for a loot conversation with 2-4 bots.
+
+    Args:
+        bots: List of 2-4 bot dicts with name, race, class, level, zone
+        item: Item data dict with item_name, item_quality, etc.
+    """
     parts = []
+    bot_count = len(bots)
+    bot_names = [b['name'] for b in bots]
 
     quality_names = {0: "gray", 1: "white", 2: "green", 3: "blue", 4: "purple"}
     quality = quality_names.get(item.get('item_quality', 2), "green")
     item_placeholder = f"{{{{item:{item['item_name']}}}}}"
 
-    parts.append(f"Generate a casual General chat exchange about a loot drop in {bot1['zone']}.")
-    parts.append(f"Speakers: {bot1['name']} and {bot2['name']}")
-    parts.append(f"IMPORTANT: When offering items or asking questions, use their name. Example: '{bot1['name']}: hey {bot2['name']} you need this?' NOT just '{bot1['name']}: hey you need this?'")
+    parts.append(f"Generate a casual General chat exchange about a loot drop in {bots[0]['zone']}.")
+    parts.append(f"Speakers: {', '.join(bot_names)}")
+    parts.append(f"Names: Sometimes use their name when addressing directly (maybe once in the conversation), but not every message - vary it naturally.")
 
     # Item info
     parts.append(f"Item: {item['item_name']} ({quality} quality)")
@@ -1198,20 +1550,22 @@ def build_loot_conversation_prompt(bot1: dict, bot2: dict, item: dict) -> str:
     parts.append(f"Overall tone: {pick_random_tone()}")
 
     # Generate mood sequence
-    msg_count = random.randint(2, 4)
+    min_msgs = bot_count
+    max_msgs = bot_count + 2
+    msg_count = random.randint(min_msgs, max_msgs)
     mood_sequence = generate_conversation_mood_sequence(msg_count)
 
     parts.append(f"\nMOOD SEQUENCE (follow this for each message):")
     for i, mood in enumerate(mood_sequence):
-        speaker = bot1['name'] if i % 2 == 0 else bot2['name']
+        speaker = bot_names[i % bot_count]
         parts.append(f"  Message {i+1} ({speaker}): {mood}")
 
     # Loot conversation angles
     angles = [
-        "one player got the drop and the other is jealous/congratulating",
+        "one player got the drop and others are jealous/congratulating",
         "discussing if the item is good for their class",
         "debating whether to vendor or auction it",
-        "one asking if the other needs the drop",
+        "one asking if others need the drop",
         "comparing drops they've gotten today",
     ]
     parts.append(f"Angle: {random.choice(angles)}")
@@ -1222,12 +1576,12 @@ def build_loot_conversation_prompt(bot1: dict, bot2: dict, item: dict) -> str:
     guidelines.append("Follow the mood sequence above")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
-    # JSON format instruction
+    # JSON format instruction with examples for all speakers
+    example_msgs = ',\n  '.join([f'{{"speaker": "{name}", "message": "..."}}' for name in bot_names])
     parts.append(f"""
 Respond with EXACTLY {msg_count} messages in JSON:
 [
-  {{"speaker": "{bot1['name']}", "message": "..."}},
-  {{"speaker": "{bot2['name']}", "message": "..."}}
+  {example_msgs}
 ]
 ONLY the JSON array, nothing else.""")
 
@@ -1328,8 +1682,16 @@ def fuzzy_name_match(speaker: str, expected_name: str, max_distance: int = 2) ->
     return differences <= max_distance
 
 
-def parse_conversation_response(response: str, bot1_name: str, bot2_name: str) -> list:
-    """Parse conversation JSON response into message list."""
+def parse_conversation_response(response: str, bot_names: List[str]) -> list:
+    """Parse conversation JSON response into message list.
+
+    Args:
+        response: Raw LLM response containing JSON array
+        bot_names: List of valid bot names (2-4 names)
+
+    Returns:
+        List of dicts with 'name' and 'message' keys
+    """
     try:
         json_match = re.search(r'\[.*\]', response, re.DOTALL)
         if json_match:
@@ -1340,10 +1702,13 @@ def parse_conversation_response(response: str, bot1_name: str, bot2_name: str) -
                 message = msg.get('message', '').strip()
                 if speaker and message:
                     # Use fuzzy matching to handle minor typos in names
-                    if fuzzy_name_match(speaker, bot1_name):
-                        result.append({'name': bot1_name, 'message': message})
-                    elif fuzzy_name_match(speaker, bot2_name):
-                        result.append({'name': bot2_name, 'message': message})
+                    matched_name = None
+                    for bot_name in bot_names:
+                        if fuzzy_name_match(speaker, bot_name):
+                            matched_name = bot_name
+                            break
+                    if matched_name:
+                        result.append({'name': matched_name, 'message': message})
             return result
     except json.JSONDecodeError as e:
         logger.error(f"Failed to parse conversation JSON: {e}")
@@ -1378,7 +1743,7 @@ def process_statement(db, cursor, client, config, request, bot: dict):
         if loot:
             # Weight selection by quality - epics should be rare
             # Quality: 0=gray, 1=white, 2=green, 3=blue, 4=epic
-            quality_weights = {0: 30, 1: 30, 2: 25, 3: 12, 4: 3}  # Epic only 3%
+            quality_weights = {0: 35, 1: 30, 2: 22, 3: 10, 4: 3}  # Blue 10%, Epic 3%
             weights = [quality_weights.get(item.get('item_quality', 2), 10) for item in loot]
             item_data = random.choices(loot, weights=weights, k=1)[0]
             # Check if bot's class can use the item
@@ -1389,15 +1754,17 @@ def process_statement(db, cursor, client, config, request, bot: dict):
             msg_type = "plain"  # Fallback
 
     # Build appropriate prompt
+    zone_id = request.get('zone_id', 0)
     if msg_type == "plain":
-        # Get a random mob from the zone for context (50% chance to include)
-        mob_name = None
-        if random.random() < 0.5:
-            mobs = query_zone_mobs(config, request.get('zone_id', 0), bot['level'])
-            if mobs:
-                mob_name = random.choice(mobs)
-                logger.debug(f"Including mob context: {mob_name}")
-        prompt = build_plain_statement_prompt(bot, mob_name)
+        # Get zone mobs for context - pass up to 10 random mobs so LLM knows what exists
+        zone_mobs = []
+        mobs = query_zone_mobs(config, zone_id, bot['level'])
+        if mobs:
+            zone_mobs = random.sample(mobs, min(10, len(mobs)))
+        # Log zone context being used
+        zone_flavor = get_zone_flavor(zone_id)
+        logger.info(f"Zone context: id={zone_id}, flavor={'yes' if zone_flavor else 'no'}, mobs={len(zone_mobs)}")
+        prompt = build_plain_statement_prompt(bot, zone_id, zone_mobs)
     elif msg_type == "quest":
         prompt = build_quest_statement_prompt(bot, quest_data)
     elif msg_type == "loot":
@@ -1412,7 +1779,7 @@ def process_statement(db, cursor, client, config, request, bot: dict):
                 'item_quality': quest_data.get('item1_quality', 2)
             }
     else:
-        prompt = build_plain_statement_prompt(bot)
+        prompt = build_plain_statement_prompt(bot, zone_id)
 
     # Call LLM
     response = call_llm(client, prompt, config)
@@ -1437,9 +1804,25 @@ def process_statement(db, cursor, client, config, request, bot: dict):
     return False
 
 
-def process_conversation(db, cursor, client, config, request, bot1: dict, bot2: dict):
-    """Process a conversation request."""
+def process_conversation(db, cursor, client, config, request, bots: List[dict]):
+    """Process a conversation request with 2-4 bots.
+
+    Args:
+        db: Database connection
+        cursor: Database cursor
+        client: LLM client (Anthropic or OpenAI)
+        config: Configuration dict
+        request: Queue request row
+        bots: List of 2-4 bot dicts with guid, name, class, race, level, zone
+    """
     channel = 'general'
+    bot_count = len(bots)
+    bot_names = [b['name'] for b in bots]
+
+    # Create guid lookup for message insertion
+    bot_guids = {b['name']: b['guid'] for b in bots}
+
+    logger.info(f"Processing {bot_count}-bot conversation: {', '.join(bot_names)}")
 
     # Select message type (conversations can be plain, quest, or loot)
     roll = random.randint(1, 100)
@@ -1455,7 +1838,7 @@ def process_conversation(db, cursor, client, config, request, bot1: dict, bot2: 
     item_data = None
 
     if msg_type == "quest":
-        quests = query_zone_quests(config, request.get('zone_id', 0), bot1['level'])
+        quests = query_zone_quests(config, request.get('zone_id', 0), bots[0]['level'])
         if quests:
             quest_data = random.choice(quests)
             logger.info(f"Selected quest: {quest_data['quest_name']}")
@@ -1463,7 +1846,7 @@ def process_conversation(db, cursor, client, config, request, bot1: dict, bot2: 
             msg_type = "plain"
 
     if msg_type == "loot":
-        loot = query_zone_loot(config, request.get('zone_id', 0), bot1['level'])
+        loot = query_zone_loot(config, request.get('zone_id', 0), bots[0]['level'])
         if loot:
             quality_weights = {0: 30, 1: 30, 2: 25, 3: 12, 4: 3}
             weights = [quality_weights.get(item.get('item_quality', 2), 10) for item in loot]
@@ -1473,32 +1856,34 @@ def process_conversation(db, cursor, client, config, request, bot1: dict, bot2: 
             msg_type = "plain"
 
     # Build prompt
+    zone_id = request.get('zone_id', 0)
     if msg_type == "plain":
-        # Get a random mob from the zone for context (50% chance to include)
-        mob_name = None
-        if random.random() < 0.5:
-            mobs = query_zone_mobs(config, request.get('zone_id', 0), bot1['level'])
-            if mobs:
-                mob_name = random.choice(mobs)
-                logger.debug(f"Including mob context in conversation: {mob_name}")
-        prompt = build_plain_conversation_prompt(bot1, bot2, mob_name)
+        # Get zone mobs for context - pass up to 10 random mobs so LLM knows what exists
+        zone_mobs = []
+        mobs = query_zone_mobs(config, zone_id, bots[0]['level'])
+        if mobs:
+            zone_mobs = random.sample(mobs, min(10, len(mobs)))
+        # Log zone context being used
+        zone_flavor = get_zone_flavor(zone_id)
+        logger.info(f"Zone context: id={zone_id}, flavor={'yes' if zone_flavor else 'no'}, mobs={len(zone_mobs)}")
+        prompt = build_plain_conversation_prompt(bots, zone_id, zone_mobs)
     elif msg_type == "quest":
-        prompt = build_quest_conversation_prompt(bot1, bot2, quest_data)
+        prompt = build_quest_conversation_prompt(bots, quest_data)
     else:  # loot
-        prompt = build_loot_conversation_prompt(bot1, bot2, item_data)
+        prompt = build_loot_conversation_prompt(bots, item_data)
 
     # Call LLM
     response = call_llm(client, prompt, config)
 
     if response:
-        messages = parse_conversation_response(response, bot1['name'], bot2['name'])
+        messages = parse_conversation_response(response, bot_names)
 
         if messages:
-            logger.info(f"Conversation in {bot1['zone']} with {len(messages)} messages:")
+            logger.info(f"Conversation in {bots[0]['zone']} with {len(messages)} messages ({bot_count} participants):")
 
             cumulative_delay = 0.0
             for i, msg in enumerate(messages):
-                bot_guid = bot1['guid'] if msg['name'] == bot1['name'] else bot2['guid']
+                bot_guid = bot_guids.get(msg['name'], bots[0]['guid'])
 
                 # Replace placeholders and cleanup
                 final_message = replace_placeholders(msg['message'], quest_data, item_data)
@@ -1507,6 +1892,7 @@ def process_conversation(db, cursor, client, config, request, bot1: dict, bot2: 
                 if i > 0:
                     delay = calculate_dynamic_delay(len(final_message), config)
                     cumulative_delay += delay
+                    logger.info(f"    Delay calc: msg_len={len(final_message)}, delay={delay:.1f}s")
 
                 cursor.execute("""
                     INSERT INTO llm_chatter_messages
@@ -1565,23 +1951,53 @@ def process_pending_requests(db, client: anthropic.Anthropic, config: dict):
             }
             success = process_statement(db, cursor, client, config, request, bot)
         else:
-            bot1 = {
+            # Build list of 2-4 bots from request
+            bots = []
+
+            # Bot 1 (always present)
+            bots.append({
                 'guid': request['bot1_guid'],
                 'name': request['bot1_name'],
                 'class': request['bot1_class'],
                 'race': request['bot1_race'],
                 'level': request['bot1_level'],
                 'zone': request['bot1_zone']
-            }
-            bot2 = {
-                'guid': request['bot2_guid'],
-                'name': request['bot2_name'],
-                'class': request['bot2_class'],
-                'race': request['bot2_race'],
-                'level': request['bot2_level'],
-                'zone': request['bot1_zone']
-            }
-            success = process_conversation(db, cursor, client, config, request, bot1, bot2)
+            })
+
+            # Bot 2 (always present for conversations)
+            if request.get('bot2_guid'):
+                bots.append({
+                    'guid': request['bot2_guid'],
+                    'name': request['bot2_name'],
+                    'class': request['bot2_class'],
+                    'race': request['bot2_race'],
+                    'level': request['bot2_level'],
+                    'zone': request['bot1_zone']
+                })
+
+            # Bot 3 (optional)
+            if request.get('bot3_guid'):
+                bots.append({
+                    'guid': request['bot3_guid'],
+                    'name': request['bot3_name'],
+                    'class': request['bot3_class'],
+                    'race': request['bot3_race'],
+                    'level': request['bot3_level'],
+                    'zone': request['bot1_zone']
+                })
+
+            # Bot 4 (optional)
+            if request.get('bot4_guid'):
+                bots.append({
+                    'guid': request['bot4_guid'],
+                    'name': request['bot4_name'],
+                    'class': request['bot4_class'],
+                    'race': request['bot4_race'],
+                    'level': request['bot4_level'],
+                    'zone': request['bot1_zone']
+                })
+
+            success = process_conversation(db, cursor, client, config, request, bots)
 
         # Mark as completed
         cursor.execute(

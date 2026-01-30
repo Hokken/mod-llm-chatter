@@ -7,9 +7,11 @@ Instead of static, repetitive database messages, bots chat naturally about the z
 ## Features
 
 - **Dynamic AI conversations** - Bots chat naturally using Claude Haiku or GPT-4o-mini
+- **2-4 bot conversations** - Conversations can include 2, 3, or 4 participants
 - **Zone-aware content** - Messages reference actual quests and items from the player's zone
+- **Zone flavor system** - Rich atmosphere descriptions for ~45 zones to inspire immersive chat
 - **Clickable links** - Quest and item mentions become clickable WoW links
-- **Natural timing** - Realistic delays between messages (like typing time)
+- **Natural timing** - Realistic, varied delays between messages (12-30 seconds)
 - **Multiple message types** - Plain chat, quest discussions, loot drops, quest rewards
 - **Conversation variety** - Both single statements and multi-message conversations
 - **Anti-repetition** - Dynamic prompts ensure varied, natural-feeling messages
@@ -21,18 +23,20 @@ Instead of static, repetitive database messages, bots chat naturally about the z
 
 ## How It Works
 
-1. Every 30-60 seconds, the module may trigger chatter in the player's zone
-2. It selects eligible bots (same faction, not in player's group)
+1. Every 60 seconds, the module may trigger chatter in the player's zone
+2. It selects 2-4 eligible bots (same faction, not in player's group)
 3. Queries zone-specific quests/items from the database
-4. Sends context to the LLM to generate authentic-sounding chat
-5. Delivers messages with realistic timing delays
-6. Quest/item names become clickable links
+4. Adds zone flavor context for immersive, atmosphere-aware messages
+5. Sends context to the LLM to generate authentic-sounding chat
+6. Delivers messages with realistic, varied timing delays (12-30 seconds)
+7. Quest/item names become clickable links
 
-**Example output in General chat:**
+**Example output in General chat (4-bot conversation):**
 ```
-[Milunnik]: anyone done [The Absent Minded Prospector] yet?
-[Velyell]: yeah just finished it, the escort part is rough
-[Milunnik]: ty for the heads up
+[Nylaenas]: been thinking about [Tharnariun's Hope] - there's something beautiful about restoring hope here
+[Pelrith]: just finished that quest chain and it felt so good!
+[Kerrandiir]: we handled it flawlessly yesterday, not to flex lol
+[Eveline]: yeah it's a solid quest, decent rewards too
 ```
 
 ## Requirements
@@ -172,7 +176,7 @@ All settings are in `mod_llm_chatter.conf`:
 |--------|---------|-------------|
 | `LLMChatter.DeliveryPollMs` | 1000 | How often to check for messages (ms) |
 | `LLMChatter.MessageDelayMin` | 1000 | Min delay between messages (ms) |
-| `LLMChatter.MessageDelayMax` | 8000 | Max delay between messages (ms) |
+| `LLMChatter.MessageDelayMax` | 30000 | Max delay between messages (ms) |
 
 ### LLM API Settings
 
