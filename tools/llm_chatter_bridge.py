@@ -162,6 +162,67 @@ ZONE_COORDINATES = {
 }
 
 # =============================================================================
+# ZONE NAMES - Human-readable zone names for prompts
+# =============================================================================
+ZONE_NAMES = {
+    # Eastern Kingdoms
+    1: "Dun Morogh", 12: "Elwynn Forest", 38: "Loch Modan", 40: "Westfall",
+    44: "Redridge Mountains", 46: "Burning Steppes", 47: "The Hinterlands",
+    51: "Searing Gorge", 85: "Tirisfal Glades", 130: "Silverpine Forest",
+    267: "Hillsbrad Foothills", 33: "Stranglethorn Vale", 45: "Arathi Highlands",
+    3: "Badlands", 8: "Swamp of Sorrows", 4: "Blasted Lands", 10: "Duskwood",
+    11: "Wetlands", 139: "Eastern Plaguelands", 28: "Western Plaguelands",
+    41: "Deadwind Pass", 1519: "Stormwind City", 1537: "Ironforge",
+    1497: "Undercity",
+    # Kalimdor
+    14: "Durotar", 215: "Mulgore", 141: "Teldrassil", 148: "Darkshore",
+    17: "The Barrens", 331: "Ashenvale", 405: "Desolace", 400: "Thousand Needles",
+    15: "Dustwallow Marsh", 357: "Feralas", 440: "Tanaris", 16: "Azshara",
+    361: "Felwood", 490: "Un'Goro Crater", 493: "Moonglade", 618: "Winterspring",
+    1377: "Silithus", 1637: "Orgrimmar", 1638: "Thunder Bluff", 1657: "Darnassus",
+    # Outland
+    3483: "Hellfire Peninsula", 3518: "Nagrand", 3519: "Terokkar Forest",
+    3520: "Shadowmoon Valley", 3521: "Zangarmarsh", 3522: "Blade's Edge Mountains",
+    3523: "Netherstorm", 3524: "Shattrath City", 3703: "Shattrath City",
+    3430: "Eversong Woods", 3433: "Ghostlands", 3487: "Silvermoon City",
+    3525: "Bloodmyst Isle", 3557: "The Exodar", 4080: "Isle of Quel'Danas",
+    # Northrend
+    3537: "Borean Tundra", 495: "Howling Fjord", 394: "Grizzly Hills",
+    3711: "Sholazar Basin", 66: "Zul'Drak", 67: "Storm Peaks", 210: "Icecrown",
+    65: "Dragonblight", 2817: "Crystalsong Forest", 4395: "Dalaran",
+    4197: "Wintergrasp", 4298: "The Oculus",
+    # Other
+    406: "Stonetalon Mountains", 148: "Darkshore", 16: "Azshara",
+}
+
+def get_zone_name(zone_id: int) -> str:
+    """Get human-readable zone name from zone ID."""
+    if zone_id in ZONE_NAMES:
+        return ZONE_NAMES[zone_id]
+    return f"zone {zone_id}"
+
+# =============================================================================
+# CLASS AND RACE MAPPINGS - Convert numeric IDs to names
+# =============================================================================
+CLASS_NAMES = {
+    1: "Warrior", 2: "Paladin", 3: "Hunter", 4: "Rogue", 5: "Priest",
+    6: "Death Knight", 7: "Shaman", 8: "Mage", 9: "Warlock", 11: "Druid"
+}
+
+RACE_NAMES = {
+    1: "Human", 2: "Orc", 3: "Dwarf", 4: "Night Elf", 5: "Undead",
+    6: "Tauren", 7: "Gnome", 8: "Troll", 10: "Blood Elf", 11: "Draenei"
+}
+
+def get_class_name(class_id: int) -> str:
+    """Get human-readable class name from class ID."""
+    return CLASS_NAMES.get(class_id, "Adventurer")
+
+def get_race_name(race_id: int) -> str:
+    """Get human-readable race name from race ID."""
+    return RACE_NAMES.get(race_id, "Unknown")
+
+# =============================================================================
 # ZONE FLAVOR - Rich context for immersive chat generation
 # =============================================================================
 # Each zone gets a description paragraph that gives the LLM world knowledge.
@@ -972,39 +1033,64 @@ def select_message_type() -> str:
 # =============================================================================
 # DYNAMIC DELAYS
 # =============================================================================
-def calculate_dynamic_delay(message_length: int, config: dict) -> float:
+def calculate_dynamic_delay(message_length: int, config: dict, prev_message_length: int = 0) -> float:
     """
     Calculate a realistic delay based on message length with randomness.
-    Players are often busy killing mobs, so delays tend to be longer.
-    But very short replies (ty, np, lol) can be quick.
+    Accounts for:
+    - Reading time for previous message
+    - Thinking/reaction time
+    - Typing time for current message
+    - Random distraction (player busy fighting mobs, etc.)
+
+    Not systematic - significant variance to feel natural.
     """
     min_delay = int(config.get('LLMChatter.MessageDelayMin', 1000)) / 1000.0
     max_delay = int(config.get('LLMChatter.MessageDelayMax', 30000)) / 1000.0
 
-    # Very short messages (ty, np, lol, yes, no) - quick replies
-    if message_length < 10:
-        if random.random() < 0.4:
-            return random.uniform(2.0, 5.0)  # Quick response
-        else:
-            return random.uniform(5.0, 12.0)  # Slightly distracted
+    # Reading time for previous message (if any) - ~200-400 chars/min reading speed
+    reading_time = prev_message_length / random.uniform(3.0, 7.0) if prev_message_length > 0 else 0
 
-    # Short messages (< 30 chars) - moderate delays
-    elif message_length < 30:
-        typing_time = message_length / random.uniform(3.0, 8.0)  # Varied typing speed
-        distraction = random.uniform(3.0, 15.0)  # Flat random, not clustered
-        return min(typing_time + distraction, max_delay)
+    # Base reaction time - always takes a moment to formulate a response
+    reaction_time = random.uniform(2.0, 6.0)
 
-    # Medium messages (30-80 chars)
+    # Typing time based on current message length
+    # Average typing: 30-60 WPM = 2.5-5 chars/sec for casual chat
+    if message_length < 15:
+        # Very short (lol, ty, np, nice) - quick to type
+        typing_time = random.uniform(1.0, 3.0)
+    elif message_length < 40:
+        # Short message
+        typing_time = message_length / random.uniform(3.0, 6.0)
     elif message_length < 80:
-        typing_time = message_length / random.uniform(2.5, 6.0)
-        distraction = random.uniform(5.0, 18.0)
-        return min(typing_time + distraction, max_delay)
-
-    # Longer messages - longer delays (player taking time to type)
+        # Medium message
+        typing_time = message_length / random.uniform(2.5, 5.0)
     else:
-        typing_time = message_length / random.uniform(2.0, 5.0)
-        distraction = random.uniform(8.0, 22.0)
-        return min(typing_time + distraction, max_delay)
+        # Long message - takes time
+        typing_time = message_length / random.uniform(2.0, 4.0)
+
+    # Random distraction - player might be fighting, looting, running, etc.
+    # Heavily varies - sometimes quick, sometimes very delayed
+    distraction_roll = random.random()
+    if distraction_roll < 0.3:
+        distraction = random.uniform(0, 5.0)  # Quick response, was paying attention
+    elif distraction_roll < 0.7:
+        distraction = random.uniform(5.0, 15.0)  # Normal - slightly busy
+    else:
+        distraction = random.uniform(15.0, 30.0)  # Delayed - was fighting/busy
+
+    total_delay = reading_time + reaction_time + typing_time + distraction
+
+    # Minimum delay MUST scale with message length - can't type fast
+    # Absolute minimum: ~2 chars/sec typing speed + 3s reaction
+    minimum_for_length = (message_length / 2.0) + 3.0
+
+    # Ensure at least the minimum for this message length
+    total_delay = max(total_delay, minimum_for_length)
+
+    # Global minimum of 4 seconds
+    total_delay = max(total_delay, 4.0)
+
+    return min(total_delay, max_delay)
 
 
 # =============================================================================
@@ -1135,6 +1221,38 @@ def pick_random_mood() -> str:
 def generate_conversation_mood_sequence(message_count: int) -> List[str]:
     """Generate a mood sequence for a conversation - each message gets a mood."""
     return [random.choice(MOODS) for _ in range(message_count)]
+
+
+def get_time_of_day_context() -> Tuple[str, str]:
+    """Get current time-of-day context for immersive conversations.
+
+    Returns:
+        Tuple of (time_period, description) for use in prompts
+    """
+    # Use current hour - this gives natural variation
+    # In WoW, time passes faster, but for chatter purposes, real time works well
+    hour = datetime.now().hour
+
+    if 5 <= hour < 7:
+        return ("dawn", "The early morning light is just appearing")
+    elif 7 <= hour < 9:
+        return ("early_morning", "It's early morning")
+    elif 9 <= hour < 12:
+        return ("morning", "The morning sun is up")
+    elif 12 <= hour < 14:
+        return ("midday", "It's around midday")
+    elif 14 <= hour < 17:
+        return ("afternoon", "It's afternoon")
+    elif 17 <= hour < 19:
+        return ("evening", "Evening is approaching")
+    elif 19 <= hour < 21:
+        return ("dusk", "The sun is setting")
+    elif 21 <= hour < 23:
+        return ("night", "Night has fallen")
+    elif hour == 23 or hour == 0:
+        return ("midnight", "It's late at night")
+    else:  # 1-4
+        return ("late_night", "It's the deep hours of night")
 
 
 def pick_random_examples(example_sets: list, count: int = 2) -> list:
@@ -1397,6 +1515,10 @@ def build_plain_conversation_prompt(bots: List[dict], zone_id: int = 0, zone_mob
     if zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
 
+    # Time of day context - adds natural atmosphere variation
+    time_period, time_desc = get_time_of_day_context()
+    parts.append(f"Time of day: {time_desc}. Feel free to naturally reference the time in conversation if it fits.")
+
     parts.append(f"Speakers: {', '.join(bot_names)}")
     parts.append(f"Names: Sometimes use their name when addressing directly (maybe 1-2 times in a conversation), but not every message - vary it naturally like real players.")
 
@@ -1474,6 +1596,10 @@ def build_quest_conversation_prompt(bots: List[dict], quest: dict) -> str:
     parts.append(f"Speakers: {', '.join(bot_names)}")
     parts.append(f"Names: Sometimes use their name when addressing directly (maybe 1-2 times in a conversation), but not every message - vary it naturally.")
 
+    # Time of day context
+    time_period, time_desc = get_time_of_day_context()
+    parts.append(f"Time of day: {time_desc}")
+
     # Quest info
     parts.append(f"Quest: {quest['quest_name']} (use {{{{quest:{quest['quest_name']}}}}} placeholder)")
     if quest.get('description') and random.random() < 0.4:
@@ -1541,6 +1667,10 @@ def build_loot_conversation_prompt(bots: List[dict], item: dict) -> str:
     parts.append(f"Generate a casual General chat exchange about a loot drop in {bots[0]['zone']}.")
     parts.append(f"Speakers: {', '.join(bot_names)}")
     parts.append(f"Names: Sometimes use their name when addressing directly (maybe once in the conversation), but not every message - vary it naturally.")
+
+    # Time of day context
+    time_period, time_desc = get_time_of_day_context()
+    parts.append(f"Time of day: {time_desc}")
 
     # Item info
     parts.append(f"Item: {item['item_name']} ({quality} quality)")
@@ -1999,13 +2129,22 @@ def process_pending_requests(db, client: anthropic.Anthropic, config: dict):
 
             success = process_conversation(db, cursor, client, config, request, bots)
 
-        # Mark as completed
-        cursor.execute(
-            "UPDATE llm_chatter_queue SET status = 'completed', processed_at = NOW() WHERE id = %s",
-            (request_id,)
-        )
-        db.commit()
-        return True
+        # Mark as completed only if processing succeeded
+        if success:
+            cursor.execute(
+                "UPDATE llm_chatter_queue SET status = 'completed', processed_at = NOW() WHERE id = %s",
+                (request_id,)
+            )
+            db.commit()
+            return True
+        else:
+            logger.warning(f"Request #{request_id} processing returned failure, marking as failed")
+            cursor.execute(
+                "UPDATE llm_chatter_queue SET status = 'failed' WHERE id = %s",
+                (request_id,)
+            )
+            db.commit()
+            return False
 
     except Exception as e:
         logger.error(f"Error processing request #{request_id}: {e}")
@@ -2013,6 +2152,520 @@ def process_pending_requests(db, client: anthropic.Anthropic, config: dict):
             "UPDATE llm_chatter_queue SET status = 'failed' WHERE id = %s",
             (request_id,)
         )
+        db.commit()
+        return False
+
+
+# =============================================================================
+# EVENT PROCESSING
+# =============================================================================
+
+# Event type to human-readable description
+EVENT_DESCRIPTIONS = {
+    'weather_change': 'weather changing',
+    'holiday_start': 'a holiday beginning',
+    'holiday_end': 'a holiday ending',
+    'creature_death_boss': 'a boss being defeated',
+    'creature_death_rare': 'a rare creature being killed',
+    'creature_death_guard': 'a city guard being killed',
+    'player_enters_zone': 'a player entering the area',
+    'bot_pvp_kill': 'a PvP fight happening',
+    'bot_level_up': 'gaining a level',
+    'bot_achievement': 'earning an achievement',
+    'bot_quest_complete': 'completing a quest',
+    'world_boss_spawn': 'a world boss appearing',
+    'rare_spawn': 'a rare creature appearing',
+    'transport_arrives': 'a boat or zeppelin arriving',
+    'day_night_transition': 'the time of day changing',
+    'enemy_player_near': 'enemy players nearby',
+    'bot_loot_item': 'finding valuable loot',
+}
+
+
+def build_event_context(event: dict) -> str:
+    """Build context string for an event."""
+    event_type = event['event_type']
+    extra_data = {}
+    if event.get('extra_data'):
+        try:
+            extra_data = json.loads(event['extra_data'])
+        except json.JSONDecodeError as e:
+            logger.warning(f"Failed to parse extra_data JSON for event {event.get('id', '?')} "
+                          f"(type={event_type}): {e}")
+        except Exception as e:
+            logger.warning(f"Unexpected error parsing extra_data for event {event.get('id', '?')}: {e}")
+
+    context_parts = []
+
+    if event_type == 'holiday_start':
+        name = extra_data.get('event_name', 'a holiday')
+        context_parts.append(f"The {name} festival has just begun!")
+
+    elif event_type == 'holiday_end':
+        name = extra_data.get('event_name', 'a holiday')
+        context_parts.append(f"The {name} festival is coming to an end.")
+
+    elif event_type == 'world_boss_spawn':
+        target = event.get('target_name', 'A world boss')
+        context_parts.append(f"{target} has been spotted in the world!")
+
+    elif event_type == 'rare_spawn':
+        target = event.get('target_name', 'A rare creature')
+        context_parts.append(f"A rare creature ({target}) has appeared nearby.")
+
+    elif event_type == 'creature_death_boss':
+        target = event.get('target_name', 'A boss')
+        killer = extra_data.get('killer_name', 'someone')
+        context_parts.append(f"{target} has been defeated by {killer}!")
+
+    elif event_type == 'creature_death_rare':
+        target = event.get('target_name', 'A rare')
+        context_parts.append(f"A rare creature ({target}) was just killed.")
+
+    elif event_type == 'bot_level_up':
+        subject = event.get('subject_name', 'Someone')
+        new_level = extra_data.get('new_level', '?')
+        is_milestone = extra_data.get('is_milestone', False)
+        if is_milestone:
+            context_parts.append(f"{subject} has reached level {new_level}!")
+        else:
+            context_parts.append(f"{subject} leveled up to {new_level}.")
+
+    elif event_type == 'bot_quest_complete':
+        subject = event.get('subject_name', 'Someone')
+        quest_name = extra_data.get('quest_name', 'a quest')
+        context_parts.append(f"{subject} just completed the quest '{quest_name}'.")
+
+    elif event_type == 'bot_achievement':
+        subject = event.get('subject_name', 'Someone')
+        achi_name = extra_data.get('achievement_name', 'an achievement')
+        context_parts.append(f"{subject} earned the achievement '{achi_name}'!")
+
+    elif event_type == 'bot_pvp_kill':
+        subject = event.get('subject_name', 'Someone')
+        target = event.get('target_name', 'an enemy')
+        context_parts.append(f"{subject} defeated {target} in PvP combat!")
+
+    elif event_type == 'bot_loot_item':
+        subject = event.get('subject_name', 'Someone')
+        item_name = extra_data.get('item_name', 'something valuable')
+        quality = extra_data.get('quality', 0)
+        quality_name = ['poor', 'common', 'uncommon', 'rare', 'epic', 'legendary'][min(quality, 5)]
+        context_parts.append(f"{subject} found a {quality_name} item: {item_name}!")
+
+    elif event_type == 'day_night_transition':
+        time_period = extra_data.get('time_period', 'day')
+        previous_period = extra_data.get('previous_period', '')
+        hour = extra_data.get('hour', 12)
+        description = extra_data.get('description', '')
+
+        # Time period descriptions for context
+        period_contexts = {
+            'dawn': "The first light of dawn breaks over the horizon. The sky turns pink and gold.",
+            'early_morning': "It's early morning. The world is waking up, dew still on the grass.",
+            'morning': "The morning sun climbs higher. It's a good time for adventures.",
+            'midday': "The sun reaches its peak. Shadows are short and the day is warm.",
+            'afternoon': "The afternoon sun casts long shadows. The day is well underway.",
+            'evening': "Evening approaches. The light turns golden as the sun descends.",
+            'dusk': "Dusk settles over the land. The sky blazes with sunset colors.",
+            'night': "Night has fallen. Stars begin to appear in the darkening sky.",
+            'midnight': "It's the middle of the night. The world is quiet under the stars.",
+            'late_night': "The deep hours of night. Few are awake at this hour.",
+        }
+
+        desc = period_contexts.get(time_period, description or "The time of day is changing.")
+        context_parts.append(desc)
+
+        # Add time info for additional context
+        if hour is not None:
+            context_parts.append(f"(In-game time: {hour:02d}:00)")
+
+    elif event_type == 'weather_change':
+        weather_type = extra_data.get('weather_type', 'unusual weather')
+        previous_weather = extra_data.get('previous_weather', 'clear')
+        transition = extra_data.get('transition', 'changing')
+        intensity = extra_data.get('intensity', 'moderate')
+        category = extra_data.get('category', 'weather')
+
+        # Weather starting descriptions
+        starting_descriptions = {
+            'light rain': "A light drizzle has begun to fall.",
+            'rain': "Rain clouds have rolled in and it's starting to rain.",
+            'heavy rain': "Dark clouds have gathered and heavy rain is pouring down!",
+            'light snow': "A few snowflakes are beginning to drift down from the sky.",
+            'snow': "It's starting to snow, white flakes covering the ground.",
+            'heavy snow': "A blizzard is setting in with heavy snowfall!",
+            'foggy': "A thick fog is rolling in, reducing visibility.",
+            'light sandstorm': "The wind is picking up, kicking sand into the air.",
+            'sandstorm': "A sandstorm is sweeping through the area!",
+            'heavy sandstorm': "A massive sandstorm has engulfed everything!",
+            'thunderstorm': "Storm clouds are gathering, thunder rumbles in the distance!",
+            'black rain': "Strange dark clouds have formed... black rain is falling!",
+            'black snow': "Something ominous... black snow is drifting down from above.",
+        }
+
+        # Weather clearing descriptions
+        clearing_descriptions = {
+            'rain': "The rain is stopping. Clouds are parting.",
+            'snow': "The snowfall is easing. The sky is clearing.",
+            'sandstorm': "The sandstorm is dying down. Visibility is returning.",
+            'fog': "The fog is lifting, revealing the landscape.",
+            'storm': "The storm is passing. The thunder fades away.",
+            'weather': "The weather is clearing up.",
+        }
+
+        # Weather intensifying descriptions
+        intensifying_descriptions = {
+            'rain': f"The rain is getting heavier - now {weather_type}.",
+            'snow': f"The snow is intensifying - now {weather_type}.",
+            'sandstorm': f"The sandstorm grows stronger - now {weather_type}.",
+            'storm': "The storm is intensifying!",
+            'weather': f"The {category} is getting worse.",
+        }
+
+        if transition == 'starting':
+            desc = starting_descriptions.get(weather_type,
+                f"The weather is changing to {weather_type}.")
+        elif transition == 'clearing':
+            desc = clearing_descriptions.get(category,
+                "The weather is clearing up. The sky brightens.")
+        elif transition == 'intensifying':
+            desc = intensifying_descriptions.get(category,
+                f"The {weather_type} is getting more intense.")
+        else:  # changing (different weather type)
+            desc = f"The weather is shifting from {previous_weather} to {weather_type}."
+
+        context_parts.append(desc)
+
+    elif event_type == 'transport_arrives':
+        transport_type = extra_data.get('transport_type', 'transport')
+        destination = extra_data.get('destination', 'somewhere')
+        transport_name = extra_data.get('transport_name', '')
+
+        # Build description based on transport type
+        if transport_type.lower() == 'zeppelin':
+            desc = f"A zeppelin has arrived! It's heading to {destination}."
+        elif transport_type.lower() == 'boat':
+            desc = f"A boat has docked nearby! It's heading to {destination}."
+        elif transport_type.lower() == 'turtle':
+            desc = f"A giant sea turtle has arrived! It can take you to {destination}."
+        else:
+            desc = f"A {transport_type} has arrived, heading to {destination}."
+
+        context_parts.append(desc)
+        context_parts.append("Bots might comment on the transport's arrival or destination.")
+
+    elif event_type == 'player_enters_zone':
+        subject = event.get('subject_name', 'A player')
+        level = extra_data.get('level', '?')
+        context_parts.append(f"A level {level} player ({subject}) entered the area.")
+
+    else:
+        desc = EVENT_DESCRIPTIONS.get(event_type, 'something happened')
+        context_parts.append(f"Something notable happened: {desc}.")
+
+    return ' '.join(context_parts)
+
+
+def cleanup_expired_events(db) -> int:
+    """Mark expired events and clean up old completed events."""
+    cursor = db.cursor()
+
+    # Mark pending events that have expired
+    cursor.execute("""
+        UPDATE llm_chatter_events
+        SET status = 'expired'
+        WHERE status = 'pending'
+          AND expires_at IS NOT NULL
+          AND expires_at < NOW()
+    """)
+    expired_count = cursor.rowcount
+
+    # Delete old completed/expired/skipped events (older than 24 hours)
+    cursor.execute("""
+        DELETE FROM llm_chatter_events
+        WHERE status IN ('completed', 'expired', 'skipped')
+          AND created_at < DATE_SUB(NOW(), INTERVAL 24 HOUR)
+    """)
+    deleted_count = cursor.rowcount
+
+    db.commit()
+
+    if expired_count > 0 or deleted_count > 0:
+        logger.debug(f"Event cleanup: {expired_count} expired, {deleted_count} deleted")
+
+    return expired_count + deleted_count
+
+
+def reset_stuck_processing_events(db) -> int:
+    """Reset events stuck in 'processing' status back to 'pending'.
+
+    Called on bridge startup - if any events are stuck in 'processing',
+    it means the bridge crashed before completing them. Reset them so
+    they can be retried.
+    """
+    cursor = db.cursor()
+
+    cursor.execute("""
+        UPDATE llm_chatter_events
+        SET status = 'pending'
+        WHERE status = 'processing'
+    """)
+    reset_count = cursor.rowcount
+    db.commit()
+
+    if reset_count > 0:
+        logger.info(f"Reset {reset_count} stuck 'processing' events to 'pending'")
+
+    return reset_count
+
+
+def process_pending_events(db, client, config) -> bool:
+    """Process pending events from llm_chatter_events table."""
+    cursor = db.cursor(dictionary=True)
+
+    # Check global message cap
+    cap_window = int(config.get('LLMChatter.GlobalCapWindowSeconds', 300))
+    global_cap = int(config.get('LLMChatter.GlobalMessageCap', 8))
+
+    cursor.execute("""
+        SELECT COUNT(*) as cnt FROM llm_chatter_messages
+        WHERE delivered = 1 AND delivered_at > DATE_SUB(NOW(), INTERVAL %s SECOND)
+    """, (cap_window,))
+    result = cursor.fetchone()
+    if result and result['cnt'] >= global_cap:
+        logger.debug("Global message cap reached, skipping event processing")
+        return False
+
+    # Get pending events that are ready
+    cursor.execute("""
+        SELECT * FROM llm_chatter_events
+        WHERE status = 'pending'
+          AND (react_after IS NULL OR react_after <= NOW())
+          AND (expires_at IS NULL OR expires_at > NOW())
+        ORDER BY priority ASC, created_at ASC
+        LIMIT 1
+    """)
+
+    event = cursor.fetchone()
+    if not event:
+        return False
+
+    event_id = event['id']
+    event_type = event['event_type']
+    zone_id = event.get('zone_id')
+
+    logger.info(f"Processing event #{event_id}: {event_type}")
+
+    # Mark as processing
+    cursor.execute(
+        "UPDATE llm_chatter_events SET status = 'processing' WHERE id = %s",
+        (event_id,))
+    db.commit()
+
+    try:
+        # Build event context
+        event_context = build_event_context(event)
+
+        # Find bots in the zone (if zone-specific)
+        if zone_id:
+            # First try: Get online bots currently in this zone
+            # Join with llm_chatter_queue to find characters that have participated in chatter (are bots)
+            # Include bot1/2/3/4 guids to catch all bots that have chatted
+            cursor.execute("""
+                SELECT DISTINCT c.guid as bot1_guid, c.name as bot1_name,
+                       c.class as bot1_class, c.race as bot1_race, c.level as bot1_level,
+                       c.zone as zone_id
+                FROM characters c
+                WHERE c.online = 1 AND c.zone = %s
+                  AND (c.guid IN (SELECT bot1_guid FROM llm_chatter_queue)
+                    OR c.guid IN (SELECT bot2_guid FROM llm_chatter_queue WHERE bot2_guid IS NOT NULL)
+                    OR c.guid IN (SELECT bot3_guid FROM llm_chatter_queue WHERE bot3_guid IS NOT NULL)
+                    OR c.guid IN (SELECT bot4_guid FROM llm_chatter_queue WHERE bot4_guid IS NOT NULL))
+                LIMIT 10
+            """, (zone_id,))
+            recent_bots = cursor.fetchall()
+
+            # Fallback: If no online bots in zone, try recent chatter history
+            if not recent_bots:
+                cursor.execute("""
+                    SELECT bot1_guid, bot1_name, bot1_class, bot1_race, bot1_level, zone_id
+                    FROM llm_chatter_queue
+                    WHERE zone_id = %s AND status = 'completed'
+                    ORDER BY processed_at DESC
+                    LIMIT 10
+                """, (zone_id,))
+                recent_bots = cursor.fetchall()
+
+            if not recent_bots:
+                # No bots found, skip event
+                cursor.execute(
+                    "UPDATE llm_chatter_events SET status = 'skipped' WHERE id = %s",
+                    (event_id,))
+                db.commit()
+                logger.debug(f"No bots in zone {zone_id}, skipping event")
+                return False
+
+            # Pick a random bot and convert numeric class/race to names if needed
+            bot = dict(random.choice(recent_bots))
+            if isinstance(bot.get('bot1_class'), int):
+                bot['bot1_class'] = get_class_name(bot['bot1_class'])
+            if isinstance(bot.get('bot1_race'), int):
+                bot['bot1_race'] = get_race_name(bot['bot1_race'])
+        else:
+            # Global event - find any online bot that has participated in chatter
+            cursor.execute("""
+                SELECT DISTINCT c.guid as bot1_guid, c.name as bot1_name,
+                       c.class as bot1_class, c.race as bot1_race, c.level as bot1_level,
+                       c.zone as zone_id
+                FROM characters c
+                WHERE c.online = 1
+                  AND (c.guid IN (SELECT bot1_guid FROM llm_chatter_queue)
+                    OR c.guid IN (SELECT bot2_guid FROM llm_chatter_queue WHERE bot2_guid IS NOT NULL)
+                    OR c.guid IN (SELECT bot3_guid FROM llm_chatter_queue WHERE bot3_guid IS NOT NULL)
+                    OR c.guid IN (SELECT bot4_guid FROM llm_chatter_queue WHERE bot4_guid IS NOT NULL))
+                LIMIT 20
+            """)
+            recent_bots = cursor.fetchall()
+
+            # Fallback to recent chatter history
+            if not recent_bots:
+                cursor.execute("""
+                    SELECT bot1_guid, bot1_name, bot1_class, bot1_race, bot1_level, zone_id
+                    FROM llm_chatter_queue
+                    WHERE status = 'completed'
+                    ORDER BY processed_at DESC
+                    LIMIT 20
+                """)
+                recent_bots = cursor.fetchall()
+
+            if not recent_bots:
+                cursor.execute(
+                    "UPDATE llm_chatter_events SET status = 'skipped' WHERE id = %s",
+                    (event_id,))
+                db.commit()
+                return False
+
+            # Pick a random bot and convert numeric class/race to names if needed
+            bot = dict(random.choice(recent_bots))
+            if isinstance(bot.get('bot1_class'), int):
+                bot['bot1_class'] = get_class_name(bot['bot1_class'])
+            if isinstance(bot.get('bot1_race'), int):
+                bot['bot1_race'] = get_race_name(bot['bot1_race'])
+
+        # Check zone fatigue (if zone-specific event)
+        if zone_id:
+            fatigue_threshold = int(config.get('LLMChatter.ZoneFatigueThreshold', 3))
+            fatigue_cooldown = int(config.get('LLMChatter.ZoneFatigueCooldownSeconds', 900))
+            cursor.execute("""
+                SELECT COUNT(*) as cnt FROM llm_chatter_events
+                WHERE zone_id = %s AND status = 'completed'
+                  AND processed_at > DATE_SUB(NOW(), INTERVAL %s SECOND)
+            """, (zone_id, fatigue_cooldown))
+            result = cursor.fetchone()
+            if result and result['cnt'] >= fatigue_threshold:
+                cursor.execute(
+                    "UPDATE llm_chatter_events SET status = 'skipped' WHERE id = %s",
+                    (event_id,))
+                db.commit()
+                logger.debug(f"Zone {zone_id} fatigue threshold ({fatigue_threshold}) reached, skipping")
+                return False
+
+        # Check bot speaker cooldown
+        cooldown = int(config.get('LLMChatter.BotSpeakerCooldownSeconds', 900))
+        cursor.execute("""
+            SELECT COUNT(*) as cnt FROM llm_chatter_messages
+            WHERE bot_guid = %s AND delivered = 1
+              AND delivered_at > DATE_SUB(NOW(), INTERVAL %s SECOND)
+        """, (bot['bot1_guid'], cooldown))
+        result = cursor.fetchone()
+        if result and result['cnt'] > 0:
+            # Bot spoke recently, skip
+            cursor.execute(
+                "UPDATE llm_chatter_events SET status = 'skipped' WHERE id = %s",
+                (event_id,))
+            db.commit()
+            logger.debug(f"Bot {bot['bot1_name']} on cooldown, skipping")
+            return False
+
+        # Get zone name
+        zone_name = "the world"
+        if bot.get('zone_id'):
+            zone_name = get_zone_name(bot['zone_id'])
+
+        # Build prompt for event-triggered statement
+        provider = config.get('LLMChatter.Provider', 'anthropic').lower()
+        model = resolve_model(config.get('LLMChatter.Model', 'haiku'))
+
+        tone = random.choice(TONES)
+        system_prompt = f"""You are {bot['bot1_name']}, a {bot['bot1_race']} {bot['bot1_class']} adventurer in World of Warcraft.
+You are level {bot['bot1_level']} and currently in {zone_name}.
+
+CONTEXT: {event_context}
+
+You may naturally reference this event in your message, or you may chat about something else entirely.
+The event provides atmosphere - you don't HAVE to mention it explicitly.
+
+Your current mood: {tone}
+
+Respond with a single short sentence (under 100 characters) that a player might say in General chat.
+Be casual and authentic. No quotes. No asterisks. No emotes."""
+
+        # Call LLM
+        max_tokens = int(config.get('LLMChatter.MaxTokens', 200))
+        temperature = float(config.get('LLMChatter.Temperature', 0.8))
+
+        if provider == 'openai':
+            response = client.chat.completions.create(
+                model=model,
+                messages=[
+                    {"role": "system", "content": system_prompt},
+                    {"role": "user", "content": "Say something in General chat."}
+                ],
+                max_tokens=max_tokens,
+                temperature=temperature
+            )
+            message = response.choices[0].message.content.strip()
+        else:
+            response = client.messages.create(
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                system=system_prompt,
+                messages=[{"role": "user", "content": "Say something in General chat."}]
+            )
+            message = response.content[0].text.strip()
+
+        # Clean up message
+        message = message.strip('"').strip()
+        if len(message) > 255:
+            message = message[:252] + "..."
+
+        # Insert message for delivery
+        delay_min = int(config.get('LLMChatter.MessageDelayMin', 1000))
+        delay_max = int(config.get('LLMChatter.MessageDelayMax', 30000))
+        delay_ms = random.randint(delay_min, delay_max)
+
+        cursor.execute("""
+            INSERT INTO llm_chatter_messages
+            (event_id, sequence, bot_guid, bot_name, message, channel, delivered, deliver_at)
+            VALUES (%s, 0, %s, %s, %s, 'general', 0, DATE_ADD(NOW(), INTERVAL %s SECOND))
+        """, (event_id, bot['bot1_guid'], bot['bot1_name'], message, delay_ms // 1000))
+
+        # Mark event completed
+        cursor.execute(
+            "UPDATE llm_chatter_events SET status = 'completed', processed_at = NOW() WHERE id = %s",
+            (event_id,))
+        db.commit()
+
+        logger.info(f"Event #{event_id} processed: {bot['bot1_name']} will say: {message[:50]}...")
+        return True
+
+    except Exception as e:
+        logger.error(f"Error processing event #{event_id}: {e}")
+        cursor.execute(
+            "UPDATE llm_chatter_events SET status = 'skipped' WHERE id = %s",
+            (event_id,))
         db.commit()
         return False
 
@@ -2056,13 +2709,17 @@ def main():
     # Get poll interval
     poll_interval = int(config.get('LLMChatter.Bridge.PollIntervalSeconds', 3))
 
+    # Check event system config
+    use_event_system = config.get('LLMChatter.UseEventSystem', '1') == '1'
+
     logger.info("=" * 60)
-    logger.info("LLM Chatter Bridge v3.1")
+    logger.info("LLM Chatter Bridge v3.2")
     logger.info("=" * 60)
     logger.info(f"Provider: {provider}")
     logger.info(f"Model: {model} (alias: {model_alias})")
     logger.info(f"Poll interval: {poll_interval}s")
     logger.info(f"Max tokens: {config.get('LLMChatter.MaxTokens', 200)}")
+    logger.info(f"Event system: {'enabled' if use_event_system else 'disabled'}")
     logger.info(f"Message type distribution: {MSG_TYPE_PLAIN}% plain, "
                 f"{MSG_TYPE_QUEST - MSG_TYPE_PLAIN}% quest, "
                 f"{MSG_TYPE_LOOT - MSG_TYPE_QUEST}% loot, "
@@ -2074,14 +2731,41 @@ def main():
         logger.error("Could not connect to database. Exiting.")
         sys.exit(1)
 
+    # Startup cleanup: reset any events stuck in 'processing' from previous crash
+    if use_event_system:
+        try:
+            db = get_db_connection(config)
+            reset_stuck_processing_events(db)
+            db.close()
+        except Exception as e:
+            logger.warning(f"Could not reset stuck events on startup: {e}")
+
     # Main loop
+    last_cleanup = 0
+    cleanup_interval = 60  # Cleanup expired events every 60 seconds
+
     while True:
         try:
             db = get_db_connection(config)
-            processed = process_pending_requests(db, client, config)
+
+            # Periodic cleanup of expired events
+            current_time = time.time()
+            if use_event_system and current_time - last_cleanup >= cleanup_interval:
+                cleanup_expired_events(db)
+                last_cleanup = current_time
+
+            # Process regular chatter requests
+            processed_request = process_pending_requests(db, client, config)
+
+            # Process event-driven chatter (if enabled)
+            processed_event = False
+            if use_event_system:
+                processed_event = process_pending_events(db, client, config)
+
             db.close()
 
-            if not processed:
+            # Only sleep if nothing was processed
+            if not processed_request and not processed_event:
                 time.sleep(poll_interval)
 
         except mysql.connector.Error as e:

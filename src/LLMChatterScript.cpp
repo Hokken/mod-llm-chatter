@@ -1,6 +1,20 @@
 /*
  * mod-llm-chatter - Dynamic bot conversations powered by AI
  * Main WorldScript for triggering chatter and delivering messages
+ *
+ * Active features:
+ * - Day/Night transition events (WorldScript)
+ * - Holiday start/stop events (GameEventScript)
+ * - Weather change events (ALEScript) - tracks starting, clearing, intensifying
+ * - Ambient bot conversations in zones with real players
+ *
+ * Future/Planned features:
+ * - Transport arrival events
+ *   Note: TransportScript is database-bound to specific transports via ScriptName.
+ *   Would need to either:
+ *   a) Add ScriptNames to transports table and register matching TransportScripts
+ *   b) Add a custom periodic check that iterates Map::GetAllTransports()
+ *   Both approaches require significant work and database/core understanding.
  */
 
 #include "LLMChatterConfig.h"
@@ -17,8 +31,15 @@
 #include "ObjectAccessor.h"
 #include "Playerbots.h"
 #include "RandomPlayerbotMgr.h"
+#include "GameEventMgr.h"
+#include "GameTime.h"
+#include "Group.h"
+#include "Weather.h"
+#include "MapMgr.h"
+#include "Transport.h"
 #include <vector>
 #include <map>
+#include <set>
 #include <random>
 #include <sstream>
 
@@ -148,6 +169,488 @@ static std::string ConvertAllLinks(const std::string& text)
     return result;
 }
 
+// ============================================================================
+// EVENT SYSTEM UTILITIES
+// ============================================================================
+
+// Cooldown cache to prevent spamming database checks
+static std::map<std::string, time_t> _cooldownCache;
+
+// Check if a cooldown key is still active
+static bool IsOnCooldown(const std::string& cooldownKey, uint32 cooldownSeconds)
+{
+    auto it = _cooldownCache.find(cooldownKey);
+    if (it != _cooldownCache.end())
+    {
+        time_t now = time(nullptr);
+        if (now - it->second < cooldownSeconds)
+            return true;
+    }
+
+    // Also check database for persistent cooldowns
+    QueryResult result = CharacterDatabase.Query(
+        "SELECT 1 FROM llm_chatter_events "
+        "WHERE cooldown_key = '{}' AND created_at > DATE_SUB(NOW(), INTERVAL {} SECOND) "
+        "LIMIT 1",
+        cooldownKey, cooldownSeconds);
+
+    if (result)
+        return true;
+
+    return false;
+}
+
+// Set cooldown in cache
+static void SetCooldown(const std::string& cooldownKey)
+{
+    _cooldownCache[cooldownKey] = time(nullptr);
+}
+
+// Escape string for SQL
+static std::string EscapeString(const std::string& str)
+{
+    std::string result = str;
+    size_t pos = 0;
+    while ((pos = result.find('\'', pos)) != std::string::npos)
+    {
+        result.replace(pos, 1, "''");
+        pos += 2;
+    }
+    return result;
+}
+
+// Escape string for JSON values (escapes quotes and backslashes)
+static std::string JsonEscape(const std::string& str)
+{
+    std::string result;
+    result.reserve(str.size());
+    for (char c : str)
+    {
+        switch (c)
+        {
+            case '"':  result += "\\\""; break;
+            case '\\': result += "\\\\"; break;
+            case '\n': result += "\\n"; break;
+            case '\r': result += "\\r"; break;
+            case '\t': result += "\\t"; break;
+            default:   result += c; break;
+        }
+    }
+    return result;
+}
+
+// Calculate reaction delay based on event type
+static uint32 GetReactionDelaySeconds(const std::string& eventType)
+{
+    // Returns delay in seconds (min, max)
+    uint32 minDelay, maxDelay;
+
+    if (eventType == "day_night_transition")
+        { minDelay = 120; maxDelay = 600; }
+    else if (eventType == "holiday_start" || eventType == "holiday_end")
+        { minDelay = 300; maxDelay = 900; }
+    else if (eventType == "weather_change")
+        { minDelay = 60; maxDelay = 300; }
+    else if (eventType == "transport_arrives")
+        { minDelay = 60; maxDelay = 300; }
+    else
+        { minDelay = 30; maxDelay = 120; }
+
+    return urand(minDelay, maxDelay);
+}
+
+// Queue an event to the database
+static void QueueEvent(const std::string& eventType, const std::string& eventScope,
+                       uint32 zoneId, uint32 mapId, uint8 priority,
+                       const std::string& cooldownKey, uint32 cooldownSeconds,
+                       uint32 subjectGuid, const std::string& subjectName,
+                       uint32 targetGuid, const std::string& targetName, uint32 targetEntry,
+                       const std::string& extraData)
+{
+    if (!sLLMChatterConfig->IsEnabled() || !sLLMChatterConfig->_useEventSystem)
+        return;
+
+    // Roll reaction chance
+    if (urand(1, 100) > sLLMChatterConfig->_eventReactionChance)
+    {
+        LOG_DEBUG("module", "LLMChatter: Event {} skipped (reaction chance)", eventType);
+        return;
+    }
+
+    // Check cooldown
+    if (!cooldownKey.empty() && IsOnCooldown(cooldownKey, cooldownSeconds))
+    {
+        LOG_DEBUG("module", "LLMChatter: Event {} on cooldown ({})", eventType, cooldownKey);
+        return;
+    }
+
+    // Calculate delays
+    uint32 reactionDelay = GetReactionDelaySeconds(eventType);
+    uint32 expirationSeconds = sLLMChatterConfig->_eventExpirationSeconds;
+
+    // Set cooldown
+    if (!cooldownKey.empty())
+        SetCooldown(cooldownKey);
+
+    // Insert event
+    CharacterDatabase.Execute(
+        "INSERT INTO llm_chatter_events "
+        "(event_type, event_scope, zone_id, map_id, priority, cooldown_key, "
+        "subject_guid, subject_name, target_guid, target_name, target_entry, "
+        "extra_data, status, react_after, expires_at) "
+        "VALUES ('{}', '{}', {}, {}, {}, '{}', {}, '{}', {}, '{}', {}, '{}', 'pending', "
+        "DATE_ADD(NOW(), INTERVAL {} SECOND), DATE_ADD(NOW(), INTERVAL {} SECOND))",
+        eventType, eventScope,
+        zoneId > 0 ? std::to_string(zoneId) : "NULL",
+        mapId > 0 ? std::to_string(mapId) : "NULL",
+        priority, EscapeString(cooldownKey),
+        subjectGuid > 0 ? std::to_string(subjectGuid) : "NULL",
+        EscapeString(subjectName),
+        targetGuid > 0 ? std::to_string(targetGuid) : "NULL",
+        EscapeString(targetName),
+        targetEntry > 0 ? std::to_string(targetEntry) : "NULL",
+        EscapeString(extraData),
+        reactionDelay, expirationSeconds);
+
+    LOG_INFO("module", "LLMChatter: Queued event {} in zone {} (react in {}s)",
+             eventType, zoneId, reactionDelay);
+}
+
+// Known holiday event IDs
+static const std::set<uint16> HOLIDAY_EVENTS = {
+    1,   // Midsummer Fire Festival
+    2,   // Winter Veil
+    7,   // Lunar Festival
+    8,   // Love is in the Air
+    9,   // Noblegarden
+    10,  // Children's Week
+    11,  // Harvest Festival
+    12,  // Hallow's End
+    24,  // Brewfest
+    26,  // Pilgrim's Bounty
+    50,  // Pirates' Day
+    51,  // Day of the Dead
+};
+
+// ============================================================================
+// GAME EVENT SCRIPT - Holiday Events
+// ============================================================================
+
+class LLMChatterGameEventScript : public GameEventScript
+{
+public:
+    LLMChatterGameEventScript() : GameEventScript("LLMChatterGameEventScript") {}
+
+    void OnStart(uint16 eventId) override
+    {
+        LOG_DEBUG("module", "LLMChatter: GameEvent OnStart - hook called for event {}", eventId);
+        if (!sLLMChatterConfig->IsEnabled() || !sLLMChatterConfig->_useEventSystem)
+            return;
+        if (!sLLMChatterConfig->_eventsHolidays)
+            return;
+
+        // Only care about holiday events
+        if (HOLIDAY_EVENTS.find(eventId) == HOLIDAY_EVENTS.end())
+            return;
+
+        GameEventMgr::GameEventDataMap const& events = sGameEventMgr->GetEventMap();
+        if (eventId >= events.size())
+            return;
+        GameEventData const& eventData = events[eventId];
+        std::string cooldownKey = "holiday:" + std::to_string(eventId);
+
+        std::string extraData = "{\"event_name\":\"" + JsonEscape(eventData.Description) + "\"}";
+
+        QueueEvent("holiday_start", "global", 0, 0, 2, cooldownKey, 86400 * 7,
+                   0, "", 0, "", eventId, extraData);
+
+        LOG_INFO("module", "LLMChatter: Holiday started - {}", eventData.Description);
+    }
+
+    void OnStop(uint16 eventId) override
+    {
+        LOG_DEBUG("module", "LLMChatter: GameEvent OnStop - hook called for event {}", eventId);
+        if (!sLLMChatterConfig->IsEnabled() || !sLLMChatterConfig->_useEventSystem)
+            return;
+        if (!sLLMChatterConfig->_eventsHolidays)
+            return;
+
+        if (HOLIDAY_EVENTS.find(eventId) == HOLIDAY_EVENTS.end())
+            return;
+
+        GameEventMgr::GameEventDataMap const& events = sGameEventMgr->GetEventMap();
+        if (eventId >= events.size())
+            return;
+        GameEventData const& eventData = events[eventId];
+        std::string cooldownKey = "holiday_end:" + std::to_string(eventId);
+
+        std::string extraData = "{\"event_name\":\"" + JsonEscape(eventData.Description) + "\"}";
+
+        QueueEvent("holiday_end", "global", 0, 0, 3, cooldownKey, 86400 * 7,
+                   0, "", 0, "", eventId, extraData);
+    }
+};
+
+// ============================================================================
+// ALE SCRIPT - Weather Events
+// ============================================================================
+
+// Track previous weather state per zone for transition detection
+static std::map<uint32, WeatherState> _zoneWeatherState;
+
+// Convert WeatherState enum to readable string
+static std::string GetWeatherStateName(WeatherState state)
+{
+    switch (state)
+    {
+        case WEATHER_STATE_FINE:             return "clear";
+        case WEATHER_STATE_FOG:              return "foggy";
+        case WEATHER_STATE_LIGHT_RAIN:       return "light rain";
+        case WEATHER_STATE_MEDIUM_RAIN:      return "rain";
+        case WEATHER_STATE_HEAVY_RAIN:       return "heavy rain";
+        case WEATHER_STATE_LIGHT_SNOW:       return "light snow";
+        case WEATHER_STATE_MEDIUM_SNOW:      return "snow";
+        case WEATHER_STATE_HEAVY_SNOW:       return "heavy snow";
+        case WEATHER_STATE_LIGHT_SANDSTORM:  return "light sandstorm";
+        case WEATHER_STATE_MEDIUM_SANDSTORM: return "sandstorm";
+        case WEATHER_STATE_HEAVY_SANDSTORM:  return "heavy sandstorm";
+        case WEATHER_STATE_THUNDERS:         return "thunderstorm";
+        case WEATHER_STATE_BLACKRAIN:        return "black rain";
+        case WEATHER_STATE_BLACKSNOW:        return "black snow";
+        default:                             return "unknown";
+    }
+}
+
+// Get weather category (rain, snow, sand, other)
+static std::string GetWeatherCategory(WeatherState state)
+{
+    switch (state)
+    {
+        case WEATHER_STATE_LIGHT_RAIN:
+        case WEATHER_STATE_MEDIUM_RAIN:
+        case WEATHER_STATE_HEAVY_RAIN:
+        case WEATHER_STATE_BLACKRAIN:
+            return "rain";
+        case WEATHER_STATE_LIGHT_SNOW:
+        case WEATHER_STATE_MEDIUM_SNOW:
+        case WEATHER_STATE_HEAVY_SNOW:
+        case WEATHER_STATE_BLACKSNOW:
+            return "snow";
+        case WEATHER_STATE_LIGHT_SANDSTORM:
+        case WEATHER_STATE_MEDIUM_SANDSTORM:
+        case WEATHER_STATE_HEAVY_SANDSTORM:
+            return "sandstorm";
+        case WEATHER_STATE_FOG:
+            return "fog";
+        case WEATHER_STATE_THUNDERS:
+            return "storm";
+        default:
+            return "weather";
+    }
+}
+
+// Get weather intensity description (based on grade)
+static std::string GetWeatherIntensity(float grade)
+{
+    if (grade < 0.25f)
+        return "mild";
+    else if (grade < 0.5f)
+        return "moderate";
+    else if (grade < 0.75f)
+        return "strong";
+    else
+        return "intense";
+}
+
+class LLMChatterALEScript : public ALEScript
+{
+public:
+    LLMChatterALEScript() : ALEScript("LLMChatterALEScript") {}
+
+    void OnWeatherChange(Weather* weather, WeatherState state, float grade) override
+    {
+        LOG_DEBUG("module", "LLMChatter: ALEScript OnWeatherChange - zone {} state {} grade {}",
+                  weather->GetZone(), static_cast<uint32>(state), grade);
+
+        if (!sLLMChatterConfig->IsEnabled() || !sLLMChatterConfig->_useEventSystem)
+            return;
+        if (!sLLMChatterConfig->_eventsWeather)
+            return;
+
+        uint32 zoneId = weather->GetZone();
+
+        // Get previous weather state for this zone (default to FINE if unknown)
+        WeatherState prevState = WEATHER_STATE_FINE;
+        auto it = _zoneWeatherState.find(zoneId);
+        if (it != _zoneWeatherState.end())
+            prevState = it->second;
+
+        // Update tracked state
+        _zoneWeatherState[zoneId] = state;
+
+        // Determine what kind of transition this is
+        std::string transitionType;
+        if (prevState == WEATHER_STATE_FINE && state != WEATHER_STATE_FINE)
+        {
+            // Weather starting
+            transitionType = "starting";
+        }
+        else if (prevState != WEATHER_STATE_FINE && state == WEATHER_STATE_FINE)
+        {
+            // Weather clearing
+            transitionType = "clearing";
+        }
+        else if (prevState != WEATHER_STATE_FINE && state != WEATHER_STATE_FINE)
+        {
+            // Weather changing (e.g., rain getting heavier, or changing type)
+            if (GetWeatherCategory(prevState) == GetWeatherCategory(state))
+            {
+                // Same category, intensity change
+                transitionType = "intensifying";
+            }
+            else
+            {
+                // Different weather type
+                transitionType = "changing";
+            }
+        }
+        else
+        {
+            // FINE to FINE - no change
+            return;
+        }
+
+        std::string weatherName = GetWeatherStateName(state);
+        std::string prevWeatherName = GetWeatherStateName(prevState);
+        std::string intensity = GetWeatherIntensity(grade);
+        std::string category = GetWeatherCategory(state);
+
+        // Use zone + transition specific cooldown
+        std::string cooldownKey = "weather:" + std::to_string(zoneId) + ":" + transitionType;
+
+        // Build extra data JSON with transition context
+        std::string extraData = "{\"weather_type\":\"" + weatherName + "\","
+                               "\"previous_weather\":\"" + prevWeatherName + "\","
+                               "\"transition\":\"" + transitionType + "\","
+                               "\"category\":\"" + category + "\","
+                               "\"intensity\":\"" + intensity + "\","
+                               "\"grade\":" + std::to_string(grade) + "}";
+
+        QueueEvent("weather_change", "zone", zoneId, 0, 5, cooldownKey, 1800,
+                   0, "", 0, "", static_cast<uint32>(state), extraData);
+
+        LOG_INFO("module", "LLMChatter: Weather {} in zone {} - {} -> {} ({})",
+                 transitionType, zoneId, prevWeatherName, weatherName, intensity);
+    }
+};
+
+// ============================================================================
+// TRANSPORT TRACKING
+// ============================================================================
+
+// Cached transport info (loaded from DB on startup)
+struct TransportInfo
+{
+    uint32 entry;
+    std::string fullName;
+    std::string destination;
+    std::string transportType;  // "Boat", "Zeppelin", "Turtle"
+};
+
+// Transport info cache: entry -> TransportInfo
+static std::map<uint32, TransportInfo> _transportCache;
+
+// Transport zone tracking: GUID -> (lastZoneId, lastMapId)
+static std::map<ObjectGuid::LowType, std::pair<uint32, uint32>> _transportZones;
+
+// Parse transport name to extract destination and type
+// Example: "Auberdine, Darkshore and Stormwind Harbor (Boat, Alliance ("The Bravery"))"
+// Returns: destination = "Stormwind Harbor", type = "Boat"
+static void ParseTransportName(const std::string& fullName, std::string& destination, std::string& transportType)
+{
+    destination = "";
+    transportType = "";
+
+    // Find " and " to split origin/destination
+    size_t andPos = fullName.find(" and ");
+    if (andPos == std::string::npos)
+    {
+        destination = fullName;
+        return;
+    }
+
+    // Get everything after " and "
+    std::string afterAnd = fullName.substr(andPos + 5);
+
+    // Find " (" to cut off the transport type portion
+    size_t parenPos = afterAnd.find(" (");
+    if (parenPos != std::string::npos)
+    {
+        destination = afterAnd.substr(0, parenPos);
+
+        // Extract transport type from parentheses
+        std::string typeSection = afterAnd.substr(parenPos + 2);
+        size_t commaPos = typeSection.find(',');
+        if (commaPos != std::string::npos)
+        {
+            transportType = typeSection.substr(0, commaPos);
+        }
+        else
+        {
+            size_t closeParenPos = typeSection.find(')');
+            if (closeParenPos != std::string::npos)
+            {
+                transportType = typeSection.substr(0, closeParenPos);
+            }
+        }
+    }
+    else
+    {
+        destination = afterAnd;
+    }
+}
+
+// Load transport info from database
+static void LoadTransportCache()
+{
+    _transportCache.clear();
+
+    QueryResult result = WorldDatabase.Query(
+        "SELECT entry, name FROM transports");
+
+    if (!result)
+    {
+        LOG_INFO("module", "LLMChatter: No transports found in database");
+        return;
+    }
+
+    uint32 count = 0;
+    do
+    {
+        Field* fields = result->Fetch();
+        uint32 entry = fields[0].Get<uint32>();
+        std::string name = fields[1].Get<std::string>();
+
+        TransportInfo info;
+        info.entry = entry;
+        info.fullName = name;
+        ParseTransportName(name, info.destination, info.transportType);
+
+        _transportCache[entry] = info;
+        count++;
+
+        LOG_DEBUG("module", "LLMChatter: Loaded transport {} -> {} ({})",
+                  entry, info.destination, info.transportType);
+    }
+    while (result->NextRow());
+
+    LOG_INFO("module", "LLMChatter: Loaded {} transports into cache", count);
+}
+
+// ============================================================================
+// WORLD SCRIPT - Main chatter logic, day/night transitions
+// ============================================================================
+
 class LLMChatterWorldScript : public WorldScript
 {
 public:
@@ -169,10 +672,19 @@ public:
         CharacterDatabase.Execute(
             "UPDATE llm_chatter_queue SET status = 'cancelled' "
             "WHERE status IN ('pending', 'processing')");
+        CharacterDatabase.Execute(
+            "UPDATE llm_chatter_events SET status = 'expired' "
+            "WHERE status IN ('pending', 'processing')");
 
-        LOG_INFO("module", "LLMChatter: Cleared stale messages, WorldScript initialized");
+        // Load transport info cache for transport events
+        LoadTransportCache();
+
+        LOG_INFO("module", "LLMChatter: Cleared stale messages and events, WorldScript initialized");
         _lastTriggerTime = 0;
         _lastDeliveryTime = 0;
+        _lastEnvironmentCheckTime = 0;
+        _lastTransportCheckTime = 0;
+        _lastTimePeriod = "";
     }
 
     void OnUpdate(uint32 /*diff*/) override
@@ -195,11 +707,191 @@ public:
             _lastTriggerTime = now;
             TryTriggerChatter();
         }
+
+        // Check for environmental events (every 60 seconds)
+        if (sLLMChatterConfig->_useEventSystem &&
+            now - _lastEnvironmentCheckTime >= 60000)
+        {
+            _lastEnvironmentCheckTime = now;
+            CheckDayNightTransition();
+        }
+
+        // Check for transport zone changes (every 5 seconds)
+        if (sLLMChatterConfig->_useEventSystem &&
+            sLLMChatterConfig->_eventsTransports &&
+            now - _lastTransportCheckTime >= 5000)
+        {
+            _lastTransportCheckTime = now;
+            CheckTransportZones();
+        }
     }
 
 private:
     uint32 _lastTriggerTime = 0;
     uint32 _lastDeliveryTime = 0;
+    uint32 _lastEnvironmentCheckTime = 0;
+    uint32 _lastTransportCheckTime = 0;
+    std::string _lastTimePeriod = "";
+
+    // Get detailed time period from hour
+    // Returns both the period name and a descriptive phrase
+    std::pair<std::string, std::string> GetTimePeriod(int hour)
+    {
+        // Time periods based on typical WoW day cycle
+        if (hour >= 5 && hour < 7)
+            return {"dawn", "The sun is rising on the horizon"};
+        else if (hour >= 7 && hour < 9)
+            return {"early_morning", "It's early morning"};
+        else if (hour >= 9 && hour < 12)
+            return {"morning", "The morning is well underway"};
+        else if (hour >= 12 && hour < 14)
+            return {"midday", "The sun is at its peak"};
+        else if (hour >= 14 && hour < 17)
+            return {"afternoon", "It's afternoon"};
+        else if (hour >= 17 && hour < 19)
+            return {"evening", "Evening approaches"};
+        else if (hour >= 19 && hour < 21)
+            return {"dusk", "The sun is setting"};
+        else if (hour >= 21 && hour < 23)
+            return {"night", "Night has fallen"};
+        else if (hour == 23 || hour == 0)
+            return {"midnight", "It's the middle of the night"};
+        else // 1-4
+            return {"late_night", "The night is deep and quiet"};
+    }
+
+    // Check for time-of-day transitions
+    void CheckDayNightTransition()
+    {
+        if (!sLLMChatterConfig->_eventsDayNight)
+            return;
+
+        // Get in-game time
+        time_t gameTime = GameTime::GetGameTime().count();
+        struct tm* timeInfo = localtime(&gameTime);
+        int hour = timeInfo->tm_hour;
+        int minute = timeInfo->tm_min;
+
+        // Get current time period
+        auto [timePeriod, description] = GetTimePeriod(hour);
+
+        // Only trigger if time period changed
+        if (timePeriod == _lastTimePeriod)
+            return;
+
+        std::string previousPeriod = _lastTimePeriod;
+        _lastTimePeriod = timePeriod;
+
+        // Skip initial state (server just started)
+        if (previousPeriod.empty())
+            return;
+
+        // Determine if it's day or night (for backward compatibility)
+        bool isDay = (hour >= 6 && hour < 18);
+
+        // Use period-specific cooldown
+        std::string cooldownKey = "time_period:" + timePeriod;
+
+        // Build rich time context for the LLM
+        std::string extraData = "{"
+            "\"is_day\":" + std::string(isDay ? "true" : "false") + ","
+            "\"hour\":" + std::to_string(hour) + ","
+            "\"minute\":" + std::to_string(minute) + ","
+            "\"time_period\":\"" + timePeriod + "\","
+            "\"previous_period\":\"" + previousPeriod + "\","
+            "\"description\":\"" + JsonEscape(description) + "\""
+            "}";
+
+        QueueEvent("day_night_transition", "global", 0, 0, 7, cooldownKey, 7200,
+                   0, "", 0, "", 0, extraData);
+
+        LOG_INFO("module", "LLMChatter: Time transition - {} -> {} ({}:{})",
+                 previousPeriod, timePeriod, hour, minute);
+    }
+
+    // Check for transport zone changes
+    void CheckTransportZones()
+    {
+        // Iterate all maps to find transports
+        sMapMgr->DoForAllMaps([](Map* map)
+        {
+            if (!map)
+                return;
+
+            // Get all transports on this map
+            TransportsContainer const& transports = map->GetAllTransports();
+
+            for (Transport* transport : transports)
+            {
+                if (!transport)
+                    continue;
+
+                ObjectGuid::LowType guid = transport->GetGUID().GetCounter();
+                uint32 entry = transport->GetEntry();
+                uint32 mapId = map->GetId();
+
+                // Get current zone from transport position
+                float x = transport->GetPositionX();
+                float y = transport->GetPositionY();
+                float z = transport->GetPositionZ();
+                uint32 currentZone = map->GetZoneId(transport->GetPhaseMask(), x, y, z);
+
+                // Skip if zone lookup failed
+                if (currentZone == 0)
+                    continue;
+
+                // Check for zone change
+                auto it = _transportZones.find(guid);
+                if (it != _transportZones.end())
+                {
+                    uint32 lastZone = it->second.first;
+                    uint32 lastMap = it->second.second;
+
+                    // Detect zone change or map change
+                    if (currentZone != lastZone || mapId != lastMap)
+                    {
+                        // Zone changed! Queue event if we have transport info
+                        auto cacheIt = _transportCache.find(entry);
+                        if (cacheIt != _transportCache.end())
+                        {
+                            const TransportInfo& info = cacheIt->second;
+
+                            // Build cooldown key
+                            std::string cooldownKey = "transport:" + std::to_string(entry) +
+                                                     ":zone:" + std::to_string(currentZone);
+
+                            // Build extra data JSON
+                            std::string extraData = "{"
+                                "\"transport_entry\":" + std::to_string(entry) + ","
+                                "\"transport_name\":\"" + JsonEscape(info.fullName) + "\","
+                                "\"destination\":\"" + JsonEscape(info.destination) + "\","
+                                "\"transport_type\":\"" + JsonEscape(info.transportType) + "\""
+                                "}";
+
+                            QueueEvent(
+                                "transport_arrives",
+                                "zone",
+                                currentZone,
+                                mapId,
+                                6,  // priority
+                                cooldownKey,
+                                600,  // 10 minute cooldown per transport+zone
+                                0, "",  // no subject
+                                0, info.fullName, entry,  // target info
+                                extraData
+                            );
+
+                            LOG_INFO("module", "LLMChatter: Transport {} ({}) arrived in zone {}",
+                                     info.transportType, info.destination, currentZone);
+                        }
+                    }
+                }
+
+                // Update tracking
+                _transportZones[guid] = {currentZone, mapId};
+            }
+        });
+    }
 
     // Get class name from class ID
     std::string GetClassName(uint8 classId)
@@ -268,11 +960,23 @@ private:
     // Check if player is in the overworld (not an instance)
     bool IsInOverworld(Player* player)
     {
-        if (!player || !player->GetMap())
+        if (!player)
+            return false;
+
+        // Check if player is fully loaded (not in character creation cinematic)
+        WorldSession* session = player->GetSession();
+        if (!session)
+            return false;
+
+        if (session->PlayerLoading())
+            return false;
+
+        Map* map = player->GetMap();
+        if (!map)
             return false;
 
         // Only allow chatter in common world maps (not dungeons, raids, BGs, arenas)
-        return !player->GetMap()->Instanceable();
+        return !map->Instanceable();
     }
 
     // Find zones that have real (non-bot) players in the overworld
@@ -281,21 +985,32 @@ private:
         std::map<uint32, bool> zoneMap;
 
         WorldSessionMgr::SessionMap const& sessions = sWorldSessionMgr->GetAllSessions();
+
         for (auto const& pair : sessions)
         {
-            if (WorldSession* session = pair.second)
+            WorldSession* session = pair.second;
+            if (!session)
+                continue;
+
+            // Check if session is still loading a player
+            if (session->PlayerLoading())
+                continue;
+
+            Player* player = session->GetPlayer();
+            if (!player)
+                continue;
+
+            // Skip players not fully in world
+            if (!player->IsInWorld())
+                continue;
+
+            // Only count real players (not bots) in the overworld
+            if (!IsPlayerBot(player) && IsInOverworld(player))
             {
-                if (Player* player = session->GetPlayer())
+                uint32 zoneId = player->GetZoneId();
+                if (zoneId > 0)
                 {
-                    // Only count real players (not bots) in the overworld
-                    if (!IsPlayerBot(player) && player->IsInWorld() && IsInOverworld(player))
-                    {
-                        uint32 zoneId = player->GetZoneId();
-                        if (zoneId > 0)
-                        {
-                            zoneMap[zoneId] = true;
-                        }
-                    }
+                    zoneMap[zoneId] = true;
                 }
             }
         }
@@ -306,6 +1021,7 @@ private:
             zones.push_back(pair.first);
         }
 
+        LOG_DEBUG("module", "LLMChatter: GetZonesWithRealPlayers - returning {} zones", zones.size());
         return zones;
     }
 
@@ -339,37 +1055,36 @@ private:
     std::vector<Player*> GetBotsInZone(uint32 zoneId, uint32 faction)
     {
         std::vector<Player*> bots;
-        uint32 totalBots = 0;
-        uint32 inZone = 0;
-        uint32 rightFaction = 0;
 
         // Get all playerbots from RandomPlayerbotMgr
-        PlayerBotMap allBots = sRandomPlayerbotMgr->GetAllBots();
-        totalBots = allBots.size();
+        PlayerBotMap allBots = sRandomPlayerbotMgr.GetAllBots();
 
         for (auto const& pair : allBots)
         {
             Player* player = pair.second;
-            if (player && player->IsInWorld() && player->IsAlive())
+            if (!player)
+                continue;
+
+            // Check if bot is fully loaded
+            WorldSession* session = player->GetSession();
+            if (session && session->PlayerLoading())
+                continue;
+
+            if (player->IsInWorld() && player->IsAlive())
             {
                 if (player->GetZoneId() == zoneId)
                 {
-                    inZone++;
                     if (GetFaction(player) == faction)
                     {
                         // Only include bots NOT grouped with real players
                         if (!IsGroupedWithRealPlayer(player))
                         {
-                            rightFaction++;
                             bots.push_back(player);
                         }
                     }
                 }
             }
         }
-
-        LOG_INFO("module", "LLMChatter: GetBotsInZone - total bots: {}, in zone {}: {}, eligible: {}",
-                 totalBots, zoneId, inZone, rightFaction);
 
         return bots;
     }
@@ -381,22 +1096,31 @@ private:
         uint32 hordeCount = 0;
 
         WorldSessionMgr::SessionMap const& sessions = sWorldSessionMgr->GetAllSessions();
+
         for (auto const& pair : sessions)
         {
-            if (WorldSession* session = pair.second)
+            WorldSession* session = pair.second;
+            if (!session)
+                continue;
+
+            // Check if session is still loading a player
+            if (session->PlayerLoading())
+                continue;
+
+            Player* player = session->GetPlayer();
+            if (!player)
+                continue;
+
+            // Skip players not fully in world
+            if (!player->IsInWorld())
+                continue;
+
+            if (!IsPlayerBot(player) && player->GetZoneId() == zoneId)
             {
-                if (Player* player = session->GetPlayer())
-                {
-                    if (!IsPlayerBot(player) &&
-                        player->IsInWorld() &&
-                        player->GetZoneId() == zoneId)
-                    {
-                        if (GetFaction(player) == TEAM_ALLIANCE)
-                            allianceCount++;
-                        else
-                            hordeCount++;
-                    }
-                }
+                if (GetFaction(player) == TEAM_ALLIANCE)
+                    allianceCount++;
+                else
+                    hordeCount++;
             }
         }
 
@@ -414,8 +1138,12 @@ private:
         LOG_INFO("module", "LLMChatter: TryTriggerChatter called");
 
         // Roll for trigger chance
-        if (urand(1, 100) > sLLMChatterConfig->_triggerChance)
+        uint32 roll = urand(1, 100);
+        if (roll > sLLMChatterConfig->_triggerChance)
+        {
+            LOG_INFO("module", "LLMChatter: Skipped (roll {} > chance {})", roll, sLLMChatterConfig->_triggerChance);
             return;
+        }
 
         // Check pending requests
         QueryResult countResult = CharacterDatabase.Query(
@@ -433,11 +1161,12 @@ private:
 
         // Find zones with real players
         std::vector<uint32> validZones = GetZonesWithRealPlayers();
-        LOG_INFO("module", "LLMChatter: Found {} zones with real players", validZones.size());
         if (validZones.empty())
         {
+            LOG_INFO("module", "LLMChatter: No zones with real players found");
             return;
         }
+        LOG_INFO("module", "LLMChatter: Found {} zones with real players", validZones.size());
 
         // Pick one zone randomly
         std::random_device rd;
@@ -448,13 +1177,11 @@ private:
 
         // Get the dominant faction in this zone
         uint32 faction = GetDominantFactionInZone(selectedZone);
-        LOG_INFO("module", "LLMChatter: Selected zone {} ({}), dominant faction: {}",
+        LOG_DEBUG("module", "LLMChatter: Selected zone {} ({}), dominant faction: {}",
                  selectedZone, zoneName, faction == TEAM_ALLIANCE ? "Alliance" : "Horde");
 
         // Get bots in this zone with matching faction
         std::vector<Player*> bots = GetBotsInZone(selectedZone, faction);
-        LOG_INFO("module", "LLMChatter: Found {} bots in zone {} with faction {}",
-                 bots.size(), zoneName, faction == TEAM_ALLIANCE ? "Alliance" : "Horde");
 
         // Decide: statement or conversation
         bool isConversation = (urand(1, 100) <= sLLMChatterConfig->_conversationChance);
@@ -620,16 +1347,25 @@ private:
 
             // Find the bot player from RandomPlayerbotMgr
             Player* bot = nullptr;
-            PlayerBotMap allBots = sRandomPlayerbotMgr->GetAllBots();
+            PlayerBotMap allBots = sRandomPlayerbotMgr.GetAllBots();
+
             for (auto const& pair : allBots)
             {
-                if (Player* player = pair.second)
+                Player* player = pair.second;
+                if (!player)
+                    continue;
+
+                if (player->GetGUID().GetCounter() == botGuid)
                 {
-                    if (player->GetGUID().GetCounter() == botGuid)
+                    // Check if bot is fully loaded before using
+                    WorldSession* session = player->GetSession();
+                    if (session && session->PlayerLoading())
                     {
-                        bot = player;
+                        // Don't use this bot, it's not ready
                         break;
                     }
+                    bot = player;
+                    break;
                 }
             }
 
@@ -653,8 +1389,10 @@ private:
     }
 };
 
-// Register the script
+// Register scripts
 void AddLLMChatterScripts()
 {
     new LLMChatterWorldScript();
+    new LLMChatterGameEventScript();
+    new LLMChatterALEScript();
 }

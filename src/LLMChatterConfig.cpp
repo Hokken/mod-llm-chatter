@@ -20,12 +20,32 @@ void LLMChatterConfig::LoadConfig()
     // Delivery settings
     _deliveryPollMs = sConfigMgr->GetOption<uint32>("LLMChatter.DeliveryPollMs", 1000);
     _messageDelayMin = sConfigMgr->GetOption<uint32>("LLMChatter.MessageDelayMin", 1000);
-    _messageDelayMax = sConfigMgr->GetOption<uint32>("LLMChatter.MessageDelayMax", 8000);
+    _messageDelayMax = sConfigMgr->GetOption<uint32>("LLMChatter.MessageDelayMax", 30000);
+
+    // Event system settings
+    _useEventSystem = sConfigMgr->GetOption<bool>("LLMChatter.UseEventSystem", true);
+    _eventReactionChance = sConfigMgr->GetOption<uint32>("LLMChatter.EventReactionChance", 15);
+    _eventExpirationSeconds = sConfigMgr->GetOption<uint32>("LLMChatter.EventExpirationSeconds", 600);
+    _globalMessageCap = sConfigMgr->GetOption<uint32>("LLMChatter.GlobalMessageCap", 8);
+    _globalCapWindowSeconds = sConfigMgr->GetOption<uint32>("LLMChatter.GlobalCapWindowSeconds", 300);
+    _botSpeakerCooldownSeconds = sConfigMgr->GetOption<uint32>("LLMChatter.BotSpeakerCooldownSeconds", 900);
+    _zoneFatigueThreshold = sConfigMgr->GetOption<uint32>("LLMChatter.ZoneFatigueThreshold", 3);
+    _zoneFatigueCooldownSeconds = sConfigMgr->GetOption<uint32>("LLMChatter.ZoneFatigueCooldownSeconds", 900);
+
+    // Event type toggles (only safe, low-frequency events)
+    _eventsHolidays = sConfigMgr->GetOption<bool>("LLMChatter.Events.Holidays", true);
+    _eventsDayNight = sConfigMgr->GetOption<bool>("LLMChatter.Events.DayNight", true);
+    _eventsWeather = sConfigMgr->GetOption<bool>("LLMChatter.Events.Weather", true);
+    _eventsTransports = sConfigMgr->GetOption<bool>("LLMChatter.Events.Transports", true);
 
     if (_enabled)
     {
         LOG_INFO("module", "LLMChatter: Module enabled");
         LOG_INFO("module", "LLMChatter: Trigger interval: {}s, Conversation chance: {}%, Trigger chance: {}%",
                  _triggerIntervalSeconds, _conversationChance, _triggerChance);
+        if (_useEventSystem)
+        {
+            LOG_INFO("module", "LLMChatter: Event system enabled (reaction chance: {}%)", _eventReactionChance);
+        }
     }
 }

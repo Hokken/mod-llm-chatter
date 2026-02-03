@@ -83,24 +83,42 @@ LLMChatter.MessageDelayMin = 1000
 LLMChatter.MessageDelayMax = 30000
 
 ###############################################################################
-# LLM API SETTINGS (Used by Python bridge)
+# LLM PROVIDER SETTINGS (Used by Python bridge)
+###############################################################################
+
+#
+#   LLMChatter.Provider
+#       Which LLM provider to use: "anthropic" or "openai"
+#       Default: anthropic
+#
+LLMChatter.Provider = anthropic
+
+#
+#   LLMChatter.Model
+#       Model alias to use. Available aliases:
+#       Anthropic: opus, sonnet, haiku
+#       OpenAI: gpt4o, gpt4o-mini
+#       Default: haiku
+#
+LLMChatter.Model = haiku
+
+###############################################################################
+# API KEYS (only the key for your selected provider is required)
 ###############################################################################
 
 #
 #   LLMChatter.Anthropic.ApiKey
 #       Your Anthropic API key (starts with sk-ant-)
 #       Get one at: https://console.anthropic.com/
-#       Default: (empty - must be configured)
 #
 LLMChatter.Anthropic.ApiKey =
 
 #
-#   LLMChatter.Anthropic.Model
-#       Anthropic model to use
-#       Recommend: claude-haiku-4-5-20251001 (fast and cheap)
-#       Default: claude-haiku-4-5-20251001
+#   LLMChatter.OpenAI.ApiKey
+#       Your OpenAI API key (starts with sk-)
+#       Get one at: https://platform.openai.com/api-keys
 #
-LLMChatter.Anthropic.Model = claude-haiku-4-5-20251001
+LLMChatter.OpenAI.ApiKey =
 
 #
 #   LLMChatter.MaxTokens
@@ -163,3 +181,105 @@ LLMChatter.Database.Name = acore_characters
 #       Default: 3
 #
 LLMChatter.Bridge.PollIntervalSeconds = 3
+
+###############################################################################
+# EVENT SYSTEM SETTINGS
+###############################################################################
+
+#
+#   LLMChatter.UseEventSystem
+#       Enable the event-driven chatter system
+#       Events like holidays and day/night transitions trigger contextual chatter
+#       Default: 1 (enabled)
+#
+LLMChatter.UseEventSystem = 1
+
+#
+#   LLMChatter.EventReactionChance
+#       Base chance (0-100) that any event triggers a reaction
+#       Most events should NOT trigger chatter for naturalism
+#       Default: 15
+#
+LLMChatter.EventReactionChance = 15
+
+#
+#   LLMChatter.EventExpirationSeconds
+#       How long (seconds) before unprocessed events expire
+#       Default: 600 (10 minutes)
+#
+LLMChatter.EventExpirationSeconds = 600
+
+#
+#   LLMChatter.GlobalMessageCap
+#       Max messages across ALL zones per GlobalCapWindowSeconds
+#       Prevents world-wide spam during high activity
+#       Default: 8
+#
+LLMChatter.GlobalMessageCap = 8
+
+#
+#   LLMChatter.GlobalCapWindowSeconds
+#       Time window for GlobalMessageCap
+#       Default: 300 (5 minutes)
+#
+LLMChatter.GlobalCapWindowSeconds = 300
+
+#
+#   LLMChatter.BotSpeakerCooldownSeconds
+#       How long before same bot can speak again
+#       Spreads voices across different bots
+#       Default: 900 (15 minutes)
+#
+LLMChatter.BotSpeakerCooldownSeconds = 900
+
+#
+#   LLMChatter.ZoneFatigueThreshold
+#       Max event reactions per zone per ZoneFatigueCooldownSeconds
+#       Default: 3
+#
+LLMChatter.ZoneFatigueThreshold = 3
+
+#
+#   LLMChatter.ZoneFatigueCooldownSeconds
+#       Time window for zone fatigue
+#       Default: 900 (15 minutes)
+#
+LLMChatter.ZoneFatigueCooldownSeconds = 900
+
+###############################################################################
+# EVENT TYPE TOGGLES
+# Only safe, low-frequency events are supported to ensure server stability.
+# High-frequency events (creature spawns, deaths, player level ups, etc.)
+# have been removed as they can cause crashes with playerbots.
+###############################################################################
+
+#
+#   LLMChatter.Events.Holidays
+#       React to holiday start/stop events (very rare)
+#       Default: 1 (enabled)
+#
+LLMChatter.Events.Holidays = 1
+
+#
+#   LLMChatter.Events.DayNight
+#       React to time-of-day transitions
+#       Tracks: dawn, early_morning, morning, midday, afternoon, evening, dusk, night, midnight, late_night
+#       Default: 1 (enabled)
+#
+LLMChatter.Events.DayNight = 1
+
+#
+#   LLMChatter.Events.Weather
+#       React to weather changes (rain, snow, fog, sandstorms, etc.)
+#       Tracks transitions: starting, clearing, intensifying
+#       Default: 1 (enabled)
+#
+LLMChatter.Events.Weather = 1
+
+#
+#   LLMChatter.Events.Transports
+#       React to transport arrivals (boats, zeppelins entering zones)
+#       Bots may comment when a transport arrives in their zone
+#       Default: 1 (enabled)
+#
+LLMChatter.Events.Transports = 1
