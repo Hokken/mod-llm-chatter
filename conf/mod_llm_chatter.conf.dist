@@ -24,6 +24,15 @@
 LLMChatter.Enable = 0
 
 #
+#   LLMChatter.EnableVerboseLogging
+#       Enable detailed logging for debugging (prompt creativity, mood, timing, etc.)
+#       Disable in production to reduce log volume and improve performance
+#       NOTE: Not yet connected to conditions - will be implemented before release
+#       Default: 1 (enabled for development)
+#
+LLMChatter.EnableVerboseLogging = 1
+
+#
 #   LLMChatter.TriggerIntervalSeconds
 #       How often (in seconds) the server considers triggering new chatter
 #       Actual chatter may not happen every interval (depends on chance)

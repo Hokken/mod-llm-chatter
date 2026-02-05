@@ -351,11 +351,11 @@ terrible happened here.""",
     # Kalimdor - Alliance Starting Zones
     # -------------------------------------------------------------------------
     141: """Teldrassil: Massive world tree home to the night elves. The forest
-is ancient and magical but something feels wrong - corruption spreads through
+is ancient, still peaceful and magical but something feels wrong - corruption spreads through
 the wildlife. Gnarlpine furbolgs have gone hostile, and timberlings cause trouble.
 Darnassus sits serenely above. Beautiful but troubled.""",
 
-    148: """Darkshore: Long, misty coastline with an eerie atmosphere. Ancient
+    148: """Darkshore: Long, misty coastline with an mystical and eerie atmosphere. Ancient
 night elf ruins scatter the landscape. Murlocs and naga plague the beaches,
 corrupted wildlife roams the forests. Auberdine is the main hub but feels
 isolated. Something dark is corrupting the land.""",
@@ -1512,7 +1512,7 @@ def build_plain_statement_prompt(bot: dict, zone_id: int = 0, zone_mobs: list = 
 
     # Current weather conditions - always include so LLM can naturally reference any weather
     if current_weather:
-        parts.append(f"Current weather: {current_weather}")
+        parts.append(f"Current weather: {current_weather}. Feel free to naturally reference the weather if it fits.")
 
     # Randomly include level (60% chance)
     if random.random() < 0.6:
@@ -1582,13 +1582,19 @@ def build_quest_statement_prompt(bot: dict, quest: dict, config: dict = None) ->
         parts.append(f"Quest involves: {quest['description'][:80]}")
 
     # Random tone and mood
-    parts.append(f"Tone: {pick_random_tone()}")
-    parts.append(f"Mood: {pick_random_mood()}")
+    tone = pick_random_tone()
+    mood = pick_random_mood()
+    parts.append(f"Tone: {tone}")
+    parts.append(f"Mood: {mood}")
 
     # Maybe add a creative twist
     twist = maybe_get_creative_twist()
     if twist:
         parts.append(f"Creative twist: {twist}")
+
+    # Log the creative selections
+    twist_log = f", twist={twist}" if twist else ""
+    logger.info(f"Quest statement creativity: tone={tone}, mood={mood}, quest={quest['quest_name'][:30]}{twist_log}")
 
     # Quest-specific approaches
     quest_actions = [
@@ -1635,13 +1641,19 @@ def build_loot_statement_prompt(bot: dict, item: dict, can_use: bool, config: di
             parts.append(f"Class fit: {usability}")
 
     # Random tone and mood
-    parts.append(f"Tone: {pick_random_tone()}")
-    parts.append(f"Mood: {pick_random_mood()}")
+    tone = pick_random_tone()
+    mood = pick_random_mood()
+    parts.append(f"Tone: {tone}")
+    parts.append(f"Mood: {mood}")
 
     # Maybe add a creative twist
     twist = maybe_get_creative_twist()
     if twist:
         parts.append(f"Creative twist: {twist}")
+
+    # Log the creative selections
+    twist_log = f", twist={twist}" if twist else ""
+    logger.info(f"Loot statement creativity: tone={tone}, mood={mood}, item={item['item_name'][:30]}{twist_log}")
 
     # Loot-specific reactions to vary
     reactions = [
@@ -1692,13 +1704,19 @@ def build_quest_reward_statement_prompt(bot: dict, quest: dict, config: dict = N
         parts.append(f"Player class: {bot['class']}")
 
     # Random tone and mood
-    parts.append(f"Tone: {pick_random_tone()}")
-    parts.append(f"Mood: {pick_random_mood()}")
+    tone = pick_random_tone()
+    mood = pick_random_mood()
+    parts.append(f"Tone: {tone}")
+    parts.append(f"Mood: {mood}")
 
     # Maybe add a creative twist
     twist = maybe_get_creative_twist()
     if twist:
         parts.append(f"Creative twist: {twist}")
+
+    # Log the creative selections
+    twist_log = f", twist={twist}" if twist else ""
+    logger.info(f"Quest+reward statement creativity: tone={tone}, mood={mood}, quest={quest['quest_name'][:30]}{twist_log}")
 
     # Completion reactions
     reactions = [
@@ -1747,7 +1765,7 @@ def build_plain_conversation_prompt(bots: List[dict], zone_id: int = 0, zone_mob
 
     # Current weather conditions - always include so LLM can naturally reference any weather
     if current_weather:
-        parts.append(f"Current weather: {current_weather}")
+        parts.append(f"Current weather: {current_weather}. Feel free to naturally reference the weather if it fits.")
 
     # Time of day context - adds natural atmosphere variation
     time_period, time_desc = get_time_of_day_context()
@@ -2011,7 +2029,8 @@ def build_event_conversation_prompt(bots: List[dict], event_context: str, zone_i
     if 'boat' in event_context.lower() or 'zeppelin' in event_context.lower() or 'turtle' in event_context.lower():
         parts.append("This transport just arrived - at least one bot should comment on it!")
         parts.append("Use the specific transport type (boat/zeppelin/turtle), NOT the generic word 'transport'.")
-        parts.append("IMPORTANT: Always mention the destination from the event context above.")
+        parts.append("CRITICAL: Read the event context carefully - it tells you WHERE the transport arrived (your current location) and WHERE it came FROM.")
+        parts.append("If bots want to board or leave, they go TO the origin (where it came from), NOT to their current location!")
         parts.append("If a ship name is mentioned (e.g., 'The Moonspray'), you can optionally include it.")
     else:
         parts.append("The conversation may naturally reference this event, or players may chat about something else.")
@@ -2908,20 +2927,33 @@ def build_event_context(event: dict) -> str:
             destination = 'its next stop'
 
         # Build description based on transport type with ship name
+        # IMPORTANT: The boat ARRIVED at destination (where bots are), coming FROM origin
+        # If bots board it, it will take them BACK to origin
         ship_info = f' "{ship_name}"' if ship_name else ''
-        route_info = f' (route: {origin} to {destination})' if origin else f' heading to {destination}'
+
+        # Clarify: arrived HERE from origin, will depart TO origin
+        if origin and destination:
+            arrival_info = f"This {transport_type.lower()}{ship_info} just arrived here at {destination} from {origin}."
+            departure_info = f"If bots want to board, it will take them to {origin}."
+        elif destination:
+            arrival_info = f"This {transport_type.lower()}{ship_info} just arrived here at {destination}."
+            departure_info = ""
+        else:
+            arrival_info = f"A {transport_type.lower()}{ship_info} has just arrived."
+            departure_info = ""
 
         if transport_type.lower() == 'zeppelin':
-            desc = f"A zeppelin{ship_info} has just arrived!{route_info}"
+            desc = f"A zeppelin{ship_info} has just arrived! {arrival_info} {departure_info}"
         elif transport_type.lower() == 'boat':
-            desc = f"A boat{ship_info} has just docked at the pier!{route_info}"
+            desc = f"A boat{ship_info} has just docked at the pier! {arrival_info} {departure_info}"
         elif transport_type.lower() == 'turtle':
-            desc = f"A giant sea turtle transport{ship_info} has arrived!{route_info}"
+            desc = f"A giant sea turtle transport{ship_info} has arrived! {arrival_info} {departure_info}"
         else:
-            desc = f"A {transport_type}{ship_info} has arrived,{route_info}"
+            desc = f"A {transport_type}{ship_info} has arrived. {arrival_info} {departure_info}"
 
         context_parts.append(desc)
-        context_parts.append(f"IMPORTANT: Bots should mention the destination '{destination}' and optionally the ship name '{ship_name}' in their conversation.")
+        # Clarify that bots are AT the destination, not going TO it
+        context_parts.append(f"IMPORTANT: The bots are currently AT {destination}. The transport just arrived FROM {origin}. If mentioning boarding, they would be heading TO {origin}, not to {destination}.")
 
     elif event_type == 'player_enters_zone':
         subject = event.get('subject_name', 'A player')
@@ -3108,8 +3140,10 @@ def process_pending_events(db, client, config) -> bool:
 
         # Find bots in the zone (if zone-specific)
         # Uses account-based detection: RNDBOT% accounts = bots
+        # Excludes bots that are grouped with real players (immersion breaking)
         if zone_id:
             # Get online bots (RNDBOT accounts) currently in this zone
+            # Exclude bots grouped with real players
             cursor.execute("""
                 SELECT DISTINCT c.guid as bot1_guid, c.name as bot1_name,
                        c.class as bot1_class, c.race as bot1_race, c.level as bot1_level,
@@ -3118,6 +3152,15 @@ def process_pending_events(db, client, config) -> bool:
                 JOIN acore_auth.account a ON c.account = a.id
                 WHERE c.online = 1 AND c.zone = %s
                   AND a.username LIKE 'RNDBOT%%'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM group_member gm1
+                      JOIN group_member gm2 ON gm1.guid = gm2.guid
+                      JOIN characters c2 ON gm2.memberGuid = c2.guid
+                      JOIN acore_auth.account a2 ON c2.account = a2.id
+                      WHERE gm1.memberGuid = c.guid
+                        AND gm2.memberGuid != c.guid
+                        AND a2.username NOT LIKE 'RNDBOT%%'
+                  )
                 ORDER BY RAND()
                 LIMIT 10
             """, (zone_id,))
@@ -3140,6 +3183,7 @@ def process_pending_events(db, client, config) -> bool:
                     bot['bot1_race'] = get_race_name(bot['bot1_race'])
         else:
             # Global event - find any online bot (RNDBOT account)
+            # Exclude bots grouped with real players
             cursor.execute("""
                 SELECT DISTINCT c.guid as bot1_guid, c.name as bot1_name,
                        c.class as bot1_class, c.race as bot1_race, c.level as bot1_level,
@@ -3148,6 +3192,15 @@ def process_pending_events(db, client, config) -> bool:
                 JOIN acore_auth.account a ON c.account = a.id
                 WHERE c.online = 1
                   AND a.username LIKE 'RNDBOT%%'
+                  AND NOT EXISTS (
+                      SELECT 1 FROM group_member gm1
+                      JOIN group_member gm2 ON gm1.guid = gm2.guid
+                      JOIN characters c2 ON gm2.memberGuid = c2.guid
+                      JOIN acore_auth.account a2 ON c2.account = a2.id
+                      WHERE gm1.memberGuid = c.guid
+                        AND gm2.memberGuid != c.guid
+                        AND a2.username NOT LIKE 'RNDBOT%%'
+                  )
                 ORDER BY RAND()
                 LIMIT 20
             """)
@@ -3377,10 +3430,11 @@ def main():
     # Load config
     config = parse_config(args.config)
 
-    # Check if enabled
-    if config.get('LLMChatter.Enable', '0') != '1':
-        logger.info("LLMChatter is disabled in config. Exiting.")
-        sys.exit(0)
+    # Check if enabled - if disabled, wait and check periodically
+    while config.get('LLMChatter.Enable', '0') != '1':
+        logger.info("LLMChatter is disabled in config. Waiting... (checking every 60s)")
+        time.sleep(60)
+        config = parse_config(args.config)  # Re-read config to check if enabled
 
     # Get API key
     # Get provider and initialize appropriate client
