@@ -123,10 +123,18 @@ LLMChatter.OpenAI.ApiKey =
 #
 #   LLMChatter.MaxTokens
 #       Maximum tokens in the LLM response
-#       NOTE: 350 recommended for multi-message conversations to avoid JSON truncation
+#       NOTE: 350 is baseline; conversations can override with ConversationMaxTokens
 #       Default: 350
 #
 LLMChatter.MaxTokens = 350
+
+#
+#   LLMChatter.ConversationMaxTokens
+#       Maximum tokens for conversation responses (2-4 messages)
+#       Recommended: 700-800 to avoid JSON truncation
+#       Default: 700
+#
+LLMChatter.ConversationMaxTokens = 700
 
 #
 #   LLMChatter.Temperature
@@ -135,6 +143,20 @@ LLMChatter.MaxTokens = 350
 #       Default: 0.8
 #
 LLMChatter.Temperature = 0.8
+
+#
+#   LLMChatter.LootRecentCooldownSeconds
+#       Prevents repeating the same loot item in a zone within this window
+#       Default: 1200 (20 minutes)
+#
+LLMChatter.LootRecentCooldownSeconds = 1200
+
+#
+#   LLMChatter.LongMessageChance
+#       Percent chance to allow a longer message in prompts
+#       Default: 12
+#
+LLMChatter.LongMessageChance = 12
 
 ###############################################################################
 # DATABASE SETTINGS (Used by Python bridge)
@@ -203,6 +225,20 @@ LLMChatter.UseEventSystem = 1
 LLMChatter.EventReactionChance = 15
 
 #
+#   LLMChatter.TransportEventChance
+#       Override chance for transport_arrives events (0 = use EventReactionChance)
+#       Default: 0
+#
+LLMChatter.TransportEventChance = 0
+
+#
+#   LLMChatter.TransportCooldownSeconds
+#       Cooldown per transport+zone arrival event (seconds)
+#       Default: 600 (10 minutes). Set to 0 to announce every arrival.
+#
+LLMChatter.TransportCooldownSeconds = 600
+
+#
 #   LLMChatter.EventExpirationSeconds
 #       How long (seconds) before unprocessed events expire
 #       Default: 600 (10 minutes)
@@ -223,6 +259,13 @@ LLMChatter.GlobalMessageCap = 8
 #       Default: 300 (5 minutes)
 #
 LLMChatter.GlobalCapWindowSeconds = 300
+
+#
+#   LLMChatter.TransportBypassGlobalCap
+#       Allow transport events to bypass GlobalMessageCap
+#       Default: 0
+#
+LLMChatter.TransportBypassGlobalCap = 0
 
 #
 #   LLMChatter.BotSpeakerCooldownSeconds

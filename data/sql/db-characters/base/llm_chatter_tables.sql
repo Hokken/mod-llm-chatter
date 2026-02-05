@@ -59,6 +59,7 @@ CREATE TABLE `llm_chatter_queue` (
     `bot1_level` TINYINT UNSIGNED NOT NULL,
     `bot1_zone` VARCHAR(128) NOT NULL,
     `zone_id` INT UNSIGNED DEFAULT NULL,
+    `weather` VARCHAR(32) DEFAULT 'clear',
     `bot_count` TINYINT UNSIGNED NOT NULL DEFAULT 1,
     `bot2_guid` INT UNSIGNED DEFAULT NULL,
     `bot2_name` VARCHAR(64) DEFAULT NULL,

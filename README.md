@@ -11,15 +11,18 @@ Instead of static, repetitive database messages, bots chat naturally about the z
 - **Zone-aware content** - Messages reference actual quests and items from the player's zone
 - **Zone flavor system** - Rich atmosphere descriptions for ~45 zones to inspire immersive chat
 - **Clickable links** - Quest and item mentions become clickable WoW links
-- **Natural timing** - Realistic, varied delays between messages (12-30 seconds)
+- **Natural timing** - Realistic, varied delays between messages (12-45 seconds)
 - **Multiple message types** - Plain chat, quest discussions, loot drops, quest rewards
 - **Conversation variety** - Both single statements and multi-message conversations
-- **Anti-repetition** - Dynamic prompts ensure varied, natural-feeling messages
+- **Anti-repetition** - Dynamic prompts with CREATIVE_TWISTS ensure varied, unpredictable messages
+- **80+ message categories** - Atmospheric, mystical, nostalgic, and more for rich variety
 - **Multi-provider support** - Works with Anthropic Claude or OpenAI GPT
 - **Overworld only** - Chatter only happens in the open world, not in dungeons
 - **Smart bot selection** - Only independent bots chat (not your party members)
 - **Bot name addressing** - Bots use each other's names naturally in conversations
 - **Fuzzy name matching** - Tolerates LLM typos in bot names
+- **Weather events** - Bots react to actual weather changes (rain, snow, thunderstorms, sandstorms)
+- **Transport arrivals** - Bots announce boat and zeppelin arrivals with destination info
 
 ## How It Works
 
@@ -37,6 +40,16 @@ Instead of static, repetitive database messages, bots chat naturally about the z
 [Pelrith]: just finished that quest chain and it felt so good!
 [Kerrandiir]: we handled it flawlessly yesterday, not to flex lol
 [Eveline]: yeah it's a solid quest, decent rewards too
+```
+
+**Example weather reaction:**
+```
+[Thornbeard]: perfect weather for fishing, this rain
+```
+
+**Example transport arrival:**
+```
+[Miralynn]: boat to Auberdine just pulled in, anyone heading that way?
 ```
 
 ## Requirements
@@ -176,7 +189,28 @@ All settings are in `mod_llm_chatter.conf`:
 |--------|---------|-------------|
 | `LLMChatter.DeliveryPollMs` | 1000 | How often to check for messages (ms) |
 | `LLMChatter.MessageDelayMin` | 1000 | Min delay between messages (ms) |
-| `LLMChatter.MessageDelayMax` | 30000 | Max delay between messages (ms) |
+| `LLMChatter.MessageDelayMax` | 45000 | Max delay between messages (ms) |
+
+### Event Settings
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `LLMChatter.UseEventSystem` | 1 | Enable event-driven chatter |
+| `LLMChatter.EventReactionChance` | 15 | % chance to react to events |
+| `LLMChatter.TransportEventChance` | 50 | % chance to announce transport arrivals |
+| `LLMChatter.TransportCooldownSeconds` | 300 | Cooldown per transport+zone (5 min) |
+| `LLMChatter.Events.Weather` | 1 | React to weather changes |
+| `LLMChatter.Events.Transports` | 1 | React to transport arrivals |
+| `LLMChatter.Events.Holidays` | 1 | React to holiday events |
+| `LLMChatter.Events.DayNight` | 1 | React to day/night transitions |
+
+### Rate Limiting
+
+| Option | Default | Description |
+|--------|---------|-------------|
+| `LLMChatter.BotSpeakerCooldownSeconds` | 900 | Cooldown per bot (15 min) |
+| `LLMChatter.ZoneFatigueThreshold` | 3 | Max messages before zone cooldown |
+| `LLMChatter.ZoneFatigueCooldownSeconds` | 900 | Zone fatigue cooldown (15 min) |
 
 ### LLM API Settings
 
@@ -205,12 +239,23 @@ All settings are in `mod_llm_chatter.conf`:
 
 The module generates different types of messages:
 
+### Regular Chatter (triggered by interval)
+
 | Type | Chance | Description |
 |------|--------|-------------|
 | Plain | 65% | General zone chat, no links |
 | Quest | 15% | Mentions a zone quest with clickable link |
 | Loot | 12% | Mentions an item drop with clickable link |
 | Quest+Reward | 8% | Mentions quest completion and reward item |
+
+### Event-Driven Chatter
+
+| Event | Trigger | Description |
+|-------|---------|-------------|
+| Weather | Actual weather change | Reacts to rain, snow, thunderstorms, sandstorms (zone-appropriate) |
+| Transport | Boat/zeppelin arrival | Announces transport with destination info |
+| Holiday | Holiday start/end | Comments on seasonal events |
+| Day/Night | Time transition | Reacts to dawn/dusk |
 
 ## Cost Estimates
 

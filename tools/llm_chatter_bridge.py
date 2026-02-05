@@ -25,6 +25,11 @@ import anthropic
 import openai
 import mysql.connector
 
+# Zone-level transport cooldowns (in-memory, resets on bridge restart)
+# Key: zone_id, Value: timestamp of last transport announcement
+_zone_transport_cooldowns: Dict[int, float] = {}
+ZONE_TRANSPORT_COOLDOWN_SECONDS = 300  # 5 minutes between transport announcements per zone
+
 # Configure logging
 logging.basicConfig(
     level=logging.INFO,
@@ -557,6 +562,7 @@ class ZoneDataCache:
         self.quest_cache: Dict[int, Tuple[List[dict], float]] = {}
         self.loot_cache: Dict[Tuple[int, int], Tuple[List[dict], float]] = {}
         self.mob_cache: Dict[Tuple[int, int], Tuple[List[str], float]] = {}
+        self.recent_loot: Dict[int, Dict[int, float]] = {}
 
     def get_quests(self, zone_id: int) -> Optional[List[dict]]:
         """Get cached quests for zone, or None if expired/missing."""
@@ -596,6 +602,25 @@ class ZoneDataCache:
         """Cache mob names for zone."""
         self.mob_cache[(zone_id, bot_level)] = (mobs, time.time())
 
+    def get_recent_loot_ids(self, zone_id: int, cooldown_seconds: int) -> set:
+        """Return item_ids seen recently in this zone."""
+        now = time.time()
+        if zone_id not in self.recent_loot:
+            return set()
+        # Clean expired entries
+        recent = {
+            item_id: ts
+            for item_id, ts in self.recent_loot[zone_id].items()
+            if now - ts < cooldown_seconds
+        }
+        self.recent_loot[zone_id] = recent
+        return set(recent.keys())
+
+    def mark_loot_seen(self, zone_id: int, item_id: int):
+        """Mark a loot item as recently seen in this zone."""
+        if zone_id not in self.recent_loot:
+            self.recent_loot[zone_id] = {}
+        self.recent_loot[zone_id][item_id] = time.time()
 # Global cache instance
 zone_cache = ZoneDataCache()
 
@@ -746,7 +771,8 @@ def query_zone_quests(config: dict, zone_id: int, bot_level: int) -> List[dict]:
 
 def query_zone_loot(config: dict, zone_id: int, bot_level: int) -> List[dict]:
     """
-    Query loot appropriate for the zone level range.
+    Query loot appropriate for the zone.
+    Uses coordinate-based filtering to get loot from creatures actually in the zone.
     Includes all qualities (gray, white, green, blue, epic) with realistic distribution.
     """
     min_level, max_level = get_zone_level_range(zone_id, bot_level)
@@ -764,24 +790,52 @@ def query_zone_loot(config: dict, zone_id: int, bot_level: int) -> List[dict]:
 
         # Query 1: Gray/White items from creature loot (common drops)
         # Item classes: 2=weapon, 4=armor, 7=trade goods (cloth, leather, etc)
-        cursor.execute("""
-            SELECT DISTINCT
-                i.entry as item_id,
-                i.name as item_name,
-                i.Quality as item_quality,
-                i.AllowableClass as allowable_class,
-                ct.name as drops_from
-            FROM creature_template ct
-            JOIN creature_loot_template clt ON ct.lootid = clt.Entry
-            JOIN item_template i ON clt.Item = i.entry
-            WHERE ct.minlevel >= %s AND ct.maxlevel <= %s
-              AND i.Quality IN (0, 1)
-              AND i.class IN (2, 4, 7)
-              AND clt.Chance >= 5
-            ORDER BY RAND()
-            LIMIT 15
-        """, (max(1, min_level - 3), max_level + 5))
-        loot.extend(cursor.fetchall())
+        # Use coordinate filtering if zone is in ZONE_COORDINATES for accuracy
+        if zone_id in ZONE_COORDINATES:
+            map_id, min_x, max_x, min_y, max_y = ZONE_COORDINATES[zone_id]
+            cursor.execute("""
+                SELECT DISTINCT
+                    i.entry as item_id,
+                    i.name as item_name,
+                    i.Quality as item_quality,
+                    i.AllowableClass as allowable_class,
+                    ct.name as drops_from
+                FROM creature c
+                JOIN creature_template ct ON c.id1 = ct.entry
+                JOIN creature_loot_template clt ON ct.lootid = clt.Entry
+                JOIN item_template i ON clt.Item = i.entry
+                WHERE c.map = %s
+                  AND c.position_x BETWEEN %s AND %s
+                  AND c.position_y BETWEEN %s AND %s
+                  AND ct.minlevel >= %s AND ct.maxlevel <= %s
+                  AND i.Quality IN (0, 1)
+                  AND i.class IN (2, 4, 7)
+                  AND clt.Chance >= 5
+                ORDER BY RAND()
+                LIMIT 15
+            """, (map_id, min_x, max_x, min_y, max_y,
+                  max(1, min_level - 3), max_level + 5))
+            loot.extend(cursor.fetchall())
+        else:
+            # Fallback: level-based query if zone not in coordinate map
+            cursor.execute("""
+                SELECT DISTINCT
+                    i.entry as item_id,
+                    i.name as item_name,
+                    i.Quality as item_quality,
+                    i.AllowableClass as allowable_class,
+                    ct.name as drops_from
+                FROM creature_template ct
+                JOIN creature_loot_template clt ON ct.lootid = clt.Entry
+                JOIN item_template i ON clt.Item = i.entry
+                WHERE ct.minlevel >= %s AND ct.maxlevel <= %s
+                  AND i.Quality IN (0, 1)
+                  AND i.class IN (2, 4, 7)
+                  AND clt.Chance >= 5
+                ORDER BY RAND()
+                LIMIT 15
+            """, (max(1, min_level - 3), max_level + 5))
+            loot.extend(cursor.fetchall())
 
         # Query 2: Green/Blue/Epic items from reference loot tables (world drops)
         # Reference format: 102XXYY=green, 103XXYY=blue, 104XXYY=epic
@@ -828,6 +882,8 @@ def query_zone_loot(config: dict, zone_id: int, bot_level: int) -> List[dict]:
         return []
 
 
+# =============================================================================
+# WEATHER DATA
 def query_zone_mobs(config: dict, zone_id: int, bot_level: int) -> List[str]:
     """
     Query hostile mob names from the specific zone.
@@ -1047,11 +1103,11 @@ def calculate_dynamic_delay(message_length: int, config: dict, prev_message_leng
     min_delay = int(config.get('LLMChatter.MessageDelayMin', 1000)) / 1000.0
     max_delay = int(config.get('LLMChatter.MessageDelayMax', 30000)) / 1000.0
 
-    # Reading time for previous message (if any) - ~200-400 chars/min reading speed
-    reading_time = prev_message_length / random.uniform(3.0, 7.0) if prev_message_length > 0 else 0
+    # Reading time for previous message (if any) - modest impact
+    reading_time = prev_message_length / random.uniform(4.0, 9.0) if prev_message_length > 0 else 0
 
-    # Base reaction time - always takes a moment to formulate a response
-    reaction_time = random.uniform(2.0, 6.0)
+    # Base reaction time - keep fairly small to avoid hitting max too often
+    reaction_time = random.uniform(1.0, 4.0)
 
     # Typing time based on current message length
     # Average typing: 30-60 WPM = 2.5-5 chars/sec for casual chat
@@ -1071,24 +1127,27 @@ def calculate_dynamic_delay(message_length: int, config: dict, prev_message_leng
     # Random distraction - player might be fighting, looting, running, etc.
     # Heavily varies - sometimes quick, sometimes very delayed
     distraction_roll = random.random()
-    if distraction_roll < 0.3:
-        distraction = random.uniform(0, 5.0)  # Quick response, was paying attention
-    elif distraction_roll < 0.7:
-        distraction = random.uniform(5.0, 15.0)  # Normal - slightly busy
+    if distraction_roll < 0.4:
+        distraction = random.uniform(0, 3.0)  # Quick response
+    elif distraction_roll < 0.85:
+        distraction = random.uniform(2.0, 8.0)  # Normal - slightly busy
     else:
-        distraction = random.uniform(15.0, 30.0)  # Delayed - was fighting/busy
+        distraction = random.uniform(6.0, 18.0)  # Delayed - was fighting/busy
 
     total_delay = reading_time + reaction_time + typing_time + distraction
 
     # Minimum delay MUST scale with message length - can't type fast
-    # Absolute minimum: ~2 chars/sec typing speed + 3s reaction
-    minimum_for_length = (message_length / 2.0) + 3.0
+    # Target ~4 chars/sec + small reaction buffer
+    minimum_for_length = (message_length / 4.0) + 2.0
 
     # Ensure at least the minimum for this message length
     total_delay = max(total_delay, minimum_for_length)
 
-    # Global minimum of 4 seconds
-    total_delay = max(total_delay, 4.0)
+    # Global minimum
+    total_delay = max(total_delay, min_delay, 4.0)
+
+    # Add small jitter so similar lengths don't always map to the same delay
+    total_delay *= random.uniform(0.85, 1.20)
 
     return min(total_delay, max_delay)
 
@@ -1120,83 +1179,206 @@ MOODS = [
     "enthusiastic",
     "confused",
     "proud",
-    "neutral/matter-of-fact",
-    "dramatic/exaggerating",
+    "neutral",
+    "dramatic",
     "deadpan",
-    "roleplaying (speaking in character)",
+    "roleplaying",
     "nostalgic",
     "impatient",
     "grateful",
     "showing off",
     "self-deprecating",
     "philosophical",
-    "surprised/shocked",
-    "helpful/mentoring",
+    "surprised",
+    "helpful",
+    "geeky",
+    "tired",
+    "competitive",
+    "distracted",
 ]
 
-# Example pools for plain statements - rotated randomly
-PLAIN_EXAMPLE_SETS = [
-    # Set A - Questions/Help
-    [
-        "anyone know where the flight path is",
-        "how do i get to ironforge from here",
-        "where do i learn cooking",
-    ],
-    # Set B - Social/LFG
-    [
-        "lfg anything",
-        "need 1 more for elite quest",
-        "any guild recruiting",
-    ],
-    # Set C - Reactions/Commentary
-    [
-        "this zone takes forever",
-        "finally hit 20",
-        "these respawns are brutal",
-    ],
-    # Set D - Casual/Humor
-    [
-        "just died to fall damage lol",
-        "forgot to repair again",
-        "why is my bags always full",
-    ],
+# Creative twists - random modifiers to push creativity (picked ~30% of the time)
+CREATIVE_TWISTS = [
+    # Structure twists
+    "Start with an interjection",
+    "End mid-thought with ...",
+    "Use a single word or two-word reaction",
+    "Ask a rhetorical question",
+    "Answer your own question",
+    "Trail off at the end",
+    "Start mid-sentence as if continuing a thought",
+    # Content twists
+    "Include an unexpected observation",
+    "Reference something mundane from real life",
+    "Use a metaphor or comparison",
+    "Mention something completely unrelated briefly",
+    "React to something nobody else mentioned",
+    "Misremember something slightly",
+    "Get distracted mid-message",
+    "Correct yourself mid-sentence",
+    # Tone twists
+    "Be unusually brief",
+    "Overreact to something minor",
+    "Underreact to something major",
+    "Sound half-asleep",
+    "Be weirdly specific about a detail",
+    "Sound like you're multitasking",
+    "Respond as if you misheard something",
+    # Player behavior twists
+    "Mention a keybind or UI element",
+    "Reference lag or FPS",
+    "Sound like you're eating while typing",
+    "Mention being AFK briefly",
+    "Reference the time of day IRL",
+    "Sound like you just got back to keyboard",
+    "Mention having multiple tabs/windows open",
+    # Social twists
+    "Respond to an imaginary previous message",
+    "Change topic abruptly",
+    "Agree with something nobody said",
+    "Disagree politely with thin air",
+    "Give unsolicited advice",
+    "Ask a question then immediately answer it yourself",
+    # Expression twists
+    "Use onomatopoeia",
+    "Stretch a woooord for emphasis",
+    "Use ALL CAPS for one word only",
+    "Add a random lol or haha mid-sentence",
+    "Use excessive punctuation for one thing!!!",
+    "Be overly casual with spelling",
+    "Use gaming slang naturally",
 ]
 
-# Example pools for loot statements
-LOOT_EXAMPLE_SETS = [
-    # Set A - Excitement
-    [
-        "nice {item:X} just dropped",
-        "finally got {item:X}!",
-        "sweet {item:X}",
-    ],
-    # Set B - Meh/Vendor
-    [
-        "{item:X} more vendor trash",
-        "another {item:X} lol",
-        "{item:X} at least its gold",
-    ],
-    # Set C - Social
-    [
-        "anyone need {item:X}",
-        "got {item:X} if someone wants",
-        "{item:X} free to good home",
-    ],
-    # Set D - Class reaction
-    [
-        "{item:X} perfect for me",
-        "{item:X} too bad wrong class",
-        "{item:X} wish i could use it",
-    ],
+# Message categories - abstract directions that force original content (no copying)
+MESSAGE_CATEGORIES = [
+    # Observations
+    "observation about surroundings or atmosphere",
+    "noticing something interesting nearby",
+    "comment about the zone's vibe",
+    "remarking on how empty or busy the area is",
+    "noting something weird or unexpected",
+    # Reactions
+    "reaction to something that just happened",
+    "celebrating a small victory",
+    "expressing relief after a close call",
+    "pleasant surprise",
+    "genuine excitement about something",
+    "feeling lucky",
+    "enjoying the moment",
+    # Questions
+    "question to other players",
+    "asking if anyone else experienced something",
+    "wondering aloud about game mechanics",
+    "asking for directions or location help",
+    "checking if others are having the same issue",
+    # Social
+    "looking for group or help with something",
+    "offering to help others",
+    "greeting or acknowledging other players",
+    "friendly banter with nearby players",
+    "inviting others to join activity",
+    "complimenting another player",
+    "thanking someone",
+    "encouraging others",
+    "sharing enthusiasm with the community",
+    # Mild frustrations (keep minimal)
+    "mild frustration played for laughs",
+    "joking about bad luck",
+    # Humor and joy
+    "lighthearted joke",
+    "playful observation",
+    "finding humor in the situation",
+    "absurd or random humor",
+    "pun or wordplay",
+    "laughing at something silly",
+    "infectious enthusiasm",
+    "wholesome moment",
+    # Progress and grind
+    "comment about the grind or progress",
+    "sharing level or milestone progress",
+    "talking about goals or plans",
+    "reflecting on how long something is taking",
+    "comparing current progress to past",
+    # Creatures and combat
+    "comment about creature behavior or difficulty",
+    "remarking on enemy abilities",
+    "discussing pull strategies",
+    "noting creature spawn patterns",
+    "commenting on aggro or adds",
+    # Gear and loot
+    "wishing for a specific drop",
+    "commenting on equipment needs",
+    "discussing stats or upgrades",
+    # Meta and real life
+    "random thought or musing",
+    "commenting on real life briefly",
+    "mentioning being tired or hungry",
+    "talking about time played today",
+    "referencing something outside the game",
+    # Advice
+    "advice or tip for others",
+    "warning about danger ahead",
+    "sharing useful information",
+    "recommending a strategy",
+    # Roleplay-adjacent
+    "speaking partially in character",
+    "commenting on lore or story",
+    "reacting to NPC dialogue",
+    # Atmospheric
+    "appreciating the beauty of the landscape",
+    "commenting on the lighting or sky",
+    "noting the sounds of the environment",
+    "feeling the mood of the place",
+    "describing the weather's effect on the scene",
+    "immersed in the environment",
+    "pausing to take in the view",
+    "feeling small in a vast world",
+    # Mystical and wonder
+    "sensing something magical nearby",
+    "wondering about ancient mysteries",
+    "feeling the presence of old magic",
+    "marveling at the world's secrets",
+    "pondering the unknown",
+    "touched by something ethereal",
+    "questioning what lies beyond",
+    "feeling connected to something greater",
+    # Nostalgic
+    "remembering earlier adventures",
+    "missing how things used to be",
+    "reminiscing about old friends or guilds",
+    "feeling nostalgic about a place",
+    "recalling a memorable moment",
+    "thinking about the journey so far",
+    "appreciating how far they've come",
+    "bittersweet reflection on the past",
+    "wishing to relive a memory",
+    # Contemplative
+    "philosophical moment about the game world",
+    "quiet reflection",
+    "finding peace in the moment",
+    "appreciating the simple things",
+    "moment of gratitude",
+    "feeling content",
+    # Misc
+    "sharing a random fact",
+    "expressing boredom",
+    "thinking out loud about next steps",
+    "making a prediction",
+    "expressing confusion",
+    "stating the obvious humorously",
+    "non-sequitur or random tangent",
 ]
+
 
 # Length hints
 LENGTH_HINTS = [
     "very brief (3-6 words)",
-    "short (5-10 words)",
-    "one quick sentence",
-    "brief but complete thought",
+    "short (6-12 words)",
+    "short sentence (<=14 words)",
+    "medium if needed (15-22 words)",
 ]
+
+# Length mode probabilities (percent)
 
 # Focus/emphasis options
 FOCUS_OPTIONS = [
@@ -1216,6 +1398,13 @@ def pick_random_tone() -> str:
 def pick_random_mood() -> str:
     """Pick a random mood/emotional angle for the message."""
     return random.choice(MOODS)
+
+
+def maybe_get_creative_twist(chance: float = 0.3) -> str:
+    """Maybe return a creative twist to add unpredictability (30% chance by default)."""
+    if random.random() < chance:
+        return random.choice(CREATIVE_TWISTS)
+    return None
 
 
 def generate_conversation_mood_sequence(message_count: int) -> List[str]:
@@ -1255,17 +1444,10 @@ def get_time_of_day_context() -> Tuple[str, str]:
         return ("late_night", "It's the deep hours of night")
 
 
-def pick_random_examples(example_sets: list, count: int = 2) -> list:
-    """Pick random examples from random sets."""
-    # Pick 1-2 random sets and sample from them
-    selected_sets = random.sample(example_sets, min(2, len(example_sets)))
-    all_examples = [ex for s in selected_sets for ex in s]
-    return random.sample(all_examples, min(count, len(all_examples)))
-
-
 def build_dynamic_guidelines(include_humor: bool = None,
                              include_length: bool = True,
-                             include_focus: bool = None) -> list:
+                             include_focus: bool = None,
+                             config: dict = None) -> list:
     """Build a randomized list of guidelines."""
     guidelines = [
         "Sound like a real player, not an NPC",
@@ -1273,8 +1455,20 @@ def build_dynamic_guidelines(include_humor: bool = None,
     ]
 
     # Length hint (usually include)
-    if include_length and random.random() < 0.8:
+    if include_length:
         guidelines.append(f"Length: {random.choice(LENGTH_HINTS)}")
+        # Deterministic length mode: mostly short/medium, occasional long
+        long_chance = 12
+        if config is not None:
+            try:
+                long_chance = int(config.get('LLMChatter.LongMessageChance', long_chance))
+            except Exception:
+                pass
+        if random.randint(1, 100) <= long_chance:
+            guidelines.append("Length mode: long allowed (up to ~200 chars) if it feels natural")
+            guidelines.append("If long, make it a single thought, not a paragraph")
+        else:
+            guidelines.append("Length mode: short/medium only (avoid long messages)")
 
     # Humor (random chance)
     if include_humor is None:
@@ -1304,7 +1498,7 @@ def build_dynamic_guidelines(include_humor: bool = None,
 # =============================================================================
 # PROMPT BUILDERS
 # =============================================================================
-def build_plain_statement_prompt(bot: dict, zone_id: int = 0, zone_mobs: list = None) -> str:
+def build_plain_statement_prompt(bot: dict, zone_id: int = 0, zone_mobs: list = None, config: dict = None, current_weather: str = 'clear') -> str:
     """Build a dynamically varied prompt for a plain text statement."""
     parts = []
 
@@ -1316,6 +1510,10 @@ def build_plain_statement_prompt(bot: dict, zone_id: int = 0, zone_mobs: list = 
     if zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
 
+    # Current weather conditions - always include so LLM can naturally reference any weather
+    if current_weather:
+        parts.append(f"Current weather: {current_weather}")
+
     # Randomly include level (60% chance)
     if random.random() < 0.6:
         parts.append(f"Player level: {bot['level']}")
@@ -1326,17 +1524,34 @@ def build_plain_statement_prompt(bot: dict, zone_id: int = 0, zone_mobs: list = 
         parts.append("IMPORTANT: If mentioning any creature, ONLY use ones from the list above. Include the [[npc:...]] marker exactly as shown.")
 
     # Random tone and mood - these shape the personality
-    parts.append(f"Tone: {pick_random_tone()}")
-    parts.append(f"Mood: {pick_random_mood()}")
+    tone = pick_random_tone()
+    mood = pick_random_mood()
+    parts.append(f"Tone: {tone}")
+    parts.append(f"Mood: {mood}")
 
-    # Pick random examples (2-3 from random sets)
-    examples = pick_random_examples(PLAIN_EXAMPLE_SETS, random.randint(2, 3))
-    parts.append("Example styles: " + ", ".join(f'"{ex}"' for ex in examples))
+    # Maybe add a creative twist for unpredictability
+    twist = maybe_get_creative_twist()
+    if twist:
+        parts.append(f"Creative twist: {twist}")
+
+    # Pick a random message category (forces original content, no examples to copy)
+    category = random.choice(MESSAGE_CATEGORIES)
+
+    # Log the creative selections
+    twist_log = f", twist={twist}" if twist else ""
+    logger.info(f"Prompt creativity: tone={tone}, mood={mood}, category={category[:30]}{twist_log}")
+    parts.append(f"Message type: {category}")
 
     # Build dynamic guidelines
-    guidelines = build_dynamic_guidelines()
+    guidelines = build_dynamic_guidelines(config=config)
     guidelines.append("Plain text only, except [[npc:...]] markers for creature names")
     guidelines.append("Do NOT mention your race or class")
+    # Message length - mostly short, occasionally longer
+    if random.random() < 0.75:
+        guidelines.append("Keep SHORT - under 60 characters, punchy and brief")
+    else:
+        guidelines.append("Can be longer this time - up to 100 characters for a fuller thought")
+    guidelines.append("Be ORIGINAL and UNPREDICTABLE - no common patterns, surprise the reader")
     if zone_mobs:
         guidelines.append("Only mention creatures from the provided list - do NOT invent creatures")
     parts.append("Guidelines: " + "; ".join(guidelines))
@@ -1346,7 +1561,7 @@ def build_plain_statement_prompt(bot: dict, zone_id: int = 0, zone_mobs: list = 
     return "\n".join(parts)
 
 
-def build_quest_statement_prompt(bot: dict, quest: dict) -> str:
+def build_quest_statement_prompt(bot: dict, quest: dict, config: dict = None) -> str:
     """Build a dynamically varied prompt for a quest statement."""
     parts = []
 
@@ -1370,7 +1585,12 @@ def build_quest_statement_prompt(bot: dict, quest: dict) -> str:
     parts.append(f"Tone: {pick_random_tone()}")
     parts.append(f"Mood: {pick_random_mood()}")
 
-    # Quest-specific example actions
+    # Maybe add a creative twist
+    twist = maybe_get_creative_twist()
+    if twist:
+        parts.append(f"Creative twist: {twist}")
+
+    # Quest-specific approaches
     quest_actions = [
         "asking where to find it",
         "asking for help",
@@ -1384,17 +1604,17 @@ def build_quest_statement_prompt(bot: dict, quest: dict) -> str:
         parts.append(f"Approach: {random.choice(quest_actions)}")
 
     # Guidelines
-    guidelines = build_dynamic_guidelines()
-    guidelines.append("Keep under 60 characters")
+    guidelines = build_dynamic_guidelines(config=config)
+    guidelines.append("Keep under 110 characters")
+    guidelines.append("Be creative and unpredictable")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
-    parts.append(f"Example: anyone done {quest_placeholder} yet? seems rough")
-    parts.append("Respond with ONLY the message.")
+    parts.append("Respond with ONLY the message - be creative and unpredictable.")
 
     return "\n".join(parts)
 
 
-def build_loot_statement_prompt(bot: dict, item: dict, can_use: bool) -> str:
+def build_loot_statement_prompt(bot: dict, item: dict, can_use: bool, config: dict = None) -> str:
     """Build a dynamically varied prompt for a loot statement."""
     quality_names = {0: "gray", 1: "white", 2: "green", 3: "blue", 4: "purple"}
     quality = quality_names.get(item.get('item_quality', 2), "green")
@@ -1418,33 +1638,37 @@ def build_loot_statement_prompt(bot: dict, item: dict, can_use: bool) -> str:
     parts.append(f"Tone: {pick_random_tone()}")
     parts.append(f"Mood: {pick_random_mood()}")
 
-    # Pick examples from loot sets
-    examples = pick_random_examples(LOOT_EXAMPLE_SETS, 2)
-    parts.append("Example styles: " + ", ".join(f'"{ex}"' for ex in examples))
+    # Maybe add a creative twist
+    twist = maybe_get_creative_twist()
+    if twist:
+        parts.append(f"Creative twist: {twist}")
 
     # Loot-specific reactions to vary
     reactions = [
         "excitement about the drop",
         "meh, vendor fodder",
         "offering to trade/give away",
-        "commenting on luck (good or bad)",
+        "commenting on luck",
         "just mentioning what dropped",
+        "comparing to previous drops",
+        "wondering about the item",
     ]
-    if random.random() < 0.5:
-        parts.append(f"Reaction style: {random.choice(reactions)}")
+    parts.append(f"Reaction style: {random.choice(reactions)}")
 
     # Guidelines
-    guidelines = build_dynamic_guidelines()
-    guidelines.append("Keep under 60 characters")
+    guidelines = build_dynamic_guidelines(config=config)
+    guidelines.append("Keep under 110 characters")
+    guidelines.append("Be creative and unpredictable")
     parts.append("Guidelines: " + "; ".join(guidelines))
-    parts.append(f"Example: nice {item_placeholder} just dropped lol")
 
-    parts.append("Respond with ONLY the message.")
+    parts.append("Respond with ONLY the message - be creative and unpredictable.")
 
     return "\n".join(parts)
 
 
-def build_quest_reward_statement_prompt(bot: dict, quest: dict) -> str:
+
+
+def build_quest_reward_statement_prompt(bot: dict, quest: dict, config: dict = None) -> str:
     """Build a dynamically varied prompt for quest completion with reward."""
     # Get reward item info
     item_name = quest.get('item1_name') or quest.get('item2_name')
@@ -1471,6 +1695,11 @@ def build_quest_reward_statement_prompt(bot: dict, quest: dict) -> str:
     parts.append(f"Tone: {pick_random_tone()}")
     parts.append(f"Mood: {pick_random_mood()}")
 
+    # Maybe add a creative twist
+    twist = maybe_get_creative_twist()
+    if twist:
+        parts.append(f"Creative twist: {twist}")
+
     # Completion reactions
     reactions = [
         "relief at finishing",
@@ -1483,9 +1712,9 @@ def build_quest_reward_statement_prompt(bot: dict, quest: dict) -> str:
         parts.append(f"Reaction: {random.choice(reactions)}")
 
     # Guidelines
-    guidelines = build_dynamic_guidelines()
+    guidelines = build_dynamic_guidelines(config=config)
     guidelines.append("Use BOTH placeholders, each once")
-    guidelines.append("Keep under 70 characters")
+    guidelines.append("Keep under 110 characters")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
     parts.append("Respond with ONLY the message.")
@@ -1493,13 +1722,14 @@ def build_quest_reward_statement_prompt(bot: dict, quest: dict) -> str:
     return "\n".join(parts)
 
 
-def build_plain_conversation_prompt(bots: List[dict], zone_id: int = 0, zone_mobs: list = None) -> str:
+def build_plain_conversation_prompt(bots: List[dict], zone_id: int = 0, zone_mobs: list = None, config: dict = None, current_weather: str = 'clear') -> str:
     """Build a dynamically varied prompt for a plain conversation with 2-4 bots.
 
     Args:
         bots: List of 2-4 bot dicts with name, race, class, level, zone
         zone_id: Zone ID for flavor text lookup
         zone_mobs: Optional list of mob markers from the zone
+        current_weather: Current weather state in the zone
     """
     parts = []
     bot_count = len(bots)
@@ -1514,6 +1744,10 @@ def build_plain_conversation_prompt(bots: List[dict], zone_id: int = 0, zone_mob
     zone_flavor = get_zone_flavor(zone_id)
     if zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
+
+    # Current weather conditions - always include so LLM can naturally reference any weather
+    if current_weather:
+        parts.append(f"Current weather: {current_weather}")
 
     # Time of day context - adds natural atmosphere variation
     time_period, time_desc = get_time_of_day_context()
@@ -1533,7 +1767,13 @@ def build_plain_conversation_prompt(bots: List[dict], zone_id: int = 0, zone_mob
         parts.append("IMPORTANT: If mentioning any creature, ONLY use ones from the list above. Include the [[npc:...]] marker exactly as shown.")
 
     # Random tone for the overall conversation
-    parts.append(f"Overall tone: {pick_random_tone()}")
+    tone = pick_random_tone()
+    parts.append(f"Overall tone: {tone}")
+
+    # Maybe add a creative twist for the whole conversation
+    twist = maybe_get_creative_twist(chance=0.4)
+    if twist:
+        parts.append(f"Creative twist for this conversation: {twist}")
 
     # Generate mood sequence - this is the "script" the LLM must follow
     # More messages for more participants
@@ -1541,6 +1781,10 @@ def build_plain_conversation_prompt(bots: List[dict], zone_id: int = 0, zone_mob
     max_msgs = bot_count + 3
     msg_count = random.randint(min_msgs, max_msgs)
     mood_sequence = generate_conversation_mood_sequence(msg_count)
+
+    # Log the creative selections
+    twist_log = f", twist={twist}" if twist else ""
+    logger.info(f"Conversation creativity: tone={tone}, moods={mood_sequence}{twist_log}")
 
     parts.append(f"\nMOOD SEQUENCE (follow this for each message):")
     for i, mood in enumerate(mood_sequence):
@@ -1562,14 +1806,16 @@ def build_plain_conversation_prompt(bots: List[dict], zone_id: int = 0, zone_mob
         parts.append(f"Topic hint: {random.choice(topics)}")
 
     # Guidelines
-    guidelines = build_dynamic_guidelines()
+    guidelines = build_dynamic_guidelines(config=config)
     guidelines.append("Plain text only, except [[npc:...]] markers for creature names")
     guidelines.append("Follow the mood sequence above")
+    guidelines.append("VARY message lengths naturally like real players - some very short ('lol', 'yeah'), some medium, some longer")
     if zone_mobs:
         guidelines.append("Only mention creatures from the provided list - do NOT invent creatures")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
     # JSON format instruction with examples for all speakers
+    parts.append("JSON rules: Use double quotes, escape quotes/newlines, no trailing commas, no code fences.")
     example_msgs = ',\n  '.join([f'{{"speaker": "{name}", "message": "..."}}' for name in bot_names])
     parts.append(f"""
 Respond with EXACTLY {msg_count} messages in JSON:
@@ -1581,7 +1827,7 @@ ONLY the JSON array, nothing else.""")
     return "\n".join(parts)
 
 
-def build_quest_conversation_prompt(bots: List[dict], quest: dict) -> str:
+def build_quest_conversation_prompt(bots: List[dict], quest: dict, config: dict = None) -> str:
     """Build a dynamically varied prompt for a quest conversation with 2-4 bots.
 
     Args:
@@ -1606,13 +1852,23 @@ def build_quest_conversation_prompt(bots: List[dict], quest: dict) -> str:
         parts.append(f"Quest involves: {quest['description'][:60]}")
 
     # Random tone for the overall conversation
-    parts.append(f"Overall tone: {pick_random_tone()}")
+    tone = pick_random_tone()
+    parts.append(f"Overall tone: {tone}")
+
+    # Maybe add a creative twist for the whole conversation
+    twist = maybe_get_creative_twist(chance=0.4)
+    if twist:
+        parts.append(f"Creative twist for this conversation: {twist}")
 
     # Generate mood sequence - the "script" for the conversation
     min_msgs = bot_count
     max_msgs = bot_count + 3
     msg_count = random.randint(min_msgs, max_msgs)
     mood_sequence = generate_conversation_mood_sequence(msg_count)
+
+    # Log the creative selections
+    twist_log = f", twist={twist}" if twist else ""
+    logger.info(f"Quest conv creativity: tone={tone}, moods={mood_sequence}{twist_log}")
 
     parts.append(f"\nMOOD SEQUENCE (follow this for each message):")
     for i, mood in enumerate(mood_sequence):
@@ -1632,12 +1888,14 @@ def build_quest_conversation_prompt(bots: List[dict], quest: dict) -> str:
         parts.append(f"Angle hint: {random.choice(angles)}")
 
     # Guidelines
-    guidelines = build_dynamic_guidelines()
+    guidelines = build_dynamic_guidelines(config=config)
     guidelines.append("Use quest placeholder at least once")
     guidelines.append("Follow the mood sequence above")
+    guidelines.append("Keep each message under 140 characters; short/medium is the norm")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
     # JSON format instruction with examples for all speakers
+    parts.append("JSON rules: Use double quotes, escape quotes/newlines, no trailing commas, no code fences.")
     example_msgs = ',\n  '.join([f'{{"speaker": "{name}", "message": "..."}}' for name in bot_names])
     parts.append(f"""
 Respond with EXACTLY {msg_count} messages in JSON:
@@ -1649,7 +1907,7 @@ ONLY the JSON array, nothing else.""")
     return "\n".join(parts)
 
 
-def build_loot_conversation_prompt(bots: List[dict], item: dict) -> str:
+def build_loot_conversation_prompt(bots: List[dict], item: dict, config: dict = None) -> str:
     """Build a dynamically varied prompt for a loot conversation with 2-4 bots.
 
     Args:
@@ -1677,13 +1935,23 @@ def build_loot_conversation_prompt(bots: List[dict], item: dict) -> str:
     parts.append(f"REQUIRED: Use {item_placeholder} placeholder when mentioning the item")
 
     # Random tone for the overall conversation
-    parts.append(f"Overall tone: {pick_random_tone()}")
+    tone = pick_random_tone()
+    parts.append(f"Overall tone: {tone}")
+
+    # Maybe add a creative twist for the whole conversation
+    twist = maybe_get_creative_twist(chance=0.4)
+    if twist:
+        parts.append(f"Creative twist for this conversation: {twist}")
 
     # Generate mood sequence
     min_msgs = bot_count
     max_msgs = bot_count + 2
     msg_count = random.randint(min_msgs, max_msgs)
     mood_sequence = generate_conversation_mood_sequence(msg_count)
+
+    # Log the creative selections
+    twist_log = f", twist={twist}" if twist else ""
+    logger.info(f"Loot conv creativity: tone={tone}, moods={mood_sequence}{twist_log}")
 
     parts.append(f"\nMOOD SEQUENCE (follow this for each message):")
     for i, mood in enumerate(mood_sequence):
@@ -1701,12 +1969,96 @@ def build_loot_conversation_prompt(bots: List[dict], item: dict) -> str:
     parts.append(f"Angle: {random.choice(angles)}")
 
     # Guidelines
-    guidelines = build_dynamic_guidelines()
+    guidelines = build_dynamic_guidelines(config=config)
     guidelines.append("Use item placeholder at least once")
     guidelines.append("Follow the mood sequence above")
+    guidelines.append("Keep each message under 140 characters; short/medium is the norm")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
     # JSON format instruction with examples for all speakers
+    parts.append("JSON rules: Use double quotes, escape quotes/newlines, no trailing commas, no code fences.")
+    example_msgs = ',\n  '.join([f'{{"speaker": "{name}", "message": "..."}}' for name in bot_names])
+    parts.append(f"""
+Respond with EXACTLY {msg_count} messages in JSON:
+[
+  {example_msgs}
+]
+ONLY the JSON array, nothing else.""")
+
+    return "\n".join(parts)
+
+
+def build_event_conversation_prompt(bots: List[dict], event_context: str, zone_id: int = 0, config: dict = None) -> str:
+    """Build a prompt for an event-triggered conversation with 2-4 bots.
+
+    Args:
+        bots: List of 2-4 bot dicts with name, race, class, level, zone
+        event_context: Description of the event (weather change, etc.)
+        zone_id: Zone ID for additional context
+    """
+    parts = []
+    bot_count = len(bots)
+    bot_names = [b['name'] for b in bots]
+
+    parts.append(f"Generate a casual General chat exchange between {bot_count} WoW players in {bots[0]['zone']}.")
+    parts.append(f"Speakers: {', '.join(bot_names)}")
+    parts.append(f"Names: Sometimes use their name when addressing directly (maybe once), but not every message.")
+
+    # Event context - the trigger for this conversation
+    parts.append(f"\nEVENT CONTEXT: {event_context}")
+
+    # Transport events should be mentioned more directly
+    if 'boat' in event_context.lower() or 'zeppelin' in event_context.lower() or 'turtle' in event_context.lower():
+        parts.append("This transport just arrived - at least one bot should comment on it!")
+        parts.append("Use the specific transport type (boat/zeppelin/turtle), NOT the generic word 'transport'.")
+        parts.append("IMPORTANT: Always mention the destination from the event context above.")
+        parts.append("If a ship name is mentioned (e.g., 'The Moonspray'), you can optionally include it.")
+    else:
+        parts.append("The conversation may naturally reference this event, or players may chat about something else.")
+        parts.append("The event provides atmosphere - you don't HAVE to mention it explicitly.")
+
+    # Zone flavor
+    zone_flavor = get_zone_flavor(zone_id)
+    if zone_flavor:
+        parts.append(f"Zone context: {zone_flavor}")
+
+    # Randomly include some character details (40% chance per bot)
+    for bot in bots:
+        if random.random() < 0.4:
+            parts.append(f"{bot['name']} is a {bot['race']} {bot['class']}")
+
+    # Random tone for the overall conversation
+    tone = pick_random_tone()
+    parts.append(f"Overall tone: {tone}")
+
+    # Maybe add a creative twist for the whole conversation
+    twist = maybe_get_creative_twist(chance=0.4)
+    if twist:
+        parts.append(f"Creative twist for this conversation: {twist}")
+
+    # Generate mood sequence
+    min_msgs = bot_count
+    max_msgs = bot_count + 2
+    msg_count = random.randint(min_msgs, max_msgs)
+    mood_sequence = generate_conversation_mood_sequence(msg_count)
+
+    # Log the creative selections
+    twist_log = f", twist={twist}" if twist else ""
+    logger.info(f"Event conv creativity: tone={tone}, moods={mood_sequence}{twist_log}")
+
+    parts.append(f"\nMOOD SEQUENCE (follow this for each message):")
+    for i, mood in enumerate(mood_sequence):
+        speaker = bot_names[i % bot_count]
+        parts.append(f"  Message {i+1} ({speaker}): {mood}")
+
+    # Guidelines
+    guidelines = build_dynamic_guidelines(config=config)
+    guidelines.append("Follow the mood sequence above")
+    guidelines.append("VARY message lengths naturally - some very short ('lol', 'yeah'), some medium, occasionally longer")
+    parts.append("Guidelines: " + "; ".join(guidelines))
+
+    # JSON format instruction
+    parts.append("JSON rules: Use double quotes, escape quotes/newlines, no trailing commas, no code fences.")
     example_msgs = ',\n  '.join([f'{{"speaker": "{name}", "message": "..."}}' for name in bot_names])
     parts.append(f"""
 Respond with EXACTLY {msg_count} messages in JSON:
@@ -1739,12 +2091,15 @@ def resolve_model(model_name: str) -> str:
     return MODEL_ALIASES.get(model_name, model_name)
 
 
-def call_llm(client: Any, prompt: str, config: dict) -> str:
+def call_llm(client: Any, prompt: str, config: dict, max_tokens_override: int = None) -> str:
     """Call LLM API (Anthropic or OpenAI) and return response."""
     provider = config.get('LLMChatter.Provider', 'anthropic').lower()
     model_alias = config.get('LLMChatter.Model', 'haiku')
     model = resolve_model(model_alias)
-    max_tokens = int(config.get('LLMChatter.MaxTokens', 200))
+    if max_tokens_override is not None:
+        max_tokens = max_tokens_override
+    else:
+        max_tokens = int(config.get('LLMChatter.MaxTokens', 200))
     temperature = float(config.get('LLMChatter.Temperature', 0.85))
 
     try:
@@ -1823,9 +2178,20 @@ def parse_conversation_response(response: str, bot_names: List[str]) -> list:
         List of dicts with 'name' and 'message' keys
     """
     try:
-        json_match = re.search(r'\[.*\]', response, re.DOTALL)
+        cleaned = response.strip()
+        cleaned = re.sub(r'```(?:json)?', '', cleaned, flags=re.IGNORECASE).strip()
+        json_match = re.search(r'\[.*\]', cleaned, re.DOTALL)
         if json_match:
-            messages = json.loads(json_match.group())
+            try:
+                messages = json.loads(json_match.group())
+            except json.JSONDecodeError:
+                # Fallback: try widest bracket span in case of extra text
+                start = cleaned.find('[')
+                end = cleaned.rfind(']')
+                if start != -1 and end != -1 and end > start:
+                    messages = json.loads(cleaned[start:end + 1])
+                else:
+                    raise
             result = []
             for msg in messages:
                 speaker = msg.get('speaker', '').strip()
@@ -1841,8 +2207,20 @@ def parse_conversation_response(response: str, bot_names: List[str]) -> list:
                         result.append({'name': matched_name, 'message': message})
             return result
     except json.JSONDecodeError as e:
-        logger.error(f"Failed to parse conversation JSON: {e}")
+        snippet = response.strip().replace("\n", "\\n")
+        logger.error(f"Failed to parse conversation JSON: {e}; len={len(response)}; head={snippet[:200]}")
     return []
+
+
+def extract_conversation_msg_count(prompt: str) -> int:
+    """Extract expected message count from a prompt if present."""
+    match = re.search(r'EXACTLY (\d+) messages', prompt)
+    if match:
+        try:
+            return int(match.group(1))
+        except ValueError:
+            return 0
+    return 0
 
 
 # =============================================================================
@@ -1853,6 +2231,8 @@ def process_statement(db, cursor, client, config, request, bot: dict):
     channel = 'general'
 
     # Select message type
+    zone_id = request.get('zone_id', 0)
+    current_weather = request.get('weather', 'clear')  # Get current weather from C++
     msg_type = select_message_type()
     logger.info(f"Statement type: {msg_type}")
 
@@ -1861,7 +2241,7 @@ def process_statement(db, cursor, client, config, request, bot: dict):
     item_data = None
 
     if msg_type == "quest" or msg_type == "quest_reward":
-        quests = query_zone_quests(config, request.get('zone_id', 0), bot['level'])
+        quests = query_zone_quests(config, zone_id, bot['level'])
         if quests:
             quest_data = random.choice(quests)
             logger.info(f"Selected quest: {quest_data['quest_name']}")
@@ -1869,13 +2249,21 @@ def process_statement(db, cursor, client, config, request, bot: dict):
             msg_type = "plain"  # Fallback
 
     if msg_type == "loot":
-        loot = query_zone_loot(config, request.get('zone_id', 0), bot['level'])
+        loot = query_zone_loot(config, zone_id, bot['level'])
         if loot:
+            cooldown = int(config.get('LLMChatter.LootRecentCooldownSeconds', 0))
+            if cooldown > 0:
+                recent_ids = zone_cache.get_recent_loot_ids(zone_id, cooldown)
+                filtered = [item for item in loot if item.get('item_id') not in recent_ids]
+                if filtered:
+                    loot = filtered
             # Weight selection by quality - epics should be rare
             # Quality: 0=gray, 1=white, 2=green, 3=blue, 4=epic
             quality_weights = {0: 35, 1: 30, 2: 22, 3: 10, 4: 3}  # Blue 10%, Epic 3%
             weights = [quality_weights.get(item.get('item_quality', 2), 10) for item in loot]
             item_data = random.choices(loot, weights=weights, k=1)[0]
+            if cooldown > 0 and item_data.get('item_id'):
+                zone_cache.mark_loot_seen(zone_id, item_data['item_id'])
             # Check if bot's class can use the item
             item_can_use = can_class_use_item(bot['class'], item_data.get('allowable_class', -1))
             quality_names = {0: "gray", 1: "white", 2: "green", 3: "blue", 4: "epic"}
@@ -1884,7 +2272,6 @@ def process_statement(db, cursor, client, config, request, bot: dict):
             msg_type = "plain"  # Fallback
 
     # Build appropriate prompt
-    zone_id = request.get('zone_id', 0)
     if msg_type == "plain":
         # Get zone mobs for context - pass up to 10 random mobs so LLM knows what exists
         zone_mobs = []
@@ -1893,14 +2280,14 @@ def process_statement(db, cursor, client, config, request, bot: dict):
             zone_mobs = random.sample(mobs, min(10, len(mobs)))
         # Log zone context being used
         zone_flavor = get_zone_flavor(zone_id)
-        logger.info(f"Zone context: id={zone_id}, flavor={'yes' if zone_flavor else 'no'}, mobs={len(zone_mobs)}")
-        prompt = build_plain_statement_prompt(bot, zone_id, zone_mobs)
+        logger.info(f"Zone context: id={zone_id}, flavor={'yes' if zone_flavor else 'no'}, mobs={len(zone_mobs)}, weather={current_weather}")
+        prompt = build_plain_statement_prompt(bot, zone_id, zone_mobs, config, current_weather)
     elif msg_type == "quest":
-        prompt = build_quest_statement_prompt(bot, quest_data)
+        prompt = build_quest_statement_prompt(bot, quest_data, config)
     elif msg_type == "loot":
-        prompt = build_loot_statement_prompt(bot, item_data, item_can_use)
+        prompt = build_loot_statement_prompt(bot, item_data, item_can_use, config)
     elif msg_type == "quest_reward":
-        prompt = build_quest_reward_statement_prompt(bot, quest_data)
+        prompt = build_quest_reward_statement_prompt(bot, quest_data, config)
         # Also set item_data for replacement
         if quest_data and quest_data.get('item1_name'):
             item_data = {
@@ -1909,7 +2296,7 @@ def process_statement(db, cursor, client, config, request, bot: dict):
                 'item_quality': quest_data.get('item1_quality', 2)
             }
     else:
-        prompt = build_plain_statement_prompt(bot, zone_id)
+        prompt = build_plain_statement_prompt(bot, zone_id, config=config, current_weather=current_weather)
 
     # Call LLM
     response = call_llm(client, prompt, config)
@@ -1954,6 +2341,9 @@ def process_conversation(db, cursor, client, config, request, bots: List[dict]):
 
     logger.info(f"Processing {bot_count}-bot conversation: {', '.join(bot_names)}")
 
+    zone_id = request.get('zone_id', 0)
+    current_weather = request.get('weather', 'clear')  # Get current weather from C++
+
     # Select message type (conversations can be plain, quest, or loot)
     roll = random.randint(1, 100)
     if roll <= 50:
@@ -1978,15 +2368,22 @@ def process_conversation(db, cursor, client, config, request, bots: List[dict]):
     if msg_type == "loot":
         loot = query_zone_loot(config, request.get('zone_id', 0), bots[0]['level'])
         if loot:
+            cooldown = int(config.get('LLMChatter.LootRecentCooldownSeconds', 0))
+            if cooldown > 0:
+                recent_ids = zone_cache.get_recent_loot_ids(zone_id, cooldown)
+                filtered = [item for item in loot if item.get('item_id') not in recent_ids]
+                if filtered:
+                    loot = filtered
             quality_weights = {0: 30, 1: 30, 2: 25, 3: 12, 4: 3}
             weights = [quality_weights.get(item.get('item_quality', 2), 10) for item in loot]
             item_data = random.choices(loot, weights=weights, k=1)[0]
+            if cooldown > 0 and item_data.get('item_id'):
+                zone_cache.mark_loot_seen(zone_id, item_data['item_id'])
             logger.info(f"Selected loot for conversation: {item_data['item_name']}")
         else:
             msg_type = "plain"
 
     # Build prompt
-    zone_id = request.get('zone_id', 0)
     if msg_type == "plain":
         # Get zone mobs for context - pass up to 10 random mobs so LLM knows what exists
         zone_mobs = []
@@ -1995,18 +2392,36 @@ def process_conversation(db, cursor, client, config, request, bots: List[dict]):
             zone_mobs = random.sample(mobs, min(10, len(mobs)))
         # Log zone context being used
         zone_flavor = get_zone_flavor(zone_id)
-        logger.info(f"Zone context: id={zone_id}, flavor={'yes' if zone_flavor else 'no'}, mobs={len(zone_mobs)}")
-        prompt = build_plain_conversation_prompt(bots, zone_id, zone_mobs)
+        logger.info(f"Zone context: id={zone_id}, flavor={'yes' if zone_flavor else 'no'}, mobs={len(zone_mobs)}, weather={current_weather}")
+        prompt = build_plain_conversation_prompt(bots, zone_id, zone_mobs, config, current_weather)
     elif msg_type == "quest":
-        prompt = build_quest_conversation_prompt(bots, quest_data)
+        prompt = build_quest_conversation_prompt(bots, quest_data, config)
     else:  # loot
-        prompt = build_loot_conversation_prompt(bots, item_data)
+        prompt = build_loot_conversation_prompt(bots, item_data, config)
 
     # Call LLM
-    response = call_llm(client, prompt, config)
+    conversation_max_tokens = int(
+        config.get(
+            'LLMChatter.ConversationMaxTokens',
+            config.get('LLMChatter.MaxTokens', 200)
+        )
+    )
+    response = call_llm(client, prompt, config, max_tokens_override=conversation_max_tokens)
 
     if response:
         messages = parse_conversation_response(response, bot_names)
+
+        if not messages:
+            msg_count = extract_conversation_msg_count(prompt)
+            repair_prompt = (
+                "Your previous output was invalid JSON. Output ONLY a JSON array of "
+                f"{msg_count if msg_count else 'the required number of'} messages with the "
+                f"speakers: {', '.join(bot_names)}. Use double quotes, escape quotes/newlines, "
+                "no trailing commas, no code fences."
+            )
+            response = call_llm(client, repair_prompt, config, max_tokens_override=conversation_max_tokens)
+            if response:
+                messages = parse_conversation_response(response, bot_names)
 
         if messages:
             logger.info(f"Conversation in {bots[0]['zone']} with {len(messages)} messages ({bot_count} participants):")
@@ -2182,18 +2597,126 @@ EVENT_DESCRIPTIONS = {
 }
 
 
+def repair_json_string(raw_json: str) -> str:
+    """
+    Attempt to repair common JSON escaping issues from C++ side.
+
+    Common issues:
+    - Unescaped quotes inside string values: ("The Moonspray") should be (\"The Moonspray\")
+    - Nested quotes without proper escaping
+    """
+    if not raw_json:
+        return raw_json
+
+    # Try to fix unescaped quotes inside parentheses like ("name")
+    # Pattern: find ("...") where the quotes aren't escaped
+    import re
+
+    # First, try direct parse - maybe it's already valid
+    try:
+        json.loads(raw_json)
+        return raw_json  # Already valid
+    except:
+        pass
+
+    # Strategy: Find quoted strings in JSON and check for unescaped inner quotes
+    # This is tricky because we need to find the JSON string boundaries first
+
+    # Simple approach: find patterns like ("word") or ("word word") and escape them
+    # Pattern matches: opening paren + quote + content + quote + closing paren
+    def escape_inner_quotes(match):
+        full = match.group(0)
+        # Replace the inner quotes with escaped quotes
+        # ("The Moonspray") -> (\"The Moonspray\")
+        inner = match.group(1)
+        return '(\\"' + inner + '\\")'
+
+    # Match: ( followed by " followed by non-quote content followed by " followed by )
+    # The non-quote content shouldn't contain unescaped quotes
+    repaired = re.sub(r'\("([^"\\]+)"\)', escape_inner_quotes, raw_json)
+
+    # Also handle cases with escaped content already
+    # Try parsing the repaired version
+    try:
+        json.loads(repaired)
+        return repaired
+    except:
+        pass
+
+    # More aggressive repair: try to identify string values and escape inner quotes
+    # This is a simplified approach - extract known fields and rebuild
+    try:
+        # Extract key-value pairs using regex
+        # Pattern for "key":"value" pairs
+        result = {}
+
+        # Find transport_entry (numeric)
+        entry_match = re.search(r'"transport_entry":(\d+)', raw_json)
+        if entry_match:
+            result['transport_entry'] = int(entry_match.group(1))
+
+        # Find transport_type - it's usually simple like "Boat"
+        type_match = re.search(r'"transport_type":"([^"]+)"', raw_json)
+        if type_match:
+            result['transport_type'] = type_match.group(1)
+
+        # Find destination - usually after transport_type or before it
+        dest_match = re.search(r'"destination":"([^"]+)"', raw_json)
+        if dest_match:
+            result['destination'] = dest_match.group(1)
+
+        # transport_name is the problematic one - extract everything between
+        # "transport_name":" and the next "," before "destination" or "transport_type"
+        name_match = re.search(r'"transport_name":"(.+?)","(?:destination|transport_type)"', raw_json)
+        if name_match:
+            result['transport_name'] = name_match.group(1)
+
+        if result:
+            # Rebuild as proper JSON
+            return json.dumps(result)
+    except:
+        pass
+
+    # Return original if all repairs failed
+    return raw_json
+
+
+def parse_extra_data(raw_data: str, event_id=None, event_type=None) -> dict:
+    """Parse extra_data JSON with repair attempts for malformed data."""
+    if not raw_data:
+        return {}
+
+    # First try: direct parse
+    try:
+        return json.loads(raw_data)
+    except json.JSONDecodeError:
+        pass
+
+    # Second try: repair and parse
+    repaired = repair_json_string(raw_data)
+    try:
+        result = json.loads(repaired)
+        if repaired != raw_data:
+            logger.debug(f"Repaired JSON for event {event_id}: {raw_data[:100]}...")
+        return result
+    except json.JSONDecodeError as e:
+        logger.warning(f"Failed to parse extra_data JSON for event {event_id} "
+                      f"(type={event_type}): {e}")
+        logger.debug(f"Raw extra_data: {raw_data}")
+    except Exception as e:
+        logger.warning(f"Unexpected error parsing extra_data for event {event_id}: {e}")
+
+    return {}
+
+
 def build_event_context(event: dict) -> str:
     """Build context string for an event."""
     event_type = event['event_type']
-    extra_data = {}
-    if event.get('extra_data'):
-        try:
-            extra_data = json.loads(event['extra_data'])
-        except json.JSONDecodeError as e:
-            logger.warning(f"Failed to parse extra_data JSON for event {event.get('id', '?')} "
-                          f"(type={event_type}): {e}")
-        except Exception as e:
-            logger.warning(f"Unexpected error parsing extra_data for event {event.get('id', '?')}: {e}")
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event.get('id'),
+        event_type
+    )
 
     context_parts = []
 
@@ -2338,22 +2861,67 @@ def build_event_context(event: dict) -> str:
         context_parts.append(desc)
 
     elif event_type == 'transport_arrives':
-        transport_type = extra_data.get('transport_type', 'transport')
-        destination = extra_data.get('destination', 'somewhere')
+        transport_type = extra_data.get('transport_type', '')
+        destination = extra_data.get('destination', '')
         transport_name = extra_data.get('transport_name', '')
 
-        # Build description based on transport type
+        # Extract the ship's actual name (e.g., "The Moonspray") from transport_name
+        # Format: 'Auberdine, Darkshore and Rut'theran Village, Teldrassil (Boat, Alliance ("The Moonspray"))'
+        ship_name = ''
+        if transport_name:
+            import re
+            # Look for quoted name like ("The Moonspray") or ("Orgrim's Hammer")
+            name_match = re.search(r'\("([^"]+)"\)', transport_name)
+            if name_match:
+                ship_name = name_match.group(1)
+
+        # Fallback: parse target_name if extra_data failed
+        # Format: "Auberdine, Darkshore and Rut'theran Village, Teldrassil (Boat, Alliance)"
+        target_name = event.get('target_name', '')
+        if not destination and target_name:
+            # Try to extract destination from "X and Y (Type)" format
+            if ' and ' in target_name:
+                parts = target_name.split(' and ')
+                if len(parts) >= 2:
+                    # Second part before parenthesis is destination
+                    dest_part = parts[1].split('(')[0].strip()
+                    destination = dest_part
+            # Try to extract transport type
+            if not transport_type and '(' in target_name:
+                type_part = target_name.split('(')[-1].rstrip(')')
+                if 'Boat' in type_part:
+                    transport_type = 'Boat'
+                elif 'Zeppelin' in type_part:
+                    transport_type = 'Zeppelin'
+                elif 'Turtle' in type_part:
+                    transport_type = 'Turtle'
+
+        # Extract origin from transport_name (first part before ' and ')
+        origin = ''
+        if transport_name and ' and ' in transport_name:
+            origin = transport_name.split(' and ')[0].strip()
+
+        # Final defaults
+        if not transport_type:
+            transport_type = 'transport'
+        if not destination:
+            destination = 'its next stop'
+
+        # Build description based on transport type with ship name
+        ship_info = f' "{ship_name}"' if ship_name else ''
+        route_info = f' (route: {origin} to {destination})' if origin else f' heading to {destination}'
+
         if transport_type.lower() == 'zeppelin':
-            desc = f"A zeppelin has arrived! It's heading to {destination}."
+            desc = f"A zeppelin{ship_info} has just arrived!{route_info}"
         elif transport_type.lower() == 'boat':
-            desc = f"A boat has docked nearby! It's heading to {destination}."
+            desc = f"A boat{ship_info} has just docked at the pier!{route_info}"
         elif transport_type.lower() == 'turtle':
-            desc = f"A giant sea turtle has arrived! It can take you to {destination}."
+            desc = f"A giant sea turtle transport{ship_info} has arrived!{route_info}"
         else:
-            desc = f"A {transport_type} has arrived, heading to {destination}."
+            desc = f"A {transport_type}{ship_info} has arrived,{route_info}"
 
         context_parts.append(desc)
-        context_parts.append("Bots might comment on the transport's arrival or destination.")
+        context_parts.append(f"IMPORTANT: Bots should mention the destination '{destination}' and optionally the ship name '{ship_name}' in their conversation.")
 
     elif event_type == 'player_enters_zone':
         subject = event.get('subject_name', 'A player')
@@ -2424,36 +2992,107 @@ def process_pending_events(db, client, config) -> bool:
     """Process pending events from llm_chatter_events table."""
     cursor = db.cursor(dictionary=True)
 
-    # Check global message cap
-    cap_window = int(config.get('LLMChatter.GlobalCapWindowSeconds', 300))
-    global_cap = int(config.get('LLMChatter.GlobalMessageCap', 8))
-
+    # First, find where real players are located (non-RNDBOT accounts)
+    # Then prioritize events in those zones
     cursor.execute("""
-        SELECT COUNT(*) as cnt FROM llm_chatter_messages
-        WHERE delivered = 1 AND delivered_at > DATE_SUB(NOW(), INTERVAL %s SECOND)
-    """, (cap_window,))
-    result = cursor.fetchone()
-    if result and result['cnt'] >= global_cap:
-        logger.debug("Global message cap reached, skipping event processing")
-        return False
-
-    # Get pending events that are ready
-    cursor.execute("""
-        SELECT * FROM llm_chatter_events
-        WHERE status = 'pending'
-          AND (react_after IS NULL OR react_after <= NOW())
-          AND (expires_at IS NULL OR expires_at > NOW())
-        ORDER BY priority ASC, created_at ASC
-        LIMIT 1
+        SELECT DISTINCT c.zone as player_zone
+        FROM characters c
+        JOIN acore_auth.account a ON c.account = a.id
+        WHERE c.online = 1
+          AND a.username NOT LIKE 'RNDBOT%'
     """)
+    player_zones = [row['player_zone'] for row in cursor.fetchall()]
 
-    event = cursor.fetchone()
+    event = None
+
+    # Prefer transport events in zones where real players are
+    if player_zones:
+        cursor.execute("""
+            SELECT e.*
+            FROM llm_chatter_events e
+            WHERE e.status = 'pending'
+              AND e.event_type = 'transport_arrives'
+              AND (e.react_after IS NULL OR e.react_after <= NOW())
+              AND (e.expires_at IS NULL OR e.expires_at > NOW())
+              AND e.zone_id IN (%s)
+              AND EXISTS (
+                  SELECT 1 FROM characters c
+                  JOIN acore_auth.account a ON c.account = a.id
+                  WHERE c.online = 1 AND c.zone = e.zone_id
+                    AND a.username LIKE 'RNDBOT%%'
+              )
+            ORDER BY e.priority ASC, e.created_at ASC
+            LIMIT 1
+        """ % ','.join(['%s'] * len(player_zones)), tuple(player_zones))
+        event = cursor.fetchone()
+
+    if event:
+        logger.info(f"Prioritizing transport event #{event['id']} in zone {event.get('zone_id')} (player present)")
+    else:
+        # Get pending events that are ready, but only if they have bots + real player in-zone
+        # Uses account-based detection: RNDBOT% = bot, non-RNDBOT% = real player
+        cursor.execute("""
+            SELECT e.*
+            FROM llm_chatter_events e
+            WHERE e.status = 'pending'
+              AND (e.react_after IS NULL OR e.react_after <= NOW())
+              AND (e.expires_at IS NULL OR e.expires_at > NOW())
+              AND (
+                  e.zone_id IS NULL
+                  OR (
+                      EXISTS (
+                          SELECT 1 FROM characters c
+                          JOIN acore_auth.account a ON c.account = a.id
+                          WHERE c.online = 1 AND c.zone = e.zone_id
+                            AND a.username LIKE 'RNDBOT%%'
+                      )
+                      AND EXISTS (
+                          SELECT 1 FROM characters rp
+                          JOIN acore_auth.account a ON rp.account = a.id
+                          WHERE rp.online = 1 AND rp.zone = e.zone_id
+                            AND a.username NOT LIKE 'RNDBOT%%'
+                      )
+                  )
+              )
+            ORDER BY e.priority ASC, e.created_at ASC
+            LIMIT 1
+        """)
+        event = cursor.fetchone()
+
     if not event:
         return False
 
     event_id = event['id']
     event_type = event['event_type']
     zone_id = event.get('zone_id')
+
+    # Transport events have a chance-based filter (not every arrival should trigger chat)
+    if event_type == 'transport_arrives':
+        transport_chance = int(config.get('LLMChatter.TransportEventChance', 30))
+        roll = random.randint(1, 100)
+        if roll > transport_chance:
+            # Skip this transport event but don't mark it as failed
+            cursor.execute(
+                "UPDATE llm_chatter_events SET status = 'skipped' WHERE id = %s",
+                (event_id,))
+            db.commit()
+            logger.info(f"Transport event #{event_id} skipped: chance roll {roll} > {transport_chance}%")
+            return False
+
+        # Zone-level transport cooldown (prevents multiple boat announcements in same zone)
+        if zone_id:
+            now = time.time()
+            last_transport = _zone_transport_cooldowns.get(zone_id, 0)
+            if now - last_transport < ZONE_TRANSPORT_COOLDOWN_SECONDS:
+                remaining = int(ZONE_TRANSPORT_COOLDOWN_SECONDS - (now - last_transport))
+                cursor.execute(
+                    "UPDATE llm_chatter_events SET status = 'skipped' WHERE id = %s",
+                    (event_id,))
+                db.commit()
+                logger.info(f"Transport event #{event_id} skipped: zone {zone_id} on cooldown ({remaining}s remaining)")
+                return False
+            # Update zone cooldown
+            _zone_transport_cooldowns[zone_id] = now
 
     logger.info(f"Processing event #{event_id}: {event_type}")
 
@@ -2468,34 +3107,21 @@ def process_pending_events(db, client, config) -> bool:
         event_context = build_event_context(event)
 
         # Find bots in the zone (if zone-specific)
+        # Uses account-based detection: RNDBOT% accounts = bots
         if zone_id:
-            # First try: Get online bots currently in this zone
-            # Join with llm_chatter_queue to find characters that have participated in chatter (are bots)
-            # Include bot1/2/3/4 guids to catch all bots that have chatted
+            # Get online bots (RNDBOT accounts) currently in this zone
             cursor.execute("""
                 SELECT DISTINCT c.guid as bot1_guid, c.name as bot1_name,
                        c.class as bot1_class, c.race as bot1_race, c.level as bot1_level,
                        c.zone as zone_id
                 FROM characters c
+                JOIN acore_auth.account a ON c.account = a.id
                 WHERE c.online = 1 AND c.zone = %s
-                  AND (c.guid IN (SELECT bot1_guid FROM llm_chatter_queue)
-                    OR c.guid IN (SELECT bot2_guid FROM llm_chatter_queue WHERE bot2_guid IS NOT NULL)
-                    OR c.guid IN (SELECT bot3_guid FROM llm_chatter_queue WHERE bot3_guid IS NOT NULL)
-                    OR c.guid IN (SELECT bot4_guid FROM llm_chatter_queue WHERE bot4_guid IS NOT NULL))
+                  AND a.username LIKE 'RNDBOT%%'
+                ORDER BY RAND()
                 LIMIT 10
             """, (zone_id,))
             recent_bots = cursor.fetchall()
-
-            # Fallback: If no online bots in zone, try recent chatter history
-            if not recent_bots:
-                cursor.execute("""
-                    SELECT bot1_guid, bot1_name, bot1_class, bot1_race, bot1_level, zone_id
-                    FROM llm_chatter_queue
-                    WHERE zone_id = %s AND status = 'completed'
-                    ORDER BY processed_at DESC
-                    LIMIT 10
-                """, (zone_id,))
-                recent_bots = cursor.fetchall()
 
             if not recent_bots:
                 # No bots found, skip event
@@ -2503,58 +3129,48 @@ def process_pending_events(db, client, config) -> bool:
                     "UPDATE llm_chatter_events SET status = 'skipped' WHERE id = %s",
                     (event_id,))
                 db.commit()
-                logger.debug(f"No bots in zone {zone_id}, skipping event")
+                logger.info(f"Event #{event_id} skipped: no bots in zone {zone_id}")
                 return False
 
-            # Pick a random bot and convert numeric class/race to names if needed
-            bot = dict(random.choice(recent_bots))
-            if isinstance(bot.get('bot1_class'), int):
-                bot['bot1_class'] = get_class_name(bot['bot1_class'])
-            if isinstance(bot.get('bot1_race'), int):
-                bot['bot1_race'] = get_race_name(bot['bot1_race'])
+            # Convert numeric class/race to names for all bots
+            for bot in recent_bots:
+                if isinstance(bot.get('bot1_class'), int):
+                    bot['bot1_class'] = get_class_name(bot['bot1_class'])
+                if isinstance(bot.get('bot1_race'), int):
+                    bot['bot1_race'] = get_race_name(bot['bot1_race'])
         else:
-            # Global event - find any online bot that has participated in chatter
+            # Global event - find any online bot (RNDBOT account)
             cursor.execute("""
                 SELECT DISTINCT c.guid as bot1_guid, c.name as bot1_name,
                        c.class as bot1_class, c.race as bot1_race, c.level as bot1_level,
                        c.zone as zone_id
                 FROM characters c
+                JOIN acore_auth.account a ON c.account = a.id
                 WHERE c.online = 1
-                  AND (c.guid IN (SELECT bot1_guid FROM llm_chatter_queue)
-                    OR c.guid IN (SELECT bot2_guid FROM llm_chatter_queue WHERE bot2_guid IS NOT NULL)
-                    OR c.guid IN (SELECT bot3_guid FROM llm_chatter_queue WHERE bot3_guid IS NOT NULL)
-                    OR c.guid IN (SELECT bot4_guid FROM llm_chatter_queue WHERE bot4_guid IS NOT NULL))
+                  AND a.username LIKE 'RNDBOT%%'
+                ORDER BY RAND()
                 LIMIT 20
             """)
             recent_bots = cursor.fetchall()
-
-            # Fallback to recent chatter history
-            if not recent_bots:
-                cursor.execute("""
-                    SELECT bot1_guid, bot1_name, bot1_class, bot1_race, bot1_level, zone_id
-                    FROM llm_chatter_queue
-                    WHERE status = 'completed'
-                    ORDER BY processed_at DESC
-                    LIMIT 20
-                """)
-                recent_bots = cursor.fetchall()
 
             if not recent_bots:
                 cursor.execute(
                     "UPDATE llm_chatter_events SET status = 'skipped' WHERE id = %s",
                     (event_id,))
                 db.commit()
+                logger.info(f"Event #{event_id} skipped: no online bots found")
                 return False
 
-            # Pick a random bot and convert numeric class/race to names if needed
-            bot = dict(random.choice(recent_bots))
-            if isinstance(bot.get('bot1_class'), int):
-                bot['bot1_class'] = get_class_name(bot['bot1_class'])
-            if isinstance(bot.get('bot1_race'), int):
-                bot['bot1_race'] = get_race_name(bot['bot1_race'])
+            # Convert numeric class/race to names for all bots
+            for bot in recent_bots:
+                if isinstance(bot.get('bot1_class'), int):
+                    bot['bot1_class'] = get_class_name(bot['bot1_class'])
+                if isinstance(bot.get('bot1_race'), int):
+                    bot['bot1_race'] = get_race_name(bot['bot1_race'])
 
         # Check zone fatigue (if zone-specific event)
-        if zone_id:
+        # Transport events bypass zone fatigue to ensure they can always fire
+        if zone_id and event_type != 'transport_arrives':
             fatigue_threshold = int(config.get('LLMChatter.ZoneFatigueThreshold', 3))
             fatigue_cooldown = int(config.get('LLMChatter.ZoneFatigueCooldownSeconds', 900))
             cursor.execute("""
@@ -2568,98 +3184,178 @@ def process_pending_events(db, client, config) -> bool:
                     "UPDATE llm_chatter_events SET status = 'skipped' WHERE id = %s",
                     (event_id,))
                 db.commit()
-                logger.debug(f"Zone {zone_id} fatigue threshold ({fatigue_threshold}) reached, skipping")
+                logger.info(f"Event #{event_id} skipped: zone {zone_id} fatigue threshold ({fatigue_threshold}) reached")
                 return False
 
-        # Check bot speaker cooldown
-        cooldown = int(config.get('LLMChatter.BotSpeakerCooldownSeconds', 900))
-        cursor.execute("""
-            SELECT COUNT(*) as cnt FROM llm_chatter_messages
-            WHERE bot_guid = %s AND delivered = 1
-              AND delivered_at > DATE_SUB(NOW(), INTERVAL %s SECOND)
-        """, (bot['bot1_guid'], cooldown))
-        result = cursor.fetchone()
-        if result and result['cnt'] > 0:
-            # Bot spoke recently, skip
-            cursor.execute(
-                "UPDATE llm_chatter_events SET status = 'skipped' WHERE id = %s",
-                (event_id,))
-            db.commit()
-            logger.debug(f"Bot {bot['bot1_name']} on cooldown, skipping")
-            return False
+        # Decide: statement (40%) vs conversation (60%)
+        # Conversations require at least 2 bots
+        use_conversation = len(recent_bots) >= 2 and random.randint(1, 100) <= 60
 
-        # Get zone name
-        zone_name = "the world"
-        if bot.get('zone_id'):
-            zone_name = get_zone_name(bot['zone_id'])
+        if use_conversation:
+            # Select 2-4 bots for conversation
+            num_bots = min(random.randint(2, 4), len(recent_bots))
+            selected_bots = random.sample(list(recent_bots), num_bots)
 
-        # Build prompt for event-triggered statement
-        provider = config.get('LLMChatter.Provider', 'anthropic').lower()
-        model = resolve_model(config.get('LLMChatter.Model', 'haiku'))
+            # Format bots for conversation prompt
+            bots = []
+            for b in selected_bots:
+                bots.append({
+                    'guid': b['bot1_guid'],
+                    'name': b['bot1_name'],
+                    'class': b['bot1_class'],
+                    'race': b['bot1_race'],
+                    'level': b['bot1_level'],
+                    'zone': get_zone_name(b.get('zone_id', zone_id))
+                })
 
-        tone = random.choice(TONES)
-        system_prompt = f"""You are {bot['bot1_name']}, a {bot['bot1_race']} {bot['bot1_class']} adventurer in World of Warcraft.
+            bot_names = [b['name'] for b in bots]
+            bot_guids = {b['name']: b['guid'] for b in bots}
+
+            logger.info(f"Event #{event_id} triggering {num_bots}-bot conversation: {', '.join(bot_names)}")
+
+            # Build event conversation prompt
+            prompt = build_event_conversation_prompt(bots, event_context, zone_id)
+
+            # Call LLM
+            response = call_llm(client, prompt, config)
+
+            if response:
+                messages = parse_conversation_response(response, bot_names)
+
+                if messages:
+                    logger.info(f"Event conversation with {len(messages)} messages:")
+
+                    cumulative_delay = 0.0
+                    for i, msg in enumerate(messages):
+                        bot_guid = bot_guids.get(msg['name'], bots[0]['guid'])
+                        final_message = cleanup_message(msg['message'])
+
+                        if i > 0:
+                            delay = calculate_dynamic_delay(len(final_message), config)
+                            cumulative_delay += delay
+
+                        cursor.execute("""
+                            INSERT INTO llm_chatter_messages
+                            (event_id, sequence, bot_guid, bot_name, message, channel, delivered, deliver_at)
+                            VALUES (%s, %s, %s, %s, %s, 'general', 0, DATE_ADD(NOW(), INTERVAL %s SECOND))
+                        """, (event_id, i, bot_guid, msg['name'], final_message, cumulative_delay))
+
+                        logger.info(f"  [{i}] +{cumulative_delay:.1f}s {msg['name']}: {final_message}")
+
+                    # Mark event completed
+                    cursor.execute(
+                        "UPDATE llm_chatter_events SET status = 'completed', processed_at = NOW() WHERE id = %s",
+                        (event_id,))
+                    db.commit()
+                    return True
+
+            # Fallback to statement if conversation failed
+            logger.warning(f"Event conversation failed, falling back to statement")
+            use_conversation = False
+
+        # Statement mode (single bot)
+        if not use_conversation:
+            bot = dict(random.choice(list(recent_bots)))
+            is_transport_event = event_type == 'transport_arrives'
+
+            # Transport events bypass cooldown - they're high priority
+            if not is_transport_event:
+                # Check bot speaker cooldown for non-transport events
+                cooldown = int(config.get('LLMChatter.BotSpeakerCooldownSeconds', 900))
+                cursor.execute("""
+                    SELECT COUNT(*) as cnt FROM llm_chatter_messages
+                    WHERE bot_guid = %s AND delivered = 1
+                      AND delivered_at > DATE_SUB(NOW(), INTERVAL %s SECOND)
+                """, (bot['bot1_guid'], cooldown))
+                result = cursor.fetchone()
+                if result and result['cnt'] > 0:
+                    cursor.execute(
+                        "UPDATE llm_chatter_events SET status = 'skipped' WHERE id = %s",
+                        (event_id,))
+                    db.commit()
+                    logger.info(f"Event #{event_id} skipped: bot {bot['bot1_name']} on cooldown")
+                    return False
+            else:
+                logger.info(f"Transport event #{event_id}: bypassing cooldown for bot {bot['bot1_name']}")
+
+            # Get zone name
+            zone_name = get_zone_name(bot.get('zone_id', zone_id)) or "the world"
+
+            # Build prompt for event-triggered statement
+            tone = random.choice(TONES)
+
+            # Transport events get more direct instructions
+            is_transport = 'boat' in event_context.lower() or 'zeppelin' in event_context.lower() or 'turtle' in event_context.lower()
+            if is_transport:
+                event_instruction = """Comment on this transport arrival! Use the specific type (boat/zeppelin/turtle), NOT 'transport'.
+Mention the destination if known. Be creative and original - no canned phrases."""
+            else:
+                event_instruction = """You may naturally reference this event in your message, or you may chat about something else entirely.
+The event provides atmosphere - you don't HAVE to mention it explicitly."""
+
+            system_prompt = f"""You are {bot['bot1_name']}, a {bot['bot1_race']} {bot['bot1_class']} adventurer in World of Warcraft.
 You are level {bot['bot1_level']} and currently in {zone_name}.
 
 CONTEXT: {event_context}
 
-You may naturally reference this event in your message, or you may chat about something else entirely.
-The event provides atmosphere - you don't HAVE to mention it explicitly.
+{event_instruction}
 
 Your current mood: {tone}
 
 Respond with a single short sentence (under 100 characters) that a player might say in General chat.
 Be casual and authentic. No quotes. No asterisks. No emotes."""
 
-        # Call LLM
-        max_tokens = int(config.get('LLMChatter.MaxTokens', 200))
-        temperature = float(config.get('LLMChatter.Temperature', 0.8))
+            # Call LLM
+            provider = config.get('LLMChatter.Provider', 'anthropic').lower()
+            model = resolve_model(config.get('LLMChatter.Model', 'haiku'))
+            max_tokens = int(config.get('LLMChatter.MaxTokens', 200))
+            temperature = float(config.get('LLMChatter.Temperature', 0.8))
 
-        if provider == 'openai':
-            response = client.chat.completions.create(
-                model=model,
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": "Say something in General chat."}
-                ],
-                max_tokens=max_tokens,
-                temperature=temperature
-            )
-            message = response.choices[0].message.content.strip()
-        else:
-            response = client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                system=system_prompt,
-                messages=[{"role": "user", "content": "Say something in General chat."}]
-            )
-            message = response.content[0].text.strip()
+            if provider == 'openai':
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": "Say something in General chat."}
+                    ],
+                    max_tokens=max_tokens,
+                    temperature=temperature
+                )
+                message = response.choices[0].message.content.strip()
+            else:
+                response = client.messages.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    system=system_prompt,
+                    messages=[{"role": "user", "content": "Say something in General chat."}]
+                )
+                message = response.content[0].text.strip()
 
-        # Clean up message
-        message = message.strip('"').strip()
-        if len(message) > 255:
-            message = message[:252] + "..."
+            # Clean up message
+            message = message.strip('"').strip()
+            if len(message) > 255:
+                message = message[:252] + "..."
 
-        # Insert message for delivery
-        delay_min = int(config.get('LLMChatter.MessageDelayMin', 1000))
-        delay_max = int(config.get('LLMChatter.MessageDelayMax', 30000))
-        delay_ms = random.randint(delay_min, delay_max)
+            # Insert message for delivery
+            delay_min = int(config.get('LLMChatter.MessageDelayMin', 1000))
+            delay_max = int(config.get('LLMChatter.MessageDelayMax', 30000))
+            delay_ms = random.randint(delay_min, delay_max)
 
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid, bot_name, message, channel, delivered, deliver_at)
-            VALUES (%s, 0, %s, %s, %s, 'general', 0, DATE_ADD(NOW(), INTERVAL %s SECOND))
-        """, (event_id, bot['bot1_guid'], bot['bot1_name'], message, delay_ms // 1000))
+            cursor.execute("""
+                INSERT INTO llm_chatter_messages
+                (event_id, sequence, bot_guid, bot_name, message, channel, delivered, deliver_at)
+                VALUES (%s, 0, %s, %s, %s, 'general', 0, DATE_ADD(NOW(), INTERVAL %s SECOND))
+            """, (event_id, bot['bot1_guid'], bot['bot1_name'], message, delay_ms // 1000))
 
-        # Mark event completed
-        cursor.execute(
-            "UPDATE llm_chatter_events SET status = 'completed', processed_at = NOW() WHERE id = %s",
-            (event_id,))
-        db.commit()
+            # Mark event completed
+            cursor.execute(
+                "UPDATE llm_chatter_events SET status = 'completed', processed_at = NOW() WHERE id = %s",
+                (event_id,))
+            db.commit()
 
-        logger.info(f"Event #{event_id} processed: {bot['bot1_name']} will say: {message[:50]}...")
-        return True
+            logger.info(f"Event #{event_id} processed: {bot['bot1_name']} will say: {message[:50]}...")
+            return True
 
     except Exception as e:
         logger.error(f"Error processing event #{event_id}: {e}")
@@ -2713,17 +3409,32 @@ def main():
     use_event_system = config.get('LLMChatter.UseEventSystem', '1') == '1'
 
     logger.info("=" * 60)
-    logger.info("LLM Chatter Bridge v3.2")
+    logger.info("LLM Chatter Bridge v3.3")
     logger.info("=" * 60)
     logger.info(f"Provider: {provider}")
     logger.info(f"Model: {model} (alias: {model_alias})")
     logger.info(f"Poll interval: {poll_interval}s")
-    logger.info(f"Max tokens: {config.get('LLMChatter.MaxTokens', 200)}")
+    base_max = config.get('LLMChatter.MaxTokens', 200)
+    convo_max = config.get('LLMChatter.ConversationMaxTokens', base_max)
+    logger.info(f"Max tokens (statements): {base_max}")
+    logger.info(f"Max tokens (conversations): {convo_max}")
     logger.info(f"Event system: {'enabled' if use_event_system else 'disabled'}")
     logger.info(f"Message type distribution: {MSG_TYPE_PLAIN}% plain, "
                 f"{MSG_TYPE_QUEST - MSG_TYPE_PLAIN}% quest, "
                 f"{MSG_TYPE_LOOT - MSG_TYPE_QUEST}% loot, "
                 f"{MSG_TYPE_QUEST_REWARD - MSG_TYPE_LOOT}% quest+reward")
+    logger.info("-" * 60)
+    logger.info("Chatter settings (from config):")
+    logger.info(f"  TriggerIntervalSeconds: {config.get('LLMChatter.TriggerIntervalSeconds', 60)}")
+    logger.info(f"  TriggerChance: {config.get('LLMChatter.TriggerChance', 30)}%")
+    logger.info(f"  ConversationChance: {config.get('LLMChatter.ConversationChance', 50)}%")
+    logger.info(f"  BotSpeakerCooldownSeconds: {config.get('LLMChatter.BotSpeakerCooldownSeconds', 900)}")
+    logger.info(f"  ZoneFatigueThreshold: {config.get('LLMChatter.ZoneFatigueThreshold', 3)}")
+    logger.info("-" * 60)
+    logger.info("Transport settings:")
+    logger.info(f"  TransportEventChance: {config.get('LLMChatter.TransportEventChance', 30)}%")
+    logger.info(f"  TransportCooldownSeconds (C++): {config.get('LLMChatter.TransportCooldownSeconds', 300)}")
+    logger.info(f"  ZoneTransportCooldown (Python): {ZONE_TRANSPORT_COOLDOWN_SECONDS}s")
     logger.info("=" * 60)
 
     # Wait for database to be ready (handles Docker startup order)

@@ -25,6 +25,8 @@ void LLMChatterConfig::LoadConfig()
     // Event system settings
     _useEventSystem = sConfigMgr->GetOption<bool>("LLMChatter.UseEventSystem", true);
     _eventReactionChance = sConfigMgr->GetOption<uint32>("LLMChatter.EventReactionChance", 15);
+    _transportEventChance = sConfigMgr->GetOption<uint32>("LLMChatter.TransportEventChance", 0);
+    _transportCooldownSeconds = sConfigMgr->GetOption<uint32>("LLMChatter.TransportCooldownSeconds", 600);
     _eventExpirationSeconds = sConfigMgr->GetOption<uint32>("LLMChatter.EventExpirationSeconds", 600);
     _globalMessageCap = sConfigMgr->GetOption<uint32>("LLMChatter.GlobalMessageCap", 8);
     _globalCapWindowSeconds = sConfigMgr->GetOption<uint32>("LLMChatter.GlobalCapWindowSeconds", 300);

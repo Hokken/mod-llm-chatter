@@ -42,6 +42,8 @@ public:
     // Event system settings
     bool _useEventSystem;
     uint32 _eventReactionChance;
+    uint32 _transportEventChance;
+    uint32 _transportCooldownSeconds;
     uint32 _eventExpirationSeconds;
     uint32 _globalMessageCap;
     uint32 _globalCapWindowSeconds;

@@ -43,6 +43,16 @@
 #include <random>
 #include <sstream>
 
+// Check if player is a bot (global helper function)
+static bool IsPlayerBot(Player* player)
+{
+    if (!player)
+        return false;
+
+    PlayerbotAI* ai = GET_PLAYERBOT_AI(player);
+    return ai != nullptr;
+}
+
 // Helper function to get item quality color
 static const char* GetQualityColor(uint8 quality)
 {
@@ -211,6 +221,13 @@ static std::string EscapeString(const std::string& str)
 {
     std::string result = str;
     size_t pos = 0;
+    // Escape backslashes first
+    while ((pos = result.find('\\', pos)) != std::string::npos)
+    {
+        result.replace(pos, 1, "\\\\");
+        pos += 2;
+    }
+    pos = 0;
     while ((pos = result.find('\'', pos)) != std::string::npos)
     {
         result.replace(pos, 1, "''");
@@ -219,20 +236,24 @@ static std::string EscapeString(const std::string& str)
     return result;
 }
 
-// Escape string for JSON values (escapes quotes and backslashes)
+// Escape string for JSON values that will be inserted via SQL string literal
+// MySQL interprets backslashes in string literals, so we need double-escaping:
+// - For a JSON quote (\"), we need \\" in SQL to store \" in the database
+// - For a literal backslash (\\), we need \\\\ in SQL to store \\ in the database
 static std::string JsonEscape(const std::string& str)
 {
     std::string result;
-    result.reserve(str.size());
+    result.reserve(str.size() * 2);
     for (char c : str)
     {
         switch (c)
         {
-            case '"':  result += "\\\""; break;
-            case '\\': result += "\\\\"; break;
-            case '\n': result += "\\n"; break;
-            case '\r': result += "\\r"; break;
-            case '\t': result += "\\t"; break;
+            case '"':  result += "\\\\\""; break;  // \" in JSON, needs \\" in SQL
+            case '\\': result += "\\\\\\\\"; break;  // \\ in JSON, needs \\\\ in SQL
+            case '\n': result += "\\\\n"; break;
+            case '\r': result += "\\\\r"; break;
+            case '\t': result += "\\\\t"; break;
+            case '\'': result += "''"; break;  // SQL single quote escape
             default:   result += c; break;
         }
     }
@@ -252,7 +273,7 @@ static uint32 GetReactionDelaySeconds(const std::string& eventType)
     else if (eventType == "weather_change")
         { minDelay = 60; maxDelay = 300; }
     else if (eventType == "transport_arrives")
-        { minDelay = 60; maxDelay = 300; }
+        { minDelay = 5; maxDelay = 15; }  // React quickly while transport is still at dock
     else
         { minDelay = 30; maxDelay = 120; }
 
@@ -270,17 +291,35 @@ static void QueueEvent(const std::string& eventType, const std::string& eventSco
     if (!sLLMChatterConfig->IsEnabled() || !sLLMChatterConfig->_useEventSystem)
         return;
 
-    // Roll reaction chance
-    if (urand(1, 100) > sLLMChatterConfig->_eventReactionChance)
+    // Roll reaction chance (allow override for transport events)
+    uint32 reactionChance = sLLMChatterConfig->_eventReactionChance;
+    if (eventType == "transport_arrives" && sLLMChatterConfig->_transportEventChance > 0)
+        reactionChance = sLLMChatterConfig->_transportEventChance;
+
+    if (urand(1, 100) > reactionChance)
     {
-        LOG_DEBUG("module", "LLMChatter: Event {} skipped (reaction chance)", eventType);
+        if (eventType == "transport_arrives")
+        {
+            LOG_INFO("module", "LLMChatter: Transport event skipped (reaction chance {})", reactionChance);
+        }
+        else
+        {
+            LOG_DEBUG("module", "LLMChatter: Event {} skipped (reaction chance)", eventType);
+        }
         return;
     }
 
     // Check cooldown
     if (!cooldownKey.empty() && IsOnCooldown(cooldownKey, cooldownSeconds))
     {
-        LOG_DEBUG("module", "LLMChatter: Event {} on cooldown ({})", eventType, cooldownKey);
+        if (eventType == "transport_arrives")
+        {
+            LOG_INFO("module", "LLMChatter: Transport event on cooldown ({})", cooldownKey);
+        }
+        else
+        {
+            LOG_DEBUG("module", "LLMChatter: Event {} on cooldown ({})", eventType, cooldownKey);
+        }
         return;
     }
 
@@ -309,7 +348,7 @@ static void QueueEvent(const std::string& eventType, const std::string& eventSco
         targetGuid > 0 ? std::to_string(targetGuid) : "NULL",
         EscapeString(targetName),
         targetEntry > 0 ? std::to_string(targetEntry) : "NULL",
-        EscapeString(extraData),
+        extraData,  // Already JSON-escaped, don't double-escape
         reactionDelay, expirationSeconds);
 
     LOG_INFO("module", "LLMChatter: Queued event {} in zone {} (react in {}s)",
@@ -480,13 +519,43 @@ public:
         uint32 zoneId = weather->GetZone();
 
         // Get previous weather state for this zone (default to FINE if unknown)
+        // IMPORTANT: Always track state changes even if we skip the event,
+        // otherwise transition detection becomes incorrect when a player enters later
         WeatherState prevState = WEATHER_STATE_FINE;
         auto it = _zoneWeatherState.find(zoneId);
         if (it != _zoneWeatherState.end())
             prevState = it->second;
 
-        // Update tracked state
+        // Update tracked state (before checking for real players)
         _zoneWeatherState[zoneId] = state;
+
+        // Only create weather events for zones where a real player is present
+        // Note: GetAllSessions() is safe to iterate here as ALEScript hooks
+        // are called from the main world thread during weather updates
+        bool hasRealPlayer = false;
+        auto const& sessions = sWorldSessionMgr->GetAllSessions();
+        for (auto const& pair : sessions)
+        {
+            WorldSession* session = pair.second;
+            if (!session || session->PlayerLoading())
+                continue;
+
+            Player* player = session->GetPlayer();
+            if (!player || !player->IsInWorld())
+                continue;
+
+            if (!IsPlayerBot(player) && player->GetZoneId() == zoneId)
+            {
+                hasRealPlayer = true;
+                break;
+            }
+        }
+
+        if (!hasRealPlayer)
+        {
+            LOG_DEBUG("module", "LLMChatter: No real player in zone {}, skipping weather event", zoneId);
+            return;
+        }
 
         // Determine what kind of transition this is
         std::string transitionType;
@@ -836,10 +905,6 @@ private:
                 float z = transport->GetPositionZ();
                 uint32 currentZone = map->GetZoneId(transport->GetPhaseMask(), x, y, z);
 
-                // Skip if zone lookup failed
-                if (currentZone == 0)
-                    continue;
-
                 // Check for zone change
                 auto it = _transportZones.find(guid);
                 if (it != _transportZones.end())
@@ -850,6 +915,17 @@ private:
                     // Detect zone change or map change
                     if (currentZone != lastZone || mapId != lastMap)
                     {
+                        LOG_INFO("module", "LLMChatter: Transport {} zone change {} -> {} (map {} -> {})",
+                                 entry, lastZone, currentZone, lastMap, mapId);
+
+                        // If we are in "no zone" (open sea), just track it.
+                        // We'll announce when we enter a real zone.
+                        if (currentZone == 0)
+                        {
+                            _transportZones[guid] = {currentZone, mapId};
+                            continue;
+                        }
+
                         // Zone changed! Queue event if we have transport info
                         auto cacheIt = _transportCache.find(entry);
                         if (cacheIt != _transportCache.end())
@@ -875,7 +951,7 @@ private:
                                 mapId,
                                 6,  // priority
                                 cooldownKey,
-                                600,  // 10 minute cooldown per transport+zone
+                                sLLMChatterConfig->_transportCooldownSeconds,  // per transport+zone cooldown
                                 0, "",  // no subject
                                 0, info.fullName, entry,  // target info
                                 extraData
@@ -883,6 +959,10 @@ private:
 
                             LOG_INFO("module", "LLMChatter: Transport {} ({}) arrived in zone {}",
                                      info.transportType, info.destination, currentZone);
+                        }
+                        else
+                        {
+                            LOG_INFO("module", "LLMChatter: Transport entry {} not in cache, skipping event", entry);
                         }
                     }
                 }
@@ -939,16 +1019,6 @@ private:
             return area->area_name[0];  // English name
         }
         return "Unknown Zone";
-    }
-
-    // Check if player is a bot
-    bool IsPlayerBot(Player* player)
-    {
-        if (!player)
-            return false;
-
-        PlayerbotAI* ai = GET_PLAYERBOT_AI(player);
-        return ai != nullptr;
     }
 
     // Get faction (0 = Alliance, 1 = Horde)
@@ -1251,6 +1321,14 @@ private:
             pos += 2;
         }
 
+        // Get current weather for this zone
+        std::string currentWeather = "clear";
+        auto weatherIt = _zoneWeatherState.find(zoneId);
+        if (weatherIt != _zoneWeatherState.end())
+        {
+            currentWeather = GetWeatherStateName(weatherIt->second);
+        }
+
         if (isConversation && bot2)
         {
             std::string bot2Name = bot2->GetName();
@@ -1259,11 +1337,11 @@ private:
             uint8 bot2Level = bot2->GetLevel();
 
             // Build the SQL dynamically based on how many bots we have
-            std::string columns = "request_type, bot1_guid, bot1_name, bot1_class, bot1_race, bot1_level, bot1_zone, zone_id, bot_count, "
+            std::string columns = "request_type, bot1_guid, bot1_name, bot1_class, bot1_race, bot1_level, bot1_zone, zone_id, weather, bot_count, "
                                   "bot2_guid, bot2_name, bot2_class, bot2_race, bot2_level";
-            std::string values = fmt::format("'{}', {}, '{}', '{}', '{}', {}, '{}', {}, {}, {}, '{}', '{}', '{}', {}",
+            std::string values = fmt::format("'{}', {}, '{}', '{}', '{}', {}, '{}', {}, '{}', {}, {}, '{}', '{}', '{}', {}",
                 requestType,
-                bot1->GetGUID().GetCounter(), bot1Name, bot1Class, bot1Race, bot1Level, escapedZoneName, zoneId, botCount,
+                bot1->GetGUID().GetCounter(), bot1Name, bot1Class, bot1Race, bot1Level, escapedZoneName, zoneId, currentWeather, botCount,
                 bot2->GetGUID().GetCounter(), bot2Name, bot2Class, bot2Race, bot2Level);
 
             // Add bot3 if present
@@ -1309,13 +1387,13 @@ private:
         {
             CharacterDatabase.Execute(
                 "INSERT INTO llm_chatter_queue "
-                "(request_type, bot1_guid, bot1_name, bot1_class, bot1_race, bot1_level, bot1_zone, zone_id, bot_count, status) "
-                "VALUES ('{}', {}, '{}', '{}', '{}', {}, '{}', {}, 1, 'pending')",
+                "(request_type, bot1_guid, bot1_name, bot1_class, bot1_race, bot1_level, bot1_zone, zone_id, weather, bot_count, status) "
+                "VALUES ('{}', {}, '{}', '{}', '{}', {}, '{}', {}, '{}', 1, 'pending')",
                 requestType,
-                bot1->GetGUID().GetCounter(), bot1Name, bot1Class, bot1Race, bot1Level, escapedZoneName, zoneId);
+                bot1->GetGUID().GetCounter(), bot1Name, bot1Class, bot1Race, bot1Level, escapedZoneName, zoneId, currentWeather);
 
-            LOG_INFO("module", "LLMChatter: Queued statement in {} for {} ({} {})",
-                     zoneName, bot1Name, bot1Race, bot1Class);
+            LOG_INFO("module", "LLMChatter: Queued statement in {} for {} ({} {}) [weather: {}]",
+                     zoneName, bot1Name, bot1Race, bot1Class, currentWeather);
         }
     }
 
