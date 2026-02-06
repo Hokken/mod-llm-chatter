@@ -350,15 +350,22 @@ terrible happened here.""",
     # -------------------------------------------------------------------------
     # Kalimdor - Alliance Starting Zones
     # -------------------------------------------------------------------------
-    141: """Teldrassil: Massive world tree home to the night elves. The forest
-is ancient, still peaceful and magical but something feels wrong - corruption spreads through
-the wildlife. Gnarlpine furbolgs have gone hostile, and timberlings cause trouble.
-Darnassus sits serenely above. Beautiful but troubled.""",
+    141: """Teldrassil: Massive world tree home to the night elves. Despite some
+troubles with hostile Gnarlpine furbolgs and timberlings, the forest remains
+breathtakingly beautiful - ancient trees glow softly at twilight, moonwells
+shimmer with arcane energy, and peaceful glades invite quiet reflection.
+Darnassus sits serenely above the canopy. The air carries whispers of old
+magic. Night elves go about daily life: training, crafting, tending gardens.
+A place where nature's beauty persists even as adventurers deal with threats.""",
 
-    148: """Darkshore: Long, misty coastline with an mystical and eerie atmosphere. Ancient
-night elf ruins scatter the landscape. Murlocs and naga plague the beaches,
-corrupted wildlife roams the forests. Auberdine is the main hub but feels
-isolated. Something dark is corrupting the land.""",
+    148: """Darkshore: Long, misty coastline where fog rolls in from the sea,
+creating an ethereal atmosphere. Ancient night elf ruins hold mysteries and
+forgotten lore. Auberdine bustles with travelers catching boats to Teldrassil,
+Stormwind, or Azuremyst Isle. Fishermen work the docks, adventurers trade
+stories at the inn. Yes, murlocs and naga cause trouble on the beaches, and
+some wildlife has turned aggressive - but the coastline's haunting beauty
+endures. Moonlit shores, ancient architecture, the sound of waves. A zone
+of contrasts: peaceful harbors and dangerous wilds, old magic and new threats.""",
 
     # -------------------------------------------------------------------------
     # Kalimdor - Horde Starting Zones
@@ -1028,6 +1035,29 @@ def cleanup_message(message: str) -> str:
     """Clean up any formatting issues from LLM output."""
     result = message
 
+    # Replace em-dashes with comma+space (more natural for chat)
+    # Handle surrounding spaces to avoid double-spacing
+    result = re.sub(r'\s*—\s*', ', ', result)  # em-dash with any surrounding whitespace
+
+    # Remove emojis (they don't render in WoW chat)
+    # This covers most common emoji ranges
+    emoji_pattern = re.compile(
+        "["
+        "\U0001F600-\U0001F64F"  # emoticons
+        "\U0001F300-\U0001F5FF"  # symbols & pictographs
+        "\U0001F680-\U0001F6FF"  # transport & map symbols
+        "\U0001F1E0-\U0001F1FF"  # flags
+        "\U00002702-\U000027B0"  # dingbats
+        "\U000024C2-\U0001F251"  # enclosed characters
+        "\U0001F900-\U0001F9FF"  # supplemental symbols
+        "\U0001FA00-\U0001FA6F"  # chess symbols
+        "\U0001FA70-\U0001FAFF"  # symbols extended
+        "\U00002600-\U000026FF"  # misc symbols
+        "]+",
+        flags=re.UNICODE
+    )
+    result = emoji_pattern.sub('', result)
+
     # Convert npc:ID:Name markers to just the creature name (plain text)
     # Handles: [[npc:1234:Creature Name]], [npc:1234:Creature Name], npc:1234:Creature Name
     result = re.sub(r'\[\[npc:\d+:([^\]]+)\]\]', r'\1', result)
@@ -1444,6 +1474,41 @@ def get_time_of_day_context() -> Tuple[str, str]:
         return ("late_night", "It's the deep hours of night")
 
 
+def get_environmental_context(current_weather: str = None) -> dict:
+    """Randomly decide which environmental context to include in prompts.
+
+    Returns a dict with 'time' and 'weather' keys, each containing either
+    the context string to include or None if that context should be skipped.
+
+    Distribution:
+    - 40% chance: include time only
+    - 30% chance: include weather only
+    - 20% chance: include both
+    - 10% chance: include neither
+    """
+    roll = random.random()
+
+    result = {'time': None, 'weather': None}
+
+    if roll < 0.40:
+        # Time only (40%)
+        _, time_desc = get_time_of_day_context()
+        result['time'] = time_desc
+    elif roll < 0.70:
+        # Weather only (30%)
+        if current_weather:
+            result['weather'] = current_weather
+    elif roll < 0.90:
+        # Both (20%)
+        _, time_desc = get_time_of_day_context()
+        result['time'] = time_desc
+        if current_weather:
+            result['weather'] = current_weather
+    # else: neither (10%)
+
+    return result
+
+
 def build_dynamic_guidelines(include_humor: bool = None,
                              include_length: bool = True,
                              include_focus: bool = None,
@@ -1510,9 +1575,12 @@ def build_plain_statement_prompt(bot: dict, zone_id: int = 0, zone_mobs: list = 
     if zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
 
-    # Current weather conditions - always include so LLM can naturally reference any weather
-    if current_weather:
-        parts.append(f"Current weather: {current_weather}. Feel free to naturally reference the weather if it fits.")
+    # Environmental context (randomly include time, weather, both, or neither)
+    env_context = get_environmental_context(current_weather)
+    if env_context['time']:
+        parts.append(f"Time of day: {env_context['time']}")
+    if env_context['weather']:
+        parts.append(f"Current weather: {env_context['weather']}")
 
     # Randomly include level (60% chance)
     if random.random() < 0.6:
@@ -1561,12 +1629,19 @@ def build_plain_statement_prompt(bot: dict, zone_id: int = 0, zone_mobs: list = 
     return "\n".join(parts)
 
 
-def build_quest_statement_prompt(bot: dict, quest: dict, config: dict = None) -> str:
+def build_quest_statement_prompt(bot: dict, quest: dict, config: dict = None, current_weather: str = 'clear') -> str:
     """Build a dynamically varied prompt for a quest statement."""
     parts = []
 
     parts.append(f"Generate a brief WoW General chat message mentioning a quest.")
     parts.append(f"Zone: {bot['zone']}")
+
+    # Environmental context (randomly include time, weather, both, or neither)
+    env_context = get_environmental_context(current_weather)
+    if env_context['time']:
+        parts.append(f"Time of day: {env_context['time']}")
+    if env_context['weather']:
+        parts.append(f"Current weather: {env_context['weather']}")
 
     # Randomly include level
     if random.random() < 0.5:
@@ -1620,7 +1695,7 @@ def build_quest_statement_prompt(bot: dict, quest: dict, config: dict = None) ->
     return "\n".join(parts)
 
 
-def build_loot_statement_prompt(bot: dict, item: dict, can_use: bool, config: dict = None) -> str:
+def build_loot_statement_prompt(bot: dict, item: dict, can_use: bool, config: dict = None, current_weather: str = 'clear') -> str:
     """Build a dynamically varied prompt for a loot statement."""
     quality_names = {0: "gray", 1: "white", 2: "green", 3: "blue", 4: "purple"}
     quality = quality_names.get(item.get('item_quality', 2), "green")
@@ -1629,6 +1704,13 @@ def build_loot_statement_prompt(bot: dict, item: dict, can_use: bool, config: di
 
     item_placeholder = f"{{{{item:{item['item_name']}}}}}"
     parts.append(f"Generate a brief WoW General chat message about a loot drop.")
+
+    # Environmental context (randomly include time, weather, both, or neither)
+    env_context = get_environmental_context(current_weather)
+    if env_context['time']:
+        parts.append(f"Time of day: {env_context['time']}")
+    if env_context['weather']:
+        parts.append(f"Current weather: {env_context['weather']}")
     parts.append(f"Item: {item['item_name']} ({quality} quality)")
     parts.append(f"REQUIRED: Include exactly {item_placeholder} in your message (this becomes a clickable link)")
 
@@ -1680,7 +1762,7 @@ def build_loot_statement_prompt(bot: dict, item: dict, can_use: bool, config: di
 
 
 
-def build_quest_reward_statement_prompt(bot: dict, quest: dict, config: dict = None) -> str:
+def build_quest_reward_statement_prompt(bot: dict, quest: dict, config: dict = None, current_weather: str = 'clear') -> str:
     """Build a dynamically varied prompt for quest completion with reward."""
     # Get reward item info
     item_name = quest.get('item1_name') or quest.get('item2_name')
@@ -1688,7 +1770,7 @@ def build_quest_reward_statement_prompt(bot: dict, quest: dict, config: dict = N
 
     if not item_name:
         # Fallback to plain quest if no item reward
-        return build_quest_statement_prompt(bot, quest)
+        return build_quest_statement_prompt(bot, quest, config, current_weather)
 
     quality_names = {0: "gray", 1: "white", 2: "green", 3: "blue", 4: "purple"}
     quality = quality_names.get(item_quality, "green")
@@ -1696,6 +1778,14 @@ def build_quest_reward_statement_prompt(bot: dict, quest: dict, config: dict = N
     parts = []
 
     parts.append(f"Generate a brief WoW General chat message about finishing a quest.")
+
+    # Environmental context (randomly include time, weather, both, or neither)
+    env_context = get_environmental_context(current_weather)
+    if env_context['time']:
+        parts.append(f"Time of day: {env_context['time']}")
+    if env_context['weather']:
+        parts.append(f"Current weather: {env_context['weather']}")
+
     parts.append(f"Quest: {quest['quest_name']} (use {{{{quest:{quest['quest_name']}}}}} placeholder)")
     parts.append(f"Reward: {item_name} ({quality}) (use {{{{item:{item_name}}}}} placeholder)")
 
@@ -1763,13 +1853,12 @@ def build_plain_conversation_prompt(bots: List[dict], zone_id: int = 0, zone_mob
     if zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
 
-    # Current weather conditions - always include so LLM can naturally reference any weather
-    if current_weather:
-        parts.append(f"Current weather: {current_weather}. Feel free to naturally reference the weather if it fits.")
-
-    # Time of day context - adds natural atmosphere variation
-    time_period, time_desc = get_time_of_day_context()
-    parts.append(f"Time of day: {time_desc}. Feel free to naturally reference the time in conversation if it fits.")
+    # Environmental context (randomly include time, weather, both, or neither)
+    env_context = get_environmental_context(current_weather)
+    if env_context['time']:
+        parts.append(f"Time of day: {env_context['time']}")
+    if env_context['weather']:
+        parts.append(f"Current weather: {env_context['weather']}")
 
     parts.append(f"Speakers: {', '.join(bot_names)}")
     parts.append(f"Names: Sometimes use their name when addressing directly (maybe 1-2 times in a conversation), but not every message - vary it naturally like real players.")
@@ -1845,12 +1934,13 @@ ONLY the JSON array, nothing else.""")
     return "\n".join(parts)
 
 
-def build_quest_conversation_prompt(bots: List[dict], quest: dict, config: dict = None) -> str:
+def build_quest_conversation_prompt(bots: List[dict], quest: dict, config: dict = None, current_weather: str = 'clear') -> str:
     """Build a dynamically varied prompt for a quest conversation with 2-4 bots.
 
     Args:
         bots: List of 2-4 bot dicts with name, race, class, level, zone
         quest: Quest data dict with quest_name, description, etc.
+        current_weather: Current weather conditions in the zone
     """
     parts = []
     bot_count = len(bots)
@@ -1860,9 +1950,12 @@ def build_quest_conversation_prompt(bots: List[dict], quest: dict, config: dict 
     parts.append(f"Speakers: {', '.join(bot_names)}")
     parts.append(f"Names: Sometimes use their name when addressing directly (maybe 1-2 times in a conversation), but not every message - vary it naturally.")
 
-    # Time of day context
-    time_period, time_desc = get_time_of_day_context()
-    parts.append(f"Time of day: {time_desc}")
+    # Environmental context (randomly include time, weather, both, or neither)
+    env_context = get_environmental_context(current_weather)
+    if env_context['time']:
+        parts.append(f"Time of day: {env_context['time']}")
+    if env_context['weather']:
+        parts.append(f"Current weather: {env_context['weather']}")
 
     # Quest info
     parts.append(f"Quest: {quest['quest_name']} (use {{{{quest:{quest['quest_name']}}}}} placeholder)")
@@ -1925,12 +2018,13 @@ ONLY the JSON array, nothing else.""")
     return "\n".join(parts)
 
 
-def build_loot_conversation_prompt(bots: List[dict], item: dict, config: dict = None) -> str:
+def build_loot_conversation_prompt(bots: List[dict], item: dict, config: dict = None, current_weather: str = 'clear') -> str:
     """Build a dynamically varied prompt for a loot conversation with 2-4 bots.
 
     Args:
         bots: List of 2-4 bot dicts with name, race, class, level, zone
         item: Item data dict with item_name, item_quality, etc.
+        current_weather: Current weather conditions in the zone
     """
     parts = []
     bot_count = len(bots)
@@ -1944,9 +2038,12 @@ def build_loot_conversation_prompt(bots: List[dict], item: dict, config: dict = 
     parts.append(f"Speakers: {', '.join(bot_names)}")
     parts.append(f"Names: Sometimes use their name when addressing directly (maybe once in the conversation), but not every message - vary it naturally.")
 
-    # Time of day context
-    time_period, time_desc = get_time_of_day_context()
-    parts.append(f"Time of day: {time_desc}")
+    # Environmental context (randomly include time, weather, both, or neither)
+    env_context = get_environmental_context(current_weather)
+    if env_context['time']:
+        parts.append(f"Time of day: {env_context['time']}")
+    if env_context['weather']:
+        parts.append(f"Current weather: {env_context['weather']}")
 
     # Item info
     parts.append(f"Item: {item['item_name']} ({quality} quality)")
@@ -2006,13 +2103,14 @@ ONLY the JSON array, nothing else.""")
     return "\n".join(parts)
 
 
-def build_event_conversation_prompt(bots: List[dict], event_context: str, zone_id: int = 0, config: dict = None) -> str:
+def build_event_conversation_prompt(bots: List[dict], event_context: str, zone_id: int = 0, config: dict = None, current_weather: str = 'clear') -> str:
     """Build a prompt for an event-triggered conversation with 2-4 bots.
 
     Args:
         bots: List of 2-4 bot dicts with name, race, class, level, zone
         event_context: Description of the event (weather change, etc.)
         zone_id: Zone ID for additional context
+        current_weather: Current weather conditions in the zone
     """
     parts = []
     bot_count = len(bots)
@@ -2040,6 +2138,15 @@ def build_event_conversation_prompt(bots: List[dict], event_context: str, zone_i
     zone_flavor = get_zone_flavor(zone_id)
     if zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
+
+    # Environmental context (randomly include time, weather, both, or neither)
+    # Skip weather context for weather events (it's already in event_context)
+    weather_for_context = current_weather if 'weather' not in event_context.lower() else None
+    env_context = get_environmental_context(weather_for_context)
+    if env_context['time']:
+        parts.append(f"Time of day: {env_context['time']}")
+    if env_context['weather']:
+        parts.append(f"Current weather: {env_context['weather']}")
 
     # Randomly include some character details (40% chance per bot)
     for bot in bots:
@@ -2111,7 +2218,7 @@ def resolve_model(model_name: str) -> str:
 
 
 def call_llm(client: Any, prompt: str, config: dict, max_tokens_override: int = None) -> str:
-    """Call LLM API (Anthropic or OpenAI) and return response."""
+    """Call LLM API (Anthropic, OpenAI, or Ollama) and return response."""
     provider = config.get('LLMChatter.Provider', 'anthropic').lower()
     model_alias = config.get('LLMChatter.Model', 'haiku')
     model = resolve_model(model_alias)
@@ -2122,7 +2229,27 @@ def call_llm(client: Any, prompt: str, config: dict, max_tokens_override: int = 
     temperature = float(config.get('LLMChatter.Temperature', 0.85))
 
     try:
-        if provider == 'openai':
+        if provider == 'ollama':
+            # For Ollama, optionally prepend /no_think to disable thinking mode
+            # (important for models like Qwen3 that reason internally by default)
+            actual_prompt = prompt
+            disable_thinking = config.get('LLMChatter.Ollama.DisableThinking', '1') == '1'
+            if disable_thinking:
+                actual_prompt = "/no_think " + prompt
+
+            # Get context size from config
+            context_size = int(config.get('LLMChatter.Ollama.ContextSize', 2048))
+
+            # Ollama uses OpenAI-compatible API via the openai client
+            response = client.chat.completions.create(
+                model=model,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                messages=[{"role": "user", "content": actual_prompt}],
+                extra_body={"options": {"num_ctx": context_size}}
+            )
+            return response.choices[0].message.content.strip()
+        elif provider == 'openai':
             response = client.chat.completions.create(
                 model=model,
                 max_tokens=max_tokens,
@@ -2302,11 +2429,11 @@ def process_statement(db, cursor, client, config, request, bot: dict):
         logger.info(f"Zone context: id={zone_id}, flavor={'yes' if zone_flavor else 'no'}, mobs={len(zone_mobs)}, weather={current_weather}")
         prompt = build_plain_statement_prompt(bot, zone_id, zone_mobs, config, current_weather)
     elif msg_type == "quest":
-        prompt = build_quest_statement_prompt(bot, quest_data, config)
+        prompt = build_quest_statement_prompt(bot, quest_data, config, current_weather)
     elif msg_type == "loot":
-        prompt = build_loot_statement_prompt(bot, item_data, item_can_use, config)
+        prompt = build_loot_statement_prompt(bot, item_data, item_can_use, config, current_weather)
     elif msg_type == "quest_reward":
-        prompt = build_quest_reward_statement_prompt(bot, quest_data, config)
+        prompt = build_quest_reward_statement_prompt(bot, quest_data, config, current_weather)
         # Also set item_data for replacement
         if quest_data and quest_data.get('item1_name'):
             item_data = {
@@ -2414,9 +2541,9 @@ def process_conversation(db, cursor, client, config, request, bots: List[dict]):
         logger.info(f"Zone context: id={zone_id}, flavor={'yes' if zone_flavor else 'no'}, mobs={len(zone_mobs)}, weather={current_weather}")
         prompt = build_plain_conversation_prompt(bots, zone_id, zone_mobs, config, current_weather)
     elif msg_type == "quest":
-        prompt = build_quest_conversation_prompt(bots, quest_data, config)
+        prompt = build_quest_conversation_prompt(bots, quest_data, config, current_weather)
     else:  # loot
-        prompt = build_loot_conversation_prompt(bots, item_data, config)
+        prompt = build_loot_conversation_prompt(bots, item_data, config, current_weather)
 
     # Call LLM
     conversation_max_tokens = int(
@@ -3266,8 +3393,17 @@ def process_pending_events(db, client, config) -> bool:
 
             logger.info(f"Event #{event_id} triggering {num_bots}-bot conversation: {', '.join(bot_names)}")
 
+            # Get weather from event extra_data if available
+            extra_data = event.get('extra_data', {})
+            if isinstance(extra_data, str):
+                try:
+                    extra_data = json.loads(extra_data)
+                except:
+                    extra_data = {}
+            current_weather = extra_data.get('current_weather', 'clear')
+
             # Build event conversation prompt
-            prompt = build_event_conversation_prompt(bots, event_context, zone_id)
+            prompt = build_event_conversation_prompt(bots, event_context, zone_id, config, current_weather)
 
             # Call LLM
             response = call_llm(client, prompt, config)
@@ -3346,8 +3482,27 @@ Mention the destination if known. Be creative and original - no canned phrases."
                 event_instruction = """You may naturally reference this event in your message, or you may chat about something else entirely.
 The event provides atmosphere - you don't HAVE to mention it explicitly."""
 
+            # Environmental context (randomly include time, weather, both, or neither)
+            # Get weather from event extra_data if not a weather event
+            extra_data = event.get('extra_data', {})
+            if isinstance(extra_data, str):
+                try:
+                    extra_data = json.loads(extra_data)
+                except:
+                    extra_data = {}
+            weather_for_context = None
+            if 'weather' not in event_context.lower():
+                weather_for_context = extra_data.get('current_weather', 'clear')
+
+            env_context = get_environmental_context(weather_for_context)
+            env_lines = ""
+            if env_context['time']:
+                env_lines += f"\nTime of day: {env_context['time']}"
+            if env_context['weather']:
+                env_lines += f"\nCurrent weather: {env_context['weather']}"
+
             system_prompt = f"""You are {bot['bot1_name']}, a {bot['bot1_race']} {bot['bot1_class']} adventurer in World of Warcraft.
-You are level {bot['bot1_level']} and currently in {zone_name}.
+You are level {bot['bot1_level']} and currently in {zone_name}.{env_lines}
 
 CONTEXT: {event_context}
 
@@ -3364,7 +3519,21 @@ Be casual and authentic. No quotes. No asterisks. No emotes."""
             max_tokens = int(config.get('LLMChatter.MaxTokens', 200))
             temperature = float(config.get('LLMChatter.Temperature', 0.8))
 
-            if provider == 'openai':
+            if provider == 'ollama':
+                # Ollama uses OpenAI-compatible API
+                context_size = int(config.get('LLMChatter.Ollama.ContextSize', 2048))
+                response = client.chat.completions.create(
+                    model=model,
+                    messages=[
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": "Say something in General chat."}
+                    ],
+                    max_tokens=max_tokens,
+                    temperature=temperature,
+                    extra_body={"options": {"num_ctx": context_size}}
+                )
+                message = response.choices[0].message.content.strip()
+            elif provider == 'openai':
                 response = client.chat.completions.create(
                     model=model,
                     messages=[
@@ -3376,6 +3545,7 @@ Be casual and authentic. No quotes. No asterisks. No emotes."""
                 )
                 message = response.choices[0].message.content.strip()
             else:
+                # Anthropic (default)
                 response = client.messages.create(
                     model=model,
                     max_tokens=max_tokens,
@@ -3387,6 +3557,7 @@ Be casual and authentic. No quotes. No asterisks. No emotes."""
 
             # Clean up message
             message = message.strip('"').strip()
+            message = cleanup_message(message)
             if len(message) > 255:
                 message = message[:252] + "..."
 
@@ -3436,13 +3607,20 @@ def main():
         time.sleep(60)
         config = parse_config(args.config)  # Re-read config to check if enabled
 
-    # Get API key
     # Get provider and initialize appropriate client
     provider = config.get('LLMChatter.Provider', 'anthropic').lower()
     model_alias = config.get('LLMChatter.Model', 'haiku')
     model = resolve_model(model_alias)
 
-    if provider == 'openai':
+    if provider == 'ollama':
+        # Ollama runs locally - no API key needed
+        # Uses OpenAI-compatible API endpoint
+        base_url = config.get('LLMChatter.Ollama.BaseUrl', 'http://localhost:11434')
+        # Ollama's OpenAI-compatible endpoint is at /v1
+        ollama_api_url = f"{base_url.rstrip('/')}/v1"
+        client = openai.OpenAI(base_url=ollama_api_url, api_key="ollama")
+        logger.info(f"Using Ollama at {base_url}")
+    elif provider == 'openai':
         api_key = config.get('LLMChatter.OpenAI.ApiKey', '')
         if not api_key:
             logger.error("No OpenAI API key configured!")
@@ -3463,10 +3641,17 @@ def main():
     use_event_system = config.get('LLMChatter.UseEventSystem', '1') == '1'
 
     logger.info("=" * 60)
-    logger.info("LLM Chatter Bridge v3.3")
+    logger.info("LLM Chatter Bridge v3.4")
     logger.info("=" * 60)
     logger.info(f"Provider: {provider}")
     logger.info(f"Model: {model} (alias: {model_alias})")
+    if provider == 'ollama':
+        base_url = config.get('LLMChatter.Ollama.BaseUrl', 'http://localhost:11434')
+        context_size = config.get('LLMChatter.Ollama.ContextSize', 2048)
+        disable_thinking = config.get('LLMChatter.Ollama.DisableThinking', '1') == '1'
+        logger.info(f"Ollama URL: {base_url}")
+        logger.info(f"Context size: {context_size}")
+        logger.info(f"Thinking mode: {'disabled (/no_think)' if disable_thinking else 'enabled'}")
     logger.info(f"Poll interval: {poll_interval}s")
     base_max = config.get('LLMChatter.MaxTokens', 200)
     convo_max = config.get('LLMChatter.ConversationMaxTokens', base_max)

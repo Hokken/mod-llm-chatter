@@ -15,6 +15,7 @@ Instead of static, repetitive database messages, bots chat naturally about the z
 - **Multiple message types** - Plain chat, quest discussions, loot drops, quest rewards
 - **Conversation variety** - Both single statements and multi-message conversations
 - **Anti-repetition** - Dynamic prompts with CREATIVE_TWISTS ensure varied, unpredictable messages
+- **Randomized context** - Time/weather context randomly included to prevent pattern lock-in
 - **80+ message categories** - Atmospheric, mystical, nostalgic, and more for rich variety
 - **Multi-provider support** - Works with Anthropic Claude or OpenAI GPT
 - **Overworld only** - Chatter only happens in the open world, not in dungeons

@@ -1,12 +1,17 @@
 #
 # LLM Chatter Module Configuration
 #
-# Dynamic bot conversations powered by AI (Anthropic Claude Haiku)
+# Dynamic bot conversations powered by AI
 # Replaces static database messages with contextual, personality-driven chatter
+#
+# SUPPORTED PROVIDERS:
+#   - anthropic : Claude models (Haiku, Sonnet, Opus) - cloud, requires API key
+#   - openai    : GPT models (GPT-4o, GPT-4o-mini) - cloud, requires API key
+#   - ollama    : Local models (Qwen3, Llama, Mistral, etc.) - runs locally, FREE
 #
 # SETUP INSTRUCTIONS:
 # 1. Copy this file to your server's config directory as mod_llm_chatter.conf
-# 2. Configure your Anthropic API key below
+# 2. Choose your provider and configure settings below
 # 3. Run the SQL migration to create the tables
 # 4. Start the Python bridge: python tools/llm_chatter_bridge.py --config /path/to/mod_llm_chatter.conf
 # 5. Set LLMChatter.Enable = 1 and restart the worldserver
@@ -92,27 +97,55 @@ LLMChatter.MessageDelayMin = 1000
 LLMChatter.MessageDelayMax = 30000
 
 ###############################################################################
-# LLM PROVIDER SETTINGS (Used by Python bridge)
+# LLM PROVIDER SETTINGS
+###############################################################################
+#
+# To switch providers, just change LLMChatter.Provider and LLMChatter.Model.
+# Only configure the settings for your chosen provider.
+#
+# QUICK SETUP EXAMPLES:
+#
+#   Cloud (Anthropic Claude Haiku - recommended for quality):
+#     LLMChatter.Provider = anthropic
+#     LLMChatter.Model = haiku
+#     LLMChatter.Anthropic.ApiKey = sk-ant-xxxxx
+#
+#   Cloud (OpenAI GPT-4o-mini - fast and cheap):
+#     LLMChatter.Provider = openai
+#     LLMChatter.Model = gpt4o-mini
+#     LLMChatter.OpenAI.ApiKey = sk-xxxxx
+#
+#   Local (Ollama with Qwen3 - FREE, runs on your machine):
+#     LLMChatter.Provider = ollama
+#     LLMChatter.Model = qwen3:4b
+#     (install Ollama, run: ollama pull qwen3:4b)
+#
 ###############################################################################
 
 #
 #   LLMChatter.Provider
-#       Which LLM provider to use: "anthropic" or "openai"
+#       Which LLM provider to use: "anthropic", "openai", or "ollama"
 #       Default: anthropic
 #
 LLMChatter.Provider = anthropic
 
 #
 #   LLMChatter.Model
-#       Model alias to use. Available aliases:
-#       Anthropic: opus, sonnet, haiku
-#       OpenAI: gpt4o, gpt4o-mini
+#       Model to use. Can be an alias or full model name.
+#
+#       Aliases (for convenience):
+#         Anthropic: haiku, sonnet, opus
+#         OpenAI: gpt4o, gpt4o-mini
+#
+#       For Ollama, use the exact model name from 'ollama list':
+#         qwen3:4b, qwen3:8b, llama3.2:3b, mistral:7b, etc.
+#
 #       Default: haiku
 #
 LLMChatter.Model = haiku
 
 ###############################################################################
-# API KEYS (only the key for your selected provider is required)
+# ANTHROPIC SETTINGS (only needed if Provider = anthropic)
 ###############################################################################
 
 #
@@ -122,12 +155,56 @@ LLMChatter.Model = haiku
 #
 LLMChatter.Anthropic.ApiKey =
 
+###############################################################################
+# OPENAI SETTINGS (only needed if Provider = openai)
+###############################################################################
+
 #
 #   LLMChatter.OpenAI.ApiKey
 #       Your OpenAI API key (starts with sk-)
 #       Get one at: https://platform.openai.com/api-keys
 #
 LLMChatter.OpenAI.ApiKey =
+
+###############################################################################
+# OLLAMA SETTINGS (only needed if Provider = ollama)
+###############################################################################
+#
+# Ollama runs models locally on your machine - no API key needed!
+# Install: https://ollama.ai
+# Pull a model: ollama pull qwen3:4b
+#
+
+#
+#   LLMChatter.Ollama.BaseUrl
+#       Ollama API endpoint. Default works for standard local installation.
+#       Change if running Ollama on another machine or port.
+#       Default: http://localhost:11434
+#
+LLMChatter.Ollama.BaseUrl = http://localhost:11434
+
+#
+#   LLMChatter.Ollama.ContextSize
+#       Context window size (num_ctx). Smaller = faster, less memory.
+#       1024 is good for short chatter messages.
+#       Increase if you get truncated responses.
+#       Default: 2048
+#
+LLMChatter.Ollama.ContextSize = 2048
+
+#
+#   LLMChatter.Ollama.DisableThinking
+#       Some models like Qwen3 have "thinking" mode enabled by default,
+#       which adds internal reasoning before responding. This makes responses
+#       slower and uses more resources - overkill for simple chatter.
+#       Set to 1 to add /no_think to prompts (recommended for Qwen3).
+#       Default: 1
+#
+LLMChatter.Ollama.DisableThinking = 1
+
+###############################################################################
+# COMMON LLM SETTINGS (apply to all providers)
+###############################################################################
 
 #
 #   LLMChatter.MaxTokens
