@@ -29,6 +29,15 @@
 LLMChatter.Enable = 0
 
 #
+#   LLMChatter.ChatterMode
+#       Controls the personality style of bot chat messages
+#       "normal"   - Casual MMO chat: abbreviations, game terms, OOC references (default)
+#       "roleplay" - Fully in-character: race/class personality, lore-influenced speech, no game terms
+#       Default: normal
+#
+LLMChatter.ChatterMode = normal
+
+#
 #   LLMChatter.EnableVerboseLogging
 #       Enable detailed logging for debugging (prompt creativity, mood, timing, etc.)
 #       Disable in production to reduce log volume and improve performance
@@ -309,6 +318,16 @@ LLMChatter.UseEventSystem = 1
 #       Default: 15
 #
 LLMChatter.EventReactionChance = 15
+
+#
+#   LLMChatter.EventConversationChance
+#       When an event triggers chatter, chance (0-100) it's a multi-bot
+#       conversation vs single statement
+#       100 = always conversation, 0 = always statement
+#       Conversations require at least 2 bots in the zone
+#       Default: 60
+#
+LLMChatter.EventConversationChance = 60
 
 #
 #   LLMChatter.TransportEventChance

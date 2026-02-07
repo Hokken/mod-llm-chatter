@@ -227,6 +227,90 @@ def get_race_name(race_id: int) -> str:
     """Get human-readable race name from race ID."""
     return RACE_NAMES.get(race_id, "Unknown")
 
+
+def get_chatter_mode(config: dict) -> str:
+    """Return 'normal' or 'roleplay' from config."""
+    mode = config.get('LLMChatter.ChatterMode', 'normal').lower()
+    return mode if mode in ('normal', 'roleplay') else 'normal'
+
+
+# =============================================================================
+# ROLEPLAY PERSONALITY DATA
+# =============================================================================
+RACE_SPEECH_PROFILES = {
+    "Human": {
+        "traits": "practical, earnest, sometimes self-important",
+        "flavor_words": ["Light", "by the Alliance", "honor"],
+    },
+    "Orc": {
+        "traits": "blunt, proud, values strength and honor",
+        "flavor_words": ["Lok'tar", "blood and thunder", "honor"],
+    },
+    "Dwarf": {
+        "traits": "hearty, fond of drink and craft, stubborn",
+        "flavor_words": ["by Bronzebeard", "aye", "lad/lass"],
+    },
+    "Night Elf": {
+        "traits": "ancient, reverent of nature, patient",
+        "flavor_words": ["Elune", "goddess", "the wilds"],
+    },
+    "Undead": {
+        "traits": "darkly sardonic, bitter, pragmatic",
+        "flavor_words": ["Dark Lady", "rot", "the grave"],
+    },
+    "Tauren": {
+        "traits": "calm, wise, deeply spiritual",
+        "flavor_words": ["Earth Mother", "the winds", "ancestors"],
+    },
+    "Gnome": {
+        "traits": "excitable, inventive, optimistic",
+        "flavor_words": ["gears", "brilliant", "recalibrate"],
+    },
+    "Troll": {
+        "traits": "laid-back, superstitious, cunning",
+        "flavor_words": ["mon", "da spirits", "loa"],
+    },
+    "Blood Elf": {
+        "traits": "proud, elegant, hunger for magic",
+        "flavor_words": ["Sunwell", "Sin'dorei", "the Light"],
+    },
+    "Draenei": {
+        "traits": "devout, hopeful, ancient traveler",
+        "flavor_words": ["the Naaru", "the Light", "Argus"],
+    },
+}
+
+CLASS_SPEECH_MODIFIERS = {
+    "Warrior": "direct, values courage and combat",
+    "Paladin": "righteous, speaks of duty and the Light",
+    "Hunter": "observant, connected to beasts and the wild",
+    "Rogue": "guarded, speaks in hints and dry wit",
+    "Priest": "contemplative, offers wisdom or comfort",
+    "Death Knight": "cold, haunted, speaks of death matter-of-factly",
+    "Shaman": "attuned to the elements, speaks reverently of nature",
+    "Mage": "intellectual, fascinated by arcane knowledge",
+    "Warlock": "unsettling, casually references dark power",
+    "Druid": "serene, speaks of balance and the natural cycle",
+}
+
+
+def build_race_class_context(race: str, class_name: str) -> str:
+    """Build an RP personality fragment for prompts."""
+    parts = []
+    profile = RACE_SPEECH_PROFILES.get(race)
+    if profile:
+        parts.append(
+            f"As a {race}, you tend to be {profile['traits']}. "
+            f"You might occasionally use words like: "
+            f"{', '.join(profile['flavor_words'])} "
+            f"but don't force it."
+        )
+    modifier = CLASS_SPEECH_MODIFIERS.get(class_name)
+    if modifier:
+        parts.append(f"As a {class_name}, you are {modifier}.")
+    return " ".join(parts)
+
+
 # =============================================================================
 # ZONE FLAVOR - Rich context for immersive chat generation
 # =============================================================================
@@ -1196,6 +1280,17 @@ TONES = [
     "friendly and helpful",
     "mildly frustrated",
     "just vibing",
+    "hyped up",
+    "distracted and rambling",
+    "low-key bragging",
+    "sarcastically amused",
+    "cautiously optimistic",
+    "deadpan and dry",
+    "nostalgic about old content",
+    "impatient and antsy",
+    "chill but opinionated",
+    "genuinely impressed",
+    "sleepy and unfocused",
 ]
 
 # Mood variations - the emotional angle of the message
@@ -1231,11 +1326,9 @@ MOODS = [
 CREATIVE_TWISTS = [
     # Structure twists
     "Start with an interjection",
-    "End mid-thought with ...",
     "Use a single word or two-word reaction",
     "Ask a rhetorical question",
     "Answer your own question",
-    "Trail off at the end",
     "Start mid-sentence as if continuing a thought",
     # Content twists
     "Include an unexpected observation",
@@ -1410,36 +1503,161 @@ LENGTH_HINTS = [
 
 # Length mode probabilities (percent)
 
-# Focus/emphasis options
-FOCUS_OPTIONS = [
-    "gameplay (quests, mobs, leveling)",
-    "social (other players, groups, help)",
-    "exploration (locations, travel, zones)",
-    "loot and gear",
-    "general chat and banter",
+# Note: FOCUS_OPTIONS removed - MESSAGE_CATEGORIES already directs content
+
+# =============================================================================
+# ROLEPLAY MODE CONSTANTS (parallel to normal constants above)
+# =============================================================================
+RP_TONES = [
+    "relaxed but in-character",
+    "tired from traveling",
+    "quietly observant",
+    "cautiously optimistic",
+    "matter-of-fact",
+    "friendly and approachable",
+    "a little grumpy",
+    "confident",
+    "calm and easygoing",
+    "dry and understated",
+    "wary but polite",
+    "amused by something",
+    "distracted by surroundings",
+    "pragmatic and no-nonsense",
+    "homesick",
+    "pleasantly surprised",
+    "stubbornly opinionated",
+    "quietly annoyed",
+    "casually curious",
+    "grateful and warm",
+]
+
+RP_MOODS = [
+    "wary",
+    "calm",
+    "curious",
+    "amused",
+    "tired",
+    "hopeful",
+    "grateful",
+    "suspicious",
+    "nostalgic",
+    "restless",
+    "gruff",
+    "friendly",
+    "irritated",
+    "impressed",
+    "distracted",
+    "cautious",
+    "content",
+    "dry humor",
+    "matter-of-fact",
+    "thoughtful",
+]
+
+RP_CREATIVE_TWISTS = [
+    "Use a casual saying from your culture",
+    "Mention something from your past briefly",
+    "React to a sound or smell nearby",
+    "Mutter something half to yourself",
+    "Use a mild oath from your race",
+    "Make a dry or sarcastic observation",
+    "Notice something small in the environment",
+    "Complain about something minor",
+    "Give a piece of unsolicited advice",
+    "Change the subject abruptly",
+    "Shrug something off casually",
+    "Reference food, drink, or rest",
+    "Start to say something then think better of it",
+    "Ask a rhetorical question",
+]
+
+RP_MESSAGE_CATEGORIES = [
+    # Observations
+    "commenting on the area around you",
+    "noticing something about the wildlife or creatures",
+    "remarking on the weather or scenery",
+    "observing other travelers",
+    "noting something odd or out of place",
+    # Reactions
+    "reacting to a noise nearby",
+    "mentioning a fight you just had",
+    "being relieved about something",
+    "bracing for trouble ahead",
+    "complaining about the road or terrain",
+    # Social
+    "greeting someone casually",
+    "giving a warning or tip",
+    "sharing a bit of news",
+    "asking about what lies ahead",
+    "thanking someone nearby",
+    # Everyday
+    "thinking about food or drink",
+    "commenting on being tired or sore",
+    "mentioning needing supplies",
+    "talking about where you're headed next",
+    "wondering how far the next town is",
+    # World and lore
+    "mentioning something you heard about this place",
+    "referencing your homeland briefly",
+    "wondering about some old ruins",
+    "recalling a story or rumor",
+    "commenting on the local people or culture",
+    # Atmospheric
+    "noticing the weather changing",
+    "commenting on the time of day",
+    "listening to the sounds around you",
+    "noticing a smell on the wind",
+    "feeling uneasy about something nearby",
+    # Personal
+    "thinking about home",
+    "remembering an old friend",
+    "admitting you're not sure about something",
+    "enjoying a quiet moment",
+    "grumbling about something minor",
+]
+
+RP_LENGTH_HINTS = [
+    "short and casual (5-10 words)",
+    "a normal sentence (10-16 words)",
+    "a couple of short thoughts (12-18 words)",
+    "a bit longer if it feels natural (16-24 words)",
 ]
 
 
-def pick_random_tone() -> str:
+def pick_random_tone(mode: str = 'normal') -> str:
     """Pick a random tone for the message."""
-    return random.choice(TONES)
+    pool = RP_TONES if mode == 'roleplay' else TONES
+    return random.choice(pool)
 
 
-def pick_random_mood() -> str:
+def pick_random_mood(mode: str = 'normal') -> str:
     """Pick a random mood/emotional angle for the message."""
-    return random.choice(MOODS)
+    pool = RP_MOODS if mode == 'roleplay' else MOODS
+    return random.choice(pool)
 
 
-def maybe_get_creative_twist(chance: float = 0.3) -> str:
-    """Maybe return a creative twist to add unpredictability (30% chance by default)."""
+def maybe_get_creative_twist(
+    chance: float = 0.3, mode: str = 'normal'
+) -> str:
+    """Maybe return a creative twist (30% chance by default)."""
     if random.random() < chance:
-        return random.choice(CREATIVE_TWISTS)
+        pool = RP_CREATIVE_TWISTS if mode == 'roleplay' else CREATIVE_TWISTS
+        return random.choice(pool)
     return None
 
 
-def generate_conversation_mood_sequence(message_count: int) -> List[str]:
-    """Generate a mood sequence for a conversation - each message gets a mood."""
-    return [random.choice(MOODS) for _ in range(message_count)]
+def pick_random_message_category(mode: str = 'normal') -> str:
+    """Pick a random message category."""
+    pool = RP_MESSAGE_CATEGORIES if mode == 'roleplay' else MESSAGE_CATEGORIES
+    return random.choice(pool)
+
+
+def generate_conversation_mood_sequence(
+    message_count: int, mode: str = 'normal'
+) -> List[str]:
+    """Generate a mood sequence for a conversation."""
+    pool = RP_MOODS if mode == 'roleplay' else MOODS
+    return [random.choice(pool) for _ in range(message_count)]
 
 
 def get_time_of_day_context() -> Tuple[str, str]:
@@ -1494,66 +1712,97 @@ def get_environmental_context(current_weather: str = None) -> dict:
         # Time only (40%)
         _, time_desc = get_time_of_day_context()
         result['time'] = time_desc
+        selection = "time_only"
     elif roll < 0.70:
         # Weather only (30%)
         if current_weather:
             result['weather'] = current_weather
+        selection = "weather_only"
     elif roll < 0.90:
         # Both (20%)
         _, time_desc = get_time_of_day_context()
         result['time'] = time_desc
         if current_weather:
             result['weather'] = current_weather
-    # else: neither (10%)
+        selection = "both"
+    else:
+        # Neither (10%)
+        selection = "neither"
+
+    logger.info(f"Environmental context: roll={roll:.2f}, selection={selection}, time={result['time'] is not None}, weather={result['weather'] is not None}")
 
     return result
 
 
 def build_dynamic_guidelines(include_humor: bool = None,
                              include_length: bool = True,
-                             include_focus: bool = None,
-                             config: dict = None) -> list:
+                             config: dict = None,
+                             mode: str = 'normal') -> list:
     """Build a randomized list of guidelines."""
-    guidelines = [
-        "Sound like a real player, not an NPC",
-        "NEVER use brackets [] around quest names, item names, zone names, or faction names - write them as plain text. Only use brackets for NPC names like [Onu]. Only use {quest:Name} or {item:Name} placeholders when explicitly told to."
-    ]
+    is_rp = (mode == 'roleplay')
+
+    if is_rp:
+        guidelines = [
+            "Stay in character but keep it natural and conversational, not dramatic or theatrical",
+            "NEVER use brackets [] around quest names, item names, zone names, or faction names - write them as plain text. Only use brackets for NPC names like [Onu]. Only use {quest:Name} or {item:Name} placeholders when explicitly told to.",
+        ]
+    else:
+        guidelines = [
+            "Sound like a real player, not an NPC",
+            "NEVER use brackets [] around quest names, item names, zone names, or faction names - write them as plain text. Only use brackets for NPC names like [Onu]. Only use {quest:Name} or {item:Name} placeholders when explicitly told to.",
+        ]
 
     # Length hint (usually include)
+    length_pool = RP_LENGTH_HINTS if is_rp else LENGTH_HINTS
     if include_length:
-        guidelines.append(f"Length: {random.choice(LENGTH_HINTS)}")
-        # Deterministic length mode: mostly short/medium, occasional long
-        long_chance = 12
+        guidelines.append(f"Length: {random.choice(length_pool)}")
+        long_chance = 15 if is_rp else 12
         if config is not None:
             try:
-                long_chance = int(config.get('LLMChatter.LongMessageChance', long_chance))
+                long_chance = int(
+                    config.get('LLMChatter.LongMessageChance', long_chance)
+                )
+                if is_rp:
+                    long_chance = min(long_chance + 5, 30)
             except Exception:
                 pass
         if random.randint(1, 100) <= long_chance:
-            guidelines.append("Length mode: long allowed (up to ~200 chars) if it feels natural")
-            guidelines.append("If long, make it a single thought, not a paragraph")
+            guidelines.append(
+                "Length mode: long allowed (up to ~200 chars) "
+                "if it feels natural"
+            )
+            guidelines.append(
+                "If long, make it a single thought, not a paragraph"
+            )
         else:
-            guidelines.append("Length mode: short/medium only (avoid long messages)")
+            guidelines.append(
+                "Length mode: short/medium only (avoid long messages)"
+            )
 
     # Humor (random chance)
     if include_humor is None:
-        include_humor = random.random() < 0.25
+        include_humor = random.random() < (0.15 if is_rp else 0.25)
     if include_humor:
-        guidelines.append("A touch of humor fits here")
-
-    # Focus (random chance)
-    if include_focus is None:
-        include_focus = random.random() < 0.3
-    if include_focus:
-        guidelines.append(f"Lean towards: {random.choice(FOCUS_OPTIONS)}")
+        if is_rp:
+            guidelines.append("A touch of wry or dry humor fits here")
+        else:
+            guidelines.append("A touch of humor fits here")
 
     # Random extras
-    extras = [
-        "Abbreviations ok (lfg, lf, ty, np, lol)",
-        "Can include a typo for realism",
-        "Casual MMO chat style",
-        "Brief and direct",
-    ]
+    if is_rp:
+        extras = [
+            "Let your race flavor your words subtly, not heavily",
+            "Keep it simple - like a real person talking, just in-character",
+            "A small detail about the surroundings is nice",
+            "Casual and grounded, not poetic or flowery",
+        ]
+    else:
+        extras = [
+            "Abbreviations ok (lfg, lf, ty, np, lol)",
+            "Can include a typo for realism",
+            "Casual MMO chat style",
+            "Brief and direct",
+        ]
     if random.random() < 0.5:
         guidelines.append(random.choice(extras))
 
@@ -1565,17 +1814,35 @@ def build_dynamic_guidelines(include_humor: bool = None,
 # =============================================================================
 def build_plain_statement_prompt(bot: dict, zone_id: int = 0, zone_mobs: list = None, config: dict = None, current_weather: str = 'clear') -> str:
     """Build a dynamically varied prompt for a plain text statement."""
+    mode = get_chatter_mode(config) if config else 'normal'
+    is_rp = (mode == 'roleplay')
     parts = []
 
     # Core context (always include zone)
-    parts.append(f"Generate a brief WoW General chat message from a player in {bot['zone']}.")
+    if is_rp:
+        parts.append(
+            f"You are {bot['name']}, a {bot.get('race', '')} "
+            f"{bot.get('class', '')} in World of Warcraft. "
+            f"Speak in-character in General chat in "
+            f"{bot['zone']}."
+        )
+        rp_ctx = build_race_class_context(
+            bot.get('race', ''), bot.get('class', '')
+        )
+        if rp_ctx:
+            parts.append(rp_ctx)
+    else:
+        parts.append(
+            f"Generate a brief WoW General chat message "
+            f"from a player in {bot['zone']}."
+        )
 
-    # Zone flavor - rich context about the zone's atmosphere and feel
+    # Zone flavor
     zone_flavor = get_zone_flavor(zone_id)
     if zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
 
-    # Environmental context (randomly include time, weather, both, or neither)
+    # Environmental context
     env_context = get_environmental_context(current_weather)
     if env_context['time']:
         parts.append(f"Time of day: {env_context['time']}")
@@ -1586,42 +1853,59 @@ def build_plain_statement_prompt(bot: dict, zone_id: int = 0, zone_mobs: list = 
     if random.random() < 0.6:
         parts.append(f"Player level: {bot['level']}")
 
-    # Zone creature context - tells the LLM what actually exists in this zone
+    # Zone creature context
     if zone_mobs:
         parts.append(f"Creatures here: {', '.join(zone_mobs)}")
-        parts.append("IMPORTANT: If mentioning any creature, ONLY use ones from the list above. Include the [[npc:...]] marker exactly as shown.")
+        parts.append(
+            "IMPORTANT: If mentioning any creature, ONLY use "
+            "ones from the list above. Include the [[npc:...]] "
+            "marker exactly as shown."
+        )
 
-    # Random tone and mood - these shape the personality
-    tone = pick_random_tone()
-    mood = pick_random_mood()
+    # Random tone and mood
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
     parts.append(f"Tone: {tone}")
     parts.append(f"Mood: {mood}")
 
-    # Maybe add a creative twist for unpredictability
-    twist = maybe_get_creative_twist()
+    # Maybe add a creative twist
+    twist = maybe_get_creative_twist(mode=mode)
     if twist:
         parts.append(f"Creative twist: {twist}")
 
-    # Pick a random message category (forces original content, no examples to copy)
-    category = random.choice(MESSAGE_CATEGORIES)
+    # Pick a random message category
+    category = pick_random_message_category(mode)
 
     # Log the creative selections
     twist_log = f", twist={twist}" if twist else ""
-    logger.info(f"Prompt creativity: tone={tone}, mood={mood}, category={category[:30]}{twist_log}")
+    logger.info(
+        f"Prompt creativity: tone={tone}, mood={mood}, "
+        f"category={category[:30]}{twist_log}"
+    )
     parts.append(f"Message type: {category}")
 
     # Build dynamic guidelines
-    guidelines = build_dynamic_guidelines(config=config)
-    guidelines.append("Plain text only, except [[npc:...]] markers for creature names")
-    guidelines.append("Do NOT mention your race or class")
-    # Message length - mostly short, occasionally longer
-    if random.random() < 0.75:
-        guidelines.append("Keep SHORT - under 60 characters, punchy and brief")
+    guidelines = build_dynamic_guidelines(config=config, mode=mode)
+    guidelines.append(
+        "Plain text only, except [[npc:...]] markers "
+        "for creature names"
+    )
+    if is_rp:
+        guidelines.append("Stay in character but sound natural, not theatrical")
+        guidelines.append(
+            "No game terms, abbreviations, or OOC references"
+        )
     else:
-        guidelines.append("Can be longer this time - up to 100 characters for a fuller thought")
-    guidelines.append("Be ORIGINAL and UNPREDICTABLE - no common patterns, surprise the reader")
+        guidelines.append("Do NOT mention your race or class")
+    guidelines.append(
+        "Be ORIGINAL and UNPREDICTABLE - no common patterns, "
+        "surprise the reader"
+    )
     if zone_mobs:
-        guidelines.append("Only mention creatures from the provided list - do NOT invent creatures")
+        guidelines.append(
+            "Only mention creatures from the provided list "
+            "- do NOT invent creatures"
+        )
     parts.append("Guidelines: " + "; ".join(guidelines))
 
     parts.append("Respond with ONLY the message, nothing else.")
@@ -1631,131 +1915,190 @@ def build_plain_statement_prompt(bot: dict, zone_id: int = 0, zone_mobs: list = 
 
 def build_quest_statement_prompt(bot: dict, quest: dict, config: dict = None, current_weather: str = 'clear') -> str:
     """Build a dynamically varied prompt for a quest statement."""
+    mode = get_chatter_mode(config) if config else 'normal'
+    is_rp = (mode == 'roleplay')
     parts = []
 
-    parts.append(f"Generate a brief WoW General chat message mentioning a quest.")
-    parts.append(f"Zone: {bot['zone']}")
+    if is_rp:
+        parts.append(
+            f"You are {bot['name']}, a {bot.get('race', '')} "
+            f"{bot.get('class', '')}. Speak in-character about "
+            f"a quest in {bot['zone']}."
+        )
+        rp_ctx = build_race_class_context(
+            bot.get('race', ''), bot.get('class', '')
+        )
+        if rp_ctx:
+            parts.append(rp_ctx)
+    else:
+        parts.append(
+            "Generate a brief WoW General chat message "
+            "mentioning a quest."
+        )
+        parts.append(f"Zone: {bot['zone']}")
 
-    # Environmental context (randomly include time, weather, both, or neither)
+    # Environmental context
     env_context = get_environmental_context(current_weather)
     if env_context['time']:
         parts.append(f"Time of day: {env_context['time']}")
     if env_context['weather']:
         parts.append(f"Current weather: {env_context['weather']}")
 
-    # Randomly include level
     if random.random() < 0.5:
         parts.append(f"Player level: {bot['level']}")
 
-    # Quest info - make placeholder requirement very explicit
+    # Quest info
     quest_placeholder = f"{{{{quest:{quest['quest_name']}}}}}"
     parts.append(f"Quest: {quest['quest_name']}")
-    parts.append(f"REQUIRED: Include exactly {quest_placeholder} in your message (this becomes a clickable link)")
+    parts.append(
+        f"REQUIRED: Include exactly {quest_placeholder} in "
+        f"your message (this becomes a clickable link)"
+    )
 
-    # Randomly include description
     if quest.get('description') and random.random() < 0.4:
         parts.append(f"Quest involves: {quest['description'][:80]}")
 
-    # Random tone and mood
-    tone = pick_random_tone()
-    mood = pick_random_mood()
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
     parts.append(f"Tone: {tone}")
     parts.append(f"Mood: {mood}")
 
-    # Maybe add a creative twist
-    twist = maybe_get_creative_twist()
+    twist = maybe_get_creative_twist(mode=mode)
     if twist:
         parts.append(f"Creative twist: {twist}")
 
-    # Log the creative selections
     twist_log = f", twist={twist}" if twist else ""
-    logger.info(f"Quest statement creativity: tone={tone}, mood={mood}, quest={quest['quest_name'][:30]}{twist_log}")
+    logger.info(
+        f"Quest statement creativity: tone={tone}, mood={mood}, "
+        f"quest={quest['quest_name'][:30]}{twist_log}"
+    )
 
-    # Quest-specific approaches
-    quest_actions = [
-        "asking where to find it",
-        "asking for help",
-        "complaining about difficulty",
-        "celebrating completion",
-        "asking about rewards",
-        "warning others about it",
-        "looking for group",
-    ]
+    if is_rp:
+        quest_actions = [
+            "seeking guidance on the task",
+            "reflecting on the quest's meaning",
+            "warning of the dangers involved",
+            "rallying companions for the undertaking",
+            "musing on the reward awaiting",
+        ]
+    else:
+        quest_actions = [
+            "asking where to find it",
+            "asking for help",
+            "complaining about difficulty",
+            "celebrating completion",
+            "asking about rewards",
+            "warning others about it",
+            "looking for group",
+        ]
     if random.random() < 0.6:
         parts.append(f"Approach: {random.choice(quest_actions)}")
 
-    # Guidelines
-    guidelines = build_dynamic_guidelines(config=config)
+    guidelines = build_dynamic_guidelines(config=config, mode=mode)
     guidelines.append("Keep under 110 characters")
+    if is_rp:
+        guidelines.append("Stay in character but sound natural, not theatrical")
     guidelines.append("Be creative and unpredictable")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
-    parts.append("Respond with ONLY the message - be creative and unpredictable.")
+    parts.append(
+        "Respond with ONLY the message - be creative "
+        "and unpredictable."
+    )
 
     return "\n".join(parts)
 
 
 def build_loot_statement_prompt(bot: dict, item: dict, can_use: bool, config: dict = None, current_weather: str = 'clear') -> str:
     """Build a dynamically varied prompt for a loot statement."""
+    mode = get_chatter_mode(config) if config else 'normal'
+    is_rp = (mode == 'roleplay')
     quality_names = {0: "gray", 1: "white", 2: "green", 3: "blue", 4: "purple"}
     quality = quality_names.get(item.get('item_quality', 2), "green")
 
     parts = []
-
     item_placeholder = f"{{{{item:{item['item_name']}}}}}"
-    parts.append(f"Generate a brief WoW General chat message about a loot drop.")
 
-    # Environmental context (randomly include time, weather, both, or neither)
+    if is_rp:
+        parts.append(
+            f"You are {bot['name']}, a {bot.get('race', '')} "
+            f"{bot.get('class', '')}. Speak in-character about "
+            f"finding loot."
+        )
+        rp_ctx = build_race_class_context(
+            bot.get('race', ''), bot.get('class', '')
+        )
+        if rp_ctx:
+            parts.append(rp_ctx)
+    else:
+        parts.append(
+            "Generate a brief WoW General chat message "
+            "about a loot drop."
+        )
+
     env_context = get_environmental_context(current_weather)
     if env_context['time']:
         parts.append(f"Time of day: {env_context['time']}")
     if env_context['weather']:
         parts.append(f"Current weather: {env_context['weather']}")
     parts.append(f"Item: {item['item_name']} ({quality} quality)")
-    parts.append(f"REQUIRED: Include exactly {item_placeholder} in your message (this becomes a clickable link)")
+    parts.append(
+        f"REQUIRED: Include exactly {item_placeholder} in "
+        f"your message (this becomes a clickable link)"
+    )
 
-    # Randomly include class info (60% chance)
     if random.random() < 0.6:
         parts.append(f"Player class: {bot['class']}")
-        # Only sometimes mention usability (40% of class mentions)
         if random.random() < 0.4:
             usability = "can equip" if can_use else "cannot equip (wrong class)"
             parts.append(f"Class fit: {usability}")
 
-    # Random tone and mood
-    tone = pick_random_tone()
-    mood = pick_random_mood()
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
     parts.append(f"Tone: {tone}")
     parts.append(f"Mood: {mood}")
 
-    # Maybe add a creative twist
-    twist = maybe_get_creative_twist()
+    twist = maybe_get_creative_twist(mode=mode)
     if twist:
         parts.append(f"Creative twist: {twist}")
 
-    # Log the creative selections
     twist_log = f", twist={twist}" if twist else ""
-    logger.info(f"Loot statement creativity: tone={tone}, mood={mood}, item={item['item_name'][:30]}{twist_log}")
+    logger.info(
+        f"Loot statement creativity: tone={tone}, mood={mood}, "
+        f"item={item['item_name'][:30]}{twist_log}"
+    )
 
-    # Loot-specific reactions to vary
-    reactions = [
-        "excitement about the drop",
-        "meh, vendor fodder",
-        "offering to trade/give away",
-        "commenting on luck",
-        "just mentioning what dropped",
-        "comparing to previous drops",
-        "wondering about the item",
-    ]
+    if is_rp:
+        reactions = [
+            "awe at the craftsmanship of the item",
+            "weighing whether the item suits your path",
+            "offering the spoils to a worthy companion",
+            "reflecting on fortune and fate",
+            "examining the item with a practiced eye",
+        ]
+    else:
+        reactions = [
+            "excitement about the drop",
+            "meh, vendor fodder",
+            "offering to trade/give away",
+            "commenting on luck",
+            "just mentioning what dropped",
+            "comparing to previous drops",
+            "wondering about the item",
+        ]
     parts.append(f"Reaction style: {random.choice(reactions)}")
 
-    # Guidelines
-    guidelines = build_dynamic_guidelines(config=config)
+    guidelines = build_dynamic_guidelines(config=config, mode=mode)
     guidelines.append("Keep under 110 characters")
+    if is_rp:
+        guidelines.append("Stay in character but sound natural, not theatrical")
     guidelines.append("Be creative and unpredictable")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
-    parts.append("Respond with ONLY the message - be creative and unpredictable.")
+    parts.append(
+        "Respond with ONLY the message - be creative "
+        "and unpredictable."
+    )
 
     return "\n".join(parts)
 
@@ -1764,12 +2107,13 @@ def build_loot_statement_prompt(bot: dict, item: dict, can_use: bool, config: di
 
 def build_quest_reward_statement_prompt(bot: dict, quest: dict, config: dict = None, current_weather: str = 'clear') -> str:
     """Build a dynamically varied prompt for quest completion with reward."""
-    # Get reward item info
+    mode = get_chatter_mode(config) if config else 'normal'
+    is_rp = (mode == 'roleplay')
+
     item_name = quest.get('item1_name') or quest.get('item2_name')
     item_quality = quest.get('item1_quality') or quest.get('item2_quality') or 2
 
     if not item_name:
-        # Fallback to plain quest if no item reward
         return build_quest_statement_prompt(bot, quest, config, current_weather)
 
     quality_names = {0: "gray", 1: "white", 2: "green", 3: "blue", 4: "purple"}
@@ -1777,52 +2121,79 @@ def build_quest_reward_statement_prompt(bot: dict, quest: dict, config: dict = N
 
     parts = []
 
-    parts.append(f"Generate a brief WoW General chat message about finishing a quest.")
+    if is_rp:
+        parts.append(
+            f"You are {bot['name']}, a {bot.get('race', '')} "
+            f"{bot.get('class', '')}. Speak in-character about "
+            f"completing a quest and its reward."
+        )
+        rp_ctx = build_race_class_context(
+            bot.get('race', ''), bot.get('class', '')
+        )
+        if rp_ctx:
+            parts.append(rp_ctx)
+    else:
+        parts.append(
+            "Generate a brief WoW General chat message "
+            "about finishing a quest."
+        )
 
-    # Environmental context (randomly include time, weather, both, or neither)
     env_context = get_environmental_context(current_weather)
     if env_context['time']:
         parts.append(f"Time of day: {env_context['time']}")
     if env_context['weather']:
         parts.append(f"Current weather: {env_context['weather']}")
 
-    parts.append(f"Quest: {quest['quest_name']} (use {{{{quest:{quest['quest_name']}}}}} placeholder)")
-    parts.append(f"Reward: {item_name} ({quality}) (use {{{{item:{item_name}}}}} placeholder)")
+    parts.append(
+        f"Quest: {quest['quest_name']} "
+        f"(use {{{{quest:{quest['quest_name']}}}}} placeholder)"
+    )
+    parts.append(
+        f"Reward: {item_name} ({quality}) "
+        f"(use {{{{item:{item_name}}}}} placeholder)"
+    )
 
-    # Randomly include class (50% chance)
     if random.random() < 0.5:
         parts.append(f"Player class: {bot['class']}")
 
-    # Random tone and mood
-    tone = pick_random_tone()
-    mood = pick_random_mood()
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
     parts.append(f"Tone: {tone}")
     parts.append(f"Mood: {mood}")
 
-    # Maybe add a creative twist
-    twist = maybe_get_creative_twist()
+    twist = maybe_get_creative_twist(mode=mode)
     if twist:
         parts.append(f"Creative twist: {twist}")
 
-    # Log the creative selections
     twist_log = f", twist={twist}" if twist else ""
-    logger.info(f"Quest+reward statement creativity: tone={tone}, mood={mood}, quest={quest['quest_name'][:30]}{twist_log}")
+    logger.info(
+        f"Quest+reward statement creativity: tone={tone}, "
+        f"mood={mood}, quest={quest['quest_name'][:30]}{twist_log}"
+    )
 
-    # Completion reactions
-    reactions = [
-        "relief at finishing",
-        "excitement about reward",
-        "meh about the reward",
-        "just noting completion",
-        "sharing the achievement",
-    ]
+    if is_rp:
+        reactions = [
+            "satisfaction at fulfilling the task",
+            "examining the reward with appreciation",
+            "reflecting on the journey it took",
+            "offering thanks to those who aided",
+        ]
+    else:
+        reactions = [
+            "relief at finishing",
+            "excitement about reward",
+            "meh about the reward",
+            "just noting completion",
+            "sharing the achievement",
+        ]
     if random.random() < 0.5:
         parts.append(f"Reaction: {random.choice(reactions)}")
 
-    # Guidelines
-    guidelines = build_dynamic_guidelines(config=config)
+    guidelines = build_dynamic_guidelines(config=config, mode=mode)
     guidelines.append("Use BOTH placeholders, each once")
     guidelines.append("Keep under 110 characters")
+    if is_rp:
+        guidelines.append("Stay in character but sound natural, not theatrical")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
     parts.append("Respond with ONLY the message.")
@@ -1831,29 +2202,35 @@ def build_quest_reward_statement_prompt(bot: dict, quest: dict, config: dict = N
 
 
 def build_plain_conversation_prompt(bots: List[dict], zone_id: int = 0, zone_mobs: list = None, config: dict = None, current_weather: str = 'clear') -> str:
-    """Build a dynamically varied prompt for a plain conversation with 2-4 bots.
-
-    Args:
-        bots: List of 2-4 bot dicts with name, race, class, level, zone
-        zone_id: Zone ID for flavor text lookup
-        zone_mobs: Optional list of mob markers from the zone
-        current_weather: Current weather state in the zone
-    """
+    """Build a dynamically varied prompt for a plain conversation with 2-4 bots."""
+    mode = get_chatter_mode(config) if config else 'normal'
+    is_rp = (mode == 'roleplay')
     parts = []
     bot_count = len(bots)
     bot_names = [b['name'] for b in bots]
 
-    if bot_count == 2:
-        parts.append(f"Generate a casual General chat exchange between two WoW players in {bots[0]['zone']}.")
+    if is_rp:
+        parts.append(
+            f"Generate an in-character General chat exchange "
+            f"between {bot_count} adventurers in "
+            f"{bots[0]['zone']}. Each speaks as their "
+            f"race and class."
+        )
+    elif bot_count == 2:
+        parts.append(
+            f"Generate a casual General chat exchange between "
+            f"two WoW players in {bots[0]['zone']}."
+        )
     else:
-        parts.append(f"Generate a casual General chat exchange between {bot_count} WoW players in {bots[0]['zone']}.")
+        parts.append(
+            f"Generate a casual General chat exchange between "
+            f"{bot_count} WoW players in {bots[0]['zone']}."
+        )
 
-    # Zone flavor - rich context about the zone's atmosphere and feel
     zone_flavor = get_zone_flavor(zone_id)
     if zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
 
-    # Environmental context (randomly include time, weather, both, or neither)
     env_context = get_environmental_context(current_weather)
     if env_context['time']:
         parts.append(f"Time of day: {env_context['time']}")
@@ -1861,69 +2238,120 @@ def build_plain_conversation_prompt(bots: List[dict], zone_id: int = 0, zone_mob
         parts.append(f"Current weather: {env_context['weather']}")
 
     parts.append(f"Speakers: {', '.join(bot_names)}")
-    parts.append(f"Names: Sometimes use their name when addressing directly (maybe 1-2 times in a conversation), but not every message - vary it naturally like real players.")
+    parts.append(
+        "Names: Sometimes use their name when addressing "
+        "directly (maybe 1-2 times in a conversation), but "
+        "not every message - vary it naturally."
+    )
 
-    # Randomly include some character details (40% chance per bot)
+    # Character details: RP always includes, normal 40% chance
     for bot in bots:
-        if random.random() < 0.4:
-            parts.append(f"{bot['name']} is a {bot['race']} {bot['class']}")
+        if is_rp or random.random() < 0.4:
+            parts.append(
+                f"{bot['name']} is a {bot['race']} {bot['class']}"
+            )
+            if is_rp:
+                rp_ctx = build_race_class_context(
+                    bot.get('race', ''), bot.get('class', '')
+                )
+                if rp_ctx:
+                    parts.append(f"  {rp_ctx}")
 
-    # Zone creature context - tells the LLM what actually exists in this zone
     if zone_mobs:
         parts.append(f"Creatures here: {', '.join(zone_mobs)}")
-        parts.append("IMPORTANT: If mentioning any creature, ONLY use ones from the list above. Include the [[npc:...]] marker exactly as shown.")
+        parts.append(
+            "IMPORTANT: If mentioning any creature, ONLY use "
+            "ones from the list above. Include the [[npc:...]] "
+            "marker exactly as shown."
+        )
 
-    # Random tone for the overall conversation
-    tone = pick_random_tone()
+    tone = pick_random_tone(mode)
     parts.append(f"Overall tone: {tone}")
 
-    # Maybe add a creative twist for the whole conversation
-    twist = maybe_get_creative_twist(chance=0.4)
+    twist = maybe_get_creative_twist(chance=0.4, mode=mode)
     if twist:
-        parts.append(f"Creative twist for this conversation: {twist}")
+        parts.append(
+            f"Creative twist for this conversation: {twist}"
+        )
 
-    # Generate mood sequence - this is the "script" the LLM must follow
-    # More messages for more participants
     min_msgs = bot_count
     max_msgs = bot_count + 3
     msg_count = random.randint(min_msgs, max_msgs)
-    mood_sequence = generate_conversation_mood_sequence(msg_count)
+    mood_sequence = generate_conversation_mood_sequence(
+        msg_count, mode
+    )
 
-    # Log the creative selections
     twist_log = f", twist={twist}" if twist else ""
-    logger.info(f"Conversation creativity: tone={tone}, moods={mood_sequence}{twist_log}")
+    logger.info(
+        f"Conversation creativity: tone={tone}, "
+        f"moods={mood_sequence}{twist_log}"
+    )
 
     parts.append(f"\nMOOD SEQUENCE (follow this for each message):")
     for i, mood in enumerate(mood_sequence):
-        # Cycle through speakers
         speaker = bot_names[i % bot_count]
         parts.append(f"  Message {i+1} ({speaker}): {mood}")
 
-    # Conversation topics to suggest
-    topics = [
-        "asking for directions or help",
-        "chatting about the zone",
-        "looking for group",
-        "sharing tips",
-        "random banter",
-        "complaining about something",
-        "celebrating something",
-    ]
+    if is_rp:
+        topics = [
+            "discussing the dangers of these lands",
+            "sharing tales of past battles",
+            "debating the best path forward",
+            "exchanging news from distant regions",
+            "reflecting on the state of the war",
+        ]
+    else:
+        topics = [
+            "asking for directions or help",
+            "chatting about the zone",
+            "looking for group",
+            "sharing tips",
+            "random banter",
+            "complaining about something",
+            "celebrating something",
+        ]
     if random.random() < 0.5:
         parts.append(f"Topic hint: {random.choice(topics)}")
 
-    # Guidelines
-    guidelines = build_dynamic_guidelines(config=config)
-    guidelines.append("Plain text only, except [[npc:...]] markers for creature names")
+    guidelines = build_dynamic_guidelines(config=config, mode=mode)
+    guidelines.append(
+        "Plain text only, except [[npc:...]] markers "
+        "for creature names"
+    )
     guidelines.append("Follow the mood sequence above")
-    guidelines.append("VARY message lengths naturally like real players - some very short ('lol', 'yeah'), some medium, some longer")
+    if is_rp:
+        guidelines.append(
+            "Each speaker stays in character for their "
+            "race and class"
+        )
+        guidelines.append(
+            "No game terms, abbreviations, or OOC references"
+        )
+        guidelines.append(
+            "VARY message lengths naturally - some brief, "
+            "some more expressive"
+        )
+    else:
+        guidelines.append(
+            "VARY message lengths naturally like real players "
+            "- some very short ('lol', 'yeah'), some medium, "
+            "some longer"
+        )
     if zone_mobs:
-        guidelines.append("Only mention creatures from the provided list - do NOT invent creatures")
+        guidelines.append(
+            "Only mention creatures from the provided list "
+            "- do NOT invent creatures"
+        )
     parts.append("Guidelines: " + "; ".join(guidelines))
 
-    # JSON format instruction with examples for all speakers
-    parts.append("JSON rules: Use double quotes, escape quotes/newlines, no trailing commas, no code fences.")
-    example_msgs = ',\n  '.join([f'{{"speaker": "{name}", "message": "..."}}' for name in bot_names])
+    parts.append(
+        "JSON rules: Use double quotes, escape "
+        "quotes/newlines, no trailing commas, no code fences."
+    )
+    example_msgs = ',\n  '.join(
+        [f'{{"speaker": "{name}", "message": "..."}}'
+         for name in bot_names]
+    )
     parts.append(f"""
 Respond with EXACTLY {msg_count} messages in JSON:
 [
@@ -1935,79 +2363,118 @@ ONLY the JSON array, nothing else.""")
 
 
 def build_quest_conversation_prompt(bots: List[dict], quest: dict, config: dict = None, current_weather: str = 'clear') -> str:
-    """Build a dynamically varied prompt for a quest conversation with 2-4 bots.
-
-    Args:
-        bots: List of 2-4 bot dicts with name, race, class, level, zone
-        quest: Quest data dict with quest_name, description, etc.
-        current_weather: Current weather conditions in the zone
-    """
+    """Build a dynamically varied prompt for a quest conversation with 2-4 bots."""
+    mode = get_chatter_mode(config) if config else 'normal'
+    is_rp = (mode == 'roleplay')
     parts = []
     bot_count = len(bots)
     bot_names = [b['name'] for b in bots]
 
-    parts.append(f"Generate a casual General chat exchange about a quest in {bots[0]['zone']}.")
+    if is_rp:
+        parts.append(
+            f"Generate an in-character General chat exchange "
+            f"about a quest in {bots[0]['zone']}. Each speaker "
+            f"stays true to their race and class."
+        )
+    else:
+        parts.append(
+            f"Generate a casual General chat exchange about "
+            f"a quest in {bots[0]['zone']}."
+        )
     parts.append(f"Speakers: {', '.join(bot_names)}")
-    parts.append(f"Names: Sometimes use their name when addressing directly (maybe 1-2 times in a conversation), but not every message - vary it naturally.")
+    parts.append(
+        "Names: Sometimes use their name when addressing "
+        "directly (maybe 1-2 times), but not every message."
+    )
 
-    # Environmental context (randomly include time, weather, both, or neither)
+    # RP: always include character details
+    if is_rp:
+        for bot in bots:
+            parts.append(
+                f"{bot['name']} is a {bot['race']} {bot['class']}"
+            )
+
     env_context = get_environmental_context(current_weather)
     if env_context['time']:
         parts.append(f"Time of day: {env_context['time']}")
     if env_context['weather']:
         parts.append(f"Current weather: {env_context['weather']}")
 
-    # Quest info
-    parts.append(f"Quest: {quest['quest_name']} (use {{{{quest:{quest['quest_name']}}}}} placeholder)")
+    parts.append(
+        f"Quest: {quest['quest_name']} "
+        f"(use {{{{quest:{quest['quest_name']}}}}} placeholder)"
+    )
     if quest.get('description') and random.random() < 0.4:
         parts.append(f"Quest involves: {quest['description'][:60]}")
 
-    # Random tone for the overall conversation
-    tone = pick_random_tone()
+    tone = pick_random_tone(mode)
     parts.append(f"Overall tone: {tone}")
 
-    # Maybe add a creative twist for the whole conversation
-    twist = maybe_get_creative_twist(chance=0.4)
+    twist = maybe_get_creative_twist(chance=0.4, mode=mode)
     if twist:
-        parts.append(f"Creative twist for this conversation: {twist}")
+        parts.append(
+            f"Creative twist for this conversation: {twist}"
+        )
 
-    # Generate mood sequence - the "script" for the conversation
     min_msgs = bot_count
     max_msgs = bot_count + 3
     msg_count = random.randint(min_msgs, max_msgs)
-    mood_sequence = generate_conversation_mood_sequence(msg_count)
+    mood_sequence = generate_conversation_mood_sequence(
+        msg_count, mode
+    )
 
-    # Log the creative selections
     twist_log = f", twist={twist}" if twist else ""
-    logger.info(f"Quest conv creativity: tone={tone}, moods={mood_sequence}{twist_log}")
+    logger.info(
+        f"Quest conv creativity: tone={tone}, "
+        f"moods={mood_sequence}{twist_log}"
+    )
 
     parts.append(f"\nMOOD SEQUENCE (follow this for each message):")
     for i, mood in enumerate(mood_sequence):
         speaker = bot_names[i % bot_count]
         parts.append(f"  Message {i+1} ({speaker}): {mood}")
 
-    # Quest conversation angles
-    angles = [
-        "asking for help with the quest",
-        "sharing where to find objectives",
-        "complaining about quest difficulty",
-        "discussing rewards",
-        "warning about dangers",
-        "celebrating completion",
-    ]
+    if is_rp:
+        angles = [
+            "seeking allies for a perilous task",
+            "debating the best approach to the objective",
+            "sharing knowledge of the quest's history",
+            "steeling each other for the dangers ahead",
+        ]
+    else:
+        angles = [
+            "asking for help with the quest",
+            "sharing where to find objectives",
+            "complaining about quest difficulty",
+            "discussing rewards",
+            "warning about dangers",
+            "celebrating completion",
+        ]
     if random.random() < 0.5:
         parts.append(f"Angle hint: {random.choice(angles)}")
 
-    # Guidelines
-    guidelines = build_dynamic_guidelines(config=config)
+    guidelines = build_dynamic_guidelines(config=config, mode=mode)
     guidelines.append("Use quest placeholder at least once")
     guidelines.append("Follow the mood sequence above")
-    guidelines.append("Keep each message under 140 characters; short/medium is the norm")
+    guidelines.append(
+        "Keep each message under 140 characters; "
+        "short/medium is the norm"
+    )
+    if is_rp:
+        guidelines.append(
+            "Each speaker stays in character for their "
+            "race and class"
+        )
     parts.append("Guidelines: " + "; ".join(guidelines))
 
-    # JSON format instruction with examples for all speakers
-    parts.append("JSON rules: Use double quotes, escape quotes/newlines, no trailing commas, no code fences.")
-    example_msgs = ',\n  '.join([f'{{"speaker": "{name}", "message": "..."}}' for name in bot_names])
+    parts.append(
+        "JSON rules: Use double quotes, escape "
+        "quotes/newlines, no trailing commas, no code fences."
+    )
+    example_msgs = ',\n  '.join(
+        [f'{{"speaker": "{name}", "message": "..."}}'
+         for name in bot_names]
+    )
     parts.append(f"""
 Respond with EXACTLY {msg_count} messages in JSON:
 [
@@ -2019,13 +2486,9 @@ ONLY the JSON array, nothing else.""")
 
 
 def build_loot_conversation_prompt(bots: List[dict], item: dict, config: dict = None, current_weather: str = 'clear') -> str:
-    """Build a dynamically varied prompt for a loot conversation with 2-4 bots.
-
-    Args:
-        bots: List of 2-4 bot dicts with name, race, class, level, zone
-        item: Item data dict with item_name, item_quality, etc.
-        current_weather: Current weather conditions in the zone
-    """
+    """Build a dynamically varied prompt for a loot conversation with 2-4 bots."""
+    mode = get_chatter_mode(config) if config else 'normal'
+    is_rp = (mode == 'roleplay')
     parts = []
     bot_count = len(bots)
     bot_names = [b['name'] for b in bots]
@@ -2034,65 +2497,106 @@ def build_loot_conversation_prompt(bots: List[dict], item: dict, config: dict = 
     quality = quality_names.get(item.get('item_quality', 2), "green")
     item_placeholder = f"{{{{item:{item['item_name']}}}}}"
 
-    parts.append(f"Generate a casual General chat exchange about a loot drop in {bots[0]['zone']}.")
+    if is_rp:
+        parts.append(
+            f"Generate an in-character General chat exchange "
+            f"about a loot find in {bots[0]['zone']}."
+        )
+    else:
+        parts.append(
+            f"Generate a casual General chat exchange about "
+            f"a loot drop in {bots[0]['zone']}."
+        )
     parts.append(f"Speakers: {', '.join(bot_names)}")
-    parts.append(f"Names: Sometimes use their name when addressing directly (maybe once in the conversation), but not every message - vary it naturally.")
+    parts.append(
+        "Names: Sometimes use their name when addressing "
+        "directly (maybe once), but not every message."
+    )
 
-    # Environmental context (randomly include time, weather, both, or neither)
+    if is_rp:
+        for bot in bots:
+            parts.append(
+                f"{bot['name']} is a {bot['race']} {bot['class']}"
+            )
+
     env_context = get_environmental_context(current_weather)
     if env_context['time']:
         parts.append(f"Time of day: {env_context['time']}")
     if env_context['weather']:
         parts.append(f"Current weather: {env_context['weather']}")
 
-    # Item info
     parts.append(f"Item: {item['item_name']} ({quality} quality)")
-    parts.append(f"REQUIRED: Use {item_placeholder} placeholder when mentioning the item")
+    parts.append(
+        f"REQUIRED: Use {item_placeholder} placeholder "
+        f"when mentioning the item"
+    )
 
-    # Random tone for the overall conversation
-    tone = pick_random_tone()
+    tone = pick_random_tone(mode)
     parts.append(f"Overall tone: {tone}")
 
-    # Maybe add a creative twist for the whole conversation
-    twist = maybe_get_creative_twist(chance=0.4)
+    twist = maybe_get_creative_twist(chance=0.4, mode=mode)
     if twist:
-        parts.append(f"Creative twist for this conversation: {twist}")
+        parts.append(
+            f"Creative twist for this conversation: {twist}"
+        )
 
-    # Generate mood sequence
     min_msgs = bot_count
     max_msgs = bot_count + 2
     msg_count = random.randint(min_msgs, max_msgs)
-    mood_sequence = generate_conversation_mood_sequence(msg_count)
+    mood_sequence = generate_conversation_mood_sequence(
+        msg_count, mode
+    )
 
-    # Log the creative selections
     twist_log = f", twist={twist}" if twist else ""
-    logger.info(f"Loot conv creativity: tone={tone}, moods={mood_sequence}{twist_log}")
+    logger.info(
+        f"Loot conv creativity: tone={tone}, "
+        f"moods={mood_sequence}{twist_log}"
+    )
 
     parts.append(f"\nMOOD SEQUENCE (follow this for each message):")
     for i, mood in enumerate(mood_sequence):
         speaker = bot_names[i % bot_count]
         parts.append(f"  Message {i+1} ({speaker}): {mood}")
 
-    # Loot conversation angles
-    angles = [
-        "one player got the drop and others are jealous/congratulating",
-        "discussing if the item is good for their class",
-        "debating whether to vendor or auction it",
-        "one asking if others need the drop",
-        "comparing drops they've gotten today",
-    ]
+    if is_rp:
+        angles = [
+            "one examines the find while others judge its worth",
+            "debating who is most suited to wield it",
+            "one offers the spoils to the group",
+            "appraising the craftsmanship with lore knowledge",
+        ]
+    else:
+        angles = [
+            "one player got the drop and others are jealous/congratulating",
+            "discussing if the item is good for their class",
+            "debating whether to vendor or auction it",
+            "one asking if others need the drop",
+            "comparing drops they've gotten today",
+        ]
     parts.append(f"Angle: {random.choice(angles)}")
 
-    # Guidelines
-    guidelines = build_dynamic_guidelines(config=config)
+    guidelines = build_dynamic_guidelines(config=config, mode=mode)
     guidelines.append("Use item placeholder at least once")
     guidelines.append("Follow the mood sequence above")
-    guidelines.append("Keep each message under 140 characters; short/medium is the norm")
+    guidelines.append(
+        "Keep each message under 140 characters; "
+        "short/medium is the norm"
+    )
+    if is_rp:
+        guidelines.append(
+            "Each speaker stays in character for their "
+            "race and class"
+        )
     parts.append("Guidelines: " + "; ".join(guidelines))
 
-    # JSON format instruction with examples for all speakers
-    parts.append("JSON rules: Use double quotes, escape quotes/newlines, no trailing commas, no code fences.")
-    example_msgs = ',\n  '.join([f'{{"speaker": "{name}", "message": "..."}}' for name in bot_names])
+    parts.append(
+        "JSON rules: Use double quotes, escape "
+        "quotes/newlines, no trailing commas, no code fences."
+    )
+    example_msgs = ',\n  '.join(
+        [f'{{"speaker": "{name}", "message": "..."}}'
+         for name in bot_names]
+    )
     parts.append(f"""
 Respond with EXACTLY {msg_count} messages in JSON:
 [
@@ -2104,88 +2608,148 @@ ONLY the JSON array, nothing else.""")
 
 
 def build_event_conversation_prompt(bots: List[dict], event_context: str, zone_id: int = 0, config: dict = None, current_weather: str = 'clear') -> str:
-    """Build a prompt for an event-triggered conversation with 2-4 bots.
-
-    Args:
-        bots: List of 2-4 bot dicts with name, race, class, level, zone
-        event_context: Description of the event (weather change, etc.)
-        zone_id: Zone ID for additional context
-        current_weather: Current weather conditions in the zone
-    """
+    """Build a prompt for an event-triggered conversation with 2-4 bots."""
+    mode = get_chatter_mode(config) if config else 'normal'
+    is_rp = (mode == 'roleplay')
     parts = []
     bot_count = len(bots)
     bot_names = [b['name'] for b in bots]
 
-    parts.append(f"Generate a casual General chat exchange between {bot_count} WoW players in {bots[0]['zone']}.")
+    if is_rp:
+        parts.append(
+            f"Generate an in-character General chat exchange "
+            f"between {bot_count} adventurers in "
+            f"{bots[0]['zone']}."
+        )
+    else:
+        parts.append(
+            f"Generate a casual General chat exchange between "
+            f"{bot_count} WoW players in {bots[0]['zone']}."
+        )
     parts.append(f"Speakers: {', '.join(bot_names)}")
-    parts.append(f"Names: Sometimes use their name when addressing directly (maybe once), but not every message.")
+    parts.append(
+        "Names: Sometimes use their name when addressing "
+        "directly (maybe once), but not every message."
+    )
 
-    # Event context - the trigger for this conversation
     parts.append(f"\nEVENT CONTEXT: {event_context}")
 
-    # Transport events should be mentioned more directly
     if 'boat' in event_context.lower() or 'zeppelin' in event_context.lower() or 'turtle' in event_context.lower():
-        parts.append("This transport just arrived - at least one bot should comment on it!")
-        parts.append("Use the specific transport type (boat/zeppelin/turtle), NOT the generic word 'transport'.")
-        parts.append("CRITICAL: Read the event context carefully - it tells you WHERE the transport arrived (your current location) and WHERE it came FROM.")
-        parts.append("If bots want to board or leave, they go TO the origin (where it came from), NOT to their current location!")
-        parts.append("If a ship name is mentioned (e.g., 'The Moonspray'), you can optionally include it.")
+        parts.append(
+            "This transport just arrived - at least one bot "
+            "should comment on it!"
+        )
+        parts.append(
+            "Use the specific transport type "
+            "(boat/zeppelin/turtle), NOT the generic word "
+            "'transport'."
+        )
+        parts.append(
+            "CRITICAL: Read the event context carefully - "
+            "it tells you WHERE the transport arrived (your "
+            "current location) and WHERE it came FROM."
+        )
+        parts.append(
+            "If bots want to board or leave, they go TO the "
+            "origin (where it came from), NOT to their "
+            "current location!"
+        )
+        parts.append(
+            "If a ship name is mentioned (e.g., 'The "
+            "Moonspray'), you can optionally include it."
+        )
     else:
-        parts.append("The conversation may naturally reference this event, or players may chat about something else.")
-        parts.append("The event provides atmosphere - you don't HAVE to mention it explicitly.")
+        parts.append(
+            "The conversation may naturally reference this "
+            "event, or players may chat about something else."
+        )
+        parts.append(
+            "The event provides atmosphere - you don't HAVE "
+            "to mention it explicitly."
+        )
 
-    # Zone flavor
     zone_flavor = get_zone_flavor(zone_id)
     if zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
 
-    # Environmental context (randomly include time, weather, both, or neither)
-    # Skip weather context for weather events (it's already in event_context)
-    weather_for_context = current_weather if 'weather' not in event_context.lower() else None
+    weather_for_context = (
+        current_weather
+        if 'weather' not in event_context.lower()
+        else None
+    )
     env_context = get_environmental_context(weather_for_context)
     if env_context['time']:
         parts.append(f"Time of day: {env_context['time']}")
     if env_context['weather']:
         parts.append(f"Current weather: {env_context['weather']}")
 
-    # Randomly include some character details (40% chance per bot)
+    # Character details: RP always includes, normal 40% chance
     for bot in bots:
-        if random.random() < 0.4:
-            parts.append(f"{bot['name']} is a {bot['race']} {bot['class']}")
+        if is_rp or random.random() < 0.4:
+            parts.append(
+                f"{bot['name']} is a {bot['race']} {bot['class']}"
+            )
+            if is_rp:
+                rp_ctx = build_race_class_context(
+                    bot.get('race', ''), bot.get('class', '')
+                )
+                if rp_ctx:
+                    parts.append(f"  {rp_ctx}")
 
-    # Random tone for the overall conversation
-    tone = pick_random_tone()
+    tone = pick_random_tone(mode)
     parts.append(f"Overall tone: {tone}")
 
-    # Maybe add a creative twist for the whole conversation
-    twist = maybe_get_creative_twist(chance=0.4)
+    twist = maybe_get_creative_twist(chance=0.4, mode=mode)
     if twist:
-        parts.append(f"Creative twist for this conversation: {twist}")
+        parts.append(
+            f"Creative twist for this conversation: {twist}"
+        )
 
-    # Generate mood sequence
     min_msgs = bot_count
     max_msgs = bot_count + 2
     msg_count = random.randint(min_msgs, max_msgs)
-    mood_sequence = generate_conversation_mood_sequence(msg_count)
+    mood_sequence = generate_conversation_mood_sequence(
+        msg_count, mode
+    )
 
-    # Log the creative selections
     twist_log = f", twist={twist}" if twist else ""
-    logger.info(f"Event conv creativity: tone={tone}, moods={mood_sequence}{twist_log}")
+    logger.info(
+        f"Event conv creativity: tone={tone}, "
+        f"moods={mood_sequence}{twist_log}"
+    )
 
     parts.append(f"\nMOOD SEQUENCE (follow this for each message):")
     for i, mood in enumerate(mood_sequence):
         speaker = bot_names[i % bot_count]
         parts.append(f"  Message {i+1} ({speaker}): {mood}")
 
-    # Guidelines
-    guidelines = build_dynamic_guidelines(config=config)
+    guidelines = build_dynamic_guidelines(config=config, mode=mode)
     guidelines.append("Follow the mood sequence above")
-    guidelines.append("VARY message lengths naturally - some very short ('lol', 'yeah'), some medium, occasionally longer")
+    if is_rp:
+        guidelines.append(
+            "Each speaker stays in character for their "
+            "race and class"
+        )
+        guidelines.append(
+            "VARY message lengths naturally - some brief, "
+            "some more expressive"
+        )
+    else:
+        guidelines.append(
+            "VARY message lengths naturally - some very "
+            "short ('lol', 'yeah'), some medium, "
+            "occasionally longer"
+        )
     parts.append("Guidelines: " + "; ".join(guidelines))
 
-    # JSON format instruction
-    parts.append("JSON rules: Use double quotes, escape quotes/newlines, no trailing commas, no code fences.")
-    example_msgs = ',\n  '.join([f'{{"speaker": "{name}", "message": "..."}}' for name in bot_names])
+    parts.append(
+        "JSON rules: Use double quotes, escape "
+        "quotes/newlines, no trailing commas, no code fences."
+    )
+    example_msgs = ',\n  '.join(
+        [f'{{"speaker": "{name}", "message": "..."}}'
+         for name in bot_names]
+    )
     parts.append(f"""
 Respond with EXACTLY {msg_count} messages in JSON:
 [
@@ -2202,10 +2766,14 @@ ONLY the JSON array, nothing else.""")
 
 # Model aliases for easy config
 MODEL_ALIASES = {
-    # Anthropic
+    # Anthropic - Haiku versions
+    'haiku': 'claude-haiku-4-5-20251001',      # Latest (4.5)
+    'haiku-4.5': 'claude-haiku-4-5-20251001',
+    'haiku-3.5': 'claude-3-5-haiku-20241022',
+    'haiku-3': 'claude-3-haiku-20240307',
+    # Anthropic - Other models
     'opus': 'claude-opus-4-5-20251001',
     'sonnet': 'claude-sonnet-4-20250514',
-    'haiku': 'claude-haiku-4-5-20251001',
     # OpenAI
     'gpt4o': 'gpt-4o',
     'gpt4o-mini': 'gpt-4o-mini',
@@ -2227,6 +2795,11 @@ def call_llm(client: Any, prompt: str, config: dict, max_tokens_override: int = 
     else:
         max_tokens = int(config.get('LLMChatter.MaxTokens', 200))
     temperature = float(config.get('LLMChatter.Temperature', 0.85))
+
+    logger.info(
+        f"LLM prompt ({provider}/{model}, "
+        f"max_tokens={max_tokens}):\n{prompt}"
+    )
 
     try:
         if provider == 'ollama':
@@ -2632,11 +3205,13 @@ def process_pending_requests(db, client: anthropic.Anthropic, config: dict):
         request['zone_id'] = zone_id if zone_id else 0
 
         if request_type == 'statement':
+            raw_class = request['bot1_class']
+            raw_race = request['bot1_race']
             bot = {
                 'guid': request['bot1_guid'],
                 'name': request['bot1_name'],
-                'class': request['bot1_class'],
-                'race': request['bot1_race'],
+                'class': get_class_name(raw_class) if isinstance(raw_class, int) else raw_class,
+                'race': get_race_name(raw_race) if isinstance(raw_race, int) else raw_race,
                 'level': request['bot1_level'],
                 'zone': request['bot1_zone']
             }
@@ -2645,48 +3220,40 @@ def process_pending_requests(db, client: anthropic.Anthropic, config: dict):
             # Build list of 2-4 bots from request
             bots = []
 
+            # Helper to build a bot dict with text race/class
+            def _make_bot(prefix, zone_override=None):
+                rc = request[f'{prefix}_class']
+                rr = request[f'{prefix}_race']
+                zone_key = f'{prefix}_zone'
+                if zone_override:
+                    zone = zone_override
+                elif zone_key in request:
+                    zone = request[zone_key]
+                else:
+                    zone = request['bot1_zone']
+                return {
+                    'guid': request[f'{prefix}_guid'],
+                    'name': request[f'{prefix}_name'],
+                    'class': get_class_name(rc) if isinstance(rc, int) else rc,
+                    'race': get_race_name(rr) if isinstance(rr, int) else rr,
+                    'level': request[f'{prefix}_level'],
+                    'zone': zone,
+                }
+
             # Bot 1 (always present)
-            bots.append({
-                'guid': request['bot1_guid'],
-                'name': request['bot1_name'],
-                'class': request['bot1_class'],
-                'race': request['bot1_race'],
-                'level': request['bot1_level'],
-                'zone': request['bot1_zone']
-            })
+            bots.append(_make_bot('bot1'))
 
             # Bot 2 (always present for conversations)
             if request.get('bot2_guid'):
-                bots.append({
-                    'guid': request['bot2_guid'],
-                    'name': request['bot2_name'],
-                    'class': request['bot2_class'],
-                    'race': request['bot2_race'],
-                    'level': request['bot2_level'],
-                    'zone': request['bot1_zone']
-                })
+                bots.append(_make_bot('bot2', request['bot1_zone']))
 
             # Bot 3 (optional)
             if request.get('bot3_guid'):
-                bots.append({
-                    'guid': request['bot3_guid'],
-                    'name': request['bot3_name'],
-                    'class': request['bot3_class'],
-                    'race': request['bot3_race'],
-                    'level': request['bot3_level'],
-                    'zone': request['bot1_zone']
-                })
+                bots.append(_make_bot('bot3', request['bot1_zone']))
 
             # Bot 4 (optional)
             if request.get('bot4_guid'):
-                bots.append({
-                    'guid': request['bot4_guid'],
-                    'name': request['bot4_name'],
-                    'class': request['bot4_class'],
-                    'race': request['bot4_race'],
-                    'level': request['bot4_level'],
-                    'zone': request['bot1_zone']
-                })
+                bots.append(_make_bot('bot4', request['bot1_zone']))
 
             success = process_conversation(db, cursor, client, config, request, bots)
 
@@ -3367,9 +3934,10 @@ def process_pending_events(db, client, config) -> bool:
                 logger.info(f"Event #{event_id} skipped: zone {zone_id} fatigue threshold ({fatigue_threshold}) reached")
                 return False
 
-        # Decide: statement (40%) vs conversation (60%)
+        # Decide: statement vs conversation (configurable, default 60% conversation)
         # Conversations require at least 2 bots
-        use_conversation = len(recent_bots) >= 2 and random.randint(1, 100) <= 60
+        event_conv_chance = int(config.get('LLMChatter.EventConversationChance', 60))
+        use_conversation = len(recent_bots) >= 2 and random.randint(1, 100) <= event_conv_chance
 
         if use_conversation:
             # Select 2-4 bots for conversation
@@ -3471,7 +4039,9 @@ def process_pending_events(db, client, config) -> bool:
             zone_name = get_zone_name(bot.get('zone_id', zone_id)) or "the world"
 
             # Build prompt for event-triggered statement
-            tone = random.choice(TONES)
+            mode = get_chatter_mode(config)
+            is_rp = (mode == 'roleplay')
+            tone = pick_random_tone(mode)
 
             # Transport events get more direct instructions
             is_transport = 'boat' in event_context.lower() or 'zeppelin' in event_context.lower() or 'turtle' in event_context.lower()
@@ -3482,8 +4052,7 @@ Mention the destination if known. Be creative and original - no canned phrases."
                 event_instruction = """You may naturally reference this event in your message, or you may chat about something else entirely.
 The event provides atmosphere - you don't HAVE to mention it explicitly."""
 
-            # Environmental context (randomly include time, weather, both, or neither)
-            # Get weather from event extra_data if not a weather event
+            # Environmental context
             extra_data = event.get('extra_data', {})
             if isinstance(extra_data, str):
                 try:
@@ -3501,23 +4070,44 @@ The event provides atmosphere - you don't HAVE to mention it explicitly."""
             if env_context['weather']:
                 env_lines += f"\nCurrent weather: {env_context['weather']}"
 
+            # Build RP personality context if in roleplay mode
+            rp_personality = ""
+            rp_style = ""
+            if is_rp:
+                rp_ctx = build_race_class_context(
+                    bot['bot1_race'], bot['bot1_class']
+                )
+                if rp_ctx:
+                    rp_personality = f"\n{rp_ctx}"
+                rp_style = (
+                    "\nStay in character but keep it "
+                    "natural and conversational. No game "
+                    "terms or OOC references, but don't be "
+                    "overly dramatic or theatrical either."
+                )
+
             system_prompt = f"""You are {bot['bot1_name']}, a {bot['bot1_race']} {bot['bot1_class']} adventurer in World of Warcraft.
-You are level {bot['bot1_level']} and currently in {zone_name}.{env_lines}
+You are level {bot['bot1_level']} and currently in {zone_name}.{env_lines}{rp_personality}
 
 CONTEXT: {event_context}
 
 {event_instruction}
 
-Your current mood: {tone}
+Your current mood: {tone}{rp_style}
 
 Respond with a single short sentence (under 100 characters) that a player might say in General chat.
-Be casual and authentic. No quotes. No asterisks. No emotes."""
+Be {'authentic and in-character' if is_rp else 'casual and authentic'}. No quotes. No asterisks. No emotes."""
 
             # Call LLM
             provider = config.get('LLMChatter.Provider', 'anthropic').lower()
             model = resolve_model(config.get('LLMChatter.Model', 'haiku'))
             max_tokens = int(config.get('LLMChatter.MaxTokens', 200))
             temperature = float(config.get('LLMChatter.Temperature', 0.8))
+
+            logger.info(
+                f"Event statement prompt "
+                f"({provider}/{model}):\n{system_prompt}"
+            )
 
             if provider == 'ollama':
                 # Ollama uses OpenAI-compatible API
@@ -3640,9 +4230,12 @@ def main():
     # Check event system config
     use_event_system = config.get('LLMChatter.UseEventSystem', '1') == '1'
 
+    chatter_mode = get_chatter_mode(config)
+
     logger.info("=" * 60)
-    logger.info("LLM Chatter Bridge v3.4")
+    logger.info("LLM Chatter Bridge v3.5")
     logger.info("=" * 60)
+    logger.info(f"ChatterMode: {chatter_mode}")
     logger.info(f"Provider: {provider}")
     logger.info(f"Model: {model} (alias: {model_alias})")
     if provider == 'ollama':
@@ -3667,6 +4260,7 @@ def main():
     logger.info(f"  TriggerIntervalSeconds: {config.get('LLMChatter.TriggerIntervalSeconds', 60)}")
     logger.info(f"  TriggerChance: {config.get('LLMChatter.TriggerChance', 30)}%")
     logger.info(f"  ConversationChance: {config.get('LLMChatter.ConversationChance', 50)}%")
+    logger.info(f"  EventConversationChance: {config.get('LLMChatter.EventConversationChance', 60)}%")
     logger.info(f"  BotSpeakerCooldownSeconds: {config.get('LLMChatter.BotSpeakerCooldownSeconds', 900)}")
     logger.info(f"  ZoneFatigueThreshold: {config.get('LLMChatter.ZoneFatigueThreshold', 3)}")
     logger.info("-" * 60)

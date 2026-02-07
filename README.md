@@ -6,6 +6,7 @@ Instead of static, repetitive database messages, bots chat naturally about the z
 
 ## Features
 
+- **Normal & Roleplay modes** - Toggle between casual MMO chat and fully in-character RP speech
 - **Dynamic AI conversations** - Bots chat naturally using Claude Haiku or GPT-4o-mini
 - **2-4 bot conversations** - Conversations can include 2, 3, or 4 participants
 - **Zone-aware content** - Messages reference actual quests and items from the player's zone
@@ -51,6 +52,12 @@ Instead of static, repetitive database messages, bots chat naturally about the z
 **Example transport arrival:**
 ```
 [Miralynn]: boat to Auberdine just pulled in, anyone heading that way?
+```
+
+**Example roleplay mode:**
+```
+[Thornbeard]: By the Light, these lands bear the scars of old wars. One can feel it in the soil.
+[Miralynn]: The spirits whisper of things long buried here. I would not linger past nightfall.
 ```
 
 ## Requirements
@@ -179,6 +186,7 @@ All settings are in `mod_llm_chatter.conf`:
 | Option | Default | Description |
 |--------|---------|-------------|
 | `LLMChatter.Enable` | 0 | Enable/disable the module |
+| `LLMChatter.ChatterMode` | normal | `normal` (casual MMO chat) or `roleplay` (in-character RP) |
 | `LLMChatter.TriggerIntervalSeconds` | 60 | Seconds between chatter checks |
 | `LLMChatter.TriggerChance` | 30 | % chance per interval (lower = less frequent) |
 | `LLMChatter.ConversationChance` | 50 | % chance for conversation vs single statement |
