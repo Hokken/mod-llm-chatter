@@ -169,12 +169,47 @@ static std::string ConvertNpcLinks(const std::string& text)
     return result;
 }
 
+// Convert [[spell:ID:Name]] markers to WoW spell links
+static std::string ConvertSpellLinks(const std::string& text)
+{
+    std::string result = text;
+    size_t pos = 0;
+
+    while ((pos = result.find("[[spell:", pos)) != std::string::npos)
+    {
+        size_t endPos = result.find("]]", pos);
+        if (endPos == std::string::npos) break;
+
+        std::string content = result.substr(pos + 8, endPos - pos - 8);
+        size_t colonPos = content.find(':');
+
+        if (colonPos != std::string::npos)
+        {
+            std::string idStr = content.substr(0, colonPos);
+            std::string name = content.substr(colonPos + 1);
+
+            try
+            {
+                uint32 spellId = std::stoul(idStr);
+                std::ostringstream link;
+                link << "|cff71d5ff|Hspell:" << spellId << "|h[" << name << "]|h|r";
+                result.replace(pos, endPos - pos + 2, link.str());
+                pos += link.str().length();
+            }
+            catch (...) { pos = endPos + 2; }
+        }
+        else { pos = endPos + 2; }
+    }
+    return result;
+}
+
 // Convert all link markers to WoW hyperlinks
 static std::string ConvertAllLinks(const std::string& text)
 {
     std::string result = text;
     result = ConvertItemLinks(result);
     result = ConvertQuestLinks(result);
+    result = ConvertSpellLinks(result);
     result = ConvertNpcLinks(result);
     return result;
 }
