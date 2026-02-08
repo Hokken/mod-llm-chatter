@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="images/banner.png" alt="The Chatters" width="100%">
+  <img src="images/banner.jpg" alt="The Chatters" width="100%">
 </p>
 
 # mod-llm-chatter
