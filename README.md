@@ -88,9 +88,26 @@ Every quest and item name becomes a clickable WoW link.
 ## Requirements
 
 - AzerothCore WotLK (3.3.5a)
-- [mod-playerbots](https://github.com/liyunfan1223/mod-playerbots) (for bot characters)
+- [mod-playerbots](https://github.com/liyunfan1223/mod-playerbots) -- **required**, this module generates chat for playerbot characters
 - Python 3.8+
 - An API key from [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/), or [Ollama](https://ollama.ai) installed locally
+
+## Important: Playerbots Configuration
+
+This module **replaces** the built-in playerbot chat with AI-generated conversations. For the best immersion, you **must** disable the default playerbot chat behaviors in your `playerbots.conf`:
+
+```ini
+# Disable all built-in bot chat -- mod-llm-chatter handles this now
+AiPlayerbot.EnableBroadcasts = 0
+AiPlayerbot.RandomBotTalk = 0
+AiPlayerbot.RandomBotEmote = 0
+AiPlayerbot.RandomBotSuggestDungeons = 0
+AiPlayerbot.EnableGreet = 0
+AiPlayerbot.GuildFeedback = 0
+AiPlayerbot.RandomBotSayWithoutMaster = 0
+```
+
+Without these changes, bots will produce both the default scripted messages **and** the AI-generated ones, resulting in spam and breaking immersion.
 
 ## Docker Setup (Recommended)
 
