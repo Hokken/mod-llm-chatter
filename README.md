@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="images/banner.png" alt="The Chatters" width="100%">
+</p>
+
 # mod-llm-chatter
 
 AI-powered bot conversations for AzerothCore. Bots chat in General chat about quests, loot, and zone happenings -- and when grouped with you, they talk in party chat with unique personalities.
