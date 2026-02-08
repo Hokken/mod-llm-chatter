@@ -1,75 +1,94 @@
 # mod-llm-chatter
 
-An AzerothCore module that generates dynamic, AI-powered conversations between playerbots in General chat.
+AI-powered bot conversations for AzerothCore. Bots chat in General chat about quests, loot, and zone happenings -- and when grouped with you, they talk in party chat with unique personalities.
 
-Instead of static, repetitive database messages, bots chat naturally about the zone, quests, and loot drops - creating the illusion of a living, active world.
+Instead of a silent world full of bots, you get one that sounds alive.
 
-## Features
+## What It Looks Like
 
-- **Normal & Roleplay modes** - Toggle between casual MMO chat and fully in-character RP speech
-- **Dynamic AI conversations** - Bots chat naturally using Claude Haiku or GPT-4o-mini
-- **2-4 bot conversations** - Conversations can include 2, 3, or 4 participants
-- **Zone-aware content** - Messages reference actual quests and items from the player's zone
-- **Zone flavor system** - Rich atmosphere descriptions for ~45 zones to inspire immersive chat
-- **Clickable links** - Quest and item mentions become clickable WoW links
-- **Natural timing** - Realistic, varied delays between messages (12-45 seconds)
-- **Multiple message types** - Plain chat, quest discussions, loot drops, quest rewards
-- **Conversation variety** - Both single statements and multi-message conversations
-- **Anti-repetition** - Dynamic prompts with CREATIVE_TWISTS ensure varied, unpredictable messages
-- **Randomized context** - Time/weather context randomly included to prevent pattern lock-in
-- **80+ message categories** - Atmospheric, mystical, nostalgic, and more for rich variety
-- **Multi-provider support** - Works with Anthropic Claude or OpenAI GPT
-- **Overworld only** - Chatter only happens in the open world, not in dungeons
-- **Smart bot selection** - Only independent bots chat (not your party members)
-- **Bot name addressing** - Bots use each other's names naturally in conversations
-- **Fuzzy name matching** - Tolerates LLM typos in bot names
-- **Weather events** - Bots react to actual weather changes (rain, snow, thunderstorms, sandstorms)
-- **Transport arrivals** - Bots announce boat and zeppelin arrivals with destination info
-
-## How It Works
-
-1. Every 60 seconds, the module may trigger chatter in the player's zone
-2. It selects 2-4 eligible bots (same faction, not in player's group)
-3. Queries zone-specific quests/items from the database
-4. Adds zone flavor context for immersive, atmosphere-aware messages
-5. Sends context to the LLM to generate authentic-sounding chat
-6. Delivers messages with realistic, varied timing delays (12-30 seconds)
-7. Quest/item names become clickable links
-
-**Example output in General chat (4-bot conversation):**
+**General chat -- zone banter:**
 ```
-[Nylaenas]: been thinking about [Tharnariun's Hope] - there's something beautiful about restoring hope here
+[Nylaenas]: been thinking about [Tharnariun's Hope] - there's
+  something beautiful about restoring hope here
 [Pelrith]: just finished that quest chain and it felt so good!
 [Kerrandiir]: we handled it flawlessly yesterday, not to flex lol
 [Eveline]: yeah it's a solid quest, decent rewards too
 ```
 
-**Example weather reaction:**
+**Party chat -- your bots react to what's happening:**
+```
+[Thornbeard]: Not bad for a bunch of randoms. That [Riverpaw Runt]
+  didn't stand a chance.
+[Miralynn]: The spirits guided our blades well. Though I admit,
+  I expected more of a fight.
+You: nice job team, let's keep moving
+[Thornbeard]: Lead the way, boss. My axe is getting lonely.
+```
+
+**Weather reactions:**
 ```
 [Thornbeard]: perfect weather for fishing, this rain
 ```
 
-**Example transport arrival:**
+**Transport arrivals:**
 ```
 [Miralynn]: boat to Auberdine just pulled in, anyone heading that way?
 ```
 
-**Example roleplay mode:**
+**Roleplay mode:**
 ```
-[Thornbeard]: By the Light, these lands bear the scars of old wars. One can feel it in the soil.
-[Miralynn]: The spirits whisper of things long buried here. I would not linger past nightfall.
+[Thornbeard]: By the Light, these lands bear the scars of old wars.
+  One can feel it in the soil.
+[Miralynn]: The spirits whisper of things long buried here.
+  I would not linger past nightfall.
 ```
+
+Every quest and item name becomes a clickable WoW link.
+
+## Features
+
+### General Chat (Zone Banter)
+- **2-4 bot conversations** in General chat about quests, loot, and zone life
+- **Zone-aware content** -- messages reference actual quests and items from the zone
+- **Zone flavor system** -- rich atmosphere descriptions for ~45 zones
+- **Natural timing** -- realistic varied delays between messages (1-30 seconds)
+- **Anti-repetition** -- dynamic prompts with creative twists for variety
+- **80+ message categories** -- atmospheric, nostalgic, mystical, humorous, and more
+- **Overworld only** -- chatter stops in dungeons and raids
+
+### Group Party Chat
+- **Greeting reactions** -- bots greet the player when they join a group
+- **Kill reactions** -- comments on creature kills (especially bosses and elites)
+- **Loot reactions** -- react to notable item drops
+- **Combat cries** -- shout during combat engagements
+- **Player message responses** -- bots respond when you type in party chat
+- **Multi-bot conversations** -- bots build on each other's messages
+- **Persistent personalities** -- each bot gets 3 traits that stay consistent
+- **Chat history** -- bots remember recent conversation for coherent replies
+
+### Event Reactions
+- **Weather changes** -- rain, snow, thunderstorms, sandstorms
+- **Transport arrivals** -- boats and zeppelins with destination info
+- **Holidays** -- seasonal event reactions
+- **Day/night transitions** -- dawn, dusk, midnight
+
+### Modes
+- **Normal** -- casual MMO chat with abbreviations and game terms
+- **Roleplay** -- fully in-character speech influenced by race, class, and lore
+
+### Providers
+- **Anthropic Claude** -- Haiku recommended (fast, cheap, high quality)
+- **OpenAI GPT** -- GPT-4o-mini supported
+- **Ollama** -- run local models for free (Qwen3, Llama, Mistral)
 
 ## Requirements
 
 - AzerothCore WotLK (3.3.5a)
-- mod-playerbots (for bot characters)
+- [mod-playerbots](https://github.com/liyunfan1223/mod-playerbots) (for bot characters)
 - Python 3.8+
-- An API key from [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/)
+- An API key from [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/), or [Ollama](https://ollama.ai) installed locally
 
 ## Docker Setup (Recommended)
-
-The easiest way to run mod-llm-chatter is with Docker Compose.
 
 ### 1. Configure the module
 
@@ -83,7 +102,6 @@ Edit `env/dist/etc/modules/mod_llm_chatter.conf`:
 LLMChatter.Enable = 1
 LLMChatter.Anthropic.ApiKey = sk-ant-your-key-here
 LLMChatter.Database.Host = ac-database
-LLMChatter.TriggerChance = 15
 ```
 
 ### 2. Add the bridge to docker-compose.override.yml
@@ -100,16 +118,7 @@ services:
       - PYTHONUNBUFFERED=1
     command: >
       bash -c "
-        if [ ! -f /app/llm_chatter_bridge.py ]; then
-          echo 'mod-llm-chatter not installed - bridge not needed';
-          sleep infinity;
-        fi &&
-        if [ ! -f /config/mod_llm_chatter.conf ]; then
-          echo 'mod_llm_chatter.conf not found - copy from .dist and configure';
-          sleep infinity;
-        fi &&
-        pip install --quiet anthropic openai mysql-connector-python &&
-        echo 'LLM Chatter Bridge: Starting...' &&
+        pip install --quiet -r /app/requirements.txt &&
         python llm_chatter_bridge.py --config /config/mod_llm_chatter.conf
       "
     volumes:
@@ -119,22 +128,14 @@ services:
     depends_on:
       ac-database:
         condition: service_healthy
-      ac-dev-server:
-        condition: service_started
     profiles: [dev]
 ```
 
-### 3. Start everything
+### 3. Start
 
 ```bash
 docker compose --profile dev up -d
 ```
-
-The bridge automatically:
-- Detects if the module is installed
-- Waits for the database to be ready
-- Installs Python dependencies
-- Starts generating chatter
 
 ### 4. Check logs
 
@@ -146,6 +147,8 @@ docker logs ac-llm-chatter-bridge --since 5m
 
 ### 1. Build the module
 
+Place this repo under `modules/` in your AzerothCore source tree, then:
+
 ```bash
 cd azerothcore/build
 cmake .. -DCMAKE_INSTALL_PREFIX=/path/to/install
@@ -156,211 +159,198 @@ make install
 ### 2. Configure
 
 ```bash
-cp modules/mod-llm-chatter/conf/mod_llm_chatter.conf.dist /path/to/etc/modules/mod_llm_chatter.conf
+cp conf/mod_llm_chatter.conf.dist /path/to/etc/modules/mod_llm_chatter.conf
 ```
 
-Edit `mod_llm_chatter.conf`:
-```ini
-LLMChatter.Enable = 1
-LLMChatter.Anthropic.ApiKey = sk-ant-your-key-here
-```
+Edit `mod_llm_chatter.conf` and set your provider + API key.
 
 ### 3. Start the bridge
 
 ```bash
-cd modules/mod-llm-chatter/tools
-pip install anthropic openai mysql-connector-python
+cd tools/
+pip install -r requirements.txt
 python llm_chatter_bridge.py --config /path/to/mod_llm_chatter.conf
 ```
 
 ### 4. Start worldserver
 
-The module will begin generating chatter once bots are in zones with players.
+Database tables are created automatically. Chatter begins once bots are in zones with players.
 
 ## Configuration Reference
 
-All settings are in `mod_llm_chatter.conf`:
+All settings are in `mod_llm_chatter.conf`. Here are the most commonly tuned options:
 
-### General Settings
+### General
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `LLMChatter.Enable` | 0 | Enable/disable the module |
-| `LLMChatter.ChatterMode` | normal | `normal` (casual MMO chat) or `roleplay` (in-character RP) |
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `LLMChatter.Enable` | 0 | Enable the module |
+| `LLMChatter.ChatterMode` | normal | `normal` or `roleplay` |
 | `LLMChatter.TriggerIntervalSeconds` | 60 | Seconds between chatter checks |
-| `LLMChatter.TriggerChance` | 30 | % chance per interval (lower = less frequent) |
-| `LLMChatter.ConversationChance` | 50 | % chance for conversation vs single statement |
-| `LLMChatter.MaxPendingRequests` | 5 | Max queued requests |
+| `LLMChatter.TriggerChance` | 30 | % chance per interval |
+| `LLMChatter.ConversationChance` | 50 | % multi-bot conversation vs solo statement |
+
+### Provider
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `LLMChatter.Provider` | anthropic | `anthropic`, `openai`, or `ollama` |
+| `LLMChatter.Model` | haiku | Model alias or full name |
+| `LLMChatter.Anthropic.ApiKey` | -- | Anthropic API key |
+| `LLMChatter.OpenAI.ApiKey` | -- | OpenAI API key |
+| `LLMChatter.Ollama.BaseUrl` | http://localhost:11434 | Ollama endpoint |
+| `LLMChatter.MaxTokens` | 350 | Max response tokens |
+| `LLMChatter.Temperature` | 0.8 | Creativity (0.0-1.0) |
 
 ### Message Delivery
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `LLMChatter.DeliveryPollMs` | 1000 | How often to check for messages (ms) |
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `LLMChatter.DeliveryPollMs` | 1000 | Check for messages (ms) |
 | `LLMChatter.MessageDelayMin` | 1000 | Min delay between messages (ms) |
-| `LLMChatter.MessageDelayMax` | 45000 | Max delay between messages (ms) |
+| `LLMChatter.MessageDelayMax` | 30000 | Max delay between messages (ms) |
 
-### Event Settings
+### Events
 
-| Option | Default | Description |
-|--------|---------|-------------|
+| Setting | Default | Description |
+|---------|---------|-------------|
 | `LLMChatter.UseEventSystem` | 1 | Enable event-driven chatter |
 | `LLMChatter.EventReactionChance` | 15 | % chance to react to events |
-| `LLMChatter.TransportEventChance` | 50 | % chance to announce transport arrivals |
-| `LLMChatter.TransportCooldownSeconds` | 300 | Cooldown per transport+zone (5 min) |
 | `LLMChatter.Events.Weather` | 1 | React to weather changes |
 | `LLMChatter.Events.Transports` | 1 | React to transport arrivals |
-| `LLMChatter.Events.Holidays` | 1 | React to holiday events |
-| `LLMChatter.Events.DayNight` | 1 | React to day/night transitions |
+| `LLMChatter.Events.Holidays` | 1 | React to holidays |
+| `LLMChatter.Events.DayNight` | 1 | React to time transitions |
 
 ### Rate Limiting
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `LLMChatter.BotSpeakerCooldownSeconds` | 900 | Cooldown per bot (15 min) |
-| `LLMChatter.ZoneFatigueThreshold` | 3 | Max messages before zone cooldown |
-| `LLMChatter.ZoneFatigueCooldownSeconds` | 900 | Zone fatigue cooldown (15 min) |
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `LLMChatter.BotSpeakerCooldownSeconds` | 900 | Per-bot cooldown (15 min) |
+| `LLMChatter.ZoneFatigueThreshold` | 3 | Max reactions per zone |
+| `LLMChatter.ZoneFatigueCooldownSeconds` | 900 | Zone fatigue window (15 min) |
+| `LLMChatter.GlobalMessageCap` | 8 | Max messages server-wide per window |
+| `LLMChatter.GlobalCapWindowSeconds` | 300 | Global cap window (5 min) |
 
-### LLM API Settings
+### Group Chatter
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `LLMChatter.Provider` | anthropic | "anthropic" or "openai" |
-| `LLMChatter.Anthropic.ApiKey` | (empty) | Your Anthropic API key |
-| `LLMChatter.Anthropic.Model` | claude-haiku-4-5-20251001 | Model to use |
-| `LLMChatter.OpenAI.ApiKey` | (empty) | Your OpenAI API key |
-| `LLMChatter.OpenAI.Model` | gpt-4o-mini | Model to use |
-| `LLMChatter.MaxTokens` | 350 | Max response tokens (350 recommended for conversations) |
-| `LLMChatter.Temperature` | 0.8 | Creativity (0.0-1.0) |
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `LLMChatter.GroupChatter.Enable` | 0 | Enable party chat when grouped with bots |
 
-### Database Settings
+### Database
 
-| Option | Default | Description |
-|--------|---------|-------------|
-| `LLMChatter.Database.Host` | localhost | MySQL host (`ac-database` for Docker) |
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `LLMChatter.Database.Host` | localhost | `ac-database` for Docker |
 | `LLMChatter.Database.Port` | 3306 | MySQL port |
 | `LLMChatter.Database.User` | acore | MySQL user |
 | `LLMChatter.Database.Password` | acore | MySQL password |
-| `LLMChatter.Database.Name` | acore_characters | Database name |
-| `LLMChatter.Bridge.PollIntervalSeconds` | 3 | Bridge polling interval |
-
-## Message Types
-
-The module generates different types of messages:
-
-### Regular Chatter (triggered by interval)
-
-| Type | Chance | Description |
-|------|--------|-------------|
-| Plain | 65% | General zone chat, no links |
-| Quest | 15% | Mentions a zone quest with clickable link |
-| Loot | 12% | Mentions an item drop with clickable link |
-| Quest+Reward | 8% | Mentions quest completion and reward item |
-
-### Event-Driven Chatter
-
-| Event | Trigger | Description |
-|-------|---------|-------------|
-| Weather | Actual weather change | Reacts to rain, snow, thunderstorms, sandstorms (zone-appropriate) |
-| Transport | Boat/zeppelin arrival | Announces transport with destination info |
-| Holiday | Holiday start/end | Comments on seasonal events |
-| Day/Night | Time transition | Reacts to dawn/dusk |
-
-## Cost Estimates
-
-Using Claude Haiku (recommended):
-- ~$0.0002 per message
-- ~1000 messages = ~$0.20
-
-The bridge logs token usage for monitoring.
 
 ## Tuning for Your Server
 
-### For a quiet server (solo play)
-
+**Solo play (make the world feel alive):**
 ```ini
 LLMChatter.TriggerIntervalSeconds = 30
 LLMChatter.TriggerChance = 20
 ```
 
-### For a busy server (many real players)
-
+**Busy server (real players + bots):**
 ```ini
 LLMChatter.TriggerIntervalSeconds = 120
 LLMChatter.TriggerChance = 10
 ```
 
-### For testing
-
+**Testing:**
 ```ini
 LLMChatter.TriggerIntervalSeconds = 15
 LLMChatter.TriggerChance = 80
 ```
 
-## Troubleshooting
+## Cost
 
-| Issue | Solution |
-|-------|----------|
-| No chatter appearing | Check `Enable = 1`, API key set, bots in zone |
-| Only works in open world | Chatter disabled in dungeons/raids by design |
-| Messages but no clickable links | Check bridge logs for JSON errors |
-| Too much chatter | Lower `TriggerChance` or raise `TriggerIntervalSeconds` |
-| Too little chatter | Raise `TriggerChance` or lower `TriggerIntervalSeconds` |
-| "mod-llm-chatter not installed" | Module directory not found - check path |
-| "Config not found" | Copy `.conf.dist` to `mod_llm_chatter.conf` |
+**Cloud providers:**
 
-**Check logs:**
-- Docker: `docker logs ac-llm-chatter-bridge --since 5m`
-- Non-Docker: Check terminal output or redirect to log file
+| Provider | Model | Per 1000 messages |
+|----------|-------|-------------------|
+| Anthropic | Claude Haiku | ~$0.20 |
+| OpenAI | GPT-4o-mini | ~$0.20 |
+
+**Ollama:** Free -- runs locally on your machine. Recommended models: `qwen3:4b` (fast), `qwen3:8b` (better quality).
+
+The bridge logs token usage for monitoring.
 
 ## Architecture
 
 ```
-┌─────────────────┐     ┌─────────────┐     ┌──────────────┐     ┌─────────────┐
-│   Worldserver   │────▶│    MySQL    │◀────│   Python     │────▶│  LLM API    │
-│  (C++ module)   │     │   Queue +   │     │   Bridge     │     │  (Claude/   │
-│                 │◀────│  Messages   │     │              │     │   GPT)      │
-└─────────────────┘     └──────────────┘     └─────────────┘     └─────────────┘
-        │                                           │
-        │ Trigger                                   │ Generate
-        │ Selection                                 │ Messages
-        │ Delivery                                  │ Parse Links
-        ▼                                           ▼
-┌─────────────────┐                         ┌─────────────┐
-│   Zone Bots     │                         │  Zone Data  │
-│   Faction       │                         │  Quests     │
-│   Party Check   │                         │  Items      │
-└─────────────────┘                         └─────────────┘
+Worldserver (C++)             Python Bridge
+ |                              |
+ | Trigger / Event fires        |
+ | Select bots, build context   |
+ |──── INSERT queue ──────────▶ |
+ |                              |── build prompt (zone, bots,
+ |                              |   weather, traits, history)
+ |                              |── call LLM
+ |                              |── parse response + links
+ | ◀──── INSERT messages ──────|
+ |                              |
+ | Deliver with realistic       |
+ | timing delays                |
+ |                              |
+ | Group events (kill, loot,    |
+ | combat, player msg) ────────▶|── generate party chat
+ |                              |── with personality traits
+ | ◀──── INSERT party msgs ────|
 ```
 
 ## Files
 
 ```
 mod-llm-chatter/
-├── conf/
-│   └── mod_llm_chatter.conf.dist    # Configuration template
-├── data/sql/db-characters/base/
-│   └── llm_chatter_tables.sql       # Database schema
-├── src/
-│   ├── llm_chatter_loader.cpp       # Script loader
-│   ├── LLMChatterConfig.cpp/h       # Config handling
-│   └── LLMChatterScript.cpp         # Trigger, selection, delivery
-├── tools/
-│   └── llm_chatter_bridge.py        # Python bridge with LLM integration
+├── README.md
+├── LICENSE
+├── .gitignore
 ├── include.sh
-└── README.md
+├── conf/
+│   └── mod_llm_chatter.conf.dist
+├── data/sql/db-characters/base/
+│   └── llm_chatter_tables.sql
+├── src/
+│   ├── llm_chatter_loader.cpp
+│   ├── LLMChatterConfig.cpp
+│   ├── LLMChatterConfig.h
+│   └── LLMChatterScript.cpp
+└── tools/
+    ├── llm_chatter_bridge.py    # Main bridge (queue polling, LLM calls)
+    ├── chatter_constants.py     # Zone flavors, message categories
+    ├── chatter_shared.py        # Config parsing, DB helpers, link formatting
+    ├── chatter_prompts.py       # Prompt building for all chatter types
+    ├── chatter_events.py        # Event processing (weather, transport, etc.)
+    ├── chatter_group.py         # Group chatter (party chat with bots)
+    ├── spell_names.py           # Spell ID-to-name lookup table
+    └── requirements.txt
 ```
 
-## Documentation
+## Troubleshooting
 
-For detailed implementation documentation, see:
-- [mod-llm-chatter Documentation](../../docs/mod-llm-chatter/mod-llm-chatter-documentation.md)
+| Issue | Solution |
+|-------|----------|
+| No chatter appearing | Check `Enable = 1`, API key set, bots in zone with a player |
+| Chatter only in open world | Intended -- disabled in dungeons/raids |
+| No clickable links | Check bridge logs for JSON parse errors |
+| Too much chatter | Lower `TriggerChance` or raise `TriggerIntervalSeconds` |
+| Too little chatter | Raise `TriggerChance` or lower `TriggerIntervalSeconds` |
+| Group chat not working | Set `GroupChatter.Enable = 1`, must have bots in your party |
+| Ollama slow responses | Try a smaller model (`qwen3:4b`) or increase `Ollama.ContextSize` |
+
+**Check logs:**
+- Docker: `docker logs ac-llm-chatter-bridge --since 5m`
+- Non-Docker: check terminal output or redirect to a log file
 
 ## License
 
-GNU AGPL v3 - Same as AzerothCore.
+GNU AGPL v3 -- same as AzerothCore.
 
 ## Credits
 
 - Uses [mod-playerbots](https://github.com/liyunfan1223/mod-playerbots) for bot characters
-- Powered by [Anthropic Claude](https://anthropic.com) or [OpenAI GPT](https://openai.com)
+- Powered by [Anthropic Claude](https://anthropic.com), [OpenAI GPT](https://openai.com), or [Ollama](https://ollama.ai)

@@ -57,6 +57,9 @@ public:
     bool _eventsWeather;      // Future: weather changes
     bool _eventsTransports;   // Future: transport arrivals
 
+    // Group chatter
+    bool _useGroupChatter;
+
 private:
     LLMChatterConfig() = default;
 };

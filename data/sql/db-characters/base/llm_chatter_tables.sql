@@ -1,5 +1,7 @@
+-- --------------------------------------------------------
 -- LLM Chatter Module Tables
 -- Dynamic bot conversations powered by AI
+-- --------------------------------------------------------
 
 -- Event queue for game events that may trigger chatter
 DROP TABLE IF EXISTS `llm_chatter_events`;
@@ -22,7 +24,17 @@ CREATE TABLE `llm_chatter_events` (
         'transport_arrives',
         'day_night_transition',
         'enemy_player_near',
-        'bot_loot_item'
+        'bot_loot_item',
+        'bot_group_join',
+        'bot_group_kill',
+        'bot_group_death',
+        'bot_group_loot',
+        'bot_group_player_msg',
+        'bot_group_combat',
+        'bot_group_levelup',
+        'bot_group_quest_complete',
+        'bot_group_achievement',
+        'bot_group_spell_cast'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,
@@ -76,7 +88,7 @@ CREATE TABLE `llm_chatter_queue` (
     `bot4_class` VARCHAR(32) DEFAULT NULL,
     `bot4_race` VARCHAR(32) DEFAULT NULL,
     `bot4_level` TINYINT UNSIGNED DEFAULT NULL,
-    `status` ENUM('pending', 'processing', 'completed', 'failed') NOT NULL DEFAULT 'pending',
+    `status` ENUM('pending', 'processing', 'completed', 'failed', 'cancelled') NOT NULL DEFAULT 'pending',
     `created_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     `processed_at` TIMESTAMP NULL DEFAULT NULL,
     PRIMARY KEY (`id`),
@@ -103,4 +115,34 @@ CREATE TABLE `llm_chatter_messages` (
     KEY `idx_queue` (`queue_id`),
     KEY `idx_event` (`event_id`),
     KEY `idx_delivery` (`delivered`, `deliver_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Personality traits for bots in player groups
+DROP TABLE IF EXISTS `llm_group_bot_traits`;
+CREATE TABLE `llm_group_bot_traits` (
+    `id` INT UNSIGNED NOT NULL AUTO_INCREMENT,
+    `group_id` INT UNSIGNED NOT NULL,
+    `bot_guid` INT UNSIGNED NOT NULL,
+    `bot_name` VARCHAR(64) NOT NULL,
+    `trait1` VARCHAR(32) NOT NULL,
+    `trait2` VARCHAR(32) NOT NULL,
+    `trait3` VARCHAR(32) NOT NULL,
+    `assigned_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (`id`),
+    UNIQUE KEY `uk_group_bot` (`group_id`, `bot_guid`),
+    INDEX `idx_group` (`group_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Chat history for group conversations (provides context)
+DROP TABLE IF EXISTS `llm_group_chat_history`;
+CREATE TABLE `llm_group_chat_history` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `group_id` INT UNSIGNED NOT NULL,
+    `speaker_guid` INT UNSIGNED NOT NULL,
+    `speaker_name` VARCHAR(64) NOT NULL,
+    `is_bot` TINYINT(1) NOT NULL DEFAULT 0,
+    `message` VARCHAR(255) NOT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_group_id` (`group_id`),
+    INDEX `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

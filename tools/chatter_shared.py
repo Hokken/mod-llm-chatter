@@ -20,7 +20,8 @@ from chatter_constants import (
     ZONE_LEVELS, ZONE_COORDINATES, ZONE_NAMES,
     CLASS_NAMES, RACE_NAMES, CLASS_IDS,
     RACE_SPEECH_PROFILES, CLASS_SPEECH_MODIFIERS,
-    ZONE_FLAVOR, ITEM_QUALITY_COLORS, CLASS_BITMASK,
+    ZONE_FLAVOR, DUNGEON_FLAVOR,
+    ITEM_QUALITY_COLORS, CLASS_BITMASK,
     MSG_TYPE_PLAIN, MSG_TYPE_QUEST, MSG_TYPE_LOOT,
     MSG_TYPE_QUEST_REWARD, MSG_TYPE_TRADE,
     MSG_TYPE_SPELL,
@@ -246,6 +247,57 @@ def get_zone_level_range(
 def get_zone_flavor(zone_id: int) -> Optional[str]:
     """Get rich zone flavor text for immersive context."""
     return ZONE_FLAVOR.get(zone_id)
+
+
+def get_dungeon_flavor(map_id: int) -> Optional[str]:
+    """Get dungeon/raid flavor text by map ID."""
+    return DUNGEON_FLAVOR.get(map_id)
+
+
+# Cache for dungeon boss lists (never changes)
+_dungeon_boss_cache = {}
+
+
+def get_dungeon_bosses(
+    db, map_id: int
+) -> list:
+    """Get boss names for a dungeon/raid map.
+
+    Queries creature + creature_template from
+    acore_world (rank=3 = boss). Results are
+    cached since boss lists never change.
+    """
+    if map_id in _dungeon_boss_cache:
+        return _dungeon_boss_cache[map_id]
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT DISTINCT ct.name
+            FROM acore_world.creature c
+            JOIN acore_world.creature_template ct
+                ON c.id1 = ct.entry
+            WHERE c.map = %s AND ct.rank = 3
+            ORDER BY ct.name
+        """, (map_id,))
+        bosses = [
+            row['name']
+            for row in cursor.fetchall()
+        ]
+        _dungeon_boss_cache[map_id] = bosses
+        if bosses:
+            logger.info(
+                f"Dungeon bosses for map "
+                f"{map_id}: {', '.join(bosses)}"
+            )
+        return bosses
+    except Exception as e:
+        logger.warning(
+            f"Failed to query dungeon bosses "
+            f"for map {map_id}: {e}"
+        )
+        _dungeon_boss_cache[map_id] = []
+        return []
 
 
 def can_class_use_item(

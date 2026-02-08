@@ -40,6 +40,9 @@ void LLMChatterConfig::LoadConfig()
     _eventsWeather = sConfigMgr->GetOption<bool>("LLMChatter.Events.Weather", true);
     _eventsTransports = sConfigMgr->GetOption<bool>("LLMChatter.Events.Transports", true);
 
+    // Group chatter
+    _useGroupChatter = sConfigMgr->GetOption<bool>("LLMChatter.GroupChatter.Enable", false);
+
     if (_enabled)
     {
         LOG_INFO("module", "LLMChatter: Module enabled");
@@ -48,6 +51,10 @@ void LLMChatterConfig::LoadConfig()
         if (_useEventSystem)
         {
             LOG_INFO("module", "LLMChatter: Event system enabled (reaction chance: {}%)", _eventReactionChance);
+        }
+        if (_useGroupChatter)
+        {
+            LOG_INFO("module", "LLMChatter: Group chatter enabled");
         }
     }
 }

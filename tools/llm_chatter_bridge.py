@@ -72,6 +72,19 @@ from chatter_events import (
     cleanup_expired_events,
     reset_stuck_processing_events,
 )
+from chatter_group import (
+    process_group_event,
+    process_group_kill_event,
+    process_group_death_event,
+    process_group_loot_event,
+    process_group_combat_event,
+    process_group_player_msg_event,
+    process_group_levelup_event,
+    process_group_quest_complete_event,
+    process_group_achievement_event,
+    process_group_spell_cast_event,
+    check_idle_group_chatter,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -906,6 +919,7 @@ def process_pending_events(
                    OR e.expires_at > NOW())
               AND (
                   e.zone_id IS NULL
+                  OR e.event_type LIKE 'bot_group%%'
                   OR (
                       EXISTS (
                           SELECT 1 FROM characters c
@@ -939,6 +953,80 @@ def process_pending_events(
     event_id = event['id']
     event_type = event['event_type']
     zone_id = event.get('zone_id')
+
+    # Group events bypass all zone/bot checks
+    # NOTE: Using logger.warning so group events
+    # remain visible when log level is WARNING
+    if event_type == 'bot_group_join':
+        logger.warning(
+            f"Group event #{event_id}: "
+            f"{event_type}")
+        return process_group_event(
+            db, client, config, event
+        )
+    if event_type == 'bot_group_kill':
+        logger.warning(
+            f"Group event #{event_id}: "
+            f"{event_type}")
+        return process_group_kill_event(
+            db, client, config, event
+        )
+    if event_type == 'bot_group_death':
+        logger.warning(
+            f"Group event #{event_id}: "
+            f"{event_type}")
+        return process_group_death_event(
+            db, client, config, event
+        )
+    if event_type == 'bot_group_loot':
+        logger.warning(
+            f"Group event #{event_id}: "
+            f"{event_type}")
+        return process_group_loot_event(
+            db, client, config, event
+        )
+    if event_type == 'bot_group_combat':
+        logger.warning(
+            f"Group event #{event_id}: "
+            f"{event_type}")
+        return process_group_combat_event(
+            db, client, config, event
+        )
+    if event_type == 'bot_group_player_msg':
+        logger.warning(
+            f"Group event #{event_id}: "
+            f"{event_type}")
+        return process_group_player_msg_event(
+            db, client, config, event
+        )
+    if event_type == 'bot_group_levelup':
+        logger.warning(
+            f"Group event #{event_id}: "
+            f"{event_type}")
+        return process_group_levelup_event(
+            db, client, config, event
+        )
+    if event_type == 'bot_group_quest_complete':
+        logger.warning(
+            f"Group event #{event_id}: "
+            f"{event_type}")
+        return process_group_quest_complete_event(
+            db, client, config, event
+        )
+    if event_type == 'bot_group_achievement':
+        logger.warning(
+            f"Group event #{event_id}: "
+            f"{event_type}")
+        return process_group_achievement_event(
+            db, client, config, event
+        )
+    if event_type == 'bot_group_spell_cast':
+        logger.warning(
+            f"Group event #{event_id}: "
+            f"{event_type}")
+        return process_group_spell_cast_event(
+            db, client, config, event
+        )
 
     # Transport events have a chance-based filter
     # (not every arrival should trigger chat)
@@ -1765,7 +1853,7 @@ def main():
     chatter_mode = get_chatter_mode(config)
 
     logger.info("=" * 60)
-    logger.info("LLM Chatter Bridge v3.6")
+    logger.info("LLM Chatter Bridge v3.9")
     logger.info("=" * 60)
     logger.info(f"ChatterMode: {chatter_mode}")
     logger.info(f"Provider: {provider}")
@@ -1886,6 +1974,8 @@ def main():
     # Main loop
     last_cleanup = 0
     cleanup_interval = 60  # every 60 seconds
+    last_idle_check = 0
+    idle_check_interval = 120  # every 2 minutes
 
     while True:
         try:
@@ -1917,6 +2007,23 @@ def main():
                         db, client, config
                     )
                 )
+
+            # Periodic idle group chatter check
+            if (
+                use_event_system
+                and current_time - last_idle_check
+                >= idle_check_interval
+            ):
+                last_idle_check = current_time
+                try:
+                    check_idle_group_chatter(
+                        db, client, config
+                    )
+                except Exception as e:
+                    logger.debug(
+                        f"Idle chatter check "
+                        f"error: {e}"
+                    )
 
             db.close()
 

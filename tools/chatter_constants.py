@@ -545,6 +545,179 @@ stand. The air itself feels dead. This is the end of the road - victory
 or oblivion.""",
 }
 
+# =============================================================================
+# DUNGEON FLAVOR - Rich context for immersive dungeon/raid chat generation
+# =============================================================================
+# Each dungeon/raid gets a description that gives the LLM world knowledge.
+# Keyed by Map ID (not zone ID). The LLM uses this as creative inspiration.
+DUNGEON_FLAVOR = {
+    # -------------------------------------------------------------------------
+    # Classic Dungeons
+    # -------------------------------------------------------------------------
+    33: """Shadowfang Keep: A haunted fortress in Silverpine Forest, overrun by worgen and the undead servants of the necromancer Arugal. Ghostly nobles wander the dark halls, spectral hounds bay in the courtyards, and arcane experiments gone wrong lurk in every shadow. The keep feels like a gothic horror story - cold stone, flickering torchlight, and the constant sense that something is watching.""",
+
+    34: """The Stockade: A prison beneath Stormwind City where the inmates have revolted and taken control. Defias rioters, crazed convicts, and gang leaders roam the cramped stone cellblocks. The dungeon is claustrophobic and brutal - narrow corridors, iron bars, and the sounds of violence echoing off damp walls. Quick, dirty, and dangerous.""",
+
+    36: """The Deadmines: A sprawling mine complex beneath Westfall, secretly the headquarters of the Defias Brotherhood. The path winds through goblin-engineered tunnels, lumber mills, and smelting operations before emerging in a massive underground cavern where a full-sized pirate ship sits in a hidden cove. It feels like discovering a criminal empire hidden right under Stormwind's nose.""",
+
+    43: """Wailing Caverns: A maze of twisting caverns in the Barrens, overgrown with lush vegetation fed by corrupted druid magic. Deviate creatures - mutated raptors, serpents, and oozes - slither through the emerald-tinted tunnels. The Druids of the Fang have lost themselves to the Emerald Nightmare. The air is thick, humid, and smells of jungle rot.""",
+
+    47: """Razorfen Kraul: A thorny labyrinth grown from massive briars in the Barrens, home to the quilboar and their matriarch Charlga Razorflank. Quilboar warriors, shamans, and their boar companions fill the winding thorn-walled corridors. The dungeon feels primal and feral - nature twisted into a fortress of bone, thorn, and mud.""",
+
+    48: """Blackfathom Deeps: A partially submerged ancient temple on Darkshore's coast, sacred to dark powers. Naga, satyrs, and twilight cultists worship old gods in flooded halls adorned with crumbling night elf architecture. The water glows an eerie blue-green, and the atmosphere is oppressive and ancient - something powerful sleeps in the deepest pools.""",
+
+    70: """Uldaman: A titan excavation site buried in the Badlands, half-dig and half-dungeon. Stone troggs, earthen constructs, and archaeological hazards fill chambers of polished titan metal and raw rock. The deeper you go, the more alien the architecture becomes - smooth geometric halls humming with dormant power. It feels like trespassing in a library built by gods.""",
+
+    90: """Gnomeregan: The irradiated ruins of the gnomish capital city, lost to a trogg invasion and a catastrophic radiation leak. Crazed leper gnomes, malfunctioning robots, and toxic oozes populate the multi-leveled mechanical complex. Alarm klaxons blare, green radiation pools glow, and broken machinery sparks everywhere. It is equal parts tragic and absurd.""",
+
+    109: """Sunken Temple: The Temple of Atal'Hakkar, a troll temple dragged beneath the swamps by the Green Dragonflight. Atal'ai trolls worship the blood god Hakkar in flooded, vine-choked halls. Dragonkin guard the deeper levels, and the maze-like layout is disorienting. The atmosphere is thick with jungle humidity, ancient troll magic, and a sense of forbidden ritual.""",
+
+    129: """Razorfen Downs: A quilboar burial ground in the Barrens, infested with undead. The Scourge agent Amnennar the Coldbringer has raised the quilboar dead, turning their sacred crypts into a necropolis of bone and thorn. Skeletal quilboar and plague bats fill the gloomy corridors. A place where two kinds of death collide - primal and necromantic.""",
+
+    189: """Scarlet Monastery: A fortified monastery in Tirisfal Glades, stronghold of the fanatical Scarlet Crusade. Four wings house a library of forbidden texts, an armory bristling with zealots, a cathedral of twisted faith, and a haunted graveyard. The Crusaders are well-armed, disciplined, and utterly insane - convinced everyone is secretly undead. Beautiful architecture hiding murderous fanaticism.""",
+
+    209: """Zul'Farrak: A troll city half-buried in the sands of Tanaris, home to the hostile Sandfury trolls. Sun-baked stone temples, sacrificial altars, and sandy courtyards make up this open-air dungeon. The famous staircase battle pits you against waves of troll warriors. The desert heat is relentless, the trolls are savage, and ancient magic crackles through the ruins.""",
+
+    229: """Blackrock Spire: A massive orc fortress carved into the upper reaches of Blackrock Mountain. The lower spire teems with Blackrock orcs, ogres, and trolls, while the upper spire is the seat of Warchief Rend Blackhand and his dragonkin allies. Lava glows below, war drums echo constantly, and the air reeks of smoke and blood. A sprawling military stronghold at the heart of the Dark Horde.""",
+
+    230: """Blackrock Depths: A vast Dark Iron dwarf city deep within Blackrock Mountain, built around a lake of molten lava. The Grim Guzzler tavern, the Emperor's throne room, and Molten Core's doorstep are all here. Elementals, golems, and fanatical Dark Iron dwarves fill an impossibly large underground metropolis. It feels like an entire civilization exists down here, dark and industrious and hostile.""",
+
+    269: """The Black Morass: A Caverns of Time instance set in the primordial swamp that would become the Blasted Lands. Infinite Dragonflight agents attempt to prevent Medivh from opening the Dark Portal, and waves of dragonkin assault through time rifts. The swamp is dark, foggy, and primeval, with the Portal's energy crackling in the distance. Time itself feels unstable here.""",
+
+    289: """Scholomance: A necromantic academy in the crypts beneath Caer Darrow, run by the Cult of the Damned. Students and professors of dark magic practice their craft on the dead and the living alike. Skeletons, ghosts, and flesh golems fill classrooms and laboratories. The dungeon has a perverse scholarly atmosphere - lecture halls and libraries devoted entirely to death magic.""",
+
+    329: """Stratholme: The burning ruins of a once-great city, forever aflame since Arthas purged it. The undead Scourge controls the eastern half while the Scarlet Crusade fanatically holds the western gates. Buildings crumble in perpetual fire, abominations lumber through the streets, and the ash never settles. A monument to tragedy and madness - every corner holds the memory of slaughter.""",
+
+    349: """Maraudon: A sacred cavern system in Desolace, warped by Princess Theradras and her centaur descendants after the death of the keeper Zaetar. Three color-coded paths wind through crystalline caves, poisonous waterfalls, and lush underground gardens before reaching the inner sanctum. The deeper chambers are hauntingly beautiful - glowing crystals, clear pools, and ancient earth magic struggling against corruption. Nature, grief, and elemental fury tangled together.""",
+
+    389: """Ragefire Chasm: A volcanic cavern system beneath Orgrimmar itself, where Burning Blade cultists and troggs have taken root. Lava flows through narrow tunnels, fire elementals patrol, and the heat is suffocating. Short and brutal - the kind of place that reminds you the Horde built their capital on top of a volcano.""",
+
+    429: """Dire Maul: A ruined Highborne city in Feralas, divided into three wings. Ogres have claimed the north, satyrs and corrupted ancients infest the east, and ghostly Highborne spirits haunt the west wing's library. Crumbling elven architecture of staggering beauty slowly succumbs to jungle overgrowth. The dungeon feels vast, ancient, and melancholy - a great civilization's corpse being picked apart by squatters.""",
+
+    # -------------------------------------------------------------------------
+    # Classic Raids
+    # -------------------------------------------------------------------------
+    249: """Onyxia's Lair: A single vast cavern in Dustwallow Marsh, home to the broodmother Onyxia. The approach winds through a narrow tunnel of scorched rock before opening into an enormous chamber littered with bones and egg clutches. Whelps swarm, lava bubbles at the edges, and Onyxia herself fills the cavern with fire and shadow. Claustrophobic tunnel into an overwhelming arena of dragonfire.""",
+
+    309: """Zul'Gurub: A massive troll temple complex in the jungles of Stranglethorn, where the Gurubashi tribe has unleashed the blood god Hakkar. Overgrown courtyards, sacrificial altars, and beast-filled plazas surround a central temple dripping with blood magic. Snake priests, bat riders, and tiger cultists serve their dark masters. The jungle itself seems to pulse with primal voodoo energy.""",
+
+    409: """Molten Core: The burning heart of Blackrock Mountain, a realm of pure fire ruled by Ragnaros the Firelord. Rivers of lava flow between obsidian platforms, fire elementals and molten giants patrol everywhere, and the heat is apocalyptic. Core hounds with multiple heads, towering lava surgers, and ancient flamewakers guard their master. The ultimate trial by fire - beautiful and terrifying in equal measure.""",
+
+    469: """Blackwing Lair: Nefarian's stronghold atop Blackrock Spire, a dark laboratory where the black dragon experiments on other dragonflights. Drakonid soldiers, chromatic drakes, and failed experiments fill halls of dark iron and dragon bone. Each chamber presents a unique tactical challenge. The raid feels clinical and sinister - a mad scientist's lair scaled up to dragon proportions.""",
+
+    509: """Ruins of Ahn'Qiraj: An open-air battlefield in Silithus where qiraji forces mass for war. Insectoid warriors, obsidian destroyers, and massive beetle-like creatures swarm across sand-swept courtyards and crumbling temple ruins. The architecture is alien and chitinous, equal parts Egyptian tomb and insect hive. The desert wind carries the clicking of a million legs.""",
+
+    531: """Temple of Ahn'Qiraj: The sealed inner sanctum of the qiraji empire, a nightmare of alien architecture and old god corruption. The twin emperors, massive silithid royalty, and the ancient god C'Thun itself lurk within. Walls pulse with organic growth, eyes watch from every surface, and reality bends near the old god's prison. The most alien and disturbing place in classic Azeroth.""",
+
+    # -------------------------------------------------------------------------
+    # TBC Dungeons
+    # -------------------------------------------------------------------------
+    540: """Shattered Halls: The fel orc stronghold within Hellfire Citadel, a blood-soaked gauntlet of the most fanatical Burning Legion servants. Fel orc gladiators, legionnaires, and berserkers pack every corridor, with prisoners chained to the walls. The architecture is brutal iron and red stone, stained with the evidence of constant violence. An unrelenting assault on a fortress that fights back at every step.""",
+
+    542: """Blood Furnace: A demonic factory within Hellfire Citadel where fel orcs are manufactured through dark rituals. Vats of boiling blood, caged prisoners awaiting transformation, and fel machinery fill the steaming chambers. Nascent fel orcs and their overseers guard the production lines. The dungeon reeks of blood and brimstone - an industrial horror show.""",
+
+    543: """Hellfire Ramparts: The outer fortifications of Hellfire Citadel, first line of defense for the fel orc army. Watchtowers, battlements, and narrow walkways offer sweeping views of the shattered Hellfire Peninsula below. Fel orc soldiers, worg riders, and a captive dragon guard the walls. The wind howls through broken ramparts, and the red sky of Outland stretches endlessly overhead.""",
+
+    545: """The Steamvault: A naga-controlled water pumping station in Coilfang Reservoir, where Lady Vashj's forces drain Zangarmarsh. Massive pipes, valves, and water channels dominate the industrial layout. Naga, bog lords, and water elementals guard the machinery. Steam hisses from every joint and the roar of rushing water is deafening. A dungeon that feels like sabotaging a hostile factory.""",
+
+    546: """The Underbog: A festering swamp beneath Coilfang Reservoir, teeming with mutated fungal creatures and hostile nature spirits. Spore giants, bog lords, and venomous wildlife fill the overgrown caverns. Bioluminescent fungi cast an eerie glow over stagnant pools. The air is thick with spores and the smell of decay - nature run wild and turned hostile.""",
+
+    547: """The Slave Pens: The labor camps of Coilfang Reservoir where the Broken draenei are held captive by naga slavemasters. Waterlogged tunnels, crude holding pens, and naga overseers with their whips define the atmosphere. Fungal growths and marsh creatures have infiltrated the complex. A dungeon suffused with misery and oppression, half-drowned and rotting.""",
+
+    552: """The Arcatraz: A dimensional prison satellite of Tempest Keep, holding the most dangerous entities in the cosmos. Eredar warlocks, void creatures, and blood elf saboteurs roam cellblocks designed to contain horrors beyond imagination. The architecture is crystalline draenei technology warped by its inmates. Every cell door you pass makes you wonder what got out - and what is still locked inside.""",
+
+    553: """The Botanica: A vast biodome satellite of Tempest Keep, where exotic flora from across the cosmos was once cultivated. Blood elves have seized the facility, and the plants have grown wild and hostile. Lashers, treants, and alien botanical specimens fill conservatories of shimmering crystal. Beautiful but deadly - every flower might kill you, and the blood elves are worse.""",
+
+    554: """The Mechanar: A manufacturing wing of Tempest Keep, now controlled by blood elf engineers and their mechanical creations. Arcane constructs, fel reavers, and nethermancer overseers guard corridors of gleaming crystal and humming machinery. The technology is elegant and alien - draenei engineering repurposed for sinister ends. Everything hums with barely contained arcane energy.""",
+
+    555: """Shadow Labyrinth: The deepest wing of Auchindoun, where the Shadow Council conducts its darkest rituals. Void walkers, fel casters, and Cabal cultists worship in chambers thick with shadow magic. Murmur, a primordial sound elemental, is chained in the deepest chamber. The darkness here feels alive and hungry - shadows move on their own, and whispers come from everywhere and nowhere.""",
+
+    556: """Sethekk Halls: Arakkoa temple halls within Auchindoun, occupied by fanatics devoted to the Raven God Anzu. Crazed arakkoa priests, their summoned spirits, and spectral guardians fill the feather-strewn corridors. The architecture mixes draenei and arakkoa styles in unsettling ways. The inhabitants have gone utterly insane, and the halls echo with deranged screeching and dark prophecy.""",
+
+    557: """Mana-Tombs: The ethereal-infested wing of Auchindoun, where Nexus-Prince Shaffar's consortium plunders draenei burial vaults. Ethereal bandits, arcane constructs, and restless draenei spirits clash in crystalline tomb chambers. The tombs glow with residual holy energy while the ethereals siphon it away. A sacred place being systematically looted by interdimensional thieves.""",
+
+    558: """Auchenai Crypts: The draenei burial grounds beneath Auchindoun, where the Auchenai priests have gone mad communing with the dead. Restless spirits, possessed clerics, and undead draenei fill the bone-lined crypts. What was once a place of respectful remembrance has become a charnel house. The tragedy is palpable - these were caretakers who lost themselves to grief.""",
+
+    560: """Old Hillsbrad Foothills: A Caverns of Time instance set in the past, when Thrall was still a slave in Durnholde Keep. The Hillsbrad of years ago is green, peaceful, and full of unsuspecting humans going about their lives. The Infinite Dragonflight tries to alter history by preventing Thrall's escape. It feels surreal - walking through a place you know before it all went wrong.""",
+
+    568: """Zul'Aman: A forest troll stronghold in the Ghostlands, where Warlord Zul'jin has empowered his champions with the essence of animal gods. Lynx, bear, eagle, and dragonhawk spirits infuse the troll temple guardians. The Amani forest-temple architecture is vivid and primal, decorated with masks, totems, and war paint. A timed gauntlet where speed matters and the troll drums never stop beating.""",
+
+    585: """Magisters' Terrace: The final bastion of Kael'thas Sunstrider on the Isle of Quel'Danas, a blood elf palace of stunning elegance hiding demonic corruption. Fel crystals power arcane constructs, blood elf magisters channel forbidden magic, and a captured naaru is being drained of its Light. The beauty of Silvermoon architecture twisted by desperation and addiction - gilded halls concealing a monstrous bargain.""",
+
+    # -------------------------------------------------------------------------
+    # TBC Raids
+    # -------------------------------------------------------------------------
+    532: """Karazhan: The haunted tower of the last Guardian, Medivh, in Deadwind Pass. A spectral dinner party, an opera stage with ghostly performers, a chess game come to life, and a celestial observatory fill the impossibly tall tower. The tower exists partially outside normal reality - rooms shift, time bends, and echoes of Medivh's madness play out eternally. Hauntingly beautiful, deeply eerie, and utterly unique.""",
+
+    534: """Hyjal Summit: A Caverns of Time raid set during the Battle of Mount Hyjal, the climactic stand against Archimonde and the Burning Legion. Waves of undead and demons assault three bases in succession - human, Horde, and night elf. The world tree Nordrassil looms above while the forest burns. An epic defense scenario where the fate of Azeroth hangs in the balance and legendary heroes fight at your side.""",
+
+    544: """Magtheridon's Lair: A single brutal chamber beneath Hellfire Citadel where the pit lord Magtheridon is chained. Channelers maintain his prison while hellfire energy pulses through the room. The space is oppressively hot, reeking of demon blood and brimstone. A straightforward but punishing encounter - one massive demon, one deadly room, no room for error.""",
+
+    548: """Serpentshrine Cavern: Lady Vashj's underwater stronghold in Coilfang Reservoir, a flooded palace of corrupted beauty. Naga, tidewalkers, and colossal hydras guard chambers where waterfalls cascade into luminous pools. Bridges span underground lakes, and the deeper chambers pulse with the corrupted waters of Zangarmarsh. Elegant naga architecture meets the raw power of a subterranean ocean.""",
+
+    550: """Tempest Keep - The Eye: Kael'thas Sunstrider's captured naaru fortress, a crystalline citadel floating above Netherstorm. Blood elf advisors, arcane constructs, and void creatures guard chambers of shimmering draenei crystal. The technology is breathtakingly alien and beautiful, repurposed by desperate elves feeding their magic addiction. The view of the shattered Netherstorm from the platforms is both stunning and terrifying.""",
+
+    564: """Black Temple: Illidan Stormrage's fortress in Shadowmoon Valley, a massive draenei temple corrupted by demonic occupation. Fel orcs, demons, naga, and blood elves serve the Betrayer through sprawling courtyards, sewer systems, and grand halls. The temple's original beauty is scarred by fel corruption - cracked holy symbols, defiled altars, and green fire where there was once Light. The culmination of Outland's story, ending at Illidan's throne.""",
+
+    565: """Gruul's Lair: A rough cavern complex in Blade's Edge Mountains, home to the gronn father Gruul the Dragonkiller. Ogre servants and Gruul's monstrous sons guard the approach to his chamber, which is littered with dragon bones and trophies. The caves feel primal and brutal - no architecture, no decoration, just raw stone shaped by the fists of giants.""",
+
+    580: """Sunwell Plateau: The final raid of the Burning Crusade, set in the heart of the restored Sunwell on the Isle of Quel'Danas. The Burning Legion attempts to summon Kil'jaeden through the Sunwell itself. Pristine elven architecture of breathtaking beauty frames a desperate battle against the most powerful demons in the Legion's army. The holy light of the Sunwell clashes with demonic darkness in every chamber.""",
+
+    # -------------------------------------------------------------------------
+    # WotLK Dungeons
+    # -------------------------------------------------------------------------
+    574: """Utgarde Keep: A vrykul fortress on the shores of the Howling Fjord, the first taste of Northrend's dangers. Viking-inspired halls of dark stone and iron, lit by roaring hearths and decorated with dragon skulls. Vrykul warriors, proto-drake handlers, and their undead servants fill the great halls. The dungeon feels like raiding a Norse longhouse - cold, brutal, and steeped in warrior culture.""",
+
+    575: """Utgarde Pinnacle: The upper reaches of Utgarde Keep, where the vrykul king Ymiron rules from his frozen throne. Trophy halls, eagle aviaries, and ritual chambers tower above the fjord. The architecture grows grander and more menacing as you ascend, culminating in Ymiron's frost-rimed throne room. Wind howls through open battlements, and the view of the frozen landscape below is dizzying.""",
+
+    576: """The Nexus: The crystalline caves beneath Coldarra, stronghold of the Blue Dragonflight's war on mortal magic. Frozen caverns of impossible beauty contain arcane anomalies, crazed mage hunters, and rifts in reality. Crystallized dragons hang frozen in mid-flight. The dungeon shimmers with unstable arcane energy - blues, purples, and whites refracting through ice and crystal in every direction.""",
+
+    578: """The Oculus: The upper rings of the Nexus, a series of floating platforms connected by magical bridges high above the ley line nexus. Players mount drakes to navigate between ring segments while battling Malygos's forces. The void stretches below, arcane energy crackles between platforms, and the vertigo is real. A dungeon that feels like flying through a magical storm at the edge of reality.""",
+
+    595: """Culling of Stratholme: A Caverns of Time instance set during Arthas's fateful purge of the plagued city. The streets of Stratholme are intact but doomed - citizens transform into undead as you watch, and Arthas grimly orders their deaths before the change. The dungeon is uniquely disturbing because you are helping commit the atrocity that begins Arthas's fall. History's darkest moment, relived.""",
+
+    599: """Halls of Stone: A titan facility in the Storm Peaks, part of Ulduar's vast complex. Stone corridors of geometric perfection house malfunctioning titan constructs, iron dwarves, and ancient defense systems. The Tribunal of Ages holds records of creation itself. The dungeon feels scholarly and ancient - a museum where the exhibits fight back and the history stored here could shatter civilizations.""",
+
+    600: """Drak'Tharon Keep: A Scourge-infested troll fortress on the border of Grizzly Hills and Zul'Drak. The Scourge has raised the troll dead and corrupted their dinosaur beasts, creating an unholy fusion of troll culture and necromantic power. Skeletal raptors, zombie trolls, and the lich Novos the Summoner fill the decaying halls. Troll architecture crumbling under the weight of undeath.""",
+
+    601: """Azjol-Nerub: The ruined nerubian kingdom beneath Northrend, a web-choked vertical descent through the spider empire. Nerubian architecture of silk and chitin stretches across vast underground chasms. Undead nerubians serve the Scourge while the living fight desperately. The dungeon drops you deeper and deeper through collapsing floors - claustrophobic, alien, and crawling with things that should not exist.""",
+
+    602: """Halls of Lightning: A titan forge complex in Ulduar, crackling with electrical energy. Iron dwarves, storm giants, and runic constructs guard corridors of gleaming metal and arcing lightning. Loken, the corrupted titan keeper, waits in the deepest chamber. Every surface hums with power, sparks dance across the walls, and the thunder of the forge is constant and deafening.""",
+
+    604: """Gundrak: A Drakkari troll temple in Zul'Drak, where the trolls sacrifice their own animal gods to fuel their war against the Scourge. Altars run with divine blood as serpent, mammoth, and rhino spirits are consumed. The temple is massive and primal - carved stone, ritual pools, and the desperate energy of a dying civilization burning its own gods for survival.""",
+
+    608: """Violet Hold: A magical prison beneath Dalaran, where the Kirin Tor contains the most dangerous creatures in Northrend. Azure Dragonflight agents assault the prison from portals, releasing inmates in waves. The architecture is elegant Dalaran purple and silver, but the inmates are nightmarish. A tower defense scenario in a wizard's dungeon - arcane wards strain against chaos.""",
+
+    619: """Ahn'kahet: The Old Kingdom: The deepest reaches of Azjol-Nerub, where Faceless Ones serve the old god Yogg-Saron. The architecture shifts from nerubian to something far older and more alien - organic walls pulse, reality warps, and insanity effects assault the mind. Forgotten ones, spell flingers, and the herald Volazj lurk in chambers that defy geometry. The most disturbing dungeon in Northrend.""",
+
+    632: """Forge of Souls: The first of three Icecrown Citadel dungeons, a massive soul-grinding engine where the Lich King processes the dead. Rivers of tortured souls flow through iron machinery, spectral smiths hammer at anvils of suffering, and the Devourer of Souls guards the forge. The screaming never stops. An industrial nightmare powered by eternal torment.""",
+
+    650: """Trial of the Champion: A grand tournament arena beneath the Argent Coliseum in Icecrown, where champions of the Alliance and Horde prove their worth. Mounted jousting, champion duels, and a final ambush by the Black Knight play out on the tournament grounds. The atmosphere is festive and competitive until the undead crash the party. Pageantry and spectacle with a dark twist.""",
+
+    658: """Pit of Saron: A brutal slave mine in Icecrown where Scourge forces work prisoners to death extracting saronite ore. The pit is open to the frozen sky, with massive chains, mining platforms, and saronite deposits everywhere. Forgemaster Garfrost hurls boulders while Tyrannus patrols on his frostbrood drake overhead. Hopelessness and cruelty distilled into frozen stone and dark metal.""",
+
+    668: """Halls of Reflection: The haunted Frozen Halls of Icecrown Citadel, where echoes of Frostmourne's victims linger around the blade's chamber. The Lich King himself pursues you through collapsing corridors as waves of ghosts attack. The halls are pristine ice and dark saronite, and the terror is real - you cannot fight him, only run. The most narratively intense dungeon in the game, a desperate flight from inevitable doom.""",
+
+    # -------------------------------------------------------------------------
+    # WotLK Raids
+    # -------------------------------------------------------------------------
+    533: """Naxxramas: The floating necropolis of the arch-lich Kel'Thuzad, hovering over Dragonblight. Four wings of themed horrors - the Arachnid Quarter of giant spiders, the Plague Quarter of disease and abominations, the Military Quarter of death knight commanders, and the Construct Quarter of flesh golems. Gothic architecture of dark stone and green slime, with the cold precision of undead military organization. The Scourge's masterwork of death.""",
+
+    603: """Ulduar: A titan city-prison in the Storm Peaks, the grandest raid in Northrend. Massive halls of gleaming metal and stone house the corrupted titan keepers and their servants, with the old god Yogg-Saron imprisoned in the deepest vault. The scale is staggering - vehicle battles at the gates, an observatory open to the cosmos, gardens of unearthly beauty, and a descent into madness itself. Ancient, magnificent, and terrifying.""",
+
+    615: """Obsidian Sanctum: A volcanic chamber beneath Wyrmrest Temple where Sartharion guards twilight dragon eggs. Lava rivers divide the obsidian platforms, and three twilight drake lieutenants patrol their own islands. The chamber glows orange and red, heat shimmers distort the air, and the black dragonflight's betrayal is laid bare. A straightforward arena of fire and scale.""",
+
+    616: """Eye of Eternity: Malygos's personal sanctum at the apex of the Nexus above Coldarra, a platform suspended in raw ley energy. There is no ground, no walls - only a disc of magical force over a void of swirling blue and violet arcana. The Spell-Weaver attacks with the full power of the Blue Dragonflight. The raid feels otherworldly - fighting a dragon aspect in the heart of Azeroth's arcane storm.""",
+
+    624: """Vault of Archavon: A titan vault beneath Wintergrasp Fortress, accessible only to the faction controlling the zone. Stone giants and elemental constructs guard the chambers in a straightforward series of boss encounters. The architecture is utilitarian titan design - functional, massive, and unadorned. A reward for PvP victory, quick and brutal.""",
+
+    631: """Icecrown Citadel: The Lich King's throne, the culmination of Wrath of the Lich King. A towering fortress of saronite and ice rising from the heart of Icecrown. Every wing escalates the horror - from the Lower Spire's undead armies, through the Plagueworks, Crimson Hall, and Frostwing Halls, to the Frozen Throne itself. The architecture is oppressive, beautiful in its cruelty, and designed to break hope. This is the end.""",
+
+    649: """Trial of the Crusader: The Argent Coliseum in Icecrown, a tournament arena that descends into the earth when the floor collapses into an underground nerubian cavern. The upper level is bright banners and cheering crowds; the lower level is chitinous horror and Anub'arak's domain. The contrast between festive competition above and ancient terror below defines the entire experience.""",
+
+    724: """Ruby Sanctum: A chamber beneath Wyrmrest Temple where the twilight dragonflight has invaded the red dragons' sanctum. Halion, the twilight destroyer, phases between the physical realm and the shadow realm. The chamber shifts between warm ruby light and cold purple shadow. The last raid before the Cataclysm - a brief, ominous warning of the destruction to come.""",
+}
+
 # Item quality colors for WoW links (FF prefix for alpha channel)
 ITEM_QUALITY_COLORS = {
     0: "FF9d9d9d",  # Poor (Gray)

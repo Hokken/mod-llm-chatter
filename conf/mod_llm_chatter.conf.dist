@@ -431,3 +431,15 @@ LLMChatter.Events.Weather = 1
 #       Default: 1 (enabled)
 #
 LLMChatter.Events.Transports = 1
+
+###############################################################################
+# GROUP CHATTER SETTINGS
+###############################################################################
+
+#
+#   LLMChatter.GroupChatter.Enable
+#       Enable group chatter when bots are grouped with real players
+#       Bots will greet the player in party chat with personality traits
+#       Default: 0 (disabled)
+#
+LLMChatter.GroupChatter.Enable = 0
