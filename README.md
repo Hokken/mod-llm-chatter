@@ -52,33 +52,32 @@ Every quest and item name becomes a clickable WoW link.
 ## Features
 
 ### General Chat (Zone Banter)
-- **2-4 bot conversations** in General chat about quests, loot, and zone life
-- **Zone-aware content** -- messages reference actual quests and items from the zone
-- **Zone flavor system** -- rich atmosphere descriptions for ~45 zones
-- **Natural timing** -- realistic varied delays between messages (1-30 seconds)
-- **Anti-repetition** -- dynamic prompts with creative twists for variety
-- **80+ message categories** -- atmospheric, nostalgic, mystical, humorous, and more
-- **Overworld only** -- chatter stops in dungeons and raids
+- **Multi-bot conversations** in General chat about quests, loot, weather, lore -- the kind of chatter that made vanilla General chat feel alive
+- **Zone-aware content** -- bots know where they are. A dwarf in Dun Morogh talks about troggs and ale, not silithid and sand. Quests, mobs, and loot are pulled from the actual game database for the zone they're in
+- **Handcrafted zone flavor** -- rich atmospheric descriptions for ~45 open-world zones and ~50 dungeons and raids, from the gothic dread of Duskwood to the alien beauty of Zangarmarsh, giving the LLM deep world knowledge to draw from
+- **No patterns, no repetition** -- every message is shaped by a unique combination of tone, mood, creative twist, message category, zone atmosphere, race and class personality, time of day, and actual game data. The result is chat that feels human because no two prompts are ever the same
+- **80+ message categories** -- atmospheric, nostalgic, mystical, contemplative, humorous, and more -- bots don't just talk about gameplay, they notice the sunset, feel uneasy in the Plaguelands, or reminisce about old adventures
+- **Race and class identity** -- a Tauren Druid doesn't sound like an Undead Warlock. Each race has speech traits and cultural flavor words, each class has personality modifiers that shape how they speak
 
 ### Group Party Chat
-- **Greeting reactions** -- bots greet the player when they join a group
-- **Kill reactions** -- comments on creature kills (especially bosses and elites)
-- **Loot reactions** -- react to notable item drops
-- **Combat cries** -- shout during combat engagements
-- **Player message responses** -- bots respond when you type in party chat
-- **Multi-bot conversations** -- bots build on each other's messages
-- **Persistent personalities** -- each bot gets 3 traits that stay consistent
-- **Chat history** -- bots remember recent conversation for coherent replies
+- **Bots that feel like party members** -- when grouped, your bots react to what's happening around you in party chat, just like real players would
+- **Kill reactions** -- your tank might brag about a clean pull, your healer might comment on a close call
+- **Loot reactions** -- genuine excitement over epic drops, friendly jealousy, "grats" that feel real
+- **Combat cries** -- battle shouts and war cries during engagements, flavored by race and class
+- **You can talk to them** -- type in party chat and your bots respond with context. They know what you just fought, where you are, and what happened recently
+- **Multi-bot conversations** -- bots build on each other's messages, creating natural back-and-forth between party members
+- **Persistent personalities** -- each bot gets 3 traits that stay consistent across the session. The grumpy dwarf stays grumpy, the optimistic paladin stays hopeful
+- **Chat history** -- bots remember recent conversation for coherent, contextual replies
 
 ### Event Reactions
-- **Weather changes** -- rain, snow, thunderstorms, sandstorms
-- **Transport arrivals** -- boats and zeppelins with destination info
-- **Holidays** -- seasonal event reactions
-- **Day/night transitions** -- dawn, dusk, midnight
+- **Weather changes** -- a sudden thunderstorm in Stranglethorn, snow in Dun Morogh, a sandstorm rolling through Tanaris -- bots notice and react
+- **Transport arrivals** -- "boat to Auberdine just pulled in" -- bots announce boats and zeppelins with destination info
+- **Holidays** -- seasonal event reactions that match the celebration
+- **Day/night transitions** -- bots comment on dawn breaking, dusk settling, or the eerie feel of midnight in a dangerous zone
 
 ### Modes
-- **Normal** -- casual MMO chat with abbreviations and game terms
-- **Roleplay** -- fully in-character speech influenced by race, class, and lore
+- **Normal** -- casual MMO chat the way you remember it: abbreviations, game terms, "lol", "grats", and the occasional all-caps moment
+- **Roleplay** -- fully in-character speech shaped by race, class, and lore. Your Night Elf invokes Elune, your Orc speaks of honor, your Undead is darkly sardonic. No "Hark, fellow traveler!" nonsense -- bots talk like actual people who happen to live in Azeroth, not drama students at a renaissance faire. A separate set of tones, moods, and categories built specifically for RP immersion
 
 ### Providers
 - **Anthropic Claude** -- Haiku recommended (fast, cheap, high quality)
