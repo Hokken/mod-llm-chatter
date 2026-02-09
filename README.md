@@ -47,7 +47,7 @@ You: nice job team, let's keep moving
   I would not linger past nightfall.
 ```
 
-Every quest and item name becomes a clickable WoW link.
+Every quest, item, and spell name becomes a clickable WoW link.
 
 ## Features
 
@@ -58,6 +58,7 @@ Every quest and item name becomes a clickable WoW link.
 - **No patterns, no repetition** -- every message is shaped by a unique combination of tone, mood, creative twist, message category, zone atmosphere, race and class personality, time of day, and actual game data. The result is chat that feels human because no two prompts are ever the same
 - **80+ message categories** -- atmospheric, nostalgic, mystical, contemplative, humorous, and more -- bots don't just talk about gameplay, they notice the sunset, feel uneasy in the Plaguelands, or reminisce about old adventures
 - **Race and class identity** -- a Tauren Druid doesn't sound like an Undead Warlock. Each race has speech traits and cultural flavor words, each class has personality modifiers that shape how they speak
+- **Clickable WoW links** -- quest names, item names, and spell names are automatically converted into proper in-game links you can click, just like real player chat
 
 ### Group Party Chat
 - **Bots that feel like party members** -- when grouped, your bots react to what's happening around you in party chat, just like real players would
