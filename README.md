@@ -4,13 +4,13 @@
 
 # mod-llm-chatter
 
-AI-powered bot conversations for AzerothCore. Bots chat in General chat about quests, loot, and zone happenings -- and when grouped with you, they talk in party chat with unique personalities.
+AI-powered bot conversations for AzerothCore. Bots chat in General chat about quests, loot, and zone happenings, and when grouped with you, they talk in party chat with unique personalities.
 
 Instead of a silent world full of bots, you get one that sounds alive.
 
 ## What It Looks Like
 
-**General chat -- zone banter:**
+**General chat, zone banter:**
 ```
 [Nylaenas]: been thinking about [Tharnariun's Hope] - there's
   something beautiful about restoring hope here
@@ -19,7 +19,7 @@ Instead of a silent world full of bots, you get one that sounds alive.
 [Eveline]: yeah it's a solid quest, decent rewards too
 ```
 
-**Party chat -- your bots react to what's happening:**
+**Party chat, your bots react to what's happening:**
 ```
 [Thornbeard]: Not bad for a bunch of randoms. That [Riverpaw Runt]
   didn't stand a chance.
@@ -52,43 +52,43 @@ Every quest, item, and spell name becomes a clickable WoW link.
 ## Features
 
 ### General Chat (Zone Banter)
-- **Multi-bot conversations** in General chat about quests, loot, weather, lore -- the kind of chatter that made vanilla General chat feel alive
-- **Zone-aware content** -- bots know where they are. A dwarf in Dun Morogh talks about troggs and ale, not silithid and sand. Quests, mobs, and loot are pulled from the actual game database for the zone they're in
-- **Handcrafted zone flavor** -- rich atmospheric descriptions for ~45 open-world zones and ~50 dungeons and raids, from the gothic dread of Duskwood to the alien beauty of Zangarmarsh, giving the LLM deep world knowledge to draw from
-- **No patterns, no repetition** -- every message is shaped by a unique combination of tone, mood, creative twist, message category, zone atmosphere, race and class personality, time of day, and actual game data. The result is chat that feels human because no two prompts are ever the same
-- **80+ message categories** -- atmospheric, nostalgic, mystical, contemplative, humorous, and more -- bots don't just talk about gameplay, they notice the sunset, feel uneasy in the Plaguelands, or reminisce about old adventures
-- **Race and class identity** -- a Tauren Druid doesn't sound like an Undead Warlock. Each race has speech traits and cultural flavor words, each class has personality modifiers that shape how they speak
-- **Clickable WoW links** -- quest names, item names, and spell names are automatically converted into proper in-game links you can click, just like real player chat
+- **Multi-bot conversations** in General chat about quests, loot, weather, lore, the kind of chatter that made vanilla General chat feel alive
+- **Zone-aware content**, bots know where they are. A dwarf in Dun Morogh talks about troggs and ale, not silithid and sand. Quests, mobs, and loot are pulled from the actual game database for the zone they're in
+- **Handcrafted zone flavor**, rich atmospheric descriptions for ~45 open-world zones and ~50 dungeons and raids, from the gothic dread of Duskwood to the alien beauty of Zangarmarsh, giving the LLM deep world knowledge to draw from
+- **No patterns, no repetition**, every message is shaped by a unique combination of tone, mood, creative twist, message category, zone atmosphere, race and class personality, time of day, and actual game data. The result is chat that feels human because no two prompts are ever the same
+- **80+ message categories**, atmospheric, nostalgic, mystical, contemplative, humorous, and more. Bots don't just talk about gameplay, they notice the sunset, feel uneasy in the Plaguelands, or reminisce about old adventures
+- **Race and class identity**, a Tauren Druid doesn't sound like an Undead Warlock. Each race has speech traits and cultural flavor words, each class has personality modifiers that shape how they speak
+- **Clickable WoW links**, quest names, item names, and spell names are automatically converted into proper in-game links you can click, just like real player chat
 
 ### Group Party Chat
-- **Bots that feel like party members** -- when grouped, your bots react to what's happening around you in party chat, just like real players would
-- **Kill reactions** -- your tank might brag about a clean pull, your healer might comment on a close call
-- **Loot reactions** -- genuine excitement over epic drops, friendly jealousy, "grats" that feel real
-- **Combat cries** -- battle shouts and war cries during engagements, flavored by race and class
-- **You can talk to them** -- type in party chat and your bots respond with context. They know what you just fought, where you are, and what happened recently
-- **Multi-bot conversations** -- bots build on each other's messages, creating natural back-and-forth between party members
-- **Persistent personalities** -- each bot gets 3 traits that stay consistent across the session. The grumpy dwarf stays grumpy, the optimistic paladin stays hopeful
-- **Chat history** -- bots remember recent conversation for coherent, contextual replies
+- **Bots that feel like party members**, when grouped, your bots react to what's happening around you in party chat, just like real players would
+- **Kill reactions**, your tank might brag about a clean pull, your healer might comment on a close call
+- **Loot reactions**, genuine excitement over epic drops, friendly jealousy, "grats" that feel real
+- **Combat cries**, battle shouts and war cries during engagements, flavored by race and class
+- **You can talk to them**, type in party chat and your bots respond with context. They know what you just fought, where you are, and what happened recently
+- **Multi-bot conversations**, bots build on each other's messages, creating natural back-and-forth between party members
+- **Persistent personalities**, each bot gets 3 traits that stay consistent across the session. The grumpy dwarf stays grumpy, the optimistic paladin stays hopeful
+- **Chat history**, bots remember recent conversation for coherent, contextual replies
 
 ### Event Reactions
-- **Weather changes** -- a sudden thunderstorm in Stranglethorn, snow in Dun Morogh, a sandstorm rolling through Tanaris -- bots notice and react
-- **Transport arrivals** -- "boat to Auberdine just pulled in" -- bots announce boats and zeppelins with destination info
-- **Holidays** -- seasonal event reactions that match the celebration
-- **Day/night transitions** -- bots comment on dawn breaking, dusk settling, or the eerie feel of midnight in a dangerous zone
+- **Weather changes**, a sudden thunderstorm in Stranglethorn, snow in Dun Morogh, a sandstorm rolling through Tanaris, bots notice and react
+- **Transport arrivals**, "boat to Auberdine just pulled in", bots announce boats and zeppelins with destination info
+- **Holidays**, seasonal event reactions that match the celebration
+- **Day/night transitions**, bots comment on dawn breaking, dusk settling, or the eerie feel of midnight in a dangerous zone
 
 ### Modes
-- **Normal** -- casual MMO chat the way you remember it: abbreviations, game terms, "lol", "grats", and the occasional all-caps moment
-- **Roleplay** -- fully in-character speech shaped by race, class, and lore. Your Night Elf invokes Elune, your Orc speaks of honor, your Undead is darkly sardonic. No "Hark, fellow traveler!" nonsense -- bots talk like actual people who happen to live in Azeroth, not drama students at a renaissance faire. A separate set of tones, moods, and categories built specifically for RP immersion
+- **Normal**, casual MMO chat the way you remember it: abbreviations, game terms, "lol", "grats", and the occasional all-caps moment
+- **Roleplay**, fully in-character speech shaped by race, class, and lore. Your Night Elf invokes Elune, your Orc speaks of honor, your Undead is darkly sardonic. No "Hark, fellow traveler!" nonsense, bots talk like actual people who happen to live in Azeroth, not drama students at a renaissance faire. A separate set of tones, moods, and categories built specifically for RP immersion
 
 ### Providers
-- **Anthropic Claude** -- Haiku recommended (fast, cheap, high quality)
-- **OpenAI GPT** -- GPT-4o-mini supported
-- **Ollama** -- run local models for free (Qwen3, Llama, Mistral)
+- **Anthropic Claude**, Haiku recommended (fast, cheap, high quality)
+- **OpenAI GPT**, GPT-4o-mini supported
+- **Ollama**, run local models for free (Qwen3, Llama, Mistral)
 
 ## Requirements
 
 - AzerothCore WotLK (3.3.5a)
-- [mod-playerbots](https://github.com/liyunfan1223/mod-playerbots) -- **required**, this module generates chat for playerbot characters
+- [mod-playerbots](https://github.com/liyunfan1223/mod-playerbots), **required**, this module generates chat for playerbot characters
 - Python 3.8+
 - An API key from [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/), or [Ollama](https://ollama.ai) installed locally
 
@@ -296,7 +296,7 @@ LLMChatter.TriggerChance = 80
 | Anthropic | Claude Haiku | ~$0.20 |
 | OpenAI | GPT-4o-mini | ~$0.20 |
 
-**Ollama:** Free -- runs locally on your machine. Recommended models: `qwen3:4b` (fast), `qwen3:8b` (better quality).
+**Ollama:** Free, runs locally on your machine. Recommended models: `qwen3:4b` (fast), `qwen3:8b` (better quality).
 
 The bridge logs token usage for monitoring.
 
@@ -356,7 +356,7 @@ mod-llm-chatter/
 | Issue | Solution |
 |-------|----------|
 | No chatter appearing | Check `Enable = 1`, API key set, bots in zone with a player |
-| Chatter only in open world | Intended -- disabled in dungeons/raids |
+| Chatter only in open world | Intended, disabled in dungeons/raids |
 | No clickable links | Check bridge logs for JSON parse errors |
 | Too much chatter | Lower `TriggerChance` or raise `TriggerIntervalSeconds` |
 | Too little chatter | Raise `TriggerChance` or lower `TriggerIntervalSeconds` |
@@ -369,7 +369,7 @@ mod-llm-chatter/
 
 ## License
 
-GNU AGPL v3 -- same as AzerothCore.
+GNU AGPL v3, same as AzerothCore.
 
 ## Credits
 
