@@ -106,39 +106,20 @@ def get_time_of_day_context() -> Tuple[str, str]:
 def get_environmental_context(
     current_weather: str = None
 ) -> dict:
-    """Randomly decide which environmental context to include.
+    """Get environmental context for prompts.
 
-    Distribution:
-    - 40% chance: include time only
-    - 30% chance: include weather only
-    - 20% chance: include both
-    - 10% chance: include neither
+    Time is always included. Weather is included
+    when available (50% chance to mention it).
     """
-    roll = random.random()
+    _, time_desc = get_time_of_day_context()
+    result = {'time': time_desc, 'weather': None}
 
-    result = {'time': None, 'weather': None}
-
-    if roll < 0.40:
-        _, time_desc = get_time_of_day_context()
-        result['time'] = time_desc
-        selection = "time_only"
-    elif roll < 0.70:
-        if current_weather:
-            result['weather'] = current_weather
-        selection = "weather_only"
-    elif roll < 0.90:
-        _, time_desc = get_time_of_day_context()
-        result['time'] = time_desc
-        if current_weather:
-            result['weather'] = current_weather
-        selection = "both"
-    else:
-        selection = "neither"
+    if current_weather and random.random() < 0.50:
+        result['weather'] = current_weather
 
     logger.info(
-        f"Environmental context: roll={roll:.2f}, "
-        f"selection={selection}, "
-        f"time={result['time'] is not None}, "
+        f"Environmental context: "
+        f"time={result['time']}, "
         f"weather={result['weather'] is not None}"
     )
 
@@ -237,9 +218,9 @@ def build_dynamic_guidelines(
         ]
     else:
         extras = [
-            "Abbreviations ok (lfg, lf, ty, np, lol)",
+            "Common terms ok (lfg, lf, ty, np)",
             "Can include a typo for realism",
-            "Casual MMO chat style",
+            "Casual and natural chat style",
             "Brief and direct",
         ]
     if random.random() < 0.5:
@@ -863,9 +844,8 @@ def build_plain_conversation_prompt(
         )
     else:
         guidelines.append(
-            "VARY message lengths naturally like real players "
-            "- some very short ('lol', 'yeah'), some medium, "
-            "some longer"
+            "VARY message lengths naturally "
+            "- some short, some medium, some longer"
         )
     if zone_mobs:
         guidelines.append(

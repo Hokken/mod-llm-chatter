@@ -145,6 +145,16 @@ def get_chatter_mode(config: dict) -> str:
     return mode if mode in ('normal', 'roleplay') else 'normal'
 
 
+# Module-level race lore chance (set from config at startup)
+_race_lore_chance = 0.15
+
+
+def set_race_lore_chance(chance_pct: int):
+    """Set from config: LLMChatter.RaceLoreChance (0-100)."""
+    global _race_lore_chance
+    _race_lore_chance = chance_pct / 100.0
+
+
 def build_race_class_context(race: str, class_name: str) -> str:
     """Build an RP personality fragment for prompts."""
     parts = []
@@ -156,6 +166,17 @@ def build_race_class_context(race: str, class_name: str) -> str:
             f"{', '.join(profile['flavor_words'])} "
             f"but don't force it."
         )
+        worldview = profile.get('worldview')
+        if worldview:
+            parts.append(
+                f"Worldview: {worldview}"
+            )
+        lore = profile.get('lore')
+        if lore and random.random() < _race_lore_chance:
+            lore_str = ' '.join(lore)
+            parts.append(
+                f"Lore: {lore_str}"
+            )
     modifier = CLASS_SPEECH_MODIFIERS.get(class_name)
     if modifier:
         parts.append(f"As a {class_name}, you are {modifier}.")
@@ -743,12 +764,22 @@ def replace_placeholders(
     return result
 
 
+def strip_speaker_prefix(message: str, bot_name: str) -> str:
+    """Strip 'BotName:' prefix that LLMs sometimes add."""
+    if message.startswith(f"{bot_name}:"):
+        return message[len(bot_name) + 1:].strip()
+    return message
+
+
 def cleanup_message(message: str) -> str:
     """Clean up any formatting issues from LLM output."""
     result = message
 
     # Em-dashes
     result = re.sub(r'\s*—\s*', ', ', result)
+
+    # Asterisk emotes (*action*) — unwrap to plain text
+    result = re.sub(r'\*([^*]+)\*', r'\1', result)
 
     # Emojis
     emoji_pattern = re.compile(

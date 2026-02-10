@@ -43,6 +43,21 @@ void LLMChatterConfig::LoadConfig()
     // Group chatter
     _useGroupChatter = sConfigMgr->GetOption<bool>("LLMChatter.GroupChatter.Enable", false);
 
+    // Group chatter - reaction chances (0-100)
+    _groupKillChanceNormal = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.KillChanceNormal", 20);
+    _groupDeathChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.DeathChance", 40);
+    _groupLootChanceGreen = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.LootChanceGreen", 20);
+    _groupLootChanceBlue = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.LootChanceBlue", 50);
+
+    // Group chatter - per-event cooldowns (seconds)
+    _groupKillCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.KillCooldown", 120);
+    _groupDeathCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.DeathCooldown", 30);
+    _groupLootCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.LootCooldown", 60);
+    _groupPlayerMsgCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.PlayerMsgCooldown", 15);
+
+    // RP enrichment
+    _raceLoreChance = sConfigMgr->GetOption<uint32>("LLMChatter.RaceLoreChance", 15);
+
     if (_enabled)
     {
         LOG_INFO("module", "LLMChatter: Module enabled");

@@ -33,9 +33,9 @@ LLMChatter.Enable = 0
 #       Controls the personality style of bot chat messages
 #       "normal"   - Casual MMO chat: abbreviations, game terms, OOC references (default)
 #       "roleplay" - Fully in-character: race/class personality, lore-influenced speech, no game terms
-#       Default: normal
+#       Default: roleplay
 #
-LLMChatter.ChatterMode = normal
+LLMChatter.ChatterMode = roleplay
 
 #
 #   LLMChatter.EnableVerboseLogging
@@ -241,14 +241,20 @@ LLMChatter.Temperature = 0.8
 
 #
 #   LLMChatter.LootRecentCooldownSeconds
-#       Prevents repeating the same loot item in a zone within this window
+#       Prevents ambient zone chatter from mentioning the same
+#       loot item repeatedly. If bots already chatted about an
+#       item in a zone, they won't mention it again for this
+#       many seconds.
 #       Default: 1200 (20 minutes)
 #
 LLMChatter.LootRecentCooldownSeconds = 1200
 
 #
 #   LLMChatter.LongMessageChance
-#       Percent chance to allow a longer message in prompts
+#       Percent chance (0-100) that a bot's message is allowed
+#       to be longer than the usual 1-2 sentence limit. When
+#       triggered, the LLM prompt relaxes the brevity constraint
+#       for a more expressive message.
 #       Default: 12
 #
 LLMChatter.LongMessageChance = 12
@@ -367,8 +373,10 @@ LLMChatter.GlobalCapWindowSeconds = 300
 
 #
 #   LLMChatter.TransportBypassGlobalCap
-#       Allow transport events to bypass GlobalMessageCap
-#       Default: 0
+#       Allow transport arrival events to bypass GlobalMessageCap.
+#       Useful if you want boats/zeppelins to always be announced
+#       even when the global message limit has been reached.
+#       Default: 0 (disabled - transports respect global cap)
 #
 LLMChatter.TransportBypassGlobalCap = 0
 
@@ -382,7 +390,10 @@ LLMChatter.BotSpeakerCooldownSeconds = 900
 
 #
 #   LLMChatter.ZoneFatigueThreshold
-#       Max event reactions per zone per ZoneFatigueCooldownSeconds
+#       Max event-triggered messages a single zone can produce
+#       within ZoneFatigueCooldownSeconds. Prevents one busy zone
+#       from dominating all chatter (e.g. a zone with frequent
+#       weather changes or transport arrivals).
 #       Default: 3
 #
 LLMChatter.ZoneFatigueThreshold = 3
@@ -438,8 +449,142 @@ LLMChatter.Events.Transports = 1
 
 #
 #   LLMChatter.GroupChatter.Enable
-#       Enable group chatter when bots are grouped with real players
-#       Bots will greet the player in party chat with personality traits
+#       Enable group chatter when bots are grouped with real players.
+#       Bots will react in party chat to events like kills, deaths,
+#       loot drops, player messages, and idle downtime. Each event
+#       type has its own chance and cooldown settings below.
 #       Default: 0 (disabled)
 #
 LLMChatter.GroupChatter.Enable = 0
+
+#
+#   LLMChatter.GroupChatter.IdleChance
+#       Percent chance (0-100) that bots in a group start
+#       chatting among themselves during downtime (no combat,
+#       no events). Checked every IdleCheckInterval seconds.
+#       Default: 15
+#
+LLMChatter.GroupChatter.IdleChance = 15
+
+#
+#   LLMChatter.GroupChatter.IdleCheckInterval
+#       How often (seconds) the bridge checks whether grouped
+#       bots should start idle chatter. Each check rolls against
+#       IdleChance to decide if chatter happens.
+#       Default: 60
+#
+LLMChatter.GroupChatter.IdleCheckInterval = 60
+
+#
+#   LLMChatter.GroupChatter.IdleCooldown
+#       Minimum seconds between idle chatter triggers
+#       for the same group. Prevents back-to-back idle
+#       conversations even if IdleChance rolls succeed.
+#       Default: 30
+#
+LLMChatter.GroupChatter.IdleCooldown = 30
+
+#
+#   LLMChatter.GroupChatter.ConversationBias
+#       Percent chance (0-100) that idle chatter is a
+#       multi-bot conversation (2+ bots talking back and
+#       forth) vs a single bot making a one-off comment.
+#       Requires 2+ bots in the group for conversations.
+#       Default: 70
+#
+LLMChatter.GroupChatter.ConversationBias = 70
+
+#
+#   LLMChatter.GroupChatter.IdleHistoryLimit
+#       Number of recent chat messages to include
+#       as context for idle chatter prompts.
+#       Lower = less echo chamber, higher = more
+#       continuity.
+#       Default: 5
+#
+LLMChatter.GroupChatter.IdleHistoryLimit = 5
+
+#
+#   LLMChatter.GroupChatter.KillChanceNormal
+#       Percent chance (0-100) that a normal mob kill
+#       triggers a group reaction.
+#       Boss and rare kills always trigger (100%).
+#       Default: 20
+#
+LLMChatter.GroupChatter.KillChanceNormal = 20
+
+#
+#   LLMChatter.GroupChatter.DeathChance
+#       Percent chance (0-100) that a bot death
+#       triggers a group reaction.
+#       Default: 40
+#
+LLMChatter.GroupChatter.DeathChance = 40
+
+#
+#   LLMChatter.GroupChatter.LootChanceGreen
+#       Percent chance (0-100) that looting a green
+#       quality item triggers a group reaction.
+#       Default: 20
+#
+LLMChatter.GroupChatter.LootChanceGreen = 20
+
+#
+#   LLMChatter.GroupChatter.LootChanceBlue
+#       Percent chance (0-100) that looting a blue
+#       quality item triggers a group reaction.
+#       Epic+ loot always triggers (100%).
+#       Default: 50
+#
+LLMChatter.GroupChatter.LootChanceBlue = 50
+
+#
+#   LLMChatter.GroupChatter.KillCooldown
+#       Per-group cooldown (seconds) between kill
+#       reactions for normal mobs. Boss/rare kills
+#       bypass this cooldown. Also used as the base
+#       for combat enter cooldown (elite = half).
+#       Default: 120
+#
+LLMChatter.GroupChatter.KillCooldown = 120
+
+#
+#   LLMChatter.GroupChatter.DeathCooldown
+#       Per-group cooldown (seconds) between death
+#       reactions. Kept short since wipes cause
+#       rapid sequential deaths.
+#       Default: 30
+#
+LLMChatter.GroupChatter.DeathCooldown = 30
+
+#
+#   LLMChatter.GroupChatter.LootCooldown
+#       Per-group cooldown (seconds) between loot
+#       reactions for green/blue items.
+#       Epic+ loot bypasses this cooldown.
+#       Default: 60
+#
+LLMChatter.GroupChatter.LootCooldown = 60
+
+#
+#   LLMChatter.GroupChatter.PlayerMsgCooldown
+#       Per-group cooldown (seconds) between bot reactions
+#       to player chat messages in party chat. When a real
+#       player types in party, a bot may respond. This
+#       cooldown prevents bots from replying to every message.
+#       Default: 15
+#
+LLMChatter.GroupChatter.PlayerMsgCooldown = 15
+
+###############################################################################
+# RP ENRICHMENT SETTINGS
+###############################################################################
+
+#
+#   LLMChatter.RaceLoreChance
+#       Percent chance (0-100) that race-specific lore and worldview
+#       flavor text is injected into chatter prompts (roleplay mode only).
+#       Higher = more frequent lore references in bot speech.
+#       Default: 15
+#
+LLMChatter.RaceLoreChance = 15

@@ -39,6 +39,7 @@ from chatter_shared import (
     zone_cache,
     get_zone_name, get_class_name, get_race_name,
     get_chatter_mode, build_race_class_context,
+    set_race_lore_chance,
     parse_config, get_db_connection,
     wait_for_database,
     get_zone_flavor,
@@ -81,6 +82,7 @@ from chatter_group import (
     process_group_player_msg_event,
     process_group_levelup_event,
     process_group_quest_complete_event,
+    process_group_quest_objectives_event,
     process_group_achievement_event,
     process_group_spell_cast_event,
     check_idle_group_chatter,
@@ -1013,6 +1015,13 @@ def process_pending_events(
         return process_group_quest_complete_event(
             db, client, config, event
         )
+    if event_type == 'bot_group_quest_objectives':
+        logger.warning(
+            f"Group event #{event_id}: "
+            f"{event_type}")
+        return process_group_quest_objectives_event(
+            db, client, config, event
+        )
     if event_type == 'bot_group_achievement':
         logger.warning(
             f"Group event #{event_id}: "
@@ -1790,6 +1799,11 @@ def main():
         time.sleep(60)
         config = parse_config(args.config)
 
+    # Apply config-driven settings to shared module
+    set_race_lore_chance(int(config.get(
+        'LLMChatter.RaceLoreChance', 15
+    )))
+
     # Get provider and initialize appropriate client
     provider = config.get(
         'LLMChatter.Provider', 'anthropic'
@@ -1975,7 +1989,10 @@ def main():
     last_cleanup = 0
     cleanup_interval = 60  # every 60 seconds
     last_idle_check = 0
-    idle_check_interval = 120  # every 2 minutes
+    idle_check_interval = int(config.get(
+        'LLMChatter.GroupChatter.IdleCheckInterval',
+        60
+    ))
 
     while True:
         try:

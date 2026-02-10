@@ -60,6 +60,21 @@ public:
     // Group chatter
     bool _useGroupChatter;
 
+    // Group chatter - reaction chances (0-100)
+    uint32 _groupKillChanceNormal;
+    uint32 _groupDeathChance;
+    uint32 _groupLootChanceGreen;
+    uint32 _groupLootChanceBlue;
+
+    // Group chatter - per-event cooldowns (seconds)
+    uint32 _groupKillCooldown;
+    uint32 _groupDeathCooldown;
+    uint32 _groupLootCooldown;
+    uint32 _groupPlayerMsgCooldown;
+
+    // RP enrichment
+    uint32 _raceLoreChance;
+
 private:
     LLMChatterConfig() = default;
 };

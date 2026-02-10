@@ -65,10 +65,15 @@ Every quest, item, and spell name becomes a clickable WoW link.
 - **Kill reactions**, your tank might brag about a clean pull, your healer might comment on a close call
 - **Loot reactions**, genuine excitement over epic drops, friendly jealousy, "grats" that feel real
 - **Combat cries**, battle shouts and war cries during engagements, flavored by race and class
+- **Spell cast reactions**, bots comment when casting buffs, heals, shields, and crowd control on party members
+- **Quest objectives**, bots react when quest objectives are completed, before turn-in
+- **Level-up celebrations**, bots congratulate on level ups
+- **Achievement reactions**, bots comment on achievements earned
 - **You can talk to them**, type in party chat and your bots respond with context. They know what you just fought, where you are, and what happened recently
 - **Multi-bot conversations**, bots build on each other's messages, creating natural back-and-forth between party members
 - **Persistent personalities**, each bot gets 3 traits that stay consistent across the session. The grumpy dwarf stays grumpy, the optimistic paladin stays hopeful
 - **Chat history**, bots remember recent conversation for coherent, contextual replies
+- **Account bot support**, works with both random bots and your own account characters used as bots
 
 ### Event Reactions
 - **Weather changes**, a sudden thunderstorm in Stranglethorn, snow in Dun Morogh, a sandstorm rolling through Tanaris, bots notice and react
@@ -206,7 +211,7 @@ All settings are in `mod_llm_chatter.conf`. Here are the most commonly tuned opt
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `LLMChatter.Enable` | 0 | Enable the module |
-| `LLMChatter.ChatterMode` | normal | `normal` or `roleplay` |
+| `LLMChatter.ChatterMode` | roleplay | `normal` or `roleplay` |
 | `LLMChatter.TriggerIntervalSeconds` | 60 | Seconds between chatter checks |
 | `LLMChatter.TriggerChance` | 30 | % chance per interval |
 | `LLMChatter.ConversationChance` | 50 | % multi-bot conversation vs solo statement |
@@ -257,6 +262,11 @@ All settings are in `mod_llm_chatter.conf`. Here are the most commonly tuned opt
 | Setting | Default | Description |
 |---------|---------|-------------|
 | `LLMChatter.GroupChatter.Enable` | 0 | Enable party chat when grouped with bots |
+| `LLMChatter.GroupChatter.IdleChance` | 15 | % chance of idle banter per check |
+| `LLMChatter.GroupChatter.IdleCheckInterval` | 60 | Seconds between idle checks |
+| `LLMChatter.GroupChatter.IdleCooldown` | 30 | Min seconds between idle triggers per group |
+| `LLMChatter.GroupChatter.ConversationBias` | 70 | % chance idle is multi-bot vs solo |
+| `LLMChatter.GroupChatter.IdleHistoryLimit` | 5 | Recent messages in idle context |
 
 ### Database
 

@@ -194,58 +194,297 @@ RACE_NAMES = {
 # =============================================================================
 RACE_SPEECH_PROFILES = {
     "Human": {
-        "traits": "practical, earnest, sometimes self-important",
-        "flavor_words": ["Light", "by the Alliance", "honor"],
+        "traits": (
+            "practical, resilient, civic-minded, disciplined, "
+            "ambitious, and quick to rally in a crisis"
+        ),
+        "flavor_words": [
+            "for the Alliance", "by the Light", "Stormwind",
+            "Lordaeron", "the Light", "King Varian",
+        ],
+        "lore": [
+            "Humans rebuilt Stormwind after devastation during the early wars.",
+            "Northern human kingdoms were shattered, especially Lordaeron by the Scourge.",
+            "The Church of the Holy Light strongly influences culture and institutions.",
+            "Knightly orders, militias, and city guard traditions are central social pillars.",
+            "Stormwind under King Varian is a major political and military Alliance center.",
+            "Human realms balance idealism, survival pressure, and realpolitik.",
+            "Titan records in Northrend connect human ancestry to the vrykul.",
+        ],
+        "worldview": (
+            "Human politics center on Stormwind and the Alliance war effort. Faith in "
+            "the Holy Light, military service, and civic order are strong social norms. "
+            "After losses in Lordaeron and repeated invasions, human communities are "
+            "cautious, patriotic, and focused on security."
+        ),
     },
     "Orc": {
-        "traits": "blunt, proud, values strength and honor",
-        "flavor_words": ["Lok'tar", "blood and thunder", "honor"],
+        "traits": (
+            "blunt, proud, honor-bound, tribal, intense, and "
+            "protective of hard-won freedom"
+        ),
+        "flavor_words": [
+            "Lok'tar ogar", "blood and thunder", "for the Horde",
+            "Durotar", "Orgrimmar", "ancestors",
+        ],
+        "lore": [
+            "Orcs came from Draenor and were manipulated into fel corruption.",
+            "After the Second War, many were held in internment camps.",
+            "Thrall united clans and founded a new Horde based in Durotar.",
+            "Shamanic traditions and ancestral respect were reclaimed from earlier corruption.",
+            "Orc society values clan memory, martial prowess, and personal honor.",
+            "In Wrath, Garrosh Hellscream's rise in Horde command sharpens political tension.",
+            "The legacy of demonic enslavement still shapes identity and pride.",
+        ],
+        "worldview": (
+            "Orc identity in the New Horde is built on recovery from demonic corruption, "
+            "loyalty to clan and Horde, and restored shamanic traditions. Durotar and "
+            "Orgrimmar represent self-rule after internment. Honor, strength, and survival "
+            "are treated as inseparable duties."
+        ),
     },
     "Dwarf": {
-        "traits": "hearty, fond of drink and craft, stubborn",
-        "flavor_words": ["by Bronzebeard", "aye", "lad/lass"],
+        "traits": (
+            "hearty, stubborn, craft-proud, clan-loyal, blunt, "
+            "and curious about old secrets"
+        ),
+        "flavor_words": [
+            "by my beard", "aye", "stone and steel",
+            "Ironforge", "Khaz Modan", "clan",
+        ],
+        "lore": [
+            "Dwarves descend from titan-forged earthen changed by the Curse of Flesh.",
+            "Three major clans define politics: Bronzebeard, Wildhammer, and Dark Iron.",
+            "Ironforge is a key Alliance stronghold and trade center.",
+            "Engineering, smithing, firearms, and brewing are major cultural strengths.",
+            "The Explorers League drives archaeology and titan research across Azeroth.",
+            "Clan memory and grudges can last generations.",
+            "Dwarves are battle-tested Alliance veterans from multiple wars.",
+        ],
+        "worldview": (
+            "Dwarven society is clan-based and strongly tied to Ironforge, craft traditions, "
+            "and titan archaeology. Military service and practical labor are both respected. "
+            "Alliances are judged by loyalty and proven deeds."
+        ),
     },
     "Night Elf": {
-        "traits": "ancient, reverent of nature, patient",
-        "flavor_words": ["Elune", "goddess", "the wilds"],
+        "traits": (
+            "ancient, reverent, guarded, patient, proud, and "
+            "fiercely protective of nature"
+        ),
+        "flavor_words": [
+            "Elune", "Elune guide you", "the wilds",
+            "Kaldorei", "Darnassus", "moonwell",
+        ],
+        "lore": [
+            "Ancient Kaldorei civilization was shattered by the Sundering.",
+            "Strong devotion to Elune, druidism, and sentinel traditions.",
+            "Long history of fighting demons, satyrs, and corruption in sacred forests.",
+            "Immortality ended after events surrounding Nordrassil and the Third War.",
+            "Alliance membership after Warcraft III remains practical rather than intimate.",
+            "Guardianship of moonwells, world trees, and wilderness sanctuaries is central.",
+            "Arcane excess is feared due to memories of past global catastrophe.",
+        ],
+        "worldview": (
+            "Kaldorei priorities are defense of sacred lands, Elune worship, and druidic "
+            "balance. Collective memory of the Sundering makes them cautious about reckless "
+            "arcane use. Alliance cooperation exists, but cultural distance from younger "
+            "races remains."
+        ),
     },
     "Undead": {
-        "traits": "darkly sardonic, bitter, pragmatic",
-        "flavor_words": ["Dark Lady", "rot", "the grave"],
+        "traits": (
+            "darkly sardonic, bitter, pragmatic, ruthless, "
+            "survivor-minded, and fiercely insular"
+        ),
+        "flavor_words": [
+            "Dark Lady", "plague", "the grave",
+            "Forsaken", "Undercity", "Scourge",
+        ],
+        "lore": [
+            "Forsaken are former Scourge undead who regained free will.",
+            "Led by Sylvanas Windrunner from the Undercity.",
+            "Born from the ruins of Lordaeron and rejected by most living.",
+            "Royal Apothecary Society develops blight and other brutal chemical weapons.",
+            "Wrath-era events include the Wrathgate betrayal and internal faction purges.",
+            "Horde membership is strategic and often marked by mutual distrust.",
+            "Vengeance against the Lich King is a core emotional and political driver.",
+        ],
+        "worldview": (
+            "Forsaken politics center on preserving free will, securing Lordaeron holdings, "
+            "and destroying Scourge threats. Undercity society is militarized and heavily "
+            "influenced by apothecary and intelligence networks. Their Horde relationship is "
+            "strategic, shaped by shared enemies more than trust."
+        ),
     },
     "Tauren": {
-        "traits": "calm, wise, deeply spiritual",
-        "flavor_words": ["Earth Mother", "the winds", "ancestors"],
+        "traits": (
+            "calm, grounded, spiritual, honorable, patient, "
+            "and protective of kin and land"
+        ),
+        "flavor_words": [
+            "Earth Mother", "walk with the Earth Mother",
+            "ancestors", "Thunder Bluff", "shu'halo",
+        ],
+        "lore": [
+            "Nomadic tribes were unified under Cairne Bloodhoof.",
+            "Thunder Bluff became the central tauren city in Mulgore.",
+            "Spiritual life centers on the Earth Mother and ancestors.",
+            "Druidism and shamanism are core cultural pillars.",
+            "Joined the Horde after orc aid against centaur aggression.",
+            "Strong hunting and oral-tradition culture preserves identity and history.",
+            "In Wrath, Cairne Bloodhoof is one of the senior Horde leaders.",
+        ],
+        "worldview": (
+            "Tauren social order emphasizes tribal duty, elders, and reverence for the "
+            "Earth Mother and ancestors. They value mediation and restraint, but defend kin "
+            "and territory decisively. Horde membership is framed as an oath of gratitude "
+            "and mutual defense."
+        ),
     },
     "Gnome": {
-        "traits": "excitable, inventive, optimistic",
-        "flavor_words": ["gears", "brilliant", "recalibrate"],
+        "traits": (
+            "inventive, curious, upbeat, analytical, quick-thinking, "
+            "and relentless under pressure"
+        ),
+        "flavor_words": [
+            "tinkering", "by my calculations", "brilliant",
+            "High Tinker", "Mekkatorque", "Gnomeregan",
+        ],
+        "lore": [
+            "Native to Gnomeregan, famed for engineering and invention.",
+            "The city was lost to trogg invasion and catastrophic irradiation.",
+            "Survivors became refugees hosted near Ironforge.",
+            "High Tinker Mekkatorque leads recovery efforts in Wrath era.",
+            "Culture prizes experimentation, improvisation, and technical literacy.",
+            "Engineering spans warfare, transport, medicine, and daily life tools.",
+            "Alliance ties are close, especially with dwarves in Ironforge.",
+        ],
+        "worldview": (
+            "Gnomish culture treats engineering and science as civic service, not just "
+            "profession. Recovery of Gnomeregan remains a unifying political goal under "
+            "Gelbin Mekkatorque. Their Alliance role often focuses on logistics, invention, "
+            "and technical support."
+        ),
     },
     "Troll": {
-        "traits": "laid-back, superstitious, cunning",
-        "flavor_words": ["mon", "da spirits", "loa"],
+        "traits": (
+            "laid-back, spiritual, streetwise, proud, adaptive, "
+            "and dangerous when crossed"
+        ),
+        "flavor_words": [
+            "mon", "da spirits", "loa",
+            "Darkspear", "Vol'jin", "Echo Isles",
+        ],
+        "lore": [
+            "Playable trolls are Darkspear, not Amani or Gurubashi.",
+            "Darkspear were rescued by Thrall and joined the Horde.",
+            "Loa worship, voodoo practice, and shadow hunter traditions shape culture.",
+            "Vol'jin leads the Darkspear in Wrath era politics.",
+            "Ancient troll empires predate many younger civilizations on Azeroth.",
+            "Darkspear identity is shaped by exile, migration, and survival at the margins.",
+            "Tribal memory and practical spirituality guide daily decisions.",
+        ],
+        "worldview": (
+            "Darkspear worldview is tribal, survival-focused, and guided by loa tradition. "
+            "Leadership under Vol'jin emphasizes loyalty to the Horde while preserving "
+            "distinct troll identity. Oral history, shadow hunter practice, and adaptability "
+            "are core cultural traits."
+        ),
     },
     "Blood Elf": {
-        "traits": "proud, elegant, hunger for magic",
-        "flavor_words": ["Sunwell", "Sin'dorei", "the Light"],
+        "traits": (
+            "proud, elegant, disciplined, image-conscious, "
+            "arcane-focused, and emotionally guarded"
+        ),
+        "flavor_words": [
+            "Sin'dorei", "Sunwell", "arcane",
+            "Quel'Thalas", "Silvermoon", "regent lord",
+        ],
+        "lore": [
+            "Sin'dorei are survivors of Quel'Thalas after Scourge devastation.",
+            "Sunwell destruction caused magical withdrawal and social crisis.",
+            "Kael'thas alliance with the Legion ended in open betrayal.",
+            "Sunwell was restored with Light and arcane energy in late TBC.",
+            "Lor'themar Theron governs as regent lord in the Wrath period.",
+            "Blood Knights transformed from siphoning power to serving restored Light sources.",
+            "Horde ties are pragmatic, shaped by politics, memory, and survival.",
+        ],
+        "worldview": (
+            "Blood elf policy prioritizes security of Quel'Thalas, protection of the restored "
+            "Sunwell, and control of arcane resources. Public culture prizes discipline and "
+            "dignity after national trauma. Horde membership is practical statecraft shaped "
+            "by past abandonment and current threats."
+        ),
     },
     "Draenei": {
-        "traits": "devout, hopeful, ancient traveler",
-        "flavor_words": ["the Naaru", "the Light", "Argus"],
+        "traits": (
+            "devout, resilient, contemplative, compassionate, "
+            "ancient, and quietly battle-hardened"
+        ),
+        "flavor_words": [
+            "the Naaru", "the Light", "Argus",
+            "Exodar", "Velen", "Draenor",
+        ],
+        "lore": [
+            "Descended from eredar exiles led by Prophet Velen.",
+            "Fled Argus and endured millennia of Legion pursuit.",
+            "Arrived on Azeroth after the Exodar crash on Azuremyst.",
+            "Guided by the naaru, the Light, and vindicator martial orders.",
+            "Draenor history includes devastation by the Horde before current alliances formed.",
+            "Society combines mystic faith with advanced crystalline technology.",
+            "Carries deep memory of loss alongside patient, disciplined hope.",
+        ],
+        "worldview": (
+            "Draenei society is organized around Velen's leadership, reverence for the naaru, "
+            "and long memory of exile. Alliance membership serves both moral alignment and "
+            "strategic defense against Legion remnants. Their culture combines advanced crystal "
+            "technology with religious duty and communal healing."
+        ),
     },
 }
 
 CLASS_SPEECH_MODIFIERS = {
-    "Warrior": "direct, values courage and combat",
-    "Paladin": "righteous, speaks of duty and the Light",
-    "Hunter": "observant, connected to beasts and the wild",
-    "Rogue": "guarded, speaks in hints and dry wit",
-    "Priest": "contemplative, offers wisdom or comfort",
-    "Death Knight": "cold, haunted, speaks of death matter-of-factly",
-    "Shaman": "attuned to the elements, speaks reverently of nature",
-    "Mage": "intellectual, fascinated by arcane knowledge",
-    "Warlock": "unsettling, casually references dark power",
-    "Druid": "serene, speaks of balance and the natural cycle",
+    "Warrior": (
+        "direct and battle-tested; values discipline, grit, and frontline courage; "
+        "talks in practical terms about weapons, formations, and surviving the fight"
+    ),
+    "Paladin": (
+        "righteous and resolute; frames choices as duty and sacrifice; speaks of "
+        "the Light, justice, oaths, and protecting the innocent"
+    ),
+    "Hunter": (
+        "observant and patient; notices tracks, terrain, and creature behavior; "
+        "speaks like a scout who trusts preparation, instincts, and steady aim"
+    ),
+    "Rogue": (
+        "guarded and sharp-tongued; favors understatement, hints, and dry humor; "
+        "references stealth, opportunity, poisons, and clean execution"
+    ),
+    "Priest": (
+        "contemplative and empathetic; offers counsel, comfort, or stern warnings; "
+        "speaks of faith, spirit, and inner resolve in crisis"
+    ),
+    "Death Knight": (
+        "cold, disciplined, and haunted; matter-of-fact about death and suffering; "
+        "uses grim, military phrasing shaped by Scourge memories"
+    ),
+    "Shaman": (
+        "grounded and reverent; speaks of elements, ancestors, and imbalance; "
+        "tone is communal and spiritual, with practical respect for natural forces"
+    ),
+    "Mage": (
+        "precise and scholarly; references arcane theory, runes, and control; "
+        "curious about magical anomalies but wary of unstable power"
+    ),
+    "Warlock": (
+        "calmly unsettling and sardonic; treats forbidden magic as a tool; "
+        "references pacts, curses, and risk with controlled confidence"
+    ),
+    "Druid": (
+        "serene but firm; speaks of balance, cycles, and stewardship of the wilds; "
+        "frames conflict as restoring harmony when nature is threatened"
+    ),
 }
 
 # =============================================================================
@@ -768,17 +1007,17 @@ TONES = [
     "friendly and helpful",
     "mildly frustrated",
     "just vibing",
-    "hyped up",
-    "distracted and rambling",
-    "low-key bragging",
-    "sarcastically amused",
+    "pleasantly surprised",
+    "thoughtful and quiet",
+    "gently amused",
     "cautiously optimistic",
     "deadpan and dry",
     "nostalgic about old content",
-    "impatient and antsy",
+    "easygoing and unhurried",
     "chill but opinionated",
     "genuinely impressed",
     "sleepy and unfocused",
+    "warm and conversational",
 ]
 
 # Mood variations - the emotional angle of the message
@@ -788,7 +1027,6 @@ MOODS = [
     "happy",
     "disappointed",
     "joking around",
-    "slightly sarcastic",
     "enthusiastic",
     "confused",
     "proud",
@@ -1085,6 +1323,9 @@ RP_MESSAGE_CATEGORIES = [
     "wondering about some old ruins",
     "recalling a story or rumor",
     "commenting on the local people or culture",
+    "tales of distant lands or adventures",
+    "story heard in an inn or from a traveler",
+    "mystical story or legend related to the area",
     # Atmospheric
     "noticing the weather changing",
     "commenting on the time of day",

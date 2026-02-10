@@ -34,7 +34,8 @@ CREATE TABLE `llm_chatter_events` (
         'bot_group_levelup',
         'bot_group_quest_complete',
         'bot_group_achievement',
-        'bot_group_spell_cast'
+        'bot_group_spell_cast',
+        'bot_group_quest_objectives'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,

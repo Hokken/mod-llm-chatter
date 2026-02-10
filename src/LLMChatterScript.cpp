@@ -344,7 +344,7 @@ static void QueueEvent(const std::string& eventType, const std::string& eventSco
     {
         if (eventType == "transport_arrives")
         {
-            LOG_INFO("module", "LLMChatter: Transport event skipped (reaction chance {})", reactionChance);
+            // LOG_INFO("module", "LLMChatter: Transport event skipped (reaction chance {})", reactionChance);
         }
         else
         {
@@ -358,7 +358,7 @@ static void QueueEvent(const std::string& eventType, const std::string& eventSco
     {
         if (eventType == "transport_arrives")
         {
-            LOG_INFO("module", "LLMChatter: Transport event on cooldown ({})", cooldownKey);
+            // LOG_INFO("module", "LLMChatter: Transport event on cooldown ({})", cooldownKey);
         }
         else
         {
@@ -661,8 +661,8 @@ public:
         QueueEvent("weather_change", "zone", zoneId, 0, 5, cooldownKey, 1800,
                    0, "", 0, "", static_cast<uint32>(state), extraData);
 
-        LOG_INFO("module", "LLMChatter: Weather {} in zone {} - {} -> {} ({})",
-                 transitionType, zoneId, prevWeatherName, weatherName, intensity);
+        // LOG_INFO("module", "LLMChatter: Weather {} in zone {} - {} -> {} ({})",
+        //          transitionType, zoneId, prevWeatherName, weatherName, intensity);
     }
 };
 
@@ -936,8 +936,8 @@ private:
         QueueEvent("day_night_transition", "global", 0, 0, 7, cooldownKey, 7200,
                    0, "", 0, "", 0, extraData);
 
-        LOG_INFO("module", "LLMChatter: Time transition - {} -> {} ({}:{})",
-                 previousPeriod, timePeriod, hour, minute);
+        // LOG_INFO("module", "LLMChatter: Time transition - {} -> {} ({}:{})",
+        //          previousPeriod, timePeriod, hour, minute);
     }
 
     // Check for transport zone changes
@@ -977,9 +977,6 @@ private:
                     // Detect zone change or map change
                     if (currentZone != lastZone || mapId != lastMap)
                     {
-                        LOG_INFO("module", "LLMChatter: Transport {} zone change {} -> {} (map {} -> {})",
-                                 entry, lastZone, currentZone, lastMap, mapId);
-
                         // If we are in "no zone" (open sea), just track it.
                         // We'll announce when we enter a real zone.
                         if (currentZone == 0)
@@ -1024,12 +1021,9 @@ private:
                                 extraData
                             );
 
-                            LOG_INFO("module", "LLMChatter: Transport {} ({}) arrived in zone {}",
-                                     info.transportType, info.destination, currentZone);
                         }
                         else
                         {
-                            LOG_INFO("module", "LLMChatter: Transport entry {} not in cache, skipping event", entry);
                         }
                     }
                 }
@@ -1272,13 +1266,10 @@ private:
 
     void TryTriggerChatter()
     {
-        LOG_INFO("module", "LLMChatter: TryTriggerChatter called");
-
         // Roll for trigger chance
         uint32 roll = urand(1, 100);
         if (roll > sLLMChatterConfig->_triggerChance)
         {
-            LOG_INFO("module", "LLMChatter: Skipped (roll {} > chance {})", roll, sLLMChatterConfig->_triggerChance);
             return;
         }
 
@@ -1300,10 +1291,8 @@ private:
         std::vector<uint32> validZones = GetZonesWithRealPlayers();
         if (validZones.empty())
         {
-            LOG_INFO("module", "LLMChatter: No zones with real players found");
             return;
         }
-        LOG_INFO("module", "LLMChatter: Found {} zones with real players", validZones.size());
 
         // Pick one zone randomly
         std::random_device rd;
@@ -1506,31 +1495,22 @@ private:
             std::string message = fields[3].Get<std::string>();
             std::string channel = fields[4].Get<std::string>();
 
-            // Find the bot player from RandomPlayerbotMgr
-            Player* bot = nullptr;
-            PlayerBotMap allBots =
-                sRandomPlayerbotMgr.GetAllBots();
+            // Find the bot player (supports both
+            // random bots and account character bots)
+            ObjectGuid guid =
+                ObjectGuid::Create<HighGuid::Player>(
+                    botGuid);
+            Player* bot =
+                ObjectAccessor::FindPlayer(guid);
 
-            for (auto const& pair : allBots)
+            // Skip if bot is still loading
+            if (bot)
             {
-                Player* player = pair.second;
-                if (!player)
-                    continue;
-
-                if (player->GetGUID().GetCounter()
-                    == botGuid)
-                {
-                    // Check if bot is fully loaded
-                    WorldSession* session =
-                        player->GetSession();
-                    if (session
-                        && session->PlayerLoading())
-                    {
-                        break;  // Not ready
-                    }
-                    bot = player;
-                    break;
-                }
+                WorldSession* session =
+                    bot->GetSession();
+                if (session
+                    && session->PlayerLoading())
+                    bot = nullptr;
             }
 
             if (bot && bot->IsInWorld())
@@ -1662,6 +1642,12 @@ static void QueueBotGreetingEvent(
         "\"group_id\":" + std::to_string(groupId) +
         "}";
 
+    // SQL-escape the whole JSON blob so
+    // apostrophes in names don't break the
+    // INSERT (JsonEscape handles JSON + SQL
+    // inside values, this covers the wrapper)
+    extraData = EscapeString(extraData);
+
     // Direct INSERT - bypass QueueEvent to skip
     // reaction chance and cooldown checks
     CharacterDatabase.Execute(
@@ -1706,6 +1692,11 @@ static std::map<uint32, time_t> _groupCombatCooldowns;
 // Per-group spell cast cooldown: group_id -> last spell event time
 static std::unordered_map<uint32, time_t>
     _groupSpellCooldowns;
+
+// Per-group quest objectives cooldown:
+// group_id -> last quest objectives event time
+static std::map<uint32, time_t>
+    _groupQuestObjCooldowns;
 
 // Clean up traits when group no longer qualifies
 static void CleanupGroupSession(uint32 groupId)
@@ -1885,19 +1876,23 @@ public:
             group->GetGUID().GetCounter();
 
         // Per-group cooldown: boss/rare bypass,
-        // normal 120s
+        // normal uses config cooldown
         time_t now = time(nullptr);
         if (isNormal)
         {
             auto it =
                 _groupKillCooldowns.find(groupId);
             if (it != _groupKillCooldowns.end()
-                && (now - it->second) < 120)
+                && (now - it->second)
+                   < (time_t)sLLMChatterConfig
+                       ->_groupKillCooldown)
                 return;
         }
 
-        // RNG: boss/rare = 100%, normal = 20%
-        if (isNormal && urand(1, 100) > 20)
+        // RNG: boss/rare = 100%, normal = config%
+        if (isNormal && urand(1, 100)
+            > sLLMChatterConfig
+                ->_groupKillChanceNormal)
             return;
 
         _groupKillCooldowns[groupId] = now;
@@ -1942,6 +1937,11 @@ public:
             "\"group_id\":" +
                 std::to_string(groupId) +
             "}";
+
+        // SQL-escape the whole JSON blob so
+        // apostrophes in names don't break the
+        // INSERT
+        extraData = EscapeString(extraData);
 
         // Direct INSERT with short react_after
         CharacterDatabase.Execute(
@@ -1995,16 +1995,19 @@ public:
         uint32 groupId =
             group->GetGUID().GetCounter();
 
-        // Per-group cooldown: 30s (wipes cause rapid
+        // Per-group cooldown (wipes cause rapid
         // deaths)
         time_t now = time(nullptr);
         auto it = _groupDeathCooldowns.find(groupId);
         if (it != _groupDeathCooldowns.end()
-            && (now - it->second) < 30)
+            && (now - it->second)
+               < (time_t)sLLMChatterConfig
+                   ->_groupDeathCooldown)
             return;
 
-        // RNG: 40% chance to react to a death
-        if (urand(1, 100) > 40)
+        // RNG: config% chance to react to a death
+        if (urand(1, 100)
+            > sLLMChatterConfig->_groupDeathChance)
             return;
 
         _groupDeathCooldowns[groupId] = now;
@@ -2033,6 +2036,11 @@ public:
             "\"group_id\":" +
                 std::to_string(groupId) +
             "}";
+
+        // SQL-escape the whole JSON blob so
+        // apostrophes in names don't break the
+        // INSERT
+        extraData = EscapeString(extraData);
 
         // Direct INSERT with short react_after
         CharacterDatabase.Execute(
@@ -2093,13 +2101,15 @@ public:
 
         bool isBot = IsPlayerBot(player);
 
-        // Quality-based chance:
-        // green=20%, blue=50%, epic+=100%
+        // Quality-based chance from config:
+        // green/blue configurable, epic+=100%
         uint32 chance;
         if (quality == 2)
-            chance = 20;
+            chance = sLLMChatterConfig
+                ->_groupLootChanceGreen;
         else if (quality == 3)
-            chance = 50;
+            chance = sLLMChatterConfig
+                ->_groupLootChanceBlue;
         else
             chance = 100;
 
@@ -2109,15 +2119,17 @@ public:
         uint32 groupId =
             group->GetGUID().GetCounter();
 
-        // Per-group loot cooldown: 60s for
-        // green/blue, epic+ bypasses cooldown
+        // Per-group loot cooldown: config seconds
+        // for green/blue, epic+ bypasses cooldown
         time_t now = time(nullptr);
         if (quality < 4)
         {
             auto it =
                 _groupLootCooldowns.find(groupId);
             if (it != _groupLootCooldowns.end()
-                && (now - it->second) < 60)
+                && (now - it->second)
+                   < (time_t)sLLMChatterConfig
+                       ->_groupLootCooldown)
                 return;
         }
 
@@ -2156,6 +2168,11 @@ public:
             "\"group_id\":" +
                 std::to_string(groupId) +
             "}";
+
+        // SQL-escape the whole JSON blob so
+        // apostrophes in names don't break the
+        // INSERT
+        extraData = EscapeString(extraData);
 
         CharacterDatabase.Execute(
             "INSERT INTO llm_chatter_events "
@@ -2243,9 +2260,13 @@ public:
         uint32 groupId =
             group->GetGUID().GetCounter();
 
-        // Per-group cooldown: elite+ 60s, normal 120s
+        // Per-group cooldown: normal uses config,
+        // elite+ uses half
         time_t now = time(nullptr);
-        uint32 cooldownSec = isNormal ? 120 : 60;
+        uint32 cooldownSec = isNormal
+            ? sLLMChatterConfig->_groupKillCooldown
+            : sLLMChatterConfig->_groupKillCooldown
+              / 2;
         auto it =
             _groupCombatCooldowns.find(groupId);
         if (it != _groupCombatCooldowns.end()
@@ -2304,6 +2325,11 @@ public:
             "\"group_id\":" +
                 std::to_string(groupId) +
             "}";
+
+        // SQL-escape the whole JSON blob so
+        // apostrophes in names don't break the
+        // INSERT
+        extraData = EscapeString(extraData);
 
         CharacterDatabase.Execute(
             "INSERT INTO llm_chatter_events "
@@ -2454,12 +2480,14 @@ public:
             EscapeString(playerName),
             EscapeString(safeMsg));
 
-        // Per-group cooldown: 15s
+        // Per-group cooldown
         time_t now = time(nullptr);
         auto it =
             _groupPlayerMsgCooldowns.find(groupId);
         if (it != _groupPlayerMsgCooldowns.end()
-            && (now - it->second) < 15)
+            && (now - it->second)
+               < (time_t)sLLMChatterConfig
+                   ->_groupPlayerMsgCooldown)
             return;
 
         _groupPlayerMsgCooldowns[groupId] = now;
@@ -2472,6 +2500,11 @@ public:
             "\"group_id\":" +
                 std::to_string(groupId) +
             "}";
+
+        // SQL-escape the whole JSON blob so
+        // apostrophes in names/messages don't
+        // break the INSERT
+        extraData = EscapeString(extraData);
 
         CharacterDatabase.Execute(
             "INSERT INTO llm_chatter_events "
@@ -2509,22 +2542,54 @@ public:
         if (!sLLMChatterConfig
             || !sLLMChatterConfig->IsEnabled()
             || !sLLMChatterConfig->_useGroupChatter)
+        {
+            LOG_INFO("module",
+                "LLMChatter: LevelChanged "
+                "- config disabled");
             return;
+        }
 
         if (!player)
+        {
+            LOG_INFO("module",
+                "LLMChatter: LevelChanged "
+                "- no player");
             return;
+        }
+
+        LOG_INFO("module",
+            "LLMChatter: LevelChanged - entered "
+            "for {} (old lvl {})",
+            player->GetName(), oldLevel);
 
         Group* group = player->GetGroup();
         if (!group)
+        {
+            LOG_INFO("module",
+                "LLMChatter: LevelChanged "
+                "- no group for {}",
+                player->GetName());
             return;
+        }
 
         if (!GroupHasRealPlayer(group))
+        {
+            LOG_INFO("module",
+                "LLMChatter: LevelChanged "
+                "- no real player in group");
             return;
+        }
 
         // Must actually be gaining a level
         uint8 newLevel = player->GetLevel();
         if (newLevel <= oldLevel)
+        {
+            LOG_INFO("module",
+                "LLMChatter: LevelChanged "
+                "- level unchanged {} -> {}",
+                oldLevel, newLevel);
             return;
+        }
 
         bool isBot = IsPlayerBot(player);
 
@@ -2537,15 +2602,24 @@ public:
             reactor = GetRandomBotInGroup(group);
 
         if (!reactor)
+        {
+            LOG_INFO("module",
+                "LLMChatter: LevelChanged "
+                "- no reactor bot for {}",
+                player->GetName());
             return;
+        }
 
         uint32 groupId =
             group->GetGUID().GetCounter();
         uint32 botGuid =
             reactor->GetGUID().GetCounter();
         std::string botName = reactor->GetName();
+        std::string playerName = player->GetName();
 
         // Build extra_data JSON
+        // leveler_* = who leveled up
+        // bot_* = who will react to it
         std::string extraData = "{"
             "\"bot_guid\":" +
                 std::to_string(botGuid) + ","
@@ -2564,9 +2638,22 @@ public:
             "\"is_bot\":" +
                 std::string(
                     isBot ? "1" : "0") + ","
+            "\"leveler_name\":\"" +
+                JsonEscape(playerName) + "\","
             "\"group_id\":" +
                 std::to_string(groupId) +
             "}";
+
+        // SQL-escape the whole JSON blob so
+        // apostrophes in names don't break the
+        // INSERT (JsonEscape handles JSON + SQL
+        // inside values, this covers the wrapper)
+        extraData = EscapeString(extraData);
+
+        LOG_INFO("module",
+            "LLMChatter: LevelChanged "
+            "- queuing for {} (lvl {} -> {})",
+            botName, oldLevel, newLevel);
 
         CharacterDatabase.Execute(
             "INSERT INTO llm_chatter_events "
@@ -2596,26 +2683,54 @@ public:
     }
 
     // ------------------------------------------------
-    // Quest Complete event
+    // Quest Objectives Complete event
+    // (fires when all objectives are done,
+    //  BEFORE the player turns in the quest)
     // ------------------------------------------------
-    void OnPlayerCompleteQuest(
-        Player* player,
-        Quest const* quest) override
+    bool OnPlayerBeforeQuestComplete(
+        Player* player, uint32 questId) override
     {
         if (!sLLMChatterConfig
             || !sLLMChatterConfig->IsEnabled()
             || !sLLMChatterConfig->_useGroupChatter)
-            return;
+            return true;
 
-        if (!player || !quest)
-            return;
+        if (!player)
+            return true;
 
         Group* group = player->GetGroup();
         if (!group)
-            return;
+            return true;
 
         if (!GroupHasRealPlayer(group))
-            return;
+            return true;
+
+        // Get quest template for the name
+        Quest const* quest =
+            sObjectMgr->GetQuestTemplate(questId);
+        if (!quest)
+            return true;
+
+        uint32 groupId =
+            group->GetGUID().GetCounter();
+
+        // Per-group cooldown: 30s to avoid spam
+        // from multiple objectives completing
+        time_t now = time(nullptr);
+        {
+            auto it = _groupQuestObjCooldowns
+                .find(groupId);
+            if (it != _groupQuestObjCooldowns.end()
+                && (now - it->second) < 30)
+                return true;
+        }
+
+        // 50% RNG chance to avoid reacting
+        // to every single quest objective
+        if (urand(1, 100) > 50)
+            return true;
+
+        _groupQuestObjCooldowns[groupId] = now;
 
         bool isBot = IsPlayerBot(player);
 
@@ -2628,18 +2743,156 @@ public:
             reactor = GetRandomBotInGroup(group);
 
         if (!reactor)
+            return true;
+
+        uint32 botGuid =
+            reactor->GetGUID().GetCounter();
+        std::string botName = reactor->GetName();
+        std::string playerName = player->GetName();
+        std::string questName = quest->GetTitle();
+
+        // Build extra_data JSON
+        std::string extraData = "{"
+            "\"bot_guid\":" +
+                std::to_string(botGuid) + ","
+            "\"bot_name\":\"" +
+                JsonEscape(botName) + "\","
+            "\"bot_class\":" +
+                std::to_string(
+                    reactor->getClass()) + ","
+            "\"bot_race\":" +
+                std::to_string(
+                    reactor->getRace()) + ","
+            "\"bot_level\":" +
+                std::to_string(
+                    reactor->GetLevel()) + ","
+            "\"quest_name\":\"" +
+                JsonEscape(questName) + "\","
+            "\"quest_id\":" +
+                std::to_string(questId) + ","
+            "\"completer_name\":\"" +
+                JsonEscape(playerName) + "\","
+            "\"group_id\":" +
+                std::to_string(groupId) +
+            "}";
+
+        extraData = EscapeString(extraData);
+
+        CharacterDatabase.Execute(
+            "INSERT INTO llm_chatter_events "
+            "(event_type, event_scope, zone_id, "
+            "map_id, priority, cooldown_key, "
+            "subject_guid, subject_name, "
+            "target_guid, target_name, "
+            "target_entry, extra_data, status, "
+            "react_after, expires_at) "
+            "VALUES ("
+            "'bot_group_quest_objectives', "
+            "'player', "
+            "{}, {}, 1, '', "
+            "{}, '{}', 0, '{}', {}, "
+            "'{}', 'pending', "
+            "DATE_ADD(NOW(), INTERVAL 2 SECOND), "
+            "DATE_ADD(NOW(), "
+            "INTERVAL 120 SECOND))",
+            reactor->GetZoneId(),
+            reactor->GetMapId(),
+            botGuid, EscapeString(botName),
+            EscapeString(questName),
+            questId,
+            extraData);
+
+        LOG_INFO("module",
+            "LLMChatter: Queued "
+            "bot_group_quest_objectives "
+            "for {} completing objectives [{}]",
+            botName, questName);
+
+        return true;
+    }
+
+    // ------------------------------------------------
+    // Quest Complete event
+    // ------------------------------------------------
+    void OnPlayerCompleteQuest(
+        Player* player,
+        Quest const* quest) override
+    {
+        if (!sLLMChatterConfig
+            || !sLLMChatterConfig->IsEnabled()
+            || !sLLMChatterConfig->_useGroupChatter)
+        {
+            LOG_INFO("module",
+                "LLMChatter: QuestComplete "
+                "- config disabled");
             return;
+        }
+
+        if (!player || !quest)
+        {
+            LOG_INFO("module",
+                "LLMChatter: QuestComplete "
+                "- no player or quest");
+            return;
+        }
+
+        LOG_INFO("module",
+            "LLMChatter: QuestComplete - entered "
+            "for {} quest [{}] (id {})",
+            player->GetName(),
+            quest->GetTitle(),
+            quest->GetQuestId());
+
+        Group* group = player->GetGroup();
+        if (!group)
+        {
+            LOG_INFO("module",
+                "LLMChatter: QuestComplete "
+                "- no group for {}",
+                player->GetName());
+            return;
+        }
+
+        if (!GroupHasRealPlayer(group))
+        {
+            LOG_INFO("module",
+                "LLMChatter: QuestComplete "
+                "- no real player in group");
+            return;
+        }
+
+        bool isBot = IsPlayerBot(player);
+
+        // Pick reactor: bot uses self, real player
+        // picks a random bot from group to react
+        Player* reactor = nullptr;
+        if (isBot)
+            reactor = player;
+        else
+            reactor = GetRandomBotInGroup(group);
+
+        if (!reactor)
+        {
+            LOG_INFO("module",
+                "LLMChatter: QuestComplete "
+                "- no reactor bot for {}",
+                player->GetName());
+            return;
+        }
 
         uint32 groupId =
             group->GetGUID().GetCounter();
         uint32 botGuid =
             reactor->GetGUID().GetCounter();
         std::string botName = reactor->GetName();
+        std::string playerName = player->GetName();
         std::string questName =
             quest->GetTitle();
         uint32 questId = quest->GetQuestId();
 
         // Build extra_data JSON
+        // completer_* = who finished the quest
+        // bot_* = who will react to it
         std::string extraData = "{"
             "\"bot_guid\":" +
                 std::to_string(botGuid) + ","
@@ -2657,6 +2910,8 @@ public:
             "\"is_bot\":" +
                 std::string(
                     isBot ? "1" : "0") + ","
+            "\"completer_name\":\"" +
+                JsonEscape(playerName) + "\","
             "\"quest_name\":\"" +
                 JsonEscape(questName) + "\","
             "\"quest_id\":" +
@@ -2664,6 +2919,17 @@ public:
             "\"group_id\":" +
                 std::to_string(groupId) +
             "}";
+
+        // SQL-escape the whole JSON blob so
+        // apostrophes in names don't break the
+        // INSERT (JsonEscape handles JSON + SQL
+        // inside values, this covers the wrapper)
+        extraData = EscapeString(extraData);
+
+        LOG_INFO("module",
+            "LLMChatter: QuestComplete "
+            "- queuing for {} completing [{}]",
+            botName, questName);
 
         CharacterDatabase.Execute(
             "INSERT INTO llm_chatter_events "
@@ -2706,17 +2972,46 @@ public:
         if (!sLLMChatterConfig
             || !sLLMChatterConfig->IsEnabled()
             || !sLLMChatterConfig->_useGroupChatter)
+        {
+            LOG_INFO("module",
+                "LLMChatter: Achievement "
+                "- config disabled");
             return;
+        }
 
         if (!player || !achievement)
+        {
+            LOG_INFO("module",
+                "LLMChatter: Achievement "
+                "- no player or achievement");
             return;
+        }
+
+        LOG_INFO("module",
+            "LLMChatter: Achievement - entered "
+            "for {} achievement [{}] (id {})",
+            player->GetName(),
+            achievement->name[0]
+                ? achievement->name[0] : "?",
+            achievement->ID);
 
         Group* group = player->GetGroup();
         if (!group)
+        {
+            LOG_INFO("module",
+                "LLMChatter: Achievement "
+                "- no group for {}",
+                player->GetName());
             return;
+        }
 
         if (!GroupHasRealPlayer(group))
+        {
+            LOG_INFO("module",
+                "LLMChatter: Achievement "
+                "- no real player in group");
             return;
+        }
 
         bool isBot = IsPlayerBot(player);
 
@@ -2729,13 +3024,20 @@ public:
             reactor = GetRandomBotInGroup(group);
 
         if (!reactor)
+        {
+            LOG_INFO("module",
+                "LLMChatter: Achievement "
+                "- no reactor bot for {}",
+                player->GetName());
             return;
+        }
 
         uint32 groupId =
             group->GetGUID().GetCounter();
         uint32 botGuid =
             reactor->GetGUID().GetCounter();
         std::string botName = reactor->GetName();
+        std::string playerName = player->GetName();
 
         // Achievement name is locale-indexed;
         // index 0 = English (enUS)
@@ -2745,6 +3047,8 @@ public:
         uint32 achId = achievement->ID;
 
         // Build extra_data JSON
+        // achiever_* = who earned the achievement
+        // bot_* = who will react to it
         std::string extraData = "{"
             "\"bot_guid\":" +
                 std::to_string(botGuid) + ","
@@ -2762,6 +3066,8 @@ public:
             "\"is_bot\":" +
                 std::string(
                     isBot ? "1" : "0") + ","
+            "\"achiever_name\":\"" +
+                JsonEscape(playerName) + "\","
             "\"achievement_name\":\"" +
                 JsonEscape(achName) + "\","
             "\"achievement_id\":" +
@@ -2769,6 +3075,17 @@ public:
             "\"group_id\":" +
                 std::to_string(groupId) +
             "}";
+
+        // SQL-escape the whole JSON blob so
+        // apostrophes in names don't break the
+        // INSERT (JsonEscape handles JSON + SQL
+        // inside values, this covers the wrapper)
+        extraData = EscapeString(extraData);
+
+        LOG_INFO("module",
+            "LLMChatter: Achievement "
+            "- queuing for {} earning [{}]",
+            botName, achName);
 
         CharacterDatabase.Execute(
             "INSERT INTO llm_chatter_events "
@@ -2803,7 +3120,7 @@ public:
 
     // ------------------------------------------------
     // Spell Cast event — heals, CC, resurrects,
-    // shields cast in groups
+    // shields, buffs cast in groups
     // ------------------------------------------------
     void OnPlayerSpellCast(
         Player* player, Spell* spell,
@@ -2864,7 +3181,8 @@ public:
             return;
 
         // --- Classify the spell ---
-        // Categories: heal, cc, resurrect, shield
+        // Categories: heal, cc, resurrect, shield,
+        // buff
         std::string spellCategory;
 
         // 1. RESURRECT — check first (rare, always
@@ -2930,6 +3248,41 @@ public:
         {
             spellCategory = "shield";
         }
+        // 5. BUFF — positive spell on a groupmate
+        //    (not self). Catches MotW, Fort, Kings,
+        //    Arcane Intellect, etc.
+        else if (spellInfo->IsPositive()
+            && (spellInfo->HasAura(
+                    SPELL_AURA_MOD_STAT)
+                || spellInfo->HasAura(
+                    SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE)
+                || spellInfo->HasAura(
+                    SPELL_AURA_MOD_RESISTANCE)
+                || spellInfo->HasAura(
+                    SPELL_AURA_MOD_ATTACK_POWER)
+                || spellInfo->HasAura(
+                    SPELL_AURA_MOD_POWER_REGEN)
+                || spellInfo->HasAura(
+                    SPELL_AURA_MOD_INCREASE_SPEED)))
+        {
+            // Must target a different group member
+            Unit* target =
+                spell->m_targets.GetUnitTarget();
+            if (!target || target == player)
+                return;
+
+            Player* targetPlayer =
+                target->ToPlayer();
+            if (!targetPlayer)
+                return;
+
+            if (!targetPlayer->GetGroup()
+                || targetPlayer->GetGroup()
+                       != group)
+                return;
+
+            spellCategory = "buff";
+        }
         else
         {
             // Not a meaningful spell category
@@ -2947,15 +3300,14 @@ public:
         _groupSpellCooldowns[groupId] = now;
 
         // --- Determine reactor bot ---
-        // If caster is a bot: pick another random
-        // bot in the group (exclude the caster).
-        // If caster is the real player: pick any
-        // random bot in the group.
+        // If caster is a bot: the caster speaks
+        // about their own spell (more natural).
+        // If caster is the real player: pick a
+        // random bot to react (e.g. say thanks).
         bool casterIsBot = IsPlayerBot(player);
         Player* reactor = nullptr;
         if (casterIsBot)
-            reactor = GetRandomBotInGroup(
-                group, player);
+            reactor = player;  // caster speaks
         else
             reactor = GetRandomBotInGroup(group);
 
@@ -3007,6 +3359,11 @@ public:
             "\"group_id\":" +
                 std::to_string(groupId) +
             "}";
+
+        // SQL-escape the whole JSON blob so
+        // apostrophes in names don't break the
+        // INSERT
+        extraData = EscapeString(extraData);
 
         CharacterDatabase.Execute(
             "INSERT INTO llm_chatter_events "

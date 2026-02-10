@@ -11,6 +11,7 @@ Handles:
 - bot_group_combat: battle cry when engaging elites/bosses
 - bot_group_levelup: congrats when someone levels up
 - bot_group_quest_complete: reaction to quest completion
+- bot_group_quest_objectives: reaction to quest objectives done
 - bot_group_achievement: reaction to achievement earned
 - bot_group_spell_cast: reaction to notable spells
 - idle chatter: periodic casual party chat during lulls
@@ -25,7 +26,7 @@ import random
 import time
 
 from chatter_shared import (
-    call_llm, cleanup_message,
+    call_llm, cleanup_message, strip_speaker_prefix,
     get_chatter_mode, get_class_name, get_race_name,
     get_db_connection, build_race_class_context,
     parse_extra_data, get_zone_flavor,
@@ -77,11 +78,11 @@ def _pick_length_hint(mode):
 PERSONALITY_TRAITS = {
     'social': [
         'friendly', 'reserved', 'talkative',
-        'shy', 'blunt', 'polite',
+        'shy', 'thoughtful', 'polite',
     ],
     'attitude': [
         'optimistic', 'cynical', 'cautious',
-        'reckless', 'stoic',
+        'easygoing', 'stoic',
     ],
     'focus': [
         'combat-focused', 'loot-driven',
@@ -90,11 +91,11 @@ PERSONALITY_TRAITS = {
     ],
     'humor': [
         'sarcastic', 'deadpan', 'cheerful',
-        'dry wit', 'no-nonsense',
+        'dry wit', 'warmhearted',
     ],
     'energy': [
-        'eager', 'laid-back', 'intense',
-        'drowsy', 'hyper',
+        'eager', 'laid-back', 'steady',
+        'drowsy', 'relaxed',
     ],
 }
 
@@ -282,9 +283,9 @@ def build_bot_greeting_prompt(
         )
     else:
         style_guide = (
-            "Sound like a real MMO player. "
-            "Casual, maybe use abbreviations. "
-            "Don't be overly formal."
+            "Sound like a normal person chatting "
+            "in a game. Casual but natural, "
+            "no excessive slang or abbreviations."
         )
 
     prompt = (
@@ -388,9 +389,9 @@ def build_bot_welcome_prompt(
         )
     else:
         style_guide = (
-            "Sound like a real MMO player. "
-            "Casual, maybe use abbreviations. "
-            "Don't be overly formal."
+            "Sound like a normal person chatting "
+            "in a game. Casual but natural, "
+            "no excessive slang or abbreviations."
         )
 
     prompt = (
@@ -505,8 +506,8 @@ def build_kill_reaction_prompt(
         )
     else:
         style = (
-            "React like a real MMO player would "
-            "in party chat. Casual and brief."
+            "React naturally in party chat. "
+            "Casual and brief."
         )
 
     prompt = (
@@ -613,8 +614,8 @@ def build_loot_reaction_prompt(
         )
     else:
         style = (
-            "React like a real MMO player would "
-            "in party chat about getting loot. "
+            "React naturally in party chat "
+            "about getting loot. "
             "Casual and brief."
         )
 
@@ -704,7 +705,7 @@ def build_combat_reaction_prompt(
         style = (
             "Say something quick in party chat "
             "as you pull or engage the mob. "
-            "Like a real MMO player would."
+            "Casual and natural."
         )
 
     prompt = (
@@ -774,8 +775,8 @@ def build_death_reaction_prompt(
         )
     else:
         style = (
-            "React like a real MMO player. Could "
-            "be sympathy, humor, frustration, or "
+            "React naturally. Could be sympathy, "
+            "humor, frustration, or "
             "just acknowledgment."
         )
 
@@ -862,9 +863,9 @@ def build_levelup_reaction_prompt(
         )
     else:
         style = (
-            "React like a real MMO player would "
-            "in party chat. Congratulate or "
-            "comment on the level-up."
+            "React naturally in party chat. "
+            "Congratulate or comment on "
+            "the level-up."
         )
 
     prompt = (
@@ -945,8 +946,8 @@ def build_quest_complete_reaction_prompt(
         )
     else:
         style = (
-            "React like a real MMO player would "
-            "in party chat about finishing a quest. "
+            "React naturally in party chat "
+            "about finishing a quest. "
             "Casual and brief."
         )
 
@@ -970,6 +971,94 @@ def build_quest_complete_reaction_prompt(
         f"- No quotes, asterisks, emotes, emojis\n"
         f"- Can mention the quest by name\n"
         f"- Reflect your personality traits\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
+    )
+    return prompt
+
+
+def build_quest_objectives_reaction_prompt(
+    bot, traits, quest_name, completer_name,
+    mode, chat_history=""
+):
+    """Build prompt for a bot reacting to quest
+    objectives being completed (before turn-in).
+
+    This is a GROUP effort — don't attribute to
+    a specific player. Tone should be casual
+    satisfaction, not over-excitement (that is
+    reserved for the actual turn-in).
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
+    twist = maybe_get_creative_twist(
+        chance=1.0, mode=mode
+    )
+
+    logger.info(
+        f"Group quest objectives creativity: "
+        f"tone={tone}, mood={mood}, twist={twist}"
+    )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class']
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    quest_context = (
+        f"Your party just completed all the "
+        f"objectives for the quest "
+        f"\"{quest_name}\". The hard part is "
+        f"done — now you just need to turn it "
+        f"in. This is a casual moment of "
+        f"satisfaction, not wild excitement."
+    )
+
+    if is_rp:
+        style = (
+            "React in-character with mild "
+            "satisfaction. Keep it natural and "
+            "grounded — save the big celebration "
+            "for the actual turn-in."
+        )
+    else:
+        style = (
+            "React naturally in party chat. "
+            "Casual satisfaction — objectives "
+            "done, time to turn it in. Brief."
+        )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+        f"Your tone: {tone}\n"
+        f"Your mood: {mood}\n"
+    )
+    if twist:
+        prompt += f"Creative twist: {twist}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{quest_context}\n\n"
+        f"{style}\n\n"
+        f"Say a reaction in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- Can mention the quest by name\n"
+        f"- Reflect your personality traits\n"
+        f"- Don't attribute the completion to "
+        f"any specific player — it was a group "
+        f"effort\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )
@@ -1028,9 +1117,9 @@ def build_achievement_reaction_prompt(
         )
     else:
         style = (
-            "React like a real MMO player would "
-            "in party chat about an achievement. "
-            "Achievements are special — be excited!"
+            "React naturally in party chat "
+            "about an achievement. "
+            "Achievements are special, be excited!"
         )
 
     prompt = (
@@ -1066,14 +1155,15 @@ def build_spell_cast_reaction_prompt(
     dungeon_bosses=None,
 ):
     """Build prompt for a bot reacting to a notable
-    spell cast (heal, cc, resurrect, shield).
+    spell cast (heal, cc, resurrect, shield, buff).
 
     Args:
         bot: dict with name, class, race, level
         traits: list of 3 trait strings
         caster_name: who cast the spell
         spell_name: name of the spell cast
-        spell_category: heal, cc, resurrect, shield
+        spell_category: heal, cc, resurrect, shield,
+            buff
         target_name: who was targeted
         mode: 'normal' or 'roleplay'
         chat_history: formatted recent chat string
@@ -1105,55 +1195,83 @@ def build_spell_cast_reaction_prompt(
     if chat_history:
         rp_context += f"{chat_history}\n"
 
-    # Situation varies by category
-    if spell_category == 'heal':
-        situation = (
-            f"{caster_name} just healed "
-            f"{target_name} with {spell_name}"
-        )
-        examples = (
-            '- "nice save!"\n'
-            '- "clutch heal right there"\n'
-            '- "good timing on that heal"'
-        )
-    elif spell_category == 'cc':
-        situation = (
-            f"{caster_name} just crowd-controlled "
-            f"an enemy with {spell_name}"
-        )
-        examples = (
-            '- "got em!"\n'
-            '- "nice sheep"\n'
-            '- "good cc, keep it locked down"'
-        )
-    elif spell_category == 'resurrect':
-        situation = (
-            f"{caster_name} just resurrected "
-            f"{target_name} with {spell_name}"
-        )
-        examples = (
-            '- "welcome back!"\n'
-            '- "thought we lost ya"\n'
-            '- "back from the dead, nice"'
-        )
-    elif spell_category == 'shield':
-        situation = (
-            f"{caster_name} just cast a protective "
-            f"spell ({spell_name}) on {target_name}"
-        )
-        examples = (
-            '- "bubble!"\n'
-            '- "good call on the shield"\n'
-            '- "nice, keep that up"'
-        )
+    # Determine if the speaking bot is the caster
+    is_caster = (bot['name'] == caster_name)
+
+    # Situation varies by category + perspective
+    if is_caster:
+        # Bot is the caster — speak about YOUR spell
+        if spell_category == 'heal':
+            situation = (
+                f"You just healed {target_name} "
+                f"with {spell_name}. Say something "
+                f"brief and supportive to them."
+            )
+        elif spell_category == 'resurrect':
+            situation = (
+                f"You just resurrected {target_name}"
+                f" with {spell_name}. Welcome them "
+                f"back."
+            )
+        elif spell_category == 'shield':
+            situation = (
+                f"You just cast {spell_name} on "
+                f"{target_name} to protect them. "
+                f"Say something brief about it."
+            )
+        elif spell_category == 'buff':
+            situation = (
+                f"You just cast {spell_name} on "
+                f"{target_name} to strengthen them. "
+                f"Say something brief and supportive."
+            )
+        elif spell_category == 'cc':
+            situation = (
+                f"You just crowd-controlled an "
+                f"enemy with {spell_name}. Say "
+                f"something quick about it."
+            )
+        else:
+            situation = (
+                f"You just cast {spell_name}"
+                + (f" on {target_name}"
+                   if target_name else "")
+            )
     else:
-        situation = (
-            f"{caster_name} just cast {spell_name}"
-        )
-        examples = (
-            '- "nice one"\n'
-            '- "good spell"'
-        )
+        # Bot is observing someone else's cast
+        if spell_category == 'heal':
+            situation = (
+                f"{caster_name} just healed "
+                f"{target_name} with {spell_name}"
+            )
+        elif spell_category == 'cc':
+            situation = (
+                f"{caster_name} just crowd-controlled"
+                f" an enemy with {spell_name}"
+            )
+        elif spell_category == 'resurrect':
+            situation = (
+                f"{caster_name} just resurrected "
+                f"{target_name} with {spell_name}"
+            )
+        elif spell_category == 'shield':
+            situation = (
+                f"{caster_name} just cast a "
+                f"protective spell ({spell_name}) "
+                f"on {target_name}"
+            )
+        elif spell_category == 'buff':
+            situation = (
+                f"{caster_name} just buffed "
+                f"{target_name} with {spell_name}"
+            )
+        else:
+            situation = (
+                f"{caster_name} just cast "
+                f"{spell_name}"
+                + (f" on {target_name}"
+                   if target_name else "")
+            )
 
     if members:
         others = [
@@ -1175,15 +1293,43 @@ def build_spell_cast_reaction_prompt(
             f"{boss_list}"
         )
 
-    if is_rp:
-        style = (
-            "React in-character to the spell. "
-            "Keep it natural and grounded."
+    if is_caster:
+        if is_rp:
+            style = (
+                "Speak in-character about the "
+                "spell you just cast. Keep it "
+                "natural and grounded."
+            )
+        else:
+            style = (
+                "Say something casual in party "
+                "chat about your spell. Brief "
+                "and natural."
+            )
+    else:
+        if is_rp:
+            style = (
+                "React in-character to the spell. "
+                "Keep it natural and grounded."
+            )
+        else:
+            style = (
+                "React naturally in party chat. "
+                "Casual and brief."
+            )
+
+    # Instruction differs based on caster vs observer
+    if is_caster:
+        instruction = (
+            f"You are the one who cast {spell_name}. "
+            f"Say something in party chat directed "
+            f"at {target_name} about casting "
+            f"{spell_name} on them. Mention "
+            f"{target_name} by name."
         )
     else:
-        style = (
-            "React like a real MMO player would "
-            "in party chat. Casual and brief."
+        instruction = (
+            f"Say a short reaction in party chat."
         )
 
     prompt = (
@@ -1200,10 +1346,8 @@ def build_spell_cast_reaction_prompt(
         f"{rp_context}\n\n"
         f"{situation}\n\n"
         f"{style}\n\n"
-        f"Say a short reaction in party chat.\n"
+        f"{instruction}\n"
         f"{_pick_length_hint(mode)}\n"
-        f"Examples of reactions:\n"
-        f"{examples}\n\n"
         f"Rules:\n"
         f"- Short reaction, one sentence only\n"
         f"- No quotes around your message\n"
@@ -1265,8 +1409,8 @@ def build_player_response_prompt(
         )
     else:
         style = (
-            "Reply like a real MMO player would "
-            "in party chat. Casual and natural."
+            "Reply naturally in party chat. "
+            "Casual and conversational."
         )
 
     prompt = (
@@ -1443,6 +1587,9 @@ def process_group_event(db, client, config, event):
         # 4. Clean up response
         message = response.strip().strip('"').strip()
         message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, bot_name
+        )
         if not message:
             logger.warning("Empty message after cleanup")
             _mark_event(db, event_id, 'skipped')
@@ -1608,6 +1755,9 @@ def process_group_kill_event(
 
         message = response.strip().strip('"').strip()
         message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, bot_name
+        )
         if not message:
             logger.warning("Empty message after cleanup")
             _mark_event(db, event_id, 'skipped')
@@ -1802,6 +1952,9 @@ def process_group_loot_event(
 
         message = response.strip().strip('"').strip()
         message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, bot['name']
+        )
         if not message:
             logger.warning("Empty message after cleanup")
             _mark_event(db, event_id, 'skipped')
@@ -1964,6 +2117,9 @@ def process_group_combat_event(
 
         message = response.strip().strip('"').strip()
         message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, bot_name
+        )
         if not message:
             logger.warning(
                 "Empty combat msg after cleanup"
@@ -2122,6 +2278,9 @@ def process_group_death_event(
 
         message = response.strip().strip('"').strip()
         message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, reactor_name
+        )
         if not message:
             logger.warning("Empty message after cleanup")
             _mark_event(db, event_id, 'skipped')
@@ -2294,6 +2453,9 @@ def process_group_player_msg_event(
 
         message = response.strip().strip('"').strip()
         message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, bot_name
+        )
         if not message:
             logger.warning("Empty message after cleanup")
             _mark_event(db, event_id, 'skipped')
@@ -2378,7 +2540,8 @@ def process_group_levelup_event(
         extra_data.get('bot_guid', 0)
     )
     leveler_name = extra_data.get(
-        'bot_name', 'someone'
+        'leveler_name',
+        extra_data.get('bot_name', 'someone')
     )
     new_level = int(
         extra_data.get('bot_level', 1)
@@ -2489,6 +2652,9 @@ def process_group_levelup_event(
             response.strip().strip('"').strip()
         )
         message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, reactor_name
+        )
         if not message:
             logger.warning(
                 "Empty message after cleanup"
@@ -2560,7 +2726,8 @@ def process_group_quest_complete_event(
         extra_data.get('bot_guid', 0)
     )
     completer_name = extra_data.get(
-        'bot_name', 'someone'
+        'completer_name',
+        extra_data.get('bot_name', 'someone')
     )
     quest_name = extra_data.get(
         'quest_name', 'a quest'
@@ -2676,6 +2843,9 @@ def process_group_quest_complete_event(
             response.strip().strip('"').strip()
         )
         message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, reactor_name
+        )
         if not message:
             logger.warning(
                 "Empty message after cleanup"
@@ -2723,6 +2893,212 @@ def process_group_quest_complete_event(
         return False
 
 
+def process_group_quest_objectives_event(
+    db, client, config, event
+):
+    """Handle a bot_group_quest_objectives event.
+
+    A DIFFERENT bot reacts to quest objectives
+    being completed. If no other bot exists, the
+    completing bot itself reacts. This fires
+    BEFORE the quest turn-in.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_quest_objectives'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    completer_guid = int(
+        extra_data.get('bot_guid', 0)
+    )
+    completer_name = extra_data.get(
+        'completer_name',
+        extra_data.get('bot_name', 'someone')
+    )
+    quest_name = extra_data.get(
+        'quest_name', 'a quest'
+    )
+    group_id = int(
+        extra_data.get('group_id', 0)
+    )
+
+    if not completer_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    # Dedup: skip if recent quest objectives
+    # event for this bot within 60 seconds
+    if _has_recent_event(
+        db, 'bot_group_quest_objectives',
+        completer_guid, 60,
+        exclude_id=event_id
+    ):
+        logger.info(
+            f"Quest objectives event "
+            f"#{event_id}: dedup - recent "
+            f"objectives reaction for "
+            f"{completer_name}, skipping"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    # Pick a different bot to react
+    reactor_data = get_other_group_bot(
+        db, group_id, completer_guid
+    )
+    if reactor_data:
+        reactor_guid = reactor_data['guid']
+        reactor_name = reactor_data['name']
+        reactor_traits = reactor_data['traits']
+    else:
+        # No other bot — use the completing bot
+        trait_data = get_bot_traits(
+            db, group_id, completer_guid
+        )
+        if not trait_data:
+            logger.info(
+                f"Quest objectives event "
+                f"#{event_id}: no traits for "
+                f"{completer_name}"
+            )
+            _mark_event(db, event_id, 'skipped')
+            return False
+        reactor_guid = completer_guid
+        reactor_name = completer_name
+        reactor_traits = trait_data['traits']
+
+    # Get reactor's class/race from characters
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters
+        WHERE guid = %s
+    """, (reactor_guid,))
+    char_row = cursor.fetchone()
+
+    if not char_row:
+        logger.info(
+            f"Quest objectives event "
+            f"#{event_id}: reactor "
+            f"{reactor_name} not found "
+            f"in characters table"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    reactor = {
+        'guid': reactor_guid,
+        'name': reactor_name,
+        'class': get_class_name(
+            char_row['class']
+        ),
+        'race': get_race_name(
+            char_row['race']
+        ),
+        'level': char_row['level'],
+    }
+
+    logger.info(
+        f"Processing quest objectives "
+        f"reaction: {reactor_name} reacts to "
+        f"objectives completed for "
+        f"\"{quest_name}\""
+    )
+
+    # Mark as processing
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        prompt = (
+            build_quest_objectives_reaction_prompt(
+                reactor, reactor_traits,
+                quest_name, completer_name,
+                mode,
+                chat_history=chat_hist,
+            )
+        )
+
+        max_tokens = int(config.get(
+            'LLMChatter.MaxTokens', 200
+        ))
+        response = call_llm(
+            client, prompt, config,
+            max_tokens_override=max_tokens
+        )
+
+        if not response:
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = (
+            response.strip().strip('"').strip()
+        )
+        message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, reactor_name
+        )
+        if not message:
+            logger.warning(
+                "Empty message after cleanup"
+            )
+            _mark_event(db, event_id, 'skipped')
+            return False
+        if len(message) > 255:
+            message = message[:252] + "..."
+
+        logger.warning(
+            f"Quest objectives reaction from "
+            f"{reactor_name}: {message}"
+        )
+
+        cursor = db.cursor()
+        cursor.execute("""
+            INSERT INTO llm_chatter_messages
+            (event_id, sequence, bot_guid,
+             bot_name, message, channel,
+             delivered, deliver_at)
+            VALUES (
+                %s, 0, %s, %s, %s, 'party', 0,
+                DATE_ADD(NOW(), INTERVAL 2 SECOND)
+            )
+        """, (
+            event_id, reactor_guid,
+            reactor_name, message
+        ))
+        db.commit()
+
+        _store_chat(
+            db, group_id, reactor_guid,
+            reactor_name, True, message
+        )
+
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing quest objectives "
+            f"event #{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+
 def process_group_achievement_event(
     db, client, config, event
 ):
@@ -2748,7 +3124,8 @@ def process_group_achievement_event(
         extra_data.get('bot_guid', 0)
     )
     achiever_name = extra_data.get(
-        'bot_name', 'someone'
+        'achiever_name',
+        extra_data.get('bot_name', 'someone')
     )
     achievement_name = extra_data.get(
         'achievement_name', 'an achievement'
@@ -2861,6 +3238,9 @@ def process_group_achievement_event(
             response.strip().strip('"').strip()
         )
         message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, reactor_name
+        )
         if not message:
             logger.warning(
                 "Empty message after cleanup"
@@ -3051,6 +3431,9 @@ def process_group_spell_cast_event(
             response.strip().strip('"').strip()
         )
         message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, bot_name
+        )
         if not message:
             logger.warning(
                 "Empty message after cleanup"
@@ -3168,6 +3551,7 @@ def _try_second_bot_response(
 
     msg2 = response.strip().strip('"').strip()
     msg2 = cleanup_message(msg2)
+    msg2 = strip_speaker_prefix(msg2, bot2_name)
     if not msg2:
         return
     if len(msg2) > 255:
@@ -3273,6 +3657,7 @@ def _welcome_from_existing_bot(
 
     msg = response.strip().strip('"').strip()
     msg = cleanup_message(msg)
+    msg = strip_speaker_prefix(msg, wb_name)
     if not msg:
         logger.warning(
             "Empty welcome message after cleanup"
@@ -3455,16 +3840,18 @@ def get_group_player_name(db, group_id):
 
 def get_recent_weather(db, zone_id):
     """Get the most recent weather for a zone.
+    Uses the ambient chatter queue (C++ writes real-time
+    weather from its in-memory map) as the primary source.
     Returns weather type string or None.
     """
     cursor = db.cursor(dictionary=True)
+    # Primary: get weather from ambient chatter queue
+    # (C++ writes accurate real-time weather here)
     cursor.execute("""
-        SELECT JSON_EXTRACT(
-            extra_data, '$.weather_type'
-        ) as wtype
-        FROM llm_chatter_events
-        WHERE event_type = 'weather_change'
-          AND zone_id = %s
+        SELECT weather
+        FROM llm_chatter_queue
+        WHERE zone_id = %s
+          AND weather != 'clear'
           AND TIMESTAMPDIFF(
               MINUTE, created_at, NOW()
           ) < 30
@@ -3472,10 +3859,8 @@ def get_recent_weather(db, zone_id):
         LIMIT 1
     """, (zone_id,))
     row = cursor.fetchone()
-    if row and row['wtype']:
-        wtype = row['wtype'].strip('"')
-        if wtype:
-            return wtype
+    if row and row['weather']:
+        return row['weather']
     return None
 
 
@@ -3507,6 +3892,34 @@ GROUP_IDLE_TOPICS = [
     'wondering about the history of this place',
     'recalling something from their travels',
     'making an observation about the faction war',
+    # Food / Drink
+    'asking if anyone has food or water',
+    'complaining about being hungry or thirsty',
+    'mentioning a favorite food or drink',
+    # Travel / Mounts
+    'talking about their mount or travel stories',
+    'commenting on how far they have walked',
+    'wishing they had a faster mount',
+    # Professions
+    'mentioning their profession skill progress',
+    'talking about gathering or crafting',
+    'asking if anyone needs something crafted',
+    # Capital Cities / Inns
+    'reminiscing about a capital city or inn',
+    'talking about what they do in town',
+    'mentioning a favorite hangout spot',
+    # Gear / Equipment
+    'commenting on their own gear or armor',
+    'noticing a party member looks well-equipped',
+    'wishing they had better equipment',
+    # Level Progress
+    'mentioning how close they are to leveling',
+    'talking about what abilities they want next',
+    'reflecting on how far they have come',
+    # AFK / Bio / Humor
+    'joking about needing a bio break',
+    'wondering how long until the next rest stop',
+    'making a joke about falling asleep at the keys',
     # General party banter
     'making small talk with a party member',
     'cracking a joke or making a witty observation',
@@ -3635,8 +4048,8 @@ def build_idle_chatter_prompt(
     else:
         style = (
             "Say something casual in party chat "
-            "like a real MMO player would during "
-            "downtime or while traveling."
+            "during downtime or while traveling. "
+            "Natural and relaxed."
         )
 
     # Address direction
@@ -3677,7 +4090,12 @@ def build_idle_chatter_prompt(
         f"- Reflect your personality traits\n"
         f"- Just a natural idle comment\n"
         f"- Don't repeat jokes or themes "
-        f"already said in chat"
+        f"already said in chat\n"
+        f"- NEVER claim to have killed a creature, "
+        f"looted an item, completed a quest, "
+        f"or made a trade\n"
+        f"- Stick to observation, opinion, banter, "
+        f"and small talk"
     )
     return prompt
 
@@ -3878,15 +4296,20 @@ def build_idle_conversation_prompt(
         )
     else:
         parts.append(
-            "Guidelines: Sound like real MMO "
-            "players in party chat; casual and "
-            f"natural; {length_hint}; "
+            "Guidelines: Sound like normal people "
+            "chatting in a game; casual and "
+            f"relaxed; {length_hint}; "
             "vary lengths naturally"
         )
 
     parts.append(
         "Do NOT mention quests, quest rewards, "
         "items, spells, or trade. "
+        "NEVER claim to have just killed a creature (past explots is fine), "
+        "just looted an item (you can mention items looted in the past), just completed a quest (you can mention quests completed in the past), "
+        "or made a trade. "
+        "Stick to observation, opinion, banter, "
+        "ocasional philosophical consideration. "
         "Don't repeat jokes or themes already "
         "said in chat."
     )
@@ -3952,16 +4375,22 @@ def check_idle_group_chatter(
     group = random.choice(groups)
     group_id = group['group_id']
 
-    # Pure RNG with 30s minimum gap
+    # Read config values (with defaults)
+    idle_chance = int(config.get(
+        'LLMChatter.GroupChatter.IdleChance', 15
+    ))
+    idle_cooldown = int(config.get(
+        'LLMChatter.GroupChatter.IdleCooldown', 30
+    ))
+
+    # Pure RNG with minimum gap
     last_idle = _last_idle_chatter.get(group_id, 0)
     now = time.time()
 
-    if now - last_idle < 30:
+    if now - last_idle < idle_cooldown:
         return False
 
-    # ~3% chance per poll (every 3s) ≈ once per
-    # 1.7 min on average, fully random timing
-    if random.randint(1, 100) > 3:
+    if random.randint(1, 100) > idle_chance:
         return False
 
     # Get all bots in this group
@@ -3977,8 +4406,14 @@ def check_idle_group_chatter(
     if not all_bots:
         return False
 
+    idle_history_limit = int(config.get(
+        'LLMChatter.GroupChatter.IdleHistoryLimit', 5
+    ))
+
     mode = get_chatter_mode(config)
-    history = _get_recent_chat(db, group_id)
+    history = _get_recent_chat(
+        db, group_id, limit=idle_history_limit
+    )
     chat_hist = format_chat_history(history)
     members = get_group_members(db, group_id)
 
@@ -4027,9 +4462,11 @@ def check_idle_group_chatter(
         f"history={len(history)} msgs"
     )
 
-    # 50% conversation if 2+ bots, else statement
+    conv_bias = int(config.get(
+        'LLMChatter.GroupChatter.ConversationBias', 70
+    ))
     use_conversation = (
-        random.random() < 0.5
+        random.randint(1, 100) <= conv_bias
         and len(all_bots) >= 2
     )
 
@@ -4163,6 +4600,9 @@ def _idle_single_statement(
 
         message = response.strip().strip('"').strip()
         message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, bot_name
+        )
         if not message:
             logger.warning(
                 "Idle chatter: empty after cleanup"
@@ -4335,6 +4775,9 @@ def _idle_conversation(
         for seq, msg in enumerate(messages):
             text = cleanup_message(
                 msg['message']
+            )
+            text = strip_speaker_prefix(
+                text, msg['name']
             )
             if not text:
                 continue
