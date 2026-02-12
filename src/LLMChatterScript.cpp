@@ -1360,43 +1360,14 @@ private:
 
     void TryTriggerChatter()
     {
-        // Find zones with real players first
-        // (needed to check city boost before roll)
+        // Find zones with real players
         std::vector<uint32> validZones =
             GetZonesWithRealPlayers();
         if (validZones.empty())
             return;
 
-        // Check if any player zone is a capital
-        // city — boost trigger chance with
-        // configurable multiplier
-        bool inCity = false;
-        for (uint32 zoneId : validZones)
-        {
-            if (IsCapitalCity(zoneId))
-            {
-                inCity = true;
-                break;
-            }
-        }
-
-        uint32 triggerChance =
-            sLLMChatterConfig->_triggerChance;
-        if (inCity)
-        {
-            triggerChance = std::min(
-                triggerChance
-                    * sLLMChatterConfig
-                          ->_cityChatterMultiplier,
-                100u);
-        }
-
-        // Roll for trigger chance
-        uint32 roll = urand(1, 100);
-        if (roll > triggerChance)
-            return;
-
-        // Check pending requests
+        // Check pending requests (once, before
+        // per-zone loop)
         QueryResult countResult =
             CharacterDatabase.Query(
                 "SELECT COUNT(*) FROM "
@@ -1420,71 +1391,89 @@ private:
             }
         }
 
-        // Pick one zone randomly
+        // Per-zone triggering: each zone with a
+        // real player gets an independent roll.
+        // Cities get a boosted chance.
         std::random_device rd;
         std::mt19937 g(rd());
-        std::shuffle(
-            validZones.begin(),
-            validZones.end(), g);
-        uint32 selectedZone = validZones[0];
-        std::string zoneName = GetZoneName(selectedZone);
 
-        // Get the dominant faction in this zone
-        uint32 faction = GetDominantFactionInZone(selectedZone);
-        LOG_DEBUG("module", "LLMChatter: Selected zone {} ({}), dominant faction: {}",
-                 selectedZone, zoneName, faction == TEAM_ALLIANCE ? "Alliance" : "Horde");
-
-        // Get bots in this zone with matching faction
-        std::vector<Player*> bots = GetBotsInZone(selectedZone, faction);
-
-        // Decide: statement or conversation
-        bool isConversation = (urand(1, 100) <= sLLMChatterConfig->_conversationChance);
-
-        // Check if we have enough bots
-        uint32 requiredBots = isConversation ? 2 : 1;
-        if (bots.size() < requiredBots)
+        for (uint32 selectedZone : validZones)
         {
-            // Try single statement if not enough for conversation
-            if (isConversation && bots.size() >= 1)
+            uint32 triggerChance =
+                sLLMChatterConfig->_triggerChance;
+            if (IsCapitalCity(selectedZone))
             {
-                isConversation = false;
-                LOG_DEBUG("module", "LLMChatter: Not enough bots for conversation in {}, falling back to statement",
-                          zoneName);
+                triggerChance = std::min(
+                    triggerChance
+                        * sLLMChatterConfig
+                            ->_cityChatterMultiplier,
+                    100u);
             }
-            else
+
+            if (urand(1, 100) > triggerChance)
+                continue;
+
+            std::string zoneName =
+                GetZoneName(selectedZone);
+            uint32 faction =
+                GetDominantFactionInZone(
+                    selectedZone);
+
+            std::vector<Player*> bots =
+                GetBotsInZone(selectedZone, faction);
+
+            bool isConversation =
+                (urand(1, 100)
+                 <= sLLMChatterConfig
+                        ->_conversationChance);
+
+            uint32 requiredBots =
+                isConversation ? 2 : 1;
+            if (bots.size() < requiredBots)
             {
-                LOG_DEBUG("module", "LLMChatter: No bots in {} (faction {})", zoneName, faction);
-                return;
+                if (isConversation
+                    && bots.size() >= 1)
+                    isConversation = false;
+                else
+                    continue;
             }
+
+            std::shuffle(
+                bots.begin(), bots.end(), g);
+
+            uint32 botCount = 1;
+            if (isConversation)
+            {
+                uint32 maxBots = std::min(
+                    static_cast<uint32>(
+                        bots.size()), 4u);
+                uint32 roll = urand(1, 100);
+                if (roll <= 50 || maxBots == 2)
+                    botCount = 2;
+                else if (roll <= 80
+                         || maxBots == 3)
+                    botCount =
+                        std::min(3u, maxBots);
+                else
+                    botCount = maxBots;
+            }
+
+            Player* bot1 = bots[0];
+            Player* bot2 =
+                (botCount >= 2)
+                    ? bots[1] : nullptr;
+            Player* bot3 =
+                (botCount >= 3)
+                    ? bots[2] : nullptr;
+            Player* bot4 =
+                (botCount >= 4)
+                    ? bots[3] : nullptr;
+
+            QueueChatterRequest(
+                bot1, bot2, bot3, bot4,
+                botCount, isConversation,
+                zoneName, selectedZone);
         }
-
-        // Shuffle bots and pick
-        std::shuffle(bots.begin(), bots.end(), g);
-
-        // For conversations, randomly decide 2-4 participants based on available bots
-        uint32 botCount = 1;
-        if (isConversation)
-        {
-            // Determine max possible bots (2-4, limited by available bots)
-            uint32 maxBots = std::min(static_cast<uint32>(bots.size()), 4u);
-            // Randomly pick 2-4 bots with weighted distribution (2 bots more common)
-            // 50% chance for 2 bots, 30% for 3 bots, 20% for 4 bots
-            uint32 roll = urand(1, 100);
-            if (roll <= 50 || maxBots == 2)
-                botCount = 2;
-            else if (roll <= 80 || maxBots == 3)
-                botCount = std::min(3u, maxBots);
-            else
-                botCount = maxBots;
-        }
-
-        Player* bot1 = bots[0];
-        Player* bot2 = (botCount >= 2) ? bots[1] : nullptr;
-        Player* bot3 = (botCount >= 3) ? bots[2] : nullptr;
-        Player* bot4 = (botCount >= 4) ? bots[3] : nullptr;
-
-        // Queue the request
-        QueueChatterRequest(bot1, bot2, bot3, bot4, botCount, isConversation, zoneName, selectedZone);
     }
 
     void QueueChatterRequest(Player* bot1, Player* bot2, Player* bot3, Player* bot4,

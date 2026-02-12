@@ -12,39 +12,41 @@ If you run a solo server or a small RP community and want your world to feel gen
 
 **General chat, zone banter:**
 ```
-[Nylaenas]: been thinking about [Tharnariun's Hope] - there's
-  something beautiful about restoring hope here
-[Pelrith]: just finished that quest chain and it felt so good!
-[Kerrandiir]: we handled it flawlessly yesterday, not to flex lol
-[Eveline]: yeah it's a solid quest, decent rewards too
+[Dralidan]: The Gnarlpine grow bolder each night. Our forest turns
+  against us through corruption.
+[Nilaste]: Heard [Grimmaw] was spotted near the outer groves again.
+[Dralidan]: Troubling. The wilds never truly rest.
+[Welean]: We should patrol before dawn. The balance will hold.
 ```
 
 **Party chat, your bots react to what's happening:**
 ```
-[Thornbeard]: Not bad for a bunch of randoms. That [Riverpaw Runt]
-  didn't stand a chance.
-[Miralynn]: The spirits guided our blades well. Though I admit,
-  I expected more of a fight.
-You: nice job team, let's keep moving
-[Thornbeard]: Lead the way, boss. My axe is getting lonely.
+[Seladan]: Pattern: [Red Linen Robe], well found. Practical gear.
+  Could fetch decent coin if tailored right.
+You: do we keep moving north?
+[Uldamyr]: Lead on. These woods won't clear themselves.
+[Seladan]: Shadow mend incoming, stay sharp.
 ```
 
 **Weather reactions:**
 ```
-[Thornbeard]: perfect weather for fishing, this rain
+[Seladan]: This rain's making me drowsy. Need something to keep
+  me sharp in a fight.
+[Uldamyr]: Sharp? You heal us from the back. What are you
+  scheming, priest?
 ```
 
 **Transport arrivals:**
 ```
-[Miralynn]: boat to Auberdine just pulled in, anyone heading that way?
+[Dralidan]: The Moonspray arrives late. Darkshore waters grow
+  restless at night.
+[Nilaste]: Perhaps they'll have fresh supplies from Auberdine.
 ```
 
-**Roleplay mode:**
+**Holiday reactions:**
 ```
-[Thornbeard]: By the Light, these lands bear the scars of old wars.
-  One can feel it in the soil.
-[Miralynn]: The spirits whisper of things long buried here.
-  I would not linger past nightfall.
+[Orencer]: Love is in the Air again? I'd rather spend the evening
+  sharpening my blade than chasing perfume vendors.
 ```
 
 Every quest, item, and spell name becomes a clickable WoW link.
