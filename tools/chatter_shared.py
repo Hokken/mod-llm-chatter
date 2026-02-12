@@ -1022,6 +1022,348 @@ def call_llm(
         return None
 
 
+# Cached client for quick analyze when provider
+# differs from main provider
+_quick_analyze_client = None
+_quick_analyze_provider = None
+
+
+def _get_quick_analyze_client(config):
+    """Get or create the LLM client for quick
+    analyze calls. Returns (client, provider).
+
+    If QuickAnalyze.Provider matches the main
+    provider (or is empty), returns None so the
+    caller uses the main client.
+    """
+    global _quick_analyze_client
+    global _quick_analyze_provider
+
+    import anthropic
+    import openai
+
+    qa_provider = config.get(
+        'LLMChatter.QuickAnalyze.Provider', ''
+    ).strip().lower()
+    main_provider = config.get(
+        'LLMChatter.Provider', 'anthropic'
+    ).lower()
+
+    # Empty = use main provider
+    if not qa_provider or qa_provider == main_provider:
+        return None, main_provider
+
+    # Return cached client if already created
+    if (
+        _quick_analyze_client is not None
+        and _quick_analyze_provider == qa_provider
+    ):
+        return _quick_analyze_client, qa_provider
+
+    # Create new client for the quick analyze
+    # provider
+    if qa_provider == 'ollama':
+        base_url = config.get(
+            'LLMChatter.Ollama.BaseUrl',
+            'http://localhost:11434'
+        )
+        ollama_api_url = (
+            f"{base_url.rstrip('/')}/v1"
+        )
+        _quick_analyze_client = openai.OpenAI(
+            base_url=ollama_api_url,
+            api_key="ollama"
+        )
+    elif qa_provider == 'openai':
+        api_key = config.get(
+            'LLMChatter.OpenAI.ApiKey', ''
+        )
+        if not api_key:
+            logger.warning(
+                "QuickAnalyze: No OpenAI API key"
+            )
+            return None, main_provider
+        _quick_analyze_client = openai.OpenAI(
+            api_key=api_key
+        )
+    elif qa_provider == 'anthropic':
+        api_key = config.get(
+            'LLMChatter.Anthropic.ApiKey', ''
+        )
+        if not api_key:
+            logger.warning(
+                "QuickAnalyze: No Anthropic key"
+            )
+            return None, main_provider
+        _quick_analyze_client = anthropic.Anthropic(
+            api_key=api_key
+        )
+    else:
+        logger.warning(
+            f"QuickAnalyze: Unknown provider "
+            f"'{qa_provider}', using main"
+        )
+        return None, main_provider
+
+    _quick_analyze_provider = qa_provider
+    logger.info(
+        f"QuickAnalyze: Created {qa_provider} client"
+    )
+    return _quick_analyze_client, qa_provider
+
+
+def quick_llm_analyze(
+    client: Any,
+    config: dict,
+    prompt: str,
+    max_tokens: int = 50
+) -> Optional[str]:
+    """Fast LLM call for pre-processing analysis.
+
+    Uses the configured QuickAnalyze provider/model,
+    or defaults to the fastest model on the main
+    provider (Haiku for Anthropic, gpt-4o-mini for
+    OpenAI, main model for Ollama).
+
+    Useful for tasks like:
+    - Determining which bot a player is addressing
+    - Classifying message intent or sentiment
+    - Summarizing context before a full prompt
+
+    Returns raw text response, or None on error.
+    """
+    # Check for separate quick analyze provider
+    qa_client, provider = (
+        _get_quick_analyze_client(config)
+    )
+    if qa_client is not None:
+        active_client = qa_client
+    else:
+        active_client = client
+
+    # Resolve model
+    qa_model = config.get(
+        'LLMChatter.QuickAnalyze.Model', ''
+    ).strip()
+
+    if qa_model:
+        model = resolve_model(qa_model)
+    elif provider == 'anthropic':
+        model = resolve_model('haiku')
+    elif provider == 'openai':
+        model = 'gpt-4o-mini'
+    else:
+        # Ollama: use configured model
+        model_alias = config.get(
+            'LLMChatter.Model', 'haiku'
+        )
+        model = resolve_model(model_alias)
+
+    logger.info(
+        f"Quick LLM analyze ({provider}/{model}, "
+        f"max_tokens={max_tokens}):\n{prompt}"
+    )
+
+    try:
+        if provider == 'ollama':
+            actual_prompt = prompt
+            disable_thinking = (
+                config.get(
+                    'LLMChatter.Ollama.'
+                    'DisableThinking', '1'
+                ) == '1'
+            )
+            if disable_thinking:
+                actual_prompt = (
+                    "/no_think " + prompt
+                )
+            context_size = int(config.get(
+                'LLMChatter.Ollama.ContextSize',
+                2048
+            ))
+            response = (
+                active_client
+                .chat.completions.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    temperature=0.1,
+                    messages=[{
+                        "role": "user",
+                        "content": actual_prompt
+                    }],
+                    extra_body={
+                        "options": {
+                            "num_ctx": context_size
+                        }
+                    }
+                )
+            )
+            return (
+                response.choices[0]
+                .message.content.strip()
+            )
+        elif provider == 'openai':
+            response = (
+                active_client
+                .chat.completions.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    temperature=0.1,
+                    messages=[{
+                        "role": "user",
+                        "content": prompt
+                    }]
+                )
+            )
+            return (
+                response.choices[0]
+                .message.content.strip()
+            )
+        else:
+            response = (
+                active_client.messages.create(
+                    model=model,
+                    max_tokens=max_tokens,
+                    temperature=0.1,
+                    messages=[{
+                        "role": "user",
+                        "content": prompt
+                    }]
+                )
+            )
+            return response.content[0].text.strip()
+    except Exception as e:
+        logger.warning(
+            f"Quick LLM analyze error "
+            f"({provider}): {e}"
+        )
+        return None
+
+
+def find_addressed_bot(
+    message: str, bot_names,
+    client=None, config=None,
+    chat_history=""
+) -> Optional[str]:
+    """Check if a player message addresses a specific
+    bot by name. Returns the matched bot name or None.
+
+    Three-pass approach:
+    1. Exact whole-word match (case-insensitive)
+    2. Fuzzy fallback for names >= 4 chars
+    3. LLM context analysis (if client/config given
+       and chat history exists)
+    """
+    if not message or not bot_names:
+        return None
+    msg_lower = message.lower()
+
+    # Pass 1: exact whole-word match
+    for name in bot_names:
+        if not name:
+            continue
+        name_lower = name.lower()
+        idx = msg_lower.find(name_lower)
+        while idx != -1:
+            left_ok = (
+                idx == 0
+                or not msg_lower[idx - 1].isalpha()
+            )
+            end = idx + len(name_lower)
+            right_ok = (
+                end >= len(msg_lower)
+                or not msg_lower[end].isalpha()
+            )
+            if left_ok and right_ok:
+                logger.info(
+                    f"Bot match (exact): {name}"
+                )
+                return name
+            idx = msg_lower.find(
+                name_lower, idx + 1
+            )
+
+    # Pass 2: fuzzy match on words (names >= 4 chars)
+    words = re.split(r'[^a-zA-Z]+', message)
+    words = [w for w in words if len(w) >= 4]
+    for name in bot_names:
+        if not name or len(name) < 4:
+            continue
+        for word in words:
+            if fuzzy_name_match(word, name):
+                logger.info(
+                    f"Bot match (fuzzy): {name} "
+                    f"from word '{word}'"
+                )
+                return name
+
+    # Pass 3: LLM context analysis
+    if not client or not config or not chat_history:
+        return None
+
+    # Only bother if there's recent bot speech
+    # to reason about
+    names_str = ', '.join(
+        n for n in bot_names if n
+    )
+    prompt = (
+        f"Recent chat:\n{chat_history}\n\n"
+        f"The player just said:\n"
+        f"\"{message}\"\n\n"
+        f"Available bots: {names_str}\n\n"
+        f"Based on the conversation context, "
+        f"which bot is the player most likely "
+        f"responding to or addressing?\n"
+        f"If the message is clearly directed "
+        f"at a specific bot, reply with ONLY "
+        f"that bot's name.\n"
+        f"If the message is general and not "
+        f"directed at anyone specific, reply "
+        f"with ONLY the word: none"
+    )
+
+    result = quick_llm_analyze(
+        client, config, prompt, max_tokens=30
+    )
+    if not result:
+        return None
+
+    result = result.strip().strip('"').strip("'")
+
+    if result.lower() == 'none':
+        logger.info(
+            "Bot match (LLM): none — general msg"
+        )
+        return None
+
+    # Match LLM response to actual bot name
+    for name in bot_names:
+        if not name:
+            continue
+        if name.lower() == result.lower():
+            logger.info(
+                f"Bot match (LLM context): {name}"
+            )
+            return name
+
+    # Fuzzy match LLM response to bot names
+    for name in bot_names:
+        if not name:
+            continue
+        if fuzzy_name_match(result, name):
+            logger.info(
+                f"Bot match (LLM fuzzy): {name} "
+                f"from LLM '{result}'"
+            )
+            return name
+
+    logger.info(
+        f"Bot match (LLM): no match for "
+        f"'{result}'"
+    )
+    return None
+
+
 # =============================================================================
 # RESPONSE PARSING
 # =============================================================================

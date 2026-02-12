@@ -82,6 +82,23 @@ public:
     uint32 _groupLootCooldown;
     uint32 _groupPlayerMsgCooldown;
 
+    // Group chatter - new event settings
+    uint32 _groupResurrectChance;
+    uint32 _groupResurrectCooldown;
+    uint32 _groupZoneChance;
+    uint32 _groupZoneCooldown;
+    uint32 _groupDungeonChance;
+    uint32 _groupDungeonCooldown;
+    uint32 _groupWipeChance;
+    uint32 _groupWipeCooldown;
+
+    // General chat reactions
+    bool _useGeneralChatReact;
+    uint32 _generalChatChance;
+    uint32 _generalChatQuestionChance;
+    uint32 _generalChatCooldown;
+    uint32 _generalChatConversationChance;
+
     // RP enrichment
     uint32 _raceLoreChance;
 

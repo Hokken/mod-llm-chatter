@@ -65,6 +65,28 @@ void LLMChatterConfig::LoadConfig()
     _groupLootCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.LootCooldown", 60);
     _groupPlayerMsgCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.PlayerMsgCooldown", 15);
 
+    // Group chatter - new event settings
+    _groupResurrectChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.ResurrectChance", 100);
+    _groupResurrectCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.ResurrectCooldown", 30);
+    _groupZoneChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.ZoneTransitionChance", 100);
+    _groupZoneCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.ZoneTransitionCooldown", 120);
+    _groupDungeonChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.DungeonEntryChance", 100);
+    _groupDungeonCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.DungeonEntryCooldown", 300);
+    _groupWipeChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.WipeChance", 100);
+    _groupWipeCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.WipeCooldown", 120);
+
+    // General chat reactions
+    _useGeneralChatReact = sConfigMgr->GetOption<bool>(
+        "LLMChatter.GeneralChat.Enable", false);
+    _generalChatChance = sConfigMgr->GetOption<uint32>(
+        "LLMChatter.GeneralChat.ReactionChance", 80);
+    _generalChatQuestionChance = sConfigMgr->GetOption<uint32>(
+        "LLMChatter.GeneralChat.QuestionChance", 100);
+    _generalChatCooldown = sConfigMgr->GetOption<uint32>(
+        "LLMChatter.GeneralChat.Cooldown", 60);
+    _generalChatConversationChance = sConfigMgr->GetOption<uint32>(
+        "LLMChatter.GeneralChat.ConversationChance", 30);
+
     // RP enrichment
     _raceLoreChance = sConfigMgr->GetOption<uint32>("LLMChatter.RaceLoreChance", 15);
 
@@ -80,6 +102,14 @@ void LLMChatterConfig::LoadConfig()
         if (_useGroupChatter)
         {
             LOG_INFO("module", "LLMChatter: Group chatter enabled");
+        }
+        if (_useGeneralChatReact)
+        {
+            LOG_INFO("module",
+                "LLMChatter: General chat reactions "
+                "enabled (chance: {}%, cooldown: {}s)",
+                _generalChatChance,
+                _generalChatCooldown);
         }
     }
 }

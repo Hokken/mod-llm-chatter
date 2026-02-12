@@ -14,6 +14,10 @@ Handles:
 - bot_group_quest_objectives: reaction to quest objectives done
 - bot_group_achievement: reaction to achievement earned
 - bot_group_spell_cast: reaction to notable spells
+- bot_group_resurrect: gratitude when rezzed
+- bot_group_zone_transition: comment on new zone
+- bot_group_dungeon_entry: reaction to dungeon/raid
+- bot_group_wipe: reaction to total party wipe
 - idle chatter: periodic casual party chat during lulls
   (2 to N bot conversations)
 
@@ -35,6 +39,7 @@ from chatter_shared import (
     parse_conversation_response,
     calculate_dynamic_delay,
     format_item_link,
+    find_addressed_bot,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -2477,19 +2482,17 @@ def process_group_player_msg_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
-    # Pick a random bot from the group to respond
+    # Get all bots in group for name matching
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
         SELECT bot_guid, bot_name,
                trait1, trait2, trait3
         FROM llm_group_bot_traits
         WHERE group_id = %s
-        ORDER BY RAND()
-        LIMIT 1
     """, (group_id,))
-    bot_row = cursor.fetchone()
+    all_bots = cursor.fetchall()
 
-    if not bot_row:
+    if not all_bots:
         logger.info(
             f"Player msg event #{event_id}: "
             f"no bots with traits in group "
@@ -2497,6 +2500,30 @@ def process_group_player_msg_event(
         )
         _mark_event(db, event_id, 'skipped')
         return False
+
+    # Fetch chat history early for LLM bot matching
+    history = _get_recent_chat(db, group_id)
+    chat_hist = format_chat_history(history)
+
+    # Prefer addressed bot, else random
+    bot_row = None
+    all_names = [b['bot_name'] for b in all_bots]
+    addressed = find_addressed_bot(
+        player_message, all_names,
+        client=client, config=config,
+        chat_history=chat_hist
+    )
+    if addressed:
+        for b in all_bots:
+            if b['bot_name'] == addressed:
+                bot_row = b
+                logger.info(
+                    f"Player msg: addressed "
+                    f"{addressed}, selecting them"
+                )
+                break
+    if not bot_row:
+        bot_row = random.choice(all_bots)
 
     bot_guid = bot_row['bot_guid']
     bot_name = bot_row['bot_name']
@@ -2548,8 +2575,8 @@ def process_group_player_msg_event(
 
     try:
         mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
+        # history/chat_hist fetched above for
+        # bot selection — reuse here
         members = get_group_members(db, group_id)
         prompt = build_player_response_prompt(
             bot, traits, player_name,
@@ -3608,6 +3635,628 @@ def process_group_spell_cast_event(
         return False
 
 
+def process_group_resurrect_event(
+    db, client, config, event
+):
+    """Handle a bot_group_resurrect event.
+
+    The resurrected bot itself reacts with gratitude
+    or relief in party chat.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_resurrect'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'someone'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    # The rezzed bot itself reacts
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        logger.info(
+            f"Event #{event_id}: no traits for "
+            f"bot {bot_name} in group {group_id}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    # Get class/race from characters table
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters
+        WHERE guid = %s
+    """, (bot_guid,))
+    char_row = cursor.fetchone()
+
+    if not char_row:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': get_class_name(char_row['class']),
+        'race': get_race_name(char_row['race']),
+        'level': char_row['level'],
+    }
+
+    logger.info(
+        f"Processing group resurrect: "
+        f"{bot_name} reacting to being rezzed"
+    )
+
+    # Mark as processing
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        prompt = build_resurrect_reaction_prompt(
+            bot, traits, mode,
+            chat_history=chat_hist,
+        )
+
+        max_tokens = int(config.get(
+            'LLMChatter.MaxTokens', 200
+        ))
+        response = call_llm(
+            client, prompt, config,
+            max_tokens_override=max_tokens
+        )
+
+        if not response:
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = (
+            response.strip().strip('"').strip()
+        )
+        message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, bot_name
+        )
+        if not message:
+            _mark_event(db, event_id, 'skipped')
+            return False
+        if len(message) > 255:
+            message = message[:252] + "..."
+
+        logger.warning(
+            f"Resurrect reaction from "
+            f"{bot_name}: {message}"
+        )
+
+        cursor = db.cursor()
+        cursor.execute("""
+            INSERT INTO llm_chatter_messages
+            (event_id, sequence, bot_guid,
+             bot_name, message, channel,
+             delivered, deliver_at)
+            VALUES (
+                %s, 0, %s, %s, %s, 'party', 0,
+                DATE_ADD(NOW(), INTERVAL 2 SECOND)
+            )
+        """, (
+            event_id, bot_guid,
+            bot_name, message
+        ))
+        db.commit()
+
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing resurrect event "
+            f"#{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+
+def process_group_zone_transition_event(
+    db, client, config, event
+):
+    """Handle a bot_group_zone_transition event.
+
+    The bot that entered a new zone comments on
+    the arrival in party chat.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_zone_transition'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'someone'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+    zone_id = int(extra_data.get('zone_id', 0))
+    zone_name = extra_data.get(
+        'zone_name', 'somewhere'
+    )
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    # The bot that entered the zone reacts
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        logger.info(
+            f"Event #{event_id}: no traits for "
+            f"bot {bot_name} in group {group_id}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    # Get class/race from characters table
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters
+        WHERE guid = %s
+    """, (bot_guid,))
+    char_row = cursor.fetchone()
+
+    if not char_row:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': get_class_name(char_row['class']),
+        'race': get_race_name(char_row['race']),
+        'level': char_row['level'],
+    }
+
+    logger.info(
+        f"Processing zone transition: "
+        f"{bot_name} entering {zone_name}"
+    )
+
+    # Mark as processing
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        prompt = build_zone_transition_prompt(
+            bot, traits, zone_name, zone_id,
+            mode,
+            chat_history=chat_hist,
+        )
+
+        max_tokens = int(config.get(
+            'LLMChatter.MaxTokens', 200
+        ))
+        response = call_llm(
+            client, prompt, config,
+            max_tokens_override=max_tokens
+        )
+
+        if not response:
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = (
+            response.strip().strip('"').strip()
+        )
+        message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, bot_name
+        )
+        if not message:
+            _mark_event(db, event_id, 'skipped')
+            return False
+        if len(message) > 255:
+            message = message[:252] + "..."
+
+        logger.warning(
+            f"Zone transition reaction from "
+            f"{bot_name}: {message}"
+        )
+
+        cursor = db.cursor()
+        cursor.execute("""
+            INSERT INTO llm_chatter_messages
+            (event_id, sequence, bot_guid,
+             bot_name, message, channel,
+             delivered, deliver_at)
+            VALUES (
+                %s, 0, %s, %s, %s, 'party', 0,
+                DATE_ADD(NOW(), INTERVAL 2 SECOND)
+            )
+        """, (
+            event_id, bot_guid,
+            bot_name, message
+        ))
+        db.commit()
+
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing zone transition "
+            f"event #{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+
+def process_group_dungeon_entry_event(
+    db, client, config, event
+):
+    """Handle a bot_group_dungeon_entry event.
+
+    The bot that entered a dungeon or raid instance
+    reacts in party chat.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_dungeon_entry'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'someone'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+    map_id = int(extra_data.get('map_id', 0))
+    map_name = extra_data.get(
+        'map_name', 'a dungeon'
+    )
+    is_raid = bool(
+        int(extra_data.get('is_raid', 0))
+    )
+    zone_id = int(extra_data.get('zone_id', 0))
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    # The bot that entered reacts
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        logger.info(
+            f"Event #{event_id}: no traits for "
+            f"bot {bot_name} in group {group_id}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    # Get class/race from characters table
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters
+        WHERE guid = %s
+    """, (bot_guid,))
+    char_row = cursor.fetchone()
+
+    if not char_row:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': get_class_name(char_row['class']),
+        'race': get_race_name(char_row['race']),
+        'level': char_row['level'],
+    }
+
+    logger.info(
+        f"Processing dungeon entry: "
+        f"{bot_name} entering {map_name}"
+        f"{' (raid)' if is_raid else ''}"
+    )
+
+    # Mark as processing
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        prompt = build_dungeon_entry_prompt(
+            bot, traits, map_name, is_raid,
+            zone_id, mode,
+            chat_history=chat_hist,
+        )
+
+        max_tokens = int(config.get(
+            'LLMChatter.MaxTokens', 200
+        ))
+        response = call_llm(
+            client, prompt, config,
+            max_tokens_override=max_tokens
+        )
+
+        if not response:
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = (
+            response.strip().strip('"').strip()
+        )
+        message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, bot_name
+        )
+        if not message:
+            _mark_event(db, event_id, 'skipped')
+            return False
+        if len(message) > 255:
+            message = message[:252] + "..."
+
+        logger.warning(
+            f"Dungeon entry reaction from "
+            f"{bot_name}: {message}"
+        )
+
+        delay = random.randint(2, 4)
+        cursor = db.cursor()
+        cursor.execute("""
+            INSERT INTO llm_chatter_messages
+            (event_id, sequence, bot_guid,
+             bot_name, message, channel,
+             delivered, deliver_at)
+            VALUES (
+                %s, 0, %s, %s, %s, 'party', 0,
+                DATE_ADD(
+                    NOW(), INTERVAL %s SECOND
+                )
+            )
+        """, (
+            event_id, bot_guid,
+            bot_name, message, delay
+        ))
+        db.commit()
+
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing dungeon entry "
+            f"event #{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+
+def process_group_wipe_event(
+    db, client, config, event
+):
+    """Handle a bot_group_wipe event.
+
+    The designated bot reacts to a total party wipe
+    in party chat.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_wipe'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'someone'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+    killer_name = extra_data.get(
+        'killer_name', ''
+    )
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    # The designated bot reacts
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        logger.info(
+            f"Event #{event_id}: no traits for "
+            f"bot {bot_name} in group {group_id}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    # Get class/race from characters table
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters
+        WHERE guid = %s
+    """, (bot_guid,))
+    char_row = cursor.fetchone()
+
+    if not char_row:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': get_class_name(char_row['class']),
+        'race': get_race_name(char_row['race']),
+        'level': char_row['level'],
+    }
+
+    logger.info(
+        f"Processing group wipe: "
+        f"{bot_name} reacting"
+        f"{' to ' + killer_name if killer_name else ''}"
+    )
+
+    # Mark as processing
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        prompt = build_wipe_reaction_prompt(
+            bot, traits, killer_name, mode,
+            chat_history=chat_hist,
+        )
+
+        max_tokens = int(config.get(
+            'LLMChatter.MaxTokens', 200
+        ))
+        response = call_llm(
+            client, prompt, config,
+            max_tokens_override=max_tokens
+        )
+
+        if not response:
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = (
+            response.strip().strip('"').strip()
+        )
+        message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, bot_name
+        )
+        if not message:
+            _mark_event(db, event_id, 'skipped')
+            return False
+        if len(message) > 255:
+            message = message[:252] + "..."
+
+        logger.warning(
+            f"Wipe reaction from "
+            f"{bot_name}: {message}"
+        )
+
+        cursor = db.cursor()
+        cursor.execute("""
+            INSERT INTO llm_chatter_messages
+            (event_id, sequence, bot_guid,
+             bot_name, message, channel,
+             delivered, deliver_at)
+            VALUES (
+                %s, 0, %s, %s, %s, 'party', 0,
+                DATE_ADD(NOW(), INTERVAL 2 SECOND)
+            )
+        """, (
+            event_id, bot_guid,
+            bot_name, message
+        ))
+        db.commit()
+
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing wipe event "
+            f"#{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+
 def _try_second_bot_response(
     db, client, config, group_id,
     first_bot_guid, player_name,
@@ -3811,6 +4460,360 @@ def _welcome_from_existing_bot(
         db, group_id, wb_guid,
         wb_name, True, msg
     )
+
+
+def build_resurrect_reaction_prompt(
+    bot, traits, mode, chat_history=""
+):
+    """Build prompt for a bot reacting to being
+    resurrected. The bot itself was just rezzed
+    and reacts with gratitude, relief, or drama.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
+    twist = maybe_get_creative_twist(
+        chance=1.0, mode=mode
+    )
+
+    logger.info(
+        f"Group resurrect creativity: "
+        f"tone={tone}, mood={mood}, twist={twist}"
+    )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class']
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    if is_rp:
+        style = (
+            "React in-character to being "
+            "resurrected. A grateful warrior, "
+            "a relieved healer, a dramatic mage "
+            "— whatever fits your personality."
+        )
+    else:
+        style = (
+            "React naturally to being brought "
+            "back to life. Could be grateful, "
+            "relieved, dramatic, or casual."
+        )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+        f"Your tone: {tone}\n"
+        f"Your mood: {mood}\n"
+    )
+    if twist:
+        prompt += f"Creative twist: {twist}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"You just died and someone in your "
+        f"party resurrected you. You are back "
+        f"on your feet.\n\n"
+        f"{style}\n\n"
+        f"Say a reaction in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- Express gratitude, relief, or drama\n"
+        f"- Reflect your personality traits\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
+    )
+    return prompt
+
+
+def build_zone_transition_prompt(
+    bot, traits, zone_name, zone_id, mode,
+    chat_history=""
+):
+    """Build prompt for a bot commenting on arriving
+    in a new zone.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
+    twist = maybe_get_creative_twist(
+        chance=1.0, mode=mode
+    )
+
+    logger.info(
+        f"Group zone transition creativity: "
+        f"tone={tone}, mood={mood}, twist={twist}"
+    )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class']
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    # Try to get atmospheric zone flavor
+    zone_flavor = get_zone_flavor(zone_id)
+    zone_desc = ""
+    if zone_flavor:
+        zone_desc = (
+            f"\nZone atmosphere: {zone_flavor}\n"
+        )
+
+    if is_rp:
+        style = (
+            "Comment in-character on arriving "
+            "in this new area. Explorers get "
+            "excited, cautious types express "
+            "concern, warriors comment on "
+            "potential threats."
+        )
+    else:
+        style = (
+            "Make a casual comment about "
+            "arriving in a new zone. Natural "
+            "and brief."
+        )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+        f"Your tone: {tone}\n"
+        f"Your mood: {mood}\n"
+    )
+    if twist:
+        prompt += f"Creative twist: {twist}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"Your party just arrived in "
+        f"{zone_name}."
+        f"{zone_desc}\n\n"
+        f"{style}\n\n"
+        f"Say a reaction in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- Can mention {zone_name} by name\n"
+        f"- Reflect your personality traits\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
+    )
+    return prompt
+
+
+def build_dungeon_entry_prompt(
+    bot, traits, map_name, is_raid, zone_id,
+    mode, chat_history=""
+):
+    """Build prompt for a bot reacting to entering
+    a dungeon or raid instance.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
+    twist = maybe_get_creative_twist(
+        chance=1.0, mode=mode
+    )
+
+    logger.info(
+        f"Group dungeon entry creativity: "
+        f"tone={tone}, mood={mood}, twist={twist}"
+    )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class']
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    # Try to get dungeon-specific flavor
+    dungeon_flavor = get_dungeon_flavor(zone_id)
+    dungeon_desc = ""
+    if dungeon_flavor:
+        dungeon_desc = (
+            f"\nDungeon atmosphere: "
+            f"{dungeon_flavor}\n"
+        )
+
+    # Try to get boss names for context
+    dungeon_bosses = get_dungeon_bosses(zone_id)
+    boss_context = ""
+    if dungeon_bosses:
+        boss_list = ', '.join(
+            dungeon_bosses[:3]
+        )
+        boss_context = (
+            f"\nKnown bosses here: {boss_list}\n"
+        )
+
+    instance_type = "raid" if is_raid else "dungeon"
+
+    if is_rp:
+        if is_raid:
+            style = (
+                "React in-character to entering "
+                "a raid. This is a major challenge. "
+                "Eager warriors steel themselves, "
+                "cautious healers check supplies, "
+                "scholarly mages study the "
+                "surroundings."
+            )
+        else:
+            style = (
+                "React in-character to entering "
+                "a dungeon. Personality-appropriate "
+                "— eager, cautious, scholarly, or "
+                "casual depending on your traits."
+            )
+    else:
+        if is_raid:
+            style = (
+                "React casually to entering a "
+                "raid. Could be excited, nervous, "
+                "or just ready to go."
+            )
+        else:
+            style = (
+                "React casually to entering a "
+                "dungeon. Brief and natural."
+            )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+        f"Your tone: {tone}\n"
+        f"Your mood: {mood}\n"
+    )
+    if twist:
+        prompt += f"Creative twist: {twist}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"Your party just entered {map_name}, "
+        f"a {instance_type}."
+        f"{dungeon_desc}"
+        f"{boss_context}\n\n"
+        f"{style}\n\n"
+        f"Say a reaction in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- Can mention {map_name} by name\n"
+        f"- Reflect your personality traits\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
+    )
+    return prompt
+
+
+def build_wipe_reaction_prompt(
+    bot, traits, killer_name, mode,
+    chat_history=""
+):
+    """Build prompt for a bot reacting to a total
+    party wipe. Dramatic, frustrated, humorous,
+    or resigned depending on personality.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
+    twist = maybe_get_creative_twist(
+        chance=1.0, mode=mode
+    )
+
+    logger.info(
+        f"Group wipe creativity: "
+        f"tone={tone}, mood={mood}, twist={twist}"
+    )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class']
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    wipe_context = (
+        "Everyone in your party just died"
+    )
+    if killer_name:
+        wipe_context += (
+            f" — wiped by {killer_name}"
+        )
+    wipe_context += ". Total party wipe."
+
+    if is_rp:
+        style = (
+            "React in-character to the wipe. "
+            "Could be in-character despair, "
+            "gallows humor, stoic acceptance, "
+            "or dramatic frustration — whatever "
+            "fits your personality."
+        )
+    else:
+        style = (
+            "React naturally to the wipe. "
+            "Could be frustrated, humorous, "
+            "resigned, or self-deprecating."
+        )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+        f"Your tone: {tone}\n"
+        f"Your mood: {mood}\n"
+    )
+    if twist:
+        prompt += f"Creative twist: {twist}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{wipe_context}\n\n"
+        f"{style}\n\n"
+        f"Say a reaction in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, asterisks, emotes, emojis\n"
+    )
+    if killer_name:
+        prompt += (
+            f"- Can reference {killer_name}\n"
+        )
+    prompt += (
+        f"- Reflect your personality traits\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
+    )
+    return prompt
 
 
 # ============================================================

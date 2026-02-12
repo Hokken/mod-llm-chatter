@@ -35,7 +35,12 @@ CREATE TABLE `llm_chatter_events` (
         'bot_group_quest_complete',
         'bot_group_achievement',
         'bot_group_spell_cast',
-        'bot_group_quest_objectives'
+        'bot_group_quest_objectives',
+        'bot_group_resurrect',
+        'bot_group_zone_transition',
+        'bot_group_dungeon_entry',
+        'bot_group_wipe',
+        'player_general_msg'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,
@@ -132,6 +137,19 @@ CREATE TABLE `llm_group_bot_traits` (
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_group_bot` (`group_id`, `bot_guid`),
     INDEX `idx_group` (`group_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Chat history for General channel conversations (per-zone)
+DROP TABLE IF EXISTS `llm_general_chat_history`;
+CREATE TABLE `llm_general_chat_history` (
+    `id` INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `zone_id` INT UNSIGNED NOT NULL,
+    `speaker_name` VARCHAR(64) NOT NULL,
+    `is_bot` TINYINT(1) NOT NULL DEFAULT 0,
+    `message` TEXT NOT NULL,
+    `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_zone_id` (`zone_id`),
+    INDEX `idx_created_at` (`created_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Chat history for group conversations (provides context)

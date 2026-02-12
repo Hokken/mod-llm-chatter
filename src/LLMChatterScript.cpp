@@ -1649,6 +1649,8 @@ private:
                         ai->SayToChannel(
                             processedMessage,
                             ChatChannelId::GENERAL);
+                        // History stored by Python
+                        // bridge (chatter_general.py)
                     }
                 }
 
@@ -1791,6 +1793,9 @@ static void QueueBotGreetingEvent(
         botName, groupId);
 }
 
+// Per-zone General channel cooldown: zone_id -> last reaction time
+static std::map<uint32, time_t> _generalChatCooldowns;
+
 // Per-group kill cooldown cache: group_id -> last kill event time
 static std::map<uint32, time_t> _groupKillCooldowns;
 
@@ -1815,6 +1820,26 @@ static std::unordered_map<uint32, time_t>
 static std::map<uint32, time_t>
     _groupQuestObjCooldowns;
 
+// Per-group resurrect cooldown:
+// group_id -> last resurrect event time
+static std::map<uint32, time_t>
+    _groupResurrectCooldowns;
+
+// Per-group zone transition cooldown:
+// group_id -> last zone change event time
+static std::map<uint32, time_t>
+    _groupZoneCooldowns;
+
+// Per-group dungeon entry cooldown:
+// group_id -> last dungeon entry event time
+static std::map<uint32, time_t>
+    _groupDungeonCooldowns;
+
+// Per-group wipe cooldown:
+// group_id -> last wipe event time
+static std::map<uint32, time_t>
+    _groupWipeCooldowns;
+
 // Clean up traits when group no longer qualifies
 static void CleanupGroupSession(uint32 groupId)
 {
@@ -1834,6 +1859,11 @@ static void CleanupGroupSession(uint32 groupId)
     _groupPlayerMsgCooldowns.erase(groupId);
     _groupCombatCooldowns.erase(groupId);
     _groupSpellCooldowns.erase(groupId);
+    _groupQuestObjCooldowns.erase(groupId);
+    _groupResurrectCooldowns.erase(groupId);
+    _groupZoneCooldowns.erase(groupId);
+    _groupDungeonCooldowns.erase(groupId);
+    _groupWipeCooldowns.erase(groupId);
 
     LOG_INFO("module",
         "LLMChatter: Cleaned up group {} "
@@ -1946,6 +1976,280 @@ public:
     LLMChatterPlayerScript()
         : PlayerScript("LLMChatterPlayerScript") {}
 
+    // ------------------------------------------------
+    // General channel: player message reaction
+    // ------------------------------------------------
+    bool OnPlayerCanUseChat(
+        Player* player, uint32 /*type*/,
+        uint32 /*language*/, std::string& msg,
+        Channel* channel) override
+    {
+        // Always allow chat - we just observe
+        if (!sLLMChatterConfig
+            || !sLLMChatterConfig->IsEnabled()
+            || !sLLMChatterConfig->_useGeneralChatReact)
+            return true;
+
+        // Only General channel (channelId 1)
+        if (!channel || channel->GetChannelId() != 1)
+            return true;
+
+        // Skip bots
+        if (!player || IsPlayerBot(player))
+            return true;
+
+        if (msg.empty())
+            return true;
+
+        // Filter ALL_CAPS_WITH_UNDERSCORES (addons)
+        {
+            bool hasUnderscore = false;
+            bool allCapsOrSep = true;
+            for (char c : msg)
+            {
+                if (c == '_')
+                    hasUnderscore = true;
+                else if (c != ' ' && c != '\t'
+                    && c != '\n' && c != '\r'
+                    && !(c >= 'A' && c <= 'Z'))
+                {
+                    allCapsOrSep = false;
+                    break;
+                }
+            }
+            if (hasUnderscore && allCapsOrSep)
+                return true;
+        }
+
+        // Skip link-only messages
+        if (msg.size() > 2 && msg[0] == '|'
+            && msg[1] == 'c')
+        {
+            std::string stripped = msg;
+            size_t start, end;
+            while ((start = stripped.find("|c"))
+                   != std::string::npos
+                && (end = stripped.find("|r", start))
+                   != std::string::npos)
+            {
+                stripped.erase(start,
+                    end - start + 2);
+            }
+            stripped.erase(0,
+                stripped.find_first_not_of(" \t"));
+            if (!stripped.empty())
+            {
+                stripped.erase(
+                    stripped.find_last_not_of(
+                        " \t") + 1);
+            }
+            if (stripped.empty())
+                return true;
+        }
+
+        // Trim and truncate message
+        std::string safeMsg = msg;
+        size_t firstChar =
+            safeMsg.find_first_not_of(" \t\n\r");
+        if (firstChar == std::string::npos)
+            return true;
+        if (firstChar > 0)
+            safeMsg = safeMsg.substr(firstChar);
+        size_t lastChar =
+            safeMsg.find_last_not_of(" \t\n\r");
+        if (lastChar != std::string::npos)
+            safeMsg =
+                safeMsg.substr(0, lastChar + 1);
+        if (safeMsg.empty())
+            return true;
+        if (safeMsg.size() > 250)
+            safeMsg = safeMsg.substr(0, 250);
+
+        uint32 zoneId = player->GetZoneId();
+        std::string playerName = player->GetName();
+
+        // Store in General chat history
+        CharacterDatabase.Execute(
+            "INSERT INTO llm_general_chat_history "
+            "(zone_id, speaker_name, is_bot, message)"
+            " VALUES ({}, '{}', 0, '{}')",
+            zoneId,
+            EscapeString(playerName),
+            EscapeString(safeMsg));
+
+        // Prune history to 15 per zone
+        CharacterDatabase.Execute(
+            "DELETE FROM llm_general_chat_history "
+            "WHERE zone_id = {} AND id NOT IN "
+            "(SELECT id FROM (SELECT id FROM "
+            "llm_general_chat_history "
+            "WHERE zone_id = {} "
+            "ORDER BY id DESC LIMIT 15) AS keep)",
+            zoneId, zoneId);
+
+        // Per-zone cooldown
+        time_t now = time(nullptr);
+        auto it =
+            _generalChatCooldowns.find(zoneId);
+        if (it != _generalChatCooldowns.end()
+            && (now - it->second)
+               < (time_t)sLLMChatterConfig
+                   ->_generalChatCooldown)
+            return true;
+
+        // RNG: questions get higher chance
+        bool isQuestion =
+            !safeMsg.empty()
+            && safeMsg.back() == '?';
+        uint32 chance = isQuestion
+            ? sLLMChatterConfig
+                ->_generalChatQuestionChance
+            : sLLMChatterConfig
+                ->_generalChatChance;
+        if (urand(1, 100) > chance)
+            return true;
+
+        _generalChatCooldowns[zoneId] = now;
+
+        // Get zone name
+        AreaTableEntry const* area =
+            sAreaTableStore.LookupEntry(zoneId);
+        std::string zoneName =
+            area ? area->area_name[0] : "Unknown";
+
+        // Find bots in the same zone (1-4)
+        std::vector<Player*> zoneBots;
+        auto allBots =
+            sRandomPlayerbotMgr.GetAllBots();
+        for (auto& pair : allBots)
+        {
+            Player* bot = pair.second;
+            if (!bot || !bot->IsInWorld())
+                continue;
+            if (bot->GetZoneId() != zoneId)
+                continue;
+            zoneBots.push_back(bot);
+            if (zoneBots.size() >= 8)
+                break;
+        }
+
+        // Also check account bots via sessions
+        if (zoneBots.size() < 8)
+        {
+            WorldSessionMgr::SessionMap const&
+                sessions =
+                sWorldSessionMgr
+                    ->GetAllSessions();
+            for (auto const& pair : sessions)
+            {
+                WorldSession* session = pair.second;
+                if (!session)
+                    continue;
+                Player* p = session->GetPlayer();
+                if (!p || !p->IsInWorld())
+                    continue;
+                if (!IsPlayerBot(p))
+                    continue;
+                if (p->GetZoneId() != zoneId)
+                    continue;
+                // Avoid duplicates
+                bool found = false;
+                for (Player* b : zoneBots)
+                {
+                    if (b->GetGUID() == p->GetGUID())
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                {
+                    zoneBots.push_back(p);
+                    if (zoneBots.size() >= 8)
+                        break;
+                }
+            }
+        }
+
+        if (zoneBots.empty())
+            return true;
+
+        // Shuffle and send all found bots — Python
+        // decides how many to use (1 for statement,
+        // 2 for conversation)
+        std::shuffle(
+            zoneBots.begin(), zoneBots.end(),
+            std::mt19937{std::random_device{}()});
+        uint32 pickCount = zoneBots.size();
+
+        // Build JSON arrays of bot info
+        std::string botGuids = "[";
+        std::string botNames = "[";
+        for (uint32 i = 0; i < pickCount; ++i)
+        {
+            Player* bot = zoneBots[i];
+            if (i > 0)
+            {
+                botGuids += ",";
+                botNames += ",";
+            }
+            botGuids +=
+                std::to_string(
+                    bot->GetGUID().GetCounter());
+            botNames += "\"" +
+                JsonEscape(bot->GetName()) + "\"";
+        }
+        botGuids += "]";
+        botNames += "]";
+
+        std::string extraData = "{"
+            "\"player_name\":\"" +
+                JsonEscape(playerName) + "\","
+            "\"player_message\":\"" +
+                JsonEscape(safeMsg) + "\","
+            "\"zone_id\":" +
+                std::to_string(zoneId) + ","
+            "\"zone_name\":\"" +
+                JsonEscape(zoneName) + "\","
+            "\"bot_guids\":" + botGuids + ","
+            "\"bot_names\":" + botNames +
+            "}";
+
+        extraData = EscapeString(extraData);
+
+        CharacterDatabase.Execute(
+            "INSERT INTO llm_chatter_events "
+            "(event_type, event_scope, zone_id, "
+            "map_id, priority, cooldown_key, "
+            "subject_guid, subject_name, "
+            "target_guid, target_name, "
+            "target_entry, extra_data, status, "
+            "react_after, expires_at) "
+            "VALUES ('player_general_msg', "
+            "'zone', "
+            "{}, {}, 2, 'general_chat:{}', "
+            "{}, '{}', 0, '', 0, "
+            "'{}', 'pending', "
+            "DATE_ADD(NOW(), INTERVAL 5 SECOND), "
+            "DATE_ADD(NOW(), INTERVAL 120 SECOND))",
+            zoneId,
+            player->GetMapId(),
+            zoneId,
+            player->GetGUID().GetCounter(),
+            EscapeString(playerName),
+            extraData);
+
+        LOG_INFO("module",
+            "LLMChatter: Queued player_general_msg "
+            "from {} in zone {} ({} bots)",
+            playerName, zoneName, pickCount);
+
+        return true;
+    }
+
+    // ------------------------------------------------
+    // Creature Kill event (group chatter)
+    // ------------------------------------------------
     void OnPlayerCreatureKill(
         Player* killer, Creature* killed) override
     {
@@ -2111,10 +2415,160 @@ public:
 
         uint32 groupId =
             group->GetGUID().GetCounter();
-
-        // Per-group cooldown (wipes cause rapid
-        // deaths)
         time_t now = time(nullptr);
+
+        // === Wipe detection (checked BEFORE death
+        // cooldown/RNG so wipes aren't suppressed
+        // by individual death filters) ===
+        {
+            bool allDead = true;
+            uint32 memberCount = 0;
+            for (GroupReference* itr =
+                     group->GetFirstMember();
+                 itr != nullptr;
+                 itr = itr->next())
+            {
+                Player* member =
+                    itr->GetSource();
+                if (!member)
+                    continue;
+                memberCount++;
+                if (member->IsAlive())
+                {
+                    allDead = false;
+                    break;
+                }
+            }
+
+            // Need at least 2 members
+            // for a "wipe"
+            if (allDead && memberCount >= 2)
+            {
+                // Check wipe-specific cooldown
+                auto wit =
+                    _groupWipeCooldowns
+                        .find(groupId);
+                if (wit
+                    != _groupWipeCooldowns.end()
+                    && (now - wit->second)
+                       < (time_t)
+                           sLLMChatterConfig
+                               ->_groupWipeCooldown)
+                {
+                    // Wipe on cooldown, also
+                    // skip normal death
+                    return;
+                }
+
+                // RNG chance from config
+                if (urand(1, 100)
+                    > sLLMChatterConfig
+                        ->_groupWipeChance)
+                    return;
+
+                _groupWipeCooldowns[groupId] =
+                    now;
+
+                // Pick a random bot to react
+                Player* wipeReactor =
+                    GetRandomBotInGroup(group);
+                if (!wipeReactor)
+                    return;
+
+                uint32 wrGuid =
+                    wipeReactor->GetGUID()
+                        .GetCounter();
+                std::string wrName =
+                    wipeReactor->GetName();
+                std::string kName =
+                    killer
+                        ? killer->GetName()
+                        : "";
+                uint32 kEntry =
+                    killer
+                        ? killer->GetEntry()
+                        : 0;
+
+                std::string wipeData = "{"
+                    "\"bot_guid\":" +
+                        std::to_string(
+                            wrGuid) + ","
+                    "\"bot_name\":\"" +
+                        JsonEscape(
+                            wrName) + "\","
+                    "\"bot_class\":" +
+                        std::to_string(
+                            wipeReactor
+                                ->getClass())
+                        + ","
+                    "\"bot_race\":" +
+                        std::to_string(
+                            wipeReactor
+                                ->getRace())
+                        + ","
+                    "\"bot_level\":" +
+                        std::to_string(
+                            wipeReactor
+                                ->GetLevel())
+                        + ","
+                    "\"group_id\":" +
+                        std::to_string(
+                            groupId) + ","
+                    "\"killer_name\":\"" +
+                        JsonEscape(
+                            kName) + "\","
+                    "\"killer_entry\":" +
+                        std::to_string(
+                            kEntry) +
+                    "}";
+
+                wipeData =
+                    EscapeString(wipeData);
+
+                CharacterDatabase.Execute(
+                    "INSERT INTO "
+                    "llm_chatter_events "
+                    "(event_type, event_scope, "
+                    "zone_id, map_id, priority, "
+                    "cooldown_key, "
+                    "subject_guid, "
+                    "subject_name, "
+                    "target_guid, "
+                    "target_name, "
+                    "target_entry, "
+                    "extra_data, status, "
+                    "react_after, expires_at) "
+                    "VALUES ("
+                    "'bot_group_wipe', "
+                    "'player', "
+                    "{}, {}, 1, '', "
+                    "{}, '{}', 0, '{}', {}, "
+                    "'{}', 'pending', "
+                    "DATE_ADD(NOW(), "
+                    "INTERVAL 3 SECOND), "
+                    "DATE_ADD(NOW(), "
+                    "INTERVAL 120 SECOND))",
+                    killed->GetZoneId(),
+                    killed->GetMapId(),
+                    wrGuid,
+                    EscapeString(wrName),
+                    EscapeString(kName),
+                    kEntry,
+                    wipeData);
+
+                LOG_INFO("module",
+                    "LLMChatter: GROUP WIPE "
+                    "detected! {} reacting "
+                    "(killed by {})",
+                    wrName, kName);
+
+                // Skip normal death event
+                return;
+            }
+        }
+
+        // --- Normal death reaction (not a wipe) ---
+        // Per-group cooldown
         auto it = _groupDeathCooldowns.find(groupId);
         if (it != _groupDeathCooldowns.end()
             && (now - it->second)
@@ -3514,6 +3968,356 @@ public:
             "bot_group_spell_cast "
             "for {} casting {} [{}]",
             casterName, spellName, spellCategory);
+    }
+
+    // -----------------------------------------------
+    // Hook: Bot resurrects in a group with real player
+    // -----------------------------------------------
+    void OnPlayerResurrect(
+        Player* player, float /*restore_percent*/,
+        bool /*applySickness*/) override
+    {
+        if (!sLLMChatterConfig
+            || !sLLMChatterConfig->IsEnabled()
+            || !sLLMChatterConfig
+                   ->_useGroupChatter)
+            return;
+
+        if (!player)
+            return;
+
+        if (!IsPlayerBot(player))
+            return;
+
+        Group* group = player->GetGroup();
+        if (!group)
+            return;
+
+        if (!GroupHasRealPlayer(group))
+            return;
+
+        uint32 groupId =
+            group->GetGUID().GetCounter();
+
+        // Per-group cooldown
+        time_t now = time(nullptr);
+        auto it =
+            _groupResurrectCooldowns
+                .find(groupId);
+        if (it
+            != _groupResurrectCooldowns.end()
+            && (now - it->second)
+               < (time_t)sLLMChatterConfig
+                   ->_groupResurrectCooldown)
+            return;
+
+        // RNG chance from config
+        if (urand(1, 100)
+            > sLLMChatterConfig
+                ->_groupResurrectChance)
+            return;
+
+        _groupResurrectCooldowns[groupId] = now;
+
+        uint32 botGuid =
+            player->GetGUID().GetCounter();
+        std::string botName =
+            player->GetName();
+
+        std::string extraData = "{"
+            "\"bot_guid\":" +
+                std::to_string(botGuid) + ","
+            "\"bot_name\":\"" +
+                JsonEscape(botName) + "\","
+            "\"bot_class\":" +
+                std::to_string(
+                    player->getClass()) + ","
+            "\"bot_race\":" +
+                std::to_string(
+                    player->getRace()) + ","
+            "\"bot_level\":" +
+                std::to_string(
+                    player->GetLevel()) + ","
+            "\"group_id\":" +
+                std::to_string(groupId) +
+            "}";
+
+        extraData = EscapeString(extraData);
+
+        CharacterDatabase.Execute(
+            "INSERT INTO llm_chatter_events "
+            "(event_type, event_scope, "
+            "zone_id, map_id, priority, "
+            "cooldown_key, subject_guid, "
+            "subject_name, target_guid, "
+            "target_name, target_entry, "
+            "extra_data, status, "
+            "react_after, expires_at) "
+            "VALUES ("
+            "'bot_group_resurrect', "
+            "'player', "
+            "{}, {}, 1, '', "
+            "{}, '{}', 0, '', 0, "
+            "'{}', 'pending', "
+            "DATE_ADD(NOW(), "
+            "INTERVAL 3 SECOND), "
+            "DATE_ADD(NOW(), "
+            "INTERVAL 120 SECOND))",
+            player->GetZoneId(),
+            player->GetMapId(),
+            botGuid,
+            EscapeString(botName),
+            extraData);
+
+        LOG_INFO("module",
+            "LLMChatter: Queued "
+            "bot_group_resurrect for {}",
+            botName);
+    }
+
+    // -----------------------------------------------
+    // Hook: Bot enters a new zone in a group
+    // -----------------------------------------------
+    void OnPlayerUpdateZone(
+        Player* player, uint32 newZone,
+        uint32 /*newArea*/) override
+    {
+        if (!sLLMChatterConfig
+            || !sLLMChatterConfig->IsEnabled()
+            || !sLLMChatterConfig
+                   ->_useGroupChatter)
+            return;
+
+        if (!player)
+            return;
+
+        if (!IsPlayerBot(player))
+            return;
+
+        Group* group = player->GetGroup();
+        if (!group)
+            return;
+
+        if (!GroupHasRealPlayer(group))
+            return;
+
+        uint32 groupId =
+            group->GetGUID().GetCounter();
+
+        // Per-group cooldown
+        time_t now = time(nullptr);
+        auto it =
+            _groupZoneCooldowns.find(groupId);
+        if (it != _groupZoneCooldowns.end()
+            && (now - it->second)
+               < (time_t)sLLMChatterConfig
+                   ->_groupZoneCooldown)
+            return;
+
+        // RNG chance
+        if (urand(1, 100)
+            > sLLMChatterConfig
+                  ->_groupZoneChance)
+            return;
+
+        // Get zone name from DBC, skip if empty
+        AreaTableEntry const* area =
+            sAreaTableStore.LookupEntry(
+                newZone);
+        std::string zoneName =
+            area ? area->area_name[0] : "";
+        if (zoneName.empty())
+            return;
+
+        _groupZoneCooldowns[groupId] = now;
+
+        uint32 botGuid =
+            player->GetGUID().GetCounter();
+        std::string botName =
+            player->GetName();
+
+        std::string extraData = "{"
+            "\"bot_guid\":" +
+                std::to_string(botGuid) + ","
+            "\"bot_name\":\"" +
+                JsonEscape(botName) + "\","
+            "\"bot_class\":" +
+                std::to_string(
+                    player->getClass()) + ","
+            "\"bot_race\":" +
+                std::to_string(
+                    player->getRace()) + ","
+            "\"bot_level\":" +
+                std::to_string(
+                    player->GetLevel()) + ","
+            "\"group_id\":" +
+                std::to_string(groupId) + ","
+            "\"zone_id\":" +
+                std::to_string(newZone) + ","
+            "\"zone_name\":\"" +
+                JsonEscape(zoneName) + "\""
+            "}";
+
+        extraData = EscapeString(extraData);
+
+        CharacterDatabase.Execute(
+            "INSERT INTO llm_chatter_events "
+            "(event_type, event_scope, "
+            "zone_id, map_id, priority, "
+            "cooldown_key, subject_guid, "
+            "subject_name, target_guid, "
+            "target_name, target_entry, "
+            "extra_data, status, "
+            "react_after, expires_at) "
+            "VALUES ("
+            "'bot_group_zone_transition', "
+            "'player', "
+            "{}, {}, 3, '', "
+            "{}, '{}', 0, '{}', 0, "
+            "'{}', 'pending', "
+            "DATE_ADD(NOW(), "
+            "INTERVAL 5 SECOND), "
+            "DATE_ADD(NOW(), "
+            "INTERVAL 120 SECOND))",
+            newZone,
+            player->GetMapId(),
+            botGuid,
+            EscapeString(botName),
+            EscapeString(zoneName),
+            extraData);
+
+        LOG_INFO("module",
+            "LLMChatter: Queued "
+            "bot_group_zone_transition "
+            "for {} entering {}",
+            botName, zoneName);
+    }
+
+    // -----------------------------------------------
+    // Hook: Bot enters a dungeon/raid instance
+    // -----------------------------------------------
+    void OnPlayerMapChanged(
+        Player* player) override
+    {
+        if (!sLLMChatterConfig
+            || !sLLMChatterConfig->IsEnabled()
+            || !sLLMChatterConfig
+                   ->_useGroupChatter)
+            return;
+
+        if (!player)
+            return;
+
+        if (!IsPlayerBot(player))
+            return;
+
+        Map* map = player->GetMap();
+        if (!map || !map->IsDungeon())
+            return;
+
+        Group* group = player->GetGroup();
+        if (!group)
+            return;
+
+        if (!GroupHasRealPlayer(group))
+            return;
+
+        uint32 groupId =
+            group->GetGUID().GetCounter();
+
+        // Per-group cooldown
+        time_t now = time(nullptr);
+        auto it =
+            _groupDungeonCooldowns
+                .find(groupId);
+        if (it
+            != _groupDungeonCooldowns.end()
+            && (now - it->second)
+               < (time_t)sLLMChatterConfig
+                   ->_groupDungeonCooldown)
+            return;
+
+        // RNG chance
+        if (urand(1, 100)
+            > sLLMChatterConfig
+                  ->_groupDungeonChance)
+            return;
+
+        _groupDungeonCooldowns[groupId] = now;
+
+        uint32 botGuid =
+            player->GetGUID().GetCounter();
+        std::string botName =
+            player->GetName();
+        std::string mapName =
+            map->GetMapName();
+        bool isRaid = map->IsRaid();
+
+        std::string extraData = "{"
+            "\"bot_guid\":" +
+                std::to_string(botGuid) + ","
+            "\"bot_name\":\"" +
+                JsonEscape(botName) + "\","
+            "\"bot_class\":" +
+                std::to_string(
+                    player->getClass()) + ","
+            "\"bot_race\":" +
+                std::to_string(
+                    player->getRace()) + ","
+            "\"bot_level\":" +
+                std::to_string(
+                    player->GetLevel()) + ","
+            "\"group_id\":" +
+                std::to_string(groupId) + ","
+            "\"map_id\":" +
+                std::to_string(
+                    map->GetId()) + ","
+            "\"map_name\":\"" +
+                JsonEscape(mapName) + "\","
+            "\"is_raid\":" +
+                std::string(
+                    isRaid
+                        ? "true"
+                        : "false") + ","
+            "\"zone_id\":" +
+                std::to_string(
+                    player->GetZoneId()) +
+            "}";
+
+        extraData = EscapeString(extraData);
+
+        CharacterDatabase.Execute(
+            "INSERT INTO llm_chatter_events "
+            "(event_type, event_scope, "
+            "zone_id, map_id, priority, "
+            "cooldown_key, subject_guid, "
+            "subject_name, target_guid, "
+            "target_name, target_entry, "
+            "extra_data, status, "
+            "react_after, expires_at) "
+            "VALUES ("
+            "'bot_group_dungeon_entry', "
+            "'player', "
+            "{}, {}, 1, '', "
+            "{}, '{}', 0, '{}', 0, "
+            "'{}', 'pending', "
+            "DATE_ADD(NOW(), "
+            "INTERVAL 5 SECOND), "
+            "DATE_ADD(NOW(), "
+            "INTERVAL 300 SECOND))",
+            player->GetZoneId(),
+            map->GetId(),
+            botGuid,
+            EscapeString(botName),
+            EscapeString(mapName),
+            extraData);
+
+        LOG_INFO("module",
+            "LLMChatter: Queued "
+            "bot_group_dungeon_entry "
+            "for {} entering {} (raid={})",
+            botName, mapName,
+            isRaid ? "yes" : "no");
     }
 };
 

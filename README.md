@@ -62,8 +62,15 @@ Every quest, item, and spell name becomes a clickable WoW link.
 - **Race and class identity**, a Tauren Druid doesn't sound like an Undead Warlock. Each race has speech traits and cultural flavor words, each class has personality modifiers that shape how they speak
 - **Clickable WoW links**, quest names, item names, and spell names are automatically converted into proper in-game links you can click, just like real player chat
 
+### Player Interaction in General Chat
+- **Bots react to you in General**, type anything in General channel and nearby bots respond naturally, zone-scoped with per-zone cooldowns
+- **Smart bot selection**, address a bot by name ("Cylaea, eat some grass") and that specific bot responds. Misspell it? Fuzzy matching catches names within 2 characters. Don't mention anyone? An LLM analyzes context to pick the most relevant bot
+- **Question detection**, questions (ending with `?`) get 100% reaction chance, non-questions get 80%, so asking something always gets an answer
+- **Conversations**, 30% chance your message sparks a 2-bot conversation instead of a single reply
+
 ### Group Party Chat
 - **Bots that feel like party members**, when grouped, your bots react to what's happening around you in party chat, just like real players would
+- **Smart bot selection**, same 3-pass name matching works in party chat: exact name → fuzzy → LLM context analysis
 - **Kill reactions**, your tank might brag about a clean pull, your healer might comment on a close call
 - **Loot reactions**, genuine excitement over epic drops, friendly jealousy, "grats" that feel real
 - **Combat cries**, battle shouts and war cries during engagements, flavored by race and class
@@ -252,6 +259,16 @@ All settings are in `mod_llm_chatter.conf`. Here are the most commonly tuned opt
 | `LLMChatter.HolidayCityChance` | 10 | % holiday mention chance per city per check |
 | `LLMChatter.EnvironmentCheckSeconds` | 60 | Environment check interval (seconds) |
 
+### General Channel Reactions
+
+| Setting | Default | Description |
+|---------|---------|-------------|
+| `LLMChatter.GeneralChat.Enable` | 0 | Enable bot reactions to player General chat |
+| `LLMChatter.GeneralChat.ReactionChance` | 80 | % chance for non-question messages |
+| `LLMChatter.GeneralChat.QuestionChance` | 100 | % chance for questions (ending with ?) |
+| `LLMChatter.GeneralChat.Cooldown` | 15 | Per-zone cooldown in seconds |
+| `LLMChatter.GeneralChat.ConversationChance` | 30 | % chance of 2-bot conversation vs single reply |
+
 ### Rate Limiting
 
 | Setting | Default | Description |
@@ -362,6 +379,7 @@ mod-llm-chatter/
     ├── chatter_prompts.py       # Prompt building for all chatter types
     ├── chatter_events.py        # Event processing (weather, transport, etc.)
     ├── chatter_group.py         # Group chatter (party chat with bots)
+    ├── chatter_general.py       # General channel player reactions
     ├── spell_names.py           # Spell ID-to-name lookup table
     └── requirements.txt
 ```

@@ -666,6 +666,75 @@ LLMChatter.GroupChatter.LootCooldown = 60
 #
 LLMChatter.GroupChatter.PlayerMsgCooldown = 15
 
+#
+#   LLMChatter.GroupChatter.ResurrectChance
+#       Percent chance (0-100) that being resurrected
+#       triggers a group reaction. Resurrections are
+#       rare so 100% is recommended.
+#       Default: 100
+#
+LLMChatter.GroupChatter.ResurrectChance = 100
+
+#
+#   LLMChatter.GroupChatter.ResurrectCooldown
+#       Per-group cooldown (seconds) between resurrect
+#       reactions.
+#       Default: 30
+#
+LLMChatter.GroupChatter.ResurrectCooldown = 30
+
+#
+#   LLMChatter.GroupChatter.ZoneTransitionChance
+#       Percent chance (0-100) that entering a new zone
+#       triggers a group reaction. Cooldown prevents
+#       spam when traveling through multiple zones.
+#       Default: 100
+#
+LLMChatter.GroupChatter.ZoneTransitionChance = 100
+
+#
+#   LLMChatter.GroupChatter.ZoneTransitionCooldown
+#       Per-group cooldown (seconds) between zone
+#       transition reactions. Zone changes can cluster
+#       when traveling through multiple zones.
+#       Default: 120
+#
+LLMChatter.GroupChatter.ZoneTransitionCooldown = 120
+
+#
+#   LLMChatter.GroupChatter.DungeonEntryChance
+#       Percent chance (0-100) that entering a dungeon
+#       or raid triggers a group reaction.
+#       Default: 100
+#
+LLMChatter.GroupChatter.DungeonEntryChance = 100
+
+#
+#   LLMChatter.GroupChatter.DungeonEntryCooldown
+#       Per-group cooldown (seconds) between dungeon
+#       entry reactions. One reaction per dungeon run.
+#       Default: 300
+#
+LLMChatter.GroupChatter.DungeonEntryCooldown = 300
+
+#
+#   LLMChatter.GroupChatter.WipeChance
+#       Percent chance (0-100) that a group wipe
+#       triggers a reaction. Wipes are dramatic and
+#       rare so 100% is recommended.
+#       Default: 100
+#
+LLMChatter.GroupChatter.WipeChance = 100
+
+#
+#   LLMChatter.GroupChatter.WipeCooldown
+#       Per-group cooldown (seconds) between group wipe
+#       reactions. Prevents double-fire during corpse
+#       runs.
+#       Default: 120
+#
+LLMChatter.GroupChatter.WipeCooldown = 120
+
 ###############################################################################
 # RP ENRICHMENT SETTINGS
 ###############################################################################
@@ -678,3 +747,77 @@ LLMChatter.GroupChatter.PlayerMsgCooldown = 15
 #       Default: 15
 #
 LLMChatter.RaceLoreChance = 15
+
+###############################################################################
+# GENERAL CHANNEL REACTIONS
+#
+#   When a real player types in the General channel, nearby bots may react
+#   with a statement or short conversation. Zone-scoped with cooldowns.
+#
+###############################################################################
+
+#
+#   LLMChatter.GeneralChat.Enable
+#       Enable bot reactions to player messages in General channel
+#       Default: 0
+#
+LLMChatter.GeneralChat.Enable = 0
+
+#
+#   LLMChatter.GeneralChat.ReactionChance
+#       Chance (0-100) a bot reacts to a non-question message
+#       Default: 80
+#
+LLMChatter.GeneralChat.ReactionChance = 80
+
+#
+#   LLMChatter.GeneralChat.QuestionChance
+#       Chance (0-100) a bot reacts to a question (ends with ?)
+#       Default: 100
+#
+LLMChatter.GeneralChat.QuestionChance = 100
+
+#
+#   LLMChatter.GeneralChat.Cooldown
+#       Per-zone cooldown in seconds between reactions
+#       Default: 60
+#
+LLMChatter.GeneralChat.Cooldown = 60
+
+#
+#   LLMChatter.GeneralChat.ConversationChance
+#       Chance (0-100) reaction becomes a multi-bot conversation
+#       vs single statement
+#       Default: 30
+#
+LLMChatter.GeneralChat.ConversationChance = 30
+
+###############################################################################
+#
+#   QUICK ANALYZE (UTILITY LLM CALLS)
+#
+#   Configure the provider and model for fast, cheap LLM utility calls used
+#   for pre-processing tasks like determining which bot a player is addressing,
+#   intent classification, and context analysis. These calls need to be fast
+#   and cheap — pick your smallest/fastest model.
+#
+#   If left empty, defaults to the main provider with the fastest available
+#   model (Haiku for Anthropic, gpt-4o-mini for OpenAI, main model for Ollama).
+#
+###############################################################################
+
+#
+#   LLMChatter.QuickAnalyze.Provider
+#       Provider for utility LLM calls: anthropic, openai, or ollama
+#       Leave empty to use the main LLMChatter.Provider
+#       Default: "" (use main provider)
+#
+LLMChatter.QuickAnalyze.Provider =
+
+#
+#   LLMChatter.QuickAnalyze.Model
+#       Model for utility LLM calls (e.g. haiku, gpt-4o-mini, qwen3:4b)
+#       Leave empty to auto-select the fastest model for the provider
+#       Default: "" (auto-select)
+#
+LLMChatter.QuickAnalyze.Model =

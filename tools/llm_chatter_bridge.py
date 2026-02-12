@@ -85,7 +85,14 @@ from chatter_group import (
     process_group_quest_objectives_event,
     process_group_achievement_event,
     process_group_spell_cast_event,
+    process_group_resurrect_event,
+    process_group_zone_transition_event,
+    process_group_dungeon_entry_event,
+    process_group_wipe_event,
     check_idle_group_chatter,
+)
+from chatter_general import (
+    process_general_player_msg_event,
 )
 
 # Configure logging
@@ -1036,6 +1043,43 @@ def process_pending_events(
             f"{event_type}")
         return process_group_spell_cast_event(
             db, client, config, event
+        )
+    if event_type == 'bot_group_resurrect':
+        logger.warning(
+            f"Group event #{event_id}: "
+            f"{event_type}")
+        return process_group_resurrect_event(
+            db, client, config, event
+        )
+    if event_type == 'bot_group_zone_transition':
+        logger.warning(
+            f"Group event #{event_id}: "
+            f"{event_type}")
+        return process_group_zone_transition_event(
+            db, client, config, event
+        )
+    if event_type == 'bot_group_dungeon_entry':
+        logger.warning(
+            f"Group event #{event_id}: "
+            f"{event_type}")
+        return process_group_dungeon_entry_event(
+            db, client, config, event
+        )
+    if event_type == 'bot_group_wipe':
+        logger.warning(
+            f"Group event #{event_id}: "
+            f"{event_type}")
+        return process_group_wipe_event(
+            db, client, config, event
+        )
+
+    # General channel player message reaction
+    if event_type == 'player_general_msg':
+        logger.warning(
+            f"General chat event #{event_id}: "
+            f"{event_type}")
+        return process_general_player_msg_event(
+            event, db, client, config
         )
 
     # Transport events have a chance-based filter
@@ -2037,6 +2081,22 @@ def main():
     logger.info(
         f"  RaceLoreChance: "
         f"{config.get('LLMChatter.RaceLoreChance', 15)}%"
+    )
+    logger.info("-" * 60)
+    qa_prov = config.get(
+        'LLMChatter.QuickAnalyze.Provider', ''
+    ).strip()
+    qa_model = config.get(
+        'LLMChatter.QuickAnalyze.Model', ''
+    ).strip()
+    logger.info("Quick analyze settings:")
+    logger.info(
+        f"  Provider: "
+        f"{qa_prov if qa_prov else '(main)'}"
+    )
+    logger.info(
+        f"  Model: "
+        f"{qa_model if qa_model else '(auto)'}"
     )
     logger.info("=" * 60)
 
