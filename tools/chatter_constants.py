@@ -173,6 +173,21 @@ ZONE_NAMES = {
     406: "Stonetalon Mountains",
 }
 
+# Capital cities - no hostile creatures to list
+CAPITAL_CITY_ZONES = {
+    1519,  # Stormwind City
+    1537,  # Ironforge
+    1657,  # Darnassus
+    3557,  # The Exodar
+    1637,  # Orgrimmar
+    1638,  # Thunder Bluff
+    1497,  # Undercity
+    3487,  # Silvermoon City
+    3524,  # Shattrath City
+    3703,  # Shattrath City (alt)
+    4395,  # Dalaran
+}
+
 # =============================================================================
 # CLASS AND RACE MAPPINGS - Convert numeric IDs to names
 # =============================================================================

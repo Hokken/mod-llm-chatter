@@ -335,12 +335,23 @@ static void QueueEvent(const std::string& eventType, const std::string& eventSco
     if (!sLLMChatterConfig->IsEnabled() || !sLLMChatterConfig->_useEventSystem)
         return;
 
-    // Roll reaction chance (allow override for transport events)
-    uint32 reactionChance = sLLMChatterConfig->_eventReactionChance;
-    if (eventType == "transport_arrives" && sLLMChatterConfig->_transportEventChance > 0)
-        reactionChance = sLLMChatterConfig->_transportEventChance;
+    // Roll reaction chance
+    // Holidays and day/night are rare one-time events;
+    // always let them through
+    bool alwaysFire =
+        (eventType == "holiday_start"
+         || eventType == "holiday_end"
+         || eventType == "day_night_transition");
 
-    if (urand(1, 100) > reactionChance)
+    uint32 reactionChance =
+        sLLMChatterConfig->_eventReactionChance;
+    if (eventType == "transport_arrives"
+        && sLLMChatterConfig->_transportEventChance > 0)
+        reactionChance =
+            sLLMChatterConfig->_transportEventChance;
+
+    if (!alwaysFire
+        && urand(1, 100) > reactionChance)
     {
         if (eventType == "transport_arrives")
         {
@@ -368,8 +379,12 @@ static void QueueEvent(const std::string& eventType, const std::string& eventSco
     }
 
     // Calculate delays
+    // Expiration must be AFTER reaction delay,
+    // otherwise events expire before they fire
     uint32 reactionDelay = GetReactionDelaySeconds(eventType);
-    uint32 expirationSeconds = sLLMChatterConfig->_eventExpirationSeconds;
+    uint32 expirationSeconds =
+        reactionDelay
+        + sLLMChatterConfig->_eventExpirationSeconds;
 
     // Set cooldown
     if (!cooldownKey.empty())
@@ -399,21 +414,117 @@ static void QueueEvent(const std::string& eventType, const std::string& eventSco
              eventType, zoneId, reactionDelay);
 }
 
-// Known holiday event IDs
-static const std::set<uint16> HOLIDAY_EVENTS = {
-    1,   // Midsummer Fire Festival
-    2,   // Winter Veil
-    7,   // Lunar Festival
-    8,   // Love is in the Air
-    9,   // Noblegarden
-    10,  // Children's Week
-    11,  // Harvest Festival
-    12,  // Hallow's End
-    24,  // Brewfest
-    26,  // Pilgrim's Bounty
-    50,  // Pirates' Day
-    51,  // Day of the Dead
-};
+// Helper: check if a game event is a holiday/calendar
+// event by looking at the HolidayId field in
+// GameEventData. Covers all holidays, Darkmoon Faire,
+// Call to Arms weekends, fishing derbies, etc.
+static bool IsHolidayEvent(uint16 eventId)
+{
+    GameEventMgr::GameEventDataMap const& events =
+        sGameEventMgr->GetEventMap();
+    if (eventId >= events.size())
+        return false;
+    return events[eventId].HolidayId != HOLIDAY_NONE;
+}
+
+// Helper: check if a zone is a capital city
+static bool IsCapitalCity(uint32 zoneId)
+{
+    if (AreaTableEntry const* area =
+            sAreaTableStore.LookupEntry(zoneId))
+        return (area->flags
+                & AREA_FLAG_CAPITAL) != 0;
+    return false;
+}
+
+// Helper: check if player is in the overworld
+// (not dungeon/raid/BG/arena)
+static bool IsInOverworld(Player* player)
+{
+    if (!player)
+        return false;
+    WorldSession* session = player->GetSession();
+    if (!session || session->PlayerLoading())
+        return false;
+    Map* map = player->GetMap();
+    if (!map)
+        return false;
+    return !map->Instanceable();
+}
+
+// Helper: get zones where real (non-bot) players are
+static std::vector<uint32> GetZonesWithRealPlayers()
+{
+    std::map<uint32, bool> zoneMap;
+    WorldSessionMgr::SessionMap const& sessions =
+        sWorldSessionMgr->GetAllSessions();
+
+    for (auto const& pair : sessions)
+    {
+        WorldSession* session = pair.second;
+        if (!session || session->PlayerLoading())
+            continue;
+        Player* player = session->GetPlayer();
+        if (!player || !player->IsInWorld())
+            continue;
+        if (!IsPlayerBot(player)
+            && IsInOverworld(player))
+        {
+            uint32 zoneId = player->GetZoneId();
+            if (zoneId > 0)
+                zoneMap[zoneId] = true;
+        }
+    }
+
+    std::vector<uint32> zones;
+    for (auto const& pair : zoneMap)
+        zones.push_back(pair.first);
+    return zones;
+}
+
+// Queue a holiday event for zones where real
+// players are present. Cities get a higher
+// chance, open-world zones get a lower chance.
+static void QueueHolidayForZones(
+    uint16 eventId,
+    const std::string& eventType = "holiday_start")
+{
+    GameEventMgr::GameEventDataMap const& events =
+        sGameEventMgr->GetEventMap();
+    GameEventData const& eventData =
+        events[eventId];
+
+    std::vector<uint32> playerZones =
+        GetZonesWithRealPlayers();
+    for (uint32 zoneId : playerZones)
+    {
+        uint32 chance = IsCapitalCity(zoneId)
+            ? sLLMChatterConfig->_holidayCityChance
+            : sLLMChatterConfig->_holidayZoneChance;
+
+        if (urand(1, 100) > chance)
+            continue;
+
+        std::string cooldownKey =
+            eventType + ":"
+            + std::to_string(eventId)
+            + ":zone:"
+            + std::to_string(zoneId);
+        std::string extraData =
+            "{\"event_name\":\""
+            + JsonEscape(eventData.Description)
+            + "\",\"zone_id\":"
+            + std::to_string(zoneId) + "}";
+
+        QueueEvent(
+            eventType, "global",
+            zoneId, 0, 2, cooldownKey,
+            sLLMChatterConfig
+                ->_holidayCooldownSeconds,
+            0, "", 0, "",
+            eventId, extraData);
+    }
+}
 
 // ============================================================================
 // GAME EVENT SCRIPT - Holiday Events
@@ -426,57 +537,42 @@ public:
 
     void OnStart(uint16 eventId) override
     {
-        LOG_DEBUG("module", "LLMChatter: GameEvent OnStart - hook called for event {}", eventId);
-        if (!sLLMChatterConfig->IsEnabled() || !sLLMChatterConfig->_useEventSystem)
+        if (!sLLMChatterConfig->IsEnabled()
+            || !sLLMChatterConfig->_useEventSystem)
             return;
         if (!sLLMChatterConfig->_eventsHolidays)
             return;
-
-        // Only care about holiday events
-        if (HOLIDAY_EVENTS.find(eventId) == HOLIDAY_EVENTS.end())
+        if (!IsHolidayEvent(eventId))
             return;
 
-        GameEventMgr::GameEventDataMap const& events = sGameEventMgr->GetEventMap();
-        if (eventId >= events.size())
-            return;
-        GameEventData const& eventData = events[eventId];
-        std::string cooldownKey = "holiday:" + std::to_string(eventId);
+        QueueHolidayForZones(eventId,
+            "holiday_start");
 
-        // NOTE: extraData is inserted into SQL via
-        // fmt::format; relies on JsonEscape for
-        // single-quote safety (see JsonEscape comment)
-        std::string extraData = "{\"event_name\":\"" + JsonEscape(eventData.Description) + "\"}";
-
-        QueueEvent("holiday_start", "global", 0, 0, 2, cooldownKey, 86400 * 7,
-                   0, "", 0, "", eventId, extraData);
-
-        LOG_INFO("module", "LLMChatter: Holiday started - {}", eventData.Description);
+        GameEventMgr::GameEventDataMap const& events =
+            sGameEventMgr->GetEventMap();
+        LOG_INFO("module",
+            "LLMChatter: Holiday started - {}",
+            events[eventId].Description);
     }
 
     void OnStop(uint16 eventId) override
     {
-        LOG_DEBUG("module", "LLMChatter: GameEvent OnStop - hook called for event {}", eventId);
-        if (!sLLMChatterConfig->IsEnabled() || !sLLMChatterConfig->_useEventSystem)
+        if (!sLLMChatterConfig->IsEnabled()
+            || !sLLMChatterConfig->_useEventSystem)
             return;
         if (!sLLMChatterConfig->_eventsHolidays)
             return;
-
-        if (HOLIDAY_EVENTS.find(eventId) == HOLIDAY_EVENTS.end())
+        if (!IsHolidayEvent(eventId))
             return;
 
-        GameEventMgr::GameEventDataMap const& events = sGameEventMgr->GetEventMap();
-        if (eventId >= events.size())
-            return;
-        GameEventData const& eventData = events[eventId];
-        std::string cooldownKey = "holiday_end:" + std::to_string(eventId);
+        QueueHolidayForZones(eventId,
+            "holiday_end");
 
-        // NOTE: extraData is inserted into SQL via
-        // fmt::format; relies on JsonEscape for
-        // single-quote safety (see JsonEscape comment)
-        std::string extraData = "{\"event_name\":\"" + JsonEscape(eventData.Description) + "\"}";
-
-        QueueEvent("holiday_end", "global", 0, 0, 3, cooldownKey, 86400 * 7,
-                   0, "", 0, "", eventId, extraData);
+        GameEventMgr::GameEventDataMap const& events =
+            sGameEventMgr->GetEventMap();
+        LOG_INFO("module",
+            "LLMChatter: Holiday ended - {}",
+            events[eventId].Description);
     }
 };
 
@@ -658,8 +754,13 @@ public:
                                "\"intensity\":\"" + intensity + "\","
                                "\"grade\":" + std::to_string(grade) + "}";
 
-        QueueEvent("weather_change", "zone", zoneId, 0, 5, cooldownKey, 1800,
-                   0, "", 0, "", static_cast<uint32>(state), extraData);
+        QueueEvent("weather_change", "zone",
+                   zoneId, 0, 5, cooldownKey,
+                   sLLMChatterConfig
+                       ->_weatherCooldownSeconds,
+                   0, "", 0, "",
+                   static_cast<uint32>(state),
+                   extraData);
 
         // LOG_INFO("module", "LLMChatter: Weather {} in zone {} - {} -> {} ({})",
         //          transitionType, zoneId, prevWeatherName, weatherName, intensity);
@@ -807,6 +908,39 @@ public:
         // Load transport info cache for transport events
         LoadTransportCache();
 
+        // Check for holidays already active at
+        // startup (OnStart hook only fires at the
+        // moment an event begins, not if the server
+        // restarts mid-event)
+        if (sLLMChatterConfig->_useEventSystem
+            && sLLMChatterConfig->_eventsHolidays)
+        {
+            GameEventMgr::GameEventDataMap const&
+                events =
+                    sGameEventMgr->GetEventMap();
+            for (uint16 eventId = 1;
+                 eventId < events.size();
+                 ++eventId)
+            {
+                if (!sGameEventMgr
+                        ->IsActiveEvent(eventId))
+                    continue;
+
+                if (!IsHolidayEvent(eventId))
+                    continue;
+
+                // Just log - CheckActiveHolidays()
+                // handles per-city queuing once
+                // players are in cities
+                GameEventData const& eventData =
+                    events[eventId];
+                LOG_INFO("module",
+                    "LLMChatter: Holiday active "
+                    "at startup - {}",
+                    eventData.Description);
+            }
+        }
+
         LOG_INFO("module", "LLMChatter: Cleared stale messages, events, group traits, and chat history on startup");
         _lastTriggerTime = 0;
         _lastDeliveryTime = 0;
@@ -836,18 +970,24 @@ public:
             TryTriggerChatter();
         }
 
-        // Check for environmental events (every 60 seconds)
+        // Check for environmental events (configurable)
         if (sLLMChatterConfig->_useEventSystem &&
-            now - _lastEnvironmentCheckTime >= 60000)
+            now - _lastEnvironmentCheckTime >=
+                sLLMChatterConfig
+                    ->_environmentCheckSeconds * 1000)
         {
             _lastEnvironmentCheckTime = now;
             CheckDayNightTransition();
+            if (sLLMChatterConfig->_eventsHolidays)
+                CheckActiveHolidays();
         }
 
-        // Check for transport zone changes (every 5 seconds)
+        // Check for transport zone changes
         if (sLLMChatterConfig->_useEventSystem &&
             sLLMChatterConfig->_eventsTransports &&
-            now - _lastTransportCheckTime >= 5000)
+            now - _lastTransportCheckTime >=
+                sLLMChatterConfig
+                    ->_transportCheckSeconds * 1000)
         {
             _lastTransportCheckTime = now;
             CheckTransportZones();
@@ -933,11 +1073,33 @@ private:
             "\"description\":\"" + JsonEscape(description) + "\""
             "}";
 
-        QueueEvent("day_night_transition", "global", 0, 0, 7, cooldownKey, 7200,
+        QueueEvent("day_night_transition", "global",
+                   0, 0, 7, cooldownKey,
+                   sLLMChatterConfig
+                       ->_dayNightCooldownSeconds,
                    0, "", 0, "", 0, extraData);
 
         // LOG_INFO("module", "LLMChatter: Time transition - {} -> {} ({}:{})",
         //          previousPeriod, timePeriod, hour, minute);
+    }
+
+    // Periodically re-queue holiday events when a
+    // real player is in a capital city.
+    void CheckActiveHolidays()
+    {
+        GameEventMgr::GameEventDataMap const& events =
+            sGameEventMgr->GetEventMap();
+
+        for (uint16 eventId = 1;
+             eventId < events.size(); ++eventId)
+        {
+            if (!sGameEventMgr->IsActiveEvent(eventId))
+                continue;
+            if (!IsHolidayEvent(eventId))
+                continue;
+
+            QueueHolidayForZones(eventId);
+        }
     }
 
     // Check for transport zone changes
@@ -1088,74 +1250,6 @@ private:
         return player->GetTeamId();  // TEAM_ALLIANCE = 0, TEAM_HORDE = 1
     }
 
-    // Check if player is in the overworld (not an instance)
-    bool IsInOverworld(Player* player)
-    {
-        if (!player)
-            return false;
-
-        // Check if player is fully loaded (not in character creation cinematic)
-        WorldSession* session = player->GetSession();
-        if (!session)
-            return false;
-
-        if (session->PlayerLoading())
-            return false;
-
-        Map* map = player->GetMap();
-        if (!map)
-            return false;
-
-        // Only allow chatter in common world maps (not dungeons, raids, BGs, arenas)
-        return !map->Instanceable();
-    }
-
-    // Find zones that have real (non-bot) players in the overworld
-    std::vector<uint32> GetZonesWithRealPlayers()
-    {
-        std::map<uint32, bool> zoneMap;
-
-        WorldSessionMgr::SessionMap const& sessions = sWorldSessionMgr->GetAllSessions();
-
-        for (auto const& pair : sessions)
-        {
-            WorldSession* session = pair.second;
-            if (!session)
-                continue;
-
-            // Check if session is still loading a player
-            if (session->PlayerLoading())
-                continue;
-
-            Player* player = session->GetPlayer();
-            if (!player)
-                continue;
-
-            // Skip players not fully in world
-            if (!player->IsInWorld())
-                continue;
-
-            // Only count real players (not bots) in the overworld
-            if (!IsPlayerBot(player) && IsInOverworld(player))
-            {
-                uint32 zoneId = player->GetZoneId();
-                if (zoneId > 0)
-                {
-                    zoneMap[zoneId] = true;
-                }
-            }
-        }
-
-        std::vector<uint32> zones;
-        for (auto const& pair : zoneMap)
-        {
-            zones.push_back(pair.first);
-        }
-
-        LOG_DEBUG("module", "LLMChatter: GetZonesWithRealPlayers - returning {} zones", zones.size());
-        return zones;
-    }
-
     // Check if a bot is grouped with a real player
     bool IsGroupedWithRealPlayer(Player* bot)
     {
@@ -1266,38 +1360,72 @@ private:
 
     void TryTriggerChatter()
     {
-        // Roll for trigger chance
-        uint32 roll = urand(1, 100);
-        if (roll > sLLMChatterConfig->_triggerChance)
-        {
+        // Find zones with real players first
+        // (needed to check city boost before roll)
+        std::vector<uint32> validZones =
+            GetZonesWithRealPlayers();
+        if (validZones.empty())
             return;
-        }
 
-        // Check pending requests
-        QueryResult countResult = CharacterDatabase.Query(
-            "SELECT COUNT(*) FROM llm_chatter_queue WHERE status IN ('pending', 'processing')");
-
-        if (countResult)
+        // Check if any player zone is a capital
+        // city — boost trigger chance with
+        // configurable multiplier
+        bool inCity = false;
+        for (uint32 zoneId : validZones)
         {
-            uint32 pending = countResult->Fetch()[0].Get<uint32>();
-            if (pending >= sLLMChatterConfig->_maxPendingRequests)
+            if (IsCapitalCity(zoneId))
             {
-                LOG_DEBUG("module", "LLMChatter: Max pending requests reached ({})", pending);
-                return;
+                inCity = true;
+                break;
             }
         }
 
-        // Find zones with real players
-        std::vector<uint32> validZones = GetZonesWithRealPlayers();
-        if (validZones.empty())
+        uint32 triggerChance =
+            sLLMChatterConfig->_triggerChance;
+        if (inCity)
         {
+            triggerChance = std::min(
+                triggerChance
+                    * sLLMChatterConfig
+                          ->_cityChatterMultiplier,
+                100u);
+        }
+
+        // Roll for trigger chance
+        uint32 roll = urand(1, 100);
+        if (roll > triggerChance)
             return;
+
+        // Check pending requests
+        QueryResult countResult =
+            CharacterDatabase.Query(
+                "SELECT COUNT(*) FROM "
+                "llm_chatter_queue "
+                "WHERE status IN "
+                "('pending', 'processing')");
+
+        if (countResult)
+        {
+            uint32 pending =
+                countResult->Fetch()[0]
+                    .Get<uint32>();
+            if (pending >= sLLMChatterConfig
+                               ->_maxPendingRequests)
+            {
+                LOG_DEBUG("module",
+                    "LLMChatter: Max pending "
+                    "requests reached ({})",
+                    pending);
+                return;
+            }
         }
 
         // Pick one zone randomly
         std::random_device rd;
         std::mt19937 g(rd());
-        std::shuffle(validZones.begin(), validZones.end(), g);
+        std::shuffle(
+            validZones.begin(),
+            validZones.end(), g);
         uint32 selectedZone = validZones[0];
         std::string zoneName = GetZoneName(selectedZone);
 
@@ -2725,9 +2853,11 @@ public:
                 return true;
         }
 
-        // 50% RNG chance to avoid reacting
+        // RNG chance to avoid reacting
         // to every single quest objective
-        if (urand(1, 100) > 50)
+        if (urand(1, 100) >
+            sLLMChatterConfig
+                ->_groupQuestObjectiveChance)
             return true;
 
         _groupQuestObjCooldowns[groupId] = now;
@@ -3291,9 +3421,11 @@ public:
 
         // --- RNG gate ---
         // Resurrect always fires (100%);
-        // everything else 15% chance
+        // everything else configurable chance
         if (spellCategory != "resurrect"
-            && urand(1, 100) > 15)
+            && urand(1, 100) >
+                sLLMChatterConfig
+                    ->_groupSpellCastChance)
             return;
 
         // Update the per-group cooldown

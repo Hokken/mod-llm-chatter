@@ -4,9 +4,9 @@
 
 # mod-llm-chatter
 
-AI-powered bot conversations for AzerothCore. Bots chat in General chat about quests, loot, and zone happenings, and when grouped with you, they talk in party chat with unique personalities.
+AI-powered bot conversations for AzerothCore, built for roleplayers and immersion seekers. Bots don't just exist in your world — they live in it. They chat in General about quests and loot, react to weather and holidays, comment on ships pulling into port, and when grouped with you, they develop unique personalities and respond to everything that happens around them.
 
-Instead of a silent world full of bots, you get one that sounds alive.
+If you run a solo server or a small RP community and want your world to feel genuinely inhabited rather than populated by silent automatons, this is for you.
 
 ## What It Looks Like
 
@@ -78,7 +78,7 @@ Every quest, item, and spell name becomes a clickable WoW link.
 ### Event Reactions
 - **Weather changes**, a sudden thunderstorm in Stranglethorn, snow in Dun Morogh, a sandstorm rolling through Tanaris, bots notice and react
 - **Transport arrivals**, "boat to Auberdine just pulled in", bots announce boats and zeppelins with destination info
-- **Holidays**, seasonal event reactions that match the celebration
+- **Holidays**, bots celebrate festivals like Love is in the Air. In capital cities, holiday mentions recur periodically so the festive mood stays alive
 - **Day/night transitions**, bots comment on dawn breaking, dusk settling, or the eerie feel of midnight in a dangerous zone
 
 ### Modes
@@ -246,6 +246,9 @@ All settings are in `mod_llm_chatter.conf`. Here are the most commonly tuned opt
 | `LLMChatter.Events.Transports` | 1 | React to transport arrivals |
 | `LLMChatter.Events.Holidays` | 1 | React to holidays |
 | `LLMChatter.Events.DayNight` | 1 | React to time transitions |
+| `LLMChatter.HolidayCooldownSeconds` | 1800 | Per-city holiday cooldown (seconds) |
+| `LLMChatter.HolidayCityChance` | 10 | % holiday mention chance per city per check |
+| `LLMChatter.EnvironmentCheckSeconds` | 60 | Environment check interval (seconds) |
 
 ### Rate Limiting
 

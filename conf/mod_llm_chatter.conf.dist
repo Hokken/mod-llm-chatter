@@ -71,6 +71,19 @@ LLMChatter.ConversationChance = 50
 LLMChatter.TriggerChance = 30
 
 #
+#   LLMChatter.CityChatterMultiplier
+#       Multiplier applied to TriggerChance when a
+#       player is in a capital city (Stormwind,
+#       Orgrimmar, Darnassus, etc.). Cities had more
+#       General chat in retail WoW.
+#       Example: TriggerChance=20, Multiplier=3
+#       -> 60% chance in cities, 20% outside.
+#       Set to 1 to disable city boost.
+#       Default: 3
+#
+LLMChatter.CityChatterMultiplier = 3
+
+#
 #   LLMChatter.MaxPendingRequests
 #       Maximum pending requests in queue before stopping new triggers
 #       Prevents queue buildup if bridge is slow
@@ -318,6 +331,15 @@ LLMChatter.Bridge.PollIntervalSeconds = 3
 LLMChatter.UseEventSystem = 1
 
 #
+#   LLMChatter.EnvironmentCheckSeconds
+#       How often (in seconds) to check for
+#       environment changes (day/night transitions,
+#       active holidays in cities, etc.)
+#       Default: 60
+#
+LLMChatter.EnvironmentCheckSeconds = 60
+
+#
 #   LLMChatter.EventReactionChance
 #       Base chance (0-100) that any event triggers a reaction
 #       Most events should NOT trigger chatter for naturalism
@@ -348,6 +370,57 @@ LLMChatter.TransportEventChance = 0
 #       Default: 600 (10 minutes). Set to 0 to announce every arrival.
 #
 LLMChatter.TransportCooldownSeconds = 600
+
+#
+#   LLMChatter.TransportCheckSeconds
+#       How often (in seconds) to scan transport
+#       positions for zone changes
+#       Default: 5
+#
+LLMChatter.TransportCheckSeconds = 5
+
+#
+#   LLMChatter.WeatherCooldownSeconds
+#       Cooldown per zone for weather change events
+#       Default: 1800 (30 minutes)
+#
+LLMChatter.WeatherCooldownSeconds = 1800
+
+#
+#   LLMChatter.DayNightCooldownSeconds
+#       Cooldown for day/night transition events
+#       Default: 7200 (2 hours)
+#
+LLMChatter.DayNightCooldownSeconds = 7200
+
+#
+#   LLMChatter.HolidayCooldownSeconds
+#       Per-city cooldown for recurring holiday
+#       mentions while in a capital city
+#       Default: 1800 (30 minutes)
+#
+LLMChatter.HolidayCooldownSeconds = 1800
+
+#
+#   LLMChatter.HolidayCityChance
+#       Chance (0-100) per environment check that a
+#       holiday mention triggers while in a capital
+#       city. At default 60s check interval, 10%
+#       means roughly one mention every 10 minutes.
+#       Default: 10
+#
+LLMChatter.HolidayCityChance = 10
+
+#
+#   LLMChatter.HolidayZoneChance
+#       Chance (0-100) per environment check that a
+#       holiday mention triggers in open-world zones
+#       (non-city). Lower than city chance since
+#       holiday awareness is less prominent outside
+#       cities.
+#       Default: 5
+#
+LLMChatter.HolidayZoneChance = 5
 
 #
 #   LLMChatter.EventExpirationSeconds
@@ -537,6 +610,23 @@ LLMChatter.GroupChatter.LootChanceGreen = 20
 #       Default: 50
 #
 LLMChatter.GroupChatter.LootChanceBlue = 50
+
+#
+#   LLMChatter.GroupChatter.QuestObjectiveChance
+#       Percent chance (0-100) that completing a
+#       quest objective triggers a group reaction.
+#       Default: 50
+#
+LLMChatter.GroupChatter.QuestObjectiveChance = 50
+
+#
+#   LLMChatter.GroupChatter.SpellCastChance
+#       Percent chance (0-100) that a buff/heal/CC
+#       spell cast triggers a group reaction.
+#       Resurrect spells always trigger (100%).
+#       Default: 15
+#
+LLMChatter.GroupChatter.SpellCastChance = 15
 
 #
 #   LLMChatter.GroupChatter.KillCooldown

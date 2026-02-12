@@ -68,6 +68,32 @@ def generate_conversation_mood_sequence(
     return [random.choice(pool) for _ in range(message_count)]
 
 
+# Conversation length labels — short descriptions
+# mapped to rough character counts for the LLM.
+CONV_LENGTHS = [
+    "very short (under 40 chars)",
+    "short (40-70 chars)",
+    "medium (70-120 chars)",
+    "longer (120-180 chars)",
+]
+# Weights favour shorter messages; the occasional
+# long one keeps it natural.
+CONV_LENGTH_WEIGHTS = [30, 35, 25, 10]
+
+
+def generate_conversation_length_sequence(
+    message_count: int,
+) -> List[str]:
+    """Generate per-message length targets so
+    conversations have varied message lengths
+    instead of uniform output."""
+    return random.choices(
+        CONV_LENGTHS,
+        weights=CONV_LENGTH_WEIGHTS,
+        k=message_count,
+    )
+
+
 # =============================================================================
 # ENVIRONMENTAL CONTEXT
 # =============================================================================
@@ -783,6 +809,9 @@ def build_plain_conversation_prompt(
     mood_sequence = generate_conversation_mood_sequence(
         msg_count, mode
     )
+    length_sequence = generate_conversation_length_sequence(
+        msg_count
+    )
 
     twist_log = f", twist={twist}" if twist else ""
     logger.info(
@@ -791,12 +820,15 @@ def build_plain_conversation_prompt(
     )
 
     parts.append(
-        f"\nMOOD SEQUENCE (follow this for each message):"
+        "\nMOOD AND LENGTH SEQUENCE "
+        "(follow this for each message):"
     )
     for i, mood in enumerate(mood_sequence):
         speaker = bot_names[i % bot_count]
         parts.append(
-            f"  Message {i+1} ({speaker}): {mood}"
+            f"  Message {i+1} ({speaker}): "
+            f"mood={mood}, "
+            f"length={length_sequence[i]}"
         )
 
     if is_rp:
@@ -829,7 +861,7 @@ def build_plain_conversation_prompt(
         "Plain text only, except [[npc:...]] markers "
         "for creature names"
     )
-    guidelines.append("Follow the mood sequence above")
+    guidelines.append("Follow the mood and length sequence above")
     if is_rp:
         guidelines.append(
             "Each speaker stays in character for their "
@@ -941,6 +973,9 @@ def build_quest_conversation_prompt(
     mood_sequence = generate_conversation_mood_sequence(
         msg_count, mode
     )
+    length_sequence = generate_conversation_length_sequence(
+        msg_count
+    )
 
     twist_log = f", twist={twist}" if twist else ""
     logger.info(
@@ -949,12 +984,15 @@ def build_quest_conversation_prompt(
     )
 
     parts.append(
-        f"\nMOOD SEQUENCE (follow this for each message):"
+        "\nMOOD AND LENGTH SEQUENCE "
+        "(follow this for each message):"
     )
     for i, mood in enumerate(mood_sequence):
         speaker = bot_names[i % bot_count]
         parts.append(
-            f"  Message {i+1} ({speaker}): {mood}"
+            f"  Message {i+1} ({speaker}): "
+            f"mood={mood}, "
+            f"length={length_sequence[i]}"
         )
 
     if is_rp:
@@ -982,7 +1020,7 @@ def build_quest_conversation_prompt(
         config=config, mode=mode
     )
     guidelines.append("Use quest placeholder at least once")
-    guidelines.append("Follow the mood sequence above")
+    guidelines.append("Follow the mood and length sequence above")
     guidelines.append(
         "Keep each message under 140 characters; "
         "short/medium is the norm"
@@ -1088,6 +1126,9 @@ def build_loot_conversation_prompt(
     mood_sequence = generate_conversation_mood_sequence(
         msg_count, mode
     )
+    length_sequence = generate_conversation_length_sequence(
+        msg_count
+    )
 
     twist_log = f", twist={twist}" if twist else ""
     logger.info(
@@ -1096,12 +1137,15 @@ def build_loot_conversation_prompt(
     )
 
     parts.append(
-        f"\nMOOD SEQUENCE (follow this for each message):"
+        "\nMOOD AND LENGTH SEQUENCE "
+        "(follow this for each message):"
     )
     for i, mood in enumerate(mood_sequence):
         speaker = bot_names[i % bot_count]
         parts.append(
-            f"  Message {i+1} ({speaker}): {mood}"
+            f"  Message {i+1} ({speaker}): "
+            f"mood={mood}, "
+            f"length={length_sequence[i]}"
         )
 
     if is_rp:
@@ -1129,7 +1173,7 @@ def build_loot_conversation_prompt(
         config=config, mode=mode
     )
     guidelines.append("Use item placeholder at least once")
-    guidelines.append("Follow the mood sequence above")
+    guidelines.append("Follow the mood and length sequence above")
     guidelines.append(
         "Keep each message under 140 characters; "
         "short/medium is the norm"
@@ -1192,11 +1236,15 @@ def build_event_conversation_prompt(
 
     parts.append(f"\nEVENT CONTEXT: {event_context}")
 
-    if (
+    is_transport = (
         'boat' in event_context.lower()
         or 'zeppelin' in event_context.lower()
         or 'turtle' in event_context.lower()
-    ):
+    )
+    is_holiday = (
+        'festival' in event_context.lower()
+    )
+    if is_transport:
         parts.append(
             "This transport just arrived - at least one bot "
             "should comment on it!"
@@ -1219,6 +1267,14 @@ def build_event_conversation_prompt(
         parts.append(
             "If a ship name is mentioned (e.g., 'The "
             "Moonspray'), you can optionally include it."
+        )
+    elif is_holiday:
+        parts.append(
+            "This conversation should be ABOUT the "
+            "festival! Each bot shares their opinion or "
+            "feelings about the holiday - excited, "
+            "annoyed, nostalgic, indifferent, etc. "
+            "Mention the holiday by name."
         )
     else:
         parts.append(
@@ -1278,6 +1334,9 @@ def build_event_conversation_prompt(
     mood_sequence = generate_conversation_mood_sequence(
         msg_count, mode
     )
+    length_sequence = generate_conversation_length_sequence(
+        msg_count
+    )
 
     twist_log = f", twist={twist}" if twist else ""
     logger.info(
@@ -1286,18 +1345,21 @@ def build_event_conversation_prompt(
     )
 
     parts.append(
-        f"\nMOOD SEQUENCE (follow this for each message):"
+        "\nMOOD AND LENGTH SEQUENCE "
+        "(follow this for each message):"
     )
     for i, mood in enumerate(mood_sequence):
         speaker = bot_names[i % bot_count]
         parts.append(
-            f"  Message {i+1} ({speaker}): {mood}"
+            f"  Message {i+1} ({speaker}): "
+            f"mood={mood}, "
+            f"length={length_sequence[i]}"
         )
 
     guidelines = build_dynamic_guidelines(
         config=config, mode=mode
     )
-    guidelines.append("Follow the mood sequence above")
+    guidelines.append("Follow the mood and length sequence above")
     if is_rp:
         guidelines.append(
             "Each speaker stays in character for their "
@@ -1579,6 +1641,11 @@ def build_spell_conversation_prompt(
             msg_count, mode
         )
     )
+    length_sequence = (
+        generate_conversation_length_sequence(
+            msg_count
+        )
+    )
 
     twist_log = (
         f", twist={twist}" if twist else ""
@@ -1589,13 +1656,15 @@ def build_spell_conversation_prompt(
     )
 
     parts.append(
-        "\nMOOD SEQUENCE (follow this for each "
-        "message):"
+        "\nMOOD AND LENGTH SEQUENCE "
+        "(follow this for each message):"
     )
     for i, mood in enumerate(mood_sequence):
         speaker = bot_names[i % bot_count]
         parts.append(
-            f"  Message {i+1} ({speaker}): {mood}"
+            f"  Message {i+1} ({speaker}): "
+            f"mood={mood}, "
+            f"length={length_sequence[i]}"
         )
 
     if is_rp:
@@ -1631,7 +1700,7 @@ def build_spell_conversation_prompt(
         "Use spell placeholder at least once"
     )
     guidelines.append(
-        "Follow the mood sequence above"
+        "Follow the mood and length sequence above"
     )
     guidelines.append(
         "Keep each message under 140 characters; "
@@ -1928,6 +1997,11 @@ def build_trade_conversation_prompt(
             msg_count, mode
         )
     )
+    length_sequence = (
+        generate_conversation_length_sequence(
+            msg_count
+        )
+    )
 
     twist_log = (
         f", twist={twist}" if twist else ""
@@ -1938,13 +2012,15 @@ def build_trade_conversation_prompt(
     )
 
     parts.append(
-        "\nMOOD SEQUENCE (follow this for each "
-        "message):"
+        "\nMOOD AND LENGTH SEQUENCE "
+        "(follow this for each message):"
     )
     for i, mood in enumerate(mood_sequence):
         speaker = bot_names[i % bot_count]
         parts.append(
-            f"  Message {i+1} ({speaker}): {mood}"
+            f"  Message {i+1} ({speaker}): "
+            f"mood={mood}, "
+            f"length={length_sequence[i]}"
         )
 
     if is_rp:
@@ -1987,7 +2063,7 @@ def build_trade_conversation_prompt(
         "pst, OBO"
     )
     guidelines.append(
-        "Follow the mood sequence above"
+        "Follow the mood and length sequence above"
     )
     guidelines.append(
         "Keep each message under 140 characters; "

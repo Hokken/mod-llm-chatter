@@ -32,6 +32,7 @@ public:
     uint32 _triggerIntervalSeconds;
     uint32 _conversationChance;
     uint32 _triggerChance;
+    uint32 _cityChatterMultiplier;
     uint32 _maxPendingRequests;
 
     // Delivery settings
@@ -41,10 +42,17 @@ public:
 
     // Event system settings
     bool _useEventSystem;
+    uint32 _environmentCheckSeconds;
     uint32 _eventReactionChance;
     uint32 _transportEventChance;
     uint32 _transportCooldownSeconds;
+    uint32 _transportCheckSeconds;
     uint32 _eventExpirationSeconds;
+    uint32 _weatherCooldownSeconds;
+    uint32 _dayNightCooldownSeconds;
+    uint32 _holidayCooldownSeconds;
+    uint32 _holidayCityChance;
+    uint32 _holidayZoneChance;
     uint32 _globalMessageCap;
     uint32 _globalCapWindowSeconds;
     uint32 _botSpeakerCooldownSeconds;
@@ -65,6 +73,8 @@ public:
     uint32 _groupDeathChance;
     uint32 _groupLootChanceGreen;
     uint32 _groupLootChanceBlue;
+    uint32 _groupQuestObjectiveChance;
+    uint32 _groupSpellCastChance;
 
     // Group chatter - per-event cooldowns (seconds)
     uint32 _groupKillCooldown;

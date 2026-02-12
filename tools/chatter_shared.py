@@ -18,6 +18,7 @@ import mysql.connector
 
 from chatter_constants import (
     ZONE_LEVELS, ZONE_COORDINATES, ZONE_NAMES,
+    CAPITAL_CITY_ZONES,
     CLASS_NAMES, RACE_NAMES, CLASS_IDS,
     RACE_SPEECH_PROFILES, CLASS_SPEECH_MODIFIERS,
     ZONE_FLAVOR, DUNGEON_FLAVOR,
@@ -388,6 +389,10 @@ def query_zone_loot(
     config: dict, zone_id: int, bot_level: int
 ) -> List[dict]:
     """Query loot appropriate for the zone."""
+    # No loot drops in capital cities
+    if zone_id in CAPITAL_CITY_ZONES:
+        return []
+
     min_level, max_level = get_zone_level_range(zone_id, bot_level)
 
     cached = zone_cache.get_loot(zone_id, 0)
@@ -501,6 +506,10 @@ def query_zone_mobs(
     config: dict, zone_id: int, bot_level: int
 ) -> List[str]:
     """Query hostile mob names from the specific zone."""
+    # No hostile creatures in capital cities
+    if zone_id in CAPITAL_CITY_ZONES:
+        return []
+
     min_level, max_level = get_zone_level_range(zone_id, bot_level)
 
     cached = zone_cache.get_mobs(zone_id, bot_level)
@@ -774,6 +783,11 @@ def strip_speaker_prefix(message: str, bot_name: str) -> str:
 def cleanup_message(message: str) -> str:
     """Clean up any formatting issues from LLM output."""
     result = message
+
+    # Collapse newlines into single space (WoW chat
+    # is single-line; multi-line LLM output causes
+    # ugly spacing)
+    result = re.sub(r'\s*\n\s*', ' ', result)
 
     # Em-dashes
     result = re.sub(r'\s*—\s*', ', ', result)

@@ -23,6 +23,7 @@ and chatter_prompts.
 
 import logging
 import random
+import re
 import time
 
 from chatter_shared import (
@@ -33,6 +34,7 @@ from chatter_shared import (
     get_dungeon_flavor, get_dungeon_bosses,
     parse_conversation_response,
     calculate_dynamic_delay,
+    format_item_link,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -41,6 +43,7 @@ from chatter_prompts import (
     get_time_of_day_context,
     get_environmental_context,
     generate_conversation_mood_sequence,
+    generate_conversation_length_sequence,
 )
 from chatter_constants import (
     RACE_SPEECH_PROFILES,
@@ -184,6 +187,98 @@ def get_other_group_bot(db, group_id, exclude_guid):
             ],
         }
     return None
+
+
+# ============================================================
+# PLAYERBOT COMMAND FILTER
+# ============================================================
+# Commands players type in party chat to control
+# bots. If the entire message matches one of these
+# (case-insensitive), skip LLM response.
+# Source: mod-playerbots ChatCommandHandlerStrategy.cpp
+#         and ChatTriggerContext.h
+PLAYERBOT_COMMANDS = {
+    # Short aliases
+    'u', 'c', 'e', 's', 'b', 'r', 't', 'q',
+    'll', 'ss', 'co', 'nc', 'de', 'ra', 'gb',
+    'nt', 'qi',
+    # Movement / position
+    'follow', 'stay', 'flee', 'runaway', 'warning',
+    'grind', 'go', 'home', 'disperse',
+    'move from group',
+    # Combat
+    'attack', 'max dps', 'tank attack',
+    'pet attack', 'do attack my target',
+    # Inventory / items
+    'use', 'items', 'inventory', 'inv',
+    'equip', 'unequip', 'sell', 'buy',
+    'open items', 'unlock items',
+    'unlock traded item', 'loot all',
+    'add all loot', 'destroy',
+    # Quests
+    'quests', 'accept', 'drop', 'reward',
+    'share', 'rpg status', 'rpg do quest',
+    'query item usage',
+    # Spells / skills
+    'cast', 'castnc', 'spell', 'spells',
+    'trainer', 'talent', 'talents',
+    'buff', 'glyphs', 'glyph equip',
+    'remove glyph', 'pet', 'tame',
+    # Trading / interaction
+    'trade', 'nontrade', 'craft', 'flag',
+    'mail', 'sendmail', 'bank', 'gbank',
+    'talk', 'emote', 'enter vehicle',
+    'leave vehicle',
+    # Status / information
+    'stats', 'reputation', 'rep', 'pvp stats',
+    'dps', 'who', 'position', 'aura',
+    'attackers', 'target', 'help', 'log', 'los',
+    # Group / raid
+    'ready', 'ready check', 'leave', 'invite',
+    'summon', 'formation', 'stance',
+    'give leader', 'wipe', 'roll',
+    # Maintenance / config
+    'repair', 'maintenance', 'release', 'revive',
+    'autogear', 'equip upgrade', 'save mana',
+    'reset botai', 'teleport', 'taxi',
+    'outline', 'rti', 'range', 'wts', 'cs',
+    'cdebug', 'debug', 'cheat', 'calc', 'drink',
+    'honor', 'outdoors',
+    # Guild
+    'ginvite', 'guild promote', 'guild demote',
+    'guild remove', 'guild leave', 'lfg',
+    # Chat / loot
+    'chat', 'loot',
+}
+
+
+def _is_playerbot_command(message: str) -> bool:
+    """Check if a message is a playerbot command.
+    Returns True if the full message (stripped,
+    lowered) matches a known command, or if it
+    starts with a known command followed by a space
+    (e.g. 'cast Holy Light', 'summon Hokken').
+    """
+    msg = message.strip().lower()
+    if not msg:
+        return False
+
+    # Exact match (e.g. "follow", "stay", "ss")
+    if msg in PLAYERBOT_COMMANDS:
+        return True
+
+    # Command + argument (e.g. "cast Holy Light")
+    first_word = msg.split()[0]
+    if first_word in PLAYERBOT_COMMANDS:
+        return True
+
+    # Multi-word command + argument
+    # (e.g. "max dps on" or "tank attack now")
+    for cmd in PLAYERBOT_COMMANDS:
+        if ' ' in cmd and msg.startswith(cmd):
+            return True
+
+    return False
 
 
 # ============================================================
@@ -1959,6 +2054,20 @@ def process_group_loot_event(
             logger.warning("Empty message after cleanup")
             _mark_event(db, event_id, 'skipped')
             return False
+
+        # Replace item name with clickable link
+        item_entry = int(
+            extra_data.get('item_entry', 0)
+        )
+        if item_entry and item_name:
+            link = format_item_link(
+                item_entry, item_quality, item_name
+            )
+            message = re.sub(
+                re.escape(item_name), link,
+                message, count=1, flags=re.IGNORECASE
+            )
+
         if len(message) > 255:
             message = message[:252] + "..."
 
@@ -2355,6 +2464,16 @@ def process_group_player_msg_event(
     group_id = int(extra_data.get('group_id', 0))
 
     if not group_id or not player_message:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    # Skip playerbot commands (follow, stay, etc.)
+    if _is_playerbot_command(player_message):
+        logger.info(
+            f"Player msg #{event_id}: skipped "
+            f"playerbot command: "
+            f"{player_message[:40]}"
+        )
         _mark_event(db, event_id, 'skipped')
         return False
 
@@ -4238,6 +4357,11 @@ def build_idle_conversation_prompt(
             msg_count, mode
         )
     )
+    length_sequence = (
+        generate_conversation_length_sequence(
+            msg_count
+        )
+    )
 
     twist_log = (
         f", twist={twist}" if twist else ""
@@ -4250,13 +4374,15 @@ def build_idle_conversation_prompt(
     )
 
     parts.append(
-        "\nMOOD SEQUENCE (follow for each "
-        "message):"
+        "\nMOOD AND LENGTH SEQUENCE "
+        "(follow for each message):"
     )
     for i, mood in enumerate(mood_sequence):
         speaker = bot_names[i % num_bots]
         parts.append(
-            f"  Message {i+1} ({speaker}): {mood}"
+            f"  Message {i+1} ({speaker}): "
+            f"mood={mood}, "
+            f"length={length_sequence[i]}"
         )
 
     # Natural flow instruction for 3+ bots

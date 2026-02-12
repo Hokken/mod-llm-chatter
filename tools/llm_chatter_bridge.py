@@ -921,6 +921,7 @@ def process_pending_events(
                    OR e.expires_at > NOW())
               AND (
                   e.zone_id IS NULL
+                  OR e.zone_id = 0
                   OR e.event_type LIKE 'bot_group%%'
                   OR (
                       EXISTS (
@@ -1519,6 +1520,10 @@ def process_pending_events(
                 or 'zeppelin' in event_context.lower()
                 or 'turtle' in event_context.lower()
             )
+            is_holiday = (
+                event.get('event_type', '')
+                    .startswith('holiday')
+            )
             if is_transport:
                 event_instruction = (
                     "Comment on this transport "
@@ -1528,6 +1533,13 @@ def process_pending_events(
                     "Mention the destination if "
                     "known. Be creative and original"
                     " - no canned phrases."
+                )
+            elif is_holiday:
+                event_instruction = (
+                    "React to this festival! "
+                    "Mention the holiday by name "
+                    "and share your character's "
+                    "opinion or feelings about it."
                 )
             else:
                 event_instruction = (
@@ -1961,6 +1973,70 @@ def main():
     logger.info(
         f"  ZoneTransportCooldown (Python): "
         f"{ZONE_TRANSPORT_COOLDOWN_SECONDS}s"
+    )
+    logger.info("-" * 60)
+    logger.info("Holiday settings:")
+    logger.info(
+        f"  HolidayCityChance: "
+        f"{config.get('LLMChatter.HolidayCityChance', 10)}%"
+    )
+    logger.info(
+        f"  HolidayZoneChance: "
+        f"{config.get('LLMChatter.HolidayZoneChance', 5)}%"
+    )
+    logger.info(
+        f"  HolidayCooldownSeconds: "
+        f"{config.get('LLMChatter.HolidayCooldownSeconds', 1800)}"
+    )
+    logger.info("-" * 60)
+    logger.info("Group chatter settings:")
+    logger.info(
+        f"  Enable: "
+        f"{config.get('LLMChatter.GroupChatter.Enable', 1)}"
+    )
+    logger.info(
+        f"  KillChanceNormal: "
+        f"{config.get('LLMChatter.GroupChatter.KillChanceNormal', 20)}%"
+    )
+    logger.info(
+        f"  DeathChance: "
+        f"{config.get('LLMChatter.GroupChatter.DeathChance', 40)}%"
+    )
+    logger.info(
+        f"  LootChanceGreen: "
+        f"{config.get('LLMChatter.GroupChatter.LootChanceGreen', 20)}%"
+        f"  Blue: "
+        f"{config.get('LLMChatter.GroupChatter.LootChanceBlue', 50)}%"
+    )
+    logger.info(
+        f"  QuestObjectiveChance: "
+        f"{config.get('LLMChatter.GroupChatter.QuestObjectiveChance', 50)}%"
+    )
+    logger.info(
+        f"  SpellCastChance: "
+        f"{config.get('LLMChatter.GroupChatter.SpellCastChance', 15)}%"
+    )
+    logger.info(
+        f"  KillCooldown: "
+        f"{config.get('LLMChatter.GroupChatter.KillCooldown', 120)}s"
+        f"  DeathCooldown: "
+        f"{config.get('LLMChatter.GroupChatter.DeathCooldown', 30)}s"
+        f"  LootCooldown: "
+        f"{config.get('LLMChatter.GroupChatter.LootCooldown', 60)}s"
+    )
+    logger.info(
+        f"  PlayerMsgCooldown: "
+        f"{config.get('LLMChatter.GroupChatter.PlayerMsgCooldown', 15)}s"
+    )
+    logger.info(
+        f"  IdleChance: "
+        f"{config.get('LLMChatter.GroupChatter.IdleChance', 10)}%"
+        f"  IdleCheckInterval: "
+        f"{config.get('LLMChatter.GroupChatter.IdleCheckInterval', 60)}s"
+    )
+    logger.info(
+        f"  RaceLoreChance: "
+        f"{config.get('LLMChatter.RaceLoreChance', 15)}%"
     )
     logger.info("=" * 60)
 
