@@ -74,6 +74,7 @@ public:
     uint32 _groupLootChanceGreen;
     uint32 _groupLootChanceBlue;
     uint32 _groupQuestObjectiveChance;
+    uint32 _groupQuestObjectiveCooldown;
     uint32 _groupSpellCastChance;
 
     // Group chatter - per-event cooldowns (seconds)
@@ -91,6 +92,8 @@ public:
     uint32 _groupDungeonCooldown;
     uint32 _groupWipeChance;
     uint32 _groupWipeCooldown;
+    uint32 _groupCorpseRunChance;
+    uint32 _groupCorpseRunCooldown;
 
     // General chat reactions
     bool _useGeneralChatReact;

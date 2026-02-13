@@ -14,8 +14,8 @@ void LLMChatterConfig::LoadConfig()
     // General settings
     _triggerIntervalSeconds = sConfigMgr->GetOption<uint32>("LLMChatter.TriggerIntervalSeconds", 60);
     _conversationChance = sConfigMgr->GetOption<uint32>("LLMChatter.ConversationChance", 50);
-    _triggerChance = sConfigMgr->GetOption<uint32>("LLMChatter.TriggerChance", 30);
-    _cityChatterMultiplier = sConfigMgr->GetOption<uint32>("LLMChatter.CityChatterMultiplier", 3);
+    _triggerChance = sConfigMgr->GetOption<uint32>("LLMChatter.TriggerChance", 15);
+    _cityChatterMultiplier = sConfigMgr->GetOption<uint32>("LLMChatter.CityChatterMultiplier", 2);
     _maxPendingRequests = sConfigMgr->GetOption<uint32>("LLMChatter.MaxPendingRequests", 5);
 
     // Delivery settings
@@ -49,14 +49,15 @@ void LLMChatterConfig::LoadConfig()
     _eventsTransports = sConfigMgr->GetOption<bool>("LLMChatter.Events.Transports", true);
 
     // Group chatter
-    _useGroupChatter = sConfigMgr->GetOption<bool>("LLMChatter.GroupChatter.Enable", false);
+    _useGroupChatter = sConfigMgr->GetOption<bool>("LLMChatter.GroupChatter.Enable", true);
 
     // Group chatter - reaction chances (0-100)
     _groupKillChanceNormal = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.KillChanceNormal", 20);
     _groupDeathChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.DeathChance", 40);
     _groupLootChanceGreen = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.LootChanceGreen", 20);
     _groupLootChanceBlue = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.LootChanceBlue", 50);
-    _groupQuestObjectiveChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.QuestObjectiveChance", 50);
+    _groupQuestObjectiveChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.QuestObjectiveChance", 30);
+    _groupQuestObjectiveCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.QuestObjectiveCooldown", 30);
     _groupSpellCastChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.SpellCastChance", 15);
 
     // Group chatter - per-event cooldowns (seconds)
@@ -74,21 +75,23 @@ void LLMChatterConfig::LoadConfig()
     _groupDungeonCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.DungeonEntryCooldown", 300);
     _groupWipeChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.WipeChance", 100);
     _groupWipeCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.WipeCooldown", 120);
+    _groupCorpseRunChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.CorpseRunChance", 80);
+    _groupCorpseRunCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.CorpseRunCooldown", 120);
 
     // General chat reactions
     _useGeneralChatReact = sConfigMgr->GetOption<bool>(
-        "LLMChatter.GeneralChat.Enable", false);
+        "LLMChatter.GeneralChat.Enable", true);
     _generalChatChance = sConfigMgr->GetOption<uint32>(
-        "LLMChatter.GeneralChat.ReactionChance", 80);
+        "LLMChatter.GeneralChat.ReactionChance", 40);
     _generalChatQuestionChance = sConfigMgr->GetOption<uint32>(
-        "LLMChatter.GeneralChat.QuestionChance", 100);
+        "LLMChatter.GeneralChat.QuestionChance", 80);
     _generalChatCooldown = sConfigMgr->GetOption<uint32>(
-        "LLMChatter.GeneralChat.Cooldown", 60);
+        "LLMChatter.GeneralChat.Cooldown", 30);
     _generalChatConversationChance = sConfigMgr->GetOption<uint32>(
         "LLMChatter.GeneralChat.ConversationChance", 30);
 
     // RP enrichment
-    _raceLoreChance = sConfigMgr->GetOption<uint32>("LLMChatter.RaceLoreChance", 15);
+    _raceLoreChance = sConfigMgr->GetOption<uint32>("LLMChatter.RaceLoreChance", 20);
 
     if (_enabled)
     {

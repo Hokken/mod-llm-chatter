@@ -26,7 +26,7 @@ from chatter_constants import (
     MSG_TYPE_PLAIN, MSG_TYPE_QUEST, MSG_TYPE_LOOT,
     MSG_TYPE_QUEST_REWARD, MSG_TYPE_TRADE,
     MSG_TYPE_SPELL,
-    MODEL_ALIASES,
+    DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL,
     ZONE_TRANSPORT_COOLDOWN_SECONDS,
 )
 from spell_names import SPELL_NAMES, SPELL_DESCRIPTIONS
@@ -149,11 +149,20 @@ def get_chatter_mode(config: dict) -> str:
 # Module-level race lore chance (set from config at startup)
 _race_lore_chance = 0.15
 
+# Module-level race vocabulary chance (set from config)
+_race_vocab_chance = 0.15
+
 
 def set_race_lore_chance(chance_pct: int):
     """Set from config: LLMChatter.RaceLoreChance (0-100)."""
     global _race_lore_chance
     _race_lore_chance = chance_pct / 100.0
+
+
+def set_race_vocab_chance(chance_pct: int):
+    """Set from config: LLMChatter.RaceVocabChance (0-100)."""
+    global _race_vocab_chance
+    _race_vocab_chance = chance_pct / 100.0
 
 
 def build_race_class_context(race: str, class_name: str) -> str:
@@ -171,6 +180,16 @@ def build_race_class_context(race: str, class_name: str) -> str:
         if worldview:
             parts.append(
                 f"Worldview: {worldview}"
+            )
+        vocab = profile.get('vocabulary')
+        if vocab and random.random() < _race_vocab_chance:
+            phrase, meaning = random.choice(vocab)
+            parts.append(
+                f"You may naturally weave in a "
+                f"phrase from your native tongue: "
+                f'"{phrase}" ({meaning}). '
+                f"Use it only if it fits — never "
+                f"force it."
             )
         lore = profile.get('lore')
         if lore and random.random() < _race_lore_chance:
@@ -936,8 +955,8 @@ def calculate_dynamic_delay(
 # LLM INTERACTION
 # =============================================================================
 def resolve_model(model_name: str) -> str:
-    """Resolve model alias to full model name."""
-    return MODEL_ALIASES.get(model_name, model_name)
+    """Pass through model name (no aliasing)."""
+    return model_name
 
 
 def call_llm(
@@ -950,8 +969,9 @@ def call_llm(
     provider = config.get(
         'LLMChatter.Provider', 'anthropic'
     ).lower()
-    model_alias = config.get('LLMChatter.Model', 'haiku')
-    model = resolve_model(model_alias)
+    model = config.get(
+        'LLMChatter.Model', DEFAULT_ANTHROPIC_MODEL
+    )
     if max_tokens_override is not None:
         max_tokens = max_tokens_override
     else:
@@ -1147,17 +1167,17 @@ def quick_llm_analyze(
     ).strip()
 
     if qa_model:
-        model = resolve_model(qa_model)
+        model = qa_model
     elif provider == 'anthropic':
-        model = resolve_model('haiku')
+        model = DEFAULT_ANTHROPIC_MODEL
     elif provider == 'openai':
-        model = 'gpt-4o-mini'
+        model = DEFAULT_OPENAI_MODEL
     else:
         # Ollama: use configured model
-        model_alias = config.get(
-            'LLMChatter.Model', 'haiku'
+        model = config.get(
+            'LLMChatter.Model',
+            DEFAULT_ANTHROPIC_MODEL
         )
-        model = resolve_model(model_alias)
 
     logger.info(
         f"Quick LLM analyze ({provider}/{model}, "

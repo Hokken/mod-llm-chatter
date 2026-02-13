@@ -836,12 +836,13 @@ def build_combat_reaction_prompt(
 
 
 def build_death_reaction_prompt(
-    reactor, reactor_traits, dead_bot_name, killer_name,
-    mode, chat_history=""
+    reactor, reactor_traits, dead_name,
+    killer_name, mode, chat_history="",
+    is_player_death=False
 ):
-    """Build prompt for a bot reacting to a groupmate
-    dying. The reactor is a DIFFERENT bot from the
-    one who died.
+    """Build prompt for a bot reacting to a
+    groupmate dying. The reactor is a DIFFERENT
+    bot. Works for both bot and player deaths.
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(reactor_traits)
@@ -867,23 +868,45 @@ def build_death_reaction_prompt(
     if chat_history:
         rp_context += f"{chat_history}\n"
 
-    if is_rp:
-        style = (
-            "React in-character. Could be sympathy, "
-            "concern, or dark humor depending on "
-            "your personality."
-        )
+    if is_player_death:
+        who = f"Your party leader {dead_name}"
+        if is_rp:
+            style = (
+                "React in-character to your "
+                "leader falling. This is "
+                "serious — show concern, "
+                "urgency, protectiveness, "
+                "or grim determination "
+                "depending on personality."
+            )
+        else:
+            style = (
+                "React to the party leader "
+                "dying. Could be alarmed, "
+                "concerned, joking about it, "
+                "or offering reassurance."
+            )
     else:
-        style = (
-            "React naturally. Could be sympathy, "
-            "humor, frustration, or "
-            "just acknowledgment."
-        )
+        who = f"Your party member {dead_name}"
+        if is_rp:
+            style = (
+                "React in-character. Could be "
+                "sympathy, concern, or dark "
+                "humor depending on your "
+                "personality."
+            )
+        else:
+            style = (
+                "React naturally. Could be "
+                "sympathy, humor, frustration, "
+                "or just acknowledgment."
+            )
 
     prompt = (
         f"You are {reactor['name']}, a level "
         f"{reactor['level']} {reactor['race']} "
-        f"{reactor['class']} in World of Warcraft.\n"
+        f"{reactor['class']} in World of "
+        f"Warcraft.\n"
         f"Your personality: {trait_str}\n"
         f"Your tone: {tone}\n"
         f"Your mood: {mood}\n"
@@ -892,8 +915,7 @@ def build_death_reaction_prompt(
         prompt += f"Creative twist: {twist}\n"
     prompt += (
         f"{rp_context}\n\n"
-        f"Your party member {dead_bot_name} just "
-        f"died"
+        f"{who} just died"
     )
     if killer_name:
         prompt += f" (killed by {killer_name})"
@@ -903,8 +925,9 @@ def build_death_reaction_prompt(
         f"Say a reaction in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
-        f"- Can mention {dead_bot_name} by name\n"
+        f"- No quotes, asterisks, emotes, "
+        f"emojis\n"
+        f"- Mention {dead_name} by name\n"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
@@ -2304,6 +2327,9 @@ def process_group_death_event(
     dead_name = extra_data.get('bot_name', 'someone')
     killer_name = extra_data.get('killer_name', '')
     group_id = int(extra_data.get('group_id', 0))
+    is_player_death = extra_data.get(
+        'is_player_death', False
+    )
 
     if not dead_guid or not group_id:
         _mark_event(db, event_id, 'skipped')
@@ -2376,6 +2402,7 @@ def process_group_death_event(
             reactor, reactor_traits, dead_name,
             killer_name, mode,
             chat_history=chat_hist,
+            is_player_death=is_player_death,
         )
 
         max_tokens = int(config.get(
@@ -4257,6 +4284,167 @@ def process_group_wipe_event(
         return False
 
 
+def process_group_corpse_run_event(
+    db, client, config, event
+):
+    """Handle a bot_group_corpse_run event.
+
+    A bot comments on a corpse run — either
+    their own or the real player's. Humorous,
+    philosophical, or resigned depending on
+    personality.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_corpse_run'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'someone'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+    zone_name = extra_data.get('zone_name', '')
+    dead_name = extra_data.get(
+        'dead_name', bot_name
+    )
+    is_player_death = extra_data.get(
+        'is_player_death', False
+    )
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        logger.info(
+            f"Event #{event_id}: no traits for "
+            f"bot {bot_name} in group {group_id}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters
+        WHERE guid = %s
+    """, (bot_guid,))
+    char_row = cursor.fetchone()
+
+    if not char_row:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': get_class_name(char_row['class']),
+        'race': get_race_name(char_row['race']),
+        'level': char_row['level'],
+    }
+
+    logger.info(
+        f"Processing corpse run: "
+        f"{dead_name} died"
+        f"{' (player)' if is_player_death else ''}"
+        f", {bot_name} reacting"
+        f"{' in ' + zone_name if zone_name else ''}"
+    )
+
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        prompt = build_corpse_run_reaction_prompt(
+            bot, traits, zone_name, mode,
+            chat_history=chat_hist,
+            dead_name=dead_name,
+            is_player_death=is_player_death,
+        )
+
+        max_tokens = int(config.get(
+            'LLMChatter.MaxTokens', 200
+        ))
+        response = call_llm(
+            client, prompt, config,
+            max_tokens_override=max_tokens
+        )
+
+        if not response:
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = (
+            response.strip().strip('"').strip()
+        )
+        message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, bot_name
+        )
+        if not message:
+            _mark_event(db, event_id, 'skipped')
+            return False
+        if len(message) > 255:
+            message = message[:252] + "..."
+
+        logger.warning(
+            f"Corpse run from "
+            f"{bot_name}: {message}"
+        )
+
+        cursor = db.cursor()
+        cursor.execute("""
+            INSERT INTO llm_chatter_messages
+            (event_id, sequence, bot_guid,
+             bot_name, message, channel,
+             delivered, deliver_at)
+            VALUES (
+                %s, 0, %s, %s, %s, 'party', 0,
+                DATE_ADD(NOW(), INTERVAL 2 SECOND)
+            )
+        """, (
+            event_id, bot_guid,
+            bot_name, message
+        ))
+        db.commit()
+
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing corpse run event "
+            f"#{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+
 def _try_second_bot_response(
     db, client, config, group_id,
     first_bot_guid, player_name,
@@ -4813,6 +5001,130 @@ def build_wipe_reaction_prompt(
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )
+    return prompt
+
+
+def build_corpse_run_reaction_prompt(
+    bot, traits, zone_name, mode,
+    chat_history="", dead_name="",
+    is_player_death=False
+):
+    """Build prompt for a bot commenting on a
+    corpse run. Either the bot died (self), or
+    the real player died and the bot reacts.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
+    twist = maybe_get_creative_twist(
+        chance=0.5, mode=mode
+    )
+
+    logger.info(
+        f"Corpse run creativity: "
+        f"tone={tone}, mood={mood}, twist={twist}"
+    )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class']
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    zone_ctx = ""
+    if zone_name:
+        zone_ctx = (
+            f" through {zone_name}"
+        )
+
+    if is_player_death:
+        # Bot reacts to the player dying
+        situation = (
+            f"Your party leader {dead_name} "
+            f"just died and released their "
+            f"spirit. They're now running "
+            f"back{zone_ctx} as a ghost to "
+            f"reach their corpse."
+        )
+        if is_rp:
+            style = (
+                "React in-character to your "
+                "leader's death. Could be "
+                "concerned, offering words of "
+                "encouragement, commenting on "
+                "the danger, or darkly amused "
+                "depending on your personality."
+            )
+        else:
+            style = (
+                "React to your party leader "
+                "dying. Could be sympathetic, "
+                "joking about it, offering to "
+                "wait, or commenting on what "
+                "killed them."
+            )
+    else:
+        # Bot died themselves
+        situation = (
+            f"You just died and released your "
+            f"spirit. Now you're running "
+            f"back{zone_ctx} as a ghost to "
+            f"reach your corpse."
+        )
+        if is_rp:
+            style = (
+                "Comment in-character on "
+                "running back to your corpse "
+                "as a ghost. Could be "
+                "philosophical about death, "
+                "grumbling about the walk, "
+                "marveling at seeing the world "
+                "as a spirit, or eager to get "
+                "back into the fight."
+            )
+        else:
+            style = (
+                "Comment on the corpse run. "
+                "Could be annoyed about the "
+                "distance, making a joke about "
+                "being a ghost, commenting on "
+                "the scenery, or just resigned "
+                "to the walk back."
+            )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+        f"Your tone: {tone}\n"
+        f"Your mood: {mood}\n"
+    )
+    if twist:
+        prompt += f"Creative twist: {twist}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{situation}\n\n"
+        f"{style}\n\n"
+        f"Say something in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, asterisks, emotes, "
+        f"emojis\n"
+        f"- Reflect your personality traits\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
+    )
+    if is_player_death:
+        prompt += (
+            f"\n- Refer to {dead_name} by name"
+        )
     return prompt
 
 

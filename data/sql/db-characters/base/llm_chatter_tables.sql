@@ -40,6 +40,7 @@ CREATE TABLE `llm_chatter_events` (
         'bot_group_zone_transition',
         'bot_group_dungeon_entry',
         'bot_group_wipe',
+        'bot_group_corpse_run',
         'player_general_msg'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',

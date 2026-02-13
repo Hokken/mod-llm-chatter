@@ -33,6 +33,7 @@ from chatter_constants import (
     MSG_TYPE_LOOT, MSG_TYPE_QUEST_REWARD,
     MSG_TYPE_TRADE, MSG_TYPE_SPELL,
     ZONE_TRANSPORT_COOLDOWN_SECONDS,
+    CAPITAL_CITY_ZONES,
 )
 from chatter_shared import (
     _zone_transport_cooldowns,
@@ -40,6 +41,7 @@ from chatter_shared import (
     get_zone_name, get_class_name, get_race_name,
     get_chatter_mode, build_race_class_context,
     set_race_lore_chance,
+    set_race_vocab_chance,
     parse_config, get_db_connection,
     wait_for_database,
     get_zone_flavor,
@@ -48,7 +50,7 @@ from chatter_shared import (
     query_zone_mobs, query_bot_spells,
     replace_placeholders, cleanup_message,
     select_message_type, calculate_dynamic_delay,
-    resolve_model, call_llm,
+    call_llm,
     parse_conversation_response,
     extract_conversation_msg_count,
 )
@@ -89,6 +91,7 @@ from chatter_group import (
     process_group_zone_transition_event,
     process_group_dungeon_entry_event,
     process_group_wipe_event,
+    process_group_corpse_run_event,
     check_idle_group_chatter,
 )
 from chatter_general import (
@@ -117,6 +120,15 @@ def process_statement(
     zone_id = request.get('zone_id', 0)
     current_weather = request.get('weather', 'clear')
     msg_type = select_message_type()
+
+    # Skip loot/trade in capital cities (no zone
+    # creatures to reference, causes empty queries)
+    if (
+        msg_type in ("loot", "trade")
+        and zone_id in CAPITAL_CITY_ZONES
+    ):
+        msg_type = "plain"
+
     logger.info(f"Statement type: {msg_type}")
 
     # Get zone data if needed
@@ -1072,6 +1084,13 @@ def process_pending_events(
         return process_group_wipe_event(
             db, client, config, event
         )
+    if event_type == 'bot_group_corpse_run':
+        logger.warning(
+            f"Group event #{event_id}: "
+            f"{event_type}")
+        return process_group_corpse_run_event(
+            db, client, config, event
+        )
 
     # General channel player message reaction
     if event_type == 'player_general_msg':
@@ -1669,9 +1688,10 @@ def process_pending_events(
             provider = config.get(
                 'LLMChatter.Provider', 'anthropic'
             ).lower()
-            model = resolve_model(config.get(
-                'LLMChatter.Model', 'haiku'
-            ))
+            model = config.get(
+                'LLMChatter.Model',
+                'claude-haiku-4-5-20251001'
+            )
             max_tokens = int(config.get(
                 'LLMChatter.MaxTokens', 200
             ))
@@ -1859,15 +1879,18 @@ def main():
     set_race_lore_chance(int(config.get(
         'LLMChatter.RaceLoreChance', 15
     )))
+    set_race_vocab_chance(int(config.get(
+        'LLMChatter.RaceVocabChance', 15
+    )))
 
     # Get provider and initialize appropriate client
     provider = config.get(
         'LLMChatter.Provider', 'anthropic'
     ).lower()
-    model_alias = config.get(
-        'LLMChatter.Model', 'haiku'
+    model = config.get(
+        'LLMChatter.Model',
+        'claude-haiku-4-5-20251001'
     )
-    model = resolve_model(model_alias)
 
     if provider == 'ollama':
         # Ollama runs locally - no API key needed
@@ -1928,7 +1951,7 @@ def main():
     logger.info(f"ChatterMode: {chatter_mode}")
     logger.info(f"Provider: {provider}")
     logger.info(
-        f"Model: {model} (alias: {model_alias})"
+        f"Model: {model}"
     )
     if provider == 'ollama':
         base_url = config.get(
@@ -2081,6 +2104,10 @@ def main():
     logger.info(
         f"  RaceLoreChance: "
         f"{config.get('LLMChatter.RaceLoreChance', 15)}%"
+    )
+    logger.info(
+        f"  RaceVocabChance: "
+        f"{config.get('LLMChatter.RaceVocabChance', 15)}%"
     )
     logger.info("-" * 60)
     qa_prov = config.get(

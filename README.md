@@ -59,7 +59,7 @@ Every quest, item, and spell name becomes a clickable WoW link.
 - **Handcrafted zone flavor**, rich atmospheric descriptions for ~45 open-world zones and ~50 dungeons and raids, from the gothic dread of Duskwood to the alien beauty of Zangarmarsh, giving the LLM deep world knowledge to draw from
 - **No patterns, no repetition**, every message is shaped by a unique combination of tone, mood, creative twist, message category, zone atmosphere, race and class personality, time of day, and actual game data. The result is chat that feels human because no two prompts are ever the same
 - **80+ message categories**, atmospheric, nostalgic, mystical, contemplative, humorous, and more. Bots don't just talk about gameplay, they notice the sunset, feel uneasy in the Plaguelands, or reminisce about old adventures
-- **Race and class identity**, a Tauren Druid doesn't sound like an Undead Warlock. Each race has speech traits and cultural flavor words, each class has personality modifiers that shape how they speak
+- **Race and class identity**, a Tauren Druid doesn't sound like an Undead Warlock. Each race has speech traits, cultural flavor words, and lore-accurate native language vocabulary (Thalassian, Darnassian, Orcish, etc.), each class has personality modifiers that shape how they speak
 - **Clickable WoW links**, quest names, item names, and spell names are automatically converted into proper in-game links you can click, just like real player chat
 
 ### Player Interaction in General Chat
@@ -76,6 +76,8 @@ Every quest, item, and spell name becomes a clickable WoW link.
 - **Combat cries**, battle shouts and war cries during engagements, flavored by race and class
 - **Spell cast reactions**, bots comment when casting buffs, heals, shields, and crowd control on party members
 - **Quest objectives**, bots react when quest objectives are completed, before turn-in
+- **Corpse run commentary**, when anyone dies and releases spirit, a bot reacts — concern for the player, ghost run humor for bots
+- **Player death reactions**, bots react when you get killed by a creature, with urgency and personality
 - **Level-up celebrations**, bots congratulate on level ups
 - **Achievement reactions**, bots comment on achievements earned
 - **You can talk to them**, type in party chat and your bots respond with context. They know what you just fought, where you are, and what happened recently

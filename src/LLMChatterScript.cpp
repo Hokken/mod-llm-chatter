@@ -526,6 +526,17 @@ static void QueueHolidayForZones(
     }
 }
 
+// Get zone name from zone ID (free function for cross-class use)
+static std::string GetZoneName(uint32 zoneId)
+{
+    if (AreaTableEntry const* area =
+        sAreaTableStore.LookupEntry(zoneId))
+    {
+        return area->area_name[0];  // English name
+    }
+    return "Unknown Zone";
+}
+
 // ============================================================================
 // GAME EVENT SCRIPT - Holiday Events
 // ============================================================================
@@ -1234,16 +1245,6 @@ private:
         }
     }
 
-    // Get zone name from zone ID
-    std::string GetZoneName(uint32 zoneId)
-    {
-        if (AreaTableEntry const* area = sAreaTableStore.LookupEntry(zoneId))
-        {
-            return area->area_name[0];  // English name
-        }
-        return "Unknown Zone";
-    }
-
     // Get faction (0 = Alliance, 1 = Horde)
     uint32 GetFaction(Player* player)
     {
@@ -1840,6 +1841,11 @@ static std::map<uint32, time_t>
 static std::map<uint32, time_t>
     _groupWipeCooldowns;
 
+// Per-group corpse run cooldown:
+// group_id -> last corpse run event time
+static std::map<uint32, time_t>
+    _groupCorpseRunCooldowns;
+
 // Clean up traits when group no longer qualifies
 static void CleanupGroupSession(uint32 groupId)
 {
@@ -1864,6 +1870,7 @@ static void CleanupGroupSession(uint32 groupId)
     _groupZoneCooldowns.erase(groupId);
     _groupDungeonCooldowns.erase(groupId);
     _groupWipeCooldowns.erase(groupId);
+    _groupCorpseRunCooldowns.erase(groupId);
 
     LOG_INFO("module",
         "LLMChatter: Cleaned up group {} "
@@ -2403,9 +2410,6 @@ public:
         if (!killed)
             return;
 
-        if (!IsPlayerBot(killed))
-            return;
-
         Group* group = killed->GetGroup();
         if (!group)
             return;
@@ -2583,34 +2587,35 @@ public:
 
         _groupDeathCooldowns[groupId] = now;
 
-        uint32 botGuid =
+        bool isPlayerDeath =
+            !IsPlayerBot(killed);
+        uint32 deadGuid =
             killed->GetGUID().GetCounter();
-        std::string botName = killed->GetName();
+        std::string deadName =
+            killed->GetName();
         std::string killerName =
             killer ? killer->GetName() : "";
         uint32 killerEntry =
             killer ? killer->GetEntry() : 0;
 
         // Build extra_data JSON
-        // NOTE: extraData is inserted into SQL via
-        // fmt::format; relies on JsonEscape for
-        // single-quote safety (see JsonEscape comment)
         std::string extraData = "{"
             "\"bot_guid\":" +
-                std::to_string(botGuid) + ","
+                std::to_string(deadGuid) + ","
             "\"bot_name\":\"" +
-                JsonEscape(botName) + "\","
+                JsonEscape(deadName) + "\","
             "\"killer_name\":\"" +
                 JsonEscape(killerName) + "\","
             "\"killer_entry\":" +
                 std::to_string(killerEntry) + ","
             "\"group_id\":" +
-                std::to_string(groupId) +
-            "}";
+                std::to_string(groupId) + ","
+            "\"is_player_death\":" +
+                std::string(
+                    isPlayerDeath
+                        ? "true" : "false")
+            + "}";
 
-        // SQL-escape the whole JSON blob so
-        // apostrophes in names don't break the
-        // INSERT
         extraData = EscapeString(extraData);
 
         // Direct INSERT with short react_after
@@ -2630,15 +2635,18 @@ public:
             "DATE_ADD(NOW(), INTERVAL 120 SECOND))",
             killed->GetZoneId(),
             killed->GetMapId(),
-            botGuid, EscapeString(botName),
+            deadGuid,
+            EscapeString(deadName),
             EscapeString(killerName),
             killerEntry,
             extraData);
 
         LOG_INFO("module",
             "LLMChatter: Queued bot_group_death "
-            "for {} killed by {}",
-            botName, killerName);
+            "for {} killed by {}{}",
+            deadName, killerName,
+            isPlayerDeath
+                ? " (player)" : "");
     }
 
     // Shared loot handler for both direct loot
@@ -3285,14 +3293,16 @@ public:
         uint32 groupId =
             group->GetGUID().GetCounter();
 
-        // Per-group cooldown: 30s to avoid spam
+        // Per-group cooldown to avoid spam
         // from multiple objectives completing
         time_t now = time(nullptr);
         {
             auto it = _groupQuestObjCooldowns
                 .find(groupId);
             if (it != _groupQuestObjCooldowns.end()
-                && (now - it->second) < 30)
+                && (now - it->second)
+                   < (time_t)sLLMChatterConfig
+                       ->_groupQuestObjectiveCooldown)
                 return true;
         }
 
@@ -4073,6 +4083,135 @@ public:
             "LLMChatter: Queued "
             "bot_group_resurrect for {}",
             botName);
+    }
+
+    // -----------------------------------------------
+    // Hook: Bot releases spirit (corpse run)
+    // -----------------------------------------------
+    void OnPlayerReleasedGhost(Player* player) override
+    {
+        if (!sLLMChatterConfig
+            || !sLLMChatterConfig->IsEnabled()
+            || !sLLMChatterConfig
+                   ->_useGroupChatter)
+            return;
+
+        if (!player)
+            return;
+
+        Group* group = player->GetGroup();
+        if (!group)
+            return;
+
+        if (!GroupHasRealPlayer(group))
+            return;
+
+        uint32 groupId =
+            group->GetGUID().GetCounter();
+
+        // Per-group cooldown
+        time_t now = time(nullptr);
+        auto it =
+            _groupCorpseRunCooldowns
+                .find(groupId);
+        if (it
+            != _groupCorpseRunCooldowns.end()
+            && (now - it->second)
+               < (time_t)sLLMChatterConfig
+                   ->_groupCorpseRunCooldown)
+            return;
+
+        // RNG chance from config
+        if (urand(1, 100)
+            > sLLMChatterConfig
+                ->_groupCorpseRunChance)
+            return;
+
+        _groupCorpseRunCooldowns[groupId] = now;
+
+        bool isPlayerDeath =
+            !IsPlayerBot(player);
+        std::string deadName =
+            player->GetName();
+
+        // Pick a bot to react — for player
+        // deaths, any bot; for bot deaths,
+        // a different bot
+        Player* reactor = isPlayerDeath
+            ? GetRandomBotInGroup(group)
+            : GetRandomBotInGroup(
+                  group, player);
+        if (!reactor)
+            return;
+
+        uint32 botGuid =
+            reactor->GetGUID().GetCounter();
+        std::string botName =
+            reactor->GetName();
+        uint32 zoneId = player->GetZoneId();
+        std::string zoneName =
+            GetZoneName(zoneId);
+
+        std::string extraData = "{"
+            "\"bot_guid\":" +
+                std::to_string(botGuid) + ","
+            "\"bot_name\":\"" +
+                JsonEscape(botName) + "\","
+            "\"bot_class\":" +
+                std::to_string(
+                    reactor->getClass()) + ","
+            "\"bot_race\":" +
+                std::to_string(
+                    reactor->getRace()) + ","
+            "\"bot_level\":" +
+                std::to_string(
+                    reactor->GetLevel()) + ","
+            "\"group_id\":" +
+                std::to_string(groupId) + ","
+            "\"zone_id\":" +
+                std::to_string(zoneId) + ","
+            "\"zone_name\":\"" +
+                JsonEscape(zoneName) + "\","
+            "\"dead_name\":\"" +
+                JsonEscape(deadName) + "\","
+            "\"is_player_death\":" +
+                std::string(
+                    isPlayerDeath
+                        ? "true" : "false")
+            + "}";
+
+        extraData = EscapeString(extraData);
+
+        CharacterDatabase.Execute(
+            "INSERT INTO llm_chatter_events "
+            "(event_type, event_scope, "
+            "zone_id, map_id, priority, "
+            "cooldown_key, subject_guid, "
+            "subject_name, target_guid, "
+            "target_name, target_entry, "
+            "extra_data, status, "
+            "react_after, expires_at) "
+            "VALUES ("
+            "'bot_group_corpse_run', "
+            "'player', "
+            "{}, {}, 1, '', "
+            "{}, '{}', 0, '', 0, "
+            "'{}', 'pending', "
+            "DATE_ADD(NOW(), "
+            "INTERVAL 5 SECOND), "
+            "DATE_ADD(NOW(), "
+            "INTERVAL 120 SECOND))",
+            zoneId,
+            player->GetMapId(),
+            botGuid,
+            EscapeString(botName),
+            extraData);
+
+        LOG_INFO("module",
+            "LLMChatter: Queued "
+            "bot_group_corpse_run for "
+            "{} (died: {}) in {}",
+            botName, deadName, zoneName);
     }
 
     // -----------------------------------------------

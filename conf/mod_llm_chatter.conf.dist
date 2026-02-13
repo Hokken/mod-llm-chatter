@@ -26,7 +26,7 @@
 #       Enable or disable the LLM Chatter module
 #       Default: 0 (disabled)
 #
-LLMChatter.Enable = 0
+LLMChatter.Enable = 1
 
 #
 #   LLMChatter.ChatterMode
@@ -66,9 +66,9 @@ LLMChatter.ConversationChance = 50
 #   LLMChatter.TriggerChance
 #       Chance (0-100) that each interval actually triggers chatter
 #       Adds randomness so chatter doesn't feel too regular
-#       Default: 30
+#       Default: 15
 #
-LLMChatter.TriggerChance = 30
+LLMChatter.TriggerChance = 15
 
 #
 #   LLMChatter.CityChatterMultiplier
@@ -76,12 +76,12 @@ LLMChatter.TriggerChance = 30
 #       player is in a capital city (Stormwind,
 #       Orgrimmar, Darnassus, etc.). Cities had more
 #       General chat in retail WoW.
-#       Example: TriggerChance=20, Multiplier=3
-#       -> 60% chance in cities, 20% outside.
+#       Example: TriggerChance=15, Multiplier=2
+#       -> 30% chance in cities, 15% outside.
 #       Set to 1 to disable city boost.
-#       Default: 3
+#       Default: 2
 #
-LLMChatter.CityChatterMultiplier = 3
+LLMChatter.CityChatterMultiplier = 2
 
 #
 #   LLMChatter.MaxPendingRequests
@@ -129,12 +129,12 @@ LLMChatter.MessageDelayMax = 30000
 #
 #   Cloud (Anthropic Claude Haiku - recommended for quality):
 #     LLMChatter.Provider = anthropic
-#     LLMChatter.Model = haiku
+#     LLMChatter.Model = claude-haiku-4-5-20251001
 #     LLMChatter.Anthropic.ApiKey = sk-ant-xxxxx
 #
 #   Cloud (OpenAI GPT-4o-mini - fast and cheap):
 #     LLMChatter.Provider = openai
-#     LLMChatter.Model = gpt4o-mini
+#     LLMChatter.Model = gpt-4o-mini
 #     LLMChatter.OpenAI.ApiKey = sk-xxxxx
 #
 #   Local (Ollama with Qwen3 - FREE, runs on your machine):
@@ -153,18 +153,23 @@ LLMChatter.Provider = anthropic
 
 #
 #   LLMChatter.Model
-#       Model to use. Can be an alias or full model name.
+#       Full model name to use with your provider.
 #
-#       Aliases (for convenience):
-#         Anthropic: haiku, sonnet, opus
-#         OpenAI: gpt4o, gpt4o-mini
+#       Anthropic models:
+#         claude-haiku-4-5-20251001 (fast, cheap)
+#         claude-sonnet-4-5-20250929 (balanced)
+#         claude-opus-4-6 (highest quality)
 #
-#       For Ollama, use the exact model name from 'ollama list':
-#         qwen3:4b, qwen3:8b, llama3.2:3b, mistral:7b, etc.
+#       OpenAI models:
+#         gpt-4o-mini (fast, cheap)
+#         gpt-4o (balanced)
 #
-#       Default: haiku
+#       Ollama models (from 'ollama list'):
+#         qwen3:4b, qwen3:8b, llama3.2:3b, etc.
 #
-LLMChatter.Model = haiku
+#       Default: claude-haiku-4-5-20251001
+#
+LLMChatter.Model = claude-haiku-4-5-20251001
 
 ###############################################################################
 # ANTHROPIC SETTINGS (only needed if Provider = anthropic)
@@ -268,9 +273,9 @@ LLMChatter.LootRecentCooldownSeconds = 1200
 #       to be longer than the usual 1-2 sentence limit. When
 #       triggered, the LLM prompt relaxes the brevity constraint
 #       for a more expressive message.
-#       Default: 12
+#       Default: 15
 #
-LLMChatter.LongMessageChance = 12
+LLMChatter.LongMessageChance = 15
 
 ###############################################################################
 # DATABASE SETTINGS (Used by Python bridge)
@@ -526,18 +531,18 @@ LLMChatter.Events.Transports = 1
 #       Bots will react in party chat to events like kills, deaths,
 #       loot drops, player messages, and idle downtime. Each event
 #       type has its own chance and cooldown settings below.
-#       Default: 0 (disabled)
+#       Default: 1 (enabled)
 #
-LLMChatter.GroupChatter.Enable = 0
+LLMChatter.GroupChatter.Enable = 1
 
 #
 #   LLMChatter.GroupChatter.IdleChance
 #       Percent chance (0-100) that bots in a group start
 #       chatting among themselves during downtime (no combat,
 #       no events). Checked every IdleCheckInterval seconds.
-#       Default: 15
+#       Default: 10
 #
-LLMChatter.GroupChatter.IdleChance = 15
+LLMChatter.GroupChatter.IdleChance = 10
 
 #
 #   LLMChatter.GroupChatter.IdleCheckInterval
@@ -563,9 +568,9 @@ LLMChatter.GroupChatter.IdleCooldown = 30
 #       multi-bot conversation (2+ bots talking back and
 #       forth) vs a single bot making a one-off comment.
 #       Requires 2+ bots in the group for conversations.
-#       Default: 70
+#       Default: 50
 #
-LLMChatter.GroupChatter.ConversationBias = 70
+LLMChatter.GroupChatter.ConversationBias = 50
 
 #
 #   LLMChatter.GroupChatter.IdleHistoryLimit
@@ -615,9 +620,17 @@ LLMChatter.GroupChatter.LootChanceBlue = 50
 #   LLMChatter.GroupChatter.QuestObjectiveChance
 #       Percent chance (0-100) that completing a
 #       quest objective triggers a group reaction.
-#       Default: 50
+#       Default: 30
 #
-LLMChatter.GroupChatter.QuestObjectiveChance = 50
+LLMChatter.GroupChatter.QuestObjectiveChance = 30
+
+#
+#   LLMChatter.GroupChatter.QuestObjectiveCooldown
+#       Per-group cooldown (seconds) between quest
+#       objective reactions.
+#       Default: 30
+#
+LLMChatter.GroupChatter.QuestObjectiveCooldown = 30
 
 #
 #   LLMChatter.GroupChatter.SpellCastChance
@@ -735,6 +748,24 @@ LLMChatter.GroupChatter.WipeChance = 100
 #
 LLMChatter.GroupChatter.WipeCooldown = 120
 
+#
+#   LLMChatter.GroupChatter.CorpseRunChance
+#       Chance (0-100) for corpse run commentary
+#       when a bot releases spirit and becomes a
+#       ghost. Fires on OnPlayerRepop.
+#       Default: 80
+#
+LLMChatter.GroupChatter.CorpseRunChance = 80
+
+#
+#   LLMChatter.GroupChatter.CorpseRunCooldown
+#       Seconds between corpse run events per
+#       group. Prevents spam if multiple bots die
+#       in quick succession.
+#       Default: 120
+#
+LLMChatter.GroupChatter.CorpseRunCooldown = 120
+
 ###############################################################################
 # RP ENRICHMENT SETTINGS
 ###############################################################################
@@ -746,7 +777,17 @@ LLMChatter.GroupChatter.WipeCooldown = 120
 #       Higher = more frequent lore references in bot speech.
 #       Default: 15
 #
-LLMChatter.RaceLoreChance = 15
+LLMChatter.RaceLoreChance = 20
+
+#
+#   LLMChatter.RaceVocabChance
+#       Percent chance (0-100) that race-specific vocabulary words
+#       (greetings, exclamations, farewells) are injected into bot
+#       speech. Applies in both normal and roleplay modes.
+#       Higher = more frequent racial flavor words.
+#       Default: 15
+#
+LLMChatter.RaceVocabChance = 20
 
 ###############################################################################
 # GENERAL CHANNEL REACTIONS
@@ -759,30 +800,30 @@ LLMChatter.RaceLoreChance = 15
 #
 #   LLMChatter.GeneralChat.Enable
 #       Enable bot reactions to player messages in General channel
-#       Default: 0
+#       Default: 1
 #
-LLMChatter.GeneralChat.Enable = 0
+LLMChatter.GeneralChat.Enable = 1
 
 #
 #   LLMChatter.GeneralChat.ReactionChance
 #       Chance (0-100) a bot reacts to a non-question message
-#       Default: 80
+#       Default: 40
 #
-LLMChatter.GeneralChat.ReactionChance = 80
+LLMChatter.GeneralChat.ReactionChance = 40
 
 #
 #   LLMChatter.GeneralChat.QuestionChance
 #       Chance (0-100) a bot reacts to a question (ends with ?)
-#       Default: 100
+#       Default: 80
 #
-LLMChatter.GeneralChat.QuestionChance = 100
+LLMChatter.GeneralChat.QuestionChance = 80
 
 #
 #   LLMChatter.GeneralChat.Cooldown
 #       Per-zone cooldown in seconds between reactions
-#       Default: 60
+#       Default: 30
 #
-LLMChatter.GeneralChat.Cooldown = 60
+LLMChatter.GeneralChat.Cooldown = 30
 
 #
 #   LLMChatter.GeneralChat.ConversationChance
@@ -816,8 +857,9 @@ LLMChatter.QuickAnalyze.Provider =
 
 #
 #   LLMChatter.QuickAnalyze.Model
-#       Model for utility LLM calls (e.g. haiku, gpt-4o-mini, qwen3:4b)
-#       Leave empty to auto-select the fastest model for the provider
+#       Model for utility LLM calls (e.g. claude-haiku-4-5-20251001,
+#       gpt-4o-mini, qwen3:4b). Leave empty to auto-select the fastest
+#       model for the provider.
 #       Default: "" (auto-select)
 #
 LLMChatter.QuickAnalyze.Model =

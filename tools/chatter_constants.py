@@ -217,6 +217,14 @@ RACE_SPEECH_PROFILES = {
             "for the Alliance", "by the Light", "Stormwind",
             "Lordaeron", "the Light", "King Varian",
         ],
+        "vocabulary": [
+            ("Light be with you", "blessing/greeting"),
+            ("By the Light!", "exclamation of surprise or resolve"),
+            ("Well met", "formal greeting"),
+            ("For the Alliance!", "battle cry"),
+            ("Go with honor, friend", "farewell"),
+            ("Safe travels", "farewell"),
+        ],
         "lore": [
             "Humans rebuilt Stormwind after devastation during the early wars.",
             "Northern human kingdoms were shattered, especially Lordaeron by the Scourge.",
@@ -241,6 +249,15 @@ RACE_SPEECH_PROFILES = {
         "flavor_words": [
             "Lok'tar ogar", "blood and thunder", "for the Horde",
             "Durotar", "Orgrimmar", "ancestors",
+        ],
+        "vocabulary": [
+            ("Lok'tar ogar!", "Victory or death!"),
+            ("Zug-zug", "acknowledgment, like 'okay'"),
+            ("Dabu", "I obey / I agree"),
+            ("Throm-ka", "Well met"),
+            ("Aka'Magosh", "A blessing on you and yours"),
+            ("Lok-Narash!", "Arm yourselves!"),
+            ("Gol'Kosh!", "By my axe!"),
         ],
         "lore": [
             "Orcs came from Draenor and were manipulated into fel corruption.",
@@ -267,6 +284,12 @@ RACE_SPEECH_PROFILES = {
             "by my beard", "aye", "stone and steel",
             "Ironforge", "Khaz Modan", "clan",
         ],
+        "vocabulary": [
+            ("Keep yer feet on the ground", "farewell"),
+            ("Fer Khaz Modan!", "For Khaz Modan! — battle cry"),
+            ("Well met", "greeting"),
+            ("Off with ye", "casual farewell"),
+        ],
         "lore": [
             "Dwarves descend from titan-forged earthen changed by the Curse of Flesh.",
             "Three major clans define politics: Bronzebeard, Wildhammer, and Dark Iron.",
@@ -290,6 +313,16 @@ RACE_SPEECH_PROFILES = {
         "flavor_words": [
             "Elune", "Elune guide you", "the wilds",
             "Kaldorei", "Darnassus", "moonwell",
+        ],
+        "vocabulary": [
+            ("Ishnu-alah", "Good fortune to you"),
+            ("Ishnu-dal-dieb", "Good fortune to your family"),
+            ("Elune-adore", "Elune be with you"),
+            ("Ande'thoras-ethil", "May your troubles be diminished"),
+            ("Andu-falah-dor!", "Let balance be restored!"),
+            ("Bandu Thoribas!", "Prepare to fight!"),
+            ("Fandu-dath-belore?", "Who goes there?"),
+            ("Tor ilisar'thera'nal!", "Let our enemies beware!"),
         ],
         "lore": [
             "Ancient Kaldorei civilization was shattered by the Sundering.",
@@ -316,6 +349,12 @@ RACE_SPEECH_PROFILES = {
             "Dark Lady", "plague", "the grave",
             "Forsaken", "Undercity", "Scourge",
         ],
+        "vocabulary": [
+            ("Dark Lady watch over you", "farewell/blessing"),
+            ("Victory for Sylvanas", "rallying cry"),
+            ("Embrace the shadow", "farewell"),
+            ("Our time will come", "expression of resolve"),
+        ],
         "lore": [
             "Forsaken are former Scourge undead who regained free will.",
             "Led by Sylvanas Windrunner from the Undercity.",
@@ -340,6 +379,12 @@ RACE_SPEECH_PROFILES = {
         "flavor_words": [
             "Earth Mother", "walk with the Earth Mother",
             "ancestors", "Thunder Bluff", "shu'halo",
+        ],
+        "vocabulary": [
+            ("Walk with the Earth Mother", "farewell/blessing"),
+            ("Ancestors watch over you", "farewell"),
+            ("Winds be at your back", "farewell/blessing"),
+            ("Earth Mother guide you", "blessing"),
         ],
         "lore": [
             "Nomadic tribes were unified under Cairne Bloodhoof.",
@@ -366,6 +411,11 @@ RACE_SPEECH_PROFILES = {
             "tinkering", "by my calculations", "brilliant",
             "High Tinker", "Mekkatorque", "Gnomeregan",
         ],
+        "vocabulary": [
+            ("For Gnomeregan!", "battle cry"),
+            ("Salutations!", "formal greeting"),
+            ("My, you're a tall one!", "greeting, self-aware humor"),
+        ],
         "lore": [
             "Native to Gnomeregan, famed for engineering and invention.",
             "The city was lost to trogg invasion and catastrophic irradiation.",
@@ -390,6 +440,11 @@ RACE_SPEECH_PROFILES = {
         "flavor_words": [
             "mon", "da spirits", "loa",
             "Darkspear", "Vol'jin", "Echo Isles",
+        ],
+        "vocabulary": [
+            ("Taz'dingo!", "war cry / cheer"),
+            ("Spirits be with ya, mon", "farewell/blessing"),
+            ("Stay away from da voodoo", "warning/farewell"),
         ],
         "lore": [
             "Playable trolls are Darkspear, not Amani or Gurubashi.",
@@ -416,6 +471,16 @@ RACE_SPEECH_PROFILES = {
             "Sin'dorei", "Sunwell", "arcane",
             "Quel'Thalas", "Silvermoon", "regent lord",
         ],
+        "vocabulary": [
+            ("Bal'a dash, malanore", "Greetings, traveler"),
+            ("Shorel'aran", "Farewell"),
+            ("Selama ashal'anore", "Justice for our people"),
+            ("Anar'alah belore", "By the light of the sun"),
+            ("Anu belore dela'na", "The sun guides us"),
+            ("Sinu a'manore", "Well met"),
+            ("Doral ana'diel?", "How fare you?"),
+            ("Al diel shala", "Safe travels"),
+        ],
         "lore": [
             "Sin'dorei are survivors of Quel'Thalas after Scourge devastation.",
             "Sunwell destruction caused magical withdrawal and social crisis.",
@@ -440,6 +505,13 @@ RACE_SPEECH_PROFILES = {
         "flavor_words": [
             "the Naaru", "the Light", "Argus",
             "Exodar", "Velen", "Draenor",
+        ],
+        "vocabulary": [
+            ("Archenon poros", "Good fortune"),
+            ("Dioniss aca", "Safe journey"),
+            ("Krona ki cristorr!", "The Legion will fall!"),
+            ("Pheta vi acahachi!", "Light give me strength!"),
+            ("Pheta thones gamera", "Light, guide our path"),
         ],
         "lore": [
             "Descended from eredar exiles led by Prophet Velen.",
@@ -1363,22 +1435,13 @@ RP_LENGTH_HINTS = [
 ]
 
 # =============================================================================
-# LLM MODEL ALIASES
+# LLM DEFAULT MODELS
 # =============================================================================
-# Model aliases for easy config
-MODEL_ALIASES = {
-    # Anthropic - Haiku versions
-    'haiku': 'claude-haiku-4-5-20251001',      # Latest (4.5)
-    'haiku-4.5': 'claude-haiku-4-5-20251001',
-    'haiku-3.5': 'claude-3-5-haiku-20241022',
-    'haiku-3': 'claude-3-haiku-20240307',
-    # Anthropic - Other models
-    'opus': 'claude-opus-4-5-20251001',
-    'sonnet': 'claude-sonnet-4-20250514',
-    # OpenAI
-    'gpt4o': 'gpt-4o',
-    'gpt4o-mini': 'gpt-4o-mini',
-}
+# Default model for each provider when none is
+# configured. Used by quick_llm_analyze() auto-
+# selection and as config fallbacks.
+DEFAULT_ANTHROPIC_MODEL = 'claude-haiku-4-5-20251001'
+DEFAULT_OPENAI_MODEL = 'gpt-4o-mini'
 
 # =============================================================================
 # EVENT DESCRIPTIONS
