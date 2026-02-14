@@ -14,10 +14,12 @@ from chatter_constants import (
     LENGTH_HINTS,
     RP_TONES, RP_MOODS, RP_CREATIVE_TWISTS,
     RP_MESSAGE_CATEGORIES, RP_LENGTH_HINTS,
+    EMOTE_LIST_STR,
 )
 from chatter_shared import (
     get_chatter_mode, build_race_class_context,
     get_zone_flavor, format_price,
+    build_anti_repetition_context,
 )
 
 logger = logging.getLogger(__name__)
@@ -263,7 +265,8 @@ def build_plain_statement_prompt(
     zone_id: int = 0,
     zone_mobs: list = None,
     config: dict = None,
-    current_weather: str = 'clear'
+    current_weather: str = 'clear',
+    recent_messages: list = None
 ) -> str:
     """Build a dynamically varied prompt for a plain statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -360,6 +363,12 @@ def build_plain_statement_prompt(
         )
     parts.append("Guidelines: " + "; ".join(guidelines))
 
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
+    if anti_rep:
+        parts.append(anti_rep)
+
     parts.append(
         "Respond with ONLY the message, nothing else."
     )
@@ -371,7 +380,8 @@ def build_quest_statement_prompt(
     bot: dict,
     quest: dict,
     config: dict = None,
-    current_weather: str = 'clear'
+    current_weather: str = 'clear',
+    recent_messages: list = None
 ) -> str:
     """Build a dynamically varied prompt for a quest statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -470,6 +480,12 @@ def build_quest_statement_prompt(
     guidelines.append("Be creative and unpredictable")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
+    if anti_rep:
+        parts.append(anti_rep)
+
     parts.append(
         "Respond with ONLY the message - be creative "
         "and unpredictable."
@@ -483,7 +499,8 @@ def build_loot_statement_prompt(
     item: dict,
     can_use: bool,
     config: dict = None,
-    current_weather: str = 'clear'
+    current_weather: str = 'clear',
+    recent_messages: list = None
 ) -> str:
     """Build a dynamically varied prompt for a loot statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -589,6 +606,12 @@ def build_loot_statement_prompt(
     guidelines.append("Be creative and unpredictable")
     parts.append("Guidelines: " + "; ".join(guidelines))
 
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
+    if anti_rep:
+        parts.append(anti_rep)
+
     parts.append(
         "Respond with ONLY the message - be creative "
         "and unpredictable."
@@ -601,7 +624,8 @@ def build_quest_reward_statement_prompt(
     bot: dict,
     quest: dict,
     config: dict = None,
-    current_weather: str = 'clear'
+    current_weather: str = 'clear',
+    recent_messages: list = None
 ) -> str:
     """Build a prompt for quest completion with reward."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -618,7 +642,8 @@ def build_quest_reward_statement_prompt(
 
     if not item_name:
         return build_quest_statement_prompt(
-            bot, quest, config, current_weather
+            bot, quest, config, current_weather,
+            recent_messages=recent_messages,
         )
 
     quality_names = {
@@ -714,6 +739,12 @@ def build_quest_reward_statement_prompt(
         )
     parts.append("Guidelines: " + "; ".join(guidelines))
 
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
+    if anti_rep:
+        parts.append(anti_rep)
+
     parts.append("Respond with ONLY the message.")
 
     return "\n".join(parts)
@@ -724,7 +755,8 @@ def build_plain_conversation_prompt(
     zone_id: int = 0,
     zone_mobs: list = None,
     config: dict = None,
-    current_weather: str = 'clear'
+    current_weather: str = 'clear',
+    recent_messages: list = None
 ) -> str:
     """Build a prompt for a plain conversation with 2-4 bots."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -862,6 +894,11 @@ def build_plain_conversation_prompt(
         "for creature names"
     )
     guidelines.append("Follow the mood and length sequence above")
+    if bot_count > 2:
+        guidelines.append(
+            f"EVERY speaker MUST have at least one "
+            f"message — do NOT skip any participant"
+        )
     if is_rp:
         guidelines.append(
             "Each speaker stays in character for their "
@@ -887,11 +924,24 @@ def build_plain_conversation_prompt(
     parts.append("Guidelines: " + "; ".join(guidelines))
 
     parts.append(
+        f"Emotes: Each message may include an optional "
+        f"\"emote\" field (one of: {EMOTE_LIST_STR}). "
+        f"Pick an emote that fits the message mood, "
+        f"or omit it."
+    )
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
+    if anti_rep:
+        parts.append(anti_rep)
+
+    parts.append(
         "JSON rules: Use double quotes, escape "
         "quotes/newlines, no trailing commas, no code fences."
     )
     example_msgs = ',\n  '.join(
-        [f'{{"speaker": "{name}", "message": "..."}}'
+        [f'{{"speaker": "{name}", "message": "...", '
+         f'"emote": "talk"}}'
          for name in bot_names]
     )
     parts.append(f"""
@@ -908,7 +958,8 @@ def build_quest_conversation_prompt(
     bots: List[dict],
     quest: dict,
     config: dict = None,
-    current_weather: str = 'clear'
+    current_weather: str = 'clear',
+    recent_messages: list = None
 ) -> str:
     """Build a prompt for a quest conversation with 2-4 bots."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1021,6 +1072,11 @@ def build_quest_conversation_prompt(
     )
     guidelines.append("Use quest placeholder at least once")
     guidelines.append("Follow the mood and length sequence above")
+    if bot_count > 2:
+        guidelines.append(
+            f"EVERY speaker MUST have at least one "
+            f"message — do NOT skip any participant"
+        )
     guidelines.append(
         "Keep each message under 140 characters; "
         "short/medium is the norm"
@@ -1033,11 +1089,24 @@ def build_quest_conversation_prompt(
     parts.append("Guidelines: " + "; ".join(guidelines))
 
     parts.append(
+        f"Emotes: Each message may include an optional "
+        f"\"emote\" field (one of: {EMOTE_LIST_STR}). "
+        f"Pick an emote that fits the message mood, "
+        f"or omit it."
+    )
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
+    if anti_rep:
+        parts.append(anti_rep)
+
+    parts.append(
         "JSON rules: Use double quotes, escape "
         "quotes/newlines, no trailing commas, no code fences."
     )
     example_msgs = ',\n  '.join(
-        [f'{{"speaker": "{name}", "message": "..."}}'
+        [f'{{"speaker": "{name}", "message": "...", '
+         f'"emote": "talk"}}'
          for name in bot_names]
     )
     parts.append(f"""
@@ -1054,7 +1123,8 @@ def build_loot_conversation_prompt(
     bots: List[dict],
     item: dict,
     config: dict = None,
-    current_weather: str = 'clear'
+    current_weather: str = 'clear',
+    recent_messages: list = None
 ) -> str:
     """Build a prompt for a loot conversation with 2-4 bots."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1174,6 +1244,11 @@ def build_loot_conversation_prompt(
     )
     guidelines.append("Use item placeholder at least once")
     guidelines.append("Follow the mood and length sequence above")
+    if bot_count > 2:
+        guidelines.append(
+            f"EVERY speaker MUST have at least one "
+            f"message — do NOT skip any participant"
+        )
     guidelines.append(
         "Keep each message under 140 characters; "
         "short/medium is the norm"
@@ -1186,11 +1261,25 @@ def build_loot_conversation_prompt(
     parts.append("Guidelines: " + "; ".join(guidelines))
 
     parts.append(
+        f"Emotes: Each message may include an optional "
+        f"\"emote\" field (one of: {EMOTE_LIST_STR}). "
+        f"Pick an emote that fits the message mood, "
+        f"or omit it."
+    )
+
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
+    if anti_rep:
+        parts.append(anti_rep)
+
+    parts.append(
         "JSON rules: Use double quotes, escape "
         "quotes/newlines, no trailing commas, no code fences."
     )
     example_msgs = ',\n  '.join(
-        [f'{{"speaker": "{name}", "message": "..."}}'
+        [f'{{"speaker": "{name}", "message": "...", '
+         f'"emote": "talk"}}'
          for name in bot_names]
     )
     parts.append(f"""
@@ -1208,7 +1297,8 @@ def build_event_conversation_prompt(
     event_context: str,
     zone_id: int = 0,
     config: dict = None,
-    current_weather: str = 'clear'
+    current_weather: str = 'clear',
+    recent_messages: list = None
 ) -> str:
     """Build a prompt for an event-triggered conversation."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1242,7 +1332,9 @@ def build_event_conversation_prompt(
         or 'turtle' in event_context.lower()
     )
     is_holiday = (
-        'festival' in event_context.lower()
+        'event has just begun' in event_context.lower()
+        or 'event is coming to an end'
+        in event_context.lower()
     )
     if is_transport:
         parts.append(
@@ -1271,10 +1363,10 @@ def build_event_conversation_prompt(
     elif is_holiday:
         parts.append(
             "This conversation should be ABOUT the "
-            "festival! Each bot shares their opinion or "
-            "feelings about the holiday - excited, "
-            "annoyed, nostalgic, indifferent, etc. "
-            "Mention the holiday by name."
+            "event! Each bot shares their opinion or "
+            "feelings about it - excited, annoyed, "
+            "nostalgic, indifferent, etc. "
+            "Mention the event by name."
         )
     else:
         parts.append(
@@ -1360,6 +1452,11 @@ def build_event_conversation_prompt(
         config=config, mode=mode
     )
     guidelines.append("Follow the mood and length sequence above")
+    if bot_count > 2:
+        guidelines.append(
+            f"EVERY speaker MUST have at least one "
+            f"message — do NOT skip any participant"
+        )
     if is_rp:
         guidelines.append(
             "Each speaker stays in character for their "
@@ -1378,11 +1475,25 @@ def build_event_conversation_prompt(
     parts.append("Guidelines: " + "; ".join(guidelines))
 
     parts.append(
+        f"Emotes: Each message may include an optional "
+        f"\"emote\" field (one of: {EMOTE_LIST_STR}). "
+        f"Pick an emote that fits the message mood, "
+        f"or omit it."
+    )
+
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
+    if anti_rep:
+        parts.append(anti_rep)
+
+    parts.append(
         "JSON rules: Use double quotes, escape "
         "quotes/newlines, no trailing commas, no code fences."
     )
     example_msgs = ',\n  '.join(
-        [f'{{"speaker": "{name}", "message": "..."}}'
+        [f'{{"speaker": "{name}", "message": "...", '
+         f'"emote": "talk"}}'
          for name in bot_names]
     )
     parts.append(f"""
@@ -1402,7 +1513,8 @@ def build_spell_statement_prompt(
     bot: dict,
     spell: dict,
     config: dict = None,
-    current_weather: str = 'clear'
+    current_weather: str = 'clear',
+    recent_messages: list = None
 ) -> str:
     """Build a prompt for a spell/ability statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1521,6 +1633,12 @@ def build_spell_statement_prompt(
         "Guidelines: " + "; ".join(guidelines)
     )
 
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
+    if anti_rep:
+        parts.append(anti_rep)
+
     parts.append(
         "Respond with ONLY the message - be "
         "creative and unpredictable."
@@ -1533,7 +1651,8 @@ def build_spell_conversation_prompt(
     bots: List[dict],
     spell: dict,
     config: dict = None,
-    current_weather: str = 'clear'
+    current_weather: str = 'clear',
+    recent_messages: list = None
 ) -> str:
     """Build a prompt for a spell conversation
     with 2-4 bots discussing an ability."""
@@ -1702,6 +1821,11 @@ def build_spell_conversation_prompt(
     guidelines.append(
         "Follow the mood and length sequence above"
     )
+    if bot_count > 2:
+        guidelines.append(
+            f"EVERY speaker MUST have at least one "
+            f"message — do NOT skip any participant"
+        )
     guidelines.append(
         "Keep each message under 140 characters; "
         "short/medium is the norm"
@@ -1716,6 +1840,19 @@ def build_spell_conversation_prompt(
     )
 
     parts.append(
+        f"Emotes: Each message may include an "
+        f"optional \"emote\" field (one of: "
+        f"{EMOTE_LIST_STR}). Pick an emote that "
+        f"fits the message mood, or omit it."
+    )
+
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
+    if anti_rep:
+        parts.append(anti_rep)
+
+    parts.append(
         "JSON rules: Use double quotes, escape "
         "quotes/newlines, no trailing commas, "
         "no code fences."
@@ -1723,7 +1860,7 @@ def build_spell_conversation_prompt(
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", '
-            f'"message": "..."}}'
+            f'"message": "...", "emote": "talk"}}'
             for name in bot_names
         ]
     )
@@ -1744,7 +1881,8 @@ def build_trade_statement_prompt(
     bot: dict,
     item: dict,
     config: dict = None,
-    current_weather: str = 'clear'
+    current_weather: str = 'clear',
+    recent_messages: list = None
 ) -> str:
     """Build a prompt for a trade/sell statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1876,6 +2014,12 @@ def build_trade_statement_prompt(
         "Guidelines: " + "; ".join(guidelines)
     )
 
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
+    if anti_rep:
+        parts.append(anti_rep)
+
     parts.append(
         "Respond with ONLY the message - be "
         "creative and unpredictable."
@@ -1888,7 +2032,8 @@ def build_trade_conversation_prompt(
     bots: List[dict],
     item: dict,
     config: dict = None,
-    current_weather: str = 'clear'
+    current_weather: str = 'clear',
+    recent_messages: list = None
 ) -> str:
     """Build a prompt for a trade conversation
     with 2-4 bots haggling over an item."""
@@ -2065,6 +2210,11 @@ def build_trade_conversation_prompt(
     guidelines.append(
         "Follow the mood and length sequence above"
     )
+    if bot_count > 2:
+        guidelines.append(
+            f"EVERY speaker MUST have at least one "
+            f"message — do NOT skip any participant"
+        )
     guidelines.append(
         "Keep each message under 140 characters; "
         "short/medium is the norm"
@@ -2079,6 +2229,19 @@ def build_trade_conversation_prompt(
     )
 
     parts.append(
+        f"Emotes: Each message may include an "
+        f"optional \"emote\" field (one of: "
+        f"{EMOTE_LIST_STR}). Pick an emote that "
+        f"fits the message mood, or omit it."
+    )
+
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
+    if anti_rep:
+        parts.append(anti_rep)
+
+    parts.append(
         "JSON rules: Use double quotes, escape "
         "quotes/newlines, no trailing commas, "
         "no code fences."
@@ -2086,7 +2249,7 @@ def build_trade_conversation_prompt(
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", '
-            f'"message": "..."}}'
+            f'"message": "...", "emote": "talk"}}'
             for name in bot_names
         ]
     )

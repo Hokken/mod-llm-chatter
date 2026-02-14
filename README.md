@@ -84,12 +84,17 @@ Every quest, item, and spell name becomes a clickable WoW link.
 - **Multi-bot conversations**, bots build on each other's messages, creating natural back-and-forth between party members
 - **Persistent personalities**, each bot gets 3 traits that stay consistent across the session. The grumpy dwarf stays grumpy, the optimistic paladin stays hopeful
 - **Chat history**, bots remember recent conversation for coherent, contextual replies
+- **Emote animations**, bots play contextual WoW emotes when speaking — a bot cracking a joke might /laugh, one welcoming you might /wave. The LLM picks emotes for conversations, keyword matching handles statements
+- **Mood drift**, bot mood evolves as things happen. Kill streaks make them cheerful, deaths make them gloomy. Mood subtly influences their tone and word choices
+- **Farewell messages**, when a bot leaves your group, they say goodbye in character. The farewell is pre-generated when they join, so it always fits their personality
+- **Item link reactions**, link an item in party chat and your bots comment on it. They know if they can equip it, what type it is, and whether it's worth getting excited about
 - **Account bot support**, works with both random bots and your own account characters used as bots
+- **Name personalization**, in small groups bots address the player by name, and in conversations bots sometimes address each other naturally
 
 ### Event Reactions
 - **Weather changes**, a sudden thunderstorm in Stranglethorn, snow in Dun Morogh, a sandstorm rolling through Tanaris, bots notice and react
 - **Transport arrivals**, "boat to Auberdine just pulled in", bots announce boats and zeppelins with destination info
-- **Holidays**, bots celebrate festivals like Love is in the Air. In capital cities, holiday mentions recur periodically so the festive mood stays alive
+- **Holidays & events**, bots react to holidays (Love is in the Air) and PvP events (Call to Arms: Warsong Gulch). In capital cities, event mentions recur periodically so the mood stays alive
 - **Day/night transitions**, bots comment on dawn breaking, dusk settling, or the eerie feel of midnight in a dangerous zone
 
 ### Modes
@@ -291,6 +296,7 @@ All settings are in `mod_llm_chatter.conf`. Here are the most commonly tuned opt
 | `LLMChatter.GroupChatter.IdleCooldown` | 30 | Min seconds between idle triggers per group |
 | `LLMChatter.GroupChatter.ConversationBias` | 70 | % chance idle is multi-bot vs solo |
 | `LLMChatter.GroupChatter.IdleHistoryLimit` | 5 | Recent messages in idle context |
+| `LLMChatter.GroupChatter.FarewellEnable` | 1 | Enable farewell messages when bots leave group |
 
 ### Database
 

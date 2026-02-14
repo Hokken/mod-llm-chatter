@@ -521,6 +521,26 @@ LLMChatter.Events.Weather = 1
 #
 LLMChatter.Events.Transports = 1
 
+#
+#   LLMChatter.Events.MinorEvents
+#       React to minor game events like Call to Arms
+#       BG rotations, fishing derbies, and fireworks.
+#       These trigger less often than holidays for
+#       occasional immersion flavor.
+#       Default: 1 (enabled)
+#
+LLMChatter.Events.MinorEvents = 1
+
+#
+#   LLMChatter.Events.MinorEventChance
+#       Chance (0-100) that a minor event triggers
+#       a chatter reaction per environment check.
+#       Lower than holiday chance since these are
+#       less significant events.
+#       Default: 20
+#
+LLMChatter.Events.MinorEventChance = 20
+
 ###############################################################################
 # GROUP CHATTER SETTINGS
 ###############################################################################
@@ -765,6 +785,13 @@ LLMChatter.GroupChatter.CorpseRunChance = 80
 #       Default: 120
 #
 LLMChatter.GroupChatter.CorpseRunCooldown = 120
+
+#
+#    LLMChatter.GroupChatter.FarewellEnable
+#        Enable farewell messages when bots leave the group
+#        Default: 1
+#
+LLMChatter.GroupChatter.FarewellEnable = 1
 
 ###############################################################################
 # RP ENRICHMENT SETTINGS

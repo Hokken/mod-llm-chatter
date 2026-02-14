@@ -19,6 +19,10 @@ from chatter_shared import (
     build_race_class_context, parse_extra_data,
     get_zone_flavor, calculate_dynamic_delay,
     find_addressed_bot,
+    insert_chat_message,
+    pick_emote_for_statement,
+    build_anti_repetition_context,
+    get_recent_zone_messages,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -194,7 +198,8 @@ def _get_bot_info(db, bot_guid):
 def _build_general_response_prompt(
     bot_name, bot_race, bot_class, bot_level,
     traits, player_name, player_message,
-    zone_name, chat_history, mode
+    zone_name, chat_history, mode,
+    recent_messages=None
 ):
     """Build prompt for a bot responding to a
     player's General channel message.
@@ -250,6 +255,14 @@ def _build_general_response_prompt(
     if twist:
         prompt += f"Creative twist: {twist}\n"
 
+    # 40% chance to address the player by name
+    address_hint = ""
+    if random.random() < 0.4:
+        address_hint = (
+            f"- You may address {player_name} by "
+            f"name in your reply\n"
+        )
+
     prompt += (
         f"You are in {zone_name}."
     )
@@ -267,15 +280,22 @@ def _build_general_response_prompt(
         f"Rules:\n"
         f"- No quotes, asterisks, emotes, emojis\n"
         f"- Respond to what {player_name} said\n"
-        f"- You can address {player_name} by name "
-        f"or just reply casually\n"
+        f"{address_hint}"
         f"- Reflect your personality traits\n"
         f"- Don't repeat what they said\n"
         f"- If there's chat history, stay "
         f"consistent with the conversation\n"
         f"- Keep it brief - this is General chat, "
-        f"not a private conversation"
+        f"not a private conversation\n"
+        f"- Keep your response proportional to "
+        f"what was said. Simple statements or "
+        f"questions only need brief replies"
     )
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
+    if anti_rep:
+        prompt += f"\n{anti_rep}"
     return prompt
 
 
@@ -283,7 +303,8 @@ def _build_general_followup_prompt(
     bot_name, bot_race, bot_class, bot_level,
     traits, first_bot_name, first_bot_response,
     player_name, player_message,
-    zone_name, chat_history, mode
+    zone_name, chat_history, mode,
+    recent_messages=None
 ):
     """Build prompt for a 2nd bot following up
     on the 1st bot's reaction in General channel.
@@ -322,6 +343,17 @@ def _build_general_followup_prompt(
             "Reply naturally in General chat."
         )
 
+    # 40% chance to address someone by name
+    address_hint = ""
+    if random.random() < 0.4:
+        target = random.choice(
+            [player_name, first_bot_name]
+        )
+        address_hint = (
+            f"- You may address {target} by "
+            f"name in your reply\n"
+        )
+
     prompt = (
         f"You are {bot_name}, a level "
         f"{bot_level} {bot_race} "
@@ -344,9 +376,15 @@ def _build_general_followup_prompt(
         f"Rules:\n"
         f"- No quotes, asterisks, emotes, emojis\n"
         f"- Don't repeat what others said\n"
+        f"{address_hint}"
         f"- Keep it brief - General channel\n"
         f"- Reflect your personality traits"
     )
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
+    if anti_rep:
+        prompt += f"\n{anti_rep}"
     return prompt
 
 
@@ -413,6 +451,11 @@ def process_general_player_msg_event(
     try:
         mode = get_chatter_mode(config)
 
+        # Fetch recent messages for anti-repetition
+        recent_msgs = get_recent_zone_messages(
+            db, zone_id
+        )
+
         # Fetch chat history for this zone
         history = _get_general_chat_history(
             db, zone_id
@@ -474,7 +517,8 @@ def process_general_player_msg_event(
             bot1_name, bot1_race, bot1_class,
             bot1_level, bot1_traits,
             player_name, player_message,
-            zone_name, chat_hist, mode
+            zone_name, chat_hist, mode,
+            recent_messages=recent_msgs,
         )
 
         max_tokens = int(config.get(
@@ -510,22 +554,15 @@ def process_general_player_msg_event(
         delay1 = calculate_dynamic_delay(
             len(msg1), config
         )
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'general', 0,
-                DATE_ADD(NOW(),
-                    INTERVAL %s SECOND)
-            )
-        """, (
-            event_id, bot1_guid,
-            bot1_name, msg1, delay1
-        ))
-        db.commit()
+        emote1 = pick_emote_for_statement(msg1)
+        insert_chat_message(
+            db, bot1_guid, bot1_name, msg1,
+            channel='general',
+            delay_seconds=delay1,
+            event_id=event_id,
+            sequence=0,
+            emote=emote1,
+        )
 
         # Store in General chat history
         _store_general_chat(
@@ -541,7 +578,8 @@ def process_general_player_msg_event(
                     bot_guids, bot1_idx, bot1_guid,
                     bot1_name, msg1,
                     player_name, player_message,
-                    mode, delay1
+                    mode, delay1,
+                    recent_msgs=recent_msgs,
                 )
             except Exception as e2:
                 logger.warning(
@@ -566,7 +604,8 @@ def _general_followup(
     bot_guids, bot1_idx, bot1_guid,
     bot1_name, bot1_response,
     player_name, player_message,
-    mode, delay1
+    mode, delay1,
+    recent_msgs=None,
 ):
     """Generate a second bot's followup response
     in General channel conversation mode.
@@ -599,7 +638,8 @@ def _general_followup(
         bot2_level, bot2_traits,
         bot1_name, bot1_response,
         player_name, player_message,
-        zone_name, chat_hist, mode
+        zone_name, chat_hist, mode,
+        recent_messages=recent_msgs,
     )
 
     max_tokens = int(config.get(
@@ -628,22 +668,15 @@ def _general_followup(
     # Stagger: first bot delay + extra 4-8 seconds
     delay2 = delay1 + random.randint(4, 8)
 
-    cursor = db.cursor()
-    cursor.execute("""
-        INSERT INTO llm_chatter_messages
-        (event_id, sequence, bot_guid,
-         bot_name, message, channel,
-         delivered, deliver_at)
-        VALUES (
-            %s, 1, %s, %s, %s, 'general', 0,
-            DATE_ADD(NOW(),
-                INTERVAL %s SECOND)
-        )
-    """, (
-        event_id, bot2_guid,
-        bot2_name, msg2, delay2
-    ))
-    db.commit()
+    emote2 = pick_emote_for_statement(msg2)
+    insert_chat_message(
+        db, bot2_guid, bot2_name, msg2,
+        channel='general',
+        delay_seconds=delay2,
+        event_id=event_id,
+        sequence=1,
+        emote=emote2,
+    )
 
     # Store in General chat history
     _store_general_chat(

@@ -41,7 +41,8 @@ CREATE TABLE `llm_chatter_events` (
         'bot_group_dungeon_entry',
         'bot_group_wipe',
         'bot_group_corpse_run',
-        'player_general_msg'
+        'player_general_msg',
+        'minor_event'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,
@@ -114,6 +115,7 @@ CREATE TABLE `llm_chatter_messages` (
     `bot_guid` INT UNSIGNED NOT NULL,
     `bot_name` VARCHAR(64) NOT NULL,
     `message` TEXT NOT NULL,
+    `emote` VARCHAR(32) DEFAULT NULL,
     `channel` VARCHAR(32) NOT NULL DEFAULT 'general',
     `delivered` TINYINT(1) NOT NULL DEFAULT 0,
     `deliver_at` TIMESTAMP NULL DEFAULT NULL,
@@ -134,6 +136,7 @@ CREATE TABLE `llm_group_bot_traits` (
     `trait1` VARCHAR(32) NOT NULL,
     `trait2` VARCHAR(32) NOT NULL,
     `trait3` VARCHAR(32) NOT NULL,
+    `farewell_msg` VARCHAR(255) DEFAULT NULL,
     `assigned_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_group_bot` (`group_id`, `bot_guid`),

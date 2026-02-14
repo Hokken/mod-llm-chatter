@@ -32,11 +32,9 @@ from chatter_constants import (
     MSG_TYPE_PLAIN, MSG_TYPE_QUEST,
     MSG_TYPE_LOOT, MSG_TYPE_QUEST_REWARD,
     MSG_TYPE_TRADE, MSG_TYPE_SPELL,
-    ZONE_TRANSPORT_COOLDOWN_SECONDS,
     CAPITAL_CITY_ZONES,
 )
 from chatter_shared import (
-    _zone_transport_cooldowns,
     zone_cache,
     get_zone_name, get_class_name, get_race_name,
     get_chatter_mode, build_race_class_context,
@@ -53,6 +51,10 @@ from chatter_shared import (
     call_llm,
     parse_conversation_response,
     extract_conversation_msg_count,
+    insert_chat_message,
+    pick_emote_for_statement,
+    get_recent_zone_messages,
+    is_too_similar,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -276,6 +278,11 @@ def process_statement(
         else:
             msg_type = "plain"  # Fallback
 
+    # Fetch recent zone messages for anti-repetition
+    recent_msgs = get_recent_zone_messages(
+        db, zone_id
+    )
+
     # Build appropriate prompt
     if msg_type == "plain":
         # Get zone mobs for context
@@ -297,20 +304,26 @@ def process_statement(
         )
         prompt = build_plain_statement_prompt(
             bot, zone_id, zone_mobs,
-            config, current_weather
+            config, current_weather,
+            recent_messages=recent_msgs,
         )
     elif msg_type == "quest":
         prompt = build_quest_statement_prompt(
-            bot, quest_data, config, current_weather
+            bot, quest_data, config,
+            current_weather,
+            recent_messages=recent_msgs,
         )
     elif msg_type == "loot":
         prompt = build_loot_statement_prompt(
             bot, item_data, item_can_use,
-            config, current_weather
+            config, current_weather,
+            recent_messages=recent_msgs,
         )
     elif msg_type == "quest_reward":
         prompt = build_quest_reward_statement_prompt(
-            bot, quest_data, config, current_weather
+            bot, quest_data, config,
+            current_weather,
+            recent_messages=recent_msgs,
         )
         # Also set item_data for replacement
         if quest_data and quest_data.get('item1_name'):
@@ -323,17 +336,22 @@ def process_statement(
             }
     elif msg_type == "trade":
         prompt = build_trade_statement_prompt(
-            bot, item_data, config, current_weather
+            bot, item_data, config,
+            current_weather,
+            recent_messages=recent_msgs,
         )
     elif msg_type == "spell":
         prompt = build_spell_statement_prompt(
-            bot, spell_data, config, current_weather
+            bot, spell_data, config,
+            current_weather,
+            recent_messages=recent_msgs,
         )
     else:
         prompt = build_plain_statement_prompt(
             bot, zone_id,
             config=config,
-            current_weather=current_weather
+            current_weather=current_weather,
+            recent_messages=recent_msgs,
         )
 
     # Call LLM
@@ -348,22 +366,32 @@ def process_statement(
         )
         message = cleanup_message(message)
 
+        if is_too_similar(message, recent_msgs):
+            logger.info(
+                f"Anti-repetition: dropped "
+                f"statement from {bot['name']}"
+            )
+            # Return True so caller marks as
+            # 'completed', not 'failed' -- the
+            # request was handled, just silently
+            # dropped to avoid repetition
+            return True
+
         logger.info(
             f"Statement from {bot['name']} "
             f"[{msg_type}]: {message}"
         )
 
         # Insert for delivery
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (queue_id, sequence, bot_guid, bot_name,
-             message, channel, deliver_at)
-            VALUES (%s, 0, %s, %s, %s, %s, NOW())
-        """, (
-            request['id'], bot['guid'], bot['name'],
-            message, channel
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, bot['guid'], bot['name'], message,
+            channel=channel,
+            delay_seconds=0,
+            queue_id=request['id'],
+            sequence=0,
+            emote=emote,
+        )
 
         return True
     return False
@@ -398,6 +426,11 @@ def process_conversation(
 
     zone_id = request.get('zone_id', 0)
     current_weather = request.get('weather', 'clear')
+
+    # Fetch recent zone messages for anti-repetition
+    recent_msgs = get_recent_zone_messages(
+        db, zone_id
+    )
 
     # Select message type
     # (conversations: 45% plain, 20% quest,
@@ -571,23 +604,32 @@ def process_conversation(
         )
         prompt = build_plain_conversation_prompt(
             bots, zone_id, zone_mobs,
-            config, current_weather
+            config, current_weather,
+            recent_messages=recent_msgs,
         )
     elif msg_type == "quest":
         prompt = build_quest_conversation_prompt(
-            bots, quest_data, config, current_weather
+            bots, quest_data, config,
+            current_weather,
+            recent_messages=recent_msgs,
         )
     elif msg_type == "trade":
         prompt = build_trade_conversation_prompt(
-            bots, item_data, config, current_weather
+            bots, item_data, config,
+            current_weather,
+            recent_messages=recent_msgs,
         )
     elif msg_type == "spell":
         prompt = build_spell_conversation_prompt(
-            bots, spell_data, config, current_weather
+            bots, spell_data, config,
+            current_weather,
+            recent_messages=recent_msgs,
         )
     else:  # loot
         prompt = build_loot_conversation_prompt(
-            bots, item_data, config, current_weather
+            bots, item_data, config,
+            current_weather,
+            recent_messages=recent_msgs,
         )
 
     # Call LLM
@@ -603,6 +645,10 @@ def process_conversation(
     )
 
     if response:
+        logger.info(
+            f"LLM raw response "
+            f"(len={len(response)}):\n{response}"
+        )
         messages = parse_conversation_response(
             response, bot_names
         )
@@ -666,21 +712,15 @@ def process_conversation(
                         f", delay={delay:.1f}s"
                     )
 
-                cursor.execute("""
-                    INSERT INTO llm_chatter_messages
-                    (queue_id, sequence, bot_guid,
-                     bot_name, message, channel,
-                     deliver_at)
-                    VALUES (
-                        %s, %s, %s, %s, %s, %s,
-                        DATE_ADD(NOW(),
-                            INTERVAL %s SECOND)
-                    )
-                """, (
-                    request['id'], i, bot_guid,
+                insert_chat_message(
+                    db, bot_guid,
                     msg['name'], final_message,
-                    channel, cumulative_delay
-                ))
+                    channel=channel,
+                    delay_seconds=cumulative_delay,
+                    queue_id=request['id'],
+                    sequence=i,
+                    emote=msg.get('emote'),
+                )
 
                 logger.info(
                     f"  [{i}] +{cumulative_delay:.1f}s"
@@ -1101,64 +1141,6 @@ def process_pending_events(
             event, db, client, config
         )
 
-    # Transport events have a chance-based filter
-    # (not every arrival should trigger chat)
-    if event_type == 'transport_arrives':
-        transport_chance = int(config.get(
-            'LLMChatter.TransportEventChance', 30
-        ))
-        roll = random.randint(1, 100)
-        if roll > transport_chance:
-            # Skip this transport event but don't
-            # mark it as failed
-            cursor.execute(
-                "UPDATE llm_chatter_events "
-                "SET status = 'skipped' "
-                "WHERE id = %s",
-                (event_id,)
-            )
-            db.commit()
-            logger.info(
-                f"Transport event #{event_id} "
-                f"skipped: chance roll {roll} > "
-                f"{transport_chance}%"
-            )
-            return False
-
-        # Zone-level transport cooldown (prevents
-        # multiple boat announcements in same zone)
-        if zone_id:
-            now = time.time()
-            last_transport = (
-                _zone_transport_cooldowns.get(
-                    zone_id, 0
-                )
-            )
-            if (
-                now - last_transport
-                < ZONE_TRANSPORT_COOLDOWN_SECONDS
-            ):
-                remaining = int(
-                    ZONE_TRANSPORT_COOLDOWN_SECONDS
-                    - (now - last_transport)
-                )
-                cursor.execute(
-                    "UPDATE llm_chatter_events "
-                    "SET status = 'skipped' "
-                    "WHERE id = %s",
-                    (event_id,)
-                )
-                db.commit()
-                logger.info(
-                    f"Transport event #{event_id} "
-                    f"skipped: zone {zone_id} on "
-                    f"cooldown ({remaining}s "
-                    f"remaining)"
-                )
-                return False
-            # Update zone cooldown
-            _zone_transport_cooldowns[zone_id] = now
-
     logger.info(
         f"Processing event #{event_id}: {event_type}"
     )
@@ -1174,6 +1156,17 @@ def process_pending_events(
     try:
         # Build event context
         event_context = build_event_context(event)
+
+        # Parse extra_data early (needed for
+        # verified_bots filtering below)
+        extra_data = event.get('extra_data')
+        if isinstance(extra_data, str):
+            try:
+                extra_data = json.loads(extra_data)
+            except Exception:
+                extra_data = {}
+        if not isinstance(extra_data, dict):
+            extra_data = {}
 
         # Find bots in the zone (if zone-specific)
         # Uses account-based detection:
@@ -1319,6 +1312,52 @@ def process_pending_events(
                         )
                     )
 
+        # If C++ provided verified bot GUIDs
+        # (bots confirmed in General channel),
+        # filter to only those bots.
+        # Empty list [] is authoritative: means
+        # C++ found zero bots in channel → skip.
+        verified = extra_data.get('verified_bots')
+        if isinstance(verified, list):
+            if not verified:
+                cursor.execute(
+                    "UPDATE llm_chatter_events "
+                    "SET status = 'skipped' "
+                    "WHERE id = %s",
+                    (event_id,)
+                )
+                db.commit()
+                logger.info(
+                    f"Event #{event_id} skipped: "
+                    f"C++ found no bots in General"
+                )
+                return False
+            verified_set = set(
+                int(g) for g in verified
+            )
+            recent_bots = [
+                b for b in recent_bots
+                if int(b['bot1_guid']) in verified_set
+            ]
+            if not recent_bots:
+                cursor.execute(
+                    "UPDATE llm_chatter_events "
+                    "SET status = 'skipped' "
+                    "WHERE id = %s",
+                    (event_id,)
+                )
+                db.commit()
+                logger.info(
+                    f"Event #{event_id} skipped: "
+                    f"no verified bots remaining"
+                )
+                return False
+            logger.info(
+                f"Filtered to {len(recent_bots)} "
+                f"verified bots (of "
+                f"{len(verified_set)} GUIDs)"
+            )
+
         # Check zone fatigue (if zone-specific event)
         # Transport events bypass zone fatigue to
         # ensure they can always fire
@@ -1410,20 +1449,21 @@ def process_pending_events(
             )
 
             # Get weather from event extra_data
-            extra_data = event.get('extra_data', {})
-            if isinstance(extra_data, str):
-                try:
-                    extra_data = json.loads(extra_data)
-                except Exception:
-                    extra_data = {}
+            # (already parsed at top of try block)
             current_weather = extra_data.get(
                 'current_weather', 'clear'
+            )
+
+            # Fetch recent messages for anti-repetition
+            recent_msgs = get_recent_zone_messages(
+                db, zone_id
             )
 
             # Build event conversation prompt
             prompt = build_event_conversation_prompt(
                 bots, event_context, zone_id,
-                config, current_weather
+                config, current_weather,
+                recent_messages=recent_msgs,
             )
 
             # Call LLM
@@ -1432,6 +1472,11 @@ def process_pending_events(
             )
 
             if response:
+                logger.info(
+                    f"LLM raw response "
+                    f"(len={len(response)}):"
+                    f"\n{response}"
+                )
                 messages = (
                     parse_conversation_response(
                         response, bot_names
@@ -1599,8 +1644,8 @@ def process_pending_events(
                 )
             elif is_holiday:
                 event_instruction = (
-                    "React to this festival! "
-                    "Mention the holiday by name "
+                    "React to this event! "
+                    "Mention the event by name "
                     "and share your character's "
                     "opinion or feelings about it."
                 )
@@ -1616,12 +1661,8 @@ def process_pending_events(
                 )
 
             # Environmental context
-            extra_data = event.get('extra_data', {})
-            if isinstance(extra_data, str):
-                try:
-                    extra_data = json.loads(extra_data)
-                except Exception:
-                    extra_data = {}
+            # (extra_data already parsed at top of
+            # try block)
             weather_for_context = None
             if 'weather' not in event_context.lower():
                 weather_for_context = extra_data.get(
@@ -1801,21 +1842,16 @@ def process_pending_events(
                 delay_min, delay_max
             )
 
-            cursor.execute("""
-                INSERT INTO llm_chatter_messages
-                (event_id, sequence, bot_guid,
-                 bot_name, message, channel,
-                 delivered, deliver_at)
-                VALUES (
-                    %s, 0, %s, %s, %s, 'general', 0,
-                    DATE_ADD(NOW(),
-                        INTERVAL %s SECOND)
-                )
-            """, (
-                event_id, bot['bot1_guid'],
+            emote = pick_emote_for_statement(message)
+            insert_chat_message(
+                db, bot['bot1_guid'],
                 bot['bot1_name'], message,
-                delay_ms // 1000
-            ))
+                channel='general',
+                delay_seconds=delay_ms // 1000,
+                event_id=event_id,
+                sequence=0,
+                emote=emote,
+            )
 
             # Mark event completed
             cursor.execute(
@@ -2030,16 +2066,8 @@ def main():
     logger.info("-" * 60)
     logger.info("Transport settings:")
     logger.info(
-        f"  TransportEventChance: "
-        f"{config.get('LLMChatter.TransportEventChance', 30)}%"
-    )
-    logger.info(
         f"  TransportCooldownSeconds (C++): "
-        f"{config.get('LLMChatter.TransportCooldownSeconds', 300)}"
-    )
-    logger.info(
-        f"  ZoneTransportCooldown (Python): "
-        f"{ZONE_TRANSPORT_COOLDOWN_SECONDS}s"
+        f"{config.get('LLMChatter.TransportCooldownSeconds', 600)}"
     )
     logger.info("-" * 60)
     logger.info("Holiday settings:")

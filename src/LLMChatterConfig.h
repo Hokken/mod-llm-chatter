@@ -64,6 +64,8 @@ public:
     bool _eventsDayNight;
     bool _eventsWeather;      // Future: weather changes
     bool _eventsTransports;   // Future: transport arrivals
+    bool _eventsMinor;        // Call to Arms, fishing, etc.
+    uint32 _minorEventChance; // % chance for minor events
 
     // Group chatter
     bool _useGroupChatter;
@@ -94,6 +96,7 @@ public:
     uint32 _groupWipeCooldown;
     uint32 _groupCorpseRunChance;
     uint32 _groupCorpseRunCooldown;
+    bool _useFarewell;
 
     // General chat reactions
     bool _useGeneralChatReact;

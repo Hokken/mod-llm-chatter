@@ -28,6 +28,7 @@ from chatter_constants import (
     MSG_TYPE_SPELL,
     DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL,
     ZONE_TRANSPORT_COOLDOWN_SECONDS,
+    EMOTE_LIST, EMOTE_KEYWORDS,
 )
 from spell_names import SPELL_NAMES, SPELL_DESCRIPTIONS
 
@@ -811,8 +812,45 @@ def cleanup_message(message: str) -> str:
     # Em-dashes
     result = re.sub(r'\s*—\s*', ', ', result)
 
-    # Asterisk emotes (*action*) — unwrap to plain text
+    # Backslash escapes leaking from SQL/JSON encoding
+    result = result.replace("\\'", "'")
+    result = result.replace('\\"', '"')
+    result = result.replace('\\\\', '\\')
+
+    # Asterisk emotes (*action*) -- unwrap to plain text
     result = re.sub(r'\*([^*]+)\*', r'\1', result)
+
+    # Non-asterisk emote phrases (e.g. "gazes toward",
+    # "leans against") -- LLM sometimes embeds action
+    # descriptions without asterisks. Strip them when
+    # they appear at the start of a message or as a
+    # standalone clause.
+    # Only unambiguous emote verbs -- excluded
+    # dual-use words like looks/turns/waves/points/
+    # crosses/cracks/shifts that appear in normal
+    # speech ("looks like", "turns out", etc.)
+    _EMOTE_VERBS = (
+        'gazes', 'glances', 'stares', 'peers',
+        'leans', 'nods', 'sighs', 'shrugs',
+        'gestures', 'stretches',
+        'tilts', 'grins',
+        'smiles', 'frowns', 'chuckles',
+        'scratches', 'rubs', 'taps',
+        'flexes', 'adjusts', 'fidgets',
+    )
+    _emote_pattern = re.compile(
+        r'(?:^|(?:,\s*|\.\.?\.\s*|\.\s+))'
+        r'(?:' + '|'.join(_EMOTE_VERBS) + r')'
+        r'\s+\w[\w\s]*?'
+        r'(?=[,.]|\s*$)',
+        re.IGNORECASE
+    )
+    result = _emote_pattern.sub('', result).strip()
+
+    # Clean up leftover punctuation from emote removal
+    result = re.sub(r'^[,.\s]+', '', result)
+    result = re.sub(r'[,]\s*$', '', result)
+    result = re.sub(r'\s{2,}', ' ', result)
 
     # Emojis
     emoji_pattern = re.compile(
@@ -1454,10 +1492,17 @@ def parse_conversation_response(
                             matched_name = bot_name
                             break
                     if matched_name:
-                        result.append({
+                        entry = {
                             'name': matched_name,
                             'message': message,
-                        })
+                        }
+                        # Extract optional emote
+                        raw_emote = msg.get('emote')
+                        if raw_emote:
+                            entry['emote'] = (
+                                validate_emote(raw_emote)
+                            )
+                        result.append(entry)
             return result
     except json.JSONDecodeError as e:
         snippet = response.strip().replace("\n", "\\n")
@@ -1580,3 +1625,409 @@ def parse_extra_data(
         )
 
     return {}
+
+
+# =============================================================================
+# EMOTE HELPERS
+# =============================================================================
+def validate_emote(emote_str: Optional[str]) -> Optional[str]:
+    """Clean and validate an emote string from LLM output.
+
+    Returns a valid emote name or None.
+    """
+    if not emote_str or not isinstance(emote_str, str):
+        return None
+    cleaned = emote_str.strip().lower()
+    # Strip quotes the LLM might add
+    cleaned = cleaned.strip('"').strip("'")
+    if cleaned in EMOTE_LIST and cleaned != 'none':
+        return cleaned
+    return None
+
+
+def pick_emote_for_statement(message: str) -> Optional[str]:
+    """Keyword-match an emote for a plain-text statement.
+
+    60% RNG gate — not every message gets an emote.
+    Returns a valid emote name or None.
+    """
+    if not message or random.random() > 0.60:
+        return None
+    msg_lower = message.lower()
+    for keyword, emote in EMOTE_KEYWORDS.items():
+        if keyword in msg_lower:
+            return emote
+    return None
+
+
+# =============================================================================
+# ITEM LINK DETECTION (for party chat item reactions)
+# =============================================================================
+_ITEM_LINK_RE = re.compile(
+    r'\|Hitem:(\d+):[^|]*\|h\[([^\]]+)\]\|h\|r'
+)
+
+
+def detect_item_links(
+    message: str,
+) -> List[Tuple[int, str]]:
+    """Extract (item_entry, item_name) from WoW item
+    links in a chat message.
+    """
+    return [
+        (int(m.group(1)), m.group(2))
+        for m in _ITEM_LINK_RE.finditer(message)
+    ]
+
+
+def query_item_details(
+    db, entry: int,
+) -> Optional[dict]:
+    """Query acore_world.item_template for an item's
+    stats. Returns dict or None.
+    """
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT entry, name, Quality,
+                   class AS item_class,
+                   subclass AS item_subclass,
+                   ItemLevel, RequiredLevel,
+                   AllowableClass,
+                   stat_type1, stat_value1,
+                   stat_type2, stat_value2,
+                   dmg_min1, dmg_max1,
+                   armor, block
+            FROM acore_world.item_template
+            WHERE entry = %s
+        """, (entry,))
+        return cursor.fetchone()
+    except Exception as e:
+        logger.warning(
+            f"Failed to query item {entry}: {e}"
+        )
+        return None
+
+
+_ITEM_CLASS_NAMES = {
+    0: "Consumable", 1: "Container",
+    2: "Weapon", 3: "Gem", 4: "Armor",
+    5: "Reagent", 6: "Projectile",
+    7: "Trade Goods", 9: "Recipe",
+    12: "Quest Item", 15: "Miscellaneous",
+}
+
+_WEAPON_SUBCLASS = {
+    0: "One-Handed Axe", 1: "Two-Handed Axe",
+    2: "Bow", 3: "Gun", 4: "One-Handed Mace",
+    5: "Two-Handed Mace", 6: "Polearm",
+    7: "One-Handed Sword", 8: "Two-Handed Sword",
+    10: "Staff", 13: "Fist Weapon",
+    15: "Dagger", 16: "Thrown",
+    17: "Spear", 18: "Crossbow",
+    19: "Wand", 20: "Fishing Pole",
+}
+
+_ARMOR_SUBCLASS = {
+    0: "Miscellaneous", 1: "Cloth",
+    2: "Leather", 3: "Mail", 4: "Plate",
+    6: "Shield",
+}
+
+_QUALITY_NAMES = {
+    0: "Poor", 1: "Common", 2: "Uncommon",
+    3: "Rare", 4: "Epic", 5: "Legendary",
+}
+
+
+def format_item_context(
+    items_info: List[dict],
+    bot_class: str,
+) -> str:
+    """Build human-readable item context for a prompt.
+
+    Includes quality, type, level, and whether the
+    bot's class can equip it.
+    """
+    parts = []
+    for item in items_info:
+        quality = _QUALITY_NAMES.get(
+            item.get('Quality', 1), 'Common'
+        )
+        item_class = item.get('item_class', 0)
+        item_sub = item.get('item_subclass', 0)
+
+        # Subclass-level type name for weapons/armor
+        if item_class == 2:
+            type_name = _WEAPON_SUBCLASS.get(
+                item_sub, 'Weapon'
+            )
+        elif item_class == 4:
+            type_name = _ARMOR_SUBCLASS.get(
+                item_sub, 'Armor'
+            )
+        else:
+            type_name = _ITEM_CLASS_NAMES.get(
+                item_class, 'Item'
+            )
+
+        name = item.get('name', 'Unknown')
+        ilvl = item.get('ItemLevel', 0)
+        req_lvl = item.get('RequiredLevel', 0)
+
+        desc = f"{name} ({quality} {type_name}"
+        if ilvl:
+            desc += f", iLvl {ilvl}"
+        if req_lvl:
+            desc += f", req level {req_lvl}"
+        desc += ")"
+
+        # Always show equipability for weapons/armor
+        allowable = item.get('AllowableClass', -1)
+        if item_class in (2, 4):
+            if allowable and allowable != -1:
+                can_use = can_class_use_item(
+                    bot_class, allowable
+                )
+            else:
+                can_use = True
+            if can_use:
+                desc += (
+                    f" — {bot_class} CAN equip"
+                )
+            else:
+                desc += (
+                    f" — {bot_class} CANNOT equip"
+                )
+
+        # Add stat highlights
+        stats = []
+        if item.get('armor'):
+            stats.append(
+                f"{item['armor']} armor"
+            )
+        if (
+            item.get('dmg_min1')
+            and item.get('dmg_max1')
+        ):
+            stats.append(
+                f"{item['dmg_min1']}-"
+                f"{item['dmg_max1']} damage"
+            )
+        if stats:
+            desc += f" [{', '.join(stats)}]"
+
+        parts.append(desc)
+
+    return "Items linked: " + "; ".join(parts)
+
+
+# =============================================================================
+# ANTI-REPETITION SYSTEM
+# =============================================================================
+def get_recent_zone_messages(
+    db, zone_id: int,
+    limit: int = 15,
+    minutes: int = 30
+) -> list:
+    """Fetch recent delivered messages for a zone.
+
+    Returns list of message strings (newest first).
+    Zone-scoped via JOIN on queue_id or event_id
+    (llm_chatter_messages has no zone_id column).
+    """
+    if not zone_id:
+        return []
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT m.message
+            FROM llm_chatter_messages m
+            LEFT JOIN llm_chatter_queue q
+                ON m.queue_id = q.id
+            LEFT JOIN llm_chatter_events e
+                ON m.event_id = e.id
+            WHERE m.delivered = 1
+              AND m.channel IN ('general', 'say')
+              AND m.delivered_at > DATE_SUB(
+                  NOW(), INTERVAL %s MINUTE
+              )
+              AND (q.zone_id = %s
+                   OR e.zone_id = %s)
+            ORDER BY m.delivered_at DESC
+            LIMIT %s
+        """, (minutes, zone_id, zone_id, limit))
+        rows = cursor.fetchall()
+        return [r['message'] for r in rows if r.get(
+            'message'
+        )]
+    except Exception as e:
+        logger.debug(
+            f"get_recent_zone_messages error: {e}"
+        )
+        return []
+
+
+def get_recent_bot_messages(
+    db, bot_guid: int,
+    limit: int = 10,
+    minutes: int = 60
+) -> list:
+    """Fetch recent messages from a specific bot.
+
+    Returns list of message strings (newest first).
+    Covers all channels (party, general, say).
+    """
+    if not bot_guid:
+        return []
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT message FROM llm_chatter_messages
+            WHERE delivered = 1
+              AND bot_guid = %s
+              AND delivered_at > DATE_SUB(
+                  NOW(), INTERVAL %s MINUTE
+              )
+            ORDER BY delivered_at DESC
+            LIMIT %s
+        """, (bot_guid, minutes, limit))
+        rows = cursor.fetchall()
+        return [r['message'] for r in rows if r.get(
+            'message'
+        )]
+    except Exception as e:
+        logger.debug(
+            f"get_recent_bot_messages error: {e}"
+        )
+        return []
+
+
+def build_anti_repetition_context(
+    recent_messages: list,
+    max_items: int = 10
+) -> str:
+    """Format recent messages as an anti-repetition
+    prompt injection block.
+
+    Returns empty string if no recent messages.
+    """
+    if not recent_messages:
+        return ''
+
+    # Deduplicate and limit
+    seen = set()
+    unique = []
+    for msg in recent_messages:
+        normalized = msg.strip().lower()
+        if normalized not in seen:
+            seen.add(normalized)
+            unique.append(msg.strip())
+        if len(unique) >= max_items:
+            break
+
+    if not unique:
+        return ''
+
+    lines = '\n'.join(f'- "{m}"' for m in unique)
+    return (
+        "ANTI-REPETITION: These messages were recently "
+        "said in this area. You MUST NOT repeat or "
+        "closely paraphrase ANY of them. Say something "
+        "completely different.\n"
+        f"{lines}"
+    )
+
+
+def _extract_ngrams(text: str, n: int = 4) -> set:
+    """Extract word n-grams from text for similarity
+    comparison. Lowercased, punctuation stripped."""
+    words = re.sub(
+        r'[^\w\s]', '', text.lower()
+    ).split()
+    if len(words) < n:
+        return set()
+    return {
+        ' '.join(words[i:i+n])
+        for i in range(len(words) - n + 1)
+    }
+
+
+def is_too_similar(
+    new_message: str,
+    recent_messages: list,
+    threshold: int = 1
+) -> bool:
+    """Check if new_message shares too many n-grams
+    with recent messages.
+
+    Args:
+        new_message: The message to check
+        recent_messages: List of recent message strings
+        threshold: Max shared 4-grams before rejection
+            (1 = any shared 4-gram triggers rejection)
+
+    Returns True if message should be rejected.
+    """
+    if not recent_messages or not new_message:
+        return False
+
+    new_ngrams = _extract_ngrams(new_message, 4)
+    if not new_ngrams:
+        return False
+
+    # Pool all recent n-grams together
+    recent_ngrams = set()
+    for msg in recent_messages:
+        recent_ngrams.update(_extract_ngrams(msg, 4))
+
+    overlap = new_ngrams & recent_ngrams
+    if len(overlap) >= threshold:
+        logger.debug(
+            f"Anti-repetition: rejected message "
+            f"({len(overlap)} shared 4-grams >= "
+            f"threshold {threshold}: {overlap})"
+        )
+        return True
+
+    return False
+
+
+# =============================================================================
+# CENTRALIZED MESSAGE INSERTION
+# =============================================================================
+def insert_chat_message(
+    db,
+    bot_guid: int,
+    bot_name: str,
+    message: str,
+    channel: str = 'party',
+    delay_seconds: float = 2.0,
+    event_id: int = None,
+    queue_id: int = None,
+    sequence: int = 0,
+    emote: str = None,
+):
+    """Insert a message into llm_chatter_messages.
+
+    Centralised helper replacing individual INSERT
+    statements across the codebase. Handles the emote
+    column transparently.
+    """
+    cursor = db.cursor()
+    cursor.execute("""
+        INSERT INTO llm_chatter_messages
+        (event_id, queue_id, sequence, bot_guid,
+         bot_name, message, emote, channel,
+         delivered, deliver_at)
+        VALUES (
+            %s, %s, %s, %s, %s, %s, %s, %s, 0,
+            DATE_ADD(NOW(), INTERVAL %s SECOND)
+        )
+    """, (
+        event_id, queue_id, sequence,
+        bot_guid, bot_name, message,
+        validate_emote(emote), channel,
+        int(delay_seconds),
+    ))
+    db.commit()

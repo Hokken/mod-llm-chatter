@@ -40,6 +40,13 @@ from chatter_shared import (
     calculate_dynamic_delay,
     format_item_link,
     find_addressed_bot,
+    insert_chat_message,
+    pick_emote_for_statement,
+    detect_item_links,
+    query_item_details,
+    format_item_context,
+    build_anti_repetition_context,
+    get_recent_bot_messages,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -53,6 +60,7 @@ from chatter_prompts import (
 from chatter_constants import (
     RACE_SPEECH_PROFILES,
     LENGTH_HINTS, RP_LENGTH_HINTS,
+    EMOTE_LIST_STR,
 )
 
 logger = logging.getLogger(__name__)
@@ -78,6 +86,119 @@ def _pick_length_hint(mode):
         f"Length mode: short/medium only "
         f"(avoid long messages)"
     )
+
+
+# ============================================================
+# SESSION MOOD DRIFT
+# ============================================================
+# Per-bot mood scores: (group_id, bot_guid) -> (float, float)
+# Value = (score, last_update_time). Positive = happy,
+# negative = gloomy. Drifts toward 0.
+_bot_mood_scores: dict = {}
+_MOOD_STALE_SECONDS = 7200  # 2 hours
+
+MOOD_LABELS = [
+    (-999, -4, 'miserable'),
+    (-4, -2, 'gloomy'),
+    (-2, -0.5, 'tired'),
+    (-0.5, 0.5, 'neutral'),
+    (0.5, 2, 'content'),
+    (2, 4, 'cheerful'),
+    (4, 999, 'ecstatic'),
+]
+
+MOOD_DELTAS = {
+    'kill': 1.0,
+    'boss_kill': 2.0,
+    'death': -2.0,
+    'wipe': -3.0,
+    'loot': 1.0,
+    'epic_loot': 2.0,
+    'resurrect': 1.0,
+    'quest': 1.0,
+    'levelup': 2.0,
+    'achievement': 1.5,
+}
+
+# Drift toward neutral each event
+MOOD_DRIFT_RATE = 0.5
+
+
+def _evict_stale_moods():
+    """Remove mood entries older than 2 hours."""
+    now = time.time()
+    stale = [
+        k for k, (_, ts) in _bot_mood_scores.items()
+        if now - ts > _MOOD_STALE_SECONDS
+    ]
+    for k in stale:
+        del _bot_mood_scores[k]
+    if stale:
+        logger.debug(
+            f"Evicted {len(stale)} stale mood entries"
+        )
+
+
+def update_bot_mood(
+    group_id: int, bot_guid: int,
+    event_type: str,
+):
+    """Shift a bot's mood score based on an event.
+
+    Also applies a slow drift toward neutral (0).
+    """
+    # Periodic eviction of stale entries
+    if len(_bot_mood_scores) > 50:
+        _evict_stale_moods()
+
+    key = (group_id, bot_guid)
+    entry = _bot_mood_scores.get(key)
+    current = entry[0] if entry else 0.0
+
+    # Drift toward neutral
+    if current > 0:
+        current = max(0, current - MOOD_DRIFT_RATE)
+    elif current < 0:
+        current = min(0, current + MOOD_DRIFT_RATE)
+
+    # Apply event delta
+    delta = MOOD_DELTAS.get(event_type, 0.0)
+    current += delta
+
+    # Clamp to [-6, 6]
+    current = max(-6.0, min(6.0, current))
+    _bot_mood_scores[key] = (current, time.time())
+
+    label = get_bot_mood_label(group_id, bot_guid)
+    logger.info(
+        f"Mood update: bot {bot_guid} in group "
+        f"{group_id}: {event_type} -> "
+        f"{current:.1f} ({label})"
+    )
+
+
+def get_bot_mood_label(
+    group_id: int, bot_guid: int,
+) -> str:
+    """Get human-readable mood label for a bot."""
+    entry = _bot_mood_scores.get(
+        (group_id, bot_guid)
+    )
+    score = entry[0] if entry else 0.0
+    for low, high, label in MOOD_LABELS:
+        if low <= score < high:
+            return label
+    return 'neutral'
+
+
+def cleanup_group_moods(group_id: int):
+    """Remove mood data for a disbanded group."""
+    keys_to_remove = [
+        k for k in _bot_mood_scores
+        if k[0] == group_id
+    ]
+    for k in keys_to_remove:
+        del _bot_mood_scores[k]
 
 
 # ============================================================
@@ -192,6 +313,87 @@ def get_other_group_bot(db, group_id, exclude_guid):
             ],
         }
     return None
+
+
+def _generate_farewell(
+    db, client, config,
+    bot_name, bot_race, bot_class,
+    traits, mode, group_id, bot_guid,
+):
+    """Generate and store a farewell message for later
+    use when the bot leaves the group.
+
+    Called after the greeting is generated. Uses a
+    small LLM call to pre-generate the farewell.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+
+    if is_rp:
+        style = (
+            "Stay in-character. Brief, natural "
+            "farewell fitting your race and class."
+        )
+    else:
+        style = (
+            "Casual, brief farewell like a real "
+            "player leaving a group."
+        )
+
+    rp_ctx = ""
+    if is_rp:
+        rp_ctx = build_race_class_context(
+            bot_race, bot_class
+        )
+        if rp_ctx:
+            rp_ctx = f"\n{rp_ctx}"
+
+    prompt = (
+        f"You are {bot_name}, a {bot_race} "
+        f"{bot_class}.\n"
+        f"Personality: {trait_str}{rp_ctx}\n\n"
+        f"Write a short farewell message for when "
+        f"you leave a party. One sentence, under "
+        f"80 characters.\n"
+        f"{style}\n"
+        f"Rules:\n"
+        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- Just the farewell text, nothing else"
+    )
+
+    try:
+        response = call_llm(
+            client, prompt, config,
+            max_tokens_override=60
+        )
+        if not response:
+            return
+
+        farewell = response.strip().strip('"').strip()
+        farewell = cleanup_message(farewell)
+        farewell = strip_speaker_prefix(
+            farewell, bot_name
+        )
+        if not farewell or len(farewell) > 255:
+            return
+
+        cursor = db.cursor()
+        cursor.execute("""
+            UPDATE llm_group_bot_traits
+            SET farewell_msg = %s
+            WHERE group_id = %s AND bot_guid = %s
+        """, (farewell, group_id, bot_guid))
+        db.commit()
+
+        logger.info(
+            f"Stored farewell for {bot_name}: "
+            f"{farewell}"
+        )
+    except Exception as e:
+        logger.warning(
+            f"Failed to generate farewell for "
+            f"{bot_name}: {e}"
+        )
 
 
 # ============================================================
@@ -324,7 +526,8 @@ def _has_recent_event(
 # ============================================================
 def build_bot_greeting_prompt(
     bot, traits, mode,
-    chat_history="", members=None
+    chat_history="", members=None,
+    player_name="", group_size=0
 ):
     """Build the LLM prompt for a group greeting.
 
@@ -337,6 +540,9 @@ def build_bot_greeting_prompt(
         mode: 'normal' or 'roleplay'
         chat_history: formatted recent chat string
         members: list of group member names
+        player_name: real player's name (from C++)
+        group_size: total group members including
+            this bot
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
@@ -413,6 +619,14 @@ def build_bot_greeting_prompt(
     if chat_history:
         prompt += f"{chat_history}\n"
 
+    # If just player + this bot (group_size=2),
+    # 80% chance to use the player's name
+    use_player_name = (
+        player_name
+        and group_size == 2
+        and random.random() < 0.8
+    )
+
     prompt += (
         f"\nYou just joined a party with a real "
         f"player. Say a greeting in party chat.\n"
@@ -432,9 +646,18 @@ def build_bot_greeting_prompt(
         f"- No asterisks or emotes\n"
         f"- No emojis\n"
         f"- Don't mention your class or race\n"
-        f"- Don't say the player's name (you "
-        f"don't know it yet)"
     )
+
+    if use_player_name:
+        prompt += (
+            f"- Address the player by name: "
+            f"{player_name}"
+        )
+    else:
+        prompt += (
+            f"- Don't use the player's name"
+        )
+
     return prompt
 
 
@@ -1485,7 +1708,7 @@ def build_spell_cast_reaction_prompt(
 
 def build_player_response_prompt(
     bot, traits, player_name, player_message, mode,
-    chat_history="", members=None
+    chat_history="", members=None, item_context=""
 ):
     """Build prompt for a bot responding to a real
     player's party chat message. The bot should
@@ -1560,6 +1783,24 @@ def build_player_response_prompt(
     if chat_history:
         rp_context += f"{chat_history}"
 
+    # 40% chance to suggest addressing someone
+    address_hint = ""
+    if random.random() < 0.4:
+        # Build list of addressable names
+        candidates = []
+        if player_name:
+            candidates.append(player_name)
+        if members:
+            for m in members:
+                if m != bot['name']:
+                    candidates.append(m)
+        if candidates:
+            target = random.choice(candidates)
+            address_hint = (
+                f"- You may address {target} by "
+                f"name in your reply\n"
+            )
+
     prompt += (
         f"{rp_context}\n\n"
         f"You are in a party. {player_name} just "
@@ -1571,15 +1812,24 @@ def build_player_response_prompt(
         f"Rules:\n"
         f"- No quotes, asterisks, emotes, emojis\n"
         f"- Respond to what {player_name} said\n"
-        f"- You can address {player_name} by name "
-        f"or just reply casually\n"
+        f"{address_hint}"
         f"- Reflect your personality traits\n"
         f"- Don't repeat what they said\n"
         f"- If there's chat history, stay "
         f"consistent with the conversation\n"
         f"- Don't repeat jokes or themes "
-        f"already said in chat"
+        f"already said in chat\n"
+        f"- Keep your response proportional to "
+        f"what was said. Simple statements or "
+        f"questions only need brief replies"
     )
+    if item_context:
+        prompt += (
+            f"\n{item_context}\n"
+            f"Comment on the item(s) from your "
+            f"class/role perspective. Is it useful "
+            f"for you? Good stats? Would you want it?"
+        )
     return prompt
 
 
@@ -1623,6 +1873,10 @@ def process_group_event(db, client, config, event):
         extra_data.get('bot_level', 1)
     )
     group_id = int(extra_data.get('group_id', 0))
+    player_name = extra_data.get('player_name', '')
+    group_size = int(
+        extra_data.get('group_size', 0)
+    )
 
     if not bot_guid or not group_id:
         logger.warning(
@@ -1688,6 +1942,8 @@ def process_group_event(db, client, config, event):
             bot, traits, mode,
             chat_history=chat_hist,
             members=members,
+            player_name=player_name,
+            group_size=group_size,
         )
 
         # 3. Call LLM
@@ -1720,27 +1976,18 @@ def process_group_event(db, client, config, event):
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Group greeting from {bot_name}: "
             f"{message}"
         )
 
         # 5. Insert message for delivery via party
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(NOW(), INTERVAL 2 SECOND)
-            )
-        """, (
-            event_id, bot_guid,
-            bot_name, message
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, bot_guid, bot_name, message,
+            channel='party', delay_seconds=2,
+            event_id=event_id, emote=emote,
+        )
 
         # 6. Store in chat history
         _store_chat(
@@ -1755,7 +2002,19 @@ def process_group_event(db, client, config, event):
             mode, event_id
         )
 
-        # 8. Mark event completed
+        # 8. Pre-generate farewell message
+        try:
+            _generate_farewell(
+                db, client, config,
+                bot_name, bot_race, bot_class,
+                traits, mode, group_id, bot_guid,
+            )
+        except Exception as e:
+            logger.warning(
+                f"Farewell generation failed: {e}"
+            )
+
+        # 9. Mark event completed
         _mark_event(db, event_id, 'completed')
         return True
 
@@ -1863,6 +2122,13 @@ def process_group_kill_event(
             is_boss, is_rare, mode,
             chat_history=chat_hist,
         )
+        mood_label = get_bot_mood_label(
+            group_id, bot_guid
+        )
+        if mood_label != 'neutral':
+            prompt += (
+                f"\nCurrent mood: {mood_label}"
+            )
 
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
@@ -1888,32 +2154,27 @@ def process_group_kill_event(
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Kill reaction from {bot_name}: "
             f"{message}"
         )
 
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(NOW(), INTERVAL 3 SECOND)
-            )
-        """, (
-            event_id, bot_guid,
-            bot_name, message
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, bot_guid, bot_name, message,
+            channel='party', delay_seconds=3,
+            event_id=event_id, emote=emote,
+        )
 
         _store_chat(
             db, group_id, bot_guid,
             bot_name, True, message
         )
 
+        update_bot_mood(
+            group_id, bot_guid,
+            'boss_kill' if is_boss else 'kill'
+        )
         _mark_event(db, event_id, 'completed')
         return True
 
@@ -2060,6 +2321,13 @@ def process_group_loot_event(
             chat_history=chat_hist,
             looter_name=prompt_looter_name,
         )
+        mood_label = get_bot_mood_label(
+            group_id, bot['guid']
+        )
+        if mood_label != 'neutral':
+            prompt += (
+                f"\nCurrent mood: {mood_label}"
+            )
 
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
@@ -2099,32 +2367,28 @@ def process_group_loot_event(
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Loot reaction from {bot['name']}: "
             f"{message}"
         )
 
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(NOW(), INTERVAL 3 SECOND)
-            )
-        """, (
-            event_id, bot['guid'],
-            bot['name'], message
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, bot['guid'], bot['name'], message,
+            channel='party', delay_seconds=3,
+            event_id=event_id, emote=emote,
+        )
 
         _store_chat(
             db, group_id, bot['guid'],
             bot['name'], True, message
         )
 
+        update_bot_mood(
+            group_id, bot['guid'],
+            'epic_loot' if item_quality >= 4
+            else 'loot'
+        )
         _mark_event(db, event_id, 'completed')
         return True
 
@@ -2266,26 +2530,17 @@ def process_group_combat_event(
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Combat cry from {bot_name}: "
             f"{message}"
         )
 
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(NOW(), INTERVAL 1 SECOND)
-            )
-        """, (
-            event_id, bot['guid'],
-            bot['name'], message
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, bot['guid'], bot['name'], message,
+            channel='party', delay_seconds=1,
+            event_id=event_id, emote=emote,
+        )
 
         _store_chat(
             db, group_id, bot['guid'],
@@ -2404,6 +2659,13 @@ def process_group_death_event(
             chat_history=chat_hist,
             is_player_death=is_player_death,
         )
+        mood_label = get_bot_mood_label(
+            group_id, reactor_guid
+        )
+        if mood_label != 'neutral':
+            prompt += (
+                f"\nCurrent mood: {mood_label}"
+            )
 
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
@@ -2429,32 +2691,27 @@ def process_group_death_event(
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Death reaction from "
             f"{reactor_name}: {message}"
         )
 
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(NOW(), INTERVAL 2 SECOND)
-            )
-        """, (
-            event_id, reactor_guid,
-            reactor_name, message
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, reactor_guid, reactor_name,
+            message, channel='party',
+            delay_seconds=2, event_id=event_id,
+            emote=emote,
+        )
 
         _store_chat(
             db, group_id, reactor_guid,
             reactor_name, True, message
         )
 
+        update_bot_mood(
+            group_id, reactor_guid, 'death'
+        )
         _mark_event(db, event_id, 'completed')
         return True
 
@@ -2605,11 +2862,50 @@ def process_group_player_msg_event(
         # history/chat_hist fetched above for
         # bot selection — reuse here
         members = get_group_members(db, group_id)
+
+        # Check for item links in player message
+        item_context = ""
+        linked_items = detect_item_links(
+            player_message
+        )
+        if linked_items:
+            items_info = []
+            world_db = None
+            try:
+                world_db = get_db_connection(
+                    config, 'acore_world'
+                )
+                for entry, name in linked_items:
+                    details = query_item_details(
+                        world_db, entry
+                    )
+                    if details:
+                        items_info.append(details)
+            except Exception as e:
+                logger.warning(
+                    f"Item link query failed: {e}"
+                )
+            finally:
+                if world_db:
+                    try:
+                        world_db.close()
+                    except Exception:
+                        pass
+            if items_info:
+                item_context = format_item_context(
+                    items_info, bot['class']
+                )
+                logger.info(
+                    f"Item links detected: "
+                    f"{item_context}"
+                )
+
         prompt = build_player_response_prompt(
             bot, traits, player_name,
             player_message, mode,
             chat_history=chat_hist,
             members=members,
+            item_context=item_context,
         )
 
         max_tokens = int(config.get(
@@ -2636,26 +2932,17 @@ def process_group_player_msg_event(
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Player response from {bot_name}: "
             f"{message}"
         )
 
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(NOW(), INTERVAL 3 SECOND)
-            )
-        """, (
-            event_id, bot_guid,
-            bot_name, message
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, bot_guid, bot_name, message,
+            channel='party', delay_seconds=3,
+            event_id=event_id, emote=emote,
+        )
 
         _store_chat(
             db, group_id, bot_guid,
@@ -2808,6 +3095,13 @@ def process_group_levelup_event(
             leveler_name, new_level, is_bot,
             mode, chat_history=chat_hist,
         )
+        mood_label = get_bot_mood_label(
+            group_id, reactor_guid
+        )
+        if mood_label != 'neutral':
+            prompt += (
+                f"\nCurrent mood: {mood_label}"
+            )
 
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
@@ -2837,32 +3131,27 @@ def process_group_levelup_event(
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Levelup reaction from "
             f"{reactor_name}: {message}"
         )
 
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(NOW(), INTERVAL 2 SECOND)
-            )
-        """, (
-            event_id, reactor_guid,
-            reactor_name, message
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, reactor_guid, reactor_name,
+            message, channel='party',
+            delay_seconds=2, event_id=event_id,
+            emote=emote,
+        )
 
         _store_chat(
             db, group_id, reactor_guid,
             reactor_name, True, message
         )
 
+        update_bot_mood(
+            group_id, reactor_guid, 'levelup'
+        )
         _mark_event(db, event_id, 'completed')
         return True
 
@@ -2999,6 +3288,13 @@ def process_group_quest_complete_event(
                 chat_history=chat_hist,
             )
         )
+        mood_label = get_bot_mood_label(
+            group_id, reactor_guid
+        )
+        if mood_label != 'neutral':
+            prompt += (
+                f"\nCurrent mood: {mood_label}"
+            )
 
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
@@ -3028,32 +3324,27 @@ def process_group_quest_complete_event(
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Quest complete reaction from "
             f"{reactor_name}: {message}"
         )
 
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(NOW(), INTERVAL 2 SECOND)
-            )
-        """, (
-            event_id, reactor_guid,
-            reactor_name, message
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, reactor_guid, reactor_name,
+            message, channel='party',
+            delay_seconds=2, event_id=event_id,
+            emote=emote,
+        )
 
         _store_chat(
             db, group_id, reactor_guid,
             reactor_name, True, message
         )
 
+        update_bot_mood(
+            group_id, reactor_guid, 'quest'
+        )
         _mark_event(db, event_id, 'completed')
         return True
 
@@ -3234,26 +3525,18 @@ def process_group_quest_objectives_event(
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Quest objectives reaction from "
             f"{reactor_name}: {message}"
         )
 
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(NOW(), INTERVAL 2 SECOND)
-            )
-        """, (
-            event_id, reactor_guid,
-            reactor_name, message
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, reactor_guid, reactor_name,
+            message, channel='party',
+            delay_seconds=2, event_id=event_id,
+            emote=emote,
+        )
 
         _store_chat(
             db, group_id, reactor_guid,
@@ -3394,6 +3677,13 @@ def process_group_achievement_event(
             is_bot, mode,
             chat_history=chat_hist,
         )
+        mood_label = get_bot_mood_label(
+            group_id, reactor_guid
+        )
+        if mood_label != 'neutral':
+            prompt += (
+                f"\nCurrent mood: {mood_label}"
+            )
 
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
@@ -3423,32 +3713,27 @@ def process_group_achievement_event(
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Achievement reaction from "
             f"{reactor_name}: {message}"
         )
 
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(NOW(), INTERVAL 2 SECOND)
-            )
-        """, (
-            event_id, reactor_guid,
-            reactor_name, message
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, reactor_guid, reactor_name,
+            message, channel='party',
+            delay_seconds=2, event_id=event_id,
+            emote=emote,
+        )
 
         _store_chat(
             db, group_id, reactor_guid,
             reactor_name, True, message
         )
 
+        update_bot_mood(
+            group_id, reactor_guid, 'achievement'
+        )
         _mark_event(db, event_id, 'completed')
         return True
 
@@ -3616,29 +3901,18 @@ def process_group_spell_cast_event(
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Spell cast reaction from "
             f"{bot_name}: {message}"
         )
 
         delay = random.randint(2, 3)
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(
-                    NOW(), INTERVAL %s SECOND
-                )
-            )
-        """, (
-            event_id, bot_guid,
-            bot_name, message, delay
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, bot_guid, bot_name, message,
+            channel='party', delay_seconds=delay,
+            event_id=event_id, emote=emote,
+        )
 
         _store_chat(
             db, group_id, bot_guid,
@@ -3748,6 +4022,13 @@ def process_group_resurrect_event(
             bot, traits, mode,
             chat_history=chat_hist,
         )
+        mood_label = get_bot_mood_label(
+            group_id, bot_guid
+        )
+        if mood_label != 'neutral':
+            prompt += (
+                f"\nCurrent mood: {mood_label}"
+            )
 
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
@@ -3774,32 +4055,26 @@ def process_group_resurrect_event(
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Resurrect reaction from "
             f"{bot_name}: {message}"
         )
 
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(NOW(), INTERVAL 2 SECOND)
-            )
-        """, (
-            event_id, bot_guid,
-            bot_name, message
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, bot_guid, bot_name, message,
+            channel='party', delay_seconds=2,
+            event_id=event_id, emote=emote,
+        )
 
         _store_chat(
             db, group_id, bot_guid,
             bot_name, True, message
         )
 
+        update_bot_mood(
+            group_id, bot_guid, 'resurrect'
+        )
         _mark_event(db, event_id, 'completed')
         return True
 
@@ -3929,26 +4204,17 @@ def process_group_zone_transition_event(
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Zone transition reaction from "
             f"{bot_name}: {message}"
         )
 
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(NOW(), INTERVAL 2 SECOND)
-            )
-        """, (
-            event_id, bot_guid,
-            bot_name, message
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, bot_guid, bot_name, message,
+            channel='party', delay_seconds=2,
+            event_id=event_id, emote=emote,
+        )
 
         _store_chat(
             db, group_id, bot_guid,
@@ -4089,29 +4355,18 @@ def process_group_dungeon_entry_event(
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Dungeon entry reaction from "
             f"{bot_name}: {message}"
         )
 
         delay = random.randint(2, 4)
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(
-                    NOW(), INTERVAL %s SECOND
-                )
-            )
-        """, (
-            event_id, bot_guid,
-            bot_name, message, delay
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, bot_guid, bot_name, message,
+            channel='party', delay_seconds=delay,
+            event_id=event_id, emote=emote,
+        )
 
         _store_chat(
             db, group_id, bot_guid,
@@ -4220,6 +4475,13 @@ def process_group_wipe_event(
             bot, traits, killer_name, mode,
             chat_history=chat_hist,
         )
+        mood_label = get_bot_mood_label(
+            group_id, bot_guid
+        )
+        if mood_label != 'neutral':
+            prompt += (
+                f"\nCurrent mood: {mood_label}"
+            )
 
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
@@ -4246,32 +4508,26 @@ def process_group_wipe_event(
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Wipe reaction from "
             f"{bot_name}: {message}"
         )
 
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(NOW(), INTERVAL 2 SECOND)
-            )
-        """, (
-            event_id, bot_guid,
-            bot_name, message
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, bot_guid, bot_name, message,
+            channel='party', delay_seconds=2,
+            event_id=event_id, emote=emote,
+        )
 
         _store_chat(
             db, group_id, bot_guid,
             bot_name, True, message
         )
 
+        update_bot_mood(
+            group_id, bot_guid, 'wipe'
+        )
         _mark_event(db, event_id, 'completed')
         return True
 
@@ -4407,26 +4663,17 @@ def process_group_corpse_run_event(
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Corpse run from "
             f"{bot_name}: {message}"
         )
 
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                %s, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(NOW(), INTERVAL 2 SECOND)
-            )
-        """, (
-            event_id, bot_guid,
-            bot_name, message
-        ))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, bot_guid, bot_name, message,
+            channel='party', delay_seconds=2,
+            event_id=event_id, emote=emote,
+        )
 
         _store_chat(
             db, group_id, bot_guid,
@@ -4518,20 +4765,13 @@ def _try_second_bot_response(
         f"{bot2_name}: {msg2}"
     )
 
-    cursor = db.cursor()
-    cursor.execute("""
-        INSERT INTO llm_chatter_messages
-        (event_id, sequence, bot_guid,
-         bot_name, message, channel,
-         delivered, deliver_at)
-        VALUES (
-            %s, 1, %s, %s, %s, 'party', 0,
-            DATE_ADD(NOW(), INTERVAL 6 SECOND)
-        )
-    """, (
-        event_id, bot2_guid,
-        bot2_name, msg2
-    ))
+    emote = pick_emote_for_statement(msg2)
+    insert_chat_message(
+        db, bot2_guid, bot2_name, msg2,
+        channel='party', delay_seconds=6,
+        event_id=event_id, sequence=1,
+        emote=emote,
+    )
 
     _store_chat(
         db, group_id, bot2_guid,
@@ -4628,21 +4868,13 @@ def _welcome_from_existing_bot(
     )
 
     # Insert with 5s delay (greeting is at 2s)
-    cursor = db.cursor()
-    cursor.execute("""
-        INSERT INTO llm_chatter_messages
-        (event_id, sequence, bot_guid,
-         bot_name, message, channel,
-         delivered, deliver_at)
-        VALUES (
-            %s, 1, %s, %s, %s, 'party', 0,
-            DATE_ADD(NOW(), INTERVAL 5 SECOND)
-        )
-    """, (
-        event_id, wb_guid,
-        wb_name, msg
-    ))
-    db.commit()
+    emote = pick_emote_for_statement(msg)
+    insert_chat_message(
+        db, wb_guid, wb_name, msg,
+        channel='party', delay_seconds=5,
+        event_id=event_id, sequence=1,
+        emote=emote,
+    )
 
     _store_chat(
         db, group_id, wb_guid,
@@ -5373,6 +5605,7 @@ def build_idle_chatter_prompt(
     player_name=None,
     address_target=None,
     dungeon_bosses=None,
+    recent_messages=None,
 ):
     """Build prompt for idle party chat.
 
@@ -5531,6 +5764,11 @@ def build_idle_chatter_prompt(
         f"- Stick to observation, opinion, banter, "
         f"and small talk"
     )
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
+    if anti_rep:
+        prompt += f"\n{anti_rep}"
     return prompt
 
 
@@ -5541,6 +5779,7 @@ def build_idle_conversation_prompt(
     current_weather=None,
     player_name=None,
     dungeon_bosses=None,
+    recent_messages=None,
 ):
     """Build prompt for a multi-bot idle conversation.
 
@@ -5703,9 +5942,10 @@ def build_idle_conversation_prompt(
     # Natural flow instruction for 3+ bots
     if num_bots > 2:
         parts.append(
-            "IMPORTANT: All speakers should "
-            "participate naturally. Don't use "
-            "rigid round-robin order — let the "
+            "IMPORTANT: EVERY speaker MUST have "
+            "at least one message — do NOT skip "
+            "any participant. Don't use rigid "
+            "round-robin order — let the "
             "conversation flow organically. "
             "Some speakers may reply back-to-back "
             "if it feels natural."
@@ -5755,6 +5995,19 @@ def build_idle_conversation_prompt(
         "said in chat."
     )
 
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
+    if anti_rep:
+        parts.append(anti_rep)
+
+    parts.append(
+        f"Emotes: Each message may include an "
+        f"optional \"emote\" field (one of: "
+        f"{EMOTE_LIST_STR}). Pick an emote that "
+        f"fits the message mood, or omit it."
+    )
+
     parts.append(
         "JSON rules: Use double quotes, escape "
         "quotes/newlines, no trailing commas, "
@@ -5763,7 +6016,7 @@ def build_idle_conversation_prompt(
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", '
-            f'"message": "..."}}'
+            f'"message": "...", "emote": "talk"}}'
             for name in bot_names
         ]
     )
@@ -6015,6 +6268,10 @@ def _idle_single_statement(
         f"player={player_name}{boss_str}"
     )
 
+    recent_msgs = get_recent_bot_messages(
+        db, bot_guid
+    )
+
     try:
         prompt = build_idle_chatter_prompt(
             bot, traits, mode,
@@ -6026,6 +6283,7 @@ def _idle_single_statement(
             player_name=player_name,
             address_target=address_target,
             dungeon_bosses=dungeon_bosses,
+            recent_messages=recent_msgs,
         )
 
         max_tokens = int(config.get(
@@ -6052,24 +6310,18 @@ def _idle_single_statement(
         if len(message) > 255:
             message = message[:252] + "..."
 
-        logger.warning(
+        logger.info(
             f"Idle chatter from {bot_name}: "
             f"{message}"
         )
 
         # Insert directly into messages table
-        cursor = db.cursor()
-        cursor.execute("""
-            INSERT INTO llm_chatter_messages
-            (event_id, sequence, bot_guid,
-             bot_name, message, channel,
-             delivered, deliver_at)
-            VALUES (
-                NULL, 0, %s, %s, %s, 'party', 0,
-                DATE_ADD(NOW(), INTERVAL 2 SECOND)
-            )
-        """, (bot_guid, bot_name, message))
-        db.commit()
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, bot_guid, bot_name, message,
+            channel='party', delay_seconds=2,
+            event_id=None, emote=emote,
+        )
 
         _store_chat(
             db, group_id, bot_guid,
@@ -6158,6 +6410,14 @@ def _idle_conversation(
         f"player={player_name}{boss_str}"
     )
 
+    # Pool recent messages from all participating bots
+    recent_msgs = []
+    for br in selected_rows:
+        msgs = get_recent_bot_messages(
+            db, br['bot_guid']
+        )
+        recent_msgs.extend(msgs)
+
     try:
         prompt = build_idle_conversation_prompt(
             bots, traits_map, mode, topic,
@@ -6168,6 +6428,7 @@ def _idle_conversation(
             current_weather=current_weather,
             player_name=player_name,
             dungeon_bosses=dungeon_bosses,
+            recent_messages=recent_msgs,
         )
 
         # Scale tokens with number of bots
@@ -6185,6 +6446,11 @@ def _idle_conversation(
         if not response:
             return False
 
+        logger.info(
+            f"LLM raw response "
+            f"(len={len(response)}):\n{response}"
+        )
+
         # Parse JSON conversation
         messages = parse_conversation_response(
             response, bot_names
@@ -6197,7 +6463,7 @@ def _idle_conversation(
             )
             return False
 
-        logger.warning(
+        logger.info(
             f"Idle conversation "
             f"({len(messages)} msgs, "
             f"{num_bots} bots) in group "
@@ -6209,7 +6475,6 @@ def _idle_conversation(
         )
 
         # Insert messages with staggered delivery
-        cursor = db.cursor()
         cumulative_delay = 2.0
         prev_len = 0
 
@@ -6244,24 +6509,13 @@ def _idle_conversation(
                 )
                 cumulative_delay += delay
 
-            cursor.execute("""
-                INSERT INTO llm_chatter_messages
-                (event_id, sequence, bot_guid,
-                 bot_name, message, channel,
-                 delivered, deliver_at)
-                VALUES (
-                    NULL, %s, %s, %s, %s,
-                    'party', 0,
-                    DATE_ADD(
-                        NOW(),
-                        INTERVAL %s SECOND
-                    )
-                )
-            """, (
-                seq, speaker_guid,
-                msg['name'], text,
-                int(cumulative_delay),
-            ))
+            insert_chat_message(
+                db, speaker_guid, msg['name'],
+                text, channel='party',
+                delay_seconds=int(cumulative_delay),
+                event_id=None, sequence=seq,
+                emote=msg.get('emote'),
+            )
 
             _store_chat(
                 db, group_id, speaker_guid,
@@ -6270,7 +6524,6 @@ def _idle_conversation(
 
             prev_len = len(text)
 
-        db.commit()
         _last_idle_chatter[group_id] = now
         return True
 

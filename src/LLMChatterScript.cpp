@@ -38,6 +38,8 @@
 #include "MapMgr.h"
 #include "Transport.h"
 #include "Spell.h"
+#include "Chat.h"
+#include <algorithm>
 #include <vector>
 #include <map>
 #include <set>
@@ -216,6 +218,36 @@ static std::string ConvertAllLinks(const std::string& text)
     return result;
 }
 
+// Map emote name string to EMOTE_ONESHOT_* enum value
+static uint32 GetEmoteId(const std::string& emoteName)
+{
+    static const std::unordered_map<std::string, uint32>
+        emoteMap = {
+        {"talk", EMOTE_ONESHOT_TALK},
+        {"bow", EMOTE_ONESHOT_BOW},
+        {"wave", EMOTE_ONESHOT_WAVE},
+        {"cheer", EMOTE_ONESHOT_CHEER},
+        {"exclamation", EMOTE_ONESHOT_EXCLAMATION},
+        {"question", EMOTE_ONESHOT_QUESTION},
+        {"laugh", EMOTE_ONESHOT_LAUGH},
+        {"roar", EMOTE_ONESHOT_ROAR},
+        {"kneel", EMOTE_ONESHOT_KNEEL},
+        {"cry", EMOTE_ONESHOT_CRY},
+        {"applaud", EMOTE_ONESHOT_APPLAUD},
+        {"shout", EMOTE_ONESHOT_SHOUT},
+        {"flex", EMOTE_ONESHOT_FLEX},
+        {"shy", EMOTE_ONESHOT_SHY},
+        {"point", EMOTE_ONESHOT_POINT},
+        {"salute", EMOTE_ONESHOT_SALUTE},
+        {"dance", EMOTE_ONESHOT_DANCESPECIAL},
+    };
+
+    auto it = emoteMap.find(emoteName);
+    if (it != emoteMap.end())
+        return it->second;
+    return 0;
+}
+
 // ============================================================================
 // EVENT SYSTEM UTILITIES
 // ============================================================================
@@ -335,6 +367,30 @@ static void QueueEvent(const std::string& eventType, const std::string& eventSco
     if (!sLLMChatterConfig->IsEnabled() || !sLLMChatterConfig->_useEventSystem)
         return;
 
+    // Check cooldown FIRST, before RNG roll.
+    // This prevents multi-tick RNG amplification:
+    // transports stay in a zone for multiple check
+    // ticks, and each tick would get an independent
+    // RNG roll if cooldown isn't set early. By setting
+    // cooldown on first detection, each arrival gets
+    // exactly one RNG chance.
+    if (!cooldownKey.empty()
+        && IsOnCooldown(cooldownKey, cooldownSeconds))
+    {
+        if (eventType != "transport_arrives")
+        {
+            LOG_DEBUG("module",
+                "LLMChatter: Event {} on cooldown ({})",
+                eventType, cooldownKey);
+        }
+        return;
+    }
+
+    // Set cooldown immediately on first detection,
+    // regardless of RNG outcome below
+    if (!cooldownKey.empty())
+        SetCooldown(cooldownKey);
+
     // Roll reaction chance
     // Holidays and day/night are rare one-time events;
     // always let them through
@@ -349,46 +405,29 @@ static void QueueEvent(const std::string& eventType, const std::string& eventSco
         && sLLMChatterConfig->_transportEventChance > 0)
         reactionChance =
             sLLMChatterConfig->_transportEventChance;
+    else if (eventType == "minor_event"
+        && sLLMChatterConfig->_minorEventChance > 0)
+        reactionChance =
+            sLLMChatterConfig->_minorEventChance;
 
     if (!alwaysFire
         && urand(1, 100) > reactionChance)
     {
-        if (eventType == "transport_arrives")
-        {
-            // LOG_INFO("module", "LLMChatter: Transport event skipped (reaction chance {})", reactionChance);
-        }
-        else
-        {
-            LOG_DEBUG("module", "LLMChatter: Event {} skipped (reaction chance)", eventType);
-        }
-        return;
-    }
-
-    // Check cooldown
-    if (!cooldownKey.empty() && IsOnCooldown(cooldownKey, cooldownSeconds))
-    {
-        if (eventType == "transport_arrives")
-        {
-            // LOG_INFO("module", "LLMChatter: Transport event on cooldown ({})", cooldownKey);
-        }
-        else
-        {
-            LOG_DEBUG("module", "LLMChatter: Event {} on cooldown ({})", eventType, cooldownKey);
-        }
+        LOG_DEBUG("module",
+            "LLMChatter: Event {} skipped "
+            "(reaction chance {}%)",
+            eventType, reactionChance);
         return;
     }
 
     // Calculate delays
     // Expiration must be AFTER reaction delay,
     // otherwise events expire before they fire
-    uint32 reactionDelay = GetReactionDelaySeconds(eventType);
+    uint32 reactionDelay =
+        GetReactionDelaySeconds(eventType);
     uint32 expirationSeconds =
         reactionDelay
         + sLLMChatterConfig->_eventExpirationSeconds;
-
-    // Set cooldown
-    if (!cooldownKey.empty())
-        SetCooldown(cooldownKey);
 
     // Insert event
     CharacterDatabase.Execute(
@@ -414,17 +453,65 @@ static void QueueEvent(const std::string& eventType, const std::string& eventSco
              eventType, zoneId, reactionDelay);
 }
 
-// Helper: check if a game event is a holiday/calendar
-// event by looking at the HolidayId field in
-// GameEventData. Covers all holidays, Darkmoon Faire,
-// Call to Arms weekends, fishing derbies, etc.
+// Helper: check if a game event is a real holiday
+// (not Call to Arms, fishing pools, building phases,
+// or fireworks). These non-holiday events have
+// HolidayId != HOLIDAY_NONE but aren't actual
+// holidays worth triggering chatter for.
 static bool IsHolidayEvent(uint16 eventId)
 {
     GameEventMgr::GameEventDataMap const& events =
         sGameEventMgr->GetEventMap();
     if (eventId >= events.size())
         return false;
-    return events[eventId].HolidayId != HOLIDAY_NONE;
+    if (events[eventId].HolidayId == HOLIDAY_NONE)
+        return false;
+
+    // Exclude non-holiday events that happen to
+    // have a HolidayId (BG rotations, setup phases,
+    // fishing pools, fireworks)
+    std::string const& desc =
+        events[eventId].Description;
+    if (desc.find("Call to Arms") != std::string::npos)
+        return false;
+    if (desc.find("Building") != std::string::npos)
+        return false;
+    if (desc.find("Fishing Pools")
+        != std::string::npos)
+        return false;
+    if (desc.find("Fireworks") != std::string::npos)
+        return false;
+
+    return true;
+}
+
+// Helper: check if a game event is a minor
+// non-holiday event worth occasional mention
+// (Call to Arms BG rotations, fishing derbies,
+// fireworks). These fire less often than holidays.
+static bool IsMinorGameEvent(uint16 eventId)
+{
+    GameEventMgr::GameEventDataMap const& events =
+        sGameEventMgr->GetEventMap();
+    if (eventId >= events.size())
+        return false;
+    if (events[eventId].HolidayId == HOLIDAY_NONE)
+        return false;
+
+    // Only match events explicitly excluded from
+    // IsHolidayEvent() (except Building phases
+    // which are invisible setup events)
+    std::string const& desc =
+        events[eventId].Description;
+    if (desc.find("Call to Arms") != std::string::npos)
+        return true;
+    if (desc.find("Fishing Pools")
+        != std::string::npos)
+        return true;
+    if (desc.find("Fireworks") != std::string::npos)
+        return true;
+
+    return false;
 }
 
 // Helper: check if a zone is a capital city
@@ -537,6 +624,61 @@ static std::string GetZoneName(uint32 zoneId)
     return "Unknown Zone";
 }
 
+// Check if a bot can speak in the General channel
+// for its current zone. Verifies the bot is actually
+// a member of a General channel matching its zone.
+static bool CanSpeakInGeneralChannel(Player* bot)
+{
+    if (!bot || !bot->IsInWorld())
+        return false;
+
+    // Look up the bot's current zone name.
+    // Use world default locale to match how
+    // SayToChannel() resolves zone names
+    // (GetLocalizedAreaName uses
+    //  sWorld->GetDefaultDbcLocale()).
+    uint32 zoneId = bot->GetZoneId();
+    AreaTableEntry const* area =
+        sAreaTableStore.LookupEntry(zoneId);
+    if (!area)
+        return false;
+    std::string zoneName =
+        area->area_name[
+            sWorld->GetDefaultDbcLocale()];
+    if (zoneName.empty())
+        zoneName = area->area_name[LOCALE_enUS];
+    if (zoneName.empty())
+        return false;
+
+    // Get ChannelMgr for the bot's faction
+    ChannelMgr* cMgr =
+        ChannelMgr::forTeam(bot->GetTeamId());
+    if (!cMgr)
+        return false;
+
+    // Find a General channel whose name contains
+    // the bot's zone name
+    for (auto const& [key, channel] :
+         cMgr->GetChannels())
+    {
+        if (!channel)
+            continue;
+        if (channel->GetChannelId()
+            != ChatChannelId::GENERAL)
+            continue;
+        if (channel->GetName().find(zoneName)
+            == std::string::npos)
+            continue;
+
+        // Found matching General channel for zone.
+        // Check if bot is actually a member.
+        return bot->IsInChannel(channel);
+    }
+
+    // No General channel exists for this zone
+    return false;
+}
+
 // ============================================================================
 // GAME EVENT SCRIPT - Holiday Events
 // ============================================================================
@@ -551,19 +693,29 @@ public:
         if (!sLLMChatterConfig->IsEnabled()
             || !sLLMChatterConfig->_useEventSystem)
             return;
-        if (!sLLMChatterConfig->_eventsHolidays)
-            return;
-        if (!IsHolidayEvent(eventId))
-            return;
-
-        QueueHolidayForZones(eventId,
-            "holiday_start");
 
         GameEventMgr::GameEventDataMap const& events =
             sGameEventMgr->GetEventMap();
-        LOG_INFO("module",
-            "LLMChatter: Holiday started - {}",
-            events[eventId].Description);
+
+        if (sLLMChatterConfig->_eventsHolidays
+            && IsHolidayEvent(eventId))
+        {
+            QueueHolidayForZones(eventId,
+                "holiday_start");
+            LOG_INFO("module",
+                "LLMChatter: Holiday started - {}",
+                events[eventId].Description);
+        }
+        else if (sLLMChatterConfig->_eventsMinor
+            && IsMinorGameEvent(eventId))
+        {
+            QueueHolidayForZones(eventId,
+                "minor_event");
+            LOG_INFO("module",
+                "LLMChatter: Minor event started"
+                " - {}",
+                events[eventId].Description);
+        }
     }
 
     void OnStop(uint16 eventId) override
@@ -571,19 +723,21 @@ public:
         if (!sLLMChatterConfig->IsEnabled()
             || !sLLMChatterConfig->_useEventSystem)
             return;
-        if (!sLLMChatterConfig->_eventsHolidays)
-            return;
-        if (!IsHolidayEvent(eventId))
-            return;
-
-        QueueHolidayForZones(eventId,
-            "holiday_end");
 
         GameEventMgr::GameEventDataMap const& events =
             sGameEventMgr->GetEventMap();
-        LOG_INFO("module",
-            "LLMChatter: Holiday ended - {}",
-            events[eventId].Description);
+
+        if (sLLMChatterConfig->_eventsHolidays
+            && IsHolidayEvent(eventId))
+        {
+            QueueHolidayForZones(eventId,
+                "holiday_end");
+            LOG_INFO("module",
+                "LLMChatter: Holiday ended - {}",
+                events[eventId].Description);
+        }
+        // Minor events don't need end messages
+        // (BG rotations quietly expire)
     }
 };
 
@@ -919,12 +1073,11 @@ public:
         // Load transport info cache for transport events
         LoadTransportCache();
 
-        // Check for holidays already active at
-        // startup (OnStart hook only fires at the
-        // moment an event begins, not if the server
-        // restarts mid-event)
-        if (sLLMChatterConfig->_useEventSystem
-            && sLLMChatterConfig->_eventsHolidays)
+        // Check for holidays and minor events
+        // already active at startup (OnStart hook
+        // only fires at the moment an event begins,
+        // not if the server restarts mid-event)
+        if (sLLMChatterConfig->_useEventSystem)
         {
             GameEventMgr::GameEventDataMap const&
                 events =
@@ -937,18 +1090,26 @@ public:
                         ->IsActiveEvent(eventId))
                     continue;
 
-                if (!IsHolidayEvent(eventId))
-                    continue;
-
-                // Just log - CheckActiveHolidays()
-                // handles per-city queuing once
-                // players are in cities
                 GameEventData const& eventData =
                     events[eventId];
-                LOG_INFO("module",
-                    "LLMChatter: Holiday active "
-                    "at startup - {}",
-                    eventData.Description);
+
+                if (sLLMChatterConfig->_eventsHolidays
+                    && IsHolidayEvent(eventId))
+                {
+                    LOG_INFO("module",
+                        "LLMChatter: Holiday active"
+                        " at startup - {}",
+                        eventData.Description);
+                }
+                else if (
+                    sLLMChatterConfig->_eventsMinor
+                    && IsMinorGameEvent(eventId))
+                {
+                    LOG_INFO("module",
+                        "LLMChatter: Minor event "
+                        "active at startup - {}",
+                        eventData.Description);
+                }
             }
         }
 
@@ -989,7 +1150,8 @@ public:
         {
             _lastEnvironmentCheckTime = now;
             CheckDayNightTransition();
-            if (sLLMChatterConfig->_eventsHolidays)
+            if (sLLMChatterConfig->_eventsHolidays
+                || sLLMChatterConfig->_eventsMinor)
                 CheckActiveHolidays();
         }
 
@@ -1094,8 +1256,8 @@ private:
         //          previousPeriod, timePeriod, hour, minute);
     }
 
-    // Periodically re-queue holiday events when a
-    // real player is in a capital city.
+    // Periodically re-queue holiday and minor events
+    // when a real player is in a zone.
     void CheckActiveHolidays()
     {
         GameEventMgr::GameEventDataMap const& events =
@@ -1106,10 +1268,18 @@ private:
         {
             if (!sGameEventMgr->IsActiveEvent(eventId))
                 continue;
-            if (!IsHolidayEvent(eventId))
-                continue;
 
-            QueueHolidayForZones(eventId);
+            if (sLLMChatterConfig->_eventsHolidays
+                && IsHolidayEvent(eventId))
+            {
+                QueueHolidayForZones(eventId);
+            }
+            else if (sLLMChatterConfig->_eventsMinor
+                && IsMinorGameEvent(eventId))
+            {
+                QueueHolidayForZones(eventId,
+                    "minor_event");
+            }
         }
     }
 
@@ -1164,6 +1334,102 @@ private:
                         {
                             const TransportInfo& info = cacheIt->second;
 
+                            // Pre-filter bots that can
+                            // speak in General channel
+                            // for this zone, so Python
+                            // only picks verified bots.
+                            std::vector<Player*> zoneBots;
+                            auto allBots =
+                                sRandomPlayerbotMgr
+                                    .GetAllBots();
+                            for (auto& pair : allBots)
+                            {
+                                Player* bot = pair.second;
+                                if (!bot
+                                    || !bot->IsInWorld())
+                                    continue;
+                                if (bot->GetZoneId()
+                                    != currentZone)
+                                    continue;
+                                zoneBots.push_back(bot);
+                                if (zoneBots.size() >= 8)
+                                    break;
+                            }
+
+                            // Also check account bots
+                            if (zoneBots.size() < 8)
+                            {
+                                WorldSessionMgr::
+                                    SessionMap const&
+                                    sessions =
+                                    sWorldSessionMgr
+                                        ->GetAllSessions();
+                                for (auto const& pair
+                                     : sessions)
+                                {
+                                    WorldSession* sess =
+                                        pair.second;
+                                    if (!sess)
+                                        continue;
+                                    Player* p =
+                                        sess->GetPlayer();
+                                    if (!p
+                                        || !p->IsInWorld())
+                                        continue;
+                                    if (!IsPlayerBot(p))
+                                        continue;
+                                    if (p->GetZoneId()
+                                        != currentZone)
+                                        continue;
+                                    bool found = false;
+                                    for (Player* b
+                                         : zoneBots)
+                                    {
+                                        if (b->GetGUID()
+                                            == p->GetGUID())
+                                        {
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                    if (!found)
+                                    {
+                                        zoneBots.push_back(
+                                            p);
+                                        if (zoneBots.size()
+                                            >= 8)
+                                            break;
+                                    }
+                                }
+                            }
+
+                            // Filter to bots that can
+                            // speak in General channel
+                            zoneBots.erase(
+                                std::remove_if(
+                                    zoneBots.begin(),
+                                    zoneBots.end(),
+                                    [](Player* b) {
+                                        return
+                                            !CanSpeakInGeneralChannel(b);
+                                    }),
+                                zoneBots.end());
+
+                            // Build verified_bots JSON
+                            std::string verifiedBots = "[";
+                            for (size_t i = 0;
+                                 i < zoneBots.size(); ++i)
+                            {
+                                if (i > 0)
+                                    verifiedBots += ",";
+                                verifiedBots +=
+                                    std::to_string(
+                                        zoneBots[i]
+                                            ->GetGUID()
+                                            .GetCounter());
+                            }
+                            verifiedBots += "]";
+
                             // Build cooldown key
                             std::string cooldownKey = "transport:" + std::to_string(entry) +
                                                      ":zone:" + std::to_string(currentZone);
@@ -1178,7 +1444,8 @@ private:
                                 "\"transport_entry\":" + std::to_string(entry) + ","
                                 "\"transport_name\":\"" + JsonEscape(info.fullName) + "\","
                                 "\"destination\":\"" + JsonEscape(info.destination) + "\","
-                                "\"transport_type\":\"" + JsonEscape(info.transportType) + "\""
+                                "\"transport_type\":\"" + JsonEscape(info.transportType) + "\","
+                                "\"verified_bots\":" + verifiedBots +
                                 "}";
 
                             QueueEvent(
@@ -1423,6 +1690,16 @@ private:
             std::vector<Player*> bots =
                 GetBotsInZone(selectedZone, faction);
 
+            // Filter to bots that can actually
+            // speak in General channel
+            bots.erase(
+                std::remove_if(
+                    bots.begin(), bots.end(),
+                    [](Player* b) {
+                        return !CanSpeakInGeneralChannel(b);
+                    }),
+                bots.end());
+
             bool isConversation =
                 (urand(1, 100)
                  <= sLLMChatterConfig
@@ -1594,11 +1871,22 @@ private:
 
     void DeliverPendingMessages()
     {
-        // Find messages ready for delivery
+        // Find messages ready for delivery.
+        // Expire messages stuck undelivered for
+        // over 60s to prevent queue starvation.
+        CharacterDatabase.DirectExecute(
+            "UPDATE llm_chatter_messages "
+            "SET delivered = 1, delivered_at = NOW() "
+            "WHERE delivered = 0 "
+            "AND deliver_at < DATE_SUB(NOW(), "
+            "INTERVAL 60 SECOND)");
+
         QueryResult result = CharacterDatabase.Query(
-            "SELECT id, bot_guid, bot_name, message, channel "
+            "SELECT id, bot_guid, bot_name, "
+            "message, channel, emote "
             "FROM llm_chatter_messages "
-            "WHERE delivered = 0 AND deliver_at <= NOW() "
+            "WHERE delivered = 0 "
+            "AND deliver_at <= NOW() "
             "ORDER BY deliver_at ASC LIMIT 1");
 
         if (!result)
@@ -1611,7 +1899,12 @@ private:
             uint32 botGuid = fields[1].Get<uint32>();
             std::string botName = fields[2].Get<std::string>();
             std::string message = fields[3].Get<std::string>();
-            std::string channel = fields[4].Get<std::string>();
+            std::string channel =
+                fields[4].Get<std::string>();
+            std::string emoteName =
+                fields[5].IsNull()
+                    ? ""
+                    : fields[5].Get<std::string>();
 
             // Find the bot player (supports both
             // random bots and account character bots)
@@ -1631,53 +1924,67 @@ private:
                     bot = nullptr;
             }
 
+            // Always mark delivered (fail-fast).
+            // Pre-check filter ensures bots can
+            // speak in General at selection time.
+            CharacterDatabase.DirectExecute(
+                "UPDATE llm_chatter_messages "
+                "SET delivered = 1, "
+                "delivered_at = NOW() "
+                "WHERE id = {}",
+                messageId);
+
             if (bot && bot->IsInWorld())
             {
-                // Send to channel using PlayerbotAI
+                // Send using PlayerbotAI
                 if (PlayerbotAI* ai =
                         GET_PLAYERBOT_AI(bot))
                 {
                     std::string processedMessage =
                         ConvertAllLinks(message);
 
+                    bool sent = false;
                     if (channel == "party")
                     {
-                        ai->SayToParty(
+                        sent = ai->SayToParty(
                             processedMessage);
                     }
                     else
                     {
-                        ai->SayToChannel(
+                        sent = ai->SayToChannel(
                             processedMessage,
-                            ChatChannelId::GENERAL);
-                        // History stored by Python
-                        // bridge (chatter_general.py)
+                            ChatChannelId::
+                                GENERAL);
+                    }
+
+                    if (!sent)
+                    {
+                        LOG_WARN("module",
+                            "LLMChatter: "
+                            "Delivery failed "
+                            "for {} (msg {})",
+                            botName,
+                            messageId);
+                    }
+
+                    // Play emote animation if sent
+                    if (sent
+                        && !emoteName.empty())
+                    {
+                        uint32 emoteId =
+                            GetEmoteId(emoteName);
+                        if (emoteId)
+                            bot->HandleEmoteCommand(
+                                emoteId);
                     }
                 }
-
-                // Mark delivered after successful
-                // delivery attempt
-                CharacterDatabase.DirectExecute(
-                    "UPDATE llm_chatter_messages "
-                    "SET delivered = 1, "
-                    "delivered_at = NOW() "
-                    "WHERE id = {}",
-                    messageId);
             }
             else
             {
-                // Bot offline/not found - still mark
-                // delivered to prevent infinite retry
                 LOG_DEBUG("module",
                     "LLMChatter: Bot {} not found "
-                    "or offline, skipping message",
-                    botName);
-                CharacterDatabase.DirectExecute(
-                    "UPDATE llm_chatter_messages "
-                    "SET delivered = 1, "
-                    "delivered_at = NOW() "
-                    "WHERE id = {}",
-                    messageId);
+                    "or offline, skipping msg {}",
+                    botName, messageId);
             }
 
         } while (result->NextRow());
@@ -1749,6 +2056,22 @@ static void QueueBotGreetingEvent(
     uint8 botRace = bot->getRace();
     uint8 botLevel = bot->GetLevel();
 
+    // Find real player name and count group members
+    std::string playerName;
+    uint32 groupSize = 0;
+    for (GroupReference* itr =
+             group->GetFirstMember();
+         itr != nullptr; itr = itr->next())
+    {
+        if (Player* member = itr->GetSource())
+        {
+            ++groupSize;
+            if (!IsPlayerBot(member)
+                && playerName.empty())
+                playerName = member->GetName();
+        }
+    }
+
     // Build extra_data JSON
     // NOTE: extraData is inserted into SQL via
     // fmt::format; relies on JsonEscape for
@@ -1759,7 +2082,11 @@ static void QueueBotGreetingEvent(
         "\"bot_class\":" + std::to_string(botClass) + ","
         "\"bot_race\":" + std::to_string(botRace) + ","
         "\"bot_level\":" + std::to_string(botLevel) + ","
-        "\"group_id\":" + std::to_string(groupId) +
+        "\"group_id\":" + std::to_string(groupId) + ","
+        "\"player_name\":\"" +
+            JsonEscape(playerName) + "\","
+        "\"group_size\":" +
+            std::to_string(groupSize) +
         "}";
 
     // SQL-escape the whole JSON blob so
@@ -1932,6 +2259,63 @@ public:
             {
                 uint32 botGuid =
                     guid.GetCounter();
+
+                // Send farewell message before cleanup
+                if (sLLMChatterConfig->_useFarewell)
+                {
+                QueryResult farewell =
+                    CharacterDatabase.Query(
+                        "SELECT farewell_msg "
+                        "FROM llm_group_bot_traits "
+                        "WHERE group_id = {} "
+                        "AND bot_guid = {}",
+                        groupId, botGuid);
+                if (farewell)
+                {
+                    std::string farewellMsg =
+                        farewell->Fetch()[0]
+                            .Get<std::string>();
+                    if (!farewellMsg.empty())
+                    {
+                        // Build party chat packet
+                        // from leaving bot
+                        WorldPacket data;
+                        ChatHandler::BuildChatPacket(
+                            data,
+                            CHAT_MSG_PARTY,
+                            LANG_UNIVERSAL,
+                            removed,
+                            nullptr,
+                            farewellMsg);
+
+                        // Send to remaining members
+                        for (GroupReference* itr =
+                                 group->GetFirstMember();
+                             itr != nullptr;
+                             itr = itr->next())
+                        {
+                            Player* member =
+                                itr->GetSource();
+                            if (member
+                                && member != removed
+                                && member->GetSession())
+                            {
+                                member
+                                    ->GetSession()
+                                    ->SendPacket(
+                                        &data);
+                            }
+                        }
+                        LOG_INFO("module",
+                            "LLMChatter: Farewell "
+                            "from bot {} (group {})"
+                            ": {}",
+                            botGuid, groupId,
+                            farewellMsg);
+                    }
+                }
+                } // _useFarewell
+
                 CharacterDatabase.Execute(
                     "DELETE FROM llm_group_bot_traits "
                     "WHERE group_id = {} "
@@ -2177,6 +2561,16 @@ public:
                 }
             }
         }
+
+        // Filter to bots that can actually
+        // speak in General channel
+        zoneBots.erase(
+            std::remove_if(
+                zoneBots.begin(), zoneBots.end(),
+                [](Player* b) {
+                    return !CanSpeakInGeneralChannel(b);
+                }),
+            zoneBots.end());
 
         if (zoneBots.empty())
             return true;

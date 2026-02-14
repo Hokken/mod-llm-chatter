@@ -47,6 +47,8 @@ void LLMChatterConfig::LoadConfig()
     _eventsDayNight = sConfigMgr->GetOption<bool>("LLMChatter.Events.DayNight", true);
     _eventsWeather = sConfigMgr->GetOption<bool>("LLMChatter.Events.Weather", true);
     _eventsTransports = sConfigMgr->GetOption<bool>("LLMChatter.Events.Transports", true);
+    _eventsMinor = sConfigMgr->GetOption<bool>("LLMChatter.Events.MinorEvents", true);
+    _minorEventChance = sConfigMgr->GetOption<uint32>("LLMChatter.Events.MinorEventChance", 20);
 
     // Group chatter
     _useGroupChatter = sConfigMgr->GetOption<bool>("LLMChatter.GroupChatter.Enable", true);
@@ -77,6 +79,7 @@ void LLMChatterConfig::LoadConfig()
     _groupWipeCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.WipeCooldown", 120);
     _groupCorpseRunChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.CorpseRunChance", 80);
     _groupCorpseRunCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.CorpseRunCooldown", 120);
+    _useFarewell = sConfigMgr->GetOption<bool>("LLMChatter.GroupChatter.FarewellEnable", true);
 
     // General chat reactions
     _useGeneralChatReact = sConfigMgr->GetOption<bool>(

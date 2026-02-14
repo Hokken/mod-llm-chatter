@@ -32,14 +32,39 @@ def build_event_context(event: dict) -> str:
     if event_type == 'holiday_start':
         name = extra_data.get('event_name', 'a holiday')
         context_parts.append(
-            f"The {name} festival has just begun!"
+            f"The {name} event has just begun!"
         )
 
     elif event_type == 'holiday_end':
         name = extra_data.get('event_name', 'a holiday')
         context_parts.append(
-            f"The {name} festival is coming to an end."
+            f"The {name} event is coming to an end."
         )
+
+    elif event_type == 'minor_event':
+        name = extra_data.get(
+            'event_name', 'a minor event'
+        )
+        # Make the context feel natural depending
+        # on event type
+        if 'Call to Arms' in name:
+            context_parts.append(
+                f"The {name} battleground event "
+                f"is currently active."
+            )
+        elif 'Fishing' in name:
+            context_parts.append(
+                f"The {name} is happening right now."
+            )
+        elif 'Fireworks' in name:
+            context_parts.append(
+                f"The {name} show is lighting up "
+                f"the sky!"
+            )
+        else:
+            context_parts.append(
+                f"The {name} event is happening."
+            )
 
     elif event_type == 'world_boss_spawn':
         target = event.get('target_name', 'A world boss')
@@ -396,6 +421,26 @@ def build_event_context(event: dict) -> str:
             origin = (
                 transport_name.split(' and ')[0].strip()
             )
+
+        # The DB name lists stops as "StopA and StopB"
+        # but destination is always StopB regardless of
+        # direction. Use the event zone to figure out
+        # which stop the boat actually arrived at.
+        # If the zone name appears in "destination",
+        # we're already correct. If it appears in
+        # "origin", swap them.
+        zone_id = event.get('zone_id')
+        if zone_id and origin and destination:
+            zone_name = get_zone_name(zone_id)
+            if zone_name:
+                zn = zone_name.lower()
+                if (
+                    zn in origin.lower()
+                    and zn not in destination.lower()
+                ):
+                    origin, destination = (
+                        destination, origin
+                    )
 
         # Final defaults
         if not transport_type:

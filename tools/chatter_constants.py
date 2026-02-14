@@ -1451,6 +1451,7 @@ EVENT_DESCRIPTIONS = {
     'weather_change': 'weather changing',
     'holiday_start': 'a holiday beginning',
     'holiday_end': 'a holiday ending',
+    'minor_event': 'a game event happening',
     'creature_death_boss': 'a boss being defeated',
     'creature_death_rare': 'a rare creature being killed',
     'creature_death_guard': 'a city guard being killed',
@@ -1469,3 +1470,74 @@ EVENT_DESCRIPTIONS = {
 
 # Transport cooldown constant (seconds)
 ZONE_TRANSPORT_COOLDOWN_SECONDS = 300
+
+# =============================================================================
+# EMOTE SYSTEM - Emotes bots can play alongside messages
+# =============================================================================
+# Curated list of emotes that map to WoW
+# EMOTE_ONESHOT_* animations
+EMOTE_LIST = [
+    'talk', 'bow', 'wave', 'cheer', 'exclamation',
+    'question', 'laugh', 'roar', 'kneel', 'cry',
+    'applaud', 'shout', 'flex', 'shy', 'point',
+    'salute', 'dance', 'none',
+]
+
+EMOTE_LIST_STR = ', '.join(EMOTE_LIST)
+
+# Keyword -> emote mapping for statement post-processing
+# (used when LLM output is plain text, not JSON)
+EMOTE_KEYWORDS = {
+    # Positive / greeting
+    'hello': 'wave', 'hi ': 'wave', 'hey ': 'wave',
+    'greetings': 'wave', 'farewell': 'wave',
+    'goodbye': 'wave', 'safe travels': 'bow',
+    # Humor / joy
+    'lol': 'laugh', 'haha': 'laugh', 'lmao': 'laugh',
+    'rofl': 'laugh', 'funny': 'laugh',
+    'hilarious': 'laugh',
+    # Excitement
+    'nice': 'cheer', 'awesome': 'cheer',
+    'amazing': 'cheer', 'grats': 'cheer',
+    'congrats': 'cheer', 'woo': 'cheer',
+    'hell yeah': 'cheer', 'let\'s go': 'cheer',
+    # Sadness / frustration
+    'rip': 'cry', 'tragic': 'cry',
+    'terrible': 'cry', 'awful': 'cry',
+    # Respect / admiration
+    'thank': 'bow', 'respect': 'bow',
+    'honor': 'bow', 'well met': 'bow',
+    'impressive': 'applaud', 'well done': 'applaud',
+    'bravo': 'applaud', 'nice work': 'applaud',
+    # Combat / intensity
+    'charge': 'roar', 'attack': 'roar',
+    'for the': 'roar', 'lok\'tar': 'roar',
+    'fight': 'shout', 'watch out': 'shout',
+    'incoming': 'shout', 'behind you': 'shout',
+    # Questions
+    'where': 'question', 'how do': 'question',
+    'anyone know': 'question', 'what is': 'question',
+    '?': 'question',
+    # Surprise
+    'what the': 'exclamation', 'holy': 'exclamation',
+    'whoa': 'exclamation', 'wow ': 'exclamation',
+    '!': 'exclamation',
+    # Pride
+    'check this': 'flex', 'look at': 'flex',
+    'finally got': 'flex',
+    # Directions
+    'over there': 'point', 'that way': 'point',
+    'look over': 'point',
+    # Shy / embarrassment
+    'oops': 'shy', 'sorry': 'shy',
+    'my bad': 'shy', 'awkward': 'shy',
+    # Formal
+    'hail': 'salute', 'commander': 'salute',
+    'sir': 'salute', 'reporting': 'salute',
+    # Dance
+    'dance': 'dance', 'party': 'dance',
+    'celebrate': 'dance',
+    # Prayer / devotion
+    'pray': 'kneel', 'light guide': 'kneel',
+    'ancestors': 'kneel', 'earth mother': 'kneel',
+}
