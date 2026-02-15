@@ -968,6 +968,28 @@ def cleanup_message(message: str) -> str:
     result = re.sub(r'[,]\s*$', '', result)
     result = re.sub(r'\s{2,}', ' ', result)
 
+    # Multi-speaker truncation: LLM sometimes embeds
+    # a second speaker in the response, e.g.
+    # "Well fought! Cylaea: Hold, do you smell that?"
+    # Truncate at "Name: " pattern appearing after
+    # the first 20 characters (to avoid false-matching
+    # legitimate uses at the start of a message).
+    if len(result) > 20:
+        second_speaker = re.search(
+            r'\b[A-Z][a-z]{2,}:\s', result[20:]
+        )
+        if second_speaker:
+            cut_pos = 20 + second_speaker.start()
+            truncated = result[:cut_pos].rstrip(
+                ' ,.-'
+            )
+            if len(truncated) > 10:
+                result = truncated
+                logger.debug(
+                    "Truncated multi-speaker at "
+                    "pos %d", cut_pos
+                )
+
     # Emojis
     emoji_pattern = re.compile(
         "["
@@ -1003,9 +1025,13 @@ def cleanup_message(message: str) -> str:
     # Fix [[Name]] -> [Name]
     result = re.sub(r'\[\[([^\]]+)\]\]', r'[\1]', result)
 
-    # Fix {Name} when not a placeholder
+    # Fix {Name} when not a known placeholder
+    # Preserve pre-cache placeholders: {target},
+    # {caster}, {spell} and WoW link prefixes
     result = re.sub(
-        r'\{(?!quest:|item:|spell:)([^}]+)\}',
+        r'\{(?!quest:|item:|spell:|'
+        r'target\}|caster\}|spell\})'
+        r'([^}]+)\}',
         r'\1', result
     )
 

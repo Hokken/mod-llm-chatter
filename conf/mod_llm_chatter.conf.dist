@@ -822,6 +822,98 @@ LLMChatter.GroupChatter.FarewellEnable = 1
 #        Default: 60
 #
 
+###############################################################################
+# PRE-CACHED INSTANT REACTIONS
+#
+#   Pre-generates LLM responses in the background and delivers them instantly
+#   from C++ when combat hooks fire, avoiding 3-8s LLM latency.
+#   Cache misses fall back to the normal live LLM path.
+###############################################################################
+
+#
+#   LLMChatter.GroupChatter.PreCacheEnable
+#       Master toggle for pre-cached instant reactions.
+#       When enabled, combat-time reactions are served
+#       from a pre-generated cache for instant delivery.
+#       Default: 1 (enabled)
+#
+LLMChatter.GroupChatter.PreCacheEnable = 1
+
+#
+#   LLMChatter.GroupChatter.PreCacheCombatEnable
+#       Pre-cache pull cries (combat_pull category).
+#       Default: 1
+#
+LLMChatter.GroupChatter.PreCacheCombatEnable = 1
+
+#
+#   LLMChatter.GroupChatter.PreCacheStateEnable
+#       Pre-cache state callouts (low_health, oom,
+#       aggro_loss categories).
+#       Default: 1
+#
+LLMChatter.GroupChatter.PreCacheStateEnable = 1
+
+#
+#   LLMChatter.GroupChatter.PreCacheSpellEnable
+#       Pre-cache spell support reactions
+#       (spell_support category).
+#       Default: 1
+#
+LLMChatter.GroupChatter.PreCacheSpellEnable = 1
+
+#
+#   LLMChatter.GroupChatter.PreCacheDepthCombat
+#       Number of ready cached responses to maintain
+#       per bot for combat_pull category.
+#       Default: 2
+#
+LLMChatter.GroupChatter.PreCacheDepthCombat = 2
+
+#
+#   LLMChatter.GroupChatter.PreCacheDepthState
+#       Number of ready cached responses to maintain
+#       per bot per state category (low_health, oom,
+#       aggro_loss).
+#       Default: 2
+#
+LLMChatter.GroupChatter.PreCacheDepthState = 2
+
+#
+#   LLMChatter.GroupChatter.PreCacheDepthSpell
+#       Number of ready cached responses to maintain
+#       per bot for spell_support category.
+#       Default: 2
+#
+LLMChatter.GroupChatter.PreCacheDepthSpell = 2
+
+#
+#   LLMChatter.GroupChatter.PreCacheTTLSeconds
+#       How long (seconds) cached responses remain
+#       valid before expiring. Expired rows are
+#       cleaned up by the bridge.
+#       Default: 3600 (1 hour)
+#
+LLMChatter.GroupChatter.PreCacheTTLSeconds = 3600
+
+#
+#   LLMChatter.GroupChatter.PreCacheGeneratePerLoop
+#       Max number of new cached responses to generate
+#       per bridge loop iteration. Keeps refill from
+#       blocking normal event processing.
+#       Default: 2
+#
+LLMChatter.GroupChatter.PreCacheGeneratePerLoop = 2
+
+#
+#   LLMChatter.GroupChatter.PreCacheFallbackToLive
+#       When cache is empty (miss), fall back to the
+#       normal live LLM path (3-8s latency).
+#       Set to 0 to skip entirely on miss (testing).
+#       Default: 1
+#
+LLMChatter.GroupChatter.PreCacheFallbackToLive = 1
+
 LLMChatter.GroupChatter.StateCalloutEnable = 1
 LLMChatter.GroupChatter.StateCalloutLowHealth = 1
 LLMChatter.GroupChatter.StateCalloutOom = 1

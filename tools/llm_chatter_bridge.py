@@ -102,6 +102,7 @@ from chatter_group import (
 from chatter_general import (
     process_general_player_msg_event,
 )
+from chatter_cache import refill_precache_pool
 
 # Configure logging
 logging.basicConfig(
@@ -2188,6 +2189,38 @@ def main():
         f"  Model: "
         f"{qa_model if qa_model else '(auto)'}"
     )
+    logger.info("-" * 60)
+    precache_enabled = config.get(
+        'LLMChatter.GroupChatter.PreCacheEnable',
+        '1'
+    ) == '1'
+    logger.info("Pre-cache settings:")
+    logger.info(
+        f"  Enable: "
+        f"{config.get('LLMChatter.GroupChatter.PreCacheEnable', 1)}"
+    )
+    logger.info(
+        f"  CombatEnable: "
+        f"{config.get('LLMChatter.GroupChatter.PreCacheCombatEnable', 1)}"
+        f"  StateEnable: "
+        f"{config.get('LLMChatter.GroupChatter.PreCacheStateEnable', 1)}"
+        f"  SpellEnable: "
+        f"{config.get('LLMChatter.GroupChatter.PreCacheSpellEnable', 1)}"
+    )
+    logger.info(
+        f"  DepthCombat: "
+        f"{config.get('LLMChatter.GroupChatter.PreCacheDepthCombat', 2)}"
+        f"  DepthState: "
+        f"{config.get('LLMChatter.GroupChatter.PreCacheDepthState', 2)}"
+        f"  DepthSpell: "
+        f"{config.get('LLMChatter.GroupChatter.PreCacheDepthSpell', 2)}"
+    )
+    logger.info(
+        f"  TTL: "
+        f"{config.get('LLMChatter.GroupChatter.PreCacheTTLSeconds', 3600)}s"
+        f"  GeneratePerLoop: "
+        f"{config.get('LLMChatter.GroupChatter.PreCacheGeneratePerLoop', 2)}"
+    )
     logger.info("=" * 60)
 
     # Wait for database to be ready
@@ -2219,6 +2252,8 @@ def main():
         'LLMChatter.GroupChatter.IdleCheckInterval',
         60
     ))
+    last_cache_refill = 0
+    cache_refill_interval = 30  # every 30 seconds
 
     while True:
         try:
@@ -2266,6 +2301,26 @@ def main():
                     logger.debug(
                         f"Idle chatter check "
                         f"error: {e}"
+                    )
+
+            # Pre-cache refill — lowest priority,
+            # only when no requests/events processed
+            if (
+                precache_enabled
+                and not processed_request
+                and not processed_event
+                and current_time
+                - last_cache_refill
+                >= cache_refill_interval
+            ):
+                last_cache_refill = current_time
+                try:
+                    refill_precache_pool(
+                        db, client, config
+                    )
+                except Exception as e:
+                    logger.debug(
+                        f"Cache refill error: {e}"
                     )
 
             db.close()

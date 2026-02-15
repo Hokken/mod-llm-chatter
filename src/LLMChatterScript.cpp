@@ -46,6 +46,7 @@
 #include <random>
 #include <sstream>
 #include <unordered_map>
+#include <regex>
 
 // Check if player is a bot (global helper function)
 static bool IsPlayerBot(Player* player)
@@ -253,6 +254,149 @@ static uint32 GetEmoteId(const std::string& emoteName)
     if (it != emoteMap.end())
         return it->second;
     return 0;
+}
+
+// ============================================================================
+// PRE-CACHE INSTANT REACTION HELPERS
+// ============================================================================
+
+// Consume one cached response for a bot+category.
+// Returns true on hit, populating outMessage/outEmote.
+// Uses DirectExecute (sync) for UPDATE to prevent
+// double-consume if two hooks fire same tick.
+static bool TryConsumeCachedReaction(
+    uint32 groupId, uint32 botGuid,
+    const std::string& category,
+    std::string& outMessage,
+    std::string& outEmote)
+{
+    QueryResult result = CharacterDatabase.Query(
+        "SELECT id, message, emote "
+        "FROM llm_group_cached_responses "
+        "WHERE group_id = {} AND bot_guid = {} "
+        "AND event_category = '{}' "
+        "AND status = 'ready' "
+        "AND (expires_at IS NULL "
+        "     OR expires_at > NOW()) "
+        "ORDER BY created_at ASC LIMIT 1",
+        groupId, botGuid,
+        category);
+
+    if (!result)
+        return false;
+
+    Field* fields = result->Fetch();
+    uint32 cachedId = fields[0].Get<uint32>();
+    outMessage = fields[1].Get<std::string>();
+    outEmote = fields[2].IsNull()
+        ? "" : fields[2].Get<std::string>();
+
+    // Sync UPDATE prevents double-consume
+    CharacterDatabase.DirectExecute(
+        "UPDATE llm_group_cached_responses "
+        "SET status = 'used', used_at = NOW() "
+        "WHERE id = {}",
+        cachedId);
+
+    LOG_INFO("module",
+        "LLMChatter: Pre-cache HIT [{}] "
+        "for bot {} group {} (id={})",
+        category, botGuid, groupId, cachedId);
+
+    return true;
+}
+
+// Replace {target}, {caster}, {spell} placeholders
+// with actual names from hook data. Strip unresolved
+// tokens and clamp length.
+static void ResolvePlaceholders(
+    std::string& message,
+    const std::string& target,
+    const std::string& caster,
+    const std::string& spell)
+{
+    std::string safeTarget =
+        target.empty() ? "that" : target;
+    std::string safeCaster =
+        caster.empty() ? "them" : caster;
+    std::string safeSpell =
+        spell.empty() ? "that" : spell;
+
+    size_t pos;
+    while ((pos = message.find("{target}"))
+           != std::string::npos)
+        message.replace(pos, 8, safeTarget);
+    while ((pos = message.find("{caster}"))
+           != std::string::npos)
+        message.replace(pos, 8, safeCaster);
+    while ((pos = message.find("{spell}"))
+           != std::string::npos)
+        message.replace(pos, 7, safeSpell);
+
+    // Strip unresolved {tokens} (LLM hallucination)
+    std::regex unresolvedRe("\\{[a-zA-Z_]+\\}");
+    message = std::regex_replace(
+        message, unresolvedRe, "");
+
+    // Collapse double spaces
+    while (message.find("  ") != std::string::npos)
+    {
+        pos = message.find("  ");
+        message.replace(pos, 2, " ");
+    }
+
+    // Clamp to 250 chars
+    if (message.size() > 250)
+        message.resize(250);
+}
+
+// Send a party message instantly via native
+// BroadcastPacket, with optional emote animation.
+static void SendPartyMessageInstant(
+    Player* bot, Group* group,
+    const std::string& message,
+    const std::string& emote)
+{
+    WorldPacket data;
+    ChatHandler::BuildChatPacket(
+        data,
+        CHAT_MSG_PARTY,
+        message,
+        LANG_UNIVERSAL,
+        CHAT_TAG_NONE,
+        bot->GetGUID(),
+        bot->GetName());
+
+    group->BroadcastPacket(&data, false);
+
+    if (!emote.empty())
+    {
+        uint32 emoteId = GetEmoteId(emote);
+        if (emoteId)
+            bot->HandleEmoteCommand(emoteId);
+    }
+}
+
+// Forward declaration (defined after EVENT SYSTEM
+// UTILITIES section)
+static std::string EscapeString(
+    const std::string& str);
+
+// Record a pre-cached message in chat history
+// so Python sees it for conversation context.
+static void RecordCachedChatHistory(
+    uint32 groupId, uint32 botGuid,
+    const std::string& botName,
+    const std::string& message)
+{
+    CharacterDatabase.Execute(
+        "INSERT INTO llm_group_chat_history "
+        "(group_id, speaker_guid, speaker_name, "
+        "is_bot, message) "
+        "VALUES ({}, {}, '{}', 1, '{}')",
+        groupId, botGuid,
+        EscapeString(botName),
+        EscapeString(message));
 }
 
 // ============================================================================
@@ -1148,6 +1292,8 @@ public:
             "DELETE FROM llm_group_bot_traits");
         CharacterDatabase.Execute(
             "DELETE FROM llm_group_chat_history");
+        CharacterDatabase.Execute(
+            "DELETE FROM llm_group_cached_responses");
 
         // Load transport info cache for transport events
         LoadTransportCache();
@@ -2300,6 +2446,10 @@ static void CleanupGroupSession(uint32 groupId)
         "DELETE FROM llm_group_chat_history "
         "WHERE group_id = {}",
         groupId);
+    CharacterDatabase.Execute(
+        "DELETE FROM llm_group_cached_responses "
+        "WHERE group_id = {}",
+        groupId);
 
     // Prune in-memory cooldown maps for this group
     _groupKillCooldowns.erase(groupId);
@@ -2369,13 +2519,22 @@ public:
         // Always clean up the removed bot's data
         if (guid)
         {
+            uint32 botGuid =
+                guid.GetCounter();
+
+            // Cache cleanup uses only guid —
+            // safe even if Player* is gone
+            CharacterDatabase.Execute(
+                "DELETE FROM "
+                "llm_group_cached_responses "
+                "WHERE group_id = {} "
+                "AND bot_guid = {}",
+                groupId, botGuid);
+
             Player* removed =
                 ObjectAccessor::FindPlayer(guid);
             if (removed && IsPlayerBot(removed))
             {
-                uint32 botGuid =
-                    guid.GetCounter();
-
                 // Send farewell message before cleanup
                 if (sLLMChatterConfig->_useFarewell)
                 {
@@ -2454,8 +2613,8 @@ public:
 
                 LOG_INFO("module",
                     "LLMChatter: Cleaned "
-                    "traits/history for removed "
-                    "bot {} (group {})",
+                    "traits/history/cache for "
+                    "removed bot {} (group {})",
                     botGuid, groupId);
             }
         }
@@ -3217,49 +3376,30 @@ public:
 
         bool isBot = IsPlayerBot(player);
 
-        // TWO-TIER SAFETY: Bot Item* can be
-        // use-after-free (playerbots packet pipeline
-        // may free memory before hook fires).
-        // Real player Item* is always safe.
-        uint8 quality = 0;
-        std::string itemName;
-        uint32 itemEntry = 0;
+        // Item* safety: The use-after-free crash
+        // (Session 27b) only affected random bots in
+        // bot-only groups, already filtered above by
+        // GroupHasRealPlayer(). For bots in the
+        // player's group, Item* is valid (StoreLootItem
+        // just stored it, hook fires synchronously).
+        // Null checks remain as extra safety.
+        if (!item)
+            return;
+        ItemTemplate const* tmpl =
+            item->GetTemplate();
+        if (!tmpl)
+            return;
 
-        if (!isBot)
-        {
-            // Real player: safe to access Item*
-            if (!item)
-                return;
-            ItemTemplate const* tmpl =
-                item->GetTemplate();
-            if (!tmpl)
-                return;
-            quality = tmpl->Quality;
-            if (quality < 2)
-                return;
-            itemName = tmpl->Name1;
-            itemEntry = item->GetEntry();
-        }
-        else
-        {
-            // Bot: skip Item* entirely to avoid
-            // potential use-after-free crash.
-            // Use sentinel quality=-1 so Python
-            // generates a generic loot reaction.
-            quality = 255;
-            itemName = "something";
-            itemEntry = 0;
-        }
+        uint8 quality = tmpl->Quality;
+        if (quality < 2)
+            return;
+        std::string itemName = tmpl->Name1;
+        uint32 itemEntry = item->GetEntry();
 
         // Quality-based chance from config:
         // green/blue configurable, epic+=100%
-        // Bots (quality=255): use green chance
-        // since we can't know actual quality
         uint32 chance;
-        if (quality == 255)
-            chance = sLLMChatterConfig
-                ->_groupLootChanceGreen;
-        else if (quality == 2)
+        if (quality == 2)
             chance = sLLMChatterConfig
                 ->_groupLootChanceGreen;
         else if (quality == 3)
@@ -3276,9 +3416,8 @@ public:
 
         // Per-group loot cooldown: config seconds
         // for green/blue, epic+ bypasses cooldown
-        // Bots (quality=255): always use cooldown
         time_t now = time(nullptr);
-        if (quality < 4 || quality == 255)
+        if (quality < 4)
         {
             auto it =
                 _groupLootCooldowns.find(groupId);
@@ -3291,28 +3430,54 @@ public:
 
         _groupLootCooldowns[groupId] = now;
 
-        uint32 looterGuid =
-            player->GetGUID().GetCounter();
         std::string looterName = player->GetName();
+
+        // Reactor selection: pick who comments
+        // on the loot. 50% self, 50% other bot.
+        // Real player loot always gets a bot reactor.
+        Player* reactor = nullptr;
+        if (!isBot)
+        {
+            reactor = GetRandomBotInGroup(group);
+        }
+        else if (urand(0, 1) == 0)
+        {
+            // Another bot comments on this loot
+            reactor =
+                GetRandomBotInGroup(group, player);
+            if (!reactor)
+                reactor = player; // fallback: self
+        }
+        else
+        {
+            reactor = player;
+        }
+
+        if (!reactor)
+            return;
+
+        uint32 reactorGuid =
+            reactor->GetGUID().GetCounter();
+        std::string reactorName = reactor->GetName();
 
         // Build extra_data JSON
         std::string extraData = "{"
             "\"bot_guid\":" +
-                std::to_string(looterGuid) + ","
+                std::to_string(reactorGuid) + ","
             "\"bot_name\":\"" +
-                JsonEscape(looterName) + "\","
+                JsonEscape(reactorName) + "\","
             "\"bot_class\":" +
                 std::to_string(
-                    player->getClass()) + ","
+                    reactor->getClass()) + ","
             "\"bot_race\":" +
                 std::to_string(
-                    player->getRace()) + ","
+                    reactor->getRace()) + ","
             "\"bot_level\":" +
                 std::to_string(
-                    player->GetLevel()) + ","
-            "\"is_bot\":" +
-                std::string(
-                    isBot ? "1" : "0") + ","
+                    reactor->GetLevel()) + ","
+            "\"is_bot\":1,"
+            "\"looter_name\":\"" +
+                JsonEscape(looterName) + "\","
             "\"item_name\":\"" +
                 JsonEscape(itemName) + "\","
             "\"item_entry\":" +
@@ -3321,9 +3486,7 @@ public:
                 std::to_string(quality) + ","
             "\"group_id\":" +
                 std::to_string(groupId) +
-            (IsPlayerBot(player)
-                ? ("," + BuildBotStateJson(player))
-                : "")
+            "," + BuildBotStateJson(reactor)
             + "}";
 
         // SQL-escape the whole JSON blob so
@@ -3345,17 +3508,19 @@ public:
             "'{}', 'pending', "
             "DATE_ADD(NOW(), INTERVAL 3 SECOND), "
             "DATE_ADD(NOW(), INTERVAL 120 SECOND))",
-            player->GetZoneId(),
-            player->GetMapId(),
-            looterGuid, EscapeString(looterName),
+            reactor->GetZoneId(),
+            reactor->GetMapId(),
+            reactorGuid, EscapeString(reactorName),
             EscapeString(itemName),
             itemEntry,
             extraData);
 
         LOG_INFO("module",
             "LLMChatter: Queued bot_group_loot "
-            "for {} looting {} (quality={})",
-            looterName, itemName, quality);
+            "for {} looting {} (quality={}, "
+            "reactor={})",
+            looterName, itemName, quality,
+            reactorName);
     }
 
     void OnPlayerLootItem(
@@ -3449,6 +3614,33 @@ public:
         std::string botName = player->GetName();
         std::string creatureName =
             creature->GetName();
+
+        // --- Pre-cache instant delivery ---
+        if (sLLMChatterConfig->_preCacheEnable
+            && sLLMChatterConfig
+                   ->_preCacheCombatEnable)
+        {
+            std::string cachedMsg, cachedEmote;
+            if (TryConsumeCachedReaction(
+                    groupId, botGuid,
+                    "combat_pull",
+                    cachedMsg, cachedEmote))
+            {
+                ResolvePlaceholders(
+                    cachedMsg, creatureName,
+                    "", "");
+                SendPartyMessageInstant(
+                    player, group,
+                    cachedMsg, cachedEmote);
+                RecordCachedChatHistory(
+                    groupId, botGuid,
+                    botName, cachedMsg);
+                return;
+            }
+            if (!sLLMChatterConfig
+                    ->_preCacheFallbackToLive)
+                return;
+        }
 
         // Build extra_data JSON
         // NOTE: extraData is inserted into SQL via
@@ -4022,15 +4214,36 @@ public:
             return;
         }
 
-        bool isBot = IsPlayerBot(player);
+        uint32 groupId =
+            group->GetGUID().GetCounter();
+        uint32 questId = quest->GetQuestId();
 
-        // Pick reactor: bot uses self, real player
-        // picks a random bot from group to react
-        Player* reactor = nullptr;
-        if (isBot)
-            reactor = player;
-        else
-            reactor = GetRandomBotInGroup(group);
+        // Per-group+quest dedup: only ONE reaction
+        // per quest per group (all bots complete
+        // the same quest within seconds).
+        uint64 questKey =
+            ((uint64)groupId << 32) | questId;
+        time_t now = time(nullptr);
+        {
+            static std::unordered_map<
+                uint64, time_t> _questCompleteCd;
+            auto it = _questCompleteCd.find(questKey);
+            if (it != _questCompleteCd.end()
+                && (now - it->second) < 30)
+            {
+                LOG_INFO("module",
+                    "LLMChatter: QuestComplete "
+                    "- dedup skip for {} [{}]",
+                    player->GetName(),
+                    quest->GetTitle());
+                return;
+            }
+            _questCompleteCd[questKey] = now;
+        }
+
+        // Pick reactor: random bot from group
+        Player* reactor =
+            GetRandomBotInGroup(group);
 
         if (!reactor)
         {
@@ -4041,15 +4254,12 @@ public:
             return;
         }
 
-        uint32 groupId =
-            group->GetGUID().GetCounter();
         uint32 botGuid =
             reactor->GetGUID().GetCounter();
         std::string botName = reactor->GetName();
         std::string playerName = player->GetName();
         std::string questName =
             quest->GetTitle();
-        uint32 questId = quest->GetQuestId();
 
         // Build extra_data JSON
         // completer_* = who finished the quest
@@ -4068,9 +4278,11 @@ public:
             "\"bot_level\":" +
                 std::to_string(
                     reactor->GetLevel()) + ","
-            "\"is_bot\":" +
+            "\"is_bot\":1,"
+            "\"completer_is_bot\":" +
                 std::string(
-                    isBot ? "1" : "0") + ","
+                    IsPlayerBot(player)
+                        ? "1" : "0") + ","
             "\"completer_name\":\"" +
                 JsonEscape(playerName) + "\","
             "\"quest_name\":\"" +
@@ -4089,8 +4301,9 @@ public:
 
         LOG_INFO("module",
             "LLMChatter: QuestComplete "
-            "- queuing for {} completing [{}]",
-            botName, questName);
+            "- queuing [{}] (completer={}, "
+            "reactor={})",
+            questName, playerName, botName);
 
         CharacterDatabase.Execute(
             "INSERT INTO llm_chatter_events "
@@ -4492,6 +4705,42 @@ public:
             spell->m_targets.GetUnitTarget();
         if (spellTarget)
             targetName = spellTarget->GetName();
+
+        // --- Pre-cache instant delivery ---
+        // Skip resurrect (too important for cached)
+        // Skip caster-as-reactor: cached messages use
+        // observer perspective ({caster} placeholder),
+        // but caster needs first-person ("I just cast")
+        // which only the live LLM path handles.
+        bool isCasterReactor =
+            (reactor->GetGUID() == player->GetGUID());
+        if (!isCasterReactor
+            && spellCategory != "resurrect"
+            && sLLMChatterConfig->_preCacheEnable
+            && sLLMChatterConfig
+                   ->_preCacheSpellEnable)
+        {
+            std::string cachedMsg, cachedEmote;
+            if (TryConsumeCachedReaction(
+                    groupId, botGuid,
+                    "spell_support",
+                    cachedMsg, cachedEmote))
+            {
+                ResolvePlaceholders(
+                    cachedMsg, targetName,
+                    casterName, spellName);
+                SendPartyMessageInstant(
+                    reactor, group,
+                    cachedMsg, cachedEmote);
+                RecordCachedChatHistory(
+                    groupId, botGuid,
+                    botName, cachedMsg);
+                return;
+            }
+            if (!sLLMChatterConfig
+                    ->_preCacheFallbackToLive)
+                return;
+        }
 
         // Build extra_data JSON
         // NOTE: extraData is inserted into SQL via
@@ -5043,7 +5292,7 @@ public:
 // ============================================================
 
 static void QueueStateCallout(
-    Player* bot, Group* /*group*/,
+    Player* bot, Group* group,
     const char* eventType, uint32 groupId)
 {
     std::string botName = bot->GetName();
@@ -5063,6 +5312,50 @@ static void QueueStateCallout(
     {
         aggroTarget =
             victim->GetVictim()->GetName();
+    }
+
+    // --- Pre-cache instant delivery ---
+    if (sLLMChatterConfig->_preCacheEnable
+        && sLLMChatterConfig
+               ->_preCacheStateEnable
+        && group)
+    {
+        // Map event type to cache category
+        std::string category;
+        std::string evtStr(eventType);
+        if (evtStr == "bot_group_low_health")
+            category = "state_low_health";
+        else if (evtStr == "bot_group_oom")
+            category = "state_oom";
+        else if (evtStr == "bot_group_aggro_loss")
+            category = "state_aggro_loss";
+
+        if (!category.empty())
+        {
+            std::string cachedMsg, cachedEmote;
+            if (TryConsumeCachedReaction(
+                    groupId, botGuid,
+                    category,
+                    cachedMsg, cachedEmote))
+            {
+                // aggro_loss uses {target}
+                std::string tgt =
+                    (category == "state_aggro_loss")
+                    ? targetName : "";
+                ResolvePlaceholders(
+                    cachedMsg, tgt, "", "");
+                SendPartyMessageInstant(
+                    bot, group,
+                    cachedMsg, cachedEmote);
+                RecordCachedChatHistory(
+                    groupId, botGuid,
+                    botName, cachedMsg);
+                return;
+            }
+            if (!sLLMChatterConfig
+                    ->_preCacheFallbackToLive)
+                return;
+        }
     }
 
     std::string extraData = "{"

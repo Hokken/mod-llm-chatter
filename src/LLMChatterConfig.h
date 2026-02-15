@@ -106,6 +106,18 @@ public:
     uint32 _stateCalloutChance;   // 0-100
     uint32 _stateCalloutCooldown; // seconds per bot
 
+    // Pre-cached instant reactions
+    bool _preCacheEnable;
+    bool _preCacheCombatEnable;
+    bool _preCacheStateEnable;
+    bool _preCacheSpellEnable;
+    uint32 _preCacheDepthCombat;
+    uint32 _preCacheDepthState;
+    uint32 _preCacheDepthSpell;
+    uint32 _preCacheTTLSeconds;
+    uint32 _preCacheGeneratePerLoop;
+    bool _preCacheFallbackToLive;
+
     // General chat reactions
     bool _useGeneralChatReact;
     uint32 _generalChatChance;

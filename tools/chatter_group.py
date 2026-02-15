@@ -1018,7 +1018,9 @@ def build_loot_reaction_prompt(
         f"- Can mention the item by name\n"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
-        f"already said in chat"
+        f"already said in chat\n"
+        f"- NEVER say the item will serve YOU "
+        f"if someone else looted it"
     )
     return prompt
 
@@ -2328,15 +2330,18 @@ def process_group_loot_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
-    looter_guid = int(
+    # C++ pre-selects the reactor (bot_guid/name)
+    # and provides the actual looter separately.
+    reactor_guid = int(
         extra_data.get('bot_guid', 0)
     )
-    looter_name = extra_data.get(
+    reactor_name = extra_data.get(
         'bot_name', 'Unknown'
     )
-    is_bot = bool(int(
-        extra_data.get('is_bot', 1)
-    ))
+    looter_name = extra_data.get(
+        'looter_name',
+        extra_data.get('bot_name', 'Unknown')
+    )
     item_name = extra_data.get(
         'item_name', 'something'
     )
@@ -2345,77 +2350,44 @@ def process_group_loot_event(
     )
     group_id = int(extra_data.get('group_id', 0))
 
-    if not looter_guid or not group_id:
+    if not reactor_guid or not group_id:
         _mark_event(db, event_id, 'skipped')
         return False
 
-    if is_bot:
-        # Bot looted: that bot reacts
-        trait_data = get_bot_traits(
-            db, group_id, looter_guid
+    trait_data = get_bot_traits(
+        db, group_id, reactor_guid
+    )
+    if not trait_data:
+        logger.info(
+            f"Loot event #{event_id}: no traits "
+            f"for {reactor_name}, skipping"
         )
-        if not trait_data:
-            logger.info(
-                f"Loot event #{event_id}: no traits "
-                f"for {looter_name}, skipping"
-            )
-            _mark_event(db, event_id, 'skipped')
-            return False
+        _mark_event(db, event_id, 'skipped')
+        return False
 
-        traits = trait_data['traits']
-        bot_class_id = int(
-            extra_data.get('bot_class', 0)
-        )
-        bot_race_id = int(
-            extra_data.get('bot_race', 0)
-        )
-        bot_level = int(
-            extra_data.get('bot_level', 1)
-        )
-        bot = {
-            'guid': looter_guid,
-            'name': looter_name,
-            'class': get_class_name(bot_class_id),
-            'race': get_race_name(bot_race_id),
-            'level': bot_level,
-        }
-        # Bot reacts about its own loot
-        prompt_looter_name = None
-    else:
-        # Player looted: pick a random bot to react
-        cursor = db.cursor(dictionary=True)
-        cursor.execute(
-            "SELECT bot_guid, bot_name, "
-            "trait1, trait2, trait3 "
-            "FROM llm_group_bot_traits "
-            "WHERE group_id = %s "
-            "ORDER BY RAND() LIMIT 1",
-            (group_id,)
-        )
-        reactor = cursor.fetchone()
-        cursor.close()
-        if not reactor:
-            logger.info(
-                f"Loot event #{event_id}: no bots "
-                f"in group to react, skipping"
-            )
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        traits = [
-            reactor['trait1'],
-            reactor['trait2'],
-            reactor['trait3'],
-        ]
-        bot = {
-            'guid': int(reactor['bot_guid']),
-            'name': reactor['bot_name'],
-            'class': 'Adventurer',
-            'race': 'Unknown',
-            'level': 1,
-        }
-        # Bot reacts to someone else's loot
-        prompt_looter_name = looter_name
+    traits = trait_data['traits']
+    bot_class_id = int(
+        extra_data.get('bot_class', 0)
+    )
+    bot_race_id = int(
+        extra_data.get('bot_race', 0)
+    )
+    bot_level = int(
+        extra_data.get('bot_level', 1)
+    )
+    bot = {
+        'guid': reactor_guid,
+        'name': reactor_name,
+        'class': get_class_name(bot_class_id),
+        'race': get_race_name(bot_race_id),
+        'level': bot_level,
+    }
+    # If reactor != looter, pass looter_name
+    # so the prompt says "X looted Y" not "you"
+    is_self_loot = (reactor_name == looter_name)
+    prompt_looter_name = (
+        None if is_self_loot else looter_name
+    )
 
     logger.info(
         f"Processing group loot reaction: "
@@ -3380,8 +3352,13 @@ def process_group_quest_complete_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
-    completer_guid = int(
+    # C++ pre-selects the reactor (bot_guid/name)
+    # and provides the completer separately.
+    reactor_guid = int(
         extra_data.get('bot_guid', 0)
+    )
+    reactor_name = extra_data.get(
+        'bot_name', 'Unknown'
     )
     completer_name = extra_data.get(
         'completer_name',
@@ -3390,70 +3367,43 @@ def process_group_quest_complete_event(
     quest_name = extra_data.get(
         'quest_name', 'a quest'
     )
-    is_bot = bool(int(
-        extra_data.get('is_bot', 1)
-    ))
     group_id = int(
         extra_data.get('group_id', 0)
     )
 
-    if not completer_guid or not group_id:
+    if not reactor_guid or not group_id:
         _mark_event(db, event_id, 'skipped')
         return False
 
-    # Pick a different bot to react
-    reactor_data = get_other_group_bot(
-        db, group_id, completer_guid
+    trait_data = get_bot_traits(
+        db, group_id, reactor_guid
     )
-    if reactor_data:
-        reactor_guid = reactor_data['guid']
-        reactor_name = reactor_data['name']
-        reactor_traits = reactor_data['traits']
-    else:
-        # No other bot — use the completing bot
-        trait_data = get_bot_traits(
-            db, group_id, completer_guid
-        )
-        if not trait_data:
-            logger.info(
-                f"Quest complete event "
-                f"#{event_id}: no traits for "
-                f"{completer_name}"
-            )
-            _mark_event(db, event_id, 'skipped')
-            return False
-        reactor_guid = completer_guid
-        reactor_name = completer_name
-        reactor_traits = trait_data['traits']
-
-    # Get reactor's class/race from characters
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT class, race, level
-        FROM characters
-        WHERE guid = %s
-    """, (reactor_guid,))
-    char_row = cursor.fetchone()
-
-    if not char_row:
+    if not trait_data:
         logger.info(
-            f"Quest complete event #{event_id}: "
-            f"reactor {reactor_name} not found "
-            f"in characters table"
+            f"Quest complete event "
+            f"#{event_id}: no traits for "
+            f"{reactor_name}"
         )
         _mark_event(db, event_id, 'skipped')
         return False
+    reactor_traits = trait_data['traits']
+
+    bot_class_id = int(
+        extra_data.get('bot_class', 0)
+    )
+    bot_race_id = int(
+        extra_data.get('bot_race', 0)
+    )
+    bot_level = int(
+        extra_data.get('bot_level', 1)
+    )
 
     reactor = {
         'guid': reactor_guid,
         'name': reactor_name,
-        'class': get_class_name(
-            char_row['class']
-        ),
-        'race': get_race_name(
-            char_row['race']
-        ),
-        'level': char_row['level'],
+        'class': get_class_name(bot_class_id),
+        'race': get_race_name(bot_race_id),
+        'level': bot_level,
     }
 
     logger.info(
@@ -3476,11 +3426,14 @@ def process_group_quest_complete_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        completer_is_bot = bool(int(
+            extra_data.get('completer_is_bot', 1)
+        ))
         prompt = (
             build_quest_complete_reaction_prompt(
                 reactor, reactor_traits,
                 completer_name, quest_name,
-                is_bot, mode,
+                completer_is_bot, mode,
                 chat_history=chat_hist,
             )
         )
@@ -6311,7 +6264,13 @@ def build_oom_callout_prompt(
     bot, traits, target_name, mode,
     chat_history="", extra_data=None
 ):
-    """Bot is running out of mana in combat."""
+    """Bot is running out of mana in combat.
+
+    NOTE: Non-mana classes (Warrior, Rogue, DK) are
+    filtered in C++ via GetMaxPower(POWER_MANA) > 0
+    before the event is queued, so this function
+    should only be called for mana-using classes.
+    """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
 
@@ -7626,3 +7585,204 @@ def _idle_conversation(
             f"conversation: {e}"
         )
         return False
+
+
+# ============================================================
+# PRE-CACHE PROMPT BUILDERS
+# ============================================================
+
+def build_precache_combat_pull_prompt(
+    bot_name, race, class_name, level,
+    traits, mood, role=None, recent_cached=None,
+):
+    """Build prompt for a cached combat pull cry.
+
+    The response must contain {target} where the
+    enemy name goes. C++ resolves it at delivery.
+    """
+    trait_str = ', '.join(traits) if traits else ''
+    rp_ctx = build_race_class_context(
+        race, class_name, actual_role=role
+    )
+
+    anti_rep = ''
+    if recent_cached:
+        anti_rep = build_anti_repetition_context(
+            recent_cached, max_items=3
+        )
+
+    prompt = (
+        f"You are {bot_name}, a level {level} "
+        f"{race} {class_name} in World of Warcraft."
+        f"\nPersonality: {trait_str}"
+        f"\nCurrent mood: {mood}"
+    )
+    if rp_ctx:
+        prompt += f"\n{rp_ctx}"
+    prompt += (
+        "\n\nYou just engaged an enemy in combat "
+        "with your party. Write a very short "
+        "pull cry or battle shout (1 sentence, "
+        "3-10 words).\n"
+        "Use {target} where the enemy name goes "
+        "(e.g. \"I'll handle {target}!\" or "
+        "\"Watch out, {target} incoming!\").\n"
+        "Rules:\n"
+        "- Must include {target} exactly once\n"
+        "- Reflect your personality and mood\n"
+        "- No quotes, no asterisks, no emojis, "
+        "no emotes\n"
+        "- Respond with ONLY the message text"
+    )
+    if anti_rep:
+        prompt += f"\n\n{anti_rep}"
+    return prompt
+
+
+def build_precache_state_prompt(
+    state_type, bot_name, race, class_name, level,
+    traits, mood, role=None, recent_cached=None,
+):
+    """Build prompt for a cached state callout.
+
+    state_type: 'low_health', 'oom', 'aggro_loss'
+    low_health and oom have NO placeholders.
+    aggro_loss uses {target} only.
+    """
+    trait_str = ', '.join(traits) if traits else ''
+    rp_ctx = build_race_class_context(
+        race, class_name, actual_role=role
+    )
+
+    anti_rep = ''
+    if recent_cached:
+        anti_rep = build_anti_repetition_context(
+            recent_cached, max_items=3
+        )
+
+    prompt = (
+        f"You are {bot_name}, a level {level} "
+        f"{race} {class_name} in World of Warcraft."
+        f"\nPersonality: {trait_str}"
+        f"\nCurrent mood: {mood}"
+    )
+    if rp_ctx:
+        prompt += f"\n{rp_ctx}"
+
+    if state_type == 'low_health':
+        prompt += (
+            "\n\nYou are in combat and critically "
+            "wounded. Write a very short callout "
+            "(1 sentence, 3-10 words) asking for "
+            "help or expressing pain.\n"
+            "Rules:\n"
+            "- First person only (\"I need "
+            "healing!\", \"I'm going down!\")\n"
+            "- Do NOT use any placeholders or "
+            "names\n"
+        )
+    elif state_type == 'oom':
+        # NOTE: Non-mana classes (Warrior, Rogue, DK)
+        # are filtered upstream — C++ checks
+        # GetMaxPower(POWER_MANA) > 0 for live events,
+        # and refill_precache_pool() skips state_oom
+        # for class_ids {1, 4, 6}.
+        prompt += (
+            "\n\nYou are in combat and completely "
+            "out of mana. Write a very short "
+            "callout (1 sentence, 3-10 words) "
+            "alerting your group.\n"
+            "Rules:\n"
+            "- First person only (\"I'm out of "
+            "mana!\", \"No mana left!\")\n"
+            "- Do NOT use any placeholders or "
+            "names\n"
+        )
+    elif state_type == 'aggro_loss':
+        prompt += (
+            "\n\nYou are in combat and losing "
+            "threat on your target. Write a very "
+            "short callout (1 sentence, 3-10 "
+            "words) warning your group.\n"
+            "Use {target} where the enemy name "
+            "goes (e.g. \"I'm losing {target}!\" "
+            "or \"{target} is breaking free!\").\n"
+            "Rules:\n"
+            "- Must include {target} exactly once\n"
+        )
+    else:
+        prompt += (
+            "\n\nYou are in a stressful combat "
+            "situation. Write a very short callout "
+            "(1 sentence, 3-10 words).\n"
+            "Rules:\n"
+        )
+
+    prompt += (
+        "- Reflect your personality and mood\n"
+        "- No quotes, no asterisks, no emojis, "
+        "no emotes\n"
+        "- Respond with ONLY the message text"
+    )
+    if anti_rep:
+        prompt += f"\n\n{anti_rep}"
+    return prompt
+
+
+def build_precache_spell_support_prompt(
+    bot_name, race, class_name, level,
+    traits, mood, role=None, recent_cached=None,
+):
+    """Build prompt for a cached spell support
+    reaction. Uses {target}, {caster}, {spell}.
+
+    Always observer perspective — C++ skips cache
+    when the reactor is the caster (falls through
+    to live LLM which handles first-person).
+    """
+    trait_str = ', '.join(traits) if traits else ''
+    rp_ctx = build_race_class_context(
+        race, class_name, actual_role=role
+    )
+
+    anti_rep = ''
+    if recent_cached:
+        anti_rep = build_anti_repetition_context(
+            recent_cached, max_items=3
+        )
+
+    prompt = (
+        f"You are {bot_name}, a level {level} "
+        f"{race} {class_name} in World of Warcraft."
+        f"\nPersonality: {trait_str}"
+        f"\nCurrent mood: {mood}"
+    )
+    if rp_ctx:
+        prompt += f"\n{rp_ctx}"
+
+    prompt += (
+        "\n\nA groupmate just cast a support "
+        "spell during combat. Write a very "
+        "short reaction (1 sentence, 3-10 "
+            "words) from the OBSERVER perspective."
+            "\nUse these placeholders:\n"
+            "- {spell} = the spell that was cast\n"
+            "- {target} = who received the spell\n"
+            "- {caster} = who cast the spell\n"
+            "Example: \"Nice {spell} on {target}, "
+            "{caster}!\" or \"Thanks for the "
+            "{spell}, {caster}!\"\n"
+        )
+
+    prompt += (
+        "Rules:\n"
+        "- Use the placeholders exactly as shown "
+        "(with curly braces)\n"
+        "- Reflect your personality and mood\n"
+        "- No quotes, no asterisks, no emojis, "
+        "no emotes\n"
+        "- Respond with ONLY the message text"
+    )
+    if anti_rep:
+        prompt += f"\n\n{anti_rep}"
+    return prompt

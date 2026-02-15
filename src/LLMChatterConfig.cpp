@@ -104,6 +104,44 @@ void LLMChatterConfig::LoadConfig()
             "LLMChatter.GroupChatter."
             "StateCalloutCooldown", 60);
 
+    // Pre-cached instant reactions
+    _preCacheEnable = sConfigMgr->GetOption<bool>(
+        "LLMChatter.GroupChatter.PreCacheEnable",
+        true);
+    _preCacheCombatEnable = sConfigMgr->GetOption<bool>(
+        "LLMChatter.GroupChatter.PreCacheCombatEnable",
+        true);
+    _preCacheStateEnable = sConfigMgr->GetOption<bool>(
+        "LLMChatter.GroupChatter.PreCacheStateEnable",
+        true);
+    _preCacheSpellEnable = sConfigMgr->GetOption<bool>(
+        "LLMChatter.GroupChatter.PreCacheSpellEnable",
+        true);
+    _preCacheDepthCombat =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "PreCacheDepthCombat", 2);
+    _preCacheDepthState =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "PreCacheDepthState", 2);
+    _preCacheDepthSpell =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "PreCacheDepthSpell", 2);
+    _preCacheTTLSeconds =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "PreCacheTTLSeconds", 3600);
+    _preCacheGeneratePerLoop =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "PreCacheGeneratePerLoop", 2);
+    _preCacheFallbackToLive =
+        sConfigMgr->GetOption<bool>(
+            "LLMChatter.GroupChatter."
+            "PreCacheFallbackToLive", true);
+
     // General chat reactions
     _useGeneralChatReact = sConfigMgr->GetOption<bool>(
         "LLMChatter.GeneralChat.Enable", true);
@@ -141,6 +179,23 @@ void LLMChatterConfig::LoadConfig()
                     _stateCalloutChance,
                     _stateCalloutCooldown);
             }
+        }
+        if (_preCacheEnable)
+        {
+            LOG_INFO("module",
+                "LLMChatter: Pre-cache enabled "
+                "(combat={}, state={}, spell={}, "
+                "depth={}/{}/{}, TTL={}s, "
+                "perLoop={}, fallback={})",
+                _preCacheCombatEnable ? 1 : 0,
+                _preCacheStateEnable ? 1 : 0,
+                _preCacheSpellEnable ? 1 : 0,
+                _preCacheDepthCombat,
+                _preCacheDepthState,
+                _preCacheDepthSpell,
+                _preCacheTTLSeconds,
+                _preCacheGeneratePerLoop,
+                _preCacheFallbackToLive ? 1 : 0);
         }
         if (_useGeneralChatReact)
         {
