@@ -793,6 +793,42 @@ LLMChatter.GroupChatter.CorpseRunCooldown = 120
 #
 LLMChatter.GroupChatter.FarewellEnable = 1
 
+#
+#    LLMChatter.GroupChatter.StateCalloutEnable
+#        Enable proactive state-triggered callouts
+#        (low health, OOM, aggro loss)
+#        Default: 1
+#
+#    LLMChatter.GroupChatter.StateCalloutLowHealth
+#        Enable low health callouts
+#        Default: 1
+#
+#    LLMChatter.GroupChatter.StateCalloutOom
+#        Enable out-of-mana callouts
+#        Default: 1
+#
+#    LLMChatter.GroupChatter.StateCalloutAggro
+#        Enable aggro loss callouts (tanks only)
+#        Default: 1
+#
+#    LLMChatter.GroupChatter.StateCalloutChance
+#        Percent chance to fire a callout when
+#        condition is met (0-100)
+#        Default: 60
+#
+#    LLMChatter.GroupChatter.StateCalloutCooldown
+#        Cooldown per bot per callout type in
+#        seconds
+#        Default: 60
+#
+
+LLMChatter.GroupChatter.StateCalloutEnable = 1
+LLMChatter.GroupChatter.StateCalloutLowHealth = 1
+LLMChatter.GroupChatter.StateCalloutOom = 1
+LLMChatter.GroupChatter.StateCalloutAggro = 1
+LLMChatter.GroupChatter.StateCalloutChance = 60
+LLMChatter.GroupChatter.StateCalloutCooldown = 60
+
 ###############################################################################
 # RP ENRICHMENT SETTINGS
 ###############################################################################

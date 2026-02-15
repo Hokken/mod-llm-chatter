@@ -79,7 +79,30 @@ void LLMChatterConfig::LoadConfig()
     _groupWipeCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.WipeCooldown", 120);
     _groupCorpseRunChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.CorpseRunChance", 80);
     _groupCorpseRunCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.CorpseRunCooldown", 120);
-    _useFarewell = sConfigMgr->GetOption<bool>("LLMChatter.GroupChatter.FarewellEnable", true);
+    _useFarewell = sConfigMgr->GetOption<bool>(
+        "LLMChatter.GroupChatter.FarewellEnable", true);
+
+    // Group chatter - state-triggered callouts
+    _stateCalloutEnabled = sConfigMgr->GetOption<bool>(
+        "LLMChatter.GroupChatter.StateCalloutEnable",
+        true);
+    _stateCalloutLowHealth = sConfigMgr->GetOption<bool>(
+        "LLMChatter.GroupChatter.StateCalloutLowHealth",
+        true);
+    _stateCalloutOom = sConfigMgr->GetOption<bool>(
+        "LLMChatter.GroupChatter.StateCalloutOom",
+        true);
+    _stateCalloutAggro = sConfigMgr->GetOption<bool>(
+        "LLMChatter.GroupChatter.StateCalloutAggro",
+        true);
+    _stateCalloutChance =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "StateCalloutChance", 60);
+    _stateCalloutCooldown =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "StateCalloutCooldown", 60);
 
     // General chat reactions
     _useGeneralChatReact = sConfigMgr->GetOption<bool>(
@@ -107,7 +130,17 @@ void LLMChatterConfig::LoadConfig()
         }
         if (_useGroupChatter)
         {
-            LOG_INFO("module", "LLMChatter: Group chatter enabled");
+            LOG_INFO("module",
+                "LLMChatter: Group chatter enabled");
+            if (_stateCalloutEnabled)
+            {
+                LOG_INFO("module",
+                    "LLMChatter: State callouts "
+                    "enabled (chance: {}%, "
+                    "cooldown: {}s)",
+                    _stateCalloutChance,
+                    _stateCalloutCooldown);
+            }
         }
         if (_useGeneralChatReact)
         {

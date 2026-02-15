@@ -47,6 +47,7 @@ from chatter_shared import (
     format_item_context,
     build_anti_repetition_context,
     get_recent_bot_messages,
+    build_bot_state_context,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -61,6 +62,7 @@ from chatter_constants import (
     RACE_SPEECH_PROFILES,
     LENGTH_HINTS, RP_LENGTH_HINTS,
     EMOTE_LIST_STR,
+    CLASS_ROLE_MAP,
 )
 
 logger = logging.getLogger(__name__)
@@ -229,12 +231,17 @@ PERSONALITY_TRAITS = {
 }
 
 
-def assign_bot_traits(db, group_id, bot_guid, bot_name):
+def assign_bot_traits(
+    db, group_id, bot_guid, bot_name,
+    role=None
+):
     """Pick 3 random traits and store them.
 
     Selects 3 random categories, picks 1 trait from
     each. Uses INSERT ... ON DUPLICATE KEY UPDATE
     so re-invites get fresh traits.
+    Optionally stores the bot's detected role
+    (tank/healer/melee_dps/ranged_dps).
     """
     categories = random.sample(
         list(PERSONALITY_TRAITS.keys()), 3
@@ -248,16 +255,18 @@ def assign_bot_traits(db, group_id, bot_guid, bot_name):
     cursor.execute("""
         INSERT INTO llm_group_bot_traits
         (group_id, bot_guid, bot_name,
-         trait1, trait2, trait3)
-        VALUES (%s, %s, %s, %s, %s, %s)
+         trait1, trait2, trait3, role)
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             trait1 = VALUES(trait1),
             trait2 = VALUES(trait2),
             trait3 = VALUES(trait3),
+            role = VALUES(role),
             assigned_at = CURRENT_TIMESTAMP
     """, (
         group_id, bot_guid, bot_name,
-        traits[0], traits[1], traits[2]
+        traits[0], traits[1], traits[2],
+        role
     ))
     db.commit()
 
@@ -265,6 +274,7 @@ def assign_bot_traits(db, group_id, bot_guid, bot_name):
         f"Assigned traits to {bot_name} "
         f"(group {group_id}): "
         f"{', '.join(traits)}"
+        f"{f', role={role}' if role else ''}"
     )
     return traits
 
@@ -273,7 +283,8 @@ def get_bot_traits(db, group_id, bot_guid):
     """Retrieve assigned traits for a bot."""
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
-        SELECT trait1, trait2, trait3, bot_name
+        SELECT trait1, trait2, trait3,
+            bot_name, role
         FROM llm_group_bot_traits
         WHERE group_id = %s AND bot_guid = %s
     """, (group_id, bot_guid))
@@ -285,6 +296,7 @@ def get_bot_traits(db, group_id, bot_guid):
                 row['trait3'],
             ],
             'bot_name': row.get('bot_name', ''),
+            'role': row.get('role'),
         }
     return None
 
@@ -296,7 +308,7 @@ def get_other_group_bot(db, group_id, exclude_guid):
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
         SELECT bot_guid, bot_name,
-               trait1, trait2, trait3
+               trait1, trait2, trait3, role
         FROM llm_group_bot_traits
         WHERE group_id = %s AND bot_guid != %s
         ORDER BY RAND()
@@ -311,6 +323,7 @@ def get_other_group_bot(db, group_id, exclude_guid):
                 row['trait1'], row['trait2'],
                 row['trait3'],
             ],
+            'role': row.get('role'),
         }
     return None
 
@@ -364,9 +377,14 @@ def _generate_farewell(
     try:
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=60
+            max_tokens_override=60,
+            context=f"farewell:{bot_name}"
         )
         if not response:
+            logger.warning(
+                f"Farewell for {bot_name}: "
+                f"LLM returned no response"
+            )
             return
 
         farewell = response.strip().strip('"').strip()
@@ -772,7 +790,7 @@ def build_bot_welcome_prompt(
 
 def build_kill_reaction_prompt(
     bot, traits, creature_name, is_boss, is_rare,
-    mode, chat_history=""
+    mode, chat_history="", extra_data=None
 ):
     """Build prompt for a bot reacting to a kill.
 
@@ -788,6 +806,17 @@ def build_kill_reaction_prompt(
         chance=1.0, mode=mode
     )
 
+    state_ctx = ""
+    actual_role = None
+    if extra_data:
+        state_ctx = build_bot_state_context(
+            extra_data
+        )
+        actual_role = (
+            extra_data.get('bot_state', {})
+            .get('role')
+        )
+
     logger.info(
         f"Group kill creativity: tone={tone}, "
         f"mood={mood}, twist={twist}"
@@ -796,7 +825,8 @@ def build_kill_reaction_prompt(
     rp_context = ""
     if is_rp:
         ctx = build_race_class_context(
-            bot['race'], bot['class']
+            bot['race'], bot['class'],
+            actual_role=actual_role
         )
         if ctx:
             rp_context = f"\n{ctx}"
@@ -843,6 +873,8 @@ def build_kill_reaction_prompt(
     )
     if twist:
         prompt += f"Creative twist: {twist}\n"
+    if state_ctx:
+        prompt += f"{state_ctx}\n"
     prompt += (
         f"{rp_context}\n\n"
         f"{kill_context}\n\n"
@@ -861,7 +893,8 @@ def build_kill_reaction_prompt(
 
 def build_loot_reaction_prompt(
     bot, traits, item_name, item_quality, mode,
-    chat_history="", looter_name=None
+    chat_history="", looter_name=None,
+    extra_data=None
 ):
     """Build prompt for a bot reacting to looting
     an item. Quality affects excitement level:
@@ -878,6 +911,17 @@ def build_loot_reaction_prompt(
         chance=1.0, mode=mode
     )
 
+    state_ctx = ""
+    actual_role = None
+    if extra_data:
+        state_ctx = build_bot_state_context(
+            extra_data
+        )
+        actual_role = (
+            extra_data.get('bot_state', {})
+            .get('role')
+        )
+
     logger.info(
         f"Group loot creativity: tone={tone}, "
         f"mood={mood}, twist={twist}"
@@ -886,7 +930,8 @@ def build_loot_reaction_prompt(
     rp_context = ""
     if is_rp:
         ctx = build_race_class_context(
-            bot['race'], bot['class']
+            bot['race'], bot['class'],
+            actual_role=actual_role
         )
         if ctx:
             rp_context = f"\n{ctx}"
@@ -911,7 +956,15 @@ def build_loot_reaction_prompt(
     else:
         who = "You"
 
-    if item_quality >= 4:
+    if item_quality >= 200:
+        # Unknown quality (bot loot, Item* skipped
+        # for crash safety). Generic reaction.
+        loot_context = (
+            f"{who} just picked up some loot. "
+            f"Make a brief, casual remark about "
+            f"it."
+        )
+    elif item_quality >= 4:
         loot_context = (
             f"{who} just looted {item_name}, an "
             f"{quality_label} item! This is a huge "
@@ -952,6 +1005,8 @@ def build_loot_reaction_prompt(
     )
     if twist:
         prompt += f"Creative twist: {twist}\n"
+    if state_ctx:
+        prompt += f"{state_ctx}\n"
     prompt += (
         f"{rp_context}\n\n"
         f"{loot_context}\n\n"
@@ -970,7 +1025,8 @@ def build_loot_reaction_prompt(
 
 def build_combat_reaction_prompt(
     bot, traits, creature_name, is_boss, mode,
-    chat_history="", is_elite=False
+    chat_history="", is_elite=False,
+    extra_data=None
 ):
     """Build prompt for a bot's battle cry when
     engaging a creature. Very short — must feel
@@ -984,6 +1040,17 @@ def build_combat_reaction_prompt(
         chance=1.0, mode=mode
     )
 
+    state_ctx = ""
+    actual_role = None
+    if extra_data:
+        state_ctx = build_bot_state_context(
+            extra_data
+        )
+        actual_role = (
+            extra_data.get('bot_state', {})
+            .get('role')
+        )
+
     logger.info(
         f"Group combat creativity: tone={tone}, "
         f"mood={mood}, twist={twist}"
@@ -992,7 +1059,8 @@ def build_combat_reaction_prompt(
     rp_context = ""
     if is_rp:
         ctx = build_race_class_context(
-            bot['race'], bot['class']
+            bot['race'], bot['class'],
+            actual_role=actual_role
         )
         if ctx:
             rp_context = f"\n{ctx}"
@@ -1041,6 +1109,8 @@ def build_combat_reaction_prompt(
     )
     if twist:
         prompt += f"Creative twist: {twist}\n"
+    if state_ctx:
+        prompt += f"{state_ctx}\n"
     prompt += (
         f"{rp_context}\n\n"
         f"{combat_context}\n\n"
@@ -1061,7 +1131,7 @@ def build_combat_reaction_prompt(
 def build_death_reaction_prompt(
     reactor, reactor_traits, dead_name,
     killer_name, mode, chat_history="",
-    is_player_death=False
+    is_player_death=False, extra_data=None
 ):
     """Build prompt for a bot reacting to a
     groupmate dying. The reactor is a DIFFERENT
@@ -1075,6 +1145,17 @@ def build_death_reaction_prompt(
         chance=1.0, mode=mode
     )
 
+    state_ctx = ""
+    actual_role = None
+    if extra_data:
+        state_ctx = build_bot_state_context(
+            extra_data
+        )
+        actual_role = (
+            extra_data.get('bot_state', {})
+            .get('role')
+        )
+
     logger.info(
         f"Group death creativity: tone={tone}, "
         f"mood={mood}, twist={twist}"
@@ -1083,7 +1164,8 @@ def build_death_reaction_prompt(
     rp_context = ""
     if is_rp:
         ctx = build_race_class_context(
-            reactor['race'], reactor['class']
+            reactor['race'], reactor['class'],
+            actual_role=actual_role
         )
         if ctx:
             rp_context = f"\n{ctx}"
@@ -1136,6 +1218,8 @@ def build_death_reaction_prompt(
     )
     if twist:
         prompt += f"Creative twist: {twist}\n"
+    if state_ctx:
+        prompt += f"{state_ctx}\n"
     prompt += (
         f"{rp_context}\n\n"
         f"{who} just died"
@@ -1498,7 +1582,7 @@ def build_spell_cast_reaction_prompt(
     bot, traits, caster_name, spell_name,
     spell_category, target_name, mode,
     chat_history="", members=None,
-    dungeon_bosses=None,
+    dungeon_bosses=None, extra_data=None,
 ):
     """Build prompt for a bot reacting to a notable
     spell cast (heal, cc, resurrect, shield, buff).
@@ -1516,6 +1600,7 @@ def build_spell_cast_reaction_prompt(
         members: list of group member names
         dungeon_bosses: list of boss names if in
             a dungeon
+        extra_data: parsed extra_data dict from event
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
@@ -1525,6 +1610,17 @@ def build_spell_cast_reaction_prompt(
         chance=1.0, mode=mode
     )
 
+    state_ctx = ""
+    actual_role = None
+    if extra_data:
+        state_ctx = build_bot_state_context(
+            extra_data
+        )
+        actual_role = (
+            extra_data.get('bot_state', {})
+            .get('role')
+        )
+
     logger.info(
         f"Group spell cast creativity: "
         f"tone={tone}, mood={mood}, twist={twist}"
@@ -1533,7 +1629,8 @@ def build_spell_cast_reaction_prompt(
     rp_context = ""
     if is_rp:
         ctx = build_race_class_context(
-            bot['race'], bot['class']
+            bot['race'], bot['class'],
+            actual_role=actual_role
         )
         if ctx:
             rp_context = f"\n{ctx}"
@@ -1688,6 +1785,8 @@ def build_spell_cast_reaction_prompt(
     )
     if twist:
         prompt += f"Creative twist: {twist}\n"
+    if state_ctx:
+        prompt += f"{state_ctx}\n"
     prompt += (
         f"{rp_context}\n\n"
         f"{situation}\n\n"
@@ -1928,9 +2027,11 @@ def process_group_event(db, client, config, event):
     db.commit()
 
     try:
-        # 1. Assign traits
+        # 1. Assign traits (with role from C++)
+        bot_role = extra_data.get('role')
         traits = assign_bot_traits(
-            db, group_id, bot_guid, bot_name
+            db, group_id, bot_guid, bot_name,
+            role=bot_role
         )
 
         # 2. Build prompt with chat history
@@ -1952,7 +2053,8 @@ def process_group_event(db, client, config, event):
         ))
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=f"grp-join:#{event_id}:{bot_name}"
         )
 
         if not response:
@@ -2001,6 +2103,18 @@ def process_group_event(db, client, config, event):
             bot_guid, bot_name,
             mode, event_id
         )
+
+        # 7b. Maybe comment on group composition
+        try:
+            _maybe_comment_on_composition(
+                db, client, config, group_id,
+                bot, traits, mode, event_id,
+                player_name=player_name,
+            )
+        except Exception as e:
+            logger.warning(
+                f"Composition comment failed: {e}"
+            )
 
         # 8. Pre-generate farewell message
         try:
@@ -2121,6 +2235,7 @@ def process_group_kill_event(
             bot, traits, creature_name,
             is_boss, is_rare, mode,
             chat_history=chat_hist,
+            extra_data=extra_data,
         )
         mood_label = get_bot_mood_label(
             group_id, bot_guid
@@ -2135,10 +2250,17 @@ def process_group_kill_event(
         ))
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-kill:#{event_id}:{bot_name}"
+            )
         )
 
         if not response:
+            logger.warning(
+                f"Group kill #{event_id}: "
+                f"LLM returned no response"
+            )
             _mark_event(db, event_id, 'skipped')
             return False
 
@@ -2320,6 +2442,7 @@ def process_group_loot_event(
             item_quality, mode,
             chat_history=chat_hist,
             looter_name=prompt_looter_name,
+            extra_data=extra_data,
         )
         mood_label = get_bot_mood_label(
             group_id, bot['guid']
@@ -2334,10 +2457,18 @@ def process_group_loot_event(
         ))
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-loot:#{event_id}"
+                f":{bot['name']}"
+            )
         )
 
         if not response:
+            logger.warning(
+                f"Group loot #{event_id}: "
+                f"LLM returned no response"
+            )
             _mark_event(db, event_id, 'skipped')
             return False
 
@@ -2386,7 +2517,8 @@ def process_group_loot_event(
 
         update_bot_mood(
             group_id, bot['guid'],
-            'epic_loot' if item_quality >= 4
+            'epic_loot'
+            if 4 <= item_quality < 200
             else 'loot'
         )
         _mark_event(db, event_id, 'completed')
@@ -2500,6 +2632,7 @@ def process_group_combat_event(
             is_boss, mode,
             chat_history=chat_hist,
             is_elite=is_elite,
+            extra_data=extra_data,
         )
 
         max_tokens = int(config.get(
@@ -2509,10 +2642,18 @@ def process_group_combat_event(
             client, prompt, config,
             max_tokens_override=min(
                 max_tokens, 60
+            ),
+            context=(
+                f"grp-combat:#{event_id}"
+                f":{bot_name}"
             )
         )
 
         if not response:
+            logger.warning(
+                f"Group combat #{event_id}: "
+                f"LLM returned no response"
+            )
             _mark_event(db, event_id, 'skipped')
             return False
 
@@ -2578,61 +2719,91 @@ def process_group_death_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
-    dead_guid = int(extra_data.get('bot_guid', 0))
-    dead_name = extra_data.get('bot_name', 'someone')
+    # C++ now pre-selects the reactor and includes
+    # their info in extra_data (bot_guid/bot_name =
+    # reactor, dead_name/dead_guid = dead player)
+    reactor_guid = int(
+        extra_data.get('bot_guid', 0)
+    )
+    reactor_name = extra_data.get(
+        'bot_name', 'someone'
+    )
+    dead_name = extra_data.get(
+        'dead_name',
+        extra_data.get('bot_name', 'someone')
+    )
+    dead_guid = int(
+        extra_data.get('dead_guid', 0)
+    )
     killer_name = extra_data.get('killer_name', '')
     group_id = int(extra_data.get('group_id', 0))
     is_player_death = extra_data.get(
         'is_player_death', False
     )
 
-    if not dead_guid or not group_id:
+    if not reactor_guid or not group_id:
         _mark_event(db, event_id, 'skipped')
         return False
 
-    # Find a different bot in the group to react
-    reactor_data = get_other_group_bot(
-        db, group_id, dead_guid
+    # Get reactor traits from traits table
+    trait_data = get_bot_traits(
+        db, group_id, reactor_guid
     )
-    if not reactor_data:
-        logger.info(
-            f"Death event #{event_id}: no other "
-            f"bot in group {group_id} to react"
+    if not trait_data:
+        # Fallback: try get_other_group_bot (legacy)
+        reactor_data = get_other_group_bot(
+            db, group_id, dead_guid or reactor_guid
         )
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # We need class/race for the reactor - query
-    # from characters table
-    reactor_guid = reactor_data['guid']
-    reactor_name = reactor_data['name']
-    reactor_traits = reactor_data['traits']
-
-    # Get reactor's class/race from characters
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT class, race, level
-        FROM characters
-        WHERE guid = %s
-    """, (reactor_guid,))
-    char_row = cursor.fetchone()
-
-    if not char_row:
-        logger.info(
-            f"Death event #{event_id}: "
-            f"reactor {reactor_name} not found "
-            f"in characters table"
+        if not reactor_data:
+            logger.info(
+                f"Death event #{event_id}: no "
+                f"traits for reactor {reactor_name}"
+            )
+            _mark_event(db, event_id, 'skipped')
+            return False
+        reactor_guid = reactor_data['guid']
+        reactor_name = reactor_data['name']
+        reactor_traits = reactor_data['traits']
+        # Need class/race from characters table
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT class, race, level
+            FROM characters WHERE guid = %s
+        """, (reactor_guid,))
+        char_row = cursor.fetchone()
+        if not char_row:
+            _mark_event(db, event_id, 'skipped')
+            return False
+        reactor = {
+            'guid': reactor_guid,
+            'name': reactor_name,
+            'class': get_class_name(
+                char_row['class']
+            ),
+            'race': get_race_name(
+                char_row['race']
+            ),
+            'level': char_row['level'],
+        }
+    else:
+        reactor_traits = trait_data['traits']
+        # Use class/race from extra_data (C++)
+        bot_class_id = int(
+            extra_data.get('bot_class', 0)
         )
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    reactor = {
-        'guid': reactor_guid,
-        'name': reactor_name,
-        'class': get_class_name(char_row['class']),
-        'race': get_race_name(char_row['race']),
-        'level': char_row['level'],
-    }
+        bot_race_id = int(
+            extra_data.get('bot_race', 0)
+        )
+        bot_level = int(
+            extra_data.get('bot_level', 1)
+        )
+        reactor = {
+            'guid': reactor_guid,
+            'name': reactor_name,
+            'class': get_class_name(bot_class_id),
+            'race': get_race_name(bot_race_id),
+            'level': bot_level,
+        }
 
     logger.info(
         f"Processing group death reaction: "
@@ -2658,6 +2829,7 @@ def process_group_death_event(
             killer_name, mode,
             chat_history=chat_hist,
             is_player_death=is_player_death,
+            extra_data=extra_data,
         )
         mood_label = get_bot_mood_label(
             group_id, reactor_guid
@@ -2672,10 +2844,18 @@ def process_group_death_event(
         ))
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-death:#{event_id}"
+                f":{reactor_name}"
+            )
         )
 
         if not response:
+            logger.warning(
+                f"Group death #{event_id}: "
+                f"LLM returned no response"
+            )
             _mark_event(db, event_id, 'skipped')
             return False
 
@@ -2913,10 +3093,18 @@ def process_group_player_msg_event(
         ))
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-msg:#{event_id}"
+                f":{bot_name}"
+            )
         )
 
         if not response:
+            logger.warning(
+                f"Group player_msg #{event_id}: "
+                f"LLM returned no response"
+            )
             _mark_event(db, event_id, 'skipped')
             return False
 
@@ -3108,10 +3296,18 @@ def process_group_levelup_event(
         ))
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-levelup:#{event_id}"
+                f":{reactor_name}"
+            )
         )
 
         if not response:
+            logger.warning(
+                f"Group levelup #{event_id}: "
+                f"LLM returned no response"
+            )
             _mark_event(db, event_id, 'skipped')
             return False
 
@@ -3301,10 +3497,18 @@ def process_group_quest_complete_event(
         ))
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-quest:#{event_id}"
+                f":{reactor_name}"
+            )
         )
 
         if not response:
+            logger.warning(
+                f"Group quest #{event_id}: "
+                f"LLM returned no response"
+            )
             _mark_event(db, event_id, 'skipped')
             return False
 
@@ -3502,10 +3706,18 @@ def process_group_quest_objectives_event(
         ))
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-objectives:#{event_id}"
+                f":{reactor_name}"
+            )
         )
 
         if not response:
+            logger.warning(
+                f"Group objectives #{event_id}: "
+                f"LLM returned no response"
+            )
             _mark_event(db, event_id, 'skipped')
             return False
 
@@ -3690,10 +3902,18 @@ def process_group_achievement_event(
         ))
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-achieve:#{event_id}"
+                f":{reactor_name}"
+            )
         )
 
         if not response:
+            logger.warning(
+                f"Group achievement #{event_id}: "
+                f"LLM returned no response"
+            )
             _mark_event(db, event_id, 'skipped')
             return False
 
@@ -3871,6 +4091,7 @@ def process_group_spell_cast_event(
             chat_history=chat_hist,
             members=members,
             dungeon_bosses=dungeon_bosses,
+            extra_data=extra_data,
         )
 
         max_tokens = int(config.get(
@@ -3878,10 +4099,18 @@ def process_group_spell_cast_event(
         ))
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-spell:#{event_id}"
+                f":{bot['name']}"
+            )
         )
 
         if not response:
+            logger.warning(
+                f"Group spell #{event_id}: "
+                f"LLM returned no response"
+            )
             _mark_event(db, event_id, 'skipped')
             return False
 
@@ -4035,10 +4264,18 @@ def process_group_resurrect_event(
         ))
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-resurrect:#{event_id}"
+                f":{bot_name}"
+            )
         )
 
         if not response:
+            logger.warning(
+                f"Group resurrect #{event_id}: "
+                f"LLM returned no response"
+            )
             _mark_event(db, event_id, 'skipped')
             return False
 
@@ -4184,10 +4421,18 @@ def process_group_zone_transition_event(
         ))
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-zone:#{event_id}"
+                f":{bot_name}"
+            )
         )
 
         if not response:
+            logger.warning(
+                f"Group zone #{event_id}: "
+                f"LLM returned no response"
+            )
             _mark_event(db, event_id, 'skipped')
             return False
 
@@ -4335,10 +4580,18 @@ def process_group_dungeon_entry_event(
         ))
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-dungeon:#{event_id}"
+                f":{bot_name}"
+            )
         )
 
         if not response:
+            logger.warning(
+                f"Group dungeon #{event_id}: "
+                f"LLM returned no response"
+            )
             _mark_event(db, event_id, 'skipped')
             return False
 
@@ -4474,6 +4727,7 @@ def process_group_wipe_event(
         prompt = build_wipe_reaction_prompt(
             bot, traits, killer_name, mode,
             chat_history=chat_hist,
+            extra_data=extra_data,
         )
         mood_label = get_bot_mood_label(
             group_id, bot_guid
@@ -4488,10 +4742,18 @@ def process_group_wipe_event(
         ))
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-wipe:#{event_id}"
+                f":{bot_name}"
+            )
         )
 
         if not response:
+            logger.warning(
+                f"Group wipe #{event_id}: "
+                f"LLM returned no response"
+            )
             _mark_event(db, event_id, 'skipped')
             return False
 
@@ -4643,10 +4905,18 @@ def process_group_corpse_run_event(
         ))
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-corpse:#{event_id}"
+                f":{bot_name}"
+            )
         )
 
         if not response:
+            logger.warning(
+                f"Group corpse #{event_id}: "
+                f"LLM returned no response"
+            )
             _mark_event(db, event_id, 'skipped')
             return False
 
@@ -4686,6 +4956,401 @@ def process_group_corpse_run_event(
     except Exception as e:
         logger.error(
             f"Error processing corpse run event "
+            f"#{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+
+# ============================================================
+# STATE-TRIGGERED CALLOUT PROCESSORS (Phase 2C)
+# ============================================================
+def process_group_low_health_event(
+    db, client, config, event
+):
+    """Handle bot_group_low_health callout."""
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_low_health'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'Unknown'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+    target_name = extra_data.get(
+        'target_name', ''
+    )
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    # Get class/race from characters
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters WHERE guid = %s
+    """, (bot_guid,))
+    char_row = cursor.fetchone()
+    if not char_row:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': get_class_name(char_row['class']),
+        'race': get_race_name(char_row['race']),
+        'level': char_row['level'],
+    }
+
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        prompt = build_low_health_callout_prompt(
+            bot, traits, target_name, mode,
+            chat_history=chat_hist,
+            extra_data=extra_data,
+        )
+
+        response = call_llm(
+            client, prompt, config,
+            max_tokens_override=60,
+            context=(
+                f"grp-lowHP:#{event_id}"
+                f":{bot_name}"
+            )
+        )
+        if not response:
+            logger.warning(
+                f"Group low_health #{event_id}: "
+                f"LLM returned no response"
+            )
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = (
+            response.strip().strip('"').strip()
+        )
+        message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, bot_name
+        )
+        if not message:
+            _mark_event(db, event_id, 'skipped')
+            return False
+        if len(message) > 255:
+            message = message[:252] + "..."
+
+        logger.info(
+            f"Low health callout from "
+            f"{bot_name}: {message}"
+        )
+
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, bot_guid, bot_name, message,
+            channel='party', delay_seconds=1,
+            event_id=event_id, emote=emote,
+        )
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing low health event "
+            f"#{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+
+def process_group_oom_event(
+    db, client, config, event
+):
+    """Handle bot_group_oom callout."""
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_oom'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'Unknown'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+    target_name = extra_data.get(
+        'target_name', ''
+    )
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters WHERE guid = %s
+    """, (bot_guid,))
+    char_row = cursor.fetchone()
+    if not char_row:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': get_class_name(char_row['class']),
+        'race': get_race_name(char_row['race']),
+        'level': char_row['level'],
+    }
+
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        prompt = build_oom_callout_prompt(
+            bot, traits, target_name, mode,
+            chat_history=chat_hist,
+            extra_data=extra_data,
+        )
+
+        response = call_llm(
+            client, prompt, config,
+            max_tokens_override=60,
+            context=(
+                f"grp-oom:#{event_id}"
+                f":{bot_name}"
+            )
+        )
+        if not response:
+            logger.warning(
+                f"Group oom #{event_id}: "
+                f"LLM returned no response"
+            )
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = (
+            response.strip().strip('"').strip()
+        )
+        message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, bot_name
+        )
+        if not message:
+            _mark_event(db, event_id, 'skipped')
+            return False
+        if len(message) > 255:
+            message = message[:252] + "..."
+
+        logger.info(
+            f"OOM callout from "
+            f"{bot_name}: {message}"
+        )
+
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, bot_guid, bot_name, message,
+            channel='party', delay_seconds=1,
+            event_id=event_id, emote=emote,
+        )
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing OOM event "
+            f"#{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+
+def process_group_aggro_loss_event(
+    db, client, config, event
+):
+    """Handle bot_group_aggro_loss callout."""
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_aggro_loss'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'Unknown'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+    target_name = extra_data.get(
+        'target_name', ''
+    )
+    aggro_target = extra_data.get(
+        'aggro_target', 'someone'
+    )
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters WHERE guid = %s
+    """, (bot_guid,))
+    char_row = cursor.fetchone()
+    if not char_row:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': get_class_name(char_row['class']),
+        'race': get_race_name(char_row['race']),
+        'level': char_row['level'],
+    }
+
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        prompt = build_aggro_loss_callout_prompt(
+            bot, traits, target_name,
+            aggro_target, mode,
+            chat_history=chat_hist,
+            extra_data=extra_data,
+        )
+
+        response = call_llm(
+            client, prompt, config,
+            max_tokens_override=60,
+            context=(
+                f"grp-aggro:#{event_id}"
+                f":{bot_name}"
+            )
+        )
+        if not response:
+            logger.warning(
+                f"Group aggro_loss #{event_id}: "
+                f"LLM returned no response"
+            )
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = (
+            response.strip().strip('"').strip()
+        )
+        message = cleanup_message(message)
+        message = strip_speaker_prefix(
+            message, bot_name
+        )
+        if not message:
+            _mark_event(db, event_id, 'skipped')
+            return False
+        if len(message) > 255:
+            message = message[:252] + "..."
+
+        logger.info(
+            f"Aggro loss callout from "
+            f"{bot_name}: {message}"
+        )
+
+        emote = pick_emote_for_statement(message)
+        insert_chat_message(
+            db, bot_guid, bot_name, message,
+            channel='party', delay_seconds=1,
+            event_id=event_id, emote=emote,
+        )
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing aggro loss event "
             f"#{event_id}: {e}"
         )
         _mark_event(db, event_id, 'skipped')
@@ -4747,9 +5412,14 @@ def _try_second_bot_response(
     ))
     response = call_llm(
         client, prompt, config,
-        max_tokens_override=max_tokens
+        max_tokens_override=max_tokens,
+        context=f"2nd-reply:{bot2_name}"
     )
     if not response:
+        logger.warning(
+            f"Second bot reply ({bot2_name}): "
+            f"LLM returned no response"
+        )
         return
 
     msg2 = response.strip().strip('"').strip()
@@ -4842,7 +5512,8 @@ def _welcome_from_existing_bot(
     ))
     response = call_llm(
         client, prompt, config,
-        max_tokens_override=max_tokens
+        max_tokens_override=max_tokens,
+        context=f"welcome:{wb_name}"
     )
     if not response:
         logger.warning(
@@ -4879,6 +5550,195 @@ def _welcome_from_existing_bot(
     _store_chat(
         db, group_id, wb_guid,
         wb_name, True, msg
+    )
+
+
+def _get_group_role_summary(db, group_id):
+    """Query all bots in the group, look up their
+    classes from the characters table, and return a
+    role summary string like:
+    "1 tank (Warrior), 1 healer (Priest),
+     2 DPS (Mage, Rogue)"
+
+    Returns (summary_str, role_counts_dict) or
+    (None, None) if no data.
+    """
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT t.bot_guid, t.bot_name,
+               c.class AS class_id
+        FROM llm_group_bot_traits t
+        JOIN characters c ON c.guid = t.bot_guid
+        WHERE t.group_id = %s
+    """, (group_id,))
+    rows = cursor.fetchall()
+    if not rows:
+        return None, None
+
+    # Map to roles
+    role_labels = {
+        'tank': 'tank',
+        'healer': 'healer',
+        'melee_dps': 'DPS',
+        'ranged_dps': 'DPS',
+        'hybrid_tank': 'hybrid',
+        'hybrid_healer': 'hybrid',
+    }
+    role_members = {}
+    for row in rows:
+        cls = get_class_name(row['class_id'])
+        role_key = CLASS_ROLE_MAP.get(cls, 'DPS')
+        label = role_labels.get(role_key, 'DPS')
+        if label not in role_members:
+            role_members[label] = []
+        role_members[label].append(cls)
+
+    # Build readable summary
+    parts = []
+    for label in ['tank', 'healer', 'DPS', 'hybrid']:
+        members = role_members.get(label, [])
+        if members:
+            n = len(members)
+            classes = ', '.join(members)
+            parts.append(
+                f"{n} {label} ({classes})"
+            )
+
+    has_tank = bool(role_members.get('tank'))
+    has_healer = bool(role_members.get('healer'))
+
+    summary = ', '.join(parts)
+    return summary, {
+        'has_tank': has_tank,
+        'has_healer': has_healer,
+        'total': len(rows),
+    }
+
+
+def _build_composition_comment_prompt(
+    bot, traits, mode, role_summary,
+    role_info, player_name=""
+):
+    """Build a short prompt for a bot to comment
+    on the group's composition after joining.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot.get('race', ''),
+            bot.get('class', '')
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']}.\n"
+        f"Your personality: {trait_str}"
+        f"{rp_context}\n\n"
+        f"You just joined a group"
+    )
+    if player_name:
+        prompt += f" with {player_name}"
+    prompt += (
+        f".\nGroup composition: {role_summary}"
+        f" (plus the player).\n"
+    )
+
+    # Add pointed observations
+    if not role_info.get('has_tank'):
+        prompt += "There is no dedicated tank.\n"
+    if not role_info.get('has_healer'):
+        prompt += "There is no dedicated healer.\n"
+
+    if is_rp:
+        style = (
+            "Stay in-character. Make a brief, "
+            "natural observation about the group "
+            "composition from your class perspective."
+        )
+    else:
+        style = (
+            "Make a brief, casual comment about "
+            "the group composition."
+        )
+
+    prompt += (
+        f"\n{style}\n"
+        f"One short sentence only (under 120 "
+        f"characters). No greetings — you already "
+        f"said hello."
+    )
+    return prompt
+
+
+def _maybe_comment_on_composition(
+    db, client, config, group_id,
+    bot, traits, mode, event_id,
+    player_name=""
+):
+    """Optionally generate a composition comment
+    after the bot joins a group. 50% chance,
+    only fires if group has 2+ bots.
+    """
+    if random.random() > 0.5:
+        return
+
+    role_summary, role_info = (
+        _get_group_role_summary(db, group_id)
+    )
+    if not role_summary or not role_info:
+        return
+    if role_info.get('total', 0) < 2:
+        return
+
+    prompt = _build_composition_comment_prompt(
+        bot, traits, mode, role_summary,
+        role_info, player_name
+    )
+
+    max_tokens = int(config.get(
+        'LLMChatter.MaxTokens', 200
+    ))
+    response = call_llm(
+        client, prompt, config,
+        max_tokens_override=min(max_tokens, 100),
+        context=f"comp-comment:{bot['name']}"
+    )
+    if not response:
+        logger.warning(
+            f"Comp comment ({bot['name']}): "
+            f"LLM returned no response"
+        )
+        return
+
+    msg = response.strip().strip('"').strip()
+    msg = cleanup_message(msg)
+    msg = strip_speaker_prefix(msg, bot['name'])
+    if not msg:
+        return
+    if len(msg) > 255:
+        msg = msg[:252] + "..."
+
+    logger.info(
+        f"Comp comment from {bot['name']}: {msg}"
+    )
+
+    emote = pick_emote_for_statement(msg)
+    insert_chat_message(
+        db, bot['guid'], bot['name'], msg,
+        channel='party', delay_seconds=8,
+        event_id=event_id, sequence=2,
+        emote=emote,
+    )
+
+    _store_chat(
+        db, group_id, bot['guid'],
+        bot['name'], True, msg
     )
 
 
@@ -5151,7 +6011,7 @@ def build_dungeon_entry_prompt(
 
 def build_wipe_reaction_prompt(
     bot, traits, killer_name, mode,
-    chat_history=""
+    chat_history="", extra_data=None
 ):
     """Build prompt for a bot reacting to a total
     party wipe. Dramatic, frustrated, humorous,
@@ -5165,6 +6025,17 @@ def build_wipe_reaction_prompt(
         chance=1.0, mode=mode
     )
 
+    state_ctx = ""
+    actual_role = None
+    if extra_data:
+        state_ctx = build_bot_state_context(
+            extra_data
+        )
+        actual_role = (
+            extra_data.get('bot_state', {})
+            .get('role')
+        )
+
     logger.info(
         f"Group wipe creativity: "
         f"tone={tone}, mood={mood}, twist={twist}"
@@ -5173,7 +6044,8 @@ def build_wipe_reaction_prompt(
     rp_context = ""
     if is_rp:
         ctx = build_race_class_context(
-            bot['race'], bot['class']
+            bot['race'], bot['class'],
+            actual_role=actual_role
         )
         if ctx:
             rp_context = f"\n{ctx}"
@@ -5215,6 +6087,8 @@ def build_wipe_reaction_prompt(
     )
     if twist:
         prompt += f"Creative twist: {twist}\n"
+    if state_ctx:
+        prompt += f"{state_ctx}\n"
     prompt += (
         f"{rp_context}\n\n"
         f"{wipe_context}\n\n"
@@ -5357,6 +6231,209 @@ def build_corpse_run_reaction_prompt(
         prompt += (
             f"\n- Refer to {dead_name} by name"
         )
+    return prompt
+
+
+# ============================================================
+# STATE-TRIGGERED CALLOUT PROMPTS (Phase 2C)
+# ============================================================
+def build_low_health_callout_prompt(
+    bot, traits, target_name, mode,
+    chat_history="", extra_data=None
+):
+    """Bot is critically wounded in combat."""
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+
+    state_ctx = ""
+    actual_role = None
+    if extra_data:
+        state_ctx = build_bot_state_context(
+            extra_data
+        )
+        actual_role = (
+            extra_data.get('bot_state', {})
+            .get('role')
+        )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class'],
+            actual_role=actual_role
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    hp = 0
+    if extra_data:
+        hp = int(
+            extra_data.get('bot_state', {})
+            .get('health_pct', 0)
+        )
+
+    situation = (
+        f"You are in combat and critically "
+        f"wounded ({hp}% health)."
+    )
+    if target_name:
+        situation += (
+            f" You are fighting {target_name}."
+        )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+    )
+    if state_ctx:
+        prompt += f"{state_ctx}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{situation}\n\n"
+        f"React with urgency — call for help, "
+        f"express pain, or show desperation.\n"
+        f"Say ONE short sentence in party chat.\n"
+        f"Rules:\n"
+        f"- Extremely brief, 3-10 words\n"
+        f"- No quotes, asterisks, emotes, "
+        f"emojis\n"
+        f"- Reflect your personality traits"
+    )
+    return prompt
+
+
+def build_oom_callout_prompt(
+    bot, traits, target_name, mode,
+    chat_history="", extra_data=None
+):
+    """Bot is running out of mana in combat."""
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+
+    state_ctx = ""
+    actual_role = None
+    if extra_data:
+        state_ctx = build_bot_state_context(
+            extra_data
+        )
+        actual_role = (
+            extra_data.get('bot_state', {})
+            .get('role')
+        )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class'],
+            actual_role=actual_role
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    mp = 0
+    if extra_data:
+        mp = int(
+            extra_data.get('bot_state', {})
+            .get('mana_pct', 0)
+        )
+
+    situation = (
+        f"You are in combat and almost out of "
+        f"mana ({mp}%)."
+    )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+    )
+    if state_ctx:
+        prompt += f"{state_ctx}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{situation}\n\n"
+        f"Alert your group — ask for a moment, "
+        f"warn the tank to stop pulling, or "
+        f"express frustration.\n"
+        f"Say ONE short sentence in party chat.\n"
+        f"Rules:\n"
+        f"- Extremely brief, 3-10 words\n"
+        f"- No quotes, asterisks, emotes, "
+        f"emojis\n"
+        f"- Reflect your personality traits"
+    )
+    return prompt
+
+
+def build_aggro_loss_callout_prompt(
+    bot, traits, target_name, aggro_target,
+    mode, chat_history="", extra_data=None
+):
+    """Tank lost aggro — mob attacking someone
+    else in group."""
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+
+    state_ctx = ""
+    actual_role = None
+    if extra_data:
+        state_ctx = build_bot_state_context(
+            extra_data
+        )
+        actual_role = (
+            extra_data.get('bot_state', {})
+            .get('role')
+        )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class'],
+            actual_role=actual_role
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    situation = (
+        f"You are the tank but {target_name} "
+        f"is now attacking {aggro_target}."
+    )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+    )
+    if state_ctx:
+        prompt += f"{state_ctx}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{situation}\n\n"
+        f"React with urgency — warn the group, "
+        f"try to get the mob's attention back, "
+        f"or call out the danger.\n"
+        f"Say ONE short sentence in party chat.\n"
+        f"Rules:\n"
+        f"- Extremely brief, 3-10 words\n"
+        f"- No quotes, asterisks, emotes, "
+        f"emojis\n"
+        f"- Can mention {target_name} or "
+        f"{aggro_target} by name\n"
+        f"- Reflect your personality traits"
+    )
     return prompt
 
 
@@ -5639,7 +6716,8 @@ def build_idle_chatter_prompt(
     rp_context = ""
     if is_rp:
         ctx = build_race_class_context(
-            bot['race'], bot['class']
+            bot['race'], bot['class'],
+            actual_role=bot.get('role')
         )
         if ctx:
             rp_context = f"\n{ctx}"
@@ -5877,6 +6955,7 @@ def build_idle_conversation_prompt(
             rp_ctx = build_race_class_context(
                 bot.get('race', ''),
                 bot.get('class', ''),
+                actual_role=bot.get('role'),
             )
             if rp_ctx:
                 parts.append(f"  {rp_ctx}")
@@ -6090,7 +7169,7 @@ def check_idle_group_chatter(
     # Get all bots in this group
     cursor.execute("""
         SELECT bot_guid, bot_name,
-               trait1, trait2, trait3
+               trait1, trait2, trait3, role
         FROM llm_group_bot_traits
         WHERE group_id = %s
         ORDER BY RAND()
@@ -6234,6 +7313,7 @@ def _idle_single_statement(
         'class': get_class_name(char_row['class']),
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
+        'role': bot_row.get('role'),
     }
 
     # Determine address target
@@ -6291,10 +7371,15 @@ def _idle_single_statement(
         ))
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=f"idle:{bot_name}"
         )
 
         if not response:
+            logger.warning(
+                f"Idle statement ({bot_name}): "
+                f"LLM returned no response"
+            )
             return False
 
         message = response.strip().strip('"').strip()
@@ -6384,6 +7469,7 @@ def _idle_conversation(
             ),
             'race': get_race_name(char['race']),
             'level': char['level'],
+            'role': br.get('role'),
         }
         bots.append(bot)
         traits_map[br['bot_name']] = [
@@ -6438,12 +7524,19 @@ def _idle_conversation(
         conv_tokens = min(
             max_tokens * (1 + num_bots), 1000
         )
+        names_ctx = ','.join(bot_names)
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=conv_tokens
+            max_tokens_override=conv_tokens,
+            context=f"idle-conv:{names_ctx}"
         )
 
         if not response:
+            logger.warning(
+                f"Idle conversation "
+                f"({names_ctx}): "
+                f"LLM returned no response"
+            )
             return False
 
         logger.info(

@@ -526,10 +526,18 @@ def process_general_player_msg_event(
         ))
         response1 = call_llm(
             client, prompt1, config,
-            max_tokens_override=max_tokens
+            max_tokens_override=max_tokens,
+            context=(
+                f"gen-msg:#{event_id}"
+                f":{bot1_name}"
+            )
         )
 
         if not response1:
+            logger.warning(
+                f"General msg #{event_id}: "
+                f"LLM returned no response"
+            )
             _mark_event(db, event_id, 'skipped')
             return False
 
@@ -647,9 +655,14 @@ def _general_followup(
     ))
     response2 = call_llm(
         client, prompt2, config,
-        max_tokens_override=max_tokens
+        max_tokens_override=max_tokens,
+        context=f"gen-followup:{bot2_name}"
     )
     if not response2:
+        logger.warning(
+            f"General followup ({bot2_name}): "
+            f"LLM returned no response"
+        )
         return
 
     msg2 = response2.strip().strip('"').strip()

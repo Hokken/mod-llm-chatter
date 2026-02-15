@@ -94,6 +94,9 @@ from chatter_group import (
     process_group_dungeon_entry_event,
     process_group_wipe_event,
     process_group_corpse_run_event,
+    process_group_low_health_event,
+    process_group_oom_event,
+    process_group_aggro_loss_event,
     check_idle_group_chatter,
 )
 from chatter_general import (
@@ -355,7 +358,10 @@ def process_statement(
         )
 
     # Call LLM
-    response = call_llm(client, prompt, config)
+    response = call_llm(
+        client, prompt, config,
+        context=f"ambient:{bot['name']}"
+    )
 
     if response:
         # Clean and replace placeholders
@@ -639,9 +645,11 @@ def process_conversation(
             config.get('LLMChatter.MaxTokens', 200)
         )
     )
+    bot_names_ctx = ','.join(bot_names)
     response = call_llm(
         client, prompt, config,
-        max_tokens_override=conversation_max_tokens
+        max_tokens_override=conversation_max_tokens,
+        context=f"ambient-conv:{bot_names_ctx}"
     )
 
     if response:
@@ -670,7 +678,8 @@ def process_conversation(
                 client, repair_prompt, config,
                 max_tokens_override=(
                     conversation_max_tokens
-                )
+                ),
+                context="json-repair"
             )
             if response:
                 messages = (
@@ -1131,6 +1140,27 @@ def process_pending_events(
         return process_group_corpse_run_event(
             db, client, config, event
         )
+    if event_type == 'bot_group_low_health':
+        logger.warning(
+            f"State callout #{event_id}: "
+            f"{event_type}")
+        return process_group_low_health_event(
+            db, client, config, event
+        )
+    if event_type == 'bot_group_oom':
+        logger.warning(
+            f"State callout #{event_id}: "
+            f"{event_type}")
+        return process_group_oom_event(
+            db, client, config, event
+        )
+    if event_type == 'bot_group_aggro_loss':
+        logger.warning(
+            f"State callout #{event_id}: "
+            f"{event_type}")
+        return process_group_aggro_loss_event(
+            db, client, config, event
+        )
 
     # General channel player message reaction
     if event_type == 'player_general_msg':
@@ -1467,8 +1497,13 @@ def process_pending_events(
             )
 
             # Call LLM
+            evt_names = ','.join(bot_names)
             response = call_llm(
-                client, prompt, config
+                client, prompt, config,
+                context=(
+                    f"event-conv:#{event_id}"
+                    f":{evt_names}"
+                )
             )
 
             if response:

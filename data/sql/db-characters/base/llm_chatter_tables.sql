@@ -42,7 +42,10 @@ CREATE TABLE `llm_chatter_events` (
         'bot_group_wipe',
         'bot_group_corpse_run',
         'player_general_msg',
-        'minor_event'
+        'minor_event',
+        'bot_group_low_health',
+        'bot_group_oom',
+        'bot_group_aggro_loss'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,
@@ -136,6 +139,7 @@ CREATE TABLE `llm_group_bot_traits` (
     `trait1` VARCHAR(32) NOT NULL,
     `trait2` VARCHAR(32) NOT NULL,
     `trait3` VARCHAR(32) NOT NULL,
+    `role` VARCHAR(16) DEFAULT NULL,
     `farewell_msg` VARCHAR(255) DEFAULT NULL,
     `assigned_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),

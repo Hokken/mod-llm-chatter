@@ -575,6 +575,71 @@ CLASS_SPEECH_MODIFIERS = {
 }
 
 # =============================================================================
+# CLASS ROLE MAP - Maps class to primary group role
+# =============================================================================
+# Hybrids get flexible roles since we lack spec/talent data.
+CLASS_ROLE_MAP = {
+    "Warrior": "tank",
+    "Death Knight": "tank",
+    "Priest": "healer",
+    "Rogue": "melee_dps",
+    "Hunter": "ranged_dps",
+    "Mage": "ranged_dps",
+    "Warlock": "ranged_dps",
+    "Paladin": "hybrid_tank",
+    "Druid": "hybrid_tank",
+    "Shaman": "hybrid_healer",
+}
+
+# =============================================================================
+# ROLE COMBAT PERSPECTIVES - Injected into group prompts
+# =============================================================================
+ROLE_COMBAT_PERSPECTIVES = {
+    "tank": (
+        "Your group role is to lead the charge and take hits "
+        "so others don't have to. You think about positioning, "
+        "threat, and keeping enemies focused on you. When "
+        "someone gets hurt, you feel responsible. Only "
+        "reference your role during combat situations."
+    ),
+    "healer": (
+        "Your group role is keeping everyone alive. You watch "
+        "health bars constantly, manage your mana carefully, "
+        "and worry when someone takes unexpected damage. You "
+        "notice who plays recklessly. Only reference your "
+        "role during combat situations."
+    ),
+    "melee_dps": (
+        "Your group role is dealing damage up close. You care "
+        "about hitting hard, staying behind the target, and "
+        "not pulling aggro from the tank. You respect the "
+        "healer keeping you alive. Only reference your role "
+        "during combat situations."
+    ),
+    "ranged_dps": (
+        "Your group role is dealing damage from a safe "
+        "distance. You think about positioning, crowd control, "
+        "and burning targets down efficiently. You keep one "
+        "eye on your threat. Only reference your role during "
+        "combat situations."
+    ),
+    "hybrid_tank": (
+        "You can fill multiple roles depending on what the "
+        "group needs — tanking, healing, or damage. You think "
+        "about group balance and adapt your mindset to "
+        "whatever the situation demands. Only reference your "
+        "role during combat situations."
+    ),
+    "hybrid_healer": (
+        "You can heal or deal damage depending on what the "
+        "group needs. You keep one eye on health bars while "
+        "contributing damage, ready to switch focus if "
+        "someone is in danger. Only reference your role "
+        "during combat situations."
+    ),
+}
+
+# =============================================================================
 # ZONE FLAVOR - Rich context for immersive chat generation
 # =============================================================================
 # Each zone gets a description paragraph that gives the LLM world knowledge.
@@ -1478,9 +1543,10 @@ ZONE_TRANSPORT_COOLDOWN_SECONDS = 300
 # EMOTE_ONESHOT_* animations
 EMOTE_LIST = [
     'talk', 'bow', 'wave', 'cheer', 'exclamation',
-    'question', 'laugh', 'roar', 'kneel', 'cry',
+    'question', 'eat', 'laugh', 'rude', 'roar',
+    'kneel', 'kiss', 'cry', 'chicken', 'beg',
     'applaud', 'shout', 'flex', 'shy', 'point',
-    'salute', 'dance', 'none',
+    'salute', 'dance', 'yes', 'no', 'none',
 ]
 
 EMOTE_LIST_STR = ', '.join(EMOTE_LIST)
@@ -1492,52 +1558,101 @@ EMOTE_KEYWORDS = {
     'hello': 'wave', 'hi ': 'wave', 'hey ': 'wave',
     'greetings': 'wave', 'farewell': 'wave',
     'goodbye': 'wave', 'safe travels': 'bow',
+    'welcome': 'wave', 'good to see': 'wave',
     # Humor / joy
     'lol': 'laugh', 'haha': 'laugh', 'lmao': 'laugh',
     'rofl': 'laugh', 'funny': 'laugh',
-    'hilarious': 'laugh',
+    'hilarious': 'laugh', 'ridiculous': 'laugh',
+    'laugh': 'laugh', 'chuckle': 'laugh',
+    'amuse': 'laugh', 'joke': 'laugh',
     # Excitement
     'nice': 'cheer', 'awesome': 'cheer',
     'amazing': 'cheer', 'grats': 'cheer',
     'congrats': 'cheer', 'woo': 'cheer',
     'hell yeah': 'cheer', 'let\'s go': 'cheer',
+    'fantastic': 'cheer', 'brilliant': 'cheer',
+    'victory': 'cheer', 'won': 'cheer',
+    'level': 'cheer', 'well fought': 'cheer',
     # Sadness / frustration
     'rip': 'cry', 'tragic': 'cry',
     'terrible': 'cry', 'awful': 'cry',
+    'lost': 'cry', 'fallen': 'cry',
+    'mourn': 'cry', 'grief': 'cry',
+    'sad': 'cry', 'miss ': 'cry',
     # Respect / admiration
     'thank': 'bow', 'respect': 'bow',
     'honor': 'bow', 'well met': 'bow',
+    'grateful': 'bow', 'appreciate': 'bow',
     'impressive': 'applaud', 'well done': 'applaud',
     'bravo': 'applaud', 'nice work': 'applaud',
+    'good job': 'applaud', 'great work': 'applaud',
+    'skilled': 'applaud', 'masterful': 'applaud',
     # Combat / intensity
     'charge': 'roar', 'attack': 'roar',
     'for the': 'roar', 'lok\'tar': 'roar',
+    'glory': 'roar', 'battle cry': 'roar',
     'fight': 'shout', 'watch out': 'shout',
     'incoming': 'shout', 'behind you': 'shout',
+    'careful': 'shout', 'look out': 'shout',
+    'run': 'shout', 'get back': 'shout',
+    'help': 'shout', 'danger': 'shout',
+    'pull': 'shout', 'adds': 'shout',
     # Questions
     'where': 'question', 'how do': 'question',
     'anyone know': 'question', 'what is': 'question',
     '?': 'question',
+    'wonder': 'question', 'curious': 'question',
     # Surprise
     'what the': 'exclamation', 'holy': 'exclamation',
     'whoa': 'exclamation', 'wow ': 'exclamation',
-    '!': 'exclamation',
+    'by the': 'exclamation', 'never seen': 'exclamation',
+    'unbelievable': 'exclamation',
     # Pride
     'check this': 'flex', 'look at': 'flex',
-    'finally got': 'flex',
+    'finally got': 'flex', 'strong': 'flex',
+    'nothing can': 'flex', 'easy': 'flex',
     # Directions
     'over there': 'point', 'that way': 'point',
-    'look over': 'point',
+    'look over': 'point', 'see that': 'point',
+    'ahead': 'point', 'notice': 'point',
     # Shy / embarrassment
     'oops': 'shy', 'sorry': 'shy',
     'my bad': 'shy', 'awkward': 'shy',
+    'mistake': 'shy', 'didn\'t mean': 'shy',
     # Formal
     'hail': 'salute', 'commander': 'salute',
     'sir': 'salute', 'reporting': 'salute',
+    'soldier': 'salute', 'officer': 'salute',
     # Dance
     'dance': 'dance', 'party': 'dance',
-    'celebrate': 'dance',
+    'celebrate': 'dance', 'festival': 'dance',
     # Prayer / devotion
     'pray': 'kneel', 'light guide': 'kneel',
     'ancestors': 'kneel', 'earth mother': 'kneel',
+    'elune': 'kneel', 'bless': 'kneel',
+    'spirit': 'kneel', 'may the': 'kneel',
+    'rest in peace': 'kneel', 'fallen comrade': 'kneel',
+    # Eating / drinking / resting
+    'drink': 'eat', 'eat': 'eat', 'hungry': 'eat',
+    'thirsty': 'eat', 'mana break': 'eat',
+    'need to rest': 'eat', 'sit down': 'eat',
+    # Rude / dismissive
+    'pathetic': 'rude', 'fool': 'rude',
+    'waste of': 'rude', 'disgrace': 'rude',
+    'shut up': 'rude', 'useless': 'rude',
+    # Agreement / disagreement
+    'agree': 'yes', 'right': 'yes',
+    'exactly': 'yes', 'indeed': 'yes',
+    'absolutely': 'yes', 'of course': 'yes',
+    'no way': 'no', 'refuse': 'no',
+    'never': 'no', 'won\'t': 'no',
+    'don\'t think so': 'no', 'doubt': 'no',
+    # Begging / desperation
+    'please': 'beg', 'mercy': 'beg',
+    'desperate': 'beg', 'need help': 'beg',
+    'save me': 'beg', 'i beg': 'beg',
+    # Taunting
+    'coward': 'chicken', 'scared': 'chicken',
+    'afraid': 'chicken', 'chicken': 'chicken',
+    'running away': 'chicken',
 }

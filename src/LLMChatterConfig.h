@@ -98,6 +98,14 @@ public:
     uint32 _groupCorpseRunCooldown;
     bool _useFarewell;
 
+    // Group chatter - state-triggered callouts
+    bool _stateCalloutEnabled;
+    bool _stateCalloutLowHealth;
+    bool _stateCalloutOom;
+    bool _stateCalloutAggro;
+    uint32 _stateCalloutChance;   // 0-100
+    uint32 _stateCalloutCooldown; // seconds per bot
+
     // General chat reactions
     bool _useGeneralChatReact;
     uint32 _generalChatChance;

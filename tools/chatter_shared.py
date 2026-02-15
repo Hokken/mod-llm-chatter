@@ -21,6 +21,7 @@ from chatter_constants import (
     CAPITAL_CITY_ZONES,
     CLASS_NAMES, RACE_NAMES, CLASS_IDS,
     RACE_SPEECH_PROFILES, CLASS_SPEECH_MODIFIERS,
+    CLASS_ROLE_MAP, ROLE_COMBAT_PERSPECTIVES,
     ZONE_FLAVOR, DUNGEON_FLAVOR,
     ITEM_QUALITY_COLORS, CLASS_BITMASK,
     MSG_TYPE_PLAIN, MSG_TYPE_QUEST, MSG_TYPE_LOOT,
@@ -166,7 +167,10 @@ def set_race_vocab_chance(chance_pct: int):
     _race_vocab_chance = chance_pct / 100.0
 
 
-def build_race_class_context(race: str, class_name: str) -> str:
+def build_race_class_context(
+    race: str, class_name: str,
+    actual_role: str = None
+) -> str:
     """Build an RP personality fragment for prompts."""
     parts = []
     profile = RACE_SPEECH_PROFILES.get(race)
@@ -201,7 +205,80 @@ def build_race_class_context(race: str, class_name: str) -> str:
     modifier = CLASS_SPEECH_MODIFIERS.get(class_name)
     if modifier:
         parts.append(f"As a {class_name}, you are {modifier}.")
+    role = actual_role or CLASS_ROLE_MAP.get(class_name)
+    if role:
+        perspective = ROLE_COMBAT_PERSPECTIVES.get(role)
+        if perspective:
+            parts.append(perspective)
     return " ".join(parts)
+
+
+def build_bot_state_context(extra_data):
+    """Build natural-language state description
+    from C++ bot_state data in extra_data."""
+    if not extra_data:
+        return ""
+    state = extra_data.get('bot_state')
+    if not state or not isinstance(state, dict):
+        return ""
+
+    parts = []
+
+    # Real role (replaces CLASS_ROLE_MAP guessing)
+    role = state.get('role', '')
+    if role:
+        role_labels = {
+            'tank': 'the tank',
+            'healer': 'the healer',
+            'melee_dps': 'melee DPS',
+            'ranged_dps': 'ranged DPS',
+            'dps': 'DPS',
+        }
+        parts.append(
+            f"Your role in this group is "
+            f"{role_labels.get(role, role)}."
+        )
+
+    # Health
+    hp = state.get('health_pct')
+    if hp is not None:
+        hp = int(hp)
+        if hp <= 20:
+            parts.append(
+                f"You are critically wounded "
+                f"({hp}% health)."
+            )
+        elif hp <= 50:
+            parts.append(
+                f"You are injured "
+                f"({hp}% health)."
+            )
+
+    # Mana (skip for non-mana classes: -1 sentinel)
+    mp = state.get('mana_pct')
+    if mp is not None:
+        mp = int(mp)
+        if mp >= 0:  # -1 = not a mana user
+            if mp <= 15:
+                parts.append(
+                    f"You are almost out of mana "
+                    f"({mp}%)."
+                )
+            elif mp <= 35:
+                parts.append(
+                    f"Your mana is getting low "
+                    f"({mp}%)."
+                )
+
+    # Current target
+    target = state.get('target', '')
+    if target:
+        parts.append(
+            f"You are currently fighting "
+            f"{target}."
+        )
+
+    return ' '.join(parts)
 
 
 # =============================================================================
@@ -838,8 +915,47 @@ def cleanup_message(message: str) -> str:
         'scratches', 'rubs', 'taps',
         'flexes', 'adjusts', 'fidgets',
     )
+
+    # Phase 1: Strip leading third-person narration.
+    # e.g. "glances back at X, then refocuses
+    # keep your distance..." -> "Keep your distance..."
+    # Matches emote verb at start, strips narration
+    # up to the first separator (comma/period/ellipsis)
+    # NOT followed by a narration continuer word.
+    _verb_start = re.compile(
+        r'^(' + '|'.join(_EMOTE_VERBS) + r')\b',
+        re.IGNORECASE
+    )
+    if _verb_start.match(result):
+        # Find comma/period/ellipsis separators.
+        # Skip separators followed by narration
+        # continuers (then, and, while, before, as).
+        # First non-continuer separator is the
+        # speech boundary.
+        _speech_re = re.compile(
+            r'[,.](?:\.\.)?\s+'
+            r'(?!(?:then|and|while|before|as)\b)',
+            re.IGNORECASE
+        )
+        matches = list(_speech_re.finditer(result))
+        if matches:
+            cut = matches[0]
+            remainder = result[cut.end():].strip()
+            # Only strip if remainder has substance
+            if len(remainder) > 10:
+                # Capitalize first letter of speech
+                result = (
+                    remainder[0].upper()
+                    + remainder[1:]
+                )
+
+    # Phase 2: Mid-message emote clauses
+    # (e.g. ", sighs and looks away" at end)
+    # Only match AFTER punctuation — never at start
+    # of string, to avoid stripping valid speech like
+    # "Nods are important in orcish culture".
     _emote_pattern = re.compile(
-        r'(?:^|(?:,\s*|\.\.?\.\s*|\.\s+))'
+        r'(?:,\s*|\.\.?\.\s*|\.\s+)'
         r'(?:' + '|'.join(_EMOTE_VERBS) + r')'
         r'\s+\w[\w\s]*?'
         r'(?=[,.]|\s*$)',
@@ -1001,7 +1117,8 @@ def call_llm(
     client: Any,
     prompt: str,
     config: dict,
-    max_tokens_override: int = None
+    max_tokens_override: int = None,
+    context: str = ''
 ) -> str:
     """Call LLM API (Anthropic, OpenAI, or Ollama)."""
     provider = config.get(
@@ -1076,7 +1193,10 @@ def call_llm(
             )
             return response.content[0].text.strip()
     except Exception as e:
-        logger.error(f"LLM API error ({provider}): {e}")
+        ctx = f" [{context}]" if context else ""
+        logger.error(
+            f"LLM API error ({provider}){ctx}: {e}"
+        )
         return None
 
 
@@ -1648,10 +1768,10 @@ def validate_emote(emote_str: Optional[str]) -> Optional[str]:
 def pick_emote_for_statement(message: str) -> Optional[str]:
     """Keyword-match an emote for a plain-text statement.
 
-    60% RNG gate — not every message gets an emote.
+    90% RNG gate — most messages attempt emote matching.
     Returns a valid emote name or None.
     """
-    if not message or random.random() > 0.60:
+    if not message or random.random() > 0.90:
         return None
     msg_lower = message.lower()
     for keyword, emote in EMOTE_KEYWORDS.items():
@@ -1956,7 +2076,7 @@ def _extract_ngrams(text: str, n: int = 4) -> set:
 def is_too_similar(
     new_message: str,
     recent_messages: list,
-    threshold: int = 1
+    threshold: int = 3
 ) -> bool:
     """Check if new_message shares too many n-grams
     with recent messages.
@@ -1964,8 +2084,10 @@ def is_too_similar(
     Args:
         new_message: The message to check
         recent_messages: List of recent message strings
-        threshold: Max shared 4-grams before rejection
-            (1 = any shared 4-gram triggers rejection)
+        threshold: Min shared 4-grams to trigger
+            rejection. Default 3 avoids false positives
+            from common phrases like "in the heart of"
+            while catching real repetitions.
 
     Returns True if message should be rejected.
     """
@@ -1983,10 +2105,11 @@ def is_too_similar(
 
     overlap = new_ngrams & recent_ngrams
     if len(overlap) >= threshold:
-        logger.debug(
-            f"Anti-repetition: rejected message "
+        logger.info(
+            f"Anti-repetition: rejected "
             f"({len(overlap)} shared 4-grams >= "
-            f"threshold {threshold}: {overlap})"
+            f"{threshold}): "
+            f"{list(overlap)[:5]}"
         )
         return True
 

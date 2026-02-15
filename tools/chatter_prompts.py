@@ -170,6 +170,11 @@ def build_dynamic_guidelines(
         guidelines = [
             "Stay in character but keep it natural and "
             "conversational, not dramatic or theatrical",
+            "ALWAYS write in first person - you ARE the "
+            "character speaking. NEVER write in third "
+            "person or narrator voice (no 'gazes at', "
+            "'adjusts pack', 'examines' etc). Write "
+            "what you SAY, not what you DO.",
             "NEVER use brackets [] around quest names, "
             "item names, zone names, or faction names - "
             "write them as plain text. Only use brackets "
@@ -576,11 +581,11 @@ def build_loot_statement_prompt(
 
     if is_rp:
         reactions = [
-            "awe at the craftsmanship of the item",
-            "weighing whether the item suits your path",
-            "offering the spoils to a worthy companion",
-            "reflecting on fortune and fate",
-            "examining the item with a practiced eye",
+            "impressed by the quality of the item",
+            "wondering if the item suits your path",
+            "offering it to anyone who could use it",
+            "commenting on your luck today",
+            "mentioning what you think of the item",
         ]
     else:
         reactions = [
@@ -709,10 +714,10 @@ def build_quest_reward_statement_prompt(
 
     if is_rp:
         reactions = [
-            "satisfaction at fulfilling the task",
-            "examining the reward with appreciation",
-            "reflecting on the journey it took",
-            "offering thanks to those who aided",
+            "feeling satisfied about finishing",
+            "commenting on the reward you received",
+            "mentioning the journey it took",
+            "thanking those who helped along the way",
         ]
     else:
         reactions = [
@@ -1595,12 +1600,11 @@ def build_spell_statement_prompt(
 
     if is_rp:
         approaches = [
-            "reflecting on mastering the ability",
-            "describing how the power feels",
-            "discussing training with a mentor",
+            "talking about mastering the ability",
+            "saying how the new power feels",
+            "mentioning your training experience",
             "comparing it to another technique",
-            "musing on the responsibility it "
-            "brings",
+            "wondering about what comes next",
         ]
     else:
         approaches = [
@@ -1974,12 +1978,10 @@ def build_trade_statement_prompt(
 
     if is_rp:
         styles = [
-            "offering wares like a traveling "
-            "merchant",
-            "seeking a fair trade with a fellow "
-            "adventurer",
-            "parting with gear you've outgrown",
-            "hawking your find to passers-by",
+            "announcing you have something to sell",
+            "looking for a fair trade",
+            "mentioning you've outgrown this gear",
+            "offering your find to anyone interested",
         ]
     else:
         styles = [

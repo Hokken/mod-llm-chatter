@@ -229,10 +229,15 @@ static uint32 GetEmoteId(const std::string& emoteName)
         {"cheer", EMOTE_ONESHOT_CHEER},
         {"exclamation", EMOTE_ONESHOT_EXCLAMATION},
         {"question", EMOTE_ONESHOT_QUESTION},
+        {"eat", EMOTE_ONESHOT_EAT},
         {"laugh", EMOTE_ONESHOT_LAUGH},
+        {"rude", EMOTE_ONESHOT_RUDE},
         {"roar", EMOTE_ONESHOT_ROAR},
         {"kneel", EMOTE_ONESHOT_KNEEL},
+        {"kiss", EMOTE_ONESHOT_KISS},
         {"cry", EMOTE_ONESHOT_CRY},
+        {"chicken", EMOTE_ONESHOT_CHICKEN},
+        {"beg", EMOTE_ONESHOT_BEG},
         {"applaud", EMOTE_ONESHOT_APPLAUD},
         {"shout", EMOTE_ONESHOT_SHOUT},
         {"flex", EMOTE_ONESHOT_FLEX},
@@ -240,6 +245,8 @@ static uint32 GetEmoteId(const std::string& emoteName)
         {"point", EMOTE_ONESHOT_POINT},
         {"salute", EMOTE_ONESHOT_SALUTE},
         {"dance", EMOTE_ONESHOT_DANCESPECIAL},
+        {"yes", EMOTE_ONESHOT_YES},
+        {"no", EMOTE_ONESHOT_NO},
     };
 
     auto it = emoteMap.find(emoteName);
@@ -679,6 +686,75 @@ static bool CanSpeakInGeneralChannel(Player* bot)
     return false;
 }
 
+// ------------------------------------------------
+// Build bot state JSON fragment for enriched events
+// (file-scope so WorldScript + PlayerScript can use)
+// ------------------------------------------------
+static std::string BuildBotStateJson(
+    Player* player)
+{
+    if (!player)
+        return "";
+
+    // Health & power
+    float healthPct = player->GetHealthPct();
+    bool inCombat = player->IsInCombat();
+
+    // Only include mana for mana-using classes
+    int manaPctInt = -1; // sentinel: not mana user
+    if (player->GetMaxPower(POWER_MANA) > 0)
+        manaPctInt =
+            (int)player->GetPowerPct(POWER_MANA);
+
+    // Real role from PlayerbotAI (talent-based)
+    std::string role = "dps"; // default
+    PlayerbotAI* ai = GET_PLAYERBOT_AI(player);
+    if (ai)
+    {
+        if (PlayerbotAI::IsTank(player))
+            role = "tank";
+        else if (PlayerbotAI::IsHeal(player))
+            role = "healer";
+        else if (PlayerbotAI::IsRanged(player))
+            role = "ranged_dps";
+        else
+            role = "melee_dps";
+    }
+
+    // Current target
+    std::string targetName = "";
+    Unit* victim = player->GetVictim();
+    if (victim)
+        targetName = victim->GetName();
+
+    // Bot state (combat/non-combat/dead)
+    std::string botState = "non_combat";
+    if (ai)
+    {
+        BotState state = ai->GetState();
+        if (state == BOT_STATE_COMBAT)
+            botState = "combat";
+        else if (state == BOT_STATE_DEAD)
+            botState = "dead";
+    }
+
+    return
+        "\"bot_state\":{"
+        "\"health_pct\":" +
+            std::to_string((int)healthPct) + ","
+        "\"mana_pct\":" +
+            std::to_string(manaPctInt) + ","
+        "\"role\":\"" + role + "\","
+        "\"in_combat\":" +
+            std::string(
+                inCombat ? "true" : "false")
+            + ","
+        "\"target\":\"" +
+            JsonEscape(targetName) + "\","
+        "\"bot_ai_state\":\"" + botState + "\""
+        "}";
+}
+
 // ============================================================================
 // GAME EVENT SCRIPT - Holiday Events
 // ============================================================================
@@ -1039,6 +1115,9 @@ static void LoadTransportCache()
 // WORLD SCRIPT - Main chatter logic, day/night transitions
 // ============================================================================
 
+// Forward declaration (defined after PlayerScript)
+static void CheckGroupCombatState();
+
 class LLMChatterWorldScript : public WorldScript
 {
 public:
@@ -1164,6 +1243,17 @@ public:
         {
             _lastTransportCheckTime = now;
             CheckTransportZones();
+        }
+
+        // State-triggered callouts (5s interval)
+        {
+            static time_t lastCombatStateCheck = 0;
+            time_t nowSec = time(nullptr);
+            if (nowSec - lastCombatStateCheck >= 5)
+            {
+                lastCombatStateCheck = nowSec;
+                CheckGroupCombatState();
+            }
         }
     }
 
@@ -2028,7 +2118,8 @@ static Player* GetRandomBotInGroup(
     {
         Player* member = itr->GetSource();
         if (member && IsPlayerBot(member)
-            && member != exclude)
+            && member != exclude
+            && member->IsAlive())
             bots.push_back(member);
     }
 
@@ -2072,6 +2163,21 @@ static void QueueBotGreetingEvent(
         }
     }
 
+    // Detect bot role for Python trait storage
+    std::string role = "dps";
+    PlayerbotAI* botAi = GET_PLAYERBOT_AI(bot);
+    if (botAi)
+    {
+        if (PlayerbotAI::IsTank(bot))
+            role = "tank";
+        else if (PlayerbotAI::IsHeal(bot))
+            role = "healer";
+        else if (PlayerbotAI::IsRanged(bot))
+            role = "ranged_dps";
+        else
+            role = "melee_dps";
+    }
+
     // Build extra_data JSON
     // NOTE: extraData is inserted into SQL via
     // fmt::format; relies on JsonEscape for
@@ -2082,6 +2188,7 @@ static void QueueBotGreetingEvent(
         "\"bot_class\":" + std::to_string(botClass) + ","
         "\"bot_race\":" + std::to_string(botRace) + ","
         "\"bot_level\":" + std::to_string(botLevel) + ","
+        "\"role\":\"" + role + "\","
         "\"group_id\":" + std::to_string(groupId) + ","
         "\"player_name\":\"" +
             JsonEscape(playerName) + "\","
@@ -2172,6 +2279,15 @@ static std::map<uint32, time_t>
 // group_id -> last corpse run event time
 static std::map<uint32, time_t>
     _groupCorpseRunCooldowns;
+
+// Per-bot state callout cooldowns:
+// bot_guid -> last callout time
+static std::map<uint32, time_t>
+    _botLowHealthCooldowns;
+static std::map<uint32, time_t>
+    _botOomCooldowns;
+static std::map<uint32, time_t>
+    _botAggroCooldowns;
 
 // Clean up traits when group no longer qualifies
 static void CleanupGroupSession(uint32 groupId)
@@ -2328,6 +2444,14 @@ public:
                     "AND speaker_guid = {} "
                     "AND is_bot = 1",
                     groupId, botGuid);
+                // Clear state callout cooldowns
+                _botLowHealthCooldowns
+                    .erase(botGuid);
+                _botOomCooldowns
+                    .erase(botGuid);
+                _botAggroCooldowns
+                    .erase(botGuid);
+
                 LOG_INFO("module",
                     "LLMChatter: Cleaned "
                     "traits/history for removed "
@@ -2757,8 +2881,8 @@ public:
                 std::string(
                     isNormal ? "true" : "false") + ","
             "\"group_id\":" +
-                std::to_string(groupId) +
-            "}";
+                std::to_string(groupId) + ","
+            + BuildBotStateJson(reactor) + "}";
 
         // SQL-escape the whole JSON blob so
         // apostrophes in names don't break the
@@ -2917,8 +3041,9 @@ public:
                             kName) + "\","
                     "\"killer_entry\":" +
                         std::to_string(
-                            kEntry) +
-                    "}";
+                            kEntry) + ","
+                    + BuildBotStateJson(wipeReactor)
+                    + "}";
 
                 wipeData =
                     EscapeString(wipeData);
@@ -2981,6 +3106,18 @@ public:
 
         _groupDeathCooldowns[groupId] = now;
 
+        // Pick a living bot to react
+        // (exclude dead player)
+        Player* reactor = GetRandomBotInGroup(
+            group, killed);
+        if (!reactor)
+            return;
+
+        uint32 reactorGuid =
+            reactor->GetGUID().GetCounter();
+        std::string reactorName =
+            reactor->GetName();
+
         bool isPlayerDeath =
             !IsPlayerBot(killed);
         uint32 deadGuid =
@@ -2995,9 +3132,22 @@ public:
         // Build extra_data JSON
         std::string extraData = "{"
             "\"bot_guid\":" +
-                std::to_string(deadGuid) + ","
+                std::to_string(reactorGuid) + ","
             "\"bot_name\":\"" +
+                JsonEscape(reactorName) + "\","
+            "\"bot_class\":" +
+                std::to_string(
+                    reactor->getClass()) + ","
+            "\"bot_race\":" +
+                std::to_string(
+                    reactor->getRace()) + ","
+            "\"bot_level\":" +
+                std::to_string(
+                    reactor->GetLevel()) + ","
+            "\"dead_name\":\"" +
                 JsonEscape(deadName) + "\","
+            "\"dead_guid\":" +
+                std::to_string(deadGuid) + ","
             "\"killer_name\":\"" +
                 JsonEscape(killerName) + "\","
             "\"killer_entry\":" +
@@ -3007,8 +3157,8 @@ public:
             "\"is_player_death\":" +
                 std::string(
                     isPlayerDeath
-                        ? "true" : "false")
-            + "}";
+                        ? "true" : "false") + ","
+            + BuildBotStateJson(reactor) + "}";
 
         extraData = EscapeString(extraData);
 
@@ -3029,16 +3179,16 @@ public:
             "DATE_ADD(NOW(), INTERVAL 120 SECOND))",
             killed->GetZoneId(),
             killed->GetMapId(),
-            deadGuid,
-            EscapeString(deadName),
+            reactorGuid,
+            EscapeString(reactorName),
             EscapeString(killerName),
             killerEntry,
             extraData);
 
         LOG_INFO("module",
             "LLMChatter: Queued bot_group_death "
-            "for {} killed by {}{}",
-            deadName, killerName,
+            "for {} (reactor: {}) killed by {}{}",
+            deadName, reactorName, killerName,
             isPlayerDeath
                 ? " (player)" : "");
     }
@@ -3053,9 +3203,11 @@ public:
             || !sLLMChatterConfig->_useGroupChatter)
             return;
 
-        if (!player || !item)
+        if (!player)
             return;
 
+        // Group check BEFORE any Item* access —
+        // filters bot-only groups (main crash vector)
         Group* group = player->GetGroup();
         if (!group)
             return;
@@ -3063,21 +3215,51 @@ public:
         if (!GroupHasRealPlayer(group))
             return;
 
-        ItemTemplate const* tmpl =
-            item->GetTemplate();
-        if (!tmpl)
-            return;
-
-        uint8 quality = tmpl->Quality;
-        if (quality < 2)
-            return;
-
         bool isBot = IsPlayerBot(player);
+
+        // TWO-TIER SAFETY: Bot Item* can be
+        // use-after-free (playerbots packet pipeline
+        // may free memory before hook fires).
+        // Real player Item* is always safe.
+        uint8 quality = 0;
+        std::string itemName;
+        uint32 itemEntry = 0;
+
+        if (!isBot)
+        {
+            // Real player: safe to access Item*
+            if (!item)
+                return;
+            ItemTemplate const* tmpl =
+                item->GetTemplate();
+            if (!tmpl)
+                return;
+            quality = tmpl->Quality;
+            if (quality < 2)
+                return;
+            itemName = tmpl->Name1;
+            itemEntry = item->GetEntry();
+        }
+        else
+        {
+            // Bot: skip Item* entirely to avoid
+            // potential use-after-free crash.
+            // Use sentinel quality=-1 so Python
+            // generates a generic loot reaction.
+            quality = 255;
+            itemName = "something";
+            itemEntry = 0;
+        }
 
         // Quality-based chance from config:
         // green/blue configurable, epic+=100%
+        // Bots (quality=255): use green chance
+        // since we can't know actual quality
         uint32 chance;
-        if (quality == 2)
+        if (quality == 255)
+            chance = sLLMChatterConfig
+                ->_groupLootChanceGreen;
+        else if (quality == 2)
             chance = sLLMChatterConfig
                 ->_groupLootChanceGreen;
         else if (quality == 3)
@@ -3094,8 +3276,9 @@ public:
 
         // Per-group loot cooldown: config seconds
         // for green/blue, epic+ bypasses cooldown
+        // Bots (quality=255): always use cooldown
         time_t now = time(nullptr);
-        if (quality < 4)
+        if (quality < 4 || quality == 255)
         {
             auto it =
                 _groupLootCooldowns.find(groupId);
@@ -3111,8 +3294,6 @@ public:
         uint32 looterGuid =
             player->GetGUID().GetCounter();
         std::string looterName = player->GetName();
-        std::string itemName = tmpl->Name1;
-        uint32 itemEntry = item->GetEntry();
 
         // Build extra_data JSON
         std::string extraData = "{"
@@ -3140,7 +3321,10 @@ public:
                 std::to_string(quality) + ","
             "\"group_id\":" +
                 std::to_string(groupId) +
-            "}";
+            (IsPlayerBot(player)
+                ? ("," + BuildBotStateJson(player))
+                : "")
+            + "}";
 
         // SQL-escape the whole JSON blob so
         // apostrophes in names don't break the
@@ -3296,8 +3480,8 @@ public:
                 std::string(
                     isElite ? "1" : "0") + ","
             "\"group_id\":" +
-                std::to_string(groupId) +
-            "}";
+                std::to_string(groupId) + ","
+            + BuildBotStateJson(player) + "}";
 
         // SQL-escape the whole JSON blob so
         // apostrophes in names don't break the
@@ -3700,14 +3884,14 @@ public:
                 return true;
         }
 
+        _groupQuestObjCooldowns[groupId] = now;
+
         // RNG chance to avoid reacting
         // to every single quest objective
         if (urand(1, 100) >
             sLLMChatterConfig
                 ->_groupQuestObjectiveChance)
             return true;
-
-        _groupQuestObjCooldowns[groupId] = now;
 
         bool isBot = IsPlayerBot(player);
 
@@ -4336,8 +4520,8 @@ public:
             "\"target_name\":\"" +
                 JsonEscape(targetName) + "\","
             "\"group_id\":" +
-                std::to_string(groupId) +
-            "}";
+                std::to_string(groupId) + ","
+            + BuildBotStateJson(reactor) + "}";
 
         // SQL-escape the whole JSON blob so
         // apostrophes in names don't break the
@@ -4853,6 +5037,258 @@ public:
             isRaid ? "yes" : "no");
     }
 };
+
+// ============================================================
+// State-triggered callout helpers (free functions)
+// ============================================================
+
+static void QueueStateCallout(
+    Player* bot, Group* /*group*/,
+    const char* eventType, uint32 groupId)
+{
+    std::string botName = bot->GetName();
+    uint32 botGuid =
+        bot->GetGUID().GetCounter();
+
+    // Get target name for context
+    std::string targetName = "";
+    Unit* victim = bot->GetVictim();
+    if (victim)
+        targetName = victim->GetName();
+
+    // Who has aggro (for aggro_loss context)
+    std::string aggroTarget = "";
+    if (victim && victim->GetVictim()
+        && victim->GetVictim() != bot)
+    {
+        aggroTarget =
+            victim->GetVictim()->GetName();
+    }
+
+    std::string extraData = "{"
+        "\"bot_guid\":" +
+            std::to_string(botGuid) + ","
+        "\"bot_name\":\"" +
+            JsonEscape(botName) + "\","
+        "\"group_id\":" +
+            std::to_string(groupId) + ","
+        "\"target_name\":\"" +
+            JsonEscape(targetName) + "\","
+        "\"aggro_target\":\"" +
+            JsonEscape(aggroTarget) + "\","
+        + BuildBotStateJson(bot) + "}";
+
+    extraData = EscapeString(extraData);
+
+    CharacterDatabase.Execute(
+        "INSERT INTO llm_chatter_events "
+        "(event_type, event_scope, zone_id, "
+        "map_id, priority, cooldown_key, "
+        "subject_guid, subject_name, "
+        "extra_data, status, "
+        "react_after, expires_at) "
+        "VALUES ('{}', 'player', "
+        "{}, {}, 2, "
+        "'state:{}:{}', "
+        "{}, '{}', '{}', 'pending', "
+        "DATE_ADD(NOW(), "
+        "INTERVAL 1 SECOND), "
+        "DATE_ADD(NOW(), "
+        "INTERVAL 60 SECOND))",
+        eventType,
+        bot->GetZoneId(),
+        bot->GetMapId(),
+        eventType, botGuid,
+        botGuid,
+        EscapeString(botName),
+        extraData);
+
+    LOG_INFO("module",
+        "LLMChatter: Queued {} for {} "
+        "(hp={:.0f}%, mp={:.0f}%)",
+        eventType, botName,
+        bot->GetHealthPct(),
+        bot->GetPowerPct(POWER_MANA));
+}
+
+static void CheckGroupCombatState()
+{
+    if (!sLLMChatterConfig
+        || !sLLMChatterConfig
+            ->_stateCalloutEnabled)
+        return;
+
+    if (!sLLMChatterConfig->_useGroupChatter)
+        return;
+
+    time_t now = time(nullptr);
+    WorldSessionMgr::SessionMap const& sessions =
+        sWorldSessionMgr->GetAllSessions();
+    std::set<uint32> visitedGroups;
+
+    for (auto const& [id, session] : sessions)
+    {
+        Player* player =
+            session->GetPlayer();
+        if (!player
+            || !player->IsInWorld())
+            continue;
+        if (IsPlayerBot(player))
+            continue;
+
+        Group* group = player->GetGroup();
+        if (!group)
+            continue;
+
+        uint32 groupId =
+            group->GetGUID().GetCounter();
+        if (visitedGroups.count(groupId))
+            continue;
+        visitedGroups.insert(groupId);
+
+        for (GroupReference* itr =
+                 group->GetFirstMember();
+             itr; itr = itr->next())
+        {
+            Player* bot = itr->GetSource();
+            if (!bot || !IsPlayerBot(bot))
+                continue;
+            if (!bot->IsInCombat())
+                continue;
+
+            uint32 botGuid =
+                bot->GetGUID().GetCounter();
+            uint32 cd = sLLMChatterConfig
+                ->_stateCalloutCooldown;
+            uint32 chance = sLLMChatterConfig
+                ->_stateCalloutChance;
+
+            // --- Low Health Check ---
+            if (sLLMChatterConfig
+                    ->_stateCalloutLowHealth)
+            {
+                float hp =
+                    bot->GetHealthPct();
+                if (hp > 0 && hp <= 25)
+                {
+                    auto it =
+                        _botLowHealthCooldowns
+                            .find(botGuid);
+                    if (it ==
+                        _botLowHealthCooldowns
+                            .end()
+                        || (now - it->second)
+                            >= (time_t)cd)
+                    {
+                        if (urand(1, 100)
+                            <= chance)
+                        {
+                            QueueStateCallout(
+                                bot, group,
+                                "bot_group_"
+                                "low_health",
+                                groupId);
+                        }
+                        _botLowHealthCooldowns
+                            [botGuid] = now;
+                    }
+                }
+            }
+
+            // --- OOM Check ---
+            if (sLLMChatterConfig
+                    ->_stateCalloutOom)
+            {
+                if (bot->GetMaxPower(
+                        POWER_MANA) > 0)
+                {
+                    float mp =
+                        bot->GetPowerPct(
+                            POWER_MANA);
+                    if (mp <= 15)
+                    {
+                        auto it =
+                            _botOomCooldowns
+                                .find(botGuid);
+                        if (it ==
+                            _botOomCooldowns
+                                .end()
+                            || (now - it->second)
+                                >= (time_t)cd)
+                        {
+                            if (urand(1, 100)
+                                <= chance)
+                            {
+                                QueueStateCallout(
+                                    bot, group,
+                                    "bot_group_"
+                                    "oom",
+                                    groupId);
+                            }
+                            _botOomCooldowns
+                                [botGuid] = now;
+                        }
+                    }
+                }
+            }
+
+            // --- Aggro Loss Check ---
+            if (sLLMChatterConfig
+                    ->_stateCalloutAggro)
+            {
+                PlayerbotAI* ai =
+                    GET_PLAYERBOT_AI(bot);
+                if (ai && PlayerbotAI
+                        ::IsTank(bot))
+                {
+                    Unit* victim =
+                        bot->GetVictim();
+                    if (victim
+                        && victim->GetVictim()
+                        && victim->GetVictim()
+                            != bot)
+                    {
+                        Player* threatened =
+                            victim->GetVictim()
+                                ->ToPlayer();
+                        if (threatened
+                            && group->IsMember(
+                                threatened
+                                    ->GetGUID()))
+                        {
+                            auto it =
+                                _botAggroCooldowns
+                                    .find(
+                                        botGuid);
+                            if (it ==
+                                _botAggroCooldowns
+                                    .end()
+                                || (now
+                                    - it->second)
+                                    >= (time_t)cd)
+                            {
+                                if (urand(1, 100)
+                                    <= chance)
+                                {
+                                    QueueStateCallout(
+                                        bot,
+                                        group,
+                                        "bot_group"
+                                        "_aggro_"
+                                        "loss",
+                                        groupId);
+                                }
+                                _botAggroCooldowns
+                                    [botGuid]
+                                        = now;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
 
 // Register scripts
 void AddLLMChatterScripts()
