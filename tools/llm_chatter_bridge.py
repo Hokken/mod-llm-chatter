@@ -40,6 +40,10 @@ from chatter_shared import (
     get_chatter_mode, build_race_class_context,
     set_race_lore_chance,
     set_race_vocab_chance,
+    set_action_chance,
+    get_action_chance,
+    append_json_instruction,
+    parse_single_response,
     parse_config, get_db_connection,
     wait_for_database,
     get_zone_flavor,
@@ -47,6 +51,7 @@ from chatter_shared import (
     query_zone_quests, query_zone_loot,
     query_zone_mobs, query_bot_spells,
     replace_placeholders, cleanup_message,
+    strip_speaker_prefix,
     select_message_type, calculate_dynamic_delay,
     call_llm,
     parse_conversation_response,
@@ -78,6 +83,7 @@ from chatter_events import (
     reset_stuck_processing_events,
 )
 from chatter_group import (
+    init_group_config,
     process_group_event,
     process_group_kill_event,
     process_group_death_event,
@@ -100,6 +106,7 @@ from chatter_group import (
     check_idle_group_chatter,
 )
 from chatter_general import (
+    init_general_config,
     process_general_player_msg_event,
 )
 from chatter_cache import refill_precache_pool
@@ -288,6 +295,9 @@ def process_statement(
     )
 
     # Build appropriate prompt
+    allow_action = (
+        random.random() < get_action_chance()
+    )
     if msg_type == "plain":
         # Get zone mobs for context
         zone_mobs = []
@@ -310,24 +320,28 @@ def process_statement(
             bot, zone_id, zone_mobs,
             config, current_weather,
             recent_messages=recent_msgs,
+            allow_action=allow_action,
         )
     elif msg_type == "quest":
         prompt = build_quest_statement_prompt(
             bot, quest_data, config,
             current_weather,
             recent_messages=recent_msgs,
+            allow_action=allow_action,
         )
     elif msg_type == "loot":
         prompt = build_loot_statement_prompt(
             bot, item_data, item_can_use,
             config, current_weather,
             recent_messages=recent_msgs,
+            allow_action=allow_action,
         )
     elif msg_type == "quest_reward":
         prompt = build_quest_reward_statement_prompt(
             bot, quest_data, config,
             current_weather,
             recent_messages=recent_msgs,
+            allow_action=allow_action,
         )
         # Also set item_data for replacement
         if quest_data and quest_data.get('item1_name'):
@@ -343,12 +357,14 @@ def process_statement(
             bot, item_data, config,
             current_weather,
             recent_messages=recent_msgs,
+            allow_action=allow_action,
         )
     elif msg_type == "spell":
         prompt = build_spell_statement_prompt(
             bot, spell_data, config,
             current_weather,
             recent_messages=recent_msgs,
+            allow_action=allow_action,
         )
     else:
         prompt = build_plain_statement_prompt(
@@ -356,6 +372,7 @@ def process_statement(
             config=config,
             current_weather=current_weather,
             recent_messages=recent_msgs,
+            allow_action=allow_action,
         )
 
     # Call LLM
@@ -365,23 +382,21 @@ def process_statement(
     )
 
     if response:
-        # Clean and replace placeholders
-        message = response.strip().strip('"').strip()
+        parsed = parse_single_response(response)
+        message = parsed['message']
         message = replace_placeholders(
             message, quest_data, item_data,
             spell_data
         )
-        message = cleanup_message(message)
+        message = cleanup_message(
+            message, action=parsed.get('action')
+        )
 
         if is_too_similar(message, recent_msgs):
             logger.info(
                 f"Anti-repetition: dropped "
                 f"statement from {bot['name']}"
             )
-            # Return True so caller marks as
-            # 'completed', not 'failed' -- the
-            # request was handled, just silently
-            # dropped to avoid repetition
             return True
 
         logger.info(
@@ -390,7 +405,10 @@ def process_statement(
         )
 
         # Insert for delivery
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, bot['guid'], bot['name'], message,
             channel=channel,
@@ -609,34 +627,54 @@ def process_conversation(
             f", mobs={len(zone_mobs)}, "
             f"weather={current_weather}"
         )
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_plain_conversation_prompt(
             bots, zone_id, zone_mobs,
             config, current_weather,
             recent_messages=recent_msgs,
+            allow_action=allow_action,
         )
     elif msg_type == "quest":
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_quest_conversation_prompt(
             bots, quest_data, config,
             current_weather,
             recent_messages=recent_msgs,
+            allow_action=allow_action,
         )
     elif msg_type == "trade":
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_trade_conversation_prompt(
             bots, item_data, config,
             current_weather,
             recent_messages=recent_msgs,
+            allow_action=allow_action,
         )
     elif msg_type == "spell":
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_spell_conversation_prompt(
             bots, spell_data, config,
             current_weather,
             recent_messages=recent_msgs,
+            allow_action=allow_action,
         )
     else:  # loot
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_loot_conversation_prompt(
             bots, item_data, config,
             current_weather,
             recent_messages=recent_msgs,
+            allow_action=allow_action,
         )
 
     # Call LLM
@@ -707,8 +745,12 @@ def process_conversation(
                     msg['message'], quest_data,
                     item_data, spell_data
                 )
+                final_message = strip_speaker_prefix(
+                    final_message, msg['name']
+                )
                 final_message = cleanup_message(
-                    final_message
+                    final_message,
+                    action=msg.get('action'),
                 )
 
                 if i > 0:
@@ -1491,10 +1533,15 @@ def process_pending_events(
             )
 
             # Build event conversation prompt
+            allow_action = (
+                random.random()
+                < get_action_chance()
+            )
             prompt = build_event_conversation_prompt(
                 bots, event_context, zone_id,
                 config, current_weather,
                 recent_messages=recent_msgs,
+                allow_action=allow_action,
             )
 
             # Call LLM
@@ -1532,8 +1579,17 @@ def process_pending_events(
                             bots[0]['guid']
                         )
                         final_message = (
+                            strip_speaker_prefix(
+                                msg['message'],
+                                msg['name'],
+                            )
+                        )
+                        final_message = (
                             cleanup_message(
-                                msg['message']
+                                final_message,
+                                action=msg.get(
+                                    'action'
+                                ),
                             )
                         )
 
@@ -1757,8 +1813,15 @@ def process_pending_events(
                 f"chat.\n"
                 f"Be "
                 f"{'authentic and in-character' if is_rp else 'casual and authentic'}"
-                f". No quotes. No asterisks. "
-                f"No emotes."
+                f"."
+            )
+
+            # Append JSON format instruction
+            allow_action = (
+                random.random() < get_action_chance()
+            )
+            system_prompt = append_json_instruction(
+                system_prompt, allow_action
             )
 
             # Call LLM
@@ -1861,9 +1924,13 @@ def process_pending_events(
                     response.content[0].text.strip()
                 )
 
-            # Clean up message
-            message = message.strip('"').strip()
-            message = cleanup_message(message)
+            # Parse structured JSON response
+            parsed = parse_single_response(message)
+            message = parsed['message']
+            message = cleanup_message(
+                message,
+                action=parsed.get('action'),
+            )
             if len(message) > 255:
                 message = message[:252] + "..."
 
@@ -1878,7 +1945,10 @@ def process_pending_events(
                 delay_min, delay_max
             )
 
-            emote = pick_emote_for_statement(message)
+            emote = (
+                parsed.get('emote')
+                or pick_emote_for_statement(message)
+            )
             insert_chat_message(
                 db, bot['bot1_guid'],
                 bot['bot1_name'], message,
@@ -1954,6 +2024,11 @@ def main():
     set_race_vocab_chance(int(config.get(
         'LLMChatter.RaceVocabChance', 15
     )))
+    set_action_chance(int(config.get(
+        'LLMChatter.ActionChance', 10
+    )))
+    init_group_config(config)
+    init_general_config(config)
 
     # Get provider and initialize appropriate client
     provider = config.get(
@@ -2074,7 +2149,39 @@ def main():
         f"{MSG_TYPE_SPELL - MSG_TYPE_TRADE}% spell"
     )
     logger.info("-" * 60)
-    logger.info("Chatter settings (from config):")
+    logger.info("Core settings:")
+    logger.info(
+        f"  Enable: "
+        f"{config.get('LLMChatter.Enable', 1)}"
+        f"  ChatterMode: "
+        f"{config.get('LLMChatter.ChatterMode', 'roleplay')}"
+    )
+    logger.info(
+        f"  Provider: "
+        f"{config.get('LLMChatter.Provider', 'anthropic')}"
+        f"  Model: "
+        f"{config.get('LLMChatter.Model', '(default)')}"
+    )
+    logger.info(
+        f"  MaxTokens: "
+        f"{config.get('LLMChatter.MaxTokens', 350)}"
+        f"  ConversationMaxTokens: "
+        f"{config.get('LLMChatter.ConversationMaxTokens', 700)}"
+    )
+    logger.info(
+        f"  UseEventSystem: "
+        f"{config.get('LLMChatter.UseEventSystem', 1)}"
+        f"  EnableVerboseLogging: "
+        f"{config.get('LLMChatter.EnableVerboseLogging', 0)}"
+    )
+    logger.info(
+        f"  DeliveryPollMs: "
+        f"{config.get('LLMChatter.DeliveryPollMs', 1000)}"
+        f"  Bridge.PollIntervalSeconds: "
+        f"{config.get('LLMChatter.Bridge.PollIntervalSeconds', 3)}"
+    )
+    logger.info("-" * 60)
+    logger.info("Chatter settings:")
     logger.info(
         f"  TriggerIntervalSeconds: "
         f"{config.get('LLMChatter.TriggerIntervalSeconds', 60)}"
@@ -2092,26 +2199,106 @@ def main():
         f"{config.get('LLMChatter.EventConversationChance', 60)}%"
     )
     logger.info(
+        f"  Temperature: "
+        f"{config.get('LLMChatter.Temperature', 0.8)}"
+    )
+    logger.info(
+        f"  LongMessageChance: "
+        f"{config.get('LLMChatter.LongMessageChance', 15)}%"
+    )
+    logger.info(
+        f"  CityChatterMultiplier: "
+        f"{config.get('LLMChatter.CityChatterMultiplier', 2)}"
+    )
+    logger.info(
+        f"  MaxPendingRequests: "
+        f"{config.get('LLMChatter.MaxPendingRequests', 5)}"
+    )
+    logger.info(
+        f"  MessageDelayMin: "
+        f"{config.get('LLMChatter.MessageDelayMin', 1000)}ms"
+        f"  MessageDelayMax: "
+        f"{config.get('LLMChatter.MessageDelayMax', 30000)}ms"
+    )
+    logger.info(
         f"  BotSpeakerCooldownSeconds: "
         f"{config.get('LLMChatter.BotSpeakerCooldownSeconds', 900)}"
     )
     logger.info(
         f"  ZoneFatigueThreshold: "
         f"{config.get('LLMChatter.ZoneFatigueThreshold', 3)}"
+        f"  ZoneFatigueCooldownSeconds: "
+        f"{config.get('LLMChatter.ZoneFatigueCooldownSeconds', 900)}"
+    )
+    logger.info(
+        f"  LootRecentCooldownSeconds: "
+        f"{config.get('LLMChatter.LootRecentCooldownSeconds', 1200)}"
+    )
+    logger.info(
+        f"  GlobalMessageCap: "
+        f"{config.get('LLMChatter.GlobalMessageCap', 8)}"
+        f"  GlobalCapWindowSeconds: "
+        f"{config.get('LLMChatter.GlobalCapWindowSeconds', 300)}"
+    )
+    logger.info("-" * 60)
+    logger.info("Event settings:")
+    logger.info(
+        f"  EnvironmentCheckSeconds: "
+        f"{config.get('LLMChatter.EnvironmentCheckSeconds', 60)}"
+    )
+    logger.info(
+        f"  EventReactionChance: "
+        f"{config.get('LLMChatter.EventReactionChance', 15)}%"
+    )
+    logger.info(
+        f"  EventExpirationSeconds: "
+        f"{config.get('LLMChatter.EventExpirationSeconds', 600)}"
+    )
+    logger.info(
+        f"  Holidays: "
+        f"{config.get('LLMChatter.Events.Holidays', 1)}"
+        f"  DayNight: "
+        f"{config.get('LLMChatter.Events.DayNight', 1)}"
+        f"  Weather: "
+        f"{config.get('LLMChatter.Events.Weather', 1)}"
+        f"  Transports: "
+        f"{config.get('LLMChatter.Events.Transports', 1)}"
+    )
+    logger.info(
+        f"  MinorEvents: "
+        f"{config.get('LLMChatter.Events.MinorEvents', 1)}"
+        f"  MinorEventChance: "
+        f"{config.get('LLMChatter.Events.MinorEventChance', 20)}%"
+    )
+    logger.info(
+        f"  TransportEventChance: "
+        f"{config.get('LLMChatter.TransportEventChance', 0)}%"
     )
     logger.info("-" * 60)
     logger.info("Transport settings:")
     logger.info(
-        f"  TransportCooldownSeconds (C++): "
+        f"  TransportCooldownSeconds: "
         f"{config.get('LLMChatter.TransportCooldownSeconds', 600)}"
+        f"  TransportCheckSeconds: "
+        f"{config.get('LLMChatter.TransportCheckSeconds', 5)}"
+    )
+    logger.info(
+        f"  TransportBypassGlobalCap: "
+        f"{config.get('LLMChatter.TransportBypassGlobalCap', 0)}"
+    )
+    logger.info("-" * 60)
+    logger.info("Weather/DayNight settings:")
+    logger.info(
+        f"  WeatherCooldownSeconds: "
+        f"{config.get('LLMChatter.WeatherCooldownSeconds', 1800)}"
+        f"  DayNightCooldownSeconds: "
+        f"{config.get('LLMChatter.DayNightCooldownSeconds', 7200)}"
     )
     logger.info("-" * 60)
     logger.info("Holiday settings:")
     logger.info(
         f"  HolidayCityChance: "
         f"{config.get('LLMChatter.HolidayCityChance', 10)}%"
-    )
-    logger.info(
         f"  HolidayZoneChance: "
         f"{config.get('LLMChatter.HolidayZoneChance', 5)}%"
     )
@@ -2166,12 +2353,66 @@ def main():
         f"{config.get('LLMChatter.GroupChatter.IdleCheckInterval', 60)}s"
     )
     logger.info(
+        f"  IdleCooldown: "
+        f"{config.get('LLMChatter.GroupChatter.IdleCooldown', 30)}s"
+        f"  ConversationBias: "
+        f"{config.get('LLMChatter.GroupChatter.ConversationBias', 50)}%"
+    )
+    logger.info(
+        f"  IdleHistoryLimit: "
+        f"{config.get('LLMChatter.GroupChatter.IdleHistoryLimit', 5)}"
+        f"  QuestObjectiveCooldown: "
+        f"{config.get('LLMChatter.GroupChatter.QuestObjectiveCooldown', 30)}s"
+    )
+    logger.info(
+        f"  ResurrectChance: "
+        f"{config.get('LLMChatter.GroupChatter.ResurrectChance', 100)}%"
+        f"  ResurrectCooldown: "
+        f"{config.get('LLMChatter.GroupChatter.ResurrectCooldown', 30)}s"
+    )
+    logger.info(
+        f"  ZoneTransitionChance: "
+        f"{config.get('LLMChatter.GroupChatter.ZoneTransitionChance', 100)}%"
+        f"  ZoneTransitionCooldown: "
+        f"{config.get('LLMChatter.GroupChatter.ZoneTransitionCooldown', 120)}s"
+    )
+    logger.info(
+        f"  DungeonEntryChance: "
+        f"{config.get('LLMChatter.GroupChatter.DungeonEntryChance', 100)}%"
+        f"  DungeonEntryCooldown: "
+        f"{config.get('LLMChatter.GroupChatter.DungeonEntryCooldown', 300)}s"
+    )
+    logger.info(
+        f"  WipeChance: "
+        f"{config.get('LLMChatter.GroupChatter.WipeChance', 100)}%"
+        f"  WipeCooldown: "
+        f"{config.get('LLMChatter.GroupChatter.WipeCooldown', 120)}s"
+    )
+    logger.info(
+        f"  CorpseRunChance: "
+        f"{config.get('LLMChatter.GroupChatter.CorpseRunChance', 80)}%"
+        f"  CorpseRunCooldown: "
+        f"{config.get('LLMChatter.GroupChatter.CorpseRunCooldown', 120)}s"
+    )
+    logger.info(
+        f"  FarewellEnable: "
+        f"{config.get('LLMChatter.GroupChatter.FarewellEnable', 1)}"
+    )
+    logger.info(
+        f"  CompositionCommentChance: "
+        f"{config.get('LLMChatter.GroupChatter.CompositionCommentChance', 10)}%"
+    )
+    logger.info(
         f"  RaceLoreChance: "
         f"{config.get('LLMChatter.RaceLoreChance', 15)}%"
     )
     logger.info(
         f"  RaceVocabChance: "
         f"{config.get('LLMChatter.RaceVocabChance', 15)}%"
+    )
+    logger.info(
+        f"  ActionChance: "
+        f"{config.get('LLMChatter.ActionChance', 10)}%"
     )
     logger.info("-" * 60)
     qa_prov = config.get(
@@ -2220,6 +2461,65 @@ def main():
         f"{config.get('LLMChatter.GroupChatter.PreCacheTTLSeconds', 3600)}s"
         f"  GeneratePerLoop: "
         f"{config.get('LLMChatter.GroupChatter.PreCacheGeneratePerLoop', 2)}"
+    )
+    logger.info(
+        f"  FallbackToLive: "
+        f"{config.get('LLMChatter.GroupChatter.PreCacheFallbackToLive', 1)}"
+    )
+    logger.info("-" * 60)
+    logger.info("State callout settings:")
+    logger.info(
+        f"  Enable: "
+        f"{config.get('LLMChatter.GroupChatter.StateCalloutEnable', 1)}"
+        f"  Chance: "
+        f"{config.get('LLMChatter.GroupChatter.StateCalloutChance', 60)}%"
+        f"  Cooldown: "
+        f"{config.get('LLMChatter.GroupChatter.StateCalloutCooldown', 60)}s"
+    )
+    logger.info(
+        f"  LowHealth: "
+        f"{config.get('LLMChatter.GroupChatter.StateCalloutLowHealth', 1)}"
+        f"  Oom: "
+        f"{config.get('LLMChatter.GroupChatter.StateCalloutOom', 1)}"
+        f"  Aggro: "
+        f"{config.get('LLMChatter.GroupChatter.StateCalloutAggro', 1)}"
+    )
+    logger.info("-" * 60)
+    logger.info("General chat settings:")
+    logger.info(
+        f"  Enable: "
+        f"{config.get('LLMChatter.GeneralChat.Enable', 1)}"
+        f"  ReactionChance: "
+        f"{config.get('LLMChatter.GeneralChat.ReactionChance', 40)}%"
+    )
+    logger.info(
+        f"  QuestionChance: "
+        f"{config.get('LLMChatter.GeneralChat.QuestionChance', 80)}%"
+        f"  Cooldown: "
+        f"{config.get('LLMChatter.GeneralChat.Cooldown', 30)}s"
+    )
+    logger.info(
+        f"  ConversationChance: "
+        f"{config.get('LLMChatter.GeneralChat.ConversationChance', 30)}%"
+    )
+    logger.info("-" * 60)
+    logger.info("Shared settings:")
+    from chatter_group import _chat_history_limit
+    logger.info(
+        f"  Chat history limit: "
+        f"{_chat_history_limit}"
+    )
+    logger.info("-" * 60)
+    logger.info("Ollama settings:")
+    logger.info(
+        f"  BaseUrl: "
+        f"{config.get('LLMChatter.Ollama.BaseUrl', 'http://localhost:11434')}"
+    )
+    logger.info(
+        f"  ContextSize: "
+        f"{config.get('LLMChatter.Ollama.ContextSize', 2048)}"
+        f"  DisableThinking: "
+        f"{config.get('LLMChatter.Ollama.DisableThinking', 1)}"
     )
     logger.info("=" * 60)
 

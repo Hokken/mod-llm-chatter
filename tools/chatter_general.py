@@ -13,6 +13,9 @@ import logging
 import random
 import json
 
+# Module-level config defaults (set by init_general_config)
+_chat_history_limit = 10
+
 from chatter_shared import (
     call_llm, cleanup_message, strip_speaker_prefix,
     get_chatter_mode, get_class_name, get_race_name,
@@ -23,6 +26,9 @@ from chatter_shared import (
     pick_emote_for_statement,
     build_anti_repetition_context,
     get_recent_zone_messages,
+    append_json_instruction,
+    parse_single_response,
+    get_action_chance,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -36,6 +42,23 @@ from chatter_constants import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def init_general_config(config):
+    """Initialize module-level config values."""
+    global _chat_history_limit
+    try:
+        val = int(
+            config.get('LLMChatter.ChatHistoryLimit', 10)
+        )
+    except (ValueError, TypeError):
+        logger.warning(
+            "Invalid LLMChatter.ChatHistoryLimit, "
+            "using default 10"
+        )
+        val = 10
+    _chat_history_limit = max(1, min(val, 50))
+
 
 # Same personality traits as group chatter
 PERSONALITY_TRAITS = {
@@ -114,11 +137,13 @@ def _mark_event(db, event_id, status):
 
 
 def _get_general_chat_history(
-    db, zone_id, limit=15
+    db, zone_id, limit=None
 ):
     """Get recent General channel messages for a zone.
     Returns oldest-first for natural prompt reading.
     """
+    if limit is None:
+        limit = _chat_history_limit
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
         SELECT speaker_name, is_bot, message
@@ -155,7 +180,7 @@ def _store_general_chat(
     db, zone_id, speaker_name, is_bot, message
 ):
     """Store a message in General chat history
-    and prune to 15 per zone.
+    and prune old messages per zone.
     """
     cursor = db.cursor()
     cursor.execute("""
@@ -168,7 +193,7 @@ def _store_general_chat(
     ))
     db.commit()
 
-    # Prune to keep 15 per zone
+    # Prune to keep recent messages per zone
     cursor.execute("""
         DELETE FROM llm_general_chat_history
         WHERE zone_id = %s AND id NOT IN (
@@ -177,10 +202,10 @@ def _store_general_chat(
                 FROM llm_general_chat_history
                 WHERE zone_id = %s
                 ORDER BY id DESC
-                LIMIT 15
+                LIMIT %s
             ) AS keep
         )
-    """, (zone_id, zone_id))
+    """, (zone_id, zone_id, _chat_history_limit))
     db.commit()
 
 
@@ -199,7 +224,7 @@ def _build_general_response_prompt(
     bot_name, bot_race, bot_class, bot_level,
     traits, player_name, player_message,
     zone_name, chat_history, mode,
-    recent_messages=None
+    recent_messages=None, allow_action=True
 ):
     """Build prompt for a bot responding to a
     player's General channel message.
@@ -278,7 +303,7 @@ def _build_general_response_prompt(
         f"Reply in General channel.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Respond to what {player_name} said\n"
         f"{address_hint}"
         f"- Reflect your personality traits\n"
@@ -296,6 +321,9 @@ def _build_general_response_prompt(
     )
     if anti_rep:
         prompt += f"\n{anti_rep}"
+    prompt = append_json_instruction(
+        prompt, allow_action
+    )
     return prompt
 
 
@@ -304,7 +332,7 @@ def _build_general_followup_prompt(
     traits, first_bot_name, first_bot_response,
     player_name, player_message,
     zone_name, chat_history, mode,
-    recent_messages=None
+    recent_messages=None, allow_action=True
 ):
     """Build prompt for a 2nd bot following up
     on the 1st bot's reaction in General channel.
@@ -374,7 +402,7 @@ def _build_general_followup_prompt(
         f"own take on what {player_name} said.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Don't repeat what others said\n"
         f"{address_hint}"
         f"- Keep it brief - General channel\n"
@@ -385,6 +413,9 @@ def _build_general_followup_prompt(
     )
     if anti_rep:
         prompt += f"\n{anti_rep}"
+    prompt = append_json_instruction(
+        prompt, allow_action
+    )
     return prompt
 
 
@@ -513,12 +544,16 @@ def process_general_player_msg_event(
         bot1_traits = _pick_random_traits()
 
         # Build and send first bot prompt
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt1 = _build_general_response_prompt(
             bot1_name, bot1_race, bot1_class,
             bot1_level, bot1_traits,
             player_name, player_message,
             zone_name, chat_hist, mode,
             recent_messages=recent_msgs,
+            allow_action=allow_action,
         )
 
         max_tokens = int(config.get(
@@ -541,9 +576,13 @@ def process_general_player_msg_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        msg1 = response1.strip().strip('"').strip()
-        msg1 = cleanup_message(msg1)
-        msg1 = strip_speaker_prefix(msg1, bot1_name)
+        parsed1 = parse_single_response(response1)
+        msg1 = strip_speaker_prefix(
+            parsed1['message'], bot1_name
+        )
+        msg1 = cleanup_message(
+            msg1, action=parsed1.get('action')
+        )
         if not msg1:
             logger.warning(
                 "Empty message after cleanup"
@@ -562,7 +601,10 @@ def process_general_player_msg_event(
         delay1 = calculate_dynamic_delay(
             len(msg1), config
         )
-        emote1 = pick_emote_for_statement(msg1)
+        emote1 = (
+            parsed1.get('emote')
+            or pick_emote_for_statement(msg1)
+        )
         insert_chat_message(
             db, bot1_guid, bot1_name, msg1,
             channel='general',
@@ -641,6 +683,9 @@ def _general_followup(
     history = _get_general_chat_history(db, zone_id)
     chat_hist = _format_general_history(history)
 
+    allow_action = (
+        random.random() < get_action_chance()
+    )
     prompt2 = _build_general_followup_prompt(
         bot2_name, bot2_race, bot2_class,
         bot2_level, bot2_traits,
@@ -648,6 +693,7 @@ def _general_followup(
         player_name, player_message,
         zone_name, chat_hist, mode,
         recent_messages=recent_msgs,
+        allow_action=allow_action,
     )
 
     max_tokens = int(config.get(
@@ -665,9 +711,13 @@ def _general_followup(
         )
         return
 
-    msg2 = response2.strip().strip('"').strip()
-    msg2 = cleanup_message(msg2)
-    msg2 = strip_speaker_prefix(msg2, bot2_name)
+    parsed2 = parse_single_response(response2)
+    msg2 = strip_speaker_prefix(
+        parsed2['message'], bot2_name
+    )
+    msg2 = cleanup_message(
+        msg2, action=parsed2.get('action')
+    )
     if not msg2:
         return
     if len(msg2) > 255:
@@ -681,7 +731,10 @@ def _general_followup(
     # Stagger: first bot delay + extra 4-8 seconds
     delay2 = delay1 + random.randint(4, 8)
 
-    emote2 = pick_emote_for_statement(msg2)
+    emote2 = (
+        parsed2.get('emote')
+        or pick_emote_for_statement(msg2)
+    )
     insert_chat_message(
         db, bot2_guid, bot2_name, msg2,
         channel='general',

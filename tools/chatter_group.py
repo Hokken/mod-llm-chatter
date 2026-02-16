@@ -30,6 +30,9 @@ import random
 import re
 import time
 
+# Module-level config defaults (set by init_group_config)
+_chat_history_limit = 10
+
 from chatter_shared import (
     call_llm, cleanup_message, strip_speaker_prefix,
     get_chatter_mode, get_class_name, get_race_name,
@@ -48,6 +51,10 @@ from chatter_shared import (
     build_anti_repetition_context,
     get_recent_bot_messages,
     build_bot_state_context,
+    query_quest_turnin_npc,
+    append_json_instruction,
+    parse_single_response,
+    get_action_chance,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -66,6 +73,22 @@ from chatter_constants import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def init_group_config(config):
+    """Initialize module-level config values."""
+    global _chat_history_limit
+    try:
+        val = int(
+            config.get('LLMChatter.ChatHistoryLimit', 10)
+        )
+    except (ValueError, TypeError):
+        logger.warning(
+            "Invalid LLMChatter.ChatHistoryLimit, "
+            "using default 10"
+        )
+        val = 10
+    _chat_history_limit = max(1, min(val, 50))
 
 
 def _pick_length_hint(mode):
@@ -370,7 +393,7 @@ def _generate_farewell(
         f"80 characters.\n"
         f"{style}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Just the farewell text, nothing else"
     )
 
@@ -545,7 +568,8 @@ def _has_recent_event(
 def build_bot_greeting_prompt(
     bot, traits, mode,
     chat_history="", members=None,
-    player_name="", group_size=0
+    player_name="", group_size=0,
+    allow_action=True,
 ):
     """Build the LLM prompt for a group greeting.
 
@@ -645,10 +669,20 @@ def build_bot_greeting_prompt(
         and random.random() < 0.8
     )
 
+    # Greetings should be short — when inviting
+    # multiple bots quickly, long messages flood chat
+    # 70% short, 30% medium
+    roll = random.random()
+    if roll < 0.70:
+        length_hint = "short (5-10 words)"
+    else:
+        length_hint = "a short sentence (10-16 words)"
+
     prompt += (
         f"\nYou just joined a party with a real "
         f"player. Say a greeting in party chat.\n"
-        f"{_pick_length_hint(mode)}\n\n"
+        f"Length: {length_hint}\n"
+        f"Length mode: short only (keep it brief)\n\n"
         f"Your greeting should reflect your "
         f"personality traits. For example:\n"
         f"- A 'friendly, eager' bot might say: "
@@ -661,7 +695,6 @@ def build_bot_greeting_prompt(
         f"Rules:\n"
         f"- One short sentence only\n"
         f"- No quotes around your message\n"
-        f"- No asterisks or emotes\n"
         f"- No emojis\n"
         f"- Don't mention your class or race\n"
     )
@@ -676,12 +709,15 @@ def build_bot_greeting_prompt(
             f"- Don't use the player's name"
         )
 
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_bot_welcome_prompt(
     bot, traits, new_bot_name, mode,
-    chat_history="", members=None
+    chat_history="", members=None,
+    allow_action=True,
 ):
     """Build prompt for an existing bot welcoming
     a new member to the group.
@@ -760,11 +796,21 @@ def build_bot_welcome_prompt(
     if chat_history:
         prompt += f"{chat_history}\n"
 
+    # Welcomes should be short — multiple bots may
+    # welcome at once during rapid invites
+    # 70% short, 30% medium
+    roll = random.random()
+    if roll < 0.70:
+        wl_hint = "short (5-10 words)"
+    else:
+        wl_hint = "a short sentence (10-16 words)"
+
     prompt += (
         f"\nA new player named {new_bot_name} "
         f"just joined your party. Welcome them "
         f"briefly.\n"
-        f"{_pick_length_hint(mode)}\n\n"
+        f"Length: {wl_hint}\n"
+        f"Length mode: short only (keep it brief)\n\n"
         f"Don't repeat jokes or themes already "
         f"said in chat.\n\n"
         f"Your welcome should reflect your "
@@ -779,18 +825,20 @@ def build_bot_welcome_prompt(
         f"Rules:\n"
         f"- One short sentence only\n"
         f"- No quotes around your message\n"
-        f"- No asterisks or emotes\n"
         f"- No emojis\n"
         f"- Don't mention your class or race\n"
         f"- You can use {new_bot_name}'s name "
         f"or just say a general welcome"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_kill_reaction_prompt(
     bot, traits, creature_name, is_boss, is_rare,
-    mode, chat_history="", extra_data=None
+    mode, chat_history="", extra_data=None,
+    allow_action=True,
 ):
     """Build prompt for a bot reacting to a kill.
 
@@ -882,19 +930,21 @@ def build_kill_reaction_prompt(
         f"Say a reaction in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Can mention the creature by name\n"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_loot_reaction_prompt(
     bot, traits, item_name, item_quality, mode,
     chat_history="", looter_name=None,
-    extra_data=None
+    extra_data=None, allow_action=True,
 ):
     """Build prompt for a bot reacting to looting
     an item. Quality affects excitement level:
@@ -1014,7 +1064,7 @@ def build_loot_reaction_prompt(
         f"Say a reaction in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Can mention the item by name\n"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
@@ -1022,13 +1072,15 @@ def build_loot_reaction_prompt(
         f"- NEVER say the item will serve YOU "
         f"if someone else looted it"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_combat_reaction_prompt(
     bot, traits, creature_name, is_boss, mode,
     chat_history="", is_elite=False,
-    extra_data=None
+    extra_data=None, allow_action=True,
 ):
     """Build prompt for a bot's battle cry when
     engaging a creature. Very short — must feel
@@ -1121,19 +1173,22 @@ def build_combat_reaction_prompt(
         f"remark (under 50 characters).\n"
         f"Rules:\n"
         f"- Extremely brief, 3-8 words max\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Can mention the enemy by name\n"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_death_reaction_prompt(
     reactor, reactor_traits, dead_name,
     killer_name, mode, chat_history="",
-    is_player_death=False, extra_data=None
+    is_player_death=False, extra_data=None,
+    allow_action=True,
 ):
     """Build prompt for a bot reacting to a
     groupmate dying. The reactor is a DIFFERENT
@@ -1234,19 +1289,20 @@ def build_death_reaction_prompt(
         f"Say a reaction in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, "
-        f"emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Mention {dead_name} by name\n"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_levelup_reaction_prompt(
     bot, traits, leveler_name, new_level, is_bot,
-    mode, chat_history=""
+    mode, chat_history="", allow_action=True,
 ):
     """Build prompt for a bot reacting to someone
     leveling up. Always congratulatory/excited.
@@ -1317,18 +1373,21 @@ def build_levelup_reaction_prompt(
         f"Say a reaction in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Can mention level {new_level}\n"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_quest_complete_reaction_prompt(
     bot, traits, completer_name, quest_name,
-    is_bot, mode, chat_history=""
+    is_bot, mode, chat_history="",
+    turnin_npc=None, allow_action=True,
 ):
     """Build prompt for a bot reacting to a quest
     completion. Tone varies: relief, satisfaction,
@@ -1358,29 +1417,37 @@ def build_quest_complete_reaction_prompt(
     if chat_history:
         rp_context += f"{chat_history}\n"
 
-    who = completer_name
-    if not is_bot:
-        who = f"{completer_name} (the real player)"
-
+    npc_note = ""
+    if turnin_npc:
+        npc_note = (
+            f" You turned it in to {turnin_npc}. "
+            f"You may mention them briefly "
+            f"(e.g. thanking them or noting "
+            f"their reaction) but they are a "
+            f"FRIENDLY NPC — never imply you "
+            f"fought or killed them."
+        )
     quest_context = (
-        f"{who} just completed the quest "
-        f"\"{quest_name}\"! React to this "
-        f"accomplishment. Your tone could be "
-        f"relief, satisfaction, or excitement "
-        f"depending on your personality."
+        f"Your group just completed the quest "
+        f"\"{quest_name}\"!{npc_note} "
+        f"This is a TEAM achievement — celebrate "
+        f"it as something you all accomplished "
+        f"together. Use 'we' language, not 'you' "
+        f"or single names. Focus on the "
+        f"achievement, reward, or moving on."
     )
 
     if is_rp:
         style = (
-            "React in-character about the quest "
-            "completion. Keep it natural and "
-            "grounded."
+            "React in-character about the group's "
+            "quest completion with team spirit. "
+            "Keep it natural and grounded."
         )
     else:
         style = (
             "React naturally in party chat "
-            "about finishing a quest. "
-            "Casual and brief."
+            "about your group finishing a quest. "
+            "Casual, brief, team-oriented."
         )
 
     prompt = (
@@ -1400,18 +1467,20 @@ def build_quest_complete_reaction_prompt(
         f"Say a reaction in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Can mention the quest by name\n"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_quest_objectives_reaction_prompt(
     bot, traits, quest_name, completer_name,
-    mode, chat_history=""
+    mode, chat_history="", allow_action=True,
 ):
     """Build prompt for a bot reacting to quest
     objectives being completed (before turn-in).
@@ -1485,7 +1554,7 @@ def build_quest_objectives_reaction_prompt(
         f"Say a reaction in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Can mention the quest by name\n"
         f"- Reflect your personality traits\n"
         f"- Don't attribute the completion to "
@@ -1494,12 +1563,15 @@ def build_quest_objectives_reaction_prompt(
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_achievement_reaction_prompt(
     bot, traits, achiever_name, achievement_name,
-    is_bot, mode, chat_history=""
+    is_bot, mode, chat_history="",
+    allow_action=True,
 ):
     """Build prompt for a bot reacting to an
     achievement being earned. Achievements are
@@ -1571,13 +1643,15 @@ def build_achievement_reaction_prompt(
         f"Say a reaction in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Can mention the achievement by name\n"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_spell_cast_reaction_prompt(
@@ -1585,6 +1659,7 @@ def build_spell_cast_reaction_prompt(
     spell_category, target_name, mode,
     chat_history="", members=None,
     dungeon_bosses=None, extra_data=None,
+    allow_action=True,
 ):
     """Build prompt for a bot reacting to a notable
     spell cast (heal, cc, resurrect, shield, buff).
@@ -1766,16 +1841,40 @@ def build_spell_cast_reaction_prompt(
     # Instruction differs based on caster vs observer
     if is_caster:
         instruction = (
-            f"You are the one who cast {spell_name}. "
-            f"Say something in party chat directed "
-            f"at {target_name} about casting "
-            f"{spell_name} on them. Mention "
-            f"{target_name} by name."
+            f"Say something in party chat to "
+            f"{target_name} about your spell. "
+            f"Mention {target_name} by name."
         )
     else:
         instruction = (
             f"Say a short reaction in party chat."
         )
+
+    # Extract previous spell reactions from this bot
+    # in chat history for strong anti-repetition
+    anti_rep_block = ""
+    if chat_history:
+        bot_name = bot['name']
+        prev_lines = []
+        for line in chat_history.strip().split('\n'):
+            stripped = line.strip()
+            if stripped.startswith(
+                f"{bot_name}:"
+            ) or stripped.startswith(
+                f"  {bot_name}:"
+            ):
+                msg = stripped.split(':', 1)[-1]
+                msg = msg.strip()
+                if msg and len(msg) > 5:
+                    prev_lines.append(msg)
+        if prev_lines:
+            anti_rep_block = (
+                "\nYou have ALREADY said these in "
+                "chat. Say something COMPLETELY "
+                "different:\n"
+            )
+            for pl in prev_lines[-5:]:
+                anti_rep_block += f'- "{pl}"\n'
 
     prompt = (
         f"You are {bot['name']}, a level "
@@ -1798,18 +1897,21 @@ def build_spell_cast_reaction_prompt(
         f"Rules:\n"
         f"- Short reaction, one sentence only\n"
         f"- No quotes around your message\n"
-        f"- No asterisks or emotes\n"
         f"- No emojis\n"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
+        f"{anti_rep_block}"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_player_response_prompt(
     bot, traits, player_name, player_message, mode,
-    chat_history="", members=None, item_context=""
+    chat_history="", members=None, item_context="",
+    allow_action=True,
 ):
     """Build prompt for a bot responding to a real
     player's party chat message. The bot should
@@ -1911,7 +2013,7 @@ def build_player_response_prompt(
         f"Reply in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Respond to what {player_name} said\n"
         f"{address_hint}"
         f"- Reflect your personality traits\n"
@@ -1931,7 +2033,9 @@ def build_player_response_prompt(
             f"class/role perspective. Is it useful "
             f"for you? Good stats? Would you want it?"
         )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 # ============================================================
@@ -2041,12 +2145,16 @@ def process_group_event(db, client, config, event):
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
         members = get_group_members(db, group_id)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_bot_greeting_prompt(
             bot, traits, mode,
             chat_history=chat_hist,
             members=members,
             player_name=player_name,
             group_size=group_size,
+            allow_action=allow_action,
         )
 
         # 3. Call LLM
@@ -2068,10 +2176,12 @@ def process_group_event(db, client, config, event):
             return False
 
         # 4. Clean up response
-        message = response.strip().strip('"').strip()
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, bot_name
+            parsed['message'], bot_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             logger.warning("Empty message after cleanup")
@@ -2086,7 +2196,10 @@ def process_group_event(db, client, config, event):
         )
 
         # 5. Insert message for delivery via party
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=2,
@@ -2233,11 +2346,15 @@ def process_group_kill_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_kill_reaction_prompt(
             bot, traits, creature_name,
             is_boss, is_rare, mode,
             chat_history=chat_hist,
             extra_data=extra_data,
+            allow_action=allow_action,
         )
         mood_label = get_bot_mood_label(
             group_id, bot_guid
@@ -2266,10 +2383,12 @@ def process_group_kill_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = response.strip().strip('"').strip()
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, bot_name
+            parsed['message'], bot_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             logger.warning("Empty message after cleanup")
@@ -2283,7 +2402,10 @@ def process_group_kill_event(
             f"{message}"
         )
 
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=3,
@@ -2409,12 +2531,16 @@ def process_group_loot_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_loot_reaction_prompt(
             bot, traits, item_name,
             item_quality, mode,
             chat_history=chat_hist,
             looter_name=prompt_looter_name,
             extra_data=extra_data,
+            allow_action=allow_action,
         )
         mood_label = get_bot_mood_label(
             group_id, bot['guid']
@@ -2444,10 +2570,12 @@ def process_group_loot_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = response.strip().strip('"').strip()
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, bot['name']
+            parsed['message'], bot['name']
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             logger.warning("Empty message after cleanup")
@@ -2475,7 +2603,10 @@ def process_group_loot_event(
             f"{message}"
         )
 
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, bot['guid'], bot['name'], message,
             channel='party', delay_seconds=3,
@@ -2599,12 +2730,16 @@ def process_group_combat_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_combat_reaction_prompt(
             bot, traits, creature_name,
             is_boss, mode,
             chat_history=chat_hist,
             is_elite=is_elite,
             extra_data=extra_data,
+            allow_action=allow_action,
         )
 
         max_tokens = int(config.get(
@@ -2629,10 +2764,12 @@ def process_group_combat_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = response.strip().strip('"').strip()
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, bot_name
+            parsed['message'], bot_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             logger.warning(
@@ -2648,7 +2785,10 @@ def process_group_combat_event(
             f"{message}"
         )
 
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, bot['guid'], bot['name'], message,
             channel='party', delay_seconds=1,
@@ -2796,12 +2936,16 @@ def process_group_death_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_death_reaction_prompt(
             reactor, reactor_traits, dead_name,
             killer_name, mode,
             chat_history=chat_hist,
             is_player_death=is_player_death,
             extra_data=extra_data,
+            allow_action=allow_action,
         )
         mood_label = get_bot_mood_label(
             group_id, reactor_guid
@@ -2831,10 +2975,12 @@ def process_group_death_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = response.strip().strip('"').strip()
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, reactor_name
+            parsed['message'], reactor_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             logger.warning("Empty message after cleanup")
@@ -2848,7 +2994,10 @@ def process_group_death_event(
             f"{reactor_name}: {message}"
         )
 
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, reactor_guid, reactor_name,
             message, channel='party',
@@ -3052,12 +3201,16 @@ def process_group_player_msg_event(
                     f"{item_context}"
                 )
 
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_player_response_prompt(
             bot, traits, player_name,
             player_message, mode,
             chat_history=chat_hist,
             members=members,
             item_context=item_context,
+            allow_action=allow_action,
         )
 
         max_tokens = int(config.get(
@@ -3080,10 +3233,12 @@ def process_group_player_msg_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = response.strip().strip('"').strip()
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, bot_name
+            parsed['message'], bot_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             logger.warning("Empty message after cleanup")
@@ -3097,7 +3252,10 @@ def process_group_player_msg_event(
             f"{message}"
         )
 
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=3,
@@ -3250,10 +3408,14 @@ def process_group_levelup_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_levelup_reaction_prompt(
             reactor, reactor_traits,
             leveler_name, new_level, is_bot,
             mode, chat_history=chat_hist,
+            allow_action=allow_action,
         )
         mood_label = get_bot_mood_label(
             group_id, reactor_guid
@@ -3283,12 +3445,12 @@ def process_group_levelup_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = (
-            response.strip().strip('"').strip()
-        )
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, reactor_name
+            parsed['message'], reactor_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             logger.warning(
@@ -3304,7 +3466,10 @@ def process_group_levelup_event(
             f"{reactor_name}: {message}"
         )
 
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, reactor_guid, reactor_name,
             message, channel='party',
@@ -3429,12 +3594,26 @@ def process_group_quest_complete_event(
         completer_is_bot = bool(int(
             extra_data.get('completer_is_bot', 1)
         ))
+        # Look up turn-in NPC name
+        quest_id = int(
+            extra_data.get('quest_id', 0)
+        )
+        turnin_npc = None
+        if quest_id:
+            turnin_npc = query_quest_turnin_npc(
+                config, quest_id
+            )
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = (
             build_quest_complete_reaction_prompt(
                 reactor, reactor_traits,
                 completer_name, quest_name,
                 completer_is_bot, mode,
                 chat_history=chat_hist,
+                turnin_npc=turnin_npc,
+                allow_action=allow_action,
             )
         )
         mood_label = get_bot_mood_label(
@@ -3465,12 +3644,12 @@ def process_group_quest_complete_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = (
-            response.strip().strip('"').strip()
-        )
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, reactor_name
+            parsed['message'], reactor_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             logger.warning(
@@ -3486,7 +3665,10 @@ def process_group_quest_complete_event(
             f"{reactor_name}: {message}"
         )
 
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, reactor_guid, reactor_name,
             message, channel='party',
@@ -3645,12 +3827,16 @@ def process_group_quest_objectives_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = (
             build_quest_objectives_reaction_prompt(
                 reactor, reactor_traits,
                 quest_name, completer_name,
                 mode,
                 chat_history=chat_hist,
+                allow_action=allow_action,
             )
         )
 
@@ -3674,12 +3860,12 @@ def process_group_quest_objectives_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = (
-            response.strip().strip('"').strip()
-        )
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, reactor_name
+            parsed['message'], reactor_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             logger.warning(
@@ -3695,7 +3881,10 @@ def process_group_quest_objectives_event(
             f"{reactor_name}: {message}"
         )
 
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, reactor_guid, reactor_name,
             message, channel='party',
@@ -3836,11 +4025,15 @@ def process_group_achievement_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_achievement_reaction_prompt(
             reactor, reactor_traits,
             achiever_name, achievement_name,
             is_bot, mode,
             chat_history=chat_hist,
+            allow_action=allow_action,
         )
         mood_label = get_bot_mood_label(
             group_id, reactor_guid
@@ -3870,12 +4063,12 @@ def process_group_achievement_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = (
-            response.strip().strip('"').strip()
-        )
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, reactor_name
+            parsed['message'], reactor_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             logger.warning(
@@ -3891,7 +4084,10 @@ def process_group_achievement_event(
             f"{reactor_name}: {message}"
         )
 
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, reactor_guid, reactor_name,
             message, channel='party',
@@ -4037,6 +4233,9 @@ def process_group_spell_cast_event(
             if in_dungeon else None
         )
 
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_spell_cast_reaction_prompt(
             bot, traits, caster_name,
             spell_name, spell_category,
@@ -4045,6 +4244,7 @@ def process_group_spell_cast_event(
             members=members,
             dungeon_bosses=dungeon_bosses,
             extra_data=extra_data,
+            allow_action=allow_action,
         )
 
         max_tokens = int(config.get(
@@ -4067,12 +4267,12 @@ def process_group_spell_cast_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = (
-            response.strip().strip('"').strip()
-        )
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, bot_name
+            parsed['message'], bot_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             logger.warning(
@@ -4089,7 +4289,10 @@ def process_group_spell_cast_event(
         )
 
         delay = random.randint(2, 3)
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=delay,
@@ -4200,9 +4403,13 @@ def process_group_resurrect_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_resurrect_reaction_prompt(
             bot, traits, mode,
             chat_history=chat_hist,
+            allow_action=allow_action,
         )
         mood_label = get_bot_mood_label(
             group_id, bot_guid
@@ -4232,12 +4439,12 @@ def process_group_resurrect_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = (
-            response.strip().strip('"').strip()
-        )
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, bot_name
+            parsed['message'], bot_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             _mark_event(db, event_id, 'skipped')
@@ -4250,7 +4457,10 @@ def process_group_resurrect_event(
             f"{bot_name}: {message}"
         )
 
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=2,
@@ -4363,10 +4573,14 @@ def process_group_zone_transition_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_zone_transition_prompt(
             bot, traits, zone_name, zone_id,
             mode,
             chat_history=chat_hist,
+            allow_action=allow_action,
         )
 
         max_tokens = int(config.get(
@@ -4389,12 +4603,12 @@ def process_group_zone_transition_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = (
-            response.strip().strip('"').strip()
-        )
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, bot_name
+            parsed['message'], bot_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             _mark_event(db, event_id, 'skipped')
@@ -4407,7 +4621,10 @@ def process_group_zone_transition_event(
             f"{bot_name}: {message}"
         )
 
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=2,
@@ -4522,10 +4739,14 @@ def process_group_dungeon_entry_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_dungeon_entry_prompt(
             bot, traits, map_name, is_raid,
             zone_id, mode,
             chat_history=chat_hist,
+            allow_action=allow_action,
         )
 
         max_tokens = int(config.get(
@@ -4548,12 +4769,12 @@ def process_group_dungeon_entry_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = (
-            response.strip().strip('"').strip()
-        )
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, bot_name
+            parsed['message'], bot_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             _mark_event(db, event_id, 'skipped')
@@ -4567,7 +4788,10 @@ def process_group_dungeon_entry_event(
         )
 
         delay = random.randint(2, 4)
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=delay,
@@ -4677,10 +4901,14 @@ def process_group_wipe_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_wipe_reaction_prompt(
             bot, traits, killer_name, mode,
             chat_history=chat_hist,
             extra_data=extra_data,
+            allow_action=allow_action,
         )
         mood_label = get_bot_mood_label(
             group_id, bot_guid
@@ -4710,12 +4938,12 @@ def process_group_wipe_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = (
-            response.strip().strip('"').strip()
-        )
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, bot_name
+            parsed['message'], bot_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             _mark_event(db, event_id, 'skipped')
@@ -4728,7 +4956,10 @@ def process_group_wipe_event(
             f"{bot_name}: {message}"
         )
 
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=2,
@@ -4846,11 +5077,15 @@ def process_group_corpse_run_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_corpse_run_reaction_prompt(
             bot, traits, zone_name, mode,
             chat_history=chat_hist,
             dead_name=dead_name,
             is_player_death=is_player_death,
+            allow_action=allow_action,
         )
 
         max_tokens = int(config.get(
@@ -4873,12 +5108,12 @@ def process_group_corpse_run_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = (
-            response.strip().strip('"').strip()
-        )
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, bot_name
+            parsed['message'], bot_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             _mark_event(db, event_id, 'skipped')
@@ -4891,7 +5126,10 @@ def process_group_corpse_run_event(
             f"{bot_name}: {message}"
         )
 
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=2,
@@ -4986,10 +5224,14 @@ def process_group_low_health_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_low_health_callout_prompt(
             bot, traits, target_name, mode,
             chat_history=chat_hist,
             extra_data=extra_data,
+            allow_action=allow_action,
         )
 
         response = call_llm(
@@ -5008,12 +5250,12 @@ def process_group_low_health_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = (
-            response.strip().strip('"').strip()
-        )
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, bot_name
+            parsed['message'], bot_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             _mark_event(db, event_id, 'skipped')
@@ -5026,7 +5268,10 @@ def process_group_low_health_event(
             f"{bot_name}: {message}"
         )
 
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=1,
@@ -5115,10 +5360,14 @@ def process_group_oom_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_oom_callout_prompt(
             bot, traits, target_name, mode,
             chat_history=chat_hist,
             extra_data=extra_data,
+            allow_action=allow_action,
         )
 
         response = call_llm(
@@ -5137,12 +5386,12 @@ def process_group_oom_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = (
-            response.strip().strip('"').strip()
-        )
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, bot_name
+            parsed['message'], bot_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             _mark_event(db, event_id, 'skipped')
@@ -5155,7 +5404,10 @@ def process_group_oom_event(
             f"{bot_name}: {message}"
         )
 
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=1,
@@ -5247,11 +5499,15 @@ def process_group_aggro_loss_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_aggro_loss_callout_prompt(
             bot, traits, target_name,
             aggro_target, mode,
             chat_history=chat_hist,
             extra_data=extra_data,
+            allow_action=allow_action,
         )
 
         response = call_llm(
@@ -5270,12 +5526,12 @@ def process_group_aggro_loss_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = (
-            response.strip().strip('"').strip()
-        )
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, bot_name
+            parsed['message'], bot_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             _mark_event(db, event_id, 'skipped')
@@ -5288,7 +5544,10 @@ def process_group_aggro_loss_event(
             f"{bot_name}: {message}"
         )
 
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=1,
@@ -5353,11 +5612,15 @@ def _try_second_bot_response(
     chat_hist = format_chat_history(history)
     members = get_group_members(db, group_id)
 
+    allow_action = (
+        random.random() < get_action_chance()
+    )
     prompt = build_player_response_prompt(
         bot2, bot2_traits, player_name,
         player_message, mode,
         chat_history=chat_hist,
         members=members,
+        allow_action=allow_action,
     )
 
     max_tokens = int(config.get(
@@ -5375,9 +5638,13 @@ def _try_second_bot_response(
         )
         return
 
-    msg2 = response.strip().strip('"').strip()
-    msg2 = cleanup_message(msg2)
-    msg2 = strip_speaker_prefix(msg2, bot2_name)
+    parsed = parse_single_response(response)
+    msg2 = strip_speaker_prefix(
+        parsed['message'], bot2_name
+    )
+    msg2 = cleanup_message(
+        msg2, action=parsed.get('action')
+    )
     if not msg2:
         return
     if len(msg2) > 255:
@@ -5388,7 +5655,10 @@ def _try_second_bot_response(
         f"{bot2_name}: {msg2}"
     )
 
-    emote = pick_emote_for_statement(msg2)
+    emote = (
+        parsed.get('emote')
+        or pick_emote_for_statement(msg2)
+    )
     insert_chat_message(
         db, bot2_guid, bot2_name, msg2,
         channel='party', delay_seconds=6,
@@ -5454,10 +5724,14 @@ def _welcome_from_existing_bot(
     chat_hist = format_chat_history(history)
     members = get_group_members(db, group_id)
 
+    allow_action = (
+        random.random() < get_action_chance()
+    )
     prompt = build_bot_welcome_prompt(
         wb, wb_traits, new_bot_name, mode,
         chat_history=chat_hist,
         members=members,
+        allow_action=allow_action,
     )
 
     max_tokens = int(config.get(
@@ -5475,9 +5749,13 @@ def _welcome_from_existing_bot(
         )
         return
 
-    msg = response.strip().strip('"').strip()
-    msg = cleanup_message(msg)
-    msg = strip_speaker_prefix(msg, wb_name)
+    parsed = parse_single_response(response)
+    msg = strip_speaker_prefix(
+        parsed['message'], wb_name
+    )
+    msg = cleanup_message(
+        msg, action=parsed.get('action')
+    )
     if not msg:
         logger.warning(
             "Empty welcome message after cleanup"
@@ -5492,7 +5770,10 @@ def _welcome_from_existing_bot(
     )
 
     # Insert with 5s delay (greeting is at 2s)
-    emote = pick_emote_for_statement(msg)
+    emote = (
+        parsed.get('emote')
+        or pick_emote_for_statement(msg)
+    )
     insert_chat_message(
         db, wb_guid, wb_name, msg,
         channel='party', delay_seconds=5,
@@ -5570,7 +5851,9 @@ def _get_group_role_summary(db, group_id):
 
 def _build_composition_comment_prompt(
     bot, traits, mode, role_summary,
-    role_info, player_name=""
+    role_info, player_name="",
+    player_class="",
+    allow_action=True,
 ):
     """Build a short prompt for a bot to comment
     on the group's composition after joining.
@@ -5597,9 +5880,14 @@ def _build_composition_comment_prompt(
     )
     if player_name:
         prompt += f" with {player_name}"
+    player_desc = (
+        f" (plus {player_name} the {player_class})"
+        if player_name and player_class
+        else " (plus the player)"
+    )
     prompt += (
         f".\nGroup composition: {role_summary}"
-        f" (plus the player).\n"
+        f"{player_desc}.\n"
     )
 
     # Add pointed observations
@@ -5626,7 +5914,9 @@ def _build_composition_comment_prompt(
         f"characters). No greetings — you already "
         f"said hello."
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def _maybe_comment_on_composition(
@@ -5635,23 +5925,51 @@ def _maybe_comment_on_composition(
     player_name=""
 ):
     """Optionally generate a composition comment
-    after the bot joins a group. 50% chance,
-    only fires if group has 2+ bots.
+    after the bot joins a group. Chance controlled
+    by CompositionCommentChance config (default 10%).
+    Only fires if group has 2+ bots.
     """
-    if random.random() > 0.5:
+    chance = int(config.get(
+        'LLMChatter.GroupChatter'
+        '.CompositionCommentChance', 10
+    ))
+    if random.randint(1, 100) > chance:
         return
 
     role_summary, role_info = (
         _get_group_role_summary(db, group_id)
     )
+
+    # Look up the player's class for composition
+    player_class = ""
+    if player_name:
+        try:
+            cur = db.cursor(dictionary=True)
+            cur.execute(
+                "SELECT class FROM characters "
+                "WHERE name = %s LIMIT 1",
+                (player_name,)
+            )
+            row = cur.fetchone()
+            if row:
+                player_class = get_class_name(
+                    row['class']
+                )
+        except Exception:
+            pass
     if not role_summary or not role_info:
         return
     if role_info.get('total', 0) < 2:
         return
 
+    allow_action = (
+        random.random() < get_action_chance()
+    )
     prompt = _build_composition_comment_prompt(
         bot, traits, mode, role_summary,
-        role_info, player_name
+        role_info, player_name,
+        player_class=player_class,
+        allow_action=allow_action,
     )
 
     max_tokens = int(config.get(
@@ -5669,9 +5987,13 @@ def _maybe_comment_on_composition(
         )
         return
 
-    msg = response.strip().strip('"').strip()
-    msg = cleanup_message(msg)
-    msg = strip_speaker_prefix(msg, bot['name'])
+    parsed = parse_single_response(response)
+    msg = strip_speaker_prefix(
+        parsed['message'], bot['name']
+    )
+    msg = cleanup_message(
+        msg, action=parsed.get('action')
+    )
     if not msg:
         return
     if len(msg) > 255:
@@ -5681,7 +6003,10 @@ def _maybe_comment_on_composition(
         f"Comp comment from {bot['name']}: {msg}"
     )
 
-    emote = pick_emote_for_statement(msg)
+    emote = (
+        parsed.get('emote')
+        or pick_emote_for_statement(msg)
+    )
     insert_chat_message(
         db, bot['guid'], bot['name'], msg,
         channel='party', delay_seconds=8,
@@ -5696,7 +6021,8 @@ def _maybe_comment_on_composition(
 
 
 def build_resurrect_reaction_prompt(
-    bot, traits, mode, chat_history=""
+    bot, traits, mode, chat_history="",
+    allow_action=True,
 ):
     """Build prompt for a bot reacting to being
     resurrected. The bot itself was just rezzed
@@ -5759,18 +6085,20 @@ def build_resurrect_reaction_prompt(
         f"Say a reaction in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Express gratitude, relief, or drama\n"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_zone_transition_prompt(
     bot, traits, zone_name, zone_id, mode,
-    chat_history=""
+    chat_history="", allow_action=True,
 ):
     """Build prompt for a bot commenting on arriving
     in a new zone.
@@ -5841,18 +6169,20 @@ def build_zone_transition_prompt(
         f"Say a reaction in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Can mention {zone_name} by name\n"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_dungeon_entry_prompt(
     bot, traits, map_name, is_raid, zone_id,
-    mode, chat_history=""
+    mode, chat_history="", allow_action=True,
 ):
     """Build prompt for a bot reacting to entering
     a dungeon or raid instance.
@@ -5953,18 +6283,21 @@ def build_dungeon_entry_prompt(
         f"Say a reaction in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Can mention {map_name} by name\n"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_wipe_reaction_prompt(
     bot, traits, killer_name, mode,
-    chat_history="", extra_data=None
+    chat_history="", extra_data=None,
+    allow_action=True,
 ):
     """Build prompt for a bot reacting to a total
     party wipe. Dramatic, frustrated, humorous,
@@ -6049,7 +6382,7 @@ def build_wipe_reaction_prompt(
         f"Say a reaction in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- No quotes, no emojis\n"
     )
     if killer_name:
         prompt += (
@@ -6060,13 +6393,16 @@ def build_wipe_reaction_prompt(
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_corpse_run_reaction_prompt(
     bot, traits, zone_name, mode,
     chat_history="", dead_name="",
-    is_player_death=False
+    is_player_death=False,
+    allow_action=True,
 ):
     """Build prompt for a bot commenting on a
     corpse run. Either the bot died (self), or
@@ -6174,8 +6510,7 @@ def build_corpse_run_reaction_prompt(
         f"Say something in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, "
-        f"emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
@@ -6184,7 +6519,9 @@ def build_corpse_run_reaction_prompt(
         prompt += (
             f"\n- Refer to {dead_name} by name"
         )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 # ============================================================
@@ -6192,9 +6529,10 @@ def build_corpse_run_reaction_prompt(
 # ============================================================
 def build_low_health_callout_prompt(
     bot, traits, target_name, mode,
-    chat_history="", extra_data=None
+    chat_history="", extra_data=None,
+    allow_action=True,
 ):
-    """Bot is critically wounded in combat."""
+    """Bot is critically wounded (combat or OOC)."""
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
 
@@ -6229,8 +6567,8 @@ def build_low_health_callout_prompt(
         )
 
     situation = (
-        f"You are in combat and critically "
-        f"wounded ({hp}% health)."
+        f"You are critically wounded "
+        f"({hp}% health)."
     )
     if target_name:
         situation += (
@@ -6253,18 +6591,20 @@ def build_low_health_callout_prompt(
         f"Say ONE short sentence in party chat.\n"
         f"Rules:\n"
         f"- Extremely brief, 3-10 words\n"
-        f"- No quotes, asterisks, emotes, "
-        f"emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Reflect your personality traits"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_oom_callout_prompt(
     bot, traits, target_name, mode,
-    chat_history="", extra_data=None
+    chat_history="", extra_data=None,
+    allow_action=True,
 ):
-    """Bot is running out of mana in combat.
+    """Bot is running out of mana (combat or OOC).
 
     NOTE: Non-mana classes (Warrior, Rogue, DK) are
     filtered in C++ via GetMaxPower(POWER_MANA) > 0
@@ -6305,8 +6645,7 @@ def build_oom_callout_prompt(
         )
 
     situation = (
-        f"You are in combat and almost out of "
-        f"mana ({mp}%)."
+        f"You are almost out of mana ({mp}%)."
     )
 
     prompt = (
@@ -6320,22 +6659,24 @@ def build_oom_callout_prompt(
     prompt += (
         f"{rp_context}\n\n"
         f"{situation}\n\n"
-        f"Alert your group — ask for a moment, "
-        f"warn the tank to stop pulling, or "
+        f"Alert your group — ask for a moment "
+        f"to drink, warn about low mana, or "
         f"express frustration.\n"
         f"Say ONE short sentence in party chat.\n"
         f"Rules:\n"
         f"- Extremely brief, 3-10 words\n"
-        f"- No quotes, asterisks, emotes, "
-        f"emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Reflect your personality traits"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_aggro_loss_callout_prompt(
     bot, traits, target_name, aggro_target,
-    mode, chat_history="", extra_data=None
+    mode, chat_history="", extra_data=None,
+    allow_action=True,
 ):
     """Tank lost aggro — mob attacking someone
     else in group."""
@@ -6387,13 +6728,14 @@ def build_aggro_loss_callout_prompt(
         f"Say ONE short sentence in party chat.\n"
         f"Rules:\n"
         f"- Extremely brief, 3-10 words\n"
-        f"- No quotes, asterisks, emotes, "
-        f"emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Can mention {target_name} or "
         f"{aggro_target} by name\n"
         f"- Reflect your personality traits"
     )
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 # ============================================================
@@ -6440,13 +6782,15 @@ def _store_chat(
     db.commit()
 
 
-def _get_recent_chat(db, group_id, limit=15):
+def _get_recent_chat(db, group_id, limit=None):
     """Get recent chat messages for a group.
 
     Returns list of dicts with speaker_name, is_bot,
     message — ordered oldest-first for natural
     reading in prompts.
     """
+    if limit is None:
+        limit = _chat_history_limit
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
         SELECT speaker_name, is_bot, message
@@ -6642,6 +6986,7 @@ def build_idle_chatter_prompt(
     address_target=None,
     dungeon_bosses=None,
     recent_messages=None,
+    allow_action=True,
 ):
     """Build prompt for idle party chat.
 
@@ -6790,7 +7135,7 @@ def build_idle_chatter_prompt(
         f"Say something casual in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
-        f"- No quotes, asterisks, emotes, emojis\n"
+        f"- No quotes, no emojis\n"
         f"- Reflect your personality traits\n"
         f"- Just a natural idle comment\n"
         f"- Don't repeat jokes or themes "
@@ -6806,7 +7151,9 @@ def build_idle_chatter_prompt(
     )
     if anti_rep:
         prompt += f"\n{anti_rep}"
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_idle_conversation_prompt(
@@ -6817,6 +7164,7 @@ def build_idle_conversation_prompt(
     player_name=None,
     dungeon_bosses=None,
     recent_messages=None,
+    allow_action=True,
 ):
     """Build prompt for a multi-bot idle conversation.
 
@@ -7046,6 +7394,21 @@ def build_idle_conversation_prompt(
         f"fits the message mood, or omit it."
     )
 
+    if allow_action:
+        parts.append(
+            "Actions: Each message may include an "
+            "optional \"action\" field — a short "
+            "physical action the character performs "
+            "(e.g. \"scratches chin\", \"leans on "
+            "staff\", \"adjusts pack\"). 2-5 words, "
+            "no asterisks. Omit if not needed."
+        )
+    else:
+        parts.append(
+            "Actions: Do not include an action "
+            "field in this response."
+        )
+
     parts.append(
         "JSON rules: Use double quotes, escape "
         "quotes/newlines, no trailing commas, "
@@ -7054,7 +7417,8 @@ def build_idle_conversation_prompt(
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", '
-            f'"message": "...", "emote": "talk"}}'
+            f'"message": "...", "emote": "talk"'
+            f', "action": "..."}}'
             for name in bot_names
         ]
     )
@@ -7312,6 +7676,9 @@ def _idle_single_statement(
     )
 
     try:
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_idle_chatter_prompt(
             bot, traits, mode,
             chat_history=chat_hist,
@@ -7323,6 +7690,7 @@ def _idle_single_statement(
             address_target=address_target,
             dungeon_bosses=dungeon_bosses,
             recent_messages=recent_msgs,
+            allow_action=allow_action,
         )
 
         max_tokens = int(config.get(
@@ -7341,10 +7709,12 @@ def _idle_single_statement(
             )
             return False
 
-        message = response.strip().strip('"').strip()
-        message = cleanup_message(message)
+        parsed = parse_single_response(response)
         message = strip_speaker_prefix(
-            message, bot_name
+            parsed['message'], bot_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
         )
         if not message:
             logger.warning(
@@ -7360,7 +7730,10 @@ def _idle_single_statement(
         )
 
         # Insert directly into messages table
-        emote = pick_emote_for_statement(message)
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
         insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=2,
@@ -7464,6 +7837,9 @@ def _idle_conversation(
         recent_msgs.extend(msgs)
 
     try:
+        allow_action = (
+            random.random() < get_action_chance()
+        )
         prompt = build_idle_conversation_prompt(
             bots, traits_map, mode, topic,
             chat_history=chat_hist,
@@ -7474,6 +7850,7 @@ def _idle_conversation(
             player_name=player_name,
             dungeon_bosses=dungeon_bosses,
             recent_messages=recent_msgs,
+            allow_action=allow_action,
         )
 
         # Scale tokens with number of bots
@@ -7531,11 +7908,13 @@ def _idle_conversation(
         prev_len = 0
 
         for seq, msg in enumerate(messages):
-            text = cleanup_message(
-                msg['message']
-            )
+            msg_text = msg['message']
             text = strip_speaker_prefix(
-                text, msg['name']
+                msg_text, msg['name']
+            )
+            text = cleanup_message(
+                text,
+                action=msg.get('action')
             )
             if not text:
                 continue
@@ -7594,6 +7973,7 @@ def _idle_conversation(
 def build_precache_combat_pull_prompt(
     bot_name, race, class_name, level,
     traits, mood, role=None, recent_cached=None,
+    allow_action=True,
 ):
     """Build prompt for a cached combat pull cry.
 
@@ -7630,18 +8010,20 @@ def build_precache_combat_pull_prompt(
         "Rules:\n"
         "- Must include {target} exactly once\n"
         "- Reflect your personality and mood\n"
-        "- No quotes, no asterisks, no emojis, "
-        "no emotes\n"
+        "- No quotes, no emojis\n"
         "- Respond with ONLY the message text"
     )
     if anti_rep:
         prompt += f"\n\n{anti_rep}"
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_precache_state_prompt(
     state_type, bot_name, race, class_name, level,
     traits, mood, role=None, recent_cached=None,
+    allow_action=True,
 ):
     """Build prompt for a cached state callout.
 
@@ -7671,8 +8053,8 @@ def build_precache_state_prompt(
 
     if state_type == 'low_health':
         prompt += (
-            "\n\nYou are in combat and critically "
-            "wounded. Write a very short callout "
+            "\n\nYou are critically wounded. "
+            "Write a very short callout "
             "(1 sentence, 3-10 words) asking for "
             "help or expressing pain.\n"
             "Rules:\n"
@@ -7688,13 +8070,13 @@ def build_precache_state_prompt(
         # and refill_precache_pool() skips state_oom
         # for class_ids {1, 4, 6}.
         prompt += (
-            "\n\nYou are in combat and completely "
-            "out of mana. Write a very short "
-            "callout (1 sentence, 3-10 words) "
-            "alerting your group.\n"
+            "\n\nYou are almost out of mana. "
+            "Write a very short callout "
+            "(1 sentence, 3-10 words) alerting "
+            "your group.\n"
             "Rules:\n"
-            "- First person only (\"I'm out of "
-            "mana!\", \"No mana left!\")\n"
+            "- First person only (\"I need to "
+            "drink\", \"No mana left!\")\n"
             "- Do NOT use any placeholders or "
             "names\n"
         )
@@ -7720,25 +8102,28 @@ def build_precache_state_prompt(
 
     prompt += (
         "- Reflect your personality and mood\n"
-        "- No quotes, no asterisks, no emojis, "
-        "no emotes\n"
+        "- No quotes, no emojis\n"
         "- Respond with ONLY the message text"
     )
     if anti_rep:
         prompt += f"\n\n{anti_rep}"
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )
 
 
 def build_precache_spell_support_prompt(
     bot_name, race, class_name, level,
     traits, mood, role=None, recent_cached=None,
+    allow_action=True,
 ):
     """Build prompt for a cached spell support
-    reaction. Uses {target}, {caster}, {spell}.
+    reaction. Uses {target} and {spell} placeholders.
 
-    Always observer perspective — C++ skips cache
-    when the reactor is the caster (falls through
-    to live LLM which handles first-person).
+    Caster perspective — the bot IS the caster.
+    C++ skips cache only for self-cast (bot casting
+    on itself). When bot casts on someone else, the
+    cached message delivers instantly.
     """
     trait_str = ', '.join(traits) if traits else ''
     rp_ctx = build_race_class_context(
@@ -7761,28 +8146,28 @@ def build_precache_spell_support_prompt(
         prompt += f"\n{rp_ctx}"
 
     prompt += (
-        "\n\nA groupmate just cast a support "
-        "spell during combat. Write a very "
-        "short reaction (1 sentence, 3-10 "
-            "words) from the OBSERVER perspective."
-            "\nUse these placeholders:\n"
-            "- {spell} = the spell that was cast\n"
-            "- {target} = who received the spell\n"
-            "- {caster} = who cast the spell\n"
-            "Example: \"Nice {spell} on {target}, "
-            "{caster}!\" or \"Thanks for the "
-            "{spell}, {caster}!\"\n"
-        )
+        "\n\nYou just cast a support spell on a "
+        "groupmate. Write a very short comment "
+        "(1 sentence, 3-10 words) about YOUR "
+        "spell from the CASTER perspective."
+        "\nUse these placeholders:\n"
+        "- {spell} = the spell you cast\n"
+        "- {target} = who you cast it on\n"
+        "Example: \"There you go {target}, "
+        "{spell} should help.\" or \"{target}, "
+        "you're covered.\"\n"
+    )
 
     prompt += (
         "Rules:\n"
         "- Use the placeholders exactly as shown "
         "(with curly braces)\n"
         "- Reflect your personality and mood\n"
-        "- No quotes, no asterisks, no emojis, "
-        "no emotes\n"
+        "- No quotes, no emojis\n"
         "- Respond with ONLY the message text"
     )
     if anti_rep:
         prompt += f"\n\n{anti_rep}"
-    return prompt
+    return append_json_instruction(
+        prompt, allow_action
+    )

@@ -20,6 +20,7 @@ from chatter_shared import (
     get_chatter_mode, build_race_class_context,
     get_zone_flavor, format_price,
     build_anti_repetition_context,
+    append_json_instruction,
 )
 
 logger = logging.getLogger(__name__)
@@ -171,10 +172,9 @@ def build_dynamic_guidelines(
             "Stay in character but keep it natural and "
             "conversational, not dramatic or theatrical",
             "ALWAYS write in first person - you ARE the "
-            "character speaking. NEVER write in third "
-            "person or narrator voice (no 'gazes at', "
-            "'adjusts pack', 'examines' etc). Write "
-            "what you SAY, not what you DO.",
+            "character speaking. Your message should be "
+            "SPOKEN words only (actions go in the "
+            "\"action\" JSON field, not in the message).",
             "NEVER use brackets [] around quest names, "
             "item names, zone names, or faction names - "
             "write them as plain text. Only use brackets "
@@ -271,7 +271,8 @@ def build_plain_statement_prompt(
     zone_mobs: list = None,
     config: dict = None,
     current_weather: str = 'clear',
-    recent_messages: list = None
+    recent_messages: list = None,
+    allow_action: bool = True
 ) -> str:
     """Build a dynamically varied prompt for a plain statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -374,11 +375,8 @@ def build_plain_statement_prompt(
     if anti_rep:
         parts.append(anti_rep)
 
-    parts.append(
-        "Respond with ONLY the message, nothing else."
-    )
-
-    return "\n".join(parts)
+    prompt = "\n".join(parts)
+    return append_json_instruction(prompt, allow_action)
 
 
 def build_quest_statement_prompt(
@@ -386,7 +384,8 @@ def build_quest_statement_prompt(
     quest: dict,
     config: dict = None,
     current_weather: str = 'clear',
-    recent_messages: list = None
+    recent_messages: list = None,
+    allow_action: bool = True
 ) -> str:
     """Build a dynamically varied prompt for a quest statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -491,12 +490,8 @@ def build_quest_statement_prompt(
     if anti_rep:
         parts.append(anti_rep)
 
-    parts.append(
-        "Respond with ONLY the message - be creative "
-        "and unpredictable."
-    )
-
-    return "\n".join(parts)
+    prompt = "\n".join(parts)
+    return append_json_instruction(prompt, allow_action)
 
 
 def build_loot_statement_prompt(
@@ -505,7 +500,8 @@ def build_loot_statement_prompt(
     can_use: bool,
     config: dict = None,
     current_weather: str = 'clear',
-    recent_messages: list = None
+    recent_messages: list = None,
+    allow_action: bool = True
 ) -> str:
     """Build a dynamically varied prompt for a loot statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -617,12 +613,8 @@ def build_loot_statement_prompt(
     if anti_rep:
         parts.append(anti_rep)
 
-    parts.append(
-        "Respond with ONLY the message - be creative "
-        "and unpredictable."
-    )
-
-    return "\n".join(parts)
+    prompt = "\n".join(parts)
+    return append_json_instruction(prompt, allow_action)
 
 
 def build_quest_reward_statement_prompt(
@@ -630,7 +622,8 @@ def build_quest_reward_statement_prompt(
     quest: dict,
     config: dict = None,
     current_weather: str = 'clear',
-    recent_messages: list = None
+    recent_messages: list = None,
+    allow_action: bool = True
 ) -> str:
     """Build a prompt for quest completion with reward."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -750,9 +743,8 @@ def build_quest_reward_statement_prompt(
     if anti_rep:
         parts.append(anti_rep)
 
-    parts.append("Respond with ONLY the message.")
-
-    return "\n".join(parts)
+    prompt = "\n".join(parts)
+    return append_json_instruction(prompt, allow_action)
 
 
 def build_plain_conversation_prompt(
@@ -761,7 +753,8 @@ def build_plain_conversation_prompt(
     zone_mobs: list = None,
     config: dict = None,
     current_weather: str = 'clear',
-    recent_messages: list = None
+    recent_messages: list = None,
+    allow_action: bool = True
 ) -> str:
     """Build a prompt for a plain conversation with 2-4 bots."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -934,6 +927,19 @@ def build_plain_conversation_prompt(
         f"Pick an emote that fits the message mood, "
         f"or omit it."
     )
+    if allow_action:
+        parts.append(
+            "Actions: Each message may include an optional "
+            "\"action\" field (2-5 word physical narration, "
+            "e.g. \"leans against the wall\"). This is "
+            "displayed as *action* before speech. Use "
+            "sparingly — only when it adds character."
+        )
+    else:
+        parts.append(
+            "Actions: Do not include an action field "
+            "in this response."
+        )
     anti_rep = build_anti_repetition_context(
         recent_messages
     )
@@ -946,7 +952,7 @@ def build_plain_conversation_prompt(
     )
     example_msgs = ',\n  '.join(
         [f'{{"speaker": "{name}", "message": "...", '
-         f'"emote": "talk"}}'
+         f'"emote": "talk", "action": null}}'
          for name in bot_names]
     )
     parts.append(f"""
@@ -964,7 +970,8 @@ def build_quest_conversation_prompt(
     quest: dict,
     config: dict = None,
     current_weather: str = 'clear',
-    recent_messages: list = None
+    recent_messages: list = None,
+    allow_action: bool = True
 ) -> str:
     """Build a prompt for a quest conversation with 2-4 bots."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1099,6 +1106,19 @@ def build_quest_conversation_prompt(
         f"Pick an emote that fits the message mood, "
         f"or omit it."
     )
+    if allow_action:
+        parts.append(
+            "Actions: Each message may include an optional "
+            "\"action\" field (2-5 word physical narration, "
+            "e.g. \"leans against the wall\"). This is "
+            "displayed as *action* before speech. Use "
+            "sparingly — only when it adds character."
+        )
+    else:
+        parts.append(
+            "Actions: Do not include an action field "
+            "in this response."
+        )
     anti_rep = build_anti_repetition_context(
         recent_messages
     )
@@ -1111,7 +1131,7 @@ def build_quest_conversation_prompt(
     )
     example_msgs = ',\n  '.join(
         [f'{{"speaker": "{name}", "message": "...", '
-         f'"emote": "talk"}}'
+         f'"emote": "talk", "action": null}}'
          for name in bot_names]
     )
     parts.append(f"""
@@ -1129,7 +1149,8 @@ def build_loot_conversation_prompt(
     item: dict,
     config: dict = None,
     current_weather: str = 'clear',
-    recent_messages: list = None
+    recent_messages: list = None,
+    allow_action: bool = True
 ) -> str:
     """Build a prompt for a loot conversation with 2-4 bots."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1271,6 +1292,19 @@ def build_loot_conversation_prompt(
         f"Pick an emote that fits the message mood, "
         f"or omit it."
     )
+    if allow_action:
+        parts.append(
+            "Actions: Each message may include an optional "
+            "\"action\" field (2-5 word physical narration, "
+            "e.g. \"leans against the wall\"). This is "
+            "displayed as *action* before speech. Use "
+            "sparingly — only when it adds character."
+        )
+    else:
+        parts.append(
+            "Actions: Do not include an action field "
+            "in this response."
+        )
 
     anti_rep = build_anti_repetition_context(
         recent_messages
@@ -1284,7 +1318,7 @@ def build_loot_conversation_prompt(
     )
     example_msgs = ',\n  '.join(
         [f'{{"speaker": "{name}", "message": "...", '
-         f'"emote": "talk"}}'
+         f'"emote": "talk", "action": null}}'
          for name in bot_names]
     )
     parts.append(f"""
@@ -1303,7 +1337,8 @@ def build_event_conversation_prompt(
     zone_id: int = 0,
     config: dict = None,
     current_weather: str = 'clear',
-    recent_messages: list = None
+    recent_messages: list = None,
+    allow_action: bool = True
 ) -> str:
     """Build a prompt for an event-triggered conversation."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1485,6 +1520,19 @@ def build_event_conversation_prompt(
         f"Pick an emote that fits the message mood, "
         f"or omit it."
     )
+    if allow_action:
+        parts.append(
+            "Actions: Each message may include an optional "
+            "\"action\" field (2-5 word physical narration, "
+            "e.g. \"leans against the wall\"). This is "
+            "displayed as *action* before speech. Use "
+            "sparingly — only when it adds character."
+        )
+    else:
+        parts.append(
+            "Actions: Do not include an action field "
+            "in this response."
+        )
 
     anti_rep = build_anti_repetition_context(
         recent_messages
@@ -1498,7 +1546,7 @@ def build_event_conversation_prompt(
     )
     example_msgs = ',\n  '.join(
         [f'{{"speaker": "{name}", "message": "...", '
-         f'"emote": "talk"}}'
+         f'"emote": "talk", "action": null}}'
          for name in bot_names]
     )
     parts.append(f"""
@@ -1519,7 +1567,8 @@ def build_spell_statement_prompt(
     spell: dict,
     config: dict = None,
     current_weather: str = 'clear',
-    recent_messages: list = None
+    recent_messages: list = None,
+    allow_action: bool = True
 ) -> str:
     """Build a prompt for a spell/ability statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1643,12 +1692,8 @@ def build_spell_statement_prompt(
     if anti_rep:
         parts.append(anti_rep)
 
-    parts.append(
-        "Respond with ONLY the message - be "
-        "creative and unpredictable."
-    )
-
-    return "\n".join(parts)
+    prompt = "\n".join(parts)
+    return append_json_instruction(prompt, allow_action)
 
 
 def build_spell_conversation_prompt(
@@ -1656,7 +1701,8 @@ def build_spell_conversation_prompt(
     spell: dict,
     config: dict = None,
     current_weather: str = 'clear',
-    recent_messages: list = None
+    recent_messages: list = None,
+    allow_action: bool = True
 ) -> str:
     """Build a prompt for a spell conversation
     with 2-4 bots discussing an ability."""
@@ -1849,6 +1895,20 @@ def build_spell_conversation_prompt(
         f"{EMOTE_LIST_STR}). Pick an emote that "
         f"fits the message mood, or omit it."
     )
+    if allow_action:
+        parts.append(
+            "Actions: Each message may include an "
+            "optional \"action\" field (2-5 word "
+            "physical narration, e.g. \"leans against "
+            "the wall\"). This is displayed as *action* "
+            "before speech. Use sparingly — only when "
+            "it adds character."
+        )
+    else:
+        parts.append(
+            "Actions: Do not include an action field "
+            "in this response."
+        )
 
     anti_rep = build_anti_repetition_context(
         recent_messages
@@ -1864,7 +1924,8 @@ def build_spell_conversation_prompt(
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", '
-            f'"message": "...", "emote": "talk"}}'
+            f'"message": "...", "emote": "talk", '
+            f'"action": null}}'
             for name in bot_names
         ]
     )
@@ -1886,7 +1947,8 @@ def build_trade_statement_prompt(
     item: dict,
     config: dict = None,
     current_weather: str = 'clear',
-    recent_messages: list = None
+    recent_messages: list = None,
+    allow_action: bool = True
 ) -> str:
     """Build a prompt for a trade/sell statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -2022,12 +2084,8 @@ def build_trade_statement_prompt(
     if anti_rep:
         parts.append(anti_rep)
 
-    parts.append(
-        "Respond with ONLY the message - be "
-        "creative and unpredictable."
-    )
-
-    return "\n".join(parts)
+    prompt = "\n".join(parts)
+    return append_json_instruction(prompt, allow_action)
 
 
 def build_trade_conversation_prompt(
@@ -2035,7 +2093,8 @@ def build_trade_conversation_prompt(
     item: dict,
     config: dict = None,
     current_weather: str = 'clear',
-    recent_messages: list = None
+    recent_messages: list = None,
+    allow_action: bool = True
 ) -> str:
     """Build a prompt for a trade conversation
     with 2-4 bots haggling over an item."""
@@ -2236,6 +2295,20 @@ def build_trade_conversation_prompt(
         f"{EMOTE_LIST_STR}). Pick an emote that "
         f"fits the message mood, or omit it."
     )
+    if allow_action:
+        parts.append(
+            "Actions: Each message may include an "
+            "optional \"action\" field (2-5 word "
+            "physical narration, e.g. \"leans against "
+            "the wall\"). This is displayed as *action* "
+            "before speech. Use sparingly — only when "
+            "it adds character."
+        )
+    else:
+        parts.append(
+            "Actions: Do not include an action field "
+            "in this response."
+        )
 
     anti_rep = build_anti_repetition_context(
         recent_messages
@@ -2251,7 +2324,8 @@ def build_trade_conversation_prompt(
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", '
-            f'"message": "...", "emote": "talk"}}'
+            f'"message": "...", "emote": "talk", '
+            f'"action": null}}'
             for name in bot_names
         ]
     )

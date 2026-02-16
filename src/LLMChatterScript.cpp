@@ -219,41 +219,305 @@ static std::string ConvertAllLinks(const std::string& text)
     return result;
 }
 
-// Map emote name string to EMOTE_ONESHOT_* enum value
-static uint32 GetEmoteId(const std::string& emoteName)
+// Map emote name string to TEXT_EMOTE_* enum value
+static uint32 GetTextEmoteId(
+    const std::string& emoteName)
 {
-    static const std::unordered_map<std::string, uint32>
-        emoteMap = {
-        {"talk", EMOTE_ONESHOT_TALK},
-        {"bow", EMOTE_ONESHOT_BOW},
-        {"wave", EMOTE_ONESHOT_WAVE},
-        {"cheer", EMOTE_ONESHOT_CHEER},
-        {"exclamation", EMOTE_ONESHOT_EXCLAMATION},
-        {"question", EMOTE_ONESHOT_QUESTION},
-        {"eat", EMOTE_ONESHOT_EAT},
-        {"laugh", EMOTE_ONESHOT_LAUGH},
-        {"rude", EMOTE_ONESHOT_RUDE},
-        {"roar", EMOTE_ONESHOT_ROAR},
-        {"kneel", EMOTE_ONESHOT_KNEEL},
-        {"kiss", EMOTE_ONESHOT_KISS},
-        {"cry", EMOTE_ONESHOT_CRY},
-        {"chicken", EMOTE_ONESHOT_CHICKEN},
-        {"beg", EMOTE_ONESHOT_BEG},
-        {"applaud", EMOTE_ONESHOT_APPLAUD},
-        {"shout", EMOTE_ONESHOT_SHOUT},
-        {"flex", EMOTE_ONESHOT_FLEX},
-        {"shy", EMOTE_ONESHOT_SHY},
-        {"point", EMOTE_ONESHOT_POINT},
-        {"salute", EMOTE_ONESHOT_SALUTE},
-        {"dance", EMOTE_ONESHOT_DANCESPECIAL},
-        {"yes", EMOTE_ONESHOT_YES},
-        {"no", EMOTE_ONESHOT_NO},
+    static const std::unordered_map<
+        std::string, uint32> emoteMap = {
+        {"agree", TEXT_EMOTE_AGREE},
+        {"amaze", TEXT_EMOTE_AMAZE},
+        {"angry", TEXT_EMOTE_ANGRY},
+        {"apologize", TEXT_EMOTE_APOLOGIZE},
+        {"applaud", TEXT_EMOTE_APPLAUD},
+        {"bashful", TEXT_EMOTE_BASHFUL},
+        {"beckon", TEXT_EMOTE_BECKON},
+        {"beg", TEXT_EMOTE_BEG},
+        {"bite", TEXT_EMOTE_BITE},
+        {"bleed", TEXT_EMOTE_BLEED},
+        {"blink", TEXT_EMOTE_BLINK},
+        {"blush", TEXT_EMOTE_BLUSH},
+        {"bonk", TEXT_EMOTE_BONK},
+        {"bored", TEXT_EMOTE_BORED},
+        {"bounce", TEXT_EMOTE_BOUNCE},
+        {"brb", TEXT_EMOTE_BRB},
+        {"bow", TEXT_EMOTE_BOW},
+        {"burp", TEXT_EMOTE_BURP},
+        {"bye", TEXT_EMOTE_BYE},
+        {"cackle", TEXT_EMOTE_CACKLE},
+        {"cheer", TEXT_EMOTE_CHEER},
+        {"chicken", TEXT_EMOTE_CHICKEN},
+        {"chuckle", TEXT_EMOTE_CHUCKLE},
+        {"clap", TEXT_EMOTE_CLAP},
+        {"confused", TEXT_EMOTE_CONFUSED},
+        {"congratulate", TEXT_EMOTE_CONGRATULATE},
+        {"cough", TEXT_EMOTE_COUGH},
+        {"cower", TEXT_EMOTE_COWER},
+        {"crack", TEXT_EMOTE_CRACK},
+        {"cringe", TEXT_EMOTE_CRINGE},
+        {"cry", TEXT_EMOTE_CRY},
+        {"curious", TEXT_EMOTE_CURIOUS},
+        {"curtsey", TEXT_EMOTE_CURTSEY},
+        {"dance", TEXT_EMOTE_DANCE},
+        {"drink", TEXT_EMOTE_DRINK},
+        {"drool", TEXT_EMOTE_DROOL},
+        {"eat", TEXT_EMOTE_EAT},
+        {"eye", TEXT_EMOTE_EYE},
+        {"fart", TEXT_EMOTE_FART},
+        {"fidget", TEXT_EMOTE_FIDGET},
+        {"flex", TEXT_EMOTE_FLEX},
+        {"frown", TEXT_EMOTE_FROWN},
+        {"gasp", TEXT_EMOTE_GASP},
+        {"gaze", TEXT_EMOTE_GAZE},
+        {"giggle", TEXT_EMOTE_GIGGLE},
+        {"glare", TEXT_EMOTE_GLARE},
+        {"gloat", TEXT_EMOTE_GLOAT},
+        {"greet", TEXT_EMOTE_GREET},
+        {"grin", TEXT_EMOTE_GRIN},
+        {"groan", TEXT_EMOTE_GROAN},
+        {"grovel", TEXT_EMOTE_GROVEL},
+        {"guffaw", TEXT_EMOTE_GUFFAW},
+        {"hail", TEXT_EMOTE_HAIL},
+        {"happy", TEXT_EMOTE_HAPPY},
+        {"hello", TEXT_EMOTE_HELLO},
+        {"hug", TEXT_EMOTE_HUG},
+        {"hungry", TEXT_EMOTE_HUNGRY},
+        {"kiss", TEXT_EMOTE_KISS},
+        {"kneel", TEXT_EMOTE_KNEEL},
+        {"laugh", TEXT_EMOTE_LAUGH},
+        {"laydown", TEXT_EMOTE_LAYDOWN},
+        {"moan", TEXT_EMOTE_MOAN},
+        {"moon", TEXT_EMOTE_MOON},
+        {"mourn", TEXT_EMOTE_MOURN},
+        {"no", TEXT_EMOTE_NO},
+        {"nod", TEXT_EMOTE_NOD},
+        {"nosepick", TEXT_EMOTE_NOSEPICK},
+        {"panic", TEXT_EMOTE_PANIC},
+        {"peer", TEXT_EMOTE_PEER},
+        {"plead", TEXT_EMOTE_PLEAD},
+        {"point", TEXT_EMOTE_POINT},
+        {"poke", TEXT_EMOTE_POKE},
+        {"pray", TEXT_EMOTE_PRAY},
+        {"roar", TEXT_EMOTE_ROAR},
+        {"rofl", TEXT_EMOTE_ROFL},
+        {"rude", TEXT_EMOTE_RUDE},
+        {"salute", TEXT_EMOTE_SALUTE},
+        {"scratch", TEXT_EMOTE_SCRATCH},
+        {"sexy", TEXT_EMOTE_SEXY},
+        {"shake", TEXT_EMOTE_SHAKE},
+        {"shout", TEXT_EMOTE_SHOUT},
+        {"shrug", TEXT_EMOTE_SHRUG},
+        {"shy", TEXT_EMOTE_SHY},
+        {"sigh", TEXT_EMOTE_SIGH},
+        {"snarl", TEXT_EMOTE_SNARL},
+        {"spit", TEXT_EMOTE_SPIT},
+        {"stare", TEXT_EMOTE_STARE},
+        {"surprised", TEXT_EMOTE_SURPRISED},
+        {"surrender", TEXT_EMOTE_SURRENDER},
+        {"talk", TEXT_EMOTE_TALK},
+        {"tap", TEXT_EMOTE_TAP},
+        {"thank", TEXT_EMOTE_THANK},
+        {"threaten", TEXT_EMOTE_THREATEN},
+        {"tired", TEXT_EMOTE_TIRED},
+        {"victory", TEXT_EMOTE_VICTORY},
+        {"wave", TEXT_EMOTE_WAVE},
+        {"welcome", TEXT_EMOTE_WELCOME},
+        {"whine", TEXT_EMOTE_WHINE},
+        {"whistle", TEXT_EMOTE_WHISTLE},
+        {"work", TEXT_EMOTE_WORK},
+        {"yawn", TEXT_EMOTE_YAWN},
+        {"boggle", TEXT_EMOTE_BOGGLE},
+        {"calm", TEXT_EMOTE_CALM},
+        {"cold", TEXT_EMOTE_COLD},
+        {"comfort", TEXT_EMOTE_COMFORT},
+        {"cuddle", TEXT_EMOTE_CUDDLE},
+        {"duck", TEXT_EMOTE_DUCK},
+        {"insult", TEXT_EMOTE_INSULT},
+        {"introduce", TEXT_EMOTE_INTRODUCE},
+        {"jk", TEXT_EMOTE_JK},
+        {"lick", TEXT_EMOTE_LICK},
+        {"listen", TEXT_EMOTE_LISTEN},
+        {"lost", TEXT_EMOTE_LOST},
+        {"mock", TEXT_EMOTE_MOCK},
+        {"ponder", TEXT_EMOTE_PONDER},
+        {"pounce", TEXT_EMOTE_POUNCE},
+        {"praise", TEXT_EMOTE_PRAISE},
+        {"purr", TEXT_EMOTE_PURR},
+        {"puzzle", TEXT_EMOTE_PUZZLE},
+        {"raise", TEXT_EMOTE_RAISE},
+        {"ready", TEXT_EMOTE_READY},
+        {"shimmy", TEXT_EMOTE_SHIMMY},
+        {"shiver", TEXT_EMOTE_SHIVER},
+        {"shoo", TEXT_EMOTE_SHOO},
+        {"slap", TEXT_EMOTE_SLAP},
+        {"smirk", TEXT_EMOTE_SMIRK},
+        {"sniff", TEXT_EMOTE_SNIFF},
+        {"snub", TEXT_EMOTE_SNUB},
+        {"soothe", TEXT_EMOTE_SOOTHE},
+        {"stink", TEXT_EMOTE_STINK},
+        {"taunt", TEXT_EMOTE_TAUNT},
+        {"tease", TEXT_EMOTE_TEASE},
+        {"thirsty", TEXT_EMOTE_THIRSTY},
+        {"veto", TEXT_EMOTE_VETO},
+        {"snicker", TEXT_EMOTE_SNICKER},
+        {"stand", TEXT_EMOTE_STAND},
+        {"tickle", TEXT_EMOTE_TICKLE},
+        {"violin", TEXT_EMOTE_VIOLIN},
+        {"smile", TEXT_EMOTE_SMILE},
+        {"rasp", TEXT_EMOTE_RASP},
+        {"pity", TEXT_EMOTE_PITY},
+        {"growl", TEXT_EMOTE_GROWL},
+        {"bark", TEXT_EMOTE_BARK},
+        {"scared", TEXT_EMOTE_SCARED},
+        {"flop", TEXT_EMOTE_FLOP},
+        {"love", TEXT_EMOTE_LOVE},
+        {"moo", TEXT_EMOTE_MOO},
+        {"commend", TEXT_EMOTE_COMMEND},
+        {"train", TEXT_EMOTE_TRAIN},
+        {"helpme", TEXT_EMOTE_HELPME},
+        {"incoming", TEXT_EMOTE_INCOMING},
+        {"charge", TEXT_EMOTE_CHARGE},
+        {"flee", TEXT_EMOTE_FLEE},
+        {"attacktarget", TEXT_EMOTE_ATTACKMYTARGET},
+        {"oom", TEXT_EMOTE_OOM},
+        {"follow", TEXT_EMOTE_FOLLOW},
+        {"wait", TEXT_EMOTE_WAIT},
+        {"healme", TEXT_EMOTE_HEALME},
+        {"openfire", TEXT_EMOTE_OPENFIRE},
+        {"flirt", TEXT_EMOTE_FLIRT},
+        {"joke", TEXT_EMOTE_JOKE},
+        {"golfclap", TEXT_EMOTE_GOLFCLAP},
+        {"wink", TEXT_EMOTE_WINK},
+        {"pat", TEXT_EMOTE_PAT},
+        {"serious", TEXT_EMOTE_SERIOUS},
+        {"goodluck", TEXT_EMOTE_GOODLUCK},
+        {"blame", TEXT_EMOTE_BLAME},
+        {"blank", TEXT_EMOTE_BLANK},
+        {"brandish", TEXT_EMOTE_BRANDISH},
+        {"breath", TEXT_EMOTE_BREATH},
+        {"disagree", TEXT_EMOTE_DISAGREE},
+        {"doubt", TEXT_EMOTE_DOUBT},
+        {"embarrass", TEXT_EMOTE_EMBARRASS},
+        {"encourage", TEXT_EMOTE_ENCOURAGE},
+        {"enemy", TEXT_EMOTE_ENEMY},
+        {"eyebrow", TEXT_EMOTE_EYEBROW},
+        {"toast", TEXT_EMOTE_TOAST},
+        {"fail", TEXT_EMOTE_FAIL},
+        {"highfive", TEXT_EMOTE_HIGHFIVE},
+        {"absent", TEXT_EMOTE_ABSENT},
+        {"arm", TEXT_EMOTE_ARM},
+        {"awe", TEXT_EMOTE_AWE},
+        {"backpack", TEXT_EMOTE_BACKPACK},
+        {"badfeeling", TEXT_EMOTE_BADFEELING},
+        {"challenge", TEXT_EMOTE_CHALLENGE},
+        {"chug", TEXT_EMOTE_CHUG},
+        {"ding", TEXT_EMOTE_DING},
+        {"facepalm", TEXT_EMOTE_FACEPALM},
+        {"faint", TEXT_EMOTE_FAINT},
+        {"go", TEXT_EMOTE_GO},
+        {"going", TEXT_EMOTE_GOING},
+        {"glower", TEXT_EMOTE_GLOWER},
+        {"headache", TEXT_EMOTE_HEADACHE},
+        {"hiccup", TEXT_EMOTE_HICCUP},
+        {"hiss", TEXT_EMOTE_HISS},
+        {"holdhand", TEXT_EMOTE_HOLDHAND},
+        {"hurry", TEXT_EMOTE_HURRY},
+        {"idea", TEXT_EMOTE_IDEA},
+        {"jealous", TEXT_EMOTE_JEALOUS},
+        {"luck", TEXT_EMOTE_LUCK},
+        {"map", TEXT_EMOTE_MAP},
+        {"mercy", TEXT_EMOTE_MERCY},
+        {"mutter", TEXT_EMOTE_MUTTER},
+        {"nervous", TEXT_EMOTE_NERVOUS},
+        {"offer", TEXT_EMOTE_OFFER},
+        {"pet", TEXT_EMOTE_PET},
+        {"pinch", TEXT_EMOTE_PINCH},
+        {"proud", TEXT_EMOTE_PROUD},
+        {"promise", TEXT_EMOTE_PROMISE},
+        {"pulse", TEXT_EMOTE_PULSE},
+        {"punch", TEXT_EMOTE_PUNCH},
+        {"pout", TEXT_EMOTE_POUT},
+        {"regret", TEXT_EMOTE_REGRET},
+        {"revenge", TEXT_EMOTE_REVENGE},
+        {"rolleyes", TEXT_EMOTE_ROLLEYES},
+        {"ruffle", TEXT_EMOTE_RUFFLE},
+        {"sad", TEXT_EMOTE_SAD},
+        {"scoff", TEXT_EMOTE_SCOFF},
+        {"scold", TEXT_EMOTE_SCOLD},
+        {"scowl", TEXT_EMOTE_SCOWL},
+        {"search", TEXT_EMOTE_SEARCH},
+        {"shakefist", TEXT_EMOTE_SHAKEFIST},
+        {"shifty", TEXT_EMOTE_SHIFTY},
+        {"shudder", TEXT_EMOTE_SHUDDER},
+        {"signal", TEXT_EMOTE_SIGNAL},
+        {"silence", TEXT_EMOTE_SILENCE},
+        {"sing", TEXT_EMOTE_SING},
+        {"smack", TEXT_EMOTE_SMACK},
+        {"sneak", TEXT_EMOTE_SNEAK},
+        {"sneeze", TEXT_EMOTE_SNEEZE},
+        {"snort", TEXT_EMOTE_SNORT},
+        {"squeal", TEXT_EMOTE_SQUEAL},
+        {"suspicious", TEXT_EMOTE_SUSPICIOUS},
+        {"think", TEXT_EMOTE_THINK},
+        {"truce", TEXT_EMOTE_TRUCE},
+        {"twiddle", TEXT_EMOTE_TWIDDLE},
+        {"warn", TEXT_EMOTE_WARN},
+        {"snap", TEXT_EMOTE_SNAP},
+        {"charm", TEXT_EMOTE_CHARM},
+        {"coverears", TEXT_EMOTE_COVEREARS},
+        {"crossarms", TEXT_EMOTE_CROSSARMS},
+        {"look", TEXT_EMOTE_LOOK},
+        {"object", TEXT_EMOTE_OBJECT},
+        {"sweat", TEXT_EMOTE_SWEAT},
+        {"yw", TEXT_EMOTE_YW},
     };
 
     auto it = emoteMap.find(emoteName);
     if (it != emoteMap.end())
         return it->second;
     return 0;
+}
+
+// Send a text emote from a bot, producing both
+// the orange chat text AND the animation (if any).
+// Replicates HandleTextEmoteOpcode behavior.
+static void SendBotTextEmote(
+    Player* bot, uint32 textEmoteId)
+{
+    if (!bot || !textEmoteId)
+        return;
+
+    // Look up animation from EmotesText DBC
+    EmotesTextEntry const* em =
+        sEmotesTextStore.LookupEntry(textEmoteId);
+    if (em)
+    {
+        uint32 emoteAnim = em->textid;
+        switch (emoteAnim)
+        {
+            case EMOTE_STATE_SLEEP:
+            case EMOTE_STATE_SIT:
+            case EMOTE_STATE_KNEEL:
+            case EMOTE_ONESHOT_NONE:
+                break;
+            case EMOTE_STATE_DANCE:
+                bot->HandleEmoteCommand(
+                    EMOTE_ONESHOT_DANCESPECIAL);
+                break;
+            default:
+                bot->HandleEmoteCommand(emoteAnim);
+                break;
+        }
+    }
+
+    // Broadcast SMSG_TEXT_EMOTE (orange text)
+    WorldPacket data(SMSG_TEXT_EMOTE, 20 + 1);
+    data << bot->GetGUID();
+    data << uint32(textEmoteId);
+    data << uint32(0);   // emoteNum sequence
+    data << uint32(0);   // target name length
+    data << uint8(0x00); // empty name
+    bot->SendMessageToSet(&data, true);
 }
 
 // ============================================================================
@@ -371,9 +635,10 @@ static void SendPartyMessageInstant(
 
     if (!emote.empty())
     {
-        uint32 emoteId = GetEmoteId(emote);
-        if (emoteId)
-            bot->HandleEmoteCommand(emoteId);
+        uint32 textEmoteId =
+            GetTextEmoteId(emote);
+        if (textEmoteId)
+            SendBotTextEmote(bot, textEmoteId);
     }
 }
 
@@ -2207,11 +2472,11 @@ private:
                     if (sent
                         && !emoteName.empty())
                     {
-                        uint32 emoteId =
-                            GetEmoteId(emoteName);
-                        if (emoteId)
-                            bot->HandleEmoteCommand(
-                                emoteId);
+                        uint32 textEmoteId =
+                            GetTextEmoteId(emoteName);
+                        if (textEmoteId)
+                            SendBotTextEmote(
+                                bot, textEmoteId);
                     }
                 }
             }
@@ -4706,16 +4971,19 @@ public:
         if (spellTarget)
             targetName = spellTarget->GetName();
 
+        // Self-cast: no comment needed when a bot
+        // casts on itself (e.g. PW:Shield on self)
+        bool isSelfCast = (spellTarget
+            && spellTarget->GetGUID()
+                   == player->GetGUID());
+        if (isSelfCast)
+            return;
+
         // --- Pre-cache instant delivery ---
         // Skip resurrect (too important for cached)
-        // Skip caster-as-reactor: cached messages use
-        // observer perspective ({caster} placeholder),
-        // but caster needs first-person ("I just cast")
-        // which only the live LLM path handles.
-        bool isCasterReactor =
-            (reactor->GetGUID() == player->GetGUID());
-        if (!isCasterReactor
-            && spellCategory != "resurrect"
+        // Caster-on-other uses cached caster-perspective
+        // messages with {target} and {spell} placeholders.
+        if (spellCategory != "resurrect"
             && sLLMChatterConfig->_preCacheEnable
             && sLLMChatterConfig
                    ->_preCacheSpellEnable)
@@ -5446,8 +5714,6 @@ static void CheckGroupCombatState()
             Player* bot = itr->GetSource();
             if (!bot || !IsPlayerBot(bot))
                 continue;
-            if (!bot->IsInCombat())
-                continue;
 
             uint32 botGuid =
                 bot->GetGUID().GetCounter();
@@ -5526,8 +5792,10 @@ static void CheckGroupCombatState()
             }
 
             // --- Aggro Loss Check ---
+            // (combat-only: requires active target)
             if (sLLMChatterConfig
-                    ->_stateCalloutAggro)
+                    ->_stateCalloutAggro
+                && bot->IsInCombat())
             {
                 PlayerbotAI* ai =
                     GET_PLAYERBOT_AI(bot);

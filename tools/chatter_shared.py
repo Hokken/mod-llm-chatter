@@ -30,6 +30,7 @@ from chatter_constants import (
     DEFAULT_ANTHROPIC_MODEL, DEFAULT_OPENAI_MODEL,
     ZONE_TRANSPORT_COOLDOWN_SECONDS,
     EMOTE_LIST, EMOTE_KEYWORDS,
+    EMOTE_LIST_STR,
 )
 from spell_names import SPELL_NAMES, SPELL_DESCRIPTIONS
 
@@ -877,8 +878,153 @@ def strip_speaker_prefix(message: str, bot_name: str) -> str:
     return message
 
 
-def cleanup_message(message: str) -> str:
-    """Clean up any formatting issues from LLM output."""
+# Module-level action chance (set from config at startup)
+_action_chance = 0.10
+
+
+def set_action_chance(chance_pct: int):
+    """Set from config: LLMChatter.ActionChance (0-100)."""
+    global _action_chance
+    _action_chance = chance_pct / 100.0
+
+
+def get_action_chance() -> float:
+    """Return the configured action chance (0.0-1.0)."""
+    return _action_chance
+
+
+def append_json_instruction(
+    prompt: str, allow_action: bool = True
+) -> str:
+    """Append structured JSON response instruction
+    to a prompt.
+
+    Tells the LLM to respond with JSON containing
+    message, emote, and optionally action fields.
+    """
+    action_desc = ""
+    if allow_action:
+        action_desc = (
+            '"action": a 2-5 word physical narration '
+            '(e.g. "leans against the wall", '
+            '"scratches chin thoughtfully", '
+            '"adjusts pack nervously"). '
+            "This is displayed as *action* before "
+            "your speech. Omit or set null if no "
+            "action fits.\n"
+        )
+    else:
+        action_desc = (
+            '"action": null (do not include an '
+            "action for this response)\n"
+        )
+
+    block = (
+        "\n\nRESPONSE FORMAT: You MUST respond with "
+        "ONLY valid JSON. No other text.\n"
+        "{\n"
+        '  "message": "your spoken words here",\n'
+        f'  "emote": one of [{EMOTE_LIST_STR}] '
+        "or null,\n"
+        f"  {action_desc}"
+        "}\n"
+        "Rules: double quotes only, no trailing "
+        "commas, no code fences, no markdown."
+    )
+    return prompt + block
+
+
+def parse_single_response(response: str) -> dict:
+    """Parse a single LLM response that may be JSON
+    with message/emote/action fields.
+
+    Returns dict with 'message', 'emote', 'action'.
+    Falls back to plain text if JSON parsing fails.
+    """
+    if not response:
+        return {
+            'message': '',
+            'emote': None,
+            'action': None,
+        }
+
+    cleaned = response.strip()
+    # Strip ```json wrapper
+    cleaned = re.sub(
+        r'```(?:json)?', '', cleaned,
+        flags=re.IGNORECASE
+    ).strip()
+
+    try:
+        data = json.loads(cleaned)
+        if isinstance(data, dict):
+            msg = data.get('message', '')
+            if isinstance(msg, str):
+                msg = msg.strip().strip('"')
+            else:
+                msg = str(msg).strip()
+
+            # Validate emote
+            raw_emote = data.get('emote')
+            emote = validate_emote(raw_emote)
+
+            # Sanitize action
+            raw_action = data.get('action')
+            action = _sanitize_action(raw_action)
+
+            return {
+                'message': msg,
+                'emote': emote,
+                'action': action,
+            }
+    except (json.JSONDecodeError, ValueError):
+        pass
+
+    # Fallback: treat as plain text
+    msg = cleaned.strip().strip('"')
+    return {
+        'message': msg,
+        'emote': None,
+        'action': None,
+    }
+
+
+def _sanitize_action(raw_action) -> Optional[str]:
+    """Clean and validate an action string from
+    LLM JSON output.
+
+    Returns sanitized action (2-80 chars) or None.
+    Filters out LLM null-like strings ("none", "null",
+    "n/a", "no action", etc.).
+    """
+    if not raw_action or not isinstance(
+        raw_action, str
+    ):
+        return None
+    action = raw_action.strip().strip('*"\'')
+    # LLM sometimes returns "none"/"null" as string
+    # instead of JSON null — strip trailing punct
+    # first to catch "none." / "null," variants
+    check = action.rstrip('.,!;:').lower()
+    if check in (
+        'none', 'null', 'n/a', 'no action',
+        'no', 'na', '',
+    ):
+        return None
+    if len(action) < 2 or len(action) > 80:
+        return None
+    return action
+
+
+def cleanup_message(
+    message: str, action: str = None
+) -> str:
+    """Clean up any formatting issues from LLM output.
+
+    If action is provided (from structured JSON),
+    prepend *action* and skip Phase 1/2 regex
+    narration detection (JSON supersedes heuristic).
+    """
     result = message
 
     # Collapse newlines into single space (WoW chat
@@ -894,78 +1040,109 @@ def cleanup_message(message: str) -> str:
     result = result.replace('\\"', '"')
     result = result.replace('\\\\', '\\')
 
-    # Asterisk emotes (*action*) -- unwrap to plain text
-    result = re.sub(r'\*([^*]+)\*', r'\1', result)
+    # Structured action from JSON — prepend *action*
+    # and skip Phase 1/2 heuristic detection
+    _skip_narration_detection = False
+    if action:
+        result = f"*{action}* {result}"
+        _skip_narration_detection = True
 
-    # Non-asterisk emote phrases (e.g. "gazes toward",
-    # "leans against") -- LLM sometimes embeds action
-    # descriptions without asterisks. Strip them when
-    # they appear at the start of a message or as a
-    # standalone clause.
-    # Only unambiguous emote verbs -- excluded
-    # dual-use words like looks/turns/waves/points/
-    # crosses/cracks/shifts that appear in normal
-    # speech ("looks like", "turns out", etc.)
-    _EMOTE_VERBS = (
-        'gazes', 'glances', 'stares', 'peers',
-        'leans', 'nods', 'sighs', 'shrugs',
-        'gestures', 'stretches',
-        'tilts', 'grins',
-        'smiles', 'frowns', 'chuckles',
-        'scratches', 'rubs', 'taps',
-        'flexes', 'adjusts', 'fidgets',
-    )
+    # Keep asterisk emotes (*action*) — they display
+    # nicely in WoW chat as RP emote markers.
 
-    # Phase 1: Strip leading third-person narration.
-    # e.g. "glances back at X, then refocuses
-    # keep your distance..." -> "Keep your distance..."
-    # Matches emote verb at start, strips narration
-    # up to the first separator (comma/period/ellipsis)
-    # NOT followed by a narration continuer word.
-    _verb_start = re.compile(
-        r'^(' + '|'.join(_EMOTE_VERBS) + r')\b',
-        re.IGNORECASE
-    )
-    if _verb_start.match(result):
-        # Find comma/period/ellipsis separators.
-        # Skip separators followed by narration
-        # continuers (then, and, while, before, as).
-        # First non-continuer separator is the
-        # speech boundary.
-        _speech_re = re.compile(
-            r'[,.](?:\.\.)?\s+'
-            r'(?!(?:then|and|while|before|as)\b)',
+    if not _skip_narration_detection:
+        # Non-asterisk emote phrases — LLM sometimes
+        # embeds action descriptions without asterisks.
+        _EMOTE_VERBS = (
+            'gazes', 'glances', 'stares', 'peers',
+            'leans', 'nods', 'sighs', 'shrugs',
+            'gestures', 'stretches',
+            'tilts', 'grins',
+            'smiles', 'frowns', 'chuckles',
+            'scratches', 'rubs', 'taps',
+            'flexes', 'adjusts', 'fidgets',
+        )
+
+        # Phase 1: Wrap leading third-person narration
+        _NARRATION_FOLLOWERS = (
+            'at', 'over', 'around', 'back', 'up',
+            'down', 'toward', 'towards', 'away',
+            'into', 'across', 'through', 'aside',
+            'forward',
+            'nervously', 'softly', 'quietly',
+            'slowly', 'briefly', 'slightly',
+            'deeply', 'heavily', 'warmly',
+            'sadly', 'wearily', 'knowingly',
+            'absently', 'idly', 'lazily',
+            'cautiously', 'warily', 'tiredly',
+            'thoughtfully', 'solemnly', 'grimly',
+            'wistfully', 'fondly', 'gently',
+            'happily', 'excitedly', 'curiously',
+            'suspiciously', 'proudly',
+            'sheepishly',
+            'awkwardly', 'abruptly', 'eagerly',
+            'impatiently', 'casually',
+            'dismissively',
+            'appreciatively', 'gratefully',
+            'uncomfortably', 'uncertainly',
+        )
+        _verb_start = re.compile(
+            r'^(' + '|'.join(_EMOTE_VERBS) + r')\s+'
+            r'(' + '|'.join(
+                _NARRATION_FOLLOWERS
+            ) + r')\b',
             re.IGNORECASE
         )
-        matches = list(_speech_re.finditer(result))
-        if matches:
-            cut = matches[0]
-            remainder = result[cut.end():].strip()
-            # Only strip if remainder has substance
-            if len(remainder) > 10:
-                # Capitalize first letter of speech
-                result = (
-                    remainder[0].upper()
-                    + remainder[1:]
+        if _verb_start.match(result):
+            _speech_re = re.compile(
+                r'[,.](?:\.\.)?\s+'
+                r'(?!(?:then|and|while|before|as)\b)',
+                re.IGNORECASE
+            )
+            matches = list(
+                _speech_re.finditer(result)
+            )
+            if matches:
+                cut = matches[0]
+                emote_part = (
+                    result[:cut.start()].strip()
                 )
+                remainder = (
+                    result[cut.end():].strip()
+                )
+                if len(remainder) > 10:
+                    remainder = (
+                        remainder[0].upper()
+                        + remainder[1:]
+                    )
+                    result = (
+                        f"*{emote_part}* "
+                        f"{remainder}"
+                    )
+                else:
+                    result = f"*{result}*"
+            else:
+                result = f"*{result}*"
 
-    # Phase 2: Mid-message emote clauses
-    # (e.g. ", sighs and looks away" at end)
-    # Only match AFTER punctuation — never at start
-    # of string, to avoid stripping valid speech like
-    # "Nods are important in orcish culture".
-    _emote_pattern = re.compile(
-        r'(?:,\s*|\.\.?\.\s*|\.\s+)'
-        r'(?:' + '|'.join(_EMOTE_VERBS) + r')'
-        r'\s+\w[\w\s]*?'
-        r'(?=[,.]|\s*$)',
-        re.IGNORECASE
-    )
-    result = _emote_pattern.sub('', result).strip()
+        # Phase 2: Wrap mid-message emote clauses
+        _emote_pattern = re.compile(
+            r'(?:,\s*|\.\.?\.\s*|\.\s+)'
+            r'((?:' + '|'.join(_EMOTE_VERBS) + r')'
+            r'\s+\w[\w\s]*?)'
+            r'(?=[,.]|\s*$)',
+            re.IGNORECASE
+        )
 
-    # Clean up leftover punctuation from emote removal
-    result = re.sub(r'^[,.\s]+', '', result)
-    result = re.sub(r'[,]\s*$', '', result)
+        def _wrap_emote(m):
+            return f" *{m.group(1).strip()}*"
+
+        result = _emote_pattern.sub(
+            _wrap_emote, result
+        )
+
+    result = result.strip()
+
+    # Clean up spacing
     result = re.sub(r'\s{2,}', ' ', result)
 
     # Multi-speaker truncation: LLM sometimes embeds
@@ -1648,6 +1825,13 @@ def parse_conversation_response(
                             entry['emote'] = (
                                 validate_emote(raw_emote)
                             )
+                        # Extract optional action
+                        raw_action = msg.get('action')
+                        action = _sanitize_action(
+                            raw_action
+                        )
+                        if action:
+                            entry['action'] = action
                         result.append(entry)
             return result
     except json.JSONDecodeError as e:
@@ -1853,6 +2037,41 @@ def query_item_details(
             f"Failed to query item {entry}: {e}"
         )
         return None
+
+
+def query_quest_turnin_npc(
+    config, quest_id: int
+) -> Optional[str]:
+    """Look up the NPC name that a quest is turned
+    in to via creature_questender + creature_template.
+    Returns NPC name string or None.
+    """
+    try:
+        db = get_db_connection(
+            config, 'acore_world'
+        )
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT ct.name
+            FROM creature_questender cqe
+            JOIN creature_template ct
+                ON cqe.id = ct.entry
+            WHERE cqe.quest = %s
+            LIMIT 1
+        """, (quest_id,))
+        row = cursor.fetchone()
+        return row['name'] if row else None
+    except Exception as e:
+        logger.warning(
+            f"Failed to query quest turnin NPC "
+            f"for quest {quest_id}: {e}"
+        )
+        return None
+    finally:
+        try:
+            db.close()
+        except Exception:
+            pass
 
 
 _ITEM_CLASS_NAMES = {
