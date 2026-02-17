@@ -4,6 +4,7 @@ Chatter Prompts - Prompt builders and creative selection for LLM Chatter Bridge.
 Imports from chatter_constants and chatter_shared.
 """
 
+import collections
 import logging
 import random
 from datetime import datetime
@@ -15,6 +16,7 @@ from chatter_constants import (
     RP_TONES, RP_MOODS, RP_CREATIVE_TWISTS,
     RP_MESSAGE_CATEGORIES, RP_LENGTH_HINTS,
     EMOTE_LIST_STR,
+    PERSONALITY_SPICES, RP_PERSONALITY_SPICES,
 )
 from chatter_shared import (
     get_chatter_mode, build_race_class_context,
@@ -24,6 +26,66 @@ from chatter_shared import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Recency buffer so the same spice doesn't repeat
+# across consecutive calls.
+_recent_spices = collections.deque(maxlen=30)
+
+
+# =============================================================================
+# PERSONALITY SPICE PICKER
+# =============================================================================
+def pick_personality_spices(
+    config=None, mode='normal',
+    spice_count_override=None,
+):
+    """Pick N random personality spices, avoiding
+    recent repeats.
+
+    Args:
+        config: config dict (reads PersonalitySpiceCount)
+        mode: 'normal' or 'roleplay'
+        spice_count_override: explicit count (0-5),
+            takes priority over config
+    Returns:
+        list of spice strings (may be empty)
+    """
+    # Determine count
+    if spice_count_override is not None:
+        count = spice_count_override
+    elif config is not None:
+        try:
+            count = int(config.get(
+                'LLMChatter.PersonalitySpiceCount', 2
+            ))
+        except Exception:
+            count = 2
+    else:
+        count = 2
+    count = max(0, min(count, 5))
+    if count == 0:
+        return []
+
+    pool = (
+        RP_PERSONALITY_SPICES
+        if mode == 'roleplay'
+        else PERSONALITY_SPICES
+    )
+
+    # Filter out recently used spices
+    recent_set = set(_recent_spices)
+    available = [s for s in pool if s not in recent_set]
+
+    # If not enough available, clear recency buffer
+    if len(available) < count:
+        _recent_spices.clear()
+        available = list(pool)
+
+    picked = random.sample(
+        available, min(count, len(available))
+    )
+    _recent_spices.extend(picked)
+    return picked
 
 
 # =============================================================================
@@ -258,6 +320,16 @@ def build_dynamic_guidelines(
         ]
     if random.random() < 0.5:
         guidelines.append(random.choice(extras))
+
+    spices = pick_personality_spices(
+        config=config, mode=mode
+    )
+    if spices:
+        guidelines.append(
+            "Background feelings (not the main topic, "
+            "just texture you can weave in naturally): "
+            + "; ".join(spices)
+        )
 
     return guidelines
 

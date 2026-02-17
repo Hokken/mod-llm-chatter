@@ -275,6 +275,7 @@ All settings are in `mod_llm_chatter.conf`. Here are the most commonly tuned opt
 | `LLMChatter.GeneralChat.QuestionChance` | 100 | % chance for questions (ending with ?) |
 | `LLMChatter.GeneralChat.Cooldown` | 15 | Per-zone cooldown in seconds |
 | `LLMChatter.GeneralChat.ConversationChance` | 30 | % chance of 2-bot conversation vs single reply |
+| `LLMChatter.ChatHistoryLimit` | 10 | Max recent chat messages in LLM prompts (group + General, clamped 1-50) |
 
 ### Rate Limiting
 

@@ -15,6 +15,7 @@ import json
 
 # Module-level config defaults (set by init_general_config)
 _chat_history_limit = 10
+_spice_count = 2
 
 from chatter_shared import (
     call_llm, cleanup_message, strip_speaker_prefix,
@@ -35,6 +36,7 @@ from chatter_prompts import (
     pick_random_mood,
     maybe_get_creative_twist,
     get_time_of_day_context,
+    pick_personality_spices,
 )
 from chatter_constants import (
     RACE_SPEECH_PROFILES,
@@ -46,7 +48,7 @@ logger = logging.getLogger(__name__)
 
 def init_general_config(config):
     """Initialize module-level config values."""
-    global _chat_history_limit
+    global _chat_history_limit, _spice_count
     try:
         val = int(
             config.get('LLMChatter.ChatHistoryLimit', 10)
@@ -58,6 +60,13 @@ def init_general_config(config):
         )
         val = 10
     _chat_history_limit = max(1, min(val, 50))
+    try:
+        _spice_count = int(config.get(
+            'LLMChatter.PersonalitySpiceCount', 2
+        ))
+        _spice_count = max(0, min(_spice_count, 5))
+    except Exception:
+        _spice_count = 2
 
 
 # Same personality traits as group chatter
@@ -316,6 +325,15 @@ def _build_general_response_prompt(
         f"what was said. Simple statements or "
         f"questions only need brief replies"
     )
+    spices = pick_personality_spices(
+        mode=mode, spice_count_override=_spice_count
+    )
+    if spices:
+        prompt += (
+            "\nBackground feelings (texture, "
+            "not the topic): "
+            + "; ".join(spices)
+        )
     anti_rep = build_anti_repetition_context(
         recent_messages
     )
@@ -408,6 +426,15 @@ def _build_general_followup_prompt(
         f"- Keep it brief - General channel\n"
         f"- Reflect your personality traits"
     )
+    spices = pick_personality_spices(
+        mode=mode, spice_count_override=_spice_count
+    )
+    if spices:
+        prompt += (
+            "\nBackground feelings (texture, "
+            "not the topic): "
+            + "; ".join(spices)
+        )
     anti_rep = build_anti_repetition_context(
         recent_messages
     )

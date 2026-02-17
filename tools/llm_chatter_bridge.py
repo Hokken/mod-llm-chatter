@@ -1002,7 +1002,7 @@ def process_pending_events(
                     AND c.zone = e.zone_id
                     AND a.username LIKE 'RNDBOT%%%%'
               )
-            ORDER BY e.priority ASC,
+            ORDER BY e.priority DESC,
                      e.created_at ASC
             LIMIT 1
         """ % ','.join(
@@ -1055,7 +1055,7 @@ def process_pending_events(
                       )
                   )
               )
-            ORDER BY e.priority ASC,
+            ORDER BY e.priority DESC,
                      e.created_at ASC
             LIMIT 1
         """)
@@ -2026,7 +2026,9 @@ def main():
     )))
     set_action_chance(int(config.get(
         'LLMChatter.ActionChance', 10
-    )))
+    )), mode=config.get(
+        'LLMChatter.ChatterMode', 'normal'
+    ).lower())
     init_group_config(config)
     init_general_config(config)
 
@@ -2205,6 +2207,10 @@ def main():
     logger.info(
         f"  LongMessageChance: "
         f"{config.get('LLMChatter.LongMessageChance', 15)}%"
+    )
+    logger.info(
+        f"  PersonalitySpiceCount: "
+        f"{config.get('LLMChatter.PersonalitySpiceCount', 2)}"
     )
     logger.info(
         f"  CityChatterMultiplier: "

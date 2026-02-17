@@ -47,6 +47,8 @@
 #include <sstream>
 #include <unordered_map>
 #include <regex>
+#include <cstdio>
+#include <mutex>
 
 // Check if player is a bot (global helper function)
 static bool IsPlayerBot(Player* player)
@@ -1093,6 +1095,94 @@ static bool CanSpeakInGeneralChannel(Player* bot)
 
     // No General channel exists for this zone
     return false;
+}
+
+// ------------------------------------------------
+// Auto-join bot to General channel for its current
+// zone, and leave any stale General channel from a
+// previous zone.  Called on zone change so bots
+// stay eligible for CanSpeakInGeneralChannel().
+// ------------------------------------------------
+static void EnsureBotInGeneralChannel(
+    Player* bot)
+{
+    if (!bot || !bot->IsInWorld())
+        return;
+
+    // --- resolve current zone name ---------------
+    uint32 zoneId = bot->GetZoneId();
+    AreaTableEntry const* area =
+        sAreaTableStore.LookupEntry(zoneId);
+    if (!area)
+        return;
+
+    uint8 locale =
+        sWorld->GetDefaultDbcLocale();
+    std::string zoneName =
+        area->area_name[locale];
+    if (zoneName.empty())
+        zoneName = area->area_name[LOCALE_enUS];
+    if (zoneName.empty())
+        return;
+
+    // --- build the exact channel name from DBC ---
+    ChatChannelsEntry const* chEntry =
+        sChatChannelsStore.LookupEntry(
+            ChatChannelId::GENERAL);
+    if (!chEntry)
+        return;
+
+    char nameBuf[100];
+    std::snprintf(nameBuf, sizeof(nameBuf),
+        chEntry->pattern[locale],
+        zoneName.c_str());
+    std::string newChanName(nameBuf);
+
+    ChannelMgr* cMgr =
+        ChannelMgr::forTeam(bot->GetTeamId());
+    if (!cMgr)
+        return;
+
+    // Map updates can run on worker threads
+    // (MapUpdate.Threads > 1), so bots on
+    // different maps may hit this concurrently.
+    // Mirrors core's UpdateLocalChannels mutex.
+    // Not the *same* lock, but protects our own
+    // concurrent calls from each other.
+    static std::mutex channelsLock;
+    std::lock_guard<std::mutex> guard(
+        channelsLock);
+
+    // --- leave any old General channel -----------
+    for (auto const& [key, channel] :
+         cMgr->GetChannels())
+    {
+        if (!channel)
+            continue;
+        if (channel->GetChannelId()
+            != ChatChannelId::GENERAL)
+            continue;
+        if (channel->GetName() == newChanName)
+            continue;  // same zone — skip
+
+        // LeaveChannel is a no-op if bot is not
+        // a member (checks IsOn internally).
+        channel->LeaveChannel(bot, false);
+        bot->LeftChannel(channel);
+    }
+
+    // --- join the new zone's General channel -----
+    Channel* joinChan =
+        cMgr->GetJoinChannel(
+            newChanName,
+            ChatChannelId::GENERAL);
+    if (joinChan)
+        joinChan->JoinChannel(bot, "");
+    else
+        LOG_WARN("module",
+            "LLMChatter: Failed to get/create "
+            "channel '{}' for {}",
+            newChanName, bot->GetName());
 }
 
 // ------------------------------------------------
@@ -3056,24 +3146,14 @@ public:
         std::string zoneName =
             area ? area->area_name[0] : "Unknown";
 
-        // Find bots in the same zone (1-4)
+        // Collect candidate bots in this zone.
+        // Account bots first (player's own bots
+        // are more relevant), then fill remaining
+        // slots with random bots.
         std::vector<Player*> zoneBots;
-        auto allBots =
-            sRandomPlayerbotMgr.GetAllBots();
-        for (auto& pair : allBots)
-        {
-            Player* bot = pair.second;
-            if (!bot || !bot->IsInWorld())
-                continue;
-            if (bot->GetZoneId() != zoneId)
-                continue;
-            zoneBots.push_back(bot);
-            if (zoneBots.size() >= 8)
-                break;
-        }
+        zoneBots.reserve(8);
 
-        // Also check account bots via sessions
-        if (zoneBots.size() < 8)
+        // 1) Account bots via sessions (priority)
         {
             WorldSessionMgr::SessionMap const&
                 sessions =
@@ -3091,11 +3171,30 @@ public:
                     continue;
                 if (p->GetZoneId() != zoneId)
                     continue;
-                // Avoid duplicates
+                zoneBots.push_back(p);
+                if (zoneBots.size() >= 8)
+                    break;
+            }
+        }
+
+        // 2) Random bots fill remaining slots
+        if (zoneBots.size() < 8)
+        {
+            auto allBots =
+                sRandomPlayerbotMgr.GetAllBots();
+            for (auto& pair : allBots)
+            {
+                Player* bot = pair.second;
+                if (!bot || !bot->IsInWorld())
+                    continue;
+                if (bot->GetZoneId() != zoneId)
+                    continue;
+                // Avoid duplicates with account bots
                 bool found = false;
                 for (Player* b : zoneBots)
                 {
-                    if (b->GetGUID() == p->GetGUID())
+                    if (b->GetGUID()
+                        == bot->GetGUID())
                     {
                         found = true;
                         break;
@@ -3103,7 +3202,7 @@ public:
                 }
                 if (!found)
                 {
-                    zoneBots.push_back(p);
+                    zoneBots.push_back(bot);
                     if (zoneBots.size() >= 8)
                         break;
                 }
@@ -3176,7 +3275,7 @@ public:
             "react_after, expires_at) "
             "VALUES ('player_general_msg', "
             "'zone', "
-            "{}, {}, 2, 'general_chat:{}', "
+            "{}, {}, 8, 'general_chat:{}', "
             "{}, '{}', 0, '', 0, "
             "'{}', 'pending', "
             "DATE_ADD(NOW(), INTERVAL 5 SECOND), "
@@ -5310,22 +5409,28 @@ public:
     }
 
     // -----------------------------------------------
-    // Hook: Bot enters a new zone in a group
+    // Hook: Bot enters a new zone
     // -----------------------------------------------
     void OnPlayerUpdateZone(
         Player* player, uint32 newZone,
         uint32 /*newArea*/) override
     {
         if (!sLLMChatterConfig
-            || !sLLMChatterConfig->IsEnabled()
-            || !sLLMChatterConfig
-                   ->_useGroupChatter)
+            || !sLLMChatterConfig->IsEnabled())
             return;
 
         if (!player)
             return;
 
         if (!IsPlayerBot(player))
+            return;
+
+        // Auto-join General channel for new zone
+        // (applies to ALL bots, not just grouped)
+        EnsureBotInGeneralChannel(player);
+
+        // --- group zone-transition chat below ---
+        if (!sLLMChatterConfig->_useGroupChatter)
             return;
 
         Group* group = player->GetGroup();

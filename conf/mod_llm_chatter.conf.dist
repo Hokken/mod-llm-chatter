@@ -277,6 +277,20 @@ LLMChatter.LootRecentCooldownSeconds = 1200
 #
 LLMChatter.LongMessageChance = 15
 
+#
+#   LLMChatter.PersonalitySpiceCount
+#       Number of random situational micro-feelings
+#       injected into each ambient LLM prompt (0-5).
+#       These give bots the illusion of inner lives
+#       ("your feet hurt", "you smell food nearby")
+#       and break phrasing convergence across calls.
+#       Applies to ambient, group, and General channel
+#       prompts. Does NOT apply to combat reactions
+#       (kills, deaths, spell casts) or pre-cache.
+#       Default: 2
+#
+LLMChatter.PersonalitySpiceCount = 2
+
 ###############################################################################
 # DATABASE SETTINGS (Used by Python bridge)
 ###############################################################################

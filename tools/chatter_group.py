@@ -32,6 +32,7 @@ import time
 
 # Module-level config defaults (set by init_group_config)
 _chat_history_limit = 10
+_spice_count = 2
 
 from chatter_shared import (
     call_llm, cleanup_message, strip_speaker_prefix,
@@ -64,6 +65,7 @@ from chatter_prompts import (
     get_environmental_context,
     generate_conversation_mood_sequence,
     generate_conversation_length_sequence,
+    pick_personality_spices,
 )
 from chatter_constants import (
     RACE_SPEECH_PROFILES,
@@ -77,7 +79,7 @@ logger = logging.getLogger(__name__)
 
 def init_group_config(config):
     """Initialize module-level config values."""
-    global _chat_history_limit
+    global _chat_history_limit, _spice_count
     try:
         val = int(
             config.get('LLMChatter.ChatHistoryLimit', 10)
@@ -89,6 +91,13 @@ def init_group_config(config):
         )
         val = 10
     _chat_history_limit = max(1, min(val, 50))
+    try:
+        _spice_count = int(config.get(
+            'LLMChatter.PersonalitySpiceCount', 2
+        ))
+        _spice_count = max(0, min(_spice_count, 5))
+    except Exception:
+        _spice_count = 2
 
 
 def _pick_length_hint(mode):
@@ -709,6 +718,15 @@ def build_bot_greeting_prompt(
             f"- Don't use the player's name"
         )
 
+    spices = pick_personality_spices(
+        mode=mode, spice_count_override=_spice_count
+    )
+    if spices:
+        prompt += (
+            "\nBackground feelings (texture, "
+            "not the topic): "
+            + "; ".join(spices)
+        )
     return append_json_instruction(
         prompt, allow_action
     )
@@ -830,6 +848,15 @@ def build_bot_welcome_prompt(
         f"- You can use {new_bot_name}'s name "
         f"or just say a general welcome"
     )
+    spices = pick_personality_spices(
+        mode=mode, spice_count_override=_spice_count
+    )
+    if spices:
+        prompt += (
+            "\nBackground feelings (texture, "
+            "not the topic): "
+            + "; ".join(spices)
+        )
     return append_json_instruction(
         prompt, allow_action
     )
@@ -2032,6 +2059,15 @@ def build_player_response_prompt(
             f"Comment on the item(s) from your "
             f"class/role perspective. Is it useful "
             f"for you? Good stats? Would you want it?"
+        )
+    spices = pick_personality_spices(
+        mode=mode, spice_count_override=_spice_count
+    )
+    if spices:
+        prompt += (
+            "\nBackground feelings (texture, "
+            "not the topic): "
+            + "; ".join(spices)
         )
     return append_json_instruction(
         prompt, allow_action
@@ -5914,6 +5950,15 @@ def _build_composition_comment_prompt(
         f"characters). No greetings — you already "
         f"said hello."
     )
+    spices = pick_personality_spices(
+        mode=mode, spice_count_override=_spice_count
+    )
+    if spices:
+        prompt += (
+            "\nBackground feelings (texture, "
+            "not the topic): "
+            + "; ".join(spices)
+        )
     return append_json_instruction(
         prompt, allow_action
     )
@@ -6175,6 +6220,15 @@ def build_zone_transition_prompt(
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )
+    spices = pick_personality_spices(
+        mode=mode, spice_count_override=_spice_count
+    )
+    if spices:
+        prompt += (
+            "\nBackground feelings (texture, "
+            "not the topic): "
+            + "; ".join(spices)
+        )
     return append_json_instruction(
         prompt, allow_action
     )
@@ -7146,6 +7200,15 @@ def build_idle_chatter_prompt(
         f"- Stick to observation, opinion, banter, "
         f"and small talk"
     )
+    spices = pick_personality_spices(
+        mode=mode, spice_count_override=_spice_count
+    )
+    if spices:
+        prompt += (
+            "\nBackground feelings (texture, "
+            "not the topic): "
+            + "; ".join(spices)
+        )
     anti_rep = build_anti_repetition_context(
         recent_messages
     )
@@ -7380,6 +7443,16 @@ def build_idle_conversation_prompt(
         "Don't repeat jokes or themes already "
         "said in chat."
     )
+
+    spices = pick_personality_spices(
+        mode=mode, spice_count_override=_spice_count
+    )
+    if spices:
+        parts.append(
+            "Background feelings (texture, "
+            "not the topic): "
+            + "; ".join(spices)
+        )
 
     anti_rep = build_anti_repetition_context(
         recent_messages

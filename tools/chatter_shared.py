@@ -880,16 +880,28 @@ def strip_speaker_prefix(message: str, bot_name: str) -> str:
 
 # Module-level action chance (set from config at startup)
 _action_chance = 0.10
+_action_disabled = True
 
 
-def set_action_chance(chance_pct: int):
-    """Set from config: LLMChatter.ActionChance (0-100)."""
-    global _action_chance
+def set_action_chance(chance_pct: int, mode: str = 'roleplay'):
+    """Set from config: LLMChatter.ActionChance (0-100).
+
+    Actions (narrator comments like *leans on staff*) are
+    RP-mode only. In normal mode, get_action_chance()
+    always returns 0.0.
+    """
+    global _action_chance, _action_disabled
     _action_chance = chance_pct / 100.0
+    _action_disabled = (mode != 'roleplay')
 
 
 def get_action_chance() -> float:
-    """Return the configured action chance (0.0-1.0)."""
+    """Return the configured action chance (0.0-1.0).
+
+    Returns 0.0 in normal mode (actions are RP-only).
+    """
+    if _action_disabled:
+        return 0.0
     return _action_chance
 
 
@@ -1192,8 +1204,18 @@ def cleanup_message(
     result = re.sub(
         r'\[npc:\d+:([^\]]+)\]', r'\1', result
     )
+    # [npc:Name] without numeric ID (LLM variant)
+    result = re.sub(
+        r'\[npc:([^\]]+)\]', r'\1', result
+    )
     result = re.sub(
         r'npc:\d+:([A-Za-z][A-Za-z\' ]+)', r'\1', result
+    )
+
+    # Strip *none* leaked from LLM action field
+    result = re.sub(
+        r'\*none\*\s*', '', result,
+        flags=re.IGNORECASE
     )
 
     # Fix {[Name]} -> [Name]
