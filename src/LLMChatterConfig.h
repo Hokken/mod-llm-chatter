@@ -34,6 +34,8 @@ public:
     uint32 _triggerChance;
     uint32 _cityChatterMultiplier;
     uint32 _maxPendingRequests;
+    uint32 _maxBotsPerZone;
+    uint32 _maxMessageLength;
 
     // Delivery settings
     uint32 _deliveryPollMs;
@@ -49,6 +51,7 @@ public:
     uint32 _transportCheckSeconds;
     uint32 _eventExpirationSeconds;
     uint32 _weatherCooldownSeconds;
+    uint32 _weatherAmbientCooldownSeconds;
     uint32 _dayNightCooldownSeconds;
     uint32 _holidayCooldownSeconds;
     uint32 _holidayCityChance;
@@ -69,6 +72,10 @@ public:
 
     // Group chatter
     bool _useGroupChatter;
+    uint32 _questDeduplicationWindow;
+    uint32 _combatStateCheckInterval;
+    uint32 _lowHealthThreshold;
+    uint32 _oomThreshold;
 
     // Group chatter - reaction chances (0-100)
     uint32 _groupKillChanceNormal;
@@ -77,7 +84,10 @@ public:
     uint32 _groupLootChanceBlue;
     uint32 _groupQuestObjectiveChance;
     uint32 _groupQuestObjectiveCooldown;
+    uint32 _groupQuestAcceptChance;
+    uint32 _groupQuestAcceptCooldown;
     uint32 _groupSpellCastChance;
+    uint32 _groupSpellCastCooldown;
 
     // Group chatter - per-event cooldowns (seconds)
     uint32 _groupKillCooldown;
@@ -97,6 +107,8 @@ public:
     uint32 _groupCorpseRunChance;
     uint32 _groupCorpseRunCooldown;
     bool _useFarewell;
+    uint32 _groupDiscoveryChance;
+    uint32 _groupDiscoveryCooldown;
 
     // Group chatter - state-triggered callouts
     bool _stateCalloutEnabled;
@@ -124,6 +136,7 @@ public:
     uint32 _generalChatQuestionChance;
     uint32 _generalChatCooldown;
     uint32 _generalChatConversationChance;
+    uint32 _generalChatHistoryLimit;
 
     // RP enrichment
     uint32 _raceLoreChance;

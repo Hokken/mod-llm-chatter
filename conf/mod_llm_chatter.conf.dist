@@ -91,6 +91,24 @@ LLMChatter.CityChatterMultiplier = 2
 #
 LLMChatter.MaxPendingRequests = 5
 
+#
+#   LLMChatter.MaxBotsPerZone
+#       Maximum number of bots collected per zone for
+#       ambient and General channel chatter selection.
+#       Higher = more candidates, but more iteration.
+#       Default: 8
+#
+LLMChatter.MaxBotsPerZone = 8
+
+#
+#   LLMChatter.MaxMessageLength
+#       Maximum character length for chat messages.
+#       Messages longer than this are truncated.
+#       Applies to party, General, and ambient chat.
+#       Default: 250
+#
+LLMChatter.MaxMessageLength = 250
+
 ###############################################################################
 # MESSAGE DELIVERY SETTINGS
 ###############################################################################
@@ -337,6 +355,16 @@ LLMChatter.Database.Name = acore_characters
 #
 LLMChatter.Bridge.PollIntervalSeconds = 3
 
+#
+#   LLMChatter.Bridge.MaxConcurrent
+#       Maximum number of events processed in parallel.
+#       Higher values = faster throughput but more LLM
+#       API calls at once.
+#       Clamped to 1-10.
+#       Default: 3
+#
+LLMChatter.Bridge.MaxConcurrent = 3
+
 ###############################################################################
 # EVENT SYSTEM SETTINGS
 ###############################################################################
@@ -400,10 +428,21 @@ LLMChatter.TransportCheckSeconds = 5
 
 #
 #   LLMChatter.WeatherCooldownSeconds
-#       Cooldown per zone for weather change events
+#       Cooldown per zone for weather transition events
+#       (clear->rain, rain->clear, etc.)
 #       Default: 1800 (30 minutes)
 #
 LLMChatter.WeatherCooldownSeconds = 1800
+
+#
+#   LLMChatter.WeatherAmbientCooldownSeconds
+#       Cooldown per zone for ambient weather remarks
+#       (periodic comments during ongoing weather).
+#       Combined with EventReactionChance (15% default),
+#       120s cooldown ≈ one ambient comment every ~13 min.
+#       Default: 120 (2 minutes)
+#
+LLMChatter.WeatherAmbientCooldownSeconds = 120
 
 #
 #   LLMChatter.DayNightCooldownSeconds
@@ -656,7 +695,7 @@ LLMChatter.GroupChatter.LootChanceBlue = 50
 #       quest objective triggers a group reaction.
 #       Default: 30
 #
-LLMChatter.GroupChatter.QuestObjectiveChance = 30
+LLMChatter.GroupChatter.QuestObjectiveChance = 100
 
 #
 #   LLMChatter.GroupChatter.QuestObjectiveCooldown
@@ -667,6 +706,33 @@ LLMChatter.GroupChatter.QuestObjectiveChance = 30
 LLMChatter.GroupChatter.QuestObjectiveCooldown = 30
 
 #
+#   LLMChatter.GroupChatter.QuestDeduplicationWindow
+#       Seconds within which duplicate quest-complete
+#       events for the same quest+group are suppressed.
+#       Prevents multiple bots reacting to the same
+#       shared quest completion.
+#       Default: 30
+#
+LLMChatter.GroupChatter.QuestDeduplicationWindow = 30
+
+#
+#   LLMChatter.GroupChatter.QuestAcceptChance
+#       Percent chance (0-100) that accepting a quest
+#       triggers a group reaction from a bot.
+#       Default: 20
+#
+LLMChatter.GroupChatter.QuestAcceptChance = 100
+
+#
+#   LLMChatter.GroupChatter.QuestAcceptCooldown
+#       Per-group cooldown (seconds) between quest
+#       accept reactions. Prevents spam when picking
+#       up multiple quests from the same NPC.
+#       Default: 30
+#
+LLMChatter.GroupChatter.QuestAcceptCooldown = 30
+
+#
 #   LLMChatter.GroupChatter.SpellCastChance
 #       Percent chance (0-100) that a buff/heal/CC
 #       spell cast triggers a group reaction.
@@ -674,6 +740,15 @@ LLMChatter.GroupChatter.QuestObjectiveCooldown = 30
 #       Default: 15
 #
 LLMChatter.GroupChatter.SpellCastChance = 15
+
+#
+#   LLMChatter.GroupChatter.SpellCastCooldown
+#       Per-group cooldown (seconds) between spell
+#       cast reactions. Prevents spam from rapid
+#       buff/heal/CC casts in combat.
+#       Default: 10
+#
+LLMChatter.GroupChatter.SpellCastCooldown = 10
 
 #
 #   LLMChatter.GroupChatter.KillCooldown
@@ -808,6 +883,24 @@ LLMChatter.GroupChatter.CorpseRunCooldown = 120
 LLMChatter.GroupChatter.FarewellEnable = 1
 
 #
+#   LLMChatter.GroupChatter.DiscoveryChance
+#       Percent chance (0-100) that discovering a new
+#       subzone triggers a group reaction. Fires when
+#       exploration XP is awarded ("Discovered: X").
+#       Default: 40
+#
+LLMChatter.GroupChatter.DiscoveryChance = 40
+
+#
+#   LLMChatter.GroupChatter.DiscoveryCooldown
+#       Per-group+area cooldown (seconds) between
+#       discovery reactions. Prevents spam when the
+#       whole group discovers the same area at once.
+#       Default: 30
+#
+LLMChatter.GroupChatter.DiscoveryCooldown = 30
+
+#
 #    LLMChatter.GroupChatter.CompositionCommentChance
 #        Percent chance (0-100) that a bot comments on
 #        the group composition after joining. Requires
@@ -844,6 +937,21 @@ LLMChatter.GroupChatter.CompositionCommentChance = 10
 #        Cooldown per bot per callout type in
 #        seconds
 #        Default: 30
+#
+#    LLMChatter.GroupChatter.LowHealthThreshold
+#        Health percent at or below which a bot
+#        fires a low-health callout (0-100).
+#        Default: 25
+#
+#    LLMChatter.GroupChatter.OOMThreshold
+#        Mana percent at or below which a bot
+#        fires an out-of-mana callout (0-100).
+#        Default: 15
+#
+#    LLMChatter.GroupChatter.CombatStateCheckInterval
+#        How often (seconds) the server checks
+#        group combat state for callout triggers.
+#        Default: 5
 #
 
 ###############################################################################
@@ -944,6 +1052,9 @@ LLMChatter.GroupChatter.StateCalloutOom = 1
 LLMChatter.GroupChatter.StateCalloutAggro = 1
 LLMChatter.GroupChatter.StateCalloutChance = 60
 LLMChatter.GroupChatter.StateCalloutCooldown = 30
+LLMChatter.GroupChatter.LowHealthThreshold = 25
+LLMChatter.GroupChatter.OOMThreshold = 15
+LLMChatter.GroupChatter.CombatStateCheckInterval = 5
 
 ###############################################################################
 # RP ENRICHMENT SETTINGS
@@ -1011,6 +1122,15 @@ LLMChatter.GeneralChat.Cooldown = 30
 #       Default: 30
 #
 LLMChatter.GeneralChat.ConversationChance = 30
+
+#
+#   LLMChatter.GeneralChat.HistoryLimit
+#       Maximum number of recent messages kept per
+#       zone in llm_general_chat_history. Older
+#       messages are pruned on each new insert.
+#       Default: 15
+#
+LLMChatter.GeneralChat.HistoryLimit = 15
 
 ###############################################################################
 #

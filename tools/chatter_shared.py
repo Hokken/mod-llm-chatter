@@ -9,6 +9,7 @@ import logging
 import random
 import re
 import sys
+import threading
 import time
 from typing import Optional, Dict, List, Tuple, Any
 
@@ -50,73 +51,91 @@ _zone_transport_cooldowns: Dict[int, float] = {}
 # CACHING
 # =============================================================================
 class ZoneDataCache:
-    """Cache for zone-specific quest, loot, and mob data."""
+    """Cache for zone-specific quest, loot, and mob data.
+
+    Thread-safe: all methods are protected by a lock
+    for concurrent access from worker threads.
+    """
 
     def __init__(self, ttl_seconds: int = 600):
         self.ttl = ttl_seconds
+        self._lock = threading.Lock()
         self.quest_cache: Dict[int, Tuple[List[dict], float]] = {}
         self.loot_cache: Dict[Tuple[int, int], Tuple[List[dict], float]] = {}
         self.mob_cache: Dict[Tuple[int, int], Tuple[List[str], float]] = {}
         self.recent_loot: Dict[int, Dict[int, float]] = {}
 
     def get_quests(self, zone_id: int) -> Optional[List[dict]]:
-        if zone_id in self.quest_cache:
-            data, timestamp = self.quest_cache[zone_id]
-            if time.time() - timestamp < self.ttl:
-                return data
-        return None
+        with self._lock:
+            if zone_id in self.quest_cache:
+                data, timestamp = self.quest_cache[zone_id]
+                if time.time() - timestamp < self.ttl:
+                    return data
+            return None
 
     def set_quests(self, zone_id: int, quests: List[dict]):
-        self.quest_cache[zone_id] = (quests, time.time())
+        with self._lock:
+            self.quest_cache[zone_id] = (quests, time.time())
 
     def get_loot(
         self, min_level: int, max_level: int
     ) -> Optional[List[dict]]:
-        key = (min_level, max_level)
-        if key in self.loot_cache:
-            data, timestamp = self.loot_cache[key]
-            if time.time() - timestamp < self.ttl:
-                return data
-        return None
+        with self._lock:
+            key = (min_level, max_level)
+            if key in self.loot_cache:
+                data, timestamp = self.loot_cache[key]
+                if time.time() - timestamp < self.ttl:
+                    return data
+            return None
 
     def set_loot(
         self, min_level: int, max_level: int, loot: List[dict]
     ):
-        self.loot_cache[(min_level, max_level)] = (loot, time.time())
+        with self._lock:
+            self.loot_cache[(min_level, max_level)] = (
+                loot, time.time()
+            )
 
     def get_mobs(
         self, zone_id: int, bot_level: int
     ) -> Optional[List[str]]:
-        key = (zone_id, bot_level)
-        if key in self.mob_cache:
-            data, timestamp = self.mob_cache[key]
-            if time.time() - timestamp < self.ttl:
-                return data
-        return None
+        with self._lock:
+            key = (zone_id, bot_level)
+            if key in self.mob_cache:
+                data, timestamp = self.mob_cache[key]
+                if time.time() - timestamp < self.ttl:
+                    return data
+            return None
 
     def set_mobs(
         self, zone_id: int, bot_level: int, mobs: List[str]
     ):
-        self.mob_cache[(zone_id, bot_level)] = (mobs, time.time())
+        with self._lock:
+            self.mob_cache[(zone_id, bot_level)] = (
+                mobs, time.time()
+            )
 
     def get_recent_loot_ids(
         self, zone_id: int, cooldown_seconds: int
     ) -> set:
-        now = time.time()
-        if zone_id not in self.recent_loot:
-            return set()
-        recent = {
-            item_id: ts
-            for item_id, ts in self.recent_loot[zone_id].items()
-            if now - ts < cooldown_seconds
-        }
-        self.recent_loot[zone_id] = recent
-        return set(recent.keys())
+        with self._lock:
+            now = time.time()
+            if zone_id not in self.recent_loot:
+                return set()
+            recent = {
+                item_id: ts
+                for item_id, ts
+                in self.recent_loot[zone_id].items()
+                if now - ts < cooldown_seconds
+            }
+            self.recent_loot[zone_id] = recent
+            return set(recent.keys())
 
     def mark_loot_seen(self, zone_id: int, item_id: int):
-        if zone_id not in self.recent_loot:
-            self.recent_loot[zone_id] = {}
-        self.recent_loot[zone_id][item_id] = time.time()
+        with self._lock:
+            if zone_id not in self.recent_loot:
+                self.recent_loot[zone_id] = {}
+            self.recent_loot[zone_id][item_id] = time.time()
 
 
 # Global cache instance
@@ -1429,6 +1448,7 @@ def call_llm(
 # differs from main provider
 _quick_analyze_client = None
 _quick_analyze_provider = None
+_quick_analyze_lock = threading.Lock()
 
 
 def _get_quick_analyze_client(config):
@@ -1438,6 +1458,8 @@ def _get_quick_analyze_client(config):
     If QuickAnalyze.Provider matches the main
     provider (or is empty), returns None so the
     caller uses the main client.
+
+    Thread-safe: lazy init protected by lock.
     """
     global _quick_analyze_client
     global _quick_analyze_provider
@@ -1456,63 +1478,65 @@ def _get_quick_analyze_client(config):
     if not qa_provider or qa_provider == main_provider:
         return None, main_provider
 
-    # Return cached client if already created
-    if (
-        _quick_analyze_client is not None
-        and _quick_analyze_provider == qa_provider
-    ):
+    with _quick_analyze_lock:
+        # Return cached client if already created
+        if (
+            _quick_analyze_client is not None
+            and _quick_analyze_provider == qa_provider
+        ):
+            return _quick_analyze_client, qa_provider
+
+        # Create new client for the quick analyze
+        # provider
+        if qa_provider == 'ollama':
+            base_url = config.get(
+                'LLMChatter.Ollama.BaseUrl',
+                'http://localhost:11434'
+            )
+            ollama_api_url = (
+                f"{base_url.rstrip('/')}/v1"
+            )
+            _quick_analyze_client = openai.OpenAI(
+                base_url=ollama_api_url,
+                api_key="ollama"
+            )
+        elif qa_provider == 'openai':
+            api_key = config.get(
+                'LLMChatter.OpenAI.ApiKey', ''
+            )
+            if not api_key:
+                logger.warning(
+                    "QuickAnalyze: No OpenAI API key"
+                )
+                return None, main_provider
+            _quick_analyze_client = openai.OpenAI(
+                api_key=api_key
+            )
+        elif qa_provider == 'anthropic':
+            api_key = config.get(
+                'LLMChatter.Anthropic.ApiKey', ''
+            )
+            if not api_key:
+                logger.warning(
+                    "QuickAnalyze: No Anthropic key"
+                )
+                return None, main_provider
+            _quick_analyze_client = anthropic.Anthropic(
+                api_key=api_key
+            )
+        else:
+            logger.warning(
+                f"QuickAnalyze: Unknown provider "
+                f"'{qa_provider}', using main"
+            )
+            return None, main_provider
+
+        _quick_analyze_provider = qa_provider
+        logger.info(
+            f"QuickAnalyze: Created "
+            f"{qa_provider} client"
+        )
         return _quick_analyze_client, qa_provider
-
-    # Create new client for the quick analyze
-    # provider
-    if qa_provider == 'ollama':
-        base_url = config.get(
-            'LLMChatter.Ollama.BaseUrl',
-            'http://localhost:11434'
-        )
-        ollama_api_url = (
-            f"{base_url.rstrip('/')}/v1"
-        )
-        _quick_analyze_client = openai.OpenAI(
-            base_url=ollama_api_url,
-            api_key="ollama"
-        )
-    elif qa_provider == 'openai':
-        api_key = config.get(
-            'LLMChatter.OpenAI.ApiKey', ''
-        )
-        if not api_key:
-            logger.warning(
-                "QuickAnalyze: No OpenAI API key"
-            )
-            return None, main_provider
-        _quick_analyze_client = openai.OpenAI(
-            api_key=api_key
-        )
-    elif qa_provider == 'anthropic':
-        api_key = config.get(
-            'LLMChatter.Anthropic.ApiKey', ''
-        )
-        if not api_key:
-            logger.warning(
-                "QuickAnalyze: No Anthropic key"
-            )
-            return None, main_provider
-        _quick_analyze_client = anthropic.Anthropic(
-            api_key=api_key
-        )
-    else:
-        logger.warning(
-            f"QuickAnalyze: Unknown provider "
-            f"'{qa_provider}', using main"
-        )
-        return None, main_provider
-
-    _quick_analyze_provider = qa_provider
-    logger.info(
-        f"QuickAnalyze: Created {qa_provider} client"
-    )
-    return _quick_analyze_client, qa_provider
 
 
 def quick_llm_analyze(

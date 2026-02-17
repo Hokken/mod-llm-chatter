@@ -74,8 +74,10 @@ Every quest, item, and spell name becomes a clickable WoW link.
 - **Kill reactions**, your tank might brag about a clean pull, your healer might comment on a close call
 - **Loot reactions**, genuine excitement over epic drops, friendly jealousy, "grats" that feel real
 - **Combat cries**, battle shouts and war cries during engagements, flavored by race and class
-- **Spell cast reactions**, bots comment when casting buffs, heals, shields, and crowd control on party members
+- **Spell cast reactions**, bots comment when casting buffs, heals (including HoTs), shields, crowd control, dispels, and group-wide buffs (Bloodlust, Prayer of Fortitude, etc.) on party members
+- **Quest accept reactions**, bots comment when you pick up a new quest
 - **Quest objectives**, bots react when quest objectives are completed, before turn-in
+- **Subzone discovery**, bots react to "Discovered: X" moments with excitement or lore references
 - **Corpse run commentary**, when anyone dies and releases spirit, a bot reacts — concern for the player, ghost run humor for bots
 - **Player death reactions**, bots react when you get killed by a creature, with urgency and personality
 - **Level-up celebrations**, bots congratulate on level ups
@@ -92,7 +94,7 @@ Every quest, item, and spell name becomes a clickable WoW link.
 - **Name personalization**, in small groups bots address the player by name, and in conversations bots sometimes address each other naturally
 
 ### Event Reactions
-- **Weather changes**, a sudden thunderstorm in Stranglethorn, snow in Dun Morogh, a sandstorm rolling through Tanaris, bots notice and react
+- **Weather changes**, a sudden thunderstorm in Stranglethorn, snow in Dun Morogh, a sandstorm rolling through Tanaris, bots notice and react. Ambient weather remarks also happen periodically between transitions
 - **Transport arrivals**, "boat to Auberdine just pulled in", bots announce boats and zeppelins with destination info
 - **Holidays & events**, bots react to holidays (Love is in the Air) and PvP events (Call to Arms: Warsong Gulch). In capital cities, event mentions recur periodically so the mood stays alive
 - **Day/night transitions**, bots comment on dawn breaking, dusk settling, or the eerie feel of midnight in a dangerous zone
@@ -275,7 +277,10 @@ All settings are in `mod_llm_chatter.conf`. Here are the most commonly tuned opt
 | `LLMChatter.GeneralChat.QuestionChance` | 100 | % chance for questions (ending with ?) |
 | `LLMChatter.GeneralChat.Cooldown` | 15 | Per-zone cooldown in seconds |
 | `LLMChatter.GeneralChat.ConversationChance` | 30 | % chance of 2-bot conversation vs single reply |
+| `LLMChatter.GeneralChat.HistoryLimit` | 15 | Max retained General chat messages per zone |
 | `LLMChatter.ChatHistoryLimit` | 10 | Max recent chat messages in LLM prompts (group + General, clamped 1-50) |
+| `LLMChatter.MaxBotsPerZone` | 8 | Max bots reacting in a single zone |
+| `LLMChatter.MaxMessageLength` | 250 | Max chat message length before truncation |
 
 ### Rate Limiting
 
@@ -298,6 +303,18 @@ All settings are in `mod_llm_chatter.conf`. Here are the most commonly tuned opt
 | `LLMChatter.GroupChatter.ConversationBias` | 70 | % chance idle is multi-bot vs solo |
 | `LLMChatter.GroupChatter.IdleHistoryLimit` | 5 | Recent messages in idle context |
 | `LLMChatter.GroupChatter.FarewellEnable` | 1 | Enable farewell messages when bots leave group |
+| `LLMChatter.GroupChatter.SpellCastChance` | 15 | % chance spell cast triggers reaction |
+| `LLMChatter.GroupChatter.SpellCastCooldown` | 10 | Per-group cooldown between spell reactions (s) |
+| `LLMChatter.GroupChatter.LowHealthThreshold` | 25 | Health % for low-health callout |
+| `LLMChatter.GroupChatter.OOMThreshold` | 15 | Mana % for OOM callout |
+| `LLMChatter.GroupChatter.CombatStateCheckInterval` | 5 | Seconds between combat state checks |
+| `LLMChatter.GroupChatter.QuestDeduplicationWindow` | 30 | Seconds to dedup quest completions |
+| `LLMChatter.GroupChatter.QuestAcceptChance` | 100 | % chance quest accept triggers reaction |
+| `LLMChatter.GroupChatter.QuestAcceptCooldown` | 30 | Per-quest dedup cooldown (s) |
+| `LLMChatter.GroupChatter.QuestObjectiveChance` | 100 | % chance quest objectives triggers reaction |
+| `LLMChatter.GroupChatter.DiscoveryChance` | 40 | % chance subzone discovery triggers reaction |
+| `LLMChatter.GroupChatter.DiscoveryCooldown` | 30 | Per-area discovery dedup cooldown (s) |
+| `LLMChatter.WeatherAmbientCooldownSeconds` | 120 | Seconds between ambient weather remarks per zone |
 
 ### Database
 

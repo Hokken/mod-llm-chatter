@@ -611,9 +611,11 @@ static void ResolvePlaceholders(
         message.replace(pos, 2, " ");
     }
 
-    // Clamp to 250 chars
-    if (message.size() > 250)
-        message.resize(250);
+    // Clamp to max message length
+    if (message.size()
+        > sLLMChatterConfig->_maxMessageLength)
+        message.resize(
+            sLLMChatterConfig->_maxMessageLength);
 }
 
 // Send a party message instantly via native
@@ -766,8 +768,14 @@ static uint32 GetReactionDelaySeconds(const std::string& eventType)
         { minDelay = 300; maxDelay = 900; }
     else if (eventType == "weather_change")
         { minDelay = 60; maxDelay = 300; }
+    else if (eventType == "weather_ambient")
+        { minDelay = 120; maxDelay = 600; }
     else if (eventType == "transport_arrives")
         { minDelay = 5; maxDelay = 15; }  // React quickly while transport is still at dock
+    else if (eventType == "bot_group_quest_accept")
+        { minDelay = 5; maxDelay = 15; }
+    else if (eventType == "bot_group_discovery")
+        { minDelay = 5; maxDelay = 20; }
     else
         { minDelay = 30; maxDelay = 120; }
 
@@ -784,6 +792,13 @@ static void QueueEvent(const std::string& eventType, const std::string& eventSco
 {
     if (!sLLMChatterConfig->IsEnabled() || !sLLMChatterConfig->_useEventSystem)
         return;
+
+    // Event-type specific config gates
+    if (eventType == "weather_ambient")
+    {
+        if (!sLLMChatterConfig->_eventsWeather)
+            return;
+    }
 
     // Check cooldown FIRST, before RNG roll.
     // This prevents multi-tick RNG amplification:
@@ -815,7 +830,8 @@ static void QueueEvent(const std::string& eventType, const std::string& eventSco
     bool alwaysFire =
         (eventType == "holiday_start"
          || eventType == "holiday_end"
-         || eventType == "day_night_transition");
+         || eventType == "day_night_transition"
+         || eventType == "weather_change");
 
     uint32 reactionChance =
         sLLMChatterConfig->_eventReactionChance;
@@ -1733,6 +1749,8 @@ public:
             if (sLLMChatterConfig->_eventsHolidays
                 || sLLMChatterConfig->_eventsMinor)
                 CheckActiveHolidays();
+            if (sLLMChatterConfig->_eventsWeather)
+                CheckAmbientWeather();
         }
 
         // Check for transport zone changes
@@ -1750,7 +1768,9 @@ public:
         {
             static time_t lastCombatStateCheck = 0;
             time_t nowSec = time(nullptr);
-            if (nowSec - lastCombatStateCheck >= 5)
+            if (nowSec - lastCombatStateCheck >=
+                (time_t)sLLMChatterConfig
+                    ->_combatStateCheckInterval)
             {
                 lastCombatStateCheck = nowSec;
                 CheckGroupCombatState();
@@ -1845,6 +1865,76 @@ private:
 
         // LOG_INFO("module", "LLMChatter: Time transition - {} -> {} ({}:{})",
         //          previousPeriod, timePeriod, hour, minute);
+    }
+
+    // Periodically check zones with active (non-clear)
+    // weather and queue ambient weather events for zones
+    // where a real player is present. Unlike weather_change
+    // (which fires on transitions), this lets bots muse
+    // about ongoing weather conditions.
+    void CheckAmbientWeather()
+    {
+        for (auto const& pair : _zoneWeatherState)
+        {
+            uint32 zoneId = pair.first;
+            WeatherState state = pair.second;
+
+            // Skip clear weather
+            if (state == WEATHER_STATE_FINE)
+                continue;
+
+            // Check if a real player is in this zone
+            bool hasRealPlayer = false;
+            auto const& sessions =
+                sWorldSessionMgr->GetAllSessions();
+            for (auto const& sp : sessions)
+            {
+                WorldSession* session = sp.second;
+                if (!session || session->PlayerLoading())
+                    continue;
+
+                Player* player = session->GetPlayer();
+                if (!player || !player->IsInWorld())
+                    continue;
+
+                if (!IsPlayerBot(player)
+                    && player->GetZoneId() == zoneId)
+                {
+                    hasRealPlayer = true;
+                    break;
+                }
+            }
+
+            if (!hasRealPlayer)
+                continue;
+
+            std::string weatherName =
+                GetWeatherStateName(state);
+            std::string category =
+                GetWeatherCategory(state);
+
+            std::string cooldownKey =
+                "weather_ambient:"
+                + std::to_string(zoneId);
+
+            // Build extra data JSON
+            std::string extraData =
+                "{\"weather_type\":\""
+                + weatherName + "\","
+                "\"category\":\""
+                + category + "\","
+                "\"intensity\":\"sustained\","
+                "\"is_ambient\":true}";
+
+            QueueEvent(
+                "weather_ambient", "zone",
+                zoneId, 0, 3, cooldownKey,
+                sLLMChatterConfig
+                    ->_weatherAmbientCooldownSeconds,
+                0, "", 0, "",
+                static_cast<uint32>(state),
+                extraData);
+        }
     }
 
     // Periodically re-queue holiday and minor events
@@ -1943,12 +2033,16 @@ private:
                                     != currentZone)
                                     continue;
                                 zoneBots.push_back(bot);
-                                if (zoneBots.size() >= 8)
+                                if (zoneBots.size()
+                                    >= sLLMChatterConfig
+                                        ->_maxBotsPerZone)
                                     break;
                             }
 
                             // Also check account bots
-                            if (zoneBots.size() < 8)
+                            if (zoneBots.size()
+                                < sLLMChatterConfig
+                                    ->_maxBotsPerZone)
                             {
                                 WorldSessionMgr::
                                     SessionMap const&
@@ -1988,7 +2082,8 @@ private:
                                         zoneBots.push_back(
                                             p);
                                         if (zoneBots.size()
-                                            >= 8)
+                                            >= sLLMChatterConfig
+                                                ->_maxBotsPerZone)
                                             break;
                                     }
                                 }
@@ -2781,6 +2876,11 @@ static std::map<uint32, time_t>
 static std::map<uint32, time_t>
     _groupCorpseRunCooldowns;
 
+// Per-group+area discovery cooldown:
+// (groupId << 32) | areaId -> last discover time
+static std::map<uint64, time_t>
+    _groupDiscoveryCooldowns;
+
 // Per-bot state callout cooldowns:
 // bot_guid -> last callout time
 static std::map<uint32, time_t>
@@ -2819,6 +2919,16 @@ static void CleanupGroupSession(uint32 groupId)
     _groupDungeonCooldowns.erase(groupId);
     _groupWipeCooldowns.erase(groupId);
     _groupCorpseRunCooldowns.erase(groupId);
+
+    // Discovery cooldowns use composite key
+    // (groupId << 32 | areaId); erase all matching
+    uint64 lo =
+        (uint64)groupId << 32;
+    uint64 hi = lo | 0xFFFFFFFF;
+    auto itD = _groupDiscoveryCooldowns.lower_bound(lo);
+    while (itD != _groupDiscoveryCooldowns.end()
+           && itD->first <= hi)
+        itD = _groupDiscoveryCooldowns.erase(itD);
 
     LOG_INFO("module",
         "LLMChatter: Cleaned up group {} "
@@ -3091,8 +3201,11 @@ public:
                 safeMsg.substr(0, lastChar + 1);
         if (safeMsg.empty())
             return true;
-        if (safeMsg.size() > 250)
-            safeMsg = safeMsg.substr(0, 250);
+        if (safeMsg.size()
+            > sLLMChatterConfig->_maxMessageLength)
+            safeMsg = safeMsg.substr(
+                0,
+                sLLMChatterConfig->_maxMessageLength);
 
         uint32 zoneId = player->GetZoneId();
         std::string playerName = player->GetName();
@@ -3106,14 +3219,18 @@ public:
             EscapeString(playerName),
             EscapeString(safeMsg));
 
-        // Prune history to 15 per zone
+        // Prune history per zone
         CharacterDatabase.Execute(
             "DELETE FROM llm_general_chat_history "
             "WHERE zone_id = {} AND id NOT IN "
             "(SELECT id FROM (SELECT id FROM "
             "llm_general_chat_history "
             "WHERE zone_id = {} "
-            "ORDER BY id DESC LIMIT 15) AS keep)",
+            "ORDER BY id DESC LIMIT "
+            + std::to_string(
+                sLLMChatterConfig
+                    ->_generalChatHistoryLimit)
+            + ") AS keep)",
             zoneId, zoneId);
 
         // Per-zone cooldown
@@ -3172,13 +3289,16 @@ public:
                 if (p->GetZoneId() != zoneId)
                     continue;
                 zoneBots.push_back(p);
-                if (zoneBots.size() >= 8)
+                if (zoneBots.size()
+                    >= sLLMChatterConfig
+                        ->_maxBotsPerZone)
                     break;
             }
         }
 
         // 2) Random bots fill remaining slots
-        if (zoneBots.size() < 8)
+        if (zoneBots.size()
+            < sLLMChatterConfig->_maxBotsPerZone)
         {
             auto allBots =
                 sRandomPlayerbotMgr.GetAllBots();
@@ -3203,7 +3323,9 @@ public:
                 if (!found)
                 {
                     zoneBots.push_back(bot);
-                    if (zoneBots.size() >= 8)
+                    if (zoneBots.size()
+                        >= sLLMChatterConfig
+                            ->_maxBotsPerZone)
                         break;
                 }
             }
@@ -4180,8 +4302,11 @@ public:
             safeMsg = safeMsg.substr(0, lastChar + 1);
         if (safeMsg.empty())
             return;
-        if (safeMsg.size() > 250)
-            safeMsg = safeMsg.substr(0, 250);
+        if (safeMsg.size()
+            > sLLMChatterConfig->_maxMessageLength)
+            safeMsg = safeMsg.substr(
+                0,
+                sLLMChatterConfig->_maxMessageLength);
 
         // Always store in chat history
         CharacterDatabase.Execute(
@@ -4593,7 +4718,9 @@ public:
                 uint64, time_t> _questCompleteCd;
             auto it = _questCompleteCd.find(questKey);
             if (it != _questCompleteCd.end()
-                && (now - it->second) < 30)
+                && (now - it->second)
+                   < (time_t)sLLMChatterConfig
+                       ->_questDeduplicationWindow)
             {
                 LOG_INFO("module",
                     "LLMChatter: QuestComplete "
@@ -4877,8 +5004,8 @@ public:
             return;
 
         // Per-group rate limiter: max 1 spell event
-        // per 45 seconds. Check BEFORE any spell
-        // classification work (cheapest filter first).
+        // per configured seconds. Check BEFORE any
+        // spell classification (cheapest filter first).
         uint32 groupId =
             group->GetGUID().GetCounter();
         time_t now = time(nullptr);
@@ -4886,7 +5013,9 @@ public:
             auto it =
                 _groupSpellCooldowns.find(groupId);
             if (it != _groupSpellCooldowns.end()
-                && (now - it->second) < 45)
+                && (now - it->second)
+                    < sLLMChatterConfig
+                        ->_groupSpellCastCooldown)
                 return;
         }
 
@@ -4919,8 +5048,8 @@ public:
             return;
 
         // --- Classify the spell ---
-        // Categories: heal, cc, resurrect, shield,
-        // buff
+        // Categories: heal, dispel, cc, resurrect,
+        // shield, buff
         std::string spellCategory;
 
         // 1. RESURRECT — check first (rare, always
@@ -4933,10 +5062,13 @@ public:
         }
         // 2. HEAL — must target a different player
         //    in the same group (not self-heal)
+        //    Includes HoTs (Renew, Rejuvenation, etc.)
         else if (
             spellInfo->HasEffect(SPELL_EFFECT_HEAL)
             || spellInfo->HasEffect(
-                   SPELL_EFFECT_HEAL_MAX_HEALTH))
+                   SPELL_EFFECT_HEAL_MAX_HEALTH)
+            || spellInfo->HasAura(
+                   SPELL_AURA_PERIODIC_HEAL))
         {
             Unit* target =
                 spell->m_targets.GetUnitTarget();
@@ -4956,7 +5088,29 @@ public:
 
             spellCategory = "heal";
         }
-        // 3. CC (Crowd Control) — stun, root, fear,
+        // 3. DISPEL — removing debuffs from a
+        //    groupmate (Cleanse, Dispel Magic, etc.)
+        else if (
+            spellInfo->HasEffect(SPELL_EFFECT_DISPEL))
+        {
+            Unit* target =
+                spell->m_targets.GetUnitTarget();
+            if (!target || target == player)
+                return;
+
+            Player* targetPlayer =
+                target->ToPlayer();
+            if (!targetPlayer)
+                return;
+
+            if (!targetPlayer->GetGroup()
+                || targetPlayer->GetGroup()
+                       != group)
+                return;
+
+            spellCategory = "dispel";
+        }
+        // 4. CC (Crowd Control) — stun, root, fear,
         //    charm, confuse (polymorph etc.)
         else if (
             spellInfo->HasAura(
@@ -4972,8 +5126,9 @@ public:
         {
             spellCategory = "cc";
         }
-        // 4. SHIELD/IMMUNITY — positive spell with
-        //    immunity or absorb aura
+        // 5. SHIELD/IMMUNITY — positive spell with
+        //    immunity, absorb, or damage reduction
+        //    (Pain Suppression, Guardian Spirit, etc.)
         else if (spellInfo->IsPositive()
             && (spellInfo->HasAura(
                     SPELL_AURA_SCHOOL_IMMUNITY)
@@ -4982,13 +5137,20 @@ public:
                 || spellInfo->HasAura(
                        SPELL_AURA_MECHANIC_IMMUNITY)
                 || spellInfo->HasAura(
-                       SPELL_AURA_SCHOOL_ABSORB)))
+                       SPELL_AURA_SCHOOL_ABSORB)
+                || spellInfo->HasAura(
+                       SPELL_AURA_MOD_DAMAGE_PERCENT_TAKEN)
+                || spellInfo->HasAura(
+                       SPELL_AURA_SPLIT_DAMAGE_PCT)
+                || spellInfo->HasAura(
+                       SPELL_AURA_SPLIT_DAMAGE_FLAT)))
         {
             spellCategory = "shield";
         }
-        // 5. BUFF — positive spell on a groupmate
+        // 6. BUFF — positive spell on a groupmate
         //    (not self). Catches MotW, Fort, Kings,
-        //    Arcane Intellect, etc.
+        //    Arcane Intellect, Bloodlust, Innervate,
+        //    etc.
         else if (spellInfo->IsPositive()
             && (spellInfo->HasAura(
                     SPELL_AURA_MOD_STAT)
@@ -5001,23 +5163,37 @@ public:
                 || spellInfo->HasAura(
                     SPELL_AURA_MOD_POWER_REGEN)
                 || spellInfo->HasAura(
-                    SPELL_AURA_MOD_INCREASE_SPEED)))
+                    SPELL_AURA_MOD_POWER_REGEN_PERCENT)
+                || spellInfo->HasAura(
+                    SPELL_AURA_MOD_INCREASE_SPEED)
+                || spellInfo->HasAura(
+                    SPELL_AURA_MOD_MELEE_HASTE)
+                || spellInfo->HasAura(
+                    SPELL_AURA_HASTE_SPELLS)))
         {
-            // Must target a different group member
-            Unit* target =
-                spell->m_targets.GetUnitTarget();
-            if (!target || target == player)
-                return;
+            // Party/raid-wide buffs (Bloodlust,
+            // Prayer of Fortitude, Gift of the Wild,
+            // Greater Blessings) are self/area-targeted
+            // — allow without a distinct friendly target
+            if (!spellInfo->HasAreaAuraEffect())
+            {
+                // Single-target buff: must target
+                // a different group member
+                Unit* target =
+                    spell->m_targets.GetUnitTarget();
+                if (!target || target == player)
+                    return;
 
-            Player* targetPlayer =
-                target->ToPlayer();
-            if (!targetPlayer)
-                return;
+                Player* targetPlayer =
+                    target->ToPlayer();
+                if (!targetPlayer)
+                    return;
 
-            if (!targetPlayer->GetGroup()
-                || targetPlayer->GetGroup()
-                       != group)
-                return;
+                if (!targetPlayer->GetGroup()
+                    || targetPlayer->GetGroup()
+                           != group)
+                    return;
+            }
 
             spellCategory = "buff";
         }
@@ -5065,14 +5241,29 @@ public:
 
         // Determine target name
         std::string targetName;
+        bool isAreaBuff =
+            spellInfo->HasAreaAuraEffect();
         Unit* spellTarget =
             spell->m_targets.GetUnitTarget();
-        if (spellTarget)
+
+        if (isAreaBuff)
+        {
+            // Party-wide: "the group" instead of
+            // a single target name
+            targetName = "the group";
+        }
+        else if (spellTarget)
+        {
             targetName = spellTarget->GetName();
+        }
 
         // Self-cast: no comment needed when a bot
         // casts on itself (e.g. PW:Shield on self)
-        bool isSelfCast = (spellTarget
+        // Exception: area aura buffs (Bloodlust,
+        // Prayer of Fortitude) are self-targeted
+        // but affect the whole group
+        bool isSelfCast = (!isAreaBuff
+            && spellTarget
             && spellTarget->GetGUID()
                    == player->GetGUID());
         if (isSelfCast)
@@ -5658,6 +5849,160 @@ public:
             botName, mapName,
             isRaid ? "yes" : "no");
     }
+
+    // -----------------------------------------------
+    // Hook: Player/bot discovers a new subzone
+    // (exploration XP, xpSource == 3)
+    // -----------------------------------------------
+    void OnPlayerGiveXP(
+        Player* player, uint32& amount,
+        Unit* /*victim*/,
+        uint8 xpSource) override
+    {
+        // Only react to exploration XP
+        // XPSOURCE_EXPLORE = 3 (Player.h:1002)
+        if (xpSource != 3)
+            return;
+
+        if (!sLLMChatterConfig
+            || !sLLMChatterConfig->IsEnabled()
+            || !sLLMChatterConfig->_useEventSystem
+            || !sLLMChatterConfig
+                   ->_useGroupChatter)
+            return;
+
+        if (!player)
+            return;
+
+        Group* group = player->GetGroup();
+        if (!group)
+            return;
+
+        if (!GroupHasRealPlayer(group))
+            return;
+
+        uint32 groupId =
+            group->GetGUID().GetCounter();
+        uint32 areaId = player->GetAreaId();
+
+        // Look up area name from DBC
+        AreaTableEntry const* area =
+            sAreaTableStore.LookupEntry(areaId);
+        if (!area)
+            return;
+        std::string areaName =
+            area->area_name[
+                sWorld->GetDefaultDbcLocale()];
+        if (areaName.empty())
+            areaName =
+                area->area_name[LOCALE_enUS];
+        if (areaName.empty())
+            return;
+
+        // Per-group+area cooldown: prevents
+        // multiple members triggering the same
+        // discovery simultaneously
+        uint64 cdKey =
+            ((uint64)groupId << 32)
+            | (uint64)areaId;
+        time_t now = time(nullptr);
+        auto it =
+            _groupDiscoveryCooldowns.find(cdKey);
+        if (it != _groupDiscoveryCooldowns.end()
+            && (now - it->second)
+               < (time_t)sLLMChatterConfig
+                   ->_groupDiscoveryCooldown)
+            return;
+
+        // RNG chance gate
+        if (urand(1, 100)
+            > sLLMChatterConfig
+                  ->_groupDiscoveryChance)
+            return;
+
+        // Pick a random bot as reactor
+        Player* reactor =
+            GetRandomBotInGroup(group);
+        if (!reactor)
+            return;
+
+        _groupDiscoveryCooldowns[cdKey] = now;
+
+        uint32 botGuid =
+            reactor->GetGUID().GetCounter();
+        std::string botName =
+            reactor->GetName();
+        std::string playerName =
+            player->GetName();
+
+        // Build extra_data JSON
+        std::string extraData = "{"
+            "\"bot_guid\":" +
+                std::to_string(botGuid) + ","
+            "\"bot_name\":\"" +
+                JsonEscape(botName) + "\","
+            "\"bot_class\":" +
+                std::to_string(
+                    reactor->getClass()) + ","
+            "\"bot_race\":" +
+                std::to_string(
+                    reactor->getRace()) + ","
+            "\"bot_level\":" +
+                std::to_string(
+                    reactor->GetLevel()) + ","
+            "\"group_id\":" +
+                std::to_string(groupId) + ","
+            "\"area_id\":" +
+                std::to_string(areaId) + ","
+            "\"area_name\":\"" +
+                JsonEscape(areaName) + "\","
+            "\"xp_amount\":" +
+                std::to_string(amount) + ","
+            "\"player_name\":\"" +
+                JsonEscape(playerName) + "\","
+            "\"player_class\":" +
+                std::to_string(
+                    player->getClass())
+            + "}";
+
+        extraData = EscapeString(extraData);
+
+        uint32 zoneId = player->GetZoneId();
+
+        CharacterDatabase.Execute(
+            "INSERT INTO llm_chatter_events "
+            "(event_type, event_scope, "
+            "zone_id, map_id, priority, "
+            "cooldown_key, subject_guid, "
+            "subject_name, target_guid, "
+            "target_name, target_entry, "
+            "extra_data, status, "
+            "react_after, expires_at) "
+            "VALUES ("
+            "'bot_group_discovery', "
+            "'player', "
+            "{}, {}, 4, '', "
+            "{}, '{}', 0, '{}', 0, "
+            "'{}', 'pending', "
+            "DATE_ADD(NOW(), "
+            "INTERVAL {} SECOND), "
+            "DATE_ADD(NOW(), "
+            "INTERVAL 120 SECOND))",
+            zoneId,
+            player->GetMapId(),
+            botGuid,
+            EscapeString(botName),
+            EscapeString(areaName),
+            extraData,
+            urand(5, 20));
+
+        LOG_INFO("module",
+            "LLMChatter: Queued "
+            "bot_group_discovery "
+            "for {} discovering {} "
+            "(xp={})",
+            botName, areaName, amount);
+    }
 };
 
 // ============================================================
@@ -5833,7 +6178,9 @@ static void CheckGroupCombatState()
             {
                 float hp =
                     bot->GetHealthPct();
-                if (hp > 0 && hp <= 25)
+                if (hp > 0 && hp <=
+                    sLLMChatterConfig
+                        ->_lowHealthThreshold)
                 {
                     auto it =
                         _botLowHealthCooldowns
@@ -5869,7 +6216,9 @@ static void CheckGroupCombatState()
                     float mp =
                         bot->GetPowerPct(
                             POWER_MANA);
-                    if (mp <= 15)
+                    if (mp <=
+                        sLLMChatterConfig
+                            ->_oomThreshold)
                     {
                         auto it =
                             _botOomCooldowns
@@ -5956,6 +6305,174 @@ static void CheckGroupCombatState()
     }
 }
 
+// ================================================
+// AllCreatureScript - Quest Accept hook
+// (no PlayerScript equivalent exists)
+// ================================================
+class LLMChatterCreatureScript
+    : public AllCreatureScript
+{
+public:
+    LLMChatterCreatureScript()
+        : AllCreatureScript(
+              "LLMChatterCreatureScript") {}
+
+    bool CanCreatureQuestAccept(
+        Player* player,
+        Creature* /*creature*/,
+        Quest const* quest) override
+    {
+        if (!sLLMChatterConfig
+            || !sLLMChatterConfig->IsEnabled()
+            || !sLLMChatterConfig->_useEventSystem
+            || !sLLMChatterConfig->_useGroupChatter)
+            return false;
+
+        if (!player || !quest)
+            return false;
+
+        Group* group = player->GetGroup();
+        if (!group)
+            return false;
+
+        if (!GroupHasRealPlayer(group))
+            return false;
+
+        uint32 groupId =
+            group->GetGUID().GetCounter();
+        uint32 questId = quest->GetQuestId();
+
+        // Per-group+quest dedup: only ONE reaction
+        // per quest per group (prevents spam when
+        // accepting multiple quests at same NPC).
+        uint64 questKey =
+            ((uint64)groupId << 32) | questId;
+        time_t now = time(nullptr);
+        static std::unordered_map<
+            uint64, time_t> _questAcceptCd;
+        auto cdIt =
+            _questAcceptCd.find(questKey);
+        if (cdIt != _questAcceptCd.end()
+            && (now - cdIt->second)
+               < (time_t)sLLMChatterConfig
+                   ->_groupQuestAcceptCooldown)
+        {
+            LOG_DEBUG("module",
+                "LLMChatter: QuestAccept "
+                "- dedup skip for {} [{}]",
+                player->GetName(),
+                quest->GetTitle());
+            return false;
+        }
+
+        // RNG chance gate
+        if (urand(1, 100) >
+            sLLMChatterConfig
+                ->_groupQuestAcceptChance)
+            return false;
+
+        // Pick reactor: random bot from group
+        Player* reactor =
+            GetRandomBotInGroup(group);
+
+        if (!reactor)
+            return false;
+
+        _questAcceptCd[questKey] = now;
+
+        uint32 botGuid =
+            reactor->GetGUID().GetCounter();
+        std::string botName =
+            reactor->GetName();
+        std::string playerName =
+            player->GetName();
+        std::string questName =
+            quest->GetTitle();
+        uint32 zoneId = player->GetZoneId();
+        std::string zoneName =
+            GetZoneName(zoneId);
+
+        // Build extra_data JSON
+        // acceptor_* = who accepted the quest
+        // bot_* = who will react to it
+        std::string extraData = "{"
+            "\"bot_guid\":" +
+                std::to_string(botGuid) + ","
+            "\"bot_name\":\"" +
+                JsonEscape(botName) + "\","
+            "\"bot_class\":" +
+                std::to_string(
+                    reactor->getClass()) + ","
+            "\"bot_race\":" +
+                std::to_string(
+                    reactor->getRace()) + ","
+            "\"bot_level\":" +
+                std::to_string(
+                    reactor->GetLevel()) + ","
+            "\"is_bot\":1,"
+            "\"acceptor_is_bot\":" +
+                std::string(
+                    IsPlayerBot(player)
+                        ? "1" : "0") + ","
+            "\"acceptor_name\":\"" +
+                JsonEscape(playerName) + "\","
+            "\"quest_name\":\"" +
+                JsonEscape(questName) + "\","
+            "\"quest_id\":" +
+                std::to_string(questId) + ","
+            "\"quest_level\":" +
+                std::to_string(
+                    quest->GetQuestLevel()) + ","
+            "\"zone_name\":\"" +
+                JsonEscape(zoneName) + "\","
+            "\"group_id\":" +
+                std::to_string(groupId) +
+            "}";
+
+        extraData = EscapeString(extraData);
+
+        std::string cooldownKey =
+            "quest_accept:" +
+            std::to_string(groupId) + ":" +
+            std::to_string(questId);
+
+        CharacterDatabase.Execute(
+            "INSERT INTO llm_chatter_events "
+            "(event_type, event_scope, zone_id, "
+            "map_id, priority, cooldown_key, "
+            "subject_guid, subject_name, "
+            "target_guid, target_name, "
+            "target_entry, extra_data, status, "
+            "react_after, expires_at) "
+            "VALUES ("
+            "'bot_group_quest_accept', "
+            "'player', "
+            "{}, {}, 1, '{}', "
+            "{}, '{}', 0, '{}', {}, "
+            "'{}', 'pending', "
+            "DATE_ADD(NOW(), "
+            "INTERVAL 2 SECOND), "
+            "DATE_ADD(NOW(), "
+            "INTERVAL 120 SECOND))",
+            reactor->GetZoneId(),
+            reactor->GetMapId(),
+            EscapeString(cooldownKey),
+            botGuid, EscapeString(botName),
+            EscapeString(questName),
+            questId,
+            extraData);
+
+        LOG_INFO("module",
+            "LLMChatter: Queued "
+            "bot_group_quest_accept "
+            "for {} accepting [{}]",
+            botName, questName);
+
+        // Return false = don't block quest accept
+        return false;
+    }
+};
+
 // Register scripts
 void AddLLMChatterScripts()
 {
@@ -5964,4 +6481,5 @@ void AddLLMChatterScripts()
     new LLMChatterALEScript();
     new LLMChatterGroupScript();
     new LLMChatterPlayerScript();
+    new LLMChatterCreatureScript();
 }

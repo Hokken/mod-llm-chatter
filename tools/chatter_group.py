@@ -16,6 +16,8 @@ Handles:
 - bot_group_spell_cast: reaction to notable spells
 - bot_group_resurrect: gratitude when rezzed
 - bot_group_zone_transition: comment on new zone
+- bot_group_quest_accept: reaction to quest acceptance
+- bot_group_discovery: reaction to area discovery
 - bot_group_dungeon_entry: reaction to dungeon/raid
 - bot_group_wipe: reaction to total party wipe
 - idle chatter: periodic casual party chat during lulls
@@ -28,6 +30,7 @@ and chatter_prompts.
 import logging
 import random
 import re
+import threading
 import time
 
 # Module-level config defaults (set by init_group_config)
@@ -129,6 +132,7 @@ def _pick_length_hint(mode):
 # Value = (score, last_update_time). Positive = happy,
 # negative = gloomy. Drifts toward 0.
 _bot_mood_scores: dict = {}
+_bot_mood_scores_lock = threading.RLock()
 _MOOD_STALE_SECONDS = 7200  # 2 hours
 
 MOOD_LABELS = [
@@ -160,17 +164,20 @@ MOOD_DRIFT_RATE = 0.5
 
 def _evict_stale_moods():
     """Remove mood entries older than 2 hours."""
-    now = time.time()
-    stale = [
-        k for k, (_, ts) in _bot_mood_scores.items()
-        if now - ts > _MOOD_STALE_SECONDS
-    ]
-    for k in stale:
-        del _bot_mood_scores[k]
-    if stale:
-        logger.debug(
-            f"Evicted {len(stale)} stale mood entries"
-        )
+    with _bot_mood_scores_lock:
+        now = time.time()
+        stale = [
+            k for k, (_, ts)
+            in _bot_mood_scores.items()
+            if now - ts > _MOOD_STALE_SECONDS
+        ]
+        for k in stale:
+            del _bot_mood_scores[k]
+        if stale:
+            logger.debug(
+                f"Evicted {len(stale)} stale "
+                f"mood entries"
+            )
 
 
 def update_bot_mood(
@@ -181,58 +188,69 @@ def update_bot_mood(
 
     Also applies a slow drift toward neutral (0).
     """
-    # Periodic eviction of stale entries
-    if len(_bot_mood_scores) > 50:
-        _evict_stale_moods()
+    with _bot_mood_scores_lock:
+        # Periodic eviction of stale entries
+        if len(_bot_mood_scores) > 50:
+            _evict_stale_moods()
 
-    key = (group_id, bot_guid)
-    entry = _bot_mood_scores.get(key)
-    current = entry[0] if entry else 0.0
+        key = (group_id, bot_guid)
+        entry = _bot_mood_scores.get(key)
+        current = entry[0] if entry else 0.0
 
-    # Drift toward neutral
-    if current > 0:
-        current = max(0, current - MOOD_DRIFT_RATE)
-    elif current < 0:
-        current = min(0, current + MOOD_DRIFT_RATE)
+        # Drift toward neutral
+        if current > 0:
+            current = max(
+                0, current - MOOD_DRIFT_RATE
+            )
+        elif current < 0:
+            current = min(
+                0, current + MOOD_DRIFT_RATE
+            )
 
-    # Apply event delta
-    delta = MOOD_DELTAS.get(event_type, 0.0)
-    current += delta
+        # Apply event delta
+        delta = MOOD_DELTAS.get(event_type, 0.0)
+        current += delta
 
-    # Clamp to [-6, 6]
-    current = max(-6.0, min(6.0, current))
-    _bot_mood_scores[key] = (current, time.time())
+        # Clamp to [-6, 6]
+        current = max(-6.0, min(6.0, current))
+        _bot_mood_scores[key] = (
+            current, time.time()
+        )
 
-    label = get_bot_mood_label(group_id, bot_guid)
-    logger.info(
-        f"Mood update: bot {bot_guid} in group "
-        f"{group_id}: {event_type} -> "
-        f"{current:.1f} ({label})"
-    )
+        label = get_bot_mood_label(
+            group_id, bot_guid
+        )
+        logger.info(
+            f"Mood update: bot {bot_guid} in "
+            f"group {group_id}: {event_type} "
+            f"-> {current:.1f} ({label})"
+        )
 
 
 def get_bot_mood_label(
     group_id: int, bot_guid: int,
 ) -> str:
     """Get human-readable mood label for a bot."""
-    entry = _bot_mood_scores.get(
-        (group_id, bot_guid)
-    )
-    score = entry[0] if entry else 0.0
-    for low, high, label in MOOD_LABELS:
-        if low <= score < high:
-            return label
-    return 'neutral'
+    with _bot_mood_scores_lock:
+        entry = _bot_mood_scores.get(
+            (group_id, bot_guid)
+        )
+        score = entry[0] if entry else 0.0
+        for low, high, label in MOOD_LABELS:
+            if low <= score < high:
+                return label
+        return 'neutral'
 
 
 def cleanup_group_moods(group_id: int):
     """Remove mood data for a disbanded group."""
-    keys_to_remove = [
-        k for k in _bot_mood_scores
-        if k[0] == group_id
-    ]
-    for k in keys_to_remove:
-        del _bot_mood_scores[k]
+    with _bot_mood_scores_lock:
+        keys_to_remove = [
+            k for k in _bot_mood_scores
+            if k[0] == group_id
+        ]
+        for k in keys_to_remove:
+            del _bot_mood_scores[k]
 
 
 # ============================================================
@@ -1689,7 +1707,8 @@ def build_spell_cast_reaction_prompt(
     allow_action=True,
 ):
     """Build prompt for a bot reacting to a notable
-    spell cast (heal, cc, resurrect, shield, buff).
+    spell cast (heal, cc, resurrect, shield, buff,
+    dispel).
 
     Args:
         bot: dict with name, class, race, level
@@ -1697,7 +1716,7 @@ def build_spell_cast_reaction_prompt(
         caster_name: who cast the spell
         spell_name: name of the spell cast
         spell_category: heal, cc, resurrect, shield,
-            buff
+            buff, dispel
         target_name: who was targeted
         mode: 'normal' or 'roleplay'
         chat_history: formatted recent chat string
@@ -1778,6 +1797,13 @@ def build_spell_cast_reaction_prompt(
                 f"enemy with {spell_name}. Say "
                 f"something quick about it."
             )
+        elif spell_category == 'dispel':
+            situation = (
+                f"You just cleansed {target_name} "
+                f"with {spell_name}, removing a "
+                f"harmful effect. Say something "
+                f"brief about it."
+            )
         else:
             situation = (
                 f"You just cast {spell_name}"
@@ -1811,6 +1837,12 @@ def build_spell_cast_reaction_prompt(
             situation = (
                 f"{caster_name} just buffed "
                 f"{target_name} with {spell_name}"
+            )
+        elif spell_category == 'dispel':
+            situation = (
+                f"{caster_name} just cleansed "
+                f"{target_name} with {spell_name}, "
+                f"removing a harmful effect"
             )
         else:
             situation = (
@@ -4684,6 +4716,373 @@ def process_group_zone_transition_event(
         return False
 
 
+def process_group_quest_accept_event(
+    db, client, config, event
+):
+    """Handle a bot_group_quest_accept event.
+
+    A bot reacts to the group accepting a new quest.
+    The C++ hook pre-selects the reactor bot.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_quest_accept'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    # C++ pre-selects the reactor (bot_guid/name)
+    reactor_guid = int(
+        extra_data.get('bot_guid', 0)
+    )
+    reactor_name = extra_data.get(
+        'bot_name', 'Unknown'
+    )
+    acceptor_name = extra_data.get(
+        'acceptor_name',
+        extra_data.get('bot_name', 'someone')
+    )
+    acceptor_is_bot = bool(int(
+        extra_data.get('acceptor_is_bot', 0)
+    ))
+    quest_name = extra_data.get(
+        'quest_name', 'a quest'
+    )
+    quest_level = int(
+        extra_data.get('quest_level', 0)
+    )
+    zone_name = extra_data.get(
+        'zone_name', 'somewhere'
+    )
+    group_id = int(
+        extra_data.get('group_id', 0)
+    )
+
+    if not reactor_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    trait_data = get_bot_traits(
+        db, group_id, reactor_guid
+    )
+    if not trait_data:
+        logger.info(
+            f"Quest accept event "
+            f"#{event_id}: no traits for "
+            f"{reactor_name}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+    reactor_traits = trait_data['traits']
+
+    bot_class = extra_data.get(
+        'bot_class', 'Warrior'
+    )
+    bot_race = extra_data.get(
+        'bot_race', 'Human'
+    )
+    bot_level = int(
+        extra_data.get('bot_level', 1)
+    )
+
+    reactor = {
+        'guid': reactor_guid,
+        'name': reactor_name,
+        'class': bot_class,
+        'race': bot_race,
+        'level': bot_level,
+    }
+
+    logger.info(
+        f"Processing quest accept reaction: "
+        f"{reactor_name} reacts to "
+        f"{acceptor_name} accepting "
+        f"\"{quest_name}\""
+    )
+
+    # Mark as processing
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
+        prompt = (
+            build_quest_accept_reaction_prompt(
+                reactor, reactor_traits,
+                acceptor_name, quest_name,
+                acceptor_is_bot, quest_level,
+                zone_name, mode,
+                chat_history=chat_hist,
+                allow_action=allow_action,
+            )
+        )
+        mood_label = get_bot_mood_label(
+            group_id, reactor_guid
+        )
+        if mood_label != 'neutral':
+            prompt += (
+                f"\nCurrent mood: {mood_label}"
+            )
+
+        max_tokens = int(config.get(
+            'LLMChatter.MaxTokens', 200
+        ))
+        response = call_llm(
+            client, prompt, config,
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-qacc:#{event_id}"
+                f":{reactor_name}"
+            )
+        )
+
+        if not response:
+            logger.warning(
+                f"Group quest accept #{event_id}: "
+                f"LLM returned no response"
+            )
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        parsed = parse_single_response(response)
+        message = strip_speaker_prefix(
+            parsed['message'], reactor_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
+        )
+        if not message:
+            logger.warning(
+                "Empty message after cleanup"
+            )
+            _mark_event(db, event_id, 'skipped')
+            return False
+        if len(message) > 255:
+            message = message[:252] + "..."
+
+        logger.info(
+            f"Quest accept reaction from "
+            f"{reactor_name}: {message}"
+        )
+
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
+        insert_chat_message(
+            db, reactor_guid, reactor_name,
+            message, channel='party',
+            delay_seconds=2, event_id=event_id,
+            emote=emote,
+        )
+
+        _store_chat(
+            db, group_id, reactor_guid,
+            reactor_name, True, message
+        )
+
+        update_bot_mood(
+            group_id, reactor_guid, 'quest'
+        )
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing quest accept "
+            f"event #{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+
+def process_group_discovery_event(
+    db, client, config, event
+):
+    """Handle a bot_group_discovery event.
+
+    A bot reacts to the group discovering a new area.
+    The C++ hook pre-selects the reactor bot.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_discovery'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'someone'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+    area_name = extra_data.get(
+        'area_name', 'somewhere new'
+    )
+    xp_amount = int(
+        extra_data.get('xp_amount', 0)
+    )
+    player_name = extra_data.get(
+        'player_name', 'someone'
+    )
+    player_class = extra_data.get(
+        'player_class', 'adventurer'
+    )
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        logger.info(
+            f"Discovery event #{event_id}: "
+            f"no traits for bot {bot_name} "
+            f"in group {group_id}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    bot_class = extra_data.get(
+        'bot_class', 'Warrior'
+    )
+    bot_race = extra_data.get(
+        'bot_race', 'Human'
+    )
+    bot_level = int(
+        extra_data.get('bot_level', 1)
+    )
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': bot_class,
+        'race': bot_race,
+        'level': bot_level,
+    }
+
+    logger.info(
+        f"Processing discovery reaction: "
+        f"{bot_name} discovers {area_name}"
+    )
+
+    # Mark as processing
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
+        prompt = build_discovery_reaction_prompt(
+            bot, traits, area_name, player_name,
+            player_class, xp_amount, mode,
+            chat_history=chat_hist,
+            allow_action=allow_action,
+        )
+        mood_label = get_bot_mood_label(
+            group_id, bot_guid
+        )
+        if mood_label != 'neutral':
+            prompt += (
+                f"\nCurrent mood: {mood_label}"
+            )
+
+        max_tokens = int(config.get(
+            'LLMChatter.MaxTokens', 200
+        ))
+        response = call_llm(
+            client, prompt, config,
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-disc:#{event_id}"
+                f":{bot_name}"
+            )
+        )
+
+        if not response:
+            logger.warning(
+                f"Group discovery #{event_id}: "
+                f"LLM returned no response"
+            )
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        parsed = parse_single_response(response)
+        message = strip_speaker_prefix(
+            parsed['message'], bot_name
+        )
+        message = cleanup_message(
+            message, action=parsed.get('action')
+        )
+        if not message:
+            _mark_event(db, event_id, 'skipped')
+            return False
+        if len(message) > 255:
+            message = message[:252] + "..."
+
+        logger.info(
+            f"Discovery reaction from "
+            f"{bot_name}: {message}"
+        )
+
+        emote = (
+            parsed.get('emote')
+            or pick_emote_for_statement(message)
+        )
+        insert_chat_message(
+            db, bot_guid, bot_name, message,
+            channel='party', delay_seconds=2,
+            event_id=event_id, emote=emote,
+        )
+
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing discovery "
+            f"event #{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+
 def process_group_dungeon_entry_event(
     db, client, config, event
 ):
@@ -6234,6 +6633,219 @@ def build_zone_transition_prompt(
     )
 
 
+def build_quest_accept_reaction_prompt(
+    bot, traits, acceptor_name, quest_name,
+    acceptor_is_bot, quest_level, zone_name,
+    mode, chat_history="", allow_action=True,
+):
+    """Build prompt for a bot reacting to the group
+    accepting a new quest. Tone varies: excited,
+    curious, cautious, matter-of-fact depending
+    on personality.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
+    twist = maybe_get_creative_twist(
+        chance=1.0, mode=mode
+    )
+
+    logger.info(
+        f"Group quest accept creativity: "
+        f"tone={tone}, mood={mood}, twist={twist}"
+    )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class']
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    # If the reacting bot is the acceptor, use
+    # "we" language. Otherwise, react to someone
+    # else accepting.
+    if acceptor_is_bot:
+        quest_context = (
+            f"Your group just accepted the quest "
+            f"\"{quest_name}\" (level {quest_level})"
+            f" in {zone_name}. This is something "
+            f"you all picked up together — use "
+            f"'we' language."
+        )
+    else:
+        quest_context = (
+            f"{acceptor_name} just accepted the "
+            f"quest \"{quest_name}\" (level "
+            f"{quest_level}) for the group in "
+            f"{zone_name}. React to the new quest."
+        )
+
+    level_diff = int(bot['level']) - int(quest_level)
+    if level_diff < -3:
+        difficulty_note = (
+            " This quest is above your level — "
+            "it could be challenging."
+        )
+    elif level_diff > 5:
+        difficulty_note = (
+            " This quest is well below your level "
+            "— should be easy."
+        )
+    else:
+        difficulty_note = ""
+
+    quest_context += difficulty_note
+
+    if is_rp:
+        style = (
+            "React in-character about accepting "
+            "this new quest. Show curiosity, "
+            "eagerness, reluctance, or caution "
+            "based on your personality."
+        )
+    else:
+        style = (
+            "Make a casual comment about picking "
+            "up a new quest. Natural and brief."
+        )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+        f"Your tone: {tone}\n"
+        f"Your mood: {mood}\n"
+    )
+    if twist:
+        prompt += f"Creative twist: {twist}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{quest_context}\n\n"
+        f"{style}\n\n"
+        f"Say a reaction in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, no emojis\n"
+        f"- Can mention the quest by name\n"
+        f"- Reflect your personality traits\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
+    )
+    spices = pick_personality_spices(
+        mode=mode, spice_count_override=_spice_count
+    )
+    if spices:
+        prompt += (
+            "\nBackground feelings (texture, "
+            "not the topic): "
+            + "; ".join(spices)
+        )
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+
+def build_discovery_reaction_prompt(
+    bot, traits, area_name, player_name,
+    player_class, xp_amount, mode,
+    chat_history="", allow_action=True,
+):
+    """Build prompt for a bot reacting to the group
+    discovering a new area. Should feel like arriving
+    somewhere new — wonder, excitement, caution, or
+    recognition depending on personality.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
+    twist = maybe_get_creative_twist(
+        chance=1.0, mode=mode
+    )
+
+    logger.info(
+        f"Group discovery creativity: "
+        f"tone={tone}, mood={mood}, twist={twist}"
+    )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class']
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    discovery_context = (
+        f"Your group just discovered a new area: "
+        f"{area_name}! This is a first-time "
+        f"discovery — the group has never been "
+        f"here before."
+    )
+
+    if is_rp:
+        style = (
+            "React in-character to discovering "
+            "this new place. Comment on the "
+            "scenery, what you've heard about it, "
+            "whether it looks dangerous, or the "
+            "thrill of exploring together."
+        )
+    else:
+        style = (
+            "Make a casual comment about "
+            "discovering a new area. Natural "
+            "and brief — like an explorer "
+            "reacting to a new place."
+        )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+        f"Your tone: {tone}\n"
+        f"Your mood: {mood}\n"
+    )
+    if twist:
+        prompt += f"Creative twist: {twist}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{discovery_context}\n\n"
+        f"{style}\n\n"
+        f"Say a reaction in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, no emojis\n"
+        f"- Can mention {area_name} by name\n"
+        f"- Reflect your personality traits\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
+    )
+    spices = pick_personality_spices(
+        mode=mode, spice_count_override=_spice_count
+    )
+    if spices:
+        prompt += (
+            "\nBackground feelings (texture, "
+            "not the topic): "
+            + "; ".join(spices)
+        )
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+
 def build_dungeon_entry_prompt(
     bot, traits, map_name, is_raid, zone_id,
     mode, chat_history="", allow_action=True,
@@ -7029,6 +7641,8 @@ GROUP_IDLE_TOPICS = [
 
 # Track last idle chatter per group
 _last_idle_chatter = {}
+_idle_inflight = set()
+_last_idle_chatter_lock = threading.Lock()
 
 
 def build_idle_chatter_prompt(
@@ -7519,15 +8133,13 @@ def check_idle_group_chatter(
 
     Returns True if a message was generated.
     """
-    global _last_idle_chatter
-
-    # Prune stale entries (older than 30 min)
-    cutoff = time.time() - 1800
-    _last_idle_chatter = {
-        gid: ts for gid, ts in
-        _last_idle_chatter.items()
-        if ts > cutoff
-    }
+    # Read config values (with defaults)
+    idle_chance = int(config.get(
+        'LLMChatter.GroupChatter.IdleChance', 15
+    ))
+    idle_cooldown = int(config.get(
+        'LLMChatter.GroupChatter.IdleCooldown', 30
+    ))
 
     # Get all active groups from bot traits
     cursor = db.cursor(dictionary=True)
@@ -7544,126 +8156,144 @@ def check_idle_group_chatter(
     group = random.choice(groups)
     group_id = group['group_id']
 
-    # Read config values (with defaults)
-    idle_chance = int(config.get(
-        'LLMChatter.GroupChatter.IdleChance', 15
-    ))
-    idle_cooldown = int(config.get(
-        'LLMChatter.GroupChatter.IdleCooldown', 30
-    ))
+    # Atomic cooldown check + inflight reservation
+    with _last_idle_chatter_lock:
+        # Prune stale entries (older than 30 min)
+        cutoff = time.time() - 1800
+        for k in list(_last_idle_chatter):
+            if _last_idle_chatter[k] <= cutoff:
+                del _last_idle_chatter[k]
 
-    # Pure RNG with minimum gap
-    last_idle = _last_idle_chatter.get(group_id, 0)
-    now = time.time()
-
-    if now - last_idle < idle_cooldown:
-        return False
-
-    if random.randint(1, 100) > idle_chance:
-        return False
-
-    # Get all bots in this group
-    cursor.execute("""
-        SELECT bot_guid, bot_name,
-               trait1, trait2, trait3, role
-        FROM llm_group_bot_traits
-        WHERE group_id = %s
-        ORDER BY RAND()
-    """, (group_id,))
-    all_bots = cursor.fetchall()
-
-    if not all_bots:
-        return False
-
-    idle_history_limit = int(config.get(
-        'LLMChatter.GroupChatter.IdleHistoryLimit', 5
-    ))
-
-    mode = get_chatter_mode(config)
-    history = _get_recent_chat(
-        db, group_id, limit=idle_history_limit
-    )
-    chat_hist = format_chat_history(history)
-    members = get_group_members(db, group_id)
-
-    # Get context: player name, zone, weather
-    player_name = get_group_player_name(
-        db, group_id
-    )
-
-    # Get zone/map from first bot's character
-    cursor.execute("""
-        SELECT zone, map
-        FROM characters WHERE guid = %s
-    """, (all_bots[0]['bot_guid'],))
-    loc_row = cursor.fetchone()
-    zone_id = (
-        int(loc_row['zone']) if loc_row else 0
-    )
-    map_id = (
-        int(loc_row['map']) if loc_row else 0
-    )
-
-    current_weather = (
-        get_recent_weather(db, zone_id)
-        if zone_id else None
-    )
-
-    # Get dungeon bosses if in a dungeon
-    in_dungeon = get_dungeon_flavor(map_id) is not None
-    dungeon_bosses = (
-        get_dungeon_bosses(db, map_id)
-        if in_dungeon else []
-    )
-
-    # Log gathered context
-    bot_names_str = ', '.join(
-        b['bot_name'] for b in all_bots
-    )
-    logger.info(
-        f"Idle chatter context: group={group_id}, "
-        f"bots=[{bot_names_str}], "
-        f"player={player_name}, "
-        f"zone={zone_id}, map={map_id}, "
-        f"in_dungeon={in_dungeon}, "
-        f"weather={current_weather}, "
-        f"bosses={len(dungeon_bosses)}, "
-        f"history={len(history)} msgs"
-    )
-
-    conv_bias = int(config.get(
-        'LLMChatter.GroupChatter.ConversationBias', 70
-    ))
-    use_conversation = (
-        random.randint(1, 100) <= conv_bias
-        and len(all_bots) >= 2
-    )
-
-    logger.info(
-        f"Idle chatter mode: "
-        f"{'conversation' if use_conversation else 'statement'}"
-        f" ({len(all_bots)} bots in group)"
-    )
-
-    if use_conversation:
-        return _idle_conversation(
-            db, client, config, group_id,
-            all_bots, mode,
-            chat_hist, members, now,
-            current_weather=current_weather,
-            player_name=player_name,
-            dungeon_bosses=dungeon_bosses,
+        now = time.time()
+        last_idle = _last_idle_chatter.get(
+            group_id, 0
         )
-    else:
-        return _idle_single_statement(
-            db, client, config, group_id,
-            all_bots, mode,
-            chat_hist, members, now,
-            zone_id=zone_id, map_id=map_id,
-            current_weather=current_weather,
-            player_name=player_name,
-            dungeon_bosses=dungeon_bosses,
+        if now - last_idle < idle_cooldown:
+            return False
+        if group_id in _idle_inflight:
+            return False
+        _idle_inflight.add(group_id)
+
+    try:
+        if random.randint(1, 100) > idle_chance:
+            return False
+
+        # Get all bots in this group
+        cursor.execute("""
+            SELECT bot_guid, bot_name,
+                   trait1, trait2, trait3, role
+            FROM llm_group_bot_traits
+            WHERE group_id = %s
+            ORDER BY RAND()
+        """, (group_id,))
+        all_bots = cursor.fetchall()
+
+        if not all_bots:
+            return False
+
+        idle_history_limit = int(config.get(
+            'LLMChatter.GroupChatter.'
+            'IdleHistoryLimit', 5
+        ))
+
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(
+            db, group_id,
+            limit=idle_history_limit
         )
+        chat_hist = format_chat_history(history)
+        members = get_group_members(
+            db, group_id
+        )
+
+        # Get context: player name, zone, weather
+        player_name = get_group_player_name(
+            db, group_id
+        )
+
+        # Get zone/map from first bot's character
+        cursor.execute("""
+            SELECT zone, map
+            FROM characters WHERE guid = %s
+        """, (all_bots[0]['bot_guid'],))
+        loc_row = cursor.fetchone()
+        zone_id = (
+            int(loc_row['zone'])
+            if loc_row else 0
+        )
+        map_id = (
+            int(loc_row['map'])
+            if loc_row else 0
+        )
+
+        current_weather = (
+            get_recent_weather(db, zone_id)
+            if zone_id else None
+        )
+
+        # Get dungeon bosses if in a dungeon
+        in_dungeon = (
+            get_dungeon_flavor(map_id) is not None
+        )
+        dungeon_bosses = (
+            get_dungeon_bosses(db, map_id)
+            if in_dungeon else []
+        )
+
+        # Log gathered context
+        bot_names_str = ', '.join(
+            b['bot_name'] for b in all_bots
+        )
+        logger.info(
+            f"Idle chatter context: "
+            f"group={group_id}, "
+            f"bots=[{bot_names_str}], "
+            f"player={player_name}, "
+            f"zone={zone_id}, map={map_id}, "
+            f"in_dungeon={in_dungeon}, "
+            f"weather={current_weather}, "
+            f"bosses={len(dungeon_bosses)}, "
+            f"history={len(history)} msgs"
+        )
+
+        conv_bias = int(config.get(
+            'LLMChatter.GroupChatter.'
+            'ConversationBias', 70
+        ))
+        use_conversation = (
+            random.randint(1, 100) <= conv_bias
+            and len(all_bots) >= 2
+        )
+
+        logger.info(
+            f"Idle chatter mode: "
+            f"{'conversation' if use_conversation else 'statement'}"
+            f" ({len(all_bots)} bots in group)"
+        )
+
+        if use_conversation:
+            result = _idle_conversation(
+                db, client, config, group_id,
+                all_bots, mode,
+                chat_hist, members, now,
+                current_weather=current_weather,
+                player_name=player_name,
+                dungeon_bosses=dungeon_bosses,
+            )
+        else:
+            result = _idle_single_statement(
+                db, client, config, group_id,
+                all_bots, mode,
+                chat_hist, members, now,
+                zone_id=zone_id, map_id=map_id,
+                current_weather=current_weather,
+                player_name=player_name,
+                dungeon_bosses=dungeon_bosses,
+            )
+        return result
+    finally:
+        with _last_idle_chatter_lock:
+            _idle_inflight.discard(group_id)
 
 
 def _idle_single_statement(
@@ -7680,7 +8310,6 @@ def _idle_single_statement(
     - 2+ bots: randomly pick between player,
       another bot, or general group comment
     """
-    global _last_idle_chatter
 
     bot_row = all_bots[0]
     bot_guid = bot_row['bot_guid']
@@ -7818,7 +8447,8 @@ def _idle_single_statement(
             bot_name, True, message
         )
 
-        _last_idle_chatter[group_id] = now
+        with _last_idle_chatter_lock:
+            _last_idle_chatter[group_id] = now
         return True
 
     except Exception as e:
@@ -7841,7 +8471,6 @@ def _idle_conversation(
     inserts staggered messages, and stores in
     chat history.
     """
-    global _last_idle_chatter
 
     # Pick how many bots participate (2 to 4)
     num_bots = random.randint(
@@ -8028,7 +8657,8 @@ def _idle_conversation(
 
             prev_len = len(text)
 
-        _last_idle_chatter[group_id] = now
+        with _last_idle_chatter_lock:
+            _last_idle_chatter[group_id] = now
         return True
 
     except Exception as e:

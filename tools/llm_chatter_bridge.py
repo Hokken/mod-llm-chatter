@@ -21,7 +21,9 @@ import json
 import logging
 import random
 import sys
+import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from typing import List
 
 import anthropic
@@ -97,6 +99,8 @@ from chatter_group import (
     process_group_spell_cast_event,
     process_group_resurrect_event,
     process_group_zone_transition_event,
+    process_group_quest_accept_event,
+    process_group_discovery_event,
     process_group_dungeon_entry_event,
     process_group_wipe_event,
     process_group_corpse_run_event,
@@ -956,277 +960,274 @@ def process_pending_requests(
 # =============================================================================
 # EVENT PROCESSING
 # =============================================================================
-def process_pending_events(
-    db, client, config
-) -> bool:
-    """Process pending events from
-    llm_chatter_events table."""
+def fetch_pending_events(db, config, max_count):
+    """Fetch and atomically claim up to max_count
+    pending events for parallel processing.
+
+    Returns list of claimed event dicts, each with
+    an added '_group_id' key for group serialization.
+    """
     cursor = db.cursor(dictionary=True)
 
-    # First, find where real players are located
-    # (non-RNDBOT accounts)
-    # Then prioritize events in those zones
+    # Single unified query — parallel processing
+    # makes transport-specific priority redundant
     cursor.execute("""
-        SELECT DISTINCT c.zone as player_zone
-        FROM characters c
-        JOIN acore_auth.account a
-            ON c.account = a.id
-        WHERE c.online = 1
-          AND a.username NOT LIKE 'RNDBOT%%'
-    """)
-    player_zones = [
-        row['player_zone']
-        for row in cursor.fetchall()
-    ]
-
-    event = None
-
-    # Prefer transport events in zones where real
-    # players are
-    if player_zones:
-        cursor.execute("""
-            SELECT e.*
-            FROM llm_chatter_events e
-            WHERE e.status = 'pending'
-              AND e.event_type = 'transport_arrives'
-              AND (e.react_after IS NULL
-                   OR e.react_after <= NOW())
-              AND (e.expires_at IS NULL
-                   OR e.expires_at > NOW())
-              AND e.zone_id IN (%s)
-              AND EXISTS (
-                  SELECT 1 FROM characters c
-                  JOIN acore_auth.account a
-                      ON c.account = a.id
-                  WHERE c.online = 1
-                    AND c.zone = e.zone_id
-                    AND a.username LIKE 'RNDBOT%%%%'
-              )
-            ORDER BY e.priority DESC,
-                     e.created_at ASC
-            LIMIT 1
-        """ % ','.join(
-            ['%s'] * len(player_zones)
-        ), tuple(player_zones))
-        event = cursor.fetchone()
-
-    if event:
-        logger.info(
-            f"Prioritizing transport event "
-            f"#{event['id']} in zone "
-            f"{event.get('zone_id')} "
-            f"(player present)"
-        )
-    else:
-        # Get pending events that are ready, but only
-        # if they have bots + real player in-zone
-        # Uses account-based detection:
-        #   RNDBOT% = bot, non-RNDBOT% = real player
-        cursor.execute("""
-            SELECT e.*
-            FROM llm_chatter_events e
-            WHERE e.status = 'pending'
-              AND (e.react_after IS NULL
-                   OR e.react_after <= NOW())
-              AND (e.expires_at IS NULL
-                   OR e.expires_at > NOW())
-              AND (
-                  e.zone_id IS NULL
-                  OR e.zone_id = 0
-                  OR e.event_type LIKE 'bot_group%%'
-                  OR (
-                      EXISTS (
-                          SELECT 1 FROM characters c
-                          JOIN acore_auth.account a
-                              ON c.account = a.id
-                          WHERE c.online = 1
-                            AND c.zone = e.zone_id
-                            AND a.username
-                                LIKE 'RNDBOT%%%%'
-                      )
-                      AND EXISTS (
-                          SELECT 1 FROM characters rp
-                          JOIN acore_auth.account a
-                              ON rp.account = a.id
-                          WHERE rp.online = 1
-                            AND rp.zone = e.zone_id
-                            AND a.username
-                                NOT LIKE 'RNDBOT%%%%'
-                      )
+        SELECT e.*
+        FROM llm_chatter_events e
+        WHERE e.status = 'pending'
+          AND (e.react_after IS NULL
+               OR e.react_after <= NOW())
+          AND (e.expires_at IS NULL
+               OR e.expires_at > NOW())
+          AND (
+              e.zone_id IS NULL
+              OR e.zone_id = 0
+              OR e.event_type LIKE 'bot_group%%'
+              OR (
+                  EXISTS (
+                      SELECT 1 FROM characters c
+                      JOIN acore_auth.account a
+                          ON c.account = a.id
+                      WHERE c.online = 1
+                        AND c.zone = e.zone_id
+                        AND a.username
+                            LIKE 'RNDBOT%%%%'
+                  )
+                  AND EXISTS (
+                      SELECT 1 FROM characters rp
+                      JOIN acore_auth.account a
+                          ON rp.account = a.id
+                      WHERE rp.online = 1
+                        AND rp.zone = e.zone_id
+                        AND a.username
+                            NOT LIKE 'RNDBOT%%%%'
                   )
               )
-            ORDER BY e.priority DESC,
-                     e.created_at ASC
-            LIMIT 1
-        """)
-        event = cursor.fetchone()
+          )
+        ORDER BY e.priority DESC,
+                 e.created_at ASC
+        LIMIT %s
+    """, (max_count,))
+    candidates = cursor.fetchall()
 
-    if not event:
-        return False
+    claimed = []
+    for event in candidates:
+        # Atomic claim via CAS
+        cursor.execute(
+            "UPDATE llm_chatter_events "
+            "SET status = 'processing', "
+            "processed_at = NOW() "
+            "WHERE id = %s AND status = 'pending'",
+            (event['id'],)
+        )
+        db.commit()
+        if cursor.rowcount == 1:
+            # Extract group_id for serialization
+            group_id = None
+            if event.get('event_type', '').startswith(
+                'bot_group'
+            ):
+                try:
+                    extra = event.get('extra_data')
+                    if isinstance(extra, str):
+                        extra = json.loads(extra)
+                    if isinstance(extra, dict):
+                        group_id = extra.get(
+                            'group_id'
+                        )
+                except Exception:
+                    pass
+            event['_group_id'] = group_id
+            claimed.append(event)
 
+    return claimed
+
+
+def process_single_event(event, client, config):
+    """Process a single claimed event with its own
+    DB connection. Designed for concurrent execution
+    in a ThreadPoolExecutor.
+    """
     event_id = event['id']
     event_type = event['event_type']
     zone_id = event.get('zone_id')
-
-    # Group events bypass all zone/bot checks
-    # NOTE: Using logger.warning so group events
-    # remain visible when log level is WARNING
-    if event_type == 'bot_group_join':
-        logger.warning(
-            f"Group event #{event_id}: "
-            f"{event_type}")
-        return process_group_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_kill':
-        logger.warning(
-            f"Group event #{event_id}: "
-            f"{event_type}")
-        return process_group_kill_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_death':
-        logger.warning(
-            f"Group event #{event_id}: "
-            f"{event_type}")
-        return process_group_death_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_loot':
-        logger.warning(
-            f"Group event #{event_id}: "
-            f"{event_type}")
-        return process_group_loot_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_combat':
-        logger.warning(
-            f"Group event #{event_id}: "
-            f"{event_type}")
-        return process_group_combat_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_player_msg':
-        logger.warning(
-            f"Group event #{event_id}: "
-            f"{event_type}")
-        return process_group_player_msg_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_levelup':
-        logger.warning(
-            f"Group event #{event_id}: "
-            f"{event_type}")
-        return process_group_levelup_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_quest_complete':
-        logger.warning(
-            f"Group event #{event_id}: "
-            f"{event_type}")
-        return process_group_quest_complete_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_quest_objectives':
-        logger.warning(
-            f"Group event #{event_id}: "
-            f"{event_type}")
-        return process_group_quest_objectives_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_achievement':
-        logger.warning(
-            f"Group event #{event_id}: "
-            f"{event_type}")
-        return process_group_achievement_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_spell_cast':
-        logger.warning(
-            f"Group event #{event_id}: "
-            f"{event_type}")
-        return process_group_spell_cast_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_resurrect':
-        logger.warning(
-            f"Group event #{event_id}: "
-            f"{event_type}")
-        return process_group_resurrect_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_zone_transition':
-        logger.warning(
-            f"Group event #{event_id}: "
-            f"{event_type}")
-        return process_group_zone_transition_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_dungeon_entry':
-        logger.warning(
-            f"Group event #{event_id}: "
-            f"{event_type}")
-        return process_group_dungeon_entry_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_wipe':
-        logger.warning(
-            f"Group event #{event_id}: "
-            f"{event_type}")
-        return process_group_wipe_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_corpse_run':
-        logger.warning(
-            f"Group event #{event_id}: "
-            f"{event_type}")
-        return process_group_corpse_run_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_low_health':
-        logger.warning(
-            f"State callout #{event_id}: "
-            f"{event_type}")
-        return process_group_low_health_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_oom':
-        logger.warning(
-            f"State callout #{event_id}: "
-            f"{event_type}")
-        return process_group_oom_event(
-            db, client, config, event
-        )
-    if event_type == 'bot_group_aggro_loss':
-        logger.warning(
-            f"State callout #{event_id}: "
-            f"{event_type}")
-        return process_group_aggro_loss_event(
-            db, client, config, event
-        )
-
-    # General channel player message reaction
-    if event_type == 'player_general_msg':
-        logger.warning(
-            f"General chat event #{event_id}: "
-            f"{event_type}")
-        return process_general_player_msg_event(
-            event, db, client, config
-        )
-
-    logger.info(
-        f"Processing event #{event_id}: {event_type}"
-    )
-
-    # Mark as processing
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
+    db = None
     try:
+        db = get_db_connection(config)
+        cursor = db.cursor(dictionary=True)
+
+        # Group events bypass all zone/bot checks
+        # NOTE: Using logger.warning so group events
+        # remain visible when log level is WARNING
+        if event_type == 'bot_group_join':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return process_group_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_kill':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return process_group_kill_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_death':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return process_group_death_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_loot':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return process_group_loot_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_combat':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return process_group_combat_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_player_msg':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return process_group_player_msg_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_levelup':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return process_group_levelup_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_quest_complete':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return process_group_quest_complete_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_quest_objectives':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return (
+                process_group_quest_objectives_event(
+                    db, client, config, event
+                )
+            )
+        if event_type == 'bot_group_achievement':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return process_group_achievement_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_spell_cast':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return process_group_spell_cast_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_resurrect':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return process_group_resurrect_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_zone_transition':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return (
+                process_group_zone_transition_event(
+                    db, client, config, event
+                )
+            )
+        if event_type == 'bot_group_quest_accept':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return process_group_quest_accept_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_discovery':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return process_group_discovery_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_dungeon_entry':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return process_group_dungeon_entry_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_wipe':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return process_group_wipe_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_corpse_run':
+            logger.warning(
+                f"Group event #{event_id}: "
+                f"{event_type}")
+            return process_group_corpse_run_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_low_health':
+            logger.warning(
+                f"State callout #{event_id}: "
+                f"{event_type}")
+            return process_group_low_health_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_oom':
+            logger.warning(
+                f"State callout #{event_id}: "
+                f"{event_type}")
+            return process_group_oom_event(
+                db, client, config, event
+            )
+        if event_type == 'bot_group_aggro_loss':
+            logger.warning(
+                f"State callout #{event_id}: "
+                f"{event_type}")
+            return process_group_aggro_loss_event(
+                db, client, config, event
+            )
+
+        # General channel player message reaction
+        if event_type == 'player_general_msg':
+            logger.warning(
+                f"General chat event #{event_id}: "
+                f"{event_type}")
+            return process_general_player_msg_event(
+                event, db, client, config
+            )
+
+        logger.info(
+            f"Processing event #{event_id}: "
+            f"{event_type}"
+        )
+
+        # Event already claimed as 'processing' by
+        # fetch_pending_events — no need to mark again
+
         # Build event context
         event_context = build_event_context(event)
 
@@ -1389,7 +1390,7 @@ def process_pending_events(
         # (bots confirmed in General channel),
         # filter to only those bots.
         # Empty list [] is authoritative: means
-        # C++ found zero bots in channel → skip.
+        # C++ found zero bots in channel -> skip.
         verified = extra_data.get('verified_bots')
         if isinstance(verified, list):
             if not verified:
@@ -1410,7 +1411,8 @@ def process_pending_events(
             )
             recent_bots = [
                 b for b in recent_bots
-                if int(b['bot1_guid']) in verified_set
+                if int(b['bot1_guid'])
+                in verified_set
             ]
             if not recent_bots:
                 cursor.execute(
@@ -1439,10 +1441,12 @@ def process_pending_events(
             and event_type != 'transport_arrives'
         ):
             fatigue_threshold = int(config.get(
-                'LLMChatter.ZoneFatigueThreshold', 3
+                'LLMChatter.ZoneFatigueThreshold',
+                3
             ))
             fatigue_cooldown = int(config.get(
-                'LLMChatter.ZoneFatigueCooldownSeconds',
+                'LLMChatter.'
+                'ZoneFatigueCooldownSeconds',
                 900
             ))
             cursor.execute("""
@@ -1457,7 +1461,8 @@ def process_pending_events(
             result = cursor.fetchone()
             if (
                 result
-                and result['cnt'] >= fatigue_threshold
+                and result['cnt']
+                >= fatigue_threshold
             ):
                 cursor.execute(
                     "UPDATE llm_chatter_events "
@@ -1470,7 +1475,8 @@ def process_pending_events(
                     f"Event #{event_id} skipped: "
                     f"zone {zone_id} fatigue "
                     f"threshold "
-                    f"({fatigue_threshold}) reached"
+                    f"({fatigue_threshold}) "
+                    f"reached"
                 )
                 return False
 
@@ -1478,7 +1484,8 @@ def process_pending_events(
         # (configurable, default 60% conversation)
         # Conversations require at least 2 bots
         event_conv_chance = int(config.get(
-            'LLMChatter.EventConversationChance', 60
+            'LLMChatter.EventConversationChance',
+            60
         ))
         use_conversation = (
             len(recent_bots) >= 2
@@ -1510,9 +1517,12 @@ def process_pending_events(
                     )
                 })
 
-            bot_names = [b['name'] for b in bots]
+            bot_names = [
+                b['name'] for b in bots
+            ]
             bot_guids = {
-                b['name']: b['guid'] for b in bots
+                b['name']: b['guid']
+                for b in bots
             }
 
             logger.info(
@@ -1527,9 +1537,12 @@ def process_pending_events(
                 'current_weather', 'clear'
             )
 
-            # Fetch recent messages for anti-repetition
-            recent_msgs = get_recent_zone_messages(
-                db, zone_id
+            # Fetch recent messages for
+            # anti-repetition
+            recent_msgs = (
+                get_recent_zone_messages(
+                    db, zone_id
+                )
             )
 
             # Build event conversation prompt
@@ -1537,11 +1550,13 @@ def process_pending_events(
                 random.random()
                 < get_action_chance()
             )
-            prompt = build_event_conversation_prompt(
-                bots, event_context, zone_id,
-                config, current_weather,
-                recent_messages=recent_msgs,
-                allow_action=allow_action,
+            prompt = (
+                build_event_conversation_prompt(
+                    bots, event_context, zone_id,
+                    config, current_weather,
+                    recent_messages=recent_msgs,
+                    allow_action=allow_action,
+                )
             )
 
             # Call LLM
@@ -1568,12 +1583,15 @@ def process_pending_events(
 
                 if messages:
                     logger.info(
-                        f"Event conversation with "
-                        f"{len(messages)} messages:"
+                        f"Event conversation "
+                        f"with {len(messages)} "
+                        f"messages:"
                     )
 
                     cumulative_delay = 0.0
-                    for i, msg in enumerate(messages):
+                    for i, msg in enumerate(
+                        messages
+                    ):
                         bot_guid = bot_guids.get(
                             msg['name'],
                             bots[0]['guid']
@@ -1596,11 +1614,15 @@ def process_pending_events(
                         if i > 0:
                             delay = (
                                 calculate_dynamic_delay(
-                                    len(final_message),
+                                    len(
+                                        final_message
+                                    ),
                                     config
                                 )
                             )
-                            cumulative_delay += delay
+                            cumulative_delay += (
+                                delay
+                            )
 
                         cursor.execute("""
                             INSERT INTO
@@ -1608,16 +1630,18 @@ def process_pending_events(
                             (event_id, sequence,
                              bot_guid, bot_name,
                              message, channel,
-                             delivered, deliver_at)
+                             delivered,
+                             deliver_at)
                             VALUES (
-                                %s, %s, %s, %s, %s,
-                                'general', 0,
+                                %s, %s, %s, %s,
+                                %s, 'general', 0,
                                 DATE_ADD(NOW(),
                                     INTERVAL %s
                                     SECOND)
                             )
                         """, (
-                            event_id, i, bot_guid,
+                            event_id, i,
+                            bot_guid,
                             msg['name'],
                             final_message,
                             cumulative_delay
@@ -1632,8 +1656,10 @@ def process_pending_events(
 
                     # Mark event completed
                     cursor.execute(
-                        "UPDATE llm_chatter_events "
-                        "SET status = 'completed', "
+                        "UPDATE "
+                        "llm_chatter_events "
+                        "SET status = "
+                        "'completed', "
                         "processed_at = NOW() "
                         "WHERE id = %s",
                         (event_id,)
@@ -1644,8 +1670,8 @@ def process_pending_events(
             # Fallback to statement if conversation
             # failed
             logger.warning(
-                "Event conversation failed, falling "
-                "back to statement"
+                "Event conversation failed, "
+                "falling back to statement"
             )
             use_conversation = False
 
@@ -1673,29 +1699,36 @@ def process_pending_events(
                     FROM llm_chatter_messages
                     WHERE bot_guid = %s
                       AND delivered = 1
-                      AND delivered_at > DATE_SUB(
-                          NOW(), INTERVAL %s SECOND
-                      )
-                """, (bot['bot1_guid'], cooldown))
+                      AND delivered_at
+                          > DATE_SUB(
+                              NOW(),
+                              INTERVAL %s SECOND
+                          )
+                """, (
+                    bot['bot1_guid'], cooldown
+                ))
                 result = cursor.fetchone()
                 if result and result['cnt'] > 0:
                     cursor.execute(
-                        "UPDATE llm_chatter_events "
+                        "UPDATE "
+                        "llm_chatter_events "
                         "SET status = 'skipped' "
                         "WHERE id = %s",
                         (event_id,)
                     )
                     db.commit()
                     logger.info(
-                        f"Event #{event_id} skipped:"
-                        f" bot {bot['bot1_name']} "
+                        f"Event #{event_id} "
+                        f"skipped: bot "
+                        f"{bot['bot1_name']} "
                         f"on cooldown"
                     )
                     return False
             else:
                 logger.info(
-                    f"Transport event #{event_id}: "
-                    f"bypassing cooldown for bot "
+                    f"Transport event "
+                    f"#{event_id}: bypassing "
+                    f"cooldown for bot "
                     f"{bot['bot1_name']}"
                 )
 
@@ -1717,8 +1750,10 @@ def process_pending_events(
             # instructions
             is_transport = (
                 'boat' in event_context.lower()
-                or 'zeppelin' in event_context.lower()
-                or 'turtle' in event_context.lower()
+                or 'zeppelin'
+                in event_context.lower()
+                or 'turtle'
+                in event_context.lower()
             )
             is_holiday = (
                 event.get('event_type', '')
@@ -1727,42 +1762,53 @@ def process_pending_events(
             if is_transport:
                 event_instruction = (
                     "Comment on this transport "
-                    "arrival! Use the specific type "
-                    "(boat/zeppelin/turtle), NOT "
-                    "'transport'.\n"
-                    "Mention the destination if "
-                    "known. Be creative and original"
-                    " - no canned phrases."
+                    "arrival! Use the specific "
+                    "type (boat/zeppelin/"
+                    "turtle), NOT 'transport'."
+                    "\nMention the destination "
+                    "if known. Be creative and "
+                    "original - no canned "
+                    "phrases."
                 )
             elif is_holiday:
                 event_instruction = (
                     "React to this event! "
                     "Mention the event by name "
                     "and share your character's "
-                    "opinion or feelings about it."
+                    "opinion or feelings about "
+                    "it."
                 )
             else:
                 event_instruction = (
-                    "You may naturally reference this"
-                    " event in your message, or you "
-                    "may chat about something else "
-                    "entirely.\n"
-                    "The event provides atmosphere - "
-                    "you don't HAVE to mention it "
+                    "You may naturally reference"
+                    " this event in your "
+                    "message, or you may chat "
+                    "about something else "
+                    "entirely.\nThe event "
+                    "provides atmosphere - you "
+                    "don't HAVE to mention it "
                     "explicitly."
                 )
 
             # Environmental context
-            # (extra_data already parsed at top of
-            # try block)
+            # (extra_data already parsed at top
+            # of try block)
             weather_for_context = None
-            if 'weather' not in event_context.lower():
-                weather_for_context = extra_data.get(
-                    'current_weather', 'clear'
+            if (
+                'weather'
+                not in event_context.lower()
+            ):
+                weather_for_context = (
+                    extra_data.get(
+                        'current_weather',
+                        'clear'
+                    )
                 )
 
-            env_context = get_environmental_context(
-                weather_for_context
+            env_context = (
+                get_environmental_context(
+                    weather_for_context
+                )
             )
             env_lines = ""
             if env_context['time']:
@@ -1781,36 +1827,46 @@ def process_pending_events(
             rp_personality = ""
             rp_style = ""
             if is_rp:
-                rp_ctx = build_race_class_context(
-                    bot['bot1_race'],
-                    bot['bot1_class']
+                rp_ctx = (
+                    build_race_class_context(
+                        bot['bot1_race'],
+                        bot['bot1_class']
+                    )
                 )
                 if rp_ctx:
-                    rp_personality = f"\n{rp_ctx}"
+                    rp_personality = (
+                        f"\n{rp_ctx}"
+                    )
                 rp_style = (
-                    "\nStay in character but keep it "
-                    "natural and conversational. No "
-                    "game terms or OOC references, "
-                    "but don't be overly dramatic or "
-                    "theatrical either."
+                    "\nStay in character but "
+                    "keep it natural and "
+                    "conversational. No game "
+                    "terms or OOC references, "
+                    "but don't be overly "
+                    "dramatic or theatrical "
+                    "either."
                 )
 
             system_prompt = (
-                f"You are {bot['bot1_name']}, a "
-                f"{bot['bot1_race']} "
-                f"{bot['bot1_class']} adventurer in "
-                f"World of Warcraft.\n"
-                f"You are level {bot['bot1_level']} "
-                f"and currently in {zone_name}."
-                f"{env_lines}{rp_personality}\n\n"
+                f"You are {bot['bot1_name']}, "
+                f"a {bot['bot1_race']} "
+                f"{bot['bot1_class']} "
+                f"adventurer in World of "
+                f"Warcraft.\n"
+                f"You are level "
+                f"{bot['bot1_level']} "
+                f"and currently in "
+                f"{zone_name}."
+                f"{env_lines}"
+                f"{rp_personality}\n\n"
                 f"CONTEXT: {event_context}\n\n"
                 f"{event_instruction}\n\n"
                 f"Your current mood: {tone}"
                 f"{rp_style}\n\n"
                 f"Respond with a single short "
-                f"sentence (under 100 characters) "
-                f"that a player might say in General "
-                f"chat.\n"
+                f"sentence (under 100 "
+                f"characters) that a player "
+                f"might say in General chat.\n"
                 f"Be "
                 f"{'authentic and in-character' if is_rp else 'casual and authentic'}"
                 f"."
@@ -1818,15 +1874,19 @@ def process_pending_events(
 
             # Append JSON format instruction
             allow_action = (
-                random.random() < get_action_chance()
+                random.random()
+                < get_action_chance()
             )
-            system_prompt = append_json_instruction(
-                system_prompt, allow_action
+            system_prompt = (
+                append_json_instruction(
+                    system_prompt, allow_action
+                )
             )
 
             # Call LLM
             provider = config.get(
-                'LLMChatter.Provider', 'anthropic'
+                'LLMChatter.Provider',
+                'anthropic'
             ).lower()
             model = config.get(
                 'LLMChatter.Model',
@@ -1846,13 +1906,15 @@ def process_pending_events(
             )
 
             if provider == 'ollama':
-                # Ollama uses OpenAI-compatible API
+                # Ollama uses OpenAI-compat API
                 context_size = int(config.get(
-                    'LLMChatter.Ollama.ContextSize',
+                    'LLMChatter.'
+                    'Ollama.ContextSize',
                     2048
                 ))
                 response = (
-                    client.chat.completions.create(
+                    client.chat
+                    .completions.create(
                         model=model,
                         messages=[
                             {
@@ -1863,8 +1925,9 @@ def process_pending_events(
                             {
                                 "role": "user",
                                 "content":
-                                    "Say something "
-                                    "in General chat."
+                                    "Say something"
+                                    " in General "
+                                    "chat."
                             }
                         ],
                         max_tokens=max_tokens,
@@ -1883,7 +1946,8 @@ def process_pending_events(
                 )
             elif provider == 'openai':
                 response = (
-                    client.chat.completions.create(
+                    client.chat
+                    .completions.create(
                         model=model,
                         messages=[
                             {
@@ -1894,8 +1958,9 @@ def process_pending_events(
                             {
                                 "role": "user",
                                 "content":
-                                    "Say something "
-                                    "in General chat."
+                                    "Say something"
+                                    " in General "
+                                    "chat."
                             }
                         ],
                         max_tokens=max_tokens,
@@ -1908,24 +1973,30 @@ def process_pending_events(
                 )
             else:
                 # Anthropic (default)
-                response = client.messages.create(
-                    model=model,
-                    max_tokens=max_tokens,
-                    temperature=temperature,
-                    system=system_prompt,
-                    messages=[{
-                        "role": "user",
-                        "content":
-                            "Say something in "
-                            "General chat."
-                    }]
+                response = (
+                    client.messages.create(
+                        model=model,
+                        max_tokens=max_tokens,
+                        temperature=temperature,
+                        system=system_prompt,
+                        messages=[{
+                            "role": "user",
+                            "content":
+                                "Say something "
+                                "in General "
+                                "chat."
+                        }]
+                    )
                 )
                 message = (
-                    response.content[0].text.strip()
+                    response.content[0]
+                    .text.strip()
                 )
 
             # Parse structured JSON response
-            parsed = parse_single_response(message)
+            parsed = parse_single_response(
+                message
+            )
             message = parsed['message']
             message = cleanup_message(
                 message,
@@ -1936,10 +2007,12 @@ def process_pending_events(
 
             # Insert message for delivery
             delay_min = int(config.get(
-                'LLMChatter.MessageDelayMin', 1000
+                'LLMChatter.MessageDelayMin',
+                1000
             ))
             delay_max = int(config.get(
-                'LLMChatter.MessageDelayMax', 30000
+                'LLMChatter.MessageDelayMax',
+                30000
             ))
             delay_ms = random.randint(
                 delay_min, delay_max
@@ -1947,7 +2020,9 @@ def process_pending_events(
 
             emote = (
                 parsed.get('emote')
-                or pick_emote_for_statement(message)
+                or pick_emote_for_statement(
+                    message
+                )
             )
             insert_chat_message(
                 db, bot['bot1_guid'],
@@ -1978,17 +2053,56 @@ def process_pending_events(
 
     except Exception as e:
         logger.error(
-            f"Error processing event "
+            f"Worker error processing event "
             f"#{event_id}: {e}"
         )
-        cursor.execute(
-            "UPDATE llm_chatter_events "
-            "SET status = 'skipped' "
-            "WHERE id = %s",
-            (event_id,)
-        )
-        db.commit()
+        # Try to mark as skipped
+        try:
+            if db:
+                c = db.cursor()
+                c.execute(
+                    "UPDATE llm_chatter_events "
+                    "SET status = 'skipped' "
+                    "WHERE id = %s",
+                    (event_id,)
+                )
+                db.commit()
+        except Exception:
+            pass
         return False
+    finally:
+        if db:
+            try:
+                db.close()
+            except Exception:
+                pass
+
+
+def _run_with_group_lock(lock, fn, *args, **kwargs):
+    """Execute fn while holding a per-group lock.
+    Serializes events for the same group."""
+    with lock:
+        return fn(*args, **kwargs)
+
+
+def _run_in_worker(fn_name, fn, client, config):
+    """Run a function in a worker thread with its
+    own DB connection. Follows process_single_event
+    pattern."""
+    db = None
+    try:
+        db = get_db_connection(config)
+        fn(db, client, config)
+    except Exception:
+        logger.exception(
+            f"{fn_name} worker failed"
+        )
+    finally:
+        if db:
+            try:
+                db.close()
+            except Exception:
+                pass
 
 
 # =============================================================================
@@ -2085,6 +2199,17 @@ def main():
         'LLMChatter.Bridge.PollIntervalSeconds', 3
     ))
 
+    # Max concurrent event workers
+    try:
+        max_concurrent = max(1, min(int(
+            config.get(
+                'LLMChatter.Bridge.MaxConcurrent',
+                '3'
+            )
+        ), 10))
+    except (ValueError, TypeError):
+        max_concurrent = 3
+
     # Check event system config
     use_event_system = (
         config.get(
@@ -2095,7 +2220,7 @@ def main():
     chatter_mode = get_chatter_mode(config)
 
     logger.info("=" * 60)
-    logger.info("LLM Chatter Bridge v3.9")
+    logger.info("LLM Chatter Bridge v4.0")
     logger.info("=" * 60)
     logger.info(f"ChatterMode: {chatter_mode}")
     logger.info(f"Provider: {provider}")
@@ -2123,6 +2248,9 @@ def main():
             f"{'disabled (/no_think)' if disable_thinking else 'enabled'}"
         )
     logger.info(f"Poll interval: {poll_interval}s")
+    logger.info(
+        f"Max concurrent: {max_concurrent}"
+    )
     base_max = config.get(
         'LLMChatter.MaxTokens', 200
     )
@@ -2540,15 +2668,21 @@ def main():
     # Startup cleanup: reset any events stuck in
     # 'processing' from previous crash
     if use_event_system:
+        db = None
         try:
             db = get_db_connection(config)
             reset_stuck_processing_events(db)
-            db.close()
         except Exception as e:
             logger.warning(
                 f"Could not reset stuck events on "
                 f"startup: {e}"
             )
+        finally:
+            if db:
+                try:
+                    db.close()
+                except Exception:
+                    pass
 
     # Main loop
     last_cleanup = 0
@@ -2561,91 +2695,246 @@ def main():
     last_cache_refill = 0
     cache_refill_interval = 30  # every 30 seconds
 
-    while True:
+    executor = ThreadPoolExecutor(
+        max_workers=max_concurrent + 3
+    )
+    active_futures = []
+    active_event_ids = set()
+    group_locks = {}
+    group_locks_lock = threading.Lock()
+    legacy_backoff = 0
+
+    # Background task futures
+    precache_future = None
+    idle_chatter_future = None
+    legacy_future = None
+
+    def _harvest_future(f, name):
+        """Log any unexpected worker failure."""
         try:
-            db = get_db_connection(config)
-
-            # Periodic cleanup of expired events
-            current_time = time.time()
-            if (
-                use_event_system
-                and current_time - last_cleanup
-                >= cleanup_interval
-            ):
-                cleanup_expired_events(db)
-                last_cleanup = current_time
-
-            # Process regular chatter requests
-            processed_request = (
-                process_pending_requests(
-                    db, client, config
-                )
+            f.result()
+        except Exception:
+            logger.exception(
+                f"{name} worker failed"
             )
 
-            # Process event-driven chatter
-            # (if enabled)
-            processed_event = False
-            if use_event_system:
-                processed_event = (
-                    process_pending_events(
-                        db, client, config
+    while True:
+        try:
+            # Prune completed event futures
+            still_active = []
+            for f in active_futures:
+                if f.done():
+                    active_event_ids.discard(
+                        f.event_id
                     )
+                    try:
+                        f.result()
+                    except Exception:
+                        logger.exception(
+                            "Worker failed"
+                        )
+                else:
+                    still_active.append(f)
+            active_futures = still_active
+
+            # Prune background task futures
+            if (
+                precache_future
+                and precache_future.done()
+            ):
+                _harvest_future(
+                    precache_future, "pre-cache"
                 )
-
-            # Periodic idle group chatter check
+                precache_future = None
             if (
-                use_event_system
-                and current_time - last_idle_check
-                >= idle_check_interval
+                idle_chatter_future
+                and idle_chatter_future.done()
             ):
-                last_idle_check = current_time
-                try:
-                    check_idle_group_chatter(
-                        db, client, config
-                    )
-                except Exception as e:
-                    logger.debug(
-                        f"Idle chatter check "
-                        f"error: {e}"
-                    )
-
-            # Pre-cache refill — lowest priority,
-            # only when no requests/events processed
+                _harvest_future(
+                    idle_chatter_future,
+                    "idle-chatter"
+                )
+                idle_chatter_future = None
             if (
-                precache_enabled
-                and not processed_request
-                and not processed_event
-                and current_time
-                - last_cache_refill
-                >= cache_refill_interval
+                legacy_future
+                and legacy_future.done()
             ):
-                last_cache_refill = current_time
-                try:
-                    refill_precache_pool(
-                        db, client, config
+                _harvest_future(
+                    legacy_future,
+                    "legacy-requests"
+                )
+                legacy_future = None
+
+            # DB connection with proper lifecycle
+            db = None
+            try:
+                db = get_db_connection(config)
+                current_time = time.time()
+
+                # Periodic cleanup (fast SQL,
+                # stays on main thread)
+                if (
+                    use_event_system
+                    and current_time
+                    - last_cleanup
+                    >= cleanup_interval
+                ):
+                    cleanup_expired_events(
+                        db, active_event_ids
                     )
-                except Exception as e:
-                    logger.debug(
-                        f"Cache refill error: {e}"
+                    last_cleanup = current_time
+
+                # Legacy requests -> worker pool
+                legacy_backoff += 1
+                if (
+                    not legacy_future
+                    and (
+                        not active_futures
+                        or legacy_backoff >= 10
+                    )
+                ):
+                    legacy_future = (
+                        executor.submit(
+                            _run_in_worker,
+                            "legacy-requests",
+                            process_pending_requests,
+                            client, config
+                        )
+                    )
+                    legacy_backoff = 0
+
+                # Fetch + dispatch events
+                dispatched = 0
+                if use_event_system:
+                    available = (
+                        max_concurrent
+                        - len(active_futures)
+                    )
+                    if available > 0:
+                        events = (
+                            fetch_pending_events(
+                                db, config,
+                                available
+                            )
+                        )
+                        for event in events:
+                            gid = event.get(
+                                '_group_id'
+                            )
+                            if gid:
+                                with (
+                                    group_locks_lock
+                                ):
+                                    if (
+                                        gid
+                                        not in
+                                        group_locks
+                                    ):
+                                        group_locks[
+                                            gid
+                                        ] = (
+                                            threading
+                                            .Lock()
+                                        )
+                                    glock = (
+                                        group_locks[
+                                            gid
+                                        ]
+                                    )
+                                future = (
+                                    executor
+                                    .submit(
+                                        _run_with_group_lock,
+                                        glock,
+                                        process_single_event,
+                                        event,
+                                        client,
+                                        config
+                                    )
+                                )
+                            else:
+                                future = (
+                                    executor
+                                    .submit(
+                                        process_single_event,
+                                        event,
+                                        client,
+                                        config
+                                    )
+                                )
+                            future.event_id = (
+                                event['id']
+                            )
+                            active_event_ids.add(
+                                event['id']
+                            )
+                            active_futures.append(
+                                future
+                            )
+                            dispatched += 1
+
+                # Idle chatter -> worker pool
+                if (
+                    use_event_system
+                    and not idle_chatter_future
+                    and current_time
+                    - last_idle_check
+                    >= idle_check_interval
+                ):
+                    last_idle_check = current_time
+                    idle_chatter_future = (
+                        executor.submit(
+                            _run_in_worker,
+                            "idle-chatter",
+                            check_idle_group_chatter,
+                            client, config
+                        )
                     )
 
-            db.close()
+                # Pre-cache -> worker pool
+                if (
+                    precache_enabled
+                    and not precache_future
+                    and current_time
+                    - last_cache_refill
+                    >= cache_refill_interval
+                ):
+                    last_cache_refill = (
+                        current_time
+                    )
+                    precache_future = (
+                        executor.submit(
+                            _run_in_worker,
+                            "pre-cache",
+                            refill_precache_pool,
+                            client, config
+                        )
+                    )
 
-            # Only sleep if nothing was processed
+            finally:
+                if db:
+                    try:
+                        db.close()
+                    except Exception:
+                        pass
+
+            # Adaptive sleep
             if (
-                not processed_request
-                and not processed_event
+                dispatched > 0
+                or active_futures
             ):
+                time.sleep(0.5)
+            else:
                 time.sleep(poll_interval)
 
-        except mysql.connector.Error as e:
-            logger.error(f"Database error: {e}")
-            time.sleep(poll_interval)
         except KeyboardInterrupt:
             logger.info("Shutting down...")
+            executor.shutdown(wait=False)
             break
         except Exception as e:
-            logger.error(f"Unexpected error: {e}")
+            logger.error(
+                f"Main loop error: {e}"
+            )
             time.sleep(poll_interval)
 
 

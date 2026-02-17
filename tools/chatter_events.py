@@ -360,6 +360,83 @@ def build_event_context(event: dict) -> str:
 
         context_parts.append(desc)
 
+    elif event_type == 'weather_ambient':
+        weather_type = extra_data.get(
+            'weather_type', 'unusual weather'
+        )
+        category = extra_data.get('category', 'weather')
+
+        # Ambient descriptions: ongoing weather, not a
+        # transition. Encourage musing/complaining tone.
+        ambient_descriptions = {
+            'light rain': (
+                "A light rain continues to fall "
+                "steadily around you."
+            ),
+            'rain': (
+                "The rain keeps falling with no sign "
+                "of stopping."
+            ),
+            'heavy rain': (
+                "Heavy rain continues to pour down "
+                "relentlessly."
+            ),
+            'light snow': (
+                "A gentle snow continues to drift "
+                "down quietly."
+            ),
+            'snow': (
+                "Snow continues to fall, blanketing "
+                "the landscape in white."
+            ),
+            'heavy snow': (
+                "The blizzard rages on, heavy snow "
+                "obscuring everything."
+            ),
+            'foggy': (
+                "A thick fog still hangs in the air, "
+                "limiting visibility."
+            ),
+            'light sandstorm': (
+                "Fine sand continues to drift through "
+                "the air around you."
+            ),
+            'sandstorm': (
+                "The sandstorm persists, stinging "
+                "exposed skin."
+            ),
+            'heavy sandstorm': (
+                "The massive sandstorm still rages, "
+                "making travel miserable."
+            ),
+            'thunderstorm': (
+                "Thunder continues to rumble overhead "
+                "as the storm lingers."
+            ),
+            'black rain': (
+                "The eerie black rain continues to "
+                "fall from darkened skies."
+            ),
+            'black snow': (
+                "Black snow still drifts down "
+                "ominously from above."
+            ),
+        }
+
+        desc = ambient_descriptions.get(
+            weather_type,
+            f"The {weather_type} persists around you."
+        )
+        context_parts.append(desc)
+        context_parts.append(
+            "This weather has been going on for a "
+            "while. React naturally - complain about "
+            "it, comment on how it affects travel or "
+            "mood, or find something positive about "
+            "it. Do NOT react as if the weather just "
+            "started."
+        )
+
     elif event_type == 'transport_arrives':
         transport_type = extra_data.get(
             'transport_type', ''
@@ -544,9 +621,18 @@ def build_event_context(event: dict) -> str:
 # =============================================================================
 # EVENT LIFECYCLE
 # =============================================================================
-def cleanup_expired_events(db) -> int:
+def cleanup_expired_events(
+    db, active_ids=None
+) -> int:
     """Mark expired events and clean up old completed
-    events."""
+    events.
+
+    Args:
+        db: Database connection
+        active_ids: Set of event IDs currently being
+            processed by worker threads. These are
+            excluded from stuck-processing reset.
+    """
     cursor = db.cursor()
 
     # Mark pending events that have expired
@@ -571,6 +657,35 @@ def cleanup_expired_events(db) -> int:
     """)
     deleted_count = cursor.rowcount
 
+    # Reset stuck 'processing' events older than
+    # 5 minutes (lease expired), excluding events
+    # actively owned by worker threads
+    reset_count = 0
+    if active_ids:
+        placeholders = ','.join(
+            ['%s'] * len(active_ids)
+        )
+        cursor.execute(f"""
+            UPDATE llm_chatter_events
+            SET status = 'pending'
+            WHERE status = 'processing'
+              AND processed_at < DATE_SUB(
+                  NOW(), INTERVAL 5 MINUTE
+              )
+              AND id NOT IN ({placeholders})
+        """, list(active_ids))
+        reset_count = cursor.rowcount
+    else:
+        cursor.execute("""
+            UPDATE llm_chatter_events
+            SET status = 'pending'
+            WHERE status = 'processing'
+              AND processed_at < DATE_SUB(
+                  NOW(), INTERVAL 5 MINUTE
+              )
+        """)
+        reset_count = cursor.rowcount
+
     db.commit()
 
     if expired_count > 0 or deleted_count > 0:
@@ -578,8 +693,13 @@ def cleanup_expired_events(db) -> int:
             f"Event cleanup: {expired_count} expired, "
             f"{deleted_count} deleted"
         )
+    if reset_count > 0:
+        logger.info(
+            f"Event cleanup: reset {reset_count} "
+            f"stuck processing events"
+        )
 
-    return expired_count + deleted_count
+    return expired_count + deleted_count + reset_count
 
 
 def reset_stuck_processing_events(db) -> int:

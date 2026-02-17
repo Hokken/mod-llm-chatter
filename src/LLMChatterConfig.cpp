@@ -17,6 +17,10 @@ void LLMChatterConfig::LoadConfig()
     _triggerChance = sConfigMgr->GetOption<uint32>("LLMChatter.TriggerChance", 15);
     _cityChatterMultiplier = sConfigMgr->GetOption<uint32>("LLMChatter.CityChatterMultiplier", 2);
     _maxPendingRequests = sConfigMgr->GetOption<uint32>("LLMChatter.MaxPendingRequests", 5);
+    _maxBotsPerZone = sConfigMgr->GetOption<uint32>(
+        "LLMChatter.MaxBotsPerZone", 8);
+    _maxMessageLength = sConfigMgr->GetOption<uint32>(
+        "LLMChatter.MaxMessageLength", 250);
 
     // Delivery settings
     _deliveryPollMs = sConfigMgr->GetOption<uint32>("LLMChatter.DeliveryPollMs", 1000);
@@ -32,6 +36,11 @@ void LLMChatterConfig::LoadConfig()
     _transportCheckSeconds = sConfigMgr->GetOption<uint32>("LLMChatter.TransportCheckSeconds", 5);
     _eventExpirationSeconds = sConfigMgr->GetOption<uint32>("LLMChatter.EventExpirationSeconds", 600);
     _weatherCooldownSeconds = sConfigMgr->GetOption<uint32>("LLMChatter.WeatherCooldownSeconds", 1800);
+    _weatherAmbientCooldownSeconds =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter."
+            "WeatherAmbientCooldownSeconds",
+            120);
     _dayNightCooldownSeconds = sConfigMgr->GetOption<uint32>("LLMChatter.DayNightCooldownSeconds", 7200);
     _holidayCooldownSeconds = sConfigMgr->GetOption<uint32>("LLMChatter.HolidayCooldownSeconds", 1800);
     _holidayCityChance = sConfigMgr->GetOption<uint32>("LLMChatter.HolidayCityChance", 10);
@@ -51,16 +60,36 @@ void LLMChatterConfig::LoadConfig()
     _minorEventChance = sConfigMgr->GetOption<uint32>("LLMChatter.Events.MinorEventChance", 20);
 
     // Group chatter
-    _useGroupChatter = sConfigMgr->GetOption<bool>("LLMChatter.GroupChatter.Enable", true);
+    _useGroupChatter = sConfigMgr->GetOption<bool>(
+        "LLMChatter.GroupChatter.Enable", true);
+    _questDeduplicationWindow =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "QuestDeduplicationWindow", 30);
+    _combatStateCheckInterval =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "CombatStateCheckInterval", 5);
+    _lowHealthThreshold =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "LowHealthThreshold", 25);
+    _oomThreshold =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "OOMThreshold", 15);
 
     // Group chatter - reaction chances (0-100)
     _groupKillChanceNormal = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.KillChanceNormal", 20);
     _groupDeathChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.DeathChance", 40);
     _groupLootChanceGreen = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.LootChanceGreen", 20);
     _groupLootChanceBlue = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.LootChanceBlue", 50);
-    _groupQuestObjectiveChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.QuestObjectiveChance", 30);
+    _groupQuestObjectiveChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.QuestObjectiveChance", 100);
     _groupQuestObjectiveCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.QuestObjectiveCooldown", 30);
+    _groupQuestAcceptChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.QuestAcceptChance", 100);
+    _groupQuestAcceptCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.QuestAcceptCooldown", 30);
     _groupSpellCastChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.SpellCastChance", 15);
+    _groupSpellCastCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.SpellCastCooldown", 10);
 
     // Group chatter - per-event cooldowns (seconds)
     _groupKillCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.KillCooldown", 120);
@@ -81,6 +110,14 @@ void LLMChatterConfig::LoadConfig()
     _groupCorpseRunCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.CorpseRunCooldown", 120);
     _useFarewell = sConfigMgr->GetOption<bool>(
         "LLMChatter.GroupChatter.FarewellEnable", true);
+    _groupDiscoveryChance =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "DiscoveryChance", 40);
+    _groupDiscoveryCooldown =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "DiscoveryCooldown", 30);
 
     // Group chatter - state-triggered callouts
     _stateCalloutEnabled = sConfigMgr->GetOption<bool>(
@@ -153,31 +190,62 @@ void LLMChatterConfig::LoadConfig()
         "LLMChatter.GeneralChat.Cooldown", 30);
     _generalChatConversationChance = sConfigMgr->GetOption<uint32>(
         "LLMChatter.GeneralChat.ConversationChance", 30);
+    _generalChatHistoryLimit =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.GeneralChat.HistoryLimit",
+            15);
 
     // RP enrichment
     _raceLoreChance = sConfigMgr->GetOption<uint32>("LLMChatter.RaceLoreChance", 20);
 
     if (_enabled)
     {
-        LOG_INFO("module", "LLMChatter: Module enabled");
-        LOG_INFO("module", "LLMChatter: Trigger interval: {}s, Conversation chance: {}%, Trigger chance: {}%",
-                 _triggerIntervalSeconds, _conversationChance, _triggerChance);
+        LOG_INFO("module",
+            "LLMChatter: Module enabled");
+        LOG_INFO("module",
+            "LLMChatter: Trigger interval: {}s, "
+            "Conversation chance: {}%, "
+            "Trigger chance: {}%",
+            _triggerIntervalSeconds,
+            _conversationChance, _triggerChance);
+        LOG_INFO("module",
+            "LLMChatter: MaxBotsPerZone: {}, "
+            "MaxMessageLength: {}",
+            _maxBotsPerZone, _maxMessageLength);
         if (_useEventSystem)
         {
-            LOG_INFO("module", "LLMChatter: Event system enabled (reaction chance: {}%)", _eventReactionChance);
+            LOG_INFO("module",
+                "LLMChatter: Event system enabled "
+                "(reaction chance: {}%, "
+                "weather cooldown: {}s, "
+                "ambient weather cooldown: {}s)",
+                _eventReactionChance,
+                _weatherCooldownSeconds,
+                _weatherAmbientCooldownSeconds);
         }
         if (_useGroupChatter)
         {
             LOG_INFO("module",
-                "LLMChatter: Group chatter enabled");
+                "LLMChatter: Group chatter enabled "
+                "(SpellCastCooldown: {}s, "
+                "QuestDeduplicationWindow: {}s)",
+                _groupSpellCastCooldown,
+                _questDeduplicationWindow);
             if (_stateCalloutEnabled)
             {
                 LOG_INFO("module",
                     "LLMChatter: State callouts "
                     "enabled (chance: {}%, "
-                    "cooldown: {}s)",
+                    "cooldown: {}s, "
+                    "LowHealthThreshold: {}%, "
+                    "OOMThreshold: {}%, "
+                    "CombatStateCheckInterval: "
+                    "{}s)",
                     _stateCalloutChance,
-                    _stateCalloutCooldown);
+                    _stateCalloutCooldown,
+                    _lowHealthThreshold,
+                    _oomThreshold,
+                    _combatStateCheckInterval);
             }
         }
         if (_preCacheEnable)
@@ -201,9 +269,11 @@ void LLMChatterConfig::LoadConfig()
         {
             LOG_INFO("module",
                 "LLMChatter: General chat reactions "
-                "enabled (chance: {}%, cooldown: {}s)",
+                "enabled (chance: {}%, cooldown: {}s"
+                ", HistoryLimit: {})",
                 _generalChatChance,
-                _generalChatCooldown);
+                _generalChatCooldown,
+                _generalChatHistoryLimit);
         }
     }
 }
