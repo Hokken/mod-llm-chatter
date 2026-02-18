@@ -17,6 +17,7 @@ from chatter_group import (
     build_precache_combat_pull_prompt,
     build_precache_state_prompt,
     build_precache_spell_support_prompt,
+    build_precache_spell_offensive_prompt,
     get_bot_mood_label,
 )
 from chatter_shared import (
@@ -65,6 +66,12 @@ _CATEGORIES = [
         'LLMChatter.GroupChatter.PreCacheDepthSpell',
         'LLMChatter.GroupChatter.PreCacheSpellEnable',
         'spell',
+    ),
+    (
+        'spell_offensive',
+        'LLMChatter.GroupChatter.PreCacheDepthSpell',
+        'LLMChatter.GroupChatter.PreCacheSpellEnable',
+        'spell_offensive',
     ),
 ]
 
@@ -220,6 +227,13 @@ def _build_prompt(
             role=role, recent_cached=recent_cached,
             allow_action=allow_action,
         )
+    elif prompt_type == 'spell_offensive':
+        return build_precache_spell_offensive_prompt(
+            bot_name, race, class_name, level,
+            traits, mood,
+            role=role, recent_cached=recent_cached,
+            allow_action=allow_action,
+        )
     return None
 
 
@@ -256,7 +270,7 @@ def refill_precache_pool(db, client, config):
     # Step 2: Read config
     max_per_loop = int(config.get(
         'LLMChatter.GroupChatter.'
-        'PreCacheGeneratePerLoop', 2
+        'PreCacheGeneratePerLoop', 3
     ))
     ttl_seconds = int(config.get(
         'LLMChatter.GroupChatter.'

@@ -45,7 +45,10 @@ CREATE TABLE `llm_chatter_events` (
         'minor_event',
         'bot_group_low_health',
         'bot_group_oom',
-        'bot_group_aggro_loss'
+        'bot_group_aggro_loss',
+        'bot_group_quest_accept',
+        'bot_group_discovery',
+        'weather_ambient'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,

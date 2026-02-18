@@ -88,7 +88,7 @@ void LLMChatterConfig::LoadConfig()
     _groupQuestObjectiveCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.QuestObjectiveCooldown", 30);
     _groupQuestAcceptChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.QuestAcceptChance", 100);
     _groupQuestAcceptCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.QuestAcceptCooldown", 30);
-    _groupSpellCastChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.SpellCastChance", 15);
+    _groupSpellCastChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.SpellCastChance", 10);
     _groupSpellCastCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.SpellCastCooldown", 10);
 
     // Group chatter - per-event cooldowns (seconds)
@@ -173,7 +173,7 @@ void LLMChatterConfig::LoadConfig()
     _preCacheGeneratePerLoop =
         sConfigMgr->GetOption<uint32>(
             "LLMChatter.GroupChatter."
-            "PreCacheGeneratePerLoop", 2);
+            "PreCacheGeneratePerLoop", 3);
     _preCacheFallbackToLive =
         sConfigMgr->GetOption<bool>(
             "LLMChatter.GroupChatter."

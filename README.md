@@ -75,8 +75,8 @@ Every quest, item, and spell name becomes a clickable WoW link.
 - **Loot reactions**, genuine excitement over epic drops, friendly jealousy, "grats" that feel real
 - **Combat cries**, battle shouts and war cries during engagements, flavored by race and class
 - **Spell cast reactions**, bots comment when casting buffs, heals (including HoTs), shields, crowd control, dispels, and group-wide buffs (Bloodlust, Prayer of Fortitude, etc.) on party members
-- **Quest accept reactions**, bots comment when you pick up a new quest
-- **Quest objectives**, bots react when quest objectives are completed, before turn-in
+- **Quest accept reactions**, bots comment when you pick up a new quest, with context from the quest description so they know what you're about to do
+- **Quest objectives**, bots react when quest objectives are completed, focusing on heading back to turn in
 - **Subzone discovery**, bots react to "Discovered: X" moments with excitement or lore references
 - **Corpse run commentary**, when anyone dies and releases spirit, a bot reacts — concern for the player, ghost run humor for bots
 - **Player death reactions**, bots react when you get killed by a creature, with urgency and personality
@@ -94,7 +94,7 @@ Every quest, item, and spell name becomes a clickable WoW link.
 - **Name personalization**, in small groups bots address the player by name, and in conversations bots sometimes address each other naturally
 
 ### Event Reactions
-- **Weather changes**, a sudden thunderstorm in Stranglethorn, snow in Dun Morogh, a sandstorm rolling through Tanaris, bots notice and react. Ambient weather remarks also happen periodically between transitions
+- **Weather changes**, a sudden thunderstorm in Stranglethorn, snow in Dun Morogh, a sandstorm rolling through Tanaris, bots notice and react. Ambient weather remarks also happen periodically between transitions (5-minute cooldown)
 - **Transport arrivals**, "boat to Auberdine just pulled in", bots announce boats and zeppelins with destination info
 - **Holidays & events**, bots react to holidays (Love is in the Air) and PvP events (Call to Arms: Warsong Gulch). In capital cities, event mentions recur periodically so the mood stays alive
 - **Day/night transitions**, bots comment on dawn breaking, dusk settling, or the eerie feel of midnight in a dangerous zone

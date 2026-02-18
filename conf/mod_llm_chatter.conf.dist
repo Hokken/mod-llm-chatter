@@ -430,9 +430,9 @@ LLMChatter.TransportCheckSeconds = 5
 #   LLMChatter.WeatherCooldownSeconds
 #       Cooldown per zone for weather transition events
 #       (clear->rain, rain->clear, etc.)
-#       Default: 1800 (30 minutes)
+#       Default: 300 (5 minutes)
 #
-LLMChatter.WeatherCooldownSeconds = 1800
+LLMChatter.WeatherCooldownSeconds = 300
 
 #
 #   LLMChatter.WeatherAmbientCooldownSeconds
@@ -734,12 +734,14 @@ LLMChatter.GroupChatter.QuestAcceptCooldown = 30
 
 #
 #   LLMChatter.GroupChatter.SpellCastChance
-#       Percent chance (0-100) that a buff/heal/CC
-#       spell cast triggers a group reaction.
-#       Resurrect spells always trigger (100%).
-#       Default: 15
+#       Percent chance (0-100) that any spell cast
+#       triggers a group reaction. Covers heals,
+#       buffs, CC, shields, dispels, offensive, and
+#       generic support spells. Resurrect spells
+#       always trigger (100%).
+#       Default: 20
 #
-LLMChatter.GroupChatter.SpellCastChance = 15
+LLMChatter.GroupChatter.SpellCastChance = 10
 
 #
 #   LLMChatter.GroupChatter.SpellCastCooldown
@@ -1033,15 +1035,18 @@ LLMChatter.GroupChatter.PreCacheTTLSeconds = 3600
 #       Max number of new cached responses to generate
 #       per bridge loop iteration. Keeps refill from
 #       blocking normal event processing.
-#       Default: 2
+#       Default: 3
 #
-LLMChatter.GroupChatter.PreCacheGeneratePerLoop = 2
+LLMChatter.GroupChatter.PreCacheGeneratePerLoop = 3
 
 #
 #   LLMChatter.GroupChatter.PreCacheFallbackToLive
 #       When cache is empty (miss), fall back to the
 #       normal live LLM path (3-8s latency).
 #       Set to 0 to skip entirely on miss (testing).
+#       Note: player-cast offensive spells always use
+#       live LLM (no caster-perspective cache exists
+#       for observer bots) regardless of this setting.
 #       Default: 1
 #
 LLMChatter.GroupChatter.PreCacheFallbackToLive = 1

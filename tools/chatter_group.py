@@ -1431,8 +1431,9 @@ def build_levelup_reaction_prompt(
 
 def build_quest_complete_reaction_prompt(
     bot, traits, completer_name, quest_name,
-    is_bot, mode, chat_history="",
+    mode, chat_history="",
     turnin_npc=None, allow_action=True,
+    quest_details="", quest_objectives="",
 ):
     """Build prompt for a bot reacting to a quest
     completion. Tone varies: relief, satisfaction,
@@ -1465,34 +1466,42 @@ def build_quest_complete_reaction_prompt(
     npc_note = ""
     if turnin_npc:
         npc_note = (
-            f" You turned it in to {turnin_npc}. "
-            f"You may mention them briefly "
-            f"(e.g. thanking them or noting "
-            f"their reaction) but they are a "
-            f"FRIENDLY NPC — never imply you "
-            f"fought or killed them."
+            f" You turned it in to "
+            f"{turnin_npc} (the quest giver NPC). "
+            f"Do NOT address or congratulate the "
+            f"NPC — talk to your PARTY instead. "
+            f"Celebrate with your teammates."
         )
     quest_context = (
-        f"Your group just completed the quest "
-        f"\"{quest_name}\"!{npc_note} "
-        f"This is a TEAM achievement — celebrate "
-        f"it as something you all accomplished "
-        f"together. Use 'we' language, not 'you' "
-        f"or single names. Focus on the "
-        f"achievement, reward, or moving on."
+        f"TRANSACTION COMPLETE: Your group "
+        f"handed in \"{quest_name}\" and got "
+        f"paid.{npc_note} "
+        f"Celebrate the XP, gold, reward item, "
+        f"or simply ticking the quest off the "
+        f"log. This is a TEAM win — use 'we' "
+        f"language."
     )
+    if quest_details:
+        quest_context += (
+            f" Quest description: {quest_details}"
+        )
+    if quest_objectives:
+        quest_context += (
+            f" Objectives: {quest_objectives}"
+        )
 
     if is_rp:
         style = (
-            "React in-character about the group's "
-            "quest completion with team spirit. "
-            "Keep it natural and grounded."
+            "Express satisfaction at the payoff. "
+            "You earned the reward together. "
+            "Treat the NPC as a business partner "
+            "or ally, not an enemy."
         )
     else:
         style = (
-            "React naturally in party chat "
-            "about your group finishing a quest. "
-            "Casual, brief, team-oriented."
+            "Casual celebration — quest done, "
+            "reward collected, moving on. "
+            "Brief and team-oriented."
         )
 
     prompt = (
@@ -1526,6 +1535,7 @@ def build_quest_complete_reaction_prompt(
 def build_quest_objectives_reaction_prompt(
     bot, traits, quest_name, completer_name,
     mode, chat_history="", allow_action=True,
+    quest_details="", quest_objectives="",
 ):
     """Build prompt for a bot reacting to quest
     objectives being completed (before turn-in).
@@ -1560,26 +1570,39 @@ def build_quest_objectives_reaction_prompt(
         rp_context += f"{chat_history}\n"
 
     quest_context = (
-        f"Your party just completed all the "
-        f"objectives for the quest "
-        f"\"{quest_name}\". The hard part is "
-        f"done — now you just need to turn it "
-        f"in. This is a casual moment of "
-        f"satisfaction, not wild excitement."
+        f"The objectives for \"{quest_name}\" "
+        f"are done, but the quest is PENDING "
+        f"TURN-IN. You are still in the field. "
+        f"Your immediate goal is to travel back "
+        f"to the quest giver and get paid. "
+        f"Focus on the relief that the hard work "
+        f"is done and that it's time to head back "
+        f"— not on the story outcome."
     )
+    if quest_details:
+        quest_context += (
+            f" Quest description: {quest_details}"
+        )
+    if quest_objectives:
+        quest_context += (
+            f" Objectives: {quest_objectives}"
+        )
 
     if is_rp:
         style = (
-            "React in-character with mild "
-            "satisfaction. Keep it natural and "
-            "grounded — save the big celebration "
-            "for the actual turn-in."
+            "Sound relieved or out of breath "
+            "that the fighting is over, and "
+            "focused on heading back. Use phrases "
+            "like 'let's head back' or 'time to "
+            "turn this in.' The quest is not "
+            "resolved yet — you haven't been paid."
         )
     else:
         style = (
-            "React naturally in party chat. "
-            "Casual satisfaction — objectives "
-            "done, time to turn it in. Brief."
+            "Casual confirmation that the work "
+            "is done. Focus on returning to turn "
+            "it in. Keep it transactional: "
+            "'Done here, let's go back.'"
         )
 
     prompt = (
@@ -1646,30 +1669,55 @@ def build_achievement_reaction_prompt(
     if chat_history:
         rp_context += f"{chat_history}\n"
 
-    who = achiever_name
-    if not is_bot:
-        who = f"{achiever_name} (the real player)"
-
-    achieve_context = (
-        f"{who} just earned the achievement "
-        f"\"{achievement_name}\"! Achievements are "
-        f"a big deal — react with more excitement "
-        f"than a normal event. This is worth "
-        f"celebrating!"
+    # When the bot itself earned it, it speaks about
+    # its own achievement. When someone else earned
+    # it, the bot congratulates them.
+    bot_is_achiever = (
+        achiever_name == bot['name']
     )
 
-    if is_rp:
-        style = (
-            "React in-character with genuine "
-            "excitement about the achievement. "
-            "Keep it natural but enthusiastic."
+    if bot_is_achiever:
+        achieve_context = (
+            f"You just earned the achievement "
+            f"\"{achievement_name}\"! Achievements "
+            f"are a big deal — celebrate your own "
+            f"accomplishment with excitement!"
         )
     else:
-        style = (
-            "React naturally in party chat "
-            "about an achievement. "
-            "Achievements are special, be excited!"
+        achieve_context = (
+            f"Your groupmate {achiever_name} just "
+            f"earned the achievement "
+            f"\"{achievement_name}\"! Congratulate "
+            f"them — achievements are a big deal "
+            f"and worth celebrating!"
         )
+
+    if bot_is_achiever:
+        if is_rp:
+            style = (
+                "Celebrate your own achievement "
+                "in-character. Be proud and excited."
+            )
+        else:
+            style = (
+                "Celebrate your own achievement "
+                "in party chat. Be proud!"
+            )
+    else:
+        if is_rp:
+            style = (
+                "Congratulate your groupmate "
+                "in-character with genuine "
+                "excitement. Keep it natural "
+                "but enthusiastic."
+            )
+        else:
+            style = (
+                "Congratulate your groupmate "
+                "naturally in party chat. "
+                "Achievements are special, "
+                "be excited for them!"
+            )
 
     prompt = (
         f"You are {bot['name']}, a level "
@@ -1690,6 +1738,14 @@ def build_achievement_reaction_prompt(
         f"Rules:\n"
         f"- No quotes, no emojis\n"
         f"- Can mention the achievement by name\n"
+    )
+    if not bot_is_achiever:
+        prompt += (
+            f"- Address {achiever_name} by name\n"
+            f"- This is THEIR achievement, not "
+            f"yours — congratulate them\n"
+        )
+    prompt += (
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
@@ -1708,7 +1764,7 @@ def build_spell_cast_reaction_prompt(
 ):
     """Build prompt for a bot reacting to a notable
     spell cast (heal, cc, resurrect, shield, buff,
-    dispel).
+    dispel, offensive, support).
 
     Args:
         bot: dict with name, class, race, level
@@ -1716,7 +1772,7 @@ def build_spell_cast_reaction_prompt(
         caster_name: who cast the spell
         spell_name: name of the spell cast
         spell_category: heal, cc, resurrect, shield,
-            buff, dispel
+            buff, dispel, offensive, support
         target_name: who was targeted
         mode: 'normal' or 'roleplay'
         chat_history: formatted recent chat string
@@ -1804,6 +1860,23 @@ def build_spell_cast_reaction_prompt(
                 f"harmful effect. Say something "
                 f"brief about it."
             )
+        elif spell_category == 'offensive':
+            situation = (
+                f"You just cast {spell_name} on an "
+                f"enemy"
+                + (f" ({target_name})"
+                   if target_name else "")
+                + ". Say something brief and "
+                f"aggressive."
+            )
+        elif spell_category == 'support':
+            situation = (
+                f"You just cast {spell_name}"
+                + (f" on {target_name}"
+                   if target_name else "")
+                + ". Say something brief and "
+                f"supportive."
+            )
         else:
             situation = (
                 f"You just cast {spell_name}"
@@ -1843,6 +1916,20 @@ def build_spell_cast_reaction_prompt(
                 f"{caster_name} just cleansed "
                 f"{target_name} with {spell_name}, "
                 f"removing a harmful effect"
+            )
+        elif spell_category == 'offensive':
+            situation = (
+                f"{caster_name} just cast "
+                f"{spell_name}"
+                + (f" on {target_name}"
+                   if target_name else "")
+            )
+        elif spell_category == 'support':
+            situation = (
+                f"{caster_name} just cast "
+                f"{spell_name}"
+                + (f" on {target_name}"
+                   if target_name else "")
             )
         else:
             situation = (
@@ -3659,9 +3746,6 @@ def process_group_quest_complete_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
-        completer_is_bot = bool(int(
-            extra_data.get('completer_is_bot', 1)
-        ))
         # Look up turn-in NPC name
         quest_id = int(
             extra_data.get('quest_id', 0)
@@ -3674,14 +3758,22 @@ def process_group_quest_complete_event(
         allow_action = (
             random.random() < get_action_chance()
         )
+        quest_details = extra_data.get(
+            'quest_details', ''
+        )
+        quest_objectives = extra_data.get(
+            'quest_objectives', ''
+        )
         prompt = (
             build_quest_complete_reaction_prompt(
                 reactor, reactor_traits,
                 completer_name, quest_name,
-                completer_is_bot, mode,
+                mode,
                 chat_history=chat_hist,
                 turnin_npc=turnin_npc,
                 allow_action=allow_action,
+                quest_details=quest_details,
+                quest_objectives=quest_objectives,
             )
         )
         mood_label = get_bot_mood_label(
@@ -3898,6 +3990,12 @@ def process_group_quest_objectives_event(
         allow_action = (
             random.random() < get_action_chance()
         )
+        quest_details = extra_data.get(
+            'quest_details', ''
+        )
+        quest_objectives = extra_data.get(
+            'quest_objectives', ''
+        )
         prompt = (
             build_quest_objectives_reaction_prompt(
                 reactor, reactor_traits,
@@ -3905,6 +4003,8 @@ def process_group_quest_objectives_event(
                 mode,
                 chat_history=chat_hist,
                 allow_action=allow_action,
+                quest_details=quest_details,
+                quest_objectives=quest_objectives,
             )
         )
 
@@ -4746,9 +4846,6 @@ def process_group_quest_accept_event(
         'acceptor_name',
         extra_data.get('bot_name', 'someone')
     )
-    acceptor_is_bot = bool(int(
-        extra_data.get('acceptor_is_bot', 0)
-    ))
     quest_name = extra_data.get(
         'quest_name', 'a quest'
     )
@@ -4779,12 +4876,14 @@ def process_group_quest_accept_event(
         return False
     reactor_traits = trait_data['traits']
 
-    bot_class = extra_data.get(
-        'bot_class', 'Warrior'
-    )
-    bot_race = extra_data.get(
-        'bot_race', 'Human'
-    )
+    bot_class_id = int(extra_data.get(
+        'bot_class', 1
+    ))
+    bot_race_id = int(extra_data.get(
+        'bot_race', 1
+    ))
+    bot_class = get_class_name(bot_class_id)
+    bot_race = get_race_name(bot_race_id)
     bot_level = int(
         extra_data.get('bot_level', 1)
     )
@@ -4820,14 +4919,22 @@ def process_group_quest_accept_event(
         allow_action = (
             random.random() < get_action_chance()
         )
+        quest_details = extra_data.get(
+            'quest_details', ''
+        )
+        quest_objectives = extra_data.get(
+            'quest_objectives', ''
+        )
         prompt = (
             build_quest_accept_reaction_prompt(
                 reactor, reactor_traits,
                 acceptor_name, quest_name,
-                acceptor_is_bot, quest_level,
+                quest_level,
                 zone_name, mode,
                 chat_history=chat_hist,
                 allow_action=allow_action,
+                quest_details=quest_details,
+                quest_objectives=quest_objectives,
             )
         )
         mood_label = get_bot_mood_label(
@@ -6635,8 +6742,9 @@ def build_zone_transition_prompt(
 
 def build_quest_accept_reaction_prompt(
     bot, traits, acceptor_name, quest_name,
-    acceptor_is_bot, quest_level, zone_name,
+    quest_level, zone_name,
     mode, chat_history="", allow_action=True,
+    quest_details="", quest_objectives="",
 ):
     """Build prompt for a bot reacting to the group
     accepting a new quest. Tone varies: excited,
@@ -6667,24 +6775,16 @@ def build_quest_accept_reaction_prompt(
     if chat_history:
         rp_context += f"{chat_history}\n"
 
-    # If the reacting bot is the acceptor, use
-    # "we" language. Otherwise, react to someone
-    # else accepting.
-    if acceptor_is_bot:
-        quest_context = (
-            f"Your group just accepted the quest "
-            f"\"{quest_name}\" (level {quest_level})"
-            f" in {zone_name}. This is something "
-            f"you all picked up together — use "
-            f"'we' language."
-        )
-    else:
-        quest_context = (
-            f"{acceptor_name} just accepted the "
-            f"quest \"{quest_name}\" (level "
-            f"{quest_level}) for the group in "
-            f"{zone_name}. React to the new quest."
-        )
+    quest_context = (
+        f"{acceptor_name} just "
+        f"picked up the quest \"{quest_name}\" "
+        f"(level {quest_level}) for the group in "
+        f"{zone_name}. Current Status: "
+        f"PREPARATION. You have the instructions "
+        f"but haven't begun yet. Focus on the "
+        f"task ahead, the travel required, or "
+        f"the plan of attack. Use 'we' language."
+    )
 
     level_diff = int(bot['level']) - int(quest_level)
     if level_diff < -3:
@@ -6701,18 +6801,28 @@ def build_quest_accept_reaction_prompt(
         difficulty_note = ""
 
     quest_context += difficulty_note
+    if quest_details:
+        quest_context += (
+            f" Quest description: {quest_details}"
+        )
+    if quest_objectives:
+        quest_context += (
+            f" Objectives: {quest_objectives}"
+        )
 
     if is_rp:
         style = (
-            "React in-character about accepting "
-            "this new quest. Show curiosity, "
-            "eagerness, reluctance, or caution "
-            "based on your personality."
+            "Show anticipation, caution, or "
+            "eagerness about heading out. Speak "
+            "about getting started or what lies "
+            "ahead. Treat this as the beginning "
+            "of a to-do list."
         )
     else:
         style = (
-            "Make a casual comment about picking "
-            "up a new quest. Natural and brief."
+            "Casual comment about heading out "
+            "to start the quest. Focus on the "
+            "journey ahead, not the outcome."
         )
 
     prompt = (
@@ -8175,10 +8285,8 @@ def check_idle_group_chatter(
         _idle_inflight.add(group_id)
 
     try:
-        if random.randint(1, 100) > idle_chance:
-            return False
-
-        # Get all bots in this group
+        # Get all bots in this group (needed for
+        # dynamic chance scaling before RNG roll)
         cursor.execute("""
             SELECT bot_guid, bot_name,
                    trait1, trait2, trait3, role
@@ -8189,6 +8297,16 @@ def check_idle_group_chatter(
         all_bots = cursor.fetchall()
 
         if not all_bots:
+            return False
+
+        # Scale chance by bot count so total group
+        # idle output stays constant regardless of
+        # group size
+        num_bots = len(all_bots)
+        effective_chance = max(
+            1, idle_chance // max(num_bots, 1)
+        )
+        if random.randint(1, 100) > effective_chance:
             return False
 
         idle_history_limit = int(config.get(
@@ -8859,6 +8977,66 @@ def build_precache_spell_support_prompt(
         "Example: \"There you go {target}, "
         "{spell} should help.\" or \"{target}, "
         "you're covered.\"\n"
+    )
+
+    prompt += (
+        "Rules:\n"
+        "- Use the placeholders exactly as shown "
+        "(with curly braces)\n"
+        "- Reflect your personality and mood\n"
+        "- No quotes, no emojis\n"
+        "- Respond with ONLY the message text"
+    )
+    if anti_rep:
+        prompt += f"\n\n{anti_rep}"
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+
+def build_precache_spell_offensive_prompt(
+    bot_name, race, class_name, level,
+    traits, mood, role=None, recent_cached=None,
+    allow_action=True,
+):
+    """Build prompt for a cached offensive spell
+    reaction. Uses {target} and {spell} placeholders.
+
+    Caster perspective — the bot IS the caster.
+    C++ only uses this cache when casterIsBot.
+    """
+    trait_str = ', '.join(traits) if traits else ''
+    rp_ctx = build_race_class_context(
+        race, class_name, actual_role=role
+    )
+
+    anti_rep = ''
+    if recent_cached:
+        anti_rep = build_anti_repetition_context(
+            recent_cached, max_items=3
+        )
+
+    prompt = (
+        f"You are {bot_name}, a level {level} "
+        f"{race} {class_name} in World of Warcraft."
+        f"\nPersonality: {trait_str}"
+        f"\nCurrent mood: {mood}"
+    )
+    if rp_ctx:
+        prompt += f"\n{rp_ctx}"
+
+    prompt += (
+        "\n\nYou just cast an offensive spell on "
+        "an enemy in combat. Write a very short "
+        "battle cry or taunt (1 sentence, 3-10 "
+        "words) from the CASTER perspective."
+        "\nUse these placeholders:\n"
+        "- {spell} = the spell you cast\n"
+        "- {target} = the enemy you hit (may be "
+        "absent — write lines that work without it)\n"
+        "Example: \"{spell} incoming!\" or "
+        "\"Eat {spell}, {target}!\" or "
+        "\"They won't last long.\"\n"
     )
 
     prompt += (

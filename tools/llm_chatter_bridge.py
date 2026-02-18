@@ -1434,11 +1434,13 @@ def process_single_event(event, client, config):
             )
 
         # Check zone fatigue (if zone-specific event)
-        # Transport events bypass zone fatigue to
-        # ensure they can always fire
+        # Transport and weather_change events bypass
+        # zone fatigue — they are rare moments that
+        # should always fire
         if (
             zone_id
             and event_type != 'transport_arrives'
+            and event_type != 'weather_change'
         ):
             fatigue_threshold = int(config.get(
                 'LLMChatter.ZoneFatigueThreshold',
@@ -1680,13 +1682,15 @@ def process_single_event(event, client, config):
             bot = dict(
                 random.choice(list(recent_bots))
             )
-            is_transport_event = (
-                event_type == 'transport_arrives'
+            bypass_cooldown = event_type in (
+                'transport_arrives',
+                'weather_change',
             )
 
-            # Transport events bypass cooldown -
-            # they're high priority
-            if not is_transport_event:
+            # Transport and weather events bypass
+            # cooldown — rare moments that should
+            # always fire
+            if not bypass_cooldown:
                 # Check bot speaker cooldown for
                 # non-transport events
                 cooldown = int(config.get(
@@ -1726,7 +1730,7 @@ def process_single_event(event, client, config):
                     return False
             else:
                 logger.info(
-                    f"Transport event "
+                    f"{event_type} event "
                     f"#{event_id}: bypassing "
                     f"cooldown for bot "
                     f"{bot['bot1_name']}"
@@ -2466,7 +2470,7 @@ def main():
     )
     logger.info(
         f"  SpellCastChance: "
-        f"{config.get('LLMChatter.GroupChatter.SpellCastChance', 15)}%"
+        f"{config.get('LLMChatter.GroupChatter.SpellCastChance', 10)}%"
     )
     logger.info(
         f"  KillCooldown: "
@@ -2594,7 +2598,7 @@ def main():
         f"  TTL: "
         f"{config.get('LLMChatter.GroupChatter.PreCacheTTLSeconds', 3600)}s"
         f"  GeneratePerLoop: "
-        f"{config.get('LLMChatter.GroupChatter.PreCacheGeneratePerLoop', 2)}"
+        f"{config.get('LLMChatter.GroupChatter.PreCacheGeneratePerLoop', 3)}"
     )
     logger.info(
         f"  FallbackToLive: "

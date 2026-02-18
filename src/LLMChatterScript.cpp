@@ -582,11 +582,11 @@ static void ResolvePlaceholders(
     const std::string& spell)
 {
     std::string safeTarget =
-        target.empty() ? "that" : target;
+        target.empty() ? "" : target;
     std::string safeCaster =
-        caster.empty() ? "them" : caster;
+        caster.empty() ? "" : caster;
     std::string safeSpell =
-        spell.empty() ? "that" : spell;
+        spell.empty() ? "" : spell;
 
     size_t pos;
     while ((pos = message.find("{target}"))
@@ -604,12 +604,42 @@ static void ResolvePlaceholders(
     message = std::regex_replace(
         message, unresolvedRe, "");
 
+    // Clean up punctuation artifacts from
+    // empty placeholder replacement
+    // ", ," -> ","  and " , " -> " "
+    while ((pos = message.find(", ,"))
+           != std::string::npos)
+        message.replace(pos, 3, ",");
+    while ((pos = message.find(" ,"))
+           != std::string::npos)
+        message.replace(pos, 2, "");
+    // ", !" -> "!"  and ", ." -> "."
+    while ((pos = message.find(", !"))
+           != std::string::npos)
+        message.replace(pos, 3, "!");
+    while ((pos = message.find(", ."))
+           != std::string::npos)
+        message.replace(pos, 3, ".");
+    // Trailing comma before end of string
+    while (!message.empty()
+           && (message.back() == ','
+               || message.back() == ' '))
+        message.pop_back();
+
     // Collapse double spaces
     while (message.find("  ") != std::string::npos)
     {
         pos = message.find("  ");
         message.replace(pos, 2, " ");
     }
+
+    // Trim leading/trailing whitespace
+    while (!message.empty()
+           && message.front() == ' ')
+        message.erase(0, 1);
+    while (!message.empty()
+           && message.back() == ' ')
+        message.pop_back();
 
     // Clamp to max message length
     if (message.size()
@@ -800,6 +830,12 @@ static void QueueEvent(const std::string& eventType, const std::string& eventSco
             return;
     }
 
+    // Event-level cooldown bypass for rare transition
+    // events that should always be queued when they
+    // happen.
+    bool bypassEventCooldown =
+        (eventType == "weather_change");
+
     // Check cooldown FIRST, before RNG roll.
     // This prevents multi-tick RNG amplification:
     // transports stay in a zone for multiple check
@@ -807,7 +843,8 @@ static void QueueEvent(const std::string& eventType, const std::string& eventSco
     // RNG roll if cooldown isn't set early. By setting
     // cooldown on first detection, each arrival gets
     // exactly one RNG chance.
-    if (!cooldownKey.empty()
+    if (!bypassEventCooldown
+        && !cooldownKey.empty()
         && IsOnCooldown(cooldownKey, cooldownSeconds))
     {
         if (eventType != "transport_arrives")
@@ -821,7 +858,8 @@ static void QueueEvent(const std::string& eventType, const std::string& eventSco
 
     // Set cooldown immediately on first detection,
     // regardless of RNG outcome below
-    if (!cooldownKey.empty())
+    if (!bypassEventCooldown
+        && !cooldownKey.empty())
         SetCooldown(cooldownKey);
 
     // Roll reaction chance
@@ -2725,6 +2763,24 @@ static Player* GetRandomBotInGroup(
     return bots[urand(0, bots.size() - 1)];
 }
 
+// Count bots in a group (for dynamic chance scaling)
+static uint32 CountBotsInGroup(Group* group)
+{
+    if (!group)
+        return 0;
+
+    uint32 count = 0;
+    for (GroupReference* itr =
+             group->GetFirstMember();
+         itr != nullptr; itr = itr->next())
+    {
+        Player* member = itr->GetSource();
+        if (member && IsPlayerBot(member))
+            ++count;
+    }
+    return count;
+}
+
 // Queue a greeting event for a bot joining a group
 // Bypasses QueueEvent() since greetings are mandatory
 // (no reaction chance, no cooldowns)
@@ -2860,6 +2916,13 @@ static std::map<uint32, time_t>
 // group_id -> last zone change event time
 static std::map<uint32, time_t>
     _groupZoneCooldowns;
+
+// Per-group+quest accept timestamp:
+// (groupId << 32 | questId) -> accept time
+// Used to suppress duplicate objectives events
+// for travel/breadcrumb quests
+static std::unordered_map<uint64, time_t>
+    _questAcceptTimestamps;
 
 // Per-group dungeon entry cooldown:
 // group_id -> last dungeon entry event time
@@ -4536,6 +4599,12 @@ public:
         if (!player)
             return true;
 
+        // Player-centric: only react to the real
+        // player's quest progress, not bot auto-
+        // completes (avoids confusing messages)
+        if (IsPlayerBot(player))
+            return true;
+
         Group* group = player->GetGroup();
         if (!group)
             return true;
@@ -4563,6 +4632,26 @@ public:
                    < (time_t)sLLMChatterConfig
                        ->_groupQuestObjectiveCooldown)
                 return true;
+        }
+
+        // Suppress if quest was just accepted
+        // (travel/breadcrumb quests fire objectives
+        // immediately after accept)
+        uint64 questKey =
+            ((uint64)groupId << 32) | questId;
+        {
+            auto it =
+                _questAcceptTimestamps.find(questKey);
+            if (it != _questAcceptTimestamps.end()
+                && (now - it->second) < 10)
+            {
+                LOG_DEBUG("module",
+                    "LLMChatter: QuestObjectives "
+                    "- suppressed (quest just "
+                    "accepted) [{}]",
+                    quest->GetTitle());
+                return true;
+            }
         }
 
         _groupQuestObjCooldowns[groupId] = now;
@@ -4614,6 +4703,14 @@ public:
                 std::to_string(questId) + ","
             "\"completer_name\":\"" +
                 JsonEscape(playerName) + "\","
+            "\"quest_details\":\"" +
+                JsonEscape(
+                    quest->GetDetails()
+                        .substr(0, 200)) + "\","
+            "\"quest_objectives\":\"" +
+                JsonEscape(
+                    quest->GetObjectives()
+                        .substr(0, 150)) + "\","
             "\"group_id\":" +
                 std::to_string(groupId) +
             "}";
@@ -4677,6 +4774,11 @@ public:
                 "- no player or quest");
             return;
         }
+
+        // Player-centric: only react to the real
+        // player turning in quests
+        if (IsPlayerBot(player))
+            return;
 
         LOG_INFO("module",
             "LLMChatter: QuestComplete - entered "
@@ -4780,6 +4882,14 @@ public:
                 JsonEscape(questName) + "\","
             "\"quest_id\":" +
                 std::to_string(questId) + ","
+            "\"quest_details\":\"" +
+                JsonEscape(
+                    quest->GetDetails()
+                        .substr(0, 200)) + "\","
+            "\"quest_objectives\":\"" +
+                JsonEscape(
+                    quest->GetObjectives()
+                        .substr(0, 150)) + "\","
             "\"group_id\":" +
                 std::to_string(groupId) +
             "}";
@@ -5047,6 +5157,21 @@ public:
             || spellInfo->SpellName[0][0] == '\0')
             return;
 
+        // Skip player self-casts: bots should not
+        // comment on the player buffing/shielding
+        // themselves (e.g. Aspects, self-heals).
+        // Area aura buffs (Bloodlust) are excluded
+        // since they affect the whole group.
+        if (!IsPlayerBot(player)
+            && spellInfo->IsPositive()
+            && !spellInfo->HasAreaAuraEffect())
+        {
+            Unit* tgt =
+                spell->m_targets.GetUnitTarget();
+            if (!tgt || tgt == player)
+                return;
+        }
+
         // --- Classify the spell ---
         // Categories: heal, dispel, cc, resurrect,
         // shield, buff
@@ -5197,20 +5322,63 @@ public:
 
             spellCategory = "buff";
         }
+        // 7. OFFENSIVE — negative spell while in combat
+        //    (Fireball, Frostbolt, Arcane Bolt, etc.)
+        else if (!spellInfo->IsPositive()
+                 && player->IsInCombat())
+        {
+            spellCategory = "offensive";
+        }
+        // 8. GENERIC SUPPORT — positive spell not
+        //    matching the specific categories above
+        //    (e.g. misc buffs, utility spells cast
+        //    on groupmates)
+        else if (spellInfo->IsPositive())
+        {
+            // Single-target: must target a group
+            // member (not NPC/pet/self)
+            if (!spellInfo->HasAreaAuraEffect())
+            {
+                Unit* target =
+                    spell->m_targets.GetUnitTarget();
+                if (!target || target == player)
+                    return;
+                Player* targetPlayer =
+                    target->ToPlayer();
+                if (!targetPlayer)
+                    return;
+                if (!targetPlayer->GetGroup()
+                    || targetPlayer->GetGroup()
+                           != group)
+                    return;
+            }
+            spellCategory = "support";
+        }
         else
         {
-            // Not a meaningful spell category
+            // Non-combat negative spell (mounts,
+            // food, professions) — ignore
             return;
         }
 
         // --- RNG gate ---
         // Resurrect always fires (100%);
-        // everything else configurable chance
-        if (spellCategory != "resurrect"
-            && urand(1, 100) >
+        // everything else: scale chance down by
+        // number of bots so total group output
+        // stays roughly constant regardless of
+        // group size (e.g. 10% / 5 bots = 2% each)
+        if (spellCategory != "resurrect")
+        {
+            uint32 numBots = CountBotsInGroup(group);
+            uint32 effectiveChance =
                 sLLMChatterConfig
-                    ->_groupSpellCastChance)
-            return;
+                    ->_groupSpellCastChance
+                / std::max(numBots, 1u);
+            if (effectiveChance < 1)
+                effectiveChance = 1;
+            if (urand(1, 100) > effectiveChance)
+                return;
+        }
 
         // Update the per-group cooldown
         _groupSpellCooldowns[groupId] = now;
@@ -5256,6 +5424,15 @@ public:
         {
             targetName = spellTarget->GetName();
         }
+        else
+        {
+            // AoE spells (Frost Nova, Blizzard,
+            // etc.) have no unit target — fall back
+            // to caster's current victim
+            Unit* victim = player->GetVictim();
+            if (victim)
+                targetName = victim->GetName();
+        }
 
         // Self-cast: no comment needed when a bot
         // casts on itself (e.g. PW:Shield on self)
@@ -5270,10 +5447,29 @@ public:
             return;
 
         // --- Pre-cache instant delivery ---
-        // Skip resurrect (too important for cached)
-        // Caster-on-other uses cached caster-perspective
-        // messages with {target} and {spell} placeholders.
+        // Skip resurrect (too important for cached).
+        // Pick cache key based on category; offensive
+        // cache is caster-perspective so only valid
+        // when the bot itself is the caster. Player-
+        // cast offensive spells skip cache entirely
+        // and fall through to live LLM.
+        std::string cacheKey;
+        bool canUseCache = true;
+        if (spellCategory == "offensive")
+        {
+            cacheKey = "spell_offensive";
+            // Offensive cache is caster-perspective —
+            // only valid when bot is the caster
+            if (!casterIsBot)
+                canUseCache = false;
+        }
+        else
+        {
+            cacheKey = "spell_support";
+        }
+
         if (spellCategory != "resurrect"
+            && canUseCache
             && sLLMChatterConfig->_preCacheEnable
             && sLLMChatterConfig
                    ->_preCacheSpellEnable)
@@ -5281,7 +5477,7 @@ public:
             std::string cachedMsg, cachedEmote;
             if (TryConsumeCachedReaction(
                     groupId, botGuid,
-                    "spell_support",
+                    cacheKey,
                     cachedMsg, cachedEmote))
             {
                 ResolvePlaceholders(
@@ -6331,6 +6527,11 @@ public:
         if (!player || !quest)
             return false;
 
+        // Player-centric: only react to the real
+        // player accepting quests
+        if (IsPlayerBot(player))
+            return false;
+
         Group* group = player->GetGroup();
         if (!group)
             return false;
@@ -6348,11 +6549,9 @@ public:
         uint64 questKey =
             ((uint64)groupId << 32) | questId;
         time_t now = time(nullptr);
-        static std::unordered_map<
-            uint64, time_t> _questAcceptCd;
         auto cdIt =
-            _questAcceptCd.find(questKey);
-        if (cdIt != _questAcceptCd.end()
+            _questAcceptTimestamps.find(questKey);
+        if (cdIt != _questAcceptTimestamps.end()
             && (now - cdIt->second)
                < (time_t)sLLMChatterConfig
                    ->_groupQuestAcceptCooldown)
@@ -6378,7 +6577,7 @@ public:
         if (!reactor)
             return false;
 
-        _questAcceptCd[questKey] = now;
+        _questAcceptTimestamps[questKey] = now;
 
         uint32 botGuid =
             reactor->GetGUID().GetCounter();
@@ -6425,6 +6624,14 @@ public:
                     quest->GetQuestLevel()) + ","
             "\"zone_name\":\"" +
                 JsonEscape(zoneName) + "\","
+            "\"quest_details\":\"" +
+                JsonEscape(
+                    quest->GetDetails()
+                        .substr(0, 200)) + "\","
+            "\"quest_objectives\":\"" +
+                JsonEscape(
+                    quest->GetObjectives()
+                        .substr(0, 150)) + "\","
             "\"group_id\":" +
                 std::to_string(groupId) +
             "}";
