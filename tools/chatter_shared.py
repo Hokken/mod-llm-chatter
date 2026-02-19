@@ -37,6 +37,12 @@ from spell_names import SPELL_NAMES, SPELL_DESCRIPTIONS
 
 logger = logging.getLogger(__name__)
 
+# N12 decomposition scaffold note:
+# chatter_shared.py remains the stable facade.
+# Target modules (chatter_text/chatter_llm/chatter_db)
+# now exist as skeletons; functions are moved in
+# N13-N16 with compatibility re-exports.
+
 
 # =============================================================================
 # GLOBAL MUTABLE STATE
