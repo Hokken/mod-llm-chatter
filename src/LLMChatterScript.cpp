@@ -6277,7 +6277,7 @@ static void QueueStateCallout(
         bot->GetZoneId(),
         bot->GetMapId(),
         2,
-        "state:" + eventType + ":" + std::to_string(botGuid),
+        std::string("state:") + eventType + ":" + std::to_string(botGuid),
         botGuid,
         botName,
         0,
