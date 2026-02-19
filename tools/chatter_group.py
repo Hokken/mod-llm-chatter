@@ -29,7 +29,6 @@ and chatter_prompts.
 
 import logging
 import random
-import re
 import threading
 import time
 

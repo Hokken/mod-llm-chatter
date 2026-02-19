@@ -4,15 +4,11 @@ import logging
 import random
 
 from chatter_shared import (
-    get_chatter_mode,
     get_zone_flavor,
     get_dungeon_flavor,
     get_dungeon_bosses,
     build_race_class_context,
     build_bot_state_context,
-    format_item_link,
-    find_addressed_bot,
-    query_quest_turnin_npc,
     append_json_instruction,
     build_anti_repetition_context,
 )
@@ -20,14 +16,12 @@ from chatter_prompts import (
     pick_random_tone,
     pick_random_mood,
     maybe_get_creative_twist,
-    get_environmental_context,
     pick_personality_spices,
 )
 from chatter_constants import (
     RACE_SPEECH_PROFILES,
     LENGTH_HINTS,
     RP_LENGTH_HINTS,
-    CLASS_ROLE_MAP,
 )
 
 logger = logging.getLogger(__name__)
