@@ -123,6 +123,10 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # REQUEST PROCESSING
 # =============================================================================
+# N8 scaffold note:
+# ambient processors remain in this module for parity.
+# N9/N10 will move process_statement/process_conversation
+# to chatter_ambient.py.
 def process_statement(
     db, cursor, client, config, request, bot: dict
 ):
