@@ -1539,6 +1539,7 @@ def run_single_reaction(
     allow_emote_fallback: bool = True,
     max_tokens_override: int = None,
     context: str = '',
+    message_transform: Any = None,
 ) -> Dict[str, Any]:
     """Run shared single-message reaction pipeline.
 
@@ -1584,6 +1585,22 @@ def run_single_reaction(
             'emote': None,
             'error_reason': 'empty_message',
         }
+
+    if callable(message_transform):
+        try:
+            transformed = message_transform(message)
+            if isinstance(transformed, str):
+                message = transformed
+        except Exception as e:
+            logger.error(
+                f"run_single_reaction transform error: {e}"
+            )
+            return {
+                'ok': False,
+                'message': None,
+                'emote': None,
+                'error_reason': 'transform_error',
+            }
 
     if len(message) > 255:
         message = message[:252] + "..."

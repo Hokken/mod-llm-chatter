@@ -2525,49 +2525,40 @@ def process_group_kill_event(
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
         ))
-        response = call_llm(
-            client, prompt, config,
+        result = run_single_reaction(
+            db,
+            client,
+            config,
+            prompt=prompt,
+            speaker_name=bot_name,
+            bot_guid=bot_guid,
+            channel='party',
+            delay_seconds=3,
+            event_id=event_id,
+            allow_emote_fallback=True,
             max_tokens_override=max_tokens,
             context=(
                 f"grp-kill:#{event_id}:{bot_name}"
-            )
+            ),
         )
-
-        if not response:
-            logger.warning(
-                f"Group kill #{event_id}: "
-                f"LLM returned no response"
-            )
+        if not result['ok']:
+            if result['error_reason'] == 'no_response':
+                logger.warning(
+                    f"Group kill #{event_id}: "
+                    f"LLM returned no response"
+                )
+            elif result['error_reason'] == 'empty_message':
+                logger.warning(
+                    "Empty message after cleanup"
+                )
             _mark_event(db, event_id, 'skipped')
             return False
 
-        parsed = parse_single_response(response)
-        message = strip_speaker_prefix(
-            parsed['message'], bot_name
-        )
-        message = cleanup_message(
-            message, action=parsed.get('action')
-        )
-        if not message:
-            logger.warning("Empty message after cleanup")
-            _mark_event(db, event_id, 'skipped')
-            return False
-        if len(message) > 255:
-            message = message[:252] + "..."
+        message = result['message']
 
         logger.info(
             f"Kill reaction from {bot_name}: "
             f"{message}"
-        )
-
-        emote = (
-            parsed.get('emote')
-            or pick_emote_for_statement(message)
-        )
-        insert_chat_message(
-            db, bot_guid, bot_name, message,
-            channel='party', delay_seconds=3,
-            event_id=event_id, emote=emote,
         )
 
         _store_chat(
@@ -2708,67 +2699,63 @@ def process_group_loot_event(
                 f"\nCurrent mood: {mood_label}"
             )
 
+        item_entry = int(
+            extra_data.get('item_entry', 0)
+        )
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
         ))
-        response = call_llm(
-            client, prompt, config,
+
+        def _loot_message_transform(raw_message):
+            """Inject clickable item link into the
+            first matching item-name occurrence."""
+            message = raw_message
+            if item_entry and item_name:
+                link = format_item_link(
+                    item_entry, item_quality, item_name
+                )
+                message = re.sub(
+                    re.escape(item_name), link,
+                    message, count=1, flags=re.IGNORECASE
+                )
+            return message
+
+        result = run_single_reaction(
+            db,
+            client,
+            config,
+            prompt=prompt,
+            speaker_name=bot['name'],
+            bot_guid=bot['guid'],
+            channel='party',
+            delay_seconds=3,
+            event_id=event_id,
+            allow_emote_fallback=True,
             max_tokens_override=max_tokens,
             context=(
                 f"grp-loot:#{event_id}"
                 f":{bot['name']}"
-            )
+            ),
+            message_transform=_loot_message_transform,
         )
-
-        if not response:
-            logger.warning(
-                f"Group loot #{event_id}: "
-                f"LLM returned no response"
-            )
+        if not result['ok']:
+            if result['error_reason'] == 'no_response':
+                logger.warning(
+                    f"Group loot #{event_id}: "
+                    f"LLM returned no response"
+                )
+            elif result['error_reason'] == 'empty_message':
+                logger.warning(
+                    "Empty message after cleanup"
+                )
             _mark_event(db, event_id, 'skipped')
             return False
 
-        parsed = parse_single_response(response)
-        message = strip_speaker_prefix(
-            parsed['message'], bot['name']
-        )
-        message = cleanup_message(
-            message, action=parsed.get('action')
-        )
-        if not message:
-            logger.warning("Empty message after cleanup")
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        # Replace item name with clickable link
-        item_entry = int(
-            extra_data.get('item_entry', 0)
-        )
-        if item_entry and item_name:
-            link = format_item_link(
-                item_entry, item_quality, item_name
-            )
-            message = re.sub(
-                re.escape(item_name), link,
-                message, count=1, flags=re.IGNORECASE
-            )
-
-        if len(message) > 255:
-            message = message[:252] + "..."
+        message = result['message']
 
         logger.info(
             f"Loot reaction from {bot['name']}: "
             f"{message}"
-        )
-
-        emote = (
-            parsed.get('emote')
-            or pick_emote_for_statement(message)
-        )
-        insert_chat_message(
-            db, bot['guid'], bot['name'], message,
-            channel='party', delay_seconds=3,
-            event_id=event_id, emote=emote,
         )
 
         _store_chat(
@@ -2903,54 +2890,43 @@ def process_group_combat_event(
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
         ))
-        response = call_llm(
-            client, prompt, config,
+        result = run_single_reaction(
+            db,
+            client,
+            config,
+            prompt=prompt,
+            speaker_name=bot_name,
+            bot_guid=bot['guid'],
+            channel='party',
+            delay_seconds=1,
+            event_id=event_id,
+            allow_emote_fallback=True,
             max_tokens_override=min(
                 max_tokens, 60
             ),
             context=(
                 f"grp-combat:#{event_id}"
                 f":{bot_name}"
-            )
+            ),
         )
-
-        if not response:
-            logger.warning(
-                f"Group combat #{event_id}: "
-                f"LLM returned no response"
-            )
+        if not result['ok']:
+            if result['error_reason'] == 'no_response':
+                logger.warning(
+                    f"Group combat #{event_id}: "
+                    f"LLM returned no response"
+                )
+            elif result['error_reason'] == 'empty_message':
+                logger.warning(
+                    "Empty combat msg after cleanup"
+                )
             _mark_event(db, event_id, 'skipped')
             return False
 
-        parsed = parse_single_response(response)
-        message = strip_speaker_prefix(
-            parsed['message'], bot_name
-        )
-        message = cleanup_message(
-            message, action=parsed.get('action')
-        )
-        if not message:
-            logger.warning(
-                "Empty combat msg after cleanup"
-            )
-            _mark_event(db, event_id, 'skipped')
-            return False
-        if len(message) > 255:
-            message = message[:252] + "..."
+        message = result['message']
 
         logger.info(
             f"Combat cry from {bot_name}: "
             f"{message}"
-        )
-
-        emote = (
-            parsed.get('emote')
-            or pick_emote_for_statement(message)
-        )
-        insert_chat_message(
-            db, bot['guid'], bot['name'], message,
-            channel='party', delay_seconds=1,
-            event_id=event_id, emote=emote,
         )
 
         _store_chat(
@@ -3116,51 +3092,41 @@ def process_group_death_event(
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
         ))
-        response = call_llm(
-            client, prompt, config,
+        result = run_single_reaction(
+            db,
+            client,
+            config,
+            prompt=prompt,
+            speaker_name=reactor_name,
+            bot_guid=reactor_guid,
+            channel='party',
+            delay_seconds=2,
+            event_id=event_id,
+            allow_emote_fallback=True,
             max_tokens_override=max_tokens,
             context=(
                 f"grp-death:#{event_id}"
                 f":{reactor_name}"
-            )
+            ),
         )
-
-        if not response:
-            logger.warning(
-                f"Group death #{event_id}: "
-                f"LLM returned no response"
-            )
+        if not result['ok']:
+            if result['error_reason'] == 'no_response':
+                logger.warning(
+                    f"Group death #{event_id}: "
+                    f"LLM returned no response"
+                )
+            elif result['error_reason'] == 'empty_message':
+                logger.warning(
+                    "Empty message after cleanup"
+                )
             _mark_event(db, event_id, 'skipped')
             return False
 
-        parsed = parse_single_response(response)
-        message = strip_speaker_prefix(
-            parsed['message'], reactor_name
-        )
-        message = cleanup_message(
-            message, action=parsed.get('action')
-        )
-        if not message:
-            logger.warning("Empty message after cleanup")
-            _mark_event(db, event_id, 'skipped')
-            return False
-        if len(message) > 255:
-            message = message[:252] + "..."
+        message = result['message']
 
         logger.info(
             f"Death reaction from "
             f"{reactor_name}: {message}"
-        )
-
-        emote = (
-            parsed.get('emote')
-            or pick_emote_for_statement(message)
-        )
-        insert_chat_message(
-            db, reactor_guid, reactor_name,
-            message, channel='party',
-            delay_seconds=2, event_id=event_id,
-            emote=emote,
         )
 
         _store_chat(
