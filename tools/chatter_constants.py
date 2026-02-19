@@ -209,13 +209,21 @@ RACE_NAMES = {
 # =============================================================================
 RACE_SPEECH_PROFILES = {
     "Human": {
-        "traits": (
-            "practical, resilient, civic-minded, disciplined, "
-            "ambitious, and quick to rally in a crisis"
-        ),
+        "traits": [
+            "practical, resilient, civic-minded, disciplined, and quick to rally in a crisis",
+            "adaptable, ambitious, community-focused, and driven by duty and opportunity",
+            "loyal to crown and comrades, tempered by war, and guided by pragmatic idealism",
+            "resourceful and hardworking, blending frontier grit with cosmopolitan diplomacy",
+            "patriotic and duty-bound, shaped by loss yet stubbornly hopeful about the future",
+            "socially perceptive, trade-savvy, and inclined to build alliances over grudges",
+            "courageous under fire, quick to organize, and uneasy with prolonged uncertainty",
+            "grounded in tradition yet open to new ideas when survival demands adaptation",
+        ],
         "flavor_words": [
             "for the Alliance", "by the Light", "Stormwind",
             "Lordaeron", "the Light", "King Varian",
+            "honor", "duty", "the kingdom",
+            "Northshire", "the crown", "fallen heroes",
         ],
         "vocabulary": [
             ("Light be with you", "blessing/greeting"),
@@ -242,13 +250,21 @@ RACE_SPEECH_PROFILES = {
         ),
     },
     "Orc": {
-        "traits": (
-            "blunt, proud, honor-bound, tribal, intense, and "
-            "protective of hard-won freedom"
-        ),
+        "traits": [
+            "blunt, proud, honor-bound, tribal, intense, and protective of hard-won freedom",
+            "fiercely loyal to clan, shaped by war, and driven by a need to prove worth",
+            "direct and confrontational, valuing strength tempered by ancestral wisdom",
+            "passionate about honor, suspicious of diplomacy, and quick to challenge weakness",
+            "battle-hardened and communal, finding identity through shared struggle and victory",
+            "spiritually grounded in shamanic tradition yet haunted by a legacy of corruption",
+            "blunt-spoken and impatient with politics, preferring action to deliberation",
+            "deeply protective of Horde sovereignty, wary of outsiders, and proud of survival",
+        ],
         "flavor_words": [
             "Lok'tar ogar", "blood and thunder", "for the Horde",
             "Durotar", "Orgrimmar", "ancestors",
+            "honor", "the clans", "Thrall",
+            "Draenor", "war drums", "spirit wolves",
         ],
         "vocabulary": [
             ("Lok'tar ogar!", "Victory or death!"),
@@ -276,13 +292,21 @@ RACE_SPEECH_PROFILES = {
         ),
     },
     "Dwarf": {
-        "traits": (
-            "hearty, stubborn, craft-proud, clan-loyal, blunt, "
-            "and curious about old secrets"
-        ),
+        "traits": [
+            "hearty, stubborn, craft-proud, clan-loyal, blunt, and curious about old secrets",
+            "unshakable in a fight, fond of drink and stories, and fiercely devoted to kin",
+            "gruff but warm-hearted, with deep respect for tradition and honest labor",
+            "endlessly curious about titan relics, driven to dig deeper and know more",
+            "plain-spoken, thickheaded in the best way, and loyal to a fault",
+            "proud of forge and family, quick to laugh, and slow to forgive a betrayal",
+            "practical and down-to-earth, trusting hammers and handshakes over fancy words",
+            "stout-spirited and resilient, shaped by mountain winters and centuries of clan feuds",
+        ],
         "flavor_words": [
             "by my beard", "aye", "stone and steel",
             "Ironforge", "Khaz Modan", "clan",
+            "the forge", "ale", "titan relics",
+            "the mountain", "Explorers League", "anvil",
         ],
         "vocabulary": [
             ("Keep yer feet on the ground", "farewell"),
@@ -306,13 +330,21 @@ RACE_SPEECH_PROFILES = {
         ),
     },
     "Night Elf": {
-        "traits": (
-            "ancient, reverent, guarded, patient, proud, and "
-            "fiercely protective of nature"
-        ),
+        "traits": [
+            "ancient, reverent, guarded, patient, proud, and fiercely protective of nature",
+            "contemplative and measured, carrying millennia of memory in every decision",
+            "deeply spiritual, attuned to lunar cycles, and wary of arcane recklessness",
+            "graceful yet fierce in defense of sacred groves and ancestral lands",
+            "reserved with outsiders, intensely loyal within bonds of trust and shared purpose",
+            "melancholic but resolute, shaped by immortality lost and duty that endures",
+            "watchful and deliberate, preferring patience and precision over haste",
+            "quietly commanding, drawing authority from age and devotion rather than rank",
+        ],
         "flavor_words": [
-            "Elune", "Elune guide you", "the wilds",
+            "Elune", "Elune guide you", "starlight",
             "Kaldorei", "Darnassus", "moonwell",
+            "ancient roots", "Teldrassil", "the old ways",
+            "Cenarius", "moonlight", "the Emerald Dream",
         ],
         "vocabulary": [
             ("Ishnu-alah", "Good fortune to you"),
@@ -341,13 +373,21 @@ RACE_SPEECH_PROFILES = {
         ),
     },
     "Undead": {
-        "traits": (
-            "darkly sardonic, bitter, pragmatic, ruthless, "
-            "survivor-minded, and fiercely insular"
-        ),
+        "traits": [
+            "darkly sardonic, bitter, pragmatic, ruthless, survivor-minded, and fiercely insular",
+            "cold and calculating, trusting no one fully, yet loyal to those who prove themselves",
+            "morbidly humorous, blunt about death, and contemptuous of naive optimism",
+            "driven by vengeance and self-preservation, with little patience for sentiment",
+            "clinical and detached, viewing the living with a mixture of envy and disdain",
+            "cunning and resourceful, shaped by betrayal into expecting the worst from allies",
+            "grimly determined, finding purpose in spite rather than hope",
+            "territorial and suspicious, guarding Forsaken interests with ruthless efficiency",
+        ],
         "flavor_words": [
             "Dark Lady", "plague", "the grave",
             "Forsaken", "Undercity", "Scourge",
+            "Sylvanas", "the apothecary", "Lordaeron",
+            "rot", "free will", "the Lich King",
         ],
         "vocabulary": [
             ("Dark Lady watch over you", "farewell/blessing"),
@@ -372,13 +412,21 @@ RACE_SPEECH_PROFILES = {
         ),
     },
     "Tauren": {
-        "traits": (
-            "calm, grounded, spiritual, honorable, patient, "
-            "and protective of kin and land"
-        ),
+        "traits": [
+            "calm, grounded, spiritual, honorable, patient, and protective of kin and land",
+            "gentle in counsel but immovable in defense, guided by elders and ancient rites",
+            "deeply communal, measuring worth by service to the tribe rather than personal glory",
+            "contemplative and slow to anger, but devastating when roused to protect the innocent",
+            "reverent of nature and ancestors, finding wisdom in seasons and the turning of years",
+            "stoic and dependable, preferring measured words and decisive action over bluster",
+            "warm and hospitable among allies, cautious and watchful among strangers",
+            "spiritually attuned and physically imposing, balancing tenderness with raw strength",
+        ],
         "flavor_words": [
             "Earth Mother", "walk with the Earth Mother",
             "ancestors", "Thunder Bluff", "shu'halo",
+            "the plains", "Mulgore", "tribal elders",
+            "the hunt", "totem", "Cairne", "the wind",
         ],
         "vocabulary": [
             ("Walk with the Earth Mother", "farewell/blessing"),
@@ -403,13 +451,21 @@ RACE_SPEECH_PROFILES = {
         ),
     },
     "Gnome": {
-        "traits": (
-            "inventive, curious, upbeat, analytical, quick-thinking, "
-            "and relentless under pressure"
-        ),
+        "traits": [
+            "inventive, curious, upbeat, analytical, quick-thinking, and relentless under pressure",
+            "endlessly optimistic, treating setbacks as data points rather than defeats",
+            "technically obsessed, prone to jargon, and genuinely delighted by clever solutions",
+            "plucky and determined, compensating for small stature with oversized confidence",
+            "intellectually restless, always tinkering with ideas even during casual conversation",
+            "cheerful and eccentric, viewing danger as an engineering problem to be solved",
+            "methodical yet spontaneous, switching between careful analysis and wild improvisation",
+            "socially enthusiastic, eager to explain inventions whether anyone asks or not",
+        ],
         "flavor_words": [
             "tinkering", "by my calculations", "brilliant",
             "High Tinker", "Mekkatorque", "Gnomeregan",
+            "gears", "schematics", "prototype",
+            "invention", "calibration", "spark plug",
         ],
         "vocabulary": [
             ("For Gnomeregan!", "battle cry"),
@@ -433,13 +489,21 @@ RACE_SPEECH_PROFILES = {
         ),
     },
     "Troll": {
-        "traits": (
-            "laid-back, spiritual, streetwise, proud, adaptive, "
-            "and dangerous when crossed"
-        ),
+        "traits": [
+            "laid-back, spiritual, streetwise, proud, adaptive, and dangerous when crossed",
+            "easygoing on the surface but fiercely tribal underneath the casual demeanor",
+            "cunning and perceptive, reading situations quickly and adapting without hesitation",
+            "superstitious and reverent of the loa, weaving faith into everyday choices",
+            "proud of Darkspear heritage, carrying exile and survival as badges of identity",
+            "relaxed and humorous in company, but cold and focused when a threat appears",
+            "patient and opportunistic, preferring to wait for the right moment to strike",
+            "deeply communal, valuing loyalty to tribe above personal ambition or comfort",
+        ],
         "flavor_words": [
             "mon", "da spirits", "loa",
             "Darkspear", "Vol'jin", "Echo Isles",
+            "voodoo", "da ancestors", "shadow hunter",
+            "island", "juju", "sacrifice",
         ],
         "vocabulary": [
             ("Taz'dingo!", "war cry / cheer"),
@@ -463,13 +527,21 @@ RACE_SPEECH_PROFILES = {
         ),
     },
     "Blood Elf": {
-        "traits": (
-            "proud, elegant, disciplined, image-conscious, "
-            "arcane-focused, and emotionally guarded"
-        ),
+        "traits": [
+            "proud, elegant, disciplined, image-conscious, arcane-focused, and emotionally guarded",
+            "refined and poised, masking deep grief behind composure and cultural pride",
+            "magically attuned and intellectually sharp, with exacting standards for everything",
+            "politically astute, navigating alliances with grace while trusting few completely",
+            "aesthetically driven, valuing beauty and order as expressions of national identity",
+            "resilient beneath the polish, forged by addiction, betrayal, and national catastrophe",
+            "socially graceful but privately intense, channeling passion into duty and craft",
+            "dignified and self-possessed, treating poise under pressure as a moral obligation",
+        ],
         "flavor_words": [
             "Sin'dorei", "Sunwell", "arcane",
             "Quel'Thalas", "Silvermoon", "regent lord",
+            "Lor'themar", "mana", "the magisters",
+            "blood knights", "Kael'thas", "the Spire",
         ],
         "vocabulary": [
             ("Bal'a dash, malanore", "Greetings, traveler"),
@@ -498,13 +570,21 @@ RACE_SPEECH_PROFILES = {
         ),
     },
     "Draenei": {
-        "traits": (
-            "devout, resilient, contemplative, compassionate, "
-            "ancient, and quietly battle-hardened"
-        ),
+        "traits": [
+            "devout, resilient, contemplative, compassionate, ancient, and quietly battle-hardened",
+            "patient and long-sighted, measuring events against millennia of exile and loss",
+            "deeply faithful, drawing strength from the naaru and an unshaken belief in the Light",
+            "gentle in manner but unyielding in principle, especially against demonic corruption",
+            "wise and measured, offering counsel shaped by ages of wandering and persecution",
+            "quietly sorrowful beneath a composed exterior, carrying grief without bitterness",
+            "communal and selfless, placing the safety of refugees and allies above personal need",
+            "spiritually disciplined and martially capable, balancing prayer with vindicator resolve",
+        ],
         "flavor_words": [
             "the Naaru", "the Light", "Argus",
             "Exodar", "Velen", "Draenor",
+            "the crystals", "eredar", "vindicators",
+            "the Prophet", "exile", "the Burning Legion",
         ],
         "vocabulary": [
             ("Archenon poros", "Good fortune"),
@@ -532,46 +612,106 @@ RACE_SPEECH_PROFILES = {
 }
 
 CLASS_SPEECH_MODIFIERS = {
-    "Warrior": (
-        "direct and battle-tested; values discipline, grit, and frontline courage; "
-        "talks in practical terms about weapons, formations, and surviving the fight"
-    ),
-    "Paladin": (
-        "righteous and resolute; frames choices as duty and sacrifice; speaks of "
-        "the Light, justice, oaths, and protecting the innocent"
-    ),
-    "Hunter": (
-        "observant and patient; notices tracks, terrain, and creature behavior; "
-        "speaks like a scout who trusts preparation, instincts, and steady aim"
-    ),
-    "Rogue": (
-        "guarded and sharp-tongued; favors understatement, hints, and dry humor; "
-        "references stealth, opportunity, poisons, and clean execution"
-    ),
-    "Priest": (
-        "contemplative and empathetic; offers counsel, comfort, or stern warnings; "
-        "speaks of faith, spirit, and inner resolve in crisis"
-    ),
-    "Death Knight": (
-        "cold, disciplined, and haunted; matter-of-fact about death and suffering; "
-        "uses grim, military phrasing shaped by Scourge memories"
-    ),
-    "Shaman": (
-        "grounded and reverent; speaks of elements, ancestors, and imbalance; "
-        "tone is communal and spiritual, with practical respect for natural forces"
-    ),
-    "Mage": (
-        "precise and scholarly; references arcane theory, runes, and control; "
-        "curious about magical anomalies but wary of unstable power"
-    ),
-    "Warlock": (
-        "calmly unsettling and sardonic; treats forbidden magic as a tool; "
-        "references pacts, curses, and risk with controlled confidence"
-    ),
-    "Druid": (
-        "serene but firm; speaks of balance, cycles, and stewardship of the wilds; "
-        "frames conflict as restoring harmony when nature is threatened"
-    ),
+    "Warrior": [
+        "direct and battle-tested; values discipline, grit, and frontline courage",
+        "stoic and commanding; earned respect through sweat and scars, not rank",
+        "blunt about danger, impatient with cowardice, and loyal to fellow soldiers",
+        "tactical and grounded; thinks in terms of formations, terrain, and survival",
+        "hard-bitten and pragmatic; measures success by who walks away from the fight",
+        "confident under pressure; treats every engagement as a problem of steel and nerve",
+        "rough-edged but dependable; speaks plainly and expects the same in return",
+        "proudly physical; trusts trained reflexes and heavy armor over clever tricks",
+    ],
+    "Paladin": [
+        "righteous and resolute; frames choices as duty and sacrifice for the innocent",
+        "steadfast in faith, viewing hardship as a test of conviction and character",
+        "protective and principled; speaks with quiet authority earned through service",
+        "driven by oaths sworn long ago, carrying the weight of promises kept and broken",
+        "compassionate but unflinching; offers mercy first and judgment second",
+        "disciplined and devout; draws strength from prayer, ritual, and sworn purpose",
+        "inspiring in battle, speaking of courage and hope even when odds are grim",
+        "morally certain yet not naive; understands that justice sometimes demands sacrifice",
+    ],
+    "Hunter": [
+        "observant and patient; notices tracks, terrain, and creature behavior instinctively",
+        "self-reliant and quiet; prefers the company of beasts to crowded taverns",
+        "speaks like a scout who trusts preparation, sharp eyes, and steady aim",
+        "attuned to the land, reading weather and wildlife the way others read books",
+        "practical and unhurried; values a clean shot and a well-laid trap above all",
+        "independent by nature, most comfortable on the trail with a loyal companion",
+        "watchful and economical with words; says what needs saying, nothing more",
+        "calm and focused under pressure; treats the hunt as both craft and meditation",
+    ],
+    "Rogue": [
+        "guarded and sharp-tongued; favors understatement, hints, and dry humor",
+        "calculating and streetwise; reads people the way hunters read prey",
+        "quick-witted and evasive; never gives a straight answer when a clever one works",
+        "pragmatic about morality; values results, discretion, and a clean getaway",
+        "charming when useful, cold when necessary, and always watching the exits",
+        "cynical but perceptive; sees through bluster and finds leverage in small details",
+        "prefers shadows and subtlety; considers brute force a failure of imagination",
+        "self-serving on the surface but quietly loyal to those who earn genuine trust",
+    ],
+    "Priest": [
+        "contemplative and empathetic; offers counsel, comfort, or stern warnings",
+        "spiritually grounded; speaks of faith, inner strength, and perseverance",
+        "gentle in manner but firm in conviction, drawing authority from devotion",
+        "perceptive about suffering; notices pain others try to hide and offers solace",
+        "measured and thoughtful; weighs words carefully, knowing they carry weight",
+        "quietly resilient; sustains others through crisis while bearing private doubts",
+        "morally serious without being preachy; leads by example rather than lecture",
+        "attuned to the unseen; senses spiritual currents beneath surface appearances",
+    ],
+    "Death Knight": [
+        "cold, disciplined, and haunted; matter-of-fact about death and suffering",
+        "grimly efficient; views combat as mechanical necessity stripped of glory",
+        "emotionally distant, speaking in clipped tones shaped by Scourge conditioning",
+        "darkly pragmatic; offers harsh truths without apology or sentiment",
+        "carries an undercurrent of buried rage, controlled but never fully extinguished",
+        "clinical about violence; treats warfare as a problem of applied force and timing",
+        "isolated by experience; understands mortality differently from those who never died",
+        "quietly tormented; fights for redemption while doubting it can ever be earned",
+    ],
+    "Shaman": [
+        "grounded and reverent; speaks of elements, ancestors, and natural imbalance",
+        "communal and spiritual; frames events through the lens of harmony and disruption",
+        "patient and observant; listens to wind, stone, and water before offering counsel",
+        "respectful of old ways, suspicious of shortcuts that ignore elemental balance",
+        "warm and tribal in outlook; values shared wisdom over individual ambition",
+        "attuned to subtle shifts in the land, sensing trouble before others notice",
+        "plainspoken and earnest; treats spiritual matters with practical reverence",
+        "mediating by nature; seeks accord between opposing forces rather than dominance",
+    ],
+    "Mage": [
+        "precise and scholarly; references arcane theory, runes, and controlled power",
+        "intellectually curious, always probing for deeper understanding of magical forces",
+        "methodical and exacting; approaches problems with research, logic, and caution",
+        "articulate and confident in expertise, occasionally impatient with imprecision",
+        "fascinated by anomalies and paradoxes; treats every mystery as an invitation",
+        "cautious about unstable power; respects the line between mastery and catastrophe",
+        "bookish but not timid; defends ideas with the same intensity as casting spells",
+        "analytical and observant; notices patterns others miss and connects distant facts",
+    ],
+    "Warlock": [
+        "calmly unsettling and sardonic; treats forbidden magic as a practical tool",
+        "measured and darkly confident; speaks of pacts and risk with detached composure",
+        "intellectually ruthless; pursues power through channels others fear to approach",
+        "wryly self-aware about moral boundaries crossed, with no interest in excuses",
+        "controlled and deliberate; every bargain calculated, every curse precisely aimed",
+        "socially provocative; enjoys discomfort in others and wears suspicion as armor",
+        "pragmatic about demons and shadow; views fear as a resource to be harvested",
+        "quietly ambitious; accumulates leverage and knowledge while others play at virtue",
+    ],
+    "Druid": [
+        "serene but firm; speaks of balance, cycles, and stewardship of ancient groves",
+        "deeply connected to seasonal rhythms, viewing conflict as a disruption to restore",
+        "patient and perceptive; reads the health of a forest the way healers read wounds",
+        "protective of sacred places, fierce when the natural order is threatened",
+        "contemplative and adaptable; shifts perspective as fluidly as shifting form",
+        "grounded in primal forces, speaking with quiet authority about growth and decay",
+        "communal in outlook; sees all living things as threads in a larger tapestry",
+        "watchful guardian of boundaries; values harmony but does not hesitate to act",
+    ],
 }
 
 # =============================================================================

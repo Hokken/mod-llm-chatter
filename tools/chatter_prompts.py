@@ -15,7 +15,6 @@ from chatter_constants import (
     LENGTH_HINTS,
     RP_TONES, RP_MOODS, RP_CREATIVE_TWISTS,
     RP_MESSAGE_CATEGORIES, RP_LENGTH_HINTS,
-    EMOTE_LIST_STR,
     PERSONALITY_SPICES, RP_PERSONALITY_SPICES,
 )
 from chatter_shared import (
@@ -23,6 +22,7 @@ from chatter_shared import (
     get_zone_flavor, format_price,
     build_anti_repetition_context,
     append_json_instruction,
+    append_conversation_json_instruction,
 )
 
 logger = logging.getLogger(__name__)
@@ -133,7 +133,7 @@ def generate_conversation_mood_sequence(
     return [random.choice(pool) for _ in range(message_count)]
 
 
-# Conversation length labels — short descriptions
+# Conversation length labels â€” short descriptions
 # mapped to rough character counts for the LLM.
 CONV_LENGTHS = [
     "very short (under 40 chars)",
@@ -448,7 +448,9 @@ def build_plain_statement_prompt(
         parts.append(anti_rep)
 
     prompt = "\n".join(parts)
-    return append_json_instruction(prompt, allow_action)
+    return append_json_instruction(
+        prompt, allow_action, skip_emote=True
+    )
 
 
 def build_quest_statement_prompt(
@@ -563,7 +565,9 @@ def build_quest_statement_prompt(
         parts.append(anti_rep)
 
     prompt = "\n".join(parts)
-    return append_json_instruction(prompt, allow_action)
+    return append_json_instruction(
+        prompt, allow_action, skip_emote=True
+    )
 
 
 def build_loot_statement_prompt(
@@ -686,7 +690,9 @@ def build_loot_statement_prompt(
         parts.append(anti_rep)
 
     prompt = "\n".join(parts)
-    return append_json_instruction(prompt, allow_action)
+    return append_json_instruction(
+        prompt, allow_action, skip_emote=True
+    )
 
 
 def build_quest_reward_statement_prompt(
@@ -816,7 +822,9 @@ def build_quest_reward_statement_prompt(
         parts.append(anti_rep)
 
     prompt = "\n".join(parts)
-    return append_json_instruction(prompt, allow_action)
+    return append_json_instruction(
+        prompt, allow_action, skip_emote=True
+    )
 
 
 def build_plain_conversation_prompt(
@@ -967,7 +975,7 @@ def build_plain_conversation_prompt(
     if bot_count > 2:
         guidelines.append(
             f"EVERY speaker MUST have at least one "
-            f"message — do NOT skip any participant"
+            f"message â€” do NOT skip any participant"
         )
     if is_rp:
         guidelines.append(
@@ -993,48 +1001,16 @@ def build_plain_conversation_prompt(
         )
     parts.append("Guidelines: " + "; ".join(guidelines))
 
-    parts.append(
-        f"Emotes: Each message may include an optional "
-        f"\"emote\" field (one of: {EMOTE_LIST_STR}). "
-        f"Pick an emote that fits the message mood, "
-        f"or omit it."
-    )
-    if allow_action:
-        parts.append(
-            "Actions: Each message may include an optional "
-            "\"action\" field (2-5 word physical narration, "
-            "e.g. \"leans against the wall\"). This is "
-            "displayed as *action* before speech. Use "
-            "sparingly — only when it adds character."
-        )
-    else:
-        parts.append(
-            "Actions: Do not include an action field "
-            "in this response."
-        )
     anti_rep = build_anti_repetition_context(
         recent_messages
     )
     if anti_rep:
         parts.append(anti_rep)
 
-    parts.append(
-        "JSON rules: Use double quotes, escape "
-        "quotes/newlines, no trailing commas, no code fences."
+    prompt = "\n".join(parts)
+    return append_conversation_json_instruction(
+        prompt, bot_names, msg_count, allow_action
     )
-    example_msgs = ',\n  '.join(
-        [f'{{"speaker": "{name}", "message": "...", '
-         f'"emote": "talk", "action": null}}'
-         for name in bot_names]
-    )
-    parts.append(f"""
-Respond with EXACTLY {msg_count} messages in JSON:
-[
-  {example_msgs}
-]
-ONLY the JSON array, nothing else.""")
-
-    return "\n".join(parts)
 
 
 def build_quest_conversation_prompt(
@@ -1159,7 +1135,7 @@ def build_quest_conversation_prompt(
     if bot_count > 2:
         guidelines.append(
             f"EVERY speaker MUST have at least one "
-            f"message — do NOT skip any participant"
+            f"message â€” do NOT skip any participant"
         )
     guidelines.append(
         "Keep each message under 140 characters; "
@@ -1172,48 +1148,16 @@ def build_quest_conversation_prompt(
         )
     parts.append("Guidelines: " + "; ".join(guidelines))
 
-    parts.append(
-        f"Emotes: Each message may include an optional "
-        f"\"emote\" field (one of: {EMOTE_LIST_STR}). "
-        f"Pick an emote that fits the message mood, "
-        f"or omit it."
-    )
-    if allow_action:
-        parts.append(
-            "Actions: Each message may include an optional "
-            "\"action\" field (2-5 word physical narration, "
-            "e.g. \"leans against the wall\"). This is "
-            "displayed as *action* before speech. Use "
-            "sparingly — only when it adds character."
-        )
-    else:
-        parts.append(
-            "Actions: Do not include an action field "
-            "in this response."
-        )
     anti_rep = build_anti_repetition_context(
         recent_messages
     )
     if anti_rep:
         parts.append(anti_rep)
 
-    parts.append(
-        "JSON rules: Use double quotes, escape "
-        "quotes/newlines, no trailing commas, no code fences."
+    prompt = "\n".join(parts)
+    return append_conversation_json_instruction(
+        prompt, bot_names, msg_count, allow_action
     )
-    example_msgs = ',\n  '.join(
-        [f'{{"speaker": "{name}", "message": "...", '
-         f'"emote": "talk", "action": null}}'
-         for name in bot_names]
-    )
-    parts.append(f"""
-Respond with EXACTLY {msg_count} messages in JSON:
-[
-  {example_msgs}
-]
-ONLY the JSON array, nothing else.""")
-
-    return "\n".join(parts)
 
 
 def build_loot_conversation_prompt(
@@ -1345,7 +1289,7 @@ def build_loot_conversation_prompt(
     if bot_count > 2:
         guidelines.append(
             f"EVERY speaker MUST have at least one "
-            f"message — do NOT skip any participant"
+            f"message â€” do NOT skip any participant"
         )
     guidelines.append(
         "Keep each message under 140 characters; "
@@ -1358,49 +1302,16 @@ def build_loot_conversation_prompt(
         )
     parts.append("Guidelines: " + "; ".join(guidelines))
 
-    parts.append(
-        f"Emotes: Each message may include an optional "
-        f"\"emote\" field (one of: {EMOTE_LIST_STR}). "
-        f"Pick an emote that fits the message mood, "
-        f"or omit it."
-    )
-    if allow_action:
-        parts.append(
-            "Actions: Each message may include an optional "
-            "\"action\" field (2-5 word physical narration, "
-            "e.g. \"leans against the wall\"). This is "
-            "displayed as *action* before speech. Use "
-            "sparingly — only when it adds character."
-        )
-    else:
-        parts.append(
-            "Actions: Do not include an action field "
-            "in this response."
-        )
-
     anti_rep = build_anti_repetition_context(
         recent_messages
     )
     if anti_rep:
         parts.append(anti_rep)
 
-    parts.append(
-        "JSON rules: Use double quotes, escape "
-        "quotes/newlines, no trailing commas, no code fences."
+    prompt = "\n".join(parts)
+    return append_conversation_json_instruction(
+        prompt, bot_names, msg_count, allow_action
     )
-    example_msgs = ',\n  '.join(
-        [f'{{"speaker": "{name}", "message": "...", '
-         f'"emote": "talk", "action": null}}'
-         for name in bot_names]
-    )
-    parts.append(f"""
-Respond with EXACTLY {msg_count} messages in JSON:
-[
-  {example_msgs}
-]
-ONLY the JSON array, nothing else.""")
-
-    return "\n".join(parts)
 
 
 def build_event_conversation_prompt(
@@ -1567,7 +1478,7 @@ def build_event_conversation_prompt(
     if bot_count > 2:
         guidelines.append(
             f"EVERY speaker MUST have at least one "
-            f"message — do NOT skip any participant"
+            f"message â€” do NOT skip any participant"
         )
     if is_rp:
         guidelines.append(
@@ -1586,49 +1497,16 @@ def build_event_conversation_prompt(
         )
     parts.append("Guidelines: " + "; ".join(guidelines))
 
-    parts.append(
-        f"Emotes: Each message may include an optional "
-        f"\"emote\" field (one of: {EMOTE_LIST_STR}). "
-        f"Pick an emote that fits the message mood, "
-        f"or omit it."
-    )
-    if allow_action:
-        parts.append(
-            "Actions: Each message may include an optional "
-            "\"action\" field (2-5 word physical narration, "
-            "e.g. \"leans against the wall\"). This is "
-            "displayed as *action* before speech. Use "
-            "sparingly — only when it adds character."
-        )
-    else:
-        parts.append(
-            "Actions: Do not include an action field "
-            "in this response."
-        )
-
     anti_rep = build_anti_repetition_context(
         recent_messages
     )
     if anti_rep:
         parts.append(anti_rep)
 
-    parts.append(
-        "JSON rules: Use double quotes, escape "
-        "quotes/newlines, no trailing commas, no code fences."
+    prompt = "\n".join(parts)
+    return append_conversation_json_instruction(
+        prompt, bot_names, msg_count, allow_action
     )
-    example_msgs = ',\n  '.join(
-        [f'{{"speaker": "{name}", "message": "...", '
-         f'"emote": "talk", "action": null}}'
-         for name in bot_names]
-    )
-    parts.append(f"""
-Respond with EXACTLY {msg_count} messages in JSON:
-[
-  {example_msgs}
-]
-ONLY the JSON array, nothing else.""")
-
-    return "\n".join(parts)
 
 
 # =============================================================================
@@ -1765,7 +1643,9 @@ def build_spell_statement_prompt(
         parts.append(anti_rep)
 
     prompt = "\n".join(parts)
-    return append_json_instruction(prompt, allow_action)
+    return append_json_instruction(
+        prompt, allow_action, skip_emote=True
+    )
 
 
 def build_spell_conversation_prompt(
@@ -1946,7 +1826,7 @@ def build_spell_conversation_prompt(
     if bot_count > 2:
         guidelines.append(
             f"EVERY speaker MUST have at least one "
-            f"message — do NOT skip any participant"
+            f"message â€” do NOT skip any participant"
         )
     guidelines.append(
         "Keep each message under 140 characters; "
@@ -1961,54 +1841,16 @@ def build_spell_conversation_prompt(
         "Guidelines: " + "; ".join(guidelines)
     )
 
-    parts.append(
-        f"Emotes: Each message may include an "
-        f"optional \"emote\" field (one of: "
-        f"{EMOTE_LIST_STR}). Pick an emote that "
-        f"fits the message mood, or omit it."
-    )
-    if allow_action:
-        parts.append(
-            "Actions: Each message may include an "
-            "optional \"action\" field (2-5 word "
-            "physical narration, e.g. \"leans against "
-            "the wall\"). This is displayed as *action* "
-            "before speech. Use sparingly — only when "
-            "it adds character."
-        )
-    else:
-        parts.append(
-            "Actions: Do not include an action field "
-            "in this response."
-        )
-
     anti_rep = build_anti_repetition_context(
         recent_messages
     )
     if anti_rep:
         parts.append(anti_rep)
 
-    parts.append(
-        "JSON rules: Use double quotes, escape "
-        "quotes/newlines, no trailing commas, "
-        "no code fences."
+    prompt = "\n".join(parts)
+    return append_conversation_json_instruction(
+        prompt, bot_names, msg_count, allow_action
     )
-    example_msgs = ',\n  '.join(
-        [
-            f'{{"speaker": "{name}", '
-            f'"message": "...", "emote": "talk", '
-            f'"action": null}}'
-            for name in bot_names
-        ]
-    )
-    parts.append(f"""
-Respond with EXACTLY {msg_count} messages in JSON:
-[
-  {example_msgs}
-]
-ONLY the JSON array, nothing else.""")
-
-    return "\n".join(parts)
 
 
 # =============================================================================
@@ -2157,7 +1999,9 @@ def build_trade_statement_prompt(
         parts.append(anti_rep)
 
     prompt = "\n".join(parts)
-    return append_json_instruction(prompt, allow_action)
+    return append_json_instruction(
+        prompt, allow_action, skip_emote=True
+    )
 
 
 def build_trade_conversation_prompt(
@@ -2346,7 +2190,7 @@ def build_trade_conversation_prompt(
     if bot_count > 2:
         guidelines.append(
             f"EVERY speaker MUST have at least one "
-            f"message — do NOT skip any participant"
+            f"message â€” do NOT skip any participant"
         )
     guidelines.append(
         "Keep each message under 140 characters; "
@@ -2361,51 +2205,13 @@ def build_trade_conversation_prompt(
         "Guidelines: " + "; ".join(guidelines)
     )
 
-    parts.append(
-        f"Emotes: Each message may include an "
-        f"optional \"emote\" field (one of: "
-        f"{EMOTE_LIST_STR}). Pick an emote that "
-        f"fits the message mood, or omit it."
-    )
-    if allow_action:
-        parts.append(
-            "Actions: Each message may include an "
-            "optional \"action\" field (2-5 word "
-            "physical narration, e.g. \"leans against "
-            "the wall\"). This is displayed as *action* "
-            "before speech. Use sparingly — only when "
-            "it adds character."
-        )
-    else:
-        parts.append(
-            "Actions: Do not include an action field "
-            "in this response."
-        )
-
     anti_rep = build_anti_repetition_context(
         recent_messages
     )
     if anti_rep:
         parts.append(anti_rep)
 
-    parts.append(
-        "JSON rules: Use double quotes, escape "
-        "quotes/newlines, no trailing commas, "
-        "no code fences."
+    prompt = "\n".join(parts)
+    return append_conversation_json_instruction(
+        prompt, bot_names, msg_count, allow_action
     )
-    example_msgs = ',\n  '.join(
-        [
-            f'{{"speaker": "{name}", '
-            f'"message": "...", "emote": "talk", '
-            f'"action": null}}'
-            for name in bot_names
-        ]
-    )
-    parts.append(f"""
-Respond with EXACTLY {msg_count} messages in JSON:
-[
-  {example_msgs}
-]
-ONLY the JSON array, nothing else.""")
-
-    return "\n".join(parts)

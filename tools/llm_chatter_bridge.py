@@ -59,7 +59,6 @@ from chatter_shared import (
     parse_conversation_response,
     extract_conversation_msg_count,
     insert_chat_message,
-    pick_emote_for_statement,
     get_recent_zone_messages,
     is_too_similar,
 )
@@ -409,17 +408,12 @@ def process_statement(
         )
 
         # Insert for delivery
-        emote = (
-            parsed.get('emote')
-            or pick_emote_for_statement(message)
-        )
         insert_chat_message(
             db, bot['guid'], bot['name'], message,
             channel=channel,
             delay_seconds=0,
             queue_id=request['id'],
             sequence=0,
-            emote=emote,
         )
 
         return True
@@ -775,7 +769,6 @@ def process_conversation(
                     delay_seconds=cumulative_delay,
                     queue_id=request['id'],
                     sequence=i,
-                    emote=msg.get('emote'),
                 )
 
                 logger.info(
@@ -1883,7 +1876,8 @@ def process_single_event(event, client, config):
             )
             system_prompt = (
                 append_json_instruction(
-                    system_prompt, allow_action
+                    system_prompt, allow_action,
+                    skip_emote=True
                 )
             )
 
@@ -2022,12 +2016,9 @@ def process_single_event(event, client, config):
                 delay_min, delay_max
             )
 
-            emote = (
-                parsed.get('emote')
-                or pick_emote_for_statement(
-                    message
-                )
-            )
+            # General channel: skip emotes
+            # (proximity-based, not visible
+            #  to zone-wide recipients)
             insert_chat_message(
                 db, bot['bot1_guid'],
                 bot['bot1_name'], message,
@@ -2035,7 +2026,6 @@ def process_single_event(event, client, config):
                 delay_seconds=delay_ms // 1000,
                 event_id=event_id,
                 sequence=0,
-                emote=emote,
             )
 
             # Mark event completed

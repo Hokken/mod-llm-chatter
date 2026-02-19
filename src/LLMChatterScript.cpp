@@ -46,6 +46,7 @@
 #include <random>
 #include <sstream>
 #include <unordered_map>
+#include <unordered_set>
 #include <regex>
 #include <cstdio>
 #include <mutex>
@@ -676,10 +677,10 @@ static void SendPartyMessageInstant(
     }
 }
 
-// Forward declaration (defined after EVENT SYSTEM
-// UTILITIES section)
+// Forward declarations (defined later in file)
 static std::string EscapeString(
     const std::string& str);
+static void LoadNamedBossCache();
 
 // Record a pre-cached message in chat history
 // so Python sees it for conversation context.
@@ -1668,8 +1669,9 @@ static void LoadTransportCache()
 // WORLD SCRIPT - Main chatter logic, day/night transitions
 // ============================================================================
 
-// Forward declaration (defined after PlayerScript)
+// Forward declarations (defined after PlayerScript)
 static void CheckGroupCombatState();
+static void LoadNamedBossCache();
 
 class LLMChatterWorldScript : public WorldScript
 {
@@ -1746,6 +1748,9 @@ public:
                 }
             }
         }
+
+        // Load named boss lookup from world DB
+        LoadNamedBossCache();
 
         LOG_INFO("module", "LLMChatter: Cleared stale messages, events, group traits, and chat history on startup");
         _lastTriggerTime = 0;
@@ -2692,8 +2697,12 @@ private:
                     }
 
                     // Play emote animation if sent
+                    // (party only — emotes are
+                    //  proximity-based, not useful
+                    //  for zone-wide General chat)
                     if (sent
-                        && !emoteName.empty())
+                        && !emoteName.empty()
+                        && channel == "party")
                     {
                         uint32 textEmoteId =
                             GetTextEmoteId(emoteName);
@@ -2882,6 +2891,45 @@ static void QueueBotGreetingEvent(
 
 // Per-zone General channel cooldown: zone_id -> last reaction time
 static std::map<uint32, time_t> _generalChatCooldowns;
+
+// Named boss entries: creature entries that are
+// dungeon/raid bosses (mechanic-immune + single
+// spawn per map, OR rank=3). Loaded at startup
+// from the world DB.
+static std::unordered_set<uint32> _namedBossEntries;
+
+static void LoadNamedBossCache()
+{
+    _namedBossEntries.clear();
+    // Named bosses: mechanic_immune_mask > 0 and
+    // only 1 spawn on their map (filters out trash
+    // like Molten Elementals that have immunities
+    // but spawn many times)
+    QueryResult result = WorldDatabase.Query(
+        "SELECT entry FROM ("
+        "  SELECT ct.entry, ct.`rank`,"
+        "    ct.mechanic_immune_mask,"
+        "    COUNT(*) AS spawns"
+        "  FROM creature_template ct"
+        "  JOIN creature c ON c.id1 = ct.entry"
+        "  WHERE ct.`rank` = 3"
+        "    OR ct.mechanic_immune_mask > 0"
+        "  GROUP BY ct.entry, c.map"
+        "  HAVING ct.`rank` = 3 OR COUNT(*) = 1"
+        ") AS bosses");
+    if (result)
+    {
+        do
+        {
+            Field* fields = result->Fetch();
+            _namedBossEntries.insert(
+                fields[0].Get<uint32>());
+        } while (result->NextRow());
+    }
+    LOG_INFO("module",
+        "LLMChatter: Loaded {} named boss entries",
+        _namedBossEntries.size());
+}
 
 // Per-group kill cooldown cache: group_id -> last kill event time
 static std::map<uint32, time_t> _groupKillCooldowns;
@@ -3520,9 +3568,16 @@ public:
             return;
 
         uint32 rank = tmpl->rank;
+        // Named dungeon bosses (Taragaman, etc.)
+        // often lack rank=3 but have mechanic
+        // immunities + single spawn per map.
+        // _namedBossEntries is loaded at startup.
         bool isBoss = (rank == 3)
             || (tmpl->type_flags
-                & CREATURE_TYPE_FLAG_BOSS_MOB);
+                & CREATURE_TYPE_FLAG_BOSS_MOB)
+            || killed->IsDungeonBoss()
+            || _namedBossEntries.count(
+                killed->GetEntry());
         bool isRare = (rank == 2 || rank == 4);
         bool isNormal = !isBoss && !isRare;
 

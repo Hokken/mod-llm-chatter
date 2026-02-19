@@ -195,10 +195,18 @@ def build_race_class_context(
     parts = []
     profile = RACE_SPEECH_PROFILES.get(race)
     if profile:
+        traits = profile['traits']
+        if isinstance(traits, list):
+            traits = random.choice(traits)
+        flavor_words = profile['flavor_words']
+        words = random.sample(
+            flavor_words,
+            min(4, len(flavor_words))
+        )
         parts.append(
-            f"As a {race}, you tend to be {profile['traits']}. "
+            f"As a {race}, you tend to be {traits}. "
             f"You might occasionally use words like: "
-            f"{', '.join(profile['flavor_words'])} "
+            f"{', '.join(words)} "
             f"but don't force it."
         )
         worldview = profile.get('worldview')
@@ -224,6 +232,8 @@ def build_race_class_context(
             )
     modifier = CLASS_SPEECH_MODIFIERS.get(class_name)
     if modifier:
+        if isinstance(modifier, list):
+            modifier = random.choice(modifier)
         parts.append(f"As a {class_name}, you are {modifier}.")
     role = actual_role or CLASS_ROLE_MAP.get(class_name)
     if role:
@@ -403,8 +413,13 @@ def get_dungeon_bosses(
     """Get boss names for a dungeon/raid map.
 
     Queries creature + creature_template from
-    acore_world (rank=3 = boss). Results are
-    cached since boss lists never change.
+    acore_world. Detects bosses via:
+    - rank=3 (raid bosses)
+    - mechanic_immune_mask > 0 AND single spawn
+      (named dungeon bosses — CC-immune mobs that
+      spawn only once per map are reliably bosses;
+      multi-spawn immune mobs like Molten Elementals
+      or Haunted Servitors are trash)
     """
     if map_id in _dungeon_boss_cache:
         return _dungeon_boss_cache[map_id]
@@ -412,11 +427,15 @@ def get_dungeon_bosses(
     try:
         cursor = db.cursor(dictionary=True)
         cursor.execute("""
-            SELECT DISTINCT ct.name
-            FROM acore_world.creature c
-            JOIN acore_world.creature_template ct
+            SELECT ct.name
+            FROM acore_world.creature_template ct
+            JOIN acore_world.creature c
                 ON c.id1 = ct.entry
-            WHERE c.map = %s AND ct.rank = 3
+            WHERE c.map = %s
+                AND (ct.`rank` = 3
+                     OR ct.mechanic_immune_mask > 0)
+            GROUP BY ct.entry, ct.name, ct.`rank`
+            HAVING ct.`rank` = 3 OR COUNT(*) = 1
             ORDER BY ct.name
         """, (map_id,))
         bosses = [
@@ -925,13 +944,17 @@ def get_action_chance() -> float:
 
 
 def append_json_instruction(
-    prompt: str, allow_action: bool = True
+    prompt: str, allow_action: bool = True,
+    skip_emote: bool = False
 ) -> str:
     """Append structured JSON response instruction
     to a prompt.
 
     Tells the LLM to respond with JSON containing
     message, emote, and optionally action fields.
+    skip_emote=True omits the emote list (saves
+    ~200 tokens for General channel prompts where
+    emotes are not displayed).
     """
     action_desc = ""
     if allow_action:
@@ -950,17 +973,74 @@ def append_json_instruction(
             "action for this response)\n"
         )
 
+    if skip_emote:
+        emote_line = '  "emote": null,\n'
+    else:
+        emote_line = (
+            f'  "emote": one of [{EMOTE_LIST_STR}] '
+            "or null,\n"
+        )
+
     block = (
         "\n\nRESPONSE FORMAT: You MUST respond with "
         "ONLY valid JSON. No other text.\n"
         "{\n"
         '  "message": "your spoken words here",\n'
-        f'  "emote": one of [{EMOTE_LIST_STR}] '
-        "or null,\n"
+        f"{emote_line}"
         f"  {action_desc}"
         "}\n"
         "Rules: double quotes only, no trailing "
         "commas, no code fences, no markdown."
+    )
+    return prompt + block
+
+
+def append_conversation_json_instruction(
+    prompt: str,
+    bot_names: List[str],
+    msg_count: int,
+    allow_action: bool = True,
+) -> str:
+    """Append conversation JSON array instruction.
+
+    Conversation prompts return an array where each
+    item has speaker/message/emote/action fields.
+    Emotes are always null because conversations
+    are sent to General channel.
+    """
+    if allow_action:
+        action_text = (
+            "Actions: Each message may include an optional "
+            "\"action\" field (2-5 word physical narration, "
+            "e.g. \"leans against the wall\"). This is "
+            "displayed as *action* before speech. Use "
+            "sparingly — only when it adds character."
+        )
+    else:
+        action_text = (
+            "Actions: Do not include an action field "
+            "in this response."
+        )
+
+    example_msgs = ',\n  '.join(
+        [
+            f'{{"speaker": "{name}", "message": "...", '
+            f'"emote": null, "action": null}}'
+            for name in bot_names
+        ]
+    )
+
+    block = (
+        "\n\nEmotes: Set the \"emote\" field to null "
+        "for all messages.\n"
+        f"{action_text}\n"
+        "JSON rules: Use double quotes, escape "
+        "quotes/newlines, no trailing commas, no code fences.\n"
+        f"\nRespond with EXACTLY {msg_count} messages in JSON:\n"
+        "[\n"
+        f"  {example_msgs}\n"
+        "]\n"
+        "ONLY the JSON array, nothing else."
     )
     return prompt + block
 

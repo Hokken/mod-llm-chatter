@@ -640,8 +640,9 @@ def build_bot_greeting_prompt(
             bot['race']
         )
         if profile:
+            fw = profile.get('flavor_words', [])
             flavor = ', '.join(
-                profile.get('flavor_words', [])[:3]
+                random.sample(fw, min(3, len(fw)))
             )
             if flavor:
                 rp_context += (
@@ -784,8 +785,9 @@ def build_bot_welcome_prompt(
             bot['race']
         )
         if profile:
+            fw = profile.get('flavor_words', [])
             flavor = ', '.join(
-                profile.get('flavor_words', [])[:3]
+                random.sample(fw, min(3, len(fw)))
             )
             if flavor:
                 rp_context += (
@@ -2088,8 +2090,9 @@ def build_player_response_prompt(
             bot['race']
         )
         if profile:
+            fw = profile.get('flavor_words', [])
             flavor = ', '.join(
-                profile.get('flavor_words', [])[:3]
+                random.sample(fw, min(3, len(fw)))
             )
             if flavor:
                 rp_context += (
@@ -5221,7 +5224,6 @@ def process_group_dungeon_entry_event(
     is_raid = bool(
         int(extra_data.get('is_raid', 0))
     )
-    zone_id = int(extra_data.get('zone_id', 0))
 
     if not bot_guid or not group_id:
         _mark_event(db, event_id, 'skipped')
@@ -5285,8 +5287,8 @@ def process_group_dungeon_entry_event(
             random.random() < get_action_chance()
         )
         prompt = build_dungeon_entry_prompt(
-            bot, traits, map_name, is_raid,
-            zone_id, mode,
+            db, bot, traits, map_name, is_raid,
+            map_id, mode,
             chat_history=chat_hist,
             allow_action=allow_action,
         )
@@ -6957,7 +6959,7 @@ def build_discovery_reaction_prompt(
 
 
 def build_dungeon_entry_prompt(
-    bot, traits, map_name, is_raid, zone_id,
+    db, bot, traits, map_name, is_raid, map_id,
     mode, chat_history="", allow_action=True,
 ):
     """Build prompt for a bot reacting to entering
@@ -6988,7 +6990,7 @@ def build_dungeon_entry_prompt(
         rp_context += f"{chat_history}\n"
 
     # Try to get dungeon-specific flavor
-    dungeon_flavor = get_dungeon_flavor(zone_id)
+    dungeon_flavor = get_dungeon_flavor(map_id)
     dungeon_desc = ""
     if dungeon_flavor:
         dungeon_desc = (
@@ -6997,7 +6999,7 @@ def build_dungeon_entry_prompt(
         )
 
     # Try to get boss names for context
-    dungeon_bosses = get_dungeon_bosses(zone_id)
+    dungeon_bosses = get_dungeon_bosses(db, map_id)
     boss_context = ""
     if dungeon_bosses:
         boss_list = ', '.join(
@@ -7808,8 +7810,9 @@ def build_idle_chatter_prompt(
             bot['race']
         )
         if profile:
+            fw = profile.get('flavor_words', [])
             flavor = ', '.join(
-                profile.get('flavor_words', [])[:3]
+                random.sample(fw, min(3, len(fw)))
             )
             if flavor:
                 rp_context += (

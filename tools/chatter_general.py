@@ -24,7 +24,6 @@ from chatter_shared import (
     get_zone_flavor, calculate_dynamic_delay,
     find_addressed_bot,
     insert_chat_message,
-    pick_emote_for_statement,
     build_anti_repetition_context,
     get_recent_zone_messages,
     append_json_instruction,
@@ -256,8 +255,9 @@ def _build_general_response_prompt(
 
         profile = RACE_SPEECH_PROFILES.get(bot_race)
         if profile:
+            fw = profile.get('flavor_words', [])
             flavor = ', '.join(
-                profile.get('flavor_words', [])[:3]
+                random.sample(fw, min(3, len(fw)))
             )
             if flavor:
                 rp_context += (
@@ -340,7 +340,7 @@ def _build_general_response_prompt(
     if anti_rep:
         prompt += f"\n{anti_rep}"
     prompt = append_json_instruction(
-        prompt, allow_action
+        prompt, allow_action, skip_emote=True
     )
     return prompt
 
@@ -370,8 +370,9 @@ def _build_general_followup_prompt(
 
         profile = RACE_SPEECH_PROFILES.get(bot_race)
         if profile:
+            fw = profile.get('flavor_words', [])
             flavor = ', '.join(
-                profile.get('flavor_words', [])[:3]
+                random.sample(fw, min(3, len(fw)))
             )
             if flavor:
                 rp_context += (
@@ -441,7 +442,7 @@ def _build_general_followup_prompt(
     if anti_rep:
         prompt += f"\n{anti_rep}"
     prompt = append_json_instruction(
-        prompt, allow_action
+        prompt, allow_action, skip_emote=True
     )
     return prompt
 
@@ -628,17 +629,15 @@ def process_general_player_msg_event(
         delay1 = calculate_dynamic_delay(
             len(msg1), config
         )
-        emote1 = (
-            parsed1.get('emote')
-            or pick_emote_for_statement(msg1)
-        )
+        # General channel: skip emotes
+        # (proximity-based, not visible
+        #  to zone-wide recipients)
         insert_chat_message(
             db, bot1_guid, bot1_name, msg1,
             channel='general',
             delay_seconds=delay1,
             event_id=event_id,
             sequence=0,
-            emote=emote1,
         )
 
         # Store in General chat history
@@ -758,17 +757,13 @@ def _general_followup(
     # Stagger: first bot delay + extra 4-8 seconds
     delay2 = delay1 + random.randint(4, 8)
 
-    emote2 = (
-        parsed2.get('emote')
-        or pick_emote_for_statement(msg2)
-    )
+    # General channel: skip emotes
     insert_chat_message(
         db, bot2_guid, bot2_name, msg2,
         channel='general',
         delay_seconds=delay2,
         event_id=event_id,
         sequence=1,
-        emote=emote2,
     )
 
     # Store in General chat history
