@@ -11,7 +11,6 @@ bot selection by zone.
 
 import logging
 import random
-import json
 
 # Module-level config defaults (set by init_general_config)
 _chat_history_limit = 10
@@ -21,7 +20,7 @@ from chatter_shared import (
     call_llm, cleanup_message, strip_speaker_prefix,
     get_chatter_mode, get_class_name, get_race_name,
     build_race_class_context, parse_extra_data,
-    get_zone_flavor, calculate_dynamic_delay,
+    calculate_dynamic_delay,
     find_addressed_bot,
     insert_chat_message,
     build_anti_repetition_context,

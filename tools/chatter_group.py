@@ -64,7 +64,6 @@ from chatter_prompts import (
     pick_random_tone,
     pick_random_mood,
     maybe_get_creative_twist,
-    get_time_of_day_context,
     get_environmental_context,
     generate_conversation_mood_sequence,
     generate_conversation_length_sequence,

@@ -1509,6 +1509,127 @@ def build_event_conversation_prompt(
     )
 
 
+def build_event_statement_prompt(
+    bot: dict,
+    event_context: str,
+    event_type: str = '',
+    zone_name: str = 'the world',
+    config: dict = None,
+    extra_data: dict = None,
+    allow_action: bool = True,
+) -> str:
+    """Build a prompt for an event-triggered statement."""
+    mode = get_chatter_mode(config) if config else 'normal'
+    is_rp = (mode == 'roleplay')
+    tone = pick_random_tone(mode)
+    extra_data = extra_data or {}
+
+    is_transport = (
+        'boat' in event_context.lower()
+        or 'zeppelin' in event_context.lower()
+        or 'turtle' in event_context.lower()
+    )
+    is_holiday = event_type.startswith('holiday')
+    if is_transport:
+        event_instruction = (
+            "Comment on this transport "
+            "arrival! Use the specific "
+            "type (boat/zeppelin/"
+            "turtle), NOT 'transport'."
+            "\nMention the destination "
+            "if known. Be creative and "
+            "original - no canned "
+            "phrases."
+        )
+    elif is_holiday:
+        event_instruction = (
+            "React to this event! "
+            "Mention the event by name "
+            "and share your character's "
+            "opinion or feelings about "
+            "it."
+        )
+    else:
+        event_instruction = (
+            "You may naturally reference"
+            " this event in your "
+            "message, or you may chat "
+            "about something else "
+            "entirely.\nThe event "
+            "provides atmosphere - you "
+            "don't HAVE to mention it "
+            "explicitly."
+        )
+
+    weather_for_context = None
+    if 'weather' not in event_context.lower():
+        weather_for_context = extra_data.get(
+            'current_weather', 'clear'
+        )
+
+    env_context = get_environmental_context(
+        weather_for_context
+    )
+    env_lines = ""
+    if env_context['time']:
+        env_lines += (
+            f"\nTime of day: "
+            f"{env_context['time']}"
+        )
+    if env_context['weather']:
+        env_lines += (
+            f"\nCurrent weather: "
+            f"{env_context['weather']}"
+        )
+
+    rp_personality = ""
+    rp_style = ""
+    if is_rp:
+        rp_ctx = build_race_class_context(
+            bot['bot1_race'],
+            bot['bot1_class']
+        )
+        if rp_ctx:
+            rp_personality = f"\n{rp_ctx}"
+        rp_style = (
+            "\nStay in character but "
+            "keep it natural and "
+            "conversational. No game "
+            "terms or OOC references, "
+            "but don't be overly "
+            "dramatic or theatrical "
+            "either."
+        )
+
+    prompt = (
+        f"You are {bot['bot1_name']}, "
+        f"a {bot['bot1_race']} "
+        f"{bot['bot1_class']} "
+        f"adventurer in World of "
+        f"Warcraft.\n"
+        f"You are level "
+        f"{bot['bot1_level']} "
+        f"and currently in "
+        f"{zone_name}."
+        f"{env_lines}"
+        f"{rp_personality}\n\n"
+        f"CONTEXT: {event_context}\n\n"
+        f"{event_instruction}\n\n"
+        f"Your current mood: {tone}"
+        f"{rp_style}\n\n"
+        f"Respond with a single short "
+        f"sentence (under 100 "
+        f"characters) that a player "
+        f"might say in General chat.\n"
+        f"Be "
+        f"{'authentic and in-character' if is_rp else 'casual and authentic'}"
+        f"."
+    )
+    return append_json_instruction(
+        prompt, allow_action, skip_emote=True
+    )
+
+
 # =============================================================================
 # SPELL PROMPTS
 # =============================================================================

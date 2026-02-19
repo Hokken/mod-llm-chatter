@@ -28,7 +28,6 @@ from typing import List
 
 import anthropic
 import openai
-import mysql.connector
 
 from chatter_constants import (
     MSG_TYPE_PLAIN, MSG_TYPE_QUEST,
@@ -39,12 +38,11 @@ from chatter_constants import (
 from chatter_shared import (
     zone_cache,
     get_zone_name, get_class_name, get_race_name,
-    get_chatter_mode, build_race_class_context,
+    get_chatter_mode,
     set_race_lore_chance,
     set_race_vocab_chance,
     set_action_chance,
     get_action_chance,
-    append_json_instruction,
     parse_single_response,
     parse_config, get_db_connection,
     wait_for_database,
@@ -63,8 +61,6 @@ from chatter_shared import (
     is_too_similar,
 )
 from chatter_prompts import (
-    pick_random_tone,
-    get_environmental_context,
     build_plain_statement_prompt,
     build_quest_statement_prompt,
     build_loot_statement_prompt,
@@ -77,6 +73,7 @@ from chatter_prompts import (
     build_trade_statement_prompt,
     build_trade_conversation_prompt,
     build_event_conversation_prompt,
+    build_event_statement_prompt,
 )
 from chatter_events import (
     build_event_context,
@@ -1737,148 +1734,18 @@ def process_single_event(event, client, config):
                 or "the world"
             )
 
-            # Build prompt for event-triggered
-            # statement
-            mode = get_chatter_mode(config)
-            is_rp = (mode == 'roleplay')
-            tone = pick_random_tone(mode)
-
-            # Transport events get more direct
-            # instructions
-            is_transport = (
-                'boat' in event_context.lower()
-                or 'zeppelin'
-                in event_context.lower()
-                or 'turtle'
-                in event_context.lower()
-            )
-            is_holiday = (
-                event.get('event_type', '')
-                    .startswith('holiday')
-            )
-            if is_transport:
-                event_instruction = (
-                    "Comment on this transport "
-                    "arrival! Use the specific "
-                    "type (boat/zeppelin/"
-                    "turtle), NOT 'transport'."
-                    "\nMention the destination "
-                    "if known. Be creative and "
-                    "original - no canned "
-                    "phrases."
-                )
-            elif is_holiday:
-                event_instruction = (
-                    "React to this event! "
-                    "Mention the event by name "
-                    "and share your character's "
-                    "opinion or feelings about "
-                    "it."
-                )
-            else:
-                event_instruction = (
-                    "You may naturally reference"
-                    " this event in your "
-                    "message, or you may chat "
-                    "about something else "
-                    "entirely.\nThe event "
-                    "provides atmosphere - you "
-                    "don't HAVE to mention it "
-                    "explicitly."
-                )
-
-            # Environmental context
-            # (extra_data already parsed at top
-            # of try block)
-            weather_for_context = None
-            if (
-                'weather'
-                not in event_context.lower()
-            ):
-                weather_for_context = (
-                    extra_data.get(
-                        'current_weather',
-                        'clear'
-                    )
-                )
-
-            env_context = (
-                get_environmental_context(
-                    weather_for_context
-                )
-            )
-            env_lines = ""
-            if env_context['time']:
-                env_lines += (
-                    f"\nTime of day: "
-                    f"{env_context['time']}"
-                )
-            if env_context['weather']:
-                env_lines += (
-                    f"\nCurrent weather: "
-                    f"{env_context['weather']}"
-                )
-
-            # Build RP personality context if in
-            # roleplay mode
-            rp_personality = ""
-            rp_style = ""
-            if is_rp:
-                rp_ctx = (
-                    build_race_class_context(
-                        bot['bot1_race'],
-                        bot['bot1_class']
-                    )
-                )
-                if rp_ctx:
-                    rp_personality = (
-                        f"\n{rp_ctx}"
-                    )
-                rp_style = (
-                    "\nStay in character but "
-                    "keep it natural and "
-                    "conversational. No game "
-                    "terms or OOC references, "
-                    "but don't be overly "
-                    "dramatic or theatrical "
-                    "either."
-                )
-
-            system_prompt = (
-                f"You are {bot['bot1_name']}, "
-                f"a {bot['bot1_race']} "
-                f"{bot['bot1_class']} "
-                f"adventurer in World of "
-                f"Warcraft.\n"
-                f"You are level "
-                f"{bot['bot1_level']} "
-                f"and currently in "
-                f"{zone_name}."
-                f"{env_lines}"
-                f"{rp_personality}\n\n"
-                f"CONTEXT: {event_context}\n\n"
-                f"{event_instruction}\n\n"
-                f"Your current mood: {tone}"
-                f"{rp_style}\n\n"
-                f"Respond with a single short "
-                f"sentence (under 100 "
-                f"characters) that a player "
-                f"might say in General chat.\n"
-                f"Be "
-                f"{'authentic and in-character' if is_rp else 'casual and authentic'}"
-                f"."
-            )
-
-            # Append JSON format instruction
             allow_action = (
                 random.random()
                 < get_action_chance()
             )
-            system_prompt = (
-                append_json_instruction(
-                    system_prompt, allow_action,
-                    skip_emote=True
-                )
+            system_prompt = build_event_statement_prompt(
+                bot,
+                event_context,
+                event_type=event.get('event_type', ''),
+                zone_name=zone_name,
+                config=config,
+                extra_data=extra_data,
+                allow_action=allow_action,
             )
 
             # Call LLM
