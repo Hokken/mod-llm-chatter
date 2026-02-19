@@ -813,6 +813,55 @@ static uint32 GetReactionDelaySeconds(const std::string& eventType)
     return urand(minDelay, maxDelay);
 }
 
+// Centralized event queue insertion helper.
+// NOTE: extraData must already be SQL-safe
+// (JsonEscape/EscapeString applied by caller).
+static void QueueChatterEvent(
+    const std::string& eventType,
+    const std::string& eventScope,
+    uint32 zoneId, uint32 mapId, uint8 priority,
+    const std::string& cooldownKey,
+    uint32 subjectGuid, const std::string& subjectName,
+    uint32 targetGuid, const std::string& targetName,
+    uint32 targetEntry, const std::string& extraData,
+    uint32 reactAfterSeconds,
+    uint32 expiresAfterSeconds,
+    bool nullZeroNumeric = false)
+{
+    auto NumSql = [nullZeroNumeric](uint32 value)
+    {
+        if (nullZeroNumeric && value == 0)
+            return std::string("NULL");
+        return std::to_string(value);
+    };
+
+    CharacterDatabase.Execute(
+        "INSERT INTO llm_chatter_events "
+        "(event_type, event_scope, zone_id, map_id, "
+        "priority, cooldown_key, subject_guid, "
+        "subject_name, target_guid, target_name, "
+        "target_entry, extra_data, status, react_after, "
+        "expires_at) "
+        "VALUES ('{}', '{}', {}, {}, {}, '{}', "
+        "{}, '{}', {}, '{}', {}, '{}', 'pending', "
+        "DATE_ADD(NOW(), INTERVAL {} SECOND), "
+        "DATE_ADD(NOW(), INTERVAL {} SECOND))",
+        EscapeString(eventType),
+        EscapeString(eventScope),
+        NumSql(zoneId),
+        NumSql(mapId),
+        priority,
+        EscapeString(cooldownKey),
+        NumSql(subjectGuid),
+        EscapeString(subjectName),
+        NumSql(targetGuid),
+        EscapeString(targetName),
+        NumSql(targetEntry),
+        extraData,
+        reactAfterSeconds,
+        expiresAfterSeconds);
+}
+
 // Queue an event to the database
 static void QueueEvent(const std::string& eventType, const std::string& eventScope,
                        uint32 zoneId, uint32 mapId, uint8 priority,
@@ -902,25 +951,23 @@ static void QueueEvent(const std::string& eventType, const std::string& eventSco
         reactionDelay
         + sLLMChatterConfig->_eventExpirationSeconds;
 
-    // Insert event
-    CharacterDatabase.Execute(
-        "INSERT INTO llm_chatter_events "
-        "(event_type, event_scope, zone_id, map_id, priority, cooldown_key, "
-        "subject_guid, subject_name, target_guid, target_name, target_entry, "
-        "extra_data, status, react_after, expires_at) "
-        "VALUES ('{}', '{}', {}, {}, {}, '{}', {}, '{}', {}, '{}', {}, '{}', 'pending', "
-        "DATE_ADD(NOW(), INTERVAL {} SECOND), DATE_ADD(NOW(), INTERVAL {} SECOND))",
-        eventType, eventScope,
-        zoneId > 0 ? std::to_string(zoneId) : "NULL",
-        mapId > 0 ? std::to_string(mapId) : "NULL",
-        priority, EscapeString(cooldownKey),
-        subjectGuid > 0 ? std::to_string(subjectGuid) : "NULL",
-        EscapeString(subjectName),
-        targetGuid > 0 ? std::to_string(targetGuid) : "NULL",
-        EscapeString(targetName),
-        targetEntry > 0 ? std::to_string(targetEntry) : "NULL",
+    QueueChatterEvent(
+        eventType,
+        eventScope,
+        zoneId,
+        mapId,
+        priority,
+        cooldownKey,
+        subjectGuid,
+        subjectName,
+        targetGuid,
+        targetName,
+        targetEntry,
         extraData,  // Already JSON-escaped, don't double-escape
-        reactionDelay, expirationSeconds);
+        reactionDelay,
+        expirationSeconds,
+        true
+    );
 
     LOG_INFO("module", "LLMChatter: Queued event {} in zone {} (react in {}s)",
              eventType, zoneId, reactionDelay);
@@ -2863,25 +2910,24 @@ static void QueueBotGreetingEvent(
     // inside values, this covers the wrapper)
     extraData = EscapeString(extraData);
 
-    // Direct INSERT - bypass QueueEvent to skip
+    // Direct queue - bypass QueueEvent to skip
     // reaction chance and cooldown checks
-    CharacterDatabase.Execute(
-        "INSERT INTO llm_chatter_events "
-        "(event_type, event_scope, zone_id, map_id, "
-        "priority, cooldown_key, "
-        "subject_guid, subject_name, "
-        "target_guid, target_name, target_entry, "
-        "extra_data, status, react_after, expires_at) "
-        "VALUES ('bot_group_join', 'player', "
-        "{}, {}, 0, '', "
-        "{}, '{}', 0, '', 0, "
-        "'{}', 'pending', "
-        "DATE_ADD(NOW(), INTERVAL 3 SECOND), "
-        "DATE_ADD(NOW(), INTERVAL 120 SECOND))",
+    QueueChatterEvent(
+        "bot_group_join",
+        "player",
         bot->GetZoneId(),
         bot->GetMapId(),
-        botGuid, EscapeString(botName),
-        extraData);
+        0,
+        "",
+        botGuid,
+        botName,
+        0,
+        "",
+        0,
+        extraData,
+        3,
+        120
+    );
 
     LOG_INFO("module",
         "LLMChatter: Queued bot_group_join for {} "
@@ -3498,27 +3544,22 @@ public:
 
         extraData = EscapeString(extraData);
 
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, zone_id, "
-            "map_id, priority, cooldown_key, "
-            "subject_guid, subject_name, "
-            "target_guid, target_name, "
-            "target_entry, extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ('player_general_msg', "
-            "'zone', "
-            "{}, {}, 8, 'general_chat:{}', "
-            "{}, '{}', 0, '', 0, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), INTERVAL 5 SECOND), "
-            "DATE_ADD(NOW(), INTERVAL 120 SECOND))",
+        QueueChatterEvent(
+            "player_general_msg",
+            "zone",
             zoneId,
             player->GetMapId(),
-            zoneId,
+            8,
+            "general_chat:" + std::to_string(zoneId),
             player->GetGUID().GetCounter(),
-            EscapeString(playerName),
-            extraData);
+            playerName,
+            0,
+            "",
+            0,
+            extraData,
+            5,
+            120
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued player_general_msg "
@@ -3652,27 +3693,22 @@ public:
         // INSERT
         extraData = EscapeString(extraData);
 
-        // Direct INSERT with short react_after
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, zone_id, "
-            "map_id, priority, cooldown_key, "
-            "subject_guid, subject_name, "
-            "target_guid, target_name, "
-            "target_entry, extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ('bot_group_kill', 'player', "
-            "{}, {}, 1, '', "
-            "{}, '{}', 0, '{}', {}, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), INTERVAL 2 SECOND), "
-            "DATE_ADD(NOW(), INTERVAL 120 SECOND))",
+        QueueChatterEvent(
+            "bot_group_kill",
+            "player",
             reactor->GetZoneId(),
             reactor->GetMapId(),
-            botGuid, EscapeString(botName),
-            EscapeString(creatureName),
+            1,
+            "",
+            botGuid,
+            botName,
+            0,
+            creatureName,
             creatureEntry,
-            extraData);
+            extraData,
+            2,
+            120
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued bot_group_kill "
@@ -3811,36 +3847,22 @@ public:
                 wipeData =
                     EscapeString(wipeData);
 
-                CharacterDatabase.Execute(
-                    "INSERT INTO "
-                    "llm_chatter_events "
-                    "(event_type, event_scope, "
-                    "zone_id, map_id, priority, "
-                    "cooldown_key, "
-                    "subject_guid, "
-                    "subject_name, "
-                    "target_guid, "
-                    "target_name, "
-                    "target_entry, "
-                    "extra_data, status, "
-                    "react_after, expires_at) "
-                    "VALUES ("
-                    "'bot_group_wipe', "
-                    "'player', "
-                    "{}, {}, 1, '', "
-                    "{}, '{}', 0, '{}', {}, "
-                    "'{}', 'pending', "
-                    "DATE_ADD(NOW(), "
-                    "INTERVAL 3 SECOND), "
-                    "DATE_ADD(NOW(), "
-                    "INTERVAL 120 SECOND))",
+                QueueChatterEvent(
+                    "bot_group_wipe",
+                    "player",
                     killed->GetZoneId(),
                     killed->GetMapId(),
+                    1,
+                    "",
                     wrGuid,
-                    EscapeString(wrName),
-                    EscapeString(kName),
+                    wrName,
+                    0,
+                    kName,
                     kEntry,
-                    wipeData);
+                    wipeData,
+                    3,
+                    120
+                );
 
                 LOG_INFO("module",
                     "LLMChatter: GROUP WIPE "
@@ -3925,28 +3947,22 @@ public:
 
         extraData = EscapeString(extraData);
 
-        // Direct INSERT with short react_after
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, zone_id, "
-            "map_id, priority, cooldown_key, "
-            "subject_guid, subject_name, "
-            "target_guid, target_name, "
-            "target_entry, extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ('bot_group_death', 'player', "
-            "{}, {}, 1, '', "
-            "{}, '{}', 0, '{}', {}, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), INTERVAL 2 SECOND), "
-            "DATE_ADD(NOW(), INTERVAL 120 SECOND))",
+        QueueChatterEvent(
+            "bot_group_death",
+            "player",
             killed->GetZoneId(),
             killed->GetMapId(),
+            1,
+            "",
             reactorGuid,
-            EscapeString(reactorName),
-            EscapeString(killerName),
+            reactorName,
+            0,
+            killerName,
             killerEntry,
-            extraData);
+            extraData,
+            2,
+            120
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued bot_group_death "
@@ -4098,26 +4114,22 @@ public:
         // INSERT
         extraData = EscapeString(extraData);
 
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, zone_id, "
-            "map_id, priority, cooldown_key, "
-            "subject_guid, subject_name, "
-            "target_guid, target_name, "
-            "target_entry, extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ('bot_group_loot', 'player', "
-            "{}, {}, 1, '', "
-            "{}, '{}', 0, '{}', {}, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), INTERVAL 3 SECOND), "
-            "DATE_ADD(NOW(), INTERVAL 120 SECOND))",
+        QueueChatterEvent(
+            "bot_group_loot",
+            "player",
             reactor->GetZoneId(),
             reactor->GetMapId(),
-            reactorGuid, EscapeString(reactorName),
-            EscapeString(itemName),
+            1,
+            "",
+            reactorGuid,
+            reactorName,
+            0,
+            itemName,
             itemEntry,
-            extraData);
+            extraData,
+            3,
+            120
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued bot_group_loot "
@@ -4284,26 +4296,22 @@ public:
         // INSERT
         extraData = EscapeString(extraData);
 
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, zone_id, "
-            "map_id, priority, cooldown_key, "
-            "subject_guid, subject_name, "
-            "target_guid, target_name, "
-            "target_entry, extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ('bot_group_combat', "
-            "'player', {}, {}, 2, '', "
-            "{}, '{}', 0, '{}', {}, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), INTERVAL 1 SECOND), "
-            "DATE_ADD(NOW(), INTERVAL 30 SECOND))",
+        QueueChatterEvent(
+            "bot_group_combat",
+            "player",
             player->GetZoneId(),
             player->GetMapId(),
-            botGuid, EscapeString(botName),
-            EscapeString(creatureName),
+            2,
+            "",
+            botGuid,
+            botName,
+            0,
+            creatureName,
             creature->GetEntry(),
-            extraData);
+            extraData,
+            1,
+            30
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued bot_group_combat "
@@ -4462,26 +4470,22 @@ public:
         // break the INSERT
         extraData = EscapeString(extraData);
 
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, zone_id, "
-            "map_id, priority, cooldown_key, "
-            "subject_guid, subject_name, "
-            "target_guid, target_name, "
-            "target_entry, extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ('bot_group_player_msg', "
-            "'player', "
-            "{}, {}, 1, '', "
-            "{}, '{}', 0, '', 0, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), INTERVAL 3 SECOND), "
-            "DATE_ADD(NOW(), INTERVAL 60 SECOND))",
+        QueueChatterEvent(
+            "bot_group_player_msg",
+            "player",
             player->GetZoneId(),
             player->GetMapId(),
+            1,
+            "",
             player->GetGUID().GetCounter(),
-            EscapeString(playerName),
-            extraData);
+            playerName,
+            0,
+            "",
+            0,
+            extraData,
+            3,
+            60
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued player_msg "
@@ -4611,26 +4615,22 @@ public:
             "- queuing for {} (lvl {} -> {})",
             botName, oldLevel, newLevel);
 
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, zone_id, "
-            "map_id, priority, cooldown_key, "
-            "subject_guid, subject_name, "
-            "target_guid, target_name, "
-            "target_entry, extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ('bot_group_levelup', "
-            "'player', "
-            "{}, {}, 1, '', "
-            "{}, '{}', 0, '', 0, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), INTERVAL 2 SECOND), "
-            "DATE_ADD(NOW(), "
-            "INTERVAL 120 SECOND))",
+        QueueChatterEvent(
+            "bot_group_levelup",
+            "player",
             reactor->GetZoneId(),
             reactor->GetMapId(),
-            botGuid, EscapeString(botName),
-            extraData);
+            1,
+            "",
+            botGuid,
+            botName,
+            0,
+            "",
+            0,
+            extraData,
+            2,
+            120
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued bot_group_levelup "
@@ -4772,29 +4772,22 @@ public:
 
         extraData = EscapeString(extraData);
 
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, zone_id, "
-            "map_id, priority, cooldown_key, "
-            "subject_guid, subject_name, "
-            "target_guid, target_name, "
-            "target_entry, extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ("
-            "'bot_group_quest_objectives', "
-            "'player', "
-            "{}, {}, 1, '', "
-            "{}, '{}', 0, '{}', {}, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), INTERVAL 2 SECOND), "
-            "DATE_ADD(NOW(), "
-            "INTERVAL 120 SECOND))",
+        QueueChatterEvent(
+            "bot_group_quest_objectives",
+            "player",
             reactor->GetZoneId(),
             reactor->GetMapId(),
-            botGuid, EscapeString(botName),
-            EscapeString(questName),
+            1,
+            "",
+            botGuid,
+            botName,
+            0,
+            questName,
             questId,
-            extraData);
+            extraData,
+            2,
+            120
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued "
@@ -4961,29 +4954,22 @@ public:
             "reactor={})",
             questName, playerName, botName);
 
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, zone_id, "
-            "map_id, priority, cooldown_key, "
-            "subject_guid, subject_name, "
-            "target_guid, target_name, "
-            "target_entry, extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ("
-            "'bot_group_quest_complete', "
-            "'player', "
-            "{}, {}, 1, '', "
-            "{}, '{}', 0, '{}', {}, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), INTERVAL 2 SECOND), "
-            "DATE_ADD(NOW(), "
-            "INTERVAL 120 SECOND))",
+        QueueChatterEvent(
+            "bot_group_quest_complete",
+            "player",
             reactor->GetZoneId(),
             reactor->GetMapId(),
-            botGuid, EscapeString(botName),
-            EscapeString(questName),
+            1,
+            "",
+            botGuid,
+            botName,
+            0,
+            questName,
             questId,
-            extraData);
+            extraData,
+            2,
+            120
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued "
@@ -5117,29 +5103,22 @@ public:
             "- queuing for {} earning [{}]",
             botName, achName);
 
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, zone_id, "
-            "map_id, priority, cooldown_key, "
-            "subject_guid, subject_name, "
-            "target_guid, target_name, "
-            "target_entry, extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ("
-            "'bot_group_achievement', "
-            "'player', "
-            "{}, {}, 1, '', "
-            "{}, '{}', 0, '{}', {}, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), INTERVAL 2 SECOND), "
-            "DATE_ADD(NOW(), "
-            "INTERVAL 120 SECOND))",
+        QueueChatterEvent(
+            "bot_group_achievement",
+            "player",
             reactor->GetZoneId(),
             reactor->GetMapId(),
-            botGuid, EscapeString(botName),
-            EscapeString(achName),
+            1,
+            "",
+            botGuid,
+            botName,
+            0,
+            achName,
             achId,
-            extraData);
+            extraData,
+            2,
+            120
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued "
@@ -5586,28 +5565,22 @@ public:
         // INSERT
         extraData = EscapeString(extraData);
 
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, zone_id, "
-            "map_id, priority, cooldown_key, "
-            "subject_guid, subject_name, "
-            "target_guid, target_name, "
-            "target_entry, extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ("
-            "'bot_group_spell_cast', "
-            "'player', "
-            "{}, {}, 1, '', "
-            "{}, '{}', 0, '{}', 0, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), INTERVAL 2 SECOND), "
-            "DATE_ADD(NOW(), "
-            "INTERVAL 120 SECOND))",
+        QueueChatterEvent(
+            "bot_group_spell_cast",
+            "player",
             reactor->GetZoneId(),
             reactor->GetMapId(),
-            botGuid, EscapeString(botName),
-            EscapeString(casterName),
-            extraData);
+            1,
+            "",
+            botGuid,
+            botName,
+            0,
+            casterName,
+            0,
+            extraData,
+            2,
+            120
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued "
@@ -5690,30 +5663,22 @@ public:
 
         extraData = EscapeString(extraData);
 
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, "
-            "zone_id, map_id, priority, "
-            "cooldown_key, subject_guid, "
-            "subject_name, target_guid, "
-            "target_name, target_entry, "
-            "extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ("
-            "'bot_group_resurrect', "
-            "'player', "
-            "{}, {}, 1, '', "
-            "{}, '{}', 0, '', 0, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), "
-            "INTERVAL 3 SECOND), "
-            "DATE_ADD(NOW(), "
-            "INTERVAL 120 SECOND))",
+        QueueChatterEvent(
+            "bot_group_resurrect",
+            "player",
             player->GetZoneId(),
             player->GetMapId(),
+            1,
+            "",
             botGuid,
-            EscapeString(botName),
-            extraData);
+            botName,
+            0,
+            "",
+            0,
+            extraData,
+            3,
+            120
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued "
@@ -5818,30 +5783,22 @@ public:
 
         extraData = EscapeString(extraData);
 
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, "
-            "zone_id, map_id, priority, "
-            "cooldown_key, subject_guid, "
-            "subject_name, target_guid, "
-            "target_name, target_entry, "
-            "extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ("
-            "'bot_group_corpse_run', "
-            "'player', "
-            "{}, {}, 1, '', "
-            "{}, '{}', 0, '', 0, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), "
-            "INTERVAL 5 SECOND), "
-            "DATE_ADD(NOW(), "
-            "INTERVAL 120 SECOND))",
+        QueueChatterEvent(
+            "bot_group_corpse_run",
+            "player",
             zoneId,
             player->GetMapId(),
+            1,
+            "",
             botGuid,
-            EscapeString(botName),
-            extraData);
+            botName,
+            0,
+            "",
+            0,
+            extraData,
+            5,
+            120
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued "
@@ -5941,31 +5898,22 @@ public:
 
         extraData = EscapeString(extraData);
 
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, "
-            "zone_id, map_id, priority, "
-            "cooldown_key, subject_guid, "
-            "subject_name, target_guid, "
-            "target_name, target_entry, "
-            "extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ("
-            "'bot_group_zone_transition', "
-            "'player', "
-            "{}, {}, 3, '', "
-            "{}, '{}', 0, '{}', 0, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), "
-            "INTERVAL 5 SECOND), "
-            "DATE_ADD(NOW(), "
-            "INTERVAL 120 SECOND))",
+        QueueChatterEvent(
+            "bot_group_zone_transition",
+            "player",
             newZone,
             player->GetMapId(),
+            3,
+            "",
             botGuid,
-            EscapeString(botName),
-            EscapeString(zoneName),
-            extraData);
+            botName,
+            0,
+            zoneName,
+            0,
+            extraData,
+            5,
+            120
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued "
@@ -6067,31 +6015,22 @@ public:
 
         extraData = EscapeString(extraData);
 
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, "
-            "zone_id, map_id, priority, "
-            "cooldown_key, subject_guid, "
-            "subject_name, target_guid, "
-            "target_name, target_entry, "
-            "extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ("
-            "'bot_group_dungeon_entry', "
-            "'player', "
-            "{}, {}, 1, '', "
-            "{}, '{}', 0, '{}', 0, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), "
-            "INTERVAL 5 SECOND), "
-            "DATE_ADD(NOW(), "
-            "INTERVAL 300 SECOND))",
+        QueueChatterEvent(
+            "bot_group_dungeon_entry",
+            "player",
             player->GetZoneId(),
             map->GetId(),
+            1,
+            "",
             botGuid,
-            EscapeString(botName),
-            EscapeString(mapName),
-            extraData);
+            botName,
+            0,
+            mapName,
+            0,
+            extraData,
+            5,
+            300
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued "
@@ -6220,32 +6159,22 @@ public:
 
         uint32 zoneId = player->GetZoneId();
 
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, "
-            "zone_id, map_id, priority, "
-            "cooldown_key, subject_guid, "
-            "subject_name, target_guid, "
-            "target_name, target_entry, "
-            "extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ("
-            "'bot_group_discovery', "
-            "'player', "
-            "{}, {}, 4, '', "
-            "{}, '{}', 0, '{}', 0, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), "
-            "INTERVAL {} SECOND), "
-            "DATE_ADD(NOW(), "
-            "INTERVAL 120 SECOND))",
+        QueueChatterEvent(
+            "bot_group_discovery",
+            "player",
             zoneId,
             player->GetMapId(),
+            4,
+            "",
             botGuid,
-            EscapeString(botName),
-            EscapeString(areaName),
+            botName,
+            0,
+            areaName,
+            0,
             extraData,
-            urand(5, 20));
+            urand(5, 20),
+            120
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued "
@@ -6342,28 +6271,22 @@ static void QueueStateCallout(
 
     extraData = EscapeString(extraData);
 
-    CharacterDatabase.Execute(
-        "INSERT INTO llm_chatter_events "
-        "(event_type, event_scope, zone_id, "
-        "map_id, priority, cooldown_key, "
-        "subject_guid, subject_name, "
-        "extra_data, status, "
-        "react_after, expires_at) "
-        "VALUES ('{}', 'player', "
-        "{}, {}, 2, "
-        "'state:{}:{}', "
-        "{}, '{}', '{}', 'pending', "
-        "DATE_ADD(NOW(), "
-        "INTERVAL 1 SECOND), "
-        "DATE_ADD(NOW(), "
-        "INTERVAL 60 SECOND))",
+    QueueChatterEvent(
         eventType,
+        "player",
         bot->GetZoneId(),
         bot->GetMapId(),
-        eventType, botGuid,
+        2,
+        "state:" + eventType + ":" + std::to_string(botGuid),
         botGuid,
-        EscapeString(botName),
-        extraData);
+        botName,
+        0,
+        "",
+        0,
+        extraData,
+        1,
+        60
+    );
 
     LOG_INFO("module",
         "LLMChatter: Queued {} for {} "
@@ -6698,31 +6621,22 @@ public:
             std::to_string(groupId) + ":" +
             std::to_string(questId);
 
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_chatter_events "
-            "(event_type, event_scope, zone_id, "
-            "map_id, priority, cooldown_key, "
-            "subject_guid, subject_name, "
-            "target_guid, target_name, "
-            "target_entry, extra_data, status, "
-            "react_after, expires_at) "
-            "VALUES ("
-            "'bot_group_quest_accept', "
-            "'player', "
-            "{}, {}, 1, '{}', "
-            "{}, '{}', 0, '{}', {}, "
-            "'{}', 'pending', "
-            "DATE_ADD(NOW(), "
-            "INTERVAL 2 SECOND), "
-            "DATE_ADD(NOW(), "
-            "INTERVAL 120 SECOND))",
+        QueueChatterEvent(
+            "bot_group_quest_accept",
+            "player",
             reactor->GetZoneId(),
             reactor->GetMapId(),
-            EscapeString(cooldownKey),
-            botGuid, EscapeString(botName),
-            EscapeString(questName),
+            1,
+            cooldownKey,
+            botGuid,
+            botName,
+            0,
+            questName,
             questId,
-            extraData);
+            extraData,
+            2,
+            120
+        );
 
         LOG_INFO("module",
             "LLMChatter: Queued "
