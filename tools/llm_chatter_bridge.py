@@ -1033,6 +1033,67 @@ def fetch_pending_events(db, config, max_count):
     return claimed
 
 
+def _dispatch_player_general_msg(
+    db, client, config, event
+):
+    """Adapter for general player-message handler
+    signature.
+    """
+    return process_general_player_msg_event(
+        event, db, client, config
+    )
+
+
+EVENT_HANDLERS = {
+    # Group events
+    'bot_group_join': process_group_event,
+    'bot_group_kill': process_group_kill_event,
+    'bot_group_death': process_group_death_event,
+    'bot_group_loot': process_group_loot_event,
+    'bot_group_combat': process_group_combat_event,
+    'bot_group_player_msg':
+        process_group_player_msg_event,
+    'bot_group_levelup': process_group_levelup_event,
+    'bot_group_quest_complete':
+        process_group_quest_complete_event,
+    'bot_group_quest_objectives':
+        process_group_quest_objectives_event,
+    'bot_group_achievement':
+        process_group_achievement_event,
+    'bot_group_spell_cast':
+        process_group_spell_cast_event,
+    'bot_group_resurrect':
+        process_group_resurrect_event,
+    'bot_group_zone_transition':
+        process_group_zone_transition_event,
+    'bot_group_quest_accept':
+        process_group_quest_accept_event,
+    'bot_group_discovery':
+        process_group_discovery_event,
+    'bot_group_dungeon_entry':
+        process_group_dungeon_entry_event,
+    'bot_group_wipe': process_group_wipe_event,
+    'bot_group_corpse_run':
+        process_group_corpse_run_event,
+    'bot_group_low_health':
+        process_group_low_health_event,
+    'bot_group_oom': process_group_oom_event,
+    'bot_group_aggro_loss':
+        process_group_aggro_loss_event,
+    # General event
+    'player_general_msg':
+        _dispatch_player_general_msg,
+}
+
+
+EVENT_LOG_OVERRIDES = {
+    'player_general_msg': 'General chat event',
+    'bot_group_low_health': 'State callout',
+    'bot_group_oom': 'State callout',
+    'bot_group_aggro_loss': 'State callout',
+}
+
+
 def process_single_event(event, client, config):
     """Process a single claimed event with its own
     DB connection. Designed for concurrent execution
@@ -1046,169 +1107,24 @@ def process_single_event(event, client, config):
         db = get_db_connection(config)
         cursor = db.cursor(dictionary=True)
 
-        # Group events bypass all zone/bot checks
-        # NOTE: Using logger.warning so group events
-        # remain visible when log level is WARNING
-        if event_type == 'bot_group_join':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return process_group_event(
-                db, client, config, event
+        # Route known events via map. NOTE:
+        # keep logger.warning so group/general
+        # events remain visible at WARNING level.
+        handler = EVENT_HANDLERS.get(event_type)
+        if handler is not None:
+            log_label = EVENT_LOG_OVERRIDES.get(
+                event_type
             )
-        if event_type == 'bot_group_kill':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return process_group_kill_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_death':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return process_group_death_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_loot':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return process_group_loot_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_combat':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return process_group_combat_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_player_msg':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return process_group_player_msg_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_levelup':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return process_group_levelup_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_quest_complete':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return process_group_quest_complete_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_quest_objectives':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return (
-                process_group_quest_objectives_event(
-                    db, client, config, event
+            if not log_label and event_type.startswith(
+                'bot_group_'
+            ):
+                log_label = 'Group event'
+            if log_label:
+                logger.warning(
+                    f"{log_label} #{event_id}: "
+                    f"{event_type}"
                 )
-            )
-        if event_type == 'bot_group_achievement':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return process_group_achievement_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_spell_cast':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return process_group_spell_cast_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_resurrect':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return process_group_resurrect_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_zone_transition':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return (
-                process_group_zone_transition_event(
-                    db, client, config, event
-                )
-            )
-        if event_type == 'bot_group_quest_accept':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return process_group_quest_accept_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_discovery':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return process_group_discovery_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_dungeon_entry':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return process_group_dungeon_entry_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_wipe':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return process_group_wipe_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_corpse_run':
-            logger.warning(
-                f"Group event #{event_id}: "
-                f"{event_type}")
-            return process_group_corpse_run_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_low_health':
-            logger.warning(
-                f"State callout #{event_id}: "
-                f"{event_type}")
-            return process_group_low_health_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_oom':
-            logger.warning(
-                f"State callout #{event_id}: "
-                f"{event_type}")
-            return process_group_oom_event(
-                db, client, config, event
-            )
-        if event_type == 'bot_group_aggro_loss':
-            logger.warning(
-                f"State callout #{event_id}: "
-                f"{event_type}")
-            return process_group_aggro_loss_event(
-                db, client, config, event
-            )
-
-        # General channel player message reaction
-        if event_type == 'player_general_msg':
-            logger.warning(
-                f"General chat event #{event_id}: "
-                f"{event_type}")
-            return process_general_player_msg_event(
-                event, db, client, config
-            )
+            return handler(db, client, config, event)
 
         logger.info(
             f"Processing event #{event_id}: "
