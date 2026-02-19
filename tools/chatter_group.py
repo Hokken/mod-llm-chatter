@@ -59,6 +59,7 @@ from chatter_shared import (
     append_json_instruction,
     parse_single_response,
     get_action_chance,
+    run_single_reaction,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -5777,49 +5778,39 @@ def process_group_low_health_event(
             allow_action=allow_action,
         )
 
-        response = call_llm(
-            client, prompt, config,
+        result = run_single_reaction(
+            db,
+            client,
+            config,
+            prompt=prompt,
+            speaker_name=bot_name,
+            bot_guid=bot_guid,
+            channel='party',
+            delay_seconds=1,
+            event_id=event_id,
+            allow_emote_fallback=True,
             max_tokens_override=60,
             context=(
                 f"grp-lowHP:#{event_id}"
                 f":{bot_name}"
-            )
+            ),
         )
-        if not response:
-            logger.warning(
-                f"Group low_health #{event_id}: "
-                f"LLM returned no response"
-            )
+        if not result['ok']:
+            if result['error_reason'] == 'no_response':
+                logger.warning(
+                    f"Group low_health #{event_id}: "
+                    f"LLM returned no response"
+                )
             _mark_event(db, event_id, 'skipped')
             return False
 
-        parsed = parse_single_response(response)
-        message = strip_speaker_prefix(
-            parsed['message'], bot_name
-        )
-        message = cleanup_message(
-            message, action=parsed.get('action')
-        )
-        if not message:
-            _mark_event(db, event_id, 'skipped')
-            return False
-        if len(message) > 255:
-            message = message[:252] + "..."
+        message = result['message']
 
         logger.info(
             f"Low health callout from "
             f"{bot_name}: {message}"
         )
 
-        emote = (
-            parsed.get('emote')
-            or pick_emote_for_statement(message)
-        )
-        insert_chat_message(
-            db, bot_guid, bot_name, message,
-            channel='party', delay_seconds=1,
-            event_id=event_id, emote=emote,
-        )
         _store_chat(
             db, group_id, bot_guid,
             bot_name, True, message

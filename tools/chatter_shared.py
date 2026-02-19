@@ -1524,6 +1524,94 @@ def call_llm(
         return None
 
 
+def run_single_reaction(
+    db,
+    client: Any,
+    config: dict,
+    *,
+    prompt: str,
+    speaker_name: str,
+    bot_guid: int,
+    channel: str,
+    delay_seconds: float,
+    event_id: int = None,
+    sequence: int = 0,
+    allow_emote_fallback: bool = True,
+    max_tokens_override: int = None,
+    context: str = '',
+) -> Dict[str, Any]:
+    """Run shared single-message reaction pipeline.
+
+    Flow:
+    1. call_llm
+    2. parse_single_response
+    3. strip_speaker_prefix
+    4. cleanup_message
+    5. length clamp
+    6. optional emote fallback
+    7. insert_chat_message
+
+    Returns:
+      {'ok': bool, 'message': str|None, 'emote': str|None,
+       'error_reason': str|None}
+    """
+    response = call_llm(
+        client,
+        prompt,
+        config,
+        max_tokens_override=max_tokens_override,
+        context=context,
+    )
+    if not response:
+        return {
+            'ok': False,
+            'message': None,
+            'emote': None,
+            'error_reason': 'no_response',
+        }
+
+    parsed = parse_single_response(response)
+    message = strip_speaker_prefix(
+        parsed['message'], speaker_name
+    )
+    message = cleanup_message(
+        message, action=parsed.get('action')
+    )
+    if not message:
+        return {
+            'ok': False,
+            'message': None,
+            'emote': None,
+            'error_reason': 'empty_message',
+        }
+
+    if len(message) > 255:
+        message = message[:252] + "..."
+
+    emote = parsed.get('emote')
+    if allow_emote_fallback:
+        emote = emote or pick_emote_for_statement(message)
+
+    insert_chat_message(
+        db,
+        bot_guid,
+        speaker_name,
+        message,
+        channel=channel,
+        delay_seconds=delay_seconds,
+        event_id=event_id,
+        sequence=sequence,
+        emote=emote,
+    )
+
+    return {
+        'ok': True,
+        'message': message,
+        'emote': emote,
+        'error_reason': None,
+    }
+
+
 # Cached client for quick analyze when provider
 # differs from main provider
 _quick_analyze_client = None
