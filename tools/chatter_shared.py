@@ -11,26 +11,20 @@ import logging
 import random
 import re
 import sys
-import threading
-import time
 from typing import Optional, Dict, List, Tuple, Any
 
 from chatter_constants import (
-    ZONE_LEVELS, ZONE_COORDINATES, ZONE_NAMES,
-    CAPITAL_CITY_ZONES,
-    CLASS_NAMES, RACE_NAMES, CLASS_IDS,
+    ZONE_LEVELS, ZONE_NAMES,
+    CLASS_NAMES, RACE_NAMES,
     RACE_SPEECH_PROFILES, CLASS_SPEECH_MODIFIERS,
     CLASS_ROLE_MAP, ROLE_COMBAT_PERSPECTIVES,
     ZONE_FLAVOR, DUNGEON_FLAVOR,
     ITEM_QUALITY_COLORS, CLASS_BITMASK,
     MSG_TYPE_PLAIN, MSG_TYPE_QUEST, MSG_TYPE_LOOT,
     MSG_TYPE_QUEST_REWARD, MSG_TYPE_TRADE,
-    MSG_TYPE_SPELL,
-    ZONE_TRANSPORT_COOLDOWN_SECONDS,
     EMOTE_KEYWORDS,
     EMOTE_LIST_STR,
 )
-from spell_names import SPELL_NAMES, SPELL_DESCRIPTIONS
 from chatter_text import (
     strip_speaker_prefix,
     parse_single_response,
@@ -48,10 +42,19 @@ from chatter_llm import (
     quick_llm_analyze,
 )
 from chatter_db import (
+    zone_cache,
     get_db_connection,
     wait_for_database,
     validate_emote,
     insert_chat_message,
+    query_zone_quests,
+    query_zone_loot,
+    query_zone_mobs,
+    query_bot_spells,
+    query_item_details,
+    query_quest_turnin_npc,
+    get_recent_zone_messages,
+    get_recent_bot_messages,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,100 +74,6 @@ logger = logging.getLogger(__name__)
 # Key: zone_id, Value: timestamp of last transport announcement
 _zone_transport_cooldowns: Dict[int, float] = {}
 
-
-# =============================================================================
-# CACHING
-# =============================================================================
-class ZoneDataCache:
-    """Cache for zone-specific quest, loot, and mob data.
-
-    Thread-safe: all methods are protected by a lock
-    for concurrent access from worker threads.
-    """
-
-    def __init__(self, ttl_seconds: int = 600):
-        self.ttl = ttl_seconds
-        self._lock = threading.Lock()
-        self.quest_cache: Dict[int, Tuple[List[dict], float]] = {}
-        self.loot_cache: Dict[Tuple[int, int], Tuple[List[dict], float]] = {}
-        self.mob_cache: Dict[Tuple[int, int], Tuple[List[str], float]] = {}
-        self.recent_loot: Dict[int, Dict[int, float]] = {}
-
-    def get_quests(self, zone_id: int) -> Optional[List[dict]]:
-        with self._lock:
-            if zone_id in self.quest_cache:
-                data, timestamp = self.quest_cache[zone_id]
-                if time.time() - timestamp < self.ttl:
-                    return data
-            return None
-
-    def set_quests(self, zone_id: int, quests: List[dict]):
-        with self._lock:
-            self.quest_cache[zone_id] = (quests, time.time())
-
-    def get_loot(
-        self, min_level: int, max_level: int
-    ) -> Optional[List[dict]]:
-        with self._lock:
-            key = (min_level, max_level)
-            if key in self.loot_cache:
-                data, timestamp = self.loot_cache[key]
-                if time.time() - timestamp < self.ttl:
-                    return data
-            return None
-
-    def set_loot(
-        self, min_level: int, max_level: int, loot: List[dict]
-    ):
-        with self._lock:
-            self.loot_cache[(min_level, max_level)] = (
-                loot, time.time()
-            )
-
-    def get_mobs(
-        self, zone_id: int, bot_level: int
-    ) -> Optional[List[str]]:
-        with self._lock:
-            key = (zone_id, bot_level)
-            if key in self.mob_cache:
-                data, timestamp = self.mob_cache[key]
-                if time.time() - timestamp < self.ttl:
-                    return data
-            return None
-
-    def set_mobs(
-        self, zone_id: int, bot_level: int, mobs: List[str]
-    ):
-        with self._lock:
-            self.mob_cache[(zone_id, bot_level)] = (
-                mobs, time.time()
-            )
-
-    def get_recent_loot_ids(
-        self, zone_id: int, cooldown_seconds: int
-    ) -> set:
-        with self._lock:
-            now = time.time()
-            if zone_id not in self.recent_loot:
-                return set()
-            recent = {
-                item_id: ts
-                for item_id, ts
-                in self.recent_loot[zone_id].items()
-                if now - ts < cooldown_seconds
-            }
-            self.recent_loot[zone_id] = recent
-            return set(recent.keys())
-
-    def mark_loot_seen(self, zone_id: int, item_id: int):
-        with self._lock:
-            if zone_id not in self.recent_loot:
-                self.recent_loot[zone_id] = {}
-            self.recent_loot[zone_id][item_id] = time.time()
-
-
-# Global cache instance
-zone_cache = ZoneDataCache()
 
 
 # =============================================================================
@@ -444,346 +353,6 @@ def can_class_use_item(
     if class_bit == 0:
         return True
     return (allowable_class & class_bit) != 0
-
-
-def query_zone_quests(
-    config: dict, zone_id: int, bot_level: int
-) -> List[dict]:
-    """Query quests available in a zone with rewards."""
-    cached = zone_cache.get_quests(zone_id)
-    if cached is not None:
-        return cached
-
-    try:
-        db = get_db_connection(config, 'acore_world')
-        cursor = db.cursor(dictionary=True)
-
-        cursor.execute("""
-            SELECT
-                MIN(q.ID) as quest_id,
-                q.LogTitle as quest_name,
-                MIN(q.QuestLevel) as quest_level,
-                MIN(LEFT(q.LogDescription, 150)) as description,
-                MIN(q.RewardMoney) as reward_money,
-                MIN(i1.entry) as item1_id,
-                MIN(i1.name) as item1_name,
-                MIN(i1.Quality) as item1_quality,
-                MIN(i2.entry) as item2_id,
-                MIN(i2.name) as item2_name,
-                MIN(i2.Quality) as item2_quality
-            FROM quest_template q
-            LEFT JOIN item_template i1
-                ON q.RewardItem1 = i1.entry
-            LEFT JOIN item_template i2
-                ON q.RewardItem2 = i2.entry
-            WHERE q.QuestSortID = %s
-              AND q.QuestLevel BETWEEN %s AND %s
-              AND q.LogTitle IS NOT NULL
-              AND q.LogTitle != ''
-              AND q.LogTitle NOT LIKE '<%%'
-            GROUP BY q.LogTitle
-            ORDER BY RAND()
-            LIMIT 20
-        """, (zone_id, max(1, bot_level - 5), bot_level + 8))
-
-        quests = cursor.fetchall()
-        db.close()
-
-        zone_cache.set_quests(zone_id, quests)
-        return quests
-
-    except Exception as e:
-        logger.error(f"Error querying zone quests: {e}")
-        return []
-
-
-def query_zone_loot(
-    config: dict, zone_id: int, bot_level: int
-) -> List[dict]:
-    """Query loot appropriate for the zone."""
-    # No loot drops in capital cities
-    if zone_id in CAPITAL_CITY_ZONES:
-        return []
-
-    min_level, max_level = get_zone_level_range(zone_id, bot_level)
-
-    cached = zone_cache.get_loot(zone_id, 0)
-    if cached is not None:
-        return cached
-
-    try:
-        db = get_db_connection(config, 'acore_world')
-        cursor = db.cursor(dictionary=True)
-
-        loot = []
-
-        if zone_id in ZONE_COORDINATES:
-            map_id, min_x, max_x, min_y, max_y = (
-                ZONE_COORDINATES[zone_id]
-            )
-            cursor.execute("""
-                SELECT DISTINCT
-                    i.entry as item_id,
-                    i.name as item_name,
-                    i.Quality as item_quality,
-                    i.AllowableClass as allowable_class,
-                    i.SellPrice as sell_price,
-                    ct.name as drops_from
-                FROM creature c
-                JOIN creature_template ct ON c.id1 = ct.entry
-                JOIN creature_loot_template clt
-                    ON ct.lootid = clt.Entry
-                JOIN item_template i ON clt.Item = i.entry
-                WHERE c.map = %s
-                  AND c.position_x BETWEEN %s AND %s
-                  AND c.position_y BETWEEN %s AND %s
-                  AND ct.minlevel >= %s
-                  AND ct.maxlevel <= %s
-                  AND i.Quality IN (0, 1)
-                  AND i.class IN (2, 4, 7)
-                  AND clt.Chance >= 5
-                ORDER BY RAND()
-                LIMIT 15
-            """, (
-                map_id, min_x, max_x, min_y, max_y,
-                max(1, min_level - 3), max_level + 5
-            ))
-            loot.extend(cursor.fetchall())
-        else:
-            cursor.execute("""
-                SELECT DISTINCT
-                    i.entry as item_id,
-                    i.name as item_name,
-                    i.Quality as item_quality,
-                    i.AllowableClass as allowable_class,
-                    i.SellPrice as sell_price,
-                    ct.name as drops_from
-                FROM creature_template ct
-                JOIN creature_loot_template clt
-                    ON ct.lootid = clt.Entry
-                JOIN item_template i ON clt.Item = i.entry
-                WHERE ct.minlevel >= %s
-                  AND ct.maxlevel <= %s
-                  AND i.Quality IN (0, 1)
-                  AND i.class IN (2, 4, 7)
-                  AND clt.Chance >= 5
-                ORDER BY RAND()
-                LIMIT 15
-            """, (max(1, min_level - 3), max_level + 5))
-            loot.extend(cursor.fetchall())
-
-        # Green/Blue/Epic from reference loot tables
-        green_ref_min = 1020000 + (min_level * 100) + min_level
-        green_ref_max = 1020000 + (max_level * 100) + max_level
-        blue_ref_min = 1030000 + (min_level * 100) + min_level
-        blue_ref_max = 1030000 + (max_level * 100) + max_level
-        epic_ref_min = 1040000 + (min_level * 100) + min_level
-        epic_ref_max = 1040000 + (max_level * 100) + max_level
-
-        ref_filter = f"""
-            (rlt.Entry BETWEEN {green_ref_min} AND {green_ref_max}
-             OR rlt.Entry BETWEEN {blue_ref_min} AND {blue_ref_max}
-             OR rlt.Entry BETWEEN {epic_ref_min} AND {epic_ref_max})
-        """
-
-        cursor.execute(f"""
-            SELECT DISTINCT
-                i.entry as item_id,
-                i.name as item_name,
-                i.Quality as item_quality,
-                i.AllowableClass as allowable_class,
-                i.SellPrice as sell_price,
-                'world drop' as drops_from
-            FROM reference_loot_template rlt
-            JOIN item_template i ON rlt.Item = i.entry
-            WHERE {ref_filter}
-              AND i.class IN (2, 4)
-              AND i.RequiredLevel BETWEEN %s AND %s
-            ORDER BY RAND()
-            LIMIT 15
-        """, (max(1, min_level - 5), max_level + 5))
-        loot.extend(cursor.fetchall())
-
-        db.close()
-
-        zone_cache.set_loot(zone_id, 0, loot)
-        return loot
-
-    except Exception as e:
-        logger.error(f"Error querying zone loot: {e}")
-        return []
-
-
-def query_zone_mobs(
-    config: dict, zone_id: int, bot_level: int
-) -> List[str]:
-    """Query hostile mob names from the specific zone."""
-    # No hostile creatures in capital cities
-    if zone_id in CAPITAL_CITY_ZONES:
-        return []
-
-    min_level, max_level = get_zone_level_range(zone_id, bot_level)
-
-    cached = zone_cache.get_mobs(zone_id, bot_level)
-    if cached is not None:
-        return cached
-
-    try:
-        db = get_db_connection(config, 'acore_world')
-        cursor = db.cursor(dictionary=True)
-
-        mobs = []
-
-        mob_filter = """
-            ct.type IN (1, 2, 3, 4, 5, 6, 7, 9, 10)
-            AND ct.faction NOT IN (
-                35, 55, 79, 80, 84, 126, 875, 876, 1078, 1080
-            )
-            AND ct.unit_flags = 0
-            AND ct.npcflag = 0
-            AND ct.name NOT LIKE '%%Trigger%%'
-            AND ct.name NOT LIKE '%%Invisible%%'
-            AND ct.name NOT LIKE '%%Bunny%%'
-            AND ct.name NOT LIKE '%%DND%%'
-            AND ct.name NOT LIKE '%%Spirit%%'
-            AND ct.name NOT LIKE '%%Quest%%'
-            AND ct.name NOT LIKE '%%(%%'
-            AND ct.name NOT LIKE '%%[%%'
-            AND ct.name NOT LIKE '%%<%%'
-            AND LENGTH(ct.name) > 3
-        """
-
-        if zone_id in ZONE_COORDINATES:
-            map_id, min_x, max_x, min_y, max_y = (
-                ZONE_COORDINATES[zone_id]
-            )
-            cursor.execute(f"""
-                SELECT DISTINCT ct.entry, ct.name
-                FROM creature c
-                JOIN creature_template ct ON c.id1 = ct.entry
-                WHERE c.map = %s
-                  AND c.position_x BETWEEN %s AND %s
-                  AND c.position_y BETWEEN %s AND %s
-                  AND ct.minlevel >= %s
-                  AND ct.maxlevel <= %s
-                  AND {mob_filter}
-                ORDER BY RAND()
-                LIMIT 50
-            """, (
-                map_id, min_x, max_x, min_y, max_y,
-                max(1, min_level - 3), max_level + 5
-            ))
-            mobs = [
-                f"[[npc:{row['entry']}:{row['name']}]]"
-                for row in cursor.fetchall()
-            ]
-
-            if mobs:
-                logger.info(
-                    f"Found {len(mobs)} mobs for zone "
-                    f"{zone_id} using coordinates"
-                )
-
-        if not mobs:
-            cursor.execute(f"""
-                SELECT DISTINCT ct.entry, ct.name
-                FROM creature_template ct
-                WHERE ct.minlevel >= %s
-                  AND ct.maxlevel <= %s
-                  AND {mob_filter}
-                ORDER BY RAND()
-                LIMIT 50
-            """, (max(1, min_level - 2), max_level + 3))
-            mobs = [
-                f"[[npc:{row['entry']}:{row['name']}]]"
-                for row in cursor.fetchall()
-            ]
-            logger.debug(
-                f"Using level-based fallback: {len(mobs)} mobs "
-                f"for level {min_level}-{max_level}"
-            )
-
-        db.close()
-
-        zone_cache.set_mobs(zone_id, bot_level, mobs)
-        return mobs
-
-    except Exception as e:
-        logger.error(f"Error querying zone mobs: {e}")
-        return []
-
-
-# =============================================================================
-# SPELL QUERIES
-# =============================================================================
-def query_bot_spells(
-    config: dict,
-    class_name: str,
-    bot_level: int
-) -> List[dict]:
-    """Query class-appropriate spells for a bot.
-
-    Uses trainer_spell + spell_dbc from acore_world,
-    falling back to SPELL_NAMES dict for missing names.
-    """
-    class_id = CLASS_IDS.get(class_name)
-    if not class_id:
-        return []
-
-    try:
-        db = get_db_connection(config, 'acore_world')
-        cursor = db.cursor(dictionary=True)
-
-        cursor.execute("""
-            SELECT DISTINCT
-                ts.SpellId as spell_id,
-                ts.ReqLevel as req_level,
-                COALESCE(
-                    sd.Name_Lang_enUS, NULL
-                ) as spell_name
-            FROM trainer t
-            JOIN trainer_spell ts
-                ON t.Id = ts.TrainerId
-            LEFT JOIN spell_dbc sd
-                ON ts.SpellId = sd.ID
-            WHERE t.Type = 0
-              AND t.Requirement = %s
-              AND ts.ReqLevel <= %s
-              AND ts.ReqLevel > 0
-            ORDER BY RAND()
-            LIMIT 10
-        """, (class_id, bot_level))
-
-        spells = cursor.fetchall()
-        db.close()
-
-        # Fill in missing names from SPELL_NAMES dict
-        # and add descriptions for richer prompts
-        result = []
-        for spell in spells:
-            name = spell.get('spell_name')
-            if not name:
-                name = SPELL_NAMES.get(
-                    spell['spell_id']
-                )
-            if name:
-                desc = SPELL_DESCRIPTIONS.get(
-                    spell['spell_id'], ''
-                )
-                result.append({
-                    'spell_id': spell['spell_id'],
-                    'spell_name': name,
-                    'spell_desc': desc,
-                    'req_level': spell['req_level'],
-                })
-
-        return result
-
-    except Exception as e:
-        logger.error(
-            f"Error querying bot spells: {e}"
-        )
-        return []
 
 
 # =============================================================================
@@ -1492,70 +1061,6 @@ def detect_item_links(
     ]
 
 
-def query_item_details(
-    db, entry: int,
-) -> Optional[dict]:
-    """Query acore_world.item_template for an item's
-    stats. Returns dict or None.
-    """
-    try:
-        cursor = db.cursor(dictionary=True)
-        cursor.execute("""
-            SELECT entry, name, Quality,
-                   class AS item_class,
-                   subclass AS item_subclass,
-                   ItemLevel, RequiredLevel,
-                   AllowableClass,
-                   stat_type1, stat_value1,
-                   stat_type2, stat_value2,
-                   dmg_min1, dmg_max1,
-                   armor, block
-            FROM acore_world.item_template
-            WHERE entry = %s
-        """, (entry,))
-        return cursor.fetchone()
-    except Exception as e:
-        logger.warning(
-            f"Failed to query item {entry}: {e}"
-        )
-        return None
-
-
-def query_quest_turnin_npc(
-    config, quest_id: int
-) -> Optional[str]:
-    """Look up the NPC name that a quest is turned
-    in to via creature_questender + creature_template.
-    Returns NPC name string or None.
-    """
-    try:
-        db = get_db_connection(
-            config, 'acore_world'
-        )
-        cursor = db.cursor(dictionary=True)
-        cursor.execute("""
-            SELECT ct.name
-            FROM creature_questender cqe
-            JOIN creature_template ct
-                ON cqe.id = ct.entry
-            WHERE cqe.quest = %s
-            LIMIT 1
-        """, (quest_id,))
-        row = cursor.fetchone()
-        return row['name'] if row else None
-    except Exception as e:
-        logger.warning(
-            f"Failed to query quest turnin NPC "
-            f"for quest {quest_id}: {e}"
-        )
-        return None
-    finally:
-        try:
-            db.close()
-        except Exception:
-            pass
-
-
 _ITEM_CLASS_NAMES = {
     0: "Consumable", 1: "Container",
     2: "Weapon", 3: "Gem", 4: "Armor",
@@ -1672,84 +1177,6 @@ def format_item_context(
 # =============================================================================
 # ANTI-REPETITION SYSTEM
 # =============================================================================
-def get_recent_zone_messages(
-    db, zone_id: int,
-    limit: int = 15,
-    minutes: int = 30
-) -> list:
-    """Fetch recent delivered messages for a zone.
-
-    Returns list of message strings (newest first).
-    Zone-scoped via JOIN on queue_id or event_id
-    (llm_chatter_messages has no zone_id column).
-    """
-    if not zone_id:
-        return []
-    try:
-        cursor = db.cursor(dictionary=True)
-        cursor.execute("""
-            SELECT m.message
-            FROM llm_chatter_messages m
-            LEFT JOIN llm_chatter_queue q
-                ON m.queue_id = q.id
-            LEFT JOIN llm_chatter_events e
-                ON m.event_id = e.id
-            WHERE m.delivered = 1
-              AND m.channel IN ('general', 'say')
-              AND m.delivered_at > DATE_SUB(
-                  NOW(), INTERVAL %s MINUTE
-              )
-              AND (q.zone_id = %s
-                   OR e.zone_id = %s)
-            ORDER BY m.delivered_at DESC
-            LIMIT %s
-        """, (minutes, zone_id, zone_id, limit))
-        rows = cursor.fetchall()
-        return [r['message'] for r in rows if r.get(
-            'message'
-        )]
-    except Exception as e:
-        logger.debug(
-            f"get_recent_zone_messages error: {e}"
-        )
-        return []
-
-
-def get_recent_bot_messages(
-    db, bot_guid: int,
-    limit: int = 10,
-    minutes: int = 60
-) -> list:
-    """Fetch recent messages from a specific bot.
-
-    Returns list of message strings (newest first).
-    Covers all channels (party, general, say).
-    """
-    if not bot_guid:
-        return []
-    try:
-        cursor = db.cursor(dictionary=True)
-        cursor.execute("""
-            SELECT message FROM llm_chatter_messages
-            WHERE delivered = 1
-              AND bot_guid = %s
-              AND delivered_at > DATE_SUB(
-                  NOW(), INTERVAL %s MINUTE
-              )
-            ORDER BY delivered_at DESC
-            LIMIT %s
-        """, (bot_guid, minutes, limit))
-        rows = cursor.fetchall()
-        return [r['message'] for r in rows if r.get(
-            'message'
-        )]
-    except Exception as e:
-        logger.debug(
-            f"get_recent_bot_messages error: {e}"
-        )
-        return []
-
-
 def build_anti_repetition_context(
     recent_messages: list,
     max_items: int = 10
