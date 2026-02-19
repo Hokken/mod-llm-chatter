@@ -2,7 +2,7 @@
 Chatter Shared - Shared utilities, DB, LLM, queries for the LLM Chatter Bridge.
 
 Imports from chatter_constants, chatter_text,
-and chatter_llm.
+chatter_llm, and chatter_db.
 No circular dependencies.
 """
 
@@ -14,8 +14,6 @@ import sys
 import threading
 import time
 from typing import Optional, Dict, List, Tuple, Any
-
-import mysql.connector
 
 from chatter_constants import (
     ZONE_LEVELS, ZONE_COORDINATES, ZONE_NAMES,
@@ -29,7 +27,7 @@ from chatter_constants import (
     MSG_TYPE_QUEST_REWARD, MSG_TYPE_TRADE,
     MSG_TYPE_SPELL,
     ZONE_TRANSPORT_COOLDOWN_SECONDS,
-    EMOTE_LIST, EMOTE_KEYWORDS,
+    EMOTE_KEYWORDS,
     EMOTE_LIST_STR,
 )
 from spell_names import SPELL_NAMES, SPELL_DESCRIPTIONS
@@ -48,6 +46,12 @@ from chatter_llm import (
     call_llm,
     _get_quick_analyze_client,
     quick_llm_analyze,
+)
+from chatter_db import (
+    get_db_connection,
+    wait_for_database,
+    validate_emote,
+    insert_chat_message,
 )
 
 logger = logging.getLogger(__name__)
@@ -351,55 +355,6 @@ def parse_config(config_path: str) -> dict:
         logger.error(f"Failed to parse config: {e}")
         sys.exit(1)
     return config
-
-
-def get_db_connection(config: dict, database: str = None):
-    """Create database connection from config."""
-    return mysql.connector.connect(
-        host=config.get('LLMChatter.Database.Host', 'localhost'),
-        port=int(config.get('LLMChatter.Database.Port', 3306)),
-        user=config.get('LLMChatter.Database.User', 'acore'),
-        password=config.get(
-            'LLMChatter.Database.Password', 'acore'
-        ),
-        database=database or config.get(
-            'LLMChatter.Database.Name', 'acore_characters'
-        )
-    )
-
-
-def wait_for_database(
-    config: dict,
-    max_retries: int = 30,
-    initial_delay: float = 2.0
-) -> bool:
-    """Wait for database to become available with exponential backoff."""
-    delay = initial_delay
-    for attempt in range(1, max_retries + 1):
-        try:
-            conn = get_db_connection(config)
-            conn.close()
-            logger.info(
-                f"Database connection established "
-                f"(attempt {attempt})"
-            )
-            return True
-        except mysql.connector.Error as e:
-            if attempt == max_retries:
-                logger.error(
-                    f"Failed to connect to database after "
-                    f"{max_retries} attempts: {e}"
-                )
-                return False
-            logger.info(
-                f"Waiting for database... "
-                f"(attempt {attempt}/{max_retries}, "
-                f"retry in {delay:.1f}s)"
-            )
-            time.sleep(delay)
-            delay = min(delay * 1.5, 30.0)
-
-    return False
 
 
 # =============================================================================
@@ -1502,21 +1457,6 @@ def parse_extra_data(
 # =============================================================================
 # EMOTE HELPERS
 # =============================================================================
-def validate_emote(emote_str: Optional[str]) -> Optional[str]:
-    """Clean and validate an emote string from LLM output.
-
-    Returns a valid emote name or None.
-    """
-    if not emote_str or not isinstance(emote_str, str):
-        return None
-    cleaned = emote_str.strip().lower()
-    # Strip quotes the LLM might add
-    cleaned = cleaned.strip('"').strip("'")
-    if cleaned in EMOTE_LIST and cleaned != 'none':
-        return cleaned
-    return None
-
-
 def pick_emote_for_statement(message: str) -> Optional[str]:
     """Keyword-match an emote for a plain-text statement.
 
@@ -1849,38 +1789,3 @@ def build_anti_repetition_context(
 # =============================================================================
 # CENTRALIZED MESSAGE INSERTION
 # =============================================================================
-def insert_chat_message(
-    db,
-    bot_guid: int,
-    bot_name: str,
-    message: str,
-    channel: str = 'party',
-    delay_seconds: float = 2.0,
-    event_id: int = None,
-    queue_id: int = None,
-    sequence: int = 0,
-    emote: str = None,
-):
-    """Insert a message into llm_chatter_messages.
-
-    Centralised helper replacing individual INSERT
-    statements across the codebase. Handles the emote
-    column transparently.
-    """
-    cursor = db.cursor()
-    cursor.execute("""
-        INSERT INTO llm_chatter_messages
-        (event_id, queue_id, sequence, bot_guid,
-         bot_name, message, emote, channel,
-         delivered, deliver_at)
-        VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, 0,
-            DATE_ADD(NOW(), INTERVAL %s SECOND)
-        )
-    """, (
-        event_id, queue_id, sequence,
-        bot_guid, bot_name, message,
-        validate_emote(emote), channel,
-        int(delay_seconds),
-    ))
-    db.commit()
