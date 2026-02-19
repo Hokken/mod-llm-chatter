@@ -38,6 +38,16 @@ from chatter_group_prompts import (
     build_quest_objectives_reaction_prompt,
     build_achievement_reaction_prompt,
     build_spell_cast_reaction_prompt,
+    build_resurrect_reaction_prompt,
+    build_zone_transition_prompt,
+    build_quest_accept_reaction_prompt,
+    build_discovery_reaction_prompt,
+    build_dungeon_entry_prompt,
+    build_wipe_reaction_prompt,
+    build_corpse_run_reaction_prompt,
+    build_low_health_callout_prompt,
+    build_oom_callout_prompt,
+    build_aggro_loss_callout_prompt,
 )
 
 logger = logging.getLogger(__name__)
@@ -1744,6 +1754,1500 @@ def process_group_spell_cast_event(
     except Exception as e:
         logger.error(
             f"Error processing spell cast event "
+            f"#{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+def process_group_resurrect_event(
+    db, client, config, event
+):
+    """Handle a bot_group_resurrect event.
+
+    The resurrected bot itself reacts with gratitude
+    or relief in party chat.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_resurrect'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'someone'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    # The rezzed bot itself reacts
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        logger.info(
+            f"Event #{event_id}: no traits for "
+            f"bot {bot_name} in group {group_id}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    # Get class/race from characters table
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters
+        WHERE guid = %s
+    """, (bot_guid,))
+    char_row = cursor.fetchone()
+
+    if not char_row:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': get_class_name(char_row['class']),
+        'race': get_race_name(char_row['race']),
+        'level': char_row['level'],
+    }
+
+    logger.info(
+        f"Processing group resurrect: "
+        f"{bot_name} reacting to being rezzed"
+    )
+
+    # Mark as processing
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
+        prompt = build_resurrect_reaction_prompt(
+            bot, traits, mode,
+            chat_history=chat_hist,
+            allow_action=allow_action,
+        )
+        mood_label = get_bot_mood_label(
+            group_id, bot_guid
+        )
+        if mood_label != 'neutral':
+            prompt += (
+                f"\nCurrent mood: {mood_label}"
+            )
+
+        max_tokens = int(config.get(
+            'LLMChatter.MaxTokens', 200
+        ))
+        result = run_single_reaction(
+            db,
+            client,
+            config,
+            prompt=prompt,
+            speaker_name=bot_name,
+            bot_guid=bot_guid,
+            channel='party',
+            delay_seconds=2,
+            event_id=event_id,
+            allow_emote_fallback=True,
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-resurrect:#{event_id}"
+                f":{bot_name}"
+            ),
+        )
+        if not result['ok']:
+            if result['error_reason'] == 'no_response':
+                logger.warning(
+                    f"Group resurrect #{event_id}: "
+                    f"LLM returned no response"
+                )
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = result['message']
+
+        logger.info(
+            f"Resurrect reaction from "
+            f"{bot_name}: {message}"
+        )
+
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+
+        update_bot_mood(
+            group_id, bot_guid, 'resurrect'
+        )
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing resurrect event "
+            f"#{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+def process_group_zone_transition_event(
+    db, client, config, event
+):
+    """Handle a bot_group_zone_transition event.
+
+    The bot that entered a new zone comments on
+    the arrival in party chat.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_zone_transition'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'someone'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+    zone_id = int(extra_data.get('zone_id', 0))
+    zone_name = extra_data.get(
+        'zone_name', 'somewhere'
+    )
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    # The bot that entered the zone reacts
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        logger.info(
+            f"Event #{event_id}: no traits for "
+            f"bot {bot_name} in group {group_id}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    # Get class/race from characters table
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters
+        WHERE guid = %s
+    """, (bot_guid,))
+    char_row = cursor.fetchone()
+
+    if not char_row:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': get_class_name(char_row['class']),
+        'race': get_race_name(char_row['race']),
+        'level': char_row['level'],
+    }
+
+    logger.info(
+        f"Processing zone transition: "
+        f"{bot_name} entering {zone_name}"
+    )
+
+    # Mark as processing
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
+        prompt = build_zone_transition_prompt(
+            bot, traits, zone_name, zone_id,
+            mode,
+            chat_history=chat_hist,
+            allow_action=allow_action,
+        )
+
+        max_tokens = int(config.get(
+            'LLMChatter.MaxTokens', 200
+        ))
+        result = run_single_reaction(
+            db,
+            client,
+            config,
+            prompt=prompt,
+            speaker_name=bot_name,
+            bot_guid=bot_guid,
+            channel='party',
+            delay_seconds=2,
+            event_id=event_id,
+            allow_emote_fallback=True,
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-zone:#{event_id}"
+                f":{bot_name}"
+            ),
+        )
+        if not result['ok']:
+            if result['error_reason'] == 'no_response':
+                logger.warning(
+                    f"Group zone #{event_id}: "
+                    f"LLM returned no response"
+                )
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = result['message']
+
+        logger.info(
+            f"Zone transition reaction from "
+            f"{bot_name}: {message}"
+        )
+
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing zone transition "
+            f"event #{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+def process_group_quest_accept_event(
+    db, client, config, event
+):
+    """Handle a bot_group_quest_accept event.
+
+    A bot reacts to the group accepting a new quest.
+    The C++ hook pre-selects the reactor bot.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_quest_accept'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    # C++ pre-selects the reactor (bot_guid/name)
+    reactor_guid = int(
+        extra_data.get('bot_guid', 0)
+    )
+    reactor_name = extra_data.get(
+        'bot_name', 'Unknown'
+    )
+    acceptor_name = extra_data.get(
+        'acceptor_name',
+        extra_data.get('bot_name', 'someone')
+    )
+    quest_name = extra_data.get(
+        'quest_name', 'a quest'
+    )
+    quest_level = int(
+        extra_data.get('quest_level', 0)
+    )
+    zone_name = extra_data.get(
+        'zone_name', 'somewhere'
+    )
+    group_id = int(
+        extra_data.get('group_id', 0)
+    )
+
+    if not reactor_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    trait_data = get_bot_traits(
+        db, group_id, reactor_guid
+    )
+    if not trait_data:
+        logger.info(
+            f"Quest accept event "
+            f"#{event_id}: no traits for "
+            f"{reactor_name}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+    reactor_traits = trait_data['traits']
+
+    bot_class_id = int(extra_data.get(
+        'bot_class', 1
+    ))
+    bot_race_id = int(extra_data.get(
+        'bot_race', 1
+    ))
+    bot_class = get_class_name(bot_class_id)
+    bot_race = get_race_name(bot_race_id)
+    bot_level = int(
+        extra_data.get('bot_level', 1)
+    )
+
+    reactor = {
+        'guid': reactor_guid,
+        'name': reactor_name,
+        'class': bot_class,
+        'race': bot_race,
+        'level': bot_level,
+    }
+
+    logger.info(
+        f"Processing quest accept reaction: "
+        f"{reactor_name} reacts to "
+        f"{acceptor_name} accepting "
+        f"\"{quest_name}\""
+    )
+
+    # Mark as processing
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
+        quest_details = extra_data.get(
+            'quest_details', ''
+        )
+        quest_objectives = extra_data.get(
+            'quest_objectives', ''
+        )
+        prompt = (
+            build_quest_accept_reaction_prompt(
+                reactor, reactor_traits,
+                acceptor_name, quest_name,
+                quest_level,
+                zone_name, mode,
+                chat_history=chat_hist,
+                allow_action=allow_action,
+                quest_details=quest_details,
+                quest_objectives=quest_objectives,
+            )
+        )
+        mood_label = get_bot_mood_label(
+            group_id, reactor_guid
+        )
+        if mood_label != 'neutral':
+            prompt += (
+                f"\nCurrent mood: {mood_label}"
+            )
+
+        max_tokens = int(config.get(
+            'LLMChatter.MaxTokens', 200
+        ))
+        result = run_single_reaction(
+            db,
+            client,
+            config,
+            prompt=prompt,
+            speaker_name=reactor_name,
+            bot_guid=reactor_guid,
+            channel='party',
+            delay_seconds=2,
+            event_id=event_id,
+            allow_emote_fallback=True,
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-qacc:#{event_id}"
+                f":{reactor_name}"
+            ),
+        )
+        if not result['ok']:
+            if result['error_reason'] == 'no_response':
+                logger.warning(
+                    f"Group quest accept #{event_id}: "
+                    f"LLM returned no response"
+                )
+            elif result['error_reason'] == 'empty_message':
+                logger.warning(
+                    "Empty message after cleanup"
+                )
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = result['message']
+
+        logger.info(
+            f"Quest accept reaction from "
+            f"{reactor_name}: {message}"
+        )
+
+        _store_chat(
+            db, group_id, reactor_guid,
+            reactor_name, True, message
+        )
+
+        update_bot_mood(
+            group_id, reactor_guid, 'quest'
+        )
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing quest accept "
+            f"event #{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+def process_group_discovery_event(
+    db, client, config, event
+):
+    """Handle a bot_group_discovery event.
+
+    A bot reacts to the group discovering a new area.
+    The C++ hook pre-selects the reactor bot.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_discovery'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'someone'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+    area_name = extra_data.get(
+        'area_name', 'somewhere new'
+    )
+    xp_amount = int(
+        extra_data.get('xp_amount', 0)
+    )
+    player_name = extra_data.get(
+        'player_name', 'someone'
+    )
+    player_class = extra_data.get(
+        'player_class', 'adventurer'
+    )
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        logger.info(
+            f"Discovery event #{event_id}: "
+            f"no traits for bot {bot_name} "
+            f"in group {group_id}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    bot_class = extra_data.get(
+        'bot_class', 'Warrior'
+    )
+    bot_race = extra_data.get(
+        'bot_race', 'Human'
+    )
+    bot_level = int(
+        extra_data.get('bot_level', 1)
+    )
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': bot_class,
+        'race': bot_race,
+        'level': bot_level,
+    }
+
+    logger.info(
+        f"Processing discovery reaction: "
+        f"{bot_name} discovers {area_name}"
+    )
+
+    # Mark as processing
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
+        prompt = build_discovery_reaction_prompt(
+            bot, traits, area_name, player_name,
+            player_class, xp_amount, mode,
+            chat_history=chat_hist,
+            allow_action=allow_action,
+        )
+        mood_label = get_bot_mood_label(
+            group_id, bot_guid
+        )
+        if mood_label != 'neutral':
+            prompt += (
+                f"\nCurrent mood: {mood_label}"
+            )
+
+        max_tokens = int(config.get(
+            'LLMChatter.MaxTokens', 200
+        ))
+        result = run_single_reaction(
+            db,
+            client,
+            config,
+            prompt=prompt,
+            speaker_name=bot_name,
+            bot_guid=bot_guid,
+            channel='party',
+            delay_seconds=2,
+            event_id=event_id,
+            allow_emote_fallback=True,
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-disc:#{event_id}"
+                f":{bot_name}"
+            ),
+        )
+        if not result['ok']:
+            if result['error_reason'] == 'no_response':
+                logger.warning(
+                    f"Group discovery #{event_id}: "
+                    f"LLM returned no response"
+                )
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = result['message']
+
+        logger.info(
+            f"Discovery reaction from "
+            f"{bot_name}: {message}"
+        )
+
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing discovery "
+            f"event #{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+def process_group_dungeon_entry_event(
+    db, client, config, event
+):
+    """Handle a bot_group_dungeon_entry event.
+
+    The bot that entered a dungeon or raid instance
+    reacts in party chat.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_dungeon_entry'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'someone'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+    map_id = int(extra_data.get('map_id', 0))
+    map_name = extra_data.get(
+        'map_name', 'a dungeon'
+    )
+    is_raid = bool(
+        int(extra_data.get('is_raid', 0))
+    )
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    # The bot that entered reacts
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        logger.info(
+            f"Event #{event_id}: no traits for "
+            f"bot {bot_name} in group {group_id}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    # Get class/race from characters table
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters
+        WHERE guid = %s
+    """, (bot_guid,))
+    char_row = cursor.fetchone()
+
+    if not char_row:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': get_class_name(char_row['class']),
+        'race': get_race_name(char_row['race']),
+        'level': char_row['level'],
+    }
+
+    logger.info(
+        f"Processing dungeon entry: "
+        f"{bot_name} entering {map_name}"
+        f"{' (raid)' if is_raid else ''}"
+    )
+
+    # Mark as processing
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
+        prompt = build_dungeon_entry_prompt(
+            db, bot, traits, map_name, is_raid,
+            map_id, mode,
+            chat_history=chat_hist,
+            allow_action=allow_action,
+        )
+
+        max_tokens = int(config.get(
+            'LLMChatter.MaxTokens', 200
+        ))
+        delay = random.randint(2, 4)
+        result = run_single_reaction(
+            db,
+            client,
+            config,
+            prompt=prompt,
+            speaker_name=bot_name,
+            bot_guid=bot_guid,
+            channel='party',
+            delay_seconds=delay,
+            event_id=event_id,
+            allow_emote_fallback=True,
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-dungeon:#{event_id}"
+                f":{bot_name}"
+            ),
+        )
+        if not result['ok']:
+            if result['error_reason'] == 'no_response':
+                logger.warning(
+                    f"Group dungeon #{event_id}: "
+                    f"LLM returned no response"
+                )
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = result['message']
+
+        logger.info(
+            f"Dungeon entry reaction from "
+            f"{bot_name}: {message}"
+        )
+
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing dungeon entry "
+            f"event #{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+def process_group_wipe_event(
+    db, client, config, event
+):
+    """Handle a bot_group_wipe event.
+
+    The designated bot reacts to a total party wipe
+    in party chat.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_wipe'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'someone'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+    killer_name = extra_data.get(
+        'killer_name', ''
+    )
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    # The designated bot reacts
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        logger.info(
+            f"Event #{event_id}: no traits for "
+            f"bot {bot_name} in group {group_id}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    # Get class/race from characters table
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters
+        WHERE guid = %s
+    """, (bot_guid,))
+    char_row = cursor.fetchone()
+
+    if not char_row:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': get_class_name(char_row['class']),
+        'race': get_race_name(char_row['race']),
+        'level': char_row['level'],
+    }
+
+    logger.info(
+        f"Processing group wipe: "
+        f"{bot_name} reacting"
+        f"{' to ' + killer_name if killer_name else ''}"
+    )
+
+    # Mark as processing
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
+        prompt = build_wipe_reaction_prompt(
+            bot, traits, killer_name, mode,
+            chat_history=chat_hist,
+            extra_data=extra_data,
+            allow_action=allow_action,
+        )
+        mood_label = get_bot_mood_label(
+            group_id, bot_guid
+        )
+        if mood_label != 'neutral':
+            prompt += (
+                f"\nCurrent mood: {mood_label}"
+            )
+
+        max_tokens = int(config.get(
+            'LLMChatter.MaxTokens', 200
+        ))
+        result = run_single_reaction(
+            db,
+            client,
+            config,
+            prompt=prompt,
+            speaker_name=bot_name,
+            bot_guid=bot_guid,
+            channel='party',
+            delay_seconds=2,
+            event_id=event_id,
+            allow_emote_fallback=True,
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-wipe:#{event_id}"
+                f":{bot_name}"
+            ),
+        )
+        if not result['ok']:
+            if result['error_reason'] == 'no_response':
+                logger.warning(
+                    f"Group wipe #{event_id}: "
+                    f"LLM returned no response"
+                )
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = result['message']
+
+        logger.info(
+            f"Wipe reaction from "
+            f"{bot_name}: {message}"
+        )
+
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+
+        update_bot_mood(
+            group_id, bot_guid, 'wipe'
+        )
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing wipe event "
+            f"#{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+def process_group_corpse_run_event(
+    db, client, config, event
+):
+    """Handle a bot_group_corpse_run event.
+
+    A bot comments on a corpse run — either
+    their own or the real player's. Humorous,
+    philosophical, or resigned depending on
+    personality.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_corpse_run'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'someone'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+    zone_name = extra_data.get('zone_name', '')
+    dead_name = extra_data.get(
+        'dead_name', bot_name
+    )
+    is_player_death = extra_data.get(
+        'is_player_death', False
+    )
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        logger.info(
+            f"Event #{event_id}: no traits for "
+            f"bot {bot_name} in group {group_id}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters
+        WHERE guid = %s
+    """, (bot_guid,))
+    char_row = cursor.fetchone()
+
+    if not char_row:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': get_class_name(char_row['class']),
+        'race': get_race_name(char_row['race']),
+        'level': char_row['level'],
+    }
+
+    logger.info(
+        f"Processing corpse run: "
+        f"{dead_name} died"
+        f"{' (player)' if is_player_death else ''}"
+        f", {bot_name} reacting"
+        f"{' in ' + zone_name if zone_name else ''}"
+    )
+
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
+        prompt = build_corpse_run_reaction_prompt(
+            bot, traits, zone_name, mode,
+            chat_history=chat_hist,
+            dead_name=dead_name,
+            is_player_death=is_player_death,
+            allow_action=allow_action,
+        )
+
+        max_tokens = int(config.get(
+            'LLMChatter.MaxTokens', 200
+        ))
+        result = run_single_reaction(
+            db,
+            client,
+            config,
+            prompt=prompt,
+            speaker_name=bot_name,
+            bot_guid=bot_guid,
+            channel='party',
+            delay_seconds=2,
+            event_id=event_id,
+            allow_emote_fallback=True,
+            max_tokens_override=max_tokens,
+            context=(
+                f"grp-corpse:#{event_id}"
+                f":{bot_name}"
+            ),
+        )
+        if not result['ok']:
+            if result['error_reason'] == 'no_response':
+                logger.warning(
+                    f"Group corpse #{event_id}: "
+                    f"LLM returned no response"
+                )
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = result['message']
+
+        logger.info(
+            f"Corpse run from "
+            f"{bot_name}: {message}"
+        )
+
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing corpse run event "
+            f"#{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+def process_group_low_health_event(
+    db, client, config, event
+):
+    """Handle bot_group_low_health callout."""
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_low_health'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'Unknown'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+    target_name = extra_data.get(
+        'target_name', ''
+    )
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    # Get class/race from characters
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters WHERE guid = %s
+    """, (bot_guid,))
+    char_row = cursor.fetchone()
+    if not char_row:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': get_class_name(char_row['class']),
+        'race': get_race_name(char_row['race']),
+        'level': char_row['level'],
+    }
+
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
+        prompt = build_low_health_callout_prompt(
+            bot, traits, target_name, mode,
+            chat_history=chat_hist,
+            extra_data=extra_data,
+            allow_action=allow_action,
+        )
+
+        result = run_single_reaction(
+            db,
+            client,
+            config,
+            prompt=prompt,
+            speaker_name=bot_name,
+            bot_guid=bot_guid,
+            channel='party',
+            delay_seconds=1,
+            event_id=event_id,
+            allow_emote_fallback=True,
+            max_tokens_override=60,
+            context=(
+                f"grp-lowHP:#{event_id}"
+                f":{bot_name}"
+            ),
+        )
+        if not result['ok']:
+            if result['error_reason'] == 'no_response':
+                logger.warning(
+                    f"Group low_health #{event_id}: "
+                    f"LLM returned no response"
+                )
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = result['message']
+
+        logger.info(
+            f"Low health callout from "
+            f"{bot_name}: {message}"
+        )
+
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing low health event "
+            f"#{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+def process_group_oom_event(
+    db, client, config, event
+):
+    """Handle bot_group_oom callout."""
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_oom'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'Unknown'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+    target_name = extra_data.get(
+        'target_name', ''
+    )
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters WHERE guid = %s
+    """, (bot_guid,))
+    char_row = cursor.fetchone()
+    if not char_row:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': get_class_name(char_row['class']),
+        'race': get_race_name(char_row['race']),
+        'level': char_row['level'],
+    }
+
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
+        prompt = build_oom_callout_prompt(
+            bot, traits, target_name, mode,
+            chat_history=chat_hist,
+            extra_data=extra_data,
+            allow_action=allow_action,
+        )
+
+        result = run_single_reaction(
+            db,
+            client,
+            config,
+            prompt=prompt,
+            speaker_name=bot_name,
+            bot_guid=bot_guid,
+            channel='party',
+            delay_seconds=1,
+            event_id=event_id,
+            allow_emote_fallback=True,
+            max_tokens_override=60,
+            context=(
+                f"grp-oom:#{event_id}"
+                f":{bot_name}"
+            ),
+        )
+        if not result['ok']:
+            if result['error_reason'] == 'no_response':
+                logger.warning(
+                    f"Group oom #{event_id}: "
+                    f"LLM returned no response"
+                )
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = result['message']
+
+        logger.info(
+            f"OOM callout from "
+            f"{bot_name}: {message}"
+        )
+
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing OOM event "
+            f"#{event_id}: {e}"
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+def process_group_aggro_loss_event(
+    db, client, config, event
+):
+    """Handle bot_group_aggro_loss callout."""
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_aggro_loss'
+    )
+
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(extra_data.get('bot_guid', 0))
+    bot_name = extra_data.get(
+        'bot_name', 'Unknown'
+    )
+    group_id = int(extra_data.get('group_id', 0))
+    target_name = extra_data.get(
+        'target_name', ''
+    )
+    aggro_target = extra_data.get(
+        'aggro_target', 'someone'
+    )
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    )
+    if not trait_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    traits = trait_data['traits']
+
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT class, race, level
+        FROM characters WHERE guid = %s
+    """, (bot_guid,))
+    char_row = cursor.fetchone()
+    if not char_row:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot = {
+        'guid': bot_guid,
+        'name': bot_name,
+        'class': get_class_name(char_row['class']),
+        'race': get_race_name(char_row['race']),
+        'level': char_row['level'],
+    }
+
+    cursor = db.cursor()
+    cursor.execute(
+        "UPDATE llm_chatter_events "
+        "SET status = 'processing' WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+
+    try:
+        mode = get_chatter_mode(config)
+        history = _get_recent_chat(db, group_id)
+        chat_hist = format_chat_history(history)
+        allow_action = (
+            random.random() < get_action_chance()
+        )
+        prompt = build_aggro_loss_callout_prompt(
+            bot, traits, target_name,
+            aggro_target, mode,
+            chat_history=chat_hist,
+            extra_data=extra_data,
+            allow_action=allow_action,
+        )
+
+        result = run_single_reaction(
+            db,
+            client,
+            config,
+            prompt=prompt,
+            speaker_name=bot_name,
+            bot_guid=bot_guid,
+            channel='party',
+            delay_seconds=1,
+            event_id=event_id,
+            allow_emote_fallback=True,
+            max_tokens_override=60,
+            context=(
+                f"grp-aggro:#{event_id}"
+                f":{bot_name}"
+            ),
+        )
+        if not result['ok']:
+            if result['error_reason'] == 'no_response':
+                logger.warning(
+                    f"Group aggro_loss #{event_id}: "
+                    f"LLM returned no response"
+                )
+            _mark_event(db, event_id, 'skipped')
+            return False
+
+        message = result['message']
+
+        logger.info(
+            f"Aggro loss callout from "
+            f"{bot_name}: {message}"
+        )
+
+        _store_chat(
+            db, group_id, bot_guid,
+            bot_name, True, message
+        )
+        _mark_event(db, event_id, 'completed')
+        return True
+
+    except Exception as e:
+        logger.error(
+            f"Error processing aggro loss event "
             f"#{event_id}: {e}"
         )
         _mark_event(db, event_id, 'skipped')

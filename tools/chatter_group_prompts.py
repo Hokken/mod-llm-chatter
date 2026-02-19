@@ -1664,3 +1664,932 @@ def build_player_response_prompt(
         prompt, allow_action
     )
 
+def build_resurrect_reaction_prompt(
+    bot, traits, mode, chat_history="",
+    allow_action=True,
+):
+    """Build prompt for a bot reacting to being
+    resurrected. The bot itself was just rezzed
+    and reacts with gratitude, relief, or drama.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
+    twist = maybe_get_creative_twist(
+        chance=1.0, mode=mode
+    )
+
+    logger.info(
+        f"Group resurrect creativity: "
+        f"tone={tone}, mood={mood}, twist={twist}"
+    )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class']
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    if is_rp:
+        style = (
+            "React in-character to being "
+            "resurrected. A grateful warrior, "
+            "a relieved healer, a dramatic mage "
+            "— whatever fits your personality."
+        )
+    else:
+        style = (
+            "React naturally to being brought "
+            "back to life. Could be grateful, "
+            "relieved, dramatic, or casual."
+        )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+        f"Your tone: {tone}\n"
+        f"Your mood: {mood}\n"
+    )
+    if twist:
+        prompt += f"Creative twist: {twist}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"You just died and someone in your "
+        f"party resurrected you. You are back "
+        f"on your feet.\n\n"
+        f"{style}\n\n"
+        f"Say a reaction in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, no emojis\n"
+        f"- Express gratitude, relief, or drama\n"
+        f"- Reflect your personality traits\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
+    )
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+def build_zone_transition_prompt(
+    bot, traits, zone_name, zone_id, mode,
+    chat_history="", allow_action=True,
+):
+    """Build prompt for a bot commenting on arriving
+    in a new zone.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
+    twist = maybe_get_creative_twist(
+        chance=1.0, mode=mode
+    )
+
+    logger.info(
+        f"Group zone transition creativity: "
+        f"tone={tone}, mood={mood}, twist={twist}"
+    )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class']
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    # Try to get atmospheric zone flavor
+    zone_flavor = get_zone_flavor(zone_id)
+    zone_desc = ""
+    if zone_flavor:
+        zone_desc = (
+            f"\nZone atmosphere: {zone_flavor}\n"
+        )
+
+    if is_rp:
+        style = (
+            "Comment in-character on arriving "
+            "in this new area. Explorers get "
+            "excited, cautious types express "
+            "concern, warriors comment on "
+            "potential threats."
+        )
+    else:
+        style = (
+            "Make a casual comment about "
+            "arriving in a new zone. Natural "
+            "and brief."
+        )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+        f"Your tone: {tone}\n"
+        f"Your mood: {mood}\n"
+    )
+    if twist:
+        prompt += f"Creative twist: {twist}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"Your party just arrived in "
+        f"{zone_name}."
+        f"{zone_desc}\n\n"
+        f"{style}\n\n"
+        f"Say a reaction in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, no emojis\n"
+        f"- Can mention {zone_name} by name\n"
+        f"- Reflect your personality traits\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
+    )
+    spices = pick_personality_spices(
+        mode=mode, spice_count_override=_spice_count
+    )
+    if spices:
+        prompt += (
+            "\nBackground feelings (texture, "
+            "not the topic): "
+            + "; ".join(spices)
+        )
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+def build_quest_accept_reaction_prompt(
+    bot, traits, acceptor_name, quest_name,
+    quest_level, zone_name,
+    mode, chat_history="", allow_action=True,
+    quest_details="", quest_objectives="",
+):
+    """Build prompt for a bot reacting to the group
+    accepting a new quest. Tone varies: excited,
+    curious, cautious, matter-of-fact depending
+    on personality.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
+    twist = maybe_get_creative_twist(
+        chance=1.0, mode=mode
+    )
+
+    logger.info(
+        f"Group quest accept creativity: "
+        f"tone={tone}, mood={mood}, twist={twist}"
+    )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class']
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    quest_context = (
+        f"{acceptor_name} just "
+        f"picked up the quest \"{quest_name}\" "
+        f"(level {quest_level}) for the group in "
+        f"{zone_name}. Current Status: "
+        f"PREPARATION. You have the instructions "
+        f"but haven't begun yet. Focus on the "
+        f"task ahead, the travel required, or "
+        f"the plan of attack. Use 'we' language."
+    )
+
+    level_diff = int(bot['level']) - int(quest_level)
+    if level_diff < -3:
+        difficulty_note = (
+            " This quest is above your level — "
+            "it could be challenging."
+        )
+    elif level_diff > 5:
+        difficulty_note = (
+            " This quest is well below your level "
+            "— should be easy."
+        )
+    else:
+        difficulty_note = ""
+
+    quest_context += difficulty_note
+    if quest_details:
+        quest_context += (
+            f" Quest description: {quest_details}"
+        )
+    if quest_objectives:
+        quest_context += (
+            f" Objectives: {quest_objectives}"
+        )
+
+    if is_rp:
+        style = (
+            "Show anticipation, caution, or "
+            "eagerness about heading out. Speak "
+            "about getting started or what lies "
+            "ahead. Treat this as the beginning "
+            "of a to-do list."
+        )
+    else:
+        style = (
+            "Casual comment about heading out "
+            "to start the quest. Focus on the "
+            "journey ahead, not the outcome."
+        )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+        f"Your tone: {tone}\n"
+        f"Your mood: {mood}\n"
+    )
+    if twist:
+        prompt += f"Creative twist: {twist}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{quest_context}\n\n"
+        f"{style}\n\n"
+        f"Say a reaction in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, no emojis\n"
+        f"- Can mention the quest by name\n"
+        f"- Reflect your personality traits\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
+    )
+    spices = pick_personality_spices(
+        mode=mode, spice_count_override=_spice_count
+    )
+    if spices:
+        prompt += (
+            "\nBackground feelings (texture, "
+            "not the topic): "
+            + "; ".join(spices)
+        )
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+def build_discovery_reaction_prompt(
+    bot, traits, area_name, player_name,
+    player_class, xp_amount, mode,
+    chat_history="", allow_action=True,
+):
+    """Build prompt for a bot reacting to the group
+    discovering a new area. Should feel like arriving
+    somewhere new — wonder, excitement, caution, or
+    recognition depending on personality.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
+    twist = maybe_get_creative_twist(
+        chance=1.0, mode=mode
+    )
+
+    logger.info(
+        f"Group discovery creativity: "
+        f"tone={tone}, mood={mood}, twist={twist}"
+    )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class']
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    discovery_context = (
+        f"Your group just discovered a new area: "
+        f"{area_name}! This is a first-time "
+        f"discovery — the group has never been "
+        f"here before."
+    )
+
+    if is_rp:
+        style = (
+            "React in-character to discovering "
+            "this new place. Comment on the "
+            "scenery, what you've heard about it, "
+            "whether it looks dangerous, or the "
+            "thrill of exploring together."
+        )
+    else:
+        style = (
+            "Make a casual comment about "
+            "discovering a new area. Natural "
+            "and brief — like an explorer "
+            "reacting to a new place."
+        )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+        f"Your tone: {tone}\n"
+        f"Your mood: {mood}\n"
+    )
+    if twist:
+        prompt += f"Creative twist: {twist}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{discovery_context}\n\n"
+        f"{style}\n\n"
+        f"Say a reaction in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, no emojis\n"
+        f"- Can mention {area_name} by name\n"
+        f"- Reflect your personality traits\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
+    )
+    spices = pick_personality_spices(
+        mode=mode, spice_count_override=_spice_count
+    )
+    if spices:
+        prompt += (
+            "\nBackground feelings (texture, "
+            "not the topic): "
+            + "; ".join(spices)
+        )
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+def build_dungeon_entry_prompt(
+    db, bot, traits, map_name, is_raid, map_id,
+    mode, chat_history="", allow_action=True,
+):
+    """Build prompt for a bot reacting to entering
+    a dungeon or raid instance.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
+    twist = maybe_get_creative_twist(
+        chance=1.0, mode=mode
+    )
+
+    logger.info(
+        f"Group dungeon entry creativity: "
+        f"tone={tone}, mood={mood}, twist={twist}"
+    )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class']
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    # Try to get dungeon-specific flavor
+    dungeon_flavor = get_dungeon_flavor(map_id)
+    dungeon_desc = ""
+    if dungeon_flavor:
+        dungeon_desc = (
+            f"\nDungeon atmosphere: "
+            f"{dungeon_flavor}\n"
+        )
+
+    # Try to get boss names for context
+    dungeon_bosses = get_dungeon_bosses(db, map_id)
+    boss_context = ""
+    if dungeon_bosses:
+        boss_list = ', '.join(
+            dungeon_bosses[:3]
+        )
+        boss_context = (
+            f"\nKnown bosses here: {boss_list}\n"
+        )
+
+    instance_type = "raid" if is_raid else "dungeon"
+
+    if is_rp:
+        if is_raid:
+            style = (
+                "React in-character to entering "
+                "a raid. This is a major challenge. "
+                "Eager warriors steel themselves, "
+                "cautious healers check supplies, "
+                "scholarly mages study the "
+                "surroundings."
+            )
+        else:
+            style = (
+                "React in-character to entering "
+                "a dungeon. Personality-appropriate "
+                "— eager, cautious, scholarly, or "
+                "casual depending on your traits."
+            )
+    else:
+        if is_raid:
+            style = (
+                "React casually to entering a "
+                "raid. Could be excited, nervous, "
+                "or just ready to go."
+            )
+        else:
+            style = (
+                "React casually to entering a "
+                "dungeon. Brief and natural."
+            )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+        f"Your tone: {tone}\n"
+        f"Your mood: {mood}\n"
+    )
+    if twist:
+        prompt += f"Creative twist: {twist}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"Your party just entered {map_name}, "
+        f"a {instance_type}."
+        f"{dungeon_desc}"
+        f"{boss_context}\n\n"
+        f"{style}\n\n"
+        f"Say a reaction in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, no emojis\n"
+        f"- Can mention {map_name} by name\n"
+        f"- Reflect your personality traits\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
+    )
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+def build_wipe_reaction_prompt(
+    bot, traits, killer_name, mode,
+    chat_history="", extra_data=None,
+    allow_action=True,
+):
+    """Build prompt for a bot reacting to a total
+    party wipe. Dramatic, frustrated, humorous,
+    or resigned depending on personality.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
+    twist = maybe_get_creative_twist(
+        chance=1.0, mode=mode
+    )
+
+    state_ctx = ""
+    actual_role = None
+    if extra_data:
+        state_ctx = build_bot_state_context(
+            extra_data
+        )
+        actual_role = (
+            extra_data.get('bot_state', {})
+            .get('role')
+        )
+
+    logger.info(
+        f"Group wipe creativity: "
+        f"tone={tone}, mood={mood}, twist={twist}"
+    )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class'],
+            actual_role=actual_role
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    wipe_context = (
+        "Everyone in your party just died"
+    )
+    if killer_name:
+        wipe_context += (
+            f" — wiped by {killer_name}"
+        )
+    wipe_context += ". Total party wipe."
+
+    if is_rp:
+        style = (
+            "React in-character to the wipe. "
+            "Could be in-character despair, "
+            "gallows humor, stoic acceptance, "
+            "or dramatic frustration — whatever "
+            "fits your personality."
+        )
+    else:
+        style = (
+            "React naturally to the wipe. "
+            "Could be frustrated, humorous, "
+            "resigned, or self-deprecating."
+        )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+        f"Your tone: {tone}\n"
+        f"Your mood: {mood}\n"
+    )
+    if twist:
+        prompt += f"Creative twist: {twist}\n"
+    if state_ctx:
+        prompt += f"{state_ctx}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{wipe_context}\n\n"
+        f"{style}\n\n"
+        f"Say a reaction in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, no emojis\n"
+    )
+    if killer_name:
+        prompt += (
+            f"- Can reference {killer_name}\n"
+        )
+    prompt += (
+        f"- Reflect your personality traits\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
+    )
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+def build_corpse_run_reaction_prompt(
+    bot, traits, zone_name, mode,
+    chat_history="", dead_name="",
+    is_player_death=False,
+    allow_action=True,
+):
+    """Build prompt for a bot commenting on a
+    corpse run. Either the bot died (self), or
+    the real player died and the bot reacts.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
+    twist = maybe_get_creative_twist(
+        chance=0.5, mode=mode
+    )
+
+    logger.info(
+        f"Corpse run creativity: "
+        f"tone={tone}, mood={mood}, twist={twist}"
+    )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class']
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    zone_ctx = ""
+    if zone_name:
+        zone_ctx = (
+            f" through {zone_name}"
+        )
+
+    if is_player_death:
+        # Bot reacts to the player dying
+        situation = (
+            f"Your party leader {dead_name} "
+            f"just died and released their "
+            f"spirit. They're now running "
+            f"back{zone_ctx} as a ghost to "
+            f"reach their corpse."
+        )
+        if is_rp:
+            style = (
+                "React in-character to your "
+                "leader's death. Could be "
+                "concerned, offering words of "
+                "encouragement, commenting on "
+                "the danger, or darkly amused "
+                "depending on your personality."
+            )
+        else:
+            style = (
+                "React to your party leader "
+                "dying. Could be sympathetic, "
+                "joking about it, offering to "
+                "wait, or commenting on what "
+                "killed them."
+            )
+    else:
+        # Bot died themselves
+        situation = (
+            f"You just died and released your "
+            f"spirit. Now you're running "
+            f"back{zone_ctx} as a ghost to "
+            f"reach your corpse."
+        )
+        if is_rp:
+            style = (
+                "Comment in-character on "
+                "running back to your corpse "
+                "as a ghost. Could be "
+                "philosophical about death, "
+                "grumbling about the walk, "
+                "marveling at seeing the world "
+                "as a spirit, or eager to get "
+                "back into the fight."
+            )
+        else:
+            style = (
+                "Comment on the corpse run. "
+                "Could be annoyed about the "
+                "distance, making a joke about "
+                "being a ghost, commenting on "
+                "the scenery, or just resigned "
+                "to the walk back."
+            )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+        f"Your tone: {tone}\n"
+        f"Your mood: {mood}\n"
+    )
+    if twist:
+        prompt += f"Creative twist: {twist}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{situation}\n\n"
+        f"{style}\n\n"
+        f"Say something in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, no emojis\n"
+        f"- Reflect your personality traits\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
+    )
+    if is_player_death:
+        prompt += (
+            f"\n- Refer to {dead_name} by name"
+        )
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+def build_low_health_callout_prompt(
+    bot, traits, target_name, mode,
+    chat_history="", extra_data=None,
+    allow_action=True,
+):
+    """Bot is critically wounded (combat or OOC)."""
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+
+    state_ctx = ""
+    actual_role = None
+    if extra_data:
+        state_ctx = build_bot_state_context(
+            extra_data
+        )
+        actual_role = (
+            extra_data.get('bot_state', {})
+            .get('role')
+        )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class'],
+            actual_role=actual_role
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    hp = 0
+    if extra_data:
+        hp = int(
+            extra_data.get('bot_state', {})
+            .get('health_pct', 0)
+        )
+
+    situation = (
+        f"You are critically wounded "
+        f"({hp}% health)."
+    )
+    if target_name:
+        situation += (
+            f" You are fighting {target_name}."
+        )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+    )
+    if state_ctx:
+        prompt += f"{state_ctx}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{situation}\n\n"
+        f"React with urgency — call for help, "
+        f"express pain, or show desperation.\n"
+        f"Say ONE short sentence in party chat.\n"
+        f"Rules:\n"
+        f"- Extremely brief, 3-10 words\n"
+        f"- No quotes, no emojis\n"
+        f"- Reflect your personality traits"
+    )
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+def build_oom_callout_prompt(
+    bot, traits, target_name, mode,
+    chat_history="", extra_data=None,
+    allow_action=True,
+):
+    """Bot is running out of mana (combat or OOC).
+
+    NOTE: Non-mana classes (Warrior, Rogue, DK) are
+    filtered in C++ via GetMaxPower(POWER_MANA) > 0
+    before the event is queued, so this function
+    should only be called for mana-using classes.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+
+    state_ctx = ""
+    actual_role = None
+    if extra_data:
+        state_ctx = build_bot_state_context(
+            extra_data
+        )
+        actual_role = (
+            extra_data.get('bot_state', {})
+            .get('role')
+        )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class'],
+            actual_role=actual_role
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    mp = 0
+    if extra_data:
+        mp = int(
+            extra_data.get('bot_state', {})
+            .get('mana_pct', 0)
+        )
+
+    situation = (
+        f"You are almost out of mana ({mp}%)."
+    )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+    )
+    if state_ctx:
+        prompt += f"{state_ctx}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{situation}\n\n"
+        f"Alert your group — ask for a moment "
+        f"to drink, warn about low mana, or "
+        f"express frustration.\n"
+        f"Say ONE short sentence in party chat.\n"
+        f"Rules:\n"
+        f"- Extremely brief, 3-10 words\n"
+        f"- No quotes, no emojis\n"
+        f"- Reflect your personality traits"
+    )
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+def build_aggro_loss_callout_prompt(
+    bot, traits, target_name, aggro_target,
+    mode, chat_history="", extra_data=None,
+    allow_action=True,
+):
+    """Tank lost aggro — mob attacking someone
+    else in group."""
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+
+    state_ctx = ""
+    actual_role = None
+    if extra_data:
+        state_ctx = build_bot_state_context(
+            extra_data
+        )
+        actual_role = (
+            extra_data.get('bot_state', {})
+            .get('role')
+        )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class'],
+            actual_role=actual_role
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    situation = (
+        f"You are the tank but {target_name} "
+        f"is now attacking {aggro_target}."
+    )
+
+    prompt = (
+        f"You are {bot['name']}, a level "
+        f"{bot['level']} {bot['race']} "
+        f"{bot['class']} in World of Warcraft.\n"
+        f"Your personality: {trait_str}\n"
+    )
+    if state_ctx:
+        prompt += f"{state_ctx}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{situation}\n\n"
+        f"React with urgency — warn the group, "
+        f"try to get the mob's attention back, "
+        f"or call out the danger.\n"
+        f"Say ONE short sentence in party chat.\n"
+        f"Rules:\n"
+        f"- Extremely brief, 3-10 words\n"
+        f"- No quotes, no emojis\n"
+        f"- Can mention {target_name} or "
+        f"{aggro_target} by name\n"
+        f"- Reflect your personality traits"
+    )
+    return append_json_instruction(
+        prompt, allow_action
+    )
