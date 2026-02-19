@@ -79,6 +79,10 @@ from chatter_constants import (
 
 logger = logging.getLogger(__name__)
 
+# N3 compatibility note:
+# keep this module as the stable import surface while
+# split skeleton modules are introduced incrementally.
+
 
 def init_group_config(config):
     """Initialize module-level config values."""
