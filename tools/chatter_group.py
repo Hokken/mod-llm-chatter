@@ -45,7 +45,6 @@ from chatter_shared import (
     get_dungeon_flavor, get_dungeon_bosses,
     parse_conversation_response,
     calculate_dynamic_delay,
-    format_item_link,
     find_addressed_bot,
     insert_chat_message,
     pick_emote_for_statement,
@@ -54,12 +53,9 @@ from chatter_shared import (
     format_item_context,
     build_anti_repetition_context,
     get_recent_bot_messages,
-    build_bot_state_context,
-    query_quest_turnin_npc,
     append_json_instruction,
     parse_single_response,
     get_action_chance,
-    run_single_reaction,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -72,11 +68,7 @@ from chatter_prompts import (
 )
 from chatter_group_state import (
     set_group_chat_history_limit,
-    update_bot_mood,
-    get_bot_mood_label,
-    cleanup_group_moods,
     assign_bot_traits,
-    get_bot_traits,
     get_other_group_bot,
     _generate_farewell,
     _has_recent_event,
@@ -112,16 +104,11 @@ from chatter_group_prompts import (
     _pick_length_hint,
     build_bot_greeting_prompt,
     build_bot_welcome_prompt,
-    build_kill_reaction_prompt,
-    build_loot_reaction_prompt,
-    build_combat_reaction_prompt,
-    build_death_reaction_prompt,
-    build_levelup_reaction_prompt,
-    build_quest_complete_reaction_prompt,
-    build_quest_objectives_reaction_prompt,
-    build_achievement_reaction_prompt,
-    build_spell_cast_reaction_prompt,
     build_player_response_prompt,
+    build_precache_combat_pull_prompt,
+    build_precache_state_prompt,
+    build_precache_spell_support_prompt,
+    build_precache_spell_offensive_prompt,
 )
 from chatter_constants import (
     RACE_SPEECH_PROFILES,
@@ -134,6 +121,35 @@ logger = logging.getLogger(__name__)
 # N3 compatibility note:
 # keep this module as the stable import surface while
 # split skeleton modules are introduced incrementally.
+__all__ = [
+    'init_group_config',
+    'process_group_event',
+    'process_group_player_msg_event',
+    'process_group_kill_event',
+    'process_group_loot_event',
+    'process_group_combat_event',
+    'process_group_death_event',
+    'process_group_levelup_event',
+    'process_group_quest_complete_event',
+    'process_group_quest_objectives_event',
+    'process_group_achievement_event',
+    'process_group_spell_cast_event',
+    'process_group_resurrect_event',
+    'process_group_zone_transition_event',
+    'process_group_quest_accept_event',
+    'process_group_discovery_event',
+    'process_group_dungeon_entry_event',
+    'process_group_wipe_event',
+    'process_group_corpse_run_event',
+    'process_group_low_health_event',
+    'process_group_oom_event',
+    'process_group_aggro_loss_event',
+    'check_idle_group_chatter',
+    'build_precache_combat_pull_prompt',
+    'build_precache_state_prompt',
+    'build_precache_spell_support_prompt',
+    'build_precache_spell_offensive_prompt',
+]
 
 
 def init_group_config(config):
@@ -2455,270 +2471,3 @@ def _idle_conversation(
             f"conversation: {e}"
         )
         return False
-
-
-# ============================================================
-# PRE-CACHE PROMPT BUILDERS
-# ============================================================
-
-def build_precache_combat_pull_prompt(
-    bot_name, race, class_name, level,
-    traits, mood, role=None, recent_cached=None,
-    allow_action=True,
-):
-    """Build prompt for a cached combat pull cry.
-
-    The response must contain {target} where the
-    enemy name goes. C++ resolves it at delivery.
-    """
-    trait_str = ', '.join(traits) if traits else ''
-    rp_ctx = build_race_class_context(
-        race, class_name, actual_role=role
-    )
-
-    anti_rep = ''
-    if recent_cached:
-        anti_rep = build_anti_repetition_context(
-            recent_cached, max_items=3
-        )
-
-    prompt = (
-        f"You are {bot_name}, a level {level} "
-        f"{race} {class_name} in World of Warcraft."
-        f"\nPersonality: {trait_str}"
-        f"\nCurrent mood: {mood}"
-    )
-    if rp_ctx:
-        prompt += f"\n{rp_ctx}"
-    prompt += (
-        "\n\nYou just engaged an enemy in combat "
-        "with your party. Write a very short "
-        "pull cry or battle shout (1 sentence, "
-        "3-10 words).\n"
-        "Use {target} where the enemy name goes "
-        "(e.g. \"I'll handle {target}!\" or "
-        "\"Watch out, {target} incoming!\").\n"
-        "Rules:\n"
-        "- Must include {target} exactly once\n"
-        "- Reflect your personality and mood\n"
-        "- No quotes, no emojis\n"
-        "- Respond with ONLY the message text"
-    )
-    if anti_rep:
-        prompt += f"\n\n{anti_rep}"
-    return append_json_instruction(
-        prompt, allow_action
-    )
-
-
-def build_precache_state_prompt(
-    state_type, bot_name, race, class_name, level,
-    traits, mood, role=None, recent_cached=None,
-    allow_action=True,
-):
-    """Build prompt for a cached state callout.
-
-    state_type: 'low_health', 'oom', 'aggro_loss'
-    low_health and oom have NO placeholders.
-    aggro_loss uses {target} only.
-    """
-    trait_str = ', '.join(traits) if traits else ''
-    rp_ctx = build_race_class_context(
-        race, class_name, actual_role=role
-    )
-
-    anti_rep = ''
-    if recent_cached:
-        anti_rep = build_anti_repetition_context(
-            recent_cached, max_items=3
-        )
-
-    prompt = (
-        f"You are {bot_name}, a level {level} "
-        f"{race} {class_name} in World of Warcraft."
-        f"\nPersonality: {trait_str}"
-        f"\nCurrent mood: {mood}"
-    )
-    if rp_ctx:
-        prompt += f"\n{rp_ctx}"
-
-    if state_type == 'low_health':
-        prompt += (
-            "\n\nYou are critically wounded. "
-            "Write a very short callout "
-            "(1 sentence, 3-10 words) asking for "
-            "help or expressing pain.\n"
-            "Rules:\n"
-            "- First person only (\"I need "
-            "healing!\", \"I'm going down!\")\n"
-            "- Do NOT use any placeholders or "
-            "names\n"
-        )
-    elif state_type == 'oom':
-        # NOTE: Non-mana classes (Warrior, Rogue, DK)
-        # are filtered upstream — C++ checks
-        # GetMaxPower(POWER_MANA) > 0 for live events,
-        # and refill_precache_pool() skips state_oom
-        # for class_ids {1, 4, 6}.
-        prompt += (
-            "\n\nYou are almost out of mana. "
-            "Write a very short callout "
-            "(1 sentence, 3-10 words) alerting "
-            "your group.\n"
-            "Rules:\n"
-            "- First person only (\"I need to "
-            "drink\", \"No mana left!\")\n"
-            "- Do NOT use any placeholders or "
-            "names\n"
-        )
-    elif state_type == 'aggro_loss':
-        prompt += (
-            "\n\nYou are in combat and losing "
-            "threat on your target. Write a very "
-            "short callout (1 sentence, 3-10 "
-            "words) warning your group.\n"
-            "Use {target} where the enemy name "
-            "goes (e.g. \"I'm losing {target}!\" "
-            "or \"{target} is breaking free!\").\n"
-            "Rules:\n"
-            "- Must include {target} exactly once\n"
-        )
-    else:
-        prompt += (
-            "\n\nYou are in a stressful combat "
-            "situation. Write a very short callout "
-            "(1 sentence, 3-10 words).\n"
-            "Rules:\n"
-        )
-
-    prompt += (
-        "- Reflect your personality and mood\n"
-        "- No quotes, no emojis\n"
-        "- Respond with ONLY the message text"
-    )
-    if anti_rep:
-        prompt += f"\n\n{anti_rep}"
-    return append_json_instruction(
-        prompt, allow_action
-    )
-
-
-def build_precache_spell_support_prompt(
-    bot_name, race, class_name, level,
-    traits, mood, role=None, recent_cached=None,
-    allow_action=True,
-):
-    """Build prompt for a cached spell support
-    reaction. Uses {target} and {spell} placeholders.
-
-    Caster perspective — the bot IS the caster.
-    C++ skips cache only for self-cast (bot casting
-    on itself). When bot casts on someone else, the
-    cached message delivers instantly.
-    """
-    trait_str = ', '.join(traits) if traits else ''
-    rp_ctx = build_race_class_context(
-        race, class_name, actual_role=role
-    )
-
-    anti_rep = ''
-    if recent_cached:
-        anti_rep = build_anti_repetition_context(
-            recent_cached, max_items=3
-        )
-
-    prompt = (
-        f"You are {bot_name}, a level {level} "
-        f"{race} {class_name} in World of Warcraft."
-        f"\nPersonality: {trait_str}"
-        f"\nCurrent mood: {mood}"
-    )
-    if rp_ctx:
-        prompt += f"\n{rp_ctx}"
-
-    prompt += (
-        "\n\nYou just cast a support spell on a "
-        "groupmate. Write a very short comment "
-        "(1 sentence, 3-10 words) about YOUR "
-        "spell from the CASTER perspective."
-        "\nUse these placeholders:\n"
-        "- {spell} = the spell you cast\n"
-        "- {target} = who you cast it on\n"
-        "Example: \"There you go {target}, "
-        "{spell} should help.\" or \"{target}, "
-        "you're covered.\"\n"
-    )
-
-    prompt += (
-        "Rules:\n"
-        "- Use the placeholders exactly as shown "
-        "(with curly braces)\n"
-        "- Reflect your personality and mood\n"
-        "- No quotes, no emojis\n"
-        "- Respond with ONLY the message text"
-    )
-    if anti_rep:
-        prompt += f"\n\n{anti_rep}"
-    return append_json_instruction(
-        prompt, allow_action
-    )
-
-
-def build_precache_spell_offensive_prompt(
-    bot_name, race, class_name, level,
-    traits, mood, role=None, recent_cached=None,
-    allow_action=True,
-):
-    """Build prompt for a cached offensive spell
-    reaction. Uses {target} and {spell} placeholders.
-
-    Caster perspective — the bot IS the caster.
-    C++ only uses this cache when casterIsBot.
-    """
-    trait_str = ', '.join(traits) if traits else ''
-    rp_ctx = build_race_class_context(
-        race, class_name, actual_role=role
-    )
-
-    anti_rep = ''
-    if recent_cached:
-        anti_rep = build_anti_repetition_context(
-            recent_cached, max_items=3
-        )
-
-    prompt = (
-        f"You are {bot_name}, a level {level} "
-        f"{race} {class_name} in World of Warcraft."
-        f"\nPersonality: {trait_str}"
-        f"\nCurrent mood: {mood}"
-    )
-    if rp_ctx:
-        prompt += f"\n{rp_ctx}"
-
-    prompt += (
-        "\n\nYou just cast an offensive spell on "
-        "an enemy in combat. Write a very short "
-        "battle cry or taunt (1 sentence, 3-10 "
-        "words) from the CASTER perspective."
-        "\nUse these placeholders:\n"
-        "- {spell} = the spell you cast\n"
-        "- {target} = the enemy you hit (may be "
-        "absent — write lines that work without it)\n"
-        "Example: \"{spell} incoming!\" or "
-        "\"Eat {spell}, {target}!\" or "
-        "\"They won't last long.\"\n"
-    )
-
-    prompt += (
-        "Rules:\n"
-        "- Use the placeholders exactly as shown "
-        "(with curly braces)\n"
-        "- Reflect your personality and mood\n"
-        "- No quotes, no emojis\n"
-        "- Respond with ONLY the message text"
-    )
-    if anti_rep:
-        prompt += f"\n\n{anti_rep}"
-    return append_json_instruction(
-        prompt, allow_action
-    )

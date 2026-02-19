@@ -14,6 +14,7 @@ from chatter_shared import (
     find_addressed_bot,
     query_quest_turnin_npc,
     append_json_instruction,
+    build_anti_repetition_context,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -2590,6 +2591,269 @@ def build_aggro_loss_callout_prompt(
         f"{aggro_target} by name\n"
         f"- Reflect your personality traits"
     )
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+
+def build_precache_combat_pull_prompt(
+    bot_name, race, class_name, level,
+    traits, mood, role=None, recent_cached=None,
+    allow_action=True,
+):
+    """Build prompt for a cached combat pull cry.
+
+    The response must contain {target} where the
+    enemy name goes. C++ resolves it at delivery.
+    """
+    trait_str = ', '.join(traits) if traits else ''
+    rp_ctx = build_race_class_context(
+        race, class_name, actual_role=role
+    )
+
+    anti_rep = ''
+    if recent_cached:
+        anti_rep = build_anti_repetition_context(
+            recent_cached, max_items=3
+        )
+
+    prompt = (
+        f"You are {bot_name}, a level {level} "
+        f"{race} {class_name} in World of Warcraft."
+        f"\nPersonality: {trait_str}"
+        f"\nCurrent mood: {mood}"
+    )
+    if rp_ctx:
+        prompt += f"\n{rp_ctx}"
+    prompt += (
+        "\n\nYou just engaged an enemy in combat "
+        "with your party. Write a very short "
+        "pull cry or battle shout (1 sentence, "
+        "3-10 words).\n"
+        "Use {target} where the enemy name goes "
+        "(e.g. \"I'll handle {target}!\" or "
+        "\"Watch out, {target} incoming!\").\n"
+        "Rules:\n"
+        "- Must include {target} exactly once\n"
+        "- Reflect your personality and mood\n"
+        "- No quotes, no emojis\n"
+        "- Respond with ONLY the message text"
+    )
+    if anti_rep:
+        prompt += f"\n\n{anti_rep}"
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+
+def build_precache_state_prompt(
+    state_type, bot_name, race, class_name, level,
+    traits, mood, role=None, recent_cached=None,
+    allow_action=True,
+):
+    """Build prompt for a cached state callout.
+
+    state_type: 'low_health', 'oom', 'aggro_loss'
+    low_health and oom have NO placeholders.
+    aggro_loss uses {target} only.
+    """
+    trait_str = ', '.join(traits) if traits else ''
+    rp_ctx = build_race_class_context(
+        race, class_name, actual_role=role
+    )
+
+    anti_rep = ''
+    if recent_cached:
+        anti_rep = build_anti_repetition_context(
+            recent_cached, max_items=3
+        )
+
+    prompt = (
+        f"You are {bot_name}, a level {level} "
+        f"{race} {class_name} in World of Warcraft."
+        f"\nPersonality: {trait_str}"
+        f"\nCurrent mood: {mood}"
+    )
+    if rp_ctx:
+        prompt += f"\n{rp_ctx}"
+
+    if state_type == 'low_health':
+        prompt += (
+            "\n\nYou are critically wounded. "
+            "Write a very short callout "
+            "(1 sentence, 3-10 words) asking for "
+            "help or expressing pain.\n"
+            "Rules:\n"
+            "- First person only (\"I need "
+            "healing!\", \"I'm going down!\")\n"
+            "- Do NOT use any placeholders or "
+            "names\n"
+        )
+    elif state_type == 'oom':
+        # NOTE: Non-mana classes (Warrior, Rogue, DK)
+        # are filtered upstream - C++ checks
+        # GetMaxPower(POWER_MANA) > 0 for live events,
+        # and refill_precache_pool() skips state_oom
+        # for class_ids {1, 4, 6}.
+        prompt += (
+            "\n\nYou are almost out of mana. "
+            "Write a very short callout "
+            "(1 sentence, 3-10 words) alerting "
+            "your group.\n"
+            "Rules:\n"
+            "- First person only (\"I need to "
+            "drink\", \"No mana left!\")\n"
+            "- Do NOT use any placeholders or "
+            "names\n"
+        )
+    elif state_type == 'aggro_loss':
+        prompt += (
+            "\n\nYou are in combat and losing "
+            "threat on your target. Write a very "
+            "short callout (1 sentence, 3-10 "
+            "words) warning your group.\n"
+            "Use {target} where the enemy name "
+            "goes (e.g. \"I'm losing {target}!\" "
+            "or \"{target} is breaking free!\").\n"
+            "Rules:\n"
+            "- Must include {target} exactly once\n"
+        )
+    else:
+        prompt += (
+            "\n\nYou are in a stressful combat "
+            "situation. Write a very short callout "
+            "(1 sentence, 3-10 words).\n"
+            "Rules:\n"
+        )
+
+    prompt += (
+        "- Reflect your personality and mood\n"
+        "- No quotes, no emojis\n"
+        "- Respond with ONLY the message text"
+    )
+    if anti_rep:
+        prompt += f"\n\n{anti_rep}"
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+
+def build_precache_spell_support_prompt(
+    bot_name, race, class_name, level,
+    traits, mood, role=None, recent_cached=None,
+    allow_action=True,
+):
+    """Build prompt for a cached spell support
+    reaction. Uses {target} and {spell} placeholders.
+
+    Caster perspective - the bot IS the caster.
+    C++ skips cache only for self-cast (bot casting
+    on itself). When bot casts on someone else, the
+    cached message delivers instantly.
+    """
+    trait_str = ', '.join(traits) if traits else ''
+    rp_ctx = build_race_class_context(
+        race, class_name, actual_role=role
+    )
+
+    anti_rep = ''
+    if recent_cached:
+        anti_rep = build_anti_repetition_context(
+            recent_cached, max_items=3
+        )
+
+    prompt = (
+        f"You are {bot_name}, a level {level} "
+        f"{race} {class_name} in World of Warcraft."
+        f"\nPersonality: {trait_str}"
+        f"\nCurrent mood: {mood}"
+    )
+    if rp_ctx:
+        prompt += f"\n{rp_ctx}"
+
+    prompt += (
+        "\n\nYou just cast a support spell on a "
+        "groupmate. Write a very short comment "
+        "(1 sentence, 3-10 words) about YOUR "
+        "spell from the CASTER perspective."
+        "\nUse these placeholders:\n"
+        "- {spell} = the spell you cast\n"
+        "- {target} = who you cast it on\n"
+        "Example: \"There you go {target}, "
+        "{spell} should help.\" or \"{target}, "
+        "you're covered.\"\n"
+    )
+
+    prompt += (
+        "Rules:\n"
+        "- Use the placeholders exactly as shown "
+        "(with curly braces)\n"
+        "- Reflect your personality and mood\n"
+        "- No quotes, no emojis\n"
+        "- Respond with ONLY the message text"
+    )
+    if anti_rep:
+        prompt += f"\n\n{anti_rep}"
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+
+def build_precache_spell_offensive_prompt(
+    bot_name, race, class_name, level,
+    traits, mood, role=None, recent_cached=None,
+    allow_action=True,
+):
+    """Build prompt for a cached offensive spell
+    reaction. Uses {target} and {spell} placeholders.
+
+    Caster perspective - the bot IS the caster.
+    C++ only uses this cache when casterIsBot.
+    """
+    trait_str = ', '.join(traits) if traits else ''
+    rp_ctx = build_race_class_context(
+        race, class_name, actual_role=role
+    )
+
+    anti_rep = ''
+    if recent_cached:
+        anti_rep = build_anti_repetition_context(
+            recent_cached, max_items=3
+        )
+
+    prompt = (
+        f"You are {bot_name}, a level {level} "
+        f"{race} {class_name} in World of Warcraft."
+        f"\nPersonality: {trait_str}"
+        f"\nCurrent mood: {mood}"
+    )
+    if rp_ctx:
+        prompt += f"\n{rp_ctx}"
+
+    prompt += (
+        "\n\nYou just cast an offensive spell on "
+        "an enemy in combat. Write a very short "
+        "battle cry or taunt (1 sentence, 3-10 "
+        "words) from the CASTER perspective."
+        "\nUse these placeholders:\n"
+        "- {spell} = the spell you cast\n"
+        "- {target} = the enemy you hit (may be "
+        "absent - write lines that work without it)\n"
+        "Example: \"{spell} incoming!\" or "
+        "\"Eat {spell}, {target}!\" or "
+        "\"They won't last long.\"\n"
+    )
+
+    prompt += (
+        "Rules:\n"
+        "- Use the placeholders exactly as shown "
+        "(with curly braces)\n"
+        "- Reflect your personality and mood\n"
+        "- No quotes, no emojis\n"
+        "- Respond with ONLY the message text"
+    )
+    if anti_rep:
+        prompt += f"\n\n{anti_rep}"
     return append_json_instruction(
         prompt, allow_action
     )

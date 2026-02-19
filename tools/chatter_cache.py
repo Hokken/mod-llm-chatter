@@ -13,13 +13,13 @@ and chatter_constants.
 
 import logging
 
-from chatter_group import (
+from chatter_group_prompts import (
     build_precache_combat_pull_prompt,
     build_precache_state_prompt,
     build_precache_spell_support_prompt,
     build_precache_spell_offensive_prompt,
-    get_bot_mood_label,
 )
+from chatter_group_state import get_bot_mood_label
 from chatter_shared import (
     call_llm, cleanup_message,
     strip_speaker_prefix,
