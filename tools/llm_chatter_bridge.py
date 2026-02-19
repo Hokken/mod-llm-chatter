@@ -1616,28 +1616,16 @@ def process_single_event(event, client, config):
                                 delay
                             )
 
-                        cursor.execute("""
-                            INSERT INTO
-                                llm_chatter_messages
-                            (event_id, sequence,
-                             bot_guid, bot_name,
-                             message, channel,
-                             delivered,
-                             deliver_at)
-                            VALUES (
-                                %s, %s, %s, %s,
-                                %s, 'general', 0,
-                                DATE_ADD(NOW(),
-                                    INTERVAL %s
-                                    SECOND)
-                            )
-                        """, (
-                            event_id, i,
+                        insert_chat_message(
+                            db,
                             bot_guid,
                             msg['name'],
                             final_message,
-                            cumulative_delay
-                        ))
+                            channel='general',
+                            delay_seconds=cumulative_delay,
+                            event_id=event_id,
+                            sequence=i,
+                        )
 
                         logger.info(
                             f"  [{i}] "
@@ -1748,115 +1736,30 @@ def process_single_event(event, client, config):
                 allow_action=allow_action,
             )
 
-            # Call LLM
-            provider = config.get(
-                'LLMChatter.Provider',
-                'anthropic'
-            ).lower()
-            model = config.get(
-                'LLMChatter.Model',
-                'claude-haiku-4-5-20251001'
+            # Call LLM via shared helper
+            message = call_llm(
+                client,
+                system_prompt,
+                config,
+                context=(
+                    f"event_statement:"
+                    f"{event.get('event_type', '')}:"
+                    f"{bot['bot1_name']}"
+                )
             )
-            max_tokens = int(config.get(
-                'LLMChatter.MaxTokens', 200
-            ))
-            temperature = float(config.get(
-                'LLMChatter.Temperature', 0.8
-            ))
-
-            logger.info(
-                f"Event statement prompt "
-                f"({provider}/{model}):\n"
-                f"{system_prompt}"
-            )
-
-            if provider == 'ollama':
-                # Ollama uses OpenAI-compat API
-                context_size = int(config.get(
-                    'LLMChatter.'
-                    'Ollama.ContextSize',
-                    2048
-                ))
-                response = (
-                    client.chat
-                    .completions.create(
-                        model=model,
-                        messages=[
-                            {
-                                "role": "system",
-                                "content":
-                                    system_prompt
-                            },
-                            {
-                                "role": "user",
-                                "content":
-                                    "Say something"
-                                    " in General "
-                                    "chat."
-                            }
-                        ],
-                        max_tokens=max_tokens,
-                        temperature=temperature,
-                        extra_body={
-                            "options": {
-                                "num_ctx":
-                                    context_size
-                            }
-                        }
-                    )
+            if not message:
+                cursor.execute(
+                    "UPDATE llm_chatter_events "
+                    "SET status = 'skipped' "
+                    "WHERE id = %s",
+                    (event_id,)
                 )
-                message = (
-                    response.choices[0]
-                    .message.content.strip()
+                db.commit()
+                logger.warning(
+                    f"Event #{event_id} skipped: "
+                    f"LLM returned no response"
                 )
-            elif provider == 'openai':
-                response = (
-                    client.chat
-                    .completions.create(
-                        model=model,
-                        messages=[
-                            {
-                                "role": "system",
-                                "content":
-                                    system_prompt
-                            },
-                            {
-                                "role": "user",
-                                "content":
-                                    "Say something"
-                                    " in General "
-                                    "chat."
-                            }
-                        ],
-                        max_tokens=max_tokens,
-                        temperature=temperature
-                    )
-                )
-                message = (
-                    response.choices[0]
-                    .message.content.strip()
-                )
-            else:
-                # Anthropic (default)
-                response = (
-                    client.messages.create(
-                        model=model,
-                        max_tokens=max_tokens,
-                        temperature=temperature,
-                        system=system_prompt,
-                        messages=[{
-                            "role": "user",
-                            "content":
-                                "Say something "
-                                "in General "
-                                "chat."
-                        }]
-                    )
-                )
-                message = (
-                    response.content[0]
-                    .text.strip()
-                )
+                return False
 
             # Parse structured JSON response
             parsed = parse_single_response(
