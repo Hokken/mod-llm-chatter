@@ -20,6 +20,15 @@ from chatter_shared import (
 
 logger = logging.getLogger(__name__)
 
+# Keep in sync from chatter_group.init_group_config
+_chat_history_limit = 10
+
+
+def set_group_chat_history_limit(value: int):
+    """Set shared chat-history limit used by group helpers."""
+    global _chat_history_limit
+    _chat_history_limit = max(1, min(int(value), 50))
+
 
 # ============================================================
 # SESSION MOOD DRIFT
@@ -358,3 +367,125 @@ def _generate_farewell(
             f"Failed to generate farewell for "
             f"{bot_name}: {e}"
         )
+
+def _has_recent_event(
+    db, event_type, subject_guid, seconds=60,
+    exclude_id=None
+):
+    """Check if a recent event exists for this bot.
+    Prevents duplicate greetings from rapid
+    invite/leave/reinvite. Use exclude_id to skip
+    the event currently being processed.
+    """
+    cursor = db.cursor(dictionary=True)
+    query = """
+        SELECT 1 FROM llm_chatter_events
+        WHERE event_type = %s
+          AND subject_guid = %s
+          AND status IN (
+              'pending', 'processing', 'completed'
+          )
+          AND created_at > DATE_SUB(
+              NOW(), INTERVAL %s SECOND
+          )
+    """
+    params = [event_type, subject_guid, seconds]
+    if exclude_id:
+        query += "  AND id != %s"
+        params.append(exclude_id)
+    query += " LIMIT 1"
+    cursor.execute(query, params)
+    return cursor.fetchone() is not None
+
+def _mark_event(db, event_id, status):
+    """Mark an event with given status."""
+    cursor = db.cursor()
+    if status == 'completed':
+        cursor.execute(
+            "UPDATE llm_chatter_events "
+            "SET status = 'completed', "
+            "processed_at = NOW() "
+            "WHERE id = %s",
+            (event_id,)
+        )
+    else:
+        cursor.execute(
+            "UPDATE llm_chatter_events "
+            "SET status = %s WHERE id = %s",
+            (status, event_id)
+        )
+    db.commit()
+
+def _store_chat(
+    db, group_id, speaker_guid,
+    speaker_name, is_bot, message
+):
+    """Store a message in group chat history."""
+    cursor = db.cursor()
+    cursor.execute("""
+        INSERT INTO llm_group_chat_history
+        (group_id, speaker_guid, speaker_name,
+         is_bot, message)
+        VALUES (%s, %s, %s, %s, %s)
+    """, (
+        group_id, speaker_guid, speaker_name,
+        1 if is_bot else 0, message[:255]
+    ))
+    db.commit()
+
+def _get_recent_chat(db, group_id, limit=None):
+    """Get recent chat messages for a group.
+
+    Returns list of dicts with speaker_name, is_bot,
+    message — ordered oldest-first for natural
+    reading in prompts.
+    """
+    if limit is None:
+        limit = _chat_history_limit
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT speaker_name, is_bot, message
+        FROM llm_group_chat_history
+        WHERE group_id = %s
+        ORDER BY id DESC
+        LIMIT %s
+    """, (group_id, limit))
+    rows = cursor.fetchall()
+    return list(reversed(rows))
+
+def format_chat_history(history):
+    """Format chat history as a readable string
+    for inclusion in prompts.
+    Returns empty string if no history.
+    """
+    if not history:
+        return ""
+    lines = []
+    for msg in history:
+        name = msg['speaker_name']
+        text = msg['message']
+        if msg['is_bot']:
+            lines.append(f"  {name}: {text}")
+        else:
+            lines.append(
+                f"  {name} (player): {text}"
+            )
+    return (
+        "\nRecent party chat:\n"
+        + '\n'.join(lines)
+    )
+
+def get_group_members(db, group_id):
+    """Get all bot names in a group.
+    Returns list of bot_name strings.
+    """
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT bot_name
+        FROM llm_group_bot_traits
+        WHERE group_id = %s
+    """, (group_id,))
+    return [
+        row['bot_name']
+        for row in cursor.fetchall()
+    ]
