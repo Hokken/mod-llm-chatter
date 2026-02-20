@@ -237,22 +237,22 @@ def build_dynamic_guidelines(
             "character speaking. Your message should be "
             "SPOKEN words only (actions go in the "
             "\"action\" JSON field, not in the message).",
-            "NEVER use brackets [] around quest names, "
-            "item names, zone names, or faction names - "
-            "write them as plain text. Only use brackets "
-            "for NPC names like [Onu]. Only use "
-            "{quest:Name} or {item:Name} placeholders "
-            "when explicitly told to.",
+            "NEVER use brackets [] around names "
+            "(quests, items, zones, creatures, NPCs, "
+            "factions) - write everything as plain "
+            "text. Only use {quest:Name}, "
+            "{item:Name}, or {spell:Name} "
+            "placeholders when explicitly told to.",
         ]
     else:
         guidelines = [
             "Sound like a real player, not an NPC",
-            "NEVER use brackets [] around quest names, "
-            "item names, zone names, or faction names - "
-            "write them as plain text. Only use brackets "
-            "for NPC names like [Onu]. Only use "
-            "{quest:Name} or {item:Name} placeholders "
-            "when explicitly told to.",
+            "NEVER use brackets [] around names "
+            "(quests, items, zones, creatures, NPCs, "
+            "factions) - write everything as plain "
+            "text. Only use {quest:Name}, "
+            "{item:Name}, or {spell:Name} "
+            "placeholders when explicitly told to.",
         ]
 
     length_pool = RP_LENGTH_HINTS if is_rp else LENGTH_HINTS

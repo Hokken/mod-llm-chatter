@@ -2303,11 +2303,11 @@ def process_group_discovery_event(
 
     traits = trait_data['traits']
 
-    bot_class = extra_data.get(
-        'bot_class', 'Warrior'
+    bot_class_id = int(
+        extra_data.get('bot_class', 1)
     )
-    bot_race = extra_data.get(
-        'bot_race', 'Human'
+    bot_race_id = int(
+        extra_data.get('bot_race', 1)
     )
     bot_level = int(
         extra_data.get('bot_level', 1)
@@ -2316,8 +2316,8 @@ def process_group_discovery_event(
     bot = {
         'guid': bot_guid,
         'name': bot_name,
-        'class': bot_class,
-        'race': bot_race,
+        'class': get_class_name(bot_class_id),
+        'race': get_race_name(bot_race_id),
         'level': bot_level,
     }
 

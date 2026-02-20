@@ -1310,6 +1310,10 @@ TONES = [
     "genuinely impressed",
     "sleepy and unfocused",
     "warm and conversational",
+    # Humor tones
+    "sarcastically amused",
+    "playfully mocking",
+    "cheerfully absurd",
 ]
 
 # Mood variations - the emotional angle of the message
@@ -1338,6 +1342,10 @@ MOODS = [
     "tired",
     "competitive",
     "distracted",
+    # Humor moods
+    "finding everything hilarious",
+    "cracking wise",
+    "dry and snarky",
 ]
 
 # Creative twists - random modifiers to push creativity (picked ~30% of the time)
@@ -1388,6 +1396,12 @@ CREATIVE_TWISTS = [
     "Use excessive punctuation for one thing!!!",
     "Be overly casual with spelling",
     "Use gaming slang naturally",
+    # Humor twists
+    "Make a joke about the situation",
+    "Say something sarcastically obvious",
+    "Exaggerate wildly for comic effect",
+    "Make a self-deprecating joke",
+    "Find an absurd silver lining",
 ]
 
 # Message categories - abstract directions that force original content
@@ -1542,6 +1556,9 @@ RP_TONES = [
     "quietly annoyed",
     "casually curious",
     "grateful and warm",
+    # Humor tones
+    "wryly sarcastic",
+    "mischievously cheerful",
 ]
 
 RP_MOODS = [
@@ -1565,6 +1582,10 @@ RP_MOODS = [
     "dry humor",
     "matter-of-fact",
     "thoughtful",
+    # Humor moods
+    "wisecracking",
+    "gallows humor",
+    "playfully smug",
 ]
 
 RP_CREATIVE_TWISTS = [
@@ -1582,6 +1603,11 @@ RP_CREATIVE_TWISTS = [
     "Reference food, drink, or rest",
     "Start to say something then think better of it",
     "Ask a rhetorical question",
+    # Humor twists
+    "Make a wry joke fitting your character",
+    "Respond with deadpan understatement",
+    "Find dark humor in the danger",
+    "Mock the situation with dry wit",
 ]
 
 RP_MESSAGE_CATEGORIES = [

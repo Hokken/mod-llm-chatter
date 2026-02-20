@@ -320,19 +320,17 @@ def cleanup_message(
         r'\1', result
     )
 
-    # Remove brackets around zone/faction names
+    # Remove LLM-added brackets (preserve WoW links)
     def maybe_remove_brackets(match):
         full_match = match.group(0)
         content = match.group(1)
         start_pos = match.start()
 
+        # Preserve real WoW links (preceded by |h)
         prefix = result[max(0, start_pos-2):start_pos]
         if '|h' in prefix or prefix.endswith('|h'):
             return full_match
 
-        words = content.split()
-        if len(words) <= 2 and len(content) < 20:
-            return f'[{content}]'
         return content
 
     result = re.sub(
