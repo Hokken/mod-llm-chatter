@@ -276,6 +276,49 @@ These are specifically designed for the RP audience — the kind of messages tha
 
 ---
 
+## Dual-Worker Delivery Model (Added Review Session)
+
+BG chatter is delivered through two separate processing layers, each serving a different purpose:
+
+### Raid Worker — "The Crowd"
+
+This worker creates the feeling of being in a large, living team. It reacts to major BG events by picking random bots from **across the entire raid** (outside the player's sub-group) to speak.
+
+- **Events**: match start, match end, flag captures, node captures, boss kills, wipes, epic loot
+- **Channel**: `CHAT_MSG_RAID` (visible to full team) or `CHAT_MSG_BATTLEGROUND` (0x2C)
+- **Frequency**: Low — these are rare, high-impact moments
+- **Bot selection**: Random bots from other sub-groups, so the player hears "the crowd" reacting
+- **Personality**: Lightweight — race/class identity is enough, no full trait generation
+- **Tone**: Epic, faction-proud, urgent callouts
+
+Example: A boss dies in AV. A Dwarf warrior from sub-group 3 shouts in raid chat: "The beast is down! Push forward, lads!"
+
+### Group Worker — "The Squad"
+
+This is the existing group chatter system, scoped to the player's sub-group. It handles both normal group events AND reacts to raid/BG events with a more personal, intimate tone.
+
+- **Events**: kills, deaths, loot, spells, player chat responses, AND the same big events the raid worker handles (but with personal flavor)
+- **Channel**: `CHAT_MSG_PARTY` via `SayToParty()` (reaches sub-group only)
+- **Frequency**: Normal group chatter rates, dynamically scaled by sub-group size (not raid size)
+- **Bot selection**: Only bots in the player's sub-group
+- **Personality**: Full trait system — the same bots the player has been playing with all session
+- **Tone**: Personal, familiar, squad-level banter
+
+Example: Same boss dies. The Priest in the player's sub-group says in party chat: "That was close. Thought we were going to wipe for a second there."
+
+### The Combined Effect
+
+The same event can produce **two complementary reactions**: someone across the raid shouting in raid chat, and a bot next to you in party chat making a personal comment. This is exactly how real raids and BGs feel — the crowd cheers while your friend leans over and says something just to you.
+
+**Coordination rules:**
+- A bot picked by the raid worker for an event must NOT also react via the group worker for the same event
+- Separate cooldowns per worker, with a shared "big event" cooldown to prevent message floods
+- The raid worker stays subtle — 1-2 messages per major event, never more
+
+This model applies to both normal PvE raids AND battlegrounds. In BGs, the raid worker additionally handles BG-specific events (flag state changes, node contests, score milestones) while the group worker handles combat events (PvP kills, deaths, heals) scoped to the sub-group.
+
+---
+
 ## What We DO NOT Want
 
 The core rule is simple: **no overworld event types should fire during a battleground.** If the only events reaching the LLM are BG events, and the LLM knows it's in a battleground, it will naturally produce the right tone. We don't need to over-constrain its creativity — just make sure the wrong triggers never fire.
@@ -284,7 +327,7 @@ The core rule is simple: **no overworld event types should fire during a battleg
 
 These mod-llm-chatter events must be completely suppressed when a player is in a battleground. They are disconnected from the BG context and would break immersion:
 
-- **Loot reactions** — no item drop excitement mid-battle
+- **Loot reactions** — no item drop excitement mid-battle (exception: AV turn-in items like Armor Scraps, Storm Crystals, Frostwolf Medallions are BG objectives and could warrant reactions)
 - **Quest objective/completion messages** — irrelevant in BG context
 - **Trade / crafting references** — not the time or place
 - **Holiday / seasonal event messages** — "Happy Brewfest!" during a flag fight is absurd
