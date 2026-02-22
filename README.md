@@ -4,13 +4,19 @@
 
 # mod-llm-chatter
 
-AI-powered bot conversations for AzerothCore, built for roleplayers and immersion seekers. Bots don't just exist in your world — they live in it. They chat in General about quests and loot, react to weather and holidays, comment on ships pulling into port, and when grouped with you, they develop unique personalities and respond to everything that happens around them.
+**Your bots don't just fight beside you. They live in Azeroth.**
 
-If you run a solo server or a small RP community and want your world to feel genuinely inhabited rather than populated by silent automatons, this is for you.
+A Dwarf warrior walks past the Great Forge and mutters something about tempering blades. A Night Elf druid pauses near a moonwell and whispers a prayer to Elune. Your Undead warlock eyes a pile of skulls and says "Lovely décor. I should take notes." Rain starts falling in Stranglethorn and someone in your party complains about rust on their armor. A boat pulls into Auberdine and General chat lights up with speculation about what supplies it carries.
 
-## What It Looks Like
+This is what World of Warcraft feels like when every bot has a mind of its own.
 
-**General chat, zone banter:**
+mod-llm-chatter is an AI-powered conversation engine for [AzerothCore](https://www.azerothcore.org/) WotLK (3.3.5a) and [mod-playerbots](https://github.com/liyunfan1223/mod-playerbots). It replaces the silence of automated bots with rich, personality-driven, lore-accurate dialogue that makes your world feel genuinely inhabited — whether you're soloing through Duskwood at midnight or running Ulduar with a full party.
+
+---
+
+## Hear the World Come Alive
+
+**General chat buzzes with life:**
 ```
 [Dralidan]: The Gnarlpine grow bolder each night. Our forest turns
   against us through corruption.
@@ -19,7 +25,7 @@ If you run a solo server or a small RP community and want your world to feel gen
 [Welean]: We should patrol before dawn. The balance will hold.
 ```
 
-**Party chat, your bots react to what's happening:**
+**Your party reacts to everything:**
 ```
 [Seladan]: Pattern: [Red Linen Robe], well found. Practical gear.
   Could fetch decent coin if tailored right.
@@ -28,7 +34,7 @@ You: do we keep moving north?
 [Seladan]: Shadow mend incoming, stay sharp.
 ```
 
-**Weather reactions:**
+**Weather rolls in and bots notice:**
 ```
 [Seladan]: This rain's making me drowsy. Need something to keep
   me sharp in a fight.
@@ -36,91 +42,130 @@ You: do we keep moving north?
   scheming, priest?
 ```
 
-**Transport arrivals:**
+**Ships dock, holidays arrive, the world turns:**
 ```
 [Dralidan]: The Moonspray arrives late. Darkshore waters grow
   restless at night.
 [Nilaste]: Perhaps they'll have fresh supplies from Auberdine.
 ```
-
-**Holiday reactions:**
 ```
 [Orencer]: Love is in the Air again? I'd rather spend the evening
   sharpening my blade than chasing perfume vendors.
 ```
 
-Every quest, item, and spell name becomes a clickable WoW link.
+Every quest, item, and spell name becomes a clickable WoW link — just like real player chat.
 
-## Features
+---
 
-### General Chat (Zone Banter)
-- **Multi-bot conversations** in General chat about quests, loot, weather, lore, the kind of chatter that made vanilla General chat feel alive
-- **Zone-aware content**, bots know where they are. A dwarf in Dun Morogh talks about troggs and ale, not silithid and sand. Quests, mobs, and loot are pulled from the actual game database for the zone they're in
-- **Handcrafted zone flavor**, rich atmospheric descriptions for ~45 open-world zones and ~50 dungeons and raids, from the gothic dread of Duskwood to the alien beauty of Zangarmarsh, giving the LLM deep world knowledge to draw from
-- **No patterns, no repetition**, every message is shaped by a unique combination of tone, mood, creative twist, message category, zone atmosphere, race and class personality, time of day, and actual game data. The result is chat that feels human because no two prompts are ever the same
-- **80+ message categories**, atmospheric, nostalgic, mystical, contemplative, humorous, and more. Bots don't just talk about gameplay, they notice the sunset, feel uneasy in the Plaguelands, or reminisce about old adventures
-- **Race and class identity**, a Tauren Druid doesn't sound like an Undead Warlock. Each race has a pool of 8 speech trait variants and 12 cultural flavor words, each class has 8 personality modifier variants — randomly selected per prompt so even two Night Elf Druids in the same group sound distinct (~31,680 personality combinations per race/class pair). Lore-accurate native language vocabulary (Thalassian, Darnassian, Orcish, etc.) adds further depth
-- **Clickable WoW links**, quest names, item names, and spell names are automatically converted into proper in-game links you can click, just like real player chat
+## A Living World, Not a Scripted One
 
-### Player Interaction in General Chat
-- **Bots react to you in General**, type anything in General channel and nearby bots respond naturally, zone-scoped with per-zone cooldowns
-- **Smart bot selection**, address a bot by name ("Cylaea, eat some grass") and that specific bot responds. Misspell it? Fuzzy matching catches names within 2 characters. Don't mention anyone? An LLM analyzes context to pick the most relevant bot
-- **Question detection**, questions (ending with `?`) get 100% reaction chance, non-questions get 80%, so asking something always gets an answer
-- **Conversations**, 30% chance your message sparks a 2-bot conversation instead of a single reply
+### Bots That Know Where They Are
 
-### Group Party Chat
-- **Bots that feel like party members**, when grouped, your bots react to what's happening around you in party chat, just like real players would
-- **Smart bot selection**, same 3-pass name matching works in party chat: exact name → fuzzy → LLM context analysis
-- **Kill reactions**, your tank might brag about a clean pull, your healer might comment on a close call
-- **Loot reactions**, genuine excitement over epic drops, friendly jealousy, "grats" that feel real
-- **Combat cries**, battle shouts and war cries during engagements, flavored by race and class
-- **Spell cast reactions**, bots comment when casting buffs, heals (including HoTs), shields, crowd control, dispels, and group-wide buffs (Bloodlust, Prayer of Fortitude, etc.) on party members
-- **Quest accept reactions**, bots comment when you pick up a new quest, with context from the quest description so they know what you're about to do
-- **Quest objectives**, bots react when quest objectives are completed, focusing on heading back to turn in
-- **Subzone discovery**, bots react to "Discovered: X" moments with excitement or lore references
-- **Corpse run commentary**, when anyone dies and releases spirit, a bot reacts — concern for the player, ghost run humor for bots
-- **Player death reactions**, bots react when you get killed by a creature, with urgency and personality
-- **Level-up celebrations**, bots congratulate on level ups
-- **Achievement reactions**, bots comment on achievements earned
-- **You can talk to them**, type in party chat and your bots respond with context. They know what you just fought, where you are, and what happened recently
-- **Multi-bot conversations**, bots build on each other's messages, creating natural back-and-forth between party members
-- **Persistent personalities**, each bot gets 3 traits that stay consistent across the session. The grumpy dwarf stays grumpy, the optimistic paladin stays hopeful
-- **Chat history**, bots remember recent conversation for coherent, contextual replies
-- **Emote animations**, bots play contextual WoW emotes when speaking — a bot cracking a joke might /laugh, one welcoming you might /wave. The LLM picks emotes for conversations, keyword matching handles statements
-- **Mood drift**, bot mood evolves as things happen. Kill streaks make them cheerful, deaths make them gloomy. Mood subtly influences their tone and word choices
-- **Farewell messages**, when a bot leaves your group, they say goodbye in character. The farewell is pre-generated when they join, so it always fits their personality
-- **Item link reactions**, link an item in party chat and your bots comment on it. They know if they can equip it, what type it is, and whether it's worth getting excited about
-- **Account bot support**, works with both random bots and your own account characters used as bots
-- **Name personalization**, in small groups bots address the player by name, and in conversations bots sometimes address each other naturally
+Every bot knows its zone, its lore, and its atmosphere. A Dwarf in Dun Morogh talks about troggs and ale, not silithid and sand. Quests, creatures, and loot are pulled from your actual game database — not generic fantasy filler. Handcrafted atmospheric profiles for over 90 zones and dungeons give each location a distinct feel, from the gothic dread of Duskwood to the alien beauty of Zangarmarsh to the frozen silence of Icecrown.
 
-### Event Reactions
-- **Weather changes**, a sudden thunderstorm in Stranglethorn, snow in Dun Morogh, a sandstorm rolling through Tanaris, bots notice and react. Ambient weather remarks also happen periodically between transitions (5-minute cooldown)
-- **Transport arrivals**, "boat to Auberdine just pulled in", bots announce boats and zeppelins with destination info
-- **Holidays & events**, bots react to holidays (Love is in the Air) and PvP events (Call to Arms: Warsong Gulch). In capital cities, event mentions recur periodically so the mood stays alive
-- **Day/night transitions**, bots comment on dawn breaking, dusk settling, or the eerie feel of midnight in a dangerous zone
+### Bots That Know Who They Are
 
-### Modes
-- **Normal**, casual MMO chat the way you remember it: abbreviations, game terms, "lol", "grats", and the occasional all-caps moment
-- **Roleplay**, fully in-character speech shaped by race, class, and lore. Your Night Elf invokes Elune, your Orc speaks of honor, your Undead is darkly sardonic. No "Hark, fellow traveler!" nonsense, bots talk like actual people who happen to live in Azeroth, not drama students at a renaissance faire. A separate set of tones, moods, and categories built specifically for RP immersion
+A Tauren Druid doesn't sound like an Undead Warlock. Every race carries its own speech patterns, cultural vocabulary, and worldview. Every class shapes how a bot thinks and speaks. A warrior brags about clean pulls; a priest worries about mana; a rogue sizes up escape routes. Lore-accurate native languages weave in naturally — Thalassian for Blood Elves, Darnassian for Night Elves, Orcish for Orcs. With thousands of personality combinations, even two Night Elf Druids in the same group sound like different people.
 
-### Providers
-- **Anthropic Claude**, Haiku recommended (fast, cheap, high quality)
-- **OpenAI GPT**, GPT-4o-mini supported
-- **Ollama**, run local models for free (Qwen3, Llama, Mistral)
+### Bots That Grow On You
+
+Each bot develops a persistent personality when they join your group — three defining traits that stay consistent throughout your session. The grumpy dwarf stays grumpy. The optimistic paladin stays hopeful. The sardonic warlock stays darkly amused. Their mood shifts as things happen: kill streaks lift spirits, deaths bring the mood down, a wipe makes everyone tense. You start to know them. You start to have favorites.
+
+---
+
+## Your Party Feels Real
+
+When you group with bots, they stop being NPCs and start being companions. They react to the world around you — and to you.
+
+**They fight with you.** Battle cries when combat starts. Comments on close calls. Celebration after a tough pull. A healer warning the group to stay sharp.
+
+**They notice everything.** Epic loot drops and the party erupts. Someone levels up and gets congratulated. A quest objective completes and the group discusses heading back to turn in. You discover a new subzone and a bot remarks on the lore. Someone dies and the group reacts — with concern for a player, or gallows humor for a bot.
+
+**They talk to you.** Say something in party chat and your bots respond. They remember recent conversation. They know what you just fought, where you are, and what happened. Address a specific bot by name and they'll answer. Mention no one in particular and the most relevant bot chimes in.
+
+**They talk to each other.** Bots build on each other's messages, creating natural back-and-forth. During quiet moments, idle banter fills the silence — not random noise, but personality-driven conversation that fits the moment and the place.
+
+**They cast with purpose.** When a bot throws a heal, pops a shield, drops a buff, or crowd-controls an enemy, they might call it out. A priest announces incoming heals. A mage warns about a polymorph. A shaman celebrates Bloodlust. When you buff the group, a bot might thank you or crack a joke about it.
+
+**They say goodbye.** When a bot leaves your group, they say farewell in character. It's never generic — it always fits who they are.
+
+**They even emote.** Bots play contextual WoW emotes when speaking. A joke earns a /laugh. A greeting comes with a /wave. A boast gets a /flex. It's the small things that make the difference.
+
+---
+
+## The World Reacts Around You
+
+Beyond your party, the world itself feels alive.
+
+**General chat hums with zone-appropriate banter.** Bots discuss local quests, nearby dangers, recent loot, lore, and whatever else is on their minds. The conversation shifts naturally with time of day, weather, and zone mood. No two conversations are ever the same — not because of randomness, but because of a deep system of tonal variety, creative direction, and contextual awareness that ensures every message is unique.
+
+**You can jump into the conversation.** Type anything in General and nearby bots react. Ask a question and you'll always get an answer. Make a statement and bots might agree, argue, or spin off into their own tangent. Sometimes one bot responds. Sometimes two start a conversation about what you said.
+
+**Weather changes the mood.** A thunderstorm rolls through Stranglethorn and someone complains about visibility. Snow falls in Dun Morogh and a dwarf feels right at home. A sandstorm hits Tanaris and the group hunkers down. Between transitions, bots occasionally remark on the ongoing weather — the persistent drizzle, the relentless sun, the biting cold.
+
+**Boats dock and zeppelins arrive.** Bots notice transport arrivals and announce them with destination info, speculation about cargo, or complaints about the schedule.
+
+**Holidays bring the spirit.** When seasonal events are active, bots react with enthusiasm, annoyance, or somewhere in between. In capital cities, the holiday mood lingers — bots keep the spirit alive with periodic comments about the festivities.
+
+**Dawn breaks. Dusk settles.** Bots notice the time of day changing. The eerie feel of midnight in Duskwood. The warm golden light of sunrise over Mulgore. The world breathes, and your bots breathe with it.
+
+---
+
+## Two Modes, Two Experiences
+
+### Normal Mode
+Casual MMO chat the way you remember it. Abbreviations, game terms, "lol", "grats", and the occasional all-caps moment. Bots sound like real players in 2008 — because that's the fantasy.
+
+### Roleplay Mode
+Fully in-character speech shaped by race, class, and lore. Your Night Elf invokes Elune. Your Orc speaks of honor and blood. Your Undead is darkly sardonic about everything. No "Hark, fellow traveler!" nonsense — bots talk like real people who happen to live in Azeroth, not drama students at a renaissance faire. A completely separate set of tones, moods, and creative direction built from the ground up for RP immersion.
+
+---
+
+## On the Horizon
+
+We're building toward a world where bots are indistinguishable from the best roleplaying partners you've ever had. Here's what's coming:
+
+**Environmental Awareness** — Bots will notice nearby objects in the world: a forge, a moonwell, a pile of ancient bones, a quest board, a campfire. A Dwarf blacksmith walking past an anvil will have something to say about it. A Druid near a moonwell will feel Elune's presence. Your warlock will find something darkly amusing about that altar. The world becomes not just a backdrop, but something your companions actively perceive and react to.
+
+**Bot-Initiated Questions** — Instead of only reacting, bots will sometimes ask *you* things. "Have you been through here before?" "Where'd you learn to fight like that?" "You okay? That hit looked rough." When you answer, they remember what they asked and respond to your reply. Companions that are genuinely curious about you.
+
+**Proximity Encounters** — Bots will notice nearby players and other bots in the open world and strike up /say conversations. Walk past a group of bots and overhear them chatting. Get addressed directly by a bot who noticed you passing by. Reply in /say and the conversation continues naturally. The world becomes social even when you're not grouped.
+
+**Relationships and Memory** — Bots will remember you across sessions. Talk to a bot often enough and they warm up to you. Ignore them and they grow distant. Within groups, bots develop relationships with each other — rivalries, friendships, and everything in between. Your group's social dynamic evolves over time.
+
+**PvP Reactions** — Bots will react to world PvP kills, duels, and hostile territory. Warriors boast. Rogues taunt. Priests express regret. Enter enemy territory with your PvP flag and your bots have opinions about it.
+
+---
+
+## Providers
+
+mod-llm-chatter works with the AI provider of your choice:
+
+| Provider | Model | Notes |
+|----------|-------|-------|
+| **Anthropic Claude** | Haiku (recommended) | Fast, affordable, excellent quality |
+| **OpenAI** | GPT-4o-mini | Great alternative, similar cost |
+| **Ollama** | Any local model | Free, runs on your hardware. Try `qwen3:4b` or `qwen3:8b` |
+
+**Typical cost with cloud providers:** ~$0.20 per 1,000 messages. The bridge logs token usage so you can monitor spending.
+
+**Prefer free?** Ollama runs entirely on your machine with no API costs.
+
+---
 
 ## Requirements
 
 - AzerothCore WotLK (3.3.5a)
-- [mod-playerbots](https://github.com/liyunfan1223/mod-playerbots), **required**, this module generates chat for playerbot characters
+- [mod-playerbots](https://github.com/liyunfan1223/mod-playerbots) — **required**, this module generates chat for playerbot characters
 - Python 3.8+
 - An API key from [Anthropic](https://console.anthropic.com/) or [OpenAI](https://platform.openai.com/), or [Ollama](https://ollama.ai) installed locally
 
-## Important: Playerbots Configuration
+## Important: Disable Default Bot Chat
 
-This module **replaces** the built-in playerbot chat with AI-generated conversations. For the best immersion, you **must** disable the default playerbot chat behaviors in your `playerbots.conf`:
+This module **replaces** the built-in playerbot chat with AI-generated conversations. For the best experience, disable the default behaviors in your `playerbots.conf`:
 
 ```ini
-# Disable all built-in bot chat -- mod-llm-chatter handles this now
+# Disable all built-in bot chat — mod-llm-chatter handles this now
 AiPlayerbot.EnableBroadcasts = 0
 AiPlayerbot.RandomBotTalk = 0
 AiPlayerbot.RandomBotEmote = 0
@@ -130,25 +175,22 @@ AiPlayerbot.GuildFeedback = 0
 AiPlayerbot.RandomBotSayWithoutMaster = 0
 ```
 
-Without these changes, bots will produce both the default scripted messages **and** the AI-generated ones, resulting in spam and breaking immersion.
+---
 
-## Docker Setup (Recommended)
+## Setup
 
-### 1. Configure the module
+### Docker (Recommended)
+
+**1. Configure the module**
 
 ```bash
 cp modules/mod-llm-chatter/conf/mod_llm_chatter.conf.dist \
    env/dist/etc/modules/mod_llm_chatter.conf
 ```
 
-Edit `env/dist/etc/modules/mod_llm_chatter.conf`:
-```ini
-LLMChatter.Enable = 1
-LLMChatter.Anthropic.ApiKey = sk-ant-your-key-here
-LLMChatter.Database.Host = ac-database
-```
+Edit `env/dist/etc/modules/mod_llm_chatter.conf` and set your provider + API key. Everything is tunable — frequency, creativity, which features are active — but the defaults work well out of the box.
 
-### 2. Add the bridge to docker-compose.override.yml
+**2. Add the bridge to docker-compose.override.yml**
 
 ```yaml
 services:
@@ -175,21 +217,21 @@ services:
     profiles: [dev]
 ```
 
-### 3. Start
+**3. Start**
 
 ```bash
 docker compose --profile dev up -d
 ```
 
-### 4. Check logs
+**4. Check logs**
 
 ```bash
 docker logs ac-llm-chatter-bridge --since 5m
 ```
 
-## Non-Docker Setup
+### Non-Docker
 
-### 1. Build the module
+**1. Build the module**
 
 Place this repo under `modules/` in your AzerothCore source tree, then:
 
@@ -200,15 +242,15 @@ make -j$(nproc)
 make install
 ```
 
-### 2. Configure
+**2. Configure**
 
 ```bash
 cp conf/mod_llm_chatter.conf.dist /path/to/etc/modules/mod_llm_chatter.conf
 ```
 
-Edit `mod_llm_chatter.conf` and set your provider + API key.
+Edit `mod_llm_chatter.conf` and set your provider + API key. The config file is thoroughly documented — every setting has a description and sensible defaults.
 
-### 3. Start the bridge
+**3. Start the bridge**
 
 ```bash
 cd tools/
@@ -216,215 +258,27 @@ pip install -r requirements.txt
 python llm_chatter_bridge.py --config /path/to/mod_llm_chatter.conf
 ```
 
-### 4. Start worldserver
+**4. Start worldserver**
 
 Database tables are created automatically. Chatter begins once bots are in zones with players.
 
-## Configuration Reference
-
-All settings are in `mod_llm_chatter.conf`. Here are the most commonly tuned options:
-
-### General
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `LLMChatter.Enable` | 0 | Enable the module |
-| `LLMChatter.ChatterMode` | roleplay | `normal` or `roleplay` |
-| `LLMChatter.TriggerIntervalSeconds` | 60 | Seconds between chatter checks |
-| `LLMChatter.TriggerChance` | 30 | % chance per interval |
-| `LLMChatter.ConversationChance` | 50 | % multi-bot conversation vs solo statement |
-
-### Provider
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `LLMChatter.Provider` | anthropic | `anthropic`, `openai`, or `ollama` |
-| `LLMChatter.Model` | haiku | Model alias or full name |
-| `LLMChatter.Anthropic.ApiKey` | -- | Anthropic API key |
-| `LLMChatter.OpenAI.ApiKey` | -- | OpenAI API key |
-| `LLMChatter.Ollama.BaseUrl` | http://localhost:11434 | Ollama endpoint |
-| `LLMChatter.MaxTokens` | 350 | Max response tokens |
-| `LLMChatter.Temperature` | 0.8 | Creativity (0.0-1.0) |
-
-### Message Delivery
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `LLMChatter.DeliveryPollMs` | 1000 | Check for messages (ms) |
-| `LLMChatter.MessageDelayMin` | 1000 | Min delay between messages (ms) |
-| `LLMChatter.MessageDelayMax` | 30000 | Max delay between messages (ms) |
-
-### Events
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `LLMChatter.UseEventSystem` | 1 | Enable event-driven chatter |
-| `LLMChatter.EventReactionChance` | 15 | % chance to react to events |
-| `LLMChatter.Events.Weather` | 1 | React to weather changes |
-| `LLMChatter.Events.Transports` | 1 | React to transport arrivals |
-| `LLMChatter.Events.Holidays` | 1 | React to holidays |
-| `LLMChatter.Events.DayNight` | 1 | React to time transitions |
-| `LLMChatter.HolidayCooldownSeconds` | 1800 | Per-city holiday cooldown (seconds) |
-| `LLMChatter.HolidayCityChance` | 10 | % holiday mention chance per city per check |
-| `LLMChatter.EnvironmentCheckSeconds` | 60 | Environment check interval (seconds) |
-
-### General Channel Reactions
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `LLMChatter.GeneralChat.Enable` | 0 | Enable bot reactions to player General chat |
-| `LLMChatter.GeneralChat.ReactionChance` | 80 | % chance for non-question messages |
-| `LLMChatter.GeneralChat.QuestionChance` | 100 | % chance for questions (ending with ?) |
-| `LLMChatter.GeneralChat.Cooldown` | 15 | Per-zone cooldown in seconds |
-| `LLMChatter.GeneralChat.ConversationChance` | 30 | % chance of 2-bot conversation vs single reply |
-| `LLMChatter.GeneralChat.HistoryLimit` | 15 | Max retained General chat messages per zone |
-| `LLMChatter.ChatHistoryLimit` | 10 | Max recent chat messages in LLM prompts (group + General, clamped 1-50) |
-| `LLMChatter.MaxBotsPerZone` | 8 | Max bots reacting in a single zone |
-| `LLMChatter.MaxMessageLength` | 250 | Max chat message length before truncation |
-
-### Rate Limiting
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `LLMChatter.BotSpeakerCooldownSeconds` | 900 | Per-bot cooldown (15 min) |
-| `LLMChatter.ZoneFatigueThreshold` | 3 | Max reactions per zone |
-| `LLMChatter.ZoneFatigueCooldownSeconds` | 900 | Zone fatigue window (15 min) |
-| `LLMChatter.GlobalMessageCap` | 8 | Max messages server-wide per window |
-| `LLMChatter.GlobalCapWindowSeconds` | 300 | Global cap window (5 min) |
-
-### Group Chatter
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `LLMChatter.GroupChatter.Enable` | 0 | Enable party chat when grouped with bots |
-| `LLMChatter.GroupChatter.IdleChance` | 15 | % chance of idle banter per check |
-| `LLMChatter.GroupChatter.IdleCheckInterval` | 60 | Seconds between idle checks |
-| `LLMChatter.GroupChatter.IdleCooldown` | 30 | Min seconds between idle triggers per group |
-| `LLMChatter.GroupChatter.ConversationBias` | 70 | % chance idle is multi-bot vs solo |
-| `LLMChatter.GroupChatter.IdleHistoryLimit` | 5 | Recent messages in idle context |
-| `LLMChatter.GroupChatter.FarewellEnable` | 1 | Enable farewell messages when bots leave group |
-| `LLMChatter.GroupChatter.SpellCastChance` | 15 | % chance spell cast triggers reaction |
-| `LLMChatter.GroupChatter.SpellCastCooldown` | 10 | Per-group cooldown between spell reactions (s) |
-| `LLMChatter.GroupChatter.LowHealthThreshold` | 25 | Health % for low-health callout |
-| `LLMChatter.GroupChatter.OOMThreshold` | 15 | Mana % for OOM callout |
-| `LLMChatter.GroupChatter.CombatStateCheckInterval` | 5 | Seconds between combat state checks |
-| `LLMChatter.GroupChatter.QuestDeduplicationWindow` | 30 | Seconds to dedup quest completions |
-| `LLMChatter.GroupChatter.QuestAcceptChance` | 100 | % chance quest accept triggers reaction |
-| `LLMChatter.GroupChatter.QuestAcceptCooldown` | 30 | Per-quest dedup cooldown (s) |
-| `LLMChatter.GroupChatter.QuestObjectiveChance` | 100 | % chance quest objectives triggers reaction |
-| `LLMChatter.GroupChatter.DiscoveryChance` | 40 | % chance subzone discovery triggers reaction |
-| `LLMChatter.GroupChatter.DiscoveryCooldown` | 30 | Per-area discovery dedup cooldown (s) |
-| `LLMChatter.WeatherAmbientCooldownSeconds` | 120 | Seconds between ambient weather remarks per zone |
-
-### Database
-
-| Setting | Default | Description |
-|---------|---------|-------------|
-| `LLMChatter.Database.Host` | localhost | `ac-database` for Docker |
-| `LLMChatter.Database.Port` | 3306 | MySQL port |
-| `LLMChatter.Database.User` | acore | MySQL user |
-| `LLMChatter.Database.Password` | acore | MySQL password |
-
-## Tuning for Your Server
-
-**Solo play (make the world feel alive):**
-```ini
-LLMChatter.TriggerIntervalSeconds = 30
-LLMChatter.TriggerChance = 20
-```
-
-**Busy server (real players + bots):**
-```ini
-LLMChatter.TriggerIntervalSeconds = 120
-LLMChatter.TriggerChance = 10
-```
-
-**Testing:**
-```ini
-LLMChatter.TriggerIntervalSeconds = 15
-LLMChatter.TriggerChance = 80
-```
-
-## Cost
-
-**Cloud providers:**
-
-| Provider | Model | Per 1000 messages |
-|----------|-------|-------------------|
-| Anthropic | Claude Haiku | ~$0.20 |
-| OpenAI | GPT-4o-mini | ~$0.20 |
-
-**Ollama:** Free, runs locally on your machine. Recommended models: `qwen3:4b` (fast), `qwen3:8b` (better quality).
-
-The bridge logs token usage for monitoring.
-
-## Architecture
-
-```
-Worldserver (C++)             Python Bridge
- |                              |
- | Trigger / Event fires        |
- | Select bots, build context   |
- |──── INSERT queue ──────────▶ |
- |                              |── build prompt (zone, bots,
- |                              |   weather, traits, history)
- |                              |── call LLM
- |                              |── parse response + links
- | ◀──── INSERT messages ──────|
- |                              |
- | Deliver with realistic       |
- | timing delays                |
- |                              |
- | Group events (kill, loot,    |
- | combat, player msg) ────────▶|── generate party chat
- |                              |── with personality traits
- | ◀──── INSERT party msgs ────|
-```
-
-## Files
-
-```
-mod-llm-chatter/
-├── README.md
-├── LICENSE
-├── .gitignore
-├── include.sh
-├── conf/
-│   └── mod_llm_chatter.conf.dist
-├── data/sql/db-characters/base/
-│   └── llm_chatter_tables.sql
-├── src/
-│   ├── llm_chatter_loader.cpp
-│   ├── LLMChatterConfig.cpp
-│   ├── LLMChatterConfig.h
-│   └── LLMChatterScript.cpp
-└── tools/
-    ├── llm_chatter_bridge.py    # Main bridge (queue polling, LLM calls)
-    ├── chatter_constants.py     # Zone flavors, message categories
-    ├── chatter_shared.py        # Config parsing, DB helpers, link formatting
-    ├── chatter_prompts.py       # Prompt building for all chatter types
-    ├── chatter_events.py        # Event processing (weather, transport, etc.)
-    ├── chatter_group.py         # Group chatter (party chat with bots)
-    ├── chatter_general.py       # General channel player reactions
-    ├── spell_names.py           # Spell ID-to-name lookup table
-    └── requirements.txt
-```
+---
 
 ## Troubleshooting
 
 | Issue | Solution |
 |-------|----------|
 | No chatter appearing | Check `Enable = 1`, API key set, bots in zone with a player |
-| Chatter only in open world | Intended, disabled in dungeons/raids |
 | No clickable links | Check bridge logs for JSON parse errors |
-| Too much chatter | Lower `TriggerChance` or raise `TriggerIntervalSeconds` |
-| Too little chatter | Raise `TriggerChance` or lower `TriggerIntervalSeconds` |
+| Too much / too little chatter | Tune frequency and chance settings in `mod_llm_chatter.conf` |
 | Group chat not working | Set `GroupChatter.Enable = 1`, must have bots in your party |
 | Ollama slow responses | Try a smaller model (`qwen3:4b`) or increase `Ollama.ContextSize` |
 
 **Check logs:**
 - Docker: `docker logs ac-llm-chatter-bridge --since 5m`
 - Non-Docker: check terminal output or redirect to a log file
+
+---
 
 ## License
 
