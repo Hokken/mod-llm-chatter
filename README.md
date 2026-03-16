@@ -40,6 +40,12 @@ See [Setup](#setup) below for detailed Docker, non-Docker, and SQL preparation s
 
 ## Compatibility
 
+This module requires a working AzerothCore server with mod-playerbots. If you don't have one yet, start here:
+
+- [AzerothCore Docker install guide](https://www.azerothcore.org/wiki/install-with-docker)
+- [AzerothCore Playerbot branch](https://github.com/mod-playerbots/azerothcore-wotlk/tree/Playerbot)
+- [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots)
+
 | Requirement | Version |
 |-------------|---------|
 | AzerothCore | [Playerbot branch](https://github.com/mod-playerbots/azerothcore-wotlk/tree/Playerbot) (WotLK 3.3.5a) |
@@ -58,16 +64,6 @@ Ollama works for local/free inference but requires fast hardware (sub-5s respons
 ### Known Limitations
 - Local Ollama on consumer hardware produces 15-70s latency, causing stale reactions
 - Models below 4B parameters frequently fail to produce valid JSON
-
----
-
-## Prerequisites
-
-This module requires a working AzerothCore server with mod-playerbots. If you don't have one yet, start here:
-
-- [AzerothCore Docker install guide](https://www.azerothcore.org/wiki/install-with-docker)
-- [AzerothCore Playerbot branch](https://github.com/mod-playerbots/azerothcore-wotlk/tree/Playerbot)
-- [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots)
 
 ---
 
