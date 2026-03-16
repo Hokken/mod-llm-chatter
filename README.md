@@ -10,6 +10,12 @@ An AI-powered conversation engine for [AzerothCore](https://www.azerothcore.org/
 
 ---
 
+<p align="center">
+  <a href="https://discord.gg/tvVcecuR"><img src="https://img.shields.io/badge/Discord-Join%20the%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord"></a>
+</p>
+
+---
+
 ## Hear the World Come Alive
 
 **General chat buzzes with life:**
