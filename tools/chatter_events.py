@@ -1,0 +1,797 @@
+"""
+Chatter Events - Event context building and cleanup
+for the LLM Chatter Bridge.
+
+Imports from chatter_constants and chatter_shared.
+"""
+
+import json
+import logging
+import re
+
+from chatter_constants import (
+    EVENT_DESCRIPTIONS, CLASS_NAMES, RACE_NAMES,
+)
+from chatter_shared import (
+    parse_extra_data, get_zone_name,
+    run_single_reaction, build_race_class_context,
+)
+from chatter_prompts import (
+    build_zone_intrusion_prompt,
+)
+
+logger = logging.getLogger(__name__)
+
+
+# =============================================================================
+# EVENT CONTEXT BUILDING
+# =============================================================================
+def build_event_context(event: dict) -> str:
+    """Build context string for an event."""
+    event_type = event['event_type']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event.get('id'),
+        event_type
+    )
+
+    context_parts = []
+
+    if event_type == 'holiday_start':
+        name = extra_data.get('event_name', 'a holiday')
+        context_parts.append(
+            f"The {name} event has just begun!"
+        )
+
+    elif event_type == 'holiday_end':
+        name = extra_data.get('event_name', 'a holiday')
+        context_parts.append(
+            f"The {name} event is coming to an end."
+        )
+
+    elif event_type == 'minor_event':
+        name = extra_data.get(
+            'event_name', 'a minor event'
+        )
+        # Make the context feel natural depending
+        # on event type
+        if 'Call to Arms' in name:
+            context_parts.append(
+                f"The {name} battleground event "
+                f"is currently active."
+            )
+        elif 'Fishing' in name:
+            context_parts.append(
+                f"The {name} is happening right now."
+            )
+        elif 'Fireworks' in name:
+            context_parts.append(
+                f"The {name} show is lighting up "
+                f"the sky!"
+            )
+        else:
+            context_parts.append(
+                f"The {name} event is happening."
+            )
+
+    elif event_type == 'world_boss_spawn':
+        target = event.get('target_name', 'A world boss')
+        context_parts.append(
+            f"{target} has been spotted in the world!"
+        )
+
+    elif event_type == 'rare_spawn':
+        target = event.get(
+            'target_name', 'A rare creature'
+        )
+        context_parts.append(
+            f"A rare creature ({target}) has appeared "
+            f"nearby."
+        )
+
+    elif event_type == 'creature_death_boss':
+        target = event.get('target_name', 'A boss')
+        killer = extra_data.get('killer_name', 'someone')
+        context_parts.append(
+            f"{target} has been defeated by {killer}!"
+        )
+
+    elif event_type == 'creature_death_rare':
+        target = event.get('target_name', 'A rare')
+        context_parts.append(
+            f"A rare creature ({target}) was just killed."
+        )
+
+    elif event_type == 'bot_level_up':
+        subject = event.get('subject_name', 'Someone')
+        new_level = extra_data.get('new_level', '?')
+        is_milestone = extra_data.get(
+            'is_milestone', False
+        )
+        if is_milestone:
+            context_parts.append(
+                f"{subject} has reached level "
+                f"{new_level}!"
+            )
+        else:
+            context_parts.append(
+                f"{subject} leveled up to {new_level}."
+            )
+
+    elif event_type == 'bot_quest_complete':
+        subject = event.get('subject_name', 'Someone')
+        quest_name = extra_data.get(
+            'quest_name', 'a quest'
+        )
+        context_parts.append(
+            f"{subject} just completed the quest "
+            f"'{quest_name}'."
+        )
+
+    elif event_type == 'bot_achievement':
+        subject = event.get('subject_name', 'Someone')
+        achi_name = extra_data.get(
+            'achievement_name', 'an achievement'
+        )
+        context_parts.append(
+            f"{subject} earned the achievement "
+            f"'{achi_name}'!"
+        )
+
+    elif event_type == 'bot_pvp_kill':
+        subject = event.get('subject_name', 'Someone')
+        target = event.get('target_name', 'an enemy')
+        context_parts.append(
+            f"{subject} defeated {target} in PvP combat!"
+        )
+
+    elif event_type == 'bot_loot_item':
+        subject = event.get('subject_name', 'Someone')
+        item_name = extra_data.get(
+            'item_name', 'something valuable'
+        )
+        quality = extra_data.get('quality', 0)
+        quality_name = [
+            'poor', 'common', 'uncommon',
+            'rare', 'epic', 'legendary'
+        ][min(quality, 5)]
+        context_parts.append(
+            f"{subject} found a {quality_name} item: "
+            f"{item_name}!"
+        )
+
+    elif event_type == 'day_night_transition':
+        time_period = extra_data.get(
+            'time_period', 'day'
+        )
+        previous_period = extra_data.get(
+            'previous_period', ''
+        )
+        hour = extra_data.get('hour', 12)
+        description = extra_data.get('description', '')
+
+        # Time period descriptions for context
+        period_contexts = {
+            'dawn': (
+                "The first light of dawn breaks over "
+                "the horizon. The sky turns pink and "
+                "gold."
+            ),
+            'early_morning': (
+                "It's early morning. The world is "
+                "waking up, dew still on the grass."
+            ),
+            'morning': (
+                "The morning sun climbs higher. It's "
+                "a good time for adventures."
+            ),
+            'midday': (
+                "The sun reaches its peak. Shadows "
+                "are short and the day is warm."
+            ),
+            'afternoon': (
+                "The afternoon sun casts long shadows."
+                " The day is well underway."
+            ),
+            'evening': (
+                "Evening approaches. The light turns "
+                "golden as the sun descends."
+            ),
+            'dusk': (
+                "Dusk settles over the land. The sky "
+                "blazes with sunset colors."
+            ),
+            'night': (
+                "Night has fallen. Stars begin to "
+                "appear in the darkening sky."
+            ),
+            'midnight': (
+                "It's the middle of the night. The "
+                "world is quiet under the stars."
+            ),
+            'late_night': (
+                "The deep hours of night. Few are "
+                "awake at this hour."
+            ),
+        }
+
+        desc = period_contexts.get(
+            time_period,
+            description or "The time of day is changing."
+        )
+        context_parts.append(desc)
+
+        # Add time info for additional context
+        if hour is not None:
+            context_parts.append(
+                f"(In-game time: {hour:02d}:00)"
+            )
+
+    elif event_type == 'weather_change':
+        weather_type = extra_data.get(
+            'weather_type', 'unusual weather'
+        )
+        previous_weather = extra_data.get(
+            'previous_weather', 'clear'
+        )
+        transition = extra_data.get(
+            'transition', 'changing'
+        )
+        intensity = extra_data.get(
+            'intensity', 'moderate'
+        )
+        category = extra_data.get('category', 'weather')
+
+        # Weather starting descriptions
+        starting_descriptions = {
+            'light rain': (
+                "A light drizzle has begun to fall."
+            ),
+            'rain': (
+                "Rain clouds have rolled in and it's "
+                "starting to rain."
+            ),
+            'heavy rain': (
+                "Dark clouds have gathered and heavy "
+                "rain is pouring down!"
+            ),
+            'light snow': (
+                "A few snowflakes are beginning to "
+                "drift down from the sky."
+            ),
+            'snow': (
+                "It's starting to snow, white flakes "
+                "covering the ground."
+            ),
+            'heavy snow': (
+                "A blizzard is setting in with heavy "
+                "snowfall!"
+            ),
+            'foggy': (
+                "A thick fog is rolling in, reducing "
+                "visibility."
+            ),
+            'light sandstorm': (
+                "The wind is picking up, kicking sand "
+                "into the air."
+            ),
+            'sandstorm': (
+                "A sandstorm is sweeping through the "
+                "area!"
+            ),
+            'heavy sandstorm': (
+                "A massive sandstorm has engulfed "
+                "everything!"
+            ),
+            'thunderstorm': (
+                "Storm clouds are gathering, thunder "
+                "rumbles in the distance!"
+            ),
+            'black rain': (
+                "Strange dark clouds have formed... "
+                "black rain is falling!"
+            ),
+            'black snow': (
+                "Something ominous... black snow is "
+                "drifting down from above."
+            ),
+        }
+
+        # Weather clearing descriptions
+        clearing_descriptions = {
+            'rain': (
+                "The rain is stopping. Clouds are "
+                "parting."
+            ),
+            'snow': (
+                "The snowfall is easing. The sky is "
+                "clearing."
+            ),
+            'sandstorm': (
+                "The sandstorm is dying down. "
+                "Visibility is returning."
+            ),
+            'fog': (
+                "The fog is lifting, revealing the "
+                "landscape."
+            ),
+            'storm': (
+                "The storm is passing. The thunder "
+                "fades away."
+            ),
+            'weather': "The weather is clearing up.",
+        }
+
+        # Weather intensifying descriptions
+        intensifying_descriptions = {
+            'rain': (
+                f"The rain is getting heavier - now "
+                f"{weather_type}."
+            ),
+            'snow': (
+                f"The snow is intensifying - now "
+                f"{weather_type}."
+            ),
+            'sandstorm': (
+                f"The sandstorm grows stronger - now "
+                f"{weather_type}."
+            ),
+            'storm': "The storm is intensifying!",
+            'weather': (
+                f"The {category} is getting worse."
+            ),
+        }
+
+        if transition == 'starting':
+            desc = starting_descriptions.get(
+                weather_type,
+                f"The weather is changing to "
+                f"{weather_type}."
+            )
+        elif transition == 'clearing':
+            desc = clearing_descriptions.get(
+                category,
+                "The weather is clearing up. The sky "
+                "brightens."
+            )
+        elif transition == 'intensifying':
+            desc = intensifying_descriptions.get(
+                category,
+                f"The {weather_type} is getting more "
+                f"intense."
+            )
+        else:  # changing (different weather type)
+            desc = (
+                f"The weather is shifting from "
+                f"{previous_weather} to {weather_type}."
+            )
+
+        context_parts.append(desc)
+
+    elif event_type == 'weather_ambient':
+        weather_type = extra_data.get(
+            'weather_type', 'unusual weather'
+        )
+        category = extra_data.get('category', 'weather')
+
+        # Ambient descriptions: ongoing weather, not a
+        # transition. Encourage musing/complaining tone.
+        ambient_descriptions = {
+            'light rain': (
+                "A light rain continues to fall "
+                "steadily around you."
+            ),
+            'rain': (
+                "The rain keeps falling with no sign "
+                "of stopping."
+            ),
+            'heavy rain': (
+                "Heavy rain continues to pour down "
+                "relentlessly."
+            ),
+            'light snow': (
+                "A gentle snow continues to drift "
+                "down quietly."
+            ),
+            'snow': (
+                "Snow continues to fall, blanketing "
+                "the landscape in white."
+            ),
+            'heavy snow': (
+                "The blizzard rages on, heavy snow "
+                "obscuring everything."
+            ),
+            'foggy': (
+                "A thick fog still hangs in the air, "
+                "limiting visibility."
+            ),
+            'light sandstorm': (
+                "Fine sand continues to drift through "
+                "the air around you."
+            ),
+            'sandstorm': (
+                "The sandstorm persists, stinging "
+                "exposed skin."
+            ),
+            'heavy sandstorm': (
+                "The massive sandstorm still rages, "
+                "making travel miserable."
+            ),
+            'thunderstorm': (
+                "Thunder continues to rumble overhead "
+                "as the storm lingers."
+            ),
+            'black rain': (
+                "The eerie black rain continues to "
+                "fall from darkened skies."
+            ),
+            'black snow': (
+                "Black snow still drifts down "
+                "ominously from above."
+            ),
+        }
+
+        desc = ambient_descriptions.get(
+            weather_type,
+            f"The {weather_type} persists around you."
+        )
+        context_parts.append(desc)
+        context_parts.append(
+            "This weather has been going on for a "
+            "while. React naturally - complain about "
+            "it, comment on how it affects travel or "
+            "mood, or find something positive about "
+            "it. Do NOT react as if the weather just "
+            "started."
+        )
+
+    elif event_type == 'transport_arrives':
+        transport_type = extra_data.get(
+            'transport_type', ''
+        )
+        destination = extra_data.get('destination', '')
+        transport_name = extra_data.get(
+            'transport_name', ''
+        )
+
+        # Extract the ship's actual name
+        # (e.g., "The Moonspray") from transport_name
+        # Format: 'Auberdine, Darkshore and
+        #   Rut'theran Village, Teldrassil
+        #   (Boat, Alliance ("The Moonspray"))'
+        ship_name = ''
+        if transport_name:
+            # Look for quoted name like
+            # ("The Moonspray") or ("Orgrim's Hammer")
+            name_match = re.search(
+                r'\("([^"]+)"\)', transport_name
+            )
+            if name_match:
+                ship_name = name_match.group(1)
+
+        # Fallback: parse target_name if extra_data
+        # failed. Format: "Auberdine, Darkshore and
+        #   Rut'theran Village, Teldrassil
+        #   (Boat, Alliance)"
+        target_name = event.get('target_name', '')
+        if not destination and target_name:
+            # Try to extract destination from
+            # "X and Y (Type)" format
+            if ' and ' in target_name:
+                parts = target_name.split(' and ')
+                if len(parts) >= 2:
+                    # Second part before parenthesis
+                    # is destination
+                    dest_part = (
+                        parts[1].split('(')[0].strip()
+                    )
+                    destination = dest_part
+            # Try to extract transport type
+            if not transport_type and '(' in target_name:
+                type_part = (
+                    target_name.split('(')[-1]
+                    .rstrip(')')
+                )
+                if 'Boat' in type_part:
+                    transport_type = 'Boat'
+                elif 'Zeppelin' in type_part:
+                    transport_type = 'Zeppelin'
+                elif 'Turtle' in type_part:
+                    transport_type = 'Turtle'
+
+        # Extract origin from transport_name
+        # (first part before ' and ')
+        origin = ''
+        if transport_name and ' and ' in transport_name:
+            origin = (
+                transport_name.split(' and ')[0].strip()
+            )
+
+        # The DB name lists stops as "StopA and StopB"
+        # but destination is always StopB regardless of
+        # direction. Use the event zone to figure out
+        # which stop the boat actually arrived at.
+        # If the zone name appears in "destination",
+        # we're already correct. If it appears in
+        # "origin", swap them.
+        zone_id = event.get('zone_id')
+        if zone_id and origin and destination:
+            zone_name = get_zone_name(zone_id)
+            if zone_name:
+                zn = zone_name.lower()
+                if (
+                    zn in origin.lower()
+                    and zn not in destination.lower()
+                ):
+                    origin, destination = (
+                        destination, origin
+                    )
+
+        # Final defaults
+        if not transport_type:
+            transport_type = 'transport'
+        if not destination:
+            destination = 'its next stop'
+
+        # Build description based on transport type
+        # with ship name.
+        # IMPORTANT: The trigger now fires when the
+        # transport enters the destination zone, so
+        # it is approaching / arriving soon rather
+        # than already docked.
+        ship_info = (
+            f' "{ship_name}"' if ship_name else ''
+        )
+
+        # Clarify: approaching HERE from origin,
+        # and boarding it would head TO origin.
+        if origin and destination:
+            arrival_info = (
+                f"This {transport_type.lower()}"
+                f"{ship_info} is approaching "
+                f"{destination} from {origin}."
+            )
+            departure_info = (
+                f"If bots want to board, it will take "
+                f"them to {origin}."
+            )
+        elif destination:
+            arrival_info = (
+                f"This {transport_type.lower()}"
+                f"{ship_info} is approaching "
+                f"{destination}."
+            )
+            departure_info = ""
+        else:
+            arrival_info = (
+                f"A {transport_type.lower()}"
+                f"{ship_info} is approaching."
+            )
+            departure_info = ""
+
+        if transport_type.lower() == 'zeppelin':
+            desc = (
+                f"A zeppelin{ship_info} is coming "
+                f"into view. {arrival_info} It "
+                f"should arrive soon. "
+                f"{departure_info}"
+            )
+        elif transport_type.lower() == 'boat':
+            desc = (
+                f"A boat{ship_info} is coming in "
+                f"toward the dock. {arrival_info} "
+                f"It should dock soon. "
+                f"{departure_info}"
+            )
+        elif transport_type.lower() == 'turtle':
+            desc = (
+                f"A giant sea turtle transport"
+                f"{ship_info} is approaching. "
+                f"{arrival_info} It should arrive "
+                f"soon. {departure_info}"
+            )
+        else:
+            desc = (
+                f"A {transport_type}{ship_info} is "
+                f"approaching. {arrival_info} "
+                f"It should arrive soon. "
+                f"{departure_info}"
+            )
+
+        context_parts.append(desc)
+        # Clarify that bots are AT the destination,
+        # not going TO it
+        context_parts.append(
+            f"IMPORTANT: The bots are currently AT "
+            f"{destination}. The transport is "
+            f"approaching FROM {origin}. If "
+            f"mentioning boarding, it would soon "
+            f"depart TO {origin}, not to "
+            f"{destination}. Do not describe it as "
+            f"already docked or already departed. "
+            f"If mentioning "
+            f"boarding, they would be heading TO "
+            f"{origin}, not to {destination}."
+        )
+
+    elif event_type == 'player_enters_zone':
+        intruder = extra_data.get(
+            'intruder_name', 'Unknown'
+        )
+        level = extra_data.get(
+            'intruder_level', '?'
+        )
+        zone = extra_data.get(
+            'zone_name', 'the area'
+        )
+        is_capital = extra_data.get(
+            'is_capital', False
+        )
+        capital_str = (
+            " (a capital city)" if is_capital
+            else ""
+        )
+        context_parts.append(
+            f"An enemy player ({intruder}, "
+            f"level {level}) has entered "
+            f"{zone}{capital_str}."
+        )
+
+    else:
+        desc = EVENT_DESCRIPTIONS.get(
+            event_type, 'something happened'
+        )
+        context_parts.append(
+            f"Something notable happened: {desc}."
+        )
+
+    return ' '.join(context_parts)
+
+
+# =============================================================================
+# ZONE INTRUSION HANDLER
+# =============================================================================
+def process_zone_intrusion_event(
+    db, client, config, event
+):
+    """Handle player_enters_zone event.
+
+    Generates a yell message from the defending
+    bot when an enemy player enters a faction zone.
+    Always returns True (time-sensitive, no retry).
+    """
+    extra_data = event.get('extra_data') or {}
+    if isinstance(extra_data, str):
+        import json
+        try:
+            extra_data = json.loads(extra_data)
+        except Exception:
+            extra_data = {}
+
+    defender_guid = extra_data.get(
+        'defender_guid'
+    )
+    defender_name = extra_data.get(
+        'defender_name', 'Unknown'
+    )
+    if not defender_guid:
+        return True
+
+    # Build prompt
+    prompt = build_zone_intrusion_prompt(
+        extra_data, config
+    )
+    if not prompt:
+        return True
+
+    result = run_single_reaction(
+        db,
+        client,
+        config,
+        prompt=prompt,
+        speaker_name=defender_name,
+        bot_guid=int(defender_guid),
+        channel='yell',
+        delay_seconds=2,
+        event_id=event.get('id'),
+        max_tokens_override=60,
+        allow_emote_fallback=False,
+    )
+
+    return True
+
+
+# =============================================================================
+# EVENT LIFECYCLE
+# =============================================================================
+def cleanup_expired_events(
+    db, active_ids=None
+) -> int:
+    """Mark expired events and clean up old completed
+    events.
+
+    Args:
+        db: Database connection
+        active_ids: Set of event IDs currently being
+            processed by worker threads. These are
+            excluded from stuck-processing reset.
+    """
+    cursor = db.cursor()
+
+    # Mark pending events that have expired
+    cursor.execute("""
+        UPDATE llm_chatter_events
+        SET status = 'expired'
+        WHERE status = 'pending'
+          AND expires_at IS NOT NULL
+          AND expires_at < NOW()
+    """)
+    expired_count = cursor.rowcount
+
+    # Delete old completed/expired/skipped events
+    # (older than 24 hours)
+    cursor.execute("""
+        DELETE FROM llm_chatter_events
+        WHERE status IN ('completed', 'expired',
+                         'skipped')
+          AND created_at < DATE_SUB(
+              NOW(), INTERVAL 24 HOUR
+          )
+    """)
+    deleted_count = cursor.rowcount
+
+    # Reset stuck 'processing' events older than
+    # 5 minutes (lease expired), excluding events
+    # actively owned by worker threads
+    reset_count = 0
+    if active_ids:
+        placeholders = ','.join(
+            ['%s'] * len(active_ids)
+        )
+        cursor.execute(f"""
+            UPDATE llm_chatter_events
+            SET status = 'pending'
+            WHERE status = 'processing'
+              AND processed_at < DATE_SUB(
+                  NOW(), INTERVAL 5 MINUTE
+              )
+              AND id NOT IN ({placeholders})
+        """, list(active_ids))
+        reset_count = cursor.rowcount
+    else:
+        cursor.execute("""
+            UPDATE llm_chatter_events
+            SET status = 'pending'
+            WHERE status = 'processing'
+              AND processed_at < DATE_SUB(
+                  NOW(), INTERVAL 5 MINUTE
+              )
+        """)
+        reset_count = cursor.rowcount
+
+    db.commit()
+
+
+    return expired_count + deleted_count + reset_count
+
+
+def reset_stuck_processing_events(db) -> int:
+    """Reset events stuck in 'processing' status back
+    to 'pending'.
+
+    Called on bridge startup - if any events are stuck
+    in 'processing', it means the bridge crashed before
+    completing them. Reset them so they can be retried.
+    """
+    cursor = db.cursor()
+
+    cursor.execute("""
+        UPDATE llm_chatter_events
+        SET status = 'pending'
+        WHERE status = 'processing'
+    """)
+    reset_count = cursor.rowcount
+    db.commit()
+
+
+    return reset_count
