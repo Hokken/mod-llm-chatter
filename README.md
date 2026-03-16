@@ -45,13 +45,13 @@ You: do we keep moving north?
   some meditation.
 ```
 
-**Bots know where they are — zone and subzone:**
+**Bots know where they are, zone and subzone:**
 ```
 [Uldamyr]: These ruins... Mathystra fell long before any of us
   drew breath. The magic here still lingers.
 ```
 
-**Weather, transports, holidays,  bots notice it all:**
+**Weather, transports, holidays, bots notice it all:**
 ```
 [Seladan]: This rain's making me drowsy. Need something to keep
   me sharp in a fight.
@@ -79,15 +79,12 @@ See [Setup](#setup) below for detailed Docker, non-Docker, and SQL preparation s
 
 ## Features
 
-* **Roleplay-first**: Every prompt blends race, class, lore, and assigned personality traits so bots feel like living companions. Roleplay mode keeps speech grounded in lore while Normal mode lets them relax into MMO-style chatter.
-* **Spatial awareness**: Bots always know exactly where they are — both the parent zone and the specific subzone. Walking into "Ruins of Mathystra" within Darkshore gives bots rich lore context about that specific place, sourced from ~3,000 subzone descriptions. Zone transitions, idle chatter, nearby object comments, discovery reactions, and player conversations all reflect the current location.
-* **Conscious world sensing**: Bots mind moonwells, forges, transports, holidays, weather, time of day, rare creatures, and zone lore. That context follows through to prompts so each message references the right place, event, and faction.
-* **Dynamic prompt engine**: The bridge stitches together randomized tones, moods, creative twists, humor nudges, and optional talent lore. Messages stay varied while still sounding like the same cast of bots.
-* **Party interactivity**: Loot, combat (pulls, heals, CC, deaths, wipes), quests, nearby objects, and player chat all trigger the same narrative-aware path. Idle chatter, multi-bot conversations, and bot-initiated questions flow out of that system.
-* **Event-grade delivery**: Combat hooks use pre-cached responses for instant delivery; ambient/world events respect delay tuning, priority ordering, and per-group locks so raid, battleground, holiday, and transport chatter stay cohesive.
-* **Ambient chatter ecosystems**: Living General chat, battleground callouts (flags, nodes, scores, arrivals), and faction intrusion alerts sustain world chat without flooding players. Bots call you by name when relevant and optionally use emotes from the 3.3.5a set.
-* **Raid consciousness**: Boss pull/kill/wipe reactions now cover 148 bosses across 22 raid instances plus between-pull morale chatter, wider zone lore, and verified raid-speaker delivery in party and raid channels.
-* **Immersion-first tuning**: Everything from weather effects to transport timing, talent data, and lore references stays configurable in `mod_llm_chatter.conf.dist`. Transport alerts only fire where real players exist and use verified bot voices.
+* **Roleplay-First Personalities**: Every bot is a distinct character. Their dialogue is deeply rooted in their race, class, and assigned personality traits, dynamically enhanced by their specialized talent builds. In Roleplay mode, bots stay in character, grounding their speech in the rich lore of Azeroth to feel like living, breathing companions.
+* **Deep Spatial & Lore Awareness**: Bots possess an intimate understanding of their surroundings, maintaining full awareness of both the broader world zones and the specific subzones within them. Whether you are wandering the vibrant paths of Elwynn Forest, traversing the vast snows of Dragonblight, or delving into the ancient mysteries of the Ruins of Mathystra in Darkshore, bots draw from over 3,000 unique descriptions to comment on the history, magic, and atmosphere of your exact location.
+* **Conscious World Sensing**: The world is alive, and your companions notice it. Bots dynamically react to everything in their vicinity, from wildlife and rare creatures to NPCs, ancient ruins, weathered statues, and eerie altars. They also observe functional points of interest like moonwells, crackling fireplaces, and bustling forges, while adapting to weather changes, the time of day, arriving zeppelins, and seasonal holidays.
+* **Organic Party Interactivity**: Your companions don't just follow; they interact. They will strike up multi-bot conversations, ask you unprompted questions about your journey, and react authentically to combat, loot, and quest milestones. Seamlessly integrated with the game's emote and voice systems, bots punctuate their dialogue with physical gestures and audible character voices, bringing an extra layer of life to everything from the thrill of an achievement to quiet banter by the campfire.
+* **Living Ecosystems**: The immersion extends beyond your immediate party. The open world's General channel hums with ambient bot chatter, reacting to real player messages and world events. In battlegrounds, bots shout tactical callouts, while in raids, they brace for encounters across 148 iconic bosses, sharing morale-boosting lore between pulls.
+* **Seamless Immersion**: Designed to preserve the fantasy atmosphere, the module features smart pacing, multi-character conversation flow, and natural reading delays. No repetitive robotic spam, just natural, contextual dialogue that enhances your journey through every corner of the world.
 
 ---
 
