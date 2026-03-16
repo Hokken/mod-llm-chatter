@@ -4,3 +4,4 @@ dev-only
 *.conf
 !*.conf.dist
 *.env
+.DS_Store
