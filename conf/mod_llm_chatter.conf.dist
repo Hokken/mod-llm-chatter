@@ -350,7 +350,7 @@ LLMChatter.TriggerIntervalSeconds = 30
 #       (via internal CityChatterMultiplier).
 #       Default: 15
 #
-LLMChatter.TriggerChance = 10
+LLMChatter.TriggerChance = 20
 
 #
 #   LLMChatter.ConversationChance
@@ -359,7 +359,7 @@ LLMChatter.TriggerChance = 10
 #       statement. Requires 2+ bots in the zone.
 #       Default: 50
 #
-LLMChatter.ConversationChance = 50
+LLMChatter.ConversationChance = 40
 
 #
 #   LLMChatter.EventReactionChance
@@ -461,7 +461,7 @@ LLMChatter.Events.MinorEventChance = 20
 #       IdleChance. Lower = more frequent checks.
 #       Default: 60
 #
-LLMChatter.GroupChatter.IdleCheckInterval = 30
+LLMChatter.GroupChatter.IdleCheckInterval = 40
 
 #
 #   LLMChatter.GroupChatter.IdleChance
@@ -612,7 +612,7 @@ LLMChatter.GroupChatter.BotQuestionChance = 1
 #       triggers a group reaction.
 #       Default: 100
 #
-LLMChatter.GroupChatter.QuestAcceptChance = 100
+LLMChatter.GroupChatter.QuestAcceptChance = 50
 
 #
 #   LLMChatter.GroupChatter.QuestObjectiveChance
@@ -620,7 +620,7 @@ LLMChatter.GroupChatter.QuestAcceptChance = 100
 #       objectives triggers a group reaction.
 #       Default: 100
 #
-LLMChatter.GroupChatter.QuestObjectiveChance = 100
+LLMChatter.GroupChatter.QuestObjectiveChance = 50
 
 #
 #   LLMChatter.GroupChatter.QuestCompleteChance
@@ -628,7 +628,7 @@ LLMChatter.GroupChatter.QuestObjectiveChance = 100
 #       triggers a group reaction.
 #       Default: 100
 #
-LLMChatter.GroupChatter.QuestCompleteChance = 100
+LLMChatter.GroupChatter.QuestCompleteChance = 50
 
 #
 #   LLMChatter.GroupChatter.QuestConversationChance
