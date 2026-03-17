@@ -2532,8 +2532,8 @@ public:
         bool isBot = IsPlayerBot(player);
 
         // Pick reactor: a different bot reacts.
-        // Exclude the dead player so bots don't
-        // comment on their own death.
+        // Exclude the achiever so bots don't
+        // congratulate themselves.
         Player* reactor = isBot
             ? GetRandomBotInGroup(group, player)
             : GetRandomBotInGroup(group);
