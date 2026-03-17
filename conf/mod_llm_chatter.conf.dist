@@ -737,6 +737,18 @@ LLMChatter.ActionChance = 10
 #
 LLMChatter.RaceLoreChance = 20
 
+#
+#   LLMChatter.ConversationPacing
+#       Multiplier for delay between messages in
+#       multi-message conversations (ambient and group).
+#       Applied to the computed delay before min/max clamp.
+#       0.5 = snappy back-and-forth (half delay)
+#       1.0 = default pacing
+#       2.0 = leisurely RP pace (double delay)
+#       Default: 1.0
+#
+LLMChatter.ConversationPacing = 1.0
+
 ###############################################################################
 # SAFETY / PERFORMANCE [BOTH]
 #
@@ -827,18 +839,6 @@ LLMChatter.MessageDelayMin = 1000
 #       Default: 30000
 #
 LLMChatter.MessageDelayMax = 30000
-
-#
-#   LLMChatter.ConversationPacing
-#       Multiplier for delay between messages in
-#       multi-message conversations (ambient and group).
-#       Applied to the computed delay before min/max clamp.
-#       0.5 = snappy back-and-forth (half delay)
-#       1.0 = default pacing
-#       2.0 = leisurely RP pace (double delay)
-#       Default: 1.0
-#
-LLMChatter.ConversationPacing = 1.0
 
 #
 #   LLMChatter.DistanceUnit
