@@ -883,9 +883,12 @@ def calculate_dynamic_delay(
         reading_time + reaction_time + typing_time + distraction
     )
 
-    pacing = float(config.get(
-        'LLMChatter.ConversationPacing', 1.0
-    ))
+    try:
+        pacing = float(config.get(
+            'LLMChatter.ConversationPacing', 1.0
+        ))
+    except (ValueError, TypeError):
+        pacing = 1.0
     pacing = max(0.1, min(pacing, 5.0))
     total_delay *= pacing
 
