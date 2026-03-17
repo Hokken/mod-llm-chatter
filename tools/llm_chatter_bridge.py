@@ -55,6 +55,7 @@ from chatter_shared import (
     parse_conversation_response,
     insert_chat_message,
     get_recent_zone_messages,
+    stagger_if_needed,
 )
 from chatter_prompts import (
     build_event_conversation_prompt,
@@ -194,6 +195,24 @@ def process_pending_requests(
     db.commit()
 
     try:
+        # Stagger if another system already submitted
+        # an LLM call this poll cycle (avoids two
+        # systems delivering in the same bucket).
+        poll_iv = int(config.get(
+            'LLMChatter.Bridge.PollIntervalSeconds', 3
+        ))
+        stagger_min = float(config.get(
+            'LLMChatter.Bridge.InterSystemStaggerMin',
+            3
+        ))
+        stagger_max = float(config.get(
+            'LLMChatter.Bridge.InterSystemStaggerMax',
+            6
+        ))
+        stagger_if_needed(
+            poll_iv, stagger_min, stagger_max
+        )
+
         # Get zone_id from the request
         zone_id = request.get('zone_id', 0)
         request['zone_id'] = zone_id if zone_id else 0
@@ -1688,6 +1707,14 @@ def main():
     )
     urgent_floor = _PRIORITY_URGENT_FLOOR
 
+    # Inter-system stagger range (seconds)
+    inter_stagger_min = float(config.get(
+        'LLMChatter.Bridge.InterSystemStaggerMin', 3
+    ))
+    inter_stagger_max = float(config.get(
+        'LLMChatter.Bridge.InterSystemStaggerMax', 6
+    ))
+
     chatter_mode = get_chatter_mode(config)
 
     logger.info("=" * 60)
@@ -1920,6 +1947,8 @@ def main():
         f"{config.get('LLMChatter.Bridge.PollIntervalSeconds', 3)}s"
         f"  Bridge.MaxConcurrent: "
         f"{config.get('LLMChatter.Bridge.MaxConcurrent', 3)}"
+        f"  InterSystemStagger: "
+        f"{inter_stagger_min}s\u2013{inter_stagger_max}s"
     )
     logger.info(
         f"  MessageDelayMin: "

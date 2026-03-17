@@ -6,6 +6,7 @@ processing from the bridge.
 
 import logging
 import random
+import time
 from typing import List
 
 from chatter_constants import (
@@ -34,6 +35,8 @@ from chatter_shared import (
     select_message_type,
     calculate_dynamic_delay,
     get_chatter_mode,
+    _zone_last_delivery,
+    _zone_delivery_delay,
 )
 from chatter_shared import build_talent_context
 from chatter_prompts import (
@@ -51,6 +54,52 @@ from chatter_prompts import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _fetch_loot_data(config, zone_id, level):
+    """Fetch and select a loot item for the zone.
+
+    Handles: query_zone_loot, cooldown filter,
+    quality weights, random.choices, mark_loot_seen.
+
+    Returns item_data dict or None if no loot found.
+    """
+    loot = query_zone_loot(config, zone_id, level)
+    if not loot:
+        return None
+    cooldown = int(config.get(
+        'LLMChatter.LootRecentCooldownSeconds', 0
+    ))
+    if cooldown > 0:
+        recent_ids = (
+            zone_cache.get_recent_loot_ids(
+                zone_id, cooldown
+            )
+        )
+        filtered = [
+            item for item in loot
+            if item.get('item_id')
+            not in recent_ids
+        ]
+        if filtered:
+            loot = filtered
+    quality_weights = {
+        0: 35, 1: 30, 2: 22, 3: 10, 4: 3
+    }
+    weights = [
+        quality_weights.get(
+            item.get('item_quality', 2), 10
+        )
+        for item in loot
+    ]
+    item_data = random.choices(
+        loot, weights=weights, k=1
+    )[0]
+    if cooldown > 0 and item_data.get('item_id'):
+        zone_cache.mark_loot_seen(
+            zone_id, item_data['item_id']
+        )
+    return item_data
 
 
 def process_statement(
@@ -77,6 +126,7 @@ def process_statement(
     # Get zone data if needed
     quest_data = None
     item_data = None
+    item_can_use = False
     spell_data = None
 
     if msg_type == "quest" or msg_type == "quest_reward":
@@ -89,49 +139,10 @@ def process_statement(
             msg_type = "plain"  # Fallback
 
     if msg_type == "loot":
-        loot = query_zone_loot(
+        item_data = _fetch_loot_data(
             config, zone_id, bot['level']
         )
-        if loot:
-            cooldown = int(config.get(
-                'LLMChatter.LootRecentCooldownSeconds',
-                0
-            ))
-            if cooldown > 0:
-                recent_ids = (
-                    zone_cache.get_recent_loot_ids(
-                        zone_id, cooldown
-                    )
-                )
-                filtered = [
-                    item for item in loot
-                    if item.get('item_id')
-                    not in recent_ids
-                ]
-                if filtered:
-                    loot = filtered
-            # Weight selection by quality
-            # Quality: 0=gray, 1=white, 2=green,
-            #          3=blue, 4=epic
-            quality_weights = {
-                0: 35, 1: 30, 2: 22, 3: 10, 4: 3
-            }
-            weights = [
-                quality_weights.get(
-                    item.get('item_quality', 2), 10
-                )
-                for item in loot
-            ]
-            item_data = random.choices(
-                loot, weights=weights, k=1
-            )[0]
-            if (
-                cooldown > 0
-                and item_data.get('item_id')
-            ):
-                zone_cache.mark_loot_seen(
-                    zone_id, item_data['item_id']
-                )
+        if item_data:
             # Check if bot's class can use the item
             item_can_use = can_class_use_item(
                 bot['class'],
@@ -145,47 +156,10 @@ def process_statement(
             msg_type = "plain"  # Fallback
 
     if msg_type == "trade":
-        loot = query_zone_loot(
+        item_data = _fetch_loot_data(
             config, zone_id, bot['level']
         )
-        if loot:
-            cooldown = int(config.get(
-                'LLMChatter.LootRecentCooldownSeconds',
-                0
-            ))
-            if cooldown > 0:
-                recent_ids = (
-                    zone_cache.get_recent_loot_ids(
-                        zone_id, cooldown
-                    )
-                )
-                filtered = [
-                    item for item in loot
-                    if item.get('item_id')
-                    not in recent_ids
-                ]
-                if filtered:
-                    loot = filtered
-            quality_weights = {
-                0: 35, 1: 30, 2: 22, 3: 10, 4: 3
-            }
-            weights = [
-                quality_weights.get(
-                    item.get('item_quality', 2), 10
-                )
-                for item in loot
-            ]
-            item_data = random.choices(
-                loot, weights=weights, k=1
-            )[0]
-            if (
-                cooldown > 0
-                and item_data.get('item_id')
-            ):
-                zone_cache.mark_loot_seen(
-                    zone_id, item_data['item_id']
-                )
-        else:
+        if not item_data:
             msg_type = "plain"  # Fallback
 
     if msg_type == "spell":
@@ -221,6 +195,7 @@ def process_statement(
     allow_action = (
         random.random() < get_action_chance()
     )
+    chosen_topic = ""
     if msg_type == "plain":
         # Get zone mobs for context
         zone_mobs = []
@@ -237,6 +212,7 @@ def process_statement(
             else AMBIENT_CHAT_TOPICS
         )
         topic = random.choice(topic_pool)
+        chosen_topic = topic
         prompt = build_plain_statement_prompt(
             bot, zone_id, zone_mobs,
             config, current_weather,
@@ -332,11 +308,22 @@ def process_statement(
             return True
 
 
-        # Insert for delivery
+        # Insert for delivery — enforce zone gap
+        extra = _zone_delivery_delay(zone_id, config)
+        topic_label = (
+            f" topic={chosen_topic}"
+            if chosen_topic else ""
+        )
+        logger.info(
+            "[GEN-FLOW] ambient statement | "
+            "type=%s%s bot=%s delay=%.1fs seq=0",
+            msg_type, topic_label, bot['name'],
+            extra,
+        )
         insert_chat_message(
             db, bot['guid'], bot['name'], message,
             channel=channel,
-            delay_seconds=0,
+            delay_seconds=extra,
             queue_id=request['id'],
             sequence=0,
         )
@@ -427,95 +414,17 @@ def process_conversation(
             msg_type = "plain"
 
     if msg_type == "loot":
-        loot = query_zone_loot(
-            config,
-            request.get('zone_id', 0),
-            bots[0]['level']
+        item_data = _fetch_loot_data(
+            config, zone_id, bots[0]['level']
         )
-        if loot:
-            cooldown = int(config.get(
-                'LLMChatter.LootRecentCooldownSeconds',
-                0
-            ))
-            if cooldown > 0:
-                recent_ids = (
-                    zone_cache.get_recent_loot_ids(
-                        zone_id, cooldown
-                    )
-                )
-                filtered = [
-                    item for item in loot
-                    if item.get('item_id')
-                    not in recent_ids
-                ]
-                if filtered:
-                    loot = filtered
-            quality_weights = {
-                0: 30, 1: 30, 2: 25, 3: 12, 4: 3
-            }
-            weights = [
-                quality_weights.get(
-                    item.get('item_quality', 2), 10
-                )
-                for item in loot
-            ]
-            item_data = random.choices(
-                loot, weights=weights, k=1
-            )[0]
-            if (
-                cooldown > 0
-                and item_data.get('item_id')
-            ):
-                zone_cache.mark_loot_seen(
-                    zone_id, item_data['item_id']
-                )
-        else:
+        if not item_data:
             msg_type = "plain"
 
     if msg_type == "trade":
-        loot = query_zone_loot(
-            config,
-            request.get('zone_id', 0),
-            bots[0]['level']
+        item_data = _fetch_loot_data(
+            config, zone_id, bots[0]['level']
         )
-        if loot:
-            cooldown = int(config.get(
-                'LLMChatter.LootRecentCooldownSeconds',
-                0
-            ))
-            if cooldown > 0:
-                recent_ids = (
-                    zone_cache.get_recent_loot_ids(
-                        zone_id, cooldown
-                    )
-                )
-                filtered = [
-                    item for item in loot
-                    if item.get('item_id')
-                    not in recent_ids
-                ]
-                if filtered:
-                    loot = filtered
-            quality_weights = {
-                0: 30, 1: 30, 2: 25, 3: 12, 4: 3
-            }
-            weights = [
-                quality_weights.get(
-                    item.get('item_quality', 2), 10
-                )
-                for item in loot
-            ]
-            item_data = random.choices(
-                loot, weights=weights, k=1
-            )[0]
-            if (
-                cooldown > 0
-                and item_data.get('item_id')
-            ):
-                zone_cache.mark_loot_seen(
-                    zone_id, item_data['item_id']
-                )
-        else:
+        if not item_data:
             msg_type = "plain"
 
     if msg_type == "spell":
@@ -529,6 +438,7 @@ def process_conversation(
             msg_type = "plain"
 
     # Build prompt
+    chosen_topic = ""
     if msg_type == "plain":
         # Get zone mobs for context
         zone_mobs = []
@@ -545,6 +455,7 @@ def process_conversation(
             else AMBIENT_CHAT_TOPICS
         )
         topic = random.choice(topic_pool)
+        chosen_topic = topic
         allow_action = (
             random.random() < get_action_chance()
         )
@@ -648,8 +559,12 @@ def process_conversation(
                 )
 
         if messages:
-
-            cumulative_delay = 0.0
+            # Zone gap applies to first message only;
+            # conversation followups stagger on top
+            base_delay = _zone_delivery_delay(
+                zone_id, config
+            )
+            cumulative_delay = base_delay
             prev_msg_len = 0
             for i, msg in enumerate(messages):
                 bot_guid = bot_guids.get(
@@ -677,6 +592,19 @@ def process_conversation(
                     cumulative_delay += delay
                 prev_msg_len = len(final_message)
 
+                topic_label = (
+                    f" topic={chosen_topic}"
+                    if chosen_topic else ""
+                )
+                logger.info(
+                    "[GEN-FLOW] ambient conv | "
+                    "type=%s%s bot=%s delay=%.1fs "
+                    "seq=%d/%d",
+                    msg_type, topic_label,
+                    msg['name'],
+                    cumulative_delay, i,
+                    len(messages),
+                )
                 insert_chat_message(
                     db, bot_guid,
                     msg['name'], final_message,
@@ -687,6 +615,12 @@ def process_conversation(
                 )
 
 
+            # Push zone timestamp to after the last
+            # message so the gap applies from the END
+            # of the conversation, not the start
+            _zone_last_delivery[zone_id] = (
+                time.monotonic() + cumulative_delay
+            )
             db.commit()
             return True
     return False

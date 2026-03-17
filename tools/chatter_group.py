@@ -62,6 +62,7 @@ from chatter_shared import (
     get_zone_name,
     get_subzone_name,
     get_player_zone,
+    stagger_if_needed,
 )
 from chatter_db import (
     get_character_info_by_name,
@@ -518,7 +519,7 @@ def process_group_event(db, client, config, event):
         )
         insert_chat_message(
             db, bot_guid, bot_name, message,
-            channel='party', delay_seconds=2,
+            channel='party', delay_seconds=0,
             event_id=event_id, emote=emote,
         )
 
@@ -731,8 +732,8 @@ def process_group_join_batch_event(
             if len(message) > 255:
                 message = message[:252] + "..."
 
-            # Stagger: 2s, 4s, 6s, 8s ...
-            delay = 2 + (idx * 2)
+            # Stagger: 0s, 2s, 4s, 6s ...
+            delay = idx * 2
             last_delay = delay
 
             emote = (
@@ -2612,6 +2613,24 @@ def check_idle_group_chatter(
             and len(all_bots) >= 2
         )
 
+        # Stagger if another system already submitted
+        # an LLM call this poll cycle (avoids two
+        # systems delivering in the same bucket).
+        poll_iv = int(config.get(
+            'LLMChatter.Bridge.PollIntervalSeconds',
+            3
+        ))
+        stagger_min = float(config.get(
+            'LLMChatter.Bridge.InterSystemStaggerMin',
+            3
+        ))
+        stagger_max = float(config.get(
+            'LLMChatter.Bridge.InterSystemStaggerMax',
+            6
+        ))
+        stagger_if_needed(
+            poll_iv, stagger_min, stagger_max
+        )
 
         if use_conversation:
             result = _idle_conversation(

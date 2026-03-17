@@ -43,27 +43,18 @@ def set_prompt_spice_count(value: int):
 
 
 def _pick_length_hint(mode):
-    """Pick a random length hint with chance of
-    allowing longer messages, plus optional humor
-    encouragement. Matches general chatter's
-    variable length system.
+    """Pick a random length hint plus optional humor.
+
+    The hint alone drives length — no competing
+    'short/medium only' override that flattens variety.
     """
     is_rp = (mode == 'roleplay')
     pool = RP_LENGTH_HINTS if is_rp else LENGTH_HINTS
     hint = random.choice(pool)
-    long_chance = 20 if is_rp else 25
-    if random.randint(1, 100) <= long_chance:
-        result = (
-            f"Length: {hint}\n"
-            f"Length mode: long allowed (up to "
-            f"~200 chars) if it feels natural"
-        )
-    else:
-        result = (
-            f"Length: {hint}\n"
-            f"Length mode: short/medium only "
-            f"(avoid long messages)"
-        )
+    result = (
+        f"Length: {hint} — follow this closely, "
+        f"vary lengths naturally between messages"
+    )
     humor = _maybe_humor_hint(mode)
     if humor:
         result += f"\n{humor}"

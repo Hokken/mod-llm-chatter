@@ -340,7 +340,7 @@ LLMChatter.GroupChatter.PreCacheEnable = 1
 #       TriggerChance per zone. Lower = more frequent checks.
 #       Default: 60
 #
-LLMChatter.TriggerIntervalSeconds = 30
+LLMChatter.TriggerIntervalSeconds = 15
 
 #
 #   LLMChatter.TriggerChance
@@ -350,7 +350,7 @@ LLMChatter.TriggerIntervalSeconds = 30
 #       (via internal CityChatterMultiplier).
 #       Default: 15
 #
-LLMChatter.TriggerChance = 20
+LLMChatter.TriggerChance = 10
 
 #
 #   LLMChatter.ConversationChance
@@ -461,7 +461,7 @@ LLMChatter.Events.MinorEventChance = 20
 #       IdleChance. Lower = more frequent checks.
 #       Default: 60
 #
-LLMChatter.GroupChatter.IdleCheckInterval = 40
+LLMChatter.GroupChatter.IdleCheckInterval = 20
 
 #
 #   LLMChatter.GroupChatter.IdleChance
@@ -469,7 +469,7 @@ LLMChatter.GroupChatter.IdleCheckInterval = 40
 #       chatting during downtime.
 #       Default: 10
 #
-LLMChatter.GroupChatter.IdleChance = 10
+LLMChatter.GroupChatter.IdleChance = 5
 
 #
 #   LLMChatter.GroupChatter.ConversationBias
@@ -478,7 +478,7 @@ LLMChatter.GroupChatter.IdleChance = 10
 #       2+ bots in the group.
 #       Default: 70
 #
-LLMChatter.GroupChatter.ConversationBias = 70
+LLMChatter.GroupChatter.ConversationBias = 50
 
 #
 #   LLMChatter.GroupChatter.IdleCooldown
@@ -486,7 +486,7 @@ LLMChatter.GroupChatter.ConversationBias = 70
 #       for the same group.
 #       Default: 30
 #
-LLMChatter.GroupChatter.IdleCooldown = 30
+LLMChatter.GroupChatter.IdleCooldown = 10
 
 #
 #   LLMChatter.GroupChatter.KillChanceNormal
@@ -687,6 +687,55 @@ LLMChatter.GeneralChat.QuestionChance = 80
 #
 LLMChatter.GeneralChat.Cooldown = 30
 
+#
+#   LLMChatter.GeneralChat.MinZoneGap
+#       Minimum seconds between ambient General channel
+#       messages in the same zone. Prevents flurries of
+#       messages appearing in quick succession after a
+#       lucky RNG streak. Conversations are paced
+#       internally; only the first message of a
+#       conversation checks this gap.
+#       Default: 15
+#       [BRIDGE]
+#
+LLMChatter.GeneralChat.MinZoneGap = 15
+
+#
+#   LLMChatter.GeneralChat.ConversationChance
+#       Player reaction conversations — chance (0-100)
+#       that when a player speaks in General channel,
+#       a second bot joins the conversation. Requires
+#       2+ bots in the zone. Separate from
+#       LLMChatter.ConversationChance which controls
+#       ambient (unprompted) conversation frequency.
+#       Default: 30
+#       [BRIDGE]
+#
+LLMChatter.GeneralChat.ConversationChance = 30
+
+#
+#   LLMChatter.GeneralChat.ExtendedConversationChance
+#       Chance (0-100) that after a 2-bot player
+#       reaction conversation, the exchange continues
+#       with additional back-and-forth messages.
+#       Uses diminishing continuation chances per
+#       extra message (70%, 50%, 30%).
+#       Default: 40
+#       [BRIDGE]
+#
+LLMChatter.GeneralChat.ExtendedConversationChance = 40
+
+#
+#   LLMChatter.GeneralChat.ExtendedMaxMessages
+#       Maximum total bot messages in a player
+#       reaction conversation (including the initial
+#       2-bot exchange). Minimum: 3, Maximum: 8.
+#       Lower values reduce worker thread blocking.
+#       Default: 3
+#       [BRIDGE]
+#
+LLMChatter.GeneralChat.ExtendedMaxMessages = 3
+
 ###############################################################################
 # RAID CHATTER TUNING [SERVER]
 ###############################################################################
@@ -817,6 +866,18 @@ LLMChatter.Bridge.PollIntervalSeconds = 3
 #       Default: 3
 #
 LLMChatter.Bridge.MaxConcurrent = 3
+
+#
+#   LLMChatter.Bridge.InterSystemStaggerMin
+#   LLMChatter.Bridge.InterSystemStaggerMax
+#       Random delay range (seconds) added when two
+#       different systems (General ambient + group idle)
+#       submit LLM calls in the same poll cycle, to
+#       prevent messages arriving simultaneously in game.
+#       Default: Min = 3, Max = 6
+#
+LLMChatter.Bridge.InterSystemStaggerMin = 3
+LLMChatter.Bridge.InterSystemStaggerMax = 6
 
 #
 #   LLMChatter.MessageDelayMin

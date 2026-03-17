@@ -11,12 +11,13 @@ bot selection by zone.
 
 import logging
 import random
+import time
 
 # Module-level config defaults (set by init_general_config)
 _chat_history_limit = 10
 _spice_count = 2
 _extended_conv_chance = 40
-_extended_max_messages = 5
+_extended_max_messages = 3
 
 from chatter_shared import (
     call_llm, cleanup_message, strip_speaker_prefix,
@@ -30,6 +31,8 @@ from chatter_shared import (
     append_json_instruction,
     parse_single_response,
     get_action_chance,
+    _zone_delivery_delay,
+    _zone_last_delivery,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -85,13 +88,13 @@ def init_general_config(config):
     try:
         _extended_max_messages = int(config.get(
             'LLMChatter.GeneralChat.'
-            'ExtendedMaxMessages', 5
+            'ExtendedMaxMessages', 3
         ))
         _extended_max_messages = max(
             3, min(_extended_max_messages, 8)
         )
     except (ValueError, TypeError):
-        _extended_max_messages = 5
+        _extended_max_messages = 3
 
 
 # Same personality traits as group chatter
@@ -723,9 +726,20 @@ def process_general_player_msg_event(
 
 
         # Queue first bot's message — responsive
-        # since player is waiting for a reply
+        # since player is waiting for a reply.
+        # Also enforce zone gap so player reactions
+        # don't stack with ambient messages.
+        zone_gap = _zone_delivery_delay(
+            zone_id, config
+        )
         delay1 = calculate_dynamic_delay(
             len(msg1), config, responsive=True,
+        ) + zone_gap
+        conv_label = "conv" if is_conversation else "stmt"
+        logger.info(
+            "[GEN-FLOW] player-react %s | "
+            "bot=%s delay=%.1fs seq=0",
+            conv_label, bot1_name, delay1,
         )
         # General channel: skip emotes
         # (proximity-based, not visible
@@ -796,9 +810,19 @@ def process_general_player_msg_event(
                             ),
                         )
                     except Exception as e3:
-                        pass
+                        logger.error(
+                            "[GEN] extended conv "
+                            "failed event=%s: %s",
+                            event_id, e3,
+                            exc_info=True
+                        )
             except Exception as e2:
-                pass
+                logger.error(
+                    "[GEN] followup failed "
+                    "event=%s: %s",
+                    event_id, e2,
+                    exc_info=True
+                )
 
         _mark_event(db, event_id, 'completed')
         return True
@@ -911,6 +935,11 @@ def _general_followup(
     # Stagger: first bot delay + responsive gap
     delay2 = delay1 + random.randint(2, 5)
 
+    logger.info(
+        "[GEN-FLOW] player-react followup | "
+        "bot=%s delay=%.1fs seq=1 (gap=%.1fs)",
+        bot2_name, delay2, delay2 - delay1,
+    )
     # General channel: skip emotes
     insert_chat_message(
         db, bot2_guid, bot2_name, msg2,
@@ -918,6 +947,12 @@ def _general_followup(
         delay_seconds=delay2,
         event_id=event_id,
         sequence=1,
+    )
+
+    # Push zone timestamp past bot2's delivery so
+    # the gap enforced from the END of the exchange.
+    _zone_last_delivery[zone_id] = (
+        time.monotonic() + delay2
     )
 
     # Store in General chat history
@@ -1275,9 +1310,17 @@ def _general_extended_conversation(
             msg = msg[:252] + "..."
 
         msg_count += 1
+        prev_delay = current_delay
         current_delay += random.randint(2, 5)
 
-
+        logger.info(
+            "[GEN-FLOW] extended conv | "
+            "bot=%s delay=%.1fs seq=%d "
+            "(gap=%.1fs)",
+            speaker['name'], current_delay,
+            msg_count - 1,
+            current_delay - prev_delay,
+        )
         insert_chat_message(
             db, speaker['guid'],
             speaker['name'], msg,

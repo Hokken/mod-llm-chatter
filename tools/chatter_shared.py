@@ -12,6 +12,8 @@ import os
 import random
 import re
 import sys
+import threading
+import time
 from typing import Optional, Dict, List, Tuple, Any
 
 from chatter_constants import (
@@ -78,6 +80,124 @@ logger = logging.getLogger(__name__)
 # Key: zone_id, Value: timestamp of last transport announcement
 _zone_transport_cooldowns: Dict[int, float] = {}
 
+# Per-zone delivery pacing for General channel messages.
+# Shared between chatter_ambient and chatter_general so
+# that player reactions and ambient statements both
+# respect the same minimum gap per zone.
+# Key: zone_id -> monotonic time of last delivery (or
+# the projected future time when a gap is applied).
+_zone_last_delivery: Dict[int, float] = {}
+_zone_gap_lock = threading.Lock()
+_ZONE_GAP_DEFAULT = 15  # seconds
+
+
+def _evict_zone_delivery_cache() -> None:
+    """Remove stale entries from _zone_last_delivery.
+
+    Entries older than 1 hour are irrelevant — no
+    meaningful gap enforcement needed after that long.
+    Called probabilistically from _zone_delivery_delay
+    (~1% of calls) to bound memory growth.
+    """
+    cutoff = time.monotonic() - 3600
+    stale = [
+        k for k, v in _zone_last_delivery.items()
+        if v < cutoff
+    ]
+    for k in stale:
+        del _zone_last_delivery[k]
+
+
+def _zone_delivery_delay(zone_id, config) -> float:
+    """Return extra delay (seconds) to enforce a
+    minimum gap between General messages in a zone.
+
+    Returns 0 if enough time has passed since the
+    last delivery in this zone.
+
+    Shared between ambient and player-reaction paths
+    so both contribute to and respect the same gap.
+    Thread-safe: read-compute-write is under lock.
+    """
+    # Probabilistic eviction (~1% chance per call)
+    if random.random() < 0.01:
+        _evict_zone_delivery_cache()
+
+    gap = float(config.get(
+        'LLMChatter.GeneralChat.MinZoneGap',
+        _ZONE_GAP_DEFAULT
+    ))
+    with _zone_gap_lock:
+        now = time.monotonic()
+        last = _zone_last_delivery.get(zone_id, 0)
+        elapsed = now - last
+        if elapsed >= gap:
+            _zone_last_delivery[zone_id] = now
+            return 0
+        extra = gap - elapsed
+        _zone_last_delivery[zone_id] = now + extra
+        return extra
+
+
+# =============================================================================
+# INTER-SYSTEM LLM SUBMISSION STAGGER
+#
+# When two independent systems (e.g. General ambient
+# and group idle chatter) both fire LLM calls in the
+# same poll cycle, their messages land in the same
+# delivery bucket and appear simultaneously in-game.
+# This stagger delays the second submission by 1-2x
+# the poll interval so delivery falls in a different
+# bucket.  The sleep happens inside the worker thread,
+# never on the main poll loop.
+# =============================================================================
+_stagger_lock = threading.Lock()
+_last_system_submission_time: float = 0.0
+
+
+def stagger_if_needed(
+    poll_interval: float,
+    stagger_min: float = 0.0,
+    stagger_max: float = 0.0,
+) -> None:
+    """If another system submitted an LLM call this
+    poll cycle, sleep a random stagger_min–stagger_max
+    seconds so messages land in different delivery
+    buckets.
+
+    If stagger_min/stagger_max are 0 (or omitted),
+    falls back to 1–2x poll_interval.
+
+    Must be called from worker threads only — never
+    from the main poll loop.
+    """
+    global _last_system_submission_time
+    with _stagger_lock:
+        now = time.monotonic()
+        needs_stagger = (
+            now - _last_system_submission_time
+            < poll_interval
+        )
+        # Stamp immediately so the next caller in
+        # this same cycle also sees a recent stamp.
+        _last_system_submission_time = now
+
+    if needs_stagger:
+        lo = stagger_min if stagger_min > 0 else (
+            poll_interval
+        )
+        hi = stagger_max if stagger_max > 0 else (
+            poll_interval * 2
+        )
+        delay = random.uniform(lo, hi)
+        time.sleep(delay)
+        # Re-stamp after the sleep so later callers
+        # see the post-stagger time, not the pre-
+        # stagger time.
+        with _stagger_lock:
+            _last_system_submission_time = (
+                time.monotonic()
+            )
 
 
 # =============================================================================
