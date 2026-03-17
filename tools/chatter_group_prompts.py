@@ -28,6 +28,7 @@ from chatter_constants import (
     EMOTE_LIST_STR,
     LENGTH_HINTS,
     RP_LENGTH_HINTS,
+    BG_MAP_NAMES,
 )
 
 logger = logging.getLogger(__name__)
@@ -3925,6 +3926,32 @@ BOT_QUESTION_TOPICS = [
     'what they would do if they were not an adventurer',
 ]
 
+# Questions focused on the dungeon/raid context
+DUNGEON_QUESTION_TOPICS = [
+    'whether they have run this dungeon before',
+    'their strategy for the next boss',
+    'the most dangerous enemy they expect here',
+    'what loot or reward they are hoping for',
+    'a close call or wipe they remember in this place',
+    'what they know about the lore behind this dungeon',
+    'their role in the group for the tougher fights ahead',
+    'how they feel about the difficulty so far',
+    'the part of this dungeon they find most challenging',
+    'whether they prefer this dungeon over others',
+]
+
+# Questions focused on the battleground context
+BG_QUESTION_TOPICS = [
+    'their strategy for this battleground',
+    'their favourite role in PvP fights',
+    'the best play they ever made in a battleground',
+    'which objective they think matters most here',
+    'how they read the flow of a battle like this',
+    'what frustrates them most about losing a battleground',
+    'their opinion on the current team composition',
+    'whether they prefer this battleground over others',
+]
+
 
 def build_bot_question_prompt(
     bot, traits, mode,
@@ -3965,7 +3992,13 @@ def build_bot_question_prompt(
     twist = maybe_get_creative_twist(
         chance=1.0, mode=mode
     )
-    topic = random.choice(BOT_QUESTION_TOPICS)
+    # Pick topic pool based on location context
+    if get_dungeon_flavor(map_id) is not None:
+        topic = random.choice(DUNGEON_QUESTION_TOPICS)
+    elif map_id in BG_MAP_NAMES:
+        topic = random.choice(BG_QUESTION_TOPICS)
+    else:
+        topic = random.choice(BOT_QUESTION_TOPICS)
 
 
     rp_context = ""

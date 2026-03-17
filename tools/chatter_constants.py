@@ -1077,6 +1077,18 @@ or oblivion.""",
 }
 
 # =============================================================================
+# BATTLEGROUND MAP NAMES
+# =============================================================================
+# Map ID → display name for the four WotLK battlegrounds.
+# Used to suppress AMBIENT topics and inject BG context
+# into idle party chat prompts when players are inside a BG.
+BG_MAP_NAMES = {
+    30:  "Alterac Valley",
+    489: "Warsong Gulch",
+    529: "Arathi Basin",
+    566: "Eye of the Storm",
+}
+
 # DUNGEON FLAVOR - Rich context for immersive dungeon/raid chat generation
 # =============================================================================
 # Each dungeon/raid gets a description that gives the LLM world knowledge.

@@ -135,6 +135,7 @@ from chatter_constants import (
     CLASS_ROLE_MAP,
     AMBIENT_CHAT_TOPICS,
     AMBIENT_CHAT_TOPICS_RP,
+    BG_MAP_NAMES,
 )
 
 logger = logging.getLogger(__name__)
@@ -1948,13 +1949,21 @@ def build_idle_chatter_prompt(
     twist = maybe_get_creative_twist(
         chance=1.0, mode=mode
     )
-    topic_pool = (
-        AMBIENT_CHAT_TOPICS_RP
-        if mode == 'roleplay'
-        else AMBIENT_CHAT_TOPICS
-    )
-    topic = random.choice(topic_pool)
-
+    # Detect dungeon/BG before topic selection so we
+    # can skip AMBIENT topics when inside an instance
+    # or battleground.
+    dungeon_flav_early = get_dungeon_flavor(map_id)
+    in_dungeon_early = dungeon_flav_early is not None
+    in_bg_early = map_id in BG_MAP_NAMES
+    if in_dungeon_early or in_bg_early:
+        topic = None  # instance/BG context drives tone
+    else:
+        topic_pool = (
+            AMBIENT_CHAT_TOPICS_RP
+            if mode == 'roleplay'
+            else AMBIENT_CHAT_TOPICS
+        )
+        topic = random.choice(topic_pool)
 
     rp_context = ""
     if is_rp:
@@ -1983,19 +1992,16 @@ def build_idle_chatter_prompt(
     dungeon_flav = get_dungeon_flavor(map_id)
     zone_flav = get_zone_flavor(zone_id)
     in_dungeon = dungeon_flav is not None
+    bg_name = BG_MAP_NAMES.get(map_id)
     if in_dungeon:
-        if is_rp:
-            rp_context += (
-                f"\nDungeon context: {dungeon_flav}"
-            )
-        else:
-            dungeon_name = dungeon_flav.split(
-                ':'
-            )[0].strip()
-            rp_context += f"\nDungeon: {dungeon_name}"
+        rp_context += (
+            f"\nDungeon context: {dungeon_flav}"
+        )
         if dungeon_bosses:
             boss_list = ', '.join(dungeon_bosses[:6])
             rp_context += f"\nBosses here: {boss_list}"
+    elif bg_name:
+        rp_context += f"\nBattleground: {bg_name}"
     else:
         zone_name = get_zone_name(zone_id)
         if is_rp and zone_flav:
@@ -2095,9 +2101,14 @@ def build_idle_chatter_prompt(
     )
     if twist:
         prompt += f"Creative twist: {twist}\n"
+    party_ctx = (
+        f"You're in a party, currently {topic}."
+        if topic else
+        "You're in a party."
+    )
     prompt += (
         f"{rp_context}\n\n"
-        f"You're in a party, currently {topic}.\n"
+        f"{party_ctx}\n"
         f"{address_hint}\n"
         f"{style}\n\n"
         f"Say something casual in party chat.\n"
@@ -2191,23 +2202,20 @@ def build_idle_conversation_prompt(
             f"WoW players."
         )
 
-    # Dungeon flavor takes priority over zone flavor
+    # Dungeon/BG flavor takes priority over zone flavor
     dungeon_flav = get_dungeon_flavor(map_id)
     zone_flav = get_zone_flavor(zone_id)
     in_dungeon = dungeon_flav is not None
+    bg_name = BG_MAP_NAMES.get(map_id)
     if in_dungeon:
-        if is_rp:
-            parts.append(
-                f"Dungeon context: {dungeon_flav}"
-            )
-        else:
-            dungeon_name = dungeon_flav.split(
-                ':'
-            )[0].strip()
-            parts.append(f"Dungeon: {dungeon_name}")
+        parts.append(
+            f"Dungeon context: {dungeon_flav}"
+        )
         if dungeon_bosses:
             boss_list = ', '.join(dungeon_bosses[:6])
             parts.append(f"Bosses here: {boss_list}")
+    elif bg_name:
+        parts.append(f"Battleground: {bg_name}")
     else:
         zone_name = get_zone_name(zone_id)
         if is_rp and zone_flav:
@@ -2281,8 +2289,10 @@ def build_idle_conversation_prompt(
             f"or address them occasionally."
         )
 
-    # Topic
-    parts.append(f"Topic: {topic}")
+    # Topic (skipped in dungeons — dungeon context
+    # already grounds the conversation)
+    if topic:
+        parts.append(f"Topic: {topic}")
 
     # Tone and twist
     tone = pick_random_tone(mode)
@@ -2293,8 +2303,11 @@ def build_idle_conversation_prompt(
     if twist:
         parts.append(f"Creative twist: {twist}")
 
-    # Message count scales with num_bots, cap at 8
-    msg_count = min(2 * num_bots, 8)
+    # Fixed message count keeps idle conversation
+    # volume constant regardless of group size.
+    # Bots still all participate via round-robin
+    # speaker assignment (bot_names[i % num_bots]).
+    msg_count = 4
     mood_sequence = (
         generate_conversation_mood_sequence(
             msg_count, mode
@@ -2560,6 +2573,60 @@ def check_idle_group_chatter(
             db, group_id
         )
 
+        # In raids, filter bots to the player's
+        # sub-group so party chat is visible to them.
+        # group_member.guid matches our group_id.
+        # Falls back to all bots if not in a raid
+        # or if the query fails.
+        try:
+            sg_cursor = db.cursor(dictionary=True)
+            sg_cursor.execute("""
+                SELECT gm.subgroup
+                FROM group_member gm
+                JOIN characters c
+                    ON c.guid = gm.memberGuid
+                WHERE gm.guid = %s
+                AND c.name = %s
+                LIMIT 1
+            """, (group_id, player_name))
+            sg_row = sg_cursor.fetchone()
+            if sg_row is not None:
+                player_sg = sg_row['subgroup']
+                bot_guids = [
+                    b['bot_guid'] for b in all_bots
+                ]
+                fmt = ','.join(
+                    ['%s'] * len(bot_guids)
+                )
+                sg_cursor.execute(f"""
+                    SELECT memberGuid, subgroup
+                    FROM group_member
+                    WHERE guid = %s
+                    AND memberGuid IN ({fmt})
+                """, [group_id] + bot_guids)
+                sg_map = {
+                    r['memberGuid']: r['subgroup']
+                    for r in sg_cursor.fetchall()
+                }
+                filtered = [
+                    b for b in all_bots
+                    if sg_map.get(
+                        b['bot_guid']
+                    ) == player_sg
+                ]
+                if filtered:
+                    all_bots = filtered
+                    logger.info(
+                        "[IDLE] sub-group filter: "
+                        "%d/%d bots in player's "
+                        "sub-group %d",
+                        len(filtered),
+                        len(bot_guids),
+                        player_sg,
+                    )
+        except Exception:
+            pass  # fallback: use all bots
+
         # Always use the real player's live zone.
         # Bots are co-located with the player.
         zone_id, map_id = get_player_zone(
@@ -2762,6 +2829,32 @@ def _idle_single_statement(
             area_id=area_id,
         )
 
+        _dflav = get_dungeon_flavor(map_id)
+        _bg = BG_MAP_NAMES.get(map_id)
+        if _dflav:
+            _ctx_key = "dungeon"
+            _ctx_label = _dflav.split(':')[0].strip()
+        elif _bg:
+            _ctx_key = "bg"
+            _ctx_label = _bg
+        else:
+            _ctx_key = "zone"
+            _ctx_label = (
+                get_zone_name(zone_id)
+                or f"zone={zone_id}"
+            )
+        logger.info(
+            "[IDLE] stmt | bot=%s %s=%s map=%s",
+            bot_name,
+            _ctx_key,
+            _ctx_label,
+            map_id,
+        )
+        logger.info(
+            "[IDLE] prompt snippet: %r",
+            prompt[:600],
+        )
+
         max_tokens = pick_random_max_tokens(config)
         response = call_llm(
             client, prompt, config,
@@ -2865,12 +2958,21 @@ def _idle_conversation(
         ]
 
     bot_names = [b['name'] for b in bots]
-    topic_pool = (
-        AMBIENT_CHAT_TOPICS_RP
-        if mode == 'roleplay'
-        else AMBIENT_CHAT_TOPICS
-    )
-    topic = random.choice(topic_pool)
+    # Skip AMBIENT topics inside dungeons and BGs —
+    # the instance/BG context injected by the prompt
+    # builder already grounds the conversation.
+    if (
+        get_dungeon_flavor(map_id) is not None
+        or map_id in BG_MAP_NAMES
+    ):
+        topic = None
+    else:
+        topic_pool = (
+            AMBIENT_CHAT_TOPICS_RP
+            if mode == 'roleplay'
+            else AMBIENT_CHAT_TOPICS
+        )
+        topic = random.choice(topic_pool)
 
     boss_str = (
         f", bosses={len(dungeon_bosses or [])}"
@@ -2900,6 +3002,30 @@ def _idle_conversation(
                 first_bot['class'],
                 first_bot['name'],
             )
+        _dflav = get_dungeon_flavor(map_id)
+        _bg = BG_MAP_NAMES.get(map_id)
+        if _dflav:
+            _ctx_key = "dungeon"
+            _ctx_label = _dflav.split(':')[0].strip()
+        elif _bg:
+            _ctx_key = "bg"
+            _ctx_label = _bg
+        else:
+            _ctx_key = "zone"
+            _ctx_label = (
+                get_zone_name(zone_id)
+                or f"zone={zone_id}"
+            )
+        logger.info(
+            "[IDLE] conv | bots=%s %s=%s map=%s "
+            "topic=%s",
+            names_str,
+            _ctx_key,
+            _ctx_label,
+            map_id,
+            topic or f"({_ctx_key} context)",
+        )
+
         prompt = build_idle_conversation_prompt(
             bots, traits_map, mode, topic,
             chat_history=chat_hist,
@@ -2913,6 +3039,10 @@ def _idle_conversation(
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             area_id=area_id,
+        )
+        logger.info(
+            "[IDLE] prompt snippet: %r",
+            prompt[:300],
         )
 
         # Scale tokens with number of bots
