@@ -51,7 +51,7 @@ def _pick_length_hint(mode):
     is_rp = (mode == 'roleplay')
     pool = RP_LENGTH_HINTS if is_rp else LENGTH_HINTS
     hint = random.choice(pool)
-    long_chance = 15 if is_rp else 12
+    long_chance = 20 if is_rp else 25
     if random.randint(1, 100) <= long_chance:
         result = (
             f"Length: {hint}\n"

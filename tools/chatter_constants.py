@@ -1672,10 +1672,10 @@ MESSAGE_CATEGORIES = [
 
 # Length hints
 LENGTH_HINTS = [
-    "very brief (3-6 words)",
     "short (6-12 words)",
-    "short sentence (<=14 words)",
-    "medium if needed (15-22 words)",
+    "medium (15-22 words)",
+    "medium (15-22 words)",
+    "conversational (25-40 words)",
 ]
 
 # =============================================================================

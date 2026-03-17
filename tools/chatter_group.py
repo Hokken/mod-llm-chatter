@@ -60,6 +60,7 @@ from chatter_shared import (
     get_action_chance,
     build_talent_context,
     get_zone_name,
+    get_subzone_name,
     get_player_zone,
 )
 from chatter_db import (
@@ -2636,9 +2637,9 @@ def check_idle_group_chatter(
             )
         return result
     except Exception as e:
-        if _dbg:
-            logger.info(
-                f"[DEBUG] idle EXCEPTION: {e}")
+        logger.error(
+            f"[IDLE-DIAG] idle EXCEPTION: {e}",
+            exc_info=True)
         return False
     finally:
         with _last_idle_chatter_lock:
@@ -2912,7 +2913,6 @@ def _idle_conversation(
         if not response:
             return False
 
-
         # Parse JSON conversation
         messages = parse_conversation_response(
             response, bot_names
@@ -2979,6 +2979,7 @@ def _idle_conversation(
         return True
 
     except Exception as e:
+        logger.error(f"[IDLE-DIAG] conv EXCEPTION: {e}", exc_info=True)
         return False
 
 
