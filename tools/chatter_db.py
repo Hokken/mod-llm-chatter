@@ -411,8 +411,9 @@ def query_zone_mobs(
                 max(1, min_level - 3), max_level + 5
             ))
             mobs = [
-                f"[[npc:{row['entry']}:{row['name']}]]"
+                row['name']
                 for row in cursor.fetchall()
+                if row['name']
             ]
 
         if not mobs:
@@ -426,8 +427,9 @@ def query_zone_mobs(
                 LIMIT 50
             """, (max(1, min_level - 2), max_level + 3))
             mobs = [
-                f"[[npc:{row['entry']}:{row['name']}]]"
+                row['name']
                 for row in cursor.fetchall()
+                if row['name']
             ]
 
         db.close()

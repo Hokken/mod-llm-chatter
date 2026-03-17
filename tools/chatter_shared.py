@@ -82,6 +82,30 @@ _zone_transport_cooldowns: Dict[int, float] = {}
 
 # =============================================================================
 # NAME LOOKUPS
+def pick_random_max_tokens(config: dict) -> int:
+    """Pick a randomized max_tokens for single-
+    statement LLM calls. Creates natural length
+    variety that the LLM can't override.
+
+    NOT for conversations — those need the full
+    token budget for multi-message JSON arrays.
+
+    Distribution:
+      30% very short (60-100 tokens)
+      40% medium (80-150 tokens)
+      30% full config value
+    """
+    full = int(config.get(
+        'LLMChatter.MaxTokens', 350
+    ))
+    roll = random.random()
+    if roll < 0.30:
+        return random.randint(60, 100)
+    elif roll < 0.70:
+        return random.randint(80, 150)
+    return full
+
+
 # =============================================================================
 def get_zone_name(zone_id: int) -> str:
     """Get human-readable zone name from zone ID."""
@@ -859,6 +883,12 @@ def calculate_dynamic_delay(
         reading_time + reaction_time + typing_time + distraction
     )
 
+    pacing = float(config.get(
+        'LLMChatter.ConversationPacing', 1.0
+    ))
+    pacing = max(0.1, min(pacing, 5.0))
+    total_delay *= pacing
+
     minimum_for_length = (message_length / 4.0) + 2.0
     total_delay = max(total_delay, minimum_for_length)
     total_delay = max(total_delay, min_delay, 4.0)
@@ -902,6 +932,12 @@ def run_single_reaction(
       {'ok': bool, 'message': str|None, 'emote': str|None,
        'error_reason': str|None}
     """
+    # Randomize token budget for natural length
+    # variety unless caller specified an override.
+    if max_tokens_override is None:
+        max_tokens_override = pick_random_max_tokens(
+            config
+        )
     response = call_llm(
         client,
         prompt,

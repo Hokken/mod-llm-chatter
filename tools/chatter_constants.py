@@ -1659,10 +1659,12 @@ RP_MESSAGE_CATEGORIES = [
 ]
 
 RP_LENGTH_HINTS = [
-    "short and casual (5-10 words)",
-    "a normal sentence (10-16 words)",
-    "a couple of short thoughts (12-18 words)",
-    "a bit longer if it feels natural (16-24 words)",
+    "very brief, just a few words (3-5 words)",
+    "a short quip or remark (6-8 words)",
+    "short and casual (9-12 words)",
+    "a normal sentence (13-16 words)",
+    "a couple of short thoughts (17-22 words)",
+    "a bit longer if it feels natural (23-30 words)",
 ]
 
 # =============================================================================

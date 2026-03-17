@@ -43,6 +43,7 @@ from chatter_shared import (
     parse_extra_data, get_zone_flavor,
     get_subzone_lore, get_group_area,
     format_location_label,
+    pick_random_max_tokens,
     get_dungeon_flavor, get_dungeon_bosses,
     parse_conversation_response,
     calculate_dynamic_delay,
@@ -2762,9 +2763,7 @@ def _idle_single_statement(
             area_id=area_id,
         )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
+        max_tokens = pick_random_max_tokens(config)
         response = call_llm(
             client, prompt, config,
             max_tokens_override=max_tokens,

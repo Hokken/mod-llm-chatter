@@ -61,6 +61,25 @@ Tested extensively with excellent results:
 
 Ollama works for local/free inference but requires fast hardware (sub-5s response times). See the config file header for details.
 
+### Tuning the Chattiness
+
+The default config is intentionally set on the chatty side so you can see all the features in action. For a more relaxed, immersive experience, lower these values in `mod_llm_chatter.conf`:
+
+```ini
+# General channel ambient chatter (bots talk unprompted)
+LLMChatter.TriggerChance = 5           # default 10, try 3-5
+LLMChatter.TriggerIntervalSeconds = 60 # default 30, try 60-90
+
+# Party chatter during downtime
+LLMChatter.GroupChatter.IdleChance = 5          # default 10, try 3-5
+LLMChatter.GroupChatter.IdleCheckInterval = 60   # default 30, try 60
+
+# Quest reactions (accept, objectives, turn-in)
+LLMChatter.GroupChatter.QuestAcceptChance = 30   # default 100
+LLMChatter.GroupChatter.QuestObjectiveChance = 30 # default 100
+LLMChatter.GroupChatter.QuestCompleteChance = 40  # default 100
+```
+
 ### Known Limitations
 - Local Ollama on consumer hardware produces 15-70s latency, causing stale reactions
 - Models below 4B parameters frequently fail to produce valid JSON

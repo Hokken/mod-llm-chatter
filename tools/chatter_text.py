@@ -127,8 +127,21 @@ def cleanup_message(
 
     # Collapse newlines into single space (WoW chat
     # is single-line; multi-line LLM output causes
-    # ugly spacing)
-    result = re.sub(r'\s*\n\s*', ' ', result)
+    # ugly line breaks). Catches real newlines,
+    # \r\n, and literal backslash-n sequences that
+    # survive JSON decoding.
+    result = re.sub(r'\s*(?:\r\n|\r|\n)\s*', ' ', result)
+    result = result.replace('\\n', ' ')
+
+    # Strip brackets around non-link text. LLMs
+    # mimic [Creature Name] but only [item:],
+    # [spell:], [quest:] become real WoW links.
+    # Update lookahead if new link types are added
+    # to C++ ConvertAllLinks().
+    result = re.sub(
+        r'\[(?!item:|spell:|quest:)([^\]]+)\]',
+        lambda m: m.group(1).strip(), result
+    )
 
     # Em-dashes
     result = re.sub(r'\s*—\s*', ', ', result)

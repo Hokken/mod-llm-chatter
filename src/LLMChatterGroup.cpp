@@ -2099,13 +2099,12 @@ public:
 
         bool isBot = IsPlayerBot(player);
 
-        // Pick reactor: bot uses self, real player
-        // picks a random bot from group to react
-        Player* reactor = nullptr;
-        if (isBot)
-            reactor = player;
-        else
-            reactor = GetRandomBotInGroup(group);
+        // Pick reactor: a different bot reacts.
+        // Exclude the leveler so bots don't
+        // congratulate themselves.
+        Player* reactor = isBot
+            ? GetRandomBotInGroup(group, player)
+            : GetRandomBotInGroup(group);
 
         if (!reactor)
         {
@@ -2258,13 +2257,12 @@ public:
 
         bool isBot = IsPlayerBot(player);
 
-        // Pick reactor: bot uses self, real player
-        // picks a random bot from group to react
-        Player* reactor = nullptr;
-        if (isBot)
-            reactor = player;
-        else
-            reactor = GetRandomBotInGroup(group);
+        // Pick reactor: a different bot reacts.
+        // Exclude the actor so bots don't comment
+        // on their own quest objectives.
+        Player* reactor = isBot
+            ? GetRandomBotInGroup(group, player)
+            : GetRandomBotInGroup(group);
 
         if (!reactor)
             return true;
@@ -2533,13 +2531,12 @@ public:
 
         bool isBot = IsPlayerBot(player);
 
-        // Pick reactor: bot uses self, real player
-        // picks a random bot from group to react
-        Player* reactor = nullptr;
-        if (isBot)
-            reactor = player;
-        else
-            reactor = GetRandomBotInGroup(group);
+        // Pick reactor: a different bot reacts.
+        // Exclude the dead player so bots don't
+        // comment on their own death.
+        Player* reactor = isBot
+            ? GetRandomBotInGroup(group, player)
+            : GetRandomBotInGroup(group);
 
         if (!reactor)
         {

@@ -250,9 +250,6 @@ def process_group_kill_event(
                 f"\nCurrent mood: {mood_label}"
             )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
         result = run_single_reaction(
             db,
             client,
@@ -264,7 +261,6 @@ def process_group_kill_event(
             delay_seconds=3,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=max_tokens,
             context=(
                 f"grp-kill:#{event_id}:{bot_name}"
             ),
@@ -407,10 +403,6 @@ def process_group_loot_event(
         item_entry = int(
             extra_data.get('item_entry', 0)
         )
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
-
         def _loot_message_transform(raw_message):
             """Inject clickable item link into the
             first matching item-name occurrence."""
@@ -436,7 +428,6 @@ def process_group_loot_event(
             delay_seconds=3,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=max_tokens,
             context=(
                 f"grp-loot:#{event_id}"
                 f":{bot['name']}"
@@ -588,9 +579,6 @@ def process_group_combat_event(
             speaker_talent_context=speaker_talent,
         )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
         result = run_single_reaction(
             db,
             client,
@@ -602,9 +590,7 @@ def process_group_combat_event(
             delay_seconds=1,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=min(
-                max_tokens, 60
-            ),
+            max_tokens_override=60,
             context=(
                 f"grp-combat:#{event_id}"
                 f":{bot_name}"
@@ -786,9 +772,6 @@ def process_group_death_event(
                 f"\nCurrent mood: {mood_label}"
             )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
         result = run_single_reaction(
             db,
             client,
@@ -800,7 +783,6 @@ def process_group_death_event(
             delay_seconds=2,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=max_tokens,
             context=(
                 f"grp-death:#{event_id}"
                 f":{reactor_name}"
@@ -950,9 +932,6 @@ def process_group_levelup_event(
                 f"\nCurrent mood: {mood_label}"
             )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
         result = run_single_reaction(
             db,
             client,
@@ -964,7 +943,6 @@ def process_group_levelup_event(
             delay_seconds=2,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=max_tokens,
             context=(
                 f"grp-levelup:#{event_id}"
                 f":{reactor_name}"
@@ -1148,9 +1126,6 @@ def process_group_quest_complete_event(
                 f"\nCurrent mood: {mood_label}"
             )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
         result = run_single_reaction(
             db,
             client,
@@ -1162,7 +1137,6 @@ def process_group_quest_complete_event(
             delay_seconds=2,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=max_tokens,
             context=(
                 f"grp-quest:#{event_id}"
                 f":{reactor_name}"
@@ -1350,9 +1324,6 @@ def process_group_quest_objectives_event(
             )
         )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
         result = run_single_reaction(
             db,
             client,
@@ -1364,7 +1335,6 @@ def process_group_quest_objectives_event(
             delay_seconds=2,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=max_tokens,
             context=(
                 f"grp-objectives:#{event_id}"
                 f":{reactor_name}"
@@ -1678,9 +1648,6 @@ def process_group_achievement_event(
                 f"\nCurrent mood: {mood_label}"
             )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
         result = run_single_reaction(
             db,
             client,
@@ -1692,7 +1659,6 @@ def process_group_achievement_event(
             delay_seconds=2,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=max_tokens,
             context=(
                 f"grp-achieve:#{event_id}"
                 f":{reactor_name}"
@@ -1857,9 +1823,6 @@ def process_group_spell_cast_event(
             speaker_talent_context=speaker_talent,
         )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
         delay = random.randint(2, 3)
         result = run_single_reaction(
             db,
@@ -1872,7 +1835,6 @@ def process_group_spell_cast_event(
             delay_seconds=delay,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=max_tokens,
             context=(
                 f"grp-spell:#{event_id}"
                 f":{bot['name']}"
@@ -1992,9 +1954,6 @@ def process_group_resurrect_event(
                 f"\nCurrent mood: {mood_label}"
             )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
         result = run_single_reaction(
             db,
             client,
@@ -2006,7 +1965,6 @@ def process_group_resurrect_event(
             delay_seconds=2,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=max_tokens,
             context=(
                 f"grp-resurrect:#{event_id}"
                 f":{bot_name}"
@@ -2137,9 +2095,6 @@ def process_group_zone_transition_event(
             area_id=area_id,
         )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
         result = run_single_reaction(
             db,
             client,
@@ -2151,7 +2106,6 @@ def process_group_zone_transition_event(
             delay_seconds=2,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=max_tokens,
             context=(
                 f"grp-zone:#{event_id}"
                 f":{bot_name}"
@@ -2335,9 +2289,6 @@ def process_group_quest_accept_event(
                 f"\nCurrent mood: {mood_label}"
             )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
         result = run_single_reaction(
             db,
             client,
@@ -2349,7 +2300,6 @@ def process_group_quest_accept_event(
             delay_seconds=2,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=max_tokens,
             context=(
                 f"grp-qacc:#{event_id}"
                 f":{reactor_name}"
@@ -2495,9 +2445,6 @@ def process_group_quest_accept_batch_event(
                 f"\nCurrent mood: {mood_label}"
             )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
         result = run_single_reaction(
             db,
             client,
@@ -2509,7 +2456,6 @@ def process_group_quest_accept_batch_event(
             delay_seconds=2,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=max_tokens,
             context=(
                 f"grp-qbatch:#{event_id}"
                 f":{reactor_name}"
@@ -2645,9 +2591,6 @@ def process_group_discovery_event(
                 f"\nCurrent mood: {mood_label}"
             )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
         result = run_single_reaction(
             db,
             client,
@@ -2659,7 +2602,6 @@ def process_group_discovery_event(
             delay_seconds=2,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=max_tokens,
             context=(
                 f"grp-disc:#{event_id}"
                 f":{bot_name}"
@@ -2780,9 +2722,6 @@ def process_group_dungeon_entry_event(
             speaker_talent_context=speaker_talent,
         )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
         delay = random.randint(2, 4)
         result = run_single_reaction(
             db,
@@ -2795,7 +2734,6 @@ def process_group_dungeon_entry_event(
             delay_seconds=delay,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=max_tokens,
             context=(
                 f"grp-dungeon:#{event_id}"
                 f":{bot_name}"
@@ -2919,9 +2857,6 @@ def process_group_wipe_event(
                 f"\nCurrent mood: {mood_label}"
             )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
         result = run_single_reaction(
             db,
             client,
@@ -2933,7 +2868,6 @@ def process_group_wipe_event(
             delay_seconds=2,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=max_tokens,
             context=(
                 f"grp-wipe:#{event_id}"
                 f":{bot_name}"
@@ -3062,9 +2996,6 @@ def process_group_corpse_run_event(
             speaker_talent_context=speaker_talent,
         )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
         result = run_single_reaction(
             db,
             client,
@@ -3076,7 +3007,6 @@ def process_group_corpse_run_event(
             delay_seconds=2,
             event_id=event_id,
             allow_emote_fallback=True,
-            max_tokens_override=max_tokens,
             context=(
                 f"grp-corpse:#{event_id}"
                 f":{bot_name}"

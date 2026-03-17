@@ -389,8 +389,8 @@ def build_plain_statement_prompt(
         )
         parts.append(
             "IMPORTANT: If mentioning any creature, ONLY use "
-            "ones from the list above. Include the [[npc:...]] "
-            "marker exactly as shown."
+            "ones from the list above. Write creature names "
+            "as plain text, never in brackets."
         )
 
     tone = pick_random_tone(mode)
@@ -410,8 +410,8 @@ def build_plain_statement_prompt(
         config=config, mode=mode
     )
     guidelines.append(
-        "Plain text only, except [[npc:...]] markers "
-        "for creature names"
+        "Plain text only - never wrap creature, NPC, "
+        "zone, or faction names in brackets"
     )
     if is_rp:
         guidelines.append(
@@ -892,8 +892,8 @@ def build_plain_conversation_prompt(
         )
         parts.append(
             "IMPORTANT: If mentioning any creature, ONLY use "
-            "ones from the list above. Include the [[npc:...]] "
-            "marker exactly as shown."
+            "ones from the list above. Write creature names "
+            "as plain text, never in brackets."
         )
 
     tone = pick_random_tone(mode)
@@ -954,8 +954,8 @@ def build_plain_conversation_prompt(
         config=config, mode=mode
     )
     guidelines.append(
-        "Plain text only, except [[npc:...]] markers "
-        "for creature names"
+        "Plain text only - never wrap creature, NPC, "
+        "zone, or faction names in brackets"
     )
     guidelines.append("Follow the mood and length sequence above")
     if bot_count > 2:

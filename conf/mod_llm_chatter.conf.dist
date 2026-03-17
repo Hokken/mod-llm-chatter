@@ -42,6 +42,15 @@
 # 4. Start the Python bridge: python tools/llm_chatter_bridge.py --config /path/to/mod_llm_chatter.conf
 # 5. Set LLMChatter.Enable = 1 and restart the worldserver
 #
+# RESTART REQUIREMENTS:
+#   Each section is tagged with what restart is needed after changes:
+#     [SERVER]  — Restart worldserver (docker compose restart ac-dev-server)
+#     [BRIDGE]  — Restart Python bridge (docker restart ac-llm-chatter-bridge)
+#     [BOTH]    — Restart both worldserver and bridge
+#   Keys read by C++ (worldserver) require a server restart.
+#   Keys read only by Python (bridge) require a bridge restart.
+#   Some keys are read by both — those need both restarted.
+#
 # ADVANCED SETTINGS:
 #   This config only exposes operator-facing settings. Many internal tuning
 #   knobs (react delays, debounce windows, priority ranges, pre-cache depths,
@@ -53,7 +62,7 @@
 #
 
 ###############################################################################
-# ESSENTIAL SETTINGS
+# ESSENTIAL SETTINGS [BOTH]
 #
 #   Configure these to get started. Most users only need to set
 #   their LLM provider and API key — everything else works out
@@ -80,7 +89,7 @@ LLMChatter.Enable = 1
 LLMChatter.DebugLog = 0
 
 ###############################################################################
-# LLM PROVIDER SETTINGS
+# LLM PROVIDER SETTINGS [BRIDGE]
 ###############################################################################
 #
 # To switch providers, just change LLMChatter.Provider and LLMChatter.Model.
@@ -141,7 +150,7 @@ LLMChatter.Provider = anthropic
 LLMChatter.Model = claude-haiku-4-5-20251001
 
 ###############################################################################
-# ANTHROPIC SETTINGS (only needed if Provider = anthropic)
+# ANTHROPIC SETTINGS [BRIDGE] (only needed if Provider = anthropic)
 ###############################################################################
 
 #
@@ -152,7 +161,7 @@ LLMChatter.Model = claude-haiku-4-5-20251001
 LLMChatter.Anthropic.ApiKey = sk-ant-xxxxx
 
 ###############################################################################
-# OPENAI SETTINGS (only needed if Provider = openai)
+# OPENAI SETTINGS [BRIDGE] (only needed if Provider = openai)
 ###############################################################################
 
 #
@@ -163,7 +172,7 @@ LLMChatter.Anthropic.ApiKey = sk-ant-xxxxx
 LLMChatter.OpenAI.ApiKey = sk-xxxxx
 
 ###############################################################################
-# OLLAMA SETTINGS (only needed if Provider = ollama)
+# OLLAMA SETTINGS [BRIDGE] (only needed if Provider = ollama)
 ###############################################################################
 #
 # Ollama runs models locally on your machine - no API key needed!
@@ -199,7 +208,7 @@ LLMChatter.Ollama.ContextSize = 2048
 LLMChatter.Ollama.DisableThinking = 1
 
 ###############################################################################
-# DATABASE SETTINGS (Used by Python bridge)
+# DATABASE SETTINGS [BRIDGE]
 ###############################################################################
 
 #
@@ -238,7 +247,7 @@ LLMChatter.Database.Password = acore
 LLMChatter.Database.Name = acore_characters
 
 ###############################################################################
-# FEATURE TOGGLES & BEHAVIOR TUNING
+# FEATURE TOGGLES & BEHAVIOR TUNING [BOTH]
 #
 #   Enable or disable major features and tune how chatty bots feel.
 #
@@ -302,7 +311,7 @@ LLMChatter.ZoneIntrusion.Enable = 1
 LLMChatter.GroupChatter.PreCacheEnable = 1
 
 ###############################################################################
-# AMBIENT / WORLD EVENT TUNING
+# AMBIENT / WORLD EVENT TUNING [SERVER]
 #
 #   Two systems drive General channel chatter:
 #
@@ -442,7 +451,7 @@ LLMChatter.HolidayZoneChance = 10
 LLMChatter.Events.MinorEventChance = 20
 
 ###############################################################################
-# GROUP CHATTER TUNING
+# GROUP CHATTER TUNING [SERVER]
 ###############################################################################
 
 #
@@ -598,6 +607,30 @@ LLMChatter.GroupChatter.BotQuestionEnable = 1
 LLMChatter.GroupChatter.BotQuestionChance = 1
 
 #
+#   LLMChatter.GroupChatter.QuestAcceptChance
+#       Percent chance (0-100) that accepting a quest
+#       triggers a group reaction.
+#       Default: 100
+#
+LLMChatter.GroupChatter.QuestAcceptChance = 100
+
+#
+#   LLMChatter.GroupChatter.QuestObjectiveChance
+#       Percent chance (0-100) that completing quest
+#       objectives triggers a group reaction.
+#       Default: 100
+#
+LLMChatter.GroupChatter.QuestObjectiveChance = 100
+
+#
+#   LLMChatter.GroupChatter.QuestCompleteChance
+#       Percent chance (0-100) that turning in a quest
+#       triggers a group reaction.
+#       Default: 100
+#
+LLMChatter.GroupChatter.QuestCompleteChance = 100
+
+#
 #   LLMChatter.GroupChatter.QuestConversationChance
 #       Chance (0-100) that a quest event triggers a multi-bot
 #       conversation instead of a single-statement reaction.
@@ -622,7 +655,7 @@ LLMChatter.GroupChatter.PlayerMsgConversationChance = 30
 LLMChatter.GroupChatter.PlayerMsgSecondBotChance = 25
 
 ###############################################################################
-# GENERAL CHANNEL TUNING
+# GENERAL CHANNEL TUNING [BOTH]
 ###############################################################################
 
 #
@@ -655,7 +688,7 @@ LLMChatter.GeneralChat.QuestionChance = 80
 LLMChatter.GeneralChat.Cooldown = 30
 
 ###############################################################################
-# RAID CHATTER TUNING
+# RAID CHATTER TUNING [SERVER]
 ###############################################################################
 
 #
@@ -684,7 +717,7 @@ LLMChatter.RaidChatter.MoraleChance = 15
 LLMChatter.RaidChatter.MoraleCooldown = 120
 
 ###############################################################################
-# PROMPT / OUTPUT TUNING
+# PROMPT / OUTPUT TUNING [BRIDGE]
 ###############################################################################
 
 #
@@ -705,7 +738,7 @@ LLMChatter.ActionChance = 10
 LLMChatter.RaceLoreChance = 20
 
 ###############################################################################
-# SAFETY / PERFORMANCE
+# SAFETY / PERFORMANCE [BOTH]
 #
 #   Controls that affect API spend, throughput, and server resources.
 #
@@ -794,6 +827,18 @@ LLMChatter.MessageDelayMin = 1000
 #       Default: 30000
 #
 LLMChatter.MessageDelayMax = 30000
+
+#
+#   LLMChatter.ConversationPacing
+#       Multiplier for delay between messages in
+#       multi-message conversations (ambient and group).
+#       Applied to the computed delay before min/max clamp.
+#       0.5 = snappy back-and-forth (half delay)
+#       1.0 = default pacing
+#       2.0 = leisurely RP pace (double delay)
+#       Default: 1.0
+#
+LLMChatter.ConversationPacing = 1.0
 
 #
 #   LLMChatter.DistanceUnit
