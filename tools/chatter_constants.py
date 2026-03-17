@@ -1286,6 +1286,143 @@ MSG_TYPE_TRADE = 95          # 10% chance (86-95)
 MSG_TYPE_SPELL = 100         # 5% chance (96-100)
 
 # =============================================================================
+# AMBIENT CHAT TOPICS
+# =============================================================================
+# Topics for normal (out-of-character) mode.
+# MMO player talk: gear, levels, abilities, zone, humor.
+# Excluded: lore, faction history, world rumors (RP-only).
+# Also excluded: items, quests, quest rewards, spells, trade
+# (handled by dedicated message-type paths).
+AMBIENT_CHAT_TOPICS = [
+    # Environment / Zone
+    'commenting on the scenery or surroundings',
+    'noticing something interesting in the zone',
+    'remarking on the local wildlife or creatures',
+    'observing the landscape or terrain',
+    # Weather / Time
+    'commenting on the weather',
+    'noticing the time of day',
+    'mentioning how the light looks',
+    # Class / Race
+    'mentioning something about their class abilities',
+    'mentioning something about their race or class perks',
+    'comparing fighting styles or approaches',
+    'sharing class-specific knowledge or tips',
+    # Food / Drink
+    'asking if anyone has food or water',
+    'complaining about being hungry or thirsty',
+    'mentioning a favorite food or drink',
+    # Travel / Mounts
+    'talking about their mount',
+    'commenting on how far they have walked',
+    'wishing they had a faster mount',
+    # Professions
+    'mentioning their profession skill progress',
+    'talking about gathering or crafting',
+    'asking if anyone needs something crafted',
+    # Capital Cities / Inns
+    'talking about a capital city or inn they like',
+    'talking about what they do in town',
+    'mentioning a favorite hangout spot',
+    # Gear / Equipment
+    'commenting on their own gear or armor',
+    'noticing a party member looks well-equipped',
+    'wishing they had better equipment',
+    # Level Progress
+    'mentioning how close they are to leveling',
+    'talking about what abilities they want next',
+    'reflecting on how far they have come',
+    # AFK / Bio / Humor
+    'joking about needing a bio break',
+    'wondering how long until the next rest stop',
+    'making a joke about falling asleep at the keys',
+    # General banter
+    'making small talk with another player',
+    'cracking a joke or making a witty observation',
+    'complaining about something minor',
+    'sharing a random thought',
+]
+
+# Topics for roleplay mode — all normal topics plus in-character
+# lore, world flavor, faith, culture, and narrative entries.
+AMBIENT_CHAT_TOPICS_RP = AMBIENT_CHAT_TOPICS + [
+    # Lore / World
+    'mentioning a rumor or piece of lore',
+    'wondering about the history of this place',
+    'recalling something from their travels',
+    'making an observation about the faction war',
+    # Faith / Spirituality
+    'reflecting on their faith or devotion',
+    'mentioning a blessing or omen they noticed',
+    "speaking about the Light, nature, or their people's beliefs",
+    # Homeland / Heritage
+    'talking about where they came from',
+    'sharing a tradition or custom from their people',
+    'comparing this land to their homeland',
+    # Danger / Enemy
+    'expressing unease about a nearby threat',
+    'mentioning something they heard about the Scourge or Burning Legion',
+    'wondering aloud about a powerful enemy nearby',
+    # Ancient Places
+    'musing about the ruins or ancient structures nearby',
+    'wondering who built this place and why it was abandoned',
+    'sensing something old and powerful about this area',
+    # War / Conflict
+    'reflecting on a battle they witnessed or heard about',
+    'sharing thoughts on the Alliance and Horde conflict',
+    'honoring fallen soldiers or comrades',
+    # Nature / Magic
+    'musing about the nature of magic in this world',
+    'commenting on how the land feels corrupted or blessed',
+    'noticing something unusual about the local wildlife or plants',
+    # Personal / Journey
+    'reflecting on their purpose or destiny',
+    'sharing a moment of doubt or resolve',
+    'musing about what drives them to keep adventuring',
+    # Mysticism
+    'describing a dream or vision they had',
+    'wondering about the meaning of a strange sign or portent',
+    'speaking about the veil between life and death',
+    'musing about fate and whether their path was chosen for them',
+    'mentioning a prophecy or ancient warning',
+    'pondering the mysteries of the arcane or the Void',
+    # Poetry / Art
+    'reciting a line from a poem or song they know',
+    'mentioning a bard or musician they once heard',
+    'comparing the landscape to something beautiful they once saw',
+    'humming or quoting a folk tune from their homeland',
+    'describing a painting or carving they remember',
+    'talking about a sculpture or monument they found striking',
+    # Philosophy
+    'wondering whether the ends justify the means in war',
+    'questioning what it means to be truly free',
+    'pondering the line between duty and personal desire',
+    'musing about whether good and evil are real or just convenient labels',
+    'reflecting on the nature of power and those who seek it',
+    'asking what legacy they will leave behind',
+    # Spirituality
+    'speaking quietly about death and what comes after',
+    'reflecting on a moment when they felt something divine or holy',
+    'wondering whether the gods truly watch over them',
+    'mentioning a ritual or prayer from their tradition',
+    'speaking about the soul and whether it survives the body',
+    # Culture
+    'describing a festival or celebration from their people',
+    'comparing the customs of different races or factions',
+    'mentioning a food, drink, or dish unique to their culture',
+    'recalling a coming-of-age ritual or tradition',
+    'talking about how their people treat the dead',
+    'mentioning a taboo or superstition their culture holds',
+    # Books / Knowledge
+    'mentioning a book or tome they once read',
+    'quoting something wise they came across in their studies',
+    'wondering where the great libraries of the world are kept',
+    'lamenting knowledge that was lost when a city fell',
+    'debating whether some secrets are better left buried',
+    'expressing admiration for a scholar or sage they once met',
+]
+
+# =============================================================================
 # DYNAMIC PROMPT BUILDING - Tone, Mood, Twist, Category, Length constants
 # =============================================================================
 # Tone variations - affects the overall feel of the message
@@ -1314,6 +1451,15 @@ TONES = [
     "sarcastically amused",
     "playfully mocking",
     "cheerfully absurd",
+    # Mature / experienced player tones
+    "thoughtful and measured",
+    "calm and experienced",
+    "wry and understated",
+    "quietly reflective",
+    "matter-of-fact veteran",
+    "patient and even-keeled",
+    "dry and world-weary",
+    "mild and unpretentious",
 ]
 
 # Mood variations - the emotional angle of the message

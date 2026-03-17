@@ -3406,6 +3406,8 @@ def build_nearby_object_reaction_prompt(
     trait_str = (", ".join(traits)
                  if traits else "")
 
+    is_rp = (mode == 'roleplay')
+
     prompt = (
         f"You are {bot_name}, a "
         f"{race_name} {class_name}."
@@ -3416,17 +3418,27 @@ def build_nearby_object_reaction_prompt(
         f"\n\nYou are walking through {location} "
         f"({setting}) with your group."
     )
-    if subzone_lore:
+    if is_rp and subzone_lore:
         prompt += (
             f"\nAbout this place: {subzone_lore}"
+        )
+    if is_rp:
+        style = (
+            "Make a brief, in-character observation "
+            "or comment about what you see. Stay true "
+            "to your race, class, and personality."
+        )
+    else:
+        style = (
+            "Make a brief comment about what you see "
+            "as a regular WoW player — could be any "
+            "age, mature and grounded. Natural "
+            "reaction, as a player not a character."
         )
     prompt += (
         f"\nYou notice the following nearby:\n"
         f"{obj_desc}"
-        f"\n\nMake a brief, in-character "
-        f"observation or comment about what you "
-        f"see. Stay true to your race, class, "
-        f"and personality. "
+        f"\n\n{style} "
         f"One to two sentences. "
         f"Don't narrate actions — just speak."
     )
@@ -3510,7 +3522,7 @@ def build_nearby_object_conversation_prompt(
     parts.append(
         f"Location: {location} ({setting})."
     )
-    if subzone_lore:
+    if is_rp and subzone_lore:
         parts.append(
             f"About this place: {subzone_lore}"
         )

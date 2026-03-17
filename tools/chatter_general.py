@@ -301,8 +301,12 @@ def _build_general_response_prompt(
         )
     else:
         style = (
-            "Reply naturally in General chat. "
-            "Casual and conversational."
+            "Reply as a regular WoW player in "
+            "General chat — could be any age, "
+            "mature and grounded. Talk about the "
+            "game naturally, as a player not a "
+            "character. Reference zones, classes, "
+            "abilities, and creatures by name."
         )
 
     tod = get_time_of_day_context()
@@ -352,6 +356,11 @@ def _build_general_response_prompt(
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
+        f"- Prefer full words over internet slang — "
+        f"use abbreviations sparingly, not in every "
+        f"message (lol, omg, ngl are ok occasionally). "
+        f"Basic WoW terms always fine (dps, tank, "
+        f"healer, gg, buff, nerf)\n"
         f"- NEVER use brackets [] around creature, "
         f"NPC, zone, or faction names - write them "
         f"as plain text\n"
@@ -432,7 +441,12 @@ def _build_general_followup_prompt(
         )
     else:
         style = (
-            "Reply naturally in General chat."
+            "Reply as a regular WoW player in "
+            "General chat — could be any age, "
+            "mature and grounded. Talk about the "
+            "game naturally, as a player not a "
+            "character. Reference zones, classes, "
+            "abilities, and creatures by name."
         )
 
     # 40% chance to address someone by name
@@ -477,6 +491,11 @@ def _build_general_followup_prompt(
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
+        f"- Prefer full words over internet slang — "
+        f"use abbreviations sparingly, not in every "
+        f"message (lol, omg, ngl are ok occasionally). "
+        f"Basic WoW terms always fine (dps, tank, "
+        f"healer, gg, buff, nerf)\n"
         f"- NEVER use brackets [] around creature, "
         f"NPC, zone, or faction names - write them "
         f"as plain text\n"
@@ -962,7 +981,12 @@ def _build_general_continuation_prompt(
         )
     else:
         style = (
-            "Reply naturally in General chat."
+            "Reply as a regular WoW player in "
+            "General chat — could be any age, "
+            "mature and grounded. Talk about the "
+            "game naturally, as a player not a "
+            "character. Reference zones, classes, "
+            "abilities, and creatures by name."
         )
 
     # Format the conversation thread
@@ -1018,6 +1042,11 @@ def _build_general_continuation_prompt(
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
+        f"- Prefer full words over internet slang — "
+        f"use abbreviations sparingly, not in every "
+        f"message (lol, omg, ngl are ok occasionally). "
+        f"Basic WoW terms always fine (dps, tank, "
+        f"healer, gg, buff, nerf)\n"
         f"- NEVER use brackets [] around creature, "
         f"NPC, zone, or faction names - write them "
         f"as plain text\n"

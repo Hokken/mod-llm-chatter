@@ -131,6 +131,8 @@ from chatter_constants import (
     RACE_SPEECH_PROFILES,
     EMOTE_LIST_STR,
     CLASS_ROLE_MAP,
+    AMBIENT_CHAT_TOPICS,
+    AMBIENT_CHAT_TOPICS_RP,
 )
 
 logger = logging.getLogger(__name__)
@@ -1904,65 +1906,6 @@ def get_recent_weather(db, zone_id):
 # IDLE GROUP CHATTER
 # ============================================================
 
-# Idle chatter topics — richer categories focused
-# on environment, lore, and party banter.
-# Explicitly excluded: items, quests, quest rewards,
-# spells, trade.
-GROUP_IDLE_TOPICS = [
-    # Environment / Zone
-    'commenting on the scenery or surroundings',
-    'noticing something interesting in the zone',
-    'remarking on the local wildlife or creatures',
-    'observing the landscape or terrain',
-    # Weather / Time
-    'commenting on the weather',
-    'noticing the time of day',
-    'mentioning how the light looks',
-    # Class / Race
-    'mentioning something about their class abilities',
-    'making a comment related to their racial background',
-    'comparing fighting styles or approaches',
-    'sharing class-specific knowledge or tips',
-    # Lore / World
-    'mentioning a rumor or piece of lore',
-    'wondering about the history of this place',
-    'recalling something from their travels',
-    'making an observation about the faction war',
-    # Food / Drink
-    'asking if anyone has food or water',
-    'complaining about being hungry or thirsty',
-    'mentioning a favorite food or drink',
-    # Travel / Mounts
-    'talking about their mount or travel stories',
-    'commenting on how far they have walked',
-    'wishing they had a faster mount',
-    # Professions
-    'mentioning their profession skill progress',
-    'talking about gathering or crafting',
-    'asking if anyone needs something crafted',
-    # Capital Cities / Inns
-    'reminiscing about a capital city or inn',
-    'talking about what they do in town',
-    'mentioning a favorite hangout spot',
-    # Gear / Equipment
-    'commenting on their own gear or armor',
-    'noticing a party member looks well-equipped',
-    'wishing they had better equipment',
-    # Level Progress
-    'mentioning how close they are to leveling',
-    'talking about what abilities they want next',
-    'reflecting on how far they have come',
-    # AFK / Bio / Humor
-    'joking about needing a bio break',
-    'wondering how long until the next rest stop',
-    'making a joke about falling asleep at the keys',
-    # General party banter
-    'making small talk with a party member',
-    'cracking a joke or making a witty observation',
-    'complaining about something minor',
-    'sharing a random thought',
-]
-
 # Track last idle chatter per group
 _last_idle_chatter = {}
 _idle_inflight = set()
@@ -2003,7 +1946,12 @@ def build_idle_chatter_prompt(
     twist = maybe_get_creative_twist(
         chance=1.0, mode=mode
     )
-    topic = random.choice(GROUP_IDLE_TOPICS)
+    topic_pool = (
+        AMBIENT_CHAT_TOPICS_RP
+        if mode == 'roleplay'
+        else AMBIENT_CHAT_TOPICS
+    )
+    topic = random.choice(topic_pool)
 
 
     rp_context = ""
@@ -2033,29 +1981,42 @@ def build_idle_chatter_prompt(
     dungeon_flav = get_dungeon_flavor(map_id)
     zone_flav = get_zone_flavor(zone_id)
     in_dungeon = dungeon_flav is not None
-    if dungeon_flav:
-        rp_context += (
-            f"\nDungeon context: {dungeon_flav}"
-        )
-        if dungeon_bosses:
-            boss_list = ', '.join(
-                dungeon_bosses[:6]
-            )
+    if in_dungeon:
+        if is_rp:
             rp_context += (
-                f"\nBosses here: {boss_list}"
+                f"\nDungeon context: {dungeon_flav}"
             )
-    elif zone_flav:
-        rp_context += (
-            f"\nZone context: {zone_flav}"
-        )
-    if not in_dungeon:
-        subzone = get_subzone_lore(
+        else:
+            dungeon_name = dungeon_flav.split(
+                ':'
+            )[0].strip()
+            rp_context += f"\nDungeon: {dungeon_name}"
+        if dungeon_bosses:
+            boss_list = ', '.join(dungeon_bosses[:6])
+            rp_context += f"\nBosses here: {boss_list}"
+    else:
+        zone_name = get_zone_name(zone_id)
+        if is_rp and zone_flav:
+            rp_context += (
+                f"\nZone context: {zone_flav}"
+            )
+        elif zone_name:
+            rp_context += f"\nZone: {zone_name}"
+        subzone_lore = get_subzone_lore(
             zone_id, area_id
         )
-        if subzone:
+        if is_rp and subzone_lore:
             rp_context += (
-                f"\nCurrent subzone: {subzone}"
+                f"\nCurrent subzone: {subzone_lore}"
             )
+        else:
+            subzone_name = get_subzone_name(
+                zone_id, area_id
+            )
+            if subzone_name:
+                rp_context += (
+                    f"\nSubzone: {subzone_name}"
+                )
 
     # Environmental context (time sometimes,
     # weather only overworld)
@@ -2094,9 +2055,12 @@ def build_idle_chatter_prompt(
         )
     else:
         style = (
-            "Say something casual in party chat "
-            "during downtime or while traveling. "
-            "Natural and relaxed."
+            "Say something in party chat as a "
+            "regular WoW player — could be any age, "
+            "mature and grounded. Talk about the "
+            "game naturally, as a player not a "
+            "character. Reference zones, classes, "
+            "abilities, and creatures by name."
         )
 
     # Address direction
@@ -2229,27 +2193,40 @@ def build_idle_conversation_prompt(
     dungeon_flav = get_dungeon_flavor(map_id)
     zone_flav = get_zone_flavor(zone_id)
     in_dungeon = dungeon_flav is not None
-    if dungeon_flav:
-        parts.append(
-            f"Dungeon context: {dungeon_flav}"
-        )
-        if dungeon_bosses:
-            boss_list = ', '.join(
-                dungeon_bosses[:6]
-            )
+    if in_dungeon:
+        if is_rp:
             parts.append(
-                f"Bosses here: {boss_list}"
+                f"Dungeon context: {dungeon_flav}"
             )
-    elif zone_flav:
-        parts.append(f"Zone context: {zone_flav}")
-    if not in_dungeon:
-        subzone = get_subzone_lore(
+        else:
+            dungeon_name = dungeon_flav.split(
+                ':'
+            )[0].strip()
+            parts.append(f"Dungeon: {dungeon_name}")
+        if dungeon_bosses:
+            boss_list = ', '.join(dungeon_bosses[:6])
+            parts.append(f"Bosses here: {boss_list}")
+    else:
+        zone_name = get_zone_name(zone_id)
+        if is_rp and zone_flav:
+            parts.append(f"Zone context: {zone_flav}")
+        elif zone_name:
+            parts.append(f"Zone: {zone_name}")
+        subzone_lore = get_subzone_lore(
             zone_id, area_id
         )
-        if subzone:
+        if is_rp and subzone_lore:
             parts.append(
-                f"Current subzone: {subzone}"
+                f"Current subzone: {subzone_lore}"
             )
+        else:
+            subzone_name = get_subzone_name(
+                zone_id, area_id
+            )
+            if subzone_name:
+                parts.append(
+                    f"Subzone: {subzone_name}"
+                )
 
     # Environmental context: time sometimes,
     # weather only overworld
@@ -2381,20 +2358,22 @@ def build_idle_conversation_prompt(
         )
     else:
         parts.append(
-            "Guidelines: Sound like normal people "
-            "chatting in a game; casual and "
-            f"relaxed; {length_hint}; "
+            "Guidelines: Sound like regular WoW "
+            "players chatting — could be any age, "
+            "mature and grounded; talk about the "
+            "game as players, not as characters; "
+            f"{length_hint}; "
             "vary lengths naturally"
         )
 
     parts.append(
         "Do NOT mention quests, quest rewards, "
         "items, spells, or trade. "
-        "NEVER claim to have just killed a creature (past explots is fine), "
+        "NEVER claim to have just killed a creature (past exploits is fine), "
         "just looted an item (you can mention items looted in the past), just completed a quest (you can mention quests completed in the past), "
         "or made a trade. "
         "Stick to observation, opinion, banter, "
-        "ocasional philosophical consideration. "
+        "occasional philosophical consideration. "
         "Don't repeat jokes or themes already "
         "said in chat."
     )
@@ -2866,7 +2845,12 @@ def _idle_conversation(
         ]
 
     bot_names = [b['name'] for b in bots]
-    topic = random.choice(GROUP_IDLE_TOPICS)
+    topic_pool = (
+        AMBIENT_CHAT_TOPICS_RP
+        if mode == 'roleplay'
+        else AMBIENT_CHAT_TOPICS
+    )
+    topic = random.choice(topic_pool)
 
     boss_str = (
         f", bosses={len(dungeon_bosses or [])}"

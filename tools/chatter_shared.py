@@ -91,8 +91,8 @@ def pick_random_max_tokens(config: dict) -> int:
     token budget for multi-message JSON arrays.
 
     Distribution:
-      30% very short (60-100 tokens)
-      40% medium (80-150 tokens)
+      30% short (150-200 tokens)
+      40% medium (200-300 tokens)
       30% full config value
     """
     full = int(config.get(
@@ -100,18 +100,22 @@ def pick_random_max_tokens(config: dict) -> int:
     ))
     roll = random.random()
     if roll < 0.30:
-        return random.randint(60, 100)
+        return random.randint(150, 200)
     elif roll < 0.70:
-        return random.randint(80, 150)
+        return random.randint(200, 300)
     return full
 
 
 # =============================================================================
-def get_zone_name(zone_id: int) -> str:
-    """Get human-readable zone name from zone ID."""
+def get_zone_name(zone_id: int) -> Optional[str]:
+    """Get human-readable zone name from zone ID.
+
+    Returns None when the zone ID is unknown to avoid
+    injecting 'zone 123' placeholder text into prompts.
+    """
     if zone_id in ZONE_NAMES:
         return ZONE_NAMES[zone_id]
-    return f"zone {zone_id}"
+    return None
 
 
 def get_player_zone(db, player_name):
@@ -179,6 +183,8 @@ def get_race_name(race_id: int) -> str:
 
 def get_chatter_mode(config: dict) -> str:
     """Return 'normal' or 'roleplay' from config."""
+    if not config:
+        return 'normal'
     mode = config.get('LLMChatter.ChatterMode', 'normal').lower()
     return mode if mode in ('normal', 'roleplay') else 'normal'
 

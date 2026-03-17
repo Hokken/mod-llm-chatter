@@ -8,13 +8,16 @@ import logging
 import random
 from typing import List
 
-from chatter_constants import CAPITAL_CITY_ZONES
+from chatter_constants import (
+    CAPITAL_CITY_ZONES,
+    AMBIENT_CHAT_TOPICS,
+    AMBIENT_CHAT_TOPICS_RP,
+)
 from chatter_shared import (
     zone_cache,
     parse_single_response,
     parse_conversation_response,
     extract_conversation_msg_count,
-    get_zone_flavor,
     can_class_use_item,
     query_zone_quests,
     query_zone_loot,
@@ -30,6 +33,7 @@ from chatter_shared import (
     get_action_chance,
     select_message_type,
     calculate_dynamic_delay,
+    get_chatter_mode,
 )
 from chatter_shared import build_talent_context
 from chatter_prompts import (
@@ -58,6 +62,7 @@ def process_statement(
     # Select message type
     zone_id = request.get('zone_id', 0)
     current_weather = request.get('weather', 'clear')
+    mode = get_chatter_mode(config)
     msg_type = select_message_type()
 
     # Skip loot/trade in capital cities (no zone
@@ -226,14 +231,19 @@ def process_statement(
             zone_mobs = random.sample(
                 mobs, min(10, len(mobs))
             )
-        # Log zone context being used
-        zone_flavor = get_zone_flavor(zone_id)
+        topic_pool = (
+            AMBIENT_CHAT_TOPICS_RP
+            if mode == 'roleplay'
+            else AMBIENT_CHAT_TOPICS
+        )
+        topic = random.choice(topic_pool)
         prompt = build_plain_statement_prompt(
             bot, zone_id, zone_mobs,
             config, current_weather,
             recent_messages=recent_msgs,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            topic=topic,
         )
     elif msg_type == "quest":
         prompt = build_quest_statement_prompt(
@@ -285,6 +295,12 @@ def process_statement(
             speaker_talent_context=speaker_talent,
         )
     else:
+        topic_pool = (
+            AMBIENT_CHAT_TOPICS_RP
+            if mode == 'roleplay'
+            else AMBIENT_CHAT_TOPICS
+        )
+        topic = random.choice(topic_pool)
         prompt = build_plain_statement_prompt(
             bot, zone_id,
             config=config,
@@ -292,6 +308,7 @@ def process_statement(
             recent_messages=recent_msgs,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            topic=topic,
         )
 
     # Call LLM
@@ -353,6 +370,7 @@ def process_conversation(
 
     zone_id = request.get('zone_id', 0)
     current_weather = request.get('weather', 'clear')
+    mode = get_chatter_mode(config)
 
     # Fetch recent zone messages for anti-repetition
     recent_msgs = get_recent_zone_messages(
@@ -521,8 +539,12 @@ def process_conversation(
             zone_mobs = random.sample(
                 mobs, min(10, len(mobs))
             )
-        # Log zone context being used
-        zone_flavor = get_zone_flavor(zone_id)
+        topic_pool = (
+            AMBIENT_CHAT_TOPICS_RP
+            if mode == 'roleplay'
+            else AMBIENT_CHAT_TOPICS
+        )
+        topic = random.choice(topic_pool)
         allow_action = (
             random.random() < get_action_chance()
         )
@@ -532,6 +554,7 @@ def process_conversation(
             recent_messages=recent_msgs,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            topic=topic,
         )
     elif msg_type == "quest":
         allow_action = (

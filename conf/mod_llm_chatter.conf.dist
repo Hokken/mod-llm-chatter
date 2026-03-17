@@ -878,9 +878,12 @@ LLMChatter.LootRecentCooldownSeconds = 1200
 #   LLMChatter.BGChatter.MaxTokens
 #       Max response tokens for BG chatter prompts.
 #       Lower values keep battleground lines brief.
-#       Default: 32
+#       Must be high enough to avoid truncating the
+#       JSON wrapper (message+emote+action fields).
+#       Minimum safe value is ~150.
+#       Default: 300
 #
-LLMChatter.BGChatter.MaxTokens = 32
+LLMChatter.BGChatter.MaxTokens = 300
 
 #
 #   LLMChatter.BGChatter.IdleChatterChance

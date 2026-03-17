@@ -133,16 +133,6 @@ def cleanup_message(
     result = re.sub(r'\s*(?:\r\n|\r|\n)\s*', ' ', result)
     result = result.replace('\\n', ' ')
 
-    # Strip brackets around non-link text. LLMs
-    # mimic [Creature Name] but only [item:],
-    # [spell:], [quest:] become real WoW links.
-    # Update lookahead if new link types are added
-    # to C++ ConvertAllLinks().
-    result = re.sub(
-        r'\[(?!item:|spell:|quest:)([^\]]+)\]',
-        lambda m: m.group(1).strip(), result
-    )
-
     # Em-dashes
     result = re.sub(r'\s*—\s*', ', ', result)
 
@@ -327,23 +317,6 @@ def cleanup_message(
         r'target\}|caster\}|spell\})'
         r'([^}]+)\}',
         r'\1', result
-    )
-
-    # Remove LLM-added brackets (preserve WoW links)
-    def maybe_remove_brackets(match):
-        full_match = match.group(0)
-        content = match.group(1)
-        start_pos = match.start()
-
-        # Preserve real WoW links (preceded by |h)
-        prefix = result[max(0, start_pos-2):start_pos]
-        if '|h' in prefix or prefix.endswith('|h'):
-            return full_match
-
-        return content
-
-    result = re.sub(
-        r'\[([^\]|]+)\]', maybe_remove_brackets, result
     )
 
     return result

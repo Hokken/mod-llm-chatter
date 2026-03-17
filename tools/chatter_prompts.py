@@ -248,6 +248,12 @@ def build_dynamic_guidelines(
             "text. Only use {quest:Name}, "
             "{item:Name}, or {spell:Name} "
             "placeholders when explicitly told to.",
+            "Prefer full words over internet slang "
+            "— use abbreviations sparingly, not in "
+            "every message (lol, omg, ngl, tbh are "
+            "ok occasionally). Basic WoW terms are "
+            "always fine (dps, tank, healer, gg, "
+            "buff, nerf, aggro).",
         ]
 
     length_pool = RP_LENGTH_HINTS if is_rp else LENGTH_HINTS
@@ -341,6 +347,7 @@ def build_plain_statement_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    topic: str = None,
 ) -> str:
     """Build a dynamically varied prompt for a plain statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -362,11 +369,16 @@ def build_plain_statement_prompt(
     else:
         parts.append(
             f"Generate a brief WoW General chat message "
-            f"from a player in {bot['zone']}."
+            f"from a player in {bot['zone']}. Speak as "
+            f"a player talking about the game — not "
+            f"roleplaying your character."
         )
 
+    if topic:
+        parts.append(f"Topic: {topic}")
+
     zone_flavor = get_zone_flavor(zone_id)
-    if zone_flavor:
+    if is_rp and zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
 
     env_context = get_environmental_context(current_weather)
@@ -403,7 +415,6 @@ def build_plain_statement_prompt(
         parts.append(f"Creative twist: {twist}")
 
     category = pick_random_message_category(mode)
-
     parts.append(f"Message type: {category}")
 
     guidelines = build_dynamic_guidelines(
@@ -423,7 +434,12 @@ def build_plain_statement_prompt(
             "or OOC references"
         )
     else:
-        guidelines.append("Do NOT mention your race or class")
+        guidelines.append(
+            "Speak as a player discussing the game — "
+            "you can mention your race, class, zone, "
+            "or abilities, but as a player, not as "
+            "your character roleplaying"
+        )
     guidelines.append(
         "Be ORIGINAL and UNPREDICTABLE - no common patterns, "
         "surprise the reader"
@@ -824,6 +840,7 @@ def build_plain_conversation_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    topic: str = None,
 ) -> str:
     """Build a prompt for a plain conversation with 2-4 bots."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -842,16 +859,23 @@ def build_plain_conversation_prompt(
     elif bot_count == 2:
         parts.append(
             f"Generate a casual General chat exchange between "
-            f"two WoW players in {bots[0]['zone']}."
+            f"two WoW players in {bots[0]['zone']}. "
+            f"They speak as players discussing the game, "
+            f"not roleplaying their characters."
         )
     else:
         parts.append(
             f"Generate a casual General chat exchange between "
-            f"{bot_count} WoW players in {bots[0]['zone']}."
+            f"{bot_count} WoW players in {bots[0]['zone']}. "
+            f"They speak as players discussing the game, "
+            f"not roleplaying their characters."
         )
 
+    if topic:
+        parts.append(f"Topic: {topic}")
+
     zone_flavor = get_zone_flavor(zone_id)
-    if zone_flavor:
+    if is_rp and zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
 
     env_context = get_environmental_context(current_weather)
@@ -1321,7 +1345,9 @@ def build_event_conversation_prompt(
     else:
         parts.append(
             f"Generate a casual General chat exchange between "
-            f"{bot_count} WoW players in {bots[0]['zone']}."
+            f"{bot_count} WoW players in {bots[0]['zone']}. "
+            f"They speak as players discussing the game, not "
+            f"roleplaying their characters."
         )
     parts.append(f"Speakers: {', '.join(bot_names)}")
     parts.append(
@@ -1384,7 +1410,7 @@ def build_event_conversation_prompt(
         )
 
     zone_flavor = get_zone_flavor(zone_id)
-    if zone_flavor:
+    if is_rp and zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
 
     weather_for_context = (
