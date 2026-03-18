@@ -97,6 +97,56 @@ use the variable in code.
 
 ---
 
+## Development Tools
+
+### LLM Request Logger
+
+Every `call_llm()` call can be logged to a rotating JSONL file for
+inspection. Enable it in your active config:
+
+```
+LLMChatter.RequestLog.Enable = 1
+LLMChatter.RequestLog.Path = /logs/llm_requests.jsonl
+LLMChatter.RequestLog.MaxSizeMB = 50
+```
+
+Then restart the bridge.
+
+### Log Viewer
+
+A zero-dependency web UI for browsing logged requests:
+
+```bash
+python tools/chatter_log_viewer.py --log modules/mod-llm-chatter/logs/llm_requests.jsonl --port 5555
+```
+
+Open `http://localhost:5555` in your browser. Features: semantic prompt
+section highlighting, label filtering, free-text search, JSON
+pretty-print, auto-refresh.
+
+### Required setup: logs directory + Docker bind mount
+
+The logger writes to `/logs/` inside the bridge container. You need to:
+
+1. Create the `logs/` directory in the module folder:
+   ```bash
+   mkdir modules/mod-llm-chatter/logs
+   ```
+
+2. Add a bind mount to your `docker-compose.override.yml` so the log
+   file is accessible on the host:
+   ```yaml
+   services:
+     ac-llm-chatter-bridge:
+       volumes:
+         - ./modules/mod-llm-chatter/logs:/logs:rw
+   ```
+
+3. Bring the bridge back up with `docker compose --profile dev up -d`
+   (not just `docker restart`) to activate the new mount.
+
+---
+
 ## Testing
 
 There is no automated test suite yet. All testing is manual and
