@@ -1,31 +1,12 @@
 # mod-llm-chatter - Logic Documentation
 
-This document describes the current runtime logic of `mod-llm-chatter`
-after the C++ script split that landed through Phase 4 on 2026-03-08,
-including the later runtime features added and validated through
-Session 77.
+This document describes the current runtime logic of `mod-llm-chatter`.
 
 It is meant to answer two practical questions:
 
 1. What does the module do at runtime?
-2. Where does that logic live now?
+2. Where does that logic live?
 
-Important status note:
-
-- the source refactor is complete through Phase 4
-- the split passed phased source review
-- compile and linker validation passed on 2026-03-09 (two minor fixes
-  applied)
-- the module has stayed in active runtime use after that validation
-- this document reflects the current source logic through Session 77
-- the Session 69 priority-system rollout was compiled and validated
-  later on 2026-03-12
-- later source work also restored transport detection to the intended
-  dockside-warning model and cleaned up BG routing, exact-score prompts,
-  and hostile spell attribution
-- Session 71 added PvE raid chatter Phase 2: lifted guards for loot,
-  nearby objects, quests, and join batch in raids; added
-  `raid_idle_morale` event; 13 code review fixes applied
 
 ---
 
@@ -233,18 +214,11 @@ priority currently influences claim order more than final speak order.
 
 ---
 
-## 3. Current C++ File Ownership
-
-The old assumption that almost everything lives in
-`LLMChatterScript.cpp` is no longer correct.
+## 3. C++ File Ownership
 
 ### `src/LLMChatterScript.cpp`
 
-Current role:
-
-- registration coordinator only
-
-It now just calls:
+Registration coordinator only. Calls:
 
 - `AddLLMChatterWorldScripts()`
 - `AddLLMChatterGroupScripts()`
@@ -374,7 +348,7 @@ Python config relay.
 
 When adding a new Python-only config key:
 1. Add the key + comment to `conf/mod_llm_chatter.conf.dist`
-2. Add the key to the active `env/dist/etc/modules/mod_llm_chatter.conf`
+2. Add the key to your active server config file
 3. Read it in Python via `config.get('LLMChatter.GroupChatter.KeyName', default)`
 4. No C++ changes needed
 
@@ -1149,10 +1123,20 @@ Each JSONL record contains:
   "model": "claude-haiku-4-5",
   "provider": "anthropic",
   "duration_ms": 421,
+  "zone_name": "Elwynn Forest",
+  "zone_flavor": "A peaceful woodland...",
+  "subzone_name": "Goldshire",
+  "subzone_lore": "A small hamlet...",
+  "speaker_talent": "...",
+  "target_talent": "...",
   "prompt": "...",
   "response": "..."
 }
 ```
+
+Metadata fields (zone_name, zone_flavor, subzone_name, subzone_lore,
+speaker_talent, target_talent) are only written when non-empty — absent
+fields mean the context was not available for that call.
 
 ### Labels
 
@@ -1307,26 +1291,18 @@ dedicated shared layer (`LLMChatterShared.cpp/h` for C++,
 `chatter_shared.py` / `chatter_constants.py` for Python). Each file
 should have one clear ownership domain.
 
-The original monolithic layout caused real problems — the split exists
-to enforce domain boundaries, not just to reduce line count. Keeping
-files focused also allows AI agents to work on a single file without
-loading the entire module into context.
-
 ### `enabledHooks`
 
 Any new or changed C++ hook override must add the correct enum to the
 constructor's `enabledHooks` vector or it will silently never fire.
 
-### Do not keep editing `LLMChatterScript.cpp` by habit
-
-That file is now just a coordinator.
-
-Use:
+### C++ file routing
 
 - `LLMChatterWorld.cpp` for world/delivery/environment logic
 - `LLMChatterGroup.cpp` for group/state/batching logic
 - `LLMChatterPlayer.cpp` for General-channel player logic
 - `LLMChatterShared.cpp` for shared helper contracts
+- `LLMChatterScript.cpp` is registration only — do not add features here
 
 ### Compile policy
 
@@ -1335,52 +1311,16 @@ Wait for explicit user approval before running build steps.
 
 ---
 
-## 17. Validation Status
+## 17. Known Gaps
 
-What is complete:
-
-- source-level C++ split through Phase 4
-- per-phase external review
-- final focused review for the `QueueChatterEvent()` cleanup
-- compile and linker validation (2026-03-09, two minor fixes applied)
-- runtime feature work continued on top of the split through Session 69
-- Session 69 source implementation added priority-aware bridge
-  scheduling, final delivery ordering, safety mode, and
-  `QuestCompleteChance`
-- the Session 69 priority rollout was compiled and runtime-validated on
-  2026-03-12
-- Astranaar testing confirmed live urgent-backlog yield plus prompt
-  delivery for combat, nearby-object, quest-objective, zone-transition,
-  and quest-complete paths
-- Session 70 transport timing was revalidated in Auberdine after the
-  real-player-zone gate and transport-entry cooldown changes
-- Session 70 BG cleanup tightened channel routing, exact WSG score
-  prompts, hostile spell attribution, and BG message brevity
-- Session 71 PvE raid chatter Phase 2 deployed: lifted 5 guards,
-  added `raid_idle_morale`, 13 code review fixes, ICC 10-man tested
-- Session 77 LLM request logging deployed: `chatter_request_logger.py`,
-  `chatter_log_viewer.py`, all 27 `call_llm()` call sites labelled,
-  Docker bind mount at `/logs`, 3 new `RequestLog.*` config keys
-
-What is still pending:
-
-- exhaustive in-game validation of every event path and tuning edge case
-- the narrow remaining hostile multi-target spell-attribution edge case
-- Phase 1 boss events (pull/kill/wipe) need live in-game testing via
-  actual boss encounters (not `.die`)
+- Boss pull/kill/wipe events need live in-game testing via actual boss
+  encounters
+- Hostile multi-target spell-attribution edge case not fully covered
+- Exhaustive in-game validation of every event path is ongoing
 
 ---
 
 ## 18. Related Docs
 
-- `docs/plans/llm-chatter-script-splitting-plan.md`
-- `docs/investigations/llm-chatter-phase-0-5-ownership-investigation.md`
-- `docs/reviews/llm-chatter-phase-1-shared-infrastructure-review.md`
-- `docs/reviews/llm-chatter-phase-2-world-and-event-hooks-review.md`
-- `docs/reviews/llm-chatter-phase-3-group-subsystem-review.md`
-- `docs/reviews/llm-chatter-phase-4-player-subsystem-review.md`
-- `docs/reviews/llm-chatter-queuechatterevent-callsite-cleanup-review.md`
-- `docs/plans/raid-chatter-phase-2-plan.md`
-- `docs/reviews/raid-chatter-phase-2-review.md`
-- `docs/reviews/raid-chatter-implementation-review.md`
-- `docs/mod-llm-chatter/raid-chatter-implementation.md`
+- `docs/mod-llm-chatter-architecture.md` — architecture reference,
+  file map, dependency tree, data flow

@@ -1,6 +1,6 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-03-18 (through Session 77 - LLM request logging system)
+Last updated: 2026-03-18 (through Session 78 - zone/subzone/talent metadata in logs)
 
 ## Purpose
 
@@ -11,47 +11,7 @@ This document reflects the post-split C++ layout that now exists in the
 repo. The old assumption that almost all C++ ownership lives in
 `LLMChatterScript.cpp` is no longer true.
 
-Important status note:
-
-- the source-level split is complete through Phase 4
-- the split passed phased source review
-- compile and linker validation passed on 2026-03-09 (two minor fixes:
-  removed invalid `TEXT_EMOTE_FAREWELL`/`TEXT_EMOTE_MASSAGE`, made
-  `GetReactionDelaySeconds()` non-static so Group could call it)
-- the module has remained in active runtime use after that validation
-- this document now reflects the current source architecture through
-  Session 77
-- the Session 69 priority-system rollout was compiled and validated
-  later on 2026-03-12
-- later source work also restored transport detection, narrowed
-  transport dispatch to real-player zones, changed transport cooldown
-  semantics to one dispatch per transport entry window, and cleaned up
-  BG channel routing plus score/spell prompt behavior
-- Session 71 added PvE raid chatter Phase 2: `LLMChatterRaid.cpp` for
-  boss hooks, lifted guards in Group/World, `raid_idle_morale` event,
-  and new Python raid handler/prompt files
-- Session 77 added LLM request logging: `chatter_request_logger.py`
-  (thread-safe JSONL logger), `chatter_log_viewer.py` (stdlib web UI),
-  `label=` parameter on all `call_llm()` call sites, Docker bind mount
-  at `/logs`, and 3 new `RequestLog.*` config keys
-
-## Why The C++ Split Happened
-
-The original `LLMChatterScript.cpp` had grown into a monolithic file
-mixing:
-
-- world tick delivery
-- event queue insertion
-- transport and weather state
-- nearby object scanning
-- group batching
-- group cooldown and combat state
-- player General-channel hooks
-- shared helper functions
-- registration wiring
-
-That made ownership hard to reason about and made refactors risky. The
-split was done to separate real domains, not just to reduce line count.
+This document reflects the current source architecture.
 
 ## Guiding Principle: Separation of Concerns
 
@@ -69,12 +29,12 @@ loading the entire module into context.
 
 ## Repository Boundaries
 
-- AzerothCore root repo:
-  `C:\azerothcore-wotlk`
-- Module repo:
-  `C:\azerothcore-wotlk\modules\mod-llm-chatter`
-- Runtime code changes usually belong in the module repo
-- This architecture doc lives under root `docs/` for shared reference
+- **AzerothCore root repo**: the parent AzerothCore server repo where
+  this module is installed under `modules/mod-llm-chatter`
+- **Module repo**: `modules/mod-llm-chatter` — all runtime Python and
+  C++ code lives here
+- Runtime code changes belong in the module repo
+- This architecture doc lives in `docs/` inside the module repo
 
 ## Docker Bind Mounts
 
@@ -513,38 +473,6 @@ source:
 5. Delays use `calculate_dynamic_delay(responsive=True)` for faster
    player-directed timing (2s floor vs 4s ambient).
 
-### Post-Split Feature Paths Added After Session 64
-
-These did not change the core split, but they do change where real
-runtime behavior lives:
-
-- **Bot-initiated questions**: timer-driven group behavior in
-  `chatter_group.py`, scheduled from `llm_chatter_bridge.py`
-- **Quest conversations**: conversation fallback path in
-  `chatter_group_handlers.py` with prompt builders in
-  `chatter_group_prompts.py`
-- **Achievement batching**: duplicate suppression and batch ownership in
-  `chatter_group_handlers.py`
-- **Talent-context injection**: shared prompt-context construction in
-  `chatter_shared.py`, invoked from group/general/BG paths
-- **BG talent dispatch glue**: `chatter_raid_base.py` and
-  `chatter_battlegrounds.py`
-- **Humor hint injection**: length-hint/prompt shaping in
-  `chatter_group_prompts.py` and the General-channel prompt path
-- **Ambient conversation pacing**: previous-message reading delay in
-  `chatter_ambient.py`
-- **Transport speaker verification**: `transport_arrives` now resolves
-  speaker candidates from `verified_bots` GUIDs in
-  `llm_chatter_bridge.py`, so grouped dockside bots survive the Python
-  path
-- **BG routing cleanup**: `chatter_raid_base.py` and
-  `chatter_battlegrounds.py` now separate BG-wide-only events from
-  subgroup-only tactical chatter
-- **PvE raid chatter Phase 2**: `LLMChatterRaid.cpp` for boss hooks,
-  `chatter_raids.py` and `chatter_raid_prompts.py` for Python handlers
-  and prompts, `raid_idle_morale` in `LLMChatterWorld.cpp`, lifted
-  guards in `LLMChatterGroup.cpp`
-
 ## Where To Edit What
 
 | If you need to change... | Primary file |
@@ -573,14 +501,9 @@ runtime behavior lives:
 | C++ BG logic | `src/LLMChatterBG.cpp`, `src/LLMChatterBG.h` |
 | C++ registration wiring | `src/LLMChatterScript.cpp`, `src/llm_chatter_loader.cpp` |
 
-## Confusion Traps
+## Common Pitfalls
 
-### 1) Two repos in one workspace
-
-- chatter runtime code is in `modules/mod-llm-chatter`
-- root docs are reference material, not the module runtime itself
-
-### 2) `chatter_shared.py` is partly facade
+### `chatter_shared.py` is partly a facade
 
 Many helpers imported from `chatter_shared.py` are actually implemented
 in:
@@ -589,61 +512,44 @@ in:
 - `chatter_llm.py`
 - `chatter_db.py`
 
-### 3) Bridge ambient wrappers are delegates
+### Bridge ambient wrappers are delegates
 
 If ambient behavior changes, edit `chatter_ambient.py`, not the bridge
 wrapper first.
 
-### 4) General chat handler signature is still different
+### General chat handler signature is different
 
 Keep `_dispatch_player_general_msg` unless you standardize signatures
 everywhere.
 
-### 5) Pre-cache path is separate from live event path
+### Pre-cache path is separate from live event path
 
 Pre-cache generation does not use the same runtime path as live group
 event reactions.
 
-### 6) enabledHooks still matters
+### `enabledHooks` still matters
 
 Any new C++ hook override must add the correct enum to its constructor's
 `enabledHooks` vector or it will silently never fire.
 
-### 7) C++ ownership is no longer centered in `LLMChatterScript.cpp`
+### `LLMChatterScript.cpp` is registration-only
 
-The old monolith is gone.
-
-- `LLMChatterScript.cpp` is now just a coordinator
 - world logic lives in `LLMChatterWorld.cpp`
 - group logic lives in `LLMChatterGroup.cpp`
 - player General-channel logic lives in `LLMChatterPlayer.cpp`
 - shared helpers live in `LLMChatterShared.cpp`
 
-Do not keep editing `LLMChatterScript.cpp` out of habit.
+Do not edit `LLMChatterScript.cpp` for new features.
 
-### 8) The split is source-level accepted, not build-validated
+### Battleground routing
 
-This was true during the split review period, but it is no longer the
-current state. The split compiled and linked successfully on 2026-03-09.
-When touching this document, do not reintroduce "build still pending"
-language unless a new unresolved build break actually exists.
+BG-wide only:
+- match start / end
+- all flag events
 
-### 9) Battleground routing is no longer "party + raid for almost
-everything"
-
-Current intent:
-
-- BG-wide only:
-  - match start
-  - match end
-  - all flag events
-- subgroup/party only:
-  - kills
-  - node chatter
-  - score milestones
-  - spell/state chatter
-  - idle chatter
-  - flag-carrier self-messages
+Subgroup/party only:
+- kills, node chatter, score milestones, spell/state chatter,
+  idle chatter, flag-carrier self-messages
 
 This reduces duplicate near-identical lines across party and raid.
 
@@ -659,45 +565,9 @@ This reduces duplicate near-identical lines across party and raid.
 | `llm_group_chat_history` | Python | Python | Group anti-repetition history |
 | `llm_general_chat_history` | C++/Python read path | Python/C++ | General-channel history |
 
-## Validation State
-
-What is complete:
-
-- C++ split through Phase 4
-- phased review after each step
-- focused cleanup for final `QueueChatterEvent()` callsite migration
-- compile and linker verification (2026-03-09, two minor fixes applied)
-- runtime feature work continued on top of the split through Session 69
-- Session 69 source implementation added priority-aware claim, bridge
-  yield, safety mode, and final delivery ordering
-- the Session 69 priority rollout was compiled and runtime-validated on
-  2026-03-12
-- Astranaar testing confirmed live urgent-backlog yield plus prompt
-  delivery for combat, nearby-object, quest-objective, zone-transition,
-  and quest-complete paths
-- Session 70 transport restoration was tested live in Auberdine and the
-  timing was judged good for early-warning boat callouts
-- Session 71 PvE raid chatter Phase 2 compiled, reviewed (13 fixes),
-  and tested live in ICC 10-man
-
-What is not complete:
+## Known Gaps
 
 - exhaustive in-game validation of every event path and tuning edge case
-- the deeper hostile multi-target spell-attribution edge case after the
-  Session 70 hardening pass
-- Phase 1 boss events (pull/kill/wipe) need live in-game testing via
-  actual boss encounters (not `.die`)
-
-## Related Artifacts
-
-- `docs/plans/llm-chatter-script-splitting-plan.md`
-- `docs/investigations/llm-chatter-phase-0-5-ownership-investigation.md`
-- `docs/reviews/llm-chatter-phase-1-shared-infrastructure-review.md`
-- `docs/reviews/llm-chatter-phase-2-world-and-event-hooks-review.md`
-- `docs/reviews/llm-chatter-phase-3-group-subsystem-review.md`
-- `docs/reviews/llm-chatter-phase-4-player-subsystem-review.md`
-- `docs/reviews/llm-chatter-queuechatterevent-callsite-cleanup-review.md`
-- `docs/plans/raid-chatter-phase-2-plan.md`
-- `docs/reviews/raid-chatter-phase-2-review.md`
-- `docs/reviews/raid-chatter-implementation-review.md`
-- `docs/mod-llm-chatter/raid-chatter-implementation.md`
+- hostile multi-target spell-attribution edge case not yet fully covered
+- boss pull/kill/wipe events need live in-game testing via actual boss
+  encounters
