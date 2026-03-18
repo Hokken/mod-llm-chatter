@@ -5,3 +5,4 @@ dev-only
 !*.conf.dist
 *.env
 .DS_Store
+Gemini.md
