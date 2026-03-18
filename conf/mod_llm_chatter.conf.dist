@@ -88,6 +88,34 @@ LLMChatter.Enable = 1
 #
 LLMChatter.DebugLog = 0
 
+#
+#   LLMChatter.RequestLog.Enable
+#       Log every LLM API call (prompt, response,
+#       timing) to a JSONL file for offline analysis.
+#       Default: 0 (disabled)
+#       [BRIDGE]
+#
+LLMChatter.RequestLog.Enable = 0
+
+#
+#   LLMChatter.RequestLog.Path
+#       Absolute path to the JSONL log file. The
+#       directory is created automatically on startup.
+#       Default: /logs/llm_requests.jsonl
+#       [BRIDGE]
+#
+LLMChatter.RequestLog.Path = /logs/llm_requests.jsonl
+
+#
+#   LLMChatter.RequestLog.MaxSizeMB
+#       Maximum log file size in megabytes. When the
+#       file exceeds this, it is rotated: renamed to
+#       .1.jsonl and a fresh file is started.
+#       Default: 50
+#       [BRIDGE]
+#
+LLMChatter.RequestLog.MaxSizeMB = 50
+
 ###############################################################################
 # LLM PROVIDER SETTINGS [BRIDGE]
 ###############################################################################

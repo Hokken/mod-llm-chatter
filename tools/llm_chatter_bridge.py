@@ -1180,7 +1180,8 @@ def process_single_event(event, client, config):
                 context=(
                     f"event-conv:#{event_id}"
                     f":{evt_names}"
-                )
+                ),
+                label='event_conv',
             )
 
             if response:
@@ -1332,7 +1333,8 @@ def process_single_event(event, client, config):
                     f"event_statement:"
                     f"{event.get('event_type', '')}:"
                     f"{bot['bot1_name']}"
-                )
+                ),
+                label='event_statement',
             )
             if not message:
                 cursor.execute(
@@ -1638,6 +1640,12 @@ def main():
     ).lower())
     init_group_config(config)
     init_general_config(config)
+
+    # Initialize request logger (no-op if disabled)
+    from chatter_request_logger import (
+        init_request_logger,
+    )
+    init_request_logger(config)
 
     # Get provider and initialize appropriate client
     provider = config.get(

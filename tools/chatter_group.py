@@ -491,7 +491,8 @@ def process_group_event(db, client, config, event):
         response = call_llm(
             client, prompt, config,
             max_tokens_override=max_tokens,
-            context=f"grp-join:#{event_id}:{bot_name}"
+            context=f"grp-join:#{event_id}:{bot_name}",
+            label='group_greeting',
         )
 
         if not response:
@@ -715,6 +716,7 @@ def process_group_join_batch_event(
                     f"batch-join:#{event_id}"
                     f":{bot_name}"
                 ),
+                label='group_greeting',
             )
             if not response:
                 continue
@@ -918,7 +920,8 @@ def _batch_welcome(
     response = call_llm(
         client, prompt, config,
         max_tokens_override=max_tokens,
-        context=f"batch-welcome:{wb_name}"
+        context=f"batch-welcome:{wb_name}",
+        label='group_welcome',
     )
     if not response:
         return
@@ -1245,7 +1248,8 @@ def process_group_player_msg_event(
             context=(
                 f"grp-msg:#{event_id}"
                 f":{bot_name}"
-            )
+            ),
+            label='group_player_msg',
         )
 
         if not response:
@@ -1444,7 +1448,8 @@ def _try_second_bot_response(
     response = call_llm(
         client, prompt, config,
         max_tokens_override=max_tokens,
-        context=f"2nd-reply:{bot2_name}"
+        context=f"2nd-reply:{bot2_name}",
+        label='group_player_msg',
     )
     if not response:
         return
@@ -1552,7 +1557,8 @@ def _welcome_from_existing_bot(
     response = call_llm(
         client, prompt, config,
         max_tokens_override=max_tokens,
-        context=f"welcome:{wb_name}"
+        context=f"welcome:{wb_name}",
+        label='group_welcome',
     )
     if not response:
         return
@@ -1799,7 +1805,8 @@ def _maybe_comment_on_composition(
     response = call_llm(
         client, prompt, config,
         max_tokens_override=min(max_tokens, 100),
-        context=f"comp-comment:{bot['name']}"
+        context=f"comp-comment:{bot['name']}",
+        label='group_composition',
     )
     if not response:
         return
@@ -2859,7 +2866,8 @@ def _idle_single_statement(
         response = call_llm(
             client, prompt, config,
             max_tokens_override=max_tokens,
-            context=f"idle:{bot_name}"
+            context=f"idle:{bot_name}",
+            label='group_idle',
         )
 
         if not response:
@@ -3056,7 +3064,8 @@ def _idle_conversation(
         response = call_llm(
             client, prompt, config,
             max_tokens_override=conv_tokens,
-            context=f"idle-conv:{names_ctx}"
+            context=f"idle-conv:{names_ctx}",
+            label='group_idle_conv',
         )
 
         if not response:
@@ -3427,7 +3436,8 @@ def check_bot_questions(db, client, config):
             max_tokens_override=min(
                 max_tokens, 200
             ),
-            context=f"bot-question:{bot_name}"
+            context=f"bot-question:{bot_name}",
+            label='group_bot_question',
         )
 
         if not response:
@@ -3461,7 +3471,8 @@ def check_bot_questions(db, client, config):
                 ),
                 context=(
                     f"bot-question-retry:{bot_name}"
-                )
+                ),
+                label='group_bot_question',
             )
             if not response:
                 return False

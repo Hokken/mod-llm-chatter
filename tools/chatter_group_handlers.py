@@ -3682,6 +3682,7 @@ def _nearby_object_conversation(
         context=(
             f"nearby-obj-conv:{names_ctx}"
         ),
+        label='group_nearby_obj',
     )
     if not response:
         _mark_event(db, event_id, 'skipped')
@@ -3897,6 +3898,7 @@ def execute_player_msg_conversation(
         context=(
             f"pmsg-conv:{names_ctx}"
         ),
+        label='group_player_msg_conv',
     )
     if not response:
         return False
@@ -4169,6 +4171,7 @@ def _quest_complete_conversation(
         context=(
             f"quest-complete-conv:{names_ctx}"
         ),
+        label='group_quest_conv',
     )
     if not response:
         return False
@@ -4258,6 +4261,7 @@ def _quest_objectives_conversation(
         context=(
             f"quest-obj-conv:{names_ctx}"
         ),
+        label='group_quest_conv',
     )
     if not response:
         return False
@@ -4347,6 +4351,7 @@ def _quest_accept_conversation(
         context=(
             f"quest-acc-conv:{names_ctx}"
         ),
+        label='group_quest_conv',
     )
     if not response:
         return False

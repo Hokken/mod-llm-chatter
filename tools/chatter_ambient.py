@@ -290,7 +290,8 @@ def process_statement(
     # Call LLM
     response = call_llm(
         client, prompt, config,
-        context=f"ambient:{bot['name']}"
+        context=f"ambient:{bot['name']}",
+        label='ambient_statement',
     )
 
     if response:
@@ -523,7 +524,8 @@ def process_conversation(
     response = call_llm(
         client, prompt, config,
         max_tokens_override=conversation_max_tokens,
-        context=f"ambient-conv:{bot_names_ctx}"
+        context=f"ambient-conv:{bot_names_ctx}",
+        label='ambient_conv',
     )
 
     if response:
@@ -549,7 +551,8 @@ def process_conversation(
                 max_tokens_override=(
                     conversation_max_tokens
                 ),
-                context="json-repair"
+                context="json-repair",
+                label='ambient_conv',
             )
             if response:
                 messages = (

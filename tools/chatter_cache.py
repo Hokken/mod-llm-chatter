@@ -375,7 +375,8 @@ def refill_precache_pool(db, client, config):
                 context=(
                     f"precache:{cat}"
                     f":{bot_name}"
-                )
+                ),
+                label='precache',
             )
             if not response:
                 continue

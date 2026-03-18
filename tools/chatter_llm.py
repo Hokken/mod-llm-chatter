@@ -2,6 +2,7 @@
 
 import logging
 import threading
+import time
 from typing import Any, Optional
 
 from chatter_constants import (
@@ -22,7 +23,9 @@ def call_llm(
     prompt: str,
     config: dict,
     max_tokens_override: int = None,
-    context: str = ''
+    context: str = '',
+    *,
+    label: str = ''
 ) -> str:
     """Call LLM API (Anthropic, OpenAI, or Ollama)."""
     provider = config.get(
@@ -41,6 +44,8 @@ def call_llm(
         config.get('LLMChatter.Temperature', 0.85)
     )
 
+    t0 = time.monotonic()
+    result = None
     try:
         if provider == 'ollama':
             actual_prompt = prompt
@@ -69,7 +74,10 @@ def call_llm(
                     "options": {"num_ctx": context_size}
                 }
             )
-            return response.choices[0].message.content.strip()
+            result = (
+                response.choices[0]
+                .message.content.strip()
+            )
         elif provider == 'openai':
             response = client.chat.completions.create(
                 model=model,
@@ -79,7 +87,10 @@ def call_llm(
                     {"role": "user", "content": prompt}
                 ]
             )
-            return response.choices[0].message.content.strip()
+            result = (
+                response.choices[0]
+                .message.content.strip()
+            )
         else:
             # Anthropic (default)
             response = client.messages.create(
@@ -90,9 +101,24 @@ def call_llm(
                     {"role": "user", "content": prompt}
                 ]
             )
-            return response.content[0].text.strip()
+            result = response.content[0].text.strip()
     except Exception:
-        return None
+        result = None
+    finally:
+        duration_ms = int(
+            (time.monotonic() - t0) * 1000
+        )
+        try:
+            from chatter_request_logger import (
+                log_request,
+            )
+            log_request(
+                label, prompt, result,
+                model, provider, duration_ms
+            )
+        except Exception:
+            pass
+    return result
 
 
 # Cached client for quick analyze when provider
@@ -180,7 +206,9 @@ def quick_llm_analyze(
     client: Any,
     config: dict,
     prompt: str,
-    max_tokens: int = 50
+    max_tokens: int = 50,
+    *,
+    label: str = ''
 ) -> Optional[str]:
     """Fast LLM call for pre-processing analysis.
 
@@ -223,6 +251,8 @@ def quick_llm_analyze(
             DEFAULT_ANTHROPIC_MODEL
         )
 
+    t0 = time.monotonic()
+    result = None
     try:
         if provider == 'ollama':
             actual_prompt = prompt
@@ -257,7 +287,7 @@ def quick_llm_analyze(
                     }
                 )
             )
-            return (
+            result = (
                 response.choices[0]
                 .message.content.strip()
             )
@@ -274,7 +304,7 @@ def quick_llm_analyze(
                     }]
                 )
             )
-            return (
+            result = (
                 response.choices[0]
                 .message.content.strip()
             )
@@ -290,6 +320,21 @@ def quick_llm_analyze(
                     }]
                 )
             )
-            return response.content[0].text.strip()
+            result = response.content[0].text.strip()
     except Exception:
-        return None
+        result = None
+    finally:
+        duration_ms = int(
+            (time.monotonic() - t0) * 1000
+        )
+        try:
+            from chatter_request_logger import (
+                log_request,
+            )
+            log_request(
+                label, prompt, result,
+                model, provider, duration_ms
+            )
+        except Exception:
+            pass
+    return result

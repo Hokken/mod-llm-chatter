@@ -1073,6 +1073,7 @@ def run_single_reaction(
         config,
         max_tokens_override=max_tokens_override,
         context=context,
+        label='single_reaction',
     )
     if not response:
         return {

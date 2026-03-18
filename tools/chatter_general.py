@@ -704,7 +704,8 @@ def process_general_player_msg_event(
             context=(
                 f"gen-msg:#{event_id}"
                 f":{bot1_name}"
-            )
+            ),
+            label='general_player_msg',
         )
 
         if not response1:
@@ -914,7 +915,8 @@ def _general_followup(
     response2 = call_llm(
         client, prompt2, config,
         max_tokens_override=max_tokens,
-        context=f"gen-followup:{bot2_name}"
+        context=f"gen-followup:{bot2_name}",
+        label='general_followup',
     )
     if not response2:
         return
@@ -1292,7 +1294,8 @@ def _general_extended_conversation(
             max_tokens_override=max_tokens,
             context=(
                 f"gen-extended:{speaker['name']}"
-            )
+            ),
+            label='general_conv',
         )
         if not response:
             break

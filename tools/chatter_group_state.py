@@ -346,7 +346,8 @@ def _generate_farewell(
         response = call_llm(
             client, prompt, config,
             max_tokens_override=60,
-            context=f"farewell:{bot_name}"
+            context=f"farewell:{bot_name}",
+            label='group_farewell',
         )
         if not response:
             return

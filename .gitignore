@@ -6,3 +6,4 @@ dev-only
 *.env
 .DS_Store
 Gemini.md
+logs/
