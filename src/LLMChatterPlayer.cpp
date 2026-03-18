@@ -867,6 +867,17 @@ public:
 
         if (!IsPlayerBot(player))
         {
+            // Immediately persist zone/area so the
+            // Python bridge sees fresh data without
+            // waiting for the 15-min autosave.
+            CharacterDatabase.Execute(
+                "UPDATE characters "
+                "SET zone = {}, area = {} "
+                "WHERE guid = {}",
+                newZone,
+                newArea,
+                player->GetGUID().GetCounter());
+
             // Real player: update all bot zones
             // in group + check for enemy zone
             HandleGroupPlayerUpdateZone(
