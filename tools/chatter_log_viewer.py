@@ -256,6 +256,20 @@ a{color:#e94560}
   background:rgba(149,165,166,0.08)}
 .prompt-style{border-color:#f39c12;
   background:rgba(243,156,18,0.08)}
+.ctx-table{width:100%;border-collapse:collapse;
+  font-size:11px}
+.ctx-table td{padding:2px 6px;
+  border-bottom:1px solid #222}
+.ctx-table td:first-child{color:#888;
+  white-space:nowrap;width:100px;
+  font-weight:bold}
+.ctx-table td:last-child{color:#ccc;
+  word-break:break-word}
+.ctx-section{background:#16213e;padding:4px 10px;
+  flex-shrink:0;display:none}
+.ctx-section .ctx-title{font-size:11px;
+  color:#e94560;font-weight:bold;
+  margin-bottom:3px}
 </style>
 </head>
 <body>
@@ -281,6 +295,12 @@ a{color:#e94560}
 <div class="right">
   <div class="detail-hdr" id="detailHdr">
     Select an entry</div>
+  <div class="ctx-section" id="ctxSection">
+    <div class="ctx-title">Context</div>
+    <table class="ctx-table">
+      <tbody id="ctxBody"></tbody>
+    </table>
+  </div>
   <div class="prompt-pane" id="promptPane">
     <div class="section-title">
       <span>Prompt</span>
@@ -618,6 +638,34 @@ function selectEntry(i){
     +esc(e.model||'')+'</span>';
   document.getElementById('detailHdr')
     .innerHTML=hdr;
+
+  /* --- Context metadata section --- */
+  const CTX_FIELDS=[
+    ['zone_name','Zone'],
+    ['zone_flavor','Zone flavor'],
+    ['subzone_name','Subzone'],
+    ['subzone_lore','Subzone lore'],
+    ['speaker_talent','Speaker talent'],
+    ['target_talent','Target talent']
+  ];
+  const ctxSec=document.getElementById('ctxSection');
+  const ctxBody=document.getElementById('ctxBody');
+  let ctxHtml='';
+  for(const [k,label] of CTX_FIELDS){
+    const v=e[k];
+    if(v&&String(v).trim()){
+      ctxHtml+='<tr><td>'+esc(label)
+        +'</td><td>'+esc(String(v))
+        +'</td></tr>';
+    }
+  }
+  if(ctxHtml){
+    ctxBody.innerHTML=ctxHtml;
+    ctxSec.style.display='block';
+  }else{
+    ctxBody.innerHTML='';
+    ctxSec.style.display='none';
+  }
 
   const result=highlightPrompt(e.prompt||'');
   document.getElementById('promptBody')

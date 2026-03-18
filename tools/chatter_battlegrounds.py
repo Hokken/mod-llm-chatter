@@ -185,6 +185,9 @@ def _try_carrier_self_message(
         32,
     ))
 
+    fc_meta = {}
+    if talent_ctx:
+        fc_meta['speaker_talent'] = talent_ctx
     run_single_reaction(
         db, client, config,
         prompt=prompt,
@@ -198,6 +201,7 @@ def _try_carrier_self_message(
         context=(
             f"bg-flag-carrier:{action}"
             f":#{event_id}:{name}"),
+        metadata=fc_meta or None,
     )
 
 
@@ -450,6 +454,11 @@ def process_bg_arrival_event(
             extra_data, trait_data,
             is_raid_worker=False)
 
+        arr_meta = {}
+        if talent_ctx:
+            arr_meta['speaker_talent'] = (
+                talent_ctx
+            )
         delay = base_delay + idx * 6
         result = run_single_reaction(
             db, client, config,
@@ -464,6 +473,7 @@ def process_bg_arrival_event(
             context=(
                 f"bg-arrival:#{event_id}"
                 f":{bot_name}"),
+            metadata=arr_meta or None,
         )
         if result.get('ok'):
             any_sent = True

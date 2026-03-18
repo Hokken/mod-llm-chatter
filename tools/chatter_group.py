@@ -63,6 +63,7 @@ from chatter_shared import (
     get_subzone_name,
     get_player_zone,
     stagger_if_needed,
+    build_zone_metadata,
 )
 from chatter_db import (
     get_character_info_by_name,
@@ -2812,6 +2813,18 @@ def _idle_single_statement(
         db, bot_guid
     )
 
+    # Zone metadata for request logging
+    zone_meta = build_zone_metadata(
+        zone_name=get_zone_name(zone_id) or '',
+        zone_flavor=get_zone_flavor(zone_id) or '',
+        subzone_name=(
+            get_subzone_name(zone_id, area_id) or ''
+        ),
+        subzone_lore=(
+            get_subzone_lore(zone_id, area_id) or ''
+        ),
+    )
+
     try:
         allow_action = (
             random.random() < get_action_chance()
@@ -2862,12 +2875,17 @@ def _idle_single_statement(
             prompt[:600],
         )
 
+        if speaker_talent:
+            zone_meta['speaker_talent'] = (
+                speaker_talent
+            )
         max_tokens = pick_random_max_tokens(config)
         response = call_llm(
             client, prompt, config,
             max_tokens_override=max_tokens,
             context=f"idle:{bot_name}",
             label='group_idle',
+            metadata=zone_meta,
         )
 
         if not response:
@@ -2996,6 +3014,18 @@ def _idle_conversation(
         )
         recent_msgs.extend(msgs)
 
+    # Zone metadata for request logging
+    zone_meta = build_zone_metadata(
+        zone_name=get_zone_name(zone_id) or '',
+        zone_flavor=get_zone_flavor(zone_id) or '',
+        subzone_name=(
+            get_subzone_name(zone_id, area_id) or ''
+        ),
+        subzone_lore=(
+            get_subzone_lore(zone_id, area_id) or ''
+        ),
+    )
+
     try:
         allow_action = (
             random.random() < get_action_chance()
@@ -3060,12 +3090,17 @@ def _idle_conversation(
         conv_tokens = min(
             max_tokens * (1 + num_bots), 1000
         )
+        if speaker_talent:
+            zone_meta['speaker_talent'] = (
+                speaker_talent
+            )
         names_ctx = ','.join(bot_names)
         response = call_llm(
             client, prompt, config,
             max_tokens_override=conv_tokens,
             context=f"idle-conv:{names_ctx}",
             label='group_idle_conv',
+            metadata=zone_meta,
         )
 
         if not response:
@@ -3431,6 +3466,15 @@ def check_bot_questions(db, client, config):
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
         ))
+        bq_meta = {}
+        if speaker_talent:
+            bq_meta['speaker_talent'] = (
+                speaker_talent
+            )
+        if target_talent:
+            bq_meta['target_talent'] = (
+                target_talent
+            )
         response = call_llm(
             client, prompt, config,
             max_tokens_override=min(
@@ -3438,6 +3482,7 @@ def check_bot_questions(db, client, config):
             ),
             context=f"bot-question:{bot_name}",
             label='group_bot_question',
+            metadata=bq_meta or None,
         )
 
         if not response:
@@ -3473,6 +3518,7 @@ def check_bot_questions(db, client, config):
                     f"bot-question-retry:{bot_name}"
                 ),
                 label='group_bot_question',
+                metadata=bq_meta or None,
             )
             if not response:
                 return False

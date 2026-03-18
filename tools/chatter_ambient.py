@@ -37,8 +37,15 @@ from chatter_shared import (
     get_chatter_mode,
     _zone_last_delivery,
     _zone_delivery_delay,
+    get_zone_name,
+    get_zone_flavor,
+    get_subzone_name,
+    get_subzone_lore,
 )
-from chatter_shared import build_talent_context
+from chatter_shared import (
+    build_talent_context,
+    build_zone_metadata,
+)
 from chatter_prompts import (
     build_plain_statement_prompt,
     build_quest_statement_prompt,
@@ -54,6 +61,24 @@ from chatter_prompts import (
 )
 
 logger = logging.getLogger(__name__)
+
+
+def _build_zone_metadata(zone_id, area_id=0):
+    """Build zone metadata dict for request logging.
+
+    Thin wrapper around build_zone_metadata() that
+    resolves zone/subzone names from IDs first.
+    """
+    return build_zone_metadata(
+        zone_name=get_zone_name(zone_id) or '',
+        zone_flavor=get_zone_flavor(zone_id) or '',
+        subzone_name=(
+            get_subzone_name(zone_id, area_id) or ''
+        ),
+        subzone_lore=(
+            get_subzone_lore(zone_id, area_id) or ''
+        ),
+    )
 
 
 def _fetch_loot_data(config, zone_id, level):
@@ -110,8 +135,14 @@ def process_statement(
 
     # Select message type
     zone_id = request.get('zone_id', 0)
+    area_id = request.get('area_id', zone_id)
     current_weather = request.get('weather', 'clear')
     mode = get_chatter_mode(config)
+
+    # Zone metadata for request logging
+    zone_meta = _build_zone_metadata(
+        zone_id, area_id
+    )
     msg_type = select_message_type()
 
     # Skip loot/trade in capital cities (no zone
@@ -220,6 +251,7 @@ def process_statement(
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             topic=topic,
+            area_id=area_id,
         )
     elif msg_type == "quest":
         prompt = build_quest_statement_prompt(
@@ -285,13 +317,19 @@ def process_statement(
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             topic=topic,
+            area_id=area_id,
         )
 
     # Call LLM
+    if speaker_talent:
+        zone_meta['speaker_talent'] = (
+            speaker_talent
+        )
     response = call_llm(
         client, prompt, config,
         context=f"ambient:{bot['name']}",
         label='ambient_statement',
+        metadata=zone_meta,
     )
 
     if response:
@@ -357,8 +395,14 @@ def process_conversation(
 
 
     zone_id = request.get('zone_id', 0)
+    area_id = request.get('area_id', zone_id)
     current_weather = request.get('weather', 'clear')
     mode = get_chatter_mode(config)
+
+    # Zone metadata for request logging
+    zone_meta = _build_zone_metadata(
+        zone_id, area_id
+    )
 
     # Fetch recent zone messages for anti-repetition
     recent_msgs = get_recent_zone_messages(
@@ -467,6 +511,7 @@ def process_conversation(
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             topic=topic,
+            area_id=area_id,
         )
     elif msg_type == "quest":
         allow_action = (
@@ -520,12 +565,17 @@ def process_conversation(
             config.get('LLMChatter.MaxTokens', 200)
         )
     )
+    if speaker_talent:
+        zone_meta['speaker_talent'] = (
+            speaker_talent
+        )
     bot_names_ctx = ','.join(bot_names)
     response = call_llm(
         client, prompt, config,
         max_tokens_override=conversation_max_tokens,
         context=f"ambient-conv:{bot_names_ctx}",
         label='ambient_conv',
+        metadata=zone_meta,
     )
 
     if response:
@@ -553,6 +603,7 @@ def process_conversation(
                 ),
                 context="json-repair",
                 label='ambient_conv',
+                metadata=zone_meta,
             )
             if response:
                 messages = (

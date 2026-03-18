@@ -110,8 +110,14 @@ def log_request(
     model: str,
     provider: str,
     duration_ms: int,
+    metadata: dict = None,
 ) -> None:
-    """Write one JSONL entry. No-op when disabled."""
+    """Write one JSONL entry. No-op when disabled.
+
+    metadata: optional dict of extra fields merged
+    between duration_ms and prompt. Only non-empty
+    string values are written (no null keys).
+    """
     if not _enabled:
         return
 
@@ -132,9 +138,13 @@ def log_request(
             'model': model,
             'provider': provider,
             'duration_ms': duration_ms,
-            'prompt': prompt,
-            'response': response,
         }
+        if metadata:
+            for k, v in metadata.items():
+                if v:  # skip empty/None values
+                    entry[k] = v
+        entry['prompt'] = prompt
+        entry['response'] = response
 
         try:
             with open(

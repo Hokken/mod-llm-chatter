@@ -3414,6 +3414,8 @@ def build_nearby_object_reaction_prompt(
         prompt += (
             f"\nAbout this place: {subzone_lore}"
         )
+    elif not is_rp and subzone_name:
+        prompt += f"\nSubzone: {subzone_name}"
     if is_rp:
         style = (
             "Make a brief, in-character observation "
@@ -3518,6 +3520,8 @@ def build_nearby_object_conversation_prompt(
         parts.append(
             f"About this place: {subzone_lore}"
         )
+    elif not is_rp and subzone_name:
+        parts.append(f"Subzone: {subzone_name}")
     parts.append(
         f"Nearby points of interest:\n{obj_desc}"
     )

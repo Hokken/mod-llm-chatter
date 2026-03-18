@@ -33,6 +33,10 @@ from chatter_shared import (
     get_action_chance,
     _zone_delivery_delay,
     _zone_last_delivery,
+    get_zone_flavor,
+    get_subzone_name,
+    get_subzone_lore,
+    build_zone_metadata,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -265,6 +269,9 @@ def _build_general_response_prompt(
     link_context="",
     speaker_talent_context=None,
     target_talent_context=None,
+    zone_flavor="",
+    subzone_name="",
+    subzone_lore="",
 ):
     """Build prompt for a bot responding to a
     player's General channel message.
@@ -344,6 +351,14 @@ def _build_general_response_prompt(
     )
     if tod:
         prompt += f" {tod}"
+    if is_rp and zone_flavor:
+        prompt += f"\nZone context: {zone_flavor}"
+    if is_rp and subzone_lore:
+        prompt += (
+            f"\nCurrent subzone: {subzone_lore}"
+        )
+    elif subzone_name:
+        prompt += f"\nSubzone: {subzone_name}"
     prompt += (
         f"{rp_context}\n"
         f"{chat_history}\n\n"
@@ -408,6 +423,9 @@ def _build_general_followup_prompt(
     link_context="",
     speaker_talent_context=None,
     target_talent_context=None,
+    zone_flavor="",
+    subzone_name="",
+    subzone_lore="",
 ):
     """Build prompt for a 2nd bot following up
     on the 1st bot's reaction in General channel.
@@ -477,6 +495,16 @@ def _build_general_followup_prompt(
         f"Your tone: {tone}\n"
         f"Your mood: {mood}\n"
         f"You are in {zone_name}."
+    )
+    if is_rp and zone_flavor:
+        prompt += f"\nZone context: {zone_flavor}"
+    if is_rp and subzone_lore:
+        prompt += (
+            f"\nCurrent subzone: {subzone_lore}"
+        )
+    elif subzone_name:
+        prompt += f"\nSubzone: {subzone_name}"
+    prompt += (
         f"{rp_context}\n"
         f"{chat_history}\n\n"
     )
@@ -558,6 +586,27 @@ def process_general_player_msg_event(
     )
     bot_guids = extra_data.get('bot_guids', [])
     bot_names = extra_data.get('bot_names', [])
+
+    # Zone/subzone context for prompts and logging
+    zone_flavor = get_zone_flavor(zone_id) or ''
+    area_id = int(
+        extra_data.get('area_id', zone_id)
+    )
+    subzone_name = (
+        get_subzone_name(zone_id, area_id) or ''
+    )
+    subzone_lore = (
+        get_subzone_lore(zone_id, area_id) or ''
+    )
+    zone_meta = build_zone_metadata(
+        zone_name=(
+            zone_name
+            if zone_name != 'Unknown' else ''
+        ),
+        zone_flavor=zone_flavor,
+        subzone_name=subzone_name,
+        subzone_lore=subzone_lore,
+    )
 
     if not zone_id or not player_message:
         _mark_event(db, event_id, 'skipped')
@@ -693,11 +742,22 @@ def process_general_player_msg_event(
             link_context=link_context,
             speaker_talent_context=speaker_talent,
             target_talent_context=target_talent,
+            zone_flavor=zone_flavor,
+            subzone_name=subzone_name,
+            subzone_lore=subzone_lore,
         )
 
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
         ))
+        if speaker_talent:
+            zone_meta['speaker_talent'] = (
+                speaker_talent
+            )
+        if target_talent:
+            zone_meta['target_talent'] = (
+                target_talent
+            )
         response1 = call_llm(
             client, prompt1, config,
             max_tokens_override=max_tokens,
@@ -706,6 +766,7 @@ def process_general_player_msg_event(
                 f":{bot1_name}"
             ),
             label='general_player_msg',
+            metadata=zone_meta,
         )
 
         if not response1:
@@ -776,6 +837,10 @@ def process_general_player_msg_event(
                     target_talent_context=(
                         target_talent
                     ),
+                    zone_flavor=zone_flavor,
+                    subzone_name=subzone_name,
+                    subzone_lore=subzone_lore,
+                    zone_meta=zone_meta,
                 )
                 # Extended conversation chance
                 if (
@@ -809,6 +874,10 @@ def process_general_player_msg_event(
                             target_talent_context=(
                                 target_talent
                             ),
+                            zone_flavor=zone_flavor,
+                            subzone_name=subzone_name,
+                            subzone_lore=subzone_lore,
+                            zone_meta=zone_meta,
                         )
                     except Exception as e3:
                         logger.error(
@@ -844,6 +913,10 @@ def _general_followup(
     link_context="",
     speaker_talent_context=None,
     target_talent_context=None,
+    zone_flavor="",
+    subzone_name="",
+    subzone_lore="",
+    zone_meta=None,
 ):
     """Generate a second bot's followup response
     in General channel conversation mode.
@@ -907,16 +980,30 @@ def _general_followup(
         target_talent_context=(
             target_talent_context
         ),
+        zone_flavor=zone_flavor,
+        subzone_name=subzone_name,
+        subzone_lore=subzone_lore,
     )
 
     max_tokens = int(config.get(
         'LLMChatter.MaxTokens', 200
     ))
+    if zone_meta is None:
+        zone_meta = {}
+    if bot2_speaker_talent:
+        zone_meta['speaker_talent'] = (
+            bot2_speaker_talent
+        )
+    if target_talent_context:
+        zone_meta['target_talent'] = (
+            target_talent_context
+        )
     response2 = call_llm(
         client, prompt2, config,
         max_tokens_override=max_tokens,
         context=f"gen-followup:{bot2_name}",
         label='general_followup',
+        metadata=zone_meta,
     )
     if not response2:
         return
@@ -979,6 +1066,9 @@ def _build_general_continuation_prompt(
     remaining_messages=3, link_context="",
     speaker_talent_context=None,
     target_talent_context=None,
+    zone_flavor="",
+    subzone_name="",
+    subzone_lore="",
 ):
     """Build prompt for a continuation message in
     an extended General channel conversation.
@@ -1063,6 +1153,16 @@ def _build_general_continuation_prompt(
         f"Your tone: {tone}\n"
         f"Your mood: {mood}\n"
         f"You are in {zone_name}."
+    )
+    if is_rp and zone_flavor:
+        prompt += f"\nZone context: {zone_flavor}"
+    if is_rp and subzone_lore:
+        prompt += (
+            f"\nCurrent subzone: {subzone_lore}"
+        )
+    elif subzone_name:
+        prompt += f"\nSubzone: {subzone_name}"
+    prompt += (
         f"{rp_context}\n"
         f"{chat_history}\n\n"
     )
@@ -1131,6 +1231,10 @@ def _general_extended_conversation(
     link_context="",
     speaker_talent_context=None,
     target_talent_context=None,
+    zone_flavor="",
+    subzone_name="",
+    subzone_lore="",
+    zone_meta=None,
 ):
     """Generate additional messages beyond the
     initial 2-message conversation in General
@@ -1287,8 +1391,25 @@ def _general_extended_conversation(
             target_talent_context=(
                 target_talent_context
             ),
+            zone_flavor=zone_flavor,
+            subzone_name=subzone_name,
+            subzone_lore=subzone_lore,
         )
 
+        if zone_meta is None:
+            zone_meta = {}
+        if sp_speaker_talent:
+            zone_meta['speaker_talent'] = (
+                sp_speaker_talent
+            )
+        else:
+            zone_meta.pop(
+                'speaker_talent', None
+            )
+        if target_talent_context:
+            zone_meta['target_talent'] = (
+                target_talent_context
+            )
         response = call_llm(
             client, prompt, config,
             max_tokens_override=max_tokens,
@@ -1296,6 +1417,7 @@ def _general_extended_conversation(
                 f"gen-extended:{speaker['name']}"
             ),
             label='general_conv',
+            metadata=zone_meta,
         )
         if not response:
             break

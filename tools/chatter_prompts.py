@@ -24,6 +24,7 @@ from chatter_shared import (
     build_anti_repetition_context,
     append_json_instruction,
     append_conversation_json_instruction,
+    get_subzone_name, get_subzone_lore,
 )
 
 logger = logging.getLogger(__name__)
@@ -348,6 +349,7 @@ def build_plain_statement_prompt(
     allow_action: bool = True,
     speaker_talent_context=None,
     topic: str = None,
+    area_id: int = 0,
 ) -> str:
     """Build a dynamically varied prompt for a plain statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -380,6 +382,19 @@ def build_plain_statement_prompt(
     zone_flavor = get_zone_flavor(zone_id)
     if is_rp and zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
+
+    # Subzone context (matches group idle pattern)
+    sz_lore = get_subzone_lore(zone_id, area_id)
+    if is_rp and sz_lore:
+        parts.append(
+            f"Current subzone: {sz_lore}"
+        )
+    else:
+        sz_name = get_subzone_name(
+            zone_id, area_id
+        )
+        if sz_name:
+            parts.append(f"Subzone: {sz_name}")
 
     env_context = get_environmental_context(current_weather)
     if env_context['time']:
@@ -841,6 +856,7 @@ def build_plain_conversation_prompt(
     allow_action: bool = True,
     speaker_talent_context=None,
     topic: str = None,
+    area_id: int = 0,
 ) -> str:
     """Build a prompt for a plain conversation with 2-4 bots."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -877,6 +893,19 @@ def build_plain_conversation_prompt(
     zone_flavor = get_zone_flavor(zone_id)
     if is_rp and zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
+
+    # Subzone context (matches group idle pattern)
+    sz_lore = get_subzone_lore(zone_id, area_id)
+    if is_rp and sz_lore:
+        parts.append(
+            f"Current subzone: {sz_lore}"
+        )
+    else:
+        sz_name = get_subzone_name(
+            zone_id, area_id
+        )
+        if sz_name:
+            parts.append(f"Subzone: {sz_name}")
 
     env_context = get_environmental_context(current_weather)
     if env_context['time']:

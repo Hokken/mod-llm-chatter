@@ -608,6 +608,30 @@ def get_subzone_name(
     return None
 
 
+def build_zone_metadata(
+    zone_name: str = '',
+    zone_flavor: str = '',
+    subzone_name: str = '',
+    subzone_lore: str = '',
+) -> dict:
+    """Build zone metadata dict for request logging.
+
+    Returns a dict containing only non-empty string
+    values so the log stays compact when data is
+    unavailable.
+    """
+    meta = {}
+    if zone_name:
+        meta['zone_name'] = zone_name
+    if zone_flavor:
+        meta['zone_flavor'] = zone_flavor
+    if subzone_name:
+        meta['subzone_name'] = subzone_name
+    if subzone_lore:
+        meta['subzone_lore'] = subzone_lore
+    return meta
+
+
 def format_location_label(
     zone_id: int, area_id: int
 ) -> str:
@@ -1045,6 +1069,7 @@ def run_single_reaction(
     max_tokens_override: int = None,
     context: str = '',
     message_transform: Any = None,
+    metadata: dict = None,
 ) -> Dict[str, Any]:
     """Run shared single-message reaction pipeline.
 
@@ -1074,6 +1099,7 @@ def run_single_reaction(
         max_tokens_override=max_tokens_override,
         context=context,
         label='single_reaction',
+        metadata=metadata,
     )
     if not response:
         return {

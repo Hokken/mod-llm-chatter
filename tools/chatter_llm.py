@@ -25,7 +25,8 @@ def call_llm(
     max_tokens_override: int = None,
     context: str = '',
     *,
-    label: str = ''
+    label: str = '',
+    metadata: dict = None,
 ) -> str:
     """Call LLM API (Anthropic, OpenAI, or Ollama)."""
     provider = config.get(
@@ -114,7 +115,8 @@ def call_llm(
             )
             log_request(
                 label, prompt, result,
-                model, provider, duration_ms
+                model, provider, duration_ms,
+                metadata=metadata,
             )
         except Exception:
             pass
@@ -208,7 +210,8 @@ def quick_llm_analyze(
     prompt: str,
     max_tokens: int = 50,
     *,
-    label: str = ''
+    label: str = '',
+    metadata: dict = None,
 ) -> Optional[str]:
     """Fast LLM call for pre-processing analysis.
 
@@ -333,7 +336,8 @@ def quick_llm_analyze(
             )
             log_request(
                 label, prompt, result,
-                model, provider, duration_ms
+                model, provider, duration_ms,
+                metadata=metadata,
             )
         except Exception:
             pass

@@ -10,9 +10,11 @@ from chatter_shared import (
     get_race_name,
     get_chatter_mode,
     get_zone_name,
+    get_zone_flavor,
     get_player_zone,
     get_group_area,
     get_subzone_lore,
+    get_subzone_name,
     query_quest_turnin_npc,
     get_dungeon_flavor,
     get_dungeon_bosses,
@@ -23,6 +25,7 @@ from chatter_shared import (
     parse_conversation_response,
     calculate_dynamic_delay,
     build_talent_context,
+    build_zone_metadata,
 )
 from chatter_db import (
     insert_chat_message,
@@ -3492,6 +3495,17 @@ def process_group_nearby_object_event(
         zone_id, area_id
     )
 
+    # Zone metadata for request logging
+    zf = get_zone_flavor(zone_id)
+    resolved_subzone = (
+        subzone_name
+        or get_subzone_name(zone_id, area_id)
+    )
+    zone_meta = build_zone_metadata(
+        zone_name, zf,
+        resolved_subzone, subzone_lore,
+    )
+
     # -- Decide: conversation or statement? --
     members = get_group_members(db, group_id)
     conv_chance = int(config.get(
@@ -3513,6 +3527,7 @@ def process_group_nearby_object_event(
                 in_city, in_dungeon,
                 mode, chat_hist,
                 subzone_lore=subzone_lore,
+                zone_meta=zone_meta,
             )
         except Exception:
             _mark_event(
@@ -3545,6 +3560,10 @@ def process_group_nearby_object_event(
         subzone_lore=subzone_lore,
     )
 
+    if speaker_talent:
+        zone_meta['speaker_talent'] = (
+            speaker_talent
+        )
     result = run_single_reaction(
         db, client, config,
         prompt=prompt,
@@ -3554,6 +3573,7 @@ def process_group_nearby_object_event(
         delay_seconds=3,
         event_id=event_id,
         allow_emote_fallback=True,
+        metadata=zone_meta,
     )
 
     if not result['ok']:
@@ -3575,6 +3595,7 @@ def _nearby_object_conversation(
     in_city, in_dungeon,
     mode, chat_hist,
     subzone_lore=None,
+    zone_meta=None,
 ):
     """Run a multi-bot conversation about nearby
     objects. Returns True on success."""
@@ -3674,6 +3695,12 @@ def _nearby_object_conversation(
     conv_tokens = min(
         max_tokens * (1 + num_bots), 1000
     )
+    if speaker_talent:
+        if zone_meta is None:
+            zone_meta = {}
+        zone_meta['speaker_talent'] = (
+            speaker_talent
+        )
     names_ctx = ','.join(bot_names)
 
     response = call_llm(
@@ -3683,6 +3710,7 @@ def _nearby_object_conversation(
             f"nearby-obj-conv:{names_ctx}"
         ),
         label='group_nearby_obj',
+        metadata=zone_meta,
     )
     if not response:
         _mark_event(db, event_id, 'skipped')
@@ -3890,6 +3918,15 @@ def execute_player_msg_conversation(
         max_tokens * (1 + num_bots), 1000
     )
 
+    pmsg_meta = {}
+    if speaker_talent:
+        pmsg_meta['speaker_talent'] = (
+            speaker_talent
+        )
+    if target_talent:
+        pmsg_meta['target_talent'] = (
+            target_talent
+        )
     names_ctx = ','.join(bot_names)
 
     response = call_llm(
@@ -3899,6 +3936,7 @@ def execute_player_msg_conversation(
             f"pmsg-conv:{names_ctx}"
         ),
         label='group_player_msg_conv',
+        metadata=pmsg_meta or None,
     )
     if not response:
         return False
@@ -4163,6 +4201,11 @@ def _quest_complete_conversation(
         max_tokens * (1 + num_bots), 1000
     )
 
+    qc_meta = {}
+    if speaker_talent:
+        qc_meta['speaker_talent'] = (
+            speaker_talent
+        )
     names_ctx = ','.join(bot_names)
 
     response = call_llm(
@@ -4172,6 +4215,7 @@ def _quest_complete_conversation(
             f"quest-complete-conv:{names_ctx}"
         ),
         label='group_quest_conv',
+        metadata=qc_meta or None,
     )
     if not response:
         return False
@@ -4253,6 +4297,11 @@ def _quest_objectives_conversation(
         max_tokens * (1 + num_bots), 1000
     )
 
+    qo_meta = {}
+    if speaker_talent:
+        qo_meta['speaker_talent'] = (
+            speaker_talent
+        )
     names_ctx = ','.join(bot_names)
 
     response = call_llm(
@@ -4262,6 +4311,7 @@ def _quest_objectives_conversation(
             f"quest-obj-conv:{names_ctx}"
         ),
         label='group_quest_conv',
+        metadata=qo_meta or None,
     )
     if not response:
         return False
@@ -4343,6 +4393,11 @@ def _quest_accept_conversation(
         max_tokens * (1 + num_bots), 1000
     )
 
+    qa_meta = {}
+    if speaker_talent:
+        qa_meta['speaker_talent'] = (
+            speaker_talent
+        )
     names_ctx = ','.join(bot_names)
 
     response = call_llm(
@@ -4352,6 +4407,7 @@ def _quest_accept_conversation(
             f"quest-acc-conv:{names_ctx}"
         ),
         label='group_quest_conv',
+        metadata=qa_meta or None,
     )
     if not response:
         return False

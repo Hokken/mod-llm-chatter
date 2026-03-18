@@ -330,6 +330,9 @@ def fire_subgroup_worker(
         32,
     ))
 
+    sg_meta = {}
+    if talent_ctx:
+        sg_meta['speaker_talent'] = talent_ctx
     result = run_single_reaction(
         db, client, config,
         prompt=prompt,
@@ -343,6 +346,7 @@ def fire_subgroup_worker(
         context=(
             f"squad:#{event.get('id')}"
             f":{bot_name}"),
+        metadata=sg_meta or None,
     )
 
     if not result.get('ok'):
@@ -435,6 +439,9 @@ def fire_raid_worker(
         'is_battleground', False)
     channel = 'battleground' if in_bg else 'raid'
 
+    rw_meta = {}
+    if talent_ctx:
+        rw_meta['speaker_talent'] = talent_ctx
     result = run_single_reaction(
         db, client, config,
         prompt=prompt,
@@ -448,6 +455,7 @@ def fire_raid_worker(
         context=(
             f"crowd:#{event.get('id')}"
             f":{bot_name}"),
+        metadata=rw_meta or None,
     )
 
     if not result.get('ok'):

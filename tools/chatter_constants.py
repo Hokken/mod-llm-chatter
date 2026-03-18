@@ -159,16 +159,16 @@ ZONE_NAMES = {
     3519: "Terokkar Forest",
     3520: "Shadowmoon Valley", 3521: "Zangarmarsh",
     3522: "Blade's Edge Mountains",
-    3523: "Netherstorm", 3524: "Shattrath City", 3703: "Shattrath City",
+    3523: "Netherstorm", 3524: "Azuremyst Isle", 3703: "Shattrath City",
     3430: "Eversong Woods", 3433: "Ghostlands", 3487: "Silvermoon City",
     3525: "Bloodmyst Isle", 3557: "The Exodar",
     4080: "Isle of Quel'Danas",
     # Northrend
     3537: "Borean Tundra", 495: "Howling Fjord", 394: "Grizzly Hills",
-    3711: "Sholazar Basin", 66: "Zul'Drak", 67: "Storm Peaks",
+    3711: "Sholazar Basin", 66: "Zul'Drak", 67: "The Storm Peaks",
     210: "Icecrown",
     65: "Dragonblight", 2817: "Crystalsong Forest", 4395: "Dalaran",
-    4197: "Wintergrasp", 4298: "The Oculus",
+    4197: "Wintergrasp", 4228: "The Oculus",
     # Other
     406: "Stonetalon Mountains",
 }
@@ -183,8 +183,7 @@ CAPITAL_CITY_ZONES = {
     1638,  # Thunder Bluff
     1497,  # Undercity
     3487,  # Silvermoon City
-    3524,  # Shattrath City
-    3703,  # Shattrath City (alt)
+    3703,  # Shattrath City
     4395,  # Dalaran
 }
 
@@ -1036,6 +1035,18 @@ zone in Outland - hope feels distant here.""",
 Mana forges harvest the land's energy, blood elves and ethereals compete for
 resources, and mana creatures roam wildly. The eco-domes preserve life
 artificially. A zone tearing itself apart at the seams.""",
+
+    3524: """Azuremyst Isle: Tranquil draenei island suffused with soft azure
+light and the hum of crystal technology. The Exodar crash site still glows with
+residual energy, and draenei survivors tend their wounds and rebuild. Gentle
+wildlife, shimmering pools, and crystalline ruins share space with the hopeful
+beginnings of a displaced people finding their footing on a new world.""",
+
+    3525: """Bloodmyst Isle: Sister island to Azuremyst, stained crimson by
+corrupted crystals from the Exodar wreckage. The fel energy has twisted local
+wildlife into dangerous predators and mutated the vegetation. Blood elves and
+demons work to corrupt the land further. A place of beauty turned sinister,
+where the draenei must confront the damage their own ship's crash has caused.""",
 
     # -------------------------------------------------------------------------
     # Northrend
