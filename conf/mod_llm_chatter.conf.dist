@@ -350,7 +350,7 @@ LLMChatter.TriggerIntervalSeconds = 15
 #       (via internal CityChatterMultiplier).
 #       Default: 15
 #
-LLMChatter.TriggerChance = 10
+LLMChatter.TriggerChance = 20
 
 #
 #   LLMChatter.ConversationChance
@@ -359,7 +359,7 @@ LLMChatter.TriggerChance = 10
 #       statement. Requires 2+ bots in the zone.
 #       Default: 50
 #
-LLMChatter.ConversationChance = 40
+LLMChatter.ConversationChance = 30
 
 #
 #   LLMChatter.EventReactionChance
@@ -461,7 +461,7 @@ LLMChatter.Events.MinorEventChance = 20
 #       IdleChance. Lower = more frequent checks.
 #       Default: 60
 #
-LLMChatter.GroupChatter.IdleCheckInterval = 20
+LLMChatter.GroupChatter.IdleCheckInterval = 15
 
 #
 #   LLMChatter.GroupChatter.IdleChance
@@ -469,7 +469,7 @@ LLMChatter.GroupChatter.IdleCheckInterval = 20
 #       chatting during downtime.
 #       Default: 10
 #
-LLMChatter.GroupChatter.IdleChance = 5
+LLMChatter.GroupChatter.IdleChance = 10
 
 #
 #   LLMChatter.GroupChatter.ConversationBias
@@ -570,7 +570,7 @@ LLMChatter.GroupChatter.NearbyObjectEnable = 1
 #       triggers a comment. Scanned periodically per group.
 #       Default: 10
 #
-LLMChatter.GroupChatter.NearbyObjectChance = 10
+LLMChatter.GroupChatter.NearbyObjectChance = 20
 
 #
 #   LLMChatter.GroupChatter.NearbyObjectCheckInterval
@@ -755,7 +755,7 @@ LLMChatter.RaidChatter.MoraleEnable = 1
 #       each poll cycle after the cooldown expires.
 #       Default: 15
 #
-LLMChatter.RaidChatter.MoraleChance = 15
+LLMChatter.RaidChatter.MoraleChance = 20
 
 #
 #   LLMChatter.RaidChatter.MoraleCooldown
@@ -763,7 +763,7 @@ LLMChatter.RaidChatter.MoraleChance = 15
 #       for the same raid instance.
 #       Default: 120
 #
-LLMChatter.RaidChatter.MoraleCooldown = 120
+LLMChatter.RaidChatter.MoraleCooldown = 60
 
 ###############################################################################
 # PROMPT / OUTPUT TUNING [BRIDGE]
@@ -944,7 +944,7 @@ LLMChatter.LootRecentCooldownSeconds = 1200
 #       Minimum safe value is ~150.
 #       Default: 300
 #
-LLMChatter.BGChatter.MaxTokens = 300
+LLMChatter.BGChatter.MaxTokens = 350
 
 #
 #   LLMChatter.BGChatter.IdleChatterChance
@@ -953,7 +953,7 @@ LLMChatter.BGChatter.MaxTokens = 300
 #       after the idle cooldown expires.
 #       Default: 25
 #
-LLMChatter.BGChatter.IdleChatterChance = 25
+LLMChatter.BGChatter.IdleChatterChance = 30
 
 #
 #   LLMChatter.BGChatter.IdleChatterCooldownSec
