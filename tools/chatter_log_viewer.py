@@ -1167,6 +1167,14 @@ function selectEntry(i){
         +'</td></tr>';
     }
   }
+  /* Memories: array of strings */
+  if(Array.isArray(e.memories)&&e.memories.length){
+    e.memories.forEach((m,i)=>{
+      ctxHtml+='<tr><td>Memory '+(i+1)
+        +'</td><td style="font-style:italic">'
+        +esc(String(m))+'</td></tr>';
+    });
+  }
   if(ctxHtml){
     ctxBody.innerHTML=ctxHtml;
     ctxSec.style.display='block';

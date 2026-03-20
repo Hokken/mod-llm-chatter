@@ -36,8 +36,9 @@ from chatter_constants import (
     MSG_TYPE_LOOT, MSG_TYPE_QUEST_REWARD,
     MSG_TYPE_TRADE, MSG_TYPE_SPELL,
 )
+from chatter_db import get_group_location
 from chatter_shared import (
-    get_zone_name, get_group_area,
+    get_zone_name,
     format_location_label,
     get_class_name, get_race_name,
     get_chatter_mode,
@@ -460,6 +461,21 @@ def _dispatch_player_general_msg(
     )
 
 
+# Events exempt from the orphaned-group guard.
+# Lifecycle events must bypass the llm_group_bot_traits
+# existence check because:
+# - farewell: C++ deletes traits before Python processes it
+# - join/join_batch: traits don't exist yet when they fire
+# bot_greeting is included defensively; it doesn't start
+# with 'bot_group_' so the guard would never match it
+# anyway, but listing it here documents intent.
+_ORPHAN_GUARD_EXEMPT = frozenset({
+    'bot_group_farewell',
+    'bot_group_join',
+    'bot_group_join_batch',
+    'bot_greeting',  # defensive; doesn't match bot_group_*
+})
+
 EVENT_HANDLERS = {
     # Group events
     'bot_group_join': process_group_event,
@@ -777,8 +793,8 @@ def _event_summary(event):
 def _log_event_location(db, event, config):
     """Log zone > subzone label for a group event.
 
-    Note: adds one SELECT query per event (via
-    get_group_area) when DebugLog is enabled.
+    Uses get_group_location (bot traits) as the
+    single source of truth for location data.
     """
     try:
         extra = event.get('extra_data')
@@ -787,12 +803,13 @@ def _log_event_location(db, event, config):
         if not isinstance(extra, dict):
             return
         gid = int(extra.get('group_id', 0) or 0)
-        zone_id = int(
-            event.get('zone_id', 0) or 0
-        )
-        if not gid or not zone_id:
+        if not gid:
             return
-        area_id = get_group_area(db, gid)
+        zone_id, area_id, _ = get_group_location(
+            db, gid
+        )
+        if not zone_id:
+            return
         loc = format_location_label(
             zone_id, area_id
         )
@@ -821,6 +838,40 @@ def process_single_event(event, client, config):
         # Route known events via map.
         handler = EVENT_HANDLERS.get(event_type)
         if handler is not None:
+            # Skip orphaned group events: if the
+            # group has no traits rows (already
+            # cleaned up after player logout /
+            # group disband), mark expired and skip.
+            # Lifecycle events are exempt — see
+            # _ORPHAN_GUARD_EXEMPT at module scope.
+            if (event_type.startswith('bot_group_')
+                    and event_type
+                    not in _ORPHAN_GUARD_EXEMPT):
+                gid = event.get('_group_id')
+                if gid:
+                    cursor.execute(
+                        "SELECT 1"
+                        " FROM llm_group_bot_traits"
+                        " WHERE group_id = %s"
+                        " LIMIT 1",
+                        (gid,)
+                    )
+                    if not cursor.fetchone():
+                        cursor.execute(
+                            "UPDATE llm_chatter_events"
+                            " SET status = 'expired'"
+                            " WHERE id = %s",
+                            (event_id,)
+                        )
+                        db.commit()
+                        return False
+                else:
+                    logger.warning(
+                        "bot_group_* event %s has"
+                        " no _group_id — orphan"
+                        " guard skipped",
+                        event_type,
+                    )
             # Log location context for group events
             if (event_type.startswith('bot_group_')
                     and config.get(

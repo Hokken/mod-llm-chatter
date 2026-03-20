@@ -1054,11 +1054,11 @@ LLMChatter.Memory.SessionMinutes = 15
 
 #
 #   LLMChatter.Memory.MaxPerBotPlayer
-#       Maximum active memories per bot-player pair. Oldest
-#       are pruned when this limit is exceeded.
-#       Default: 50
+#       Maximum active memories per bot-player pair. Used
+#       memories are evicted to make room for new ones.
+#       Default: 30
 #
-LLMChatter.Memory.MaxPerBotPlayer = 50
+LLMChatter.Memory.MaxPerBotPlayer = 30
 
 #
 #   LLMChatter.Memory.IdentityVersion
@@ -1133,3 +1133,27 @@ LLMChatter.Memory.DiscoveryRecallChance = 30
 #       Default: 25
 #
 LLMChatter.Memory.PvPKillRecallChance = 25
+
+#
+#   LLMChatter.Memory.BossKillRecallChance
+#       Percent chance (0-100) that a boss or rare kill
+#       writes a persistent memory for the reactor.
+#       Default: 60
+#
+LLMChatter.Memory.BossKillRecallChance = 60
+
+#
+#   LLMChatter.Memory.DungeonRecallChance
+#       Percent chance (0-100) that entering a dungeon
+#       writes a persistent memory for the reactor.
+#       Default: 50
+#
+LLMChatter.Memory.DungeonRecallChance = 50
+
+#
+#   LLMChatter.Memory.IdleRecallChance
+#       Percent chance (0-100) that idle chatter or bot
+#       questions surface a past memory for context.
+#       Default: 30
+#
+LLMChatter.Memory.IdleRecallChance = 30

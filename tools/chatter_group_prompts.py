@@ -317,7 +317,10 @@ def build_bot_greeting_prompt(
             f"(keep it brief)\n\n"
             f"Your greeting should feel warm and "
             f"familiar — like seeing an old friend. "
-            f"Use their name naturally.\n\n"
+            f"You may use their name, but vary "
+            f"where it appears: mid-sentence, at the "
+            f"end, or omit it entirely. Never start "
+            f"your message with the player's name.\n\n"
             f"{style_guide}\n\n"
             f"Rules:\n"
             f"- One short sentence only\n"
@@ -325,6 +328,7 @@ def build_bot_greeting_prompt(
             f"- No emojis\n"
             f"- Don't mention your class or race\n"
             f"- Don't recite memories verbatim\n"
+            f"- Do NOT begin with the player's name\n"
         )
     else:
         prompt += (
@@ -1965,7 +1969,7 @@ def build_player_response_prompt(
     allow_action=True, link_context="",
     speaker_talent_context=None,
     target_talent_context=None,
-    zone_id=0, area_id=0,
+    zone_id=0, area_id=0, map_id=0,
     stored_tone=None,
     memories=None,
 ):
@@ -2003,17 +2007,25 @@ def build_player_response_prompt(
                     f"use: {flavor}"
                 )
 
-    # Location context
-    zone_flav = get_zone_flavor(zone_id)
-    if zone_flav:
+    # Location context — dungeon takes priority
+    dungeon_flav = get_dungeon_flavor(map_id)
+    if dungeon_flav:
         rp_context += (
-            f"\nZone context: {zone_flav}"
+            f"\nDungeon context: {dungeon_flav}"
         )
-    subzone = get_subzone_lore(zone_id, area_id)
-    if subzone:
-        rp_context += (
-            f"\nCurrent subzone: {subzone}"
+    else:
+        zone_flav = get_zone_flavor(zone_id)
+        if zone_flav:
+            rp_context += (
+                f"\nZone context: {zone_flav}"
+            )
+        subzone = get_subzone_lore(
+            zone_id, area_id
         )
+        if subzone:
+            rp_context += (
+                f"\nCurrent subzone: {subzone}"
+            )
 
     if is_rp:
         style = (
@@ -2093,8 +2105,13 @@ def build_player_response_prompt(
                 f"adventures with "
                 f"{player_name}:\n"
                 f"{mem_lines}\n"
-                f"Use as passive context only "
-                f"— do not recite them.\n"
+                f"Let one of these subtly "
+                f"colour your response — a "
+                f"passing allusion, a "
+                f"half-spoken thought, an "
+                f"echo of something shared. "
+                f"Never quote or explain "
+                f"the memory directly.\n"
                 f"</past_memories>"
             )
 
@@ -3761,7 +3778,7 @@ def build_player_msg_conversation_prompt(
     allow_action=False,
     speaker_talent_context=None,
     target_talent_context=None,
-    zone_id=0, area_id=0,
+    zone_id=0, area_id=0, map_id=0,
 ):
     """Build prompt for a multi-bot conversation
     responding to a player's party chat message.
@@ -3819,15 +3836,25 @@ def build_player_msg_conversation_prompt(
     if item_context:
         parts.append(item_context)
 
-    # Location context
-    zone_flav = get_zone_flavor(zone_id)
-    if zone_flav:
-        parts.append(f"Zone context: {zone_flav}")
-    subzone = get_subzone_lore(zone_id, area_id)
-    if subzone:
+    # Location context — dungeon takes priority
+    dungeon_flav = get_dungeon_flavor(map_id)
+    if dungeon_flav:
         parts.append(
-            f"Current subzone: {subzone}"
+            f"Dungeon context: {dungeon_flav}"
         )
+    else:
+        zone_flav = get_zone_flavor(zone_id)
+        if zone_flav:
+            parts.append(
+                f"Zone context: {zone_flav}"
+            )
+        subzone = get_subzone_lore(
+            zone_id, area_id
+        )
+        if subzone:
+            parts.append(
+                f"Current subzone: {subzone}"
+            )
 
     # Speakers with traits and class/race
     parts.append(
@@ -4247,8 +4274,13 @@ def build_bot_question_prompt(
                 f"adventures with "
                 f"{player_name}:\n"
                 f"{mem_lines}\n"
-                f"Use as passive context only "
-                f"— do not recite them.\n"
+                f"Let one of these subtly "
+                f"colour your question — a "
+                f"passing allusion, a "
+                f"half-spoken thought, an "
+                f"echo of something shared. "
+                f"Never quote or explain "
+                f"the memory directly.\n"
                 f"</past_memories>"
             )
 

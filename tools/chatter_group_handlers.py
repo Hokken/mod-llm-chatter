@@ -11,8 +11,6 @@ from chatter_shared import (
     get_chatter_mode,
     get_zone_name,
     get_zone_flavor,
-    get_player_zone,
-    get_group_area,
     get_subzone_lore,
     get_subzone_name,
     query_quest_turnin_npc,
@@ -28,6 +26,7 @@ from chatter_shared import (
     build_zone_metadata,
 )
 from chatter_db import (
+    get_group_location,
     insert_chat_message,
     get_character_info_by_name,
 )
@@ -121,31 +120,23 @@ def _resolve_zone_name(
     db, group_id, extra_data_zone_name
 ):
     """Resolve the authoritative zone name for a
-    group using the real player's live zone.
-
-    Bots are always co-located with the player,
-    so the player's characters table zone is the
-    source of truth.
+    group using llm_group_bot_traits (single source
+    of truth, updated by C++ OnPlayerUpdateZone).
 
     Falls back to C++ extra_data zone_name if
-    the player lookup fails (e.g. player offline
-    or name not found).
+    the traits lookup fails.
 
     Returns zone_name string.
     """
-    player_name = get_group_player_name(
+    zone_id, _, _ = get_group_location(
         db, group_id
     )
-    if player_name:
-        zone_id, _ = get_player_zone(
-            db, player_name
-        )
-        if zone_id:
-            resolved = get_zone_name(zone_id)
-            if resolved and not resolved.startswith(
-                'zone '
-            ):
-                return resolved
+    if zone_id:
+        resolved = get_zone_name(zone_id)
+        if resolved and not resolved.startswith(
+            'zone '
+        ):
+            return resolved
     # Fallback to C++ extra_data zone_name
     return extra_data_zone_name or 'somewhere'
 
@@ -295,18 +286,27 @@ def process_group_kill_event(
                     'boss_kill' if is_boss
                     else 'rare_kill'
                 )
-                queue_memory(
-                    config, group_id, bot_guid, 0,
-                    memory_type=mem_type,
-                    event_context=(
-                        f"Killed {creature_name}"
-                    ),
-                    bot_name=bot_name,
-                    bot_class=bot_class,
-                    bot_race=bot_race,
-                )
+                mem_chance = int(config.get(
+                    'LLMChatter.Memory'
+                    '.BossKillRecallChance', 60
+                ))
+                if random.random() * 100 < mem_chance:
+                    queue_memory(
+                        config, group_id,
+                        bot_guid, 0,
+                        memory_type=mem_type,
+                        event_context=(
+                            f"Killed {creature_name}"
+                        ),
+                        bot_name=bot_name,
+                        bot_class=bot_class,
+                        bot_race=bot_race,
+                    )
             except Exception:
-                pass
+                logger.error(
+                    "boss/rare_kill memory failed",
+                    exc_info=True,
+                )
 
         _mark_event(db, event_id, 'completed')
         return True
@@ -1020,7 +1020,10 @@ def process_group_levelup_event(
                     bot_race=reactor['race'],
                 )
         except Exception:
-            pass
+            logger.error(
+                "level_up memory failed",
+                exc_info=True,
+            )
 
         return True
 
@@ -1162,7 +1165,11 @@ def process_group_quest_complete_event(
                             ),
                         )
                 except Exception:
-                    pass
+                    logger.error(
+                        "quest_complete memory"
+                        " failed (conv path)",
+                        exc_info=True,
+                    )
                 return True
         except Exception:
             pass
@@ -1268,7 +1275,10 @@ def process_group_quest_complete_event(
                     bot_race=reactor['race'],
                 )
         except Exception:
-            pass
+            logger.error(
+                "quest_complete memory failed",
+                exc_info=True,
+            )
 
         _mark_event(db, event_id, 'completed')
         return True
@@ -1818,7 +1828,10 @@ def process_group_achievement_event(
                     bot_race=reactor['race'],
                 )
         except Exception:
-            pass
+            logger.error(
+                "achievement memory failed",
+                exc_info=True,
+            )
 
         _mark_event(db, event_id, 'completed')
         return True
@@ -1934,8 +1947,11 @@ def process_group_spell_cast_event(
         chat_hist = format_chat_history(history)
         members = get_group_members(db, group_id)
 
-        # Get map from traits (live data from C++)
-        map_id = trait_data.get('map', 0)
+        # Get map from group location (single source
+        # of truth, updated by C++ in real-time)
+        _, _, map_id = get_group_location(
+            db, group_id
+        )
 
         # Get dungeon bosses if in a dungeon
         in_dungeon = (
@@ -2161,23 +2177,34 @@ def process_group_zone_transition_event(
         'bot_name', 'someone'
     )
     group_id = int(extra_data.get('group_id', 0))
-    zone_id = int(extra_data.get('zone_id', 0))
-    zone_name = extra_data.get(
-        'zone_name', 'somewhere'
-    )
-    area_id = int(extra_data.get('area_id', 0))
 
     if not bot_guid or not group_id:
         _mark_event(db, event_id, 'skipped')
         return False
 
-    # Use player zone as source of truth.
-    # Zone transition events carry the new zone
-    # in extra_data, but player table is also
-    # updated by the time we process the event.
-    zone_name = _resolve_zone_name(
-        db, group_id, zone_name
+    # Use live traits (single source of truth) for
+    # all location data — avoids mixing event-time
+    # extra_data with live-time traits lookups.
+    zone_id, area_id, _ = get_group_location(
+        db, group_id
     )
+    zone_name = (
+        get_zone_name(zone_id)
+        if zone_id else None
+    )
+    if not zone_name or zone_name.startswith(
+        'zone '
+    ):
+        # Fallback to C++ extra_data zone_name
+        zone_name = extra_data.get(
+            'zone_name', 'somewhere'
+        )
+        zone_id = int(
+            extra_data.get('zone_id', 0)
+        )
+        area_id = int(
+            extra_data.get('area_id', 0)
+        )
 
     # The bot that entered the zone reacts
     trait_data = get_bot_traits(
@@ -2293,7 +2320,10 @@ def process_group_zone_transition_event(
                     bot_race=bot['race'],
                 )
         except Exception:
-            pass
+            logger.error(
+                "ambient memory failed",
+                exc_info=True,
+            )
 
         _mark_event(db, event_id, 'completed')
         return True
@@ -2758,7 +2788,7 @@ def process_group_discovery_event(
             speaker_talent_context=speaker_talent,
             area_id=area_id,
             zone_id=int(
-                event.get('zone_id', 0) or 0),
+                extra_data.get('zone_id', 0) or 0),
             stored_tone=stored_tone,
         )
         mood_label = get_bot_mood_label(
@@ -2818,7 +2848,10 @@ def process_group_discovery_event(
                     bot_race=bot['race'],
                 )
         except Exception:
-            pass
+            logger.error(
+                "discovery memory failed",
+                exc_info=True,
+            )
 
         return True
 
@@ -2955,18 +2988,27 @@ def process_group_dungeon_entry_event(
 
         # Memory: dungeon entry
         try:
-            queue_memory(
-                config, group_id, bot_guid, 0,
-                memory_type='dungeon',
-                event_context=(
-                    f"Entered {map_name}"
-                ),
-                bot_name=bot_name,
-                bot_class=bot['class'],
-                bot_race=bot['race'],
-            )
+            mem_chance = int(config.get(
+                'LLMChatter.Memory'
+                '.DungeonRecallChance', 50
+            ))
+            if random.random() * 100 < mem_chance:
+                queue_memory(
+                    config, group_id,
+                    bot_guid, 0,
+                    memory_type='dungeon',
+                    event_context=(
+                        f"Entered {map_name}"
+                    ),
+                    bot_name=bot_name,
+                    bot_class=bot['class'],
+                    bot_race=bot['race'],
+                )
         except Exception:
-            pass
+            logger.error(
+                "dungeon memory failed",
+                exc_info=True,
+            )
 
         _mark_event(db, event_id, 'completed')
         return True
@@ -3124,7 +3166,10 @@ def process_group_wipe_event(
                 bot_race=bot['race'],
             )
         except Exception:
-            pass
+            logger.error(
+                "wipe memory failed",
+                exc_info=True,
+            )
 
         _mark_event(db, event_id, 'completed')
         return True
@@ -3730,8 +3775,8 @@ def process_group_nearby_object_event(
     in_dungeon = extra.get('in_dungeon', False)
 
     # Look up subzone lore for richer context
-    zone_id = int(event.get('zone_id', 0) or 0)
-    area_id = get_group_area(db, group_id)
+    zone_id, area_id, _ = get_group_location(
+        db, group_id)
     subzone_lore = get_subzone_lore(
         zone_id, area_id
     )
@@ -4025,7 +4070,7 @@ def execute_player_msg_conversation(
     chat_hist, members,
     item_context="", link_context="",
     items_info=None,
-    zone_id=0, area_id=0,
+    zone_id=0, area_id=0, map_id=0,
 ):
     """Run a multi-bot conversation responding to
     a player's party chat message.
@@ -4148,6 +4193,7 @@ def execute_player_msg_conversation(
         target_talent_context=target_talent,
         zone_id=zone_id,
         area_id=area_id,
+        map_id=map_id,
     )
 
     # Token budget: max_tokens * (1 + num_bots),
@@ -4159,7 +4205,24 @@ def execute_player_msg_conversation(
         max_tokens * (1 + num_bots), 1000
     )
 
-    pmsg_meta = {}
+    _dflav_conv = get_dungeon_flavor(map_id)
+    pmsg_meta = build_zone_metadata(
+        zone_name=get_zone_name(zone_id) or '',
+        zone_flavor=get_zone_flavor(zone_id) or '',
+        subzone_name=(
+            get_subzone_name(zone_id, area_id)
+            or ''
+        ),
+        subzone_lore=(
+            get_subzone_lore(zone_id, area_id)
+            or ''
+        ),
+        dungeon_name=(
+            _dflav_conv.split(':')[0].strip()
+            if _dflav_conv else ''
+        ),
+        dungeon_flavor=_dflav_conv or '',
+    )
     if speaker_talent:
         pmsg_meta['speaker_talent'] = (
             speaker_talent

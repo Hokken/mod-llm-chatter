@@ -23,6 +23,7 @@ logger = logging.getLogger(__name__)
 # =====================================================================
 _char_info_cache: dict = {}
 _talent_cache: dict = {}
+_online_cache: dict = {}
 _cache_lock = threading.Lock()
 
 
@@ -692,6 +693,37 @@ def get_recent_bot_messages(
         return []
 
 
+def get_group_location(db, group_id):
+    """Get the group's current zone, area, and map
+    from llm_group_bot_traits.
+
+    C++ OnPlayerUpdateZone keeps these columns
+    updated in real-time for all bots in the group.
+    This is the single source of truth for location.
+
+    Returns (zone_id, area_id, map_id) or (0, 0, 0).
+    """
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT zone, area, map"
+            " FROM llm_group_bot_traits"
+            " WHERE group_id = %s"
+            " LIMIT 1",
+            (group_id,),
+        )
+        row = cursor.fetchone()
+        if row:
+            return (
+                int(row.get('zone', 0) or 0),
+                int(row.get('area', 0) or 0),
+                int(row.get('map', 0) or 0),
+            )
+    except Exception:
+        pass
+    return (0, 0, 0)
+
+
 def get_character_info_by_name(
     db, char_name: str
 ) -> Optional[dict]:
@@ -724,6 +756,48 @@ def get_character_info_by_name(
         return result
     except Exception:
         return None
+
+
+def is_player_online(
+    db, player_name: str
+) -> bool:
+    """Check if a player is currently online.
+
+    Queries characters.online column.
+    Returns True if online=1, False if 0 or not found.
+    Cached with 30-second TTL, 200-entry max.
+    """
+    if not player_name:
+        return False
+
+    cached = _cache_get(
+        _online_cache, player_name, 30
+    )
+    if cached is not None:
+        return cached
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT online FROM characters "
+            "WHERE name = %s LIMIT 1",
+            (player_name,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            _cache_put(
+                _online_cache, player_name,
+                False, 200
+            )
+            return False
+        result = int(row['online']) == 1
+        _cache_put(
+            _online_cache, player_name,
+            result, 200
+        )
+        return result
+    except Exception:
+        return True  # assume online on error
 
 
 def get_character_talents(

@@ -12,6 +12,8 @@ via dual_worker_dispatch, and mark event status.
 import logging
 import random
 
+logger = logging.getLogger(__name__)
+
 from chatter_shared import (
     parse_extra_data,
     run_single_reaction,
@@ -155,7 +157,10 @@ def process_bg_match_end_event(
                                 'race', ''),
                         )
         except Exception:
-            pass
+            logger.error(
+                "bg_match memory failed",
+                exc_info=True,
+            )
 
     return result
 
@@ -431,7 +436,10 @@ def process_bg_pvp_kill_event(
                                 'race', ''),
                         )
         except Exception:
-            pass
+            logger.error(
+                "pvp_kill memory failed",
+                exc_info=True,
+            )
 
     return result
 

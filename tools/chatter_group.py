@@ -42,7 +42,7 @@ from chatter_shared import (
     get_db_connection, build_race_class_context,
     build_race_class_context_parts,
     parse_extra_data, get_zone_flavor,
-    get_subzone_lore, get_group_area,
+    get_subzone_lore,
     format_location_label,
     pick_random_max_tokens,
     get_dungeon_flavor, get_dungeon_bosses,
@@ -62,12 +62,14 @@ from chatter_shared import (
     build_talent_context,
     get_zone_name,
     get_subzone_name,
-    get_player_zone,
     stagger_if_needed,
     build_zone_metadata,
+    get_player_zone,
 )
 from chatter_db import (
     get_character_info_by_name,
+    get_group_location,
+    is_player_online,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -491,6 +493,13 @@ def process_group_event(db, client, config, event):
             )
             if p_info:
                 player_guid = int(p_info['guid'])
+            else:
+                logger.warning(
+                    "Memory disabled: player"
+                    " '%s' not found"
+                    " in characters table",
+                    player_name,
+                )
             member_data = {
                 bot_guid: {
                     'name': bot_name,
@@ -568,6 +577,28 @@ def process_group_event(db, client, config, event):
                     mc.close()
                     player_name_known = True
 
+        # 1c. Normalize this bot's trait row to the
+        # player's live location so get_group_location()
+        # is immediately consistent. C++ OnPlayerUpdate-
+        # Zone keeps it current after this initial sync.
+        pz, pm = get_player_zone(db, player_name)
+        if pz or pm:
+            # Only normalize zone + map (from the
+            # player's characters row). Area has no
+            # reliable player-side source at join
+            # time — C++ OnPlayerUpdateZone sets the
+            # authoritative area on the next update.
+            norm_c = db.cursor()
+            norm_c.execute(
+                "UPDATE llm_group_bot_traits"
+                " SET zone = %s, map = %s"
+                " WHERE group_id = %s"
+                " AND bot_guid = %s",
+                (pz or 0, pm or 0,
+                 group_id, bot_guid),
+            )
+            db.commit()
+
         # 2. Build prompt with chat history
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
@@ -598,11 +629,16 @@ def process_group_event(db, client, config, event):
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
         ))
+        _greet_label = (
+            'group_greeting_memory'
+            if (memories and player_name_known)
+            else 'group_greeting'
+        )
         response = call_llm(
             client, prompt, config,
             max_tokens_override=max_tokens,
             context=f"grp-join:#{event_id}:{bot_name}",
-            label='group_greeting',
+            label=_greet_label,
         )
 
         if not response:
@@ -735,6 +771,13 @@ def process_group_join_batch_event(
         )
         if p_info:
             batch_player_guid = int(p_info['guid'])
+        else:
+            logger.warning(
+                "Memory disabled: player"
+                " '%s' not found"
+                " in characters table",
+                player_name,
+            )
 
     greeted_bots = []
     last_bot = None
@@ -935,6 +978,11 @@ def process_group_join_batch_event(
             )
 
             # 3. Call LLM
+            _greet_label = (
+                'group_greeting_memory'
+                if (bot_memories and bot_player_known)
+                else 'group_greeting'
+            )
             response = call_llm(
                 client, prompt, config,
                 max_tokens_override=max_tokens,
@@ -942,7 +990,7 @@ def process_group_join_batch_event(
                     f"batch-join:#{event_id}"
                     f":{bot_name}"
                 ),
-                label='group_greeting',
+                label=_greet_label,
             )
             if not response:
                 continue
@@ -1006,6 +1054,26 @@ def process_group_join_batch_event(
         if not greeted_bots:
             _mark_event(db, event_id, 'skipped')
             return False
+
+        # Normalize all trait rows to the player's
+        # live location so get_group_location() is
+        # immediately consistent. C++ OnPlayerUpdate-
+        # Zone keeps it current after this initial
+        # sync.
+        pz, pm = get_player_zone(db, player_name)
+        if pz or pm:
+            # Only normalize zone + map. Area has
+            # no reliable player-side source at
+            # join time — C++ OnPlayerUpdateZone
+            # sets authoritative area on next update.
+            norm_c = db.cursor()
+            norm_c.execute(
+                "UPDATE llm_group_bot_traits"
+                " SET zone = %s, map = %s"
+                " WHERE group_id = %s",
+                (pz or 0, pm or 0, group_id),
+            )
+            db.commit()
 
         # --- ONE welcome from existing bot ---
         new_names = [
@@ -1307,9 +1375,10 @@ def process_group_player_msg_event(
     }
 
 
-    # Get zone/area for location context
-    zone_id = int(event.get('zone_id', 0) or 0)
-    area_id = get_group_area(db, group_id)
+    # Get zone/area/map from bot traits (single
+    # source of truth, updated by C++ in real-time)
+    zone_id, area_id, map_id = get_group_location(
+        db, group_id)
 
     # Mark as processing
     cursor = db.cursor()
@@ -1418,6 +1487,7 @@ def process_group_player_msg_event(
                         items_info=items_info,
                         zone_id=zone_id,
                         area_id=area_id,
+                        map_id=map_id,
                     )
                 )
                 if conv_ok:
@@ -1477,6 +1547,7 @@ def process_group_player_msg_event(
                 msg_memories = get_bot_memories(
                     db, bot_guid,
                     player_guid, count=3,
+                    exclude_first_meeting=True,
                 )
                 if not msg_memories:
                     msg_memories = None
@@ -1493,13 +1564,43 @@ def process_group_player_msg_event(
             target_talent_context=target_talent,
             zone_id=zone_id,
             area_id=area_id,
+            map_id=map_id,
             stored_tone=stored_tone,
             memories=msg_memories,
         )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
+        max_tokens = pick_random_max_tokens(config)
+        if msg_memories:
+            max_tokens = max(max_tokens, 250)
+        _pmsg_label = (
+            'group_player_msg_memory'
+            if msg_memories
+            else 'group_player_msg'
+        )
+        _dflav_pmsg = get_dungeon_flavor(map_id)
+        pmsg_meta = build_zone_metadata(
+            zone_name=(
+                get_zone_name(zone_id) or ''
+            ),
+            zone_flavor=(
+                get_zone_flavor(zone_id) or ''
+            ),
+            subzone_name=(
+                get_subzone_name(
+                    zone_id, area_id
+                ) or ''
+            ),
+            subzone_lore=(
+                get_subzone_lore(
+                    zone_id, area_id
+                ) or ''
+            ),
+            dungeon_name=(
+                _dflav_pmsg.split(':')[0].strip()
+                if _dflav_pmsg else ''
+            ),
+            dungeon_flavor=_dflav_pmsg or '',
+        )
         response = call_llm(
             client, prompt, config,
             max_tokens_override=max_tokens,
@@ -1507,7 +1608,8 @@ def process_group_player_msg_event(
                 f"grp-msg:#{event_id}"
                 f":{bot_name}"
             ),
-            label='group_player_msg',
+            label=_pmsg_label,
+            metadata=pmsg_meta or None,
         )
 
         if not response:
@@ -1585,7 +1687,10 @@ def process_group_player_msg_event(
                     player_message, all_bots,
                 )
         except Exception:
-            pass
+            logger.error(
+                "player_message memory failed",
+                exc_info=True,
+            )
 
         _mark_event(db, event_id, 'completed')
         return True
@@ -1667,16 +1772,22 @@ def _maybe_queue_player_msg_memory(
 
     for bg in picked:
         bd = bot_map.get(bg, {})
-        queue_memory(
-            config, group_id, bg, player_guid,
-            memory_type='player_message',
-            event_context=(
-                f"Player said: {msg[:100]}"
-            ),
-            bot_name=bd.get('bot_name', ''),
-            bot_class='',
-            bot_race='',
-        )
+        try:
+            queue_memory(
+                config, group_id, bg, player_guid,
+                memory_type='player_message',
+                event_context=(
+                    f"Player said: {msg[:100]}"
+                ),
+                bot_name=bd.get('bot_name', ''),
+                bot_class=bd.get('class', ''),
+                bot_race=bd.get('race', ''),
+            )
+        except Exception:
+            logger.error(
+                "player_message memory failed",
+                exc_info=True,
+            )
 
 
 
@@ -2486,8 +2597,13 @@ def build_idle_chatter_prompt(
                 f"Your memories from past "
                 f"adventures with {p_label}:\n"
                 f"{mem_lines}\n"
-                f"Use as passive context only "
-                f"— do not recite them.\n"
+                f"Let one of these memories "
+                f"subtly colour your message "
+                f"— a passing allusion, a "
+                f"half-spoken thought, an "
+                f"echo of something shared. "
+                f"Never quote or explain "
+                f"the memory directly.\n"
                 f"</past_memories>"
             )
 
@@ -2545,7 +2661,7 @@ def build_idle_conversation_prompt(
     allow_action=True,
     speaker_talent_context=None,
     area_id=0,
-    memories=None,
+    memories_map=None,
 ):
     """Build prompt for a multi-bot idle conversation.
 
@@ -2795,30 +2911,45 @@ def build_idle_conversation_prompt(
     if chat_history:
         parts.append(chat_history)
 
-    # Inject memories if available
-    if memories:
+    # Inject per-bot memories if available
+    if memories_map:
         from chatter_memory import (
             sanitize_memory_for_prompt,
         )
-        sanitized = [
-            sanitize_memory_for_prompt(m)
-            for m in memories
-        ]
-        sanitized = [s for s in sanitized if s]
-        if sanitized:
+        p_label = (
+            player_name or 'the player'
+        )
+        for b in bots:
+            bot_mems = memories_map.get(
+                b['guid']
+            )
+            if not bot_mems:
+                continue
+            sanitized = [
+                sanitize_memory_for_prompt(m)
+                for m in bot_mems
+            ]
+            sanitized = [
+                m for m in sanitized if m
+            ]
+            if not sanitized:
+                continue
             mem_lines = '\n'.join(
                 f"  - {m}" for m in sanitized
             )
-            p_label = (
-                player_name or 'your party leader'
-            )
             parts.append(
-                f"<past_memories>\n"
-                f"Memories from past adventures "
-                f"with {p_label}:\n"
+                f"<past_memories "
+                f"bot=\"{b['name']}\">\n"
+                f"{b['name']}'s memories with"
+                f" {p_label}:\n"
                 f"{mem_lines}\n"
-                f"Use as passive context only "
-                f"— do not recite them.\n"
+                f"Let one of these subtly "
+                f"colour {b['name']}'s line "
+                f"— a passing allusion, a "
+                f"half-spoken thought, an "
+                f"echo of something shared. "
+                f"Never quote or explain "
+                f"the memory directly.\n"
                 f"</past_memories>"
             )
 
@@ -3033,6 +3164,17 @@ def check_idle_group_chatter(
             db, group_id
         )
 
+        # Skip idle chatter if player is offline
+        if player_name and not is_player_online(
+            db, player_name
+        ):
+            if _dbg:
+                logger.info(
+                    "[DEBUG] idle: player %s "
+                    "offline, skipping",
+                    player_name)
+            return False
+
         # In raids, filter bots to the player's
         # sub-group so party chat is visible to them.
         # group_member.guid matches our group_id.
@@ -3087,19 +3229,11 @@ def check_idle_group_chatter(
         except Exception:
             pass  # fallback: use all bots
 
-        # Always use the real player's live zone.
-        # Bots are co-located with the player.
-        zone_id, map_id = get_player_zone(
-            db, player_name)
-        # Fallback to first bot's traits
-        if not zone_id:
-            zone_id = int(
-                all_bots[0].get('zone', 0) or 0)
-        if not map_id:
-            map_id = int(
-                all_bots[0].get('map', 0) or 0)
-        # Get subzone area from bot traits
-        area_id = get_group_area(db, group_id)
+        # Single source of truth for location —
+        # bot traits updated by C++ OnPlayerUpdateZone
+        # in real-time.
+        zone_id, area_id, map_id = get_group_location(
+            db, group_id)
 
         # Debug: log location context
         if _dbg:
@@ -3267,6 +3401,7 @@ def _idle_single_statement(
     )
 
     # Zone metadata for request logging
+    _dflav_meta = get_dungeon_flavor(map_id)
     zone_meta = build_zone_metadata(
         zone_name=get_zone_name(zone_id) or '',
         zone_flavor=get_zone_flavor(zone_id) or '',
@@ -3276,6 +3411,11 @@ def _idle_single_statement(
         subzone_lore=(
             get_subzone_lore(zone_id, area_id) or ''
         ),
+        dungeon_name=(
+            _dflav_meta.split(':')[0].strip()
+            if _dflav_meta else ''
+        ),
+        dungeon_flavor=_dflav_meta or '',
     )
 
     # Fetch memories for idle recall
@@ -3298,6 +3438,7 @@ def _idle_single_statement(
                     idle_memories = get_bot_memories(
                         db, bot_guid,
                         player_guid, count=2,
+                        exclude_first_meeting=True,
                     )
                     if not idle_memories:
                         idle_memories = None
@@ -3359,11 +3500,18 @@ def _idle_single_statement(
                 speaker_talent
             )
         max_tokens = pick_random_max_tokens(config)
+        # Memory allusions need room — lift floor
+        if idle_memories:
+            max_tokens = max(max_tokens, 250)
+        _idle_label = (
+            'group_idle_memory'
+            if idle_memories else 'group_idle'
+        )
         response = call_llm(
             client, prompt, config,
             max_tokens_override=max_tokens,
             context=f"idle:{bot_name}",
-            label='group_idle',
+            label=_idle_label,
             metadata=zone_meta,
         )
 
@@ -3494,6 +3642,7 @@ def _idle_conversation(
         recent_msgs.extend(msgs)
 
     # Zone metadata for request logging
+    _dflav_meta2 = get_dungeon_flavor(map_id)
     zone_meta = build_zone_metadata(
         zone_name=get_zone_name(zone_id) or '',
         zone_flavor=get_zone_flavor(zone_id) or '',
@@ -3503,10 +3652,15 @@ def _idle_conversation(
         subzone_lore=(
             get_subzone_lore(zone_id, area_id) or ''
         ),
+        dungeon_name=(
+            _dflav_meta2.split(':')[0].strip()
+            if _dflav_meta2 else ''
+        ),
+        dungeon_flavor=_dflav_meta2 or '',
     )
 
-    # Fetch memories for idle recall (first bot only)
-    idle_memories = None
+    # Fetch per-bot memories for idle recall
+    memories_map = {}
     memory_enabled = int(config.get(
         'LLMChatter.Memory.Enable', 1
     ))
@@ -3521,14 +3675,20 @@ def _idle_conversation(
             )
             if p_info:
                 player_guid = int(p_info['guid'])
-                first_guid = bots[0]['guid'] if bots else 0
-                if player_guid and first_guid:
-                    idle_memories = get_bot_memories(
-                        db, first_guid,
-                        player_guid, count=2,
-                    )
-                    if not idle_memories:
-                        idle_memories = None
+                if player_guid:
+                    for b in bots:
+                        mems = get_bot_memories(
+                            db, b['guid'],
+                            player_guid,
+                            count=2,
+                            exclude_first_meeting=(
+                                True
+                            ),
+                        )
+                        if mems:
+                            memories_map[
+                                b['guid']
+                            ] = mems
 
     try:
         allow_action = (
@@ -3581,7 +3741,7 @@ def _idle_conversation(
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             area_id=area_id,
-            memories=idle_memories,
+            memories_map=memories_map or None,
         )
         logger.info(
             "[IDLE] prompt snippet: %r",
@@ -3600,11 +3760,15 @@ def _idle_conversation(
                 speaker_talent
             )
         names_ctx = ','.join(bot_names)
+        _conv_label = (
+            'group_idle_conv_memory'
+            if memories_map else 'group_idle_conv'
+        )
         response = call_llm(
             client, prompt, config,
             max_tokens_override=conv_tokens,
             context=f"idle-conv:{names_ctx}",
-            label='group_idle_conv',
+            label=_conv_label,
             metadata=zone_meta,
         )
 
@@ -3784,6 +3948,13 @@ def check_bot_questions(db, client, config):
         player_name = get_group_player_name(
             db, group_id
         )
+
+        # Skip bot questions if player is offline
+        if player_name and not is_player_online(
+            db, player_name
+        ):
+            return False
+
         player_row = None
         if player_name:
             cursor.execute("""
@@ -3902,22 +4073,11 @@ def check_bot_questions(db, client, config):
         chat_hist = format_chat_history(history)
         members = get_group_members(db, group_id)
 
-        # Player zone as source of truth
-        pname_q = get_group_player_name(
-            db, group_id
-        )
-        zone_id, map_id = get_player_zone(
-            db, pname_q
-        )
-        # Fallback to bot traits zone
-        if not zone_id:
-            zone_id = int(
-                bot_row.get('zone', 0) or 0
-            )
-        if not map_id:
-            map_id = int(
-                bot_row.get('map', 0) or 0
-            )
+        # Single source of truth for location —
+        # bot traits updated by C++ OnPlayerUpdateZone
+        # in real-time.
+        zone_id, area_id, map_id = get_group_location(
+            db, group_id)
         current_weather = (
             get_recent_weather(db, zone_id)
             if zone_id else None
@@ -3950,8 +4110,6 @@ def check_bot_questions(db, client, config):
                 perspective='target',
             )
 
-        area_id = get_group_area(db, group_id)
-
         # RNG-gated memory injection
         question_memories = None
         memory_enabled = int(config.get(
@@ -3974,6 +4132,7 @@ def check_bot_questions(db, client, config):
                     get_bot_memories(
                         db, bot_guid,
                         p_guid, count=3,
+                        exclude_first_meeting=True,
                     )
                 )
                 if not question_memories:
@@ -4011,13 +4170,19 @@ def check_bot_questions(db, client, config):
             bq_meta['target_talent'] = (
                 target_talent
             )
+        _bq_label = (
+            'group_bot_question_memory'
+            if question_memories
+            else 'group_bot_question'
+        )
+        bq_cap = 250 if question_memories else 200
         response = call_llm(
             client, prompt, config,
             max_tokens_override=min(
-                max_tokens, 200
+                max_tokens, bq_cap
             ),
             context=f"bot-question:{bot_name}",
-            label='group_bot_question',
+            label=_bq_label,
             metadata=bq_meta or None,
         )
 

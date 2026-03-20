@@ -900,17 +900,15 @@ public:
 
         if (!IsPlayerBot(player))
         {
-            // Immediately persist zone so the Python
-            // bridge sees fresh data without waiting
-            // for the 15-min autosave. Area is
-            // already kept live in
-            // llm_group_bot_traits by
-            // HandleGroupPlayerUpdateZone below.
+            // Immediately persist zone + map so the
+            // Python bridge sees fresh data without
+            // waiting for the 15-min autosave.
             CharacterDatabase.Execute(
                 "UPDATE characters "
-                "SET zone = {} "
+                "SET zone = {}, map = {} "
                 "WHERE guid = {}",
                 newZone,
+                player->GetMapId(),
                 player->GetGUID().GetCounter());
 
             // Real player: update all bot zones

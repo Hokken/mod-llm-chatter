@@ -27,26 +27,6 @@ from chatter_text import cleanup_message
 logger = logging.getLogger(__name__)
 
 
-def _log_memory_event(entry: dict) -> None:
-    """Log a memory event to the request logger.
-
-    Lazy import to avoid circular dependencies.
-    No-op if the logger is not available or disabled.
-    """
-    try:
-        from chatter_request_logger import log_request
-    except ImportError:
-        return
-    log_request(
-        label=entry.get('label', 'memory_event'),
-        prompt='',
-        response=None,
-        model='',
-        provider='',
-        duration_ms=0,
-        metadata=entry,
-    )
-
 # ============================================================
 # CONSTANTS
 # ============================================================
@@ -326,7 +306,7 @@ def _execute_generate_memory(
             return
 
         max_per = int(config.get(
-            'LLMChatter.Memory.MaxPerBotPlayer', 50
+            'LLMChatter.Memory.MaxPerBotPlayer', 30
         ))
 
         if not insert_active:
@@ -348,8 +328,51 @@ def _execute_generate_memory(
                         not in session["bots"]
                 ):
                     return
-                # INSERT while holding lock
+                # Check cap and evict before INSERT
                 cursor = conn.cursor()
+                cursor.execute(
+                    "SELECT COUNT(*) AS cnt"
+                    " FROM llm_bot_memories"
+                    " WHERE bot_guid = %s"
+                    "   AND player_guid = %s"
+                    "   AND active = 1",
+                    (bot_guid, player_guid),
+                )
+                row = cursor.fetchone()
+                cnt = row[0] if row else 0
+                if cnt >= max_per:
+                    cursor.execute(
+                        "DELETE FROM"
+                        " llm_bot_memories"
+                        " WHERE bot_guid = %s"
+                        "   AND player_guid = %s"
+                        "   AND active = 1"
+                        "   AND used = 1"
+                        " ORDER BY RAND()"
+                        " LIMIT 1",
+                        (bot_guid, player_guid),
+                    )
+                    conn.commit()
+                    cursor.execute(
+                        "SELECT COUNT(*) AS cnt"
+                        " FROM llm_bot_memories"
+                        " WHERE bot_guid = %s"
+                        "   AND player_guid = %s"
+                        "   AND active = 1",
+                        (bot_guid, player_guid),
+                    )
+                    row = cursor.fetchone()
+                    cnt = row[0] if row else 0
+                    if cnt >= max_per:
+                        logger.debug(
+                            "Memory pool full,"
+                            " no used memories"
+                            " to evict for"
+                            " bot %s",
+                            bot_guid,
+                        )
+                        return
+
                 cursor.execute(
                     "INSERT INTO llm_bot_memories"
                     " (bot_guid, player_guid,"
@@ -366,21 +389,53 @@ def _execute_generate_memory(
                     ),
                 )
                 conn.commit()
-                _log_memory_event({
-                    'label': 'memory_generated',
-                    'bot_name': bot_name,
-                    'bot_guid': bot_guid,
-                    'player_guid': player_guid,
-                    'group_id': group_id,
-                    'memory_type': memory_type,
-                    'memory': memory_text,
-                    'emote': emote or '',
-                    'mood': mood,
-                    'active': 0,
-                })
         else:
             # party_member: insert as active=1
+            # One-in-one-out: evict before insert
             cursor = conn.cursor()
+            cursor.execute(
+                "SELECT COUNT(*) AS cnt"
+                " FROM llm_bot_memories"
+                " WHERE bot_guid = %s"
+                "   AND player_guid = %s"
+                "   AND active = 1",
+                (bot_guid, player_guid),
+            )
+            row = cursor.fetchone()
+            cnt = row[0] if row else 0
+            if cnt >= max_per:
+                # Evict a random used memory
+                cursor.execute(
+                    "DELETE FROM llm_bot_memories"
+                    " WHERE bot_guid = %s"
+                    "   AND player_guid = %s"
+                    "   AND active = 1"
+                    "   AND used = 1"
+                    " ORDER BY RAND()"
+                    " LIMIT 1",
+                    (bot_guid, player_guid),
+                )
+                conn.commit()
+                # Re-check — if no used memories
+                # existed, skip insert
+                cursor.execute(
+                    "SELECT COUNT(*) AS cnt"
+                    " FROM llm_bot_memories"
+                    " WHERE bot_guid = %s"
+                    "   AND player_guid = %s"
+                    "   AND active = 1",
+                    (bot_guid, player_guid),
+                )
+                row = cursor.fetchone()
+                cnt = row[0] if row else 0
+                if cnt >= max_per:
+                    logger.debug(
+                        "Memory pool full, no used"
+                        " memories to evict for"
+                        " bot %s", bot_guid,
+                    )
+                    return
+
             cursor.execute(
                 "INSERT INTO llm_bot_memories"
                 " (bot_guid, player_guid,"
@@ -397,47 +452,6 @@ def _execute_generate_memory(
                 ),
             )
             conn.commit()
-            _log_memory_event({
-                'label': 'memory_generated',
-                'bot_name': bot_name,
-                'bot_guid': bot_guid,
-                'player_guid': player_guid,
-                'group_id': group_id,
-                'memory_type': memory_type,
-                'memory': memory_text,
-                'emote': emote or '',
-                'mood': mood,
-                'active': 1,
-            })
-
-            # Self-prune to MaxPerBotPlayer.
-            # flush_session_memories also prunes
-            # for the departing bot — both paths
-            # prune to the same cap so concurrent
-            # pruning is idempotent (no data loss,
-            # only redundant deletes of the oldest)
-            cursor.execute(
-                "SELECT COUNT(*) AS cnt"
-                " FROM llm_bot_memories"
-                " WHERE bot_guid = %s"
-                "   AND player_guid = %s"
-                "   AND active = 1",
-                (bot_guid, player_guid),
-            )
-            row = cursor.fetchone()
-            cnt = row[0] if row else 0
-            excess = max(0, cnt - max_per)
-            if excess > 0:
-                cursor.execute(
-                    "DELETE FROM llm_bot_memories"
-                    " WHERE bot_guid = %s"
-                    "   AND player_guid = %s"
-                    "   AND active = 1"
-                    " ORDER BY created_at ASC"
-                    " LIMIT %s",
-                    (bot_guid, player_guid, excess),
-                )
-                conn.commit()
 
     except Exception:
         logger.error(
@@ -641,7 +655,7 @@ def flush_session_memories(
         'LLMChatter.Memory.SessionMinutes', 15
     ))
     max_per = int(config.get(
-        'LLMChatter.Memory.MaxPerBotPlayer', 50
+        'LLMChatter.Memory.MaxPerBotPlayer', 30
     ))
 
     do_commit = False
@@ -740,16 +754,15 @@ def flush_session_memories(
             rows_activated = cursor.rowcount
             db.commit()
             if rows_activated > 0:
-                _log_memory_event({
-                    'label': 'memory_activated',
-                    'bot_guid': bot_guid,
-                    'player_guid': player_guid,
-                    'group_id': group_id,
-                    'session_start': session_start,
-                    'rows_activated': rows_activated,
-                })
+                logger.debug(
+                    "Activated %d memories for"
+                    " bot %s / player %s",
+                    rows_activated, bot_guid,
+                    player_guid,
+                )
 
-            # Prune to cap
+            # Prune to cap: evict random used
+            # memories one at a time
             cursor.execute(
                 "SELECT COUNT(*) AS cnt"
                 " FROM llm_bot_memories"
@@ -760,23 +773,23 @@ def flush_session_memories(
             )
             row = cursor.fetchone()
             cnt = row[0] if row else 0
-            excess = max(0, cnt - max_per)
-            if excess > 0:
+            while cnt > max_per:
                 cursor.execute(
                     "DELETE FROM llm_bot_memories"
                     " WHERE bot_guid = %s"
                     "   AND player_guid = %s"
                     "   AND active = 1"
-                    "   AND memory_type"
-                    "     != 'first_meeting'"
-                    " ORDER BY created_at ASC"
-                    " LIMIT %s",
-                    (
-                        bot_guid, player_guid,
-                        excess,
-                    ),
+                    "   AND used = 1"
+                    " ORDER BY RAND()"
+                    " LIMIT 1",
+                    (bot_guid, player_guid),
                 )
-                db.commit()
+                if cursor.rowcount == 0:
+                    # No used memories left;
+                    # keep pool intact
+                    break
+                cnt -= 1
+            db.commit()
         except Exception:
             logger.error(
                 "Memory activation failed for "
@@ -798,14 +811,11 @@ def flush_session_memories(
             rows_discarded = cursor.rowcount
             db.commit()
             if rows_discarded > 0:
-                _log_memory_event({
-                    'label': 'memory_discarded',
-                    'bot_guid': bot_guid,
-                    'group_id': group_id,
-                    'session_start': session_start,
-                    'rows_discarded': rows_discarded,
-                    'reason': 'session_too_short',
-                })
+                logger.debug(
+                    "Discarded %d memories for"
+                    " bot %s (session too short)",
+                    rows_discarded, bot_guid,
+                )
         except Exception:
             logger.error(
                 "Memory discard failed for "
@@ -966,6 +976,7 @@ def rehydrate_active_sessions(db):
 
 def get_bot_memories(
     db, bot_guid, player_guid, count=3,
+    exclude_first_meeting=False,
 ):
     """Retrieve random active memories for a
     bot-player pair.
@@ -973,19 +984,37 @@ def get_bot_memories(
     Returns list of memory strings (may be empty).
     """
     try:
+        extra = (
+            " AND memory_type != 'first_meeting'"
+            if exclude_first_meeting else ""
+        )
         cursor = db.cursor(dictionary=True)
         cursor.execute(
-            "SELECT memory FROM llm_bot_memories"
+            "SELECT id, memory"
+            " FROM llm_bot_memories"
             " WHERE bot_guid = %s"
             "   AND player_guid = %s"
             "   AND active = 1"
+            + extra +
             " ORDER BY RAND()"
             " LIMIT %s",
             (bot_guid, player_guid, count),
         )
-        return [
-            row['memory'] for row in cursor.fetchall()
-        ]
+        rows = cursor.fetchall()
+        if rows:
+            ids = [row['id'] for row in rows]
+            placeholders = ','.join(
+                ['%s'] * len(ids)
+            )
+            cursor.execute(
+                "UPDATE llm_bot_memories"
+                " SET used = 1"
+                " WHERE id IN (%s)"
+                % placeholders,
+                tuple(ids),
+            )
+            db.commit()
+        return [row['memory'] for row in rows]
     except Exception:
         logger.error(
             f"Memory retrieval failed for "

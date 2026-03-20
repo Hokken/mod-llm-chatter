@@ -21,28 +21,6 @@ from chatter_shared import (
 logger = logging.getLogger(__name__)
 
 
-def _log_identity_event(entry: dict) -> None:
-    """Log an identity event to the request logger.
-
-    Lazy import to avoid circular dependencies.
-    No-op if the logger is not available or disabled.
-    """
-    try:
-        from chatter_request_logger import (
-            log_request,
-        )
-    except ImportError:
-        return
-    log_request(
-        label=entry.get('label', 'identity_event'),
-        prompt='',
-        response=None,
-        model='',
-        provider='',
-        duration_ms=0,
-        metadata=entry,
-    )
-
 
 # Keep in sync from chatter_group.init_group_config
 _chat_history_limit = 10
@@ -232,18 +210,11 @@ def check_or_create_bot_identity(
         if row and int(
             row.get('identity_version', 0)
         ) == target_version:
-            _log_identity_event({
-                'label': 'identity_reused',
-                'bot_name': bot_name,
-                'bot_guid': bot_guid,
-                'trait1': row['trait1'],
-                'trait2': row['trait2'],
-                'trait3': row['trait3'],
-                'role': row.get('role') or '',
-                'identity_version': (
-                    target_version
-                ),
-            })
+            logger.debug(
+                "Identity reused for %s"
+                " (v%s)",
+                bot_name, target_version,
+            )
             return {
                 'trait1': row['trait1'],
                 'trait2': row['trait2'],
@@ -295,19 +266,13 @@ def check_or_create_bot_identity(
             target_version,
         ))
         db.commit()
-        _log_identity_event({
-            'label': 'identity_created',
-            'bot_name': bot_name,
-            'bot_guid': bot_guid,
-            'trait1': traits[0],
-            'trait2': traits[1],
-            'trait3': traits[2],
-            'identity_version': target_version,
-            'reason': (
-                'version_bump' if had_row
-                else 'new'
-            ),
-        })
+        logger.debug(
+            "Identity %s for %s"
+            " (v%s): %s, %s, %s",
+            'bumped' if had_row else 'created',
+            bot_name, target_version,
+            traits[0], traits[1], traits[2],
+        )
     except Exception:
         pass
 
@@ -434,13 +399,10 @@ def _generate_bot_tone(
         )
         db.commit()
 
-        _log_identity_event({
-            'label': 'tone_generated',
-            'bot_name': bot_name,
-            'bot_guid': bot_guid,
-            'group_id': group_id,
-            'tone': tone,
-        })
+        logger.debug(
+            "Tone generated for %s: %s",
+            bot_name, tone,
+        )
 
         return tone
 

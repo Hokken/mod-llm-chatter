@@ -707,6 +707,8 @@ def build_zone_metadata(
     zone_flavor: str = '',
     subzone_name: str = '',
     subzone_lore: str = '',
+    dungeon_name: str = '',
+    dungeon_flavor: str = '',
 ) -> dict:
     """Build zone metadata dict for request logging.
 
@@ -715,9 +717,13 @@ def build_zone_metadata(
     unavailable.
     """
     meta = {}
-    if zone_name:
+    if dungeon_name:
+        meta['zone_name'] = dungeon_name
+    elif zone_name:
         meta['zone_name'] = zone_name
-    if zone_flavor:
+    if dungeon_flavor:
+        meta['zone_flavor'] = dungeon_flavor
+    elif zone_flavor:
         meta['zone_flavor'] = zone_flavor
     if subzone_name:
         meta['subzone_name'] = subzone_name
@@ -1164,6 +1170,7 @@ def run_single_reaction(
     context: str = '',
     message_transform: Any = None,
     metadata: dict = None,
+    label: str = 'single_reaction',
 ) -> Dict[str, Any]:
     """Run shared single-message reaction pipeline.
 
@@ -1192,7 +1199,7 @@ def run_single_reaction(
         config,
         max_tokens_override=max_tokens_override,
         context=context,
-        label='single_reaction',
+        label=label,
         metadata=metadata,
     )
     if not response:

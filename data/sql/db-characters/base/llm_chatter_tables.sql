@@ -251,6 +251,7 @@ CREATE TABLE `llm_bot_memories` (
     `mood`          VARCHAR(32)  NOT NULL,
     `emote`         VARCHAR(32)  DEFAULT NULL,
     `active`        TINYINT(1)   NOT NULL DEFAULT 0,
+    `used`          TINYINT(1)   NOT NULL DEFAULT 0,
     `session_start` DOUBLE       NOT NULL,
     `created_at`    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_bot_player`        (`bot_guid`, `player_guid`),
