@@ -434,10 +434,43 @@ public:
     LLMChatterPlayerScript()
         : PlayerScript(
               "LLMChatterPlayerScript",
-              {PLAYERHOOK_CAN_PLAYER_USE_CHANNEL_CHAT,
+              {PLAYERHOOK_ON_LOGIN,
+               PLAYERHOOK_CAN_PLAYER_USE_CHANNEL_CHAT,
                PLAYERHOOK_ON_UPDATE_ZONE,
                PLAYERHOOK_ON_UPDATE_AREA,
                PLAYERHOOK_ON_PVP_KILL}) {}
+
+    void OnPlayerLogin(Player* player) override
+    {
+        if (!sLLMChatterConfig
+            || !sLLMChatterConfig->IsEnabled())
+            return;
+
+        if (!player || IsPlayerBot(player))
+            return;
+
+        // Defensive crash-recovery cleanup: if the
+        // server crashed, CleanupGroupSession never
+        // ran and stale entries may linger. Grace
+        // 5-minute window: entries this old are
+        // definitively stale (crash recovery only).
+        // Protects active sessions of other online
+        // players — normal delivery completes in
+        // seconds, never minutes.
+        CharacterDatabase.Execute(
+            "UPDATE llm_chatter_queue "
+            "SET status = 'cancelled' "
+            "WHERE status = 'pending' "
+            "AND created_at < NOW() "
+            "- INTERVAL 5 MINUTE");
+
+        CharacterDatabase.Execute(
+            "UPDATE llm_chatter_messages "
+            "SET delivered = 1 "
+            "WHERE delivered = 0 "
+            "AND deliver_at < NOW() "
+            "- INTERVAL 5 MINUTE");
+    }
 
     bool OnPlayerCanUseChat(
         Player* player, uint32 /*type*/,

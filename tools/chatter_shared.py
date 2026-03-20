@@ -401,6 +401,100 @@ def build_race_class_context(
     return " ".join(parts)
 
 
+def build_race_class_context_parts(
+    race: str, class_name: str,
+    actual_role: str = None,
+    race_count: int = 1,
+):
+    """Return (per_bot, shared_race, shared_class) strings.
+
+    per_bot: traits line + random class modifier +
+        optional vocab (unique per bot — always emitted)
+    shared_race: worldview + lore (same for all bots of
+        same race — caller deduplicates, emitted once)
+    shared_class: fixed role perspective only (same for
+        all bots of same class — caller deduplicates)
+
+    race_count: number of bots sharing this race in the
+        conversation. Used to compute cumulative lore
+        probability 1-(1-p)^n so deduplication does not
+        reduce lore frequency vs the old per-bot behaviour.
+    """
+    per_bot_parts = []
+    shared_race_parts = []
+    shared_class_parts = []
+
+    profile = RACE_SPEECH_PROFILES.get(race)
+    if profile:
+        # Per-bot: traits (random choice) + vocab phrase
+        traits = profile['traits']
+        if isinstance(traits, list):
+            traits = random.choice(traits)
+        flavor_words = profile['flavor_words']
+        words = random.sample(
+            flavor_words,
+            min(4, len(flavor_words))
+        )
+        per_bot_parts.append(
+            f"As a {race}, you tend to be {traits}. "
+            f"You might occasionally use words like: "
+            f"{', '.join(words)} "
+            f"but don't force it."
+        )
+        vocab = profile.get('vocabulary')
+        if vocab and random.random() < _race_vocab_chance:
+            phrase, meaning = random.choice(vocab)
+            per_bot_parts.append(
+                f"You may naturally weave in a "
+                f"phrase from your native tongue: "
+                f'"{phrase}" ({meaning}). '
+                f"Use it only if it fits — never "
+                f"force it."
+            )
+
+        # Shared race: worldview + lore
+        worldview = profile.get('worldview')
+        if worldview:
+            shared_race_parts.append(
+                f"Worldview: {worldview}"
+            )
+        lore = profile.get('lore')
+        # Cumulative probability: 1-(1-p)^n so dedup
+        # doesn't reduce lore frequency vs per-bot rolls.
+        lore_p = (
+            1.0 - (1.0 - _race_lore_chance) ** race_count
+            if race_count > 1
+            else _race_lore_chance
+        )
+        if lore and random.random() < lore_p:
+            lore_str = ' '.join(lore)
+            shared_race_parts.append(
+                f"Lore: {lore_str}"
+            )
+
+    # Per-bot: class modifier (random per bot — distinct)
+    modifier = CLASS_SPEECH_MODIFIERS.get(class_name)
+    if modifier:
+        if isinstance(modifier, list):
+            modifier = random.choice(modifier)
+        per_bot_parts.append(
+            f"As a {class_name}, you are {modifier}."
+        )
+
+    # Shared class: role perspective only (fixed per role)
+    role = actual_role or CLASS_ROLE_MAP.get(class_name)
+    if role:
+        perspective = ROLE_COMBAT_PERSPECTIVES.get(role)
+        if perspective:
+            shared_class_parts.append(perspective)
+
+    return (
+        " ".join(per_bot_parts),
+        " ".join(shared_race_parts),
+        " ".join(shared_class_parts),
+    )
+
+
 def build_bot_state_context(extra_data):
     """Build natural-language state description
     from C++ bot_state data in extra_data."""

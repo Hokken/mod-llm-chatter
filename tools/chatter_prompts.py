@@ -16,10 +16,11 @@ from chatter_constants import (
     RP_TONES, RP_MOODS, RP_CREATIVE_TWISTS,
     RP_MESSAGE_CATEGORIES, RP_LENGTH_HINTS,
     PERSONALITY_SPICES, RP_PERSONALITY_SPICES,
-    CLASS_NAMES, RACE_NAMES,
+    CLASS_NAMES, RACE_NAMES, CLASS_ROLE_MAP,
 )
 from chatter_shared import (
     get_chatter_mode, build_race_class_context,
+    build_race_class_context_parts,
     get_zone_flavor, format_price,
     build_anti_repetition_context,
     append_json_instruction,
@@ -922,19 +923,54 @@ def build_plain_conversation_prompt(
         "not every message - vary it naturally."
     )
 
+    # Precompute shared race context once per unique race.
+    # Pass race_count so lore uses cumulative probability
+    # 1-(1-p)^n, preserving pre-dedup lore frequency.
+    shared_race_cache = {}
+    if is_rp:
+        race_counts = {}
+        for bot in bots:
+            r = bot.get('race', '')
+            if r:
+                race_counts[r] = race_counts.get(r, 0) + 1
+        for race, count in race_counts.items():
+            _, sr, _ = build_race_class_context_parts(
+                race, '', race_count=count
+            )
+            shared_race_cache[race] = sr
+
+    seen_races = set()
+    seen_classes = set()
     for bot in bots:
         if is_rp or random.random() < 0.4:
+            race = bot.get('race', '')
+            cls = bot.get('class', '')
             parts.append(
-                f"{bot['name']} is a "
-                f"{bot['race']} {bot['class']}"
+                f"{bot['name']} is a {race} {cls}"
             )
             if is_rp:
-                rp_ctx = build_race_class_context(
-                    bot.get('race', ''),
-                    bot.get('class', ''),
+                per_bot, _, shared_class = (
+                    build_race_class_context_parts(
+                        race, cls
+                    )
                 )
-                if rp_ctx:
-                    parts.append(f"  {rp_ctx}")
+                if per_bot:
+                    parts.append(f"  {per_bot}")
+                if race not in seen_races:
+                    sr = shared_race_cache.get(
+                        race, ''
+                    )
+                    if sr:
+                        parts.append(
+                            f"  {sr}"
+                        )
+                    seen_races.add(race)
+                if cls not in seen_classes:
+                    if shared_class:
+                        parts.append(
+                            f"  {shared_class}"
+                        )
+                    seen_classes.add(cls)
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -1457,19 +1493,54 @@ def build_event_conversation_prompt(
             f"Current weather: {env_context['weather']}"
         )
 
+    # Precompute shared race context once per unique race.
+    # Pass race_count so lore uses cumulative probability
+    # 1-(1-p)^n, preserving pre-dedup lore frequency.
+    shared_race_cache = {}
+    if is_rp:
+        race_counts = {}
+        for bot in bots:
+            r = bot.get('race', '')
+            if r:
+                race_counts[r] = race_counts.get(r, 0) + 1
+        for race, count in race_counts.items():
+            _, sr, _ = build_race_class_context_parts(
+                race, '', race_count=count
+            )
+            shared_race_cache[race] = sr
+
+    seen_races = set()
+    seen_classes = set()
     for bot in bots:
         if is_rp or random.random() < 0.4:
+            race = bot.get('race', '')
+            cls = bot.get('class', '')
             parts.append(
-                f"{bot['name']} is a "
-                f"{bot['race']} {bot['class']}"
+                f"{bot['name']} is a {race} {cls}"
             )
             if is_rp:
-                rp_ctx = build_race_class_context(
-                    bot.get('race', ''),
-                    bot.get('class', ''),
+                per_bot, _, shared_class = (
+                    build_race_class_context_parts(
+                        race, cls
+                    )
                 )
-                if rp_ctx:
-                    parts.append(f"  {rp_ctx}")
+                if per_bot:
+                    parts.append(f"  {per_bot}")
+                if race not in seen_races:
+                    sr = shared_race_cache.get(
+                        race, ''
+                    )
+                    if sr:
+                        parts.append(
+                            f"  {sr}"
+                        )
+                    seen_races.add(race)
+                if cls not in seen_classes:
+                    if shared_class:
+                        parts.append(
+                            f"  {shared_class}"
+                        )
+                    seen_classes.add(cls)
 
     tone = pick_random_tone(mode)
     parts.append(f"Overall tone: {tone}")
@@ -1846,18 +1917,53 @@ def build_spell_conversation_prompt(
         f"{bots[0]['class']} who knows this spell."
     )
 
+    # Precompute shared race context once per unique
+    # race to avoid duplicating worldview/lore.
+    shared_race_cache = {}
+    if is_rp:
+        race_counts = {}
+        for bot in bots:
+            r = bot.get('race', '')
+            if r:
+                race_counts[r] = (
+                    race_counts.get(r, 0) + 1
+                )
+        for race, count in race_counts.items():
+            _, sr, _ = build_race_class_context_parts(
+                race, '', race_count=count
+            )
+            shared_race_cache[race] = sr
+
+    seen_races = set()
+    seen_classes = set()
     for bot in bots:
         parts.append(
             f"{bot['name']} is a "
             f"{bot['race']} {bot['class']}"
         )
         if is_rp:
-            rp_ctx = build_race_class_context(
-                bot.get('race', ''),
-                bot.get('class', ''),
+            race = bot.get('race', '')
+            cls = bot.get('class', '')
+            per_bot, _, shared_class = (
+                build_race_class_context_parts(
+                    race, cls
+                )
             )
-            if rp_ctx:
-                parts.append(f"  {rp_ctx}")
+            if per_bot:
+                parts.append(f"  {per_bot}")
+            if race not in seen_races:
+                sr = shared_race_cache.get(race, '')
+                if sr:
+                    parts.append(f"  {sr}")
+                seen_races.add(race)
+            resolved_role = (
+                CLASS_ROLE_MAP.get(cls) or ''
+            )
+            cls_role_key = (cls, resolved_role)
+            if cls_role_key not in seen_classes:
+                if shared_class:
+                    parts.append(f"  {shared_class}")
+                seen_classes.add(cls_role_key)
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)

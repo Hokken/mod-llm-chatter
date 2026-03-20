@@ -1010,3 +1010,126 @@ LLMChatter.BGChatter.RezChance = 20
 #       Default: 1
 #
 LLMChatter.PrioritySystem.SafetyEnable = 1
+
+###############################################################################
+# BOT PERSISTENT MEMORY & PERSONALITIES [BRIDGE]
+#
+#   Bots accumulate memories of moments shared with each player and
+#   surface them as reunion greetings in future sessions. Personalities
+#   (traits + farewell) are generated once and reused across sessions.
+#
+###############################################################################
+
+#
+#   LLMChatter.Memory.Enable
+#       Master toggle for the persistent memory system.
+#       When disabled, no memories are generated or surfaced.
+#       Default: 1 (enabled)
+#
+LLMChatter.Memory.Enable = 1
+
+#
+#   LLMChatter.Memory.AmbientChance
+#       Percent chance (0-100) per zone/subzone transition that
+#       an ambient memory is generated for a random bot.
+#       Default: 15
+#
+LLMChatter.Memory.AmbientChance = 15
+
+#
+#   LLMChatter.Memory.RecallChance
+#       Percent chance (0-100) that a returning bot references
+#       a specific past memory in its reunion greeting.
+#       Default: 30
+#
+LLMChatter.Memory.RecallChance = 30
+
+#
+#   LLMChatter.Memory.SessionMinutes
+#       Minimum session length (minutes) before memories are
+#       committed on farewell. Shorter sessions are discarded.
+#       Default: 15
+#
+LLMChatter.Memory.SessionMinutes = 15
+
+#
+#   LLMChatter.Memory.MaxPerBotPlayer
+#       Maximum active memories per bot-player pair. Oldest
+#       are pruned when this limit is exceeded.
+#       Default: 50
+#
+LLMChatter.Memory.MaxPerBotPlayer = 50
+
+#
+#   LLMChatter.Memory.IdentityVersion
+#       Bump this to force all bots to regenerate their
+#       persistent personality (traits + farewell). Useful
+#       after prompt or trait system changes.
+#       Default: 1
+#
+LLMChatter.Memory.IdentityVersion = 1
+
+#
+#   LLMChatter.Memory.PlayerMsgMaxLength
+#       Maximum character length of a player message that
+#       can trigger a player_message memory. Longer messages
+#       are skipped.
+#       Default: 200
+#
+LLMChatter.Memory.PlayerMsgMaxLength = 200
+
+#
+#   LLMChatter.Memory.PlayerMsgMaxPerSession
+#       Maximum player_message memories generated per session.
+#       Prevents memory spam in chatty sessions.
+#       Default: 3
+#
+LLMChatter.Memory.PlayerMsgMaxPerSession = 3
+
+#
+#   LLMChatter.Memory.QuestRecallChance
+#       Percent chance (0-100) that a quest completion
+#       event writes a persistent memory for the reactor.
+#       Default: 40
+#
+LLMChatter.Memory.QuestRecallChance = 40
+
+#
+#   LLMChatter.Memory.AchievementRecallChance
+#       Percent chance (0-100) that an achievement event
+#       writes a persistent memory for the reactor.
+#       Default: 35
+#
+LLMChatter.Memory.AchievementRecallChance = 35
+
+#
+#   LLMChatter.Memory.LevelUpRecallChance
+#       Percent chance (0-100) that a level-up event
+#       writes a persistent memory for the reactor.
+#       Default: 50
+#
+LLMChatter.Memory.LevelUpRecallChance = 50
+
+#
+#   LLMChatter.Memory.BGMatchRecallChance
+#       Percent chance (0-100) that a BG match result
+#       writes a persistent memory for a random bot.
+#       Default: 45
+#
+LLMChatter.Memory.BGMatchRecallChance = 45
+
+#
+#   LLMChatter.Memory.DiscoveryRecallChance
+#       Percent chance (0-100) that discovering a new
+#       area writes a persistent memory for the bot.
+#       Default: 30
+#
+LLMChatter.Memory.DiscoveryRecallChance = 30
+
+#
+#   LLMChatter.Memory.PvPKillRecallChance
+#       Percent chance (0-100) that a PvP kill event
+#       writes a persistent memory for a random bot.
+#       Default: 25
+#
+LLMChatter.Memory.PvPKillRecallChance = 25

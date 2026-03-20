@@ -141,7 +141,7 @@ def log_request(
         }
         if metadata:
             for k, v in metadata.items():
-                if v:  # skip empty/None values
+                if v is not None and v != "":  # skip empty/None
                     entry[k] = v
         entry['prompt'] = prompt
         entry['response'] = response

@@ -14,7 +14,7 @@ from chatter_constants import (
 )
 from chatter_shared import (
     parse_extra_data, get_zone_name,
-    run_single_reaction, build_race_class_context,
+    run_single_reaction,
 )
 from chatter_prompts import (
     build_zone_intrusion_prompt,
@@ -769,8 +769,30 @@ def cleanup_expired_events(
         """)
         reset_count = cursor.rowcount
 
-    db.commit()
+    # Prune completed/cancelled/failed queue rows
+    # older than 1 hour
+    cursor.execute("""
+        DELETE FROM llm_chatter_queue
+        WHERE status IN (
+            'completed', 'cancelled', 'failed'
+        )
+          AND created_at < DATE_SUB(
+              NOW(), INTERVAL 1 HOUR
+          )
+    """)
+    deleted_count += cursor.rowcount
 
+    # Prune delivered messages older than 1 hour
+    cursor.execute("""
+        DELETE FROM llm_chatter_messages
+        WHERE delivered = 1
+          AND deliver_at < DATE_SUB(
+              NOW(), INTERVAL 1 HOUR
+          )
+    """)
+    deleted_count += cursor.rowcount
+
+    db.commit()
 
     return expired_count + deleted_count + reset_count
 

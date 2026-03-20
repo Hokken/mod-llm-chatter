@@ -93,6 +93,7 @@ from chatter_group import (
     process_group_oom_event,
     process_group_aggro_loss_event,
     process_group_nearby_object_event,
+    process_group_farewell_event,
     check_idle_group_chatter,
     check_bot_questions,
 )
@@ -170,6 +171,24 @@ def process_pending_requests(
 ):
     """Process all pending chatter requests."""
     cursor = db.cursor(dictionary=True)
+
+    # Cancel stale pending requests (older than 5 minutes)
+    cursor.execute("""
+        UPDATE llm_chatter_queue
+        SET status = 'cancelled'
+        WHERE status = 'pending'
+          AND created_at < NOW() - INTERVAL 5 MINUTE
+    """)
+    # Mark stale undelivered messages as delivered so
+    # C++ never picks them up (e.g. from a previous
+    # session before the player logged out).
+    cursor.execute("""
+        UPDATE llm_chatter_messages
+        SET delivered = 1
+        WHERE delivered = 0
+          AND deliver_at < NOW() - INTERVAL 5 MINUTE
+    """)
+    db.commit()
 
     # Get pending requests
     cursor.execute("""
@@ -483,6 +502,8 @@ EVENT_HANDLERS = {
         process_group_aggro_loss_event,
     'bot_group_nearby_object':
         process_group_nearby_object_event,
+    'bot_group_farewell':
+        process_group_farewell_event,
     # General event
     'player_general_msg':
         _dispatch_player_general_msg,
@@ -1604,6 +1625,93 @@ def _count_in_flight_jobs(*futures):
     )
 
 
+def _write_db_snapshot(db, snapshot_dir):
+    """Write DB state JSON snapshots to the logs dir
+    so the log viewer's DB State tab can read them.
+    Uses atomic replace to avoid partial reads.
+    """
+    import os
+    import json as _json
+    from datetime import datetime, timezone
+
+    try:
+        cursor = db.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT bot_guid, player_guid,"
+            " group_id, memory_type, memory,"
+            " mood, emote, active, created_at,"
+            " session_start"
+            " FROM llm_bot_memories"
+            " ORDER BY created_at DESC"
+            " LIMIT 200"
+        )
+        memories = cursor.fetchall()
+
+        cursor.execute(
+            "SELECT id, status, request_type,"
+            " bot1_guid, bot2_guid, bot3_guid,"
+            " bot4_guid, created_at"
+            " FROM llm_chatter_queue"
+            " ORDER BY created_at DESC"
+            " LIMIT 100"
+        )
+        queue = cursor.fetchall()
+
+        cursor.execute(
+            "SELECT id, bot_guid, message,"
+            " delivered, deliver_at"
+            " FROM llm_chatter_messages"
+            " ORDER BY deliver_at DESC"
+            " LIMIT 100"
+        )
+        messages = cursor.fetchall()
+
+        cursor.close()
+
+        # Convert datetime/decimal objects
+        def _serialise(rows):
+            out = []
+            for row in rows:
+                r = {}
+                for k, v in row.items():
+                    if hasattr(v, 'isoformat'):
+                        r[k] = v.isoformat()
+                    else:
+                        r[k] = v
+                out.append(r)
+            return out
+
+        ts = datetime.now(
+            timezone.utc
+        ).isoformat()
+
+        for fname, rows in [
+            ('db_memories.json', memories),
+            ('db_queue.json', queue),
+            ('db_messages.json', messages),
+        ]:
+            data = {
+                'rows': _serialise(rows),
+                'updated': ts,
+            }
+            path = os.path.join(
+                snapshot_dir, fname
+            )
+            tmp = path + '.tmp'
+            with open(
+                tmp, 'w', encoding='utf-8'
+            ) as f:
+                _json.dump(
+                    data, f,
+                    ensure_ascii=False
+                )
+            os.replace(tmp, path)
+
+    except Exception:
+        pass
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -1646,6 +1754,16 @@ def main():
         init_request_logger,
     )
     init_request_logger(config)
+
+    # Derive snapshot dir from log path
+    import os as _os
+    _log_path = config.get(
+        'LLMChatter.RequestLog.Path',
+        '/logs/llm_requests.jsonl'
+    )
+    snapshot_dir = (
+        _os.path.dirname(_log_path) or '/logs'
+    )
 
     # Get provider and initialize appropriate client
     provider = config.get(
@@ -1996,6 +2114,23 @@ def main():
         try:
             db = get_db_connection(config)
             reset_stuck_processing_events(db)
+
+            # Memory system startup recovery
+            if int(config.get(
+                'LLMChatter.Memory.Enable', 1
+            )):
+                from chatter_memory import (
+                    activate_orphaned_memories,
+                    rehydrate_active_sessions,
+                )
+                session_min = int(config.get(
+                    'LLMChatter.Memory'
+                    '.SessionMinutes', 15
+                ))
+                activate_orphaned_memories(
+                    db, session_min
+                )
+                rehydrate_active_sessions(db)
         except Exception:
             pass
         finally:
@@ -2008,6 +2143,8 @@ def main():
     # Main loop
     last_cleanup = 0
     cleanup_interval = 60  # every 60 seconds
+    last_db_snapshot = 0
+    db_snapshot_interval = 10  # every 10 seconds
     last_idle_check = 0
     idle_check_interval = int(config.get(
         'LLMChatter.GroupChatter.IdleCheckInterval',
@@ -2126,6 +2263,17 @@ def main():
                         )
                     )
                     last_cleanup = current_time
+
+                # DB state snapshot for log viewer
+                if (
+                    current_time
+                    - last_db_snapshot
+                    >= db_snapshot_interval
+                ):
+                    _write_db_snapshot(
+                        db, snapshot_dir
+                    )
+                    last_db_snapshot = current_time
 
                 # Legacy requests (General ambient chatter)
                 # Runs freely every cycle — no deferral
@@ -2275,6 +2423,14 @@ def main():
 
         except KeyboardInterrupt:
             executor.shutdown(wait=False)
+            # Drain memory executor
+            try:
+                from chatter_memory import (
+                    memory_executor,
+                )
+                memory_executor.shutdown(wait=True)
+            except Exception:
+                pass
             break
         except Exception:
             time.sleep(poll_interval)

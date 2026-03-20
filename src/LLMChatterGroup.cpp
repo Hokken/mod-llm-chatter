@@ -839,6 +839,40 @@ static bool IsLikelyPlayerbotControlCommand(
 // Clean up traits when group no longer qualifies
 static void CleanupGroupSession(uint32 groupId)
 {
+    // Cancel pending queue entries for all bots
+    // that belonged to this group
+    CharacterDatabase.Execute(
+        "UPDATE llm_chatter_queue "
+        "SET status = 'cancelled' "
+        "WHERE status = 'pending' "
+        "AND ("
+        "bot1_guid IN (SELECT bot_guid "
+        "FROM llm_group_bot_traits "
+        "WHERE group_id = {0}) "
+        "OR bot2_guid IN (SELECT bot_guid "
+        "FROM llm_group_bot_traits "
+        "WHERE group_id = {0}) "
+        "OR bot3_guid IN (SELECT bot_guid "
+        "FROM llm_group_bot_traits "
+        "WHERE group_id = {0}) "
+        "OR bot4_guid IN (SELECT bot_guid "
+        "FROM llm_group_bot_traits "
+        "WHERE group_id = {0})"
+        ")",
+        groupId);
+
+    // Mark undelivered messages for all group
+    // bots as delivered
+    CharacterDatabase.Execute(
+        "UPDATE llm_chatter_messages "
+        "SET delivered = 1 "
+        "WHERE delivered = 0 "
+        "AND bot_guid IN ("
+        "SELECT bot_guid "
+        "FROM llm_group_bot_traits "
+        "WHERE group_id = {})",
+        groupId);
+
     CharacterDatabase.Execute(
         "DELETE FROM llm_group_bot_traits "
         "WHERE group_id = {}",
@@ -977,6 +1011,28 @@ public:
                 "AND bot_guid = {}",
                 groupId, botGuid);
 
+            // Cancel pending queue entries that
+            // include this bot
+            CharacterDatabase.Execute(
+                "UPDATE llm_chatter_queue "
+                "SET status = 'cancelled' "
+                "WHERE status = 'pending' "
+                "AND (bot1_guid = {} "
+                "OR bot2_guid = {} "
+                "OR bot3_guid = {} "
+                "OR bot4_guid = {})",
+                botGuid, botGuid,
+                botGuid, botGuid);
+
+            // Mark this bot's undelivered messages
+            // as delivered so they won't fire
+            CharacterDatabase.Execute(
+                "UPDATE llm_chatter_messages "
+                "SET delivered = 1 "
+                "WHERE delivered = 0 "
+                "AND bot_guid = {}",
+                botGuid);
+
             Player* removed =
                 ObjectAccessor::FindPlayer(guid);
             if (removed && IsPlayerBot(removed))
@@ -1035,6 +1091,59 @@ public:
                     }
                 }
                 } // _useFarewell
+
+                // Emit farewell event so the Python
+                // bridge can flush session memories
+                // before the bot's data is cleaned up.
+                {
+                    uint32 playerGuid = 0;
+                    for (GroupReference* itr =
+                             group->GetFirstMember();
+                         itr != nullptr;
+                         itr = itr->next())
+                    {
+                        Player* m = itr->GetSource();
+                        if (m && !IsPlayerBot(m))
+                        {
+                            playerGuid =
+                                m->GetGUID()
+                                    .GetCounter();
+                            break;
+                        }
+                    }
+                    if (playerGuid)
+                    {
+                        std::string extraData = "{"
+                            "\"bot_guid\":" +
+                                std::to_string(
+                                    botGuid) + ","
+                            "\"group_id\":" +
+                                std::to_string(
+                                    groupId) + ","
+                            "\"player_guid\":" +
+                                std::to_string(
+                                    playerGuid) +
+                            "}";
+                        extraData =
+                            EscapeString(extraData);
+
+                        QueueChatterEvent(
+                            "bot_group_farewell",
+                            "player",
+                            removed->GetZoneId(),
+                            removed->GetMapId(),
+                            GetChatterEventPriority(
+                                "bot_group_farewell"),
+                            "",
+                            botGuid,
+                            removed->GetName(),
+                            0, "", 0,
+                            extraData,
+                            0,
+                            60,
+                            false);
+                    }
+                }
 
                 CharacterDatabase.Execute(
                     "DELETE FROM llm_group_bot_traits "

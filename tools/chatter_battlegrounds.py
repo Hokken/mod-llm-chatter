@@ -29,7 +29,9 @@ from chatter_raid_base import (
     DISPATCH_RAID_ONLY,
     DISPATCH_SUBGROUP_ONLY,
 )
+from chatter_memory import queue_memory
 from chatter_bg_prompts import (
+    BG_LORE,
     build_bg_match_start_prompt,
     build_bg_match_end_prompt,
     build_bg_flag_prompt,
@@ -101,6 +103,60 @@ def process_bg_match_end_event(
     status = (
         'completed' if result else 'skipped')
     _mark_event(db, event_id, status)
+
+    # Memory: BG match result
+    if result:
+        try:
+            mem_chance = int(config.get(
+                'LLMChatter.Memory'
+                '.BGMatchRecallChance', 45
+            ))
+            if random.random() * 100 < mem_chance:
+                won = extra_data.get('won', False)
+                bg_type_id = int(
+                    extra_data.get('bg_type_id', 0)
+                )
+                lore = BG_LORE.get(bg_type_id, {})
+                bg_name = lore.get(
+                    'name', 'a battleground'
+                )
+                group_id = int(
+                    extra_data.get('group_id', 0)
+                )
+                party_guids = get_subgroup_bots(
+                    extra_data
+                )
+                if party_guids and group_id:
+                    bot_guid = random.choice(
+                        party_guids
+                    )
+                    bot_data = (
+                        get_lightweight_bot_data(
+                            db, bot_guid
+                        )
+                    )
+                    if bot_data:
+                        queue_memory(
+                            config, group_id,
+                            bot_guid, 0,
+                            memory_type=(
+                                'bg_win' if won
+                                else 'bg_loss'
+                            ),
+                            event_context=(
+                                f"{'Won' if won else 'Lost'}"
+                                f" {bg_name}"
+                            ),
+                            bot_name=bot_data[
+                                'bot_name'],
+                            bot_class=bot_data.get(
+                                'class', ''),
+                            bot_race=bot_data.get(
+                                'race', ''),
+                        )
+        except Exception:
+            pass
+
     return result
 
 
@@ -323,6 +379,60 @@ def process_bg_pvp_kill_event(
     status = (
         'completed' if result else 'skipped')
     _mark_event(db, event_id, status)
+
+    # Memory: PvP kill
+    if result:
+        try:
+            mem_chance = int(config.get(
+                'LLMChatter.Memory'
+                '.PvPKillRecallChance', 25
+            ))
+            if random.random() * 100 < mem_chance:
+                victim_name = extra_data.get(
+                    'victim_name', 'an enemy'
+                )
+                bg_type_id = int(
+                    extra_data.get('bg_type_id', 0)
+                )
+                lore = BG_LORE.get(bg_type_id, {})
+                bg_name = lore.get(
+                    'name', 'a battleground'
+                )
+                group_id = int(
+                    extra_data.get('group_id', 0)
+                )
+                party_guids = get_subgroup_bots(
+                    extra_data
+                )
+                if party_guids and group_id:
+                    bot_guid = random.choice(
+                        party_guids
+                    )
+                    bot_data = (
+                        get_lightweight_bot_data(
+                            db, bot_guid
+                        )
+                    )
+                    if bot_data:
+                        queue_memory(
+                            config, group_id,
+                            bot_guid, 0,
+                            memory_type='pvp_kill',
+                            event_context=(
+                                f"Killed"
+                                f" {victim_name}"
+                                f" in {bg_name}"
+                            ),
+                            bot_name=bot_data[
+                                'bot_name'],
+                            bot_class=bot_data.get(
+                                'class', ''),
+                            bot_race=bot_data.get(
+                                'race', ''),
+                        )
+        except Exception:
+            pass
+
     return result
 
 

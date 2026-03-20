@@ -81,6 +81,7 @@ from chatter_group_prompts import (
 from chatter_raid_base import (
     dual_worker_dispatch,
 )
+from chatter_memory import queue_memory
 from chatter_bg_prompts import (
     build_bg_achievement_prompt,
     build_bg_spell_cast_prompt,
@@ -194,6 +195,7 @@ def process_group_kill_event(
         return False
 
     traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     # Get bot class/race from extra_data
     bot_class_id = int(
@@ -244,6 +246,7 @@ def process_group_kill_event(
             extra_data=extra_data,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            stored_tone=stored_tone,
         )
         mood_label = get_bot_mood_label(
             group_id, bot_guid
@@ -284,6 +287,27 @@ def process_group_kill_event(
             group_id, bot_guid,
             'boss_kill' if is_boss else 'kill'
         )
+
+        # Memory: boss/rare kills
+        if is_boss or is_rare:
+            try:
+                mem_type = (
+                    'boss_kill' if is_boss
+                    else 'rare_kill'
+                )
+                queue_memory(
+                    config, group_id, bot_guid, 0,
+                    memory_type=mem_type,
+                    event_context=(
+                        f"Killed {creature_name}"
+                    ),
+                    bot_name=bot_name,
+                    bot_class=bot_class,
+                    bot_race=bot_race,
+                )
+            except Exception:
+                pass
+
         _mark_event(db, event_id, 'completed')
         return True
 
@@ -342,6 +366,7 @@ def process_group_loot_event(
         return False
 
     traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
     bot_class_id = int(
         extra_data.get('bot_class', 0)
     )
@@ -394,6 +419,7 @@ def process_group_loot_event(
             extra_data=extra_data,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            stored_tone=stored_tone,
         )
         mood_label = get_bot_mood_label(
             group_id, bot['guid']
@@ -533,6 +559,7 @@ def process_group_combat_event(
         return False
 
     traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     bot_class_id = int(
         extra_data.get('bot_class', 0)
@@ -580,6 +607,7 @@ def process_group_combat_event(
             extra_data=extra_data,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            stored_tone=stored_tone,
         )
 
         result = run_single_reaction(
@@ -737,6 +765,7 @@ def process_group_death_event(
             'level': bot_level,
         }
 
+    stored_tone = trait_data.get('tone')
 
     # Mark as processing
     cursor = db.cursor()
@@ -766,6 +795,7 @@ def process_group_death_event(
             extra_data=extra_data,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            stored_tone=stored_tone,
         )
         mood_label = get_bot_mood_label(
             group_id, reactor_guid
@@ -873,6 +903,7 @@ def process_group_levelup_event(
         reactor_guid = leveler_guid
         reactor_name = leveler_name
         reactor_traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     # Get reactor's class/race from characters
     cursor = db.cursor(dictionary=True)
@@ -926,6 +957,7 @@ def process_group_levelup_event(
             mode, chat_history=chat_hist,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            stored_tone=stored_tone,
         )
         mood_label = get_bot_mood_label(
             group_id, reactor_guid
@@ -967,6 +999,29 @@ def process_group_levelup_event(
             group_id, reactor_guid, 'levelup'
         )
         _mark_event(db, event_id, 'completed')
+
+        # Memory: level up
+        try:
+            mem_chance = int(config.get(
+                'LLMChatter.Memory'
+                '.LevelUpRecallChance', 50
+            ))
+            if random.random() * 100 < mem_chance:
+                queue_memory(
+                    config, group_id,
+                    reactor_guid, 0,
+                    memory_type='level_up',
+                    event_context=(
+                        f"{leveler_name} reached"
+                        f" level {new_level}"
+                    ),
+                    bot_name=reactor_name,
+                    bot_class=reactor['class'],
+                    bot_race=reactor['race'],
+                )
+        except Exception:
+            pass
+
         return True
 
     except Exception:
@@ -1023,6 +1078,7 @@ def process_group_quest_complete_event(
         _mark_event(db, event_id, 'skipped')
         return False
     reactor_traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     bot_class_id = int(
         extra_data.get('bot_class', 0)
@@ -1077,6 +1133,36 @@ def process_group_quest_complete_event(
                     group_id, reactor_guid,
                     'quest',
                 )
+                # Memory: quest completion (conv path)
+                try:
+                    mem_chance = int(config.get(
+                        'LLMChatter.Memory'
+                        '.QuestRecallChance', 40
+                    ))
+                    if (
+                        random.random() * 100
+                        < mem_chance
+                    ):
+                        queue_memory(
+                            config, group_id,
+                            reactor_guid, 0,
+                            memory_type=(
+                                'quest_complete'
+                            ),
+                            event_context=(
+                                f"Completed quest:"
+                                f" {quest_name}"
+                            ),
+                            bot_name=reactor_name,
+                            bot_class=(
+                                reactor['class']
+                            ),
+                            bot_race=(
+                                reactor['race']
+                            ),
+                        )
+                except Exception:
+                    pass
                 return True
         except Exception:
             pass
@@ -1119,6 +1205,7 @@ def process_group_quest_complete_event(
                 quest_details=quest_details,
                 quest_objectives=quest_objectives,
                 speaker_talent_context=speaker_talent,
+                stored_tone=stored_tone,
             )
         )
         mood_label = get_bot_mood_label(
@@ -1160,6 +1247,29 @@ def process_group_quest_complete_event(
         update_bot_mood(
             group_id, reactor_guid, 'quest'
         )
+
+        # Memory: quest completion
+        try:
+            mem_chance = int(config.get(
+                'LLMChatter.Memory'
+                '.QuestRecallChance', 40
+            ))
+            if random.random() * 100 < mem_chance:
+                queue_memory(
+                    config, group_id,
+                    reactor_guid, 0,
+                    memory_type='quest_complete',
+                    event_context=(
+                        f"Completed quest:"
+                        f" {quest_name}"
+                    ),
+                    bot_name=reactor_name,
+                    bot_class=reactor['class'],
+                    bot_race=reactor['race'],
+                )
+        except Exception:
+            pass
+
         _mark_event(db, event_id, 'completed')
         return True
 
@@ -1235,6 +1345,7 @@ def process_group_quest_objectives_event(
         reactor_guid = completer_guid
         reactor_name = completer_name
         reactor_traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     # Get reactor's class/race from characters
     cursor = db.cursor(dictionary=True)
@@ -1324,6 +1435,7 @@ def process_group_quest_objectives_event(
                 quest_details=quest_details,
                 quest_objectives=quest_objectives,
                 speaker_talent_context=speaker_talent,
+                stored_tone=stored_tone,
             )
         )
 
@@ -1557,6 +1669,7 @@ def process_group_achievement_event(
         reactor_guid = achiever_guid
         reactor_name = achiever_name
         reactor_traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     # Get reactor's class/race from characters
     cursor = db.cursor(dictionary=True)
@@ -1628,6 +1741,7 @@ def process_group_achievement_event(
                     allow_action=allow_action,
                     speaker_talent_context=(
                         speaker_talent),
+                    stored_tone=stored_tone,
                 )
             )
         else:
@@ -1641,6 +1755,7 @@ def process_group_achievement_event(
                     allow_action=allow_action,
                     speaker_talent_context=(
                         speaker_talent),
+                    stored_tone=stored_tone,
                 )
             )
         mood_label = get_bot_mood_label(
@@ -1682,6 +1797,29 @@ def process_group_achievement_event(
         update_bot_mood(
             group_id, reactor_guid, 'achievement'
         )
+
+        # Memory: achievement
+        try:
+            mem_chance = int(config.get(
+                'LLMChatter.Memory'
+                '.AchievementRecallChance', 35
+            ))
+            if random.random() * 100 < mem_chance:
+                queue_memory(
+                    config, group_id,
+                    reactor_guid, 0,
+                    memory_type='achievement',
+                    event_context=(
+                        f"Earned achievement:"
+                        f" {achievement_name}"
+                    ),
+                    bot_name=reactor_name,
+                    bot_class=reactor['class'],
+                    bot_race=reactor['race'],
+                )
+        except Exception:
+            pass
+
         _mark_event(db, event_id, 'completed')
         return True
 
@@ -1767,6 +1905,7 @@ def process_group_spell_cast_event(
         return False
 
     traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     bot_class = get_class_name(bot_class_id)
     bot_race = get_race_name(bot_race_id)
@@ -1824,6 +1963,7 @@ def process_group_spell_cast_event(
             extra_data=extra_data,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            stored_tone=stored_tone,
         )
 
         delay = random.randint(2, 3)
@@ -1900,6 +2040,7 @@ def process_group_resurrect_event(
         return False
 
     traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     # Get class/race from characters table
     cursor = db.cursor(dictionary=True)
@@ -1948,6 +2089,7 @@ def process_group_resurrect_event(
             chat_history=chat_hist,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            stored_tone=stored_tone,
         )
         mood_label = get_bot_mood_label(
             group_id, bot_guid
@@ -2046,6 +2188,7 @@ def process_group_zone_transition_event(
         return False
 
     traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     # Get class/race from characters table
     cursor = db.cursor(dictionary=True)
@@ -2096,6 +2239,7 @@ def process_group_zone_transition_event(
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             area_id=area_id,
+            stored_tone=stored_tone,
         )
 
         result = run_single_reaction(
@@ -2125,6 +2269,31 @@ def process_group_zone_transition_event(
             db, group_id, bot_guid,
             bot_name, True, message
         )
+
+        # Memory: ambient on zone transition
+        try:
+            ambient_chance = int(config.get(
+                'LLMChatter.Memory.AmbientChance',
+                15,
+            ))
+            if (
+                ambient_chance > 0
+                and random.randint(1, 100)
+                    <= ambient_chance
+            ):
+                queue_memory(
+                    config, group_id, bot_guid, 0,
+                    memory_type='ambient',
+                    event_context=(
+                        f"Traveling through "
+                        f"{zone_name}"
+                    ),
+                    bot_name=bot_name,
+                    bot_class=bot['class'],
+                    bot_race=bot['race'],
+                )
+        except Exception:
+            pass
 
         _mark_event(db, event_id, 'completed')
         return True
@@ -2192,6 +2361,7 @@ def process_group_quest_accept_event(
         _mark_event(db, event_id, 'skipped')
         return False
     reactor_traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     bot_class_id = int(extra_data.get(
         'bot_class', 1
@@ -2282,6 +2452,7 @@ def process_group_quest_accept_event(
                 quest_details=quest_details,
                 quest_objectives=quest_objectives,
                 speaker_talent_context=speaker_talent,
+                stored_tone=stored_tone,
             )
         )
         mood_label = get_bot_mood_label(
@@ -2391,6 +2562,7 @@ def process_group_quest_accept_batch_event(
         _mark_event(db, event_id, 'skipped')
         return False
     reactor_traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     bot_class_id = int(extra_data.get(
         'bot_class', 1
@@ -2439,6 +2611,7 @@ def process_group_quest_accept_batch_event(
             chat_history=chat_hist,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            stored_tone=stored_tone,
         )
         mood_label = get_bot_mood_label(
             group_id, reactor_guid
@@ -2536,6 +2709,7 @@ def process_group_discovery_event(
         return False
 
     traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     bot_class_id = int(
         extra_data.get('bot_class', 1)
@@ -2585,6 +2759,7 @@ def process_group_discovery_event(
             area_id=area_id,
             zone_id=int(
                 event.get('zone_id', 0) or 0),
+            stored_tone=stored_tone,
         )
         mood_label = get_bot_mood_label(
             group_id, bot_guid
@@ -2623,6 +2798,28 @@ def process_group_discovery_event(
         )
 
         _mark_event(db, event_id, 'completed')
+
+        # Memory: discovery
+        try:
+            mem_chance = int(config.get(
+                'LLMChatter.Memory'
+                '.DiscoveryRecallChance', 30
+            ))
+            if random.random() * 100 < mem_chance:
+                queue_memory(
+                    config, group_id,
+                    bot_guid, 0,
+                    memory_type='discovery',
+                    event_context=(
+                        f"Discovered {area_name}"
+                    ),
+                    bot_name=bot_name,
+                    bot_class=bot['class'],
+                    bot_race=bot['race'],
+                )
+        except Exception:
+            pass
+
         return True
 
     except Exception:
@@ -2674,6 +2871,7 @@ def process_group_dungeon_entry_event(
         return False
 
     traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     # Get class/race from characters table
     cursor = db.cursor(dictionary=True)
@@ -2723,6 +2921,7 @@ def process_group_dungeon_entry_event(
             chat_history=chat_hist,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            stored_tone=stored_tone,
         )
 
         delay = random.randint(2, 4)
@@ -2753,6 +2952,21 @@ def process_group_dungeon_entry_event(
             db, group_id, bot_guid,
             bot_name, True, message
         )
+
+        # Memory: dungeon entry
+        try:
+            queue_memory(
+                config, group_id, bot_guid, 0,
+                memory_type='dungeon',
+                event_context=(
+                    f"Entered {map_name}"
+                ),
+                bot_name=bot_name,
+                bot_class=bot['class'],
+                bot_race=bot['race'],
+            )
+        except Exception:
+            pass
 
         _mark_event(db, event_id, 'completed')
         return True
@@ -2802,6 +3016,7 @@ def process_group_wipe_event(
         return False
 
     traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     # Get class/race from characters table
     cursor = db.cursor(dictionary=True)
@@ -2851,6 +3066,7 @@ def process_group_wipe_event(
             extra_data=extra_data,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            stored_tone=stored_tone,
         )
         mood_label = get_bot_mood_label(
             group_id, bot_guid
@@ -2891,6 +3107,25 @@ def process_group_wipe_event(
         update_bot_mood(
             group_id, bot_guid, 'wipe'
         )
+
+        # Memory: wipe
+        try:
+            context = "Total party wipe"
+            if killer_name:
+                context = (
+                    f"Wiped to {killer_name}"
+                )
+            queue_memory(
+                config, group_id, bot_guid, 0,
+                memory_type='wipe',
+                event_context=context,
+                bot_name=bot_name,
+                bot_class=bot['class'],
+                bot_race=bot['race'],
+            )
+        except Exception:
+            pass
+
         _mark_event(db, event_id, 'completed')
         return True
 
@@ -2949,6 +3184,7 @@ def process_group_corpse_run_event(
         return False
 
     traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
@@ -2997,6 +3233,7 @@ def process_group_corpse_run_event(
             is_player_death=is_player_death,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            stored_tone=stored_tone,
         )
 
         result = run_single_reaction(
@@ -3089,6 +3326,7 @@ def process_group_low_health_event(
         return False
 
     traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     # Get class/race from characters
     cursor = db.cursor(dictionary=True)
@@ -3226,6 +3464,7 @@ def process_group_oom_event(
         return False
 
     traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
@@ -3346,6 +3585,7 @@ def process_group_aggro_loss_event(
         return False
 
     traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
@@ -3463,6 +3703,7 @@ def process_group_nearby_object_event(
         return False
 
     traits = trait_data['traits']
+    stored_tone = trait_data.get('tone')
 
     # Mark as processing BEFORE LLM call
     _mark_event(db, event_id, 'processing')
