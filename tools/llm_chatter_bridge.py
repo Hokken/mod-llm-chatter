@@ -505,6 +505,8 @@ EVENT_HANDLERS = {
         process_group_resurrect_event,
     'bot_group_zone_transition':
         process_group_zone_transition_event,
+    'bot_group_subzone_change':
+        process_group_zone_transition_event,
     'bot_group_quest_accept':
         process_group_quest_accept_event,
     'bot_group_quest_accept_batch':

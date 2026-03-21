@@ -113,7 +113,8 @@ uint8 GetLegacyPriority(const std::string& eventType)
     if (eventType == "bot_group_discovery")
         return 4;
     if (eventType == "weather_ambient"
-        || eventType == "bot_group_zone_transition")
+        || eventType == "bot_group_zone_transition"
+        || eventType == "bot_group_subzone_change")
         return 3;
     if (eventType == "bot_group_combat"
         || IsStateCalloutEventType(eventType)
@@ -244,7 +245,8 @@ uint32 GetLegacyReactionDelaySeconds(
         return sLLMChatterConfig->_reactDelayCorpseRun;
     else if (eventType == "bot_group_dungeon_entry")
         return sLLMChatterConfig->_reactDelayDungeonEntry;
-    else if (eventType == "bot_group_zone_transition")
+    else if (eventType == "bot_group_zone_transition"
+        || eventType == "bot_group_subzone_change")
         return sLLMChatterConfig
             ->_reactDelayZoneTransition;
     else if (eventType == "bot_group_discovery")

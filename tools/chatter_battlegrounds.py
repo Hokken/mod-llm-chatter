@@ -111,7 +111,7 @@ def process_bg_match_end_event(
         try:
             mem_chance = int(config.get(
                 'LLMChatter.Memory'
-                '.BGMatchRecallChance', 45
+                '.BGMatchRecallChance', 100
             ))
             if random.random() * 100 < mem_chance:
                 won = extra_data.get('won', False)
@@ -390,7 +390,7 @@ def process_bg_pvp_kill_event(
         try:
             mem_chance = int(config.get(
                 'LLMChatter.Memory'
-                '.PvPKillRecallChance', 25
+                '.PvPKillRecallChance', 100
             ))
             if random.random() * 100 < mem_chance:
                 victim_name = extra_data.get(

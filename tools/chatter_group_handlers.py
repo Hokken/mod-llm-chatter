@@ -279,29 +279,44 @@ def process_group_kill_event(
             'boss_kill' if is_boss else 'kill'
         )
 
-        # Memory: boss/rare kills
+        # Memory: ALL bots remember boss/rare kills
         if is_boss or is_rare:
             try:
                 mem_type = (
                     'boss_kill' if is_boss
                     else 'rare_kill'
                 )
-                mem_chance = int(config.get(
-                    'LLMChatter.Memory'
-                    '.BossKillRecallChance', 60
-                ))
-                if random.random() * 100 < mem_chance:
-                    queue_memory(
-                        config, group_id,
-                        bot_guid, 0,
-                        memory_type=mem_type,
-                        event_context=(
-                            f"Killed {creature_name}"
-                        ),
-                        bot_name=bot_name,
-                        bot_class=bot_class,
-                        bot_race=bot_race,
-                    )
+                mc = db.cursor(dictionary=True)
+                mc.execute(
+                    "SELECT t.bot_guid, t.bot_name,"
+                    " c.class, c.race"
+                    " FROM llm_group_bot_traits t"
+                    " JOIN characters c"
+                    "   ON c.guid = t.bot_guid"
+                    " WHERE t.group_id = %s",
+                    (group_id,),
+                )
+                all_bots = mc.fetchall()
+                for ab in all_bots:
+                    try:
+                        queue_memory(
+                            config, group_id,
+                            ab['bot_guid'], 0,
+                            memory_type=mem_type,
+                            event_context=(
+                                f"Killed"
+                                f" {creature_name}"
+                            ),
+                            bot_name=ab['bot_name'],
+                            bot_class=get_class_name(
+                                ab['class']
+                            ),
+                            bot_race=get_race_name(
+                                ab['race']
+                            ),
+                        )
+                    except Exception:
+                        pass
             except Exception:
                 logger.error(
                     "boss/rare_kill memory failed",
@@ -1000,11 +1015,11 @@ def process_group_levelup_event(
         )
         _mark_event(db, event_id, 'completed')
 
-        # Memory: level up
+        # Memory: reactor remembers the level-up
         try:
             mem_chance = int(config.get(
                 'LLMChatter.Memory'
-                '.LevelUpRecallChance', 50
+                '.LevelUpRecallChance', 100
             ))
             if random.random() * 100 < mem_chance:
                 queue_memory(
@@ -1024,6 +1039,38 @@ def process_group_levelup_event(
                 "level_up memory failed",
                 exc_info=True,
             )
+
+        # Memory: leveler remembers their own
+        # milestone (only if bot, not player)
+        if is_bot and leveler_guid != reactor_guid:
+            try:
+                # Get leveler's class/race
+                lv_c = db.cursor(dictionary=True)
+                lv_c.execute(
+                    "SELECT class, race FROM"
+                    " characters WHERE guid = %s",
+                    (leveler_guid,),
+                )
+                lv_row = lv_c.fetchone()
+                if lv_row:
+                    queue_memory(
+                        config, group_id,
+                        leveler_guid, 0,
+                        memory_type='level_up',
+                        event_context=(
+                            f"I reached level"
+                            f" {new_level}"
+                        ),
+                        bot_name=leveler_name,
+                        bot_class=get_class_name(
+                            lv_row['class']
+                        ),
+                        bot_race=get_race_name(
+                            lv_row['race']
+                        ),
+                    )
+            except Exception:
+                pass
 
         return True
 
@@ -1140,7 +1187,7 @@ def process_group_quest_complete_event(
                 try:
                     mem_chance = int(config.get(
                         'LLMChatter.Memory'
-                        '.QuestRecallChance', 40
+                        '.QuestRecallChance', 100
                     ))
                     if (
                         random.random() * 100
@@ -1259,7 +1306,7 @@ def process_group_quest_complete_event(
         try:
             mem_chance = int(config.get(
                 'LLMChatter.Memory'
-                '.QuestRecallChance', 40
+                '.QuestRecallChance', 100
             ))
             if random.random() * 100 < mem_chance:
                 queue_memory(
@@ -1808,25 +1855,40 @@ def process_group_achievement_event(
             group_id, reactor_guid, 'achievement'
         )
 
-        # Memory: achievement
+        # Memory: ALL bots remember the achievement
+        # (achievements are milestones worth 100%)
         try:
-            mem_chance = int(config.get(
-                'LLMChatter.Memory'
-                '.AchievementRecallChance', 35
-            ))
-            if random.random() * 100 < mem_chance:
-                queue_memory(
-                    config, group_id,
-                    reactor_guid, 0,
-                    memory_type='achievement',
-                    event_context=(
-                        f"Earned achievement:"
-                        f" {achievement_name}"
-                    ),
-                    bot_name=reactor_name,
-                    bot_class=reactor['class'],
-                    bot_race=reactor['race'],
-                )
+            mc = db.cursor(dictionary=True)
+            mc.execute(
+                "SELECT t.bot_guid, t.bot_name,"
+                " c.class, c.race"
+                " FROM llm_group_bot_traits t"
+                " JOIN characters c"
+                "   ON c.guid = t.bot_guid"
+                " WHERE t.group_id = %s",
+                (group_id,),
+            )
+            all_bots = mc.fetchall()
+            for ab in all_bots:
+                try:
+                    queue_memory(
+                        config, group_id,
+                        ab['bot_guid'], 0,
+                        memory_type='achievement',
+                        event_context=(
+                            f"Earned achievement:"
+                            f" {achievement_name}"
+                        ),
+                        bot_name=ab['bot_name'],
+                        bot_class=get_class_name(
+                            ab['class']
+                        ),
+                        bot_race=get_race_name(
+                            ab['race']
+                        ),
+                    )
+                except Exception:
+                    pass
         except Exception:
             logger.error(
                 "achievement memory failed",
@@ -2156,16 +2218,20 @@ def process_group_resurrect_event(
 def process_group_zone_transition_event(
     db, client, config, event
 ):
-    """Handle a bot_group_zone_transition event.
+    """Handle a bot_group_zone_transition or
+    bot_group_subzone_change event.
 
-    The bot that entered a new zone comments on
-    the arrival in party chat.
+    The bot comments on entering a new zone or
+    subzone in party chat.
     """
     event_id = event['id']
+    event_type = event.get(
+        'event_type', 'bot_group_zone_transition'
+    )
     extra_data = parse_extra_data(
         event.get('extra_data'),
         event_id,
-        'bot_group_zone_transition'
+        event_type,
     )
 
     if not extra_data:
@@ -2259,6 +2325,9 @@ def process_group_zone_transition_event(
             config, db, bot_guid,
             bot['class'], bot_name,
         )
+        is_subzone = (
+            event_type == 'bot_group_subzone_change'
+        )
         prompt = build_zone_transition_prompt(
             bot, traits, zone_name, zone_id,
             mode,
@@ -2267,6 +2336,10 @@ def process_group_zone_transition_event(
             speaker_talent_context=speaker_talent,
             area_id=area_id,
             stored_tone=stored_tone,
+            is_subzone=is_subzone,
+            area_name=extra_data.get(
+                'area_name', ''
+            ),
         )
 
         result = run_single_reaction(
@@ -2833,7 +2906,7 @@ def process_group_discovery_event(
         try:
             mem_chance = int(config.get(
                 'LLMChatter.Memory'
-                '.DiscoveryRecallChance', 30
+                '.DiscoveryRecallChance', 100
             ))
             if random.random() * 100 < mem_chance:
                 queue_memory(
@@ -2986,29 +3059,10 @@ def process_group_dungeon_entry_event(
             bot_name, True, message
         )
 
-        # Memory: dungeon entry
-        try:
-            mem_chance = int(config.get(
-                'LLMChatter.Memory'
-                '.DungeonRecallChance', 50
-            ))
-            if random.random() * 100 < mem_chance:
-                queue_memory(
-                    config, group_id,
-                    bot_guid, 0,
-                    memory_type='dungeon',
-                    event_context=(
-                        f"Entered {map_name}"
-                    ),
-                    bot_name=bot_name,
-                    bot_class=bot['class'],
-                    bot_race=bot['race'],
-                )
-        except Exception:
-            logger.error(
-                "dungeon memory failed",
-                exc_info=True,
-            )
+        # Dungeon memory is now handled at join time
+        # (process_group_event / process_group_join_batch)
+        # where traits are guaranteed to exist.
+        # Removed from here to avoid double-firing.
 
         _mark_event(db, event_id, 'completed')
         return True

@@ -603,6 +603,33 @@ def process_group_event(db, client, config, event):
             )
             db.commit()
 
+        # 1d. Dungeon entry memory: if the player
+        # is in a dungeon, queue a memory for this
+        # bot (player-centric via get_player_zone).
+        if (
+            int(config.get(
+                'LLMChatter.Memory.Enable', 1
+            ))
+            and pm and player_guid
+        ):
+            dn = get_dungeon_flavor(pm)
+            if dn:
+                try:
+                    queue_memory(
+                        config, group_id,
+                        bot_guid, player_guid,
+                        memory_type='dungeon',
+                        event_context=(
+                            f"Entered "
+                            f"{dn.split(':')[0]}"
+                        ),
+                        bot_name=bot_name,
+                        bot_class=bot_class,
+                        bot_race=bot_race,
+                    )
+                except Exception:
+                    pass
+
         # 2. Build prompt with chat history
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
@@ -1082,6 +1109,38 @@ def process_group_join_batch_event(
                 (pz or 0, pm or 0, group_id),
             )
             db.commit()
+
+        # Dungeon entry memory: if the player is
+        # in a dungeon/raid, queue a memory for
+        # each bot. Player-centric: pm comes from
+        # get_player_zone() (source of truth).
+        if memory_enabled and pm:
+            dungeon_name = get_dungeon_flavor(pm)
+            if dungeon_name:
+                dungeon_name = (
+                    dungeon_name.split(':')[0]
+                )
+                for b in greeted_bots:
+                    try:
+                        queue_memory(
+                            config, group_id,
+                            b['guid'],
+                            batch_player_guid,
+                            memory_type='dungeon',
+                            event_context=(
+                                f"Entered "
+                                f"{dungeon_name}"
+                            ),
+                            bot_name=b['name'],
+                            bot_class=b.get(
+                                'class', ''
+                            ),
+                            bot_race=b.get(
+                                'race', ''
+                            ),
+                        )
+                    except Exception:
+                        pass
 
         # --- ONE welcome from existing bot ---
         new_names = [

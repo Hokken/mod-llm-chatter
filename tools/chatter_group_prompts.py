@@ -2240,9 +2240,11 @@ def build_zone_transition_prompt(
     speaker_talent_context=None,
     area_id=0,
     stored_tone=None,
+    is_subzone=False,
+    area_name="",
 ):
     """Build prompt for a bot commenting on arriving
-    in a new zone.
+    in a new zone or subzone.
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
@@ -2276,20 +2278,52 @@ def build_zone_transition_prompt(
             f"Current subzone: {subzone}\n"
         )
 
+    # Resolve subzone name for subzone events
+    # Prefer lore name, fall back to DBC area_name
+    area_label = ""
+    if is_subzone and area_id:
+        from chatter_shared import get_subzone_name
+        sn = get_subzone_name(zone_id, area_id)
+        area_label = sn or area_name or ""
+
     if is_rp:
-        style = (
-            "Comment in-character on arriving "
-            "in this new area. Explorers get "
-            "excited, cautious types express "
-            "concern, warriors comment on "
-            "potential threats."
-        )
+        if is_subzone and area_label:
+            style = (
+                f"Comment in-character on entering "
+                f"the {area_label} area. Notice the "
+                f"surroundings, atmosphere, or "
+                f"what this part of the city/zone "
+                f"is known for."
+            )
+        else:
+            style = (
+                "Comment in-character on arriving "
+                "in this new area. Explorers get "
+                "excited, cautious types express "
+                "concern, warriors comment on "
+                "potential threats."
+            )
     else:
-        style = (
-            "Make a casual comment about "
-            "arriving in a new zone. Natural "
-            "and brief."
-        )
+        if is_subzone and area_label:
+            style = (
+                f"Make a casual comment about "
+                f"entering the {area_label} area. "
+                f"Natural and brief."
+            )
+        else:
+            style = (
+                "Make a casual comment about "
+                "arriving in a new zone. Natural "
+                "and brief."
+            )
+
+    arrival_text = (
+        f"Your party just entered the "
+        f"{area_label} area of {zone_name}."
+        if is_subzone and area_label
+        else f"Your party just arrived in "
+        f"{zone_name}."
+    )
 
     prompt = (
         f"You are {bot['name']}, a level "
@@ -2304,17 +2338,20 @@ def build_zone_transition_prompt(
     )
     if twist:
         prompt += f"Creative twist: {twist}\n"
+    location_name = (
+        area_label if is_subzone and area_label
+        else zone_name
+    )
     prompt += (
         f"{rp_context}\n\n"
-        f"Your party just arrived in "
-        f"{zone_name}."
+        f"{arrival_text}"
         f"{zone_desc}\n\n"
         f"{style}\n\n"
         f"Say a reaction in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
-        f"- Can mention {zone_name} by name\n"
+        f"- Can mention {location_name} by name\n"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"

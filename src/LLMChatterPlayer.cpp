@@ -109,6 +109,12 @@ void EnsureBotInGeneralChannel(
 static std::map<uint32, time_t> _generalChatCooldowns;
 static std::mutex _generalChatCooldownsMutex;
 
+// Per-group+area subzone cooldown:
+// (groupId << 32) | areaId -> last comment time
+static std::map<uint64, time_t>
+    _subzoneCommentCooldowns;
+static std::mutex _subzoneCooldownMutex;
+
 struct IntrusionState
 {
     time_t firstSeen;
@@ -821,7 +827,7 @@ public:
     }
 
     void OnPlayerUpdateArea(
-        Player* player, uint32 /*oldArea*/,
+        Player* player, uint32 oldArea,
         uint32 newArea) override
     {
         if (!sLLMChatterConfig
@@ -832,17 +838,179 @@ public:
             return;
 
         Group* grp = player->GetGroup();
-        if (!grp)
+        if (!grp || !GroupHasBots(grp))
             return;
 
         uint32 gId =
             grp->GetGUID().GetCounter();
 
+        // Always update the area column
         CharacterDatabase.Execute(
             "UPDATE llm_group_bot_traits "
             "SET area = {} "
             "WHERE group_id = {}",
             newArea, gId);
+
+        // Skip if area didn't actually change
+        // (can happen on login/teleport)
+        if (oldArea == newArea || !newArea)
+            return;
+
+        // Skip if the zone also changed — the
+        // zone transition handler covers that
+        uint32 curZone = player->GetZoneId();
+        AreaTableEntry const* oldEntry =
+            sAreaTableStore.LookupEntry(oldArea);
+        uint32 oldZone = 0;
+        if (oldEntry)
+            oldZone = oldEntry->zone
+                ? oldEntry->zone : oldArea;
+        if (oldZone != curZone)
+            return;
+
+        // Per-group+area cooldown (120s) with
+        // periodic eviction of stale entries
+        time_t now = time(nullptr);
+        uint64 cdKey =
+            ((uint64)gId << 32) | (uint64)newArea;
+        {
+            std::lock_guard<std::mutex> guard(
+                _subzoneCooldownMutex);
+            if (_subzoneCommentCooldowns.size() > 200)
+            {
+                auto sit =
+                    _subzoneCommentCooldowns.begin();
+                while (sit !=
+                    _subzoneCommentCooldowns.end())
+                {
+                    if (now - sit->second > 300)
+                        sit = _subzoneCommentCooldowns
+                            .erase(sit);
+                    else
+                        ++sit;
+                }
+            }
+            auto it =
+                _subzoneCommentCooldowns.find(cdKey);
+            if (it != _subzoneCommentCooldowns.end()
+                && (now - it->second) < 120)
+                return;
+        }
+
+        // Resolve area name
+        std::string areaName;
+        AreaTableEntry const* areaEntry =
+            sAreaTableStore.LookupEntry(newArea);
+        if (areaEntry)
+        {
+            uint8 loc =
+                sWorld->GetDefaultDbcLocale();
+            char const* n =
+                areaEntry->area_name[loc];
+            areaName = n ? n : "";
+            if (areaName.empty())
+            {
+                n = areaEntry
+                    ->area_name[LOCALE_enUS];
+                areaName = n ? n : "";
+            }
+        }
+        if (areaName.empty())
+            return;
+
+        // Pick a random alive bot from the group
+        std::vector<Player*> aliveBots;
+        for (auto const& ref :
+            grp->GetMemberSlots())
+        {
+            Player* m =
+                ObjectAccessor::FindPlayer(
+                    ref.guid);
+            if (m && IsPlayerBot(m)
+                && m->IsAlive())
+                aliveBots.push_back(m);
+        }
+        if (aliveBots.empty())
+            return;
+        Player* bot = aliveBots[
+            urand(0, aliveBots.size() - 1)];
+
+        // Resolve zone name
+        std::string zoneName;
+        AreaTableEntry const* zoneEntry =
+            sAreaTableStore.LookupEntry(curZone);
+        if (zoneEntry)
+        {
+            uint8 loc =
+                sWorld->GetDefaultDbcLocale();
+            char const* n =
+                zoneEntry->area_name[loc];
+            zoneName = n ? n : "";
+            if (zoneName.empty())
+            {
+                n = zoneEntry
+                    ->area_name[LOCALE_enUS];
+                zoneName = n ? n : "";
+            }
+        }
+
+        uint32 botGuid =
+            bot->GetGUID().GetCounter();
+
+        std::string extraData = "{"
+            "\"bot_guid\":" +
+                std::to_string(botGuid) + ","
+            "\"bot_name\":\"" +
+                JsonEscape(bot->GetName()) + "\","
+            "\"bot_class\":" +
+                std::to_string(
+                    bot->getClass()) + ","
+            "\"bot_race\":" +
+                std::to_string(
+                    bot->getRace()) + ","
+            "\"bot_level\":" +
+                std::to_string(
+                    bot->GetLevel()) + ","
+            "\"group_id\":" +
+                std::to_string(gId) + ","
+            "\"zone_id\":" +
+                std::to_string(curZone) + ","
+            "\"zone_name\":\"" +
+                JsonEscape(zoneName) + "\","
+            "\"area_id\":" +
+                std::to_string(newArea) + ","
+            "\"area_name\":\"" +
+                JsonEscape(areaName) + "\""
+            "}";
+
+        extraData = EscapeString(extraData);
+
+        // Stamp cooldown only after all guards pass
+        {
+            std::lock_guard<std::mutex> guard(
+                _subzoneCooldownMutex);
+            _subzoneCommentCooldowns[cdKey] = now;
+        }
+
+        QueueChatterEvent(
+            "bot_group_subzone_change",
+            "player",
+            curZone,
+            player->GetMapId(),
+            GetChatterEventPriority(
+                "bot_group_subzone_change"),
+            "",
+            botGuid,
+            bot->GetName(),
+            0,
+            areaName,
+            0,
+            extraData,
+            GetReactionDelaySeconds(
+                "bot_group_subzone_change"),
+            120,
+            false
+        );
     }
 
     void OnPlayerUpdateZone(
