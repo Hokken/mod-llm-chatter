@@ -18,6 +18,63 @@ def resolve_model(model_name: str) -> str:
     return model_name
 
 
+_main_client = None
+_main_client_provider = None
+_main_client_lock = threading.Lock()
+
+
+def get_llm_client(config):
+    """Get or create the main LLM client.
+
+    Thread-safe, lazily initialised, cached by
+    provider. Returns the client object suitable
+    for passing to call_llm().
+    """
+    global _main_client, _main_client_provider
+
+    provider = config.get(
+        'LLMChatter.Provider', 'anthropic'
+    ).lower()
+
+    with _main_client_lock:
+        if (
+            _main_client is not None
+            and _main_client_provider == provider
+        ):
+            return _main_client
+
+        if provider == 'ollama':
+            import openai
+            base_url = config.get(
+                'LLMChatter.Ollama.BaseUrl',
+                'http://localhost:11434',
+            )
+            _main_client = openai.OpenAI(
+                base_url=(
+                    f"{base_url.rstrip('/')}/v1"
+                ),
+                api_key="ollama",
+            )
+        elif provider == 'openai':
+            import openai
+            _main_client = openai.OpenAI(
+                api_key=config.get(
+                    'LLMChatter.OpenAI.ApiKey', ''
+                ),
+            )
+        else:
+            import anthropic
+            _main_client = anthropic.Anthropic(
+                api_key=config.get(
+                    'LLMChatter.Anthropic.ApiKey',
+                    '',
+                ),
+            )
+
+        _main_client_provider = provider
+        return _main_client
+
+
 def call_llm(
     client: Any,
     prompt: str,

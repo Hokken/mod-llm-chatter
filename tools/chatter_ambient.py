@@ -46,6 +46,7 @@ from chatter_shared import (
     build_talent_context,
     build_zone_metadata,
 )
+from chatter_text import pick_statement_length
 from chatter_prompts import (
     build_plain_statement_prompt,
     build_quest_statement_prompt,
@@ -222,6 +223,11 @@ def process_statement(
             bot['name'], perspective='speaker',
         )
 
+    # Pick RNG length for plain statements
+    # (link types use default pool to avoid
+    # forcing short on messages with WoW links)
+    _, _, rng_length = pick_statement_length()
+
     # Build appropriate prompt
     allow_action = (
         random.random() < get_action_chance()
@@ -252,6 +258,7 @@ def process_statement(
             speaker_talent_context=speaker_talent,
             topic=topic,
             area_id=area_id,
+            length_hint=rng_length,
         )
     elif msg_type == "quest":
         prompt = build_quest_statement_prompt(
@@ -260,6 +267,7 @@ def process_statement(
             recent_messages=recent_msgs,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            zone_id=zone_id,
         )
     elif msg_type == "loot":
         prompt = build_loot_statement_prompt(
@@ -268,6 +276,7 @@ def process_statement(
             recent_messages=recent_msgs,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            zone_id=zone_id,
         )
     elif msg_type == "quest_reward":
         prompt = build_quest_reward_statement_prompt(
@@ -276,6 +285,7 @@ def process_statement(
             recent_messages=recent_msgs,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            zone_id=zone_id,
         )
         # Also set item_data for replacement
         if quest_data and quest_data.get('item1_name'):
@@ -293,6 +303,7 @@ def process_statement(
             recent_messages=recent_msgs,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            zone_id=zone_id,
         )
     elif msg_type == "spell":
         prompt = build_spell_statement_prompt(
@@ -301,6 +312,7 @@ def process_statement(
             recent_messages=recent_msgs,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            zone_id=zone_id,
         )
     else:
         topic_pool = (
@@ -318,6 +330,7 @@ def process_statement(
             speaker_talent_context=speaker_talent,
             topic=topic,
             area_id=area_id,
+            length_hint=rng_length,
         )
 
     # Call LLM
@@ -523,6 +536,7 @@ def process_conversation(
             recent_messages=recent_msgs,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            zone_id=zone_id,
         )
     elif msg_type == "trade":
         allow_action = (
@@ -534,6 +548,7 @@ def process_conversation(
             recent_messages=recent_msgs,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            zone_id=zone_id,
         )
     elif msg_type == "spell":
         allow_action = (
@@ -545,6 +560,7 @@ def process_conversation(
             recent_messages=recent_msgs,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            zone_id=zone_id,
         )
     else:  # loot
         allow_action = (
@@ -556,6 +572,7 @@ def process_conversation(
             recent_messages=recent_msgs,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            zone_id=zone_id,
         )
 
     # Call LLM

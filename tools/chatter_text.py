@@ -2,8 +2,9 @@
 
 import json
 import logging
+import random
 import re
-from typing import Optional
+from typing import Optional, Tuple
 
 from chatter_constants import EMOTE_LIST
 
@@ -446,3 +447,43 @@ def is_too_similar(
         return True
 
     return False
+
+
+# ============================================================
+# STATEMENT LENGTH ENFORCEMENT
+# ============================================================
+
+# Weighted ranges: short messages are more common
+# than long ones, matching natural chat patterns.
+STATEMENT_LENGTH_RANGES = [
+    (20, 40, 15),    # very short
+    (40, 70, 30),    # short
+    (70, 120, 35),   # medium
+    (120, 180, 20),  # longer
+]
+
+
+def pick_statement_length() -> Tuple[int, int, str]:
+    """Pick a random target length range for an
+    ambient statement via weighted RNG.
+
+    Returns (min_chars, max_chars, label) where
+    label is a human-readable hint for the prompt.
+    """
+    weights = [w for _, _, w in STATEMENT_LENGTH_RANGES]
+    chosen = random.choices(
+        STATEMENT_LENGTH_RANGES, weights=weights,
+        k=1,
+    )[0]
+    lo, hi, _ = chosen
+    if hi <= 40:
+        label = f"very short (under {hi} chars)"
+    elif hi <= 70:
+        label = f"short ({lo}-{hi} chars)"
+    elif hi <= 120:
+        label = f"medium ({lo}-{hi} chars)"
+    else:
+        label = f"longer ({lo}-{hi} chars)"
+    return lo, hi, label
+
+

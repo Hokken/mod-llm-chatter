@@ -36,7 +36,12 @@ from chatter_constants import (
     MSG_TYPE_LOOT, MSG_TYPE_QUEST_REWARD,
     MSG_TYPE_TRADE, MSG_TYPE_SPELL,
 )
-from chatter_db import get_group_location
+from chatter_db import (
+    get_group_location,
+    any_real_players_online,
+    cleanup_stale_groups,
+    cleanup_all_session_data,
+)
 from chatter_shared import (
     get_zone_name,
     format_location_label,
@@ -1689,12 +1694,17 @@ def _write_db_snapshot(db, snapshot_dir):
         cursor = db.cursor(dictionary=True)
 
         cursor.execute(
-            "SELECT bot_guid, player_guid,"
-            " group_id, memory_type, memory,"
-            " mood, emote, active, created_at,"
-            " session_start"
-            " FROM llm_bot_memories"
-            " ORDER BY created_at DESC"
+            "SELECT m.bot_guid,"
+            " c.name AS bot_name,"
+            " m.player_guid, m.group_id,"
+            " m.memory_type, m.memory,"
+            " m.mood, m.emote, m.active,"
+            " m.used, m.created_at,"
+            " m.session_start"
+            " FROM llm_bot_memories m"
+            " LEFT JOIN characters c"
+            "   ON c.guid = m.bot_guid"
+            " ORDER BY m.created_at DESC"
             " LIMIT 200"
         )
         memories = cursor.fetchall()
@@ -2222,6 +2232,8 @@ def main():
     idle_chatter_future = None
     bot_question_future = None
     legacy_future = None
+    # Track online→offline transition for full wipe
+    was_players_online = True
 
     def _harvest_future(f, name):
         """Consume any unexpected worker failure."""
@@ -2295,24 +2307,51 @@ def main():
                 db = get_db_connection(config)
                 current_time = time.time()
 
+                # Global gate: skip all work if no
+                # real players are online. Handles
+                # clean logout, crash, and alt-F4.
+                players_online = (
+                    any_real_players_online(db)
+                )
+
+                # Transition online → offline: wipe
+                # all ephemeral session data once
+                if (
+                    was_players_online
+                    and not players_online
+                ):
+                    cleanup_all_session_data(db)
+                    try:
+                        from chatter_memory import (
+                            clear_all_sessions,
+                        )
+                        clear_all_sessions()
+                    except Exception:
+                        pass
+                was_players_online = players_online
+
                 # Periodic cleanup (fast SQL,
                 # stays on main thread)
                 if (
-                    use_event_system
-                    and current_time
+                    current_time
                     - last_cleanup
                     >= cleanup_interval
                 ):
-                    cleanup_expired_events(
-                        db, active_event_ids
-                    )
-                    evicted_group_locks = (
-                        _evict_unused_group_locks(
-                            group_locks,
-                            group_locks_lock,
-                            active_group_ids,
+                    if use_event_system:
+                        cleanup_expired_events(
+                            db, active_event_ids
                         )
-                    )
+                        evicted_group_locks = (
+                            _evict_unused_group_locks(
+                                group_locks,
+                                group_locks_lock,
+                                active_group_ids,
+                            )
+                        )
+                    # Purge stale groups whose
+                    # player went offline (runs
+                    # regardless of UseEventSystem)
+                    cleanup_stale_groups(db)
                     last_cleanup = current_time
 
                 # DB state snapshot for log viewer
@@ -2328,7 +2367,7 @@ def main():
 
                 # Legacy requests (General ambient chatter)
                 # Runs freely every cycle — no deferral
-                if not legacy_future:
+                if players_online and not legacy_future:
                     legacy_future = (
                         executor.submit(
                             _run_in_worker,
@@ -2340,7 +2379,7 @@ def main():
 
                 # Fetch + dispatch events
                 dispatched = 0
-                if use_event_system:
+                if use_event_system and players_online:
                     available = (
                         max_concurrent
                         - len(active_futures)
@@ -2404,7 +2443,8 @@ def main():
 
                 # Idle chatter -> worker pool
                 if (
-                    use_event_system
+                    players_online
+                    and use_event_system
                     and not idle_chatter_future
                     and current_time
                     - last_idle_check
@@ -2422,7 +2462,8 @@ def main():
 
                 # Bot questions -> worker pool
                 if (
-                    use_event_system
+                    players_online
+                    and use_event_system
                     and not bot_question_future
                     and current_time
                     - last_question_check
@@ -2440,7 +2481,8 @@ def main():
 
                 # Pre-cache -> worker pool
                 if (
-                    precache_enabled
+                    players_online
+                    and precache_enabled
                     and not precache_future
                     and current_time
                     - last_cache_refill

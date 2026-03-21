@@ -532,8 +532,12 @@ def process_group_event(db, client, config, event):
                 # First meeting: write a factual
                 # memory so the bot always remembers
                 if not player_name_known:
-                    zone_name = get_zone_name(
-                        bot_zone
+                    pz_mem, _ = get_player_zone(
+                        db, player_name
+                    )
+                    zone_name = (
+                        get_zone_name(pz_mem)
+                        if pz_mem else None
                     )
                     if zone_name:
                         mem_text = (
@@ -893,8 +897,12 @@ def process_group_join_batch_event(
                     # First meeting: write a factual
                     # memory so the bot remembers
                     if not bot_player_known:
-                        zone_name = get_zone_name(
-                            bot_zone
+                        pz_mem, _ = get_player_zone(
+                            db, player_name
+                        )
+                        zone_name = (
+                            get_zone_name(pz_mem)
+                            if pz_mem else None
                         )
                         if zone_name:
                             mem_text = (

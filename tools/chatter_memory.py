@@ -20,9 +20,14 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from typing import Dict, List, Optional
 
-from chatter_db import get_db_connection
-from chatter_llm import call_llm
-from chatter_text import cleanup_message
+from chatter_db import (
+    get_db_connection, get_group_location,
+)
+from chatter_shared import (
+    get_zone_name, get_dungeon_flavor,
+    format_location_label,
+)
+from chatter_llm import call_llm, get_llm_client
 
 logger = logging.getLogger(__name__)
 
@@ -180,6 +185,29 @@ def start_session(
             ].update(members)
 
 
+def teardown_group_session(group_id):
+    """Clear in-memory session state for one group.
+
+    Called by cleanup_stale_groups() when a single
+    group's player goes offline while others remain.
+    """
+    with _group_locks_meta:
+        _active_sessions.pop(group_id, None)
+        _group_locks.pop(group_id, None)
+
+
+def clear_all_sessions():
+    """Clear all in-memory session state.
+
+    Called when all players go offline to prevent
+    stale _active_sessions from surviving a full
+    DB wipe.
+    """
+    with _group_locks_meta:
+        _active_sessions.clear()
+        _group_locks.clear()
+
+
 # ============================================================
 # QUEUE MEMORY
 # ============================================================
@@ -188,9 +216,13 @@ def queue_memory(
     config, group_id, bot_guid, player_guid,
     memory_type, event_context,
     bot_name="", bot_class="", bot_race="",
+    db=None,
 ):
     """Validate eligibility and submit a memory
     generation task to the background executor.
+
+    Location is resolved here at queue time from
+    get_group_location() while traits still exist.
 
     Args:
         config: bridge config dict
@@ -203,6 +235,8 @@ def queue_memory(
         bot_name: bot's character name
         bot_class: bot's class name
         bot_race: bot's race name
+        db: optional DB connection for location
+            lookup (avoids opening a new one)
     """
     if not int(config.get(
         'LLMChatter.Memory.Enable', 1
@@ -226,6 +260,11 @@ def queue_memory(
     if not player_guid:
         player_guid = p_guid
 
+    # Resolve location NOW while traits exist
+    location = _resolve_location(
+        db, config, group_id
+    )
+
     memory_executor.submit(
         _execute_generate_memory,
         config=config,
@@ -237,6 +276,7 @@ def queue_memory(
         bot_name=bot_name,
         bot_class=bot_class,
         bot_race=bot_race,
+        location=location,
         session_start=session_start,
         insert_active=False,
     )
@@ -246,10 +286,129 @@ def queue_memory(
 # MEMORY GENERATION (runs in background thread)
 # ============================================================
 
+def _resolve_location(db, config, group_id):
+    """Resolve player-centric location label.
+
+    Uses get_group_location() for zone/area/map,
+    then get_dungeon_flavor() for instances or
+    format_location_label() for open world.
+
+    Must be called while llm_group_bot_traits
+    rows still exist (before group cleanup).
+
+    Args:
+        db: DB connection (None = open one)
+        config: bridge config dict
+        group_id: group identifier
+
+    Returns a human-readable string like
+    "Teldrassil > Dolanaar" or "The Deadmines",
+    or empty string on failure.
+    """
+    own_db = False
+    try:
+        if db is None:
+            db = get_db_connection(config)
+            own_db = True
+        z, a, m = get_group_location(db, group_id)
+        if not z and not m:
+            return ""
+        # Dungeons/raids: use flavour name
+        df = get_dungeon_flavor(m)
+        if df:
+            return df.split(':')[0]
+        # Open world: "Zone > Subzone" or "Zone"
+        if z:
+            return format_location_label(z, a)
+        return ""
+    except Exception:
+        return ""
+    finally:
+        if own_db and db:
+            try:
+                db.close()
+            except Exception:
+                pass
+
+
+def _count_active_memories(cursor, bot_guid, player_guid):
+    """Count active memories for a bot-player pair."""
+    cursor.execute(
+        "SELECT COUNT(*) FROM llm_bot_memories"
+        " WHERE bot_guid = %s"
+        "   AND player_guid = %s"
+        "   AND active = 1",
+        (bot_guid, player_guid),
+    )
+    row = cursor.fetchone()
+    return row[0] if row else 0
+
+
+def _evict_one_used(cursor, conn, bot_guid, player_guid):
+    """Evict one random used memory.
+
+    Returns True if a row was deleted.
+    """
+    cursor.execute(
+        "DELETE FROM llm_bot_memories"
+        " WHERE bot_guid = %s"
+        "   AND player_guid = %s"
+        "   AND active = 1"
+        "   AND used = 1"
+        " ORDER BY RAND() LIMIT 1",
+        (bot_guid, player_guid),
+    )
+    conn.commit()
+    return cursor.rowcount > 0
+
+
+def _ensure_cap_and_insert(
+    conn, bot_guid, player_guid, group_id,
+    memory_type, memory_text, mood, emote,
+    session_start, active, max_per,
+):
+    """Check memory cap, evict if needed, insert.
+
+    Returns True if inserted, False if pool full.
+    """
+    cursor = conn.cursor()
+    cnt = _count_active_memories(
+        cursor, bot_guid, player_guid
+    )
+    if cnt >= max_per:
+        if not _evict_one_used(
+            cursor, conn, bot_guid, player_guid
+        ):
+            logger.debug(
+                "Memory pool full, no used"
+                " memories to evict for"
+                " bot %s", bot_guid,
+            )
+            return False
+    cursor.execute(
+        "INSERT INTO llm_bot_memories"
+        " (bot_guid, player_guid,"
+        "  group_id, memory_type,"
+        "  memory, mood, emote,"
+        "  active, session_start)"
+        " VALUES"
+        " (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        (
+            bot_guid, player_guid,
+            group_id, memory_type,
+            memory_text, mood, emote,
+            active, session_start,
+        ),
+    )
+    conn.commit()
+    return True
+
+
 def _execute_generate_memory(
     config, group_id, bot_guid, player_guid,
     memory_type, event_context,
     bot_name="", bot_class="", bot_race="",
+    location="",
     session_start=0.0, insert_active=False,
 ):
     """Generate a memory via LLM and insert it.
@@ -292,7 +451,7 @@ def _execute_generate_memory(
 
         # Generate via LLM
         memory_text, emote = _call_llm_for_memory(
-            conn, config,
+            config,
             bot_name=bot_name,
             bot_class=bot_class,
             bot_race=bot_race,
@@ -300,6 +459,7 @@ def _execute_generate_memory(
             event_context=event_context,
             mood=mood,
             style=style,
+            location=location,
         )
 
         if not memory_text:
@@ -310,7 +470,7 @@ def _execute_generate_memory(
         ))
 
         if not insert_active:
-            # Re-check under per-group lock
+            # Re-check session under per-group lock
             lock = _get_group_lock(
                 group_id, create=False
             )
@@ -328,130 +488,21 @@ def _execute_generate_memory(
                         not in session["bots"]
                 ):
                     return
-                # Check cap and evict before INSERT
-                cursor = conn.cursor()
-                cursor.execute(
-                    "SELECT COUNT(*) AS cnt"
-                    " FROM llm_bot_memories"
-                    " WHERE bot_guid = %s"
-                    "   AND player_guid = %s"
-                    "   AND active = 1",
-                    (bot_guid, player_guid),
-                )
-                row = cursor.fetchone()
-                cnt = row[0] if row else 0
-                if cnt >= max_per:
-                    cursor.execute(
-                        "DELETE FROM"
-                        " llm_bot_memories"
-                        " WHERE bot_guid = %s"
-                        "   AND player_guid = %s"
-                        "   AND active = 1"
-                        "   AND used = 1"
-                        " ORDER BY RAND()"
-                        " LIMIT 1",
-                        (bot_guid, player_guid),
-                    )
-                    conn.commit()
-                    cursor.execute(
-                        "SELECT COUNT(*) AS cnt"
-                        " FROM llm_bot_memories"
-                        " WHERE bot_guid = %s"
-                        "   AND player_guid = %s"
-                        "   AND active = 1",
-                        (bot_guid, player_guid),
-                    )
-                    row = cursor.fetchone()
-                    cnt = row[0] if row else 0
-                    if cnt >= max_per:
-                        logger.debug(
-                            "Memory pool full,"
-                            " no used memories"
-                            " to evict for"
-                            " bot %s",
-                            bot_guid,
-                        )
-                        return
-
-                cursor.execute(
-                    "INSERT INTO llm_bot_memories"
-                    " (bot_guid, player_guid,"
-                    "  group_id, memory_type,"
-                    "  memory, mood, emote,"
-                    "  active, session_start)"
-                    " VALUES"
-                    " (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                    (
-                        bot_guid, player_guid,
-                        group_id, memory_type,
-                        memory_text, mood, emote,
-                        0, session_start,
-                    ),
-                )
-                conn.commit()
-        else:
-            # party_member: insert as active=1
-            # One-in-one-out: evict before insert
-            cursor = conn.cursor()
-            cursor.execute(
-                "SELECT COUNT(*) AS cnt"
-                " FROM llm_bot_memories"
-                " WHERE bot_guid = %s"
-                "   AND player_guid = %s"
-                "   AND active = 1",
-                (bot_guid, player_guid),
-            )
-            row = cursor.fetchone()
-            cnt = row[0] if row else 0
-            if cnt >= max_per:
-                # Evict a random used memory
-                cursor.execute(
-                    "DELETE FROM llm_bot_memories"
-                    " WHERE bot_guid = %s"
-                    "   AND player_guid = %s"
-                    "   AND active = 1"
-                    "   AND used = 1"
-                    " ORDER BY RAND()"
-                    " LIMIT 1",
-                    (bot_guid, player_guid),
-                )
-                conn.commit()
-                # Re-check — if no used memories
-                # existed, skip insert
-                cursor.execute(
-                    "SELECT COUNT(*) AS cnt"
-                    " FROM llm_bot_memories"
-                    " WHERE bot_guid = %s"
-                    "   AND player_guid = %s"
-                    "   AND active = 1",
-                    (bot_guid, player_guid),
-                )
-                row = cursor.fetchone()
-                cnt = row[0] if row else 0
-                if cnt >= max_per:
-                    logger.debug(
-                        "Memory pool full, no used"
-                        " memories to evict for"
-                        " bot %s", bot_guid,
-                    )
-                    return
-
-            cursor.execute(
-                "INSERT INTO llm_bot_memories"
-                " (bot_guid, player_guid,"
-                "  group_id, memory_type,"
-                "  memory, mood, emote,"
-                "  active, session_start)"
-                " VALUES"
-                " (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
-                (
-                    bot_guid, player_guid,
+                _ensure_cap_and_insert(
+                    conn, bot_guid, player_guid,
                     group_id, memory_type,
                     memory_text, mood, emote,
-                    1, session_start,
-                ),
+                    session_start, active=0,
+                    max_per=max_per,
+                )
+        else:
+            _ensure_cap_and_insert(
+                conn, bot_guid, player_guid,
+                group_id, memory_type,
+                memory_text, mood, emote,
+                session_start, active=1,
+                max_per=max_per,
             )
-            conn.commit()
 
     except Exception:
         logger.error(
@@ -469,63 +520,17 @@ def _execute_generate_memory(
 
 
 def _call_llm_for_memory(
-    db, config,
+    config,
     bot_name="", bot_class="", bot_race="",
     memory_type="ambient", event_context="",
     mood="contemplative", style="sincere",
+    location="",
 ):
     """Call LLM to generate a memory entry.
 
     Returns (memory_text, emote) or (None, None).
     """
-    provider = config.get(
-        'LLMChatter.Provider', 'anthropic'
-    ).lower()
-    if provider == 'ollama':
-        try:
-            import openai as _openai
-        except ImportError:
-            logger.error(
-                "openai package required for "
-                "ollama provider"
-            )
-            return None, None
-        base_url = config.get(
-            'LLMChatter.Ollama.BaseUrl',
-            'http://localhost:11434'
-        )
-        client = _openai.OpenAI(
-            base_url=f"{base_url.rstrip('/')}/v1",
-            api_key="ollama",
-        )
-    elif provider == 'openai':
-        try:
-            import openai as _openai
-        except ImportError:
-            logger.error(
-                "openai package required for "
-                "openai provider"
-            )
-            return None, None
-        client = _openai.OpenAI(
-            api_key=config.get(
-                'LLMChatter.OpenAI.ApiKey', ''
-            ),
-        )
-    else:
-        try:
-            import anthropic as _anthropic
-        except ImportError:
-            logger.error(
-                "anthropic package required for "
-                "anthropic provider"
-            )
-            return None, None
-        client = _anthropic.Anthropic(
-            api_key=config.get(
-                'LLMChatter.Anthropic.ApiKey', ''
-            ),
-        )
+    client = get_llm_client(config)
 
     type_desc = {
         'ambient': (
@@ -549,12 +554,37 @@ def _call_llm_for_memory(
         'player_message': (
             "something the player said in chat"
         ),
+        'quest_complete': (
+            "completing a quest together"
+        ),
+        'achievement': (
+            "earning an achievement"
+        ),
+        'level_up': (
+            "reaching a new level"
+        ),
+        'bg_win': (
+            "winning a battleground"
+        ),
+        'bg_loss': (
+            "losing a battleground"
+        ),
+        'discovery': (
+            "discovering a new area"
+        ),
+        'pvp_kill': (
+            "defeating an enemy player in combat"
+        ),
     }.get(memory_type, "a shared moment")
 
     prompt = (
         f"You are {bot_name}, a {bot_race} "
-        f"{bot_class} in World of Warcraft.\n\n"
-        f"Context: {type_desc}\n"
+        f"{bot_class} in World of Warcraft.\n"
+    )
+    if location:
+        prompt += f"Location: {location}\n"
+    prompt += (
+        f"\nContext: {type_desc}\n"
     )
     if event_context:
         prompt += f"What happened: {event_context}\n"
@@ -573,6 +603,8 @@ def _call_llm_for_memory(
         f"- Memory must be 1-2 sentences\n"
         f"- First person perspective\n"
         f"- No quotes inside the memory text\n"
+        f"- Only reference the location given above"
+        f" — never invent or guess a location\n"
         f"- Emote is optional (null if none)\n"
         f"- Just the JSON, nothing else"
     )
@@ -716,6 +748,9 @@ def flush_session_memories(
     if do_commit:
         # Submit party_member memories for all bots
         if do_party:
+            flush_loc = _resolve_location(
+                db, config, group_id
+            )
             for target_guid in all_bots_snapshot:
                 member = members_snapshot.get(
                     target_guid, {}
@@ -735,6 +770,7 @@ def flush_session_memories(
                     bot_name=member.get('name', ''),
                     bot_class=member.get('class', ''),
                     bot_race=member.get('race', ''),
+                    location=flush_loc,
                     session_start=session_start,
                     insert_active=True,
                 )
@@ -761,35 +797,17 @@ def flush_session_memories(
                     player_guid,
                 )
 
-            # Prune to cap: evict random used
-            # memories one at a time
-            cursor.execute(
-                "SELECT COUNT(*) AS cnt"
-                " FROM llm_bot_memories"
-                " WHERE bot_guid = %s"
-                "   AND player_guid = %s"
-                "   AND active = 1",
-                (bot_guid, player_guid),
+            # Prune to cap
+            cnt = _count_active_memories(
+                cursor, bot_guid, player_guid
             )
-            row = cursor.fetchone()
-            cnt = row[0] if row else 0
             while cnt > max_per:
-                cursor.execute(
-                    "DELETE FROM llm_bot_memories"
-                    " WHERE bot_guid = %s"
-                    "   AND player_guid = %s"
-                    "   AND active = 1"
-                    "   AND used = 1"
-                    " ORDER BY RAND()"
-                    " LIMIT 1",
-                    (bot_guid, player_guid),
-                )
-                if cursor.rowcount == 0:
-                    # No used memories left;
-                    # keep pool intact
-                    break
+                if not _evict_one_used(
+                    cursor, db,
+                    bot_guid, player_guid,
+                ):
+                    break  # no used left
                 cnt -= 1
-            db.commit()
         except Exception:
             logger.error(
                 "Memory activation failed for "

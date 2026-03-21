@@ -899,3 +899,220 @@ def get_character_talents(
 
     except Exception:
         return empty
+
+
+def any_real_players_online(db) -> bool:
+    """Check if any non-bot player is online.
+
+    Single cheap query — use as a global gate to
+    skip all background work when nobody is playing.
+    Excludes playerbot accounts (username LIKE
+    'RNDBOT%') which also set online=1.
+    """
+    try:
+        cursor = db.cursor()
+        cursor.execute(
+            "SELECT 1 FROM characters c "
+            "JOIN acore_auth.account a "
+            "  ON c.account = a.id "
+            "WHERE c.online = 1 "
+            "  AND a.username NOT LIKE 'RNDBOT%%' "
+            "LIMIT 1"
+        )
+        row = cursor.fetchone()
+        return row is not None
+    except Exception:
+        # On error, assume online to avoid
+        # accidentally suppressing work
+        return True
+
+
+def cleanup_stale_groups(db) -> int:
+    """Remove llm_group_bot_traits rows for groups
+    whose real player is no longer online.
+
+    Handles clean logout, crash, and alt-F4 — the
+    server always sets characters.online=0 when the
+    TCP connection drops.
+
+    Also cancels pending events and queue entries
+    for the stale group, and purges cached responses.
+
+    Returns number of groups cleaned up.
+    """
+    try:
+        cursor = db.cursor(dictionary=True)
+        # Find groups where no non-bot member is
+        # online. Bot GUIDs are in the traits table;
+        # real player GUIDs are in group_member but
+        # NOT in traits.
+        cursor.execute("""
+            SELECT DISTINCT t.group_id
+            FROM llm_group_bot_traits t
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM group_member gm
+                JOIN characters c
+                  ON c.guid = gm.memberGuid
+                WHERE gm.guid = t.group_id
+                  AND c.online = 1
+                  AND gm.memberGuid NOT IN (
+                      SELECT bot_guid
+                      FROM llm_group_bot_traits
+                      WHERE group_id = t.group_id
+                  )
+            )
+        """)
+        stale = cursor.fetchall()
+        if not stale:
+            return 0
+
+        cleaned = 0
+        for row in stale:
+            gid = row['group_id']
+            # Cancel pending events
+            cursor.execute(
+                "UPDATE llm_chatter_events "
+                "SET status = 'cancelled' "
+                "WHERE status = 'pending' "
+                "  AND JSON_EXTRACT("
+                "    extra_data, '$.group_id'"
+                "  ) = %s",
+                (gid,),
+            )
+            # Cancel pending queue entries
+            # (mirrors C++ CleanupGroupSession)
+            cursor.execute(
+                "UPDATE llm_chatter_queue "
+                "SET status = 'cancelled' "
+                "WHERE status = 'pending' "
+                "AND ("
+                "  bot1_guid IN ("
+                "    SELECT bot_guid FROM"
+                "    llm_group_bot_traits"
+                "    WHERE group_id = %s) "
+                "  OR bot2_guid IN ("
+                "    SELECT bot_guid FROM"
+                "    llm_group_bot_traits"
+                "    WHERE group_id = %s) "
+                "  OR bot3_guid IN ("
+                "    SELECT bot_guid FROM"
+                "    llm_group_bot_traits"
+                "    WHERE group_id = %s) "
+                "  OR bot4_guid IN ("
+                "    SELECT bot_guid FROM"
+                "    llm_group_bot_traits"
+                "    WHERE group_id = %s)"
+                ")",
+                (gid, gid, gid, gid),
+            )
+            # Mark undelivered messages as delivered
+            # (by bot_guid — no group_id column on
+            # llm_chatter_messages)
+            cursor.execute(
+                "UPDATE llm_chatter_messages "
+                "SET delivered = 1 "
+                "WHERE delivered = 0 "
+                "  AND bot_guid IN ("
+                "    SELECT bot_guid FROM"
+                "    llm_group_bot_traits"
+                "    WHERE group_id = %s"
+                "  )",
+                (gid,),
+            )
+            # Purge cached responses
+            cursor.execute(
+                "DELETE FROM "
+                "llm_group_cached_responses "
+                "WHERE group_id = %s",
+                (gid,),
+            )
+            # Purge group chat history
+            cursor.execute(
+                "DELETE FROM "
+                "llm_group_chat_history "
+                "WHERE group_id = %s",
+                (gid,),
+            )
+            # Remove traits (stops all background
+            # workers for this group)
+            cursor.execute(
+                "DELETE FROM llm_group_bot_traits "
+                "WHERE group_id = %s",
+                (gid,),
+            )
+            # Clear in-memory session state
+            try:
+                from chatter_memory import (
+                    teardown_group_session,
+                )
+                teardown_group_session(gid)
+            except Exception:
+                pass
+            cleaned += 1
+
+        db.commit()
+        if cleaned:
+            logger.info(
+                "[CLEANUP] Purged %d stale group(s)"
+                " — player offline", cleaned
+            )
+        return cleaned
+
+    except Exception:
+        logger.error(
+            "[CLEANUP] stale group cleanup failed",
+            exc_info=True,
+        )
+        return 0
+
+
+def cleanup_all_session_data(db):
+    """Wipe all ephemeral session tables.
+
+    Called once when the last real player goes
+    offline. Clears everything except persistent
+    data (llm_bot_identities, llm_bot_memories).
+
+    Tables cleared:
+    - llm_group_bot_traits
+    - llm_group_chat_history
+    - llm_group_cached_responses
+    - llm_general_chat_history
+    - llm_chatter_queue (pending/processing)
+    - llm_chatter_messages (undelivered)
+    - llm_chatter_events (pending/processing)
+    """
+    try:
+        cursor = db.cursor()
+        cursor.execute(
+            "DELETE FROM llm_group_bot_traits"
+        )
+        cursor.execute(
+            "DELETE FROM llm_group_chat_history"
+        )
+        cursor.execute(
+            "DELETE FROM llm_group_cached_responses"
+        )
+        cursor.execute(
+            "DELETE FROM llm_general_chat_history"
+        )
+        cursor.execute(
+            "DELETE FROM llm_chatter_queue"
+        )
+        cursor.execute(
+            "DELETE FROM llm_chatter_messages"
+        )
+        cursor.execute(
+            "DELETE FROM llm_chatter_events"
+        )
+        db.commit()
+        logger.info(
+            "[CLEANUP] All session data cleared"
+            " — no players online"
+        )
+    except Exception:
+        logger.error(
+            "[CLEANUP] session data wipe failed",
+            exc_info=True,
+        )

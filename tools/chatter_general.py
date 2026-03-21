@@ -34,9 +34,10 @@ from chatter_shared import (
     _zone_delivery_delay,
     _zone_last_delivery,
     get_zone_flavor,
-    get_subzone_name,
-    get_subzone_lore,
+    get_zone_name,
+    get_player_zone,
     build_zone_metadata,
+    build_talent_context,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -50,7 +51,6 @@ from chatter_constants import (
     LENGTH_HINTS, RP_LENGTH_HINTS,
 )
 from chatter_links import resolve_and_format_links
-from chatter_shared import build_talent_context
 from chatter_db import get_character_info_by_name
 
 logger = logging.getLogger(__name__)
@@ -259,6 +259,109 @@ def _get_bot_info(db, bot_guid):
         WHERE guid = %s
     """, (bot_guid,))
     return cursor.fetchone()
+
+
+def _resolve_zone_context(db, player_name, extra_data):
+    """Resolve player-centric zone for General chat.
+
+    Uses get_player_zone() as source of truth, falls
+    back to C++ event data. No subzone needed for
+    General channel (zone-wide scope).
+
+    Returns dict with zone_id, zone_name, zone_flavor,
+    zone_meta.
+    """
+    pz, _ = get_player_zone(db, player_name)
+    if pz:
+        zone_id = pz
+        zone_name = get_zone_name(pz) or 'Unknown'
+    else:
+        zone_id = int(
+            extra_data.get('zone_id', 0)
+        )
+        zone_name = extra_data.get(
+            'zone_name', 'Unknown'
+        )
+    zone_flavor = get_zone_flavor(zone_id) or ''
+    zone_meta = build_zone_metadata(
+        zone_name=(
+            zone_name
+            if zone_name != 'Unknown' else ''
+        ),
+        zone_flavor=zone_flavor,
+        subzone_name='',
+        subzone_lore='',
+    )
+    return {
+        'zone_id': zone_id,
+        'zone_name': zone_name,
+        'zone_flavor': zone_flavor,
+        'zone_meta': zone_meta,
+    }
+
+
+def _select_primary_bot(
+    db, client, config, bot_guids, bot_names,
+    player_name, player_message, mode,
+    chat_hist="",
+):
+    """Pick the primary bot for a General reaction.
+
+    Handles addressed-bot detection, conversation
+    vs statement decision, and bot info lookup.
+
+    Returns dict with bot1_guid, bot1_idx, bot1_name,
+    bot1_race, bot1_class, bot1_class_id, bot1_level,
+    bot1_traits, is_conversation.
+    Returns None if no valid bot found.
+    """
+    conv_chance = int(config.get(
+        'LLMChatter.GeneralChat.'
+        'ConversationChance', 30
+    ))
+    is_conversation = (
+        len(bot_guids) >= 2
+        and random.randint(1, 100) <= conv_chance
+    )
+
+    addr_result = find_addressed_bot(
+        player_message, bot_names,
+        client=client, config=config,
+        chat_history=chat_hist,
+    )
+    addressed = addr_result.get('bot')
+
+    bot1_idx = None
+    if addressed:
+        for i, name in enumerate(bot_names):
+            if name == addressed:
+                bot1_idx = i
+                break
+    if bot1_idx is None:
+        bot1_idx = random.randint(
+            0, len(bot_guids) - 1
+        )
+
+    bot1_guid = int(bot_guids[bot1_idx])
+    bot1_info = _get_bot_info(db, bot1_guid)
+    if not bot1_info:
+        return None
+
+    return {
+        'bot1_guid': bot1_guid,
+        'bot1_idx': bot1_idx,
+        'bot1_name': bot1_info['name'],
+        'bot1_race': get_race_name(
+            bot1_info['race']
+        ),
+        'bot1_class': get_class_name(
+            bot1_info['class']
+        ),
+        'bot1_class_id': bot1_info['class'],
+        'bot1_level': bot1_info['level'],
+        'bot1_traits': _pick_random_traits(),
+        'is_conversation': is_conversation,
+    }
 
 
 def _build_general_response_prompt(
@@ -580,33 +683,19 @@ def process_general_player_msg_event(
     player_message = extra_data.get(
         'player_message', ''
     )
-    zone_id = int(extra_data.get('zone_id', 0))
-    zone_name = extra_data.get(
-        'zone_name', 'Unknown'
-    )
     bot_guids = extra_data.get('bot_guids', [])
     bot_names = extra_data.get('bot_names', [])
 
-    # Zone/subzone context for prompts and logging
-    zone_flavor = get_zone_flavor(zone_id) or ''
-    area_id = int(
-        extra_data.get('area_id', zone_id)
+    # Resolve zone from player's location
+    zctx = _resolve_zone_context(
+        db, player_name, extra_data
     )
-    subzone_name = (
-        get_subzone_name(zone_id, area_id) or ''
-    )
-    subzone_lore = (
-        get_subzone_lore(zone_id, area_id) or ''
-    )
-    zone_meta = build_zone_metadata(
-        zone_name=(
-            zone_name
-            if zone_name != 'Unknown' else ''
-        ),
-        zone_flavor=zone_flavor,
-        subzone_name=subzone_name,
-        subzone_lore=subzone_lore,
-    )
+    zone_id = zctx['zone_id']
+    zone_name = zctx['zone_name']
+    zone_flavor = zctx['zone_flavor']
+    zone_meta = zctx['zone_meta']
+    subzone_name = ''
+    subzone_lore = ''
 
     if not zone_id or not player_message:
         _mark_event(db, event_id, 'skipped')
@@ -648,49 +737,26 @@ def process_general_player_msg_event(
         )
         chat_hist = _format_general_history(history)
 
-        # Decide: conversation vs single statement
-        conv_chance = int(config.get(
-            'LLMChatter.GeneralChat.'
-            'ConversationChance', 30
-        ))
-        is_conversation = (
-            len(bot_guids) >= 2
-            and random.randint(1, 100) <= conv_chance
+        # Pick primary bot and decide conv vs stmt
+        primary = _select_primary_bot(
+            db, client, config, bot_guids,
+            bot_names, player_name,
+            player_message, mode,
+            chat_hist=chat_hist,
         )
-
-        # Pick bot: prefer addressed bot, else random
-        addr_result = find_addressed_bot(
-            player_message, bot_names,
-            client=client, config=config,
-            chat_history=chat_hist
-        )
-        addressed = addr_result.get('bot')
-        # multi_addressed ignored for general channel
-        # (has its own multi-bot conversation logic)
-        bot1_idx = None
-        if addressed:
-            for i, name in enumerate(bot_names):
-                if name == addressed:
-                    bot1_idx = i
-                    break
-        if bot1_idx is None:
-            bot1_idx = random.randint(
-                0, len(bot_guids) - 1
-            )
-        bot1_guid = int(bot_guids[bot1_idx])
-        bot1_info = _get_bot_info(db, bot1_guid)
-
-        if not bot1_info:
+        if not primary:
             _mark_event(db, event_id, 'skipped')
             return False
 
-        bot1_name = bot1_info['name']
-        bot1_race = get_race_name(bot1_info['race'])
-        bot1_class = get_class_name(
-            bot1_info['class']
-        )
-        bot1_level = bot1_info['level']
-        bot1_traits = _pick_random_traits()
+        bot1_guid = primary['bot1_guid']
+        bot1_idx = primary['bot1_idx']
+        bot1_name = primary['bot1_name']
+        bot1_race = primary['bot1_race']
+        bot1_class = primary['bot1_class']
+        bot1_class_id = primary['bot1_class_id']
+        bot1_level = primary['bot1_level']
+        bot1_traits = primary['bot1_traits']
+        is_conversation = primary['is_conversation']
 
         # Talent context injection
         speaker_talent = None
@@ -706,7 +772,7 @@ def process_general_player_msg_event(
         ):
             speaker_talent = build_talent_context(
                 db, bot1_guid,
-                bot1_info['class'],
+                bot1_class_id,
                 bot1_name,
                 perspective='speaker',
             )

@@ -221,9 +221,14 @@ def build_dynamic_guidelines(
     include_humor: bool = None,
     include_length: bool = True,
     config: dict = None,
-    mode: str = 'normal'
+    mode: str = 'normal',
+    length_hint: str = "",
 ) -> list:
-    """Build a randomized list of guidelines."""
+    """Build a randomized list of guidelines.
+
+    length_hint: if provided, overrides the random
+    length pool pick (caller pre-selected via RNG).
+    """
     is_rp = (mode == 'roleplay')
 
     if is_rp:
@@ -260,8 +265,11 @@ def build_dynamic_guidelines(
 
     length_pool = RP_LENGTH_HINTS if is_rp else LENGTH_HINTS
     if include_length:
+        picked = length_hint or random.choice(
+            length_pool
+        )
         guidelines.append(
-            f"Length: {random.choice(length_pool)}"
+            f"Length: {picked}"
         )
         long_chance = 15 if is_rp else 12
         if config is not None:
@@ -351,6 +359,7 @@ def build_plain_statement_prompt(
     speaker_talent_context=None,
     topic: str = None,
     area_id: int = 0,
+    length_hint: str = "",
 ) -> str:
     """Build a dynamically varied prompt for a plain statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -434,7 +443,8 @@ def build_plain_statement_prompt(
     parts.append(f"Message type: {category}")
 
     guidelines = build_dynamic_guidelines(
-        config=config, mode=mode
+        config=config, mode=mode,
+        length_hint=length_hint,
     )
     guidelines.append(
         "Plain text only - never wrap creature, NPC, "
@@ -487,6 +497,7 @@ def build_quest_statement_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a dynamically varied prompt for a quest statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -510,6 +521,10 @@ def build_quest_statement_prompt(
             "mentioning a quest."
         )
         parts.append(f"Zone: {bot['zone']}")
+
+    zone_flavor = get_zone_flavor(zone_id)
+    if is_rp and zone_flavor:
+        parts.append(f"Zone context: {zone_flavor}")
 
     env_context = get_environmental_context(current_weather)
     if env_context['time']:
@@ -602,6 +617,7 @@ def build_loot_statement_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a dynamically varied prompt for a loot statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -633,6 +649,10 @@ def build_loot_statement_prompt(
             "Generate a brief WoW General chat message "
             "about a loot drop."
         )
+
+    zone_flavor = get_zone_flavor(zone_id)
+    if is_rp and zone_flavor:
+        parts.append(f"Zone context: {zone_flavor}")
 
     env_context = get_environmental_context(current_weather)
     if env_context['time']:
@@ -723,6 +743,7 @@ def build_quest_reward_statement_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a prompt for quest completion with reward."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -744,6 +765,7 @@ def build_quest_reward_statement_prompt(
             speaker_talent_context=(
                 speaker_talent_context
             ),
+            zone_id=zone_id,
         )
 
     quality_names = {
@@ -770,6 +792,10 @@ def build_quest_reward_statement_prompt(
             "Generate a brief WoW General chat message "
             "about finishing a quest."
         )
+
+    zone_flavor = get_zone_flavor(zone_id)
+    if is_rp and zone_flavor:
+        parts.append(f"Zone context: {zone_flavor}")
 
     env_context = get_environmental_context(current_weather)
     if env_context['time']:
@@ -1096,6 +1122,7 @@ def build_quest_conversation_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a prompt for a quest conversation with 2-4 bots."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1127,6 +1154,10 @@ def build_quest_conversation_prompt(
                 f"{bot['name']} is a "
                 f"{bot['race']} {bot['class']}"
             )
+
+    zone_flavor = get_zone_flavor(zone_id)
+    if is_rp and zone_flavor:
+        parts.append(f"Zone context: {zone_flavor}")
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -1241,6 +1272,7 @@ def build_loot_conversation_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a prompt for a loot conversation with 2-4 bots."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1280,6 +1312,10 @@ def build_loot_conversation_prompt(
                 f"{bot['name']} is a "
                 f"{bot['race']} {bot['class']}"
             )
+
+    zone_flavor = get_zone_flavor(zone_id)
+    if is_rp and zone_flavor:
+        parts.append(f"Zone context: {zone_flavor}")
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -1743,6 +1779,7 @@ def build_spell_statement_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a prompt for a spell/ability statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1875,6 +1912,7 @@ def build_spell_conversation_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a prompt for a spell conversation
     with 2-4 bots discussing an ability."""
@@ -2114,6 +2152,7 @@ def build_trade_statement_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a prompt for a trade/sell statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -2257,6 +2296,7 @@ def build_trade_conversation_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a prompt for a trade conversation
     with 2-4 bots haggling over an item."""

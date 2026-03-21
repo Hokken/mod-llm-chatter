@@ -93,26 +93,25 @@ def _api_logs(qs):
 
 
 def _api_memories(qs):
-    """Return memory events from the JSONL log."""
+    """Return memories from the DB snapshot file."""
     page = int((qs.get('page') or ['1'])[0])
-    per_page = int((qs.get('per_page') or ['50'])[0])
+    per_page = int(
+        (qs.get('per_page') or ['50'])[0]
+    )
     bot_filter = (qs.get('bot') or [''])[0]
     type_filter = (qs.get('type') or [''])[0]
 
-    MEMORY_LABELS = {
-        'memory_generated',
-        'memory_activated',
-        'memory_discarded',
-        'identity_created',
-        'identity_reused',
-        'tone_generated',
-    }
-
-    entries = _read_entries()
-    entries = [
-        e for e in entries
-        if e.get('label', '') in MEMORY_LABELS
-    ]
+    entries = []
+    if SNAPSHOT_DIR is not None:
+        path = SNAPSHOT_DIR / 'db_memories.json'
+        try:
+            with open(
+                path, 'r', encoding='utf-8'
+            ) as fh:
+                data = json.load(fh)
+                entries = data.get('rows', [])
+        except Exception:
+            entries = []
 
     # Collect unique bot names/guids for filter
     all_bots = sorted(set(
@@ -132,7 +131,8 @@ def _api_memories(qs):
         entries = [
             e for e in entries
             if (
-                (e.get('bot_name', '') == bot_filter)
+                (e.get('bot_name', '')
+                    == bot_filter)
                 or (
                     str(e.get('bot_guid', ''))
                     == bot_filter
@@ -143,7 +143,10 @@ def _api_memories(qs):
     if type_filter:
         entries = [
             e for e in entries
-            if e.get('memory_type', '') == type_filter
+            if (
+                e.get('memory_type', '')
+                == type_filter
+            )
         ]
 
     total = len(entries)
@@ -310,7 +313,7 @@ tr.fm-row:hover td{background:#4a3500}
       <option value="">All types</option>
     </select>
     <input id="mem-search"
-      placeholder="Search bot_guid / memory..."
+      placeholder="Search name / guid / memory..."
       oninput="applyMemFilter()"
       style="width:200px">
   </div>
@@ -318,11 +321,13 @@ tr.fm-row:hover td{background:#4a3500}
     <table>
       <thead><tr>
         <th>bot_guid</th>
+        <th>bot_name</th>
         <th>player_guid</th>
         <th>memory_type</th>
         <th>memory</th>
         <th>mood</th>
         <th>active</th>
+        <th>used</th>
         <th>created_at</th>
       </tr></thead>
       <tbody id="mem-body"></tbody>
@@ -445,8 +450,10 @@ function renderMem(rows){
   let h='';
   for(const r of rows){
     const fm=r.memory_type==='first_meeting';
+    const used=r.used===1||r.used===true;
     h+='<tr class="'+(fm?'fm-row':'')+'">'
       +'<td>'+esc(r.bot_guid)+'</td>'
+      +'<td>'+esc(r.bot_name||'')+'</td>'
       +'<td>'+esc(r.player_guid)+'</td>'
       +'<td>'+(fm
         ?'<span class="fm-badge">first_meeting'
@@ -459,6 +466,9 @@ function renderMem(rows){
       +'<td><span class="badge '
         +(r.active?'st-active':'st-inactive')
         +'">'+(r.active?'yes':'no')+'</span></td>'
+      +'<td><span class="badge '
+        +(used?'st-active':'st-inactive')
+        +'">'+(used?'yes':'no')+'</span></td>'
       +'<td>'+esc(fmtTs(r.created_at))+'</td>'
       +'</tr>';
   }
@@ -544,6 +554,8 @@ function applyMemFilter(){
     r=>r.memory_type===type);
   if(search)rows=rows.filter(r=>
     String(r.bot_guid||'').includes(search)
+    ||String(r.bot_name||'')
+      .toLowerCase().includes(search)
     ||String(r.memory||'')
       .toLowerCase().includes(search)
   );
@@ -1366,15 +1378,18 @@ a{color:#e94560}
 .badge{padding:1px 6px;border-radius:3px;
   font-size:10px;font-weight:bold;
   display:inline-block}
-.badge-generated{background:#1565c0;color:#fff}
-.badge-activated{background:#2e7d32;color:#fff}
-.badge-discarded{background:#e65100;color:#fff}
-.badge-id-created{background:#7b1fa2;color:#fff}
-.badge-id-reused{background:#555;color:#ccc}
-.badge-tone{background:#00796b;color:#fff}
-.badge-type{background:#4a4a6a;color:#ccc}
+.badge-first_meeting{background:#2e7d32;
+  color:#fff}
+.badge-player_message{background:#1565c0;
+  color:#fff}
+.badge-boss_kill{background:#c62828;color:#fff}
+.badge-quest_complete{background:#e65100;
+  color:#fff}
+.badge-default{background:#4a4a6a;color:#ccc}
 .badge-active{background:#2e7d32;color:#fff}
-.badge-pending{background:#555;color:#aaa}
+.badge-inactive{background:#555;color:#aaa}
+.badge-used{background:#1565c0;color:#fff}
+.badge-unused{background:#555;color:#aaa}
 .entry-row2{font-size:11px;color:#999;
   white-space:nowrap;overflow:hidden;
   text-overflow:ellipsis}
@@ -1465,29 +1480,14 @@ function fmtTsFull(iso){
     return d.toLocaleString();
   }catch(e){return iso;}
 }
-function eventBadgeClass(label){
-  if(label==='memory_activated')
-    return 'badge-activated';
-  if(label==='memory_discarded')
-    return 'badge-discarded';
-  if(label==='identity_created')
-    return 'badge-id-created';
-  if(label==='identity_reused')
-    return 'badge-id-reused';
-  if(label==='tone_generated')
-    return 'badge-tone';
-  return 'badge-generated';
-}
-function eventBadgeText(label){
-  if(label==='memory_activated')return 'ACTIVATED';
-  if(label==='memory_discarded')return 'DISCARDED';
-  if(label==='identity_created')
-    return 'Identity Born';
-  if(label==='identity_reused')
-    return 'Identity Loaded';
-  if(label==='tone_generated')
-    return 'Tone Set';
-  return 'GENERATED';
+function typeBadgeClass(mtype){
+  const cls={
+    first_meeting:'badge-first_meeting',
+    player_message:'badge-player_message',
+    boss_kill:'badge-boss_kill',
+    quest_complete:'badge-quest_complete',
+  }[mtype];
+  return cls||'badge-default';
 }
 function truncate(s,n){
   if(!s)return '';
@@ -1561,65 +1561,37 @@ function renderList(){
   entries.forEach((e,i)=>{
     const cls=(i===selectedIdx)?'entry selected'
       :'entry';
-    const label=e.label||'';
-    const bc=eventBadgeClass(label);
-    const bt=eventBadgeText(label);
     const bot=botDisplay(e);
     const mtype=e.memory_type||'';
     const mem=e.memory||'';
-    const active=e.active;
+    const active=e.active===1||e.active===true;
+    const used=e.used===1||e.used===true;
 
     html+='<div class="'+cls
       +'" onclick="selectEntry('+i+')">'
       +'<div class="entry-row1">'
       +'<span class="entry-ts">'
-      +esc(fmtTs(e.timestamp))+'</span>'
-      +'<span class="badge '+bc+'">'
-      +bt+'</span>';
+      +esc(fmtTs(e.created_at))+'</span>';
 
     if(mtype){
-      html+='<span class="badge badge-type">'
+      html+='<span class="badge '
+        +typeBadgeClass(mtype)+'">'
         +esc(mtype)+'</span>';
     }
 
-    if(label==='memory_generated'){
-      if(active===1){
-        html+='<span class="badge badge-active">'
-          +'active</span>';
-      }else{
-        html+='<span class="badge badge-pending">'
-          +'pending</span>';
-      }
-    }
+    html+='<span class="badge '
+      +(active?'badge-active':'badge-inactive')
+      +'">'+(active?'active':'inactive')
+      +'</span>';
 
-    if(label==='memory_activated'
-      &&e.rows_activated){
-      html+='<span style="color:#888;'
-        +'font-size:10px">'
-        +e.rows_activated+' rows</span>';
-    }
-    if(label==='memory_discarded'
-      &&e.rows_discarded){
-      html+='<span style="color:#888;'
-        +'font-size:10px">'
-        +e.rows_discarded+' rows</span>';
-    }
+    html+='<span class="badge '
+      +(used?'badge-used':'badge-unused')
+      +'">'+(used?'used':'unused')+'</span>';
 
     html+='</div>'
       +'<div class="entry-row2">'
       +esc(bot);
-    if(label==='tone_generated'){
-      if(e.tone){
-        html+=' &mdash; '+esc(e.tone);
-      }
-    }else if(label==='identity_created'
-      ||label==='identity_reused'){
-      const traits=[e.trait1,e.trait2,e.trait3]
-        .filter(Boolean).join(', ');
-      if(traits){
-        html+=' &mdash; '+esc(traits);
-      }
-    }else if(mem){
+    if(mem){
       html+=' &mdash; '
         +esc(truncate(mem,80));
     }
@@ -1634,148 +1606,73 @@ function selectEntry(i){
   const e=entries[i];
   if(!e)return;
 
-  const label=e.label||'';
-  const bc=eventBadgeClass(label);
-  const bt=eventBadgeText(label);
+  const mtype=e.memory_type||'';
+  const active=e.active===1||e.active===true;
+  const used=e.used===1||e.used===true;
   let hdr='<span class="entry-ts">'
-    +esc(fmtTsFull(e.timestamp))+'</span> '
-    +'<span class="badge '+bc+'">'+bt+'</span>';
+    +esc(fmtTsFull(e.created_at))+'</span> '
+    +'<span class="badge '
+    +typeBadgeClass(mtype)+'">'
+    +esc(mtype)+'</span>';
   document.getElementById('detailHdr')
     .innerHTML=hdr;
 
-  let body='';
+  let body='<div class="detail-section">'
+    +'<div class="detail-label">MEMORY</div>'
+    +'<div class="detail-value">'
+    +esc(e.memory||'(empty)')+'</div></div>';
 
-  if(label==='memory_generated'){
-    body+='<div class="detail-section">'
-      +'<div class="detail-label">MEMORY</div>'
-      +'<div class="detail-value">'
-      +esc(e.memory||'(empty)')+'</div></div>';
+  body+='<div class="detail-section">'
+    +'<div class="detail-grid">'
+    +'<span class="lbl">Bot</span>'
+    +'<span class="val">'
+    +esc(botDisplay(e))+'</span>'
+    +'<span class="lbl">Bot GUID</span>'
+    +'<span class="val">'
+    +(e.bot_guid||'')+'</span>'
+    +'<span class="lbl">Player GUID</span>'
+    +'<span class="val">'
+    +(e.player_guid||'')+'</span>'
+    +'<span class="lbl">Group ID</span>'
+    +'<span class="val">'
+    +(e.group_id||'')+'</span>'
+    +'<span class="lbl">Type</span>'
+    +'<span class="val">'
+    +'<span class="badge '
+    +typeBadgeClass(mtype)+'">'
+    +esc(mtype)+'</span></span>'
+    +'<span class="lbl">Active</span>'
+    +'<span class="val">'
+    +'<span class="badge '
+    +(active?'badge-active':'badge-inactive')
+    +'">'+(active?'Yes':'No')
+    +'</span></span>'
+    +'<span class="lbl">Used</span>'
+    +'<span class="val">'
+    +'<span class="badge '
+    +(used?'badge-used':'badge-unused')
+    +'">'+(used?'Yes':'No')
+    +'</span></span>';
 
-    body+='<div class="detail-section">'
-      +'<div class="detail-grid">'
-      +'<span class="lbl">Bot</span>'
+  if(e.mood){
+    body+='<span class="lbl">Mood</span>'
       +'<span class="val">'
-      +esc(botDisplay(e))+'</span>'
-      +'<span class="lbl">Bot GUID</span>'
-      +'<span class="val">'
-      +(e.bot_guid||'')+'</span>'
-      +'<span class="lbl">Player GUID</span>'
-      +'<span class="val">'
-      +(e.player_guid||'')+'</span>'
-      +'<span class="lbl">Group ID</span>'
-      +'<span class="val">'
-      +(e.group_id||'')+'</span>'
-      +'<span class="lbl">Type</span>'
-      +'<span class="val">'
-      +esc(e.memory_type||'')+'</span>'
-      +'<span class="lbl">Active</span>'
-      +'<span class="val">'
-      +(e.active===1?'Yes':'No (pending)')
-      +'</span>';
-
-    if(e.mood){
-      body+='<span class="lbl">Mood</span>'
-        +'<span class="val">'
-        +'<span class="mood-badge">'
-        +esc(e.mood)+'</span></span>';
-    }
-    if(e.emote){
-      body+='<span class="lbl">Emote</span>'
-        +'<span class="val">'
-        +'<span class="emote-badge">'
-        +esc(e.emote)+'</span></span>';
-    }
-
-    body+='</div></div>';
-
-  }else if(label==='memory_activated'){
-    body+='<div class="detail-section">'
-      +'<div class="detail-grid">'
-      +'<span class="lbl">Bot GUID</span>'
-      +'<span class="val">'
-      +(e.bot_guid||'')+'</span>'
-      +'<span class="lbl">Player GUID</span>'
-      +'<span class="val">'
-      +(e.player_guid||'')+'</span>'
-      +'<span class="lbl">Group ID</span>'
-      +'<span class="val">'
-      +(e.group_id||'')+'</span>'
-      +'<span class="lbl">Rows</span>'
-      +'<span class="val">'
-      +(e.rows_activated||0)
-      +' memories activated</span>'
-      +'<span class="lbl">Session</span>'
-      +'<span class="val">'
-      +(e.session_start||'')+'</span>'
-      +'</div></div>';
-
-  }else if(label==='memory_discarded'){
-    body+='<div class="detail-section">'
-      +'<div class="detail-grid">'
-      +'<span class="lbl">Bot GUID</span>'
-      +'<span class="val">'
-      +(e.bot_guid||'')+'</span>'
-      +'<span class="lbl">Group ID</span>'
-      +'<span class="val">'
-      +(e.group_id||'')+'</span>'
-      +'<span class="lbl">Rows</span>'
-      +'<span class="val">'
-      +(e.rows_discarded||0)
-      +' memories discarded</span>'
-      +'<span class="lbl">Reason</span>'
-      +'<span class="val">'
-      +esc(e.reason||'')+'</span>'
-      +'<span class="lbl">Session</span>'
-      +'<span class="val">'
-      +(e.session_start||'')+'</span>'
-      +'</div></div>';
-
-  }else if(label==='tone_generated'){
-    body+='<div class="detail-section">'
-      +'<div class="detail-grid">'
-      +'<span class="lbl">Bot</span>'
-      +'<span class="val">'
-      +esc(botDisplay(e))+'</span>'
-      +'<span class="lbl">Bot GUID</span>'
-      +'<span class="val">'
-      +(e.bot_guid||'')+'</span>'
-      +'<span class="lbl">Tone</span>'
-      +'<span class="val">'
-      +esc(e.tone||'')+'</span>'
-      +'<span class="lbl">Group</span>'
-      +'<span class="val">'
-      +(e.group_id||'')+'</span>'
-      +'</div></div>';
-  }else if(label==='identity_created'
-    ||label==='identity_reused'){
-    body+='<div class="detail-section">'
-      +'<div class="detail-grid">'
-      +'<span class="lbl">Bot</span>'
-      +'<span class="val">'
-      +esc(botDisplay(e))+'</span>'
-      +'<span class="lbl">Bot GUID</span>'
-      +'<span class="val">'
-      +(e.bot_guid||'')+'</span>'
-      +'<span class="lbl">Traits</span>'
-      +'<span class="val">'
-      +esc((e.trait1||'')+', '
-        +(e.trait2||'')+', '
-        +(e.trait3||''))+'</span>';
-    if(e.role){
-      body+='<span class="lbl">Role</span>'
-        +'<span class="val">'
-        +esc(e.role)+'</span>';
-    }
-    body+='<span class="lbl">Version</span>'
-      +'<span class="val">'
-      +(e.identity_version||'')+'</span>';
-    if(e.reason){
-      body+='<span class="lbl">Reason</span>'
-        +'<span class="val">'
-        +esc(e.reason)+'</span>';
-    }
-    body+='</div></div>';
+      +'<span class="mood-badge">'
+      +esc(e.mood)+'</span></span>';
   }
+  if(e.emote){
+    body+='<span class="lbl">Emote</span>'
+      +'<span class="val">'
+      +'<span class="emote-badge">'
+      +esc(e.emote)+'</span></span>';
+  }
+  if(e.session_start){
+    body+='<span class="lbl">Session</span>'
+      +'<span class="val">'
+      +esc(e.session_start)+'</span>';
+  }
+
+  body+='</div></div>';
 
   document.getElementById('detailBody')
     .innerHTML=body;
