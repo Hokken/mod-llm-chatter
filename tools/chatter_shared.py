@@ -951,7 +951,10 @@ def append_json_instruction(
             '(e.g. "leans against the wall", '
             '"scratches chin thoughtfully"). '
             "Displayed as *action* before speech. "
-            "Include an action for this response.\n"
+            "Include an action for this response. "
+            "NEVER put {item:}, {quest:}, or "
+            "{spell:} placeholders in the action "
+            "field — those belong in message only.\n"
         )
     else:
         action_desc = (

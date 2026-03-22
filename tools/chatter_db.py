@@ -712,7 +712,7 @@ def get_real_player_guid_for_group(db, group_id):
             "   ON c.account = a.id"
             " WHERE gm.guid = %s"
             "   AND a.username"
-            "       NOT LIKE 'RNDBOT%%%%'"
+            "       NOT LIKE 'RNDBOT%%'"
             " LIMIT 1",
             (group_id,),
         )
@@ -720,7 +720,11 @@ def get_real_player_guid_for_group(db, group_id):
         if row:
             return int(row['memberGuid'])
     except Exception:
-        pass
+        logger.error(
+            "get_real_player_guid_for_group "
+            "failed for group %s",
+            group_id, exc_info=True,
+        )
     return 0
 
 

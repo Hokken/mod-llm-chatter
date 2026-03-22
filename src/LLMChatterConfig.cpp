@@ -180,10 +180,6 @@ void LLMChatterConfig::LoadConfig()
     _groupCorpseRunCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.CorpseRunCooldown", 120);
     _useFarewell = sConfigMgr->GetOption<bool>(
         "LLMChatter.GroupChatter.FarewellEnable", true);
-    _groupDiscoveryChance =
-        sConfigMgr->GetOption<uint32>(
-            "LLMChatter.GroupChatter."
-            "DiscoveryChance", 40);
     _groupDiscoveryCooldown =
         sConfigMgr->GetOption<uint32>(
             "LLMChatter.GroupChatter."

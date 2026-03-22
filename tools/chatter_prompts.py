@@ -544,8 +544,10 @@ def build_quest_statement_prompt(
     quest_placeholder = f"{{{{quest:{quest['quest_name']}}}}}"
     parts.append(f"Quest: {quest['quest_name']}")
     parts.append(
-        f"REQUIRED: Include exactly {quest_placeholder} in "
-        f"your message (this becomes a clickable link)"
+        f"REQUIRED: Include exactly "
+        f"{quest_placeholder} in the \"message\" "
+        f"JSON field (NOT in the action). "
+        f"This becomes a clickable link"
     )
 
     if quest.get('description') and random.random() < 0.4:
@@ -672,8 +674,10 @@ def build_loot_statement_prompt(
         f"Item: {item['item_name']} ({quality} quality)"
     )
     parts.append(
-        f"REQUIRED: Include exactly {item_placeholder} in "
-        f"your message (this becomes a clickable link)"
+        f"REQUIRED: Include exactly "
+        f"{item_placeholder} in the \"message\" "
+        f"JSON field (this becomes a clickable "
+        f"link). NEVER put it in the action field"
     )
 
     if random.random() < 0.6:
@@ -859,7 +863,11 @@ def build_quest_reward_statement_prompt(
     guidelines = build_dynamic_guidelines(
         config=config, mode=mode
     )
-    guidelines.append("Use BOTH placeholders, each once")
+    guidelines.append(
+        "Use BOTH placeholders, each once, "
+        "in the \"message\" field only "
+        "(NOT in the action)"
+    )
     guidelines.append(
         "STRICT: Keep under 80 characters "
         "(the link counts as ~15 chars)"
@@ -1342,8 +1350,9 @@ def build_loot_conversation_prompt(
         f"Item: {item['item_name']} ({quality} quality)"
     )
     parts.append(
-        f"REQUIRED: Use {item_placeholder} placeholder "
-        f"when mentioning the item"
+        f"REQUIRED: Use {item_placeholder} in the "
+        f"\"message\" field (NOT in the action). "
+        f"This becomes a clickable link"
     )
 
     tone = pick_random_tone(mode)
@@ -2094,8 +2103,9 @@ def build_spell_conversation_prompt(
             f"What it does: {spell['spell_desc']}"
         )
     parts.append(
-        f"REQUIRED: Use {spell_placeholder} "
-        f"placeholder when mentioning this spell"
+        f"REQUIRED: Use {spell_placeholder} in the "
+        f"\"message\" field (NOT in the action). "
+        f"This becomes a clickable link"
     )
     parts.append(
         "Other speakers may mention their own "
@@ -2288,8 +2298,9 @@ def build_trade_statement_prompt(
         )
     parts.append(
         f"REQUIRED: Include exactly "
-        f"{item_placeholder} in your message "
-        f"(this becomes a clickable link)"
+        f"{item_placeholder} in the \"message\" "
+        f"JSON field (NOT in the action). "
+        f"This becomes a clickable link"
     )
 
     tone = pick_random_tone(mode)
@@ -2452,8 +2463,9 @@ def build_trade_conversation_prompt(
             f"roughly 2-5x vendor value)"
         )
     parts.append(
-        f"REQUIRED: Use {item_placeholder} "
-        f"placeholder when mentioning the item"
+        f"REQUIRED: Use {item_placeholder} in the "
+        f"\"message\" field (NOT in the action). "
+        f"This becomes a clickable link"
     )
 
     tone = pick_random_tone(mode)

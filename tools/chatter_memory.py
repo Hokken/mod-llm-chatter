@@ -274,7 +274,11 @@ def queue_memory(
                 )
             )
         except Exception:
-            pass
+            logger.error(
+                "player_guid DB fallback failed "
+                "for group %s", group_id,
+                exc_info=True,
+            )
 
     if not player_guid:
         return  # can't create orphaned memory
