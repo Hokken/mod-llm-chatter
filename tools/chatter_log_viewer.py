@@ -328,6 +328,7 @@ tr.fm-row:hover td{background:#4a3500}
         <th>mood</th>
         <th>active</th>
         <th>used</th>
+        <th>last_used</th>
         <th>created_at</th>
       </tr></thead>
       <tbody id="mem-body"></tbody>
@@ -469,6 +470,9 @@ function renderMem(rows){
       +'<td><span class="badge '
         +(used?'st-active':'st-inactive')
         +'">'+(used?'yes':'no')+'</span></td>'
+      +'<td>'+(r.last_used_at
+        ?esc(fmtTs(r.last_used_at))
+        :'—')+'</td>'
       +'<td>'+esc(fmtTs(r.created_at))+'</td>'
       +'</tr>';
   }
@@ -1924,6 +1928,51 @@ def _build_export(entries):
         lines.append('(none)')
     lines.append('')
 
+    # --- Party Chat Deliveries ---
+    lines.append('=== PARTY CHAT DELIVERIES (last 30) ===')
+    try:
+        import json as _json
+        msg_path = SNAPSHOT_DIR / 'db_messages.json'
+        with open(msg_path, 'r', encoding='utf-8') as f:
+            msg_data = _json.load(f)
+        msg_rows = msg_data.get('rows', [])
+        for row in msg_rows[:30]:
+            bot_name = row.get(
+                'bot_name',
+                f"guid:{row.get('bot_guid', '?')}"
+            )
+            msg = trunc(
+                row.get('message', ''), 120
+            )
+            delivered = (
+                'YES'
+                if row.get('delivered')
+                else 'pending'
+            )
+            deliver_at = row.get('deliver_at', '')
+            try:
+                dt = datetime.fromisoformat(
+                    str(deliver_at).replace(
+                        'Z', '+00:00'
+                    )
+                )
+                deliver_ts = dt.strftime('%H:%M:%S')
+            except Exception:
+                deliver_ts = str(deliver_at)[:8]
+            channel = row.get('channel', 'party')
+            lines.append(
+                f'[{deliver_ts}] [{delivered}]'
+                f' [{channel}]'
+                f' {bot_name}: {msg}'
+            )
+        if not msg_rows:
+            lines.append('(none)')
+    except Exception as ex:
+        lines.append(
+            f'(error reading messages: {ex})'
+        )
+    lines.append('')
+
     # --- Recent LLM Calls ---
     lines.append('=== RECENT LLM CALLS (last 50) ===')
     non_llm = mem_labels | id_labels
@@ -1961,9 +2010,37 @@ def _build_export(entries):
             f'bot={bot} | model={model} | '
             f'{dur}ms{tok_s}'
         )
-        prompt = trunc(e.get('prompt', ''), 200)
+        # Structured metadata line
+        meta_parts = []
+        channel = e.get('channel', '')
+        if channel:
+            meta_parts.append(f'channel={channel}')
+        zone = e.get('zone_name', '')
+        if zone:
+            meta_parts.append(f'zone={zone}')
+        subzone = e.get('subzone_name', '')
+        if subzone:
+            meta_parts.append(
+                f'subzone={subzone}'
+            )
+        has_memory = 'memory' in label.lower()
+        if has_memory:
+            meta_parts.append('HAS_MEMORY')
+        eid = e.get('event_id', '')
+        if eid:
+            meta_parts.append(f'event={eid}')
+        gid = e.get('group_id', '')
+        if gid:
+            meta_parts.append(f'group={gid}')
+        if meta_parts:
+            lines.append(
+                f'  META: '
+                f'{" | ".join(meta_parts)}'
+            )
+        prompt = trunc(e.get('prompt', ''), 500)
         resp = trunc(
-            e.get('response', '') or '(null)', 200
+            e.get('response', '') or '(null)',
+            400
         )
         lines.append(f'  PROMPT: {prompt}')
         lines.append(f'  RESPONSE: {resp}')

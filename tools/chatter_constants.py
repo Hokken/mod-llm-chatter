@@ -1852,11 +1852,13 @@ RP_MESSAGE_CATEGORIES = [
 
 RP_LENGTH_HINTS = [
     "very short (under 40 chars)",
+    "very short (under 40 chars)",
     "a short quip or remark (40-70 chars)",
+    "short (40-70 chars)",
     "short (40-70 chars)",
     "medium (70-120 chars)",
     "medium (70-120 chars)",
-    "longer (120-180 chars)",
+    "longer (120-150 chars max)",
 ]
 
 # =============================================================================

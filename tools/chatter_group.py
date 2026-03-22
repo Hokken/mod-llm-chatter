@@ -465,6 +465,9 @@ def process_group_event(db, client, config, event):
         bot_zone = int(
             extra_data.get('zone', 0) or 0
         )
+        bot_area = int(
+            extra_data.get('area', 0) or 0
+        )
         bot_map = int(
             extra_data.get('map', 0) or 0
         )
@@ -472,6 +475,7 @@ def process_group_event(db, client, config, event):
             db, group_id, bot_guid, bot_name,
             role=bot_role,
             zone=bot_zone,
+            area_id=bot_area,
             map_id=bot_map,
             config=config,
             bot_class=bot_class,
@@ -613,7 +617,12 @@ def process_group_event(db, client, config, event):
             and pm and player_guid
         ):
             dn = get_dungeon_flavor(pm)
-            if dn:
+            dng_chance = int(config.get(
+                'LLMChatter.Memory'
+                '.DungeonGenerationChance', 50
+            ))
+            if (dn and random.random() * 100
+                    < dng_chance):
                 try:
                     queue_memory(
                         config, group_id,
@@ -859,12 +868,17 @@ def process_group_join_batch_event(
 
             # 1. Assign traits
             # zone/map from per-bot data or
-            # top-level extra_data fallback
+            # top-level extra_data fallback.
+            # area always from top-level (real
+            # player's area, set by C++).
             bot_zone = int(
                 bot_raw.get(
                     'zone',
                     extra_data.get('zone', 0)
                 ) or 0
+            )
+            bot_area = int(
+                extra_data.get('area', 0) or 0
             )
             bot_map = int(
                 bot_raw.get(
@@ -876,6 +890,7 @@ def process_group_join_batch_event(
                 db, group_id, bot_guid,
                 bot_name, role=bot_role,
                 zone=bot_zone,
+                area_id=bot_area,
                 map_id=bot_map,
                 config=config,
                 bot_class=bot_class,
@@ -1116,11 +1131,18 @@ def process_group_join_batch_event(
         # get_player_zone() (source of truth).
         if memory_enabled and pm:
             dungeon_name = get_dungeon_flavor(pm)
+            dng_chance = int(config.get(
+                'LLMChatter.Memory'
+                '.DungeonGenerationChance', 50
+            ))
             if dungeon_name:
                 dungeon_name = (
                     dungeon_name.split(':')[0]
                 )
                 for b in greeted_bots:
+                    if (random.random() * 100
+                            >= dng_chance):
+                        continue
                     try:
                         queue_memory(
                             config, group_id,
@@ -2487,6 +2509,87 @@ def build_idle_chatter_prompt(
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
+
+    # --------------------------------------------------
+    # LEAN MEMORY PATH — when memories are present,
+    # strip away distracting content and make the
+    # memory the central purpose of the message.
+    # --------------------------------------------------
+    if memories:
+        sanitized = [
+            sanitize_memory_for_prompt(m)
+            for m in memories
+        ]
+        sanitized = [s for s in sanitized if s]
+        if sanitized:
+            p_label = (
+                player_name
+                or 'your party leader'
+            )
+            mem_lines = '\n'.join(
+                f"  - {m}" for m in sanitized
+            )
+            prompt = (
+                f"You are {bot['name']}, a level "
+                f"{bot['level']} {bot['race']} "
+                f"{bot['class']}.\n"
+                f"Your personality: {trait_str}\n"
+            )
+            if speaker_talent_context:
+                prompt += (
+                    f"{speaker_talent_context}\n"
+                )
+            prompt += (
+                f"\n<past_memories>\n"
+                f"Your memories from past "
+                f"adventures with {p_label}:\n"
+                f"{mem_lines}\n"
+                f"Reference one of these memories "
+                f"clearly — mention the place, "
+                f"creature, or moment by name so "
+                f"{p_label} would recognise the "
+                f"callback. Keep it natural "
+                f"(not a full retelling).\n"
+                f"</past_memories>\n\n"
+                f"Say something in party chat that "
+                f"references one of your memories "
+                f"above. The memory should be the "
+                f"main point of your message, not "
+                f"a side note.\n"
+            )
+            if chat_history:
+                prompt += (
+                    f"\nRecent party chat "
+                    f"(for context only):"
+                    f"{chat_history}\n"
+                )
+            prompt += (
+                f"\n{_pick_length_hint(mode)}\n"
+                f"Rules:\n"
+                f"- No quotes, no emojis\n"
+                f"- The memory reference must be "
+                f"recognisable\n"
+                f"- Don't repeat themes from "
+                f"recent chat\n"
+                f"- NEVER claim to have killed a "
+                f"creature, looted an item, "
+                f"completed a quest, or made "
+                f"a trade"
+            )
+            anti_rep = build_anti_repetition_context(
+                recent_messages
+            )
+            if anti_rep:
+                prompt += f"\n{anti_rep}"
+            return append_json_instruction(
+                prompt, allow_action
+            )
+    # memories were empty or all sanitized away —
+    # fall through to the normal full prompt below.
+
+    # --------------------------------------------------
+    # NORMAL PATH — no memories, full context prompt
+    # --------------------------------------------------
     tone = stored_tone or pick_random_tone(mode)
     twist = maybe_get_creative_twist(
         chance=1.0, mode=mode
@@ -2642,37 +2745,6 @@ def build_idle_chatter_prompt(
     )
     if twist:
         prompt += f"Creative twist: {twist}\n"
-    # Inject memories if available
-    if memories:
-        from chatter_memory import (
-            sanitize_memory_for_prompt,
-        )
-        sanitized = [
-            sanitize_memory_for_prompt(m)
-            for m in memories
-        ]
-        sanitized = [s for s in sanitized if s]
-        if sanitized:
-            mem_lines = '\n'.join(
-                f"  - {m}" for m in sanitized
-            )
-            p_label = (
-                player_name or 'your party leader'
-            )
-            rp_context += (
-                f"\n<past_memories>\n"
-                f"Your memories from past "
-                f"adventures with {p_label}:\n"
-                f"{mem_lines}\n"
-                f"Let one of these memories "
-                f"subtly colour your message "
-                f"— a passing allusion, a "
-                f"half-spoken thought, an "
-                f"echo of something shared. "
-                f"Never quote or explain "
-                f"the memory directly.\n"
-                f"</past_memories>"
-            )
 
     party_ctx = (
         f"You're in a party, currently {topic}."
@@ -2753,7 +2825,192 @@ def build_idle_conversation_prompt(
     is_rp = (mode == 'roleplay')
     num_bots = len(bots)
     bot_names = [b['name'] for b in bots]
+    msg_count = 4
 
+    # --------------------------------------------------
+    # LEAN MEMORY PATH — when any bot has memories,
+    # strip away distracting content and make the
+    # memories the central purpose of the exchange.
+    # --------------------------------------------------
+    if memories_map:
+        p_label = player_name or 'the player'
+        # Sanitize all bot memories up front
+        has_any_memories = False
+        bot_mem_blocks = {}
+        for b in bots:
+            raw = memories_map.get(b['guid'])
+            if not raw:
+                continue
+            sanitized = [
+                sanitize_memory_for_prompt(m)
+                for m in raw
+            ]
+            sanitized = [
+                m for m in sanitized if m
+            ]
+            if sanitized:
+                bot_mem_blocks[b['name']] = (
+                    sanitized
+                )
+                has_any_memories = True
+
+        if has_any_memories:
+            parts = []
+            if num_bots == 2:
+                speaker_desc = "two"
+            elif num_bots == 3:
+                speaker_desc = "three"
+            else:
+                speaker_desc = "four"
+
+            parts.append(
+                f"Generate a short party chat "
+                f"exchange between {speaker_desc} "
+                f"adventurers sharing memories "
+                f"from past adventures with "
+                f"{p_label}."
+            )
+
+            # Compact bot identities — no worldview
+            parts.append(
+                f"Speakers: "
+                f"{', '.join(bot_names)}"
+            )
+            for bot in bots:
+                t = traits_map.get(
+                    bot['name'], []
+                )
+                trait_str = (
+                    ', '.join(t)
+                    if t else 'average'
+                )
+                parts.append(
+                    f"{bot['name']} is a level "
+                    f"{bot['level']} "
+                    f"{bot['race']} "
+                    f"{bot['class']} "
+                    f"(personality: {trait_str})"
+                )
+
+            # Per-bot memory blocks
+            for b in bots:
+                mems = bot_mem_blocks.get(
+                    b['name']
+                )
+                if mems:
+                    mem_lines = '\n'.join(
+                        f"  - {m}" for m in mems
+                    )
+                    parts.append(
+                        f"<past_memories "
+                        f"bot=\"{b['name']}\">\n"
+                        f"{b['name']}'s memories "
+                        f"with {p_label}:\n"
+                        f"{mem_lines}\n"
+                        f"Have {b['name']} "
+                        f"reference one of these "
+                        f"memories clearly — "
+                        f"mention the place, "
+                        f"creature, or moment by "
+                        f"name so {p_label} "
+                        f"recognises the callback."
+                        f"\n</past_memories>"
+                    )
+                else:
+                    parts.append(
+                        f"{b['name']} has no "
+                        f"memories — react to what "
+                        f"others share."
+                    )
+
+            parts.append(
+                "The memories should be the main "
+                "point of the conversation, not "
+                "side notes. Bots with memories "
+                "share them; bots without react "
+                "naturally."
+            )
+
+            if chat_history:
+                parts.append(
+                    f"Recent party chat "
+                    f"(for context only):"
+                    f"{chat_history}"
+                )
+
+            length_hint = _pick_length_hint(mode)
+            parts.append(
+                f"Rules: No quotes, no emojis; "
+                f"{length_hint}; "
+                f"keep it short; "
+                f"don't repeat themes from "
+                f"recent chat"
+            )
+
+            anti_rep = (
+                build_anti_repetition_context(
+                    recent_messages
+                )
+            )
+            if anti_rep:
+                parts.append(anti_rep)
+
+            # Emote and action instructions
+            parts.append(
+                f"Emotes: Each message may "
+                f"include an optional \"emote\" "
+                f"field (one of: "
+                f"{EMOTE_LIST_STR}). Pick an "
+                f"emote that fits the message "
+                f"mood, or omit it."
+            )
+            if allow_action:
+                parts.append(
+                    "Actions: Each message may "
+                    "include an optional "
+                    "\"action\" field — a short "
+                    "physical action (2-5 words, "
+                    "no asterisks). Omit if not "
+                    "needed."
+                )
+            else:
+                parts.append(
+                    "Actions: Do not include an "
+                    "action field in this "
+                    "response."
+                )
+
+            # JSON format
+            parts.append(
+                "JSON rules: Use double quotes, "
+                "escape quotes/newlines, no "
+                "trailing commas, no code fences."
+            )
+            example_msgs = ',\n  '.join(
+                [
+                    f'{{"speaker": "{name}", '
+                    f'"message": "...", '
+                    f'"emote": "talk"'
+                    f', "action": "..."}}'
+                    for name in bot_names
+                ]
+            )
+            parts.append(
+                f"\nRespond with EXACTLY "
+                f"{msg_count} messages in "
+                f"JSON:\n[\n  "
+                f"{example_msgs}\n]\n"
+                f"ONLY the JSON array, "
+                f"nothing else."
+            )
+
+            return '\n'.join(parts)
+    # memories_map was empty or all sanitized away
+    # — fall through to the normal full prompt.
+
+    # --------------------------------------------------
+    # NORMAL PATH — no memories, full context prompt
+    # --------------------------------------------------
     parts = []
 
     if num_bots == 2:
@@ -2923,7 +3180,6 @@ def build_idle_conversation_prompt(
     # volume constant regardless of group size.
     # Bots still all participate via round-robin
     # speaker assignment (bot_names[i % num_bots]).
-    msg_count = 4
     mood_sequence = (
         generate_conversation_mood_sequence(
             msg_count, mode
@@ -2978,48 +3234,6 @@ def build_idle_conversation_prompt(
     if chat_history:
         parts.append(chat_history)
 
-    # Inject per-bot memories if available
-    if memories_map:
-        from chatter_memory import (
-            sanitize_memory_for_prompt,
-        )
-        p_label = (
-            player_name or 'the player'
-        )
-        for b in bots:
-            bot_mems = memories_map.get(
-                b['guid']
-            )
-            if not bot_mems:
-                continue
-            sanitized = [
-                sanitize_memory_for_prompt(m)
-                for m in bot_mems
-            ]
-            sanitized = [
-                m for m in sanitized if m
-            ]
-            if not sanitized:
-                continue
-            mem_lines = '\n'.join(
-                f"  - {m}" for m in sanitized
-            )
-            parts.append(
-                f"<past_memories "
-                f"bot=\"{b['name']}\">\n"
-                f"{b['name']}'s memories with"
-                f" {p_label}:\n"
-                f"{mem_lines}\n"
-                f"Let one of these subtly "
-                f"colour {b['name']}'s line "
-                f"— a passing allusion, a "
-                f"half-spoken thought, an "
-                f"echo of something shared. "
-                f"Never quote or explain "
-                f"the memory directly.\n"
-                f"</past_memories>"
-            )
-
     # Style and rules
     length_hint = _pick_length_hint(mode)
     if is_rp:
@@ -3042,13 +3256,21 @@ def build_idle_conversation_prompt(
     parts.append(
         "Do NOT mention quests, quest rewards, "
         "items, spells, or trade. "
-        "NEVER claim to have just killed a creature (past exploits is fine), "
-        "just looted an item (you can mention items looted in the past), just completed a quest (you can mention quests completed in the past), "
+        "NEVER claim to have just killed a "
+        "creature (past exploits is fine), "
+        "just looted an item (you can mention "
+        "items looted in the past), just "
+        "completed a quest (you can mention "
+        "quests completed in the past), "
         "or made a trade. "
         "Stick to observation, opinion, banter, "
         "occasional philosophical consideration. "
         "Don't repeat jokes or themes already "
         "said in chat."
+    )
+    parts.append(
+        "STRICT: Each message MUST be under "
+        "120 characters. Short is better."
     )
 
     spices = pick_personality_spices(
@@ -3566,6 +3788,13 @@ def _idle_single_statement(
             zone_meta['speaker_talent'] = (
                 speaker_talent
             )
+        zone_meta['channel'] = 'party'
+        zone_meta['bot_name'] = bot_name
+        if idle_memories:
+            zone_meta['has_memory'] = True
+            zone_meta['memory_count'] = len(
+                idle_memories
+            )
         max_tokens = pick_random_max_tokens(config)
         # Memory allusions need room — lift floor
         if idle_memories:
@@ -3825,6 +4054,15 @@ def _idle_conversation(
         if speaker_talent:
             zone_meta['speaker_talent'] = (
                 speaker_talent
+            )
+        zone_meta['channel'] = 'party'
+        zone_meta['bot_name'] = ','.join(bot_names)
+        zone_meta['bot_count'] = num_bots
+        if memories_map:
+            zone_meta['has_memory'] = True
+            zone_meta['memory_bots'] = ','.join(
+                b['name'] for b in bots
+                if b['guid'] in memories_map
             )
         names_ctx = ','.join(bot_names)
         _conv_label = (
@@ -4228,7 +4466,10 @@ def check_bot_questions(db, client, config):
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
         ))
-        bq_meta = {}
+        bq_meta = {
+            'channel': 'party',
+            'bot_name': bot_name,
+        }
         if speaker_talent:
             bq_meta['speaker_talent'] = (
                 speaker_talent
@@ -4236,6 +4477,11 @@ def check_bot_questions(db, client, config):
         if target_talent:
             bq_meta['target_talent'] = (
                 target_talent
+            )
+        if question_memories:
+            bq_meta['has_memory'] = True
+            bq_meta['memory_count'] = len(
+                question_memories
             )
         _bq_label = (
             'group_bot_question_memory'

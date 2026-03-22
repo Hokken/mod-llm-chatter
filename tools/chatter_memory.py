@@ -260,6 +260,25 @@ def queue_memory(
     if not player_guid:
         player_guid = p_guid
 
+    # Last resort: resolve from group members
+    # (handles bridge restart mid-session where
+    # session player_guid was lost)
+    if not player_guid:
+        try:
+            from chatter_db import (
+                get_real_player_guid_for_group,
+            )
+            player_guid = (
+                get_real_player_guid_for_group(
+                    db, group_id
+                )
+            )
+        except Exception:
+            pass
+
+    if not player_guid:
+        return  # can't create orphaned memory
+
     # Resolve location NOW while traits exist
     location = _resolve_location(
         db, config, group_id
@@ -748,10 +767,18 @@ def flush_session_memories(
     if do_commit:
         # Submit party_member memories for all bots
         if do_party:
+            party_chance = int(config.get(
+                'LLMChatter.Memory'
+                '.PartyMemberGenerationChance',
+                50
+            ))
             flush_loc = _resolve_location(
                 db, config, group_id
             )
             for target_guid in all_bots_snapshot:
+                if (random.random() * 100
+                        >= party_chance):
+                    continue
                 member = members_snapshot.get(
                     target_guid, {}
                 )
@@ -1026,7 +1053,8 @@ def get_bot_memories(
             )
             cursor.execute(
                 "UPDATE llm_bot_memories"
-                " SET used = 1"
+                " SET used = 1,"
+                " last_used_at = NOW()"
                 " WHERE id IN (%s)"
                 % placeholders,
                 tuple(ids),

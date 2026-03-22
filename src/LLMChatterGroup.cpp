@@ -263,11 +263,12 @@ struct GroupJoinEntry {
 };
 
 struct GroupJoinBatch {
-    uint32 groupId;
+    uint32 groupId{0};
     std::string playerName;
-    uint32 zoneId;
-    uint32 mapId;
-    time_t lastJoinTime;
+    uint32 zoneId{0};
+    uint32 areaId{0};
+    uint32 mapId{0};
+    time_t lastJoinTime{0};
     std::vector<GroupJoinEntry> bots;
 };
 
@@ -306,8 +307,9 @@ static void QueueBotGreetingEvent(
     uint8 botRace = bot->getRace();
     uint8 botLevel = bot->GetLevel();
 
-    // Find real player name
+    // Find real player name and area
     std::string playerName;
+    Player* realPlayer = nullptr;
     for (GroupReference* itr =
              group->GetFirstMember();
          itr != nullptr; itr = itr->next())
@@ -315,10 +317,15 @@ static void QueueBotGreetingEvent(
         if (Player* member = itr->GetSource())
         {
             if (!IsPlayerBot(member)
-                && playerName.empty())
+                && !realPlayer)
+            {
                 playerName = member->GetName();
+                realPlayer = member;
+            }
         }
     }
+    uint32 playerAreaId = realPlayer
+        ? realPlayer->GetAreaId() : 0;
 
     // Detect bot role for Python trait storage
     std::string role = "dps";
@@ -372,6 +379,9 @@ static void QueueBotGreetingEvent(
             "\"zone\":" +
                 std::to_string(
                     bot->GetZoneId()) + ","
+            "\"area\":" +
+                std::to_string(
+                    playerAreaId) + ","
             "\"map\":" +
                 std::to_string(
                     bot->GetMapId()) +
@@ -432,6 +442,7 @@ static void QueueBotGreetingEvent(
             batch.groupId = groupId;
             batch.playerName = playerName;
             batch.zoneId = zoneId;
+            batch.areaId = playerAreaId;
             batch.mapId = mapId;
             batch.lastJoinTime = groupFull
                 ? 0 : time(nullptr);
@@ -472,6 +483,7 @@ static void EnsureGroupJoinQueued(
 
     // Gather info for ALL bots in the group
     std::string playerName;
+    Player* realPlayer = nullptr;
     uint32 realPlayerZone = 0;
     uint32 realPlayerMap = 0;
     std::vector<GroupJoinEntry> botEntries;
@@ -486,8 +498,9 @@ static void EnsureGroupJoinQueued(
 
         if (!IsPlayerBot(member))
         {
-            if (playerName.empty())
+            if (!realPlayer)
             {
+                realPlayer = member;
                 playerName = member->GetName();
                 realPlayerZone =
                     member->GetZoneId();
@@ -552,6 +565,8 @@ static void EnsureGroupJoinQueued(
             batchZoneId = 0;
     }
     batch.zoneId = batchZoneId;
+    batch.areaId = realPlayer
+        ? realPlayer->GetAreaId() : 0;
     batch.mapId = batchMapId;
     batch.lastJoinTime = 0;
     batch.bots = std::move(botEntries);
@@ -4091,6 +4106,8 @@ void FlushGroupJoinBatches()
                 "\"group_size\":0,"
                 "\"zone\":" +
                     std::to_string(e.zoneId) + ","
+                "\"area\":" +
+                    std::to_string(b.areaId) + ","
                 "\"map\":" +
                     std::to_string(e.mapId) +
                 "}";
@@ -4159,6 +4176,8 @@ void FlushGroupJoinBatches()
                     + "\","
                 "\"zone\":" +
                     std::to_string(b.zoneId) + ","
+                "\"area\":" +
+                    std::to_string(b.areaId) + ","
                 "\"map\":" +
                     std::to_string(b.mapId) + ","
                 "\"bots\":" + botsJson +

@@ -147,13 +147,18 @@ def _pick_length_hint(mode):
     if random.randint(1, 100) <= long_chance:
         return (
             f"Length: {hint}\n"
-            f"Length mode: long allowed (up to "
-            f"~200 chars) if it feels natural"
+            f"Length mode: longer allowed "
+            f"(up to ~150 chars max) — one "
+            f"sentence\n"
+            f"HARD LIMIT: Never exceed 150 "
+            f"characters total"
         )
     return (
         f"Length: {hint}\n"
         f"Length mode: short/medium only "
-        f"(avoid long messages)"
+        f"(avoid long messages)\n"
+        f"HARD LIMIT: Never exceed 150 "
+        f"characters total"
     )
 
 

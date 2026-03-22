@@ -456,10 +456,10 @@ def is_too_similar(
 # Weighted ranges: short messages are more common
 # than long ones, matching natural chat patterns.
 STATEMENT_LENGTH_RANGES = [
-    (20, 40, 15),    # very short
-    (40, 70, 30),    # short
+    (20, 40, 20),    # very short
+    (40, 70, 35),    # short
     (70, 120, 35),   # medium
-    (120, 180, 20),  # longer
+    (120, 150, 10),  # longer
 ]
 
 

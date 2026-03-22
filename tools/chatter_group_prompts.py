@@ -1236,6 +1236,7 @@ def build_quest_complete_reaction_prompt(
     quest_details="", quest_objectives="",
     speaker_talent_context=None,
     stored_tone=None,
+    zone_id=0,
 ):
     """Build prompt for a bot reacting to a quest
     completion. Tone varies: relief, satisfaction,
@@ -1256,6 +1257,13 @@ def build_quest_complete_reaction_prompt(
         )
         if ctx:
             rp_context = f"\n{ctx}"
+
+    # Zone context
+    zone_flav = get_zone_flavor(zone_id)
+    if is_rp and zone_flav:
+        rp_context += (
+            f"\nZone context: {zone_flav}"
+        )
 
     if chat_history:
         rp_context += f"{chat_history}\n"
@@ -1338,6 +1346,7 @@ def build_quest_objectives_reaction_prompt(
     quest_details="", quest_objectives="",
     speaker_talent_context=None,
     stored_tone=None,
+    zone_id=0,
 ):
     """Build prompt for a bot reacting to quest
     objectives being completed (before turn-in).
@@ -1362,6 +1371,13 @@ def build_quest_objectives_reaction_prompt(
         )
         if ctx:
             rp_context = f"\n{ctx}"
+
+    # Zone context
+    zone_flav = get_zone_flavor(zone_id)
+    if is_rp and zone_flav:
+        rp_context += (
+            f"\nZone context: {zone_flav}"
+        )
 
     if chat_history:
         rp_context += f"{chat_history}\n"
@@ -2105,13 +2121,14 @@ def build_player_response_prompt(
                 f"adventures with "
                 f"{player_name}:\n"
                 f"{mem_lines}\n"
-                f"Let one of these subtly "
-                f"colour your response — a "
-                f"passing allusion, a "
-                f"half-spoken thought, an "
-                f"echo of something shared. "
-                f"Never quote or explain "
-                f"the memory directly.\n"
+                f"Reference one of these "
+                f"memories clearly enough "
+                f"that {player_name} would "
+                f"recognise the callback — "
+                f"mention the place, the "
+                f"creature, or the moment "
+                f"by name. Keep it natural "
+                f"(not a full retelling).\n"
                 f"</past_memories>"
             )
 
@@ -2376,6 +2393,7 @@ def build_quest_accept_reaction_prompt(
     quest_details="", quest_objectives="",
     speaker_talent_context=None,
     stored_tone=None,
+    zone_id=0,
 ):
     """Build prompt for a bot reacting to the group
     accepting a new quest. Tone varies: excited,
@@ -2397,6 +2415,13 @@ def build_quest_accept_reaction_prompt(
         )
         if ctx:
             rp_context = f"\n{ctx}"
+
+    # Zone context
+    zone_flav = get_zone_flavor(zone_id)
+    if is_rp and zone_flav:
+        rp_context += (
+            f"\nZone context: {zone_flav}"
+        )
 
     if chat_history:
         rp_context += f"{chat_history}\n"
@@ -2497,6 +2522,7 @@ def build_quest_accept_batch_prompt(
     allow_action=True,
     speaker_talent_context=None,
     stored_tone=None,
+    zone_id=0,
 ):
     """Build prompt for a bot reacting to the group
     picking up multiple quests at once. Produces a
@@ -2518,6 +2544,13 @@ def build_quest_accept_batch_prompt(
         )
         if ctx:
             rp_context = f"\n{ctx}"
+
+    # Zone context
+    zone_flav = get_zone_flavor(zone_id)
+    if is_rp and zone_flav:
+        rp_context += (
+            f"\nZone context: {zone_flav}"
+        )
 
     if chat_history:
         rp_context += f"{chat_history}\n"
@@ -2617,6 +2650,13 @@ def build_discovery_reaction_prompt(
         )
         if ctx:
             rp_context = f"\n{ctx}"
+
+    # Zone context
+    zone_flav = get_zone_flavor(zone_id)
+    if is_rp and zone_flav:
+        rp_context += (
+            f"\nZone context: {zone_flav}"
+        )
 
     if chat_history:
         rp_context += f"{chat_history}\n"
@@ -4169,6 +4209,91 @@ def build_bot_question_prompt(
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
+
+    # --------------------------------------------------
+    # LEAN MEMORY PATH — when memories are present,
+    # the question should be ABOUT the memory rather
+    # than a generic topic.
+    # --------------------------------------------------
+    if memories:
+        from chatter_memory import (
+            sanitize_memory_for_prompt,
+        )
+        sanitized = [
+            sanitize_memory_for_prompt(m)
+            for m in memories
+        ]
+        sanitized = [s for s in sanitized if s]
+        if sanitized:
+            mem_lines = '\n'.join(
+                f"  - {m}" for m in sanitized
+            )
+            prompt = (
+                f"You are {bot['name']}, a level "
+                f"{bot['level']} {bot['race']} "
+                f"{bot['class']}.\n"
+                f"Your personality: {trait_str}\n"
+            )
+            if speaker_talent_context:
+                prompt += (
+                    f"{speaker_talent_context}\n"
+                )
+            prompt += (
+                f"\n<past_memories>\n"
+                f"Your memories from past "
+                f"adventures with "
+                f"{player_name}:\n"
+                f"{mem_lines}\n"
+                f"Ask {player_name} a question "
+                f"about one of these memories — "
+                f"\"remember when we...?\" style. "
+                f"Mention the place, creature, or "
+                f"moment by name so {player_name} "
+                f"would recognise it.\n"
+                f"</past_memories>\n\n"
+                f"You are grouped with "
+                f"{player_name}, a level "
+                f"{player_level} {player_race} "
+                f"{player_class} (real player).\n\n"
+                f"Ask {player_name} ONE short "
+                f"question about a shared memory "
+                f"above.\n"
+            )
+            if chat_history:
+                prompt += (
+                    f"\nRecent party chat "
+                    f"(for context only):"
+                    f"{chat_history}\n"
+                )
+            prompt += (
+                f"\n{_pick_length_hint(mode)}\n"
+                f"Rules:\n"
+                f"- Ask exactly ONE question\n"
+                f"- Your message MUST end with "
+                f"a question mark (?)\n"
+                f"- Keep it to 1-2 sentences\n"
+                f"- Do NOT answer your own "
+                f"question\n"
+                f"- The memory must be the focus "
+                f"of the question\n"
+                f"- No quotes, no emojis\n"
+                f"- You can use "
+                f"{player_name}'s name"
+            )
+            anti_rep = build_anti_repetition_context(
+                recent_messages
+            )
+            if anti_rep:
+                prompt += f"\n{anti_rep}"
+            return append_json_instruction(
+                prompt, allow_action
+            )
+    # memories were empty or all sanitized away —
+    # fall through to the normal full prompt below.
+
+    # --------------------------------------------------
+    # NORMAL PATH — no memories, full context prompt
+    # --------------------------------------------------
     tone = stored_tone or pick_random_tone(mode)
     twist = maybe_get_creative_twist(
         chance=1.0, mode=mode
@@ -4180,7 +4305,6 @@ def build_bot_question_prompt(
         topic = random.choice(BG_QUESTION_TOPICS)
     else:
         topic = random.choice(BOT_QUESTION_TOPICS)
-
 
     rp_context = ""
     if is_rp:
@@ -4291,36 +4415,6 @@ def build_bot_question_prompt(
     if twist:
         prompt += f"Creative twist: {twist}\n"
 
-    # Inject past memories if available
-    if memories:
-        from chatter_shared import (
-            sanitize_memory_for_prompt,
-        )
-        sanitized = [
-            sanitize_memory_for_prompt(m)
-            for m in memories
-        ]
-        sanitized = [s for s in sanitized if s]
-        if sanitized:
-            mem_lines = '\n'.join(
-                f"  - {m}" for m in sanitized
-            )
-            rp_context += (
-                f"\n<past_memories>\n"
-                f"Your memories from past "
-                f"adventures with "
-                f"{player_name}:\n"
-                f"{mem_lines}\n"
-                f"Let one of these subtly "
-                f"colour your question — a "
-                f"passing allusion, a "
-                f"half-spoken thought, an "
-                f"echo of something shared. "
-                f"Never quote or explain "
-                f"the memory directly.\n"
-                f"</past_memories>"
-            )
-
     prompt += (
         f"{rp_context}\n\n"
         f"You are grouped with {player_name}, "
@@ -4381,6 +4475,7 @@ def build_quest_complete_conversation_prompt(
     quest_details="", quest_objectives="",
     msg_count=3,
     speaker_talent_context=None,
+    zone_id=0,
 ):
     """Build prompt for a multi-bot conversation
     about a quest completion.
@@ -4452,6 +4547,13 @@ def build_quest_complete_conversation_prompt(
         )
 
     parts.append(quest_context)
+
+    # Zone context
+    zone_flav = get_zone_flavor(zone_id)
+    if zone_flav:
+        parts.append(
+            f"Zone context: {zone_flav}"
+        )
 
     # Speakers with traits and class/race
     parts.append(
@@ -4536,6 +4638,7 @@ def build_quest_objectives_conversation_prompt(
     quest_details="", quest_objectives="",
     msg_count=3,
     speaker_talent_context=None,
+    zone_id=0,
 ):
     """Build prompt for a multi-bot conversation
     about quest objectives being completed.
@@ -4598,6 +4701,13 @@ def build_quest_objectives_conversation_prompt(
         )
 
     parts.append(quest_context)
+
+    # Zone context
+    zone_flav = get_zone_flavor(zone_id)
+    if zone_flav:
+        parts.append(
+            f"Zone context: {zone_flav}"
+        )
 
     # Speakers with traits and class/race
     parts.append(
@@ -4684,6 +4794,7 @@ def build_quest_accept_conversation_prompt(
     quest_details="", quest_objectives="",
     msg_count=3,
     speaker_talent_context=None,
+    zone_id=0,
 ):
     """Build prompt for a multi-bot conversation
     about the group accepting a new quest.
@@ -4748,6 +4859,12 @@ def build_quest_accept_conversation_prompt(
         )
 
     parts.append(quest_context)
+
+    zone_flav = get_zone_flavor(zone_id)
+    if zone_flav:
+        parts.append(
+            f"Zone context: {zone_flav}"
+        )
 
     # Speakers with traits and class/race
     parts.append(

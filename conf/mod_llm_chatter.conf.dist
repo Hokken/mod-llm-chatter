@@ -1087,68 +1087,85 @@ LLMChatter.Memory.PlayerMsgMaxLength = 200
 LLMChatter.Memory.PlayerMsgMaxPerSession = 3
 
 #
-#   LLMChatter.Memory.QuestRecallChance
+#   LLMChatter.Memory.QuestGenerationChance
 #       Percent chance (0-100) that a quest completion
-#       event writes a persistent memory for the reactor.
+#       event generates a persistent memory.
 #       Default: 40
 #
-LLMChatter.Memory.QuestRecallChance = 40
+LLMChatter.Memory.QuestGenerationChance = 40
 
 #
-#   LLMChatter.Memory.AchievementRecallChance
+#   LLMChatter.Memory.AchievementGenerationChance
 #       Percent chance (0-100) that an achievement event
-#       writes a persistent memory for the reactor.
+#       generates a persistent memory.
 #       Default: 35
 #
-LLMChatter.Memory.AchievementRecallChance = 35
+LLMChatter.Memory.AchievementGenerationChance = 35
 
 #
-#   LLMChatter.Memory.LevelUpRecallChance
+#   LLMChatter.Memory.LevelUpGenerationChance
 #       Percent chance (0-100) that a level-up event
-#       writes a persistent memory for the reactor.
+#       generates a persistent memory.
 #       Default: 50
 #
-LLMChatter.Memory.LevelUpRecallChance = 50
+LLMChatter.Memory.LevelUpGenerationChance = 50
 
 #
-#   LLMChatter.Memory.BGMatchRecallChance
+#   LLMChatter.Memory.BGMatchGenerationChance
 #       Percent chance (0-100) that a BG match result
-#       writes a persistent memory for a random bot.
+#       generates a persistent memory.
 #       Default: 45
 #
-LLMChatter.Memory.BGMatchRecallChance = 45
+LLMChatter.Memory.BGMatchGenerationChance = 45
 
 #
-#   LLMChatter.Memory.DiscoveryRecallChance
+#   LLMChatter.Memory.DiscoveryGenerationChance
 #       Percent chance (0-100) that discovering a new
-#       area writes a persistent memory for the bot.
+#       area generates a persistent memory.
 #       Default: 30
 #
-LLMChatter.Memory.DiscoveryRecallChance = 30
+LLMChatter.Memory.DiscoveryGenerationChance = 30
 
 #
-#   LLMChatter.Memory.PvPKillRecallChance
+#   LLMChatter.Memory.PvPKillGenerationChance
 #       Percent chance (0-100) that a PvP kill event
-#       writes a persistent memory for a random bot.
+#       generates a persistent memory.
 #       Default: 25
 #
-LLMChatter.Memory.PvPKillRecallChance = 25
+LLMChatter.Memory.PvPKillGenerationChance = 25
 
 #
-#   LLMChatter.Memory.BossKillRecallChance
+#   LLMChatter.Memory.BossKillGenerationChance
 #       Percent chance (0-100) that a boss or rare kill
-#       writes a persistent memory for the reactor.
+#       generates a persistent memory.
 #       Default: 60
 #
-LLMChatter.Memory.BossKillRecallChance = 60
+LLMChatter.Memory.BossKillGenerationChance = 60
 
 #
-#   LLMChatter.Memory.DungeonRecallChance
+#   LLMChatter.Memory.DungeonGenerationChance
 #       Percent chance (0-100) that entering a dungeon
-#       writes a persistent memory for the reactor.
+#       generates a persistent memory.
 #       Default: 50
 #
-LLMChatter.Memory.DungeonRecallChance = 50
+LLMChatter.Memory.DungeonGenerationChance = 50
+
+#
+#   LLMChatter.Memory.WipeGenerationChance
+#       Percent chance (0-100) that a party wipe
+#       generates a persistent memory for the bot.
+#       Default: 80
+#
+LLMChatter.Memory.WipeGenerationChance = 80
+
+#
+#   LLMChatter.Memory.PartyMemberGenerationChance
+#       Percent chance (0-100) that a farewell
+#       generates a persistent memory about
+#       adventuring with party companions.
+#       Default: 50
+#
+LLMChatter.Memory.PartyMemberGenerationChance = 50
 
 #
 #   LLMChatter.Memory.IdleRecallChance

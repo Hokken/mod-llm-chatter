@@ -279,13 +279,18 @@ def process_group_kill_event(
             'boss_kill' if is_boss else 'kill'
         )
 
-        # Memory: ALL bots remember boss/rare kills
+        # Memory: bots remember boss/rare kills
         if is_boss or is_rare:
             try:
                 mem_type = (
                     'boss_kill' if is_boss
                     else 'rare_kill'
                 )
+                boss_mem_chance = int(config.get(
+                    'LLMChatter.Memory'
+                    '.BossKillGenerationChance',
+                    60
+                ))
                 mc = db.cursor(dictionary=True)
                 mc.execute(
                     "SELECT t.bot_guid, t.bot_name,"
@@ -298,6 +303,9 @@ def process_group_kill_event(
                 )
                 all_bots = mc.fetchall()
                 for ab in all_bots:
+                    if (random.random() * 100
+                            >= boss_mem_chance):
+                        continue
                     try:
                         queue_memory(
                             config, group_id,
@@ -1019,7 +1027,7 @@ def process_group_levelup_event(
         try:
             mem_chance = int(config.get(
                 'LLMChatter.Memory'
-                '.LevelUpRecallChance', 100
+                '.LevelUpGenerationChance', 50
             ))
             if random.random() * 100 < mem_chance:
                 queue_memory(
@@ -1187,7 +1195,7 @@ def process_group_quest_complete_event(
                 try:
                     mem_chance = int(config.get(
                         'LLMChatter.Memory'
-                        '.QuestRecallChance', 100
+                        '.QuestGenerationChance', 40
                     ))
                     if (
                         random.random() * 100
@@ -1226,6 +1234,9 @@ def process_group_quest_complete_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        zone_id, _, _ = get_group_location(
+            db, group_id
+        )
         # Look up turn-in NPC name
         quest_id = int(
             extra_data.get('quest_id', 0)
@@ -1260,6 +1271,7 @@ def process_group_quest_complete_event(
                 quest_objectives=quest_objectives,
                 speaker_talent_context=speaker_talent,
                 stored_tone=stored_tone,
+                zone_id=zone_id,
             )
         )
         mood_label = get_bot_mood_label(
@@ -1306,7 +1318,7 @@ def process_group_quest_complete_event(
         try:
             mem_chance = int(config.get(
                 'LLMChatter.Memory'
-                '.QuestRecallChance', 100
+                '.QuestGenerationChance', 40
             ))
             if random.random() * 100 < mem_chance:
                 queue_memory(
@@ -1469,6 +1481,9 @@ def process_group_quest_objectives_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        zone_id, _, _ = get_group_location(
+            db, group_id
+        )
         allow_action = (
             random.random() < get_action_chance()
         )
@@ -1493,6 +1508,7 @@ def process_group_quest_objectives_event(
                 quest_objectives=quest_objectives,
                 speaker_talent_context=speaker_talent,
                 stored_tone=stored_tone,
+                zone_id=zone_id,
             )
         )
 
@@ -1869,7 +1885,15 @@ def process_group_achievement_event(
                 (group_id,),
             )
             all_bots = mc.fetchall()
+            achv_chance = int(config.get(
+                'LLMChatter.Memory'
+                '.AchievementGenerationChance',
+                35
+            ))
             for ab in all_bots:
+                if (random.random() * 100
+                        >= achv_chance):
+                    continue
                 try:
                     queue_memory(
                         config, group_id,
@@ -2531,6 +2555,9 @@ def process_group_quest_accept_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        zone_id, _, _ = get_group_location(
+            db, group_id
+        )
         allow_action = (
             random.random() < get_action_chance()
         )
@@ -2556,6 +2583,7 @@ def process_group_quest_accept_event(
                 quest_objectives=quest_objectives,
                 speaker_talent_context=speaker_talent,
                 stored_tone=stored_tone,
+                zone_id=zone_id,
             )
         )
         mood_label = get_bot_mood_label(
@@ -2700,6 +2728,9 @@ def process_group_quest_accept_batch_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        zone_id, _, _ = get_group_location(
+            db, group_id
+        )
         allow_action = (
             random.random() < get_action_chance()
         )
@@ -2715,6 +2746,7 @@ def process_group_quest_accept_batch_event(
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
+            zone_id=zone_id,
         )
         mood_label = get_bot_mood_label(
             group_id, reactor_guid
@@ -2906,7 +2938,7 @@ def process_group_discovery_event(
         try:
             mem_chance = int(config.get(
                 'LLMChatter.Memory'
-                '.DiscoveryRecallChance', 100
+                '.DiscoveryGenerationChance', 30
             ))
             if random.random() * 100 < mem_chance:
                 queue_memory(
@@ -3206,19 +3238,25 @@ def process_group_wipe_event(
 
         # Memory: wipe
         try:
-            context = "Total party wipe"
-            if killer_name:
-                context = (
-                    f"Wiped to {killer_name}"
+            wipe_chance = int(config.get(
+                'LLMChatter.Memory'
+                '.WipeGenerationChance', 80
+            ))
+            if random.random() * 100 < wipe_chance:
+                context = "Total party wipe"
+                if killer_name:
+                    context = (
+                        f"Wiped to {killer_name}"
+                    )
+                queue_memory(
+                    config, group_id,
+                    bot_guid, 0,
+                    memory_type='wipe',
+                    event_context=context,
+                    bot_name=bot_name,
+                    bot_class=bot['class'],
+                    bot_race=bot['race'],
                 )
-            queue_memory(
-                config, group_id, bot_guid, 0,
-                memory_type='wipe',
-                event_context=context,
-                bot_name=bot_name,
-                bot_class=bot['class'],
-                bot_race=bot['race'],
-            )
         except Exception:
             logger.error(
                 "wipe memory failed",
@@ -4506,6 +4544,9 @@ def _quest_complete_conversation(
     mode = get_chatter_mode(config)
     history = _get_recent_chat(db, group_id)
     chat_hist = format_chat_history(history)
+    zone_id, _, _ = get_group_location(
+        db, group_id
+    )
 
     quest_id = int(
         extra_data.get('quest_id', 0)
@@ -4548,6 +4589,7 @@ def _quest_complete_conversation(
         quest_objectives=quest_objectives,
         msg_count=msg_count,
         speaker_talent_context=speaker_talent,
+        zone_id=zone_id,
     )
 
     num_bots = len(bots)
@@ -4610,6 +4652,9 @@ def _quest_objectives_conversation(
     mode = get_chatter_mode(config)
     history = _get_recent_chat(db, group_id)
     chat_hist = format_chat_history(history)
+    zone_id, _, _ = get_group_location(
+        db, group_id
+    )
 
     quest_details = extra_data.get(
         'quest_details', ''
@@ -4643,6 +4688,7 @@ def _quest_objectives_conversation(
             quest_objectives=quest_objectives,
             msg_count=msg_count,
             speaker_talent_context=speaker_talent,
+            zone_id=zone_id,
         )
     )
 
@@ -4726,6 +4772,9 @@ def _quest_accept_conversation(
         bots[0]['class'] if bots else '',
         reactor_name,
     )
+    zone_id, _, _ = get_group_location(
+        db, group_id
+    )
     prompt = build_quest_accept_conversation_prompt(
         bots=bots,
         traits_map=traits_map,
@@ -4740,6 +4789,7 @@ def _quest_accept_conversation(
         quest_objectives=quest_objectives,
         msg_count=msg_count,
         speaker_talent_context=speaker_talent,
+        zone_id=zone_id,
     )
 
     num_bots = len(bots)

@@ -1249,6 +1249,11 @@ def process_single_event(event, client, config):
                     config, current_weather,
                     recent_messages=recent_msgs,
                     allow_action=allow_action,
+                    area_id=int(
+                        bots[0].get(
+                            'area_id', 0
+                        ) or 0
+                    ),
                 )
             )
 
@@ -1381,11 +1386,19 @@ def process_single_event(event, client, config):
                     db.commit()
                     return False
 
-            # Get zone name
-            zone_name = (
-                get_zone_name(
-                    bot.get('zone_id', zone_id)
+            # Get zone name and IDs
+            # Prefer event zone_id (player-centric,
+            # set by C++ from real player's zone)
+            # over bot's characters.zone (stale).
+            evt_zone_id = int(zone_id or 0)
+            use_zone_id = (
+                evt_zone_id
+                or int(
+                    bot.get('zone_id', 0) or 0
                 )
+            )
+            zone_name = (
+                get_zone_name(use_zone_id)
                 or "the world"
             )
 
@@ -1401,6 +1414,8 @@ def process_single_event(event, client, config):
                 config=config,
                 extra_data=extra_data,
                 allow_action=allow_action,
+                zone_id=use_zone_id,
+                area_id=0,
             )
 
             # Call LLM via shared helper
@@ -1701,7 +1716,8 @@ def _write_db_snapshot(db, snapshot_dir):
             " m.player_guid, m.group_id,"
             " m.memory_type, m.memory,"
             " m.mood, m.emote, m.active,"
-            " m.used, m.created_at,"
+            " m.used, m.last_used_at,"
+            " m.created_at,"
             " m.session_start"
             " FROM llm_bot_memories m"
             " LEFT JOIN characters c"
@@ -1722,8 +1738,9 @@ def _write_db_snapshot(db, snapshot_dir):
         queue = cursor.fetchall()
 
         cursor.execute(
-            "SELECT id, bot_guid, message,"
-            " delivered, deliver_at"
+            "SELECT id, bot_guid, bot_name,"
+            " message, channel, delivered,"
+            " deliver_at"
             " FROM llm_chatter_messages"
             " ORDER BY deliver_at DESC"
             " LIMIT 100"

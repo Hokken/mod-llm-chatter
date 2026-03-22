@@ -142,11 +142,11 @@ CONV_LENGTHS = [
     "very short (under 40 chars)",
     "short (40-70 chars)",
     "medium (70-120 chars)",
-    "longer (120-180 chars)",
+    "longer (120-150 chars max)",
 ]
-# Weights favour shorter messages; the occasional
-# long one keeps it natural.
-CONV_LENGTH_WEIGHTS = [30, 35, 25, 10]
+# Weights favour shorter messages; keeps
+# conversations snappy and readable.
+CONV_LENGTH_WEIGHTS = [35, 35, 25, 5]
 
 
 def generate_conversation_length_sequence(
@@ -286,18 +286,19 @@ def build_dynamic_guidelines(
                 pass
         if random.randint(1, 100) <= long_chance:
             guidelines.append(
-                "Length mode: long allowed (up to ~200 chars) "
-                "if it feels natural"
-            )
-            guidelines.append(
-                "If long, make it a single thought, "
-                "not a paragraph"
+                "Length mode: longer allowed "
+                "(up to ~150 chars max) if it "
+                "feels natural — one sentence"
             )
         else:
             guidelines.append(
                 "Length mode: short/medium only "
                 "(avoid long messages)"
             )
+        guidelines.append(
+            "HARD LIMIT: Never exceed 150 "
+            "characters total"
+        )
 
     if include_humor is None:
         include_humor = random.random() < (
@@ -587,7 +588,10 @@ def build_quest_statement_prompt(
     guidelines = build_dynamic_guidelines(
         config=config, mode=mode
     )
-    guidelines.append("Keep under 110 characters")
+    guidelines.append(
+        "STRICT: Keep under 80 characters "
+        "(the link counts as ~15 chars)"
+    )
     if is_rp:
         guidelines.append(
             "Stay in character but sound natural, "
@@ -714,7 +718,10 @@ def build_loot_statement_prompt(
     guidelines = build_dynamic_guidelines(
         config=config, mode=mode
     )
-    guidelines.append("Keep under 110 characters")
+    guidelines.append(
+        "STRICT: Keep under 80 characters "
+        "(the link counts as ~15 chars)"
+    )
     if is_rp:
         guidelines.append(
             "Stay in character but sound natural, "
@@ -853,7 +860,10 @@ def build_quest_reward_statement_prompt(
         config=config, mode=mode
     )
     guidelines.append("Use BOTH placeholders, each once")
-    guidelines.append("Keep under 110 characters")
+    guidelines.append(
+        "STRICT: Keep under 80 characters "
+        "(the link counts as ~15 chars)"
+    )
     if is_rp:
         guidelines.append(
             "Stay in character but sound natural, "
@@ -1242,8 +1252,8 @@ def build_quest_conversation_prompt(
             f"message â€” do NOT skip any participant"
         )
     guidelines.append(
-        "Keep each message under 140 characters; "
-        "short/medium is the norm"
+        "STRICT: Each message MUST be under 120 "
+        "characters. Short is better"
     )
     if is_rp:
         guidelines.append(
@@ -1399,8 +1409,8 @@ def build_loot_conversation_prompt(
             f"message â€” do NOT skip any participant"
         )
     guidelines.append(
-        "Keep each message under 140 characters; "
-        "short/medium is the norm"
+        "STRICT: Each message MUST be under 120 "
+        "characters. Short is better"
     )
     if is_rp:
         guidelines.append(
@@ -1428,7 +1438,8 @@ def build_event_conversation_prompt(
     config: dict = None,
     current_weather: str = 'clear',
     recent_messages: list = None,
-    allow_action: bool = True
+    allow_action: bool = True,
+    area_id: int = 0,
 ) -> str:
     """Build a prompt for an event-triggered conversation."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1457,6 +1468,29 @@ def build_event_conversation_prompt(
     )
 
     parts.append(f"\nEVENT CONTEXT: {event_context}")
+
+    # Zone flavor and subzone context
+    if is_rp and zone_id:
+        zone_flav = get_zone_flavor(zone_id)
+        if zone_flav:
+            parts.append(
+                f"Zone context: {zone_flav}"
+            )
+        subzone_lore = get_subzone_lore(
+            zone_id, area_id
+        )
+        if subzone_lore:
+            parts.append(
+                f"Current subzone: {subzone_lore}"
+            )
+        else:
+            subzone_name = get_subzone_name(
+                zone_id, area_id
+            )
+            if subzone_name:
+                parts.append(
+                    f"Subzone: {subzone_name}"
+                )
 
     is_transport = (
         'boat' in event_context.lower()
@@ -1655,6 +1689,8 @@ def build_event_statement_prompt(
     config: dict = None,
     extra_data: dict = None,
     allow_action: bool = True,
+    zone_id: int = 0,
+    area_id: int = 0,
 ) -> str:
     """Build a prompt for an event-triggered statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1739,6 +1775,31 @@ def build_event_statement_prompt(
             "either."
         )
 
+    # Zone flavor and subzone context
+    zone_context = ""
+    if is_rp and zone_id:
+        zone_flav = get_zone_flavor(zone_id)
+        if zone_flav:
+            zone_context += (
+                f"\nZone context: {zone_flav}"
+            )
+        subzone_lore = get_subzone_lore(
+            zone_id, area_id
+        )
+        if subzone_lore:
+            zone_context += (
+                f"\nCurrent subzone: "
+                f"{subzone_lore}"
+            )
+        else:
+            subzone_name = get_subzone_name(
+                zone_id, area_id
+            )
+            if subzone_name:
+                zone_context += (
+                    f"\nSubzone: {subzone_name}"
+                )
+
     prompt = (
         f"You are {bot['bot1_name']}, "
         f"a {bot['bot1_race']} "
@@ -1750,6 +1811,7 @@ def build_event_statement_prompt(
         f"and currently in "
         f"{zone_name}."
         f"{env_lines}"
+        f"{zone_context}"
         f"{rp_personality}\n\n"
         f"CONTEXT: {event_context}\n\n"
         f"{event_instruction}\n\n"
@@ -1879,7 +1941,10 @@ def build_spell_statement_prompt(
     guidelines = build_dynamic_guidelines(
         config=config, mode=mode
     )
-    guidelines.append("Keep under 110 characters")
+    guidelines.append(
+        "STRICT: Keep under 80 characters "
+        "(the link counts as ~15 chars)"
+    )
     if is_rp:
         guidelines.append(
             "Stay in character but sound natural, "
@@ -2117,8 +2182,8 @@ def build_spell_conversation_prompt(
             f"message â€” do NOT skip any participant"
         )
     guidelines.append(
-        "Keep each message under 140 characters; "
-        "short/medium is the norm"
+        "STRICT: Each message MUST be under 120 "
+        "characters. Short is better"
     )
     if is_rp:
         guidelines.append(
@@ -2259,7 +2324,10 @@ def build_trade_statement_prompt(
     guidelines = build_dynamic_guidelines(
         config=config, mode=mode
     )
-    guidelines.append("Keep under 110 characters")
+    guidelines.append(
+        "STRICT: Keep under 80 characters "
+        "(the link counts as ~15 chars)"
+    )
     guidelines.append(
         "Include a realistic price in gold/silver "
         "(e.g. 2g, 50s, 1g20s)"
@@ -2474,8 +2542,8 @@ def build_trade_conversation_prompt(
             f"message â€” do NOT skip any participant"
         )
     guidelines.append(
-        "Keep each message under 140 characters; "
-        "short/medium is the norm"
+        "STRICT: Each message MUST be under 120 "
+        "characters. Short is better"
     )
     if is_rp:
         guidelines.append(

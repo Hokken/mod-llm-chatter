@@ -427,7 +427,7 @@ def _generate_bot_tone(
 
 def assign_bot_traits(
     db, group_id, bot_guid, bot_name,
-    role=None, zone=0, map_id=0,
+    role=None, zone=0, area_id=0, map_id=0,
     config=None,
     bot_class='', bot_race='',
 ):
@@ -472,20 +472,22 @@ def assign_bot_traits(
         INSERT INTO llm_group_bot_traits
         (group_id, bot_guid, bot_name,
          trait1, trait2, trait3, role,
-         zone, map)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+         zone, area, map)
+        VALUES (%s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             trait1 = VALUES(trait1),
             trait2 = VALUES(trait2),
             trait3 = VALUES(trait3),
             role = VALUES(role),
             zone = VALUES(zone),
+            area = VALUES(area),
             map = VALUES(map),
             assigned_at = CURRENT_TIMESTAMP
     """, (
         group_id, bot_guid, bot_name,
         traits[0], traits[1], traits[2],
-        role, zone, map_id
+        role, zone, int(area_id or 0), map_id
     ))
     db.commit()
 

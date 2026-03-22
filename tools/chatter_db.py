@@ -693,6 +693,37 @@ def get_recent_bot_messages(
         return []
 
 
+def get_real_player_guid_for_group(db, group_id):
+    """Find the real player's guid for a group.
+
+    Looks up group_member rows, finds the member
+    whose account is NOT a RNDBOT account.
+
+    Returns int guid or 0.
+    """
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT gm.memberGuid"
+            " FROM group_member gm"
+            " JOIN characters c"
+            "   ON gm.memberGuid = c.guid"
+            " JOIN acore_auth.account a"
+            "   ON c.account = a.id"
+            " WHERE gm.guid = %s"
+            "   AND a.username"
+            "       NOT LIKE 'RNDBOT%%%%'"
+            " LIMIT 1",
+            (group_id,),
+        )
+        row = cursor.fetchone()
+        if row:
+            return int(row['memberGuid'])
+    except Exception:
+        pass
+    return 0
+
+
 def get_group_location(db, group_id):
     """Get the group's current zone, area, and map
     from llm_group_bot_traits.

@@ -1216,11 +1216,40 @@ private:
             + JsonEscape(description) + "\""
             "}";
 
-        QueueEvent("day_night_transition", "global",
-            0, 0, cooldownKey,
-            sLLMChatterConfig
-                ->_dayNightCooldownSeconds,
-            0, "", 0, "", 0, extraData);
+        // Queue per zone where a real player is
+        // present (overworld only). This ensures
+        // the bot is picked from the player's zone
+        // and the message lands in the correct
+        // General channel.
+        std::set<uint32> playerZones;
+        WorldSessionMgr::SessionMap const& sess =
+            sWorldSessionMgr->GetAllSessions();
+        for (auto const& sp : sess)
+        {
+            WorldSession* s = sp.second;
+            if (!s || s->PlayerLoading())
+                continue;
+            Player* p = s->GetPlayer();
+            if (!p || !p->IsInWorld())
+                continue;
+            if (!IsPlayerBot(p)
+                && IsInOverworld(p))
+                playerZones.insert(
+                    p->GetZoneId());
+        }
+
+        for (uint32 pZone : playerZones)
+        {
+            std::string zoneKey =
+                cooldownKey + ":"
+                + std::to_string(pZone);
+            QueueEvent(
+                "day_night_transition", "global",
+                pZone, 0, zoneKey,
+                sLLMChatterConfig
+                    ->_dayNightCooldownSeconds,
+                0, "", 0, "", 0, extraData);
+        }
     }
 
     void CheckAmbientWeather()
