@@ -31,7 +31,7 @@ An AI-powered conversation engine for [AzerothCore](https://www.azerothcore.org/
 
 ## Changelog
 
-### Persistent Memories & Personality Traits (March 2026)
+### 2026-03-22 — Persistent Memories & Personality Traits
 
 * **Persistent Bot Identities**: Each bot now carries a permanent personality (3 traits + role + farewell style) stored in `llm_bot_identities`. Traits survive across sessions and server restarts. Bump `LLMChatter.Memory.IdentityVersion` to force regeneration after prompt changes.
 * **Memory System**: 14 memory types (ambient, boss_kill, quest_complete, discovery, achievement, level_up, pvp_kill, bg_win/loss, wipe, dungeon, party_member, player_message, first_meeting) are generated via LLM and stored per bot-player pair. Memories are recalled during idle chatter, reunion greetings, and bot questions, creating recognizable callbacks to shared experiences.
