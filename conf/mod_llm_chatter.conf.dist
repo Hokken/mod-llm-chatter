@@ -618,6 +618,14 @@ LLMChatter.GroupChatter.NearbyObjectCheckInterval = 45
 LLMChatter.GroupChatter.NearbyObjectCooldown = 180
 
 #
+#   LLMChatter.GroupChatter.DiscoveryChance
+#       Percent chance (0-100) that discovering a
+#       new area triggers a party chat reaction.
+#       Default: 100
+#
+LLMChatter.GroupChatter.DiscoveryChance = 100
+
+#
 #   LLMChatter.GroupChatter.BotQuestionEnable
 #       Enable bot-initiated questions to player.
 #       Default: 1

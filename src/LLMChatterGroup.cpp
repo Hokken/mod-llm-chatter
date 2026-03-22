@@ -3676,8 +3676,11 @@ public:
                    ->_groupDiscoveryCooldown)
             return;
 
-        // Discovery is rare enough — always fire
-        // (was 40% RNG gate, removed)
+        // RNG gate (default 100% = always fire)
+        if (urand(1, 100)
+            > sLLMChatterConfig
+                ->_groupDiscoveryChance)
+            return;
 
         // Pick a random bot as reactor
         Player* reactor =

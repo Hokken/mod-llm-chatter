@@ -1711,10 +1711,12 @@ def process_group_achievement_event(
     reactor_data = get_other_group_bot(
         db, group_id, achiever_guid
     )
+    trait_data = None
     if reactor_data:
         reactor_guid = reactor_data['guid']
         reactor_name = reactor_data['name']
         reactor_traits = reactor_data['traits']
+        trait_data = reactor_data
     else:
         # No other bot — use the achieving bot
         trait_data = get_bot_traits(
@@ -1742,7 +1744,10 @@ def process_group_achievement_event(
         reactor_guid = achiever_guid
         reactor_name = achiever_name
         reactor_traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
+    stored_tone = (
+        trait_data.get('tone') if trait_data
+        else None
+    )
 
     # Get reactor's class/race from characters
     cursor = db.cursor(dictionary=True)

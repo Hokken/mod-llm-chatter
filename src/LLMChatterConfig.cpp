@@ -188,6 +188,10 @@ void LLMChatterConfig::LoadConfig()
         sConfigMgr->GetOption<uint32>(
             "LLMChatter.GroupChatter."
             "DiscoveryCooldown", 30);
+    _groupDiscoveryChance =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "DiscoveryChance", 100);
 
     // Group chatter - react-after delays (seconds)
     _reactDelayJoin =
