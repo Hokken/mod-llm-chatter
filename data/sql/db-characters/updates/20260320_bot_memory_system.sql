@@ -1,16 +1,18 @@
 -- --------------------------------------------------------
 -- Consolidated migration: bot memory system
 -- Brings a fresh origin/master install up to date with
--- the Playerbot branch as of 2026-03-20.
+-- the persistent memory system (Session 76-80).
 --
 -- Changes:
---   1. Add bot_group_farewell to llm_chatter_events
+--   1. Add bot_group_farewell + bot_group_subzone_change
+--      to llm_chatter_events ENUM
 --   2. Add tone column to llm_group_bot_traits
 --   3. Create llm_bot_identities table
---   4. Create llm_bot_memories table
+--   4. Create llm_bot_memories table (with used +
+--      last_used_at columns)
 -- --------------------------------------------------------
 
--- 1. Add bot_group_farewell event type
+-- 1. Add new event types
 ALTER TABLE `llm_chatter_events`
     MODIFY COLUMN `event_type` ENUM(
         'weather_change',
@@ -73,13 +75,14 @@ ALTER TABLE `llm_chatter_events`
         'raid_boss_kill',
         'raid_boss_wipe',
         'raid_idle_morale',
-        'bot_group_farewell'
+        'bot_group_farewell',
+        'bot_group_subzone_change'
     ) NOT NULL;
 
 -- 2. Add tone column to llm_group_bot_traits
 ALTER TABLE `llm_group_bot_traits`
-    ADD COLUMN `tone` VARCHAR(120) DEFAULT NULL
-    AFTER `role`;
+    ADD COLUMN IF NOT EXISTS `tone` VARCHAR(120)
+    DEFAULT NULL AFTER `role`;
 
 -- 3. Persistent bot identities
 CREATE TABLE IF NOT EXISTS `llm_bot_identities` (
@@ -111,9 +114,20 @@ CREATE TABLE IF NOT EXISTS `llm_bot_memories` (
     `mood`          VARCHAR(32)  NOT NULL,
     `emote`         VARCHAR(32)  DEFAULT NULL,
     `active`        TINYINT(1)   NOT NULL DEFAULT 0,
+    `used`          TINYINT(1)   NOT NULL DEFAULT 0,
+    `last_used_at`  TIMESTAMP    NULL DEFAULT NULL,
     `session_start` DOUBLE       NOT NULL,
     `created_at`    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_bot_player`        (`bot_guid`, `player_guid`),
     INDEX `idx_bot_player_active` (`bot_guid`, `player_guid`, `active`),
     INDEX `idx_group`             (`group_id`, `active`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- If upgrading from an older version that already had
+-- llm_bot_memories without used/last_used_at columns:
+ALTER TABLE `llm_bot_memories`
+    ADD COLUMN IF NOT EXISTS `used` TINYINT(1)
+    NOT NULL DEFAULT 0 AFTER `active`;
+ALTER TABLE `llm_bot_memories`
+    ADD COLUMN IF NOT EXISTS `last_used_at` TIMESTAMP
+    NULL DEFAULT NULL AFTER `used`;

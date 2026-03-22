@@ -29,6 +29,21 @@ An AI-powered conversation engine for [AzerothCore](https://www.azerothcore.org/
 
 ---
 
+## Updated
+
+### Persistent Memories & Personality Traits (March 2026)
+
+* **Persistent Bot Identities**: Each bot now carries a permanent personality (3 traits + role + farewell style) stored in `llm_bot_identities`. Traits survive across sessions and server restarts. Bump `LLMChatter.Memory.IdentityVersion` to force regeneration after prompt changes.
+* **Memory System**: 14 memory types (ambient, boss_kill, quest_complete, discovery, achievement, level_up, pvp_kill, bg_win/loss, wipe, dungeon, party_member, player_message, first_meeting) are generated via LLM and stored per bot-player pair. Memories are recalled during idle chatter, reunion greetings, and bot questions, creating recognizable callbacks to shared experiences.
+* **Configurable Generation & Recall**: Every memory type has a `*GenerationChance` config key controlling how often memories are created. Recall frequency is controlled by `IdleRecallChance` and `RecallChance` (reunion).
+* **Zone & Subzone Awareness in Prompts**: Zone flavor and subzone lore are now injected into quest, discovery, idle, and event prompts. The player's subzone is tracked from the moment bots join the group.
+* **Compact Memory Prompts**: When memories are present, prompts switch to a lean format focused on the memory reference, producing clear and recognizable callbacks instead of vague allusions.
+* **Message Length Controls**: Stricter length limits across all prompt types prevent wall-of-text messages. Link-based messages (spell/quest/loot) capped at 80 characters.
+* **Debug Export Enhancements**: The web UI debug export now includes structured metadata per LLM call, a Party Chat Deliveries section, and longer prompt/response previews.
+* **Database Migration**: Run `data/sql/db-characters/updates/20260320_bot_memory_system.sql` to add the required tables and columns if upgrading from a previous version.
+
+---
+
 ## Quick Start
 
 1. Clone into `modules/` and build AzerothCore
