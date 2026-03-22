@@ -282,11 +282,12 @@ This asymmetry is known and acceptable in the shipped source state.
 |---|---|
 | `tools/chatter_shared.py` | Compatibility facade, residual shared helpers, `find_addressed_bot()` (with multi-addressed intent detection), `calculate_dynamic_delay()` (with responsive mode) |
 | `tools/chatter_text.py` | Parsing, sanitization, anti-repetition |
-| `tools/chatter_llm.py` | Provider/model calls; `label=` param logs every call via `chatter_request_logger` |
-| `tools/chatter_db.py` | DB access, inserts, zone/cache queries |
+| `tools/chatter_llm.py` | Provider/model calls; `get_llm_client()` shared client factory; `label=` param logs every call via `chatter_request_logger` |
+| `tools/chatter_db.py` | DB access, inserts, zone/cache queries, `any_real_players_online()`, `cleanup_stale_groups()`, `cleanup_all_session_data()` |
 | `tools/chatter_links.py` | WoW link parsing and prompt-side link enrichment for player messages |
 | `tools/chatter_prompts.py` | Ambient/event prompt builders |
 | `tools/chatter_general.py` | `player_general_msg` Python path |
+| `tools/chatter_memory.py` | Persistent memory system: session tracking, background memory generation via `queue_memory()`, flush/activate on farewell, orphan recovery. Key helpers: `_resolve_location()`, `_ensure_cap_and_insert()`, `_count_active_memories()`, `_evict_one_used()` |
 | `tools/chatter_cache.py` | Pre-cache refill |
 | `tools/chatter_events.py` | Event context building and cleanup |
 | `tools/chatter_constants.py` | Static constants and lore data |

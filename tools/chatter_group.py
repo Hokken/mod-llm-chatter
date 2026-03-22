@@ -40,8 +40,9 @@ from chatter_shared import (
     call_llm, cleanup_message, strip_speaker_prefix,
     get_chatter_mode, get_class_name, get_race_name,
     get_db_connection, build_race_class_context,
+    build_race_class_context_parts,
     parse_extra_data, get_zone_flavor,
-    get_subzone_lore, get_group_area,
+    get_subzone_lore,
     format_location_label,
     pick_random_max_tokens,
     get_dungeon_flavor, get_dungeon_bosses,
@@ -61,16 +62,17 @@ from chatter_shared import (
     build_talent_context,
     get_zone_name,
     get_subzone_name,
-    get_player_zone,
     stagger_if_needed,
     build_zone_metadata,
+    get_player_zone,
 )
 from chatter_db import (
     get_character_info_by_name,
+    get_group_location,
+    is_player_online,
 )
 from chatter_prompts import (
     pick_random_tone,
-    pick_random_mood,
     maybe_get_creative_twist,
     get_environmental_context,
     generate_conversation_mood_sequence,
@@ -116,6 +118,15 @@ from chatter_group_handlers import (
     execute_player_msg_conversation,
 )
 from chatter_links import resolve_and_format_links
+from chatter_memory import (
+    start_session,
+    queue_memory,
+    get_bot_memories,
+    flush_session_memories,
+    sanitize_memory_for_prompt,
+    _get_group_lock,
+    _active_sessions,
+)
 from chatter_group_prompts import (
     set_prompt_spice_count,
     _pick_length_hint,
@@ -176,6 +187,7 @@ __all__ = [
     'build_precache_spell_support_prompt',
     'build_precache_spell_offensive_prompt',
     'build_nearby_object_conversation_prompt',
+    'process_group_farewell_event',
 ]
 
 
@@ -453,15 +465,179 @@ def process_group_event(db, client, config, event):
         bot_zone = int(
             extra_data.get('zone', 0) or 0
         )
+        bot_area = int(
+            extra_data.get('area', 0) or 0
+        )
         bot_map = int(
             extra_data.get('map', 0) or 0
         )
-        traits = assign_bot_traits(
+        trait_result = assign_bot_traits(
             db, group_id, bot_guid, bot_name,
             role=bot_role,
             zone=bot_zone,
-            map_id=bot_map
+            area_id=bot_area,
+            map_id=bot_map,
+            config=config,
+            bot_class=bot_class,
+            bot_race=bot_race,
         )
+        traits = trait_result['traits']
+        stored_tone = trait_result.get('tone')
+
+        # 1b. Memory: start session + fetch memories
+        player_guid = 0
+        memories = None
+        player_name_known = False
+        recall_memory = None
+        if int(config.get(
+            'LLMChatter.Memory.Enable', 1
+        )):
+            p_info = get_character_info_by_name(
+                db, player_name,
+            )
+            if p_info:
+                player_guid = int(p_info['guid'])
+            else:
+                logger.warning(
+                    "Memory disabled: player"
+                    " '%s' not found"
+                    " in characters table",
+                    player_name,
+                )
+            member_data = {
+                bot_guid: {
+                    'name': bot_name,
+                    'class': bot_class,
+                    'race': bot_race,
+                },
+            }
+            start_session(
+                group_id, bot_guid,
+                player_guid, time.time(),
+                member_data,
+            )
+            if player_guid:
+                memories = get_bot_memories(
+                    db, bot_guid, player_guid,
+                    count=3,
+                )
+                player_name_known = bool(memories)
+                recall_chance = int(config.get(
+                    'LLMChatter.Memory.RecallChance',
+                    30,
+                )) / 100.0
+                if (
+                    player_name_known
+                    and random.random()
+                        < recall_chance
+                ):
+                    recall_memory = memories[0]
+
+                # First meeting: write a factual
+                # memory so the bot always remembers
+                if not player_name_known:
+                    pz_mem, _ = get_player_zone(
+                        db, player_name
+                    )
+                    zone_name = (
+                        get_zone_name(pz_mem)
+                        if pz_mem else None
+                    )
+                    if zone_name:
+                        mem_text = (
+                            f"Met {player_name} and"
+                            f" began adventuring"
+                            f" together in"
+                            f" {zone_name}."
+                        )
+                    else:
+                        mem_text = (
+                            f"Met {player_name} and"
+                            f" began adventuring"
+                            f" together."
+                        )
+                    mc = db.cursor()
+                    mc.execute(
+                        "INSERT INTO llm_bot_memories"
+                        " (bot_guid, player_guid,"
+                        "  group_id, memory_type,"
+                        "  memory, mood, emote,"
+                        "  active, session_start)"
+                        " SELECT"
+                        "  %s,%s,%s,"
+                        "  'first_meeting',"
+                        "  %s,'warm',NULL,1,%s"
+                        " WHERE NOT EXISTS ("
+                        "  SELECT 1 FROM"
+                        "  llm_bot_memories"
+                        "  WHERE bot_guid=%s"
+                        "    AND player_guid=%s"
+                        "    AND memory_type="
+                        "    'first_meeting')",
+                        (
+                            bot_guid, player_guid,
+                            group_id,
+                            mem_text, time.time(),
+                            bot_guid, player_guid,
+                        ),
+                    )
+                    db.commit()
+                    mc.close()
+                    player_name_known = True
+
+        # 1c. Normalize this bot's trait row to the
+        # player's live location so get_group_location()
+        # is immediately consistent. C++ OnPlayerUpdate-
+        # Zone keeps it current after this initial sync.
+        pz, pm = get_player_zone(db, player_name)
+        if pz or pm:
+            # Only normalize zone + map (from the
+            # player's characters row). Area has no
+            # reliable player-side source at join
+            # time — C++ OnPlayerUpdateZone sets the
+            # authoritative area on the next update.
+            norm_c = db.cursor()
+            norm_c.execute(
+                "UPDATE llm_group_bot_traits"
+                " SET zone = %s, map = %s"
+                " WHERE group_id = %s"
+                " AND bot_guid = %s",
+                (pz or 0, pm or 0,
+                 group_id, bot_guid),
+            )
+            db.commit()
+
+        # 1d. Dungeon entry memory: if the player
+        # is in a dungeon, queue a memory for this
+        # bot (player-centric via get_player_zone).
+        if (
+            int(config.get(
+                'LLMChatter.Memory.Enable', 1
+            ))
+            and pm and player_guid
+        ):
+            dn = get_dungeon_flavor(pm)
+            dng_chance = int(config.get(
+                'LLMChatter.Memory'
+                '.DungeonGenerationChance', 50
+            ))
+            if (dn and random.random() * 100
+                    < dng_chance):
+                try:
+                    queue_memory(
+                        config, group_id,
+                        bot_guid, player_guid,
+                        memory_type='dungeon',
+                        event_context=(
+                            f"Entered "
+                            f"{dn.split(':')[0]}"
+                        ),
+                        bot_name=bot_name,
+                        bot_class=bot_class,
+                        bot_race=bot_race,
+                    )
+                except Exception:
+                    pass
 
         # 2. Build prompt with chat history
         mode = get_chatter_mode(config)
@@ -483,17 +659,26 @@ def process_group_event(db, client, config, event):
             group_size=group_size,
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
+            memories=memories or None,
+            player_name_known=player_name_known,
+            recall_memory=recall_memory,
+            stored_tone=stored_tone,
         )
 
         # 3. Call LLM
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
         ))
+        _greet_label = (
+            'group_greeting_memory'
+            if (memories and player_name_known)
+            else 'group_greeting'
+        )
         response = call_llm(
             client, prompt, config,
             max_tokens_override=max_tokens,
             context=f"grp-join:#{event_id}:{bot_name}",
-            label='group_greeting',
+            label=_greet_label,
         )
 
         if not response:
@@ -615,6 +800,25 @@ def process_group_join_batch_event(
         'LLMChatter.MaxTokens', 200
     ))
 
+    # Look up player_guid once for memory system
+    batch_player_guid = 0
+    memory_enabled = int(config.get(
+        'LLMChatter.Memory.Enable', 1
+    ))
+    if memory_enabled and player_name:
+        p_info = get_character_info_by_name(
+            db, player_name,
+        )
+        if p_info:
+            batch_player_guid = int(p_info['guid'])
+        else:
+            logger.warning(
+                "Memory disabled: player"
+                " '%s' not found"
+                " in characters table",
+                player_name,
+            )
+
     greeted_bots = []
     last_bot = None
     last_delay = 0
@@ -664,12 +868,17 @@ def process_group_join_batch_event(
 
             # 1. Assign traits
             # zone/map from per-bot data or
-            # top-level extra_data fallback
+            # top-level extra_data fallback.
+            # area always from top-level (real
+            # player's area, set by C++).
             bot_zone = int(
                 bot_raw.get(
                     'zone',
                     extra_data.get('zone', 0)
                 ) or 0
+            )
+            bot_area = int(
+                extra_data.get('area', 0) or 0
             )
             bot_map = int(
                 bot_raw.get(
@@ -677,12 +886,117 @@ def process_group_join_batch_event(
                     extra_data.get('map', 0)
                 ) or 0
             )
-            traits = assign_bot_traits(
+            trait_result = assign_bot_traits(
                 db, group_id, bot_guid,
                 bot_name, role=bot_role,
                 zone=bot_zone,
-                map_id=bot_map
+                area_id=bot_area,
+                map_id=bot_map,
+                config=config,
+                bot_class=bot_class,
+                bot_race=bot_race,
             )
+            traits = trait_result['traits']
+            stored_tone = trait_result.get('tone')
+
+            # 1b. Memory: start session + fetch
+            bot_memories = None
+            bot_player_known = False
+            bot_recall = None
+            if memory_enabled:
+                member_data = {
+                    bot_guid: {
+                        'name': bot_name,
+                        'class': bot_class,
+                        'race': bot_race,
+                    },
+                }
+                start_session(
+                    group_id, bot_guid,
+                    batch_player_guid,
+                    time.time(), member_data,
+                )
+                if batch_player_guid:
+                    bot_memories = get_bot_memories(
+                        db, bot_guid,
+                        batch_player_guid,
+                        count=3,
+                    )
+                    bot_player_known = bool(
+                        bot_memories
+                    )
+                    recall_chance = int(config.get(
+                        'LLMChatter.Memory'
+                        '.RecallChance', 30,
+                    )) / 100.0
+                    if (
+                        bot_player_known
+                        and random.random()
+                            < recall_chance
+                    ):
+                        bot_recall = bot_memories[0]
+
+                    # First meeting: write a factual
+                    # memory so the bot remembers
+                    if not bot_player_known:
+                        pz_mem, _ = get_player_zone(
+                            db, player_name
+                        )
+                        zone_name = (
+                            get_zone_name(pz_mem)
+                            if pz_mem else None
+                        )
+                        if zone_name:
+                            mem_text = (
+                                f"Met {player_name}"
+                                f" and began"
+                                f" adventuring"
+                                f" together in"
+                                f" {zone_name}."
+                            )
+                        else:
+                            mem_text = (
+                                f"Met {player_name}"
+                                f" and began"
+                                f" adventuring"
+                                f" together."
+                            )
+                        mc = db.cursor()
+                        mc.execute(
+                            "INSERT INTO"
+                            " llm_bot_memories"
+                            " (bot_guid,"
+                            "  player_guid,"
+                            "  group_id,"
+                            "  memory_type,"
+                            "  memory, mood,"
+                            "  emote, active,"
+                            "  session_start)"
+                            " SELECT"
+                            "  %s,%s,%s,"
+                            "  'first_meeting',"
+                            "  %s,'warm',"
+                            "  NULL,1,%s"
+                            " WHERE NOT EXISTS ("
+                            "  SELECT 1 FROM"
+                            "  llm_bot_memories"
+                            "  WHERE bot_guid=%s"
+                            "    AND player_guid=%s"
+                            "    AND memory_type="
+                            "    'first_meeting')",
+                            (
+                                bot_guid,
+                                batch_player_guid,
+                                group_id,
+                                mem_text,
+                                time.time(),
+                                bot_guid,
+                                batch_player_guid,
+                            ),
+                        )
+                        db.commit()
+                        mc.close()
+                        bot_player_known = True
 
             # 2. Build greeting prompt
             history = _get_recent_chat(
@@ -707,9 +1021,18 @@ def process_group_join_batch_event(
                 group_size=len(bots_raw) + 1,
                 allow_action=allow_action,
                 speaker_talent_context=speaker_talent,
+                memories=bot_memories or None,
+                player_name_known=bot_player_known,
+                recall_memory=bot_recall,
+                stored_tone=stored_tone,
             )
 
             # 3. Call LLM
+            _greet_label = (
+                'group_greeting_memory'
+                if (bot_memories and bot_player_known)
+                else 'group_greeting'
+            )
             response = call_llm(
                 client, prompt, config,
                 max_tokens_override=max_tokens,
@@ -717,7 +1040,7 @@ def process_group_join_batch_event(
                     f"batch-join:#{event_id}"
                     f":{bot_name}"
                 ),
-                label='group_greeting',
+                label=_greet_label,
             )
             if not response:
                 continue
@@ -781,6 +1104,65 @@ def process_group_join_batch_event(
         if not greeted_bots:
             _mark_event(db, event_id, 'skipped')
             return False
+
+        # Normalize all trait rows to the player's
+        # live location so get_group_location() is
+        # immediately consistent. C++ OnPlayerUpdate-
+        # Zone keeps it current after this initial
+        # sync.
+        pz, pm = get_player_zone(db, player_name)
+        if pz or pm:
+            # Only normalize zone + map. Area has
+            # no reliable player-side source at
+            # join time — C++ OnPlayerUpdateZone
+            # sets authoritative area on next update.
+            norm_c = db.cursor()
+            norm_c.execute(
+                "UPDATE llm_group_bot_traits"
+                " SET zone = %s, map = %s"
+                " WHERE group_id = %s",
+                (pz or 0, pm or 0, group_id),
+            )
+            db.commit()
+
+        # Dungeon entry memory: if the player is
+        # in a dungeon/raid, queue a memory for
+        # each bot. Player-centric: pm comes from
+        # get_player_zone() (source of truth).
+        if memory_enabled and pm:
+            dungeon_name = get_dungeon_flavor(pm)
+            dng_chance = int(config.get(
+                'LLMChatter.Memory'
+                '.DungeonGenerationChance', 50
+            ))
+            if dungeon_name:
+                dungeon_name = (
+                    dungeon_name.split(':')[0]
+                )
+                for b in greeted_bots:
+                    if (random.random() * 100
+                            >= dng_chance):
+                        continue
+                    try:
+                        queue_memory(
+                            config, group_id,
+                            b['guid'],
+                            batch_player_guid,
+                            memory_type='dungeon',
+                            event_context=(
+                                f"Entered "
+                                f"{dungeon_name}"
+                            ),
+                            bot_name=b['name'],
+                            bot_class=b.get(
+                                'class', ''
+                            ),
+                            bot_race=b.get(
+                                'race', ''
+                            ),
+                        )
+                    except Exception:
+                        pass
 
         # --- ONE welcome from existing bot ---
         new_names = [
@@ -876,6 +1258,7 @@ def _batch_welcome(
     wb_guid = wb_info['guid']
     wb_name = wb_info['name']
     wb_traits = wb_info['traits']
+    wb_tone = wb_info.get('tone')
 
     # Get class/race/level for the welcoming bot
     cursor = db.cursor(dictionary=True)
@@ -913,6 +1296,7 @@ def _batch_welcome(
         members=members,
         allow_action=allow_action,
         speaker_talent_context=speaker_talent,
+        stored_tone=wb_tone,
     )
 
     max_tokens = int(config.get(
@@ -1016,7 +1400,7 @@ def process_group_player_msg_event(
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
         SELECT bot_guid, bot_name,
-               trait1, trait2, trait3
+               trait1, trait2, trait3, tone
         FROM llm_group_bot_traits
         WHERE group_id = %s
     """, (group_id,))
@@ -1057,6 +1441,7 @@ def process_group_player_msg_event(
         bot_row['trait2'],
         bot_row['trait3'],
     ]
+    stored_tone = bot_row.get('tone')
 
     # Get bot class/race from characters table
     cursor.execute("""
@@ -1079,9 +1464,10 @@ def process_group_player_msg_event(
     }
 
 
-    # Get zone/area for location context
-    zone_id = int(event.get('zone_id', 0) or 0)
-    area_id = get_group_area(db, group_id)
+    # Get zone/area/map from bot traits (single
+    # source of truth, updated by C++ in real-time)
+    zone_id, area_id, map_id = get_group_location(
+        db, group_id)
 
     # Mark as processing
     cursor = db.cursor()
@@ -1190,6 +1576,7 @@ def process_group_player_msg_event(
                         items_info=items_info,
                         zone_id=zone_id,
                         area_id=area_id,
+                        map_id=map_id,
                     )
                 )
                 if conv_ok:
@@ -1226,6 +1613,34 @@ def process_group_player_msg_event(
                 player_name,
                 perspective='target',
             )
+
+        # Fetch memories for player message
+        # response — RNG-gated like idle recall
+        msg_memories = None
+        memory_enabled = int(config.get(
+            'LLMChatter.Memory.Enable', 1
+        ))
+        if memory_enabled and player_info:
+            recall_chance = int(config.get(
+                'LLMChatter.Memory'
+                '.IdleRecallChance', 30,
+            )) / 100.0
+            player_guid = int(
+                player_info['guid']
+            )
+            if (
+                player_guid
+                and random.random()
+                    < recall_chance
+            ):
+                msg_memories = get_bot_memories(
+                    db, bot_guid,
+                    player_guid, count=3,
+                    exclude_first_meeting=True,
+                )
+                if not msg_memories:
+                    msg_memories = None
+
         prompt = build_player_response_prompt(
             bot, traits, player_name,
             player_message, mode,
@@ -1238,11 +1653,43 @@ def process_group_player_msg_event(
             target_talent_context=target_talent,
             zone_id=zone_id,
             area_id=area_id,
+            map_id=map_id,
+            stored_tone=stored_tone,
+            memories=msg_memories,
         )
 
-        max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
-        ))
+        max_tokens = pick_random_max_tokens(config)
+        if msg_memories:
+            max_tokens = max(max_tokens, 250)
+        _pmsg_label = (
+            'group_player_msg_memory'
+            if msg_memories
+            else 'group_player_msg'
+        )
+        _dflav_pmsg = get_dungeon_flavor(map_id)
+        pmsg_meta = build_zone_metadata(
+            zone_name=(
+                get_zone_name(zone_id) or ''
+            ),
+            zone_flavor=(
+                get_zone_flavor(zone_id) or ''
+            ),
+            subzone_name=(
+                get_subzone_name(
+                    zone_id, area_id
+                ) or ''
+            ),
+            subzone_lore=(
+                get_subzone_lore(
+                    zone_id, area_id
+                ) or ''
+            ),
+            dungeon_name=(
+                _dflav_pmsg.split(':')[0].strip()
+                if _dflav_pmsg else ''
+            ),
+            dungeon_flavor=_dflav_pmsg or '',
+        )
         response = call_llm(
             client, prompt, config,
             max_tokens_override=max_tokens,
@@ -1250,7 +1697,8 @@ def process_group_player_msg_event(
                 f"grp-msg:#{event_id}"
                 f":{bot_name}"
             ),
-            label='group_player_msg',
+            label=_pmsg_label,
+            metadata=pmsg_meta or None,
         )
 
         if not response:
@@ -1318,6 +1766,21 @@ def process_group_player_msg_event(
                 except Exception as e2:
                     pass
 
+        # Memory: queue player_message memories
+        try:
+            if int(config.get(
+                'LLMChatter.Memory.Enable', 1
+            )):
+                _maybe_queue_player_msg_memory(
+                    config, group_id,
+                    player_message, all_bots,
+                )
+        except Exception:
+            logger.error(
+                "player_message memory failed",
+                exc_info=True,
+            )
+
         _mark_event(db, event_id, 'completed')
         return True
 
@@ -1326,6 +1789,94 @@ def process_group_player_msg_event(
         return False
 
 
+def _maybe_queue_player_msg_memory(
+    config, group_id, player_message, all_bots,
+):
+    """Queue player_message memory generation for
+    random bots in the group.
+
+    Eligibility filters:
+    - Not a playerbot command
+    - Not over max length
+    - Session msg_count < max per session
+    - Not whitespace-only or URL-only
+    """
+    max_len = int(config.get(
+        'LLMChatter.Memory.PlayerMsgMaxLength', 200
+    ))
+    max_per_session = int(config.get(
+        'LLMChatter.Memory.PlayerMsgMaxPerSession', 3
+    ))
+
+    msg = player_message.strip()
+    if not msg:
+        return
+    if len(msg) > max_len:
+        return
+    if _is_playerbot_command(msg):
+        return
+    # Skip URL-only messages
+    import re as _re
+    if _re.match(
+        r'^https?://\S+$', msg, _re.IGNORECASE
+    ):
+        return
+
+    lock = _get_group_lock(group_id, create=False)
+    if lock is None:
+        return
+    with lock:
+        session = _active_sessions.get(group_id)
+        if not session:
+            return
+        if session["msg_count"] >= max_per_session:
+            return
+        player_guid = session["player_guid"]
+        bots_in_session = list(session["bots"])
+        # Guard before incrementing: rehydrated
+        # sessions have player_guid=0 and cannot
+        # generate memories — don't burn quota
+        if not bots_in_session or not player_guid:
+            return
+        # Increment atomically inside the lock so
+        # concurrent player messages can't both
+        # slip past the max_per_session check
+        session["msg_count"] += 1
+
+    # Select 1-min(4, bot_count) random bots
+    num_to_pick = min(
+        random.randint(1, 4),
+        len(bots_in_session),
+    )
+    picked = random.sample(
+        bots_in_session, num_to_pick
+    )
+
+    # Find bot data for context
+    bot_map = {}
+    for b in all_bots:
+        bg = int(b.get('bot_guid', 0))
+        if bg:
+            bot_map[bg] = b
+
+    for bg in picked:
+        bd = bot_map.get(bg, {})
+        try:
+            queue_memory(
+                config, group_id, bg, player_guid,
+                memory_type='player_message',
+                event_context=(
+                    f"Player said: {msg[:100]}"
+                ),
+                bot_name=bd.get('bot_name', ''),
+                bot_class=bd.get('class', ''),
+                bot_race=bd.get('race', ''),
+            )
+        except Exception:
+            logger.error(
+                "player_message memory failed",
+                exc_info=True,
+            )
 
 
 
@@ -1378,6 +1929,7 @@ def _try_second_bot_response(
     bot2_guid = second['guid']
     bot2_name = second['name']
     bot2_traits = second['traits']
+    bot2_tone = second.get('tone')
 
     # Get class/race for second bot
     cursor = db.cursor(dictionary=True)
@@ -1441,6 +1993,7 @@ def _try_second_bot_response(
         target_talent_context=target_talent,
         zone_id=zone_id,
         area_id=area_id,
+        stored_tone=bot2_tone,
     )
 
     max_tokens = int(config.get(
@@ -1512,6 +2065,7 @@ def _welcome_from_existing_bot(
     wb_guid = other['guid']
     wb_name = other['name']
     wb_traits = other['traits']
+    wb_tone = other.get('tone')
 
     # Get class/race/level for the welcoming bot
     cursor = db.cursor(dictionary=True)
@@ -1550,6 +2104,7 @@ def _welcome_from_existing_bot(
         members=members,
         allow_action=allow_action,
         speaker_talent_context=speaker_talent,
+        stored_tone=wb_tone,
     )
 
     max_tokens = int(config.get(
@@ -1935,6 +2490,8 @@ def build_idle_chatter_prompt(
     allow_action=True,
     speaker_talent_context=None,
     area_id=0,
+    stored_tone=None,
+    memories=None,
 ):
     """Build prompt for idle party chat.
 
@@ -1952,8 +2509,88 @@ def build_idle_chatter_prompt(
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
-    tone = pick_random_tone(mode)
-    mood = pick_random_mood(mode)
+
+    # --------------------------------------------------
+    # LEAN MEMORY PATH — when memories are present,
+    # strip away distracting content and make the
+    # memory the central purpose of the message.
+    # --------------------------------------------------
+    if memories:
+        sanitized = [
+            sanitize_memory_for_prompt(m)
+            for m in memories
+        ]
+        sanitized = [s for s in sanitized if s]
+        if sanitized:
+            p_label = (
+                player_name
+                or 'your party leader'
+            )
+            mem_lines = '\n'.join(
+                f"  - {m}" for m in sanitized
+            )
+            prompt = (
+                f"You are {bot['name']}, a level "
+                f"{bot['level']} {bot['race']} "
+                f"{bot['class']}.\n"
+                f"Your personality: {trait_str}\n"
+            )
+            if speaker_talent_context:
+                prompt += (
+                    f"{speaker_talent_context}\n"
+                )
+            prompt += (
+                f"\n<past_memories>\n"
+                f"Your memories from past "
+                f"adventures with {p_label}:\n"
+                f"{mem_lines}\n"
+                f"Reference one of these memories "
+                f"clearly — mention the place, "
+                f"creature, or moment by name so "
+                f"{p_label} would recognise the "
+                f"callback. Keep it natural "
+                f"(not a full retelling).\n"
+                f"</past_memories>\n\n"
+                f"Say something in party chat that "
+                f"references one of your memories "
+                f"above. The memory should be the "
+                f"main point of your message, not "
+                f"a side note.\n"
+            )
+            if chat_history:
+                prompt += (
+                    f"\nRecent party chat "
+                    f"(for context only):"
+                    f"{chat_history}\n"
+                )
+            prompt += (
+                f"\n{_pick_length_hint(mode)}\n"
+                f"Rules:\n"
+                f"- No quotes, no emojis\n"
+                f"- The memory reference must be "
+                f"recognisable\n"
+                f"- Don't repeat themes from "
+                f"recent chat\n"
+                f"- NEVER claim to have killed a "
+                f"creature, looted an item, "
+                f"completed a quest, or made "
+                f"a trade"
+            )
+            anti_rep = build_anti_repetition_context(
+                recent_messages
+            )
+            if anti_rep:
+                prompt += f"\n{anti_rep}"
+            return append_json_instruction(
+                prompt, allow_action
+            )
+    # memories were empty or all sanitized away —
+    # fall through to the normal full prompt below.
+
+    # --------------------------------------------------
+    # NORMAL PATH — no memories, full context prompt
+    # --------------------------------------------------
+    tone = stored_tone or pick_random_tone(mode)
     twist = maybe_get_creative_twist(
         chance=1.0, mode=mode
     )
@@ -2105,10 +2742,10 @@ def build_idle_chatter_prompt(
         prompt += f"{speaker_talent_context}\n"
     prompt += (
         f"Your tone: {tone}\n"
-        f"Your mood: {mood}\n"
     )
     if twist:
         prompt += f"Creative twist: {twist}\n"
+
     party_ctx = (
         f"You're in a party, currently {topic}."
         if topic else
@@ -2163,6 +2800,7 @@ def build_idle_conversation_prompt(
     allow_action=True,
     speaker_talent_context=None,
     area_id=0,
+    memories_map=None,
 ):
     """Build prompt for a multi-bot idle conversation.
 
@@ -2187,7 +2825,192 @@ def build_idle_conversation_prompt(
     is_rp = (mode == 'roleplay')
     num_bots = len(bots)
     bot_names = [b['name'] for b in bots]
+    msg_count = 4
 
+    # --------------------------------------------------
+    # LEAN MEMORY PATH — when any bot has memories,
+    # strip away distracting content and make the
+    # memories the central purpose of the exchange.
+    # --------------------------------------------------
+    if memories_map:
+        p_label = player_name or 'the player'
+        # Sanitize all bot memories up front
+        has_any_memories = False
+        bot_mem_blocks = {}
+        for b in bots:
+            raw = memories_map.get(b['guid'])
+            if not raw:
+                continue
+            sanitized = [
+                sanitize_memory_for_prompt(m)
+                for m in raw
+            ]
+            sanitized = [
+                m for m in sanitized if m
+            ]
+            if sanitized:
+                bot_mem_blocks[b['name']] = (
+                    sanitized
+                )
+                has_any_memories = True
+
+        if has_any_memories:
+            parts = []
+            if num_bots == 2:
+                speaker_desc = "two"
+            elif num_bots == 3:
+                speaker_desc = "three"
+            else:
+                speaker_desc = "four"
+
+            parts.append(
+                f"Generate a short party chat "
+                f"exchange between {speaker_desc} "
+                f"adventurers sharing memories "
+                f"from past adventures with "
+                f"{p_label}."
+            )
+
+            # Compact bot identities — no worldview
+            parts.append(
+                f"Speakers: "
+                f"{', '.join(bot_names)}"
+            )
+            for bot in bots:
+                t = traits_map.get(
+                    bot['name'], []
+                )
+                trait_str = (
+                    ', '.join(t)
+                    if t else 'average'
+                )
+                parts.append(
+                    f"{bot['name']} is a level "
+                    f"{bot['level']} "
+                    f"{bot['race']} "
+                    f"{bot['class']} "
+                    f"(personality: {trait_str})"
+                )
+
+            # Per-bot memory blocks
+            for b in bots:
+                mems = bot_mem_blocks.get(
+                    b['name']
+                )
+                if mems:
+                    mem_lines = '\n'.join(
+                        f"  - {m}" for m in mems
+                    )
+                    parts.append(
+                        f"<past_memories "
+                        f"bot=\"{b['name']}\">\n"
+                        f"{b['name']}'s memories "
+                        f"with {p_label}:\n"
+                        f"{mem_lines}\n"
+                        f"Have {b['name']} "
+                        f"reference one of these "
+                        f"memories clearly — "
+                        f"mention the place, "
+                        f"creature, or moment by "
+                        f"name so {p_label} "
+                        f"recognises the callback."
+                        f"\n</past_memories>"
+                    )
+                else:
+                    parts.append(
+                        f"{b['name']} has no "
+                        f"memories — react to what "
+                        f"others share."
+                    )
+
+            parts.append(
+                "The memories should be the main "
+                "point of the conversation, not "
+                "side notes. Bots with memories "
+                "share them; bots without react "
+                "naturally."
+            )
+
+            if chat_history:
+                parts.append(
+                    f"Recent party chat "
+                    f"(for context only):"
+                    f"{chat_history}"
+                )
+
+            length_hint = _pick_length_hint(mode)
+            parts.append(
+                f"Rules: No quotes, no emojis; "
+                f"{length_hint}; "
+                f"keep it short; "
+                f"don't repeat themes from "
+                f"recent chat"
+            )
+
+            anti_rep = (
+                build_anti_repetition_context(
+                    recent_messages
+                )
+            )
+            if anti_rep:
+                parts.append(anti_rep)
+
+            # Emote and action instructions
+            parts.append(
+                f"Emotes: Each message may "
+                f"include an optional \"emote\" "
+                f"field (one of: "
+                f"{EMOTE_LIST_STR}). Pick an "
+                f"emote that fits the message "
+                f"mood, or omit it."
+            )
+            if allow_action:
+                parts.append(
+                    "Actions: Each message may "
+                    "include an optional "
+                    "\"action\" field — a short "
+                    "physical action (2-5 words, "
+                    "no asterisks). Omit if not "
+                    "needed."
+                )
+            else:
+                parts.append(
+                    "Actions: Do not include an "
+                    "action field in this "
+                    "response."
+                )
+
+            # JSON format
+            parts.append(
+                "JSON rules: Use double quotes, "
+                "escape quotes/newlines, no "
+                "trailing commas, no code fences."
+            )
+            example_msgs = ',\n  '.join(
+                [
+                    f'{{"speaker": "{name}", '
+                    f'"message": "...", '
+                    f'"emote": "talk"'
+                    f', "action": "..."}}'
+                    for name in bot_names
+                ]
+            )
+            parts.append(
+                f"\nRespond with EXACTLY "
+                f"{msg_count} messages in "
+                f"JSON:\n[\n  "
+                f"{example_msgs}\n]\n"
+                f"ONLY the JSON array, "
+                f"nothing else."
+            )
+
+            return '\n'.join(parts)
+    # memories_map was empty or all sanitized away
+    # — fall through to the normal full prompt.
+
+    # --------------------------------------------------
+    # NORMAL PATH — no memories, full context prompt
+    # --------------------------------------------------
     parts = []
 
     if num_bots == 2:
@@ -2259,10 +3082,30 @@ def build_idle_conversation_prompt(
             f"Current weather: {env['weather']}"
         )
 
+    # Precompute shared race context once per unique
+    # race to avoid duplicating worldview/lore for
+    # same-race bots.
+    shared_race_cache = {}
+    if is_rp:
+        race_counts = {}
+        for bot in bots:
+            r = bot.get('race', '')
+            if r:
+                race_counts[r] = (
+                    race_counts.get(r, 0) + 1
+                )
+        for race, count in race_counts.items():
+            _, sr, _ = build_race_class_context_parts(
+                race, '', race_count=count
+            )
+            shared_race_cache[race] = sr
+
     # Speakers with traits and class/race
     parts.append(
         f"Speakers: {', '.join(bot_names)}"
     )
+    seen_races = set()
+    seen_classes = set()
     for bot in bots:
         t = traits_map.get(bot['name'], [])
         trait_str = (
@@ -2275,13 +3118,35 @@ def build_idle_conversation_prompt(
             f"(personality: {trait_str})"
         )
         if is_rp:
-            rp_ctx = build_race_class_context(
-                bot.get('race', ''),
-                bot.get('class', ''),
-                actual_role=bot.get('role'),
+            race = bot.get('race', '')
+            cls = bot.get('class', '')
+            role = bot.get('role', '') or ''
+            per_bot, _, shared_class = (
+                build_race_class_context_parts(
+                    race, cls,
+                    actual_role=role or None,
+                )
             )
-            if rp_ctx:
-                parts.append(f"  {rp_ctx}")
+            if per_bot:
+                parts.append(f"  {per_bot}")
+            if race not in seen_races:
+                sr = shared_race_cache.get(race, '')
+                if sr:
+                    parts.append(f"  {sr}")
+                seen_races.add(race)
+            # Resolve role the same way
+            # build_race_class_context_parts does
+            # (actual_role or CLASS_ROLE_MAP fallback)
+            # so the dedup key matches the actual
+            # shared_class string that was emitted.
+            resolved_role = (
+                role or CLASS_ROLE_MAP.get(cls) or ''
+            )
+            cls_role_key = (cls, resolved_role)
+            if cls_role_key not in seen_classes:
+                if shared_class:
+                    parts.append(f"  {shared_class}")
+                seen_classes.add(cls_role_key)
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -2315,7 +3180,6 @@ def build_idle_conversation_prompt(
     # volume constant regardless of group size.
     # Bots still all participate via round-robin
     # speaker assignment (bot_names[i % num_bots]).
-    msg_count = 4
     mood_sequence = (
         generate_conversation_mood_sequence(
             msg_count, mode
@@ -2392,13 +3256,21 @@ def build_idle_conversation_prompt(
     parts.append(
         "Do NOT mention quests, quest rewards, "
         "items, spells, or trade. "
-        "NEVER claim to have just killed a creature (past exploits is fine), "
-        "just looted an item (you can mention items looted in the past), just completed a quest (you can mention quests completed in the past), "
+        "NEVER claim to have just killed a "
+        "creature (past exploits is fine), "
+        "just looted an item (you can mention "
+        "items looted in the past), just "
+        "completed a quest (you can mention "
+        "quests completed in the past), "
         "or made a trade. "
         "Stick to observation, opinion, banter, "
         "occasional philosophical consideration. "
         "Don't repeat jokes or themes already "
         "said in chat."
+    )
+    parts.append(
+        "STRICT: Each message MUST be under "
+        "120 characters. Short is better."
     )
 
     spices = pick_personality_spices(
@@ -2539,7 +3411,7 @@ def check_idle_group_chatter(
         cursor.execute("""
             SELECT bot_guid, bot_name,
                    trait1, trait2, trait3, role,
-                   zone, map
+                   tone, zone, map
             FROM llm_group_bot_traits
             WHERE group_id = %s
             ORDER BY RAND()
@@ -2580,6 +3452,17 @@ def check_idle_group_chatter(
         player_name = get_group_player_name(
             db, group_id
         )
+
+        # Skip idle chatter if player is offline
+        if player_name and not is_player_online(
+            db, player_name
+        ):
+            if _dbg:
+                logger.info(
+                    "[DEBUG] idle: player %s "
+                    "offline, skipping",
+                    player_name)
+            return False
 
         # In raids, filter bots to the player's
         # sub-group so party chat is visible to them.
@@ -2635,19 +3518,11 @@ def check_idle_group_chatter(
         except Exception:
             pass  # fallback: use all bots
 
-        # Always use the real player's live zone.
-        # Bots are co-located with the player.
-        zone_id, map_id = get_player_zone(
-            db, player_name)
-        # Fallback to first bot's traits
-        if not zone_id:
-            zone_id = int(
-                all_bots[0].get('zone', 0) or 0)
-        if not map_id:
-            map_id = int(
-                all_bots[0].get('map', 0) or 0)
-        # Get subzone area from bot traits
-        area_id = get_group_area(db, group_id)
+        # Single source of truth for location —
+        # bot traits updated by C++ OnPlayerUpdateZone
+        # in real-time.
+        zone_id, area_id, map_id = get_group_location(
+            db, group_id)
 
         # Debug: log location context
         if _dbg:
@@ -2763,6 +3638,7 @@ def _idle_single_statement(
         bot_row['trait2'],
         bot_row['trait3'],
     ]
+    stored_tone = bot_row.get('tone')
 
     # Get class/race from characters table
     cursor = db.cursor(dictionary=True)
@@ -2814,6 +3690,7 @@ def _idle_single_statement(
     )
 
     # Zone metadata for request logging
+    _dflav_meta = get_dungeon_flavor(map_id)
     zone_meta = build_zone_metadata(
         zone_name=get_zone_name(zone_id) or '',
         zone_flavor=get_zone_flavor(zone_id) or '',
@@ -2823,7 +3700,37 @@ def _idle_single_statement(
         subzone_lore=(
             get_subzone_lore(zone_id, area_id) or ''
         ),
+        dungeon_name=(
+            _dflav_meta.split(':')[0].strip()
+            if _dflav_meta else ''
+        ),
+        dungeon_flavor=_dflav_meta or '',
     )
+
+    # Fetch memories for idle recall
+    idle_memories = None
+    memory_enabled = int(config.get(
+        'LLMChatter.Memory.Enable', 1
+    ))
+    if memory_enabled and player_name:
+        recall_chance = int(config.get(
+            'LLMChatter.Memory.IdleRecallChance',
+            30,
+        )) / 100.0
+        if random.random() < recall_chance:
+            p_info = get_character_info_by_name(
+                db, player_name,
+            )
+            if p_info:
+                player_guid = int(p_info['guid'])
+                if player_guid:
+                    idle_memories = get_bot_memories(
+                        db, bot_guid,
+                        player_guid, count=2,
+                        exclude_first_meeting=True,
+                    )
+                    if not idle_memories:
+                        idle_memories = None
 
     try:
         allow_action = (
@@ -2847,6 +3754,8 @@ def _idle_single_statement(
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             area_id=area_id,
+            stored_tone=stored_tone,
+            memories=idle_memories,
         )
 
         _dflav = get_dungeon_flavor(map_id)
@@ -2879,12 +3788,26 @@ def _idle_single_statement(
             zone_meta['speaker_talent'] = (
                 speaker_talent
             )
+        zone_meta['channel'] = 'party'
+        zone_meta['bot_name'] = bot_name
+        if idle_memories:
+            zone_meta['has_memory'] = True
+            zone_meta['memory_count'] = len(
+                idle_memories
+            )
         max_tokens = pick_random_max_tokens(config)
+        # Memory allusions need room — lift floor
+        if idle_memories:
+            max_tokens = max(max_tokens, 250)
+        _idle_label = (
+            'group_idle_memory'
+            if idle_memories else 'group_idle'
+        )
         response = call_llm(
             client, prompt, config,
             max_tokens_override=max_tokens,
             context=f"idle:{bot_name}",
-            label='group_idle',
+            label=_idle_label,
             metadata=zone_meta,
         )
 
@@ -3015,6 +3938,7 @@ def _idle_conversation(
         recent_msgs.extend(msgs)
 
     # Zone metadata for request logging
+    _dflav_meta2 = get_dungeon_flavor(map_id)
     zone_meta = build_zone_metadata(
         zone_name=get_zone_name(zone_id) or '',
         zone_flavor=get_zone_flavor(zone_id) or '',
@@ -3024,7 +3948,43 @@ def _idle_conversation(
         subzone_lore=(
             get_subzone_lore(zone_id, area_id) or ''
         ),
+        dungeon_name=(
+            _dflav_meta2.split(':')[0].strip()
+            if _dflav_meta2 else ''
+        ),
+        dungeon_flavor=_dflav_meta2 or '',
     )
+
+    # Fetch per-bot memories for idle recall
+    memories_map = {}
+    memory_enabled = int(config.get(
+        'LLMChatter.Memory.Enable', 1
+    ))
+    if memory_enabled and player_name:
+        recall_chance = int(config.get(
+            'LLMChatter.Memory.IdleRecallChance',
+            30,
+        )) / 100.0
+        if random.random() < recall_chance:
+            p_info = get_character_info_by_name(
+                db, player_name,
+            )
+            if p_info:
+                player_guid = int(p_info['guid'])
+                if player_guid:
+                    for b in bots:
+                        mems = get_bot_memories(
+                            db, b['guid'],
+                            player_guid,
+                            count=2,
+                            exclude_first_meeting=(
+                                True
+                            ),
+                        )
+                        if mems:
+                            memories_map[
+                                b['guid']
+                            ] = mems
 
     try:
         allow_action = (
@@ -3077,6 +4037,7 @@ def _idle_conversation(
             allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             area_id=area_id,
+            memories_map=memories_map or None,
         )
         logger.info(
             "[IDLE] prompt snippet: %r",
@@ -3094,12 +4055,25 @@ def _idle_conversation(
             zone_meta['speaker_talent'] = (
                 speaker_talent
             )
+        zone_meta['channel'] = 'party'
+        zone_meta['bot_name'] = ','.join(bot_names)
+        zone_meta['bot_count'] = num_bots
+        if memories_map:
+            zone_meta['has_memory'] = True
+            zone_meta['memory_bots'] = ','.join(
+                b['name'] for b in bots
+                if b['guid'] in memories_map
+            )
         names_ctx = ','.join(bot_names)
+        _conv_label = (
+            'group_idle_conv_memory'
+            if memories_map else 'group_idle_conv'
+        )
         response = call_llm(
             client, prompt, config,
             max_tokens_override=conv_tokens,
             context=f"idle-conv:{names_ctx}",
-            label='group_idle_conv',
+            label=_conv_label,
             metadata=zone_meta,
         )
 
@@ -3279,6 +4253,13 @@ def check_bot_questions(db, client, config):
         player_name = get_group_player_name(
             db, group_id
         )
+
+        # Skip bot questions if player is offline
+        if player_name and not is_player_online(
+            db, player_name
+        ):
+            return False
+
         player_row = None
         if player_name:
             cursor.execute("""
@@ -3340,7 +4321,7 @@ def check_bot_questions(db, client, config):
         cursor.execute("""
             SELECT bot_guid, bot_name,
                    trait1, trait2, trait3, role,
-                   zone, map
+                   tone, zone, map
             FROM llm_group_bot_traits
             WHERE group_id = %s
             ORDER BY RAND()
@@ -3359,6 +4340,7 @@ def check_bot_questions(db, client, config):
             bot_row['trait2'],
             bot_row['trait3'],
         ]
+        stored_tone = bot_row.get('tone')
 
         # Get bot class/race/level
         cursor.execute("""
@@ -3396,22 +4378,11 @@ def check_bot_questions(db, client, config):
         chat_hist = format_chat_history(history)
         members = get_group_members(db, group_id)
 
-        # Player zone as source of truth
-        pname_q = get_group_player_name(
-            db, group_id
-        )
-        zone_id, map_id = get_player_zone(
-            db, pname_q
-        )
-        # Fallback to bot traits zone
-        if not zone_id:
-            zone_id = int(
-                bot_row.get('zone', 0) or 0
-            )
-        if not map_id:
-            map_id = int(
-                bot_row.get('map', 0) or 0
-            )
+        # Single source of truth for location —
+        # bot traits updated by C++ OnPlayerUpdateZone
+        # in real-time.
+        zone_id, area_id, map_id = get_group_location(
+            db, group_id)
         current_weather = (
             get_recent_weather(db, zone_id)
             if zone_id else None
@@ -3444,7 +4415,34 @@ def check_bot_questions(db, client, config):
                 perspective='target',
             )
 
-        area_id = get_group_area(db, group_id)
+        # RNG-gated memory injection
+        question_memories = None
+        memory_enabled = int(config.get(
+            'LLMChatter.Memory.Enable', 1
+        ))
+        if memory_enabled and player_info:
+            recall_chance = int(config.get(
+                'LLMChatter.Memory'
+                '.IdleRecallChance', 30,
+            )) / 100.0
+            p_guid = int(
+                player_info['guid']
+            )
+            if (
+                p_guid
+                and random.random()
+                    < recall_chance
+            ):
+                question_memories = (
+                    get_bot_memories(
+                        db, bot_guid,
+                        p_guid, count=3,
+                        exclude_first_meeting=True,
+                    )
+                )
+                if not question_memories:
+                    question_memories = None
+
         prompt = build_bot_question_prompt(
             bot, traits, mode,
             player_name=player_name,
@@ -3461,12 +4459,17 @@ def check_bot_questions(db, client, config):
             speaker_talent_context=speaker_talent,
             target_talent_context=target_talent,
             area_id=area_id,
+            stored_tone=stored_tone,
+            memories=question_memories or None,
         )
 
         max_tokens = int(config.get(
             'LLMChatter.MaxTokens', 200
         ))
-        bq_meta = {}
+        bq_meta = {
+            'channel': 'party',
+            'bot_name': bot_name,
+        }
         if speaker_talent:
             bq_meta['speaker_talent'] = (
                 speaker_talent
@@ -3475,13 +4478,24 @@ def check_bot_questions(db, client, config):
             bq_meta['target_talent'] = (
                 target_talent
             )
+        if question_memories:
+            bq_meta['has_memory'] = True
+            bq_meta['memory_count'] = len(
+                question_memories
+            )
+        _bq_label = (
+            'group_bot_question_memory'
+            if question_memories
+            else 'group_bot_question'
+        )
+        bq_cap = 250 if question_memories else 200
         response = call_llm(
             client, prompt, config,
             max_tokens_override=min(
-                max_tokens, 200
+                max_tokens, bq_cap
             ),
             context=f"bot-question:{bot_name}",
-            label='group_bot_question',
+            label=_bq_label,
             metadata=bq_meta or None,
         )
 
@@ -3570,3 +4584,54 @@ def check_bot_questions(db, client, config):
             _bot_question_inflight.discard(
                 group_id
             )
+
+
+def process_group_farewell_event(
+    db, client, config, event
+):
+    """Handle bot_group_farewell — triggers memory
+    flush when a bot leaves the group.
+
+    Called by the bridge dispatch table. The event
+    extra_data contains bot_guid, group_id, and
+    player_guid.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'bot_group_farewell',
+    )
+    if not extra_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    bot_guid = int(
+        extra_data.get('bot_guid', 0)
+    )
+    group_id = int(
+        extra_data.get('group_id', 0)
+    )
+    player_guid = int(
+        extra_data.get('player_guid', 0)
+    )
+
+    if not bot_guid or not group_id:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    try:
+        flush_session_memories(
+            db, group_id, player_guid,
+            bot_guid, config,
+        )
+        _mark_event(db, event_id, 'completed')
+        return True
+    except Exception:
+        logger.error(
+            f"Farewell flush failed for "
+            f"bot={bot_guid} group={group_id}",
+            exc_info=True,
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False

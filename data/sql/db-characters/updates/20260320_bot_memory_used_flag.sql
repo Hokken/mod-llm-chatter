@@ -1,0 +1,2 @@
+ALTER TABLE llm_bot_memories
+    ADD COLUMN used TINYINT(1) NOT NULL DEFAULT 0 AFTER active;

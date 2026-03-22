@@ -263,11 +263,12 @@ struct GroupJoinEntry {
 };
 
 struct GroupJoinBatch {
-    uint32 groupId;
+    uint32 groupId{0};
     std::string playerName;
-    uint32 zoneId;
-    uint32 mapId;
-    time_t lastJoinTime;
+    uint32 zoneId{0};
+    uint32 areaId{0};
+    uint32 mapId{0};
+    time_t lastJoinTime{0};
     std::vector<GroupJoinEntry> bots;
 };
 
@@ -306,8 +307,9 @@ static void QueueBotGreetingEvent(
     uint8 botRace = bot->getRace();
     uint8 botLevel = bot->GetLevel();
 
-    // Find real player name
+    // Find real player name and area
     std::string playerName;
+    Player* realPlayer = nullptr;
     for (GroupReference* itr =
              group->GetFirstMember();
          itr != nullptr; itr = itr->next())
@@ -315,10 +317,15 @@ static void QueueBotGreetingEvent(
         if (Player* member = itr->GetSource())
         {
             if (!IsPlayerBot(member)
-                && playerName.empty())
+                && !realPlayer)
+            {
                 playerName = member->GetName();
+                realPlayer = member;
+            }
         }
     }
+    uint32 playerAreaId = realPlayer
+        ? realPlayer->GetAreaId() : 0;
 
     // Detect bot role for Python trait storage
     std::string role = "dps";
@@ -372,6 +379,9 @@ static void QueueBotGreetingEvent(
             "\"zone\":" +
                 std::to_string(
                     bot->GetZoneId()) + ","
+            "\"area\":" +
+                std::to_string(
+                    playerAreaId) + ","
             "\"map\":" +
                 std::to_string(
                     bot->GetMapId()) +
@@ -432,6 +442,7 @@ static void QueueBotGreetingEvent(
             batch.groupId = groupId;
             batch.playerName = playerName;
             batch.zoneId = zoneId;
+            batch.areaId = playerAreaId;
             batch.mapId = mapId;
             batch.lastJoinTime = groupFull
                 ? 0 : time(nullptr);
@@ -472,6 +483,7 @@ static void EnsureGroupJoinQueued(
 
     // Gather info for ALL bots in the group
     std::string playerName;
+    Player* realPlayer = nullptr;
     uint32 realPlayerZone = 0;
     uint32 realPlayerMap = 0;
     std::vector<GroupJoinEntry> botEntries;
@@ -486,8 +498,9 @@ static void EnsureGroupJoinQueued(
 
         if (!IsPlayerBot(member))
         {
-            if (playerName.empty())
+            if (!realPlayer)
             {
+                realPlayer = member;
                 playerName = member->GetName();
                 realPlayerZone =
                     member->GetZoneId();
@@ -552,6 +565,8 @@ static void EnsureGroupJoinQueued(
             batchZoneId = 0;
     }
     batch.zoneId = batchZoneId;
+    batch.areaId = realPlayer
+        ? realPlayer->GetAreaId() : 0;
     batch.mapId = batchMapId;
     batch.lastJoinTime = 0;
     batch.bots = std::move(botEntries);
@@ -839,6 +854,40 @@ static bool IsLikelyPlayerbotControlCommand(
 // Clean up traits when group no longer qualifies
 static void CleanupGroupSession(uint32 groupId)
 {
+    // Cancel pending queue entries for all bots
+    // that belonged to this group
+    CharacterDatabase.Execute(
+        "UPDATE llm_chatter_queue "
+        "SET status = 'cancelled' "
+        "WHERE status = 'pending' "
+        "AND ("
+        "bot1_guid IN (SELECT bot_guid "
+        "FROM llm_group_bot_traits "
+        "WHERE group_id = {0}) "
+        "OR bot2_guid IN (SELECT bot_guid "
+        "FROM llm_group_bot_traits "
+        "WHERE group_id = {0}) "
+        "OR bot3_guid IN (SELECT bot_guid "
+        "FROM llm_group_bot_traits "
+        "WHERE group_id = {0}) "
+        "OR bot4_guid IN (SELECT bot_guid "
+        "FROM llm_group_bot_traits "
+        "WHERE group_id = {0})"
+        ")",
+        groupId);
+
+    // Mark undelivered messages for all group
+    // bots as delivered
+    CharacterDatabase.Execute(
+        "UPDATE llm_chatter_messages "
+        "SET delivered = 1 "
+        "WHERE delivered = 0 "
+        "AND bot_guid IN ("
+        "SELECT bot_guid "
+        "FROM llm_group_bot_traits "
+        "WHERE group_id = {})",
+        groupId);
+
     CharacterDatabase.Execute(
         "DELETE FROM llm_group_bot_traits "
         "WHERE group_id = {}",
@@ -977,6 +1026,28 @@ public:
                 "AND bot_guid = {}",
                 groupId, botGuid);
 
+            // Cancel pending queue entries that
+            // include this bot
+            CharacterDatabase.Execute(
+                "UPDATE llm_chatter_queue "
+                "SET status = 'cancelled' "
+                "WHERE status = 'pending' "
+                "AND (bot1_guid = {} "
+                "OR bot2_guid = {} "
+                "OR bot3_guid = {} "
+                "OR bot4_guid = {})",
+                botGuid, botGuid,
+                botGuid, botGuid);
+
+            // Mark this bot's undelivered messages
+            // as delivered so they won't fire
+            CharacterDatabase.Execute(
+                "UPDATE llm_chatter_messages "
+                "SET delivered = 1 "
+                "WHERE delivered = 0 "
+                "AND bot_guid = {}",
+                botGuid);
+
             Player* removed =
                 ObjectAccessor::FindPlayer(guid);
             if (removed && IsPlayerBot(removed))
@@ -1035,6 +1106,59 @@ public:
                     }
                 }
                 } // _useFarewell
+
+                // Emit farewell event so the Python
+                // bridge can flush session memories
+                // before the bot's data is cleaned up.
+                {
+                    uint32 playerGuid = 0;
+                    for (GroupReference* itr =
+                             group->GetFirstMember();
+                         itr != nullptr;
+                         itr = itr->next())
+                    {
+                        Player* m = itr->GetSource();
+                        if (m && !IsPlayerBot(m))
+                        {
+                            playerGuid =
+                                m->GetGUID()
+                                    .GetCounter();
+                            break;
+                        }
+                    }
+                    if (playerGuid)
+                    {
+                        std::string extraData = "{"
+                            "\"bot_guid\":" +
+                                std::to_string(
+                                    botGuid) + ","
+                            "\"group_id\":" +
+                                std::to_string(
+                                    groupId) + ","
+                            "\"player_guid\":" +
+                                std::to_string(
+                                    playerGuid) +
+                            "}";
+                        extraData =
+                            EscapeString(extraData);
+
+                        QueueChatterEvent(
+                            "bot_group_farewell",
+                            "player",
+                            removed->GetZoneId(),
+                            removed->GetMapId(),
+                            GetChatterEventPriority(
+                                "bot_group_farewell"),
+                            "",
+                            botGuid,
+                            removed->GetName(),
+                            0, "", 0,
+                            extraData,
+                            0,
+                            60,
+                            false);
+                    }
+                }
 
                 CharacterDatabase.Execute(
                     "DELETE FROM llm_group_bot_traits "
@@ -3552,8 +3676,11 @@ public:
                    ->_groupDiscoveryCooldown)
             return;
 
-        // Discovery is rare enough — always fire
-        // (was 40% RNG gate, removed)
+        // RNG gate (default 100% = always fire)
+        if (urand(1, 100)
+            > sLLMChatterConfig
+                ->_groupDiscoveryChance)
+            return;
 
         // Pick a random bot as reactor
         Player* reactor =
@@ -3982,6 +4109,8 @@ void FlushGroupJoinBatches()
                 "\"group_size\":0,"
                 "\"zone\":" +
                     std::to_string(e.zoneId) + ","
+                "\"area\":" +
+                    std::to_string(b.areaId) + ","
                 "\"map\":" +
                     std::to_string(e.mapId) +
                 "}";
@@ -4050,6 +4179,8 @@ void FlushGroupJoinBatches()
                     + "\","
                 "\"zone\":" +
                     std::to_string(b.zoneId) + ","
+                "\"area\":" +
+                    std::to_string(b.areaId) + ","
                 "\"map\":" +
                     std::to_string(b.mapId) + ","
                 "\"bots\":" + botsJson +

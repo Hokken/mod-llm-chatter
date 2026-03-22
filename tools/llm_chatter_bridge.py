@@ -36,8 +36,14 @@ from chatter_constants import (
     MSG_TYPE_LOOT, MSG_TYPE_QUEST_REWARD,
     MSG_TYPE_TRADE, MSG_TYPE_SPELL,
 )
+from chatter_db import (
+    get_group_location,
+    any_real_players_online,
+    cleanup_stale_groups,
+    cleanup_all_session_data,
+)
 from chatter_shared import (
-    get_zone_name, get_group_area,
+    get_zone_name,
     format_location_label,
     get_class_name, get_race_name,
     get_chatter_mode,
@@ -93,6 +99,7 @@ from chatter_group import (
     process_group_oom_event,
     process_group_aggro_loss_event,
     process_group_nearby_object_event,
+    process_group_farewell_event,
     check_idle_group_chatter,
     check_bot_questions,
 )
@@ -170,6 +177,24 @@ def process_pending_requests(
 ):
     """Process all pending chatter requests."""
     cursor = db.cursor(dictionary=True)
+
+    # Cancel stale pending requests (older than 5 minutes)
+    cursor.execute("""
+        UPDATE llm_chatter_queue
+        SET status = 'cancelled'
+        WHERE status = 'pending'
+          AND created_at < NOW() - INTERVAL 5 MINUTE
+    """)
+    # Mark stale undelivered messages as delivered so
+    # C++ never picks them up (e.g. from a previous
+    # session before the player logged out).
+    cursor.execute("""
+        UPDATE llm_chatter_messages
+        SET delivered = 1
+        WHERE delivered = 0
+          AND deliver_at < NOW() - INTERVAL 5 MINUTE
+    """)
+    db.commit()
 
     # Get pending requests
     cursor.execute("""
@@ -441,6 +466,21 @@ def _dispatch_player_general_msg(
     )
 
 
+# Events exempt from the orphaned-group guard.
+# Lifecycle events must bypass the llm_group_bot_traits
+# existence check because:
+# - farewell: C++ deletes traits before Python processes it
+# - join/join_batch: traits don't exist yet when they fire
+# bot_greeting is included defensively; it doesn't start
+# with 'bot_group_' so the guard would never match it
+# anyway, but listing it here documents intent.
+_ORPHAN_GUARD_EXEMPT = frozenset({
+    'bot_group_farewell',
+    'bot_group_join',
+    'bot_group_join_batch',
+    'bot_greeting',  # defensive; doesn't match bot_group_*
+})
+
 EVENT_HANDLERS = {
     # Group events
     'bot_group_join': process_group_event,
@@ -465,6 +505,8 @@ EVENT_HANDLERS = {
         process_group_resurrect_event,
     'bot_group_zone_transition':
         process_group_zone_transition_event,
+    'bot_group_subzone_change':
+        process_group_zone_transition_event,
     'bot_group_quest_accept':
         process_group_quest_accept_event,
     'bot_group_quest_accept_batch':
@@ -483,6 +525,8 @@ EVENT_HANDLERS = {
         process_group_aggro_loss_event,
     'bot_group_nearby_object':
         process_group_nearby_object_event,
+    'bot_group_farewell':
+        process_group_farewell_event,
     # General event
     'player_general_msg':
         _dispatch_player_general_msg,
@@ -756,8 +800,8 @@ def _event_summary(event):
 def _log_event_location(db, event, config):
     """Log zone > subzone label for a group event.
 
-    Note: adds one SELECT query per event (via
-    get_group_area) when DebugLog is enabled.
+    Uses get_group_location (bot traits) as the
+    single source of truth for location data.
     """
     try:
         extra = event.get('extra_data')
@@ -766,12 +810,13 @@ def _log_event_location(db, event, config):
         if not isinstance(extra, dict):
             return
         gid = int(extra.get('group_id', 0) or 0)
-        zone_id = int(
-            event.get('zone_id', 0) or 0
-        )
-        if not gid or not zone_id:
+        if not gid:
             return
-        area_id = get_group_area(db, gid)
+        zone_id, area_id, _ = get_group_location(
+            db, gid
+        )
+        if not zone_id:
+            return
         loc = format_location_label(
             zone_id, area_id
         )
@@ -800,6 +845,40 @@ def process_single_event(event, client, config):
         # Route known events via map.
         handler = EVENT_HANDLERS.get(event_type)
         if handler is not None:
+            # Skip orphaned group events: if the
+            # group has no traits rows (already
+            # cleaned up after player logout /
+            # group disband), mark expired and skip.
+            # Lifecycle events are exempt — see
+            # _ORPHAN_GUARD_EXEMPT at module scope.
+            if (event_type.startswith('bot_group_')
+                    and event_type
+                    not in _ORPHAN_GUARD_EXEMPT):
+                gid = event.get('_group_id')
+                if gid:
+                    cursor.execute(
+                        "SELECT 1"
+                        " FROM llm_group_bot_traits"
+                        " WHERE group_id = %s"
+                        " LIMIT 1",
+                        (gid,)
+                    )
+                    if not cursor.fetchone():
+                        cursor.execute(
+                            "UPDATE llm_chatter_events"
+                            " SET status = 'expired'"
+                            " WHERE id = %s",
+                            (event_id,)
+                        )
+                        db.commit()
+                        return False
+                else:
+                    logger.warning(
+                        "bot_group_* event %s has"
+                        " no _group_id — orphan"
+                        " guard skipped",
+                        event_type,
+                    )
             # Log location context for group events
             if (event_type.startswith('bot_group_')
                     and config.get(
@@ -1170,6 +1249,11 @@ def process_single_event(event, client, config):
                     config, current_weather,
                     recent_messages=recent_msgs,
                     allow_action=allow_action,
+                    area_id=int(
+                        bots[0].get(
+                            'area_id', 0
+                        ) or 0
+                    ),
                 )
             )
 
@@ -1302,11 +1386,19 @@ def process_single_event(event, client, config):
                     db.commit()
                     return False
 
-            # Get zone name
-            zone_name = (
-                get_zone_name(
-                    bot.get('zone_id', zone_id)
+            # Get zone name and IDs
+            # Prefer event zone_id (player-centric,
+            # set by C++ from real player's zone)
+            # over bot's characters.zone (stale).
+            evt_zone_id = int(zone_id or 0)
+            use_zone_id = (
+                evt_zone_id
+                or int(
+                    bot.get('zone_id', 0) or 0
                 )
+            )
+            zone_name = (
+                get_zone_name(use_zone_id)
                 or "the world"
             )
 
@@ -1322,6 +1414,8 @@ def process_single_event(event, client, config):
                 config=config,
                 extra_data=extra_data,
                 allow_action=allow_action,
+                zone_id=use_zone_id,
+                area_id=0,
             )
 
             # Call LLM via shared helper
@@ -1604,6 +1698,100 @@ def _count_in_flight_jobs(*futures):
     )
 
 
+def _write_db_snapshot(db, snapshot_dir):
+    """Write DB state JSON snapshots to the logs dir
+    so the log viewer's DB State tab can read them.
+    Uses atomic replace to avoid partial reads.
+    """
+    import os
+    import json as _json
+    from datetime import datetime, timezone
+
+    try:
+        cursor = db.cursor(dictionary=True)
+
+        cursor.execute(
+            "SELECT m.bot_guid,"
+            " c.name AS bot_name,"
+            " m.player_guid, m.group_id,"
+            " m.memory_type, m.memory,"
+            " m.mood, m.emote, m.active,"
+            " m.used, m.last_used_at,"
+            " m.created_at,"
+            " m.session_start"
+            " FROM llm_bot_memories m"
+            " LEFT JOIN characters c"
+            "   ON c.guid = m.bot_guid"
+            " ORDER BY m.created_at DESC"
+            " LIMIT 200"
+        )
+        memories = cursor.fetchall()
+
+        cursor.execute(
+            "SELECT id, status, request_type,"
+            " bot1_guid, bot2_guid, bot3_guid,"
+            " bot4_guid, created_at"
+            " FROM llm_chatter_queue"
+            " ORDER BY created_at DESC"
+            " LIMIT 100"
+        )
+        queue = cursor.fetchall()
+
+        cursor.execute(
+            "SELECT id, bot_guid, bot_name,"
+            " message, channel, delivered,"
+            " deliver_at"
+            " FROM llm_chatter_messages"
+            " ORDER BY deliver_at DESC"
+            " LIMIT 100"
+        )
+        messages = cursor.fetchall()
+
+        cursor.close()
+
+        # Convert datetime/decimal objects
+        def _serialise(rows):
+            out = []
+            for row in rows:
+                r = {}
+                for k, v in row.items():
+                    if hasattr(v, 'isoformat'):
+                        r[k] = v.isoformat()
+                    else:
+                        r[k] = v
+                out.append(r)
+            return out
+
+        ts = datetime.now(
+            timezone.utc
+        ).isoformat()
+
+        for fname, rows in [
+            ('db_memories.json', memories),
+            ('db_queue.json', queue),
+            ('db_messages.json', messages),
+        ]:
+            data = {
+                'rows': _serialise(rows),
+                'updated': ts,
+            }
+            path = os.path.join(
+                snapshot_dir, fname
+            )
+            tmp = path + '.tmp'
+            with open(
+                tmp, 'w', encoding='utf-8'
+            ) as f:
+                _json.dump(
+                    data, f,
+                    ensure_ascii=False
+                )
+            os.replace(tmp, path)
+
+    except Exception:
+        pass
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -1646,6 +1834,16 @@ def main():
         init_request_logger,
     )
     init_request_logger(config)
+
+    # Derive snapshot dir from log path
+    import os as _os
+    _log_path = config.get(
+        'LLMChatter.RequestLog.Path',
+        '/logs/llm_requests.jsonl'
+    )
+    snapshot_dir = (
+        _os.path.dirname(_log_path) or '/logs'
+    )
 
     # Get provider and initialize appropriate client
     provider = config.get(
@@ -1996,6 +2194,23 @@ def main():
         try:
             db = get_db_connection(config)
             reset_stuck_processing_events(db)
+
+            # Memory system startup recovery
+            if int(config.get(
+                'LLMChatter.Memory.Enable', 1
+            )):
+                from chatter_memory import (
+                    activate_orphaned_memories,
+                    rehydrate_active_sessions,
+                )
+                session_min = int(config.get(
+                    'LLMChatter.Memory'
+                    '.SessionMinutes', 15
+                ))
+                activate_orphaned_memories(
+                    db, session_min
+                )
+                rehydrate_active_sessions(db)
         except Exception:
             pass
         finally:
@@ -2008,6 +2223,8 @@ def main():
     # Main loop
     last_cleanup = 0
     cleanup_interval = 60  # every 60 seconds
+    last_db_snapshot = 0
+    db_snapshot_interval = 10  # every 10 seconds
     last_idle_check = 0
     idle_check_interval = int(config.get(
         'LLMChatter.GroupChatter.IdleCheckInterval',
@@ -2034,6 +2251,8 @@ def main():
     idle_chatter_future = None
     bot_question_future = None
     legacy_future = None
+    # Track online→offline transition for full wipe
+    was_players_online = True
 
     def _harvest_future(f, name):
         """Consume any unexpected worker failure."""
@@ -2107,29 +2326,67 @@ def main():
                 db = get_db_connection(config)
                 current_time = time.time()
 
+                # Global gate: skip all work if no
+                # real players are online. Handles
+                # clean logout, crash, and alt-F4.
+                players_online = (
+                    any_real_players_online(db)
+                )
+
+                # Transition online → offline: wipe
+                # all ephemeral session data once
+                if (
+                    was_players_online
+                    and not players_online
+                ):
+                    cleanup_all_session_data(db)
+                    try:
+                        from chatter_memory import (
+                            clear_all_sessions,
+                        )
+                        clear_all_sessions()
+                    except Exception:
+                        pass
+                was_players_online = players_online
+
                 # Periodic cleanup (fast SQL,
                 # stays on main thread)
                 if (
-                    use_event_system
-                    and current_time
+                    current_time
                     - last_cleanup
                     >= cleanup_interval
                 ):
-                    cleanup_expired_events(
-                        db, active_event_ids
-                    )
-                    evicted_group_locks = (
-                        _evict_unused_group_locks(
-                            group_locks,
-                            group_locks_lock,
-                            active_group_ids,
+                    if use_event_system:
+                        cleanup_expired_events(
+                            db, active_event_ids
                         )
-                    )
+                        evicted_group_locks = (
+                            _evict_unused_group_locks(
+                                group_locks,
+                                group_locks_lock,
+                                active_group_ids,
+                            )
+                        )
+                    # Purge stale groups whose
+                    # player went offline (runs
+                    # regardless of UseEventSystem)
+                    cleanup_stale_groups(db)
                     last_cleanup = current_time
+
+                # DB state snapshot for log viewer
+                if (
+                    current_time
+                    - last_db_snapshot
+                    >= db_snapshot_interval
+                ):
+                    _write_db_snapshot(
+                        db, snapshot_dir
+                    )
+                    last_db_snapshot = current_time
 
                 # Legacy requests (General ambient chatter)
                 # Runs freely every cycle — no deferral
-                if not legacy_future:
+                if players_online and not legacy_future:
                     legacy_future = (
                         executor.submit(
                             _run_in_worker,
@@ -2141,7 +2398,7 @@ def main():
 
                 # Fetch + dispatch events
                 dispatched = 0
-                if use_event_system:
+                if use_event_system and players_online:
                     available = (
                         max_concurrent
                         - len(active_futures)
@@ -2205,7 +2462,8 @@ def main():
 
                 # Idle chatter -> worker pool
                 if (
-                    use_event_system
+                    players_online
+                    and use_event_system
                     and not idle_chatter_future
                     and current_time
                     - last_idle_check
@@ -2223,7 +2481,8 @@ def main():
 
                 # Bot questions -> worker pool
                 if (
-                    use_event_system
+                    players_online
+                    and use_event_system
                     and not bot_question_future
                     and current_time
                     - last_question_check
@@ -2241,7 +2500,8 @@ def main():
 
                 # Pre-cache -> worker pool
                 if (
-                    precache_enabled
+                    players_online
+                    and precache_enabled
                     and not precache_future
                     and current_time
                     - last_cache_refill
@@ -2275,6 +2535,14 @@ def main():
 
         except KeyboardInterrupt:
             executor.shutdown(wait=False)
+            # Drain memory executor
+            try:
+                from chatter_memory import (
+                    memory_executor,
+                )
+                memory_executor.shutdown(wait=True)
+            except Exception:
+                pass
             break
         except Exception:
             time.sleep(poll_interval)

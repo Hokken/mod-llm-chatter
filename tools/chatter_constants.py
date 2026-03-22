@@ -1085,6 +1085,29 @@ ancient mysteries.""",
 fortresses, and the Icecrown Citadel itself. The Argent Crusade makes its final
 stand. The air itself feels dead. This is the end of the road - victory
 or oblivion.""",
+
+    # -------------------------------------------------------------------------
+    # Capital Cities
+    # -------------------------------------------------------------------------
+    1519: """Stormwind City: The grand human capital, rebuilt after the First War. Cathedral of Light dominates the skyline, the canals wind between stone districts, and the bustling Trade District never sleeps. Guards patrol everywhere. The harbor connects to distant lands. King Varian Wrynn rules from Stormwind Keep. A city of cobblestones, banners, and civic pride — the heart of the Alliance.""",
+
+    1537: """Ironforge: The great dwarven city carved into the heart of a mountain. A massive forge of molten metal dominates the center, surrounded by the Great Forge district where master smiths hammer day and night. The air is warm and smells of iron and ale. Tunnels branch into the Military Ward, Mystic Ward, and the Deeprun Tram to Stormwind. Solid, ancient, and built to last forever.""",
+
+    1657: """Darnassus: The serene night elf capital atop the world tree Teldrassil. Moonwells shimmer in quiet courtyards, ancient trees arch overhead, and soft purple light filters through the canopy. The Temple of the Moon honors Elune. Druids meditate in the Cenarion Enclave. The city feels timeless and peaceful, far removed from the wars below — though that peace is more fragile than it appears.""",
+
+    3557: """The Exodar: The crashed dimensional ship of the draenei, now repurposed as their capital. Crystal pylons hum with naaru energy, purple and blue light bathes geometric corridors, and the Seat of the Naaru glows at its heart. The architecture is alien and beautiful — part cathedral, part starship. Draenei go about their lives with quiet dignity, rebuilding after yet another exile.""",
+
+    1637: """Orgrimmar: The brutal orcish capital carved into red desert canyons. Iron spikes, war banners, and massive gates define the skyline. The Valley of Strength echoes with grunts of training warriors and the clang of the auction house. Thrall's legacy hangs in the air. The city is raw, loud, and unapologetically aggressive — a fortress city built for a people who expect war.""",
+
+    1638: """Thunder Bluff: The tauren capital built on towering mesas connected by rope bridges high above the Mulgore plains. Wind sweeps across the open-air platforms. Totems and hides decorate every structure. The Elder Rise hosts druids, the Spirit Rise the priests. Cairne Bloodhoof leads with ancient wisdom. The most peaceful Horde capital — sky, wind, grass, and the quiet strength of the Earth Mother.""",
+
+    1497: """Undercity: The Forsaken capital beneath the ruins of Lordaeron. A dark, circular sewer city where the undead conduct their existence among green slime canals and flickering torches. The Royal Quarter houses Sylvanas Windrunner. Apothecaries brew dubious concoctions. The air is damp, cold, and faintly toxic. Grim, functional, and unsettling — but home to those who have nowhere else.""",
+
+    3487: """Silvermoon City: The blood elf capital, half-rebuilt after the Scourge invasion. The functioning western half gleams with crimson and gold spires, arcane guardians patrol pristine streets, and fountains flow with magical energy. The eastern ruins remain a scar. Sin'dorei culture prizes beauty, magic, and sophistication. An elegant city masking deep wounds and desperate addiction to arcane power.""",
+
+    3703: """Shattrath City: The neutral draenei city in Terokkar Forest, now shared by the Aldor and Scryers factions. The Terrace of Light glows with naaru radiance at its center. Refugees from across Outland crowd the Lower City. Both Alliance and Horde walk these streets in uneasy truce. A cosmopolitan hub where every race mingles — part sanctuary, part political powder keg.""",
+
+    4395: """Dalaran: The floating mage city hovering above Crystalsong Forest in Northrend. Violet spires pierce the clouds, arcane wards shimmer at every corner, and the Kirin Tor governs from the Violet Citadel. Both factions maintain sanctuaries here for the war against the Lich King. Portals connect to every major city. A city of scholars, secrets, and barely contained magical power suspended impossibly in the sky.""",
 }
 
 # =============================================================================
@@ -1695,10 +1718,10 @@ MESSAGE_CATEGORIES = [
 
 # Length hints
 LENGTH_HINTS = [
-    "short (6-12 words)",
-    "medium (15-22 words)",
-    "medium (15-22 words)",
-    "conversational (25-40 words)",
+    "very short (under 40 chars)",
+    "short (40-70 chars)",
+    "short (40-70 chars)",
+    "medium (70-120 chars)",
 ]
 
 # =============================================================================
@@ -1828,12 +1851,14 @@ RP_MESSAGE_CATEGORIES = [
 ]
 
 RP_LENGTH_HINTS = [
-    "very brief, just a few words (3-5 words)",
-    "a short quip or remark (6-8 words)",
-    "short and casual (9-12 words)",
-    "a normal sentence (13-16 words)",
-    "a couple of short thoughts (17-22 words)",
-    "a bit longer if it feels natural (23-30 words)",
+    "very short (under 40 chars)",
+    "very short (under 40 chars)",
+    "a short quip or remark (40-70 chars)",
+    "short (40-70 chars)",
+    "short (40-70 chars)",
+    "medium (70-120 chars)",
+    "medium (70-120 chars)",
+    "longer (120-150 chars max)",
 ]
 
 # =============================================================================
