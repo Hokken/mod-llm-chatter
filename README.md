@@ -29,7 +29,7 @@ An AI-powered conversation engine for [AzerothCore](https://www.azerothcore.org/
 
 ---
 
-## Updated
+## Changelog
 
 ### Persistent Memories & Personality Traits (March 2026)
 
