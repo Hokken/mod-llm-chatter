@@ -1227,6 +1227,90 @@ continue to use standard timing.
 
 ---
 
+## 13c. Persistent Bot–Player Memory
+
+### Overview
+
+Bots accumulate a bounded journal of shared moments with real players.
+On re-invite, the bot delivers a reunion greeting that references past
+experiences rather than treating the player as a stranger.
+
+### Memory lifecycle
+
+1. **Group join** (`process_group_join_event` / `process_group_join_batch_event`)
+   - `start_session()` registers the bot in the in-memory session tracker
+   - `get_bot_memories()` fetches up to 3 random `active=1` memories for this
+     bot–player pair
+   - If memories exist: `player_name_known=True` → reunion greeting mode
+   - If no memories (first meeting): a `first_meeting` memory is inserted
+     directly with `active=1` and `memory_type='first_meeting'`, guarded by
+     `INSERT...SELECT...WHERE NOT EXISTS` to prevent duplicates on re-join.
+     This memory is immune to both short-session discard and cap pruning.
+
+2. **During the session** — event handlers may call `_generate_and_store_memory()`
+   to produce LLM-generated memories (boss kills, notable events). These are
+   inserted with `active=0` until flush.
+
+3. **Group farewell** (`process_group_farewell_event` → `flush_session_memories()`)
+   - If session was long enough (`SessionMinutes` threshold): activates `active=0`
+     rows and prunes oldest memories to the `MaxPerBotPlayer` cap.
+     `first_meeting` rows are excluded from the prune DELETE.
+   - If session was too short: deletes all `active=0` rows for this session.
+     `first_meeting` rows are `active=1` and unaffected.
+
+4. **Reunion greeting** — when `get_bot_memories()` returns a non-empty list,
+   the greeting prompt enters reunion mode: injects `<past_memories>` block,
+   uses familiar tone, optionally recalls a specific memory (`recall_memory`).
+   The `is_reunion` flag is `bool(memories and player_name_known)`, so a first
+   meeting (where `memories=[]`) always produces a fresh greeting even though
+   `player_name_known` is set to `True` for internal tracking.
+
+### Files
+
+| File | Role |
+|------|------|
+| `chatter_memory.py` | Session tracking, memory generation, flush, retrieval |
+| `chatter_group.py` | Calls `start_session`, `get_bot_memories`, first-meeting insert |
+| `chatter_group_prompts.py` | `build_bot_greeting_prompt` — reunion mode and `<past_memories>` injection |
+
+### Database tables
+
+| Table | Purpose |
+|-------|---------|
+| `llm_bot_memories` | Per-bot-per-player memory journal. `memory_type` includes `first_meeting`, `boss_kill`, `party_member`, etc. |
+| `llm_bot_identities` | Persistent personality traits keyed by `bot_guid`. Regenerated only on `IdentityVersion` bump. |
+
+### Config keys
+
+| Key | Default | Purpose |
+|-----|---------|---------|
+| `LLMChatter.Memory.Enable` | `1` | Master toggle |
+| `LLMChatter.Memory.SessionMinutes` | `15` | Minimum session length to activate memories |
+| `LLMChatter.Memory.MaxPerBotPlayer` | `50` | Cap on active memories per bot–player pair |
+| `LLMChatter.Memory.RecallChance` | `30` | % chance a specific memory is highlighted in reunion greeting |
+| `LLMChatter.Memory.IdentityVersion` | `1` | Bump to force personality regeneration for all bots |
+
+---
+
+## 13d. Queue and Message Cleanup
+
+The system has four cleanup layers that work together to ensure stale
+queue entries and undelivered messages are never visible to players after
+a group ends.
+
+| Layer | Trigger | Scope | Mechanism |
+|-------|---------|-------|-----------|
+| `OnRemoveMember` | Bot removed from group | That bot only | Cancels queue entries containing `bot_guid`; marks messages delivered |
+| `CleanupGroupSession` | Group disbands or no real player remains | Full group | Cancels all queue entries for group bots; marks messages delivered. Runs **before** deleting `llm_group_bot_traits` so IN-subqueries resolve correctly |
+| Bridge TTL | Every poll cycle | Global (5-min window) | Cancels `llm_chatter_queue` entries `> 5 MINUTE` old; marks messages `> 5 MINUTE` past `deliver_at` |
+| `OnPlayerLogin` | Real player logs in | Global (30-second grace) | Crash-recovery only. Cancels queue entries `> 30 SECOND` old; marks messages `> 30 SECOND` past `deliver_at`. Protects freshly-queued entries from other online players |
+
+The 30-second grace in `OnPlayerLogin` means other players' active entries
+(queued < 30 seconds ago) are safe. In normal operation `CleanupGroupSession`
+handles everything; `OnPlayerLogin` only matters after a server crash.
+
+---
+
 ## 14. JSON and Queue Contracts
 
 ### `QueueChatterEvent()`
@@ -1278,6 +1362,8 @@ Typical multi-message JSON shape:
 | `llm_group_bot_traits` | Python | Python | Group personality state |
 | `llm_group_chat_history` | Python | Python | Group anti-repetition history |
 | `llm_general_chat_history` | C++/Python read path | Python/C++ | General-channel history |
+| `llm_bot_memories` | Python | Python | Per-bot-per-player memory journal (active=1 persists; first_meeting immune to prune) |
+| `llm_bot_identities` | Python | Python | Persistent bot personality traits; regenerated on IdentityVersion bump |
 
 ---
 

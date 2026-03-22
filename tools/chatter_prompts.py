@@ -16,10 +16,11 @@ from chatter_constants import (
     RP_TONES, RP_MOODS, RP_CREATIVE_TWISTS,
     RP_MESSAGE_CATEGORIES, RP_LENGTH_HINTS,
     PERSONALITY_SPICES, RP_PERSONALITY_SPICES,
-    CLASS_NAMES, RACE_NAMES,
+    CLASS_NAMES, RACE_NAMES, CLASS_ROLE_MAP,
 )
 from chatter_shared import (
     get_chatter_mode, build_race_class_context,
+    build_race_class_context_parts,
     get_zone_flavor, format_price,
     build_anti_repetition_context,
     append_json_instruction,
@@ -141,11 +142,11 @@ CONV_LENGTHS = [
     "very short (under 40 chars)",
     "short (40-70 chars)",
     "medium (70-120 chars)",
-    "longer (120-180 chars)",
+    "longer (120-150 chars max)",
 ]
-# Weights favour shorter messages; the occasional
-# long one keeps it natural.
-CONV_LENGTH_WEIGHTS = [30, 35, 25, 10]
+# Weights favour shorter messages; keeps
+# conversations snappy and readable.
+CONV_LENGTH_WEIGHTS = [35, 35, 25, 5]
 
 
 def generate_conversation_length_sequence(
@@ -220,9 +221,14 @@ def build_dynamic_guidelines(
     include_humor: bool = None,
     include_length: bool = True,
     config: dict = None,
-    mode: str = 'normal'
+    mode: str = 'normal',
+    length_hint: str = "",
 ) -> list:
-    """Build a randomized list of guidelines."""
+    """Build a randomized list of guidelines.
+
+    length_hint: if provided, overrides the random
+    length pool pick (caller pre-selected via RNG).
+    """
     is_rp = (mode == 'roleplay')
 
     if is_rp:
@@ -259,8 +265,11 @@ def build_dynamic_guidelines(
 
     length_pool = RP_LENGTH_HINTS if is_rp else LENGTH_HINTS
     if include_length:
+        picked = length_hint or random.choice(
+            length_pool
+        )
         guidelines.append(
-            f"Length: {random.choice(length_pool)}"
+            f"Length: {picked}"
         )
         long_chance = 15 if is_rp else 12
         if config is not None:
@@ -277,18 +286,19 @@ def build_dynamic_guidelines(
                 pass
         if random.randint(1, 100) <= long_chance:
             guidelines.append(
-                "Length mode: long allowed (up to ~200 chars) "
-                "if it feels natural"
-            )
-            guidelines.append(
-                "If long, make it a single thought, "
-                "not a paragraph"
+                "Length mode: longer allowed "
+                "(up to ~150 chars max) if it "
+                "feels natural — one sentence"
             )
         else:
             guidelines.append(
                 "Length mode: short/medium only "
                 "(avoid long messages)"
             )
+        guidelines.append(
+            "HARD LIMIT: Never exceed 150 "
+            "characters total"
+        )
 
     if include_humor is None:
         include_humor = random.random() < (
@@ -350,6 +360,7 @@ def build_plain_statement_prompt(
     speaker_talent_context=None,
     topic: str = None,
     area_id: int = 0,
+    length_hint: str = "",
 ) -> str:
     """Build a dynamically varied prompt for a plain statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -433,7 +444,8 @@ def build_plain_statement_prompt(
     parts.append(f"Message type: {category}")
 
     guidelines = build_dynamic_guidelines(
-        config=config, mode=mode
+        config=config, mode=mode,
+        length_hint=length_hint,
     )
     guidelines.append(
         "Plain text only - never wrap creature, NPC, "
@@ -486,6 +498,7 @@ def build_quest_statement_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a dynamically varied prompt for a quest statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -510,6 +523,10 @@ def build_quest_statement_prompt(
         )
         parts.append(f"Zone: {bot['zone']}")
 
+    zone_flavor = get_zone_flavor(zone_id)
+    if is_rp and zone_flavor:
+        parts.append(f"Zone context: {zone_flavor}")
+
     env_context = get_environmental_context(current_weather)
     if env_context['time']:
         parts.append(f"Time of day: {env_context['time']}")
@@ -527,8 +544,10 @@ def build_quest_statement_prompt(
     quest_placeholder = f"{{{{quest:{quest['quest_name']}}}}}"
     parts.append(f"Quest: {quest['quest_name']}")
     parts.append(
-        f"REQUIRED: Include exactly {quest_placeholder} in "
-        f"your message (this becomes a clickable link)"
+        f"REQUIRED: Include exactly "
+        f"{quest_placeholder} in the \"message\" "
+        f"JSON field (NOT in the action). "
+        f"This becomes a clickable link"
     )
 
     if quest.get('description') and random.random() < 0.4:
@@ -571,7 +590,10 @@ def build_quest_statement_prompt(
     guidelines = build_dynamic_guidelines(
         config=config, mode=mode
     )
-    guidelines.append("Keep under 110 characters")
+    guidelines.append(
+        "STRICT: Keep under 80 characters "
+        "(the link counts as ~15 chars)"
+    )
     if is_rp:
         guidelines.append(
             "Stay in character but sound natural, "
@@ -601,6 +623,7 @@ def build_loot_statement_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a dynamically varied prompt for a loot statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -633,6 +656,10 @@ def build_loot_statement_prompt(
             "about a loot drop."
         )
 
+    zone_flavor = get_zone_flavor(zone_id)
+    if is_rp and zone_flavor:
+        parts.append(f"Zone context: {zone_flavor}")
+
     env_context = get_environmental_context(current_weather)
     if env_context['time']:
         parts.append(f"Time of day: {env_context['time']}")
@@ -647,8 +674,10 @@ def build_loot_statement_prompt(
         f"Item: {item['item_name']} ({quality} quality)"
     )
     parts.append(
-        f"REQUIRED: Include exactly {item_placeholder} in "
-        f"your message (this becomes a clickable link)"
+        f"REQUIRED: Include exactly "
+        f"{item_placeholder} in the \"message\" "
+        f"JSON field (this becomes a clickable "
+        f"link). NEVER put it in the action field"
     )
 
     if random.random() < 0.6:
@@ -693,7 +722,10 @@ def build_loot_statement_prompt(
     guidelines = build_dynamic_guidelines(
         config=config, mode=mode
     )
-    guidelines.append("Keep under 110 characters")
+    guidelines.append(
+        "STRICT: Keep under 80 characters "
+        "(the link counts as ~15 chars)"
+    )
     if is_rp:
         guidelines.append(
             "Stay in character but sound natural, "
@@ -722,6 +754,7 @@ def build_quest_reward_statement_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a prompt for quest completion with reward."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -743,6 +776,7 @@ def build_quest_reward_statement_prompt(
             speaker_talent_context=(
                 speaker_talent_context
             ),
+            zone_id=zone_id,
         )
 
     quality_names = {
@@ -769,6 +803,10 @@ def build_quest_reward_statement_prompt(
             "Generate a brief WoW General chat message "
             "about finishing a quest."
         )
+
+    zone_flavor = get_zone_flavor(zone_id)
+    if is_rp and zone_flavor:
+        parts.append(f"Zone context: {zone_flavor}")
 
     env_context = get_environmental_context(current_weather)
     if env_context['time']:
@@ -825,8 +863,15 @@ def build_quest_reward_statement_prompt(
     guidelines = build_dynamic_guidelines(
         config=config, mode=mode
     )
-    guidelines.append("Use BOTH placeholders, each once")
-    guidelines.append("Keep under 110 characters")
+    guidelines.append(
+        "Use BOTH placeholders, each once, "
+        "in the \"message\" field only "
+        "(NOT in the action)"
+    )
+    guidelines.append(
+        "STRICT: Keep under 80 characters "
+        "(the link counts as ~15 chars)"
+    )
     if is_rp:
         guidelines.append(
             "Stay in character but sound natural, "
@@ -922,19 +967,54 @@ def build_plain_conversation_prompt(
         "not every message - vary it naturally."
     )
 
+    # Precompute shared race context once per unique race.
+    # Pass race_count so lore uses cumulative probability
+    # 1-(1-p)^n, preserving pre-dedup lore frequency.
+    shared_race_cache = {}
+    if is_rp:
+        race_counts = {}
+        for bot in bots:
+            r = bot.get('race', '')
+            if r:
+                race_counts[r] = race_counts.get(r, 0) + 1
+        for race, count in race_counts.items():
+            _, sr, _ = build_race_class_context_parts(
+                race, '', race_count=count
+            )
+            shared_race_cache[race] = sr
+
+    seen_races = set()
+    seen_classes = set()
     for bot in bots:
         if is_rp or random.random() < 0.4:
+            race = bot.get('race', '')
+            cls = bot.get('class', '')
             parts.append(
-                f"{bot['name']} is a "
-                f"{bot['race']} {bot['class']}"
+                f"{bot['name']} is a {race} {cls}"
             )
             if is_rp:
-                rp_ctx = build_race_class_context(
-                    bot.get('race', ''),
-                    bot.get('class', ''),
+                per_bot, _, shared_class = (
+                    build_race_class_context_parts(
+                        race, cls
+                    )
                 )
-                if rp_ctx:
-                    parts.append(f"  {rp_ctx}")
+                if per_bot:
+                    parts.append(f"  {per_bot}")
+                if race not in seen_races:
+                    sr = shared_race_cache.get(
+                        race, ''
+                    )
+                    if sr:
+                        parts.append(
+                            f"  {sr}"
+                        )
+                    seen_races.add(race)
+                if cls not in seen_classes:
+                    if shared_class:
+                        parts.append(
+                            f"  {shared_class}"
+                        )
+                    seen_classes.add(cls)
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -1060,6 +1140,7 @@ def build_quest_conversation_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a prompt for a quest conversation with 2-4 bots."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1091,6 +1172,10 @@ def build_quest_conversation_prompt(
                 f"{bot['name']} is a "
                 f"{bot['race']} {bot['class']}"
             )
+
+    zone_flavor = get_zone_flavor(zone_id)
+    if is_rp and zone_flavor:
+        parts.append(f"Zone context: {zone_flavor}")
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -1175,8 +1260,8 @@ def build_quest_conversation_prompt(
             f"message â€” do NOT skip any participant"
         )
     guidelines.append(
-        "Keep each message under 140 characters; "
-        "short/medium is the norm"
+        "STRICT: Each message MUST be under 120 "
+        "characters. Short is better"
     )
     if is_rp:
         guidelines.append(
@@ -1205,6 +1290,7 @@ def build_loot_conversation_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a prompt for a loot conversation with 2-4 bots."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1245,6 +1331,10 @@ def build_loot_conversation_prompt(
                 f"{bot['race']} {bot['class']}"
             )
 
+    zone_flavor = get_zone_flavor(zone_id)
+    if is_rp and zone_flavor:
+        parts.append(f"Zone context: {zone_flavor}")
+
     if speaker_talent_context:
         parts.append(speaker_talent_context)
 
@@ -1260,8 +1350,9 @@ def build_loot_conversation_prompt(
         f"Item: {item['item_name']} ({quality} quality)"
     )
     parts.append(
-        f"REQUIRED: Use {item_placeholder} placeholder "
-        f"when mentioning the item"
+        f"REQUIRED: Use {item_placeholder} in the "
+        f"\"message\" field (NOT in the action). "
+        f"This becomes a clickable link"
     )
 
     tone = pick_random_tone(mode)
@@ -1327,8 +1418,8 @@ def build_loot_conversation_prompt(
             f"message â€” do NOT skip any participant"
         )
     guidelines.append(
-        "Keep each message under 140 characters; "
-        "short/medium is the norm"
+        "STRICT: Each message MUST be under 120 "
+        "characters. Short is better"
     )
     if is_rp:
         guidelines.append(
@@ -1356,7 +1447,8 @@ def build_event_conversation_prompt(
     config: dict = None,
     current_weather: str = 'clear',
     recent_messages: list = None,
-    allow_action: bool = True
+    allow_action: bool = True,
+    area_id: int = 0,
 ) -> str:
     """Build a prompt for an event-triggered conversation."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1385,6 +1477,29 @@ def build_event_conversation_prompt(
     )
 
     parts.append(f"\nEVENT CONTEXT: {event_context}")
+
+    # Zone flavor and subzone context
+    if is_rp and zone_id:
+        zone_flav = get_zone_flavor(zone_id)
+        if zone_flav:
+            parts.append(
+                f"Zone context: {zone_flav}"
+            )
+        subzone_lore = get_subzone_lore(
+            zone_id, area_id
+        )
+        if subzone_lore:
+            parts.append(
+                f"Current subzone: {subzone_lore}"
+            )
+        else:
+            subzone_name = get_subzone_name(
+                zone_id, area_id
+            )
+            if subzone_name:
+                parts.append(
+                    f"Subzone: {subzone_name}"
+                )
 
     is_transport = (
         'boat' in event_context.lower()
@@ -1457,19 +1572,54 @@ def build_event_conversation_prompt(
             f"Current weather: {env_context['weather']}"
         )
 
+    # Precompute shared race context once per unique race.
+    # Pass race_count so lore uses cumulative probability
+    # 1-(1-p)^n, preserving pre-dedup lore frequency.
+    shared_race_cache = {}
+    if is_rp:
+        race_counts = {}
+        for bot in bots:
+            r = bot.get('race', '')
+            if r:
+                race_counts[r] = race_counts.get(r, 0) + 1
+        for race, count in race_counts.items():
+            _, sr, _ = build_race_class_context_parts(
+                race, '', race_count=count
+            )
+            shared_race_cache[race] = sr
+
+    seen_races = set()
+    seen_classes = set()
     for bot in bots:
         if is_rp or random.random() < 0.4:
+            race = bot.get('race', '')
+            cls = bot.get('class', '')
             parts.append(
-                f"{bot['name']} is a "
-                f"{bot['race']} {bot['class']}"
+                f"{bot['name']} is a {race} {cls}"
             )
             if is_rp:
-                rp_ctx = build_race_class_context(
-                    bot.get('race', ''),
-                    bot.get('class', ''),
+                per_bot, _, shared_class = (
+                    build_race_class_context_parts(
+                        race, cls
+                    )
                 )
-                if rp_ctx:
-                    parts.append(f"  {rp_ctx}")
+                if per_bot:
+                    parts.append(f"  {per_bot}")
+                if race not in seen_races:
+                    sr = shared_race_cache.get(
+                        race, ''
+                    )
+                    if sr:
+                        parts.append(
+                            f"  {sr}"
+                        )
+                    seen_races.add(race)
+                if cls not in seen_classes:
+                    if shared_class:
+                        parts.append(
+                            f"  {shared_class}"
+                        )
+                    seen_classes.add(cls)
 
     tone = pick_random_tone(mode)
     parts.append(f"Overall tone: {tone}")
@@ -1548,6 +1698,8 @@ def build_event_statement_prompt(
     config: dict = None,
     extra_data: dict = None,
     allow_action: bool = True,
+    zone_id: int = 0,
+    area_id: int = 0,
 ) -> str:
     """Build a prompt for an event-triggered statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1632,6 +1784,31 @@ def build_event_statement_prompt(
             "either."
         )
 
+    # Zone flavor and subzone context
+    zone_context = ""
+    if is_rp and zone_id:
+        zone_flav = get_zone_flavor(zone_id)
+        if zone_flav:
+            zone_context += (
+                f"\nZone context: {zone_flav}"
+            )
+        subzone_lore = get_subzone_lore(
+            zone_id, area_id
+        )
+        if subzone_lore:
+            zone_context += (
+                f"\nCurrent subzone: "
+                f"{subzone_lore}"
+            )
+        else:
+            subzone_name = get_subzone_name(
+                zone_id, area_id
+            )
+            if subzone_name:
+                zone_context += (
+                    f"\nSubzone: {subzone_name}"
+                )
+
     prompt = (
         f"You are {bot['bot1_name']}, "
         f"a {bot['bot1_race']} "
@@ -1643,6 +1820,7 @@ def build_event_statement_prompt(
         f"and currently in "
         f"{zone_name}."
         f"{env_lines}"
+        f"{zone_context}"
         f"{rp_personality}\n\n"
         f"CONTEXT: {event_context}\n\n"
         f"{event_instruction}\n\n"
@@ -1672,6 +1850,7 @@ def build_spell_statement_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a prompt for a spell/ability statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1771,7 +1950,10 @@ def build_spell_statement_prompt(
     guidelines = build_dynamic_guidelines(
         config=config, mode=mode
     )
-    guidelines.append("Keep under 110 characters")
+    guidelines.append(
+        "STRICT: Keep under 80 characters "
+        "(the link counts as ~15 chars)"
+    )
     if is_rp:
         guidelines.append(
             "Stay in character but sound natural, "
@@ -1804,6 +1986,7 @@ def build_spell_conversation_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a prompt for a spell conversation
     with 2-4 bots discussing an ability."""
@@ -1846,18 +2029,53 @@ def build_spell_conversation_prompt(
         f"{bots[0]['class']} who knows this spell."
     )
 
+    # Precompute shared race context once per unique
+    # race to avoid duplicating worldview/lore.
+    shared_race_cache = {}
+    if is_rp:
+        race_counts = {}
+        for bot in bots:
+            r = bot.get('race', '')
+            if r:
+                race_counts[r] = (
+                    race_counts.get(r, 0) + 1
+                )
+        for race, count in race_counts.items():
+            _, sr, _ = build_race_class_context_parts(
+                race, '', race_count=count
+            )
+            shared_race_cache[race] = sr
+
+    seen_races = set()
+    seen_classes = set()
     for bot in bots:
         parts.append(
             f"{bot['name']} is a "
             f"{bot['race']} {bot['class']}"
         )
         if is_rp:
-            rp_ctx = build_race_class_context(
-                bot.get('race', ''),
-                bot.get('class', ''),
+            race = bot.get('race', '')
+            cls = bot.get('class', '')
+            per_bot, _, shared_class = (
+                build_race_class_context_parts(
+                    race, cls
+                )
             )
-            if rp_ctx:
-                parts.append(f"  {rp_ctx}")
+            if per_bot:
+                parts.append(f"  {per_bot}")
+            if race not in seen_races:
+                sr = shared_race_cache.get(race, '')
+                if sr:
+                    parts.append(f"  {sr}")
+                seen_races.add(race)
+            resolved_role = (
+                CLASS_ROLE_MAP.get(cls) or ''
+            )
+            cls_role_key = (cls, resolved_role)
+            if cls_role_key not in seen_classes:
+                if shared_class:
+                    parts.append(f"  {shared_class}")
+                seen_classes.add(cls_role_key)
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -1885,8 +2103,9 @@ def build_spell_conversation_prompt(
             f"What it does: {spell['spell_desc']}"
         )
     parts.append(
-        f"REQUIRED: Use {spell_placeholder} "
-        f"placeholder when mentioning this spell"
+        f"REQUIRED: Use {spell_placeholder} in the "
+        f"\"message\" field (NOT in the action). "
+        f"This becomes a clickable link"
     )
     parts.append(
         "Other speakers may mention their own "
@@ -1973,8 +2192,8 @@ def build_spell_conversation_prompt(
             f"message â€” do NOT skip any participant"
         )
     guidelines.append(
-        "Keep each message under 140 characters; "
-        "short/medium is the norm"
+        "STRICT: Each message MUST be under 120 "
+        "characters. Short is better"
     )
     if is_rp:
         guidelines.append(
@@ -2008,6 +2227,7 @@ def build_trade_statement_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a prompt for a trade/sell statement."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -2078,8 +2298,9 @@ def build_trade_statement_prompt(
         )
     parts.append(
         f"REQUIRED: Include exactly "
-        f"{item_placeholder} in your message "
-        f"(this becomes a clickable link)"
+        f"{item_placeholder} in the \"message\" "
+        f"JSON field (NOT in the action). "
+        f"This becomes a clickable link"
     )
 
     tone = pick_random_tone(mode)
@@ -2114,7 +2335,10 @@ def build_trade_statement_prompt(
     guidelines = build_dynamic_guidelines(
         config=config, mode=mode
     )
-    guidelines.append("Keep under 110 characters")
+    guidelines.append(
+        "STRICT: Keep under 80 characters "
+        "(the link counts as ~15 chars)"
+    )
     guidelines.append(
         "Include a realistic price in gold/silver "
         "(e.g. 2g, 50s, 1g20s)"
@@ -2151,6 +2375,7 @@ def build_trade_conversation_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
+    zone_id: int = 0,
 ) -> str:
     """Build a prompt for a trade conversation
     with 2-4 bots haggling over an item."""
@@ -2238,8 +2463,9 @@ def build_trade_conversation_prompt(
             f"roughly 2-5x vendor value)"
         )
     parts.append(
-        f"REQUIRED: Use {item_placeholder} "
-        f"placeholder when mentioning the item"
+        f"REQUIRED: Use {item_placeholder} in the "
+        f"\"message\" field (NOT in the action). "
+        f"This becomes a clickable link"
     )
 
     tone = pick_random_tone(mode)
@@ -2328,8 +2554,8 @@ def build_trade_conversation_prompt(
             f"message â€” do NOT skip any participant"
         )
     guidelines.append(
-        "Keep each message under 140 characters; "
-        "short/medium is the norm"
+        "STRICT: Each message MUST be under 120 "
+        "characters. Short is better"
     )
     if is_rp:
         guidelines.append(

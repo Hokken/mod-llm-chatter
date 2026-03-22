@@ -67,7 +67,9 @@ CREATE TABLE `llm_chatter_events` (
         'raid_boss_pull',
         'raid_boss_kill',
         'raid_boss_wipe',
-        'raid_idle_morale'
+        'raid_idle_morale',
+        'bot_group_farewell',
+        'bot_group_subzone_change'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,
@@ -162,6 +164,7 @@ CREATE TABLE `llm_group_bot_traits` (
     `trait2` VARCHAR(32) NOT NULL,
     `trait3` VARCHAR(32) NOT NULL,
     `role` VARCHAR(16) DEFAULT NULL,
+    `tone` VARCHAR(120) DEFAULT NULL,
     `zone` INT UNSIGNED NOT NULL DEFAULT 0,
     `area` INT UNSIGNED NOT NULL DEFAULT 0,
     `map` INT UNSIGNED NOT NULL DEFAULT 0,
@@ -215,4 +218,45 @@ CREATE TABLE `llm_group_chat_history` (
     `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_group_id` (`group_id`),
     INDEX `idx_created_at` (`created_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Persistent bot identities (traits + farewell survive across sessions)
+DROP TABLE IF EXISTS `llm_bot_identities`;
+CREATE TABLE `llm_bot_identities` (
+    `bot_guid`         INT UNSIGNED NOT NULL PRIMARY KEY,
+    `bot_name`         VARCHAR(12)  NOT NULL,
+    `trait1`           VARCHAR(64)  NOT NULL,
+    `trait2`           VARCHAR(64)  NOT NULL,
+    `trait3`           VARCHAR(64)  NOT NULL,
+    `role`             VARCHAR(32)  DEFAULT NULL,
+    `farewell_msg`     VARCHAR(255) DEFAULT NULL,
+    `identity_version` INT UNSIGNED NOT NULL DEFAULT 1,
+    `created_at`       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Bot memories (accumulated journal of moments shared with players)
+DROP TABLE IF EXISTS `llm_bot_memories`;
+CREATE TABLE `llm_bot_memories` (
+    `id`            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
+    `bot_guid`      INT UNSIGNED NOT NULL,
+    `player_guid`   INT UNSIGNED NOT NULL,
+    `group_id`      INT UNSIGNED NOT NULL,
+    `memory_type`   ENUM(
+        'ambient', 'boss_kill', 'wipe', 'rare_kill',
+        'dungeon', 'party_member', 'player_message',
+        'first_meeting', 'quest_complete', 'achievement',
+        'level_up', 'bg_win', 'bg_loss',
+        'discovery', 'pvp_kill'
+    ) NOT NULL,
+    `memory`        TEXT         NOT NULL,
+    `mood`          VARCHAR(32)  NOT NULL,
+    `emote`         VARCHAR(32)  DEFAULT NULL,
+    `active`        TINYINT(1)   NOT NULL DEFAULT 0,
+    `used`          TINYINT(1)   NOT NULL DEFAULT 0,
+    `last_used_at`  TIMESTAMP    NULL DEFAULT NULL,
+    `session_start` DOUBLE       NOT NULL,
+    `created_at`    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
+    INDEX `idx_bot_player`        (`bot_guid`, `player_guid`),
+    INDEX `idx_bot_player_active` (`bot_guid`, `player_guid`, `active`),
+    INDEX `idx_group`             (`group_id`, `active`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

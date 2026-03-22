@@ -20,6 +20,8 @@ from chatter_shared import (
 
 logger = logging.getLogger(__name__)
 
+
+
 # Keep in sync from chatter_group.init_group_config
 _chat_history_limit = 10
 
@@ -176,19 +178,58 @@ PERSONALITY_TRAITS = {
 }
 
 
-def assign_bot_traits(
-    db, group_id, bot_guid, bot_name,
-    role=None, zone=0, map_id=0
+def check_or_create_bot_identity(
+    db, config, bot_guid, bot_name,
 ):
-    """Pick 3 random traits and store them.
+    """Check for a stored persistent identity.
 
-    Selects 3 random categories, picks 1 trait from
-    each. Uses INSERT ... ON DUPLICATE KEY UPDATE
-    so re-invites get fresh traits.
-    Optionally stores the bot's detected role
-    (tank/healer/melee_dps/ranged_dps) and current
-    zone/map from C++ extra_data.
+    If a row exists in llm_bot_identities with a
+    matching identity_version, return stored values.
+    Otherwise generate fresh traits, store them, and
+    return.
+
+    Returns dict with trait1-3, role, farewell_msg
+    or None if identity system is disabled.
     """
+    if not config:
+        return None
+    target_version = int(config.get(
+        'LLMChatter.Memory.IdentityVersion', 1
+    ))
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT trait1, trait2, trait3, role,"
+            "   farewell_msg, identity_version"
+            " FROM llm_bot_identities"
+            " WHERE bot_guid = %s",
+            (bot_guid,),
+        )
+        row = cursor.fetchone()
+        if row and int(
+            row.get('identity_version', 0)
+        ) == target_version:
+            logger.debug(
+                "Identity reused for %s"
+                " (v%s)",
+                bot_name, target_version,
+            )
+            return {
+                'trait1': row['trait1'],
+                'trait2': row['trait2'],
+                'trait3': row['trait3'],
+                'role': row.get('role'),
+                'farewell_msg': row.get(
+                    'farewell_msg'
+                ),
+            }
+        had_row = row is not None
+    except Exception:
+        had_row = False
+
+    # No stored identity or version mismatch:
+    # generate fresh traits
     categories = random.sample(
         list(PERSONALITY_TRAITS.keys()), 3
     )
@@ -197,29 +238,304 @@ def assign_bot_traits(
         for cat in categories
     ]
 
+    try:
+        cursor = db.cursor()
+        # Clear farewell_msg on version bump so
+        # _generate_farewell() regenerates it for
+        # the new personality instead of reusing a
+        # stale farewell from the previous version
+        cursor.execute("""
+            INSERT INTO llm_bot_identities
+            (bot_guid, bot_name,
+             trait1, trait2, trait3,
+             farewell_msg,
+             identity_version)
+            VALUES (%s, %s, %s, %s, %s, NULL, %s)
+            ON DUPLICATE KEY UPDATE
+                bot_name = VALUES(bot_name),
+                trait1 = VALUES(trait1),
+                trait2 = VALUES(trait2),
+                trait3 = VALUES(trait3),
+                farewell_msg = NULL,
+                identity_version =
+                    VALUES(identity_version),
+                created_at = CURRENT_TIMESTAMP
+        """, (
+            bot_guid, bot_name,
+            traits[0], traits[1], traits[2],
+            target_version,
+        ))
+        db.commit()
+        logger.debug(
+            "Identity %s for %s"
+            " (v%s): %s, %s, %s",
+            'bumped' if had_row else 'created',
+            bot_name, target_version,
+            traits[0], traits[1], traits[2],
+        )
+    except Exception:
+        pass
+
+    return {
+        'trait1': traits[0],
+        'trait2': traits[1],
+        'trait3': traits[2],
+        'role': None,
+        'farewell_msg': None,
+        'reason': (
+            'version_bump' if had_row else 'new'
+        ),
+    }
+
+
+def _generate_bot_tone(
+    db, config, bot_guid, group_id,
+    bot_name, bot_class, bot_race, traits,
+):
+    """Generate a short tone description via LLM.
+
+    Checks if tone is already stored for this
+    bot+group. If not, calls LLM to generate one
+    based on the bot's personality traits.
+
+    Returns the tone string, or a fallback on
+    failure.
+    """
+    fallback = "thoughtful and measured"
+
+    # Check if tone already stored
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT tone FROM llm_group_bot_traits"
+            " WHERE group_id = %s"
+            "   AND bot_guid = %s",
+            (group_id, bot_guid),
+        )
+        row = cursor.fetchone()
+        if row and row.get('tone'):
+            return row['tone']
+    except Exception:
+        pass
+
+    # Build LLM prompt
+    trait_str = ', '.join(traits)
+    prompt = (
+        "You are helping define the communication "
+        "style of a WoW bot character.\n\n"
+        f"Bot: {bot_name} ({bot_race} {bot_class})\n"
+        f"Personality traits: {trait_str}\n\n"
+        "Write a short tone description (5-8 words) "
+        "that captures how this character speaks.\n"
+        "It must be consistent with ALL three traits "
+        "— do not contradict any of them.\n"
+        "Examples: \"wry, guarded, with quiet "
+        "curiosity\" / \"bold and warm, prone to "
+        "rambling\" / \"earnest and blunt, "
+        "occasionally self-deprecating\"\n\n"
+        "Respond with ONLY the tone description, "
+        "no quotes, no punctuation at the end."
+    )
+
+    # Build LLM client inline (same pattern as
+    # _call_llm_for_memory in chatter_memory.py)
+    client = None
+    try:
+        provider = config.get(
+            'LLMChatter.Provider', 'anthropic'
+        ).lower()
+        if provider == 'ollama':
+            import openai as _openai
+            base = config.get(
+                'LLMChatter.Ollama.BaseUrl',
+                'http://localhost:11434',
+            )
+            client = _openai.OpenAI(
+                base_url=f"{base.rstrip('/')}/v1",
+                api_key='ollama',
+            )
+        elif provider == 'openai':
+            import openai as _openai
+            client = _openai.OpenAI(
+                api_key=config.get(
+                    'LLMChatter.OpenAI.ApiKey', ''
+                )
+            )
+        else:
+            import anthropic as _anthropic
+            client = _anthropic.Anthropic(
+                api_key=config.get(
+                    'LLMChatter.Anthropic.ApiKey', ''
+                )
+            )
+    except Exception:
+        pass
+
+    try:
+        response = call_llm(
+            client, prompt, config,
+            max_tokens_override=30,
+            context=f"tone:{bot_name}",
+            label='bot_tone',
+        )
+        if not response:
+            raise ValueError("empty response")
+
+        tone = response.strip().strip('"').strip()
+        tone = tone.rstrip('.')
+        if not tone:
+            raise ValueError("blank tone")
+        # Cap at 100 chars
+        tone = tone[:100]
+
+        # Store in DB
+        cursor = db.cursor()
+        cursor.execute(
+            "UPDATE llm_group_bot_traits"
+            " SET tone = %s"
+            " WHERE group_id = %s"
+            "   AND bot_guid = %s",
+            (tone, group_id, bot_guid),
+        )
+        db.commit()
+
+        logger.debug(
+            "Tone generated for %s: %s",
+            bot_name, tone,
+        )
+
+        return tone
+
+    except Exception:
+        # Store fallback so we don't retry LLM on
+        # every subsequent call for this bot+group
+        try:
+            cursor = db.cursor()
+            cursor.execute(
+                "UPDATE llm_group_bot_traits"
+                " SET tone = %s"
+                " WHERE group_id = %s"
+                "   AND bot_guid = %s"
+                "   AND tone IS NULL",
+                (fallback, group_id, bot_guid),
+            )
+            db.commit()
+        except Exception:
+            pass
+        return fallback
+
+
+def assign_bot_traits(
+    db, group_id, bot_guid, bot_name,
+    role=None, zone=0, area_id=0, map_id=0,
+    config=None,
+    bot_class='', bot_race='',
+):
+    """Pick 3 random traits and store them.
+
+    If persistent identities are enabled (config
+    provided), checks llm_bot_identities first and
+    reuses stored traits. Otherwise generates fresh
+    random traits.
+
+    Uses INSERT ... ON DUPLICATE KEY UPDATE for
+    the session-scoped llm_group_bot_traits table.
+    """
+    identity = None
+    if config and int(config.get(
+        'LLMChatter.Memory.Enable', 1
+    )):
+        identity = check_or_create_bot_identity(
+            db, config, bot_guid, bot_name,
+        )
+
+    if identity:
+        traits = [
+            identity['trait1'],
+            identity['trait2'],
+            identity['trait3'],
+        ]
+        # Use stored role if caller didn't provide
+        if not role and identity.get('role'):
+            role = identity['role']
+    else:
+        categories = random.sample(
+            list(PERSONALITY_TRAITS.keys()), 3
+        )
+        traits = [
+            random.choice(PERSONALITY_TRAITS[cat])
+            for cat in categories
+        ]
+
     cursor = db.cursor()
     cursor.execute("""
         INSERT INTO llm_group_bot_traits
         (group_id, bot_guid, bot_name,
          trait1, trait2, trait3, role,
-         zone, map)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+         zone, area, map)
+        VALUES (%s, %s, %s, %s, %s, %s, %s,
+                %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             trait1 = VALUES(trait1),
             trait2 = VALUES(trait2),
             trait3 = VALUES(trait3),
             role = VALUES(role),
             zone = VALUES(zone),
+            area = VALUES(area),
             map = VALUES(map),
             assigned_at = CURRENT_TIMESTAMP
     """, (
         group_id, bot_guid, bot_name,
         traits[0], traits[1], traits[2],
-        role, zone, map_id
+        role, zone, int(area_id or 0), map_id
     ))
     db.commit()
 
-    return traits
+    # Persist role back to llm_bot_identities so
+    # future sessions for this bot inherit it
+    if role and identity is not None:
+        try:
+            cursor.execute(
+                "UPDATE llm_bot_identities"
+                " SET role = %s"
+                " WHERE bot_guid = %s",
+                (role, bot_guid),
+            )
+            db.commit()
+        except Exception:
+            pass
+
+    # Clear stored tone on fresh identity (new or
+    # version bump) so a new one gets generated below
+    if identity and identity.get('reason'):
+        try:
+            cursor.execute(
+                "UPDATE llm_group_bot_traits"
+                " SET tone = NULL"
+                " WHERE group_id = %s"
+                "   AND bot_guid = %s",
+                (group_id, bot_guid),
+            )
+            db.commit()
+        except Exception:
+            pass
+
+    # Generate LLM-derived tone if not already set
+    tone = None
+    if config and bot_class and bot_race:
+        try:
+            tone = _generate_bot_tone(
+                db, config, bot_guid, group_id,
+                bot_name, bot_class, bot_race,
+                traits,
+            )
+        except Exception:
+            pass
+
+    return {
+        'traits': traits,
+        'tone': tone,
+    }
 
 
 def get_bot_traits(
@@ -229,7 +545,7 @@ def get_bot_traits(
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
         SELECT trait1, trait2, trait3,
-            bot_name, role, zone, area, map
+            bot_name, role, tone, zone, area, map
         FROM llm_group_bot_traits
         WHERE group_id = %s AND bot_guid = %s
     """, (group_id, bot_guid))
@@ -262,6 +578,7 @@ def get_bot_traits(
             ],
             'bot_name': name,
             'role': row.get('role'),
+            'tone': row.get('tone'),
             'zone': zone,
             'area': area,
             'map': map_id,
@@ -276,7 +593,7 @@ def get_other_group_bot(db, group_id, exclude_guid):
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
         SELECT bot_guid, bot_name,
-               trait1, trait2, trait3, role
+               trait1, trait2, trait3, role, tone
         FROM llm_group_bot_traits
         WHERE group_id = %s AND bot_guid != %s
         ORDER BY RAND()
@@ -292,6 +609,7 @@ def get_other_group_bot(db, group_id, exclude_guid):
                 row['trait3'],
             ],
             'role': row.get('role'),
+            'tone': row.get('tone'),
         }
     return None
 
@@ -304,9 +622,47 @@ def _generate_farewell(
     """Generate and store a farewell message for later
     use when the bot leaves the group.
 
-    Called after the greeting is generated. Uses a
-    small LLM call to pre-generate the farewell.
+    Called after the greeting is generated. If a
+    persistent identity already has a farewell, reuse
+    it instead of generating a new one.
     """
+    # Check for stored farewell in identity table,
+    # but only reuse it if it matches the current
+    # identity_version (version bumps clear it)
+    if config and int(config.get(
+        'LLMChatter.Memory.Enable', 1
+    )):
+        target_version = int(config.get(
+            'LLMChatter.Memory.IdentityVersion', 1
+        ))
+        try:
+            cursor = db.cursor(dictionary=True)
+            cursor.execute(
+                "SELECT farewell_msg"
+                " FROM llm_bot_identities"
+                " WHERE bot_guid = %s"
+                "   AND identity_version = %s",
+                (bot_guid, target_version),
+            )
+            row = cursor.fetchone()
+            if row and row.get('farewell_msg'):
+                # Reuse stored farewell
+                cursor2 = db.cursor()
+                cursor2.execute(
+                    "UPDATE llm_group_bot_traits"
+                    " SET farewell_msg = %s"
+                    " WHERE group_id = %s"
+                    "   AND bot_guid = %s",
+                    (
+                        row['farewell_msg'],
+                        group_id, bot_guid,
+                    ),
+                )
+                db.commit()
+                return
+        except Exception:
+            pass
+
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
 
@@ -367,6 +723,21 @@ def _generate_farewell(
             WHERE group_id = %s AND bot_guid = %s
         """, (farewell, group_id, bot_guid))
         db.commit()
+
+        # Also store in persistent identity table
+        if config and int(config.get(
+            'LLMChatter.Memory.Enable', 1
+        )):
+            try:
+                cursor.execute(
+                    "UPDATE llm_bot_identities"
+                    " SET farewell_msg = %s"
+                    " WHERE bot_guid = %s",
+                    (farewell, bot_guid),
+                )
+                db.commit()
+            except Exception:
+                pass
 
     except Exception:
         pass

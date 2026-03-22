@@ -618,6 +618,14 @@ LLMChatter.GroupChatter.NearbyObjectCheckInterval = 45
 LLMChatter.GroupChatter.NearbyObjectCooldown = 180
 
 #
+#   LLMChatter.GroupChatter.DiscoveryChance
+#       Percent chance (0-100) that discovering a
+#       new area triggers a party chat reaction.
+#       Default: 100
+#
+LLMChatter.GroupChatter.DiscoveryChance = 100
+
+#
 #   LLMChatter.GroupChatter.BotQuestionEnable
 #       Enable bot-initiated questions to player.
 #       Default: 1
@@ -1010,3 +1018,167 @@ LLMChatter.BGChatter.RezChance = 20
 #       Default: 1
 #
 LLMChatter.PrioritySystem.SafetyEnable = 1
+
+###############################################################################
+# BOT PERSISTENT MEMORY & PERSONALITIES [BRIDGE]
+#
+#   Bots accumulate memories of moments shared with each player and
+#   surface them as reunion greetings in future sessions. Personalities
+#   (traits + farewell) are generated once and reused across sessions.
+#
+###############################################################################
+
+#
+#   LLMChatter.Memory.Enable
+#       Master toggle for the persistent memory system.
+#       When disabled, no memories are generated or surfaced.
+#       Default: 1 (enabled)
+#
+LLMChatter.Memory.Enable = 1
+
+#
+#   LLMChatter.Memory.AmbientChance
+#       Percent chance (0-100) per zone/subzone transition that
+#       an ambient memory is generated for a random bot.
+#       Default: 15
+#
+LLMChatter.Memory.AmbientChance = 15
+
+#
+#   LLMChatter.Memory.RecallChance
+#       Percent chance (0-100) that a returning bot references
+#       a specific past memory in its reunion greeting.
+#       Default: 30
+#
+LLMChatter.Memory.RecallChance = 30
+
+#
+#   LLMChatter.Memory.SessionMinutes
+#       Minimum session length (minutes) before memories are
+#       committed on farewell. Shorter sessions are discarded.
+#       Default: 15
+#
+LLMChatter.Memory.SessionMinutes = 15
+
+#
+#   LLMChatter.Memory.MaxPerBotPlayer
+#       Maximum active memories per bot-player pair. Used
+#       memories are evicted to make room for new ones.
+#       Default: 30
+#
+LLMChatter.Memory.MaxPerBotPlayer = 30
+
+#
+#   LLMChatter.Memory.IdentityVersion
+#       Bump this to force all bots to regenerate their
+#       persistent personality (traits + farewell). Useful
+#       after prompt or trait system changes.
+#       Default: 1
+#
+LLMChatter.Memory.IdentityVersion = 1
+
+#
+#   LLMChatter.Memory.PlayerMsgMaxLength
+#       Maximum character length of a player message that
+#       can trigger a player_message memory. Longer messages
+#       are skipped.
+#       Default: 200
+#
+LLMChatter.Memory.PlayerMsgMaxLength = 200
+
+#
+#   LLMChatter.Memory.PlayerMsgMaxPerSession
+#       Maximum player_message memories generated per session.
+#       Prevents memory spam in chatty sessions.
+#       Default: 3
+#
+LLMChatter.Memory.PlayerMsgMaxPerSession = 3
+
+#
+#   LLMChatter.Memory.QuestGenerationChance
+#       Percent chance (0-100) that a quest completion
+#       event generates a persistent memory.
+#       Default: 40
+#
+LLMChatter.Memory.QuestGenerationChance = 40
+
+#
+#   LLMChatter.Memory.AchievementGenerationChance
+#       Percent chance (0-100) that an achievement event
+#       generates a persistent memory.
+#       Default: 35
+#
+LLMChatter.Memory.AchievementGenerationChance = 35
+
+#
+#   LLMChatter.Memory.LevelUpGenerationChance
+#       Percent chance (0-100) that a level-up event
+#       generates a persistent memory.
+#       Default: 50
+#
+LLMChatter.Memory.LevelUpGenerationChance = 50
+
+#
+#   LLMChatter.Memory.BGMatchGenerationChance
+#       Percent chance (0-100) that a BG match result
+#       generates a persistent memory.
+#       Default: 45
+#
+LLMChatter.Memory.BGMatchGenerationChance = 45
+
+#
+#   LLMChatter.Memory.DiscoveryGenerationChance
+#       Percent chance (0-100) that discovering a new
+#       area generates a persistent memory.
+#       Default: 30
+#
+LLMChatter.Memory.DiscoveryGenerationChance = 30
+
+#
+#   LLMChatter.Memory.PvPKillGenerationChance
+#       Percent chance (0-100) that a PvP kill event
+#       generates a persistent memory.
+#       Default: 25
+#
+LLMChatter.Memory.PvPKillGenerationChance = 25
+
+#
+#   LLMChatter.Memory.BossKillGenerationChance
+#       Percent chance (0-100) that a boss or rare kill
+#       generates a persistent memory.
+#       Default: 60
+#
+LLMChatter.Memory.BossKillGenerationChance = 60
+
+#
+#   LLMChatter.Memory.DungeonGenerationChance
+#       Percent chance (0-100) that entering a dungeon
+#       generates a persistent memory.
+#       Default: 50
+#
+LLMChatter.Memory.DungeonGenerationChance = 50
+
+#
+#   LLMChatter.Memory.WipeGenerationChance
+#       Percent chance (0-100) that a party wipe
+#       generates a persistent memory for the bot.
+#       Default: 80
+#
+LLMChatter.Memory.WipeGenerationChance = 80
+
+#
+#   LLMChatter.Memory.PartyMemberGenerationChance
+#       Percent chance (0-100) that a farewell
+#       generates a persistent memory about
+#       adventuring with party companions.
+#       Default: 50
+#
+LLMChatter.Memory.PartyMemberGenerationChance = 50
+
+#
+#   LLMChatter.Memory.IdleRecallChance
+#       Percent chance (0-100) that idle chatter or bot
+#       questions surface a past memory for context.
+#       Default: 30
+#
+LLMChatter.Memory.IdleRecallChance = 30
