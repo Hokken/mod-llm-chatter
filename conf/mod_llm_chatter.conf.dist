@@ -366,9 +366,9 @@ LLMChatter.GroupChatter.PreCacheEnable = 1
 #       How often (in seconds) the server checks each zone for
 #       ambient General channel chatter. Each check rolls
 #       TriggerChance per zone. Lower = more frequent checks.
-#       Default: 60
+#       Default: 30
 #
-LLMChatter.TriggerIntervalSeconds = 15
+LLMChatter.TriggerIntervalSeconds = 30
 
 #
 #   LLMChatter.TriggerChance
@@ -385,9 +385,9 @@ LLMChatter.TriggerChance = 20
 #       Chance (0-100) that ambient General channel chatter
 #       is a multi-bot conversation instead of a single
 #       statement. Requires 2+ bots in the zone.
-#       Default: 50
+#       Default: 40
 #
-LLMChatter.ConversationChance = 30
+LLMChatter.ConversationChance = 40
 
 #
 #   LLMChatter.EventReactionChance
@@ -396,9 +396,9 @@ LLMChatter.ConversationChance = 30
 #       ambient remarks. Holidays, day/night transitions, and
 #       weather changes always fire (bypass this roll). Transport
 #       and weather ambient have optional per-event overrides below.
-#       Default: 15
+#       Default: 25
 #
-LLMChatter.EventReactionChance = 20
+LLMChatter.EventReactionChance = 25
 
 #
 #   LLMChatter.WeatherAmbientChance
@@ -461,9 +461,9 @@ LLMChatter.HolidayCityChance = 20
 #   LLMChatter.HolidayZoneChance
 #       Chance (0-100) per environment check that a holiday
 #       mention triggers in open-world zones.
-#       Default: 5
+#       Default: 15
 #
-LLMChatter.HolidayZoneChance = 10
+LLMChatter.HolidayZoneChance = 15
 
 #
 #   LLMChatter.Events.MinorEventChance
@@ -487,17 +487,17 @@ LLMChatter.Events.MinorEventChance = 20
 #       How often (in seconds) the bridge checks each group
 #       for idle chatter opportunities. Each check rolls
 #       IdleChance. Lower = more frequent checks.
-#       Default: 60
+#       Default: 30
 #
-LLMChatter.GroupChatter.IdleCheckInterval = 15
+LLMChatter.GroupChatter.IdleCheckInterval = 30
 
 #
 #   LLMChatter.GroupChatter.IdleChance
 #       Percent chance (0-100) per check that bots start
 #       chatting during downtime.
-#       Default: 10
+#       Default: 20
 #
-LLMChatter.GroupChatter.IdleChance = 10
+LLMChatter.GroupChatter.IdleChance = 20
 
 #
 #   LLMChatter.GroupChatter.ConversationBias
@@ -512,9 +512,9 @@ LLMChatter.GroupChatter.ConversationBias = 50
 #   LLMChatter.GroupChatter.IdleCooldown
 #       Minimum seconds between idle chatter triggers
 #       for the same group.
-#       Default: 30
+#       Default: 40
 #
-LLMChatter.GroupChatter.IdleCooldown = 10
+LLMChatter.GroupChatter.IdleCooldown = 40
 
 #
 #   LLMChatter.GroupChatter.KillChanceNormal
@@ -548,7 +548,7 @@ LLMChatter.GroupChatter.DeathChance = 40
 #       triggers a corpse run comment.
 #       Default: 80
 #
-LLMChatter.GroupChatter.CorpseRunChance = 100
+LLMChatter.GroupChatter.CorpseRunChance = 80
 
 #
 #   LLMChatter.GroupChatter.LootChanceGreen
@@ -563,9 +563,9 @@ LLMChatter.GroupChatter.LootChanceGreen = 20
 #       Percent chance (0-100) that looting a blue
 #       quality item triggers a group reaction.
 #       Epic+ loot always triggers (100%).
-#       Default: 50
+#       Default: 60
 #
-LLMChatter.GroupChatter.LootChanceBlue = 50
+LLMChatter.GroupChatter.LootChanceBlue = 60
 
 #
 #   LLMChatter.GroupChatter.SpellCastChance
@@ -596,9 +596,9 @@ LLMChatter.GroupChatter.NearbyObjectEnable = 1
 #       Percent chance (0-100) that a nearby point of interest
 #       (moonwell, forge, rare creature, quest giver, etc.)
 #       triggers a comment. Scanned periodically per group.
-#       Default: 10
+#       Default: 15
 #
-LLMChatter.GroupChatter.NearbyObjectChance = 20
+LLMChatter.GroupChatter.NearbyObjectChance = 15
 
 #
 #   LLMChatter.GroupChatter.NearbyObjectCheckInterval
@@ -646,25 +646,25 @@ LLMChatter.GroupChatter.BotQuestionChance = 1
 #   LLMChatter.GroupChatter.QuestAcceptChance
 #       Percent chance (0-100) that accepting a quest
 #       triggers a group reaction.
-#       Default: 100
+#       Default: 70
 #
-LLMChatter.GroupChatter.QuestAcceptChance = 50
+LLMChatter.GroupChatter.QuestAcceptChance = 70
 
 #
 #   LLMChatter.GroupChatter.QuestObjectiveChance
 #       Percent chance (0-100) that completing quest
 #       objectives triggers a group reaction.
-#       Default: 100
+#       Default: 70
 #
-LLMChatter.GroupChatter.QuestObjectiveChance = 50
+LLMChatter.GroupChatter.QuestObjectiveChance = 70
 
 #
 #   LLMChatter.GroupChatter.QuestCompleteChance
 #       Percent chance (0-100) that turning in a quest
 #       triggers a group reaction.
-#       Default: 100
+#       Default: 70
 #
-LLMChatter.GroupChatter.QuestCompleteChance = 50
+LLMChatter.GroupChatter.QuestCompleteChance = 70
 
 #
 #   LLMChatter.GroupChatter.QuestConversationChance
@@ -789,9 +789,9 @@ LLMChatter.RaidChatter.MoraleEnable = 1
 #       Percent chance (0-100) per check that between-pull
 #       morale chatter fires in a raid instance. Checked
 #       each poll cycle after the cooldown expires.
-#       Default: 15
+#       Default: 30
 #
-LLMChatter.RaidChatter.MoraleChance = 20
+LLMChatter.RaidChatter.MoraleChance = 30
 
 #
 #   LLMChatter.RaidChatter.MoraleCooldown
@@ -820,7 +820,7 @@ LLMChatter.ActionChance = 10
 #       is injected into chatter prompts (roleplay mode only).
 #       Default: 15
 #
-LLMChatter.RaceLoreChance = 20
+LLMChatter.RaceLoreChance = 15
 
 #
 #   LLMChatter.ConversationPacing
@@ -954,7 +954,7 @@ LLMChatter.DistanceUnit = yards
 #       Does NOT affect party chat or event reactions.
 #       Default: 900 (15 minutes)
 #
-LLMChatter.BotSpeakerCooldownSeconds = 120
+LLMChatter.BotSpeakerCooldownSeconds = 900
 
 #
 #   LLMChatter.EventExpirationSeconds
@@ -980,7 +980,7 @@ LLMChatter.LootRecentCooldownSeconds = 1200
 #       Minimum safe value is ~150.
 #       Default: 300
 #
-LLMChatter.BGChatter.MaxTokens = 350
+LLMChatter.BGChatter.MaxTokens = 300
 
 #
 #   LLMChatter.BGChatter.IdleChatterChance
@@ -1040,17 +1040,17 @@ LLMChatter.Memory.Enable = 1
 #   LLMChatter.Memory.AmbientChance
 #       Percent chance (0-100) per zone/subzone transition that
 #       an ambient memory is generated for a random bot.
-#       Default: 15
+#       Default: 20
 #
-LLMChatter.Memory.AmbientChance = 15
+LLMChatter.Memory.AmbientChance = 20
 
 #
 #   LLMChatter.Memory.RecallChance
 #       Percent chance (0-100) that a returning bot references
 #       a specific past memory in its reunion greeting.
-#       Default: 30
+#       Default: 20
 #
-LLMChatter.Memory.RecallChance = 30
+LLMChatter.Memory.RecallChance = 20
 
 #
 #   LLMChatter.Memory.SessionMinutes
@@ -1106,17 +1106,17 @@ LLMChatter.Memory.QuestGenerationChance = 40
 #   LLMChatter.Memory.AchievementGenerationChance
 #       Percent chance (0-100) that an achievement event
 #       generates a persistent memory.
-#       Default: 35
+#       Default: 60
 #
-LLMChatter.Memory.AchievementGenerationChance = 35
+LLMChatter.Memory.AchievementGenerationChance = 60
 
 #
 #   LLMChatter.Memory.LevelUpGenerationChance
 #       Percent chance (0-100) that a level-up event
 #       generates a persistent memory.
-#       Default: 50
+#       Default: 60
 #
-LLMChatter.Memory.LevelUpGenerationChance = 50
+LLMChatter.Memory.LevelUpGenerationChance = 60
 
 #
 #   LLMChatter.Memory.BGMatchGenerationChance
@@ -1138,25 +1138,25 @@ LLMChatter.Memory.DiscoveryGenerationChance = 30
 #   LLMChatter.Memory.PvPKillGenerationChance
 #       Percent chance (0-100) that a PvP kill event
 #       generates a persistent memory.
-#       Default: 25
+#       Default: 30
 #
-LLMChatter.Memory.PvPKillGenerationChance = 25
+LLMChatter.Memory.PvPKillGenerationChance = 30
 
 #
 #   LLMChatter.Memory.BossKillGenerationChance
 #       Percent chance (0-100) that a boss or rare kill
 #       generates a persistent memory.
-#       Default: 60
+#       Default: 70
 #
-LLMChatter.Memory.BossKillGenerationChance = 60
+LLMChatter.Memory.BossKillGenerationChance = 70
 
 #
 #   LLMChatter.Memory.DungeonGenerationChance
 #       Percent chance (0-100) that entering a dungeon
 #       generates a persistent memory.
-#       Default: 50
+#       Default: 60
 #
-LLMChatter.Memory.DungeonGenerationChance = 50
+LLMChatter.Memory.DungeonGenerationChance = 60
 
 #
 #   LLMChatter.Memory.WipeGenerationChance
@@ -1179,6 +1179,6 @@ LLMChatter.Memory.PartyMemberGenerationChance = 50
 #   LLMChatter.Memory.IdleRecallChance
 #       Percent chance (0-100) that idle chatter or bot
 #       questions surface a past memory for context.
-#       Default: 30
+#       Default: 20
 #
-LLMChatter.Memory.IdleRecallChance = 30
+LLMChatter.Memory.IdleRecallChance = 20
