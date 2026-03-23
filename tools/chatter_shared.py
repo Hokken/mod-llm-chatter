@@ -1003,7 +1003,10 @@ def append_conversation_json_instruction(
             "word physical narration (e.g. \"leans "
             "against the wall\"). Pick exactly 1 "
             "message in this conversation to have "
-            "an action. All others must be null."
+            "an action. All others must be null. "
+            "NEVER put {item:}, {quest:}, or "
+            "{spell:} placeholders in the action "
+            "field — those belong in message only."
         )
     else:
         action_text = (

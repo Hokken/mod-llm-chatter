@@ -4077,7 +4077,10 @@ def build_player_msg_conversation_prompt(
             "an optional \"action\" field — a "
             "short physical action (2-5 words, "
             "e.g. \"scratches chin\"). Omit if "
-            "not needed."
+            "not needed. "
+            "NEVER put {item:}, {quest:}, or "
+            "{spell:} placeholders in the action "
+            "field — those belong in message only."
         )
     else:
         action_text = (
