@@ -214,7 +214,6 @@ mysql -uroot -ppassword acore_world < \
 ## On the Horizon
 
 - More battlegrounds and deeper raid integration
-- Bot memory and relationships that persist across sessions
 - Open-world proximity encounters between bots and players
 - New immersive features that deepen the living-world experience
 
