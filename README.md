@@ -79,22 +79,51 @@ Ollama works for local/free inference but requires fast hardware (sub-5s respons
 
 ### Tuning the Chattiness
 
-The default config is intentionally set on the chatty side so you can see all the features in action. For a more relaxed, immersive experience, lower these values in `mod_llm_chatter.conf`:
+The default config ships on the **chatty side** so you can
+experience all the features out of the box. If you prefer a
+quieter, more immersive atmosphere, the key knobs are below.
+
+**Reducing General channel chatter** (ambient bot conversations
+in zone-wide chat):
 
 ```ini
-# General channel ambient chatter (bots talk unprompted)
-LLMChatter.TriggerChance = 5           # default 10, try 3-5
-LLMChatter.TriggerIntervalSeconds = 60 # default 30, try 60-90
+# How often each zone is checked for ambient chatter
+LLMChatter.TriggerIntervalSeconds = 60  # default 30, try 60-90
 
-# Party chatter during downtime
-LLMChatter.GroupChatter.IdleChance = 5          # default 10, try 3-5
-LLMChatter.GroupChatter.IdleCheckInterval = 60   # default 30, try 60
+# Chance per check that bots start talking unprompted
+LLMChatter.TriggerChance = 10            # default 20, try 5-10
+
+# Chance that ambient chatter becomes a multi-bot conversation
+LLMChatter.ConversationChance = 30      # default 40, try 15-20
+
+# World event reactions (weather, transports, holidays)
+LLMChatter.EventReactionChance = 10     # default 25, try 10-15
+```
+
+**Reducing party chatter** (group chat while questing):
+
+```ini
+# Idle chatter frequency and cooldown
+LLMChatter.GroupChatter.IdleCheckInterval = 60  # default 30
+LLMChatter.GroupChatter.IdleChance = 10          # default 20
+LLMChatter.GroupChatter.IdleCooldown = 90       # default 40
 
 # Quest reactions (accept, objectives, turn-in)
-LLMChatter.GroupChatter.QuestAcceptChance = 30   # default 100
-LLMChatter.GroupChatter.QuestObjectiveChance = 30 # default 100
-LLMChatter.GroupChatter.QuestCompleteChance = 40  # default 100
+LLMChatter.GroupChatter.QuestAcceptChance = 30    # default 70
+LLMChatter.GroupChatter.QuestObjectiveChance = 30 # default 70
+LLMChatter.GroupChatter.QuestCompleteChance = 30  # default 70
+
+# Combat reactions
+LLMChatter.GroupChatter.KillChanceNormal = 5    # default 20
+LLMChatter.GroupChatter.SpellCastChance = 5     # default 20
+
+# Nearby object/creature comments
+LLMChatter.GroupChatter.NearbyObjectChance = 5  # default 15
 ```
+
+All values are percentages (0-100) unless noted. Setting any
+chance to `0` disables that trigger entirely. See the config
+file comments for the full list of tunable keys.
 
 ### Known Limitations
 - Local Ollama on consumer hardware produces 15-70s latency, causing stale reactions
