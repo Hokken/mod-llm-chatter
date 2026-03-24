@@ -14,6 +14,8 @@ An AI-powered conversation engine for [AzerothCore](https://www.azerothcore.org/
   <a href="https://discord.gg/tvVcecuR"><img src="https://img.shields.io/badge/Discord-Join%20the%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord"></a>
 </p>
 
+> See my other module: **[mod-llm-guide](https://github.com/Hokken/mod-llm-guide)** — AI-powered in-game assistant with 29 database tools
+
 ---
 
 ## Features
