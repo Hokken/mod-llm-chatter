@@ -886,8 +886,14 @@ def process_group_levelup_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
-    leveler_guid = int(
+    # C++ already picked the reactor bot
+    # (bot_guid/bot_name) and the leveler
+    # (leveler_name). Use them directly.
+    reactor_guid = int(
         extra_data.get('bot_guid', 0)
+    )
+    reactor_name = extra_data.get(
+        'bot_name', 'someone'
     )
     leveler_name = extra_data.get(
         'leveler_name',
@@ -903,29 +909,18 @@ def process_group_levelup_event(
         extra_data.get('group_id', 0)
     )
 
-    if not leveler_guid or not group_id:
+    if not reactor_guid or not group_id:
         _mark_event(db, event_id, 'skipped')
         return False
 
-    # Pick a different bot to react
-    reactor_data = get_other_group_bot(
-        db, group_id, leveler_guid
+    # Get reactor traits from DB
+    trait_data = get_bot_traits(
+        db, group_id, reactor_guid
     )
-    if reactor_data:
-        reactor_guid = reactor_data['guid']
-        reactor_name = reactor_data['name']
-        reactor_traits = reactor_data['traits']
-    else:
-        # No other bot — use the leveling bot
-        trait_data = get_bot_traits(
-            db, group_id, leveler_guid
-        )
-        if not trait_data:
-            _mark_event(db, event_id, 'skipped')
-            return False
-        reactor_guid = leveler_guid
-        reactor_name = leveler_name
-        reactor_traits = trait_data['traits']
+    if not trait_data:
+        _mark_event(db, event_id, 'skipped')
+        return False
+    reactor_traits = trait_data['traits']
     stored_tone = trait_data.get('tone')
 
     # Get reactor's class/race from characters
