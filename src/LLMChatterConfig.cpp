@@ -170,7 +170,7 @@ void LLMChatterConfig::LoadConfig()
     // Group chatter - new event settings
     _groupResurrectChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.ResurrectChance", 100);
     _groupResurrectCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.ResurrectCooldown", 30);
-    _groupZoneChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.ZoneTransitionChance", 100);
+    _groupZoneChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.ZoneTransitionChance", 50);
     _groupZoneCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.ZoneTransitionCooldown", 120);
     _groupDungeonChance = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.DungeonEntryChance", 100);
     _groupDungeonCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.DungeonEntryCooldown", 300);

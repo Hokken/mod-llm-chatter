@@ -618,6 +618,25 @@ LLMChatter.GroupChatter.NearbyObjectCheckInterval = 45
 LLMChatter.GroupChatter.NearbyObjectCooldown = 180
 
 #
+#   LLMChatter.GroupChatter.ZoneTransitionChance
+#       Percent chance (0-100) that a zone or subzone
+#       transition triggers a party chat reaction.
+#       Fires when the player crosses any zone or area
+#       boundary (e.g. Darnassus → Teldrassil, or
+#       Shadowglen → Aldrassil).
+#       Default: 50
+#
+LLMChatter.GroupChatter.ZoneTransitionChance = 50
+
+#
+#   LLMChatter.GroupChatter.ZoneTransitionCooldown
+#       Minimum seconds between zone transition
+#       reactions for the same group.
+#       Default: 120
+#
+LLMChatter.GroupChatter.ZoneTransitionCooldown = 120
+
+#
 #   LLMChatter.GroupChatter.DiscoveryChance
 #       Percent chance (0-100) that discovering a
 #       new area triggers a party chat reaction.
@@ -648,7 +667,7 @@ LLMChatter.GroupChatter.BotQuestionChance = 1
 #       triggers a group reaction.
 #       Default: 70
 #
-LLMChatter.GroupChatter.QuestAcceptChance = 70
+LLMChatter.GroupChatter.QuestAcceptChance = 50
 
 #
 #   LLMChatter.GroupChatter.QuestObjectiveChance
@@ -656,7 +675,7 @@ LLMChatter.GroupChatter.QuestAcceptChance = 70
 #       objectives triggers a group reaction.
 #       Default: 70
 #
-LLMChatter.GroupChatter.QuestObjectiveChance = 70
+LLMChatter.GroupChatter.QuestObjectiveChance = 50
 
 #
 #   LLMChatter.GroupChatter.QuestCompleteChance
@@ -664,7 +683,7 @@ LLMChatter.GroupChatter.QuestObjectiveChance = 70
 #       triggers a group reaction.
 #       Default: 70
 #
-LLMChatter.GroupChatter.QuestCompleteChance = 70
+LLMChatter.GroupChatter.QuestCompleteChance = 50
 
 #
 #   LLMChatter.GroupChatter.QuestConversationChance
