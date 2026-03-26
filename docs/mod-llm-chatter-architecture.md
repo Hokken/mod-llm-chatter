@@ -7,10 +7,6 @@ Last updated: 2026-03-18 (through Session 78 - zone/subzone/talent metadata in l
 Reference architecture for humans and LLMs editing
 `modules/mod-llm-chatter`.
 
-This document reflects the post-split C++ layout that now exists in the
-repo. The old assumption that almost all C++ ownership lives in
-`LLMChatterScript.cpp` is no longer true.
-
 This document reflects the current source architecture.
 
 ## Guiding Principle: Separation of Concerns
