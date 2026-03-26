@@ -1,6 +1,6 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-03-18 (through Session 78 - zone/subzone/talent metadata in logs)
+Last updated: 2026-03-26 (through system prompt support, EmoteChance, ActionChance centralization)
 
 ## Purpose
 
@@ -59,6 +59,39 @@ not just `docker restart`.
 4. C++ world tick delivers messages in game.
 5. Party-channel delivery may play text emotes; General/Raid/BG
    delivery does not.
+
+## System Prompt Architecture
+
+All prompt builders return a `PromptParts` object (defined in
+`chatter_shared.py`). `PromptParts` subclasses `str` so it is
+backward-compatible with code that treats prompts as plain strings.
+It carries two extra attributes:
+
+- `.system_prompt` — persona, rules, format instructions
+- `.user_prompt` — event context, chat history, the actual task
+
+### Flow
+
+1. Prompt builder calls `PromptParts(system_prompt, user_prompt)`.
+2. `call_llm()` or `quick_llm_analyze()` in `chatter_llm.py`
+   auto-detects `PromptParts` via `_split_prompt()`.
+3. Provider dispatch:
+   - **Anthropic**: native `system=` parameter + user message
+   - **OpenAI / Ollama**: system role message + user role message
+4. If a plain string is passed instead of `PromptParts`, the entire
+   string is sent as a single user message (backward compatibility).
+
+### Token-Saving Gates
+
+Two config-driven RNG checks in `append_json_instruction()` and
+`append_conversation_json_instruction()` control optional prompt
+sections:
+
+- `EmoteChance` — gates inclusion of the ~244-emote list (~500 tokens)
+- `ActionChance` — gates the action field instruction
+
+These are checked once per prompt build and apply uniformly to all
+prompt paths (group, General, BG, raid).
 
 ## Queue Model, Timing, and Priority
 
@@ -276,9 +309,9 @@ This asymmetry is known and acceptable in the shipped source state.
 
 | File | Primary ownership |
 |---|---|
-| `tools/chatter_shared.py` | Compatibility facade, residual shared helpers, `find_addressed_bot()` (with multi-addressed intent detection), `calculate_dynamic_delay()` (with responsive mode) |
+| `tools/chatter_shared.py` | Compatibility facade, residual shared helpers, `PromptParts(str)` class for system/user prompt separation, `find_addressed_bot()` (with multi-addressed intent detection), `calculate_dynamic_delay()` (with responsive mode) |
 | `tools/chatter_text.py` | Parsing, sanitization, anti-repetition |
-| `tools/chatter_llm.py` | Provider/model calls; `get_llm_client()` shared client factory; `label=` param logs every call via `chatter_request_logger` |
+| `tools/chatter_llm.py` | Provider/model calls; `get_llm_client()` shared client factory; `_split_prompt()`, `_build_chat_messages()`, `_ollama_user_msg()` for system/user prompt separation; `label=` param logs every call via `chatter_request_logger` |
 | `tools/chatter_db.py` | DB access, inserts, zone/cache queries, `any_real_players_online()`, `cleanup_stale_groups()`, `cleanup_all_session_data()` |
 | `tools/chatter_links.py` | WoW link parsing and prompt-side link enrichment for player messages |
 | `tools/chatter_prompts.py` | Ambient/event prompt builders |
@@ -294,7 +327,7 @@ This asymmetry is known and acceptable in the shipped source state.
 
 | File | Primary ownership |
 |---|---|
-| `tools/chatter_request_logger.py` | Thread-safe JSONL logger; `init_request_logger(config)` + `log_request(label, prompt, response, model, provider, duration_ms)`; rotation at `MaxSizeMB`; writes to `/logs/llm_requests.jsonl` inside container |
+| `tools/chatter_request_logger.py` | Thread-safe JSONL logger; `init_request_logger(config)` + `log_request(label, prompt, response, model, provider, duration_ms, system_prompt)`; rotation at `MaxSizeMB`; writes to `/logs/llm_requests.jsonl` inside container |
 | `tools/chatter_log_viewer.py` | Zero-dependency stdlib web UI (`python chatter_log_viewer.py --log PATH --port 5555`); routes `/`, `/api/logs`, `/api/stats`; semantic prompt-section parser with colored sections; draggable column/row dividers |
 
 ### Raid/BG domain
