@@ -20,7 +20,6 @@ from chatter_shared import (
     build_race_class_context,
     build_anti_repetition_context,
     get_recent_zone_messages,
-    append_json_instruction,
 )
 from chatter_prompts import (
     pick_personality_spices,
@@ -315,8 +314,7 @@ def build_bg_match_start_prompt(
         "faction pride, or encouragement for "
         "your team. Be fierce and energetic."
     )
-    return append_json_instruction(
-        ctx, False, skip_emote=True)
+    return ctx
 
 
 def build_bg_match_end_prompt(
@@ -361,8 +359,7 @@ def build_bg_match_end_prompt(
             "frustration, defiance, or honorable "
             "defeat. No whining \u2014 keep dignity."
         )
-    return append_json_instruction(
-        ctx, False, skip_emote=True)
+    return ctx
 
 
 def build_bg_flag_prompt(
@@ -485,8 +482,7 @@ def build_bg_flag_prompt(
                 "Do NOT guess a different number.")
 
     ctx += " React appropriately."
-    return append_json_instruction(
-        ctx, False, skip_emote=True)
+    return ctx
 
 
 def build_bg_flag_carrier_prompt(
@@ -524,7 +520,7 @@ def build_bg_flag_carrier_prompt(
             "flag!\" or \"Couldn't hold them off, "
             "sorry lads.\""
         )
-    return append_json_instruction(ctx, False)
+    return ctx
 
 
 def build_bg_flag_return_prompt(
@@ -563,8 +559,7 @@ def build_bg_flag_return_prompt(
             "to base. Express frustration.")
 
     ctx += " React appropriately."
-    return append_json_instruction(
-        ctx, False, skip_emote=True)
+    return ctx
 
 
 def build_bg_node_prompt(
@@ -651,7 +646,7 @@ def build_bg_node_prompt(
             ctx += " It's neck and neck!"
 
     ctx += " React appropriately."
-    return append_json_instruction(ctx, False)
+    return ctx
 
 
 def build_bg_pvp_kill_prompt(
@@ -702,7 +697,7 @@ def build_bg_pvp_kill_prompt(
             f"React with a quick, sharp comment."
             f"{kill_variety}"
         )
-    return append_json_instruction(ctx, False)
+    return ctx
 
 
 def build_bg_score_milestone_prompt(
@@ -764,7 +759,7 @@ def build_bg_score_milestone_prompt(
                 f"{milestone_value} resources. "
                 f"React to the pressure.")
 
-    return append_json_instruction(ctx, False)
+    return ctx
 
 
 # -- Group-event BG prompt builders ------------------
@@ -784,7 +779,7 @@ def build_bg_achievement_prompt(
         "Quick, impressed reaction -- keep "
         "it short and battlefield-appropriate."
     )
-    return append_json_instruction(ctx, False)
+    return ctx
 
 
 def build_bg_spell_cast_prompt(
@@ -805,7 +800,7 @@ def build_bg_spell_cast_prompt(
         f"({category}). Brief tactical comment -- "
         "acknowledge the play, keep it snappy."
     )
-    return append_json_instruction(ctx, False)
+    return ctx
 
 
 def build_bg_low_health_prompt(
@@ -828,7 +823,7 @@ def build_bg_low_health_prompt(
             "Brief urgent callout -- panic, plea "
             "for healing, or defiant last stand."
         )
-    return append_json_instruction(ctx, False)
+    return ctx
 
 
 def build_bg_oom_prompt(
@@ -842,7 +837,7 @@ def build_bg_oom_prompt(
         "announce it to your team, express "
         "frustration, or ask for support."
     )
-    return append_json_instruction(ctx, False)
+    return ctx
 
 
 def build_bg_death_prompt(
@@ -865,7 +860,7 @@ def build_bg_death_prompt(
             "reaction -- mourn, vow revenge, or "
             "rally the team."
         )
-    return append_json_instruction(ctx, False)
+    return ctx
 
 
 def build_bg_combat_prompt(
@@ -887,7 +882,7 @@ def build_bg_combat_prompt(
             f"\nEngaging {creature}! Quick battle "
             "cry -- one sentence only."
         )
-    return append_json_instruction(ctx, False)
+    return ctx
 
 
 # -- Idle chatter ------------------------------------
@@ -932,7 +927,7 @@ def build_bg_idle_prompt(
         "Keep it natural and in-character. "
         "One sentence only."
     )
-    return append_json_instruction(ctx, False)
+    return ctx
 
 
 # -- BG arrival greeting ----------------------------
@@ -953,4 +948,4 @@ def build_bg_arrival_prompt(
         "the group. Focus on the TEAM, not any "
         "one player. One sentence only."
     )
-    return append_json_instruction(ctx, False)
+    return ctx
