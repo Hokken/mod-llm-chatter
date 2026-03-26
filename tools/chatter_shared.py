@@ -65,6 +65,53 @@ from talent_catalog import TALENT_CATALOG
 
 logger = logging.getLogger(__name__)
 
+
+class PromptParts(str):
+    """Prompt string with separate system prompt.
+
+    Subclasses str so existing code that treats
+    prompts as strings continues to work. The
+    system_prompt attribute carries format/rules
+    instructions for providers that support system
+    messages.
+    """
+    def __new__(
+        cls, user_prompt: str, system_block: str
+    ):
+        instance = super().__new__(
+            cls, user_prompt + system_block
+        )
+        instance.user_prompt = user_prompt
+        instance.system_prompt = system_block
+        return instance
+
+    def __add__(self, other):
+        if isinstance(other, PromptParts):
+            return PromptParts(
+                self.user_prompt
+                + other.user_prompt,
+                self.system_prompt
+                or other.system_prompt
+            )
+        if isinstance(other, str):
+            return PromptParts(
+                self.user_prompt + other,
+                self.system_prompt
+            )
+        return NotImplemented
+
+    def __radd__(self, other):
+        if isinstance(other, str):
+            return PromptParts(
+                other + self.user_prompt,
+                self.system_prompt
+            )
+        return NotImplemented
+
+    def __iadd__(self, other):
+        return self.__add__(other)
+
+
 # N12 decomposition scaffold note:
 # chatter_shared.py remains the stable facade.
 # Target modules (chatter_text/chatter_llm/chatter_db)
@@ -908,6 +955,25 @@ def replace_placeholders(
 _action_chance = 0.10
 _action_disabled = True
 
+# Module-level emote chance (set from config at startup)
+_emote_chance = 0.50
+
+
+def set_emote_chance(chance_pct: int):
+    """Set from config: LLMChatter.EmoteChance (0-100).
+
+    Controls how often the emote list is included in
+    prompts. When skipped, the model returns null for
+    emote, saving ~500 tokens per call.
+    """
+    global _emote_chance
+    _emote_chance = chance_pct / 100.0
+
+
+def get_emote_chance() -> float:
+    """Return the configured emote chance (0.0-1.0)."""
+    return _emote_chance
+
 
 def set_action_chance(chance_pct: int, mode: str = 'roleplay'):
     """Set from config: LLMChatter.ActionChance (0-100).
@@ -962,7 +1028,9 @@ def append_json_instruction(
             "action for this response)\n"
         )
 
-    if skip_emote:
+    # Skip emote list if explicitly requested OR
+    # if EmoteChance RNG says no
+    if skip_emote or random.random() >= _emote_chance:
         emote_line = '  "emote": null,\n'
     else:
         emote_line = (
@@ -979,9 +1047,12 @@ def append_json_instruction(
         f"  {action_desc}"
         "}\n"
         "Rules: double quotes only, no trailing "
-        "commas, no code fences, no markdown."
+        "commas, no code fences, no markdown.\n"
+        "CRITICAL: Follow the Length instruction "
+        "in the prompt exactly — never exceed the "
+        "stated character limit."
     )
-    return prompt + block
+    return PromptParts(prompt, block)
 
 
 def append_conversation_json_instruction(
@@ -1034,7 +1105,7 @@ def append_conversation_json_instruction(
         "]\n"
         "ONLY the JSON array, nothing else."
     )
-    return prompt + block
+    return PromptParts(prompt, block)
 
 
 # =============================================================================

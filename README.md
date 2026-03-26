@@ -130,6 +130,7 @@ file comments for the full list of tunable keys.
 ### Known Limitations
 - Local Ollama on consumer hardware produces 15-70s latency, causing stale reactions
 - Models below 4B parameters frequently fail to produce valid JSON
+- Smaller models (3B-8B) struggle with character-count constraints and may produce overly long messages that get truncated. For best results with length control, use Claude Haiku or GPT-4o-mini
 
 ---
 

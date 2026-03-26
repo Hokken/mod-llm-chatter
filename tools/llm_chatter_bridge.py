@@ -51,6 +51,7 @@ from chatter_shared import (
     set_race_vocab_chance,
     set_action_chance,
     get_action_chance,
+    set_emote_chance,
     parse_single_response,
     parse_config, get_db_connection,
     wait_for_database,
@@ -1406,7 +1407,7 @@ def process_single_event(event, client, config):
                 random.random()
                 < get_action_chance()
             )
-            system_prompt = build_event_statement_prompt(
+            event_prompt = build_event_statement_prompt(
                 bot,
                 event_context,
                 event_type=event.get('event_type', ''),
@@ -1421,7 +1422,7 @@ def process_single_event(event, client, config):
             # Call LLM via shared helper
             message = call_llm(
                 client,
-                system_prompt,
+                event_prompt,
                 config,
                 context=(
                     f"event_statement:"
@@ -1826,6 +1827,9 @@ def main():
     )), mode=config.get(
         'LLMChatter.ChatterMode', 'normal'
     ).lower())
+    set_emote_chance(int(config.get(
+        'LLMChatter.EmoteChance', 50
+    )))
     init_group_config(config)
     init_general_config(config)
 
@@ -2127,6 +2131,8 @@ def main():
     logger.info(
         f"  ActionChance: "
         f"{config.get('LLMChatter.ActionChance', 10)}%"
+        f"  EmoteChance: "
+        f"{config.get('LLMChatter.EmoteChance', 50)}%"
         f"  RaceLoreChance: "
         f"{config.get('LLMChatter.RaceLoreChance', 15)}%"
     )

@@ -691,6 +691,16 @@ a{color:#e94560}
   display:flex;flex-wrap:wrap;gap:8px;
   align-items:center;font-size:12px;flex-shrink:0}
 .detail-hdr .badge{font-size:11px}
+.sys-prompt-pane{flex:0 0 auto;max-height:200px;
+  display:flex;flex-direction:column;
+  overflow:hidden}
+.sys-prompt-pane.hidden{display:none}
+.sys-prompt-body{padding:8px 10px;flex:1;
+  overflow-y:auto;white-space:pre-wrap;
+  word-break:break-word;font-size:12px;
+  line-height:1.5;color:#b0c4de;
+  background:rgba(230,126,34,0.05);
+  border-left:3px solid #e67e22}
 .prompt-pane{flex:1;display:flex;
   flex-direction:column;overflow:hidden;
   min-height:150px}
@@ -825,6 +835,16 @@ a{color:#e94560}
       <tbody id="ctxBody"></tbody>
     </table>
   </div>
+  <div class="sys-prompt-pane hidden"
+    id="sysPromptPane">
+    <div class="section-title">
+      <span>System Prompt</span>
+      <button id="copySysPromptBtn"
+        onclick="copySysPrompt()">Copy</button>
+    </div>
+    <div class="sys-prompt-body"
+      id="sysPromptBody"></div>
+  </div>
   <div class="prompt-pane" id="promptPane">
     <div class="section-title">
       <span>Prompt</span>
@@ -896,6 +916,15 @@ function copyPrompt(){
   const text=parts.join('\n');
   const btn=document.getElementById('copyPromptBtn');
   navigator.clipboard.writeText(text)
+    .then(()=>flashCopied(btn)).catch(()=>{});
+}
+
+function copySysPrompt(){
+  const el=document.getElementById('sysPromptBody');
+  if(!el)return;
+  const btn=document.getElementById(
+    'copySysPromptBtn');
+  navigator.clipboard.writeText(el.textContent)
     .then(()=>flashCopied(btn)).catch(()=>{});
 }
 
@@ -1197,6 +1226,18 @@ function selectEntry(i){
   }else{
     ctxBody.innerHTML='';
     ctxSec.style.display='none';
+  }
+
+  const spPane=document.getElementById(
+    'sysPromptPane');
+  const spBody=document.getElementById(
+    'sysPromptBody');
+  if(e.system_prompt){
+    spBody.textContent=e.system_prompt;
+    spPane.classList.remove('hidden');
+  }else{
+    spBody.textContent='';
+    spPane.classList.add('hidden');
   }
 
   const result=highlightPrompt(e.prompt||'');
@@ -2042,6 +2083,11 @@ def _build_export(entries):
             e.get('response', '') or '(null)',
             400
         )
+        sys_p = e.get('system_prompt', '')
+        if sys_p:
+            lines.append(
+                f'  SYSTEM: {trunc(sys_p, 300)}'
+            )
         lines.append(f'  PROMPT: {prompt}')
         lines.append(f'  RESPONSE: {resp}')
     if not llm_tail:

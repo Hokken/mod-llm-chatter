@@ -65,6 +65,7 @@ from chatter_shared import (
     stagger_if_needed,
     build_zone_metadata,
     get_player_zone,
+    PromptParts,
 )
 from chatter_db import (
     get_character_info_by_name,
@@ -2980,12 +2981,7 @@ def build_idle_conversation_prompt(
                     "response."
                 )
 
-            # JSON format
-            parts.append(
-                "JSON rules: Use double quotes, "
-                "escape quotes/newlines, no "
-                "trailing commas, no code fences."
-            )
+            # JSON format — split into system prompt
             example_msgs = ',\n  '.join(
                 [
                     f'{{"speaker": "{name}", '
@@ -2995,16 +2991,26 @@ def build_idle_conversation_prompt(
                     for name in bot_names
                 ]
             )
-            parts.append(
-                f"\nRespond with EXACTLY "
+            sys_block = (
+                "\n\nJSON rules: Use double quotes, "
+                "escape quotes/newlines, no "
+                "trailing commas, no code "
+                "fences.\n"
+                f"Respond with EXACTLY "
                 f"{msg_count} messages in "
                 f"JSON:\n[\n  "
                 f"{example_msgs}\n]\n"
                 f"ONLY the JSON array, "
-                f"nothing else."
+                f"nothing else.\n"
+                "CRITICAL: Follow the Length "
+                "instruction in the prompt "
+                "exactly — never exceed the "
+                "stated character limit."
             )
 
-            return '\n'.join(parts)
+            return PromptParts(
+                '\n'.join(parts), sys_block
+            )
     # memories_map was empty or all sanitized away
     # — fall through to the normal full prompt.
 
@@ -3311,11 +3317,6 @@ def build_idle_conversation_prompt(
             "field in this response."
         )
 
-    parts.append(
-        "JSON rules: Use double quotes, escape "
-        "quotes/newlines, no trailing commas, "
-        "no code fences."
-    )
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", '
@@ -3324,14 +3325,23 @@ def build_idle_conversation_prompt(
             for name in bot_names
         ]
     )
-    parts.append(
-        f"\nRespond with EXACTLY {msg_count} "
+    sys_block = (
+        "\n\nJSON rules: Use double quotes, escape "
+        "quotes/newlines, no trailing commas, "
+        "no code fences.\n"
+        f"Respond with EXACTLY {msg_count} "
         f"messages in JSON:\n[\n  "
         f"{example_msgs}\n]\n"
-        f"ONLY the JSON array, nothing else."
+        f"ONLY the JSON array, nothing else.\n"
+        "CRITICAL: Follow the Length "
+        "instruction in the prompt "
+        "exactly — never exceed the "
+        "stated character limit."
     )
 
-    return '\n'.join(parts)
+    return PromptParts(
+        '\n'.join(parts), sys_block
+    )
 
 
 def check_idle_group_chatter(
@@ -3663,8 +3673,12 @@ def _idle_single_statement(
 
     # Determine address target
     if len(all_bots) == 1:
-        # Solo bot — always talk to player
-        address_target = 'player'
+        # Solo bot — sometimes address player,
+        # sometimes just speak generally
+        if random.random() < 0.4:
+            address_target = 'player'
+        else:
+            address_target = None
     else:
         # Multiple bots — pick a target
         roll = random.random()

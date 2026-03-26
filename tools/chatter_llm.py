@@ -13,6 +13,48 @@ from chatter_constants import (
 logger = logging.getLogger(__name__)
 
 
+def _split_prompt(prompt):
+    """Extract system/user parts from a prompt.
+
+    Returns (system_msg, user_msg). system_msg is
+    None for plain str prompts.
+    """
+    from chatter_shared import PromptParts
+    if isinstance(prompt, PromptParts) and prompt.system_prompt:
+        return prompt.system_prompt, prompt.user_prompt
+    return None, str(prompt)
+
+
+def _build_chat_messages(sys_msg, user_content):
+    """Build OpenAI-style messages list with optional
+    system message."""
+    messages = []
+    if sys_msg:
+        messages.append({
+            "role": "system",
+            "content": sys_msg,
+        })
+    messages.append({
+        "role": "user",
+        "content": user_content,
+    })
+    return messages
+
+
+def _ollama_user_msg(user_msg, config):
+    """Apply Ollama-specific transforms to user msg
+    (e.g. /no_think prefix)."""
+    disable_thinking = (
+        config.get(
+            'LLMChatter.Ollama.DisableThinking',
+            '1',
+        ) == '1'
+    )
+    if disable_thinking:
+        return "/no_think " + user_msg
+    return user_msg
+
+
 def resolve_model(model_name: str) -> str:
     """Pass through model name (no aliasing)."""
     return model_name
@@ -104,32 +146,29 @@ def call_llm(
 
     t0 = time.monotonic()
     result = None
+    sys_msg, user_msg = _split_prompt(prompt)
     try:
         if provider == 'ollama':
-            actual_prompt = prompt
-            disable_thinking = (
-                config.get(
-                    'LLMChatter.Ollama.DisableThinking', '1'
-                ) == '1'
+            actual = _ollama_user_msg(
+                user_msg, config
             )
-            if disable_thinking:
-                actual_prompt = "/no_think " + prompt
-
             context_size = int(
                 config.get(
-                    'LLMChatter.Ollama.ContextSize', 2048
+                    'LLMChatter.Ollama'
+                    '.ContextSize', 2048
                 )
             )
-
             response = client.chat.completions.create(
                 model=model,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                messages=[
-                    {"role": "user", "content": actual_prompt}
-                ],
+                messages=_build_chat_messages(
+                    sys_msg, actual
+                ),
                 extra_body={
-                    "options": {"num_ctx": context_size}
+                    "options": {
+                        "num_ctx": context_size
+                    }
                 }
             )
             result = (
@@ -141,9 +180,9 @@ def call_llm(
                 model=model,
                 max_tokens=max_tokens,
                 temperature=temperature,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
+                messages=_build_chat_messages(
+                    sys_msg, user_msg
+                ),
             )
             result = (
                 response.choices[0]
@@ -151,16 +190,25 @@ def call_llm(
             )
         else:
             # Anthropic (default)
+            kwargs = {
+                "model": model,
+                "max_tokens": max_tokens,
+                "temperature": temperature,
+                "messages": [{
+                    "role": "user",
+                    "content": user_msg,
+                }],
+            }
+            if sys_msg:
+                kwargs["system"] = sys_msg
             response = client.messages.create(
-                model=model,
-                max_tokens=max_tokens,
-                temperature=temperature,
-                messages=[
-                    {"role": "user", "content": prompt}
-                ]
+                **kwargs
             )
             result = response.content[0].text.strip()
-    except Exception:
+    except Exception as exc:
+        logger.error(
+            "LLM call failed (%s): %s", label, exc
+        )
         result = None
     finally:
         duration_ms = int(
@@ -171,9 +219,10 @@ def call_llm(
                 log_request,
             )
             log_request(
-                label, prompt, result,
+                label, user_msg, result,
                 model, provider, duration_ms,
                 metadata=metadata,
+                system_prompt=sys_msg,
             )
         except Exception:
             pass
@@ -313,19 +362,12 @@ def quick_llm_analyze(
 
     t0 = time.monotonic()
     result = None
+    sys_msg, user_msg = _split_prompt(prompt)
     try:
         if provider == 'ollama':
-            actual_prompt = prompt
-            disable_thinking = (
-                config.get(
-                    'LLMChatter.Ollama.'
-                    'DisableThinking', '1'
-                ) == '1'
+            actual = _ollama_user_msg(
+                user_msg, config
             )
-            if disable_thinking:
-                actual_prompt = (
-                    "/no_think " + prompt
-                )
             context_size = int(config.get(
                 'LLMChatter.Ollama.ContextSize',
                 2048
@@ -336,10 +378,9 @@ def quick_llm_analyze(
                     model=model,
                     max_tokens=max_tokens,
                     temperature=0.1,
-                    messages=[{
-                        "role": "user",
-                        "content": actual_prompt
-                    }],
+                    messages=_build_chat_messages(
+                        sys_msg, actual
+                    ),
                     extra_body={
                         "options": {
                             "num_ctx": context_size
@@ -358,10 +399,9 @@ def quick_llm_analyze(
                     model=model,
                     max_tokens=max_tokens,
                     temperature=0.1,
-                    messages=[{
-                        "role": "user",
-                        "content": prompt
-                    }]
+                    messages=_build_chat_messages(
+                        sys_msg, user_msg
+                    ),
                 )
             )
             result = (
@@ -369,19 +409,27 @@ def quick_llm_analyze(
                 .message.content.strip()
             )
         else:
+            kwargs = {
+                "model": model,
+                "max_tokens": max_tokens,
+                "temperature": 0.1,
+                "messages": [{
+                    "role": "user",
+                    "content": user_msg,
+                }],
+            }
+            if sys_msg:
+                kwargs["system"] = sys_msg
             response = (
                 active_client.messages.create(
-                    model=model,
-                    max_tokens=max_tokens,
-                    temperature=0.1,
-                    messages=[{
-                        "role": "user",
-                        "content": prompt
-                    }]
+                    **kwargs
                 )
             )
             result = response.content[0].text.strip()
-    except Exception:
+    except Exception as exc:
+        logger.error(
+            "LLM call failed (%s): %s", label, exc
+        )
         result = None
     finally:
         duration_ms = int(
@@ -392,9 +440,10 @@ def quick_llm_analyze(
                 log_request,
             )
             log_request(
-                label, prompt, result,
+                label, user_msg, result,
                 model, provider, duration_ms,
                 metadata=metadata,
+                system_prompt=sys_msg,
             )
         except Exception:
             pass
