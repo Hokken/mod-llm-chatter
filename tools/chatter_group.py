@@ -58,7 +58,6 @@ from chatter_shared import (
     get_recent_bot_messages,
     append_json_instruction,
     parse_single_response,
-    get_action_chance,
     build_talent_context,
     get_zone_name,
     get_subzone_name,
@@ -645,9 +644,6 @@ def process_group_event(db, client, config, event):
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
         members = get_group_members(db, group_id)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -658,7 +654,6 @@ def process_group_event(db, client, config, event):
             members=members,
             player_name=player_name,
             group_size=group_size,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             memories=memories or None,
             player_name_known=player_name_known,
@@ -1007,9 +1002,6 @@ def process_group_join_batch_event(
             members = get_group_members(
                 db, group_id
             )
-            allow_action = (
-                random.random() < get_action_chance()
-            )
             speaker_talent = _maybe_talent_context(
                 config, db, bot_guid,
                 bot['class'], bot_name,
@@ -1020,7 +1012,6 @@ def process_group_join_batch_event(
                 members=members,
                 player_name=player_name,
                 group_size=len(bots_raw) + 1,
-                allow_action=allow_action,
                 speaker_talent_context=speaker_talent,
                 memories=bot_memories or None,
                 player_name_known=bot_player_known,
@@ -1284,9 +1275,6 @@ def _batch_welcome(
     chat_hist = format_chat_history(history)
     members = get_group_members(db, group_id)
 
-    allow_action = (
-        random.random() < get_action_chance()
-    )
     speaker_talent = _maybe_talent_context(
         config, db, wb_guid,
         wb['class'], wb_name,
@@ -1295,7 +1283,6 @@ def _batch_welcome(
         wb, wb_traits, new_names, mode,
         chat_history=chat_hist,
         members=members,
-        allow_action=allow_action,
         speaker_talent_context=speaker_talent,
         stored_tone=wb_tone,
     )
@@ -1593,9 +1580,6 @@ def process_group_player_msg_event(
                 pass
 
         # -- Single-bot reply path --
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -1648,7 +1632,6 @@ def process_group_player_msg_event(
             chat_history=chat_hist,
             members=members,
             item_context=item_context,
-            allow_action=allow_action,
             link_context=link_context,
             speaker_talent_context=speaker_talent,
             target_talent_context=target_talent,
@@ -1956,9 +1939,6 @@ def _try_second_bot_response(
     chat_hist = format_chat_history(history)
     members = get_group_members(db, group_id)
 
-    allow_action = (
-        random.random() < get_action_chance()
-    )
     bot2_item_context = ""
     if items_info:
         bot2_item_context = format_item_context(
@@ -1987,7 +1967,6 @@ def _try_second_bot_response(
         player_message, mode,
         chat_history=chat_hist,
         members=members,
-        allow_action=allow_action,
         link_context=link_context,
         item_context=bot2_item_context,
         speaker_talent_context=speaker_talent,
@@ -2092,9 +2071,6 @@ def _welcome_from_existing_bot(
     chat_hist = format_chat_history(history)
     members = get_group_members(db, group_id)
 
-    allow_action = (
-        random.random() < get_action_chance()
-    )
     speaker_talent = _maybe_talent_context(
         config, db, wb_guid,
         wb['class'], wb_name,
@@ -2103,7 +2079,6 @@ def _welcome_from_existing_bot(
         wb, wb_traits, new_bot_name, mode,
         chat_history=chat_hist,
         members=members,
-        allow_action=allow_action,
         speaker_talent_context=speaker_talent,
         stored_tone=wb_tone,
     )
@@ -2341,9 +2316,6 @@ def _maybe_comment_on_composition(
     if role_info.get('total', 0) < 2:
         return
 
-    allow_action = (
-        random.random() < get_action_chance()
-    )
     speaker_talent = _maybe_talent_context(
         config, db, bot['guid'],
         bot['class'], bot['name'],
@@ -2352,7 +2324,6 @@ def _maybe_comment_on_composition(
         bot, traits, mode, role_summary,
         role_info, player_name,
         player_class=player_class,
-        allow_action=allow_action,
         speaker_talent_context=speaker_talent,
     )
 
@@ -3748,9 +3719,6 @@ def _idle_single_statement(
                         idle_memories = None
 
     try:
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -3766,7 +3734,6 @@ def _idle_single_statement(
             address_target=address_target,
             dungeon_bosses=dungeon_bosses,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             area_id=area_id,
             stored_tone=stored_tone,
@@ -4002,9 +3969,6 @@ def _idle_conversation(
                             ] = mems
 
     try:
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         # Talent context for first bot only
         first_bot = bots[0] if bots else None
         speaker_talent = None
@@ -4049,7 +4013,6 @@ def _idle_conversation(
             player_name=player_name,
             dungeon_bosses=dungeon_bosses,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             area_id=area_id,
             memories_map=memories_map or None,
@@ -4407,9 +4370,6 @@ def check_bot_questions(db, client, config):
             db, bot_guid
         )
 
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -4470,7 +4430,6 @@ def check_bot_questions(db, client, config):
             map_id=map_id,
             current_weather=current_weather,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             target_talent_context=target_talent,
             area_id=area_id,

@@ -50,7 +50,6 @@ from chatter_shared import (
     set_race_lore_chance,
     set_race_vocab_chance,
     set_action_chance,
-    get_action_chance,
     set_emote_chance,
     parse_single_response,
     parse_config, get_db_connection,
@@ -1240,16 +1239,11 @@ def process_single_event(event, client, config):
             )
 
             # Build event conversation prompt
-            allow_action = (
-                random.random()
-                < get_action_chance()
-            )
             prompt = (
                 build_event_conversation_prompt(
                     bots, event_context, zone_id,
                     config, current_weather,
                     recent_messages=recent_msgs,
-                    allow_action=allow_action,
                     area_id=int(
                         bots[0].get(
                             'area_id', 0
@@ -1403,10 +1397,6 @@ def process_single_event(event, client, config):
                 or "the world"
             )
 
-            allow_action = (
-                random.random()
-                < get_action_chance()
-            )
             event_prompt = build_event_statement_prompt(
                 bot,
                 event_context,
@@ -1414,7 +1404,6 @@ def process_single_event(event, client, config):
                 zone_name=zone_name,
                 config=config,
                 extra_data=extra_data,
-                allow_action=allow_action,
                 zone_id=use_zone_id,
                 area_id=0,
             )

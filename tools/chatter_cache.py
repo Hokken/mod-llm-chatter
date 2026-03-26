@@ -25,9 +25,7 @@ from chatter_shared import (
     strip_speaker_prefix,
     pick_emote_for_statement,
     parse_single_response,
-    get_action_chance,
 )
-import random
 from chatter_constants import CLASS_NAMES, RACE_NAMES
 
 logger = logging.getLogger(__name__)
@@ -202,7 +200,6 @@ def _get_recent_cached(db, group_id, bot_guid, cat):
 def _build_prompt(
     cat, prompt_type, bot_name, race, class_name,
     level, traits, mood, role, recent_cached,
-    allow_action=True,
 ):
     """Dispatch to the correct prompt builder."""
     if prompt_type == 'state':
@@ -211,28 +208,24 @@ def _build_prompt(
             state_type, bot_name, race,
             class_name, level, traits, mood,
             role=role, recent_cached=recent_cached,
-            allow_action=allow_action,
         )
     elif prompt_type == 'combat':
         return build_precache_combat_pull_prompt(
             bot_name, race, class_name, level,
             traits, mood,
             role=role, recent_cached=recent_cached,
-            allow_action=allow_action,
         )
     elif prompt_type == 'spell':
         return build_precache_spell_support_prompt(
             bot_name, race, class_name, level,
             traits, mood,
             role=role, recent_cached=recent_cached,
-            allow_action=allow_action,
         )
     elif prompt_type == 'spell_offensive':
         return build_precache_spell_offensive_prompt(
             bot_name, race, class_name, level,
             traits, mood,
             role=role, recent_cached=recent_cached,
-            allow_action=allow_action,
         )
     return None
 
@@ -356,14 +349,10 @@ def refill_precache_pool(db, client, config):
             )
 
             # Build prompt
-            allow_action = (
-                random.random() < get_action_chance()
-            )
             prompt = _build_prompt(
                 cat, prompt_type, bot_name,
                 race, class_name, level, traits,
                 mood, role, recent_cached,
-                allow_action=allow_action,
             )
             if not prompt:
                 continue

@@ -31,7 +31,6 @@ from chatter_shared import (
     insert_chat_message,
     get_recent_zone_messages,
     is_too_similar,
-    get_action_chance,
     select_message_type,
     calculate_dynamic_delay,
     get_chatter_mode,
@@ -229,9 +228,6 @@ def process_statement(
     _, _, rng_length = pick_statement_length()
 
     # Build appropriate prompt
-    allow_action = (
-        random.random() < get_action_chance()
-    )
     chosen_topic = ""
     if msg_type == "plain":
         # Get zone mobs for context
@@ -254,7 +250,6 @@ def process_statement(
             bot, zone_id, zone_mobs,
             config, current_weather,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             topic=topic,
             area_id=area_id,
@@ -265,7 +260,6 @@ def process_statement(
             bot, quest_data, config,
             current_weather,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             zone_id=zone_id,
         )
@@ -274,7 +268,6 @@ def process_statement(
             bot, item_data, item_can_use,
             config, current_weather,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             zone_id=zone_id,
         )
@@ -283,7 +276,6 @@ def process_statement(
             bot, quest_data, config,
             current_weather,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             zone_id=zone_id,
         )
@@ -301,7 +293,6 @@ def process_statement(
             bot, item_data, config,
             current_weather,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             zone_id=zone_id,
         )
@@ -310,7 +301,6 @@ def process_statement(
             bot, spell_data, config,
             current_weather,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             zone_id=zone_id,
         )
@@ -326,7 +316,6 @@ def process_statement(
             config=config,
             current_weather=current_weather,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             topic=topic,
             area_id=area_id,
@@ -514,63 +503,43 @@ def process_conversation(
         )
         topic = random.choice(topic_pool)
         chosen_topic = topic
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         prompt = build_plain_conversation_prompt(
             bots, zone_id, zone_mobs,
             config, current_weather,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             topic=topic,
             area_id=area_id,
         )
     elif msg_type == "quest":
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         prompt = build_quest_conversation_prompt(
             bots, quest_data, config,
             current_weather,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             zone_id=zone_id,
         )
     elif msg_type == "trade":
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         prompt = build_trade_conversation_prompt(
             bots, item_data, config,
             current_weather,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             zone_id=zone_id,
         )
     elif msg_type == "spell":
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         prompt = build_spell_conversation_prompt(
             bots, spell_data, config,
             current_weather,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             zone_id=zone_id,
         )
     else:  # loot
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         prompt = build_loot_conversation_prompt(
             bots, item_data, config,
             current_weather,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             zone_id=zone_id,
         )

@@ -970,11 +970,6 @@ def set_emote_chance(chance_pct: int):
     _emote_chance = chance_pct / 100.0
 
 
-def get_emote_chance() -> float:
-    """Return the configured emote chance (0.0-1.0)."""
-    return _emote_chance
-
-
 def set_action_chance(chance_pct: int, mode: str = 'roleplay'):
     """Set from config: LLMChatter.ActionChance (0-100).
 
@@ -1010,17 +1005,19 @@ def append_json_instruction(
     ~200 tokens for General channel prompts where
     emotes are not displayed).
     """
+    # Apply ActionChance RNG: allow_action=True means
+    # "eligible for action" — the RNG decides.
+    # allow_action=False means "never include action"
+    # (e.g. raid channel, General chat).
+    if allow_action and random.random() >= _action_chance:
+        allow_action = False
     action_desc = ""
     if allow_action:
         action_desc = (
-            '"action": a 2-5 word physical narration '
-            '(e.g. "leans against the wall", '
-            '"scratches chin thoughtfully"). '
-            "Displayed as *action* before speech. "
-            "Include an action for this response. "
+            '"action": a short physical narration '
+            '(max 8 words). '
             "NEVER put {item:}, {quest:}, or "
-            "{spell:} placeholders in the action "
-            "field — those belong in message only.\n"
+            "{spell:} placeholders in action.\n"
         )
     else:
         action_desc = (
@@ -1103,7 +1100,10 @@ def append_conversation_json_instruction(
         "[\n"
         f"  {example_msgs}\n"
         "]\n"
-        "ONLY the JSON array, nothing else."
+        "ONLY the JSON array, nothing else.\n"
+        "CRITICAL: Follow the Length instruction "
+        "in the prompt exactly — never exceed the "
+        "stated character limit."
     )
     return PromptParts(prompt, block)
 
