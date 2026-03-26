@@ -2982,12 +2982,17 @@ def build_idle_conversation_prompt(
                 )
 
             # JSON format — split into system prompt
+            action_ex = (
+                ', "action": "..."'
+                if allow_action else
+                ', "action": null'
+            )
             example_msgs = ',\n  '.join(
                 [
                     f'{{"speaker": "{name}", '
                     f'"message": "...", '
                     f'"emote": "talk"'
-                    f', "action": "..."}}'
+                    f'{action_ex}}}'
                     for name in bot_names
                 ]
             )
@@ -3317,11 +3322,16 @@ def build_idle_conversation_prompt(
             "field in this response."
         )
 
+    action_ex = (
+        ', "action": "..."'
+        if allow_action else
+        ', "action": null'
+    )
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", '
             f'"message": "...", "emote": "talk"'
-            f', "action": "..."}}'
+            f'{action_ex}}}'
             for name in bot_names
         ]
     )
@@ -3675,7 +3685,7 @@ def _idle_single_statement(
     if len(all_bots) == 1:
         # Solo bot — sometimes address player,
         # sometimes just speak generally
-        if random.random() < 0.4:
+        if random.random() < 0.4 and player_name:
             address_target = 'player'
         else:
             address_target = None

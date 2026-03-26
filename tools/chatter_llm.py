@@ -147,9 +147,10 @@ def call_llm(
     t0 = time.monotonic()
     result = None
     sys_msg, user_msg = _split_prompt(prompt)
+    sent_user_msg = user_msg  # tracks actual payload
     try:
         if provider == 'ollama':
-            actual = _ollama_user_msg(
+            sent_user_msg = _ollama_user_msg(
                 user_msg, config
             )
             context_size = int(
@@ -163,7 +164,7 @@ def call_llm(
                 max_tokens=max_tokens,
                 temperature=temperature,
                 messages=_build_chat_messages(
-                    sys_msg, actual
+                    sys_msg, sent_user_msg
                 ),
                 extra_body={
                     "options": {
@@ -219,7 +220,7 @@ def call_llm(
                 log_request,
             )
             log_request(
-                label, user_msg, result,
+                label, sent_user_msg, result,
                 model, provider, duration_ms,
                 metadata=metadata,
                 system_prompt=sys_msg,
@@ -363,9 +364,10 @@ def quick_llm_analyze(
     t0 = time.monotonic()
     result = None
     sys_msg, user_msg = _split_prompt(prompt)
+    sent_user_msg = user_msg
     try:
         if provider == 'ollama':
-            actual = _ollama_user_msg(
+            sent_user_msg = _ollama_user_msg(
                 user_msg, config
             )
             context_size = int(config.get(
@@ -379,7 +381,7 @@ def quick_llm_analyze(
                     max_tokens=max_tokens,
                     temperature=0.1,
                     messages=_build_chat_messages(
-                        sys_msg, actual
+                        sys_msg, sent_user_msg
                     ),
                     extra_body={
                         "options": {
@@ -440,7 +442,7 @@ def quick_llm_analyze(
                 log_request,
             )
             log_request(
-                label, user_msg, result,
+                label, sent_user_msg, result,
                 model, provider, duration_ms,
                 metadata=metadata,
                 system_prompt=sys_msg,
