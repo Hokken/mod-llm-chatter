@@ -2956,37 +2956,31 @@ def build_idle_conversation_prompt(
             if anti_rep:
                 parts.append(anti_rep)
 
-            # Emote and action instructions
-            parts.append(
-                f"Emotes: Each message may "
-                f"include an optional \"emote\" "
+            # JSON format — split into system prompt
+            emote_rule = (
+                "Emotes: Each message may "
+                "include an optional \"emote\" "
                 f"field (one of: "
                 f"{EMOTE_LIST_STR}). Pick an "
-                f"emote that fits the message "
-                f"mood, or omit it."
+                "emote that fits the message "
+                "mood, or omit it.\n"
             )
             if allow_action:
-                parts.append(
+                action_rule = (
                     "Actions: Each message may "
                     "include an optional "
                     "\"action\" field — a short "
                     "physical action (2-5 words, "
                     "no asterisks). Omit if not "
-                    "needed."
+                    "needed.\n"
                 )
+                action_ex = ', "action": "..."'
             else:
-                parts.append(
-                    "Actions: Do not include an "
-                    "action field in this "
-                    "response."
+                action_rule = (
+                    "Actions: Set \"action\" to "
+                    "null for ALL messages.\n"
                 )
-
-            # JSON format — split into system prompt
-            action_ex = (
-                ', "action": "..."'
-                if allow_action else
-                ', "action": null'
-            )
+                action_ex = ', "action": null'
             example_msgs = ',\n  '.join(
                 [
                     f'{{"speaker": "{name}", '
@@ -2997,7 +2991,9 @@ def build_idle_conversation_prompt(
                 ]
             )
             sys_block = (
-                "\n\nJSON rules: Use double quotes, "
+                f"\n\n{emote_rule}"
+                f"{action_rule}"
+                "JSON rules: Use double quotes, "
                 "escape quotes/newlines, no "
                 "trailing commas, no code "
                 "fences.\n"
@@ -3300,33 +3296,26 @@ def build_idle_conversation_prompt(
     if anti_rep:
         parts.append(anti_rep)
 
-    parts.append(
-        f"Emotes: Each message may include an "
+    emote_rule = (
+        "Emotes: Each message may include an "
         f"optional \"emote\" field (one of: "
         f"{EMOTE_LIST_STR}). Pick an emote that "
-        f"fits the message mood, or omit it."
+        "fits the message mood, or omit it.\n"
     )
-
     if allow_action:
-        parts.append(
+        action_rule = (
             "Actions: Each message may include an "
             "optional \"action\" field — a short "
-            "physical action the character performs "
-            "(e.g. \"scratches chin\", \"leans on "
-            "staff\", \"adjusts pack\"). 2-5 words, "
-            "no asterisks. Omit if not needed."
+            "physical action (2-5 words, "
+            "no asterisks). Omit if not needed.\n"
         )
+        action_ex = ', "action": "..."'
     else:
-        parts.append(
-            "Actions: Do not include an action "
-            "field in this response."
+        action_rule = (
+            "Actions: Set \"action\" to null for "
+            "ALL messages.\n"
         )
-
-    action_ex = (
-        ', "action": "..."'
-        if allow_action else
-        ', "action": null'
-    )
+        action_ex = ', "action": null'
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", '
@@ -3336,7 +3325,9 @@ def build_idle_conversation_prompt(
         ]
     )
     sys_block = (
-        "\n\nJSON rules: Use double quotes, escape "
+        f"\n\n{emote_rule}"
+        f"{action_rule}"
+        "JSON rules: Use double quotes, escape "
         "quotes/newlines, no trailing commas, "
         "no code fences.\n"
         f"Respond with EXACTLY {msg_count} "
