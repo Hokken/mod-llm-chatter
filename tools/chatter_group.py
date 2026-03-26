@@ -2928,14 +2928,23 @@ def build_idle_conversation_prompt(
                 parts.append(anti_rep)
 
             # JSON format — split into system prompt
-            emote_rule = (
-                "Emotes: Each message may "
-                "include an optional \"emote\" "
-                f"field (one of: "
-                f"{EMOTE_LIST_STR}). Pick an "
-                "emote that fits the message "
-                "mood, or omit it.\n"
-            )
+            from chatter_shared import _emote_chance
+            if random.random() < _emote_chance:
+                emote_rule = (
+                    "Emotes: Each message may "
+                    "include an optional \"emote\""
+                    f" field (one of: "
+                    f"{EMOTE_LIST_STR}). Pick an "
+                    "emote that fits the message "
+                    "mood, or omit it.\n"
+                )
+                emote_ex = '"emote": "talk"'
+            else:
+                emote_rule = (
+                    "Emotes: Set \"emote\" to "
+                    "null for all messages.\n"
+                )
+                emote_ex = '"emote": null'
             if allow_action:
                 action_rule = (
                     "Actions: Each message may "
@@ -2956,7 +2965,7 @@ def build_idle_conversation_prompt(
                 [
                     f'{{"speaker": "{name}", '
                     f'"message": "...", '
-                    f'"emote": "talk"'
+                    f'{emote_ex}'
                     f'{action_ex}}}'
                     for name in bot_names
                 ]
@@ -3267,12 +3276,21 @@ def build_idle_conversation_prompt(
     if anti_rep:
         parts.append(anti_rep)
 
-    emote_rule = (
-        "Emotes: Each message may include an "
-        f"optional \"emote\" field (one of: "
-        f"{EMOTE_LIST_STR}). Pick an emote that "
-        "fits the message mood, or omit it.\n"
-    )
+    from chatter_shared import _emote_chance
+    if random.random() < _emote_chance:
+        emote_rule = (
+            "Emotes: Each message may include an "
+            f"optional \"emote\" field (one of: "
+            f"{EMOTE_LIST_STR}). Pick an emote "
+            "that fits the mood, or omit it.\n"
+        )
+        emote_ex = '"emote": "talk"'
+    else:
+        emote_rule = (
+            "Emotes: Set \"emote\" to null for "
+            "all messages.\n"
+        )
+        emote_ex = '"emote": null'
     if allow_action:
         action_rule = (
             "Actions: Each message may include an "
@@ -3290,7 +3308,7 @@ def build_idle_conversation_prompt(
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", '
-            f'"message": "...", "emote": "talk"'
+            f'"message": "...", {emote_ex}'
             f'{action_ex}}}'
             for name in bot_names
         ]

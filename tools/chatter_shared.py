@@ -1062,9 +1062,10 @@ def append_conversation_json_instruction(
 
     Conversation prompts return an array where each
     item has speaker/message/emote/action fields.
-    Emotes are always null because conversations
-    are sent to General channel.
     """
+    # Apply ActionChance RNG (same as single msgs)
+    if allow_action and random.random() >= _action_chance:
+        allow_action = False
     if allow_action:
         action_text = (
             "Actions: The \"action\" field is a 2-5 "
@@ -1082,17 +1083,36 @@ def append_conversation_json_instruction(
             "ALL messages in this response."
         )
 
+    # EmoteChance RNG for conversations
+    if random.random() < _emote_chance:
+        emote_rule = (
+            "Emotes: Each message may include an "
+            f"optional \"emote\" field (one of: "
+            f"{EMOTE_LIST_STR}). Pick an emote "
+            "that fits the mood, or use null.\n"
+        )
+        emote_ex = '"emote": "talk"'
+    else:
+        emote_rule = (
+            "Emotes: Set the \"emote\" field to "
+            "null for all messages.\n"
+        )
+        emote_ex = '"emote": null'
+
+    action_ex = '"action": null'
+    if allow_action:
+        action_ex = '"action": "..."'
+
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", "message": "...", '
-            f'"emote": null, "action": null}}'
+            f'{emote_ex}, {action_ex}}}'
             for name in bot_names
         ]
     )
 
     block = (
-        "\n\nEmotes: Set the \"emote\" field to null "
-        "for all messages.\n"
+        f"\n\n{emote_rule}"
         f"{action_text}\n"
         "JSON rules: Use double quotes, escape "
         "quotes/newlines, no trailing commas, no code fences.\n"
