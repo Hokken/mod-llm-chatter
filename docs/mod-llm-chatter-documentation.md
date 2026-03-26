@@ -29,7 +29,7 @@ High-level behavior:
 - PvE raid chatter for boss encounters, lifted group features, and
   idle morale
 - real-time subzone lore tracking with ~3,000 subzone descriptions
-  injected into prompts (Session 74)
+  injected into prompts
 
 ---
 
@@ -304,7 +304,7 @@ Owns battleground-specific hooks and BG queue helpers.
 - `tools/chatter_general.py`
 - `tools/chatter_shared.py`
 - `tools/chatter_text.py`
-- `tools/chatter_llm.py`
+- `tools/chatter_llm.py` — LLM call dispatch, system prompt splitting
 - `tools/chatter_db.py`
 - `tools/chatter_links.py`
 - `tools/chatter_events.py`
@@ -383,6 +383,36 @@ LLMChatter.Model = gpt4o-mini
 LLMChatter.Provider = ollama
 LLMChatter.Model = qwen3:4b
 ```
+
+### System prompt support
+
+`call_llm()` in `chatter_llm.py` supports automatic system/user
+prompt splitting. Prompt builders can return a `PromptParts` object
+(from `chatter_shared.py`) instead of a plain string. `PromptParts`
+wraps a single prompt string, and `_split_prompt()` in
+`chatter_llm.py` detects the boundary between format/rules
+instructions and scene-specific content, splitting them into a
+system message and a user message.
+
+Provider behavior:
+
+- **Anthropic**: system content passed via the `system=` parameter
+  on the API call (native system prompt support)
+- **OpenAI**: system content sent as a `{"role": "system", ...}`
+  message prepended to the messages array
+- **Ollama**: same as OpenAI (system role message)
+
+When a plain string is passed to `call_llm()` instead of
+`PromptParts`, the entire prompt is sent as a single user message
+(backward-compatible behavior).
+
+### Key helpers in `chatter_llm.py`
+
+| Function | Purpose |
+|---|---|
+| `_split_prompt()` | Detects `PromptParts` and splits into system + user content |
+| `_build_chat_messages()` | Assembles the provider-specific messages array |
+| `_ollama_user_msg()` | Formats the user message for Ollama's chat API |
 
 ---
 
@@ -482,7 +512,7 @@ That path:
 | `LLMChatterPlayer.cpp` | General-channel hook, cooldowns, history writes |
 | `LLMChatterConfig.h/.cpp` | General-channel config |
 | `chatter_general.py` | Prompt building and event handler |
-| `chatter_shared.py` | Addressed-bot detection and quick LLM analysis |
+| `chatter_shared.py` | `PromptParts` class, addressed-bot detection, quick LLM analysis |
 | `llm_chatter_bridge.py` | Event dispatch entry |
 
 ---
@@ -1089,7 +1119,36 @@ instead of only reacting to their own output length.
 
 ---
 
-## 13i. LLM Request Logging
+## 13i. Emote and Action Prompt Gating
+
+### EmoteChance
+
+`LLMChatter.EmoteChance` (default 50) is an RNG gate that controls
+whether the emote list is included in prompts. When the roll fails,
+the emote instruction block is omitted entirely, saving ~500 tokens
+per LLM call. Applied centrally in `append_json_instruction()` and
+`append_conversation_json_instruction()` in `chatter_prompts.py`.
+
+### ActionChance (centralized)
+
+`LLMChatter.ActionChance` (default 10) controls whether the `action`
+field instruction is included in the JSON format block. Previously
+each caller site (~48 locations) applied the RNG individually; it is
+now applied centrally in `append_json_instruction()` and
+`append_conversation_json_instruction()`. When included, the action
+field is described as "max 8 words" with no examples to avoid
+repetitive LLM output.
+
+### Config keys
+
+| Key | Default | Purpose |
+|---|---|---|
+| `LLMChatter.EmoteChance` | 50 | % chance emote list is included in prompt |
+| `LLMChatter.ActionChance` | 10 | % chance action field is included in prompt |
+
+---
+
+## 13j. LLM Request Logging
 
 Every `call_llm()` invocation can be recorded to a JSONL log file for
 debugging and analysis. This is a Python-only development feature with
@@ -1129,14 +1188,18 @@ Each JSONL record contains:
   "subzone_lore": "A small hamlet...",
   "speaker_talent": "...",
   "target_talent": "...",
+  "system_prompt": "...",
   "prompt": "...",
   "response": "..."
 }
 ```
 
 Metadata fields (zone_name, zone_flavor, subzone_name, subzone_lore,
-speaker_talent, target_talent) are only written when non-empty — absent
-fields mean the context was not available for that call.
+speaker_talent, target_talent, system_prompt) are only written when
+non-empty — absent fields mean the context was not available for that
+call. The `system_prompt` field contains the system message content
+when the prompt was split via `PromptParts`; absent when the full
+prompt was sent as a single user message.
 
 ### Labels
 
@@ -1175,8 +1238,10 @@ Features:
 - semantic prompt section highlighting with colored left borders:
   IDENTITY, TRAITS, CONTEXT, TASK, RULES, FORMAT, STYLE
 - section pill badges in the prompt header
+- system prompt pane with copy button, visible when the JSONL entry
+  contains a `system_prompt` field
 - JSON pretty-print for structured responses
-- copy buttons for prompt and response
+- copy buttons for prompt, response, and system prompt
 - filtering by label and text search
 - pagination
 - auto-refresh every 30s (toggleable)
