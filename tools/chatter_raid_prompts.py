@@ -16,6 +16,7 @@ from chatter_shared import (
     build_race_class_context,
     build_anti_repetition_context,
     get_recent_zone_messages,
+    append_json_instruction,
 )
 from chatter_prompts import (
     pick_personality_spices,
@@ -493,7 +494,11 @@ def build_raid_boss_pull_prompt(
         "ONE short sentence. Stay in character. "
         "No asterisks."
     )
-    return ctx
+    return append_json_instruction(
+        ctx,
+        allow_action=(not is_raid_worker),
+        skip_emote=is_raid_worker,
+    )
 
 
 def build_raid_boss_kill_prompt(
@@ -521,7 +526,11 @@ def build_raid_boss_kill_prompt(
         "ONE short sentence. Stay in character. "
         "No asterisks."
     )
-    return ctx
+    return append_json_instruction(
+        ctx,
+        allow_action=(not is_raid_worker),
+        skip_emote=is_raid_worker,
+    )
 
 
 def build_raid_boss_wipe_prompt(
@@ -551,7 +560,11 @@ def build_raid_boss_wipe_prompt(
         "ONE short sentence. Stay in character. "
         "No asterisks."
     )
-    return ctx
+    return append_json_instruction(
+        ctx,
+        allow_action=(not is_raid_worker),
+        skip_emote=is_raid_worker,
+    )
 
 
 def build_raid_morale_prompt(
@@ -598,4 +611,6 @@ def build_raid_morale_prompt(
         "ONE short sentence. Stay in character. "
         "No asterisks."
     )
-    return ctx
+    return append_json_instruction(
+        ctx, allow_action=False, skip_emote=True
+    )
