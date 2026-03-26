@@ -832,9 +832,9 @@ LLMChatter.RaidChatter.MoraleCooldown = 60
 #       Chance (0-100) that a response includes a narrator action
 #       displayed as *action* before the spoken text.
 #       Only applies in roleplay mode.
-#       Default: 10
+#       Default: 20
 #
-LLMChatter.ActionChance = 10
+LLMChatter.ActionChance = 20
 
 #
 #   LLMChatter.EmoteChance
@@ -842,9 +842,9 @@ LLMChatter.ActionChance = 10
 #       prompts. When skipped, the model returns null for
 #       the emote field, saving ~500 tokens per call.
 #       Lower values improve speed on smaller models.
-#       Default: 50
+#       Default: 30
 #
-LLMChatter.EmoteChance = 50
+LLMChatter.EmoteChance = 30
 
 #
 #   LLMChatter.RaceLoreChance
