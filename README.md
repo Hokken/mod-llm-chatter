@@ -77,7 +77,7 @@ Tested extensively with excellent results:
 - **Claude Haiku 4.5** (Anthropic),  fast, affordable, excellent quality
 - **GPT-4o-mini** (OpenAI),  great alternative, similar cost
 
-Ollama works for local/free inference but requires fast hardware (sub-5s response times). See the config file header for details.
+Ollama is supported for local/free inference, but the module's advanced prompt architecture (structured JSON responses, system/user message separation, emote and action fields) demands strong instruction-following capabilities that smaller open-source models may not consistently deliver. For the best experience, we recommend Claude Haiku or GPT-4o-mini. See the config file header for Ollama setup details.
 
 ### Tuning the Chattiness
 
@@ -128,9 +128,8 @@ chance to `0` disables that trigger entirely. See the config
 file comments for the full list of tunable keys.
 
 ### Known Limitations
-- Local Ollama on consumer hardware produces 15-70s latency, causing stale reactions
-- Models below 4B parameters frequently fail to produce valid JSON
-- Smaller models (3B-8B) struggle with character-count constraints and may produce overly long messages that get truncated. For best results with length control, use Claude Haiku or GPT-4o-mini
+- **Ollama / open-source models**: Local inference requires fast hardware (sub-5s responses). Models below 8B frequently produce malformed JSON, ignore length constraints, or echo prompt instructions. Cloud-hosted Ollama models vary in quality — reasoning models (deepseek, qwen3.5, glm) are incompatible. For reliable results, use Claude Haiku or GPT-4o-mini
+- Ollama cloud models add routing overhead compared to direct Anthropic/OpenAI APIs
 
 ---
 

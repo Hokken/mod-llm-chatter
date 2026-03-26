@@ -701,6 +701,8 @@ def get_real_player_guid_for_group(db, group_id):
 
     Returns int guid or 0.
     """
+    if db is None:
+        return 0
     try:
         cursor = db.cursor(dictionary=True)
         cursor.execute(
