@@ -1397,7 +1397,8 @@ def find_addressed_bot(
 
     try:
         result = quick_llm_analyze(
-            client, config, prompt, max_tokens=60
+            client, config, prompt, max_tokens=60,
+            label='find_addressed_bot',
         )
     except Exception:
         return {

@@ -224,9 +224,9 @@ LLMChatter.Ollama.BaseUrl = http://localhost:11434
 #       Context window size (num_ctx). Smaller = faster, less memory.
 #       1024 is good for short chatter messages.
 #       Increase if you get truncated responses.
-#       Default: 2048
+#       Default: 4096
 #
-LLMChatter.Ollama.ContextSize = 2048
+LLMChatter.Ollama.ContextSize = 4096
 
 #
 #   LLMChatter.Ollama.DisableThinking
