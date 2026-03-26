@@ -210,8 +210,11 @@ LLMChatter.OpenAI.ApiKey = sk-xxxxx
 
 #
 #   LLMChatter.Ollama.BaseUrl
-#       Ollama API endpoint. Default works for standard local installation.
-#       Change if running Ollama on another machine or port.
+#       Ollama API endpoint.
+#       NOTE: If the chatter bridge runs in Docker and Ollama runs on the
+#       host machine, use http://host.docker.internal:11434 instead of
+#       localhost. "localhost" inside a container refers to the container
+#       itself, not the host.
 #       Default: http://localhost:11434
 #
 LLMChatter.Ollama.BaseUrl = http://localhost:11434
