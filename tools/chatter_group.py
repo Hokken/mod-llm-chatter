@@ -58,13 +58,13 @@ from chatter_shared import (
     get_recent_bot_messages,
     append_json_instruction,
     parse_single_response,
-    get_action_chance,
     build_talent_context,
     get_zone_name,
     get_subzone_name,
     stagger_if_needed,
     build_zone_metadata,
     get_player_zone,
+    PromptParts,
 )
 from chatter_db import (
     get_character_info_by_name,
@@ -644,9 +644,6 @@ def process_group_event(db, client, config, event):
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
         members = get_group_members(db, group_id)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -657,7 +654,6 @@ def process_group_event(db, client, config, event):
             members=members,
             player_name=player_name,
             group_size=group_size,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             memories=memories or None,
             player_name_known=player_name_known,
@@ -1006,9 +1002,6 @@ def process_group_join_batch_event(
             members = get_group_members(
                 db, group_id
             )
-            allow_action = (
-                random.random() < get_action_chance()
-            )
             speaker_talent = _maybe_talent_context(
                 config, db, bot_guid,
                 bot['class'], bot_name,
@@ -1019,7 +1012,6 @@ def process_group_join_batch_event(
                 members=members,
                 player_name=player_name,
                 group_size=len(bots_raw) + 1,
-                allow_action=allow_action,
                 speaker_talent_context=speaker_talent,
                 memories=bot_memories or None,
                 player_name_known=bot_player_known,
@@ -1283,9 +1275,6 @@ def _batch_welcome(
     chat_hist = format_chat_history(history)
     members = get_group_members(db, group_id)
 
-    allow_action = (
-        random.random() < get_action_chance()
-    )
     speaker_talent = _maybe_talent_context(
         config, db, wb_guid,
         wb['class'], wb_name,
@@ -1294,7 +1283,6 @@ def _batch_welcome(
         wb, wb_traits, new_names, mode,
         chat_history=chat_hist,
         members=members,
-        allow_action=allow_action,
         speaker_talent_context=speaker_talent,
         stored_tone=wb_tone,
     )
@@ -1592,9 +1580,6 @@ def process_group_player_msg_event(
                 pass
 
         # -- Single-bot reply path --
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -1647,7 +1632,6 @@ def process_group_player_msg_event(
             chat_history=chat_hist,
             members=members,
             item_context=item_context,
-            allow_action=allow_action,
             link_context=link_context,
             speaker_talent_context=speaker_talent,
             target_talent_context=target_talent,
@@ -1955,9 +1939,6 @@ def _try_second_bot_response(
     chat_hist = format_chat_history(history)
     members = get_group_members(db, group_id)
 
-    allow_action = (
-        random.random() < get_action_chance()
-    )
     bot2_item_context = ""
     if items_info:
         bot2_item_context = format_item_context(
@@ -1986,7 +1967,6 @@ def _try_second_bot_response(
         player_message, mode,
         chat_history=chat_hist,
         members=members,
-        allow_action=allow_action,
         link_context=link_context,
         item_context=bot2_item_context,
         speaker_talent_context=speaker_talent,
@@ -2091,9 +2071,6 @@ def _welcome_from_existing_bot(
     chat_hist = format_chat_history(history)
     members = get_group_members(db, group_id)
 
-    allow_action = (
-        random.random() < get_action_chance()
-    )
     speaker_talent = _maybe_talent_context(
         config, db, wb_guid,
         wb['class'], wb_name,
@@ -2102,7 +2079,6 @@ def _welcome_from_existing_bot(
         wb, wb_traits, new_bot_name, mode,
         chat_history=chat_hist,
         members=members,
-        allow_action=allow_action,
         speaker_talent_context=speaker_talent,
         stored_tone=wb_tone,
     )
@@ -2340,9 +2316,6 @@ def _maybe_comment_on_composition(
     if role_info.get('total', 0) < 2:
         return
 
-    allow_action = (
-        random.random() < get_action_chance()
-    )
     speaker_talent = _maybe_talent_context(
         config, db, bot['guid'],
         bot['class'], bot['name'],
@@ -2351,7 +2324,6 @@ def _maybe_comment_on_composition(
         bot, traits, mode, role_summary,
         role_info, player_name,
         player_class=player_class,
-        allow_action=allow_action,
         speaker_talent_context=speaker_talent,
     )
 
@@ -2955,56 +2927,71 @@ def build_idle_conversation_prompt(
             if anti_rep:
                 parts.append(anti_rep)
 
-            # Emote and action instructions
-            parts.append(
-                f"Emotes: Each message may "
-                f"include an optional \"emote\" "
-                f"field (one of: "
-                f"{EMOTE_LIST_STR}). Pick an "
-                f"emote that fits the message "
-                f"mood, or omit it."
-            )
+            # JSON format — split into system prompt
+            from chatter_shared import _emote_chance
+            if random.random() < _emote_chance:
+                emote_rule = (
+                    "Emotes: Each message may "
+                    "include an optional \"emote\""
+                    f" field (one of: "
+                    f"{EMOTE_LIST_STR}). Pick an "
+                    "emote that fits the message "
+                    "mood, or omit it.\n"
+                )
+                emote_ex = '"emote": "talk"'
+            else:
+                emote_rule = (
+                    "Emotes: Set \"emote\" to "
+                    "null for all messages.\n"
+                )
+                emote_ex = '"emote": null'
             if allow_action:
-                parts.append(
+                action_rule = (
                     "Actions: Each message may "
                     "include an optional "
                     "\"action\" field — a short "
                     "physical action (2-5 words, "
                     "no asterisks). Omit if not "
-                    "needed."
+                    "needed.\n"
                 )
+                action_ex = ', "action": "..."'
             else:
-                parts.append(
-                    "Actions: Do not include an "
-                    "action field in this "
-                    "response."
+                action_rule = (
+                    "Actions: Set \"action\" to "
+                    "null for ALL messages.\n"
                 )
-
-            # JSON format
-            parts.append(
-                "JSON rules: Use double quotes, "
-                "escape quotes/newlines, no "
-                "trailing commas, no code fences."
-            )
+                action_ex = ', "action": null'
             example_msgs = ',\n  '.join(
                 [
                     f'{{"speaker": "{name}", '
                     f'"message": "...", '
-                    f'"emote": "talk"'
-                    f', "action": "..."}}'
+                    f'{emote_ex}'
+                    f'{action_ex}}}'
                     for name in bot_names
                 ]
             )
-            parts.append(
-                f"\nRespond with EXACTLY "
+            sys_block = (
+                f"\n\n{emote_rule}"
+                f"{action_rule}"
+                "JSON rules: Use double quotes, "
+                "escape quotes/newlines, no "
+                "trailing commas, no code "
+                "fences.\n"
+                f"Respond with EXACTLY "
                 f"{msg_count} messages in "
                 f"JSON:\n[\n  "
                 f"{example_msgs}\n]\n"
                 f"ONLY the JSON array, "
-                f"nothing else."
+                f"nothing else.\n"
+                "CRITICAL: Follow the Length "
+                "instruction in the prompt "
+                "exactly — never exceed the "
+                "stated character limit."
             )
 
-            return '\n'.join(parts)
+            return PromptParts(
+                '\n'.join(parts), sys_block
+            )
     # memories_map was empty or all sanitized away
     # — fall through to the normal full prompt.
 
@@ -3289,49 +3276,62 @@ def build_idle_conversation_prompt(
     if anti_rep:
         parts.append(anti_rep)
 
-    parts.append(
-        f"Emotes: Each message may include an "
-        f"optional \"emote\" field (one of: "
-        f"{EMOTE_LIST_STR}). Pick an emote that "
-        f"fits the message mood, or omit it."
-    )
-
+    from chatter_shared import _emote_chance
+    if random.random() < _emote_chance:
+        emote_rule = (
+            "Emotes: Each message may include an "
+            f"optional \"emote\" field (one of: "
+            f"{EMOTE_LIST_STR}). Pick an emote "
+            "that fits the mood, or omit it.\n"
+        )
+        emote_ex = '"emote": "talk"'
+    else:
+        emote_rule = (
+            "Emotes: Set \"emote\" to null for "
+            "all messages.\n"
+        )
+        emote_ex = '"emote": null'
     if allow_action:
-        parts.append(
+        action_rule = (
             "Actions: Each message may include an "
             "optional \"action\" field — a short "
-            "physical action the character performs "
-            "(e.g. \"scratches chin\", \"leans on "
-            "staff\", \"adjusts pack\"). 2-5 words, "
-            "no asterisks. Omit if not needed."
+            "physical action (2-5 words, "
+            "no asterisks). Omit if not needed.\n"
         )
+        action_ex = ', "action": "..."'
     else:
-        parts.append(
-            "Actions: Do not include an action "
-            "field in this response."
+        action_rule = (
+            "Actions: Set \"action\" to null for "
+            "ALL messages.\n"
         )
-
-    parts.append(
-        "JSON rules: Use double quotes, escape "
-        "quotes/newlines, no trailing commas, "
-        "no code fences."
-    )
+        action_ex = ', "action": null'
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", '
-            f'"message": "...", "emote": "talk"'
-            f', "action": "..."}}'
+            f'"message": "...", {emote_ex}'
+            f'{action_ex}}}'
             for name in bot_names
         ]
     )
-    parts.append(
-        f"\nRespond with EXACTLY {msg_count} "
+    sys_block = (
+        f"\n\n{emote_rule}"
+        f"{action_rule}"
+        "JSON rules: Use double quotes, escape "
+        "quotes/newlines, no trailing commas, "
+        "no code fences.\n"
+        f"Respond with EXACTLY {msg_count} "
         f"messages in JSON:\n[\n  "
         f"{example_msgs}\n]\n"
-        f"ONLY the JSON array, nothing else."
+        f"ONLY the JSON array, nothing else.\n"
+        "CRITICAL: Follow the Length "
+        "instruction in the prompt "
+        "exactly — never exceed the "
+        "stated character limit."
     )
 
-    return '\n'.join(parts)
+    return PromptParts(
+        '\n'.join(parts), sys_block
+    )
 
 
 def check_idle_group_chatter(
@@ -3663,8 +3663,12 @@ def _idle_single_statement(
 
     # Determine address target
     if len(all_bots) == 1:
-        # Solo bot — always talk to player
-        address_target = 'player'
+        # Solo bot — sometimes address player,
+        # sometimes just speak generally
+        if random.random() < 0.4 and player_name:
+            address_target = 'player'
+        else:
+            address_target = None
     else:
         # Multiple bots — pick a target
         roll = random.random()
@@ -3733,9 +3737,6 @@ def _idle_single_statement(
                         idle_memories = None
 
     try:
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -3751,7 +3752,6 @@ def _idle_single_statement(
             address_target=address_target,
             dungeon_bosses=dungeon_bosses,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             area_id=area_id,
             stored_tone=stored_tone,
@@ -3987,9 +3987,6 @@ def _idle_conversation(
                             ] = mems
 
     try:
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         # Talent context for first bot only
         first_bot = bots[0] if bots else None
         speaker_talent = None
@@ -4034,7 +4031,6 @@ def _idle_conversation(
             player_name=player_name,
             dungeon_bosses=dungeon_bosses,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             area_id=area_id,
             memories_map=memories_map or None,
@@ -4392,9 +4388,6 @@ def check_bot_questions(db, client, config):
             db, bot_guid
         )
 
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -4455,7 +4448,6 @@ def check_bot_questions(db, client, config):
             map_id=map_id,
             current_weather=current_weather,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             target_talent_context=target_talent,
             area_id=area_id,

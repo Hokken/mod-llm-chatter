@@ -65,6 +65,53 @@ from talent_catalog import TALENT_CATALOG
 
 logger = logging.getLogger(__name__)
 
+
+class PromptParts(str):
+    """Prompt string with separate system prompt.
+
+    Subclasses str so existing code that treats
+    prompts as strings continues to work. The
+    system_prompt attribute carries format/rules
+    instructions for providers that support system
+    messages.
+    """
+    def __new__(
+        cls, user_prompt: str, system_block: str
+    ):
+        instance = super().__new__(
+            cls, user_prompt + system_block
+        )
+        instance.user_prompt = user_prompt
+        instance.system_prompt = system_block
+        return instance
+
+    def __add__(self, other):
+        if isinstance(other, PromptParts):
+            return PromptParts(
+                self.user_prompt
+                + other.user_prompt,
+                self.system_prompt
+                or other.system_prompt
+            )
+        if isinstance(other, str):
+            return PromptParts(
+                self.user_prompt + other,
+                self.system_prompt
+            )
+        return NotImplemented
+
+    def __radd__(self, other):
+        if isinstance(other, str):
+            return PromptParts(
+                other + self.user_prompt,
+                self.system_prompt
+            )
+        return NotImplemented
+
+    def __iadd__(self, other):
+        return self.__add__(other)
+
+
 # N12 decomposition scaffold note:
 # chatter_shared.py remains the stable facade.
 # Target modules (chatter_text/chatter_llm/chatter_db)
@@ -908,6 +955,20 @@ def replace_placeholders(
 _action_chance = 0.10
 _action_disabled = True
 
+# Module-level emote chance (set from config at startup)
+_emote_chance = 0.50
+
+
+def set_emote_chance(chance_pct: int):
+    """Set from config: LLMChatter.EmoteChance (0-100).
+
+    Controls how often the emote list is included in
+    prompts. When skipped, the model returns null for
+    emote, saving ~500 tokens per call.
+    """
+    global _emote_chance
+    _emote_chance = chance_pct / 100.0
+
 
 def set_action_chance(chance_pct: int, mode: str = 'roleplay'):
     """Set from config: LLMChatter.ActionChance (0-100).
@@ -944,17 +1005,19 @@ def append_json_instruction(
     ~200 tokens for General channel prompts where
     emotes are not displayed).
     """
+    # Apply ActionChance RNG: allow_action=True means
+    # "eligible for action" — the RNG decides.
+    # allow_action=False means "never include action"
+    # (e.g. raid channel, General chat).
+    if allow_action and random.random() >= _action_chance:
+        allow_action = False
     action_desc = ""
     if allow_action:
         action_desc = (
-            '"action": a 2-5 word physical narration '
-            '(e.g. "leans against the wall", '
-            '"scratches chin thoughtfully"). '
-            "Displayed as *action* before speech. "
-            "Include an action for this response. "
+            '"action": a short physical narration '
+            '(max 8 words). '
             "NEVER put {item:}, {quest:}, or "
-            "{spell:} placeholders in the action "
-            "field — those belong in message only.\n"
+            "{spell:} placeholders in action.\n"
         )
     else:
         action_desc = (
@@ -962,7 +1025,9 @@ def append_json_instruction(
             "action for this response)\n"
         )
 
-    if skip_emote:
+    # Skip emote list if explicitly requested OR
+    # if EmoteChance RNG says no
+    if skip_emote or random.random() >= _emote_chance:
         emote_line = '  "emote": null,\n'
     else:
         emote_line = (
@@ -979,9 +1044,12 @@ def append_json_instruction(
         f"  {action_desc}"
         "}\n"
         "Rules: double quotes only, no trailing "
-        "commas, no code fences, no markdown."
+        "commas, no code fences, no markdown.\n"
+        "CRITICAL: Follow the Length instruction "
+        "in the prompt exactly — never exceed the "
+        "stated character limit."
     )
-    return prompt + block
+    return PromptParts(prompt, block)
 
 
 def append_conversation_json_instruction(
@@ -994,9 +1062,10 @@ def append_conversation_json_instruction(
 
     Conversation prompts return an array where each
     item has speaker/message/emote/action fields.
-    Emotes are always null because conversations
-    are sent to General channel.
     """
+    # Apply ActionChance RNG (same as single msgs)
+    if allow_action and random.random() >= _action_chance:
+        allow_action = False
     if allow_action:
         action_text = (
             "Actions: The \"action\" field is a 2-5 "
@@ -1014,17 +1083,36 @@ def append_conversation_json_instruction(
             "ALL messages in this response."
         )
 
+    # EmoteChance RNG for conversations
+    if random.random() < _emote_chance:
+        emote_rule = (
+            "Emotes: Each message may include an "
+            f"optional \"emote\" field (one of: "
+            f"{EMOTE_LIST_STR}). Pick an emote "
+            "that fits the mood, or use null.\n"
+        )
+        emote_ex = '"emote": "talk"'
+    else:
+        emote_rule = (
+            "Emotes: Set the \"emote\" field to "
+            "null for all messages.\n"
+        )
+        emote_ex = '"emote": null'
+
+    action_ex = '"action": null'
+    if allow_action:
+        action_ex = '"action": "..."'
+
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", "message": "...", '
-            f'"emote": null, "action": null}}'
+            f'{emote_ex}, {action_ex}}}'
             for name in bot_names
         ]
     )
 
     block = (
-        "\n\nEmotes: Set the \"emote\" field to null "
-        "for all messages.\n"
+        f"\n\n{emote_rule}"
         f"{action_text}\n"
         "JSON rules: Use double quotes, escape "
         "quotes/newlines, no trailing commas, no code fences.\n"
@@ -1032,9 +1120,12 @@ def append_conversation_json_instruction(
         "[\n"
         f"  {example_msgs}\n"
         "]\n"
-        "ONLY the JSON array, nothing else."
+        "ONLY the JSON array, nothing else.\n"
+        "CRITICAL: Follow the Length instruction "
+        "in the prompt exactly — never exceed the "
+        "stated character limit."
     )
-    return prompt + block
+    return PromptParts(prompt, block)
 
 
 # =============================================================================

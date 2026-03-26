@@ -18,7 +18,6 @@ from chatter_shared import (
     get_dungeon_bosses,
     format_item_link,
     format_item_context,
-    get_action_chance,
     run_single_reaction,
     parse_conversation_response,
     calculate_dynamic_delay,
@@ -223,9 +222,6 @@ def process_group_kill_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot_class, bot_name,
@@ -235,7 +231,6 @@ def process_group_kill_event(
             is_boss, is_rare, mode,
             chat_history=chat_hist,
             extra_data=extra_data,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
         )
@@ -427,9 +422,6 @@ def process_group_loot_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, reactor_guid,
             bot['class'], reactor_name,
@@ -440,7 +432,6 @@ def process_group_loot_event(
             chat_history=chat_hist,
             looter_name=prompt_looter_name,
             extra_data=extra_data,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
         )
@@ -615,9 +606,6 @@ def process_group_combat_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -628,7 +616,6 @@ def process_group_combat_event(
             chat_history=chat_hist,
             is_elite=is_elite,
             extra_data=extra_data,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
         )
@@ -803,9 +790,6 @@ def process_group_death_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, reactor_guid,
             reactor['class'], reactor_name,
@@ -816,7 +800,6 @@ def process_group_death_event(
             chat_history=chat_hist,
             is_player_death=is_player_death,
             extra_data=extra_data,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
         )
@@ -962,9 +945,6 @@ def process_group_levelup_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, reactor_guid,
             reactor['class'], reactor_name,
@@ -973,7 +953,6 @@ def process_group_levelup_event(
             reactor, reactor_traits,
             leveler_name, new_level, is_bot,
             mode, chat_history=chat_hist,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
         )
@@ -1241,9 +1220,6 @@ def process_group_quest_complete_event(
             turnin_npc = query_quest_turnin_npc(
                 config, quest_id
             )
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         quest_details = extra_data.get(
             'quest_details', ''
         )
@@ -1261,7 +1237,6 @@ def process_group_quest_complete_event(
                 mode,
                 chat_history=chat_hist,
                 turnin_npc=turnin_npc,
-                allow_action=allow_action,
                 quest_details=quest_details,
                 quest_objectives=quest_objectives,
                 speaker_talent_context=speaker_talent,
@@ -1479,9 +1454,6 @@ def process_group_quest_objectives_event(
         zone_id, _, _ = get_group_location(
             db, group_id
         )
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         quest_details = extra_data.get(
             'quest_details', ''
         )
@@ -1498,7 +1470,6 @@ def process_group_quest_objectives_event(
                 quest_name, completer_name,
                 mode,
                 chat_history=chat_hist,
-                allow_action=allow_action,
                 quest_details=quest_details,
                 quest_objectives=quest_objectives,
                 speaker_talent_context=speaker_talent,
@@ -1797,9 +1768,6 @@ def process_group_achievement_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, reactor_guid,
             reactor['class'], reactor_name,
@@ -1811,7 +1779,6 @@ def process_group_achievement_event(
                     batched_names, achievement_name,
                     mode,
                     chat_history=chat_hist,
-                    allow_action=allow_action,
                     speaker_talent_context=(
                         speaker_talent),
                     stored_tone=stored_tone,
@@ -1825,7 +1792,6 @@ def process_group_achievement_event(
                     achievement_name,
                     is_bot, mode,
                     chat_history=chat_hist,
-                    allow_action=allow_action,
                     speaker_talent_context=(
                         speaker_talent),
                     stored_tone=stored_tone,
@@ -2048,9 +2014,6 @@ def process_group_spell_cast_event(
             if in_dungeon else None
         )
 
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot_class, bot_name,
@@ -2063,7 +2026,6 @@ def process_group_spell_cast_event(
             members=members,
             dungeon_bosses=dungeon_bosses,
             extra_data=extra_data,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
         )
@@ -2179,9 +2141,6 @@ def process_group_resurrect_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -2189,7 +2148,6 @@ def process_group_resurrect_event(
         prompt = build_resurrect_reaction_prompt(
             bot, traits, mode,
             chat_history=chat_hist,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
         )
@@ -2342,9 +2300,6 @@ def process_group_zone_transition_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -2356,7 +2311,6 @@ def process_group_zone_transition_event(
             bot, traits, zone_name, zone_id,
             mode,
             chat_history=chat_hist,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             area_id=area_id,
             stored_tone=stored_tone,
@@ -2558,9 +2512,6 @@ def process_group_quest_accept_event(
         zone_id, _, _ = get_group_location(
             db, group_id
         )
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         quest_details = extra_data.get(
             'quest_details', ''
         )
@@ -2578,7 +2529,6 @@ def process_group_quest_accept_event(
                 quest_level,
                 zone_name, mode,
                 chat_history=chat_hist,
-                allow_action=allow_action,
                 quest_details=quest_details,
                 quest_objectives=quest_objectives,
                 speaker_talent_context=speaker_talent,
@@ -2731,9 +2681,6 @@ def process_group_quest_accept_batch_event(
         zone_id, _, _ = get_group_location(
             db, group_id
         )
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, reactor_guid,
             reactor['class'], reactor_name,
@@ -2743,7 +2690,6 @@ def process_group_quest_accept_batch_event(
             acceptor_name, quest_names,
             zone_name, mode,
             chat_history=chat_hist,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
             zone_id=zone_id,
@@ -2878,9 +2824,6 @@ def process_group_discovery_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -2889,7 +2832,6 @@ def process_group_discovery_event(
             bot, traits, area_name, player_name,
             player_class, xp_amount, mode,
             chat_history=chat_hist,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             area_id=area_id,
             zone_id=int(
@@ -3046,9 +2988,6 @@ def process_group_dungeon_entry_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -3057,7 +2996,6 @@ def process_group_dungeon_entry_event(
             db, bot, traits, map_name, is_raid,
             map_id, mode,
             chat_history=chat_hist,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
         )
@@ -3181,9 +3119,6 @@ def process_group_wipe_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -3192,7 +3127,6 @@ def process_group_wipe_event(
             bot, traits, killer_name, mode,
             chat_history=chat_hist,
             extra_data=extra_data,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
         )
@@ -3356,9 +3290,6 @@ def process_group_corpse_run_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -3368,7 +3299,6 @@ def process_group_corpse_run_event(
             chat_history=chat_hist,
             dead_name=dead_name,
             is_player_death=is_player_death,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
         )
@@ -3496,9 +3426,6 @@ def process_group_low_health_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -3507,7 +3434,6 @@ def process_group_low_health_event(
             bot, traits, target_name, mode,
             chat_history=chat_hist,
             extra_data=extra_data,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
         )
 
@@ -3633,9 +3559,6 @@ def process_group_oom_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -3644,7 +3567,6 @@ def process_group_oom_event(
             bot, traits, target_name, mode,
             chat_history=chat_hist,
             extra_data=extra_data,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
         )
 
@@ -3754,9 +3676,6 @@ def process_group_aggro_loss_event(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -3766,7 +3685,6 @@ def process_group_aggro_loss_event(
             aggro_target, mode,
             chat_history=chat_hist,
             extra_data=extra_data,
-            allow_action=allow_action,
             speaker_talent_context=speaker_talent,
         )
 
@@ -3913,9 +3831,6 @@ def process_group_nearby_object_event(
             return False
 
     # -- Single-bot statement (original path) --
-    allow_action = (
-        random.random() < get_action_chance()
-    )
     speaker_talent = _maybe_talent_context(
         config, db, bot_guid,
         bot_class_name, bot_name,
@@ -3932,7 +3847,6 @@ def process_group_nearby_object_event(
         in_dungeon=in_dungeon,
         mode=mode,
         chat_history=chat_hist,
-        allow_action=allow_action,
         config=config,
         speaker_talent_context=speaker_talent,
         subzone_lore=subzone_lore,
@@ -4040,10 +3954,6 @@ def _nearby_object_conversation(
     bot_names = [b['name'] for b in bots]
     num_bots = len(bots)
 
-    allow_action = (
-        random.random() < get_action_chance()
-    )
-
     # Talent context for first/triggering bot
     speaker_talent = _maybe_talent_context(
         config, db, bot_guid,
@@ -4060,7 +3970,6 @@ def _nearby_object_conversation(
         in_dungeon=in_dungeon,
         mode=mode,
         chat_history=chat_hist,
-        allow_action=allow_action,
         config=config,
         speaker_talent_context=speaker_talent,
         subzone_lore=subzone_lore,
@@ -4250,9 +4159,6 @@ def execute_player_msg_conversation(
             items_info, bots[0]['class']
         )
 
-    allow_action = (
-        random.random() < get_action_chance()
-    )
     # Talent context for first bot only
     speaker_talent = _maybe_talent_context(
         config, db, addressed_bot['guid'],
@@ -4280,7 +4186,6 @@ def execute_player_msg_conversation(
         members=members,
         item_context=conv_item_context,
         link_context=link_context,
-        allow_action=allow_action,
         speaker_talent_context=speaker_talent,
         target_talent_context=target_talent,
         zone_id=zone_id,
@@ -4564,9 +4469,6 @@ def _quest_complete_conversation(
         'quest_objectives', ''
     )
 
-    allow_action = (
-        random.random() < get_action_chance()
-    )
     msg_count = max(
         len(bots), random.randint(2, 3)
     )
@@ -4584,7 +4486,6 @@ def _quest_complete_conversation(
         mode=mode,
         chat_history=chat_hist,
         turnin_npc=turnin_npc,
-        allow_action=allow_action,
         quest_details=quest_details,
         quest_objectives=quest_objectives,
         msg_count=msg_count,
@@ -4663,9 +4564,6 @@ def _quest_objectives_conversation(
         'quest_objectives', ''
     )
 
-    allow_action = (
-        random.random() < get_action_chance()
-    )
     msg_count = max(
         len(bots), random.randint(2, 3)
     )
@@ -4683,7 +4581,6 @@ def _quest_objectives_conversation(
             completer_name=completer_name,
             mode=mode,
             chat_history=chat_hist,
-            allow_action=allow_action,
             quest_details=quest_details,
             quest_objectives=quest_objectives,
             msg_count=msg_count,
@@ -4760,9 +4657,6 @@ def _quest_accept_conversation(
         'quest_objectives', ''
     )
 
-    allow_action = (
-        random.random() < get_action_chance()
-    )
     msg_count = max(
         len(bots), random.randint(2, 3)
     )
@@ -4784,7 +4678,6 @@ def _quest_accept_conversation(
         zone_name=zone_name,
         mode=mode,
         chat_history=chat_hist,
-        allow_action=allow_action,
         quest_details=quest_details,
         quest_objectives=quest_objectives,
         msg_count=msg_count,

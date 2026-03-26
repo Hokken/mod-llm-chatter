@@ -30,7 +30,6 @@ from chatter_shared import (
     get_recent_zone_messages,
     append_json_instruction,
     parse_single_response,
-    get_action_chance,
     _zone_delivery_delay,
     _zone_last_delivery,
     get_zone_flavor,
@@ -800,16 +799,12 @@ def process_general_player_msg_event(
                 )
 
         # Build and send first bot prompt
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         prompt1 = _build_general_response_prompt(
             bot1_name, bot1_race, bot1_class,
             bot1_level, bot1_traits,
             player_name, player_message,
             zone_name, chat_hist, mode,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             link_context=link_context,
             speaker_talent_context=speaker_talent,
             target_talent_context=target_talent,
@@ -1033,9 +1028,6 @@ def _general_followup(
     history = _get_general_chat_history(db, zone_id)
     chat_hist = _format_general_history(history)
 
-    allow_action = (
-        random.random() < get_action_chance()
-    )
     prompt2 = _build_general_followup_prompt(
         bot2_name, bot2_race, bot2_class,
         bot2_level, bot2_traits,
@@ -1043,7 +1035,6 @@ def _general_followup(
         player_name, player_message,
         zone_name, chat_hist, mode,
         recent_messages=recent_msgs,
-        allow_action=allow_action,
         link_context=link_context,
         speaker_talent_context=(
             bot2_speaker_talent
@@ -1443,9 +1434,6 @@ def _general_extended_conversation(
         )
         chat_hist = _format_general_history(history)
 
-        allow_action = (
-            random.random() < get_action_chance()
-        )
         # remaining after this message is sent
         remaining = max_msgs - (msg_count + 1)
         prompt = _build_general_continuation_prompt(
@@ -1453,7 +1441,6 @@ def _general_extended_conversation(
             sp_level, speaker['traits'],
             thread, zone_name, chat_hist, mode,
             recent_messages=recent_msgs,
-            allow_action=allow_action,
             remaining_messages=remaining,
             link_context=link_context,
             speaker_talent_context=(

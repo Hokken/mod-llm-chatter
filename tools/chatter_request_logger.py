@@ -111,12 +111,15 @@ def log_request(
     provider: str,
     duration_ms: int,
     metadata: dict = None,
+    system_prompt: str = None,
 ) -> None:
     """Write one JSONL entry. No-op when disabled.
 
     metadata: optional dict of extra fields merged
     between duration_ms and prompt. Only non-empty
     string values are written (no null keys).
+    system_prompt: if set, logged as a separate field
+    so the user/system split is visible in logs.
     """
     if not _enabled:
         return
@@ -141,8 +144,10 @@ def log_request(
         }
         if metadata:
             for k, v in metadata.items():
-                if v is not None and v != "":  # skip empty/None
+                if v is not None and v != "":
                     entry[k] = v
+        if system_prompt is not None:
+            entry['system_prompt'] = system_prompt
         entry['prompt'] = prompt
         entry['response'] = response
 

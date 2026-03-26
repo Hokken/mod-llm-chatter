@@ -837,6 +837,16 @@ LLMChatter.RaidChatter.MoraleCooldown = 60
 LLMChatter.ActionChance = 10
 
 #
+#   LLMChatter.EmoteChance
+#       Chance (0-100) that the emote list is included in
+#       prompts. When skipped, the model returns null for
+#       the emote field, saving ~500 tokens per call.
+#       Lower values improve speed on smaller models.
+#       Default: 50
+#
+LLMChatter.EmoteChance = 50
+
+#
 #   LLMChatter.RaceLoreChance
 #       Percent chance (0-100) that race-specific lore flavor
 #       is injected into chatter prompts (roleplay mode only).
