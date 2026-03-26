@@ -80,9 +80,18 @@ ALTER TABLE `llm_chatter_events`
     ) NOT NULL;
 
 -- 2. Add tone column to llm_group_bot_traits
-ALTER TABLE `llm_group_bot_traits`
-    ADD COLUMN IF NOT EXISTS `tone` VARCHAR(120)
-    DEFAULT NULL AFTER `role`;
+SET @db = DATABASE();
+SET @tbl = 'llm_group_bot_traits';
+SET @col = 'tone';
+SET @s = (SELECT IF(
+    (SELECT COUNT(*) FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = @db AND TABLE_NAME = @tbl AND COLUMN_NAME = @col) = 0,
+    'ALTER TABLE `llm_group_bot_traits` ADD COLUMN `tone` VARCHAR(120) DEFAULT NULL AFTER `role`',
+    'SELECT 1'
+));
+PREPARE stmt FROM @s;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
 
 -- 3. Persistent bot identities
 CREATE TABLE IF NOT EXISTS `llm_bot_identities` (
@@ -125,9 +134,26 @@ CREATE TABLE IF NOT EXISTS `llm_bot_memories` (
 
 -- If upgrading from an older version that already had
 -- llm_bot_memories without used/last_used_at columns:
-ALTER TABLE `llm_bot_memories`
-    ADD COLUMN IF NOT EXISTS `used` TINYINT(1)
-    NOT NULL DEFAULT 0 AFTER `active`;
-ALTER TABLE `llm_bot_memories`
-    ADD COLUMN IF NOT EXISTS `last_used_at` TIMESTAMP
-    NULL DEFAULT NULL AFTER `used`;
+SET @tbl = 'llm_bot_memories';
+
+SET @col = 'used';
+SET @s = (SELECT IF(
+    (SELECT COUNT(*) FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = @db AND TABLE_NAME = @tbl AND COLUMN_NAME = @col) = 0,
+    'ALTER TABLE `llm_bot_memories` ADD COLUMN `used` TINYINT(1) NOT NULL DEFAULT 0 AFTER `active`',
+    'SELECT 1'
+));
+PREPARE stmt FROM @s;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+SET @col = 'last_used_at';
+SET @s = (SELECT IF(
+    (SELECT COUNT(*) FROM information_schema.COLUMNS
+     WHERE TABLE_SCHEMA = @db AND TABLE_NAME = @tbl AND COLUMN_NAME = @col) = 0,
+    'ALTER TABLE `llm_bot_memories` ADD COLUMN `last_used_at` TIMESTAMP NULL DEFAULT NULL AFTER `used`',
+    'SELECT 1'
+));
+PREPARE stmt FROM @s;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
