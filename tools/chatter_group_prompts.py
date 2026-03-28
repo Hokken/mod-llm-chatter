@@ -53,10 +53,7 @@ def _pick_length_hint(mode):
     is_rp = (mode == 'roleplay')
     pool = RP_LENGTH_HINTS if is_rp else LENGTH_HINTS
     hint = random.choice(pool)
-    result = (
-        f"Length: {hint} — follow this closely, "
-        f"vary lengths naturally between messages"
-    )
+    result = f"Length: {hint} — follow this closely."
     humor = _maybe_humor_hint(mode)
     if humor:
         result += f"\n{humor}"
@@ -665,6 +662,7 @@ def build_kill_reaction_prompt(
     allow_action=True,
     speaker_talent_context=None,
     stored_tone=None,
+    map_id=0,
 ):
     """Build prompt for a bot reacting to a kill.
 
@@ -702,6 +700,13 @@ def build_kill_reaction_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+
+    # Location context -- dungeon takes priority
+    dungeon_flav = get_dungeon_flavor(map_id)
+    if dungeon_flav:
+        rp_context += (
+            f"\nDungeon context: {dungeon_flav}"
+        )
 
     # Raid context for kill prompts
     in_raid = (
@@ -792,6 +797,7 @@ def build_loot_reaction_prompt(
     extra_data=None, allow_action=True,
     speaker_talent_context=None,
     stored_tone=None,
+    map_id=0,
 ):
     """Build prompt for a bot reacting to looting
     an item. Quality affects excitement level:
@@ -830,6 +836,13 @@ def build_loot_reaction_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+
+    # Location context -- dungeon takes priority
+    dungeon_flav = get_dungeon_flavor(map_id)
+    if dungeon_flav:
+        rp_context += (
+            f"\nDungeon context: {dungeon_flav}"
+        )
 
     # Quality names for context
     quality_names = {
@@ -925,7 +938,7 @@ def build_loot_reaction_prompt(
 def build_combat_reaction_prompt(
     bot, traits, creature_name, is_boss, mode,
     chat_history="", is_elite=False,
-    extra_data=None, allow_action=True,
+    extra_data=None, allow_action=False,
     speaker_talent_context=None,
     stored_tone=None,
 ):
@@ -1036,6 +1049,7 @@ def build_death_reaction_prompt(
     allow_action=True,
     speaker_talent_context=None,
     stored_tone=None,
+    map_id=0,
 ):
     """Build prompt for a bot reacting to a
     groupmate dying. The reactor is a DIFFERENT
@@ -1071,6 +1085,13 @@ def build_death_reaction_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+
+    # Location context -- dungeon takes priority
+    dungeon_flav = get_dungeon_flavor(map_id)
+    if dungeon_flav:
+        rp_context += (
+            f"\nDungeon context: {dungeon_flav}"
+        )
 
     if is_player_death:
         who = f"Your party leader {dead_name}"
@@ -1458,6 +1479,7 @@ def build_achievement_reaction_prompt(
     allow_action=True,
     speaker_talent_context=None,
     stored_tone=None,
+    map_id=0,
 ):
     """Build prompt for a bot reacting to an
     achievement being earned. Achievements are
@@ -1481,6 +1503,13 @@ def build_achievement_reaction_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+
+    # Location context -- dungeon takes priority
+    dungeon_flav = get_dungeon_flavor(map_id)
+    if dungeon_flav:
+        rp_context += (
+            f"\nDungeon context: {dungeon_flav}"
+        )
 
     # When the bot itself earned it, it speaks about
     # its own achievement. When someone else earned
@@ -1577,6 +1606,7 @@ def build_group_achievement_reaction_prompt(
     allow_action=True,
     speaker_talent_context=None,
     stored_tone=None,
+    map_id=0,
 ):
     """Build prompt for a bot reacting to multiple
     groupmates earning the same achievement at once.
@@ -1599,6 +1629,13 @@ def build_group_achievement_reaction_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+
+    # Location context -- dungeon takes priority
+    dungeon_flav = get_dungeon_flavor(map_id)
+    if dungeon_flav:
+        rp_context += (
+            f"\nDungeon context: {dungeon_flav}"
+        )
 
     names_str = ', '.join(achiever_names)
     count = len(achiever_names)
@@ -1663,7 +1700,7 @@ def build_spell_cast_reaction_prompt(
     spell_category, target_name, mode,
     chat_history="", members=None,
     dungeon_bosses=None, extra_data=None,
-    allow_action=True,
+    allow_action=False,
     speaker_talent_context=None,
     stored_tone=None,
 ):
@@ -2152,9 +2189,6 @@ def build_player_response_prompt(
         f"consistent with the conversation\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat\n"
-        f"- Keep your response proportional to "
-        f"what was said. Simple statements or "
-        f"questions only need brief replies"
     )
     if item_context:
         prompt += (
@@ -2622,112 +2656,6 @@ def build_quest_accept_batch_prompt(
     )
 
 
-def build_discovery_reaction_prompt(
-    bot, traits, area_name, player_name,
-    player_class, xp_amount, mode,
-    chat_history="", allow_action=True,
-    speaker_talent_context=None,
-    area_id=0, zone_id=0,
-    stored_tone=None,
-):
-    """Build prompt for a bot reacting to the group
-    discovering a new area. Should feel like arriving
-    somewhere new — wonder, excitement, caution, or
-    recognition depending on personality.
-    """
-    is_rp = (mode == 'roleplay')
-    trait_str = ', '.join(traits)
-    tone = stored_tone or pick_random_tone(mode)
-    twist = maybe_get_creative_twist(
-        chance=1.0, mode=mode
-    )
-
-
-    rp_context = ""
-    if is_rp:
-        ctx = build_race_class_context(
-            bot['race'], bot['class']
-        )
-        if ctx:
-            rp_context = f"\n{ctx}"
-
-    # Zone context
-    zone_flav = get_zone_flavor(zone_id)
-    if is_rp and zone_flav:
-        rp_context += (
-            f"\nZone context: {zone_flav}"
-        )
-
-    if chat_history:
-        rp_context += f"{chat_history}\n"
-
-    discovery_context = (
-        f"Your group just discovered a new area: "
-        f"{area_name}! This is a first-time "
-        f"discovery — the group has never been "
-        f"here before."
-    )
-    subzone = get_subzone_lore(zone_id, area_id)
-    if subzone:
-        discovery_context += (
-            f"\nAbout this place: {subzone}"
-        )
-
-    if is_rp:
-        style = (
-            "React in-character to discovering "
-            "this new place. Comment on the "
-            "scenery, what you've heard about it, "
-            "whether it looks dangerous, or the "
-            "thrill of exploring together."
-        )
-    else:
-        style = (
-            "Make a casual comment about "
-            "discovering a new area. Natural "
-            "and brief — like an explorer "
-            "reacting to a new place."
-        )
-
-    prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
-        f"Your personality: {trait_str}\n"
-    )
-    if speaker_talent_context:
-        prompt += f"{speaker_talent_context}\n"
-    prompt += (
-        f"Your tone: {tone}\n"
-    )
-    if twist:
-        prompt += f"Creative twist: {twist}\n"
-    prompt += (
-        f"{rp_context}\n\n"
-        f"{discovery_context}\n\n"
-        f"{style}\n\n"
-        f"Say a reaction in party chat.\n"
-        f"{_pick_length_hint(mode)}\n"
-        f"Rules:\n"
-        f"- No quotes, no emojis\n"
-        f"- Can mention {area_name} by name\n"
-        f"- Reflect your personality traits\n"
-        f"- Don't repeat jokes or themes "
-        f"already said in chat"
-    )
-    spices = pick_personality_spices(
-        mode=mode, spice_count_override=_spice_count
-    )
-    if spices:
-        prompt += (
-            "\nBackground feelings (texture, "
-            "not the topic): "
-            + "; ".join(spices)
-        )
-    return append_json_instruction(
-        prompt, allow_action
-    )
-
 def build_dungeon_entry_prompt(
     db, bot, traits, map_name, is_raid, map_id,
     mode, chat_history="", allow_action=True,
@@ -2847,6 +2775,7 @@ def build_wipe_reaction_prompt(
     allow_action=True,
     speaker_talent_context=None,
     stored_tone=None,
+    map_id=0,
 ):
     """Build prompt for a bot reacting to a total
     party wipe. Dramatic, frustrated, humorous,
@@ -2882,6 +2811,13 @@ def build_wipe_reaction_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+
+    # Location context -- dungeon takes priority
+    dungeon_flav = get_dungeon_flavor(map_id)
+    if dungeon_flav:
+        rp_context += (
+            f"\nDungeon context: {dungeon_flav}"
+        )
 
     wipe_context = (
         "Everyone in your party just died"
@@ -2951,6 +2887,7 @@ def build_corpse_run_reaction_prompt(
     allow_action=True,
     speaker_talent_context=None,
     stored_tone=None,
+    map_id=0,
 ):
     """Build prompt for a bot commenting on a
     corpse run. Either the bot died (self), or
@@ -2974,6 +2911,13 @@ def build_corpse_run_reaction_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+
+    # Location context -- dungeon takes priority
+    dungeon_flav = get_dungeon_flavor(map_id)
+    if dungeon_flav:
+        rp_context += (
+            f"\nDungeon context: {dungeon_flav}"
+        )
 
     zone_ctx = ""
     if zone_name:
@@ -3072,7 +3016,7 @@ def build_corpse_run_reaction_prompt(
 def build_low_health_callout_prompt(
     bot, traits, target_name, mode,
     chat_history="", extra_data=None,
-    allow_action=True,
+    allow_action=False,
     speaker_talent_context=None,
 ):
     """Bot is critically wounded (combat or OOC)."""
@@ -3146,7 +3090,7 @@ def build_low_health_callout_prompt(
 def build_oom_callout_prompt(
     bot, traits, target_name, mode,
     chat_history="", extra_data=None,
-    allow_action=True,
+    allow_action=False,
     speaker_talent_context=None,
 ):
     """Bot is running out of mana (combat or OOC).
@@ -3222,7 +3166,7 @@ def build_oom_callout_prompt(
 def build_aggro_loss_callout_prompt(
     bot, traits, target_name, aggro_target,
     mode, chat_history="", extra_data=None,
-    allow_action=True,
+    allow_action=False,
     speaker_talent_context=None,
 ):
     """Tank lost aggro — mob attacking someone
@@ -3290,7 +3234,7 @@ def build_aggro_loss_callout_prompt(
 def build_precache_combat_pull_prompt(
     bot_name, race, class_name, level,
     traits, mood, role=None, recent_cached=None,
-    allow_action=True,
+    allow_action=False,
 ):
     """Build prompt for a cached combat pull cry.
 
@@ -3339,7 +3283,7 @@ def build_precache_combat_pull_prompt(
 def build_precache_state_prompt(
     state_type, bot_name, race, class_name, level,
     traits, mood, role=None, recent_cached=None,
-    allow_action=True,
+    allow_action=False,
 ):
     """Build prompt for a cached state callout.
 
@@ -3430,7 +3374,7 @@ def build_precache_state_prompt(
 def build_precache_spell_support_prompt(
     bot_name, race, class_name, level,
     traits, mood, role=None, recent_cached=None,
-    allow_action=True,
+    allow_action=False,
 ):
     """Build prompt for a cached spell support
     reaction. Uses {target} and {spell} placeholders.
@@ -3490,7 +3434,7 @@ def build_precache_spell_support_prompt(
 def build_precache_spell_offensive_prompt(
     bot_name, race, class_name, level,
     traits, mood, role=None, recent_cached=None,
-    allow_action=True,
+    allow_action=False,
 ):
     """Build prompt for a cached offensive spell
     reaction. Uses {target} and {spell} placeholders.
@@ -3606,10 +3550,11 @@ def build_nearby_object_reaction_prompt(
     bot_name, class_name, race_name, traits,
     objects, zone_name, subzone_name,
     in_city, in_dungeon, mode,
-    chat_history="", allow_action=False,
+    chat_history="", allow_action=True,
     config=None,
     speaker_talent_context=None,
     subzone_lore=None,
+    map_id=0,
 ):
     """Build prompt for a bot commenting on nearby
     GameObjects.
@@ -3645,7 +3590,13 @@ def build_nearby_object_reaction_prompt(
         f"\n\nYou are walking through {location} "
         f"({setting}) with your group."
     )
-    if is_rp and subzone_lore:
+    # Location context -- dungeon takes priority
+    dungeon_flav = get_dungeon_flavor(map_id)
+    if dungeon_flav:
+        prompt += (
+            f"\nDungeon context: {dungeon_flav}"
+        )
+    elif is_rp and subzone_lore:
         prompt += (
             f"\nAbout this place: {subzone_lore}"
         )
@@ -3686,11 +3637,12 @@ def build_nearby_object_conversation_prompt(
     bots, traits_map, objects,
     zone_name, subzone_name,
     in_city, in_dungeon, mode,
-    chat_history="", allow_action=False,
+    chat_history="", allow_action=True,
     config=None,
     speaker_talent_context=None,
     target_talent_context=None,
     subzone_lore=None,
+    map_id=0,
 ):
     """Build prompt for a multi-bot conversation
     about nearby GameObjects.
@@ -3751,7 +3703,13 @@ def build_nearby_object_conversation_prompt(
     parts.append(
         f"Location: {location} ({setting})."
     )
-    if is_rp and subzone_lore:
+    # Location context -- dungeon takes priority
+    dungeon_flav = get_dungeon_flavor(map_id)
+    if dungeon_flav:
+        parts.append(
+            f"Dungeon context: {dungeon_flav}"
+        )
+    elif is_rp and subzone_lore:
         parts.append(
             f"About this place: {subzone_lore}"
         )
@@ -3803,14 +3761,12 @@ def build_nearby_object_conversation_prompt(
             "Guidelines: Stay in-character for "
             "race and class; no game terms or "
             f"OOC; {length_hint}; "
-            "vary message lengths naturally."
         )
     else:
         parts.append(
             "Guidelines: Sound like normal "
             "people chatting in a game; casual "
             f"and relaxed; {length_hint}; "
-            "vary lengths naturally."
         )
 
     parts.append(
@@ -3852,7 +3808,7 @@ def build_player_msg_conversation_prompt(
     player_message, mode,
     chat_history="", members=None,
     item_context="", link_context="",
-    allow_action=False,
+    allow_action=True,
     speaker_talent_context=None,
     target_talent_context=None,
     zone_id=0, area_id=0, map_id=0,
@@ -4014,14 +3970,12 @@ def build_player_msg_conversation_prompt(
             "\nGuidelines: Stay in-character for "
             "race and class; no game terms or "
             f"OOC; {length_hint}; "
-            "vary message lengths naturally."
         )
     else:
         parts.append(
             "\nGuidelines: Sound like normal "
             "people chatting in a game; casual "
             f"and relaxed; {length_hint}; "
-            "vary lengths naturally."
         )
 
     parts.append(
@@ -4034,9 +3988,7 @@ def build_player_msg_conversation_prompt(
         "- Stay in character\n"
         "- Don't repeat what the player said\n"
         "- Don't repeat jokes or themes "
-        "already said in chat\n"
-        "- Keep responses proportional to "
-        "what was said"
+        "already said in chat"
     )
 
     spices = pick_personality_spices(
@@ -4474,7 +4426,7 @@ def build_bot_question_prompt(
 def build_quest_complete_conversation_prompt(
     bots, traits_map, completer_name,
     quest_name, mode, chat_history="",
-    turnin_npc=None, allow_action=False,
+    turnin_npc=None, allow_action=True,
     quest_details="", quest_objectives="",
     msg_count=3,
     speaker_talent_context=None,
@@ -4591,14 +4543,12 @@ def build_quest_complete_conversation_prompt(
             "Guidelines: Stay in-character for "
             "race and class; no game terms or "
             f"OOC; {length_hint}; "
-            "vary message lengths naturally."
         )
     else:
         parts.append(
             "Guidelines: Sound like normal "
             "people chatting in a game; casual "
             f"and relaxed; {length_hint}; "
-            "vary lengths naturally."
         )
 
     parts.append(
@@ -4637,7 +4587,7 @@ def build_quest_complete_conversation_prompt(
 def build_quest_objectives_conversation_prompt(
     bots, traits_map, quest_name,
     completer_name, mode, chat_history="",
-    allow_action=False,
+    allow_action=True,
     quest_details="", quest_objectives="",
     msg_count=3,
     speaker_talent_context=None,
@@ -4745,14 +4695,12 @@ def build_quest_objectives_conversation_prompt(
             "Guidelines: Stay in-character for "
             "race and class; no game terms or "
             f"OOC; {length_hint}; "
-            "vary message lengths naturally."
         )
     else:
         parts.append(
             "Guidelines: Sound like normal "
             "people chatting in a game; casual "
             f"and relaxed; {length_hint}; "
-            "vary lengths naturally."
         )
 
     parts.append(
@@ -4793,7 +4741,7 @@ def build_quest_accept_conversation_prompt(
     bots, traits_map, acceptor_name,
     quest_name, quest_level, zone_name,
     mode, chat_history="",
-    allow_action=False,
+    allow_action=True,
     quest_details="", quest_objectives="",
     msg_count=3,
     speaker_talent_context=None,
@@ -4902,14 +4850,12 @@ def build_quest_accept_conversation_prompt(
             "Guidelines: Stay in-character for "
             "race and class; no game terms or "
             f"OOC; {length_hint}; "
-            "vary message lengths naturally."
         )
     else:
         parts.append(
             "Guidelines: Sound like normal "
             "people chatting in a game; casual "
             f"and relaxed; {length_hint}; "
-            "vary lengths naturally."
         )
 
     parts.append(

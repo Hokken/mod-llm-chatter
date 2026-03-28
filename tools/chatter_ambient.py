@@ -44,6 +44,7 @@ from chatter_shared import (
 from chatter_shared import (
     build_talent_context,
     build_zone_metadata,
+    should_include_action,
 )
 from chatter_text import pick_statement_length
 from chatter_prompts import (
@@ -621,7 +622,11 @@ def process_conversation(
                 )
                 final_message = cleanup_message(
                     final_message,
-                    action=msg.get('action'),
+                    action=(
+                        msg.get('action')
+                        if should_include_action()
+                        else None
+                    ),
                 )
 
                 if i > 0:

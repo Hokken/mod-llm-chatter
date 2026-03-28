@@ -1486,6 +1486,8 @@ private:
             }
         }
 
+        EvictEmoteCooldowns();
+
         WorldSessionMgr::SessionMap const& sessions =
             sWorldSessionMgr->GetAllSessions();
         for (auto const& pair : sessions)

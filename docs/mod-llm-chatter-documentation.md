@@ -235,6 +235,11 @@ Owns shared helpers used across domains:
 - `BuildBotStateJson()`
 - `AppendRaidContext()`
 - `GroupHasBots()`
+- `GetTextEmoteName()` — reverse emote ID-to-name lookup (170+ entries)
+- `SendUnitTextEmote(Unit*, uint32, const std::string&)` — unified text emote
+  sender for any unit (bot or creature); both `SendBotTextEmote` overloads
+  delegate to this; `SendCreatureTextEmote` was removed in favour of this
+  single shared implementation
 - shared link conversion helpers
 - shared emote and delivery helpers
 
@@ -267,6 +272,9 @@ Owns party/group subsystem behavior:
 - quest accept batching
 - named-boss cache
 - group combat state and state callouts
+- emote reaction system: `OnPlayerTextEmote`, mirror/verbal/observer
+  paths, `DelayedMirrorEmoteEvent`, `DelayedCreatureMirrorEmoteEvent`,
+  `EvictEmoteCooldowns()`, emote cooldown maps
 - group-owned cooldown and state maps
 
 ### `src/LLMChatterPlayer.cpp`
@@ -321,6 +329,11 @@ Owns battleground-specific hooks and BG queue helpers.
 - `tools/chatter_raid_base.py`
 - `tools/chatter_raids.py`
 - `tools/chatter_raid_prompts.py`
+
+### Emote reaction
+
+- `tools/chatter_emote_reaction.py`
+- `tools/chatter_emote_observer.py`
 
 ### Development tools
 
@@ -534,9 +547,12 @@ Examples include:
 - spell cast reactions
 - quest accept/objective/complete reactions
 - zone transitions
-- discovery reactions
 - dungeon entry reactions
 - nearby-object observations
+
+Note: subzone discovery reactions (`OnPlayerGiveXP` with `XPSOURCE_EXPLORE`) have been
+removed. They caused duplicate messages alongside zone transition events. Discovery
+context is now covered by zone transition events instead.
 
 ### C++ ownership
 
@@ -1148,7 +1164,69 @@ repetitive LLM output.
 
 ---
 
-## 13j. LLM Request Logging
+## 13j. Emote Reaction System
+
+When a player performs a `/emote` (text emote) while in a group with
+bots, the `OnPlayerTextEmote` hook in `LLMChatterGroup.cpp` classifies
+the emote and routes it through one of three paths.
+
+### Three reaction paths
+
+| Path | Trigger | Behavior |
+|------|---------|----------|
+| Silent mirror | Player emotes at a group bot | Bot mirrors back a matching emote (e.g. wave to wave, rude to chicken) via `DelayedMirrorEmoteEvent` with natural timing. Per-bot cooldown `_emoteReactCooldowns` |
+| Directed verbal reaction | Player emotes at a group bot (after mirror) | Targeted bot queues a `bot_group_emote_reaction` event. Python handler builds an LLM prompt and the bot responds verbally. Per-bot cooldown `_emoteVerbalCooldowns` |
+| Observer comment | Player emotes at a creature, external player, or nobody | A random group bot queues a `bot_group_emote_observer` event. Python handler has the bot make an offhand remark about the emote. Per-group cooldown `_emoteObserverCooldowns` |
+
+Creatures also mirror emotes directed at them via
+`DelayedCreatureMirrorEmoteEvent`.
+
+### Emote coverage
+
+All ~170 social text emotes trigger reactions. A denylist of 4 emotes
+is excluded: `BRB`, `MESSAGE`, `MOUNT_SPECIAL`, `STOPATTACK`. Combat
+callout emotes (`CHARGE`, `OPENFIRE`, `INCOMING`, `RETREAT`, `FLEE`)
+are excluded from observer comments only.
+
+### C++ shared infrastructure
+
+- `GetTextEmoteName(uint32)` in `LLMChatterShared.cpp` — reverse
+  emote ID-to-name lookup covering 170+ entries including high-ID range
+  381-451
+- `SendUnitTextEmote(Unit*, uint32, const std::string&)` — consolidated
+  emote packet helper; `SendBotTextEmote` overloads delegate to it
+- `s_mirrorEmoteMap` — 30+ entries mapping incoming emote to response
+  emote (wave to wave, rude to chicken, etc.)
+- `s_contagiousEmotes` — emotes that spread naturally (laugh, cheer,
+  dance, etc.)
+
+### Python handlers
+
+| File | Event type | Purpose |
+|------|------------|---------|
+| `tools/chatter_emote_reaction.py` | `bot_group_emote_reaction` | Directed verbal reaction prompt and delivery |
+| `tools/chatter_emote_observer.py` | `bot_group_emote_observer` | Observer comment prompt and delivery |
+
+### Config keys
+
+| Key | Default | Purpose |
+|-----|---------|---------|
+| `LLMChatter.EmoteReactions.Enable` | 1 | Master toggle |
+| `LLMChatter.EmoteReactions.MirrorChance` | 80 | % chance bot mirrors back the emote |
+| `LLMChatter.EmoteReactions.MirrorCooldown` | 30 | Seconds per-bot cooldown for mirroring |
+| `LLMChatter.EmoteReactions.ReactionChance` | 40 | % chance of verbal reaction after mirror |
+| `LLMChatter.EmoteReactions.ObserverChance` | 25 | % chance of observer bot commenting |
+| `LLMChatter.EmoteReactions.ObserverCooldown` | 60 | Seconds per-group cooldown for observer |
+| `LLMChatter.EmoteReactions.MoodSpreadChance` | 30 | % chance contagious emote spreads mood |
+
+### Cooldown eviction
+
+`EvictEmoteCooldowns()` runs hourly to clean up stale entries from
+all three emote cooldown maps.
+
+---
+
+## 13k. LLM Request Logging
 
 Every `call_llm()` invocation can be recorded to a JSONL log file for
 debugging and analysis. This is a Python-only development feature with
@@ -1292,7 +1370,58 @@ continue to use standard timing.
 
 ---
 
-## 13c. Persistent Bot–Player Memory
+## 13l. Shared `chatter_shared.py` Helpers
+
+Key helpers provided by `chatter_shared.py` for use across prompt and
+delivery code:
+
+| Helper | Purpose |
+|--------|---------|
+| `calculate_dynamic_delay(responsive=False)` | Delivery timing — skips distraction sim and uses a 2s floor when `responsive=True` |
+| `find_addressed_bot(...)` | Named-bot detection + multi-addressed intent classification via LLM |
+| `should_include_action()` | Single RNG roll gating narrator action inclusion (`random.random() < get_action_chance()`). Use at conversation delivery sites instead of calling `get_action_chance()` directly to avoid double-rolling the probability |
+| `PromptParts(str)` | System/user prompt split wrapper; auto-detected by `call_llm()` |
+| `build_talent_context(...)` | Talent-aware personality context builder |
+| `build_race_class_context(...)` | Race/class identity and speech-trait injector |
+
+The `should_include_action()` helper was introduced to fix an
+`ActionChance` double-roll bug: `append_conversation_json_instruction`
+was pre-filtering speakers with its own `_action_chance` RNG gate, then
+delivery was rolling again, making effective probability p² instead of p.
+The fix is: the prompt instruction now lists **all** eligible speakers
+without pre-filtering; delivery enforces `ActionChance` once via
+`should_include_action()`.
+
+---
+
+## 13m. Dungeon Context Injection
+
+When a group is inside a dungeon or raid instance, party chatter prompt
+builders replace zone/subzone lore with dungeon-specific flavor text.
+
+`get_group_location()` now threads `map_id` to all major party chatter
+prompt builders. Each builder calls `get_dungeon_flavor(map_id)` — if a
+flavor entry exists for that map, it replaces the zone/subzone lore
+block with the dungeon's atmospheric description and tone.
+
+Affected prompt builders:
+
+- kill reaction
+- loot reaction
+- death reaction
+- achievement / group achievement
+- wipe reaction
+- corpse run commentary
+- nearby object (both statement and conversation)
+
+Builders that intentionally do **not** receive dungeon context injection:
+
+- OOM / low-health callouts (state-focused, not location-flavored)
+- level-up (character milestone, independent of location)
+
+---
+
+## 13n. Persistent Bot–Player Memory
 
 ### Overview
 
@@ -1357,7 +1486,7 @@ experiences rather than treating the player as a stranger.
 
 ---
 
-## 13d. Queue and Message Cleanup
+## 13o. Queue and Message Cleanup
 
 The system has four cleanup layers that work together to ensure stale
 queue entries and undelivered messages are never visible to players after

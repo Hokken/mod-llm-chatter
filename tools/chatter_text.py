@@ -142,105 +142,21 @@ def cleanup_message(
     result = result.replace('\\"', '"')
     result = result.replace('\\\\', '\\')
 
-    # Structured action from JSON - prepend *action*
-    # and skip Phase 1/2 heuristic detection
-    _skip_narration_detection = False
+    # Strip *action text* sneaked into the message
+    # field by the LLM. Must run BEFORE the structured
+    # action is prepended, otherwise the valid action
+    # gets stripped too.
+    # Min 4 chars protects *ok*/*no* from removal;
+    # max 60 covers realistic multi-word actions.
+    result = re.sub(
+        r'^\*[^*]{4,60}\*\s*', '', result
+    )
+
+    # Structured action from JSON - prepend *action*.
+    # This is the only source of narrator comments;
+    # frequency is controlled by LLMChatter.ActionChance.
     if action:
         result = f"*{action}* {result}"
-        _skip_narration_detection = True
-
-    # Keep asterisk emotes (*action*) - they display
-    # nicely in WoW chat as RP emote markers.
-
-    if not _skip_narration_detection:
-        # Non-asterisk emote phrases - LLM sometimes
-        # embeds action descriptions without asterisks.
-        _EMOTE_VERBS = (
-            'gazes', 'glances', 'stares', 'peers',
-            'leans', 'nods', 'sighs', 'shrugs',
-            'gestures', 'stretches',
-            'tilts', 'grins',
-            'smiles', 'frowns', 'chuckles',
-            'scratches', 'rubs', 'taps',
-            'flexes', 'adjusts', 'fidgets',
-        )
-
-        # Phase 1: Wrap leading third-person narration
-        _NARRATION_FOLLOWERS = (
-            'at', 'over', 'around', 'back', 'up',
-            'down', 'toward', 'towards', 'away',
-            'into', 'across', 'through', 'aside',
-            'forward',
-            'nervously', 'softly', 'quietly',
-            'slowly', 'briefly', 'slightly',
-            'deeply', 'heavily', 'warmly',
-            'sadly', 'wearily', 'knowingly',
-            'absently', 'idly', 'lazily',
-            'cautiously', 'warily', 'tiredly',
-            'thoughtfully', 'solemnly', 'grimly',
-            'wistfully', 'fondly', 'gently',
-            'happily', 'excitedly', 'curiously',
-            'suspiciously', 'proudly',
-            'sheepishly',
-            'awkwardly', 'abruptly', 'eagerly',
-            'impatiently', 'casually',
-            'dismissively',
-            'appreciatively', 'gratefully',
-            'uncomfortably', 'uncertainly',
-        )
-        _verb_start = re.compile(
-            r'^(' + '|'.join(_EMOTE_VERBS) + r')\s+'
-            r'(' + '|'.join(
-                _NARRATION_FOLLOWERS
-            ) + r')\b',
-            re.IGNORECASE
-        )
-        if _verb_start.match(result):
-            _speech_re = re.compile(
-                r'[,.](?:\.\.)?\s+'
-                r'(?!(?:then|and|while|before|as)\b)',
-                re.IGNORECASE
-            )
-            matches = list(
-                _speech_re.finditer(result)
-            )
-            if matches:
-                cut = matches[0]
-                emote_part = (
-                    result[:cut.start()].strip()
-                )
-                remainder = (
-                    result[cut.end():].strip()
-                )
-                if len(remainder) > 10:
-                    remainder = (
-                        remainder[0].upper()
-                        + remainder[1:]
-                    )
-                    result = (
-                        f"*{emote_part}* "
-                        f"{remainder}"
-                    )
-                else:
-                    result = f"*{result}*"
-            else:
-                result = f"*{result}*"
-
-        # Phase 2: Wrap mid-message emote clauses
-        _emote_pattern = re.compile(
-            r'(?:,\s*|\.\.?\.\s*|\.\s+)'
-            r'((?:' + '|'.join(_EMOTE_VERBS) + r')'
-            r'\s+\w[\w\s]*?)'
-            r'(?=[,.]|\s*$)',
-            re.IGNORECASE
-        )
-
-        def _wrap_emote(m):
-            return f" *{m.group(1).strip()}*"
-
-        result = _emote_pattern.sub(
-            _wrap_emote, result
-        )
 
     result = result.strip()
 

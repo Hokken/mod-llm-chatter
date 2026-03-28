@@ -640,14 +640,6 @@ LLMChatter.GroupChatter.ZoneTransitionChance = 50
 LLMChatter.GroupChatter.ZoneTransitionCooldown = 120
 
 #
-#   LLMChatter.GroupChatter.DiscoveryChance
-#       Percent chance (0-100) that discovering a
-#       new area triggers a party chat reaction.
-#       Default: 100
-#
-LLMChatter.GroupChatter.DiscoveryChance = 100
-
-#
 #   LLMChatter.GroupChatter.BotQuestionEnable
 #       Enable bot-initiated questions to player.
 #       Default: 1
@@ -679,6 +671,18 @@ LLMChatter.GroupChatter.QuestAcceptChance = 50
 #       Default: 70
 #
 LLMChatter.GroupChatter.QuestObjectiveChance = 50
+
+#
+#   LLMChatter.GroupChatter.QuestObjSuppressWindow
+#       Seconds after quest accept during which an
+#       objectives-complete event is suppressed.
+#       Prevents instant-complete reactions for
+#       breadcrumb/delivery quests where objectives
+#       fire immediately after accept.
+#       Set to 0 to disable suppression.
+#       Default: 10
+#
+LLMChatter.GroupChatter.QuestObjSuppressWindow = 10
 
 #
 #   LLMChatter.GroupChatter.QuestCompleteChance
@@ -925,7 +929,16 @@ LLMChatter.MaxBotsPerZone = 8
 #       How often the Python bridge checks for new requests
 #       Default: 3
 #
-LLMChatter.Bridge.PollIntervalSeconds = 3
+LLMChatter.Bridge.PollIntervalSeconds = 1
+
+#
+#   LLMChatter.GroupChatter.ReactDelay.Join
+#       Seconds C++ waits before the bot join event becomes
+#       eligible for Python processing. Shorter = faster
+#       greetings. A small value (1s) keeps a natural pause.
+#       Default: 1
+#
+LLMChatter.GroupChatter.ReactDelay.Join = 1
 
 #
 #   LLMChatter.Bridge.MaxConcurrent
@@ -1088,9 +1101,11 @@ LLMChatter.Memory.RecallChance = 20
 #   LLMChatter.Memory.SessionMinutes
 #       Minimum session length (minutes) before memories are
 #       committed on farewell. Shorter sessions are discarded.
-#       Default: 15
+#       Set low enough to capture normal play sessions (dungeon
+#       runs, quests) without discarding meaningful moments.
+#       Default: 3
 #
-LLMChatter.Memory.SessionMinutes = 15
+LLMChatter.Memory.SessionMinutes = 3
 
 #
 #   LLMChatter.Memory.MaxPerBotPlayer
@@ -1214,3 +1229,75 @@ LLMChatter.Memory.PartyMemberGenerationChance = 50
 #       Default: 20
 #
 LLMChatter.Memory.IdleRecallChance = 20
+
+###############################################################################
+# EMOTE REACTION SYSTEM
+###############################################################################
+
+#
+#   LLMChatter.EmoteReactions.Enable
+#       Master switch for the emote reaction system.
+#       When disabled, no emote-triggered reactions fire at all.
+#       Default: 1
+#
+LLMChatter.EmoteReactions.Enable = 1
+
+#
+#   LLMChatter.EmoteReactions.MirrorChance
+#       Percent chance (0-100) that a bot silently mirrors
+#       an emote directed at it (e.g. /wave → bot waves back).
+#       Also used for NPC mirror chance.
+#       Default: 90
+#
+LLMChatter.EmoteReactions.MirrorChance = 90
+
+#
+#   LLMChatter.EmoteReactions.MirrorCooldown
+#       Seconds before the same bot can mirror an emote again.
+#       Also controls the minimum interval for NPC mirrors and
+#       verbal reaction cooldown (mirror × 2).
+#       Default: 15
+#
+LLMChatter.EmoteReactions.MirrorCooldown = 15
+
+#
+#   LLMChatter.EmoteReactions.ReactionChance
+#       Percent chance (0-100) that a bot adds a verbal LLM
+#       comment after mirroring an emote directed at it.
+#       Default: 60
+#
+LLMChatter.EmoteReactions.ReactionChance = 60
+
+#
+#   LLMChatter.EmoteReactions.ObserverChance
+#       Percent chance (0-100) that a nearby bot comments when
+#       the player emotes at an NPC, stranger, or nobody.
+#       Default: 40
+#
+LLMChatter.EmoteReactions.ObserverChance = 40
+
+#
+#   LLMChatter.EmoteReactions.ObserverCooldown
+#       Seconds before the same group can trigger another
+#       observer comment.
+#       Default: 30
+#
+LLMChatter.EmoteReactions.ObserverCooldown = 30
+
+#
+#   LLMChatter.EmoteReactions.MoodSpreadChance
+#       Percent chance (0-100) that a contagious emote
+#       (dance, cheer, laugh) spreads to other nearby bots.
+#       Currently unimplemented — reserved for future use.
+#       Default: 50
+#
+LLMChatter.EmoteReactions.MoodSpreadChance = 50
+
+#
+#   LLMChatter.EmoteReactions.NPCMirrorEnable
+#       When enabled, NPCs the player emotes at will mirror
+#       the emote back with a short delay (if alive, not in
+#       combat, not hostile, and not a boss-rank creature).
+#       Default: 1
+#
+LLMChatter.EmoteReactions.NPCMirrorEnable = 1

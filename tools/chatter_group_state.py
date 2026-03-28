@@ -17,6 +17,7 @@ from chatter_shared import (
     cleanup_message,
     strip_speaker_prefix,
 )
+from chatter_db import mark_event
 
 logger = logging.getLogger(__name__)
 
@@ -771,24 +772,9 @@ def _has_recent_event(
     cursor.execute(query, params)
     return cursor.fetchone() is not None
 
-def _mark_event(db, event_id, status):
-    """Mark an event with given status."""
-    cursor = db.cursor()
-    if status == 'completed':
-        cursor.execute(
-            "UPDATE llm_chatter_events "
-            "SET status = 'completed', "
-            "processed_at = NOW() "
-            "WHERE id = %s",
-            (event_id,)
-        )
-    else:
-        cursor.execute(
-            "UPDATE llm_chatter_events "
-            "SET status = %s WHERE id = %s",
-            (status, event_id)
-        )
-    db.commit()
+# Re-export for downstream modules that import
+# _mark_event from chatter_group_state.
+_mark_event = mark_event
 
 def _store_chat(
     db, group_id, speaker_guid,

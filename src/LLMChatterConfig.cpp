@@ -180,14 +180,7 @@ void LLMChatterConfig::LoadConfig()
     _groupCorpseRunCooldown = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.CorpseRunCooldown", 120);
     _useFarewell = sConfigMgr->GetOption<bool>(
         "LLMChatter.GroupChatter.FarewellEnable", true);
-    _groupDiscoveryCooldown =
-        sConfigMgr->GetOption<uint32>(
-            "LLMChatter.GroupChatter."
-            "DiscoveryCooldown", 30);
-    _groupDiscoveryChance =
-        sConfigMgr->GetOption<uint32>(
-            "LLMChatter.GroupChatter."
-            "DiscoveryChance", 100);
+
 
     // Group chatter - react-after delays (seconds)
     _reactDelayJoin =
@@ -262,20 +255,7 @@ void LLMChatterConfig::LoadConfig()
         sConfigMgr->GetOption<uint32>(
             "LLMChatter.GroupChatter."
             "ReactDelay.StateCallout", 1);
-    _reactDelayDiscoveryMin =
-        sConfigMgr->GetOption<uint32>(
-            "LLMChatter.GroupChatter."
-            "ReactDelay.DiscoveryMin", 5);
-    _reactDelayDiscoveryMax =
-        sConfigMgr->GetOption<uint32>(
-            "LLMChatter.GroupChatter."
-            "ReactDelay.DiscoveryMax", 20);
-    if (_reactDelayDiscoveryMin
-        > _reactDelayDiscoveryMax)
-    {
-        _reactDelayDiscoveryMin =
-            _reactDelayDiscoveryMax;
-    }
+
     _reactDelayNearbyObject =
         sConfigMgr->GetOption<uint32>(
             "LLMChatter.GroupChatter."
@@ -557,5 +537,39 @@ void LLMChatterConfig::LoadConfig()
         sConfigMgr->GetOption<uint32>(
             "LLMChatter.ZoneIntrusion."
             "ZoneThrottleSec", 30);
+
+    // Emote reaction system
+    _emoteReactionsEnable =
+        sConfigMgr->GetOption<bool>(
+            "LLMChatter.EmoteReactions.Enable",
+            true);
+    _emoteMirrorChance =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.EmoteReactions."
+            "MirrorChance", 90);
+    _emoteMirrorCooldown =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.EmoteReactions."
+            "MirrorCooldown", 15);
+    _emoteReactionChance =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.EmoteReactions."
+            "ReactionChance", 60);
+    _emoteObserverChance =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.EmoteReactions."
+            "ObserverChance", 40);
+    _emoteObserverCooldown =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.EmoteReactions."
+            "ObserverCooldown", 30);
+    _emoteMoodSpreadChance =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.EmoteReactions."
+            "MoodSpreadChance", 50);
+    _emoteNPCMirrorEnable =
+        sConfigMgr->GetOption<bool>(
+            "LLMChatter.EmoteReactions."
+            "NPCMirrorEnable", true);
 
 }

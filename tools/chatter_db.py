@@ -1104,6 +1104,183 @@ def cleanup_stale_groups(db) -> int:
         return 0
 
 
+def get_zone_bot_candidates(
+    cursor, zone_id=None, limit=10
+):
+    """Return up to `limit` random eligible General-
+    channel bots. If zone_id is given, restricts to
+    bots in that zone; otherwise queries globally
+    (limit 20).
+
+    Returns list of dicts with bot1_guid, bot1_name,
+    bot1_class, bot1_race, bot1_level, zone_id keys.
+    """
+    effective_limit = limit if zone_id else 20
+    if zone_id:
+        cursor.execute("""
+            SELECT DISTINCT
+                c.guid as bot1_guid,
+                c.name as bot1_name,
+                c.class as bot1_class,
+                c.race as bot1_race,
+                c.level as bot1_level,
+                c.zone as zone_id
+            FROM characters c
+            JOIN acore_auth.account a
+                ON c.account = a.id
+            WHERE c.online = 1
+              AND c.zone = %s
+              AND a.username LIKE 'RNDBOT%%%%'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM group_member gm1
+                  JOIN group_member gm2
+                      ON gm1.guid = gm2.guid
+                  JOIN characters c2
+                      ON gm2.memberGuid = c2.guid
+                  JOIN acore_auth.account a2
+                      ON c2.account = a2.id
+                  WHERE gm1.memberGuid = c.guid
+                    AND gm2.memberGuid != c.guid
+                    AND a2.username
+                        NOT LIKE 'RNDBOT%%%%'
+              )
+            ORDER BY RAND()
+            LIMIT %s
+        """, (zone_id, effective_limit))
+    else:
+        cursor.execute("""
+            SELECT DISTINCT
+                c.guid as bot1_guid,
+                c.name as bot1_name,
+                c.class as bot1_class,
+                c.race as bot1_race,
+                c.level as bot1_level,
+                c.zone as zone_id
+            FROM characters c
+            JOIN acore_auth.account a
+                ON c.account = a.id
+            WHERE c.online = 1
+              AND a.username LIKE 'RNDBOT%%%%'
+              AND NOT EXISTS (
+                  SELECT 1
+                  FROM group_member gm1
+                  JOIN group_member gm2
+                      ON gm1.guid = gm2.guid
+                  JOIN characters c2
+                      ON gm2.memberGuid = c2.guid
+                  JOIN acore_auth.account a2
+                      ON c2.account = a2.id
+                  WHERE gm1.memberGuid = c.guid
+                    AND gm2.memberGuid != c.guid
+                    AND a2.username
+                        NOT LIKE 'RNDBOT%%%%'
+              )
+            ORDER BY RAND()
+            LIMIT %s
+        """, (effective_limit,))
+    return cursor.fetchall()
+
+
+def get_bots_by_guid(cursor, guid_list):
+    """Return bot rows for a list of GUIDs, preserving
+    caller order. Used by transport_arrives verified
+    bots.
+
+    Returns list of dicts with bot1_guid, bot1_name,
+    bot1_class, bot1_race, bot1_level, zone_id keys.
+    """
+    if not guid_list:
+        return []
+    placeholders = ', '.join(
+        ['%s'] * len(guid_list)
+    )
+    cursor.execute(f"""
+        SELECT
+            c.guid as bot1_guid,
+            c.name as bot1_name,
+            c.class as bot1_class,
+            c.race as bot1_race,
+            c.level as bot1_level,
+            c.zone as zone_id
+        FROM characters c
+        JOIN acore_auth.account a
+            ON c.account = a.id
+        WHERE c.online = 1
+          AND a.username LIKE 'RNDBOT%%%%'
+          AND c.guid IN ({placeholders})
+    """, tuple(guid_list))
+    rows = cursor.fetchall()
+    if not rows:
+        return rows
+
+    # Keep the C++ verified GUID order stable
+    # for deterministic downstream selection.
+    rows_by_guid = {
+        int(row['bot1_guid']): row
+        for row in rows
+    }
+    return [
+        rows_by_guid[guid]
+        for guid in guid_list
+        if guid in rows_by_guid
+    ]
+
+
+def get_zone_event_count(
+    cursor, zone_id, event_types, seconds
+):
+    """Count completed events in zone_id of the given
+    event_types within the last `seconds` seconds.
+    Used for zone fatigue checks.
+    """
+    if not event_types:
+        return 0
+    placeholders = ', '.join(
+        ['%s'] * len(event_types)
+    )
+    cursor.execute(f"""
+        SELECT COUNT(*) as cnt
+        FROM llm_chatter_events
+        WHERE zone_id = %s
+          AND status = 'completed'
+          AND event_type IN ({placeholders})
+          AND processed_at > DATE_SUB(
+              NOW(), INTERVAL %s SECOND
+          )
+    """, (zone_id, *event_types, seconds))
+    row = cursor.fetchone()
+    return int(row['cnt']) if row else 0
+
+
+def get_recent_speaker_guids(
+    cursor, bot_guids, cooldown_seconds
+):
+    """Return the subset of bot_guids that have
+    delivered a message within the last
+    cooldown_seconds. Used to pre-filter conversation
+    participants.
+    """
+    if not bot_guids:
+        return set()
+    placeholders = ', '.join(
+        ['%s'] * len(bot_guids)
+    )
+    cursor.execute(f"""
+        SELECT DISTINCT bot_guid
+        FROM llm_chatter_messages
+        WHERE bot_guid IN ({placeholders})
+          AND delivered = 1
+          AND delivered_at > DATE_SUB(
+              NOW(), INTERVAL %s SECOND
+          )
+    """, (*bot_guids, cooldown_seconds))
+    return {
+        int(row['bot_guid'])
+        for row in cursor.fetchall()
+    }
+
+
 def cleanup_all_session_data(db):
     """Wipe all ephemeral session tables.
 
@@ -1153,3 +1330,28 @@ def cleanup_all_session_data(db):
             "[CLEANUP] session data wipe failed",
             exc_info=True,
         )
+
+
+def mark_event(db, event_id, status):
+    """Set event status (and processed_at if completed).
+
+    Shared utility -- replaces per-module _mark_event
+    copies.
+    """
+    cursor = db.cursor()
+    if status == 'completed':
+        cursor.execute(
+            "UPDATE llm_chatter_events "
+            "SET status = 'completed', "
+            "processed_at = NOW() "
+            "WHERE id = %s",
+            (event_id,)
+        )
+    else:
+        cursor.execute(
+            "UPDATE llm_chatter_events "
+            "SET status = %s WHERE id = %s",
+            (status, event_id)
+        )
+    db.commit()
+    cursor.close()

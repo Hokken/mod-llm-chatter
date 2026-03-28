@@ -50,7 +50,10 @@ from chatter_constants import (
     LENGTH_HINTS, RP_LENGTH_HINTS,
 )
 from chatter_links import resolve_and_format_links
-from chatter_db import get_character_info_by_name
+from chatter_db import (
+    get_character_info_by_name,
+    mark_event,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -160,25 +163,6 @@ def _pick_length_hint(mode):
         f"characters total"
     )
 
-
-def _mark_event(db, event_id, status):
-    """Mark an event with given status."""
-    cursor = db.cursor()
-    if status == 'completed':
-        cursor.execute(
-            "UPDATE llm_chatter_events "
-            "SET status = 'completed', "
-            "processed_at = NOW() "
-            "WHERE id = %s",
-            (event_id,)
-        )
-    else:
-        cursor.execute(
-            "UPDATE llm_chatter_events "
-            "SET status = %s WHERE id = %s",
-            (status, event_id)
-        )
-    db.commit()
 
 
 def _get_general_chat_history(
@@ -497,9 +481,6 @@ def _build_general_response_prompt(
         f"consistent with the conversation\n"
         f"- Keep it brief - this is General chat, "
         f"not a private conversation\n"
-        f"- Keep your response proportional to "
-        f"what was said. Simple statements or "
-        f"questions only need brief replies"
     )
     spices = pick_personality_spices(
         mode=mode, spice_count_override=_spice_count
@@ -678,7 +659,7 @@ def process_general_player_msg_event(
     )
 
     if not extra_data:
-        _mark_event(db, event_id, 'skipped')
+        mark_event(db, event_id, 'skipped')
         return False
 
     player_name = extra_data.get(
@@ -702,7 +683,7 @@ def process_general_player_msg_event(
     subzone_lore = ''
 
     if not zone_id or not player_message:
-        _mark_event(db, event_id, 'skipped')
+        mark_event(db, event_id, 'skipped')
         return False
 
     # Parse and resolve WoW links in message
@@ -714,7 +695,7 @@ def process_general_player_msg_event(
     )
 
     if not bot_guids:
-        _mark_event(db, event_id, 'skipped')
+        mark_event(db, event_id, 'skipped')
         return False
 
 
@@ -749,7 +730,7 @@ def process_general_player_msg_event(
             chat_hist=chat_hist,
         )
         if not primary:
-            _mark_event(db, event_id, 'skipped')
+            mark_event(db, event_id, 'skipped')
             return False
 
         bot1_guid = primary['bot1_guid']
@@ -836,7 +817,7 @@ def process_general_player_msg_event(
         )
 
         if not response1:
-            _mark_event(db, event_id, 'skipped')
+            mark_event(db, event_id, 'skipped')
             return False
 
         parsed1 = parse_single_response(response1)
@@ -847,7 +828,7 @@ def process_general_player_msg_event(
             msg1, action=parsed1.get('action')
         )
         if not msg1:
-            _mark_event(db, event_id, 'skipped')
+            mark_event(db, event_id, 'skipped')
             return False
         if len(msg1) > 255:
             msg1 = msg1[:252] + "..."
@@ -960,11 +941,11 @@ def process_general_player_msg_event(
                     exc_info=True
                 )
 
-        _mark_event(db, event_id, 'completed')
+        mark_event(db, event_id, 'completed')
         return True
 
     except Exception as e:
-        _mark_event(db, event_id, 'skipped')
+        mark_event(db, event_id, 'skipped')
         return False
 
 
@@ -1035,6 +1016,7 @@ def _general_followup(
         player_name, player_message,
         zone_name, chat_hist, mode,
         recent_messages=recent_msgs,
+        allow_action=False,
         link_context=link_context,
         speaker_talent_context=(
             bot2_speaker_talent
@@ -1441,6 +1423,7 @@ def _general_extended_conversation(
             sp_level, speaker['traits'],
             thread, zone_name, chat_hist, mode,
             recent_messages=recent_msgs,
+            allow_action=False,
             remaining_messages=remaining,
             link_context=link_context,
             speaker_talent_context=(

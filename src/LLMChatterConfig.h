@@ -121,8 +121,7 @@ public:
     uint32 _groupCorpseRunChance;
     uint32 _groupCorpseRunCooldown;
     bool _useFarewell;
-    uint32 _groupDiscoveryChance;
-    uint32 _groupDiscoveryCooldown;
+
 
     // Group chatter - react-after delays (seconds)
     uint32 _reactDelayJoin;
@@ -143,8 +142,7 @@ public:
     uint32 _reactDelayDungeonEntry;
     uint32 _reactDelayZoneTransition;
     uint32 _reactDelayStateCallout;
-    uint32 _reactDelayDiscoveryMin;
-    uint32 _reactDelayDiscoveryMax;
+
     uint32 _reactDelayNearbyObject;
     uint32 _reactDelayBGEvent;
     uint32 _reactDelayGeneralMsg;
@@ -241,6 +239,16 @@ public:
     // Zone intrusion alerts
     bool _zoneIntrusionEnable;
     uint32 _zoneIntrusionZoneThrottleSec;
+
+    // Emote reaction system
+    bool   _emoteReactionsEnable;
+    uint32 _emoteMirrorChance;
+    uint32 _emoteMirrorCooldown;
+    uint32 _emoteReactionChance;
+    uint32 _emoteObserverChance;
+    uint32 _emoteObserverCooldown;
+    uint32 _emoteMoodSpreadChance;
+    bool   _emoteNPCMirrorEnable;
 
 private:
     LLMChatterConfig() = default;

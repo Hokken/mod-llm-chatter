@@ -43,7 +43,6 @@ from chatter_db import (
     cleanup_all_session_data,
 )
 from chatter_shared import (
-    get_zone_name,
     format_location_label,
     get_class_name, get_race_name,
     get_chatter_mode,
@@ -51,24 +50,11 @@ from chatter_shared import (
     set_race_vocab_chance,
     set_action_chance,
     set_emote_chance,
-    parse_single_response,
     parse_config, get_db_connection,
     wait_for_database,
-    cleanup_message,
-    strip_speaker_prefix,
-    calculate_dynamic_delay,
-    call_llm,
-    parse_conversation_response,
-    insert_chat_message,
-    get_recent_zone_messages,
     stagger_if_needed,
 )
-from chatter_prompts import (
-    build_event_conversation_prompt,
-    build_event_statement_prompt,
-)
 from chatter_events import (
-    build_event_context,
     cleanup_expired_events,
     reset_stuck_processing_events,
     process_zone_intrusion_event,
@@ -91,7 +77,6 @@ from chatter_group import (
     process_group_zone_transition_event,
     process_group_quest_accept_event,
     process_group_quest_accept_batch_event,
-    process_group_discovery_event,
     process_group_dungeon_entry_event,
     process_group_wipe_event,
     process_group_corpse_run_event,
@@ -124,6 +109,21 @@ from chatter_raids import (
     process_raid_boss_kill_event,
     process_raid_boss_wipe_event,
     process_raid_idle_morale_event,
+)
+from chatter_emote_observer import (
+    handle_emote_observer,
+)
+from chatter_emote_reaction import (
+    handle_emote_reaction,
+)
+from chatter_world_events import (
+    process_transport_arrives_event,
+    process_weather_change_event,
+    process_weather_ambient_event,
+    process_holiday_start_event,
+    process_holiday_end_event,
+    process_minor_event,
+    process_day_night_transition_event,
 )
 
 # Configure logging
@@ -479,6 +479,10 @@ _ORPHAN_GUARD_EXEMPT = frozenset({
     'bot_group_join',
     'bot_group_join_batch',
     'bot_greeting',  # defensive; doesn't match bot_group_*
+    # Emote events carry all bot data in extra_data;
+    # they don't need a traits row to produce a response.
+    'bot_group_emote_observer',
+    'bot_group_emote_reaction',
 })
 
 EVENT_HANDLERS = {
@@ -511,8 +515,6 @@ EVENT_HANDLERS = {
         process_group_quest_accept_event,
     'bot_group_quest_accept_batch':
         process_group_quest_accept_batch_event,
-    'bot_group_discovery':
-        process_group_discovery_event,
     'bot_group_dungeon_entry':
         process_group_dungeon_entry_event,
     'bot_group_wipe': process_group_wipe_event,
@@ -567,6 +569,26 @@ EVENT_HANDLERS = {
         process_raid_boss_wipe_event,
     'raid_idle_morale':
         process_raid_idle_morale_event,
+    # Emote events
+    'bot_group_emote_observer':
+        handle_emote_observer,
+    'bot_group_emote_reaction':
+        handle_emote_reaction,
+    # World events (General channel)
+    'transport_arrives':
+        process_transport_arrives_event,
+    'weather_change':
+        process_weather_change_event,
+    'weather_ambient':
+        process_weather_ambient_event,
+    'holiday_start':
+        process_holiday_start_event,
+    'holiday_end':
+        process_holiday_end_event,
+    'minor_event':
+        process_minor_event,
+    'day_night_transition':
+        process_day_night_transition_event,
 }
 
 
@@ -751,12 +773,6 @@ def _event_summary(event):
             ('dungeon',
              ed.get('dungeon_name', '')),
         ]
-    elif et == 'bot_group_discovery':
-        parts = [
-            ('bot', subj),
-            ('area',
-             ed.get('area_name', '')),
-        ]
     elif et == 'bot_group_zone_transition':
         parts = [
             ('bot', subj),
@@ -889,595 +905,22 @@ def process_single_event(event, client, config):
                 )
             return handler(db, client, config, event)
 
-        # Event already claimed as 'processing' by
-        # fetch_pending_events — no need to mark again
-
-        # Build event context
-        event_context = build_event_context(event)
-
-        # Parse extra_data early (needed for
-        # verified_bots filtering below)
-        extra_data = event.get('extra_data')
-        if isinstance(extra_data, str):
-            try:
-                extra_data = json.loads(extra_data)
-            except Exception:
-                extra_data = {}
-        if not isinstance(extra_data, dict):
-            extra_data = {}
-
-        def _normalize_bot_rows(bot_rows):
-            for bot in bot_rows:
-                if isinstance(
-                    bot.get('bot1_class'), int
-                ):
-                    bot['bot1_class'] = (
-                        get_class_name(
-                            bot['bot1_class']
-                        )
-                    )
-                if isinstance(
-                    bot.get('bot1_race'), int
-                ):
-                    bot['bot1_race'] = (
-                        get_race_name(
-                            bot['bot1_race']
-                        )
-                    )
-            return bot_rows
-
-        def _get_bots_by_guid(guid_list):
-            placeholders = ', '.join(
-                ['%s'] * len(guid_list)
-            )
-            cursor.execute(f"""
-                SELECT
-                    c.guid as bot1_guid,
-                    c.name as bot1_name,
-                    c.class as bot1_class,
-                    c.race as bot1_race,
-                    c.level as bot1_level,
-                    c.zone as zone_id
-                FROM characters c
-                JOIN acore_auth.account a
-                    ON c.account = a.id
-                WHERE c.online = 1
-                  AND a.username LIKE 'RNDBOT%%%%'
-                  AND c.guid IN ({placeholders})
-            """, tuple(guid_list))
-            rows = cursor.fetchall()
-            if not rows:
-                return rows
-
-            # Keep the C++ verified GUID order stable
-            # for deterministic downstream selection.
-            rows_by_guid = {
-                int(row['bot1_guid']): row
-                for row in rows
-            }
-            ordered = [
-                rows_by_guid[guid]
-                for guid in guid_list
-                if guid in rows_by_guid
-            ]
-            return _normalize_bot_rows(ordered)
-
-        verified = extra_data.get('verified_bots')
-        used_verified_guid_lookup = False
-
-        if (
-            event_type == 'transport_arrives'
-            and isinstance(verified, list)
-        ):
-            if not verified:
-                cursor.execute(
-                    "UPDATE llm_chatter_events "
-                    "SET status = 'skipped' "
-                    "WHERE id = %s",
-                    (event_id,)
-                )
-                db.commit()
-                return False
-
-            verified_guids = [
-                int(g) for g in verified
-            ]
-            recent_bots = _get_bots_by_guid(
-                verified_guids
-            )
-            used_verified_guid_lookup = True
-
-            if not recent_bots:
-                cursor.execute(
-                    "UPDATE llm_chatter_events "
-                    "SET status = 'skipped' "
-                    "WHERE id = %s",
-                    (event_id,)
-                )
-                db.commit()
-                return False
-
-        # Find bots in the zone (if zone-specific)
-        # Uses account-based detection:
-        #   RNDBOT% accounts = bots
-        # Excludes bots grouped with real players
-        #   (immersion breaking)
-        elif zone_id:
-            # Get online bots (RNDBOT accounts)
-            # currently in this zone
-            # Exclude bots grouped with real players
-            cursor.execute("""
-                SELECT DISTINCT
-                    c.guid as bot1_guid,
-                    c.name as bot1_name,
-                    c.class as bot1_class,
-                    c.race as bot1_race,
-                    c.level as bot1_level,
-                    c.zone as zone_id
-                FROM characters c
-                JOIN acore_auth.account a
-                    ON c.account = a.id
-                WHERE c.online = 1
-                  AND c.zone = %s
-                  AND a.username LIKE 'RNDBOT%%%%'
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM group_member gm1
-                      JOIN group_member gm2
-                          ON gm1.guid = gm2.guid
-                      JOIN characters c2
-                          ON gm2.memberGuid = c2.guid
-                      JOIN acore_auth.account a2
-                          ON c2.account = a2.id
-                      WHERE gm1.memberGuid = c.guid
-                        AND gm2.memberGuid != c.guid
-                        AND a2.username
-                            NOT LIKE 'RNDBOT%%%%'
-                  )
-                ORDER BY RAND()
-                LIMIT 10
-            """, (zone_id,))
-            recent_bots = cursor.fetchall()
-
-            if not recent_bots:
-                # No bots found, skip event
-                cursor.execute(
-                    "UPDATE llm_chatter_events "
-                    "SET status = 'skipped' "
-                    "WHERE id = %s",
-                    (event_id,)
-                )
-                db.commit()
-                return False
-            recent_bots = _normalize_bot_rows(
-                recent_bots
-            )
-        else:
-            # Global event - find any online bot
-            # (RNDBOT account)
-            # Exclude bots grouped with real players
-            cursor.execute("""
-                SELECT DISTINCT
-                    c.guid as bot1_guid,
-                    c.name as bot1_name,
-                    c.class as bot1_class,
-                    c.race as bot1_race,
-                    c.level as bot1_level,
-                    c.zone as zone_id
-                FROM characters c
-                JOIN acore_auth.account a
-                    ON c.account = a.id
-                WHERE c.online = 1
-                  AND a.username LIKE 'RNDBOT%%%%'
-                  AND NOT EXISTS (
-                      SELECT 1
-                      FROM group_member gm1
-                      JOIN group_member gm2
-                          ON gm1.guid = gm2.guid
-                      JOIN characters c2
-                          ON gm2.memberGuid = c2.guid
-                      JOIN acore_auth.account a2
-                          ON c2.account = a2.id
-                      WHERE gm1.memberGuid = c.guid
-                        AND gm2.memberGuid != c.guid
-                        AND a2.username
-                            NOT LIKE 'RNDBOT%%%%'
-                  )
-                ORDER BY RAND()
-                LIMIT 20
-            """)
-            recent_bots = cursor.fetchall()
-
-            if not recent_bots:
-                cursor.execute(
-                    "UPDATE llm_chatter_events "
-                    "SET status = 'skipped' "
-                    "WHERE id = %s",
-                    (event_id,)
-                )
-                db.commit()
-                return False
-            recent_bots = _normalize_bot_rows(
-                recent_bots
-            )
-
-        # If C++ provided verified bot GUIDs
-        # (bots confirmed in General channel),
-        # filter to only those bots.
-        # Empty list [] is authoritative: means
-        # C++ found zero bots in channel -> skip.
-        if (
-            isinstance(verified, list)
-            and not used_verified_guid_lookup
-        ):
-            if not verified:
-                cursor.execute(
-                    "UPDATE llm_chatter_events "
-                    "SET status = 'skipped' "
-                    "WHERE id = %s",
-                    (event_id,)
-                )
-                db.commit()
-                return False
-            verified_set = set(
-                int(g) for g in verified
-            )
-            recent_bots = [
-                b for b in recent_bots
-                if int(b['bot1_guid'])
-                in verified_set
-            ]
-            if not recent_bots:
-                cursor.execute(
-                    "UPDATE llm_chatter_events "
-                    "SET status = 'skipped' "
-                    "WHERE id = %s",
-                    (event_id,)
-                )
-                db.commit()
-                return False
-
-        # Check zone fatigue (if zone-specific event)
-        # Transport and weather_change events bypass
-        # zone fatigue — they are rare moments that
-        # should always fire
-        if (
-            zone_id
-            and event_type != 'transport_arrives'
-            and event_type != 'weather_change'
-        ):
-            fatigue_threshold = int(config.get(
-                'LLMChatter.ZoneFatigueThreshold',
-                3
-            ))
-            fatigue_cooldown = int(config.get(
-                'LLMChatter.'
-                'ZoneFatigueCooldownSeconds',
-                900
-            ))
-            cursor.execute("""
-                SELECT COUNT(*) as cnt
-                FROM llm_chatter_events
-                WHERE zone_id = %s
-                  AND status = 'completed'
-                  AND processed_at > DATE_SUB(
-                      NOW(), INTERVAL %s SECOND
-                  )
-            """, (zone_id, fatigue_cooldown))
-            result = cursor.fetchone()
-            if (
-                result
-                and result['cnt']
-                >= fatigue_threshold
-            ):
-                cursor.execute(
-                    "UPDATE llm_chatter_events "
-                    "SET status = 'skipped' "
-                    "WHERE id = %s",
-                    (event_id,)
-                )
-                db.commit()
-                return False
-
-        # Decide: statement vs conversation
-        # (configurable, default 60% conversation)
-        # Conversations require at least 2 bots
-        event_conv_chance = int(config.get(
-            'LLMChatter.EventConversationChance',
-            60
-        ))
-        use_conversation = (
-            len(recent_bots) >= 2
-            and random.randint(1, 100)
-            <= event_conv_chance
+        # Unknown event type — no handler registered.
+        # Mark as skipped so it doesn't block the
+        # queue indefinitely.
+        logger.warning(
+            "Unknown event_type '%s' (id=%s)"
+            " — skipping",
+            event_type, event_id,
         )
-
-        if use_conversation:
-            # Select 2-4 bots for conversation
-            num_bots = min(
-                random.randint(2, 4),
-                len(recent_bots)
-            )
-            selected_bots = random.sample(
-                list(recent_bots), num_bots
-            )
-
-            # Format bots for conversation prompt
-            bots = []
-            for b in selected_bots:
-                bots.append({
-                    'guid': b['bot1_guid'],
-                    'name': b['bot1_name'],
-                    'class': b['bot1_class'],
-                    'race': b['bot1_race'],
-                    'level': b['bot1_level'],
-                    'zone': get_zone_name(
-                        b.get('zone_id', zone_id)
-                    )
-                })
-
-            bot_names = [
-                b['name'] for b in bots
-            ]
-            bot_guids = {
-                b['name']: b['guid']
-                for b in bots
-            }
-
-            # Get weather from event extra_data
-            # (already parsed at top of try block)
-            current_weather = extra_data.get(
-                'current_weather', 'clear'
-            )
-
-            # Fetch recent messages for
-            # anti-repetition
-            recent_msgs = (
-                get_recent_zone_messages(
-                    db, zone_id
-                )
-            )
-
-            # Build event conversation prompt
-            prompt = (
-                build_event_conversation_prompt(
-                    bots, event_context, zone_id,
-                    config, current_weather,
-                    recent_messages=recent_msgs,
-                    area_id=int(
-                        bots[0].get(
-                            'area_id', 0
-                        ) or 0
-                    ),
-                )
-            )
-
-            # Call LLM
-            evt_names = ','.join(bot_names)
-            response = call_llm(
-                client, prompt, config,
-                context=(
-                    f"event-conv:#{event_id}"
-                    f":{evt_names}"
-                ),
-                label='event_conv',
-            )
-
-            if response:
-                messages = (
-                    parse_conversation_response(
-                        response, bot_names
-                    )
-                )
-
-                if messages:
-                    cumulative_delay = 0.0
-                    for i, msg in enumerate(
-                        messages
-                    ):
-                        bot_guid = bot_guids.get(
-                            msg['name'],
-                            bots[0]['guid']
-                        )
-                        final_message = (
-                            strip_speaker_prefix(
-                                msg['message'],
-                                msg['name'],
-                            )
-                        )
-                        final_message = (
-                            cleanup_message(
-                                final_message,
-                                action=msg.get(
-                                    'action'
-                                ),
-                            )
-                        )
-
-                        if i > 0:
-                            delay = (
-                                calculate_dynamic_delay(
-                                    len(
-                                        final_message
-                                    ),
-                                    config
-                                )
-                            )
-                            cumulative_delay += (
-                                delay
-                            )
-
-                        insert_chat_message(
-                            db,
-                            bot_guid,
-                            msg['name'],
-                            final_message,
-                            channel='general',
-                            delay_seconds=cumulative_delay,
-                            event_id=event_id,
-                            sequence=i,
-                        )
-
-                    # Mark event completed
-                    cursor.execute(
-                        "UPDATE "
-                        "llm_chatter_events "
-                        "SET status = "
-                        "'completed', "
-                        "processed_at = NOW() "
-                        "WHERE id = %s",
-                        (event_id,)
-                    )
-                    db.commit()
-                    return True
-
-            # Fallback to statement if conversation
-            # failed
-            use_conversation = False
-
-        # Statement mode (single bot)
-        if not use_conversation:
-            bot = dict(
-                random.choice(list(recent_bots))
-            )
-            bypass_cooldown = event_type in (
-                'transport_arrives',
-                'weather_change',
-            )
-
-            # Transport and weather events bypass
-            # cooldown — rare moments that should
-            # always fire
-            if not bypass_cooldown:
-                # Check bot speaker cooldown for
-                # non-transport events
-                cooldown = int(config.get(
-                    'LLMChatter.'
-                    'BotSpeakerCooldownSeconds',
-                    900
-                ))
-                cursor.execute("""
-                    SELECT COUNT(*) as cnt
-                    FROM llm_chatter_messages
-                    WHERE bot_guid = %s
-                      AND delivered = 1
-                      AND delivered_at
-                          > DATE_SUB(
-                              NOW(),
-                              INTERVAL %s SECOND
-                          )
-                """, (
-                    bot['bot1_guid'], cooldown
-                ))
-                result = cursor.fetchone()
-                if result and result['cnt'] > 0:
-                    cursor.execute(
-                        "UPDATE "
-                        "llm_chatter_events "
-                        "SET status = 'skipped' "
-                        "WHERE id = %s",
-                        (event_id,)
-                    )
-                    db.commit()
-                    return False
-
-            # Get zone name and IDs
-            # Prefer event zone_id (player-centric,
-            # set by C++ from real player's zone)
-            # over bot's characters.zone (stale).
-            evt_zone_id = int(zone_id or 0)
-            use_zone_id = (
-                evt_zone_id
-                or int(
-                    bot.get('zone_id', 0) or 0
-                )
-            )
-            zone_name = (
-                get_zone_name(use_zone_id)
-                or "the world"
-            )
-
-            event_prompt = build_event_statement_prompt(
-                bot,
-                event_context,
-                event_type=event.get('event_type', ''),
-                zone_name=zone_name,
-                config=config,
-                extra_data=extra_data,
-                zone_id=use_zone_id,
-                area_id=0,
-            )
-
-            # Call LLM via shared helper
-            message = call_llm(
-                client,
-                event_prompt,
-                config,
-                context=(
-                    f"event_statement:"
-                    f"{event.get('event_type', '')}:"
-                    f"{bot['bot1_name']}"
-                ),
-                label='event_statement',
-            )
-            if not message:
-                cursor.execute(
-                    "UPDATE llm_chatter_events "
-                    "SET status = 'skipped' "
-                    "WHERE id = %s",
-                    (event_id,)
-                )
-                db.commit()
-                return False
-
-            # Parse structured JSON response
-            parsed = parse_single_response(
-                message
-            )
-            message = parsed['message']
-            message = cleanup_message(
-                message,
-                action=parsed.get('action'),
-            )
-            if len(message) > 255:
-                message = message[:252] + "..."
-
-            # Insert message for delivery
-            delay_min = int(config.get(
-                'LLMChatter.MessageDelayMin',
-                1000
-            ))
-            delay_max = int(config.get(
-                'LLMChatter.MessageDelayMax',
-                30000
-            ))
-            delay_ms = random.randint(
-                delay_min, delay_max
-            )
-
-            # General channel: skip emotes
-            # (proximity-based, not visible
-            #  to zone-wide recipients)
-            insert_chat_message(
-                db, bot['bot1_guid'],
-                bot['bot1_name'], message,
-                channel='general',
-                delay_seconds=delay_ms // 1000,
-                event_id=event_id,
-                sequence=0,
-            )
-
-            # Mark event completed
-            cursor.execute(
-                "UPDATE llm_chatter_events "
-                "SET status = 'completed', "
-                "processed_at = NOW() "
-                "WHERE id = %s",
-                (event_id,)
-            )
-            db.commit()
-
-            return True
+        cursor.execute(
+            "UPDATE llm_chatter_events "
+            "SET status = 'skipped' "
+            "WHERE id = %s",
+            (event_id,)
+        )
+        db.commit()
+        return False
 
     except Exception:
         # Try to mark as skipped
@@ -2519,14 +1962,11 @@ def main():
                     except Exception:
                         pass
 
-            # Adaptive sleep
-            if (
-                dispatched > 0
-                or active_futures
-            ):
-                time.sleep(0.5)
-            else:
-                time.sleep(poll_interval)
+            # Fast poll so player messages are
+            # picked up quickly. Background tasks
+            # self-rate-limit via their own
+            # last_X / interval checks.
+            time.sleep(0.2)
 
         except KeyboardInterrupt:
             executor.shutdown(wait=False)

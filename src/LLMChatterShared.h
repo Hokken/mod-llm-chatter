@@ -7,6 +7,7 @@
 
 class Group;
 class Player;
+class Unit;
 
 enum class LLMChatterPriorityBand : uint8
 {
@@ -26,7 +27,13 @@ std::string ConvertAllLinks(const std::string& text);
 std::string GetZoneName(uint32 zoneId);
 uint32 GetTextEmoteId(const std::string& emoteName);
 bool IsBGAllowedEmote(const std::string& emoteName);
+void SendUnitTextEmote(Unit* unit, uint32 textEmoteId,
+                       const std::string& targetName = "");
 void SendBotTextEmote(Player* bot, uint32 textEmoteId);
+void SendBotTextEmote(Player* bot, uint32 textEmoteId,
+                      const std::string& targetName);
+
+std::string GetTextEmoteName(uint32 emoteId);
 void SendPartyMessageInstant(
     Player* bot, Group* group,
     const std::string& message,

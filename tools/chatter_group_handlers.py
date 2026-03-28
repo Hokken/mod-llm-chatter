@@ -23,6 +23,7 @@ from chatter_shared import (
     calculate_dynamic_delay,
     build_talent_context,
     build_zone_metadata,
+    should_include_action,
 )
 from chatter_db import (
     get_group_location,
@@ -62,7 +63,6 @@ from chatter_group_prompts import (
     build_zone_transition_prompt,
     build_quest_accept_reaction_prompt,
     build_quest_accept_batch_prompt,
-    build_discovery_reaction_prompt,
     build_dungeon_entry_prompt,
     build_wipe_reaction_prompt,
     build_corpse_run_reaction_prompt,
@@ -226,6 +226,9 @@ def process_group_kill_event(
             config, db, bot_guid,
             bot_class, bot_name,
         )
+        _, _, map_id = get_group_location(
+            db, group_id
+        )
         prompt = build_kill_reaction_prompt(
             bot, traits, creature_name,
             is_boss, is_rare, mode,
@@ -233,6 +236,7 @@ def process_group_kill_event(
             extra_data=extra_data,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
+            map_id=map_id,
         )
         mood_label = get_bot_mood_label(
             group_id, bot_guid
@@ -426,6 +430,9 @@ def process_group_loot_event(
             config, db, reactor_guid,
             bot['class'], reactor_name,
         )
+        _, _, map_id = get_group_location(
+            db, group_id
+        )
         prompt = build_loot_reaction_prompt(
             bot, traits, item_name,
             item_quality, mode,
@@ -434,6 +441,7 @@ def process_group_loot_event(
             extra_data=extra_data,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
+            map_id=map_id,
         )
         mood_label = get_bot_mood_label(
             group_id, bot['guid']
@@ -755,8 +763,10 @@ def process_group_death_event(
             ),
             'level': char_row['level'],
         }
+        stored_tone = reactor_data.get('tone')
     else:
         reactor_traits = trait_data['traits']
+        stored_tone = trait_data.get('tone')
         # Use class/race from extra_data (C++)
         bot_class_id = int(
             extra_data.get('bot_class', 0)
@@ -775,8 +785,6 @@ def process_group_death_event(
             'level': bot_level,
         }
 
-    stored_tone = trait_data.get('tone')
-
     # Mark as processing
     cursor = db.cursor()
     cursor.execute(
@@ -794,6 +802,9 @@ def process_group_death_event(
             config, db, reactor_guid,
             reactor['class'], reactor_name,
         )
+        _, _, map_id = get_group_location(
+            db, group_id
+        )
         prompt = build_death_reaction_prompt(
             reactor, reactor_traits, dead_name,
             killer_name, mode,
@@ -802,6 +813,7 @@ def process_group_death_event(
             extra_data=extra_data,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
+            map_id=map_id,
         )
         mood_label = get_bot_mood_label(
             group_id, reactor_guid
@@ -1369,10 +1381,12 @@ def process_group_quest_objectives_event(
     reactor_data = get_other_group_bot(
         db, group_id, completer_guid
     )
+    stored_tone = None
     if reactor_data:
         reactor_guid = reactor_data['guid']
         reactor_name = reactor_data['name']
         reactor_traits = reactor_data['traits']
+        stored_tone = reactor_data.get('tone')
     else:
         # No other bot — use the completing bot
         trait_data = get_bot_traits(
@@ -1384,7 +1398,7 @@ def process_group_quest_objectives_event(
         reactor_guid = completer_guid
         reactor_name = completer_name
         reactor_traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
+        stored_tone = trait_data.get('tone')
 
     # Get reactor's class/race from characters
     cursor = db.cursor(dictionary=True)
@@ -1772,6 +1786,9 @@ def process_group_achievement_event(
             config, db, reactor_guid,
             reactor['class'], reactor_name,
         )
+        _, _, map_id = get_group_location(
+            db, group_id
+        )
         if batched_names:
             prompt = (
                 build_group_achievement_reaction_prompt(
@@ -1782,6 +1799,7 @@ def process_group_achievement_event(
                     speaker_talent_context=(
                         speaker_talent),
                     stored_tone=stored_tone,
+                    map_id=map_id,
                 )
             )
         else:
@@ -1794,6 +1812,7 @@ def process_group_achievement_event(
                     chat_history=chat_hist,
                     speaker_talent_context=(
                         speaker_talent),
+                    map_id=map_id,
                     stored_tone=stored_tone,
                 )
             )
@@ -2740,172 +2759,6 @@ def process_group_quest_accept_batch_event(
         return False
 
 
-def process_group_discovery_event(
-    db, client, config, event
-):
-    """Handle a bot_group_discovery event.
-
-    A bot reacts to the group discovering a new area.
-    The C++ hook pre-selects the reactor bot.
-    """
-    event_id = event['id']
-    extra_data = parse_extra_data(
-        event.get('extra_data'),
-        event_id,
-        'bot_group_discovery'
-    )
-
-    if not extra_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot_guid = int(extra_data.get('bot_guid', 0))
-    bot_name = extra_data.get(
-        'bot_name', 'someone'
-    )
-    group_id = int(extra_data.get('group_id', 0))
-    area_name = extra_data.get(
-        'area_name', 'somewhere new'
-    )
-    area_id = int(extra_data.get('area_id', 0))
-    xp_amount = int(
-        extra_data.get('xp_amount', 0)
-    )
-    player_name = extra_data.get(
-        'player_name', 'someone'
-    )
-    player_class = extra_data.get(
-        'player_class', 'adventurer'
-    )
-
-    if not bot_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    trait_data = get_bot_traits(
-        db, group_id, bot_guid
-    )
-    if not trait_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-
-    bot_class_id = int(
-        extra_data.get('bot_class', 1)
-    )
-    bot_race_id = int(
-        extra_data.get('bot_race', 1)
-    )
-    bot_level = int(
-        extra_data.get('bot_level', 1)
-    )
-
-    bot = {
-        'guid': bot_guid,
-        'name': bot_name,
-        'class': get_class_name(bot_class_id),
-        'race': get_race_name(bot_race_id),
-        'level': bot_level,
-    }
-
-
-    # Mark as processing
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        speaker_talent = _maybe_talent_context(
-            config, db, bot_guid,
-            bot['class'], bot_name,
-        )
-        prompt = build_discovery_reaction_prompt(
-            bot, traits, area_name, player_name,
-            player_class, xp_amount, mode,
-            chat_history=chat_hist,
-            speaker_talent_context=speaker_talent,
-            area_id=area_id,
-            zone_id=int(
-                extra_data.get('zone_id', 0) or 0),
-            stored_tone=stored_tone,
-        )
-        mood_label = get_bot_mood_label(
-            group_id, bot_guid
-        )
-        if mood_label != 'neutral':
-            prompt += (
-                f"\nCurrent mood: {mood_label}"
-            )
-
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=bot_name,
-            bot_guid=bot_guid,
-            channel='party',
-            delay_seconds=2,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            context=(
-                f"grp-disc:#{event_id}"
-                f":{bot_name}"
-            ),
-        )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, bot_guid,
-            bot_name, True, message
-        )
-
-        _mark_event(db, event_id, 'completed')
-
-        # Memory: discovery
-        try:
-            mem_chance = int(config.get(
-                'LLMChatter.Memory'
-                '.DiscoveryGenerationChance', 30
-            ))
-            if random.random() * 100 < mem_chance:
-                queue_memory(
-                    config, group_id,
-                    bot_guid, 0,
-                    memory_type='discovery',
-                    event_context=(
-                        f"Discovered {area_name}"
-                    ),
-                    bot_name=bot_name,
-                    bot_class=bot['class'],
-                    bot_race=bot['race'],
-                )
-        except Exception:
-            logger.error(
-                "discovery memory failed",
-                exc_info=True,
-            )
-
-        return True
-
-    except Exception:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
 def process_group_dungeon_entry_event(
     db, client, config, event
 ):
@@ -3123,12 +2976,16 @@ def process_group_wipe_event(
             config, db, bot_guid,
             bot['class'], bot_name,
         )
+        _, _, map_id = get_group_location(
+            db, group_id
+        )
         prompt = build_wipe_reaction_prompt(
             bot, traits, killer_name, mode,
             chat_history=chat_hist,
             extra_data=extra_data,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
+            map_id=map_id,
         )
         mood_label = get_bot_mood_label(
             group_id, bot_guid
@@ -3294,6 +3151,7 @@ def process_group_corpse_run_event(
             config, db, bot_guid,
             bot['class'], bot_name,
         )
+        map_id = int(event.get('map_id') or 0)
         prompt = build_corpse_run_reaction_prompt(
             bot, traits, zone_name, mode,
             chat_history=chat_hist,
@@ -3301,6 +3159,7 @@ def process_group_corpse_run_event(
             is_player_death=is_player_death,
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
+            map_id=map_id,
         )
 
         result = run_single_reaction(
@@ -3785,7 +3644,7 @@ def process_group_nearby_object_event(
     in_dungeon = extra.get('in_dungeon', False)
 
     # Look up subzone lore for richer context
-    zone_id, area_id, _ = get_group_location(
+    zone_id, area_id, map_id = get_group_location(
         db, group_id)
     subzone_lore = get_subzone_lore(
         zone_id, area_id
@@ -3824,6 +3683,7 @@ def process_group_nearby_object_event(
                 mode, chat_hist,
                 subzone_lore=subzone_lore,
                 zone_meta=zone_meta,
+                map_id=map_id,
             )
         except Exception:
             _mark_event(
@@ -3850,6 +3710,7 @@ def process_group_nearby_object_event(
         config=config,
         speaker_talent_context=speaker_talent,
         subzone_lore=subzone_lore,
+        map_id=map_id,
     )
 
     if speaker_talent:
@@ -3888,6 +3749,7 @@ def _nearby_object_conversation(
     mode, chat_hist,
     subzone_lore=None,
     zone_meta=None,
+    map_id=0,
 ):
     """Run a multi-bot conversation about nearby
     objects. Returns True on success."""
@@ -3973,6 +3835,7 @@ def _nearby_object_conversation(
         config=config,
         speaker_talent_context=speaker_talent,
         subzone_lore=subzone_lore,
+        map_id=map_id,
     )
 
     # Scale tokens with number of bots
@@ -4021,7 +3884,8 @@ def _nearby_object_conversation(
             msg_text, msg['name']
         )
         action = (
-            msg.get('action') if seq == 0
+            msg.get('action')
+            if should_include_action()
             else None
         )
         text = cleanup_message(
@@ -4261,7 +4125,8 @@ def execute_player_msg_conversation(
             msg_text, msg['name']
         )
         action = (
-            msg.get('action') if seq == 0
+            msg.get('action')
+            if should_include_action()
             else None
         )
         text = cleanup_message(
@@ -4388,7 +4253,8 @@ def _quest_conversation_deliver(
             msg_text, msg['name']
         )
         action = (
-            msg.get('action') if seq == 0
+            msg.get('action')
+            if should_include_action()
             else None
         )
         text = cleanup_message(

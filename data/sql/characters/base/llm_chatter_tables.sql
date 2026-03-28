@@ -69,7 +69,9 @@ CREATE TABLE `llm_chatter_events` (
         'raid_boss_wipe',
         'raid_idle_morale',
         'bot_group_farewell',
-        'bot_group_subzone_change'
+        'bot_group_subzone_change',
+        'bot_group_emote_observer',
+        'bot_group_emote_reaction'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,

@@ -2383,3 +2383,415 @@ RP_PERSONALITY_SPICES = [
     "you're wondering if dragons dream when they sleep",
     "you saved a crust of bread and feel oddly proud",
 ]
+
+
+# =============================================================================
+# EMOTE CATEGORIES
+# =============================================================================
+# Maps TEXT_EMOTE_* ID -> category string for prompt tone.
+# Covers all social emotes (denylist approach in C++).
+EMOTE_CATEGORIES = {
+    # greeting
+    101: "greeting",      # WAVE
+    19:  "greeting",      # BYE
+    55:  "greeting",      # HELLO
+    102: "greeting",      # WELCOME
+    48:  "greeting",      # GREET
+    1:   "greeting",      # AGREE
+    2:   "greeting",      # AMAZE
+    54:  "greeting",      # HAPPY
+    163: "greeting",      # SMILE
+    114: "greeting",      # INTRODUCE
+    7:   "greeting",      # BECKON
+    # respect
+    17:  "respect",       # BOW
+    78:  "respect",       # SALUTE
+    33:  "respect",       # CURTSEY
+    59:  "respect",       # KNEEL
+    67:  "respect",       # NOD
+    125: "respect",       # RAISE
+    122: "respect",       # PRAISE
+    # celebration
+    21:  "celebration",   # CHEER
+    5:   "celebration",   # APPLAUD
+    24:  "celebration",   # CLAP
+    100: "celebration",   # VICTORY
+    243: "celebration",   # COMMEND
+    343: "celebration",   # GOLFCLAP
+    378: "celebration",   # TOAST
+    380: "celebration",   # HIGHFIVE
+    389: "celebration",   # DING
+    413: "celebration",   # PROUD
+    387: "celebration",   # CHUG
+    375: "celebration",   # ENCOURAGE
+    367: "celebration",   # GOODLUCK
+    # humour
+    60:  "humour",        # LAUGH
+    45:  "humour",        # GIGGLE
+    76:  "humour",        # ROFL
+    20:  "humour",        # CACKLE
+    52:  "humour",        # GUFFAW
+    329: "humour",        # JOKE
+    18:  "humour",        # BURP
+    39:  "humour",        # FART
+    68:  "humour",        # NOSEPICK
+    64:  "humour",        # MOON
+    63:  "humour",        # MOAN
+    36:  "humour",        # DROOL
+    49:  "humour",        # GRIN
+    131: "humour",        # SMIRK
+    140: "humour",        # SNICKER
+    396: "humour",        # HICCUP
+    436: "humour",        # SNEEZE
+    437: "humour",        # SNORT
+    438: "humour",        # SQUEAL
+    115: "humour",        # JK
+    13:  "humour",        # BONK
+    390: "humour",        # FACEPALM
+    391: "humour",        # FAINT
+    127: "humour",        # SHIMMY
+    429: "humour",        # SHIFTY
+    435: "humour",        # SNEAK
+    447: "humour",        # COVEREARS
+    224: "humour",        # FLOP
+    23:  "humour",        # CHUCKLE
+    # mockery
+    77:  "mockery",       # RUDE
+    22:  "mockery",       # CHICKEN
+    136: "mockery",       # TAUNT
+    113: "mockery",       # INSULT
+    183: "mockery",       # RASP
+    368: "mockery",       # BLAME
+    372: "mockery",       # DISAGREE
+    373: "mockery",       # DOUBT
+    119: "mockery",       # MOCK
+    133: "mockery",       # SNUB
+    424: "mockery",       # SCOFF
+    425: "mockery",       # SCOLD
+    38:  "mockery",       # EYE
+    139: "mockery",       # VETO
+    377: "mockery",       # EYEBROW
+    421: "mockery",       # ROLLEYES
+    203: "mockery",       # PITY
+    135: "mockery",       # STINK
+    129: "mockery",       # SHOO
+    448: "mockery",       # CROSSARMS
+    440: "mockery",       # SUSPICIOUS
+    # affection
+    328: "affection",     # FLIRT
+    58:  "affection",     # KISS
+    56:  "affection",     # HUG
+    111: "affection",     # CUDDLE
+    225: "affection",     # LOVE
+    363: "affection",     # WINK
+    364: "affection",     # PAT
+    399: "affection",     # HOLDHAND
+    422: "affection",     # RUFFLE
+    446: "affection",     # CHARM
+    123: "affection",     # PURR
+    116: "affection",     # LICK
+    142: "affection",     # TICKLE
+    73:  "affection",     # POKE
+    134: "affection",     # SOOTHE
+    410: "affection",     # PET
+    110: "affection",     # COMFORT
+    80:  "affection",     # SEXY
+    # gratitude
+    97:  "gratitude",     # THANK
+    453: "gratitude",     # YW
+    4:   "gratitude",     # APOLOGIZE
+    404: "gratitude",     # LUCK
+    414: "gratitude",     # PROMISE
+    442: "gratitude",     # TRUCE
+    409: "gratitude",     # OFFER
+    # distress
+    31:  "distress",      # CRY
+    65:  "distress",      # MOURN
+    71:  "distress",      # PLEAD
+    8:   "distress",      # BEG
+    51:  "distress",      # GROVEL
+    223: "distress",      # SCARED
+    103: "distress",      # WHINE
+    69:  "distress",      # PANIC
+    423: "distress",      # SAD
+    417: "distress",      # POUT
+    99:  "distress",      # TIRED
+    395: "distress",      # HEADACHE
+    408: "distress",      # NERVOUS
+    430: "distress",      # SHUDDER
+    451: "distress",      # SWEAT
+    42:  "distress",      # FROWN
+    10:  "distress",      # BLEED
+    109: "distress",      # COLD
+    57:  "distress",      # HUNGRY
+    138: "distress",      # THIRSTY
+    50:  "distress",      # GROAN
+    385: "distress",      # BADFEELING
+    30:  "distress",      # CRINGE
+    418: "distress",      # REGRET
+    128: "distress",      # SHIVER
+    403: "distress",      # JEALOUS
+    381: "distress",      # ABSENT
+    # provocation
+    75:  "provocation",   # ROAR
+    204: "provocation",   # GROWL
+    3:   "provocation",   # ANGRY
+    98:  "provocation",   # THREATEN
+    88:  "provocation",   # SNARL
+    89:  "provocation",   # SPIT
+    46:  "provocation",   # GLARE
+    90:  "provocation",   # STARE
+    376: "provocation",   # ENEMY
+    386: "provocation",   # CHALLENGE
+    428: "provocation",   # SHAKEFIST
+    398: "provocation",   # HISS
+    205: "provocation",   # BARK
+    420: "provocation",   # REVENGE
+    370: "provocation",   # BRANDISH
+    416: "provocation",   # PUNCH
+    434: "provocation",   # SMACK
+    445: "provocation",   # SNAP
+    130: "provocation",   # SLAP
+    444: "provocation",   # WARN
+    394: "provocation",   # GLOWER
+    411: "provocation",   # PINCH
+    121: "provocation",   # POUNCE
+    426: "provocation",   # SCOWL
+    # dance
+    34:  "dance",         # DANCE
+    # boredom
+    14:  "boredom",       # BORED
+    40:  "boredom",       # FIDGET
+    443: "boredom",       # TWIDDLE
+    369: "boredom",       # BLANK
+    # melancholy
+    85:  "melancholy",    # SIGH
+    407: "melancholy",    # MUTTER
+    # 418: REGRET — mapped above under "distress"
+    # ambient
+    104: "ambient",       # WHISTLE
+    106: "ambient",       # YAWN
+    226: "ambient",       # MOO
+    105: "ambient",       # WORK
+    11:  "ambient",       # BLINK
+    79:  "ambient",       # SCRATCH
+    81:  "ambient",       # SHAKE
+    96:  "ambient",       # TAP
+    449: "ambient",       # LOOK
+    427: "ambient",       # SEARCH
+    44:  "ambient",       # GAZE
+    70:  "ambient",       # PEER
+    117: "ambient",       # LISTEN
+    405: "ambient",       # MAP
+    384: "ambient",       # BACKPACK
+    371: "ambient",       # BREATH
+    382: "ambient",       # ARM
+    431: "ambient",       # SIGNAL
+    432: "ambient",       # SILENCE
+    402: "ambient",       # IDEA
+    441: "ambient",       # THINK
+    401: "ambient",       # HURRY
+    392: "ambient",       # GO
+    393: "ambient",       # GOING
+    365: "ambient",       # SERIOUS
+    126: "ambient",       # READY
+    29:  "ambient",       # CRACK
+    112: "ambient",       # DUCK
+    264: "ambient",       # TRAIN
+    91:  "ambient",       # SURPRISED
+    383: "ambient",       # AWE
+    108: "ambient",       # CALM
+    15:  "ambient",       # BOUNCE
+}
+
+# Maps CreatureType enum -> human-readable string
+# (SharedDefines.h:2606)
+NPC_TYPE_NAMES = {
+    1: "Beast", 2: "Dragonkin", 3: "Demon",
+    4: "Elemental", 5: "Giant", 6: "Undead",
+    7: "Humanoid", 8: "Critter", 9: "Mechanical",
+    10: "Not specified", 11: "Totem",
+    12: "Non-combat pet", 13: "Gas cloud",
+}
+
+# Maps creature rank -> human-readable string
+NPC_RANK_NAMES = {
+    0: "Normal", 1: "Elite", 2: "Rare Elite",
+    3: "Boss", 4: "Rare",
+}
+
+# Maps emote name string -> TEXT_EMOTE_* ID.
+# Covers all social emotes (C++ now uses denylist).
+EMOTE_NAME_TO_ID = {
+    # greeting / social
+    "wave": 101, "hello": 55, "greet": 48,
+    "bye": 19, "welcome": 102,
+    "agree": 1, "amaze": 2, "happy": 54,
+    "smile": 163, "introduce": 114, "beckon": 7,
+    # respect
+    "bow": 17, "salute": 78, "curtsey": 33,
+    "kneel": 59, "nod": 67, "raise": 125,
+    "praise": 122,
+    # celebration
+    "cheer": 21, "applaud": 5, "clap": 24,
+    "victory": 100, "commend": 243,
+    "golfclap": 343, "toast": 378,
+    "highfive": 380, "ding": 389,
+    "proud": 413, "chug": 387,
+    "encourage": 375, "goodluck": 367,
+    # humour
+    "laugh": 60, "giggle": 45, "rofl": 76,
+    "cackle": 20, "guffaw": 52, "joke": 329,
+    "chuckle": 23, "burp": 18, "fart": 39,
+    "nosepick": 68, "moon": 64, "moan": 63,
+    "drool": 36, "grin": 49, "smirk": 131,
+    "snicker": 140, "hiccup": 396,
+    "sneeze": 436, "snort": 437, "squeal": 438,
+    "jk": 115, "bonk": 13, "facepalm": 390,
+    "faint": 391, "shimmy": 127, "shifty": 429,
+    "sneak": 435, "coverears": 447, "flop": 224,
+    # mockery
+    "rude": 77, "chicken": 22, "taunt": 136,
+    "insult": 113, "rasp": 183, "blame": 368,
+    "disagree": 372, "doubt": 373,
+    "mock": 119, "snub": 133, "scoff": 424,
+    "scold": 425, "eye": 38, "veto": 139,
+    "eyebrow": 377, "rolleyes": 421,
+    "pity": 203, "stink": 135, "shoo": 129,
+    "crossarms": 448, "suspicious": 440,
+    # affection
+    "flirt": 328, "kiss": 58, "hug": 56,
+    "cuddle": 111, "love": 225, "wink": 363,
+    "pat": 364, "holdhand": 399, "ruffle": 422,
+    "charm": 446, "purr": 123, "lick": 116,
+    "tickle": 142, "poke": 73, "soothe": 134,
+    "pet": 410, "comfort": 110, "sexy": 80,
+    # gratitude
+    "thank": 97, "yw": 453, "apologize": 4,
+    "luck": 404, "promise": 414, "truce": 442,
+    "offer": 409,
+    # distress
+    "cry": 31, "mourn": 65, "plead": 71,
+    "beg": 8, "grovel": 51, "scared": 223,
+    "whine": 103, "panic": 69, "sad": 423,
+    "pout": 417, "tired": 99, "headache": 395,
+    "nervous": 408, "shudder": 430, "sweat": 451,
+    "frown": 42, "bleed": 10, "cold": 109,
+    "hungry": 57, "thirsty": 138, "groan": 50,
+    "badfeeling": 385, "cringe": 30,
+    "regret": 418, "shiver": 128,
+    "jealous": 403, "absent": 381,
+    # provocation
+    "roar": 75, "growl": 204, "angry": 3,
+    "threaten": 98, "snarl": 88, "spit": 89,
+    "glare": 46, "stare": 90, "enemy": 376,
+    "challenge": 386, "shakefist": 428,
+    "hiss": 398, "bark": 205, "revenge": 420,
+    "brandish": 370, "punch": 416, "smack": 434,
+    "snap": 445, "slap": 130, "warn": 444,
+    "glower": 394, "pinch": 411, "pounce": 121,
+    "scowl": 426,
+    # dance
+    "dance": 34,
+    # boredom
+    "bored": 14, "fidget": 40,
+    "twiddle": 443, "blank": 369,
+    # melancholy
+    "sigh": 85, "mutter": 407,
+    # ambient
+    "whistle": 104, "yawn": 106, "moo": 226,
+    "work": 105, "blink": 11, "scratch": 79,
+    "shake": 81, "tap": 96, "look": 449,
+    "search": 427, "gaze": 44, "peer": 70,
+    "listen": 117, "map": 405, "backpack": 384,
+    "breath": 371, "arm": 382, "signal": 431,
+    "silence": 432, "idea": 402, "think": 441,
+    "hurry": 401, "go": 392, "going": 393,
+    "serious": 365, "ready": 126, "crack": 29,
+    "duck": 112, "train": 264, "surprised": 91,
+    "awe": 383, "calm": 108, "bounce": 15,
+    # misc (existing set)
+    "no": 66, "point": 72, "shrug": 83,
+    "shy": 84, "blush": 12, "flex": 41,
+    "sit": 86, "sleep": 87, "stand": 141,
+    "violin": 143, "boggle": 107, "lost": 118,
+    "ponder": 120, "puzzle": 124,
+    "surrender": 92, "talk": 93,
+    "talkex": 94, "talkq": 95,
+    "confused": 25, "cower": 28, "curious": 32,
+    "gasp": 43, "gloat": 47, "hail": 53,
+    "laydown": 61, "pray": 74, "shout": 82,
+    "fail": 379, "mercy": 406, "sing": 433,
+    "object": 450, "congratulate": 26,
+}
+
+# Maps emote category -> list of tone descriptors for prompt
+# variety.  One is picked at random per event.
+REACTION_TONES = {
+    "greeting": [
+        "warmly",
+        "briefly and cheerfully",
+        "with a friendly quip",
+    ],
+    "respect": [
+        "with dry approval",
+        "with mild sarcasm",
+        "with brief acknowledgment",
+        "with gentle teasing",
+    ],
+    "celebration": [
+        "with shared enthusiasm",
+        "with a witty cheer",
+        "with playful energy",
+    ],
+    "humour": [
+        "with a laugh and a quip",
+        "joining the joke",
+        "with dry amusement",
+    ],
+    "mockery": [
+        "with sharp wit",
+        "with amused offense",
+        "with a quick comeback",
+    ],
+    "affection": [
+        "warmly",
+        "with gentle teasing",
+        "with a shy or flustered reaction",
+    ],
+    "gratitude": [
+        "graciously",
+        "with modest deflection",
+        "with warm acknowledgment",
+    ],
+    "distress": [
+        "with concern",
+        "with sympathy",
+        "with gentle reassurance",
+    ],
+    "provocation": [
+        "with cool dismissal",
+        "with composed annoyance",
+        "with a sharp retort",
+    ],
+    "dance": [
+        "with delight",
+        "with surprise",
+        "with playful encouragement",
+    ],
+    "boredom": [
+        "with gentle teasing",
+        "with dry amusement",
+        "with a wry observation",
+    ],
+    "melancholy": [
+        "with quiet empathy",
+        "with gentle concern",
+        "with light humor to break the tension",
+    ],
+    "ambient": [
+        "with amusement",
+        "with a dry observation",
+        "with curiosity",
+    ],
+}

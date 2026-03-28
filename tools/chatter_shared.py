@@ -348,6 +348,24 @@ def get_race_name(race_id: int) -> str:
     return RACE_NAMES.get(race_id, "Unknown")
 
 
+def build_bot_identity(
+    bot_name: str,
+    bot_race: str,
+    bot_class: str,
+) -> str:
+    """Return an identity prefix for bot prompts.
+
+    Used by emote reaction/observer handlers so both
+    share the same "You are X, a Y Z." format.
+    """
+    if bot_race and bot_class:
+        return (
+            f"You are {bot_name}, "
+            f"a {bot_race} {bot_class}."
+        )
+    return f"You are {bot_name}."
+
+
 def get_chatter_mode(config: dict) -> str:
     """Return 'normal' or 'roleplay' from config."""
     if not config:
@@ -992,6 +1010,11 @@ def get_action_chance() -> float:
     return _action_chance
 
 
+def should_include_action() -> bool:
+    """Roll against ActionChance; return True if a narrator action should be kept."""
+    return random.random() < get_action_chance()
+
+
 def append_json_instruction(
     prompt: str, allow_action: bool = True,
     skip_emote: bool = False
@@ -1023,6 +1046,9 @@ def append_json_instruction(
         action_desc = (
             '"action": null (do not include an '
             "action for this response)\n"
+            "IMPORTANT: do NOT put *narrator text* "
+            "or *physical actions* inside the "
+            '"message" field.\n'
         )
 
     # Skip emote list if explicitly requested OR
@@ -1063,24 +1089,39 @@ def append_conversation_json_instruction(
     Conversation prompts return an array where each
     item has speaker/message/emote/action fields.
     """
-    # Apply ActionChance RNG (same as single msgs)
-    if allow_action and random.random() >= _action_chance:
-        allow_action = False
-    if allow_action:
+    # Tell the LLM which speakers may include actions.
+    # ActionChance is enforced at delivery time (not here)
+    # to avoid double-applying the probability.
+    # _action_disabled=True (non-RP mode) disables all.
+    action_speakers: List[str] = (
+        list(bot_names)
+        if (allow_action and bot_names and not _action_disabled)
+        else []
+    )
+
+    _no_narrator = (
+        "IMPORTANT: do NOT put *narrator text* "
+        "or *physical actions* inside any "
+        "\"message\" field."
+    )
+    if action_speakers:
+        names_str = ', '.join(action_speakers)
         action_text = (
-            "Actions: The \"action\" field is a 2-5 "
-            "word physical narration (e.g. \"leans "
-            "against the wall\"). Pick exactly 1 "
-            "message in this conversation to have "
-            "an action. All others must be null. "
+            f"Actions: Only {names_str} may have a "
+            "non-null action field — a 2-5 word "
+            "physical narration (e.g. \"leans against "
+            "the wall\"). Every other speaker MUST "
+            "have \"action\": null. "
             "NEVER put {item:}, {quest:}, or "
             "{spell:} placeholders in the action "
-            "field — those belong in message only."
+            f"field — those belong in message only. "
+            f"{_no_narrator}"
         )
     else:
         action_text = (
-            "Actions: Set \"action\" to null for "
-            "ALL messages in this response."
+            f"Actions: Set \"action\" to null for "
+            f"ALL messages in this response. "
+            f"{_no_narrator}"
         )
 
     # EmoteChance RNG for conversations
@@ -1099,14 +1140,13 @@ def append_conversation_json_instruction(
         )
         emote_ex = '"emote": null'
 
-    action_ex = '"action": null'
-    if allow_action:
-        action_ex = '"action": "..."'
-
+    action_ex_null = '"action": null'
+    action_ex_val = '"action": "..."'
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", "message": "...", '
-            f'{emote_ex}, {action_ex}}}'
+            f'{emote_ex}, '
+            f'{action_ex_val if name in action_speakers else action_ex_null}}}'
             for name in bot_names
         ]
     )
@@ -1178,7 +1218,7 @@ def calculate_dynamic_delay(
         # Player is waiting — fast reply, skip
         # reading simulation (bot "saw it live")
         reading_time = 0
-        reaction_time = random.uniform(0.5, 1.5)
+        reaction_time = random.uniform(0.3, 1.0)
         if message_length < 15:
             typing_time = random.uniform(0.5, 1.5)
         elif message_length < 40:
@@ -1196,7 +1236,7 @@ def calculate_dynamic_delay(
         total_delay = (
             reading_time + reaction_time + typing_time
         )
-        floor = max(min_delay, 2.0)
+        floor = max(min_delay, 1.0)
         total_delay = max(total_delay, floor)
         total_delay *= random.uniform(0.9, 1.1)
         return min(total_delay, max_delay)
@@ -1250,6 +1290,21 @@ def calculate_dynamic_delay(
 # =============================================================================
 # LLM INTERACTION
 # =============================================================================
+def get_effective_speaker_cooldown(
+    config: dict, num_bots: int = 1
+) -> int:
+    """Compute per-bot speaker cooldown scaled by
+    group size.
+
+    Formula: max(60, min(base, base * num_bots / 5))
+    where 5 = reference full party size.
+    """
+    base = int(config.get(
+        'LLMChatter.BotSpeakerCooldownSeconds', 900
+    ))
+    return max(60, min(base, base * num_bots // 5))
+
+
 def run_single_reaction(
     db,
     client: Any,
@@ -1268,10 +1323,13 @@ def run_single_reaction(
     message_transform: Any = None,
     metadata: dict = None,
     label: str = 'single_reaction',
+    num_bots: int = 1,
+    bypass_speaker_cooldown: bool = True,
 ) -> Dict[str, Any]:
     """Run shared single-message reaction pipeline.
 
     Flow:
+    0. per-bot speaker cooldown gate
     1. call_llm
     2. parse_single_response
     3. strip_speaker_prefix
@@ -1284,6 +1342,31 @@ def run_single_reaction(
       {'ok': bool, 'message': str|None, 'emote': str|None,
        'error_reason': str|None}
     """
+    # ---- per-bot speaker cooldown ----
+    if not bypass_speaker_cooldown:
+        cooldown = get_effective_speaker_cooldown(
+            config, num_bots
+        )
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT COUNT(*) AS cnt
+            FROM llm_chatter_messages
+            WHERE bot_guid = %s
+              AND delivered = 1
+              AND delivered_at > DATE_SUB(
+                  NOW(), INTERVAL %s SECOND
+              )
+        """, (bot_guid, cooldown))
+        row = cursor.fetchone()
+        cursor.close()
+        if row and row['cnt'] > 0:
+            return {
+                'ok': False,
+                'message': None,
+                'emote': None,
+                'error_reason': 'speaker_cooldown',
+            }
+
     # Randomize token budget for natural length
     # variety unless caller specified an override.
     if max_tokens_override is None:

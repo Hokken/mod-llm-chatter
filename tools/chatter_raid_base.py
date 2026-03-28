@@ -79,7 +79,6 @@ DISPATCH_BOTH_IF_BIG = "both_if_big"
 # net (C++ guards are the primary filter).
 SUPPRESSED_ALWAYS = {
     'bot_group_join',
-    'bot_group_discovery',
     'bot_group_zone_transition',
     'player_general_msg',
     'holiday_start', 'holiday_end',

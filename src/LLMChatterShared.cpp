@@ -80,14 +80,14 @@ uint8 GetTierPriority(const std::string& eventType)
     if (eventType == "player_general_msg"
         || eventType == "bot_group_death"
         || eventType == "bot_group_wipe"
+        || eventType == "bot_group_join"
+        || eventType == "bot_group_join_batch"
         || eventType == "bg_match_start"
         || eventType == "bg_pvp_kill"
         || eventType == "player_enters_zone")
         return PRIORITY_HIGH;
 
-    if (eventType == "bot_group_join"
-        || eventType == "bot_group_join_batch"
-        || eventType == "bg_idle_chatter"
+    if (eventType == "bg_idle_chatter"
         || eventType == "raid_idle_morale"
         || eventType == "weather_ambient"
         || eventType == "minor_event"
@@ -110,8 +110,7 @@ uint8 GetLegacyPriority(const std::string& eventType)
     if (eventType == "weather_change"
         || eventType == "bot_group_nearby_object")
         return 5;
-    if (eventType == "bot_group_discovery")
-        return 4;
+
     if (eventType == "weather_ambient"
         || eventType == "bot_group_zone_transition"
         || eventType == "bot_group_subzone_change")
@@ -249,12 +248,6 @@ uint32 GetLegacyReactionDelaySeconds(
         || eventType == "bot_group_subzone_change")
         return sLLMChatterConfig
             ->_reactDelayZoneTransition;
-    else if (eventType == "bot_group_discovery")
-    {
-        return urand(
-            sLLMChatterConfig->_reactDelayDiscoveryMin,
-            sLLMChatterConfig->_reactDelayDiscoveryMax);
-    }
     else if (eventType == "bot_group_nearby_object")
         return sLLMChatterConfig->_reactDelayNearbyObject;
     else if (IsStateCalloutEventType(eventType))
@@ -808,6 +801,255 @@ uint32 GetTextEmoteId(const std::string& emoteName)
     return LookupTextEmoteId(emoteName);
 }
 
+std::string GetTextEmoteName(uint32 emoteId)
+{
+    static const std::unordered_map<uint32, std::string>
+        reverseMap = {
+        {TEXT_EMOTE_AGREE,         "agree"},
+        {TEXT_EMOTE_AMAZE,         "amaze"},
+        {TEXT_EMOTE_ANGRY,         "angry"},
+        {TEXT_EMOTE_APOLOGIZE,     "apologize"},
+        {TEXT_EMOTE_APPLAUD,       "applaud"},
+        {TEXT_EMOTE_BASHFUL,       "bashful"},
+        {TEXT_EMOTE_BECKON,        "beckon"},
+        {TEXT_EMOTE_BEG,           "beg"},
+        {TEXT_EMOTE_BITE,          "bite"},
+        {TEXT_EMOTE_BLEED,         "bleed"},
+        {TEXT_EMOTE_BLINK,         "blink"},
+        {TEXT_EMOTE_BLUSH,         "blush"},
+        {TEXT_EMOTE_BONK,          "bonk"},
+        {TEXT_EMOTE_BORED,         "bored"},
+        {TEXT_EMOTE_BOUNCE,        "bounce"},
+        {TEXT_EMOTE_BRB,           "brb"},
+        {TEXT_EMOTE_BOW,           "bow"},
+        {TEXT_EMOTE_BURP,          "burp"},
+        {TEXT_EMOTE_BYE,           "bye"},
+        {TEXT_EMOTE_CACKLE,        "cackle"},
+        {TEXT_EMOTE_CHEER,         "cheer"},
+        {TEXT_EMOTE_CHICKEN,       "chicken"},
+        {TEXT_EMOTE_CHUCKLE,       "chuckle"},
+        {TEXT_EMOTE_CLAP,          "clap"},
+        {TEXT_EMOTE_CONFUSED,      "confused"},
+        {TEXT_EMOTE_CONGRATULATE,  "congratulate"},
+        {TEXT_EMOTE_COUGH,         "cough"},
+        {TEXT_EMOTE_COWER,         "cower"},
+        {TEXT_EMOTE_CRACK,         "crack"},
+        {TEXT_EMOTE_CRINGE,        "cringe"},
+        {TEXT_EMOTE_CRY,           "cry"},
+        {TEXT_EMOTE_CURIOUS,       "curious"},
+        {TEXT_EMOTE_CURTSEY,       "curtsey"},
+        {TEXT_EMOTE_DANCE,         "dance"},
+        {TEXT_EMOTE_DRINK,         "drink"},
+        {TEXT_EMOTE_DROOL,         "drool"},
+        {TEXT_EMOTE_EAT,           "eat"},
+        {TEXT_EMOTE_EYE,           "eye"},
+        {TEXT_EMOTE_FART,          "fart"},
+        {TEXT_EMOTE_FIDGET,        "fidget"},
+        {TEXT_EMOTE_FLEX,          "flex"},
+        {TEXT_EMOTE_FROWN,         "frown"},
+        {TEXT_EMOTE_GASP,          "gasp"},
+        {TEXT_EMOTE_GAZE,          "gaze"},
+        {TEXT_EMOTE_GIGGLE,        "giggle"},
+        {TEXT_EMOTE_GLARE,         "glare"},
+        {TEXT_EMOTE_GLOAT,         "gloat"},
+        {TEXT_EMOTE_GREET,         "greet"},
+        {TEXT_EMOTE_GRIN,          "grin"},
+        {TEXT_EMOTE_GROAN,         "groan"},
+        {TEXT_EMOTE_GROVEL,        "grovel"},
+        {TEXT_EMOTE_GUFFAW,        "guffaw"},
+        {TEXT_EMOTE_HAIL,          "hail"},
+        {TEXT_EMOTE_HAPPY,         "happy"},
+        {TEXT_EMOTE_HELLO,         "hello"},
+        {TEXT_EMOTE_HUG,           "hug"},
+        {TEXT_EMOTE_HUNGRY,        "hungry"},
+        {TEXT_EMOTE_KISS,          "kiss"},
+        {TEXT_EMOTE_KNEEL,         "kneel"},
+        {TEXT_EMOTE_LAUGH,         "laugh"},
+        {TEXT_EMOTE_LAYDOWN,       "laydown"},
+        {TEXT_EMOTE_MOAN,          "moan"},
+        {TEXT_EMOTE_MOON,          "moon"},
+        {TEXT_EMOTE_MOURN,         "mourn"},
+        {TEXT_EMOTE_NO,            "no"},
+        {TEXT_EMOTE_NOD,           "nod"},
+        {TEXT_EMOTE_NOSEPICK,      "nosepick"},
+        {TEXT_EMOTE_PANIC,         "panic"},
+        {TEXT_EMOTE_PEER,          "peer"},
+        {TEXT_EMOTE_PLEAD,         "plead"},
+        {TEXT_EMOTE_POINT,         "point"},
+        {TEXT_EMOTE_POKE,          "poke"},
+        {TEXT_EMOTE_PRAY,          "pray"},
+        {TEXT_EMOTE_READY,         "ready"},
+        {TEXT_EMOTE_ROAR,          "roar"},
+        {TEXT_EMOTE_RUDE,          "rude"},
+        {TEXT_EMOTE_SALUTE,        "salute"},
+        {TEXT_EMOTE_SCRATCH,       "scratch"},
+        {TEXT_EMOTE_SEXY,          "sexy"},
+        {TEXT_EMOTE_SHAKE,         "shake"},
+        {TEXT_EMOTE_SHOUT,         "shout"},
+        {TEXT_EMOTE_SHRUG,         "shrug"},
+        {TEXT_EMOTE_SHY,           "shy"},
+        {TEXT_EMOTE_SIGH,          "sigh"},
+        {TEXT_EMOTE_SIT,           "sit"},
+        {TEXT_EMOTE_SLEEP,         "sleep"},
+        {TEXT_EMOTE_SNARL,         "snarl"},
+        {TEXT_EMOTE_SPIT,          "spit"},
+        {TEXT_EMOTE_STARE,         "stare"},
+        {TEXT_EMOTE_SURPRISED,     "surprised"},
+        {TEXT_EMOTE_SURRENDER,     "surrender"},
+        {TEXT_EMOTE_TALK,          "talk"},
+        {TEXT_EMOTE_TALKEX,        "talkex"},
+        {TEXT_EMOTE_TALKQ,         "talkq"},
+        {TEXT_EMOTE_TAP,           "tap"},
+        {TEXT_EMOTE_THANK,         "thank"},
+        {TEXT_EMOTE_THREATEN,      "threaten"},
+        {TEXT_EMOTE_TIRED,         "tired"},
+        {TEXT_EMOTE_VICTORY,       "victory"},
+        {TEXT_EMOTE_WAVE,          "wave"},
+        {TEXT_EMOTE_WELCOME,       "welcome"},
+        {TEXT_EMOTE_WHINE,         "whine"},
+        {TEXT_EMOTE_WHISTLE,       "whistle"},
+        {TEXT_EMOTE_WORK,          "work"},
+        {TEXT_EMOTE_YAWN,          "yawn"},
+        {TEXT_EMOTE_BOGGLE,        "boggle"},
+        {TEXT_EMOTE_CALM,          "calm"},
+        {TEXT_EMOTE_COLD,          "cold"},
+        {TEXT_EMOTE_COMFORT,       "comfort"},
+        {TEXT_EMOTE_CUDDLE,        "cuddle"},
+        {TEXT_EMOTE_DUCK,          "duck"},
+        {TEXT_EMOTE_INSULT,        "insult"},
+        {TEXT_EMOTE_INTRODUCE,     "introduce"},
+        {TEXT_EMOTE_JK,            "jk"},
+        {TEXT_EMOTE_LICK,          "lick"},
+        {TEXT_EMOTE_LISTEN,        "listen"},
+        {TEXT_EMOTE_LOST,          "lost"},
+        {TEXT_EMOTE_MOCK,          "mock"},
+        {TEXT_EMOTE_PONDER,        "ponder"},
+        {TEXT_EMOTE_POUNCE,        "pounce"},
+        {TEXT_EMOTE_PRAISE,        "praise"},
+        {TEXT_EMOTE_PURR,          "purr"},
+        {TEXT_EMOTE_PUZZLE,        "puzzle"},
+        {TEXT_EMOTE_RAISE,         "raise"},
+        {TEXT_EMOTE_SHIMMY,        "shimmy"},
+        {TEXT_EMOTE_SHIVER,        "shiver"},
+        {TEXT_EMOTE_SHOO,          "shoo"},
+        {TEXT_EMOTE_SLAP,          "slap"},
+        {TEXT_EMOTE_SMIRK,         "smirk"},
+        {TEXT_EMOTE_SNIFF,         "sniff"},
+        {TEXT_EMOTE_SNUB,          "snub"},
+        {TEXT_EMOTE_SOOTHE,        "soothe"},
+        {TEXT_EMOTE_STINK,         "stink"},
+        {TEXT_EMOTE_TAUNT,         "taunt"},
+        {TEXT_EMOTE_TEASE,         "tease"},
+        {TEXT_EMOTE_THIRSTY,       "thirsty"},
+        {TEXT_EMOTE_VETO,          "veto"},
+        {TEXT_EMOTE_SNICKER,       "snicker"},
+        {TEXT_EMOTE_STAND,         "stand"},
+        {TEXT_EMOTE_TICKLE,        "tickle"},
+        {TEXT_EMOTE_VIOLIN,        "violin"},
+        {TEXT_EMOTE_SMILE,         "smile"},
+        {TEXT_EMOTE_RASP,          "rasp"},
+        {TEXT_EMOTE_PITY,          "pity"},
+        {TEXT_EMOTE_GROWL,         "growl"},
+        {TEXT_EMOTE_BARK,          "bark"},
+        {TEXT_EMOTE_SCARED,        "scared"},
+        {TEXT_EMOTE_FLOP,          "flop"},
+        {TEXT_EMOTE_LOVE,          "love"},
+        {TEXT_EMOTE_MOO,           "moo"},
+        {TEXT_EMOTE_COMMEND,       "commend"},
+        {TEXT_EMOTE_TRAIN,         "train"},
+        {TEXT_EMOTE_FLIRT,         "flirt"},
+        {TEXT_EMOTE_JOKE,          "joke"},
+        {TEXT_EMOTE_GOLFCLAP,      "golfclap"},
+        {TEXT_EMOTE_WINK,          "wink"},
+        {TEXT_EMOTE_PAT,           "pat"},
+        {TEXT_EMOTE_SERIOUS,       "serious"},
+        {TEXT_EMOTE_GOODLUCK,      "goodluck"},
+        {TEXT_EMOTE_BLAME,         "blame"},
+        {TEXT_EMOTE_BLANK,         "blank"},
+        {TEXT_EMOTE_BRANDISH,      "brandish"},
+        {TEXT_EMOTE_BREATH,        "breath"},
+        {TEXT_EMOTE_DISAGREE,      "disagree"},
+        {TEXT_EMOTE_DOUBT,         "doubt"},
+        {TEXT_EMOTE_EMBARRASS,     "embarrass"},
+        {TEXT_EMOTE_ENCOURAGE,     "encourage"},
+        {TEXT_EMOTE_ENEMY,         "enemy"},
+        {TEXT_EMOTE_EYEBROW,       "eyebrow"},
+        {TEXT_EMOTE_TOAST,         "toast"},
+        {TEXT_EMOTE_FAIL,          "fail"},
+        {TEXT_EMOTE_HIGHFIVE,      "highfive"},
+        {TEXT_EMOTE_MERCY,         "mercy"},
+        {TEXT_EMOTE_SING,          "sing"},
+        {TEXT_EMOTE_OBJECT,        "object"},
+        {TEXT_EMOTE_YW,            "yw"},
+        // IDs 381+ (text-only emotes)
+        {TEXT_EMOTE_ABSENT,        "absent"},
+        {TEXT_EMOTE_ARM,           "arm"},
+        {TEXT_EMOTE_AWE,           "awe"},
+        {TEXT_EMOTE_BACKPACK,      "backpack"},
+        {TEXT_EMOTE_BADFEELING,    "badfeeling"},
+        {TEXT_EMOTE_CHALLENGE,     "challenge"},
+        {TEXT_EMOTE_CHUG,          "chug"},
+        {TEXT_EMOTE_DING,          "ding"},
+        {TEXT_EMOTE_FACEPALM,      "facepalm"},
+        {TEXT_EMOTE_FAINT,         "faint"},
+        {TEXT_EMOTE_GO,            "go"},
+        {TEXT_EMOTE_GOING,         "going"},
+        {TEXT_EMOTE_GLOWER,        "glower"},
+        {TEXT_EMOTE_HEADACHE,      "headache"},
+        {TEXT_EMOTE_HICCUP,        "hiccup"},
+        {TEXT_EMOTE_HISS,          "hiss"},
+        {TEXT_EMOTE_HOLDHAND,      "holdhand"},
+        {TEXT_EMOTE_HURRY,         "hurry"},
+        {TEXT_EMOTE_IDEA,          "idea"},
+        {TEXT_EMOTE_JEALOUS,       "jealous"},
+        {TEXT_EMOTE_LUCK,          "luck"},
+        {TEXT_EMOTE_MAP,           "map"},
+        {TEXT_EMOTE_MUTTER,        "mutter"},
+        {TEXT_EMOTE_NERVOUS,       "nervous"},
+        {TEXT_EMOTE_OFFER,         "offer"},
+        {TEXT_EMOTE_PET,           "pet"},
+        {TEXT_EMOTE_PINCH,         "pinch"},
+        {TEXT_EMOTE_PROUD,         "proud"},
+        {TEXT_EMOTE_PROMISE,       "promise"},
+        {TEXT_EMOTE_PULSE,         "pulse"},
+        {TEXT_EMOTE_PUNCH,         "punch"},
+        {TEXT_EMOTE_POUT,          "pout"},
+        {TEXT_EMOTE_REGRET,        "regret"},
+        {TEXT_EMOTE_REVENGE,       "revenge"},
+        {TEXT_EMOTE_ROLLEYES,      "rolleyes"},
+        {TEXT_EMOTE_RUFFLE,        "ruffle"},
+        {TEXT_EMOTE_SAD,           "sad"},
+        {TEXT_EMOTE_SCOFF,         "scoff"},
+        {TEXT_EMOTE_SCOLD,         "scold"},
+        {TEXT_EMOTE_SCOWL,         "scowl"},
+        {TEXT_EMOTE_SEARCH,        "search"},
+        {TEXT_EMOTE_SHAKEFIST,     "shakefist"},
+        {TEXT_EMOTE_SHIFTY,        "shifty"},
+        {TEXT_EMOTE_SHUDDER,       "shudder"},
+        {TEXT_EMOTE_SIGNAL,        "signal"},
+        {TEXT_EMOTE_SILENCE,       "silence"},
+        {TEXT_EMOTE_SMACK,         "smack"},
+        {TEXT_EMOTE_SNEAK,         "sneak"},
+        {TEXT_EMOTE_SNEEZE,        "sneeze"},
+        {TEXT_EMOTE_SNORT,         "snort"},
+        {TEXT_EMOTE_SQUEAL,        "squeal"},
+        {TEXT_EMOTE_SUSPICIOUS,    "suspicious"},
+        {TEXT_EMOTE_THINK,         "think"},
+        {TEXT_EMOTE_TRUCE,         "truce"},
+        {TEXT_EMOTE_TWIDDLE,       "twiddle"},
+        {TEXT_EMOTE_WARN,          "warn"},
+        {TEXT_EMOTE_SNAP,          "snap"},
+        {TEXT_EMOTE_CHARM,         "charm"},
+        {TEXT_EMOTE_COVEREARS,     "coverears"},
+        {TEXT_EMOTE_CROSSARMS,     "crossarms"},
+        {TEXT_EMOTE_LOOK,          "look"},
+        {TEXT_EMOTE_SWEAT,         "sweat"},
+    };
+    auto it = reverseMap.find(emoteId);
+    return (it != reverseMap.end())
+        ? it->second : "wave";
+}
+
 std::string BuildBotStateJson(Player* player)
 {
     if (!player)
@@ -1136,9 +1378,10 @@ bool IsBGAllowedEmote(const std::string& emoteName)
     return allowed.count(emoteName) > 0;
 }
 
-void SendBotTextEmote(Player* bot, uint32 textEmoteId)
+void SendUnitTextEmote(Unit* unit, uint32 textEmoteId,
+                       const std::string& targetName)
 {
-    if (!bot || !textEmoteId)
+    if (!unit || !textEmoteId)
         return;
 
     EmotesTextEntry const* em =
@@ -1154,22 +1397,40 @@ void SendBotTextEmote(Player* bot, uint32 textEmoteId)
             case EMOTE_ONESHOT_NONE:
                 break;
             case EMOTE_STATE_DANCE:
-                bot->HandleEmoteCommand(
+                unit->HandleEmoteCommand(
                     EMOTE_ONESHOT_DANCESPECIAL);
                 break;
             default:
-                bot->HandleEmoteCommand(emoteAnim);
+                unit->HandleEmoteCommand(emoteAnim);
                 break;
         }
     }
 
-    WorldPacket data(SMSG_TEXT_EMOTE, 20 + 1);
-    data << bot->GetGUID();
+    WorldPacket data(SMSG_TEXT_EMOTE,
+                     20 + targetName.size() + 1);
+    data << unit->GetGUID();
     data << uint32(textEmoteId);
-    data << uint32(0);
-    data << uint32(0);
-    data << uint8(0x00);
-    bot->SendMessageToSet(&data, true);
+    data << uint32(0);  // emoteNum
+    // nameLen excludes null terminator (matches core
+    // SMSG_TEXT_EMOTE serialization in ChatHandler.cpp)
+    data << uint32(targetName.size());
+    if (!targetName.empty())
+        data.append(targetName.c_str(),
+                    targetName.size() + 1);
+    else
+        data << uint8(0x00);
+    unit->SendMessageToSet(&data, true);
+}
+
+void SendBotTextEmote(Player* bot, uint32 textEmoteId)
+{
+    SendUnitTextEmote(bot, textEmoteId);
+}
+
+void SendBotTextEmote(Player* bot, uint32 textEmoteId,
+                      const std::string& targetName)
+{
+    SendUnitTextEmote(bot, textEmoteId, targetName);
 }
 
 void SendPartyMessageInstant(

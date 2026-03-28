@@ -17,7 +17,6 @@ Handles:
 - bot_group_resurrect: gratitude when rezzed
 - bot_group_zone_transition: comment on new zone
 - bot_group_quest_accept: reaction to quest acceptance
-- bot_group_discovery: reaction to area discovery
 - bot_group_dungeon_entry: reaction to dungeon/raid
 - bot_group_wipe: reaction to total party wipe
 - idle chatter: periodic casual party chat during lulls
@@ -64,6 +63,8 @@ from chatter_shared import (
     stagger_if_needed,
     build_zone_metadata,
     get_player_zone,
+    should_include_action,
+
     PromptParts,
 )
 from chatter_db import (
@@ -107,7 +108,6 @@ from chatter_group_handlers import (
     process_group_zone_transition_event,
     process_group_quest_accept_event,
     process_group_quest_accept_batch_event,
-    process_group_discovery_event,
     process_group_dungeon_entry_event,
     process_group_wipe_event,
     process_group_corpse_run_event,
@@ -173,7 +173,6 @@ __all__ = [
     'process_group_zone_transition_event',
     'process_group_quest_accept_event',
     'process_group_quest_accept_batch_event',
-    'process_group_discovery_event',
     'process_group_dungeon_entry_event',
     'process_group_wipe_event',
     'process_group_corpse_run_event',
@@ -2914,7 +2913,6 @@ def build_idle_conversation_prompt(
             parts.append(
                 f"Rules: No quotes, no emojis; "
                 f"{length_hint}; "
-                f"keep it short; "
                 f"don't repeat themes from "
                 f"recent chat"
             )
@@ -3227,8 +3225,7 @@ def build_idle_conversation_prompt(
         parts.append(
             "Guidelines: Stay in-character for "
             "race and class; no game terms or "
-            f"OOC; {length_hint}; "
-            "vary message lengths naturally"
+            f"OOC; {length_hint}."
         )
     else:
         parts.append(
@@ -3236,8 +3233,7 @@ def build_idle_conversation_prompt(
             "players chatting — could be any age, "
             "mature and grounded; talk about the "
             "game as players, not as characters; "
-            f"{length_hint}; "
-            "vary lengths naturally"
+            f"{length_hint}."
         )
 
     parts.append(
@@ -3295,8 +3291,8 @@ def build_idle_conversation_prompt(
         action_rule = (
             "Actions: Each message may include an "
             "optional \"action\" field — a short "
-            "physical action (2-5 words, "
-            "no asterisks). Omit if not needed.\n"
+            "physical action (2-5 words, no "
+            "asterisks). Omit if not needed.\n"
         )
         action_ex = ', "action": "..."'
     else:
@@ -4021,6 +4017,7 @@ def _idle_conversation(
             topic or f"({_ctx_key} context)",
         )
 
+        allow_action = (mode == 'roleplay')
         prompt = build_idle_conversation_prompt(
             bots, traits_map, mode, topic,
             chat_history=chat_hist,
@@ -4034,6 +4031,7 @@ def _idle_conversation(
             speaker_talent_context=speaker_talent,
             area_id=area_id,
             memories_map=memories_map or None,
+            allow_action=allow_action,
         )
         logger.info(
             "[IDLE] prompt snippet: %r",
@@ -4084,6 +4082,12 @@ def _idle_conversation(
         if not messages:
             return False
 
+        # Strip actions per-message based on
+        # ActionChance — LLM can't apply true RNG
+        # so Python enforces it post-parse.
+        for msg in messages:
+            if msg.get('action') and not should_include_action():
+                msg['action'] = None
 
         # Insert messages with staggered delivery
         cumulative_delay = 2.0

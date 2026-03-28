@@ -12,6 +12,7 @@ void FlushGroupJoinBatches();
 void HandleGroupPlayerUpdateZone(
     Player* player, uint32 newZone,
     uint32 newArea);
+void EvictEmoteCooldowns();
 void AddLLMChatterGroupScripts();
 
 #endif
