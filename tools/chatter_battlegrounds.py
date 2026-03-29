@@ -43,7 +43,6 @@ from chatter_bg_prompts import (
     build_bg_pvp_kill_prompt,
     build_bg_score_milestone_prompt,
     build_bg_idle_prompt,
-    build_bg_arrival_prompt,
 )
 
 LOG = logging.getLogger("chatter_battlegrounds")
@@ -73,7 +72,8 @@ def process_bg_match_start_event(
             build_bg_match_start_prompt),
         raid_prompt_fn=(
             build_bg_match_start_prompt),
-        dispatch_mode=DISPATCH_RAID_ONLY)
+        dispatch_mode=DISPATCH_RAID_ONLY,
+        label='reaction_bg_match_start')
 
     status = (
         'completed' if result else 'skipped')
@@ -100,7 +100,8 @@ def process_bg_match_end_event(
             build_bg_match_end_prompt),
         raid_prompt_fn=(
             build_bg_match_end_prompt),
-        dispatch_mode=DISPATCH_RAID_ONLY)
+        dispatch_mode=DISPATCH_RAID_ONLY,
+        label='reaction_bg_match_end')
 
     status = (
         'completed' if result else 'skipped')
@@ -111,7 +112,7 @@ def process_bg_match_end_event(
         try:
             mem_chance = int(config.get(
                 'LLMChatter.Memory'
-                '.BGMatchGenerationChance', 45
+                '.BGMatchGenerationChance', 25
             ))
             if random.random() * 100 < mem_chance:
                 won = extra_data.get('won', False)
@@ -263,6 +264,7 @@ def _try_carrier_self_message(
             f"bg-flag-carrier:{action}"
             f":#{event_id}:{name}"),
         metadata=fc_meta or None,
+        label='reaction_bg_carrier',
     )
 
 
@@ -289,7 +291,8 @@ def process_bg_flag_event(
         db, client, config, event, extra_data,
         subgroup_prompt_fn=build_bg_flag_prompt,
         raid_prompt_fn=build_bg_flag_prompt,
-        dispatch_mode=DISPATCH_RAID_ONLY)
+        dispatch_mode=DISPATCH_RAID_ONLY,
+        label='reaction_bg_flag')
 
     # Carrier bot first-person message (pickup/drop)
     _try_carrier_self_message(
@@ -324,7 +327,8 @@ def process_bg_flag_return_event(
             build_bg_flag_return_prompt),
         raid_prompt_fn=(
             build_bg_flag_return_prompt),
-        dispatch_mode=DISPATCH_RAID_ONLY)
+        dispatch_mode=DISPATCH_RAID_ONLY,
+        label='reaction_bg_flag')
 
     status = (
         'completed' if result else 'skipped')
@@ -353,7 +357,8 @@ def process_bg_node_event(
         db, client, config, event, extra_data,
         subgroup_prompt_fn=build_bg_node_prompt,
         raid_prompt_fn=None,
-        dispatch_mode=DISPATCH_SUBGROUP_ONLY)
+        dispatch_mode=DISPATCH_SUBGROUP_ONLY,
+        label='reaction_bg_node')
 
     status = (
         'completed' if result else 'skipped')
@@ -379,7 +384,8 @@ def process_bg_pvp_kill_event(
         subgroup_prompt_fn=(
             build_bg_pvp_kill_prompt),
         raid_prompt_fn=None,
-        dispatch_mode=DISPATCH_SUBGROUP_ONLY)
+        dispatch_mode=DISPATCH_SUBGROUP_ONLY,
+        label='reaction_bg_pvp_kill')
 
     status = (
         'completed' if result else 'skipped')
@@ -390,7 +396,7 @@ def process_bg_pvp_kill_event(
         try:
             mem_chance = int(config.get(
                 'LLMChatter.Memory'
-                '.PvPKillGenerationChance', 25
+                '.PvPKillGenerationChance', 10
             ))
             if random.random() * 100 < mem_chance:
                 victim_name = extra_data.get(
@@ -463,7 +469,8 @@ def process_bg_score_milestone_event(
         subgroup_prompt_fn=(
             build_bg_score_milestone_prompt),
         raid_prompt_fn=None,
-        dispatch_mode=DISPATCH_SUBGROUP_ONLY)
+        dispatch_mode=DISPATCH_SUBGROUP_ONLY,
+        label='reaction_bg_score')
 
     status = (
         'completed' if result else 'skipped')
@@ -493,7 +500,8 @@ def process_bg_idle_chatter_event(
         db, client, config, event, extra_data,
         subgroup_prompt_fn=build_bg_idle_prompt,
         raid_prompt_fn=None,
-        dispatch_mode=DISPATCH_SUBGROUP_ONLY)
+        dispatch_mode=DISPATCH_SUBGROUP_ONLY,
+        label='reaction_bg_idle')
 
     status = (
         'completed' if result else 'skipped')
@@ -501,102 +509,3 @@ def process_bg_idle_chatter_event(
     return result
 
 
-def process_bg_arrival_event(
-    db, client, config, event
-):
-    """Handle bg_player_arrival -- greeting on BG join.
-
-    Fires 2-3 bots with staggered delays so the
-    greetings arrive after the BG loading screen.
-    """
-    event_id = event['id']
-    extra_data = parse_extra_data(
-        event.get('extra_data'),
-        event_id, 'bg_player_arrival')
-
-    if not extra_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    if is_event_suppressed(
-            'bg_player_arrival', extra_data):
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # Inject db/config refs for prompt builders
-    extra_data['_db'] = db
-    extra_data['_config'] = config
-
-    party_guids = get_subgroup_bots(extra_data)
-    if not party_guids:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # Pick 2-3 bots (or all if fewer available)
-    num_greeters = min(
-        random.randint(2, 3), len(party_guids))
-    chosen = random.sample(
-        party_guids, num_greeters)
-
-    group_id = int(
-        extra_data.get('group_id', 0))
-    any_sent = False
-    base_delay = 10  # seconds after BG load
-    bg_max_tokens = int(config.get(
-        'LLMChatter.BGChatter.MaxTokens',
-        32,
-    ))
-
-    for idx, bot_guid in enumerate(chosen):
-        trait_data = get_bot_traits(
-            db, group_id, bot_guid)
-        if not trait_data:
-            trait_data = get_lightweight_bot_data(
-                db, bot_guid)
-            if not trait_data:
-                continue
-
-        bot_name = trait_data['bot_name']
-        bot_class = trait_data.get('class', '')
-        talent_ctx = _maybe_talent_context(
-            config, db, bot_guid,
-            bot_class, bot_name,
-        )
-        if talent_ctx:
-            extra_data['_talent_context'] = (
-                talent_ctx)
-        else:
-            extra_data.pop(
-                '_talent_context', None)
-        prompt = build_bg_arrival_prompt(
-            extra_data, trait_data,
-            is_raid_worker=False)
-
-        arr_meta = {}
-        if talent_ctx:
-            arr_meta['speaker_talent'] = (
-                talent_ctx
-            )
-        delay = base_delay + idx * 6
-        result = run_single_reaction(
-            db, client, config,
-            prompt=prompt,
-            speaker_name=bot_name,
-            bot_guid=bot_guid,
-            channel='party',
-            delay_seconds=delay,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            max_tokens_override=bg_max_tokens,
-            context=(
-                f"bg-arrival:#{event_id}"
-                f":{bot_name}"),
-            metadata=arr_meta or None,
-        )
-        if result.get('ok'):
-            any_sent = True
-
-    status = (
-        'completed' if any_sent else 'skipped')
-    _mark_event(db, event_id, status)
-    return any_sent

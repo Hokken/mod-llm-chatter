@@ -320,7 +320,7 @@ def _deliver_statement(
             f"{event.get('event_type', '')}:"
             f"{bot['bot1_name']}"
         ),
-        label='event_statement',
+        label='reaction_world_event',
     )
 
     if result and result.get('ok'):

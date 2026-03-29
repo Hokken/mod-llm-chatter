@@ -489,19 +489,60 @@ static void EnsureGroupJoinQueued(
     if (!bot || !group)
         return;
 
+    uint32 botGuid =
+        bot->GetGUID().GetCounter();
     uint32 groupId =
         group->GetGUID().GetCounter();
 
-    // Quick check under mutex: skip if already
-    // pending or previously flushed
+    // Quick check under mutex: skip if this bot
+    // was already greeted, batch already flushed,
+    // or bot already in an existing batch
     {
         std::lock_guard<std::mutex> guard(
             _groupJoinBatchMutex);
 
+        if (_greetedBotGuids.count(botGuid))
+            return;
         if (_groupJoinFlushed.count(groupId))
             return;
         if (_groupJoinBatches.count(groupId))
+        {
+            // Batch exists (from OnAddMember).
+            // Check if this bot is already in it.
+            auto& existing =
+                _groupJoinBatches[groupId];
+            for (auto const& e : existing.bots)
+            {
+                if (e.botGuid == botGuid)
+                    return; // already captured
+            }
+            // Bot missing from batch — append it.
+            GroupJoinEntry entry;
+            entry.botGuid = botGuid;
+            entry.botName = bot->GetName();
+            entry.botClass = bot->getClass();
+            entry.botRace = bot->getRace();
+            entry.botLevel = bot->GetLevel();
+            entry.role = "dps";
+            PlayerbotAI* ai =
+                GET_PLAYERBOT_AI(bot);
+            if (ai)
+            {
+                if (PlayerbotAI::IsTank(bot))
+                    entry.role = "tank";
+                else if (
+                    PlayerbotAI::IsHeal(bot))
+                    entry.role = "healer";
+                else if (
+                    PlayerbotAI::IsRanged(bot))
+                    entry.role = "ranged_dps";
+                else
+                    entry.role = "melee_dps";
+            }
+            existing.bots.push_back(
+                std::move(entry));
             return;
+        }
     }
 
     // Gather info for ALL bots in the group
@@ -602,9 +643,32 @@ static void EnsureGroupJoinQueued(
 
         // Re-check under lock (another thread
         // may have raced us)
-        if (_groupJoinFlushed.count(groupId)
-            || _groupJoinBatches.count(groupId))
+        if (_groupJoinFlushed.count(groupId))
             return;
+        if (_groupJoinBatches.count(groupId))
+        {
+            // Race: batch appeared while we were
+            // gathering. Append any missing bots.
+            auto& existing =
+                _groupJoinBatches[groupId];
+            for (auto& b : batch.bots)
+            {
+                bool found = false;
+                for (auto const& e
+                     : existing.bots)
+                {
+                    if (e.botGuid == b.botGuid)
+                    {
+                        found = true;
+                        break;
+                    }
+                }
+                if (!found)
+                    existing.bots.push_back(
+                        std::move(b));
+            }
+            return;
+        }
 
         _groupJoinBatches[groupId] =
             std::move(batch);
@@ -3747,9 +3811,95 @@ public:
         if (!player)
             return;
 
-        if (!IsPlayerBot(player))
-            return;
+        // Real player enters dungeon/raid →
+        // queue bot_group_dungeon_entry once
+        if (!IsPlayerBot(player)) {
+            Map* map = player->GetMap();
+            if (!map
+                || (!map->IsDungeon()
+                    && !map->IsRaid()))
+                return;
 
+            Group* group = player->GetGroup();
+            if (!group
+                || !GroupHasBots(group))
+                return;
+
+            uint32 groupId =
+                group->GetGUID().GetCounter();
+
+            // Per-group cooldown
+            time_t now = time(nullptr);
+            auto it =
+                _groupDungeonCooldowns
+                    .find(groupId);
+            if (it
+                != _groupDungeonCooldowns.end()
+                && (now - it->second)
+                   < (time_t)sLLMChatterConfig
+                       ->_groupDungeonCooldown)
+                return;
+
+            // RNG chance
+            if (urand(1, 100)
+                > sLLMChatterConfig
+                      ->_groupDungeonChance)
+                return;
+
+            _groupDungeonCooldowns[groupId] =
+                now;
+
+            uint32 mapId = map->GetId();
+            std::string mapName =
+                map->GetMapName()
+                    ? map->GetMapName() : "";
+            bool isRaid = map->IsRaid();
+
+            std::string extraData = "{"
+                "\"group_id\":" +
+                    std::to_string(groupId) +
+                    ","
+                "\"map_id\":" +
+                    std::to_string(mapId) + ","
+                "\"map_name\":\"" +
+                    JsonEscape(mapName) + "\","
+                "\"is_raid\":" +
+                    std::string(
+                        isRaid
+                            ? "true"
+                            : "false") + ","
+                "\"zone_id\":" +
+                    std::to_string(
+                        player->GetZoneId()) +
+                "}";
+
+            extraData = EscapeString(extraData);
+
+            QueueChatterEvent(
+                "bot_group_dungeon_entry",
+                "player",
+                player->GetZoneId(),
+                mapId,
+                GetChatterEventPriority(
+                    "bot_group_dungeon_entry"),
+                "",
+                player->GetGUID()
+                    .GetRawValue(),
+                player->GetName(),
+                0,
+                mapName,
+                0,
+                extraData,
+                GetReactionDelaySeconds(
+                    "bot_group_dungeon_entry"),
+                300,
+                false
+            );
+            return;
+        }
+
+        // Bot path: only ensure traits for
+        // LFG / BG groups (no dungeon entry)
         Map* map = player->GetMap();
         if (!map
             || (!map->IsDungeon()
@@ -3763,104 +3913,11 @@ public:
         if (!GroupHasRealPlayer(group))
             return;
 
-        // LFG / BG fix: the dungeon finder and
-        // battleground systems reuse the existing
-        // group without calling AddMember, so
-        // OnAddMember never fires and bots get
-        // no traits.  Queue a join batch if none
-        // exists yet for this group.
-        // (BG chatter is future work — this
-        // ensures traits are ready when it lands.)
         EnsureGroupJoinQueued(player, group);
 
-        // BG entry event handled in Phase 2 —
-        // skip dungeon entry chatter for BGs
+        // BG entry handled elsewhere
         if (map->IsBattleground())
             return;
-
-        uint32 groupId =
-            group->GetGUID().GetCounter();
-
-        // Per-group cooldown
-        time_t now = time(nullptr);
-        auto it =
-            _groupDungeonCooldowns
-                .find(groupId);
-        if (it
-            != _groupDungeonCooldowns.end()
-            && (now - it->second)
-               < (time_t)sLLMChatterConfig
-                   ->_groupDungeonCooldown)
-            return;
-
-        // RNG chance
-        if (urand(1, 100)
-            > sLLMChatterConfig
-                  ->_groupDungeonChance)
-            return;
-
-        _groupDungeonCooldowns[groupId] = now;
-
-        uint32 botGuid =
-            player->GetGUID().GetCounter();
-        std::string botName =
-            player->GetName();
-        std::string mapName =
-            map->GetMapName();
-        bool isRaid = map->IsRaid();
-
-        std::string extraData = "{"
-            "\"bot_guid\":" +
-                std::to_string(botGuid) + ","
-            "\"bot_name\":\"" +
-                JsonEscape(botName) + "\","
-            "\"bot_class\":" +
-                std::to_string(
-                    player->getClass()) + ","
-            "\"bot_race\":" +
-                std::to_string(
-                    player->getRace()) + ","
-            "\"bot_level\":" +
-                std::to_string(
-                    player->GetLevel()) + ","
-            "\"group_id\":" +
-                std::to_string(groupId) + ","
-            "\"map_id\":" +
-                std::to_string(
-                    map->GetId()) + ","
-            "\"map_name\":\"" +
-                JsonEscape(mapName) + "\","
-            "\"is_raid\":" +
-                std::string(
-                    isRaid
-                        ? "true"
-                        : "false") + ","
-            "\"zone_id\":" +
-                std::to_string(
-                    player->GetZoneId()) +
-            "}";
-
-        extraData = EscapeString(extraData);
-
-        QueueChatterEvent(
-            "bot_group_dungeon_entry",
-            "player",
-            player->GetZoneId(),
-            map->GetId(),
-            GetChatterEventPriority(
-                "bot_group_dungeon_entry"),
-            "",
-            botGuid,
-            botName,
-            0,
-            mapName,
-            0,
-            extraData,
-            GetReactionDelaySeconds(
-                "bot_group_dungeon_entry"),
-            300,
-            false
-        );
 
     }
 

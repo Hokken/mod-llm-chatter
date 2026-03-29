@@ -1301,3 +1301,4 @@ LLMChatter.EmoteReactions.MoodSpreadChance = 50
 #       Default: 1
 #
 LLMChatter.EmoteReactions.NPCMirrorEnable = 1
+

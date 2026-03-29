@@ -30,6 +30,7 @@ from chatter_db import (
     insert_chat_message,
     get_character_info_by_name,
 )
+from chatter_constants import BG_MAP_NAMES
 from chatter_text import (
     strip_speaker_prefix,
     cleanup_message,
@@ -234,6 +235,8 @@ def process_group_kill_event(
             is_boss, is_rare, mode,
             chat_history=chat_hist,
             extra_data=extra_data,
+            allow_action=not extra_data.get(
+                'is_battleground', False),
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
             map_id=map_id,
@@ -260,6 +263,7 @@ def process_group_kill_event(
             context=(
                 f"grp-kill:#{event_id}:{bot_name}"
             ),
+            label='reaction_kill',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -484,6 +488,7 @@ def process_group_loot_event(
                 f":{bot['name']}"
             ),
             message_transform=_loot_message_transform,
+            label='reaction_loot',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -644,6 +649,7 @@ def process_group_combat_event(
                 f"grp-combat:#{event_id}"
                 f":{bot_name}"
             ),
+            label='reaction_combat',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -811,6 +817,8 @@ def process_group_death_event(
             chat_history=chat_hist,
             is_player_death=is_player_death,
             extra_data=extra_data,
+            allow_action=not extra_data.get(
+                'is_battleground', False),
             speaker_talent_context=speaker_talent,
             stored_tone=stored_tone,
             map_id=map_id,
@@ -838,6 +846,7 @@ def process_group_death_event(
                 f"grp-death:#{event_id}"
                 f":{reactor_name}"
             ),
+            label='reaction_death',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -991,6 +1000,7 @@ def process_group_levelup_event(
                 f"grp-levelup:#{event_id}"
                 f":{reactor_name}"
             ),
+            label='reaction_levelup',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -1279,6 +1289,7 @@ def process_group_quest_complete_event(
                 f"grp-quest:#{event_id}"
                 f":{reactor_name}"
             ),
+            label='reaction_quest_complete',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -1507,6 +1518,7 @@ def process_group_quest_objectives_event(
                 f"grp-objectives:#{event_id}"
                 f":{reactor_name}"
             ),
+            label='reaction_quest_complete',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -1839,6 +1851,7 @@ def process_group_achievement_event(
                 f"grp-achieve:#{event_id}"
                 f":{reactor_name}"
             ),
+            label='reaction_achievement',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -1856,8 +1869,13 @@ def process_group_achievement_event(
             group_id, reactor_guid, 'achievement'
         )
 
-        # Memory: ALL bots remember the achievement
-        # (achievements are milestones worth 100%)
+        # Memory: ALL bots remember the achievement.
+        # Skip in BG — achievements fire constantly
+        # (Honorable Kill, etc.) and would flood
+        # memory with low-value entries.
+        if extra_data.get('is_battleground'):
+            _mark_event(db, event_id, 'completed')
+            return True
         try:
             mc = db.cursor(dictionary=True)
             mc.execute(
@@ -2065,6 +2083,7 @@ def process_group_spell_cast_event(
                 f"grp-spell:#{event_id}"
                 f":{bot['name']}"
             ),
+            label='reaction_spell',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -2193,6 +2212,7 @@ def process_group_resurrect_event(
                 f"grp-resurrect:#{event_id}"
                 f":{bot_name}"
             ),
+            label='reaction_rez',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -2252,9 +2272,17 @@ def process_group_zone_transition_event(
     # Use live traits (single source of truth) for
     # all location data — avoids mixing event-time
     # extra_data with live-time traits lookups.
-    zone_id, area_id, _ = get_group_location(
+    zone_id, area_id, map_id = get_group_location(
         db, group_id
     )
+
+    # BG subzone moves are constant noise — bots
+    # sprint between flag rooms, lumber mill, etc.
+    # bg_idle_chatter already covers ambient BG
+    # narrative, so suppress zone transitions in BG.
+    if map_id in BG_MAP_NAMES:
+        _mark_event(db, event_id, 'skipped')
+        return False
     zone_name = (
         get_zone_name(zone_id)
         if zone_id else None
@@ -2350,6 +2378,7 @@ def process_group_zone_transition_event(
             delay_seconds=2,
             event_id=event_id,
             allow_emote_fallback=True,
+            label='reaction_zone_transition',
             context=(
                 f"grp-zone:#{event_id}"
                 f":{bot_name}"
@@ -2578,6 +2607,7 @@ def process_group_quest_accept_event(
                 f"grp-qacc:#{event_id}"
                 f":{reactor_name}"
             ),
+            label='reaction_quest_accept',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -2736,6 +2766,7 @@ def process_group_quest_accept_batch_event(
                 f"grp-qbatch:#{event_id}"
                 f":{reactor_name}"
             ),
+            label='reaction_quest_accept',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -2865,6 +2896,7 @@ def process_group_dungeon_entry_event(
             delay_seconds=delay,
             event_id=event_id,
             allow_emote_fallback=True,
+            label='reaction_dungeon_entry',
             context=(
                 f"grp-dungeon:#{event_id}"
                 f":{bot_name}"
@@ -3010,6 +3042,7 @@ def process_group_wipe_event(
                 f"grp-wipe:#{event_id}"
                 f":{bot_name}"
             ),
+            label='reaction_wipe',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -3177,6 +3210,7 @@ def process_group_corpse_run_event(
                 f"grp-corpse:#{event_id}"
                 f":{bot_name}"
             ),
+            label='reaction_corpse_run',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -3312,6 +3346,7 @@ def process_group_low_health_event(
                 f"grp-lowHP:#{event_id}"
                 f":{bot_name}"
             ),
+            label='reaction_low_health',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -3445,6 +3480,7 @@ def process_group_oom_event(
                 f"grp-oom:#{event_id}"
                 f":{bot_name}"
             ),
+            label='reaction_oom',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -3563,6 +3599,7 @@ def process_group_aggro_loss_event(
                 f"grp-aggro:#{event_id}"
                 f":{bot_name}"
             ),
+            label='reaction_aggro_loss',
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -3727,6 +3764,7 @@ def process_group_nearby_object_event(
         event_id=event_id,
         allow_emote_fallback=True,
         metadata=zone_meta,
+        label='reaction_nearby_obj',
     )
 
     if not result['ok']:

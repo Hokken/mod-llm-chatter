@@ -102,7 +102,6 @@ from chatter_battlegrounds import (
     process_bg_pvp_kill_event,
     process_bg_score_milestone_event,
     process_bg_idle_chatter_event,
-    process_bg_arrival_event,
 )
 from chatter_raids import (
     process_raid_boss_pull_event,
@@ -558,8 +557,6 @@ EVENT_HANDLERS = {
         process_bg_score_milestone_event,
     'bg_idle_chatter':
         process_bg_idle_chatter_event,
-    'bg_player_arrival':
-        process_bg_arrival_event,
     # Raid events (PvE)
     'raid_boss_pull':
         process_raid_boss_pull_event,
@@ -609,7 +606,6 @@ EVENT_LOG_OVERRIDES = {
     'bg_pvp_kill': 'BG event',
     'bg_score_milestone': 'BG event',
     'bg_idle_chatter': 'BG event',
-    'bg_player_arrival': 'BG event',
     'raid_boss_pull': 'Raid event',
     'raid_boss_kill': 'Raid event',
     'raid_boss_wipe': 'Raid event',

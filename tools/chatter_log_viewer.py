@@ -796,12 +796,12 @@ a{color:#e94560}
 <div class="left" id="leftPanel">
   <div class="hdr">LLM Log Viewer
     <span id="title-total"></span>
-    <a href="/export"
-      style="margin-left:auto;font-size:11px;
-        color:#ccc;text-decoration:none;
-        background:#333;padding:2px 8px;
-        border:1px solid #555;border-radius:3px"
-      >Export Debug Log</a>
+    <button onclick="clearLogs()"
+      style="margin-left:auto;font-size:11px;color:#fff;
+        background:#8b0000;border:1px solid #c00;
+        padding:2px 8px;border-radius:3px;
+        cursor:pointer;font-family:inherit">
+      Clear Logs</button>
     <a href="/memories"
       style="font-size:11px;
         color:#e94560;text-decoration:none">
@@ -1369,6 +1369,21 @@ setInterval(()=>{
     fetchLogs();fetchStats();
   }
 },30000);
+
+function clearLogs(){
+  if(!confirm('Delete all log files? This cannot be undone.')) return;
+  fetch('/api/clear-logs',{method:'POST'})
+    .then(r=>r.json())
+    .then(d=>{
+      if(d.ok){
+        alert('Logs cleared: '+d.deleted.join(', '));
+        fetchLogs();fetchStats();
+      } else {
+        alert('Clear failed: '+(d.error||d.errors.join('; ')));
+      }
+    })
+    .catch(e=>alert('Request failed: '+e));
+}
 </script>
 </body>
 </html>"""
@@ -2122,6 +2137,32 @@ def _build_export(entries):
     return '\n'.join(lines)
 
 
+def _api_clear_logs():
+    """Delete all log files in SNAPSHOT_DIR."""
+    if SNAPSHOT_DIR is None:
+        return {'ok': False, 'error': 'no log dir'}
+    files = [
+        ('llm_requests', LOG_PATH),
+        ('db_memories', SNAPSHOT_DIR / 'db_memories.json'),
+        ('db_messages', SNAPSHOT_DIR / 'db_messages.json'),
+        ('db_queue',    SNAPSHOT_DIR / 'db_queue.json'),
+    ]
+    deleted = []
+    errors = []
+    for name, path in files:
+        try:
+            if path and path.exists():
+                path.unlink()
+                deleted.append(name)
+        except Exception as e:
+            errors.append(f'{name}: {e}')
+    return {
+        'ok': len(errors) == 0,
+        'deleted': deleted,
+        'errors': errors,
+    }
+
+
 class Handler(BaseHTTPRequestHandler):
     def log_message(self, fmt, *args):
         # Suppress per-request access logs
@@ -2158,29 +2199,13 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(404)
         self.end_headers()
 
-    def _send_export(self):
-        from datetime import datetime, timezone
-        entries = _read_entries()
-        text = _build_export(entries)
-        body = text.encode('utf-8')
-        ts = datetime.now(timezone.utc).strftime(
-            '%Y%m%d_%H%M%S'
-        )
-        fname = f'chatter_debug_{ts}.txt'
-        self.send_response(200)
-        self.send_header(
-            'Content-Type',
-            'text/plain; charset=utf-8'
-        )
-        self.send_header(
-            'Content-Disposition',
-            f'attachment; filename={fname}'
-        )
-        self.send_header(
-            'Content-Length', str(len(body))
-        )
-        self.end_headers()
-        self.wfile.write(body)
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path == '/api/clear-logs':
+            self._send_json(_api_clear_logs())
+        else:
+            self._send_404()
 
     def do_GET(self):
         parsed = urlparse(self.path)
@@ -2191,8 +2216,6 @@ class Handler(BaseHTTPRequestHandler):
             self._send_html(INDEX_HTML)
         elif path == '/memories':
             self._send_html(MEMORIES_HTML)
-        elif path == '/export':
-            self._send_export()
         elif path == '/api/logs':
             self._send_json(_api_logs(qs))
         elif path == '/api/memories':

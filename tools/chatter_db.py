@@ -999,6 +999,12 @@ def cleanup_stale_groups(db) -> int:
                       WHERE group_id = t.group_id
                   )
             )
+            AND NOT EXISTS (
+                SELECT 1
+                FROM llm_group_bot_traits t2
+                WHERE t2.group_id = t.group_id
+                  AND t2.map IN (30, 489, 529, 566)
+            )
         """)
         stale = cursor.fetchall()
         if not stale:

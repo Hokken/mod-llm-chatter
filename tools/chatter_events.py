@@ -696,6 +696,7 @@ def process_zone_intrusion_event(
         event_id=event.get('id'),
         max_tokens_override=60,
         allow_emote_fallback=False,
+        label='reaction_zone_intrusion',
     )
 
     return True

@@ -80,6 +80,7 @@ def handle_emote_reaction(db, client, config, event):
             f"emote-react:#{event_id}:{bot_name}"
         ),
         bypass_speaker_cooldown=True,
+        label='reaction_emote',
     )
     if not result['ok']:
         _mark_event(db, event_id, 'skipped')

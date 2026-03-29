@@ -16,6 +16,7 @@
 #include "BattlegroundEY.h"
 #include "GameTime.h"
 #include "Log.h"
+#include "Playerbots.h"
 
 #include <map>
 #include <unordered_map>
@@ -1023,17 +1024,161 @@ public:
                     || !GroupHasBots(arrGroup))
                     continue;
 
-                std::string extra = "{"
+                // Build bots array from group
+                std::string botsJson = "[";
+                bool hasBot = false;
+                for (GroupReference* ref =
+                         arrGroup->GetFirstMember();
+                     ref; ref = ref->next())
+                {
+                    Player* m = ref->GetSource();
+                    if (!m || !IsPlayerBot(m))
+                        continue;
+
+                    std::string role = "dps";
+                    PlayerbotAI* ai =
+                        GET_PLAYERBOT_AI(m);
+                    if (ai)
+                    {
+                        if (PlayerbotAI::IsTank(m))
+                            role = "tank";
+                        else if (
+                            PlayerbotAI::IsHeal(m))
+                            role = "healer";
+                        else if (
+                            PlayerbotAI::IsRanged(m))
+                            role = "ranged_dps";
+                        else
+                            role = "melee_dps";
+                    }
+
+                    if (hasBot)
+                        botsJson += ",";
+                    botsJson += "{"
+                        "\"bot_guid\":" +
+                            std::to_string(
+                                m->GetGUID()
+                                    .GetCounter()) +
+                        ","
+                        "\"bot_name\":\"" +
+                            JsonEscape(
+                                m->GetName()) +
+                        "\","
+                        "\"bot_class\":" +
+                            std::to_string(
+                                m->getClass()) +
+                        ","
+                        "\"bot_race\":" +
+                            std::to_string(
+                                m->getRace()) +
+                        ","
+                        "\"bot_level\":" +
+                            std::to_string(
+                                m->GetLevel()) +
+                        ","
+                        "\"role\":\"" + role +
+                        "\","
+                        "\"zone\":" +
+                            std::to_string(
+                                m->GetZoneId()) +
+                        ","
+                        "\"map\":" +
+                            std::to_string(
+                                m->GetMapId()) +
+                        "}";
+                    hasBot = true;
+                }
+                botsJson += "]";
+
+                if (!hasBot)
+                    continue;
+
+                uint32 zoneId =
+                    arrPlayer->GetZoneId();
+                uint32 mapId =
+                    arrPlayer->GetMapId();
+
+                std::string bgName = bg->GetName();
+                for (size_t p = 0;
+                     (p = bgName.find('"', p))
+                         != std::string::npos;
+                     p += 2)
+                    bgName.insert(p, "\\");
+
+                std::string teamStr =
+                    arrPlayer->GetBgTeamId()
+                        == TEAM_ALLIANCE
+                            ? "Alliance" : "Horde";
+
+                uint32 groupId =
+                    arrGroup->GetGUID()
+                        .GetCounter();
+
+                std::string extraData = "{"
+                    "\"group_id\":" +
+                        std::to_string(groupId) +
+                    ","
                     "\"player_name\":\"" +
-                    JsonEscape(
-                        arrPlayer->GetName()) +
-                    "\"}";
-                AppendBGContext(
-                    bg, arrPlayer, extra);
-                QueueBGEvent(
-                    arrPlayer,
-                    "bg_player_arrival",
-                    extra);
+                        JsonEscape(
+                            arrPlayer->GetName()) +
+                    "\","
+                    "\"zone\":" +
+                        std::to_string(zoneId) +
+                    ","
+                    "\"area\":" +
+                        std::to_string(
+                            arrPlayer
+                                ->GetAreaId()) +
+                    ","
+                    "\"map\":" +
+                        std::to_string(mapId) +
+                    ","
+                    "\"bg_type\":\"" + bgName +
+                    "\","
+                    "\"bg_type_id\":" +
+                        std::to_string(
+                            bg->GetBgTypeID()) +
+                    ","
+                    "\"team\":\"" + teamStr +
+                    "\","
+                    "\"bots\":" + botsJson +
+                    "}";
+                extraData =
+                    EscapeString(extraData);
+
+                // First bot as subject
+                GroupReference* firstRef =
+                    arrGroup->GetFirstMember();
+                uint32 firstBotGuid = 0;
+                std::string firstBotName;
+                for (GroupReference* r = firstRef;
+                     r; r = r->next())
+                {
+                    Player* fb = r->GetSource();
+                    if (fb && IsPlayerBot(fb))
+                    {
+                        firstBotGuid =
+                            fb->GetGUID()
+                                .GetCounter();
+                        firstBotName =
+                            fb->GetName();
+                        break;
+                    }
+                }
+
+                QueueChatterEvent(
+                    "bot_group_join_batch",
+                    "player",
+                    zoneId, mapId,
+                    GetChatterEventPriority(
+                        "bot_group_join_batch"),
+                    "",
+                    firstBotGuid, firstBotName,
+                    0, "", 0,
+                    extraData,
+                    GetReactionDelaySeconds(
+                        "bot_group_join_batch"),
+                    120, false);
             }
             tracker.pendingArrivals.clear();
         }

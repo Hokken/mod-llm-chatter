@@ -176,6 +176,7 @@ def dual_worker_dispatch(
     raid_prompt_fn: Optional[Callable] = None,
     dispatch_mode: str = DISPATCH_BOTH_IF_BIG,
     config_prefix: str = 'BGChatter',
+    label: str = 'reaction_raid',
 ) -> bool:
     """Route event to sub-group worker, raid worker,
     or both.
@@ -211,7 +212,8 @@ def dual_worker_dispatch(
             db, client, config,
             event, extra_data,
             prompt_fn=subgroup_prompt_fn,
-            config_prefix=config_prefix)
+            config_prefix=config_prefix,
+            label=label)
         if sg_result:
             any_sent = True
 
@@ -244,7 +246,8 @@ def dual_worker_dispatch(
                 event, extra_data,
                 prompt_fn=raid_prompt_fn,
                 exclude_guids=used,
-                config_prefix=config_prefix)
+                config_prefix=config_prefix,
+                label=label)
             if rw_result:
                 any_sent = True
 
@@ -256,6 +259,7 @@ def fire_subgroup_worker(
     event: dict, extra_data: dict,
     prompt_fn: Optional[Callable] = None,
     config_prefix: str = 'BGChatter',
+    label: str = 'reaction_raid',
 ) -> Optional[Dict[str, Any]]:
     """Select bot from player's sub-group, build
     prompt, call LLM, insert message.
@@ -346,6 +350,7 @@ def fire_subgroup_worker(
             f"squad:#{event.get('id')}"
             f":{bot_name}"),
         metadata=sg_meta or None,
+        label=label,
     )
 
     if not result.get('ok'):
@@ -360,6 +365,7 @@ def fire_raid_worker(
     prompt_fn: Optional[Callable] = None,
     exclude_guids: Optional[List[int]] = None,
     config_prefix: str = 'BGChatter',
+    label: str = 'reaction_raid',
 ) -> Optional[Dict[str, Any]]:
     """Select bot from OTHER sub-groups, build
     lightweight prompt, call LLM, insert message.
@@ -455,6 +461,7 @@ def fire_raid_worker(
             f"crowd:#{event.get('id')}"
             f":{bot_name}"),
         metadata=rw_meta or None,
+        label=label,
     )
 
     if not result.get('ok'):

@@ -647,6 +647,9 @@ def process_group_event(db, client, config, event):
             config, db, bot_guid,
             bot['class'], bot_name,
         )
+        greet_zone_id, _, greet_map_id = (
+            get_group_location(db, group_id)
+        )
         prompt = build_bot_greeting_prompt(
             bot, traits, mode,
             chat_history=chat_hist,
@@ -658,6 +661,8 @@ def process_group_event(db, client, config, event):
             player_name_known=player_name_known,
             recall_memory=recall_memory,
             stored_tone=stored_tone,
+            map_id=greet_map_id,
+            zone_id=greet_zone_id,
         )
 
         # 3. Call LLM
@@ -776,7 +781,7 @@ def process_group_join_batch_event(
 
     if not group_id or not isinstance(
         bots_raw, list
-    ) or len(bots_raw) < 2:
+    ) or len(bots_raw) < 1:
         _mark_event(db, event_id, 'skipped')
         return False
 
@@ -817,6 +822,10 @@ def process_group_join_batch_event(
     greeted_bots = []
     last_bot = None
     last_delay = 0
+
+    # Resolve player zone/map BEFORE the per-bot loop
+    # so pz/pm are available for greeting prompts.
+    pz, pm = get_player_zone(db, player_name)
 
     try:
         # --- Per-bot greetings (staggered) ---
@@ -1005,6 +1014,32 @@ def process_group_join_batch_event(
                 config, db, bot_guid,
                 bot['class'], bot_name,
             )
+            # BG context: if extra_data contains
+            # bg_type, build a bg_context dict for
+            # the prompt builder instead of zone/
+            # dungeon flavor.
+            _bg_ctx = None
+            if extra_data.get('bg_type'):
+                _bg_ctx = {
+                    'bg_type_id': int(
+                        extra_data.get(
+                            'bg_type_id', 0)),
+                    'bg_type': extra_data.get(
+                        'bg_type', ''),
+                    'team': extra_data.get(
+                        'team', ''),
+                }
+                sa = extra_data.get(
+                    'score_alliance')
+                sh = extra_data.get(
+                    'score_horde')
+                if sa is not None:
+                    _bg_ctx['score_alliance'] = (
+                        int(sa))
+                if sh is not None:
+                    _bg_ctx['score_horde'] = (
+                        int(sh))
+
             prompt = build_bot_greeting_prompt(
                 bot, traits, mode,
                 chat_history=chat_hist,
@@ -1016,6 +1051,9 @@ def process_group_join_batch_event(
                 player_name_known=bot_player_known,
                 recall_memory=bot_recall,
                 stored_tone=stored_tone,
+                map_id=pm or 0,
+                zone_id=pz or 0,
+                bg_context=_bg_ctx,
             )
 
             # 3. Call LLM
@@ -3519,6 +3557,12 @@ def check_idle_group_chatter(
         # in real-time.
         zone_id, area_id, map_id = get_group_location(
             db, group_id)
+
+        # BG already has bg_idle_chatter — skip
+        # generic group idle to avoid double party
+        # chat in battlegrounds.
+        if map_id in BG_MAP_NAMES:
+            return False
 
         # Debug: log location context
         if _dbg:

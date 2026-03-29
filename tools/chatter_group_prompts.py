@@ -31,6 +31,7 @@ from chatter_constants import (
     BG_MAP_NAMES,
     CLASS_ROLE_MAP,
 )
+from chatter_bg_prompts import BG_LORE
 
 logger = logging.getLogger(__name__)
 
@@ -146,6 +147,9 @@ def build_bot_greeting_prompt(
     player_name_known=False,
     recall_memory=None,
     stored_tone=None,
+    map_id=0,
+    zone_id=0,
+    bg_context=None,
 ):
     """Build the LLM prompt for a group greeting.
 
@@ -216,12 +220,54 @@ def build_bot_greeting_prompt(
             "no excessive slang or abbreviations."
         )
 
+    # Location context: BG > dungeon > zone flavor
+    location_context = ""
+    if bg_context:
+        bg_type_id = int(
+            bg_context.get('bg_type_id', 0))
+        lore = BG_LORE.get(bg_type_id, {})
+        bg_name = lore.get(
+            'name',
+            bg_context.get('bg_type', 'a battleground'))
+        bg_team = bg_context.get('team', '')
+        faction = lore.get(
+            f'{bg_team.lower()}_faction',
+            bg_team,
+        ) if bg_team else ''
+        location_context = (
+            f"\nYou are entering {bg_name}"
+        )
+        if faction:
+            location_context += (
+                f" as part of the {faction}"
+                f" ({bg_team})"
+            )
+        location_context += "."
+        bg_tone = lore.get('tone')
+        if bg_tone:
+            location_context += (
+                f"\nBattleground feel: {bg_tone}"
+            )
+    else:
+        dungeon_flav = get_dungeon_flavor(map_id)
+        if dungeon_flav:
+            location_context = (
+                f"\nLocation: {dungeon_flav}"
+            )
+        else:
+            zone_flav = get_zone_flavor(zone_id)
+            if zone_flav:
+                location_context = (
+                    f"\nLocation: {zone_flav}"
+                )
+
     prompt = (
         f"You are {bot['name']}, a level "
         f"{bot['level']} {bot['race']} "
         f"{bot['class']} in World of Warcraft.\n"
         f"Your personality: {trait_str}"
-        f"{rp_context}\n"
+        f"{rp_context}"
+        f"{location_context}\n"
     )
     if speaker_talent_context:
         prompt += f"{speaker_talent_context}\n"
