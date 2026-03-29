@@ -45,6 +45,15 @@ This feature runs entirely on the host side with a tiny vision model (GPT-4o-min
 
 ## Changelog
 
+### 2026-03-29 — Screenshot Vision, Emote Reactions, BG Improvements
+
+* **Screenshot Vision (Experimental)**: Bots can now see the actual game world through periodic screenshot analysis. A lightweight host-side agent captures your screen, sends it to a vision AI, and bots comment on what they see, from ancient ruins to glowing flora to approaching storms. Supports both GPT-4o-mini and Claude Haiku. See [Screenshot Vision](#screenshot-vision) for setup.
+* **Emote Reaction System**: Bots now react when you emote at them. `/wave` at a bot and they might wave back, `/flex` and they'll have something to say about it. Three reaction paths: silent mirror (bot mirrors your emote), verbal reaction (personal response), and observer comment (a nearby bot notices and chimes in). Covers all ~170 text emotes.
+* **Dungeon Context Injection**: Party chatter prompts now detect when you're inside a dungeon and inject dungeon-specific flavor instead of outdoor zone lore. Affects kill, loot, death, achievement, wipe, corpse run, and nearby object events.
+* **BG Chatter Quality Pass**: Reduced noise in battleground chatter, suppressed narrator actions in fast-paced BG events, unified the join path for cleaner group formation, and synced config defaults with tested values.
+* **System Prompt Support**: All 16 BG prompt builders and 4 raid prompt builders now use a system prompt block for JSON formatting rules, improving response consistency.
+* **Action & Emote RNG**: `EmoteChance` and `ActionChance` config keys control how often bots include physical emotes and narrator actions in their messages, preventing emote spam.
+
 ### 2026-03-22 — Persistent Memories & Personality Traits
 
 * **Persistent Bot Identities**: Each bot now carries a permanent personality (3 traits + role + farewell style) stored in `llm_bot_identities`. Traits survive across sessions and server restarts. Bump `LLMChatter.Memory.IdentityVersion` to force regeneration after prompt changes.
@@ -239,6 +248,107 @@ mysql -uroot -ppassword acore_world < \
 
 ---
 
+## Screenshot Vision
+
+> This feature is **experimental** and **optional**. Everything else works without it.
+
+Screenshot Vision lets your bots react to what's actually on your screen. A small helper program runs alongside your game, takes a screenshot every now and then, and asks a cheap AI model to describe what it sees. The description is then fed to your bots so they can comment on the scenery in party chat.
+
+### What you need
+
+- **Windows** (the helper runs on the same machine as your WoW client)
+- **Python 3.10+** installed on your machine (not inside Docker)
+- **An OpenAI API key** (GPT-4o-mini is recommended — extremely cheap) or an Anthropic key
+- **WoW running in borderless windowed mode** (not exclusive fullscreen)
+
+### Step-by-step setup
+
+**1. Install the required Python packages**
+
+Open a terminal (PowerShell or Command Prompt) and run:
+
+```
+pip install mss Pillow openai mysql-connector-python pywin32
+```
+
+If you want to use Claude instead of GPT-4o-mini, also install `anthropic`:
+```
+pip install anthropic
+```
+
+**2. Run the database migration**
+
+If you're upgrading from a previous version (fresh installs can skip this):
+
+```bash
+# Docker
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20260329_screenshot_event_type.sql
+```
+
+**3. Add the screenshot settings to your config**
+
+Open your `mod_llm_chatter.conf` and add these lines at the bottom (or copy them from `mod_llm_chatter.conf.dist`):
+
+```ini
+# Enable the feature
+LLMChatter.Screenshot.Enable = 1
+
+# How often to capture (seconds). Default: every 45-120 seconds
+LLMChatter.Screenshot.IntervalMinSeconds = 45
+LLMChatter.Screenshot.IntervalMaxSeconds = 120
+
+# Chance (1-100) to actually process each capture. Default: 90
+LLMChatter.Screenshot.Chance = 90
+
+# Which AI to use for analyzing screenshots
+# Options: "openai" (recommended) or "anthropic"
+LLMChatter.Screenshot.VisionProvider = openai
+
+# Which model to use. GPT-4o-mini is fast and very cheap
+LLMChatter.Screenshot.VisionModel = gpt-4o-mini
+
+# Chance (1-100) that a screenshot triggers a multi-bot
+# conversation instead of a single comment. Default: 40
+LLMChatter.Screenshot.ConversationChance = 40
+
+# Database host override for the host-side agent.
+# Your bridge uses a Docker hostname (like ac-database) that
+# your Windows machine can't reach. Set this to 127.0.0.1
+LLMChatter.Screenshot.DBHost = 127.0.0.1
+```
+
+Make sure your config also has the matching API key set (`LLMChatter.OpenAI.ApiKey` or `LLMChatter.Anthropic.ApiKey`).
+
+**4. Restart the chatter bridge**
+
+```bash
+docker restart ac-llm-chatter-bridge
+```
+
+**5. Start the screenshot agent**
+
+Open a new terminal window and run:
+
+```
+python modules/mod-llm-chatter/tools/screenshot_agent.py --config env/dist/etc/modules/mod_llm_chatter.conf
+```
+
+Keep this window open while you play. The agent will quietly capture screenshots in the background and your bots will start making observations about the scenery.
+
+**6. Play the game!**
+
+Make sure WoW is in the foreground (the agent only captures when WoW is the active window). Group up with some bots, and within a couple of minutes you should see them commenting on what they see around them.
+
+### Tips
+
+- The agent saves screenshots to `modules/mod-llm-chatter/logs/screenshots/` so you can see exactly what the AI is analyzing
+- If bots aren't saying anything, check that the agent terminal shows `Queued observation:` messages
+- Cost is roughly **$0.05-0.10 per hour** of play with GPT-4o-mini
+- You can stop the agent at any time (Ctrl+C) — the rest of the module continues working normally
+
+---
+
 ## Upgrading
 
 **Fresh installs** create all tables automatically on first
@@ -256,12 +366,18 @@ docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
 docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20260328_emote_event_types.sql
 
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20260329_screenshot_event_type.sql
+
 # Non-Docker
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260320_bot_memory_system.sql
 
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260328_emote_event_types.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20260329_screenshot_event_type.sql
 ```
 
 Migrations are idempotent — safe to run on an already
