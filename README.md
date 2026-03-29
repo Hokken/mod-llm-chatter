@@ -93,7 +93,7 @@ in zone-wide chat):
 LLMChatter.TriggerIntervalSeconds = 60  # default 30, try 60-90
 
 # Chance per check that bots start talking unprompted
-LLMChatter.TriggerChance = 10            # default 20, try 5-10
+LLMChatter.TriggerChance = 10            # default 15, try 5-10
 
 # Chance that ambient chatter becomes a multi-bot conversation
 LLMChatter.ConversationChance = 30      # default 40, try 15-20
@@ -107,20 +107,20 @@ LLMChatter.EventReactionChance = 10     # default 25, try 10-15
 ```ini
 # Idle chatter frequency and cooldown
 LLMChatter.GroupChatter.IdleCheckInterval = 60  # default 30
-LLMChatter.GroupChatter.IdleChance = 10          # default 20
+LLMChatter.GroupChatter.IdleChance = 10          # default 15
 LLMChatter.GroupChatter.IdleCooldown = 90       # default 40
 
 # Quest reactions (accept, objectives, turn-in)
-LLMChatter.GroupChatter.QuestAcceptChance = 30    # default 70
-LLMChatter.GroupChatter.QuestObjectiveChance = 30 # default 70
-LLMChatter.GroupChatter.QuestCompleteChance = 30  # default 70
+LLMChatter.GroupChatter.QuestAcceptChance = 30    # default 50
+LLMChatter.GroupChatter.QuestObjectiveChance = 30 # default 50
+LLMChatter.GroupChatter.QuestCompleteChance = 30  # default 50
 
 # Combat reactions
 LLMChatter.GroupChatter.KillChanceNormal = 5    # default 20
-LLMChatter.GroupChatter.SpellCastChance = 5     # default 20
+LLMChatter.GroupChatter.SpellCastChance = 10    # default 30
 
 # Nearby object/creature comments
-LLMChatter.GroupChatter.NearbyObjectChance = 5  # default 15
+LLMChatter.GroupChatter.NearbyObjectChance = 5  # default 20
 ```
 
 All values are percentages (0-100) unless noted. Setting any

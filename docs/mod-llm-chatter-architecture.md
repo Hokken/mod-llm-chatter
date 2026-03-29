@@ -1,6 +1,6 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-03-28 (through emote reaction system, shared helpers, narrator RNG fixes)
+Last updated: 2026-03-29 (through BG chatter quality pass, noise suppression, config template sync)
 
 ## Purpose
 
