@@ -259,7 +259,6 @@ Screenshot Vision lets your bots react to what's actually on your screen. A smal
 - **Windows** (the helper runs on the same machine as your WoW client)
 - **Python 3.10+** installed on your machine (not inside Docker)
 - **An OpenAI API key** (GPT-4o-mini is recommended — extremely cheap) or an Anthropic key
-- **WoW running in borderless windowed mode** (not exclusive fullscreen)
 
 ### Step-by-step setup
 
