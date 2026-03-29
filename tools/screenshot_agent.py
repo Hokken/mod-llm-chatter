@@ -40,19 +40,25 @@ VISION_SYSTEM = (
     "focus ONLY on the 3D game world visible behind "
     "them. Describe the environment, landscape, and "
     "atmosphere — what the world itself looks like.\n\n"
-    "DESCRIBE:\n"
-    "- Landscape elements: terrain, vegetation, water "
-    "bodies, architecture, landmarks, paths, bridges, "
-    "ruins, towers, caves, campfires, banners, ships\n"
-    "- Atmosphere: weather, time of day, light quality, "
-    "mood, sky color, fog, rain, snow\n"
+    "DESCRIBE (both outdoors AND indoors):\n"
+    "- Outdoor: terrain, vegetation, water bodies, "
+    "paths, bridges, ruins, towers, caves, banners\n"
+    "- Indoor: room layout, furniture, barrels, crates, "
+    "shelves, fireplaces, chandeliers, stairs, doorways, "
+    "windows, decorations, building materials\n"
+    "- Architecture: buildings, arches, columns, walls, "
+    "roofs, wooden beams, stone work, forges, altars\n"
+    "- Atmosphere: lighting, mood, color tones, shadows, "
+    "weather, fog, rain, snow, time of day\n"
     "- Non-humanoid creatures ONLY: animals, beasts, "
     "spiders, wolves, birds, undead monsters, demons, "
     "elementals. Do NOT mention any humanoid figures\n\n"
-    "IGNORE COMPLETELY:\n"
+    "IGNORE (do not describe, but do NOT skip the scene "
+    "just because they are present):\n"
     "- ALL humanoid figures — player characters, NPCs, "
-    "guards, vendors, other players, party members, "
-    "bots. Humanoids are everywhere and not interesting\n"
+    "guards, vendors, other players, party members. "
+    "Humanoids do NOT make a scene uninteresting. "
+    "Describe the world around and behind them\n"
     "- ALL UI elements: health bars, mana bars, action "
     "bars, minimap, chat window, nameplates, buff/debuff "
     "icons, tooltips, quest tracker, bag slots, menus\n"
@@ -79,12 +85,17 @@ VISION_SYSTEM = (
     '  "environment": "brief terrain/landmark description '
     "or null\",\n"
     '  "creatures": "brief NON-HUMANOID creature '
-    "description or null\"\n"
+    "description or null\",\n"
+    '  "skip_reason": "if ALL other fields are null, '
+    "explain why in a few words. Otherwise null\"\n"
     "}\n"
     "If the scene is a loading screen, character select, "
     "or entirely obscured by UI, return all null/none.\n"
-    "If the scene is generic unremarkable terrain with "
-    "nothing interesting, return all null/none."
+    "Almost every scene has something worth describing: "
+    "architecture, interiors, lighting, vegetation, "
+    "weather, terrain. Ignore the humanoids but describe "
+    "the world behind and around them. Only return all "
+    "null/none if you truly cannot see any game world."
 )
 
 # -----------------------------------------------------------
@@ -342,6 +353,8 @@ def analyze_screenshot(
         for k in tag_fields
     )
     if not has_desc and not has_tag:
+        reason = data.get('skip_reason', 'no reason given')
+        log.info("Vision: skipped — %s", reason)
         return None
 
     return data
@@ -594,7 +607,6 @@ def _do_capture_cycle(
         provider=config['vision_provider'],
     )
     if description is None:
-        log.info("Vision: nothing interesting, skipping")
         return
 
     if is_duplicate(description):
