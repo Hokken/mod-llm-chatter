@@ -115,6 +115,9 @@ from chatter_emote_observer import (
 from chatter_emote_reaction import (
     handle_emote_reaction,
 )
+from chatter_screenshot_handler import (
+    handle_screenshot_observation,
+)
 from chatter_world_events import (
     process_transport_arrives_event,
     process_weather_change_event,
@@ -586,10 +589,14 @@ EVENT_HANDLERS = {
         process_minor_event,
     'day_night_transition':
         process_day_night_transition_event,
+    # Screenshot vision
+    'bot_group_screenshot_observation':
+        handle_screenshot_observation,
 }
 
 
 EVENT_LOG_OVERRIDES = {
+    'bot_group_screenshot_observation': 'Screenshot vision',
     'player_general_msg': 'General chat event',
     'player_enters_zone': 'Zone intrusion',
     'bot_group_low_health': 'State callout',

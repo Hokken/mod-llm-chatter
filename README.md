@@ -18,6 +18,18 @@ An AI-powered conversation engine for [AzerothCore](https://www.azerothcore.org/
 
 ---
 
+## What's New: TRUE VISION — Bots See What You See
+
+Your companions can now **literally see the world through your eyes**. Using lightweight screenshot analysis, bots observe the actual scenery on your screen — a crumbling ruin half-swallowed by vines, a lake shimmering under moonlight, a spider lurking at the edge of a cave — and react to it in character. They don't just know the zone name from a database. They *look around* and notice things, just like a real party member would.
+
+Sometimes one bot points something out. Sometimes two of them start a conversation about what they see — one admiring the view, the other warning about what might be hiding in it. Every observation is shaped by the bot's personality, race, class, and knowledge of the area.
+
+This feature runs entirely on the host side with a tiny vision model (GPT-4o-mini). Cost is roughly **$0.05-0.10 per hour** of play — less than a penny per observation. It's experimental, opt-in, and disabled by default. Enable it, run the lightweight screenshot agent alongside your game, and watch your bots come alive in a way no other bot module has done before.
+
+> *Requires `screenshot_agent.py` running on the host machine. See [Screenshot Vision Setup](#screenshot-vision) for details.*
+
+---
+
 ## Features
 
 * **Roleplay-First Personalities**: Every bot is a distinct character. Their dialogue is deeply rooted in their race, class, and assigned personality traits, dynamically enhanced by their specialized talent builds. In Roleplay mode, bots stay in character, grounding their speech in the rich lore of Azeroth to feel like living, breathing companions.

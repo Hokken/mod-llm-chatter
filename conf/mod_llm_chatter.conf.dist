@@ -1302,3 +1302,88 @@ LLMChatter.EmoteReactions.MoodSpreadChance = 50
 #
 LLMChatter.EmoteReactions.NPCMirrorEnable = 1
 
+###############################################
+# Screenshot Vision Feature
+# Requires screenshot_agent.py running on host
+# See docs/plans/screenshot-vision-plan.md
+###############################################
+
+#
+#   LLMChatter.Screenshot.Enable
+#       Master switch for screenshot vision observations.
+#       The host-side screenshot_agent.py must also be
+#       running for this feature to function.
+#       Default: 0 (disabled)
+#
+LLMChatter.Screenshot.Enable = 0
+
+#
+#   LLMChatter.Screenshot.IntervalMinSeconds
+#   LLMChatter.Screenshot.IntervalMaxSeconds
+#       Random interval range (seconds) between capture
+#       attempts. With 30% chance, this averages roughly
+#       one observation every 15-30 minutes.
+#       Default: 300 / 600
+#
+LLMChatter.Screenshot.IntervalMinSeconds = 300
+LLMChatter.Screenshot.IntervalMaxSeconds = 600
+
+#
+#   LLMChatter.Screenshot.Chance
+#       Chance (1-100) to actually process a capture when
+#       the interval fires. Even if the timer triggers,
+#       the capture may be skipped based on this roll.
+#       Default: 30
+#
+LLMChatter.Screenshot.Chance = 30
+
+#
+#   LLMChatter.Screenshot.VisionModel
+#       Vision model used for screenshot analysis (Stage 1).
+#       claude-haiku-4-5-20251001 is fast and cheap
+#       (~$0.001 per image).
+#       Default: claude-haiku-4-5-20251001
+#
+LLMChatter.Screenshot.VisionModel = claude-haiku-4-5-20251001
+
+#
+#   LLMChatter.Screenshot.MaxWidthPx
+#       Maximum width in pixels for the screenshot before
+#       sending to the vision API. Lower values reduce
+#       upload time and cost; higher values improve detail.
+#       Default: 640
+#
+LLMChatter.Screenshot.MaxWidthPx = 640
+
+#
+#   LLMChatter.Screenshot.JpegQuality
+#       JPEG compression quality (1-100) for the
+#       screenshot payload. Lower values reduce file size;
+#       higher values preserve detail.
+#       Default: 75
+#
+LLMChatter.Screenshot.JpegQuality = 75
+
+#
+#   LLMChatter.Screenshot.BoundAccountId
+#       Bind this screenshot agent to a specific player
+#       account so the observation is routed to the correct
+#       group. Required for multi-player servers.
+#       For single-player, leave at 0 to auto-detect.
+#       Find your ID: SELECT id FROM acore_auth.account
+#         WHERE username = 'YOURNAME'
+#       Default: 0 (auto-detect first active group)
+#
+LLMChatter.Screenshot.BoundAccountId = 0
+
+#
+#   LLMChatter.Screenshot.DBHost
+#       Database host override for the host-side agent.
+#       The bridge uses a Docker-internal hostname (e.g.
+#       ac-database) that the Windows host can't resolve.
+#       Set this to 127.0.0.1 for the host agent.
+#       If unset, falls back to LLMChatter.Database.Host.
+#       Default: (uses LLMChatter.Database.Host)
+#
+# LLMChatter.Screenshot.DBHost = 127.0.0.1
+
