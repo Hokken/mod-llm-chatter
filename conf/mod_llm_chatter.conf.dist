@@ -217,7 +217,7 @@ LLMChatter.OpenAI.ApiKey = sk-xxxxx
 #       itself, not the host.
 #       Default: http://localhost:11434
 #
-LLMChatter.Ollama.BaseUrl = http://localhost:11434
+LLMChatter.Ollama.BaseUrl = http://host.docker.internal:11434
 
 #
 #   LLMChatter.Ollama.ContextSize
@@ -261,7 +261,7 @@ LLMChatter.Database.Port = 3306
 #       Database username
 #       Default: acore
 #
-LLMChatter.Database.User = acore
+LLMChatter.Database.User = root
 
 #
 #   LLMChatter.Database.Password
@@ -381,7 +381,7 @@ LLMChatter.TriggerIntervalSeconds = 30
 #       (via internal CityChatterMultiplier).
 #       Default: 15
 #
-LLMChatter.TriggerChance = 20
+LLMChatter.TriggerChance = 15
 
 #
 #   LLMChatter.ConversationChance
@@ -500,7 +500,7 @@ LLMChatter.GroupChatter.IdleCheckInterval = 30
 #       chatting during downtime.
 #       Default: 20
 #
-LLMChatter.GroupChatter.IdleChance = 20
+LLMChatter.GroupChatter.IdleChance = 15
 
 #
 #   LLMChatter.GroupChatter.ConversationBias
@@ -576,7 +576,7 @@ LLMChatter.GroupChatter.LootChanceBlue = 60
 #       triggers a group reaction.
 #       Default: 20
 #
-LLMChatter.GroupChatter.SpellCastChance = 20
+LLMChatter.GroupChatter.SpellCastChance = 30
 
 #
 #   LLMChatter.GroupChatter.SpellCastCooldown
@@ -601,7 +601,7 @@ LLMChatter.GroupChatter.NearbyObjectEnable = 1
 #       triggers a comment. Scanned periodically per group.
 #       Default: 15
 #
-LLMChatter.GroupChatter.NearbyObjectChance = 15
+LLMChatter.GroupChatter.NearbyObjectChance = 20
 
 #
 #   LLMChatter.GroupChatter.NearbyObjectCheckInterval
@@ -609,7 +609,7 @@ LLMChatter.GroupChatter.NearbyObjectChance = 15
 #       nearby points of interest per group.
 #       Default: 45
 #
-LLMChatter.GroupChatter.NearbyObjectCheckInterval = 45
+LLMChatter.GroupChatter.NearbyObjectCheckInterval = 30
 
 #
 #   LLMChatter.GroupChatter.NearbyObjectCooldown
@@ -629,7 +629,7 @@ LLMChatter.GroupChatter.NearbyObjectCooldown = 180
 #       Shadowglen → Aldrassil).
 #       Default: 50
 #
-LLMChatter.GroupChatter.ZoneTransitionChance = 50
+LLMChatter.GroupChatter.ZoneTransitionChance = 30
 
 #
 #   LLMChatter.GroupChatter.ZoneTransitionCooldown
@@ -838,7 +838,7 @@ LLMChatter.RaidChatter.MoraleCooldown = 60
 #       Only applies in roleplay mode.
 #       Default: 20
 #
-LLMChatter.ActionChance = 20
+LLMChatter.ActionChance = 10
 
 #
 #   LLMChatter.EmoteChance
@@ -946,7 +946,7 @@ LLMChatter.GroupChatter.ReactDelay.Join = 1
 #       throughput but more simultaneous API calls.
 #       Default: 3
 #
-LLMChatter.Bridge.MaxConcurrent = 3
+LLMChatter.Bridge.MaxConcurrent = 5
 
 #
 #   LLMChatter.Bridge.InterSystemStaggerMin
@@ -1034,7 +1034,7 @@ LLMChatter.BGChatter.MaxTokens = 300
 #       after the idle cooldown expires.
 #       Default: 25
 #
-LLMChatter.BGChatter.IdleChatterChance = 30
+LLMChatter.BGChatter.IdleChatterChance = 15
 
 #
 #   LLMChatter.BGChatter.IdleChatterCooldownSec
@@ -1249,7 +1249,7 @@ LLMChatter.EmoteReactions.Enable = 1
 #       Also used for NPC mirror chance.
 #       Default: 90
 #
-LLMChatter.EmoteReactions.MirrorChance = 90
+LLMChatter.EmoteReactions.MirrorChance = 100
 
 #
 #   LLMChatter.EmoteReactions.MirrorCooldown
@@ -1266,7 +1266,7 @@ LLMChatter.EmoteReactions.MirrorCooldown = 15
 #       comment after mirroring an emote directed at it.
 #       Default: 60
 #
-LLMChatter.EmoteReactions.ReactionChance = 60
+LLMChatter.EmoteReactions.ReactionChance = 100
 
 #
 #   LLMChatter.EmoteReactions.ObserverChance
@@ -1274,7 +1274,7 @@ LLMChatter.EmoteReactions.ReactionChance = 60
 #       the player emotes at an NPC, stranger, or nobody.
 #       Default: 40
 #
-LLMChatter.EmoteReactions.ObserverChance = 40
+LLMChatter.EmoteReactions.ObserverChance = 100
 
 #
 #   LLMChatter.EmoteReactions.ObserverCooldown
@@ -1282,7 +1282,7 @@ LLMChatter.EmoteReactions.ObserverChance = 40
 #       observer comment.
 #       Default: 30
 #
-LLMChatter.EmoteReactions.ObserverCooldown = 30
+LLMChatter.EmoteReactions.ObserverCooldown = 0
 
 #
 #   LLMChatter.EmoteReactions.MoodSpreadChance

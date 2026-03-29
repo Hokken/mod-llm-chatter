@@ -227,6 +227,37 @@ mysql -uroot -ppassword acore_world < \
 
 ---
 
+## Upgrading
+
+**Fresh installs** create all tables automatically on first
+worldserver startup (from `data/sql/characters/base/`).
+
+**Existing installs** must apply migration scripts manually
+when updating to a newer version. Migrations live in
+`data/sql/characters/updates/` and are named by date:
+
+```bash
+# Docker
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20260320_bot_memory_system.sql
+
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20260328_emote_event_types.sql
+
+# Non-Docker
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20260320_bot_memory_system.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20260328_emote_event_types.sql
+```
+
+Migrations are idempotent — safe to run on an already
+up-to-date database. Run them in date order after each
+`git pull` that includes new migration files.
+
+---
+
 ## Troubleshooting
 
 | Issue | Solution |
