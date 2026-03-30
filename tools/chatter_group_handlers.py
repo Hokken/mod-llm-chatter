@@ -81,6 +81,10 @@ from chatter_group_prompts import (
 from chatter_raid_base import (
     dual_worker_dispatch,
 )
+from chatter_handler_pipeline import (
+    run_group_handler,
+    _maybe_talent_context,
+)
 from chatter_memory import queue_memory
 from chatter_bg_prompts import (
     build_bg_achievement_prompt,
@@ -93,28 +97,6 @@ from chatter_bg_prompts import (
 
 logger = logging.getLogger(__name__)
 
-
-def _maybe_talent_context(
-    config, db, bot_guid, bot_class, bot_name,
-    perspective='speaker',
-):
-    """Compute talent context if RNG passes.
-
-    Returns str or None. Rolls once against the
-    TalentInjectionChance config key.
-    """
-    chance = int(config.get(
-        'LLMChatter.TalentInjectionChance', '40'
-    ))
-    if chance <= 0:
-        return None
-    if random.randint(1, 100) > chance:
-        return None
-    result = build_talent_context(
-        db, int(bot_guid), bot_class,
-        bot_name, perspective=perspective,
-    )
-    return result
 
 
 def _resolve_zone_name(
@@ -142,6 +124,60 @@ def _resolve_zone_name(
     return extra_data_zone_name or 'somewhere'
 
 
+def _kill_post_success(db, ctx, message):
+    """Memory: bots remember boss/rare kills."""
+    is_boss = ctx['is_boss']
+    is_rare = ctx['is_rare']
+    if not (is_boss or is_rare):
+        return
+    mem_type = (
+        'boss_kill' if is_boss else 'rare_kill'
+    )
+    config = ctx['config']
+    group_id = ctx['group_id']
+    creature_name = ctx['creature_name']
+    boss_mem_chance = int(config.get(
+        'LLMChatter.Memory'
+        '.BossKillGenerationChance', 60
+    ))
+    mc = db.cursor(dictionary=True)
+    mc.execute(
+        "SELECT t.bot_guid, t.bot_name,"
+        " c.class, c.race"
+        " FROM llm_group_bot_traits t"
+        " JOIN characters c"
+        "   ON c.guid = t.bot_guid"
+        " WHERE t.group_id = %s",
+        (group_id,),
+    )
+    all_bots = mc.fetchall()
+    for ab in all_bots:
+        if (random.random() * 100
+                >= boss_mem_chance):
+            continue
+        try:
+            queue_memory(
+                config, group_id,
+                ab['bot_guid'], 0,
+                memory_type=mem_type,
+                event_context=(
+                    f"Killed {creature_name}"
+                ),
+                bot_name=ab['bot_name'],
+                bot_class=get_class_name(
+                    ab['class']
+                ),
+                bot_race=get_race_name(
+                    ab['race']
+                ),
+            )
+        except Exception:
+            logger.error(
+                "kill memory queue failed",
+                exc_info=True,
+            )
+
+
 def process_group_kill_event(
     db, client, config, event
 ):
@@ -150,195 +186,42 @@ def process_group_kill_event(
     The killing bot reacts to a boss/rare kill
     in party chat.
     """
-    event_id = event['id']
-    extra_data = parse_extra_data(
-        event.get('extra_data'),
-        event_id,
-        'bot_group_kill'
-    )
-
-    if not extra_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot_guid = int(extra_data.get('bot_guid', 0))
-    bot_name = extra_data.get('bot_name', 'Unknown')
-    creature_name = extra_data.get(
-        'creature_name', 'something'
-    )
-    is_boss = bool(int(
-        extra_data.get('is_boss', 0)
-    ))
-    is_rare = bool(int(
-        extra_data.get('is_rare', 0)
-    ))
-    group_id = int(extra_data.get('group_id', 0))
-
-    if not bot_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # Get bot traits (must have joined group first)
-    trait_data = get_bot_traits(
-        db, group_id, bot_guid
-    )
-    if not trait_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-
-    # Get bot class/race from extra_data
-    bot_class_id = int(
-        extra_data.get('bot_class', 0)
-    )
-    bot_race_id = int(
-        extra_data.get('bot_race', 0)
-    )
-    bot_level = int(
-        extra_data.get('bot_level', 1)
-    )
-    bot_class = get_class_name(bot_class_id)
-    bot_race = get_race_name(bot_race_id)
-
-    bot = {
-        'guid': bot_guid,
-        'name': bot_name,
-        'class': bot_class,
-        'race': bot_race,
-        'level': bot_level,
-    }
-
-
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        speaker_talent = _maybe_talent_context(
-            config, db, bot_guid,
-            bot_class, bot_name,
-        )
-        _, _, map_id = get_group_location(
-            db, group_id
-        )
-        prompt = build_kill_reaction_prompt(
-            bot, traits, creature_name,
-            is_boss, is_rare, mode,
-            chat_history=chat_hist,
-            extra_data=extra_data,
-            allow_action=not extra_data.get(
-                'is_battleground', False),
-            speaker_talent_context=speaker_talent,
-            stored_tone=stored_tone,
-            map_id=map_id,
-        )
-        mood_label = get_bot_mood_label(
-            group_id, bot_guid
-        )
-        if mood_label != 'neutral':
-            prompt += (
-                f"\nCurrent mood: {mood_label}"
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label='bot_group_kill',
+        extract_fields=lambda ed: {
+            'creature_name': ed.get(
+                'creature_name', 'something'),
+            'is_boss': bool(int(
+                ed.get('is_boss', 0))),
+            'is_rare': bool(int(
+                ed.get('is_rare', 0))),
+        },
+        build_prompt=lambda ctx: (
+            build_kill_reaction_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['creature_name'],
+                ctx['is_boss'], ctx['is_rare'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                extra_data=ctx['extra_data'],
+                allow_action=not ctx[
+                    'extra_data'].get(
+                    'is_battleground', False),
+                speaker_talent_context=(
+                    ctx['speaker_talent']),
+                stored_tone=ctx['stored_tone'],
+                map_id=ctx['map_id'],
             )
-
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=bot_name,
-            bot_guid=bot_guid,
-            channel='party',
-            delay_seconds=3,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            context=(
-                f"grp-kill:#{event_id}:{bot_name}"
-            ),
-            label='reaction_kill',
-        )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, bot_guid,
-            bot_name, True, message
-        )
-
-        update_bot_mood(
-            group_id, bot_guid,
-            'boss_kill' if is_boss else 'kill'
-        )
-
-        # Memory: bots remember boss/rare kills
-        if is_boss or is_rare:
-            try:
-                mem_type = (
-                    'boss_kill' if is_boss
-                    else 'rare_kill'
-                )
-                boss_mem_chance = int(config.get(
-                    'LLMChatter.Memory'
-                    '.BossKillGenerationChance',
-                    60
-                ))
-                mc = db.cursor(dictionary=True)
-                mc.execute(
-                    "SELECT t.bot_guid, t.bot_name,"
-                    " c.class, c.race"
-                    " FROM llm_group_bot_traits t"
-                    " JOIN characters c"
-                    "   ON c.guid = t.bot_guid"
-                    " WHERE t.group_id = %s",
-                    (group_id,),
-                )
-                all_bots = mc.fetchall()
-                for ab in all_bots:
-                    if (random.random() * 100
-                            >= boss_mem_chance):
-                        continue
-                    try:
-                        queue_memory(
-                            config, group_id,
-                            ab['bot_guid'], 0,
-                            memory_type=mem_type,
-                            event_context=(
-                                f"Killed"
-                                f" {creature_name}"
-                            ),
-                            bot_name=ab['bot_name'],
-                            bot_class=get_class_name(
-                                ab['class']
-                            ),
-                            bot_race=get_race_name(
-                                ab['race']
-                            ),
-                        )
-                    except Exception:
-                        logger.error(
-                            "kill memory queue"
-                            " failed",
-                            exc_info=True,
-                        )
-            except Exception:
-                logger.error(
-                    "boss/rare_kill memory failed",
-                    exc_info=True,
-                )
-
-        _mark_event(db, event_id, 'completed')
-        return True
-
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_kill', 'handler error',
-        )
-        return False
+        ),
+        needs_map_id=True,
+        mood_key=lambda ctx: (
+            'boss_kill' if ctx['is_boss']
+            else 'kill'
+        ),
+        label='reaction_kill',
+        post_success=_kill_post_success,
+    )
 
 def process_group_loot_event(
     db, client, config, event
@@ -348,165 +231,75 @@ def process_group_loot_event(
     The looting bot reacts to picking up an item
     in party chat. Excitement scales with quality.
     """
-    event_id = event['id']
-    extra_data = parse_extra_data(
-        event.get('extra_data'),
-        event_id,
-        'bot_group_loot'
-    )
-
-    if not extra_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # C++ pre-selects the reactor (bot_guid/name)
-    # and provides the actual looter separately.
-    reactor_guid = int(
-        extra_data.get('bot_guid', 0)
-    )
-    reactor_name = extra_data.get(
-        'bot_name', 'Unknown'
-    )
-    looter_name = extra_data.get(
-        'looter_name',
-        extra_data.get('bot_name', 'Unknown')
-    )
-    item_name = extra_data.get(
-        'item_name', 'something'
-    )
-    item_quality = int(
-        extra_data.get('item_quality', 2)
-    )
-    group_id = int(extra_data.get('group_id', 0))
-
-    if not reactor_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    trait_data = get_bot_traits(
-        db, group_id, reactor_guid
-    )
-    if not trait_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-    bot_class_id = int(
-        extra_data.get('bot_class', 0)
-    )
-    bot_race_id = int(
-        extra_data.get('bot_race', 0)
-    )
-    bot_level = int(
-        extra_data.get('bot_level', 1)
-    )
-    bot = {
-        'guid': reactor_guid,
-        'name': reactor_name,
-        'class': get_class_name(bot_class_id),
-        'race': get_race_name(bot_race_id),
-        'level': bot_level,
-    }
-    # If reactor != looter, pass looter_name
-    # so the prompt says "X looted Y" not "you"
-    is_self_loot = (reactor_name == looter_name)
-    prompt_looter_name = (
-        None if is_self_loot else looter_name
-    )
-
-
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        speaker_talent = _maybe_talent_context(
-            config, db, reactor_guid,
-            bot['class'], reactor_name,
-        )
-        _, _, map_id = get_group_location(
-            db, group_id
-        )
-        prompt = build_loot_reaction_prompt(
-            bot, traits, item_name,
-            item_quality, mode,
-            chat_history=chat_hist,
-            looter_name=prompt_looter_name,
-            extra_data=extra_data,
-            speaker_talent_context=speaker_talent,
-            stored_tone=stored_tone,
-            map_id=map_id,
-        )
-        mood_label = get_bot_mood_label(
-            group_id, bot['guid']
-        )
-        if mood_label != 'neutral':
-            prompt += (
-                f"\nCurrent mood: {mood_label}"
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label='bot_group_loot',
+        extract_fields=lambda ed: {
+            'looter_name': ed.get(
+                'looter_name',
+                ed.get('bot_name', 'Unknown')),
+            'item_name': ed.get(
+                'item_name', 'something'),
+            'item_quality': int(
+                ed.get('item_quality', 2)),
+            'item_entry': int(
+                ed.get('item_entry', 0)),
+        },
+        build_prompt=lambda ctx: (
+            build_loot_reaction_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['item_name'],
+                ctx['item_quality'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                looter_name=(
+                    None
+                    if ctx['bot_name']
+                        == ctx['looter_name']
+                    else ctx['looter_name']
+                ),
+                extra_data=ctx['extra_data'],
+                speaker_talent_context=(
+                    ctx['speaker_talent']),
+                stored_tone=ctx['stored_tone'],
+                map_id=ctx['map_id'],
             )
-
-        item_entry = int(
-            extra_data.get('item_entry', 0)
-        )
-        def _loot_message_transform(raw_message):
-            """Inject clickable item link into the
-            first matching item-name occurrence."""
-            message = raw_message
-            if item_entry and item_name:
-                link = format_item_link(
-                    item_entry, item_quality, item_name
-                )
-                message = re.sub(
-                    re.escape(item_name), link,
-                    message, count=1, flags=re.IGNORECASE
-                )
-            return message
-
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=bot['name'],
-            bot_guid=bot['guid'],
-            channel='party',
-            delay_seconds=3,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            context=(
-                f"grp-loot:#{event_id}"
-                f":{bot['name']}"
-            ),
-            message_transform=_loot_message_transform,
-            label='reaction_loot',
-        )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, bot['guid'],
-            bot['name'], True, message
-        )
-
-        update_bot_mood(
-            group_id, bot['guid'],
+        ),
+        needs_map_id=True,
+        mood_key=lambda ctx: (
             'epic_loot'
-            if 4 <= item_quality < 200
+            if 4 <= ctx['item_quality'] < 200
             else 'loot'
-        )
-        _mark_event(db, event_id, 'completed')
-        return True
+        ),
+        message_transform=lambda msg: (
+            _loot_msg_xform(msg, event)
+        ),
+        label='reaction_loot',
+    )
 
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_loot', 'handler error',
+
+def _loot_msg_xform(raw_message, event):
+    """Inject clickable item link into loot msg."""
+    import json
+    try:
+        ed = json.loads(
+            event.get('extra_data', '{}')
         )
-        return False
+    except Exception:
+        return raw_message
+    item_entry = int(ed.get('item_entry', 0))
+    item_name = ed.get('item_name', '')
+    item_quality = int(ed.get('item_quality', 2))
+    if item_entry and item_name:
+        link = format_item_link(
+            item_entry, item_quality, item_name,
+        )
+        return re.sub(
+            re.escape(item_name), link,
+            raw_message, count=1,
+            flags=re.IGNORECASE,
+        )
+    return raw_message
 
 def process_group_combat_event(
     db, client, config, event
@@ -516,148 +309,51 @@ def process_group_combat_event(
     A bot shouts a short battle cry when engaging
     an elite or boss creature.
     """
+    # Pre-pipeline dedup: DB-based recent event check
     event_id = event['id']
-    extra_data = parse_extra_data(
+    ed = parse_extra_data(
         event.get('extra_data'),
-        event_id,
-        'bot_group_combat'
+        event_id, 'bot_group_combat',
     )
-
-    if not extra_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot_guid = int(extra_data.get('bot_guid', 0))
-    bot_name = extra_data.get('bot_name', 'Unknown')
-    creature_name = extra_data.get(
-        'creature_name', 'something'
-    )
-    is_boss = bool(int(
-        extra_data.get('is_boss', 0)
-    ))
-    is_elite = bool(int(
-        extra_data.get('is_elite', 0)
-    ))
-    group_id = int(extra_data.get('group_id', 0))
-
-    if not bot_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # Dedup: skip if recent combat event
-    if _has_recent_event(
-        db, 'bot_group_combat', bot_guid,
-        seconds=60, exclude_id=event_id
-    ):
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # Get bot traits
-    trait_data = get_bot_traits(
-        db, group_id, bot_guid
-    )
-    if not trait_data:
-        # BG fallback: no traits, use
-        # lightweight data + BG dispatch
-        if extra_data.get('is_battleground'):
-            extra_data['event_type'] = (
-                'bot_group_combat')
-            extra_data['party_bot_guids'] = [
-                bot_guid]
-            result = dual_worker_dispatch(
-                db, client, config,
-                event, extra_data,
-                subgroup_prompt_fn=(
-                    build_bg_combat_prompt),
-                raid_prompt_fn=None)
-            _mark_event(
-                db, event_id,
-                'completed' if result
-                else 'skipped')
-            return result
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-
-    bot_class_id = int(
-        extra_data.get('bot_class', 0)
-    )
-    bot_race_id = int(
-        extra_data.get('bot_race', 0)
-    )
-    bot_level = int(
-        extra_data.get('bot_level', 1)
-    )
-
-    bot = {
-        'guid': bot_guid,
-        'name': bot_name,
-        'class': get_class_name(bot_class_id),
-        'race': get_race_name(bot_race_id),
-        'level': bot_level,
-    }
-
-
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        speaker_talent = _maybe_talent_context(
-            config, db, bot_guid,
-            bot['class'], bot_name,
-        )
-        prompt = build_combat_reaction_prompt(
-            bot, traits, creature_name,
-            is_boss, mode,
-            chat_history=chat_hist,
-            is_elite=is_elite,
-            extra_data=extra_data,
-            speaker_talent_context=speaker_talent,
-            stored_tone=stored_tone,
-        )
-
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=bot_name,
-            bot_guid=bot['guid'],
-            channel='party',
-            delay_seconds=1,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            max_tokens_override=60,
-            context=(
-                f"grp-combat:#{event_id}"
-                f":{bot_name}"
-            ),
-            label='reaction_combat',
-        )
-        if not result['ok']:
+    if ed:
+        bg = int(ed.get('bot_guid', 0))
+        if bg and _has_recent_event(
+            db, 'bot_group_combat', bg,
+            seconds=60, exclude_id=event_id,
+        ):
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, bot['guid'],
-            bot['name'], True, message
-        )
-
-        _mark_event(db, event_id, 'completed')
-        return True
-
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_combat',
-            'handler error',
-        )
-        return False
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label='bot_group_combat',
+        extract_fields=lambda ed: {
+            'creature_name': ed.get(
+                'creature_name', 'something'),
+            'is_boss': bool(int(
+                ed.get('is_boss', 0))),
+            'is_elite': bool(int(
+                ed.get('is_elite', 0))),
+        },
+        build_prompt=lambda ctx: (
+            build_combat_reaction_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['creature_name'],
+                ctx['is_boss'], ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                is_elite=ctx['is_elite'],
+                extra_data=ctx['extra_data'],
+                speaker_talent_context=(
+                    ctx['speaker_talent']),
+                stored_tone=ctx['stored_tone'],
+            )
+        ),
+        delay_seconds=1,
+        max_tokens_override=60,
+        inject_mood=False,
+        label='reaction_combat',
+        bg_fallback_prompt=build_bg_combat_prompt,
+    )
 
 def process_group_death_event(
     db, client, config, event
@@ -667,191 +363,102 @@ def process_group_death_event(
     A DIFFERENT bot from the dead one reacts in
     party chat. If no other bot has traits, skip.
     """
-    event_id = event['id']
-    extra_data = parse_extra_data(
-        event.get('extra_data'),
-        event_id,
-        'bot_group_death'
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label='bot_group_death',
+        extract_fields=lambda ed: {
+            'dead_name': ed.get(
+                'dead_name',
+                ed.get('bot_name', 'someone')),
+            'dead_guid': int(
+                ed.get('dead_guid', 0)),
+            'killer_name': ed.get(
+                'killer_name', ''),
+            'is_player_death': ed.get(
+                'is_player_death', False),
+        },
+        build_prompt=lambda ctx: (
+            build_death_reaction_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['dead_name'],
+                ctx['killer_name'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                is_player_death=(
+                    ctx['is_player_death']),
+                extra_data=ctx['extra_data'],
+                allow_action=not ctx[
+                    'extra_data'].get(
+                    'is_battleground', False),
+                speaker_talent_context=(
+                    ctx['speaker_talent']),
+                stored_tone=ctx['stored_tone'],
+                map_id=ctx['map_id'],
+            )
+        ),
+        needs_map_id=True,
+        delay_seconds=2,
+        mood_key='death',
+        label='reaction_death',
+        bg_fallback_prompt=build_bg_death_prompt,
     )
 
-    if not extra_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
+def _levelup_post_success(db, ctx, message):
+    """Memory: reactor + leveler remember level-up."""
+    config = ctx['config']
+    group_id = ctx['group_id']
+    reactor_guid = ctx['bot_guid']
+    reactor_name = ctx['bot_name']
+    leveler_name = ctx['leveler_name']
+    new_level = ctx['new_level']
+    is_bot = ctx['is_bot']
+    leveler_guid = ctx['leveler_guid']
 
-    # C++ now pre-selects the reactor and includes
-    # their info in extra_data (bot_guid/bot_name =
-    # reactor, dead_name/dead_guid = dead player)
-    reactor_guid = int(
-        extra_data.get('bot_guid', 0)
-    )
-    reactor_name = extra_data.get(
-        'bot_name', 'someone'
-    )
-    dead_name = extra_data.get(
-        'dead_name',
-        extra_data.get('bot_name', 'someone')
-    )
-    dead_guid = int(
-        extra_data.get('dead_guid', 0)
-    )
-    killer_name = extra_data.get('killer_name', '')
-    group_id = int(extra_data.get('group_id', 0))
-    is_player_death = extra_data.get(
-        'is_player_death', False
-    )
-
-    if not reactor_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # Get reactor traits from traits table
-    trait_data = get_bot_traits(
-        db, group_id, reactor_guid
-    )
-    if not trait_data:
-        # Fallback: try get_other_group_bot (legacy)
-        reactor_data = get_other_group_bot(
-            db, group_id, dead_guid or reactor_guid
-        )
-        if not reactor_data:
-            # BG fallback: no traits, use
-            # lightweight data + BG dispatch
-            if extra_data.get('is_battleground'):
-                extra_data['event_type'] = (
-                    'bot_group_death')
-                extra_data['party_bot_guids'] = [
-                    reactor_guid]
-                result = dual_worker_dispatch(
-                    db, client, config,
-                    event, extra_data,
-                    subgroup_prompt_fn=(
-                        build_bg_death_prompt),
-                    raid_prompt_fn=None)
-                _mark_event(
-                    db, event_id,
-                    'completed' if result
-                    else 'skipped')
-                return result
-            _mark_event(db, event_id, 'skipped')
-            return False
-        reactor_guid = reactor_data['guid']
-        reactor_name = reactor_data['name']
-        reactor_traits = reactor_data['traits']
-        # Need class/race from characters table
-        cursor = db.cursor(dictionary=True)
-        cursor.execute("""
-            SELECT class, race, level
-            FROM characters WHERE guid = %s
-        """, (reactor_guid,))
-        char_row = cursor.fetchone()
-        if not char_row:
-            _mark_event(db, event_id, 'skipped')
-            return False
-        reactor = {
-            'guid': reactor_guid,
-            'name': reactor_name,
-            'class': get_class_name(
-                char_row['class']
+    mem_chance = int(config.get(
+        'LLMChatter.Memory'
+        '.LevelUpGenerationChance', 50
+    ))
+    if random.random() * 100 < mem_chance:
+        queue_memory(
+            config, group_id,
+            reactor_guid, 0,
+            memory_type='level_up',
+            event_context=(
+                f"{leveler_name} reached"
+                f" level {new_level}"
             ),
-            'race': get_race_name(
-                char_row['race']
-            ),
-            'level': char_row['level'],
-        }
-        stored_tone = reactor_data.get('tone')
-    else:
-        reactor_traits = trait_data['traits']
-        stored_tone = trait_data.get('tone')
-        # Use class/race from extra_data (C++)
-        bot_class_id = int(
-            extra_data.get('bot_class', 0)
+            bot_name=reactor_name,
+            bot_class=ctx['bot']['class'],
+            bot_race=ctx['bot']['race'],
         )
-        bot_race_id = int(
-            extra_data.get('bot_race', 0)
-        )
-        bot_level = int(
-            extra_data.get('bot_level', 1)
-        )
-        reactor = {
-            'guid': reactor_guid,
-            'name': reactor_name,
-            'class': get_class_name(bot_class_id),
-            'race': get_race_name(bot_race_id),
-            'level': bot_level,
-        }
 
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        speaker_talent = _maybe_talent_context(
-            config, db, reactor_guid,
-            reactor['class'], reactor_name,
+    # Leveler remembers own milestone (bot only)
+    if is_bot and leveler_guid != reactor_guid:
+        lv_c = db.cursor(dictionary=True)
+        lv_c.execute(
+            "SELECT class, race FROM"
+            " characters WHERE guid = %s",
+            (leveler_guid,),
         )
-        _, _, map_id = get_group_location(
-            db, group_id
-        )
-        prompt = build_death_reaction_prompt(
-            reactor, reactor_traits, dead_name,
-            killer_name, mode,
-            chat_history=chat_hist,
-            is_player_death=is_player_death,
-            extra_data=extra_data,
-            allow_action=not extra_data.get(
-                'is_battleground', False),
-            speaker_talent_context=speaker_talent,
-            stored_tone=stored_tone,
-            map_id=map_id,
-        )
-        mood_label = get_bot_mood_label(
-            group_id, reactor_guid
-        )
-        if mood_label != 'neutral':
-            prompt += (
-                f"\nCurrent mood: {mood_label}"
+        lv_row = lv_c.fetchone()
+        if lv_row:
+            queue_memory(
+                config, group_id,
+                leveler_guid, 0,
+                memory_type='level_up',
+                event_context=(
+                    f"I reached level"
+                    f" {new_level}"
+                ),
+                bot_name=leveler_name,
+                bot_class=get_class_name(
+                    lv_row['class']
+                ),
+                bot_race=get_race_name(
+                    lv_row['race']
+                ),
             )
 
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=reactor_name,
-            bot_guid=reactor_guid,
-            channel='party',
-            delay_seconds=2,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            context=(
-                f"grp-death:#{event_id}"
-                f":{reactor_name}"
-            ),
-            label='reaction_death',
-        )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, reactor_guid,
-            reactor_name, True, message
-        )
-
-        update_bot_mood(
-            group_id, reactor_guid, 'death'
-        )
-        _mark_event(db, event_id, 'completed')
-        return True
-
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_death', 'handler error',
-        )
-        return False
 
 def process_group_levelup_event(
     db, client, config, event
@@ -862,206 +469,61 @@ def process_group_levelup_event(
     leveled up. If no other bot exists in the
     group, the leveling bot itself reacts.
     """
-    event_id = event['id']
-    extra_data = parse_extra_data(
-        event.get('extra_data'),
-        event_id,
-        'bot_group_levelup'
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label='bot_group_levelup',
+        extract_fields=lambda ed: {
+            'leveler_name': ed.get(
+                'leveler_name',
+                ed.get('bot_name', 'someone')),
+            'leveler_guid': int(
+                ed.get('leveler_guid', 0)),
+            'new_level': int(
+                ed.get('bot_level', 1)),
+            'is_bot': bool(int(
+                ed.get('is_bot', 1))),
+        },
+        build_prompt=lambda ctx: (
+            build_levelup_reaction_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['leveler_name'],
+                ctx['new_level'],
+                ctx['is_bot'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                speaker_talent_context=(
+                    ctx['speaker_talent']),
+                stored_tone=ctx['stored_tone'],
+            )
+        ),
+        needs_reactor_from_db=True,
+        delay_seconds=2,
+        mood_key='levelup',
+        label='reaction_levelup',
+        post_success=_levelup_post_success,
     )
 
-    if not extra_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # C++ already picked the reactor bot
-    # (bot_guid/bot_name) and the leveler
-    # (leveler_name). Use them directly.
-    reactor_guid = int(
-        extra_data.get('bot_guid', 0)
-    )
-    reactor_name = extra_data.get(
-        'bot_name', 'someone'
-    )
-    leveler_name = extra_data.get(
-        'leveler_name',
-        extra_data.get('bot_name', 'someone')
-    )
-    new_level = int(
-        extra_data.get('bot_level', 1)
-    )
-    is_bot = bool(int(
-        extra_data.get('is_bot', 1)
+def _quest_complete_memory(db, ctx, message):
+    """Post-success: queue memory for quest
+    completion."""
+    mem_chance = int(ctx['config'].get(
+        'LLMChatter.Memory'
+        '.QuestGenerationChance', 40,
     ))
-    group_id = int(
-        extra_data.get('group_id', 0)
-    )
-
-    if not reactor_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # Get reactor traits from DB
-    trait_data = get_bot_traits(
-        db, group_id, reactor_guid
-    )
-    if not trait_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-    reactor_traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-
-    # Get reactor's class/race from characters
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT class, race, level
-        FROM characters
-        WHERE guid = %s
-    """, (reactor_guid,))
-    char_row = cursor.fetchone()
-
-    if not char_row:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    reactor = {
-        'guid': reactor_guid,
-        'name': reactor_name,
-        'class': get_class_name(
-            char_row['class']
-        ),
-        'race': get_race_name(
-            char_row['race']
-        ),
-        'level': char_row['level'],
-    }
-
-
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        speaker_talent = _maybe_talent_context(
-            config, db, reactor_guid,
-            reactor['class'], reactor_name,
-        )
-        prompt = build_levelup_reaction_prompt(
-            reactor, reactor_traits,
-            leveler_name, new_level, is_bot,
-            mode, chat_history=chat_hist,
-            speaker_talent_context=speaker_talent,
-            stored_tone=stored_tone,
-        )
-        mood_label = get_bot_mood_label(
-            group_id, reactor_guid
-        )
-        if mood_label != 'neutral':
-            prompt += (
-                f"\nCurrent mood: {mood_label}"
-            )
-
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=reactor_name,
-            bot_guid=reactor_guid,
-            channel='party',
-            delay_seconds=2,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            context=(
-                f"grp-levelup:#{event_id}"
-                f":{reactor_name}"
+    if random.random() * 100 < mem_chance:
+        queue_memory(
+            ctx['config'], ctx['group_id'],
+            ctx['bot_guid'], 0,
+            memory_type='quest_complete',
+            event_context=(
+                f"Completed quest:"
+                f" {ctx['quest_name']}"
             ),
-            label='reaction_levelup',
-        )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, reactor_guid,
-            reactor_name, True, message
+            bot_name=ctx['bot_name'],
+            bot_class=ctx['bot']['class'],
+            bot_race=ctx['bot']['race'],
         )
 
-        update_bot_mood(
-            group_id, reactor_guid, 'levelup'
-        )
-        _mark_event(db, event_id, 'completed')
-
-        # Memory: reactor remembers the level-up
-        try:
-            mem_chance = int(config.get(
-                'LLMChatter.Memory'
-                '.LevelUpGenerationChance', 50
-            ))
-            if random.random() * 100 < mem_chance:
-                queue_memory(
-                    config, group_id,
-                    reactor_guid, 0,
-                    memory_type='level_up',
-                    event_context=(
-                        f"{leveler_name} reached"
-                        f" level {new_level}"
-                    ),
-                    bot_name=reactor_name,
-                    bot_class=reactor['class'],
-                    bot_race=reactor['race'],
-                )
-        except Exception:
-            logger.error(
-                "level_up memory failed",
-                exc_info=True,
-            )
-
-        # Memory: leveler remembers their own
-        # milestone (only if bot, not player)
-        if is_bot and leveler_guid != reactor_guid:
-            try:
-                # Get leveler's class/race
-                lv_c = db.cursor(dictionary=True)
-                lv_c.execute(
-                    "SELECT class, race FROM"
-                    " characters WHERE guid = %s",
-                    (leveler_guid,),
-                )
-                lv_row = lv_c.fetchone()
-                if lv_row:
-                    queue_memory(
-                        config, group_id,
-                        leveler_guid, 0,
-                        memory_type='level_up',
-                        event_context=(
-                            f"I reached level"
-                            f" {new_level}"
-                        ),
-                        bot_name=leveler_name,
-                        bot_class=get_class_name(
-                            lv_row['class']
-                        ),
-                        bot_race=get_race_name(
-                            lv_row['race']
-                        ),
-                    )
-            except Exception:
-                logger.error(
-                    "levelup memory failed",
-                    exc_info=True,
-                )
-
-        return True
-
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_levelup',
-            'handler error',
-        )
-        return False
 
 def process_group_quest_complete_event(
     db, client, config, event
@@ -1072,19 +534,24 @@ def process_group_quest_complete_event(
     If no other bot exists, the completing bot
     itself reacts.
     """
+    # -- Try conversation path first --
     event_id = event['id']
     extra_data = parse_extra_data(
         event.get('extra_data'),
         event_id,
-        'bot_group_quest_complete'
+        'bot_group_quest_complete',
     )
-
     if not extra_data:
         _mark_event(db, event_id, 'skipped')
         return False
 
-    # C++ pre-selects the reactor (bot_guid/name)
-    # and provides the completer separately.
+    conv_chance = int(config.get(
+        'LLMChatter.GroupChatter'
+        '.QuestConversationChance', 30,
+    ))
+    group_id = int(
+        extra_data.get('group_id', 0)
+    )
     reactor_guid = int(
         extra_data.get('bot_guid', 0)
     )
@@ -1093,59 +560,20 @@ def process_group_quest_complete_event(
     )
     completer_name = extra_data.get(
         'completer_name',
-        extra_data.get('bot_name', 'someone')
+        extra_data.get('bot_name', 'someone'),
     )
     quest_name = extra_data.get(
         'quest_name', 'a quest'
     )
-    group_id = int(
-        extra_data.get('group_id', 0)
+    members = (
+        get_group_members(db, group_id)
+        if group_id else []
     )
 
-    if not reactor_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    trait_data = get_bot_traits(
-        db, group_id, reactor_guid
-    )
-    if not trait_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-    reactor_traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-
-    bot_class_id = int(
-        extra_data.get('bot_class', 0)
-    )
-    bot_race_id = int(
-        extra_data.get('bot_race', 0)
-    )
-    bot_level = int(
-        extra_data.get('bot_level', 1)
-    )
-
-    reactor = {
-        'guid': reactor_guid,
-        'name': reactor_name,
-        'class': get_class_name(bot_class_id),
-        'race': get_race_name(bot_race_id),
-        'level': bot_level,
-    }
-
-
-    # -- Decide: conversation or statement? --
-    conv_chance = int(config.get(
-        'LLMChatter.GroupChatter'
-        '.QuestConversationChance', 30
-    ))
-    members = get_group_members(db, group_id)
-    do_conversation = (
+    if (
         len(members) >= 2
         and random.randint(1, 100) <= conv_chance
-    )
-
-    if do_conversation:
+    ):
         try:
             ok = _quest_complete_conversation(
                 db, client, config, event_id,
@@ -1159,15 +587,22 @@ def process_group_quest_complete_event(
                     group_id, reactor_guid,
                     'quest',
                 )
-                # Memory: quest completion (conv path)
+                # Memory: quest completion (conv)
+                bot_class = get_class_name(int(
+                    extra_data.get('bot_class', 0)
+                ))
+                bot_race = get_race_name(int(
+                    extra_data.get('bot_race', 0)
+                ))
                 try:
-                    mem_chance = int(config.get(
+                    mem_ch = int(config.get(
                         'LLMChatter.Memory'
-                        '.QuestGenerationChance', 40
+                        '.QuestGenerationChance',
+                        40,
                     ))
                     if (
                         random.random() * 100
-                        < mem_chance
+                        < mem_ch
                     ):
                         queue_memory(
                             config, group_id,
@@ -1180,12 +615,8 @@ def process_group_quest_complete_event(
                                 f" {quest_name}"
                             ),
                             bot_name=reactor_name,
-                            bot_class=(
-                                reactor['class']
-                            ),
-                            bot_race=(
-                                reactor['race']
-                            ),
+                            bot_class=bot_class,
+                            bot_race=bot_race,
                         )
                 except Exception:
                     logger.error(
@@ -1200,124 +631,70 @@ def process_group_quest_complete_event(
                 " failed, falling through",
                 exc_info=True,
             )
-        # Fall through to statement path
 
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        zone_id, _, _ = get_group_location(
-            db, group_id
-        )
-        # Look up turn-in NPC name
-        quest_id = int(
-            extra_data.get('quest_id', 0)
-        )
+    # -- Fall through to statement via pipeline --
+    def _extract(ed):
+        quest_id = int(ed.get('quest_id', 0))
         turnin_npc = None
         if quest_id:
             turnin_npc = query_quest_turnin_npc(
-                config, quest_id
+                config, quest_id,
             )
-        quest_details = extra_data.get(
-            'quest_details', ''
-        )
-        quest_objectives = extra_data.get(
-            'quest_objectives', ''
-        )
-        speaker_talent = _maybe_talent_context(
-            config, db, reactor_guid,
-            reactor['class'], reactor_name,
-        )
-        prompt = (
-            build_quest_complete_reaction_prompt(
-                reactor, reactor_traits,
-                completer_name, quest_name,
-                mode,
-                chat_history=chat_hist,
-                turnin_npc=turnin_npc,
-                quest_details=quest_details,
-                quest_objectives=quest_objectives,
-                speaker_talent_context=speaker_talent,
-                stored_tone=stored_tone,
-                zone_id=zone_id,
-            )
-        )
-        mood_label = get_bot_mood_label(
-            group_id, reactor_guid
-        )
-        if mood_label != 'neutral':
-            prompt += (
-                f"\nCurrent mood: {mood_label}"
-            )
-
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=reactor_name,
-            bot_guid=reactor_guid,
-            channel='party',
-            delay_seconds=2,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            context=(
-                f"grp-quest:#{event_id}"
-                f":{reactor_name}"
+        return {
+            'completer_name': ed.get(
+                'completer_name',
+                ed.get('bot_name', 'someone'),
             ),
-            label='reaction_quest_complete',
-        )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
+            'quest_name': ed.get(
+                'quest_name', 'a quest',
+            ),
+            'quest_id': quest_id,
+            'turnin_npc': turnin_npc,
+            'quest_details': ed.get(
+                'quest_details', '',
+            ),
+            'quest_objectives': ed.get(
+                'quest_objectives', '',
+            ),
+        }
 
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, reactor_guid,
-            reactor_name, True, message
-        )
-
-        update_bot_mood(
-            group_id, reactor_guid, 'quest'
-        )
-
-        # Memory: quest completion
-        try:
-            mem_chance = int(config.get(
-                'LLMChatter.Memory'
-                '.QuestGenerationChance', 40
-            ))
-            if random.random() * 100 < mem_chance:
-                queue_memory(
-                    config, group_id,
-                    reactor_guid, 0,
-                    memory_type='quest_complete',
-                    event_context=(
-                        f"Completed quest:"
-                        f" {quest_name}"
-                    ),
-                    bot_name=reactor_name,
-                    bot_class=reactor['class'],
-                    bot_race=reactor['race'],
-                )
-        except Exception:
-            logger.error(
-                "quest_complete memory failed",
-                exc_info=True,
+    def _build(ctx):
+        return (
+            build_quest_complete_reaction_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['completer_name'],
+                ctx['quest_name'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                turnin_npc=ctx['turnin_npc'],
+                quest_details=(
+                    ctx['quest_details']
+                ),
+                quest_objectives=(
+                    ctx['quest_objectives']
+                ),
+                speaker_talent_context=(
+                    ctx['speaker_talent']
+                ),
+                stored_tone=ctx['stored_tone'],
+                zone_id=ctx.get('zone_id', 0),
             )
-
-        _mark_event(db, event_id, 'completed')
-        return True
-
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_quest_complete',
-            'handler error',
         )
-        return False
+
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label=(
+            'bot_group_quest_complete'
+        ),
+        extract_fields=_extract,
+        build_prompt=_build,
+        delay_seconds=2,
+        mood_key='quest',
+        label='reaction_quest_complete',
+        post_success=_quest_complete_memory,
+        pre_parsed_extra=extra_data,
+        needs_map_id=True,
+    )
 
 def process_group_quest_objectives_event(
     db, client, config, event
@@ -1333,9 +710,8 @@ def process_group_quest_objectives_event(
     extra_data = parse_extra_data(
         event.get('extra_data'),
         event_id,
-        'bot_group_quest_objectives'
+        'bot_group_quest_objectives',
     )
-
     if not extra_data:
         _mark_event(db, event_id, 'skipped')
         return False
@@ -1345,7 +721,7 @@ def process_group_quest_objectives_event(
     )
     completer_name = extra_data.get(
         'completer_name',
-        extra_data.get('bot_name', 'someone')
+        extra_data.get('bot_name', 'someone'),
     )
     quest_name = extra_data.get(
         'quest_name', 'a quest'
@@ -1358,77 +734,39 @@ def process_group_quest_objectives_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
-    # Dedup: skip if recent quest objectives
+    # DB-level dedup: skip if recent objectives
     # event for this bot within 60 seconds
     if _has_recent_event(
         db, 'bot_group_quest_objectives',
         completer_guid, 60,
-        exclude_id=event_id
+        exclude_id=event_id,
     ):
         _mark_event(db, event_id, 'skipped')
         return False
 
     # Pick a different bot to react
     reactor_data = get_other_group_bot(
-        db, group_id, completer_guid
+        db, group_id, completer_guid,
     )
-    stored_tone = None
     if reactor_data:
         reactor_guid = reactor_data['guid']
         reactor_name = reactor_data['name']
-        reactor_traits = reactor_data['traits']
-        stored_tone = reactor_data.get('tone')
     else:
         # No other bot — use the completing bot
-        trait_data = get_bot_traits(
-            db, group_id, completer_guid
-        )
-        if not trait_data:
-            _mark_event(db, event_id, 'skipped')
-            return False
         reactor_guid = completer_guid
         reactor_name = completer_name
-        reactor_traits = trait_data['traits']
-        stored_tone = trait_data.get('tone')
 
-    # Get reactor's class/race from characters
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT class, race, level
-        FROM characters
-        WHERE guid = %s
-    """, (reactor_guid,))
-    char_row = cursor.fetchone()
-
-    if not char_row:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    reactor = {
-        'guid': reactor_guid,
-        'name': reactor_name,
-        'class': get_class_name(
-            char_row['class']
-        ),
-        'race': get_race_name(
-            char_row['race']
-        ),
-        'level': char_row['level'],
-    }
-
-
-    # -- Decide: conversation or statement? --
+    # -- Try conversation path first --
     conv_chance = int(config.get(
         'LLMChatter.GroupChatter'
-        '.QuestConversationChance', 30
+        '.QuestConversationChance', 30,
     ))
     members = get_group_members(db, group_id)
-    do_conversation = (
+
+    if (
         len(members) >= 2
         and random.randint(1, 100) <= conv_chance
-    )
-
-    if do_conversation:
+    ):
         try:
             ok = _quest_objectives_conversation(
                 db, client, config, event_id,
@@ -1445,78 +783,69 @@ def process_group_quest_objectives_event(
                 " failed, falling through",
                 exc_info=True,
             )
-        # Fall through to statement path
 
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        zone_id, _, _ = get_group_location(
-            db, group_id
-        )
-        quest_details = extra_data.get(
-            'quest_details', ''
-        )
-        quest_objectives = extra_data.get(
-            'quest_objectives', ''
-        )
-        speaker_talent = _maybe_talent_context(
-            config, db, reactor_guid,
-            reactor['class'], reactor_name,
-        )
-        prompt = (
+    # -- Fall through to statement via pipeline --
+    # Patch extra_data so pipeline uses reactor
+    extra_data['bot_guid'] = reactor_guid
+    extra_data['bot_name'] = reactor_name
+    # Re-serialize into the event dict
+    import json as _json
+    event = dict(event)
+    event['extra_data'] = _json.dumps(extra_data)
+
+    def _extract(ed):
+        return {
+            'completer_name': ed.get(
+                'completer_name',
+                ed.get('bot_name', 'someone'),
+            ),
+            'quest_name': ed.get(
+                'quest_name', 'a quest',
+            ),
+            'quest_details': ed.get(
+                'quest_details', '',
+            ),
+            'quest_objectives': ed.get(
+                'quest_objectives', '',
+            ),
+        }
+
+    def _build(ctx):
+        return (
             build_quest_objectives_reaction_prompt(
-                reactor, reactor_traits,
-                quest_name, completer_name,
-                mode,
-                chat_history=chat_hist,
-                quest_details=quest_details,
-                quest_objectives=quest_objectives,
-                speaker_talent_context=speaker_talent,
-                stored_tone=stored_tone,
-                zone_id=zone_id,
+                ctx['bot'], ctx['traits'],
+                ctx['quest_name'],
+                ctx['completer_name'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                quest_details=(
+                    ctx['quest_details']
+                ),
+                quest_objectives=(
+                    ctx['quest_objectives']
+                ),
+                speaker_talent_context=(
+                    ctx['speaker_talent']
+                ),
+                stored_tone=ctx['stored_tone'],
+                zone_id=ctx.get('zone_id', 0),
             )
         )
 
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=reactor_name,
-            bot_guid=reactor_guid,
-            channel='party',
-            delay_seconds=2,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            context=(
-                f"grp-objectives:#{event_id}"
-                f":{reactor_name}"
-            ),
-            label='reaction_quest_complete',
-        )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, reactor_guid,
-            reactor_name, True, message
-        )
-
-        _mark_event(db, event_id, 'completed')
-        return True
-
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_quest_objectives',
-            'handler error',
-        )
-        return False
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label=(
+            'bot_group_quest_objectives'
+        ),
+        extract_fields=_extract,
+        build_prompt=_build,
+        delay_seconds=2,
+        label='reaction_quest_complete',
+        inject_mood=False,
+        needs_reactor_from_db=True,
+        pre_parsed_extra=extra_data,
+        needs_map_id=True,
+    )
 
 def _check_achievement_batch(
     db, event_id, group_id, achievement_name
@@ -1624,23 +953,73 @@ def _check_achievement_batch(
     return names
 
 
+def _achievement_post_success(db, ctx, message):
+    """Memory: ALL bots remember the achievement.
+    Skip in BG (achievements fire constantly).
+    """
+    if ctx['extra_data'].get('is_battleground'):
+        return
+    config = ctx['config']
+    group_id = ctx['group_id']
+    achievement_name = ctx['achievement_name']
+    achv_chance = int(config.get(
+        'LLMChatter.Memory'
+        '.AchievementGenerationChance', 35
+    ))
+    mc = db.cursor(dictionary=True)
+    mc.execute(
+        "SELECT t.bot_guid, t.bot_name,"
+        " c.class, c.race"
+        " FROM llm_group_bot_traits t"
+        " JOIN characters c"
+        "   ON c.guid = t.bot_guid"
+        " WHERE t.group_id = %s",
+        (group_id,),
+    )
+    all_bots = mc.fetchall()
+    for ab in all_bots:
+        if random.random() * 100 >= achv_chance:
+            continue
+        try:
+            queue_memory(
+                config, group_id,
+                ab['bot_guid'], 0,
+                memory_type='achievement',
+                event_context=(
+                    f"Earned achievement:"
+                    f" {achievement_name}"
+                ),
+                bot_name=ab['bot_name'],
+                bot_class=get_class_name(
+                    ab['class']
+                ),
+                bot_race=get_race_name(
+                    ab['race']
+                ),
+            )
+        except Exception:
+            logger.error(
+                "achievement memory queue failed",
+                exc_info=True,
+            )
+
+
 def process_group_achievement_event(
     db, client, config, event
 ):
     """Handle a bot_group_achievement event.
 
     A DIFFERENT bot reacts to the achievement.
-    Achievements are special — more excited than
+    Achievements are special -- more excited than
     regular events. If no other bot exists, the
     achieving bot itself reacts.
     """
+    # --- Pre-pipeline: batch dedup + reactor ---
     event_id = event['id']
     extra_data = parse_extra_data(
         event.get('extra_data'),
-        event_id,
-        'bot_group_achievement'
+        event_id, 'bot_group_achievement',
     )
-
     if not extra_data:
         _mark_event(db, event_id, 'skipped')
         return False
@@ -1650,10 +1029,10 @@ def process_group_achievement_event(
     )
     achiever_name = extra_data.get(
         'achiever_name',
-        extra_data.get('bot_name', 'someone')
+        extra_data.get('bot_name', 'someone'),
     )
     achievement_name = extra_data.get(
-        'achievement_name', 'an achievement'
+        'achievement_name', 'an achievement',
     )
     is_bot = bool(int(
         extra_data.get('is_bot', 1)
@@ -1666,36 +1045,28 @@ def process_group_achievement_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
-    # --- Achievement dedup: batch simultaneous ---
+    # Achievement batch dedup
     batch_result = _check_achievement_batch(
-        db, event_id, group_id, achievement_name
+        db, event_id, group_id, achievement_name,
     )
     if batch_result == 'already_batched':
-        # Another event with lower ID owns this
         _mark_event(db, event_id, 'completed')
         return True
-    # batch_result is None (no dupes) or a list
-    # of achiever names (this event is the owner)
     batched_names = batch_result
 
     # Pick a different bot to react
     reactor_data = get_other_group_bot(
-        db, group_id, achiever_guid
+        db, group_id, achiever_guid,
     )
-    trait_data = None
     if reactor_data:
         reactor_guid = reactor_data['guid']
         reactor_name = reactor_data['name']
-        reactor_traits = reactor_data['traits']
-        trait_data = reactor_data
     else:
-        # No other bot — use the achieving bot
+        # No other bot -- achiever reacts
         trait_data = get_bot_traits(
-            db, group_id, achiever_guid
+            db, group_id, achiever_guid,
         )
         if not trait_data:
-            # BG fallback: no traits, use
-            # lightweight data + BG dispatch
             if extra_data.get('is_battleground'):
                 extra_data['event_type'] = (
                     'bot_group_achievement')
@@ -1704,54 +1075,26 @@ def process_group_achievement_event(
                     event, extra_data,
                     subgroup_prompt_fn=(
                         build_bg_achievement_prompt),
-                    raid_prompt_fn=None)
+                    raid_prompt_fn=None,
+                )
                 _mark_event(
                     db, event_id,
                     'completed' if result
-                    else 'skipped')
+                    else 'skipped',
+                )
                 return result
             _mark_event(db, event_id, 'skipped')
             return False
         reactor_guid = achiever_guid
         reactor_name = achiever_name
-        reactor_traits = trait_data['traits']
-    stored_tone = (
-        trait_data.get('tone') if trait_data
-        else None
-    )
 
-    # Get reactor's class/race from characters
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT class, race, level
-        FROM characters
-        WHERE guid = %s
-    """, (reactor_guid,))
-    char_row = cursor.fetchone()
-
-    if not char_row:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    reactor = {
-        'guid': reactor_guid,
-        'name': reactor_name,
-        'class': get_class_name(
-            char_row['class']
-        ),
-        'race': get_race_name(
-            char_row['race']
-        ),
-        'level': char_row['level'],
-    }
-
-    # Re-check status — another thread (batch owner)
-    # may have already completed this event
+    # Re-check status (batch owner may have
+    # already completed this event)
     cursor = db.cursor(dictionary=True)
     cursor.execute(
         "SELECT status FROM llm_chatter_events "
         "WHERE id = %s",
-        (event_id,)
+        (event_id,),
     )
     status_row = cursor.fetchone()
     if (
@@ -1760,152 +1103,60 @@ def process_group_achievement_event(
     ):
         return True
 
+    # Inject resolved reactor into extra_data
+    # so the pipeline uses the correct speaker
+    import json as _json
+    ed_raw = event.get('extra_data', '{}')
     try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        speaker_talent = _maybe_talent_context(
-            config, db, reactor_guid,
-            reactor['class'], reactor_name,
-        )
-        _, _, map_id = get_group_location(
-            db, group_id
-        )
-        if batched_names:
-            prompt = (
-                build_group_achievement_reaction_prompt(
-                    reactor, reactor_traits,
-                    batched_names, achievement_name,
-                    mode,
-                    chat_history=chat_hist,
-                    speaker_talent_context=(
-                        speaker_talent),
-                    stored_tone=stored_tone,
-                    map_id=map_id,
-                )
-            )
-        else:
-            prompt = (
-                build_achievement_reaction_prompt(
-                    reactor, reactor_traits,
-                    achiever_name,
-                    achievement_name,
-                    is_bot, mode,
-                    chat_history=chat_hist,
-                    speaker_talent_context=(
-                        speaker_talent),
-                    map_id=map_id,
-                    stored_tone=stored_tone,
-                )
-            )
-        mood_label = get_bot_mood_label(
-            group_id, reactor_guid
-        )
-        if mood_label != 'neutral':
-            prompt += (
-                f"\nCurrent mood: {mood_label}"
-            )
-
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=reactor_name,
-            bot_guid=reactor_guid,
-            channel='party',
-            delay_seconds=2,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            context=(
-                f"grp-achieve:#{event_id}"
-                f":{reactor_name}"
-            ),
-            label='reaction_achievement',
-        )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, reactor_guid,
-            reactor_name, True, message
-        )
-
-        update_bot_mood(
-            group_id, reactor_guid, 'achievement'
-        )
-
-        # Memory: ALL bots remember the achievement.
-        # Skip in BG — achievements fire constantly
-        # (Honorable Kill, etc.) and would flood
-        # memory with low-value entries.
-        if extra_data.get('is_battleground'):
-            _mark_event(db, event_id, 'completed')
-            return True
-        try:
-            mc = db.cursor(dictionary=True)
-            mc.execute(
-                "SELECT t.bot_guid, t.bot_name,"
-                " c.class, c.race"
-                " FROM llm_group_bot_traits t"
-                " JOIN characters c"
-                "   ON c.guid = t.bot_guid"
-                " WHERE t.group_id = %s",
-                (group_id,),
-            )
-            all_bots = mc.fetchall()
-            achv_chance = int(config.get(
-                'LLMChatter.Memory'
-                '.AchievementGenerationChance',
-                35
-            ))
-            for ab in all_bots:
-                if (random.random() * 100
-                        >= achv_chance):
-                    continue
-                try:
-                    queue_memory(
-                        config, group_id,
-                        ab['bot_guid'], 0,
-                        memory_type='achievement',
-                        event_context=(
-                            f"Earned achievement:"
-                            f" {achievement_name}"
-                        ),
-                        bot_name=ab['bot_name'],
-                        bot_class=get_class_name(
-                            ab['class']
-                        ),
-                        bot_race=get_race_name(
-                            ab['race']
-                        ),
-                    )
-                except Exception:
-                    logger.error(
-                        "achievement memory"
-                        " queue failed",
-                        exc_info=True,
-                    )
-        except Exception:
-            logger.error(
-                "achievement memory failed",
-                exc_info=True,
-            )
-
-        _mark_event(db, event_id, 'completed')
-        return True
-
+        ed_mut = _json.loads(ed_raw)
     except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_achievement',
-            'handler error',
-        )
-        return False
+        ed_mut = {}
+    ed_mut['bot_guid'] = reactor_guid
+    ed_mut['bot_name'] = reactor_name
+    event = dict(event)
+    event['extra_data'] = _json.dumps(ed_mut)
+
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label='bot_group_achievement',
+        extract_fields=lambda ed: {
+            'achiever_name': achiever_name,
+            'achievement_name': achievement_name,
+            'is_bot': is_bot,
+            'batched_names': batched_names,
+        },
+        build_prompt=lambda ctx: (
+            build_group_achievement_reaction_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['batched_names'],
+                ctx['achievement_name'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                speaker_talent_context=(
+                    ctx['speaker_talent']),
+                stored_tone=ctx['stored_tone'],
+                map_id=ctx['map_id'],
+            )
+            if ctx['batched_names']
+            else build_achievement_reaction_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['achiever_name'],
+                ctx['achievement_name'],
+                ctx['is_bot'], ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                speaker_talent_context=(
+                    ctx['speaker_talent']),
+                map_id=ctx['map_id'],
+                stored_tone=ctx['stored_tone'],
+            )
+        ),
+        needs_map_id=True,
+        needs_reactor_from_db=True,
+        delay_seconds=2,
+        mood_key='achievement',
+        label='reaction_achievement',
+        post_success=_achievement_post_success,
+    )
 
 def process_group_spell_cast_event(
     db, client, config, event
@@ -1915,167 +1166,50 @@ def process_group_spell_cast_event(
     A bot reacts to a notable spell cast (heal, cc,
     resurrect, shield) in party chat.
     """
-    event_id = event['id']
-    extra_data = parse_extra_data(
-        event.get('extra_data'),
-        event_id,
-        'bot_group_spell_cast'
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label='bot_group_spell_cast',
+        extract_fields=lambda ed: {
+            'caster_name': ed.get(
+                'caster_name', 'someone'),
+            'spell_name': ed.get(
+                'spell_name', 'a spell'),
+            'spell_category': ed.get(
+                'spell_category', 'heal'),
+            'target_name': ed.get(
+                'target_name', 'someone'),
+        },
+        build_prompt=lambda ctx: (
+            build_spell_cast_reaction_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['caster_name'],
+                ctx['spell_name'],
+                ctx['spell_category'],
+                ctx['target_name'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                members=get_group_members(
+                    ctx['db'], ctx['group_id']),
+                dungeon_bosses=(
+                    get_dungeon_bosses(
+                        ctx['db'], ctx['map_id'])
+                    if ctx['dungeon_flavor']
+                    else None
+                ),
+                extra_data=ctx['extra_data'],
+                speaker_talent_context=(
+                    ctx['speaker_talent']),
+                stored_tone=ctx['stored_tone'],
+            )
+        ),
+        needs_map_id=True,
+        delay_seconds=lambda ctx: random.randint(
+            2, 3),
+        inject_mood=False,
+        label='reaction_spell',
+        bg_fallback_prompt=(
+            build_bg_spell_cast_prompt),
     )
-
-    if not extra_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot_guid = int(extra_data.get('bot_guid', 0))
-    bot_name = extra_data.get(
-        'bot_name', 'Unknown'
-    )
-    bot_class_id = int(
-        extra_data.get('bot_class', 0)
-    )
-    bot_race_id = int(
-        extra_data.get('bot_race', 0)
-    )
-    bot_level = int(
-        extra_data.get('bot_level', 1)
-    )
-    caster_name = extra_data.get(
-        'caster_name', 'someone'
-    )
-    spell_name = extra_data.get(
-        'spell_name', 'a spell'
-    )
-    spell_category = extra_data.get(
-        'spell_category', 'heal'
-    )
-    target_name = extra_data.get(
-        'target_name', 'someone'
-    )
-    group_id = int(extra_data.get('group_id', 0))
-
-    if not bot_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # Get bot traits (must have joined group first)
-    trait_data = get_bot_traits(
-        db, group_id, bot_guid
-    )
-    if not trait_data:
-        # BG fallback: no traits, use BG dispatch
-        if extra_data.get('is_battleground'):
-            extra_data['event_type'] = (
-                'bot_group_spell_cast')
-            # Pin to event's bot so dispatch
-            # speaks from the correct character
-            extra_data['party_bot_guids'] = (
-                [bot_guid])
-            result = dual_worker_dispatch(
-                db, client, config,
-                event, extra_data,
-                subgroup_prompt_fn=(
-                    build_bg_spell_cast_prompt),
-                raid_prompt_fn=None)
-            _mark_event(
-                db, event_id,
-                'completed' if result
-                else 'skipped')
-            return result
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-
-    bot_class = get_class_name(bot_class_id)
-    bot_race = get_race_name(bot_race_id)
-
-    bot = {
-        'guid': bot_guid,
-        'name': bot_name,
-        'class': bot_class,
-        'race': bot_race,
-        'level': bot_level,
-    }
-
-
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        members = get_group_members(db, group_id)
-
-        # Get map from group location (single source
-        # of truth, updated by C++ in real-time)
-        _, _, map_id = get_group_location(
-            db, group_id
-        )
-
-        # Get dungeon bosses if in a dungeon
-        in_dungeon = (
-            get_dungeon_flavor(map_id) is not None
-        )
-        dungeon_bosses = (
-            get_dungeon_bosses(db, map_id)
-            if in_dungeon else None
-        )
-
-        speaker_talent = _maybe_talent_context(
-            config, db, bot_guid,
-            bot_class, bot_name,
-        )
-        prompt = build_spell_cast_reaction_prompt(
-            bot, traits, caster_name,
-            spell_name, spell_category,
-            target_name, mode,
-            chat_history=chat_hist,
-            members=members,
-            dungeon_bosses=dungeon_bosses,
-            extra_data=extra_data,
-            speaker_talent_context=speaker_talent,
-            stored_tone=stored_tone,
-        )
-
-        delay = random.randint(2, 3)
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=bot_name,
-            bot_guid=bot_guid,
-            channel='party',
-            delay_seconds=delay,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            context=(
-                f"grp-spell:#{event_id}"
-                f":{bot['name']}"
-            ),
-            label='reaction_spell',
-        )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, bot_guid,
-            bot_name, True, message
-        )
-
-        _mark_event(db, event_id, 'completed')
-        return True
-
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_spell_cast',
-            'handler error',
-        )
-        return False
 
 def process_group_resurrect_event(
     db, client, config, event
@@ -2085,124 +1219,25 @@ def process_group_resurrect_event(
     The resurrected bot itself reacts with gratitude
     or relief in party chat.
     """
-    event_id = event['id']
-    extra_data = parse_extra_data(
-        event.get('extra_data'),
-        event_id,
-        'bot_group_resurrect'
-    )
-
-    if not extra_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot_guid = int(extra_data.get('bot_guid', 0))
-    bot_name = extra_data.get(
-        'bot_name', 'someone'
-    )
-    group_id = int(extra_data.get('group_id', 0))
-
-    if not bot_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # The rezzed bot itself reacts
-    trait_data = get_bot_traits(
-        db, group_id, bot_guid
-    )
-    if not trait_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-
-    # Get class/race from characters table
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT class, race, level
-        FROM characters
-        WHERE guid = %s
-    """, (bot_guid,))
-    char_row = cursor.fetchone()
-
-    if not char_row:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot = {
-        'guid': bot_guid,
-        'name': bot_name,
-        'class': get_class_name(char_row['class']),
-        'race': get_race_name(char_row['race']),
-        'level': char_row['level'],
-    }
-
-
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        speaker_talent = _maybe_talent_context(
-            config, db, bot_guid,
-            bot['class'], bot_name,
-        )
-        prompt = build_resurrect_reaction_prompt(
-            bot, traits, mode,
-            chat_history=chat_hist,
-            speaker_talent_context=speaker_talent,
-            stored_tone=stored_tone,
-        )
-        mood_label = get_bot_mood_label(
-            group_id, bot_guid
-        )
-        if mood_label != 'neutral':
-            prompt += (
-                f"\nCurrent mood: {mood_label}"
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label='bot_group_resurrect',
+        extract_fields=lambda ed: {},
+        build_prompt=lambda ctx: (
+            build_resurrect_reaction_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                speaker_talent_context=(
+                    ctx['speaker_talent']),
+                stored_tone=ctx['stored_tone'],
             )
-
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=bot_name,
-            bot_guid=bot_guid,
-            channel='party',
-            delay_seconds=2,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            context=(
-                f"grp-resurrect:#{event_id}"
-                f":{bot_name}"
-            ),
-            label='reaction_rez',
-        )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, bot_guid,
-            bot_name, True, message
-        )
-
-        update_bot_mood(
-            group_id, bot_guid, 'resurrect'
-        )
-        _mark_event(db, event_id, 'completed')
-        return True
-
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_resurrect',
-            'handler error',
-        )
-        return False
+        ),
+        needs_reactor_from_db=True,
+        delay_seconds=2,
+        mood_key='resurrect',
+        label='reaction_rez',
+    )
 
 def process_group_zone_transition_event(
     db, client, config, event
@@ -2402,18 +1437,24 @@ def process_group_quest_accept_event(
     A bot reacts to the group accepting a new quest.
     The C++ hook pre-selects the reactor bot.
     """
+    # -- Try conversation path first --
     event_id = event['id']
     extra_data = parse_extra_data(
         event.get('extra_data'),
         event_id,
-        'bot_group_quest_accept'
+        'bot_group_quest_accept',
     )
-
     if not extra_data:
         _mark_event(db, event_id, 'skipped')
         return False
 
-    # C++ pre-selects the reactor (bot_guid/name)
+    conv_chance = int(config.get(
+        'LLMChatter.GroupChatter'
+        '.QuestConversationChance', 30,
+    ))
+    group_id = int(
+        extra_data.get('group_id', 0)
+    )
     reactor_guid = int(
         extra_data.get('bot_guid', 0)
     )
@@ -2422,7 +1463,7 @@ def process_group_quest_accept_event(
     )
     acceptor_name = extra_data.get(
         'acceptor_name',
-        extra_data.get('bot_name', 'someone')
+        extra_data.get('bot_name', 'someone'),
     )
     quest_name = extra_data.get(
         'quest_name', 'a quest'
@@ -2430,64 +1471,19 @@ def process_group_quest_accept_event(
     quest_level = int(
         extra_data.get('quest_level', 0)
     )
-    zone_name = extra_data.get(
-        'zone_name', 'somewhere'
-    )
-    group_id = int(
-        extra_data.get('group_id', 0)
-    )
-
-    if not reactor_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # Player zone as source of truth
     zone_name = _resolve_zone_name(
-        db, group_id, zone_name
+        db, group_id,
+        extra_data.get('zone_name', 'somewhere'),
+    )
+    members = (
+        get_group_members(db, group_id)
+        if group_id else []
     )
 
-    trait_data = get_bot_traits(
-        db, group_id, reactor_guid
-    )
-    if not trait_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-    reactor_traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-
-    bot_class_id = int(extra_data.get(
-        'bot_class', 1
-    ))
-    bot_race_id = int(extra_data.get(
-        'bot_race', 1
-    ))
-    bot_class = get_class_name(bot_class_id)
-    bot_race = get_race_name(bot_race_id)
-    bot_level = int(
-        extra_data.get('bot_level', 1)
-    )
-
-    reactor = {
-        'guid': reactor_guid,
-        'name': reactor_name,
-        'class': bot_class,
-        'race': bot_race,
-        'level': bot_level,
-    }
-
-
-    # -- Decide: conversation or statement? --
-    conv_chance = int(config.get(
-        'LLMChatter.GroupChatter'
-        '.QuestConversationChance', 30
-    ))
-    members = get_group_members(db, group_id)
-    do_conversation = (
+    if (
         len(members) >= 2
         and random.randint(1, 100) <= conv_chance
-    )
-
-    if do_conversation:
+    ):
         try:
             ok = _quest_accept_conversation(
                 db, client, config, event_id,
@@ -2509,89 +1505,66 @@ def process_group_quest_accept_event(
                 " failed, falling through",
                 exc_info=True,
             )
-        # Fall through to statement path
 
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        zone_id, _, _ = get_group_location(
-            db, group_id
-        )
-        quest_details = extra_data.get(
-            'quest_details', ''
-        )
-        quest_objectives = extra_data.get(
-            'quest_objectives', ''
-        )
-        speaker_talent = _maybe_talent_context(
-            config, db, reactor_guid,
-            reactor['class'], reactor_name,
-        )
-        prompt = (
-            build_quest_accept_reaction_prompt(
-                reactor, reactor_traits,
-                acceptor_name, quest_name,
-                quest_level,
-                zone_name, mode,
-                chat_history=chat_hist,
-                quest_details=quest_details,
-                quest_objectives=quest_objectives,
-                speaker_talent_context=speaker_talent,
-                stored_tone=stored_tone,
-                zone_id=zone_id,
-            )
-        )
-        mood_label = get_bot_mood_label(
-            group_id, reactor_guid
-        )
-        if mood_label != 'neutral':
-            prompt += (
-                f"\nCurrent mood: {mood_label}"
-            )
-
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=reactor_name,
-            bot_guid=reactor_guid,
-            channel='party',
-            delay_seconds=2,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            context=(
-                f"grp-qacc:#{event_id}"
-                f":{reactor_name}"
+    # -- Fall through to statement via pipeline --
+    def _extract(ed):
+        return {
+            'acceptor_name': ed.get(
+                'acceptor_name',
+                ed.get('bot_name', 'someone'),
             ),
-            label='reaction_quest_accept',
+            'quest_name': ed.get(
+                'quest_name', 'a quest',
+            ),
+            'quest_level': int(
+                ed.get('quest_level', 0)
+            ),
+            'zone_name': zone_name,
+            'quest_details': ed.get(
+                'quest_details', '',
+            ),
+            'quest_objectives': ed.get(
+                'quest_objectives', '',
+            ),
+        }
+
+    def _build(ctx):
+        return (
+            build_quest_accept_reaction_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['acceptor_name'],
+                ctx['quest_name'],
+                ctx['quest_level'],
+                ctx['zone_name'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                quest_details=(
+                    ctx['quest_details']
+                ),
+                quest_objectives=(
+                    ctx['quest_objectives']
+                ),
+                speaker_talent_context=(
+                    ctx['speaker_talent']
+                ),
+                stored_tone=ctx['stored_tone'],
+                zone_id=ctx.get('zone_id', 0),
+            )
         )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
 
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, reactor_guid,
-            reactor_name, True, message
-        )
-
-        update_bot_mood(
-            group_id, reactor_guid, 'quest'
-        )
-        _mark_event(db, event_id, 'completed')
-        return True
-
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_quest_accept',
-            'handler error',
-        )
-        return False
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label=(
+            'bot_group_quest_accept'
+        ),
+        extract_fields=_extract,
+        build_prompt=_build,
+        delay_seconds=2,
+        mood_key='quest',
+        label='reaction_quest_accept',
+        pre_parsed_extra=extra_data,
+        needs_map_id=True,
+    )
 
 
 def process_group_quest_accept_batch_event(
@@ -2600,151 +1573,59 @@ def process_group_quest_accept_batch_event(
     """Handle a bot_group_quest_accept_batch event.
 
     Multiple quests accepted within the debounce
-    window → one generic 'lots of work' reaction.
+    window -- one generic 'lots of work' reaction.
     """
+    # Pre-pipeline: validate quest_names
     event_id = event['id']
-    extra_data = parse_extra_data(
+    ed = parse_extra_data(
         event.get('extra_data'),
-        event_id,
-        'bot_group_quest_accept_batch'
+        event_id, 'bot_group_quest_accept_batch',
     )
-
-    if not extra_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    reactor_guid = int(
-        extra_data.get('bot_guid', 0)
-    )
-    reactor_name = extra_data.get(
-        'bot_name', 'Unknown'
-    )
-    acceptor_name = extra_data.get(
-        'acceptor_name', 'someone'
-    )
-    quest_names = extra_data.get(
-        'quest_names', []
-    )
-    if not isinstance(quest_names, list):
-        quest_names = []
-    zone_name = extra_data.get(
-        'zone_name', 'somewhere'
-    )
-    group_id = int(
-        extra_data.get('group_id', 0)
-    )
-
-    if not reactor_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    if not quest_names:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # Player zone as source of truth
-    zone_name = _resolve_zone_name(
-        db, group_id, zone_name
-    )
-
-    trait_data = get_bot_traits(
-        db, group_id, reactor_guid
-    )
-    if not trait_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-    reactor_traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-
-    bot_class_id = int(extra_data.get(
-        'bot_class', 1
-    ))
-    bot_race_id = int(extra_data.get(
-        'bot_race', 1
-    ))
-    bot_class = get_class_name(bot_class_id)
-    bot_race = get_race_name(bot_race_id)
-    bot_level = int(
-        extra_data.get('bot_level', 1)
-    )
-
-    reactor = {
-        'guid': reactor_guid,
-        'name': reactor_name,
-        'class': bot_class,
-        'race': bot_race,
-        'level': bot_level,
-    }
-
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        zone_id, _, _ = get_group_location(
-            db, group_id
-        )
-        speaker_talent = _maybe_talent_context(
-            config, db, reactor_guid,
-            reactor['class'], reactor_name,
-        )
-        prompt = build_quest_accept_batch_prompt(
-            reactor, reactor_traits,
-            acceptor_name, quest_names,
-            zone_name, mode,
-            chat_history=chat_hist,
-            speaker_talent_context=speaker_talent,
-            stored_tone=stored_tone,
-            zone_id=zone_id,
-        )
-        mood_label = get_bot_mood_label(
-            group_id, reactor_guid
-        )
-        if mood_label != 'neutral':
-            prompt += (
-                f"\nCurrent mood: {mood_label}"
-            )
-
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=reactor_name,
-            bot_guid=reactor_guid,
-            channel='party',
-            delay_seconds=2,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            context=(
-                f"grp-qbatch:#{event_id}"
-                f":{reactor_name}"
-            ),
-            label='reaction_quest_accept',
-        )
-        if not result['ok']:
+    if ed:
+        qn = ed.get('quest_names', [])
+        if not isinstance(qn, list) or not qn:
             _mark_event(db, event_id, 'skipped')
             return False
 
-        message = result['message']
-
-        _store_chat(
-            db, group_id, reactor_guid,
-            reactor_name, True, message
-        )
-
-        update_bot_mood(
-            group_id, reactor_guid, 'quest'
-        )
-        _mark_event(db, event_id, 'completed')
-        return True
-
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_quest_accept_batch',
-            'handler error',
-        )
-        return False
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label=(
+            'bot_group_quest_accept_batch'),
+        extract_fields=lambda ed: {
+            'acceptor_name': ed.get(
+                'acceptor_name', 'someone'),
+            'quest_names': (
+                ed.get('quest_names', [])
+                if isinstance(
+                    ed.get('quest_names', []),
+                    list)
+                else []
+            ),
+            'zone_name': _resolve_zone_name(
+                db,
+                int(ed.get('group_id', 0)),
+                ed.get('zone_name', 'somewhere'),
+            ),
+        },
+        build_prompt=lambda ctx: (
+            build_quest_accept_batch_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['acceptor_name'],
+                ctx['quest_names'],
+                ctx['zone_name'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                speaker_talent_context=(
+                    ctx['speaker_talent']),
+                stored_tone=ctx['stored_tone'],
+                zone_id=ctx['extra_data'].get(
+                    'zone_id', 0),
+            )
+        ),
+        delay_seconds=2,
+        mood_key='quest',
+        label='reaction_quest_accept',
+    )
 
 
 def process_group_dungeon_entry_event(
@@ -2755,128 +1636,65 @@ def process_group_dungeon_entry_event(
     The bot that entered a dungeon or raid instance
     reacts in party chat.
     """
-    event_id = event['id']
-    extra_data = parse_extra_data(
-        event.get('extra_data'),
-        event_id,
-        'bot_group_dungeon_entry'
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label='bot_group_dungeon_entry',
+        extract_fields=lambda ed: {
+            'dungeon_map_id': int(
+                ed.get('map_id', 0)),
+            'map_name': ed.get(
+                'map_name', 'a dungeon'),
+            'is_raid': bool(int(
+                ed.get('is_raid', 0))),
+        },
+        build_prompt=lambda ctx: (
+            build_dungeon_entry_prompt(
+                ctx['db'], ctx['bot'],
+                ctx['traits'],
+                ctx['map_name'],
+                ctx['is_raid'],
+                ctx['dungeon_map_id'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                speaker_talent_context=(
+                    ctx['speaker_talent']),
+                stored_tone=ctx['stored_tone'],
+            )
+        ),
+        needs_reactor_from_db=True,
+        delay_seconds=lambda ctx: random.randint(
+            2, 4),
+        inject_mood=False,
+        label='reaction_dungeon_entry',
     )
 
-    if not extra_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot_guid = int(extra_data.get('bot_guid', 0))
-    bot_name = extra_data.get(
-        'bot_name', 'someone'
-    )
-    group_id = int(extra_data.get('group_id', 0))
-    map_id = int(extra_data.get('map_id', 0))
-    map_name = extra_data.get(
-        'map_name', 'a dungeon'
-    )
-    is_raid = bool(
-        int(extra_data.get('is_raid', 0))
-    )
-
-    if not bot_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # The bot that entered reacts
-    trait_data = get_bot_traits(
-        db, group_id, bot_guid
-    )
-    if not trait_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-
-    # Get class/race from characters table
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT class, race, level
-        FROM characters
-        WHERE guid = %s
-    """, (bot_guid,))
-    char_row = cursor.fetchone()
-
-    if not char_row:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot = {
-        'guid': bot_guid,
-        'name': bot_name,
-        'class': get_class_name(char_row['class']),
-        'race': get_race_name(char_row['race']),
-        'level': char_row['level'],
-    }
-
-
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        speaker_talent = _maybe_talent_context(
-            config, db, bot_guid,
-            bot['class'], bot_name,
-        )
-        prompt = build_dungeon_entry_prompt(
-            db, bot, traits, map_name, is_raid,
-            map_id, mode,
-            chat_history=chat_hist,
-            speaker_talent_context=speaker_talent,
-            stored_tone=stored_tone,
+def _wipe_post_success(db, ctx, message):
+    """Memory: bot remembers the wipe."""
+    config = ctx['config']
+    group_id = ctx['group_id']
+    bot_guid = ctx['bot_guid']
+    bot_name = ctx['bot_name']
+    killer_name = ctx['killer_name']
+    wipe_chance = int(config.get(
+        'LLMChatter.Memory'
+        '.WipeGenerationChance', 80
+    ))
+    if random.random() * 100 < wipe_chance:
+        context = "Total party wipe"
+        if killer_name:
+            context = (
+                f"Wiped to {killer_name}"
+            )
+        queue_memory(
+            config, group_id,
+            bot_guid, 0,
+            memory_type='wipe',
+            event_context=context,
+            bot_name=bot_name,
+            bot_class=ctx['bot']['class'],
+            bot_race=ctx['bot']['race'],
         )
 
-        delay = random.randint(2, 4)
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=bot_name,
-            bot_guid=bot_guid,
-            channel='party',
-            delay_seconds=delay,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            label='reaction_dungeon_entry',
-            context=(
-                f"grp-dungeon:#{event_id}"
-                f":{bot_name}"
-            ),
-        )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, bot_guid,
-            bot_name, True, message
-        )
-
-        # Dungeon memory is now handled at join time
-        # (process_group_event / process_group_join_batch)
-        # where traits are guaranteed to exist.
-        # Removed from here to avoid double-firing.
-
-        _mark_event(db, event_id, 'completed')
-        return True
-
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_dungeon_entry',
-            'handler error',
-        )
-        return False
 
 def process_group_wipe_event(
     db, client, config, event
@@ -2886,667 +1704,174 @@ def process_group_wipe_event(
     The designated bot reacts to a total party wipe
     in party chat.
     """
-    event_id = event['id']
-    extra_data = parse_extra_data(
-        event.get('extra_data'),
-        event_id,
-        'bot_group_wipe'
-    )
-
-    if not extra_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot_guid = int(extra_data.get('bot_guid', 0))
-    bot_name = extra_data.get(
-        'bot_name', 'someone'
-    )
-    group_id = int(extra_data.get('group_id', 0))
-    killer_name = extra_data.get(
-        'killer_name', ''
-    )
-
-    if not bot_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # The designated bot reacts
-    trait_data = get_bot_traits(
-        db, group_id, bot_guid
-    )
-    if not trait_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-
-    # Get class/race from characters table
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT class, race, level
-        FROM characters
-        WHERE guid = %s
-    """, (bot_guid,))
-    char_row = cursor.fetchone()
-
-    if not char_row:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot = {
-        'guid': bot_guid,
-        'name': bot_name,
-        'class': get_class_name(char_row['class']),
-        'race': get_race_name(char_row['race']),
-        'level': char_row['level'],
-    }
-
-
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        speaker_talent = _maybe_talent_context(
-            config, db, bot_guid,
-            bot['class'], bot_name,
-        )
-        _, _, map_id = get_group_location(
-            db, group_id
-        )
-        prompt = build_wipe_reaction_prompt(
-            bot, traits, killer_name, mode,
-            chat_history=chat_hist,
-            extra_data=extra_data,
-            speaker_talent_context=speaker_talent,
-            stored_tone=stored_tone,
-            map_id=map_id,
-        )
-        mood_label = get_bot_mood_label(
-            group_id, bot_guid
-        )
-        if mood_label != 'neutral':
-            prompt += (
-                f"\nCurrent mood: {mood_label}"
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label='bot_group_wipe',
+        extract_fields=lambda ed: {
+            'killer_name': ed.get(
+                'killer_name', ''),
+        },
+        build_prompt=lambda ctx: (
+            build_wipe_reaction_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['killer_name'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                extra_data=ctx['extra_data'],
+                speaker_talent_context=(
+                    ctx['speaker_talent']),
+                stored_tone=ctx['stored_tone'],
+                map_id=ctx['map_id'],
             )
-
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=bot_name,
-            bot_guid=bot_guid,
-            channel='party',
-            delay_seconds=2,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            context=(
-                f"grp-wipe:#{event_id}"
-                f":{bot_name}"
-            ),
-            label='reaction_wipe',
-        )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, bot_guid,
-            bot_name, True, message
-        )
-
-        update_bot_mood(
-            group_id, bot_guid, 'wipe'
-        )
-
-        # Memory: wipe
-        try:
-            wipe_chance = int(config.get(
-                'LLMChatter.Memory'
-                '.WipeGenerationChance', 80
-            ))
-            if random.random() * 100 < wipe_chance:
-                context = "Total party wipe"
-                if killer_name:
-                    context = (
-                        f"Wiped to {killer_name}"
-                    )
-                queue_memory(
-                    config, group_id,
-                    bot_guid, 0,
-                    memory_type='wipe',
-                    event_context=context,
-                    bot_name=bot_name,
-                    bot_class=bot['class'],
-                    bot_race=bot['race'],
-                )
-        except Exception:
-            logger.error(
-                "wipe memory failed",
-                exc_info=True,
-            )
-
-        _mark_event(db, event_id, 'completed')
-        return True
-
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_wipe', 'handler error',
-        )
-        return False
+        ),
+        needs_map_id=True,
+        needs_reactor_from_db=True,
+        delay_seconds=2,
+        mood_key='wipe',
+        label='reaction_wipe',
+        post_success=_wipe_post_success,
+    )
 
 def process_group_corpse_run_event(
     db, client, config, event
 ):
     """Handle a bot_group_corpse_run event.
 
-    A bot comments on a corpse run — either
+    A bot comments on a corpse run -- either
     their own or the real player's. Humorous,
     philosophical, or resigned depending on
     personality.
     """
-    event_id = event['id']
-    extra_data = parse_extra_data(
-        event.get('extra_data'),
-        event_id,
-        'bot_group_corpse_run'
+    # Capture event-level map_id before pipeline
+    evt_map_id = int(event.get('map_id') or 0)
+
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label='bot_group_corpse_run',
+        extract_fields=lambda ed: {
+            'zone_name': _resolve_zone_name(
+                db, int(ed.get('group_id', 0)),
+                ed.get('zone_name', '')),
+            'dead_name': ed.get(
+                'dead_name',
+                ed.get('bot_name', 'someone')),
+            'is_player_death': ed.get(
+                'is_player_death', False),
+            'evt_map_id': evt_map_id,
+        },
+        build_prompt=lambda ctx: (
+            build_corpse_run_reaction_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['zone_name'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                dead_name=ctx['dead_name'],
+                is_player_death=(
+                    ctx['is_player_death']),
+                speaker_talent_context=(
+                    ctx['speaker_talent']),
+                stored_tone=ctx['stored_tone'],
+                map_id=ctx['evt_map_id'],
+            )
+        ),
+        needs_reactor_from_db=True,
+        delay_seconds=2,
+        inject_mood=False,
+        label='reaction_corpse_run',
     )
-
-    if not extra_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot_guid = int(extra_data.get('bot_guid', 0))
-    bot_name = extra_data.get(
-        'bot_name', 'someone'
-    )
-    group_id = int(extra_data.get('group_id', 0))
-    zone_name = extra_data.get('zone_name', '')
-    dead_name = extra_data.get(
-        'dead_name', bot_name
-    )
-    is_player_death = extra_data.get(
-        'is_player_death', False
-    )
-
-    if not bot_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    # Player zone as source of truth
-    zone_name = _resolve_zone_name(
-        db, group_id, zone_name
-    )
-
-    trait_data = get_bot_traits(
-        db, group_id, bot_guid
-    )
-    if not trait_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT class, race, level
-        FROM characters
-        WHERE guid = %s
-    """, (bot_guid,))
-    char_row = cursor.fetchone()
-
-    if not char_row:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot = {
-        'guid': bot_guid,
-        'name': bot_name,
-        'class': get_class_name(char_row['class']),
-        'race': get_race_name(char_row['race']),
-        'level': char_row['level'],
-    }
-
-
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        speaker_talent = _maybe_talent_context(
-            config, db, bot_guid,
-            bot['class'], bot_name,
-        )
-        map_id = int(event.get('map_id') or 0)
-        prompt = build_corpse_run_reaction_prompt(
-            bot, traits, zone_name, mode,
-            chat_history=chat_hist,
-            dead_name=dead_name,
-            is_player_death=is_player_death,
-            speaker_talent_context=speaker_talent,
-            stored_tone=stored_tone,
-            map_id=map_id,
-        )
-
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=bot_name,
-            bot_guid=bot_guid,
-            channel='party',
-            delay_seconds=2,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            context=(
-                f"grp-corpse:#{event_id}"
-                f":{bot_name}"
-            ),
-            label='reaction_corpse_run',
-        )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, bot_guid,
-            bot_name, True, message
-        )
-
-        _mark_event(db, event_id, 'completed')
-        return True
-
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_corpse_run',
-            'handler error',
-        )
-        return False
 
 def process_group_low_health_event(
     db, client, config, event
 ):
     """Handle bot_group_low_health callout."""
-    event_id = event['id']
-    extra_data = parse_extra_data(
-        event.get('extra_data'),
-        event_id,
-        'bot_group_low_health'
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label='bot_group_low_health',
+        extract_fields=lambda ed: {
+            'target_name': ed.get(
+                'target_name', ''),
+        },
+        build_prompt=lambda ctx: (
+            build_low_health_callout_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['target_name'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                extra_data=ctx['extra_data'],
+                speaker_talent_context=(
+                    ctx['speaker_talent']),
+            )
+        ),
+        needs_reactor_from_db=True,
+        delay_seconds=1,
+        max_tokens_override=60,
+        inject_mood=False,
+        label='reaction_low_health',
+        bg_fallback_prompt=(
+            build_bg_low_health_prompt),
     )
-
-    if not extra_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot_guid = int(extra_data.get('bot_guid', 0))
-    bot_name = extra_data.get(
-        'bot_name', 'Unknown'
-    )
-    group_id = int(extra_data.get('group_id', 0))
-    target_name = extra_data.get(
-        'target_name', ''
-    )
-
-    if not bot_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    trait_data = get_bot_traits(
-        db, group_id, bot_guid
-    )
-    if not trait_data:
-        # BG fallback: no traits, use BG dispatch
-        if extra_data.get('is_battleground'):
-            extra_data['event_type'] = (
-                'bot_group_low_health')
-            # Pin to event's bot so dispatch
-            # speaks from the affected character
-            extra_data['party_bot_guids'] = (
-                [bot_guid])
-            result = dual_worker_dispatch(
-                db, client, config,
-                event, extra_data,
-                subgroup_prompt_fn=(
-                    build_bg_low_health_prompt),
-                raid_prompt_fn=None)
-            _mark_event(
-                db, event_id,
-                'completed' if result
-                else 'skipped')
-            return result
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-
-    # Get class/race from characters
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT class, race, level
-        FROM characters WHERE guid = %s
-    """, (bot_guid,))
-    char_row = cursor.fetchone()
-    if not char_row:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot = {
-        'guid': bot_guid,
-        'name': bot_name,
-        'class': get_class_name(char_row['class']),
-        'race': get_race_name(char_row['race']),
-        'level': char_row['level'],
-    }
-
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        speaker_talent = _maybe_talent_context(
-            config, db, bot_guid,
-            bot['class'], bot_name,
-        )
-        prompt = build_low_health_callout_prompt(
-            bot, traits, target_name, mode,
-            chat_history=chat_hist,
-            extra_data=extra_data,
-            speaker_talent_context=speaker_talent,
-        )
-
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=bot_name,
-            bot_guid=bot_guid,
-            channel='party',
-            delay_seconds=1,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            max_tokens_override=60,
-            context=(
-                f"grp-lowHP:#{event_id}"
-                f":{bot_name}"
-            ),
-            label='reaction_low_health',
-        )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, bot_guid,
-            bot_name, True, message
-        )
-        _mark_event(db, event_id, 'completed')
-        return True
-
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_low_health',
-            'handler error',
-        )
-        return False
 
 def process_group_oom_event(
     db, client, config, event
 ):
     """Handle bot_group_oom callout."""
-    event_id = event['id']
-    extra_data = parse_extra_data(
-        event.get('extra_data'),
-        event_id,
-        'bot_group_oom'
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label='bot_group_oom',
+        extract_fields=lambda ed: {
+            'target_name': ed.get(
+                'target_name', ''),
+        },
+        build_prompt=lambda ctx: (
+            build_oom_callout_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['target_name'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                extra_data=ctx['extra_data'],
+                speaker_talent_context=(
+                    ctx['speaker_talent']),
+            )
+        ),
+        needs_reactor_from_db=True,
+        delay_seconds=1,
+        max_tokens_override=60,
+        inject_mood=False,
+        label='reaction_oom',
+        bg_fallback_prompt=build_bg_oom_prompt,
     )
-
-    if not extra_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot_guid = int(extra_data.get('bot_guid', 0))
-    bot_name = extra_data.get(
-        'bot_name', 'Unknown'
-    )
-    group_id = int(extra_data.get('group_id', 0))
-    target_name = extra_data.get(
-        'target_name', ''
-    )
-
-    if not bot_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    trait_data = get_bot_traits(
-        db, group_id, bot_guid
-    )
-    if not trait_data:
-        # BG fallback: no traits, use BG dispatch
-        if extra_data.get('is_battleground'):
-            extra_data['event_type'] = (
-                'bot_group_oom')
-            # Pin to event's bot so dispatch
-            # speaks from the affected character
-            extra_data['party_bot_guids'] = (
-                [bot_guid])
-            result = dual_worker_dispatch(
-                db, client, config,
-                event, extra_data,
-                subgroup_prompt_fn=(
-                    build_bg_oom_prompt),
-                raid_prompt_fn=None)
-            _mark_event(
-                db, event_id,
-                'completed' if result
-                else 'skipped')
-            return result
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT class, race, level
-        FROM characters WHERE guid = %s
-    """, (bot_guid,))
-    char_row = cursor.fetchone()
-    if not char_row:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot = {
-        'guid': bot_guid,
-        'name': bot_name,
-        'class': get_class_name(char_row['class']),
-        'race': get_race_name(char_row['race']),
-        'level': char_row['level'],
-    }
-
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        speaker_talent = _maybe_talent_context(
-            config, db, bot_guid,
-            bot['class'], bot_name,
-        )
-        prompt = build_oom_callout_prompt(
-            bot, traits, target_name, mode,
-            chat_history=chat_hist,
-            extra_data=extra_data,
-            speaker_talent_context=speaker_talent,
-        )
-
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=bot_name,
-            bot_guid=bot_guid,
-            channel='party',
-            delay_seconds=1,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            max_tokens_override=60,
-            context=(
-                f"grp-oom:#{event_id}"
-                f":{bot_name}"
-            ),
-            label='reaction_oom',
-        )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, bot_guid,
-            bot_name, True, message
-        )
-        _mark_event(db, event_id, 'completed')
-        return True
-
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_oom', 'handler error',
-        )
-        return False
 
 def process_group_aggro_loss_event(
     db, client, config, event
 ):
     """Handle bot_group_aggro_loss callout."""
-    event_id = event['id']
-    extra_data = parse_extra_data(
-        event.get('extra_data'),
-        event_id,
-        'bot_group_aggro_loss'
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label='bot_group_aggro_loss',
+        extract_fields=lambda ed: {
+            'target_name': ed.get(
+                'target_name', ''),
+            'aggro_target': ed.get(
+                'aggro_target', 'someone'),
+        },
+        build_prompt=lambda ctx: (
+            build_aggro_loss_callout_prompt(
+                ctx['bot'], ctx['traits'],
+                ctx['target_name'],
+                ctx['aggro_target'],
+                ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                extra_data=ctx['extra_data'],
+                speaker_talent_context=(
+                    ctx['speaker_talent']),
+            )
+        ),
+        needs_reactor_from_db=True,
+        delay_seconds=1,
+        max_tokens_override=60,
+        inject_mood=False,
+        label='reaction_aggro_loss',
     )
-
-    if not extra_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot_guid = int(extra_data.get('bot_guid', 0))
-    bot_name = extra_data.get(
-        'bot_name', 'Unknown'
-    )
-    group_id = int(extra_data.get('group_id', 0))
-    target_name = extra_data.get(
-        'target_name', ''
-    )
-    aggro_target = extra_data.get(
-        'aggro_target', 'someone'
-    )
-
-    if not bot_guid or not group_id:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    trait_data = get_bot_traits(
-        db, group_id, bot_guid
-    )
-    if not trait_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT class, race, level
-        FROM characters WHERE guid = %s
-    """, (bot_guid,))
-    char_row = cursor.fetchone()
-    if not char_row:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    bot = {
-        'guid': bot_guid,
-        'name': bot_name,
-        'class': get_class_name(char_row['class']),
-        'race': get_race_name(char_row['race']),
-        'level': char_row['level'],
-    }
-
-    try:
-        mode = get_chatter_mode(config)
-        history = _get_recent_chat(db, group_id)
-        chat_hist = format_chat_history(history)
-        speaker_talent = _maybe_talent_context(
-            config, db, bot_guid,
-            bot['class'], bot_name,
-        )
-        prompt = build_aggro_loss_callout_prompt(
-            bot, traits, target_name,
-            aggro_target, mode,
-            chat_history=chat_hist,
-            extra_data=extra_data,
-            speaker_talent_context=speaker_talent,
-        )
-
-        result = run_single_reaction(
-            db,
-            client,
-            config,
-            prompt=prompt,
-            speaker_name=bot_name,
-            bot_guid=bot_guid,
-            channel='party',
-            delay_seconds=1,
-            event_id=event_id,
-            allow_emote_fallback=True,
-            max_tokens_override=60,
-            context=(
-                f"grp-aggro:#{event_id}"
-                f":{bot_name}"
-            ),
-            label='reaction_aggro_loss',
-        )
-        if not result['ok']:
-            _mark_event(db, event_id, 'skipped')
-            return False
-
-        message = result['message']
-
-
-        _store_chat(
-            db, group_id, bot_guid,
-            bot_name, True, message
-        )
-        _mark_event(db, event_id, 'completed')
-        return True
-
-    except Exception:
-        fail_event(
-            db, event_id,
-            'bot_group_aggro_loss',
-            'handler error',
-        )
-        return False
 
 
 def process_group_nearby_object_event(
@@ -3558,10 +1883,12 @@ def process_group_nearby_object_event(
     multi-bot conversation based on
     NearbyObject.ConversationChance.
     """
+    # -- Try conversation path first --
     event_id = event['id']
     extra = parse_extra_data(
         event.get('extra_data'), event_id,
-        'bot_group_nearby_object')
+        'bot_group_nearby_object',
+    )
     if not extra:
         _mark_event(db, event_id, 'skipped')
         return False
@@ -3575,45 +1902,21 @@ def process_group_nearby_object_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
-    # Get triggering bot's traits
-    trait_data = get_bot_traits(
-        db, group_id, bot_guid)
-    if not trait_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    traits = trait_data['traits']
-    stored_tone = trait_data.get('tone')
-
-    mode = get_chatter_mode(config)
-    history = _get_recent_chat(db, group_id)
-    chat_hist = format_chat_history(history)
-    bot_class_name = get_class_name(
-        int(extra.get('bot_class', 0)))
-    bot_race_name = get_race_name(
-        int(extra.get('bot_race', 0)))
-
-    zone_name = extra.get('zone_name', '')
-    subzone_name = extra.get('subzone_name', '')
-
-    # Player zone as source of truth for zone_name.
-    # subzone_name stays from C++ extra_data (no
-    # subzone in the characters table).
+    # Pre-resolve zone data for both paths
     zone_name = _resolve_zone_name(
-        db, group_id, zone_name
+        db, group_id,
+        extra.get('zone_name', ''),
     )
-
+    subzone_name = extra.get('subzone_name', '')
     in_city = extra.get('in_city', False)
     in_dungeon = extra.get('in_dungeon', False)
 
-    # Look up subzone lore for richer context
-    zone_id, area_id, map_id = get_group_location(
-        db, group_id)
-    subzone_lore = get_subzone_lore(
-        zone_id, area_id
+    zone_id, area_id, map_id = (
+        get_group_location(db, group_id)
     )
-
-    # Zone metadata for request logging
+    subzone_lore = get_subzone_lore(
+        zone_id, area_id,
+    )
     zf = get_zone_flavor(zone_id)
     resolved_subzone = (
         subzone_name
@@ -3624,20 +1927,28 @@ def process_group_nearby_object_event(
         resolved_subzone, subzone_lore,
     )
 
-    # -- Decide: conversation or statement? --
-    members = get_group_members(db, group_id)
     conv_chance = int(config.get(
-        'LLMChatter.NearbyObject.ConversationChance',
-        40,
+        'LLMChatter.NearbyObject'
+        '.ConversationChance', 40,
     ))
-    do_conversation = (
-        len(members) >= 2
-        and random.randint(1, 100) <= conv_chance
+    members = (
+        get_group_members(db, group_id)
+        if group_id else []
     )
 
-    if do_conversation:
+    if (
+        len(members) >= 2
+        and random.randint(1, 100) <= conv_chance
+    ):
         try:
-            return _nearby_object_conversation(
+            mode = get_chatter_mode(config)
+            history = _get_recent_chat(
+                db, group_id,
+            )
+            chat_hist = format_chat_history(
+                history,
+            )
+            ok = _nearby_object_conversation(
                 db, client, config, event_id,
                 group_id, bot_guid, bot_name,
                 members, objects,
@@ -3648,63 +1959,81 @@ def process_group_nearby_object_event(
                 zone_meta=zone_meta,
                 map_id=map_id,
             )
+            if ok:
+                return True
+            # Conversation failed — fall through
+            # to statement path below
         except Exception:
-            fail_event(
-                db, event_id,
-                'bot_group_nearby_object',
-                'conversation path error',
+            logger.error(
+                "nearby_object conversation "
+                "failed, falling through",
+                exc_info=True,
             )
-            return False
 
-    # -- Single-bot statement (original path) --
-    speaker_talent = _maybe_talent_context(
-        config, db, bot_guid,
-        bot_class_name, bot_name,
-    )
-    prompt = build_nearby_object_reaction_prompt(
-        bot_name=bot_name,
-        class_name=bot_class_name,
-        race_name=bot_race_name,
-        traits=traits,
-        objects=objects,
-        zone_name=zone_name,
-        subzone_name=subzone_name,
-        in_city=in_city,
-        in_dungeon=in_dungeon,
-        mode=mode,
-        chat_history=chat_hist,
-        config=config,
-        speaker_talent_context=speaker_talent,
-        subzone_lore=subzone_lore,
-        map_id=map_id,
-    )
+    # -- Fall through to statement via pipeline --
+    def _extract(ed):
+        return {
+            'objects': ed.get('objects', []),
+            'zone_name': zone_name,
+            'subzone_name': subzone_name,
+            'in_city': in_city,
+            'in_dungeon': in_dungeon,
+            'subzone_lore': subzone_lore,
+            'rich_zone_meta': zone_meta,
+            'obj_map_id': map_id,
+        }
 
-    if speaker_talent:
-        zone_meta['speaker_talent'] = (
-            speaker_talent
+    def _build(ctx):
+        # Rebuild zone_meta in-place so the
+        # pipeline passes it as metadata
+        meta = ctx['zone_meta']
+        rich = ctx['rich_zone_meta']
+        meta.clear()
+        meta.update(rich)
+
+        prompt = (
+            build_nearby_object_reaction_prompt(
+                bot_name=ctx['bot_name'],
+                class_name=ctx['bot']['class'],
+                race_name=ctx['bot']['race'],
+                traits=ctx['traits'],
+                objects=ctx['objects'],
+                zone_name=ctx['zone_name'],
+                subzone_name=(
+                    ctx['subzone_name']
+                ),
+                in_city=ctx['in_city'],
+                in_dungeon=ctx['in_dungeon'],
+                mode=ctx['mode'],
+                chat_history=ctx['chat_hist'],
+                config=ctx['config'],
+                speaker_talent_context=(
+                    ctx['speaker_talent']
+                ),
+                subzone_lore=(
+                    ctx['subzone_lore']
+                ),
+                map_id=ctx['obj_map_id'],
+            )
         )
-    result = run_single_reaction(
-        db, client, config,
-        prompt=prompt,
-        speaker_name=bot_name,
-        bot_guid=bot_guid,
-        channel='party',
+        if ctx['speaker_talent']:
+            meta['speaker_talent'] = (
+                ctx['speaker_talent']
+            )
+        return prompt
+
+    return run_group_handler(
+        db, client, config, event,
+        event_type_label=(
+            'bot_group_nearby_object'
+        ),
+        extract_fields=_extract,
+        build_prompt=_build,
         delay_seconds=3,
-        event_id=event_id,
-        allow_emote_fallback=True,
-        metadata=zone_meta,
         label='reaction_nearby_obj',
+        inject_mood=False,
+        pre_parsed_extra=extra,
     )
-
-    if not result['ok']:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    _store_chat(
-        db, group_id, bot_guid,
-        bot_name, True, result['message'])
-    _mark_event(db, event_id, 'completed')
-    return True
 
 
 def _nearby_object_conversation(
