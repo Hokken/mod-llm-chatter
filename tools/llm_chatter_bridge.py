@@ -51,40 +51,16 @@ from chatter_shared import (
     set_action_chance,
     set_emote_chance,
     parse_config, get_db_connection,
+    parse_extra_data,
     wait_for_database,
     stagger_if_needed,
 )
 from chatter_events import (
     cleanup_expired_events,
     reset_stuck_processing_events,
-    process_zone_intrusion_event,
 )
 from chatter_group import (
     init_group_config,
-    process_group_event,
-    process_group_join_batch_event,
-    process_group_kill_event,
-    process_group_death_event,
-    process_group_loot_event,
-    process_group_combat_event,
-    process_group_player_msg_event,
-    process_group_levelup_event,
-    process_group_quest_complete_event,
-    process_group_quest_objectives_event,
-    process_group_achievement_event,
-    process_group_spell_cast_event,
-    process_group_resurrect_event,
-    process_group_zone_transition_event,
-    process_group_quest_accept_event,
-    process_group_quest_accept_batch_event,
-    process_group_dungeon_entry_event,
-    process_group_wipe_event,
-    process_group_corpse_run_event,
-    process_group_low_health_event,
-    process_group_oom_event,
-    process_group_aggro_loss_event,
-    process_group_nearby_object_event,
-    process_group_farewell_event,
     check_idle_group_chatter,
     check_bot_questions,
 )
@@ -93,39 +69,9 @@ from chatter_general import (
     process_general_player_msg_event,
 )
 from chatter_cache import refill_precache_pool
-from chatter_battlegrounds import (
-    process_bg_match_start_event,
-    process_bg_match_end_event,
-    process_bg_flag_event,
-    process_bg_flag_return_event,
-    process_bg_node_event,
-    process_bg_pvp_kill_event,
-    process_bg_score_milestone_event,
-    process_bg_idle_chatter_event,
-)
-from chatter_raids import (
-    process_raid_boss_pull_event,
-    process_raid_boss_kill_event,
-    process_raid_boss_wipe_event,
-    process_raid_idle_morale_event,
-)
-from chatter_emote_observer import (
-    handle_emote_observer,
-)
-from chatter_emote_reaction import (
-    handle_emote_reaction,
-)
-from chatter_screenshot_handler import (
-    handle_screenshot_observation,
-)
-from chatter_world_events import (
-    process_transport_arrives_event,
-    process_weather_change_event,
-    process_weather_ambient_event,
-    process_holiday_start_event,
-    process_holiday_end_event,
-    process_minor_event,
-    process_day_night_transition_event,
+from chatter_event_registry import (
+    build_handler_map,
+    validate_registry,
 )
 
 # Configure logging
@@ -496,112 +442,13 @@ _ORPHAN_GUARD_EXEMPT = frozenset({
     'bot_group_emote_reaction',
 })
 
-EVENT_HANDLERS = {
-    # Group events
-    'bot_group_join': process_group_event,
-    'bot_group_join_batch':
-        process_group_join_batch_event,
-    'bot_group_kill': process_group_kill_event,
-    'bot_group_death': process_group_death_event,
-    'bot_group_loot': process_group_loot_event,
-    'bot_group_combat': process_group_combat_event,
-    'bot_group_player_msg':
-        process_group_player_msg_event,
-    'bot_group_levelup': process_group_levelup_event,
-    'bot_group_quest_complete':
-        process_group_quest_complete_event,
-    'bot_group_quest_objectives':
-        process_group_quest_objectives_event,
-    'bot_group_achievement':
-        process_group_achievement_event,
-    'bot_group_spell_cast':
-        process_group_spell_cast_event,
-    'bot_group_resurrect':
-        process_group_resurrect_event,
-    'bot_group_zone_transition':
-        process_group_zone_transition_event,
-    'bot_group_subzone_change':
-        process_group_zone_transition_event,
-    'bot_group_quest_accept':
-        process_group_quest_accept_event,
-    'bot_group_quest_accept_batch':
-        process_group_quest_accept_batch_event,
-    'bot_group_dungeon_entry':
-        process_group_dungeon_entry_event,
-    'bot_group_wipe': process_group_wipe_event,
-    'bot_group_corpse_run':
-        process_group_corpse_run_event,
-    'bot_group_low_health':
-        process_group_low_health_event,
-    'bot_group_oom': process_group_oom_event,
-    'bot_group_aggro_loss':
-        process_group_aggro_loss_event,
-    'bot_group_nearby_object':
-        process_group_nearby_object_event,
-    'bot_group_farewell':
-        process_group_farewell_event,
-    # General event
-    'player_general_msg':
-        _dispatch_player_general_msg,
-    # Zone intrusion
-    'player_enters_zone':
-        process_zone_intrusion_event,
-    # Battleground events
-    'bg_match_start':
-        process_bg_match_start_event,
-    'bg_match_end':
-        process_bg_match_end_event,
-    'bg_flag_picked_up':
-        process_bg_flag_event,
-    'bg_flag_dropped':
-        process_bg_flag_event,
-    'bg_flag_captured':
-        process_bg_flag_event,
-    'bg_flag_returned':
-        process_bg_flag_return_event,
-    'bg_node_contested':
-        process_bg_node_event,
-    'bg_node_captured':
-        process_bg_node_event,
-    'bg_pvp_kill':
-        process_bg_pvp_kill_event,
-    'bg_score_milestone':
-        process_bg_score_milestone_event,
-    'bg_idle_chatter':
-        process_bg_idle_chatter_event,
-    # Raid events (PvE)
-    'raid_boss_pull':
-        process_raid_boss_pull_event,
-    'raid_boss_kill':
-        process_raid_boss_kill_event,
-    'raid_boss_wipe':
-        process_raid_boss_wipe_event,
-    'raid_idle_morale':
-        process_raid_idle_morale_event,
-    # Emote events
-    'bot_group_emote_observer':
-        handle_emote_observer,
-    'bot_group_emote_reaction':
-        handle_emote_reaction,
-    # World events (General channel)
-    'transport_arrives':
-        process_transport_arrives_event,
-    'weather_change':
-        process_weather_change_event,
-    'weather_ambient':
-        process_weather_ambient_event,
-    'holiday_start':
-        process_holiday_start_event,
-    'holiday_end':
-        process_holiday_end_event,
-    'minor_event':
-        process_minor_event,
-    'day_night_transition':
-        process_day_night_transition_event,
-    # Screenshot vision
-    'bot_group_screenshot_observation':
-        handle_screenshot_observation,
-}
+# Handler map built from central event registry.
+# player_general_msg uses a local adapter, so we
+# inject it after registry-driven generation.
+EVENT_HANDLERS = build_handler_map()
+EVENT_HANDLERS['player_general_msg'] = (
+    _dispatch_player_general_msg
+)
 
 
 EVENT_LOG_OVERRIDES = {
@@ -1649,6 +1496,9 @@ def main():
         f"{config.get('LLMChatter.PrioritySystem.SafetyEnable', 1)}"
     )
     logger.info("=" * 60)
+
+    # Validate event registry at startup
+    validate_registry()
 
     # Wait for database to be ready
     # (handles Docker startup order)
