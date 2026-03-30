@@ -2641,9 +2641,82 @@ private:
                 }
                 else
                 {
-                    sent = ai->SayToChannel(
-                        processedMessage,
-                        ChatChannelId::GENERAL);
+                    // Send to the exact General
+                    // channel the bot is joined to,
+                    // avoiding SayToChannel's
+                    // substring scan which can match
+                    // stale/ambiguous channel objects
+                    // and cause duplicate messages.
+                    ChannelMgr* cMgr =
+                        ChannelMgr::forTeam(
+                            bot->GetTeamId());
+                    if (cMgr)
+                    {
+                        uint32 zId =
+                            bot->GetZoneId();
+                        AreaTableEntry const* ar =
+                            sAreaTableStore
+                                .LookupEntry(zId);
+                        if (ar)
+                        {
+                            uint8 loc = sWorld
+                                ->GetDefaultDbcLocale();
+                            char const* zn =
+                                ar->area_name[loc];
+                            std::string zName =
+                                zn ? zn : "";
+                            if (zName.empty())
+                            {
+                                zn = ar->area_name[
+                                    LOCALE_enUS];
+                                zName =
+                                    zn ? zn : "";
+                            }
+                            ChatChannelsEntry
+                                const* chEntry =
+                                sChatChannelsStore
+                                    .LookupEntry(
+                                    ChatChannelId
+                                        ::GENERAL);
+                            if (chEntry
+                                && !zName.empty())
+                            {
+                                char buf[100];
+                                std::snprintf(
+                                    buf,
+                                    sizeof(buf),
+                                    chEntry
+                                        ->pattern[loc],
+                                    zName.c_str());
+                                std::string
+                                    exactName(buf);
+                                for (auto const&
+                                    [k, ch] :
+                                    cMgr
+                                    ->GetChannels())
+                                {
+                                    if (!ch)
+                                        continue;
+                                    if (ch->GetName()
+                                        != exactName)
+                                        continue;
+                                    if (!bot
+                                        ->IsInChannel(
+                                        ch))
+                                        continue;
+                                    ch->Say(
+                                        bot
+                                        ->GetGUID(),
+                                        processedMessage
+                                            .c_str(),
+                                        LANG_UNIVERSAL
+                                    );
+                                    sent = true;
+                                    break;
+                                }
+                            }
+                        }
+                    }
                 }
 
                 if (sent

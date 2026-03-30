@@ -30,6 +30,8 @@ High-level behavior:
   idle morale
 - real-time subzone lore tracking with ~3,000 subzone descriptions
   injected into prompts
+- screenshot vision: host-side agent captures the game window, sends
+  to a vision LLM, and bots react to what the player sees on screen
 
 ---
 
@@ -43,6 +45,14 @@ The C++ module:
 - inserts queue rows into MySQL
 - runs the message delivery tick
 - plays party text emotes when appropriate
+
+### Host-side screenshot agent (optional)
+
+The screenshot agent runs on the host machine (outside Docker):
+
+- captures the WoW game window at configurable intervals
+- sends screenshots to a vision LLM for structured analysis
+- inserts `bot_group_screenshot_observation` events directly into MySQL
 
 ### Python side
 
@@ -334,6 +344,11 @@ Owns battleground-specific hooks and BG queue helpers.
 
 - `tools/chatter_emote_reaction.py`
 - `tools/chatter_emote_observer.py`
+
+### Screenshot vision
+
+- `tools/screenshot_agent.py`
+- `tools/chatter_screenshot_handler.py`
 
 ### Development tools
 
@@ -1502,6 +1517,81 @@ a group ends.
 The 30-second grace in `OnPlayerLogin` means other players' active entries
 (queued < 30 seconds ago) are safe. In normal operation `CleanupGroupSession`
 handles everything; `OnPlayerLogin` only matters after a server crash.
+
+---
+
+## 13p. Screenshot Vision
+
+Bots can react to what the player actually sees on screen. A host-side
+Python agent captures the WoW game window, sends the screenshot to a
+vision-capable LLM, and the bridge generates in-character party chat
+from the resulting description.
+
+### Two-stage architecture
+
+**Stage 1 — Host agent** (`screenshot_agent.py`):
+
+1. Captures the WoW game window via Win32 API (`BitBlt`)
+2. Applies light crop (bottom 15%, sides 5%) to reduce UI clutter
+3. Resizes to `MaxWidthPx` and encodes as JPEG (`JpegQuality`)
+4. Sends to vision LLM (OpenAI or Anthropic)
+5. Receives structured JSON: environment description, atmosphere,
+   canonical tags (`landmark_type`, `biome`, `weather`, `time_of_day`,
+   `creature_presence`)
+6. Canonical tag dedup prevents repeated observations of the same scene
+7. Inserts `bot_group_screenshot_observation` event into
+   `llm_chatter_events` via direct MySQL connection
+
+**Stage 2 — Bridge handler** (`chatter_screenshot_handler.py`):
+
+1. Claims the event from `llm_chatter_events`
+2. Resolves zone/subzone context via existing `get_zone_name()`,
+   `get_zone_flavor()`, `get_subzone_name()`, `get_subzone_lore()`,
+   `get_dungeon_flavor()`, `get_time_of_day_context()`
+3. Builds bot identity via `build_bot_identity()`
+4. Rolls for single statement (`run_single_reaction()`) or multi-bot
+   conversation (`append_conversation_json_instruction()` +
+   `parse_conversation_response()`)
+5. Writes messages to `llm_chatter_messages` for C++ delivery
+
+### Config keys
+
+All under `LLMChatter.Screenshot.*`:
+
+| Key | Default | Purpose |
+|---|---|---|
+| `Enable` | 0 | Enable/disable the feature |
+| `IntervalMinSeconds` | 45 | Minimum seconds between captures |
+| `IntervalMaxSeconds` | 90 | Maximum seconds between captures |
+| `Chance` | 60 | % chance per interval tick |
+| `VisionProvider` | openai | Vision LLM provider (openai or anthropic) |
+| `VisionModel` | gpt-4o-mini | Vision model name |
+| `ConversationChance` | 30 | % chance of multi-bot conversation vs statement |
+| `MaxWidthPx` | 800 | Max image width for vision API |
+| `JpegQuality` | 70 | JPEG compression quality |
+| `BoundAccountId` | 0 | Account ID to find grouped bots |
+| `DBHost` | 127.0.0.1 | MySQL host (host machine, not Docker) |
+
+### Relevant files
+
+| File | Responsibility |
+|---|---|
+| `tools/screenshot_agent.py` | Host-side capture, vision API, event insertion |
+| `tools/chatter_screenshot_handler.py` | Bridge handler, prompt building, delivery |
+| `tools/llm_chatter_bridge.py` | Event routing (`EVENT_HANDLERS` entry) |
+| `conf/mod_llm_chatter.conf.dist` | Config key definitions |
+
+### Notes
+
+- The agent runs on the host machine, not inside Docker
+- No C++ changes are required
+- The vision biome tag is excluded from bot prompts (unreliable);
+  zone/subzone names from the database are authoritative
+- Indoor scenes are explicitly supported in the vision prompt
+- A `skip_reason` field in the structured JSON aids debugging when
+  screenshots are rejected (e.g., loading screen, character select)
+- Cost: approximately $0.05-0.10/hour at default settings with
+  GPT-4o-mini
 
 ---
 

@@ -1,6 +1,6 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-03-29 (through BG chatter quality pass, noise suppression, config template sync)
+Last updated: 2026-03-29 (through screenshot vision feature)
 
 ## Purpose
 
@@ -59,6 +59,28 @@ not just `docker restart`.
 4. C++ world tick delivers messages in game.
 5. Party-channel delivery may play text emotes; General/Raid/BG
    delivery does not.
+
+### Screenshot vision data flow
+
+The screenshot vision feature adds a second event source outside the
+C++ server:
+
+1. Host-side `screenshot_agent.py` captures the WoW game window.
+2. Agent sends the JPEG to a vision LLM (OpenAI or Anthropic).
+3. Vision LLM returns structured JSON (description, atmosphere,
+   canonical tags).
+4. Agent inserts a `bot_group_screenshot_observation` row into
+   `llm_chatter_events` via direct MySQL connection.
+5. Bridge claims the event and routes to
+   `chatter_screenshot_handler.py`.
+6. Handler generates in-character bot comments using existing
+   personality, zone context, and vision description.
+7. Messages are written to `llm_chatter_messages` for normal C++
+   delivery.
+
+The agent runs on the host machine (not in Docker) and connects to
+MySQL directly. It is configured via the same `.conf` file and is
+disabled by default.
 
 ## System Prompt Architecture
 
@@ -323,6 +345,13 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/talent_catalog.py` | Talent description catalog used by prompt-side talent injection |
 | `tools/spell_names.py` | Spell name/description loader used by DB and link helpers |
 
+### Screenshot vision domain
+
+| File | Primary ownership |
+|---|---|
+| `tools/screenshot_agent.py` | Host-side capture agent (runs outside Docker). Captures WoW window via Win32 API, light-crops UI clutter (bottom 15%, sides 5%), sends JPEG to vision LLM (OpenAI or Anthropic), receives structured JSON with environment description, atmosphere, and canonical tags. Queues `bot_group_screenshot_observation` events directly into `llm_chatter_events`. Configurable interval, chance, and vision provider/model |
+| `tools/chatter_screenshot_handler.py` | Bridge handler for `bot_group_screenshot_observation` events. Generates in-character bot comments using personality traits, zone/subzone context, and the vision description. Supports single statements via `run_single_reaction()` and multi-bot conversations via `append_conversation_json_instruction()` / `parse_conversation_response()`. Canonical tag dedup prevents repetitive observations |
+
 ### Development tools
 
 | File | Primary ownership |
@@ -481,6 +510,8 @@ Bridge routing is map-driven in `tools/llm_chatter_bridge.py`.
 - `bot_group_*` events route to group handlers
 - `bot_group_emote_reaction` routes to `chatter_emote_reaction.py`
 - `bot_group_emote_observer` routes to `chatter_emote_observer.py`
+- `bot_group_screenshot_observation` routes to
+  `chatter_screenshot_handler.py`
 - `bg_*` events route to battleground handlers
 - `player_general_msg` routes through the adapter path to
   `chatter_general.py`
@@ -550,6 +581,8 @@ source:
 | C++ group batching/combat/state logic | `src/LLMChatterGroup.cpp`, `src/LLMChatterGroup.h` |
 | C++ General-channel player logic | `src/LLMChatterPlayer.cpp` |
 | C++ BG logic | `src/LLMChatterBG.cpp`, `src/LLMChatterBG.h` |
+| Screenshot vision capture agent (host-side) | `tools/screenshot_agent.py` |
+| Screenshot vision bridge handler | `tools/chatter_screenshot_handler.py` |
 | C++ registration wiring | `src/LLMChatterScript.cpp`, `src/llm_chatter_loader.cpp` |
 
 ## Common Pitfalls
@@ -608,7 +641,7 @@ This reduces duplicate near-identical lines across party and raid.
 
 | Table | Producer | Consumer | Notes |
 |---|---|---|---|
-| `llm_chatter_events` | C++ | Python | Event queue |
+| `llm_chatter_events` | C++ / screenshot agent | Python | Event queue |
 | `llm_chatter_queue` | C++ | Python | Ambient statement/conversation queue |
 | `llm_chatter_messages` | Python | C++ | Outbound message delivery queue |
 | `llm_group_cached_responses` | Python | C++ | Instant reaction pre-cache |
