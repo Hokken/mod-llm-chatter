@@ -308,14 +308,32 @@ Owns battleground-specific hooks and BG queue helpers.
 ### Bridge and orchestration
 
 - `tools/llm_chatter_bridge.py`
+- `tools/chatter_event_registry.py`
 - `tools/chatter_ambient.py`
 
 ### Group domain
 
 - `tools/chatter_group.py`
 - `tools/chatter_group_handlers.py`
+- `tools/chatter_handler_pipeline.py`
 - `tools/chatter_group_prompts.py`
 - `tools/chatter_group_state.py`
+
+### Routing and handler pipeline
+
+The bridge no longer relies only on a manually maintained in-file
+handler map.
+
+- `chatter_event_registry.py` is now the Python-side event registry for
+  live event types, handler module/function resolution, producer notes,
+  and payload-field documentation
+- `build_handler_map()` dynamically imports handlers from that registry
+  during bridge startup
+- `player_general_msg` still uses a local adapter path because its
+  function signature differs from the group-event handlers
+- `chatter_handler_pipeline.py` centralizes the shared setup/teardown
+  path used by most single-reaction `bot_group_*` handlers via
+  `run_group_handler()`
 
 ### General/shared support
 
@@ -1578,7 +1596,8 @@ All under `LLMChatter.Screenshot.*`:
 |---|---|
 | `tools/screenshot_agent.py` | Host-side capture, vision API, event insertion |
 | `tools/chatter_screenshot_handler.py` | Bridge handler, prompt building, delivery |
-| `tools/llm_chatter_bridge.py` | Event routing (`EVENT_HANDLERS` entry) |
+| `tools/llm_chatter_bridge.py` | Event routing via registry-built handler map |
+| `tools/chatter_event_registry.py` | Registry entry for `bot_group_screenshot_observation` |
 | `conf/mod_llm_chatter.conf.dist` | Config key definitions |
 
 ### Notes

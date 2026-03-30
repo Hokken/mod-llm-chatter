@@ -1,6 +1,6 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-03-29 (through screenshot vision feature)
+Last updated: 2026-03-30 (through Python registry/pipeline refactor)
 
 ## Purpose
 
@@ -315,7 +315,8 @@ This asymmetry is known and acceptable in the shipped source state.
 
 | File | Primary ownership |
 |---|---|
-| `tools/llm_chatter_bridge.py` | Main loops, event claiming, routing, worker orchestration |
+| `tools/llm_chatter_bridge.py` | Main loops, event claiming, registry-driven routing, worker orchestration |
+| `tools/chatter_event_registry.py` | Central Python event registry: handler module/function resolution, producer notes, payload field docs, dead-event tracking |
 | `tools/chatter_ambient.py` | Ambient statement/conversation generation |
 
 ### Group domain
@@ -323,7 +324,8 @@ This asymmetry is known and acceptable in the shipped source state.
 | File | Primary ownership |
 |---|---|
 | `tools/chatter_group.py` | Group join, group player message flow, idle chatter |
-| `tools/chatter_group_handlers.py` | `bot_group_*` reaction handlers, `execute_player_msg_conversation()` |
+| `tools/chatter_group_handlers.py` | `bot_group_*` reaction handlers, `execute_player_msg_conversation()`, thin wrappers around the shared handler pipeline for most single-reaction group events |
+| `tools/chatter_handler_pipeline.py` | Shared `run_group_handler()` pipeline: extra_data parsing, guard checks, traits lookup, context assembly, prompt dispatch, chat storage, mood update, event completion/failure handling |
 | `tools/chatter_group_prompts.py` | Group prompt builders, nearby-object prompts, pre-cache prompt builders, `build_player_msg_conversation_prompt()`. All major party chatter builders accept `map_id=0` and inject `get_dungeon_flavor(map_id)` as location context when inside a dungeon instance, replacing zone/subzone lore. Excluded: OOM, low-health, level-up. |
 | `tools/chatter_group_state.py` | Group mood/traits/history state |
 
@@ -505,7 +507,12 @@ reason about now.
 
 ## Event Routing Ownership
 
-Bridge routing is map-driven in `tools/llm_chatter_bridge.py`.
+Bridge routing is registry-driven.
+
+`tools/chatter_event_registry.py` is the Python-side source of truth for
+live event routing metadata. At bridge startup,
+`build_handler_map()` dynamically imports handler functions from that
+registry and `llm_chatter_bridge.py` uses the resulting map at runtime.
 
 - `bot_group_*` events route to group handlers
 - `bot_group_emote_reaction` routes to `chatter_emote_reaction.py`
@@ -559,9 +566,11 @@ source:
 | LLM request log format / rotation / config | `tools/chatter_request_logger.py` |
 | LLM request log web viewer | `tools/chatter_log_viewer.py` |
 | Main polling loops, event claim logic, worker behavior | `tools/llm_chatter_bridge.py` |
+| Python event registry / handler resolution metadata | `tools/chatter_event_registry.py` |
 | Ambient statement/conversation runtime logic | `tools/chatter_ambient.py` |
 | Group join/player-msg/idle behavior | `tools/chatter_group.py` |
 | Group reaction runtime behavior | `tools/chatter_group_handlers.py` |
+| Shared group-handler pipeline behavior | `tools/chatter_handler_pipeline.py` |
 | Group prompt wording | `tools/chatter_group_prompts.py` |
 | General-channel Python behavior | `tools/chatter_general.py` |
 | DB inserts, history tables, zone/query cache behavior | `tools/chatter_db.py` |
