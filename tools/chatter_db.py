@@ -1361,3 +1361,19 @@ def mark_event(db, event_id, status):
         )
     db.commit()
     cursor.close()
+
+
+def fail_event(db, event_id, event_type, reason,
+               exc_info=True):
+    """Log and mark an event as skipped with reason.
+
+    Replaces bare except blocks that silently swallow
+    errors. Always logs the failure so debugging does
+    not require adding temporary prints.
+    """
+    logger.error(
+        "Event %d (%s) failed: %s",
+        event_id, event_type, reason,
+        exc_info=exc_info,
+    )
+    mark_event(db, event_id, 'skipped')

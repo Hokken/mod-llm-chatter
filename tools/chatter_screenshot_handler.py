@@ -11,6 +11,7 @@ using the same RNG-gated pattern as nearby object events.
 import random
 
 from chatter_db import (
+    fail_event,
     get_group_location,
     insert_chat_message,
 )
@@ -159,12 +160,12 @@ def handle_screenshot_observation(db, client, config, event):
                 members, observation, context_str,
                 zone_flavor, chat_block, anti_rep,
             )
-        except Exception as e:
-            import logging
-            logging.getLogger(__name__).error(
-                "Screenshot conversation failed: %s", e,
-                exc_info=True)
-            _mark_event(db, event_id, 'skipped')
+        except Exception:
+            fail_event(
+                db, event_id,
+                'bot_group_screenshot_observation',
+                'conversation handler error',
+            )
             return False
 
     return _screenshot_single(

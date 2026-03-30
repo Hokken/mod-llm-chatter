@@ -51,6 +51,7 @@ from chatter_constants import (
 )
 from chatter_links import resolve_and_format_links
 from chatter_db import (
+    fail_event,
     get_character_info_by_name,
     mark_event,
 )
@@ -78,6 +79,10 @@ def init_general_config(config):
         ))
         _spice_count = max(0, min(_spice_count, 5))
     except Exception:
+        logger.error(
+            "Failed to parse PersonalitySpiceCount",
+            exc_info=True,
+        )
         _spice_count = 2
 
     global _extended_conv_chance, _extended_max_messages
@@ -698,16 +703,6 @@ def process_general_player_msg_event(
         mark_event(db, event_id, 'skipped')
         return False
 
-
-    # Mark as processing
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     try:
         mode = get_chatter_mode(config)
 
@@ -944,8 +939,11 @@ def process_general_player_msg_event(
         mark_event(db, event_id, 'completed')
         return True
 
-    except Exception as e:
-        mark_event(db, event_id, 'skipped')
+    except Exception:
+        fail_event(
+            db, event_id,
+            'player_general_msg', 'handler error',
+        )
         return False
 
 

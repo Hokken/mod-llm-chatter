@@ -357,6 +357,10 @@ def process_pending_requests(
             return False
 
     except Exception:
+        logger.error(
+            "Legacy request %d failed",
+            request_id, exc_info=True,
+        )
         cursor.execute(
             "UPDATE llm_chatter_queue "
             "SET status = 'failed' WHERE id = %s",
@@ -450,7 +454,12 @@ def fetch_pending_events(db, config, max_count):
                             'group_id'
                         )
                 except Exception:
-                    pass
+                    logger.error(
+                        "Failed to parse group_id "
+                        "from extra_data for "
+                        "event_type=%s",
+                        et, exc_info=True,
+                    )
             event['_group_id'] = group_id
             claimed.append(event)
 
@@ -845,7 +854,10 @@ def _log_event_location(db, event, config):
             f"[DEBUG] {short}: {loc}"
         )
     except Exception:
-        pass
+        logger.error(
+            "_log_event_location failed",
+            exc_info=True,
+        )
 
 
 def process_single_event(event, client, config):
@@ -926,6 +938,11 @@ def process_single_event(event, client, config):
         return False
 
     except Exception:
+        logger.error(
+            "Event %d (%s) unhandled error",
+            event_id, event_type,
+            exc_info=True,
+        )
         # Try to mark as skipped
         try:
             if db:
@@ -938,7 +955,11 @@ def process_single_event(event, client, config):
                 )
                 db.commit()
         except Exception:
-            pass
+            logger.error(
+                "Fallback skip for event %d also"
+                " failed", event_id,
+                exc_info=True,
+            )
         return False
     finally:
         if db:
@@ -964,7 +985,10 @@ def _run_in_worker(fn_name, fn, client, config):
         db = get_db_connection(config)
         fn(db, client, config)
     except Exception:
-        pass
+        logger.error(
+            "Worker '%s' failed", fn_name,
+            exc_info=True,
+        )
     finally:
         if db:
             try:
@@ -1225,7 +1249,10 @@ def _write_db_snapshot(db, snapshot_dir):
             os.replace(tmp, path)
 
     except Exception:
-        pass
+        logger.error(
+            "_write_db_snapshot failed",
+            exc_info=True,
+        )
 
 
 # =============================================================================
@@ -1653,7 +1680,10 @@ def main():
                 )
                 rehydrate_active_sessions(db)
         except Exception:
-            pass
+            logger.error(
+                "Startup memory rehydration failed",
+                exc_info=True,
+            )
         finally:
             if db:
                 try:
@@ -1700,7 +1730,10 @@ def main():
         try:
             f.result()
         except Exception:
-            pass
+            logger.error(
+                "Background worker '%s' failed",
+                name, exc_info=True,
+            )
 
     while True:
         try:
@@ -1714,7 +1747,10 @@ def main():
                     try:
                         f.result()
                     except Exception:
-                        pass
+                        logger.error(
+                            "Event future failed",
+                            exc_info=True,
+                        )
                 else:
                     still_active.append(f)
             active_futures = still_active
@@ -1787,7 +1823,10 @@ def main():
                         )
                         clear_all_sessions()
                     except Exception:
-                        pass
+                        logger.error(
+                            "clear_all_sessions failed",
+                            exc_info=True,
+                        )
                 was_players_online = players_online
 
                 # Periodic cleanup (fast SQL,
@@ -1980,9 +2019,16 @@ def main():
                 )
                 memory_executor.shutdown(wait=True)
             except Exception:
-                pass
+                logger.error(
+                    "Memory executor shutdown failed",
+                    exc_info=True,
+                )
             break
         except Exception:
+            logger.error(
+                "Main loop iteration failed",
+                exc_info=True,
+            )
             time.sleep(poll_interval)
 
 

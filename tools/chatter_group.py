@@ -206,6 +206,10 @@ def init_group_config(config):
         ))
         _spice_count = max(0, min(_spice_count, 5))
     except Exception:
+        logger.error(
+            "Failed to parse PersonalitySpiceCount",
+            exc_info=True,
+        )
         _spice_count = 2
     # Keep moved prompt builders in sync.
     set_prompt_spice_count(_spice_count)
@@ -636,7 +640,10 @@ def process_group_event(db, client, config, event):
                         bot_race=bot_race,
                     )
                 except Exception:
-                    pass
+                    logger.error(
+                        "queue_memory (join) failed",
+                        exc_info=True,
+                    )
 
         # 2. Build prompt with chat history
         mode = get_chatter_mode(config)
@@ -732,7 +739,10 @@ def process_group_event(db, client, config, event):
                 player_name=player_name,
             )
         except Exception as e:
-            pass
+            logger.error(
+                "Composition comment failed",
+                exc_info=True,
+            )
 
         # 8. Pre-generate farewell message
         try:
@@ -742,13 +752,20 @@ def process_group_event(db, client, config, event):
                 traits, mode, group_id, bot_guid,
             )
         except Exception as e:
-            pass
+            logger.error(
+                "Farewell generation failed "
+                "bot=%s", bot_name, exc_info=True,
+            )
 
         # 9. Mark event completed
         _mark_event(db, event_id, 'completed')
         return True
 
     except Exception as e:
+        logger.error(
+            "process_group_join_event failed "
+            "event=%d", event_id, exc_info=True,
+        )
         _mark_event(db, event_id, 'skipped')
         return False
 
@@ -1128,7 +1145,11 @@ def process_group_join_batch_event(
                     group_id, bot_guid,
                 )
             except Exception as e:
-                pass
+                logger.error(
+                    "Farewell generation failed "
+                    "bot=%s", bot_name,
+                    exc_info=True,
+                )
 
         if not greeted_bots:
             _mark_event(db, event_id, 'skipped')
@@ -1191,7 +1212,11 @@ def process_group_join_batch_event(
                             ),
                         )
                     except Exception:
-                        pass
+                        logger.error(
+                            "queue_memory (batch) "
+                            "failed",
+                            exc_info=True,
+                        )
 
         # --- ONE welcome from existing bot ---
         new_names = [
@@ -1231,12 +1256,19 @@ def process_group_join_batch_event(
                     delay_seconds=comp_delay,
                 )
             except Exception as e:
-                pass
+                logger.error(
+                    "Batch composition comment "
+                    "failed", exc_info=True,
+                )
 
         _mark_event(db, event_id, 'completed')
         return True
 
     except Exception as e:
+        logger.error(
+            "process_group_join_batch_event failed "
+            "event=%d", event_id, exc_info=True,
+        )
         _mark_event(db, event_id, 'skipped')
         return False
 
@@ -1528,7 +1560,10 @@ def process_group_player_msg_event(
                     if details:
                         items_info.append(details)
             except Exception as e:
-                pass
+                logger.error(
+                    "Item link query failed",
+                    exc_info=True,
+                )
             finally:
                 if world_db:
                     try:
@@ -1614,7 +1649,11 @@ def process_group_player_msg_event(
                 # Conversation failed, fall
                 # through to single-bot path
             except Exception as ec:
-                pass
+                logger.error(
+                    "Player msg conversation "
+                    "failed, falling through",
+                    exc_info=True,
+                )
 
         # -- Single-bot reply path --
         speaker_talent = _maybe_talent_context(
@@ -1785,7 +1824,10 @@ def process_group_player_msg_event(
                         items_info=items_info,
                     )
                 except Exception as e2:
-                    pass
+                    logger.error(
+                        "Second bot response failed",
+                        exc_info=True,
+                    )
 
         # Memory: queue player_message memories
         try:
@@ -1806,6 +1848,10 @@ def process_group_player_msg_event(
         return True
 
     except Exception as e:
+        logger.error(
+            "process_group_player_msg_event failed "
+            "event=%d", event_id, exc_info=True,
+        )
         _mark_event(db, event_id, 'skipped')
         return False
 
@@ -2347,7 +2393,10 @@ def _maybe_comment_on_composition(
                     row['class']
                 )
         except Exception:
-            pass
+            logger.error(
+                "Player class lookup failed",
+                exc_info=True,
+            )
     if not role_summary or not role_info:
         return
     if role_info.get('total', 0) < 2:
@@ -3550,7 +3599,11 @@ def check_idle_group_chatter(
                         player_sg,
                     )
         except Exception:
-            pass  # fallback: use all bots
+            logger.error(
+                "Raid sub-group filter failed, "
+                "using all bots",
+                exc_info=True,
+            )
 
         # Single source of truth for location —
         # bot traits updated by C++ OnPlayerUpdateZone
@@ -3888,6 +3941,10 @@ def _idle_single_statement(
         return True
 
     except Exception as e:
+        logger.error(
+            "_idle_single_reaction failed "
+            "group=%d", group_id, exc_info=True,
+        )
         return False
 
 
@@ -4190,7 +4247,10 @@ def _idle_conversation(
         return True
 
     except Exception as e:
-        logger.error(f"[IDLE-DIAG] conv EXCEPTION: {e}", exc_info=True)
+        logger.error(
+            "[IDLE-DIAG] conv EXCEPTION: %s", e,
+            exc_info=True,
+        )
         return False
 
 
@@ -4618,6 +4678,10 @@ def check_bot_questions(db, client, config):
         return True
 
     except Exception as e:
+        logger.error(
+            "_maybe_bot_question failed group=%d",
+            group_id, exc_info=True,
+        )
         return False
     finally:
         with _bot_question_lock:

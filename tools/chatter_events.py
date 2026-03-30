@@ -699,7 +699,7 @@ def process_zone_intrusion_event(
         label='reaction_zone_intrusion',
     )
 
-    return True
+    return result.get('ok', False)
 
 
 # =============================================================================

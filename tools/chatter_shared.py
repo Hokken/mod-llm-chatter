@@ -315,7 +315,10 @@ def get_player_zone(db, player_name):
                 int(row.get('map', 0) or 0),
             )
     except Exception:
-        pass
+        logger.error(
+            "get_player_zone failed for '%s'",
+            player_name, exc_info=True,
+        )
     return (0, 0)
 
 
@@ -691,7 +694,10 @@ def get_group_area(db, group_id: int) -> int:
         if row:
             return int(row.get('area') or 0)
     except Exception:
-        pass
+        logger.error(
+            "get_group_area failed for group %s",
+            group_id, exc_info=True,
+        )
     return 0
 
 
@@ -854,6 +860,10 @@ def get_dungeon_bosses(
         _dungeon_boss_cache[map_id] = bosses
         return bosses
     except Exception:
+        logger.error(
+            "get_dungeon_bosses failed for map %s",
+            map_id, exc_info=True,
+        )
         _dungeon_boss_cache[map_id] = []
         return []
 
@@ -1438,7 +1448,16 @@ def run_single_reaction(
             emote=emote,
         )
     except Exception:
-        pass
+        logger.error(
+            "insert_chat_message failed for %s",
+            speaker_name, exc_info=True,
+        )
+        return {
+            'ok': False,
+            'message': message,
+            'emote': emote,
+            'error_reason': 'insert_failed',
+        }
 
     return {
         'ok': True,
@@ -1575,6 +1594,10 @@ def find_addressed_bot(
             label='find_addressed_bot',
         )
     except Exception:
+        logger.error(
+            "find_addressed_bot LLM call failed",
+            exc_info=True,
+        )
         return {
             'bot': name_hint,
             'multi_addressed': False,
@@ -1762,7 +1785,10 @@ def parse_extra_data(
     except json.JSONDecodeError:
         pass
     except Exception:
-        pass
+        logger.error(
+            "parse_extra_data unexpected error",
+            exc_info=True,
+        )
 
     return {}
 

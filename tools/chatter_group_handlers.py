@@ -26,6 +26,7 @@ from chatter_shared import (
     should_include_action,
 )
 from chatter_db import (
+    fail_event,
     get_group_location,
     insert_chat_message,
     get_character_info_by_name,
@@ -210,15 +211,6 @@ def process_group_kill_event(
     }
 
 
-    # Mark as processing
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     try:
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
@@ -327,7 +319,11 @@ def process_group_kill_event(
                             ),
                         )
                     except Exception:
-                        pass
+                        logger.error(
+                            "kill memory queue"
+                            " failed",
+                            exc_info=True,
+                        )
             except Exception:
                 logger.error(
                     "boss/rare_kill memory failed",
@@ -338,7 +334,10 @@ def process_group_kill_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_kill', 'handler error',
+        )
         return False
 
 def process_group_loot_event(
@@ -416,15 +415,6 @@ def process_group_loot_event(
         None if is_self_loot else looter_name
     )
 
-
-    # Mark as processing
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
 
     try:
         mode = get_chatter_mode(config)
@@ -512,7 +502,10 @@ def process_group_loot_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_loot', 'handler error',
+        )
         return False
 
 def process_group_combat_event(
@@ -607,14 +600,6 @@ def process_group_combat_event(
     }
 
 
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     try:
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
@@ -667,7 +652,11 @@ def process_group_combat_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_combat',
+            'handler error',
+        )
         return False
 
 def process_group_death_event(
@@ -791,15 +780,6 @@ def process_group_death_event(
             'level': bot_level,
         }
 
-    # Mark as processing
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     try:
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
@@ -867,7 +847,10 @@ def process_group_death_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_death', 'handler error',
+        )
         return False
 
 def process_group_levelup_event(
@@ -952,15 +935,6 @@ def process_group_levelup_event(
         'level': char_row['level'],
     }
 
-
-    # Mark as processing
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
 
     try:
         mode = get_chatter_mode(config)
@@ -1074,12 +1048,19 @@ def process_group_levelup_event(
                         ),
                     )
             except Exception:
-                pass
+                logger.error(
+                    "levelup memory failed",
+                    exc_info=True,
+                )
 
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_levelup',
+            'handler error',
+        )
         return False
 
 def process_group_quest_complete_event(
@@ -1153,15 +1134,6 @@ def process_group_quest_complete_event(
     }
 
 
-    # Mark as processing
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     # -- Decide: conversation or statement? --
     conv_chance = int(config.get(
         'LLMChatter.GroupChatter'
@@ -1223,7 +1195,11 @@ def process_group_quest_complete_event(
                     )
                 return True
         except Exception:
-            pass
+            logger.error(
+                "quest_complete conversation"
+                " failed, falling through",
+                exc_info=True,
+            )
         # Fall through to statement path
 
     try:
@@ -1336,7 +1312,11 @@ def process_group_quest_complete_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_quest_complete',
+            'handler error',
+        )
         return False
 
 def process_group_quest_objectives_event(
@@ -1437,15 +1417,6 @@ def process_group_quest_objectives_event(
     }
 
 
-    # Mark as processing
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     # -- Decide: conversation or statement? --
     conv_chance = int(config.get(
         'LLMChatter.GroupChatter'
@@ -1469,7 +1440,11 @@ def process_group_quest_objectives_event(
             if ok:
                 return True
         except Exception:
-            pass
+            logger.error(
+                "quest_objectives conversation"
+                " failed, falling through",
+                exc_info=True,
+            )
         # Fall through to statement path
 
     try:
@@ -1536,7 +1511,11 @@ def process_group_quest_objectives_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_quest_objectives',
+            'handler error',
+        )
         return False
 
 def _check_achievement_batch(
@@ -1781,15 +1760,6 @@ def process_group_achievement_event(
     ):
         return True
 
-    # Mark as processing
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     try:
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
@@ -1915,7 +1885,11 @@ def process_group_achievement_event(
                         ),
                     )
                 except Exception:
-                    pass
+                    logger.error(
+                        "achievement memory"
+                        " queue failed",
+                        exc_info=True,
+                    )
         except Exception:
             logger.error(
                 "achievement memory failed",
@@ -1926,7 +1900,11 @@ def process_group_achievement_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_achievement',
+            'handler error',
+        )
         return False
 
 def process_group_spell_cast_event(
@@ -2021,15 +1999,6 @@ def process_group_spell_cast_event(
     }
 
 
-    # Mark as processing
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     try:
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
@@ -2101,7 +2070,11 @@ def process_group_spell_cast_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_spell_cast',
+            'handler error',
+        )
         return False
 
 def process_group_resurrect_event(
@@ -2166,15 +2139,6 @@ def process_group_resurrect_event(
     }
 
 
-    # Mark as processing
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     try:
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
@@ -2233,7 +2197,11 @@ def process_group_resurrect_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_resurrect',
+            'handler error',
+        )
         return False
 
 def process_group_zone_transition_event(
@@ -2334,15 +2302,6 @@ def process_group_zone_transition_event(
     }
 
 
-    # Mark as processing
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     try:
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
@@ -2428,7 +2387,11 @@ def process_group_zone_transition_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_zone_transition',
+            'handler error',
+        )
         return False
 
 def process_group_quest_accept_event(
@@ -2513,15 +2476,6 @@ def process_group_quest_accept_event(
     }
 
 
-    # Mark as processing
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     # -- Decide: conversation or statement? --
     conv_chance = int(config.get(
         'LLMChatter.GroupChatter'
@@ -2550,7 +2504,11 @@ def process_group_quest_accept_event(
                 )
                 return True
         except Exception:
-            pass
+            logger.error(
+                "quest_accept conversation"
+                " failed, falling through",
+                exc_info=True,
+            )
         # Fall through to statement path
 
     try:
@@ -2628,7 +2586,11 @@ def process_group_quest_accept_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_quest_accept',
+            'handler error',
+        )
         return False
 
 
@@ -2714,15 +2676,6 @@ def process_group_quest_accept_batch_event(
         'level': bot_level,
     }
 
-
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     try:
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
@@ -2786,7 +2739,11 @@ def process_group_quest_accept_batch_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_quest_accept_batch',
+            'handler error',
+        )
         return False
 
 
@@ -2859,15 +2816,6 @@ def process_group_dungeon_entry_event(
     }
 
 
-    # Mark as processing
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     try:
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
@@ -2923,7 +2871,11 @@ def process_group_dungeon_entry_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_dungeon_entry',
+            'handler error',
+        )
         return False
 
 def process_group_wipe_event(
@@ -2990,15 +2942,6 @@ def process_group_wipe_event(
         'level': char_row['level'],
     }
 
-
-    # Mark as processing
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
 
     try:
         mode = get_chatter_mode(config)
@@ -3091,7 +3034,10 @@ def process_group_wipe_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_wipe', 'handler error',
+        )
         return False
 
 def process_group_corpse_run_event(
@@ -3168,14 +3114,6 @@ def process_group_corpse_run_event(
     }
 
 
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     try:
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
@@ -3228,7 +3166,11 @@ def process_group_corpse_run_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_corpse_run',
+            'handler error',
+        )
         return False
 
 def process_group_low_health_event(
@@ -3307,14 +3249,6 @@ def process_group_low_health_event(
         'level': char_row['level'],
     }
 
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     try:
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
@@ -3363,7 +3297,11 @@ def process_group_low_health_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_low_health',
+            'handler error',
+        )
         return False
 
 def process_group_oom_event(
@@ -3441,14 +3379,6 @@ def process_group_oom_event(
         'level': char_row['level'],
     }
 
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     try:
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
@@ -3497,7 +3427,10 @@ def process_group_oom_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_oom', 'handler error',
+        )
         return False
 
 def process_group_aggro_loss_event(
@@ -3559,14 +3492,6 @@ def process_group_aggro_loss_event(
         'level': char_row['level'],
     }
 
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_events "
-        "SET status = 'processing' WHERE id = %s",
-        (event_id,)
-    )
-    db.commit()
-
     try:
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
@@ -3616,7 +3541,11 @@ def process_group_aggro_loss_event(
         return True
 
     except Exception:
-        _mark_event(db, event_id, 'skipped')
+        fail_event(
+            db, event_id,
+            'bot_group_aggro_loss',
+            'handler error',
+        )
         return False
 
 
@@ -3655,9 +3584,6 @@ def process_group_nearby_object_event(
 
     traits = trait_data['traits']
     stored_tone = trait_data.get('tone')
-
-    # Mark as processing BEFORE LLM call
-    _mark_event(db, event_id, 'processing')
 
     mode = get_chatter_mode(config)
     history = _get_recent_chat(db, group_id)
@@ -3723,8 +3649,11 @@ def process_group_nearby_object_event(
                 map_id=map_id,
             )
         except Exception:
-            _mark_event(
-                db, event_id, 'skipped')
+            fail_event(
+                db, event_id,
+                'bot_group_nearby_object',
+                'conversation path error',
+            )
             return False
 
     # -- Single-bot statement (original path) --
