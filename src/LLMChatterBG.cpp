@@ -22,24 +22,6 @@
 #include <unordered_map>
 #include <vector>
 
-static std::string GetRaceName(uint8 race)
-{
-    switch (race)
-    {
-        case RACE_HUMAN:        return "Human";
-        case RACE_ORC:          return "Orc";
-        case RACE_DWARF:        return "Dwarf";
-        case RACE_NIGHTELF:     return "Night Elf";
-        case RACE_UNDEAD_PLAYER:return "Undead";
-        case RACE_TAUREN:       return "Tauren";
-        case RACE_GNOME:        return "Gnome";
-        case RACE_TROLL:        return "Troll";
-        case RACE_BLOODELF:     return "Blood Elf";
-        case RACE_DRAENEI:      return "Draenei";
-        default:                return "Unknown";
-    }
-}
-
 struct BGStateTracker
 {
     uint32 diffAccum = 0;
@@ -1035,49 +1017,12 @@ public:
                     if (!m || !IsPlayerBot(m))
                         continue;
 
-                    std::string role = "dps";
-                    PlayerbotAI* ai =
-                        GET_PLAYERBOT_AI(m);
-                    if (ai)
-                    {
-                        if (PlayerbotAI::IsTank(m))
-                            role = "tank";
-                        else if (
-                            PlayerbotAI::IsHeal(m))
-                            role = "healer";
-                        else if (
-                            PlayerbotAI::IsRanged(m))
-                            role = "ranged_dps";
-                        else
-                            role = "melee_dps";
-                    }
-
                     if (hasBot)
                         botsJson += ",";
                     botsJson += "{"
-                        "\"bot_guid\":" +
-                            std::to_string(
-                                m->GetGUID()
-                                    .GetCounter()) +
-                        ","
-                        "\"bot_name\":\"" +
-                            JsonEscape(
-                                m->GetName()) +
-                        "\","
-                        "\"bot_class\":" +
-                            std::to_string(
-                                m->getClass()) +
-                        ","
-                        "\"bot_race\":" +
-                            std::to_string(
-                                m->getRace()) +
-                        ","
-                        "\"bot_level\":" +
-                            std::to_string(
-                                m->GetLevel()) +
-                        ","
-                        "\"role\":\"" + role +
-                        "\","
+                        + BuildBotIdentityFields(
+                            m, true)
+                        + ","
                         "\"zone\":" +
                             std::to_string(
                                 m->GetZoneId()) +

@@ -1432,8 +1432,6 @@ def run_single_reaction(
         message = message[:252] + "..."
 
     emote = parsed.get('emote')
-    if allow_emote_fallback:
-        emote = emote or pick_emote_for_statement(message)
 
     try:
         insert_chat_message(

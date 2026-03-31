@@ -239,12 +239,20 @@ Registration coordinator only. Calls:
 
 Owns shared helpers used across domains:
 
+The shared timing logic now uses table-driven priority and reaction-delay
+registries instead of a single long conditional block.
+
 - `EscapeString()`
 - `JsonEscape()`
+- `GetZoneName()`
+- `GetClassName()`
+- `GetRaceName()`
+- `BuildBotIdentityFields()`
 - `QueueChatterEvent()`
 - `BuildBotStateJson()`
 - `AppendRaidContext()`
 - `GroupHasBots()`
+- `CanSpeakInGeneralChannel()`
 - `GetTextEmoteName()` — reverse emote ID-to-name lookup (170+ entries)
 - `SendUnitTextEmote(Unit*, uint32, const std::string&)` — unified text emote
   sender for any unit (bot or creature); both `SendBotTextEmote` overloads
@@ -265,27 +273,104 @@ Owns world and environment behavior:
 - `LLMChatterWorldScript`
 - `LLMChatterGameEventScript`
 - `LLMChatterALEScript`
-- delivered-message polling and dispatch
-- holiday, day/night, transport, and weather events
-- nearby-object and nearby-creature scanning
+- delivery tick coordination only
+- ambient and nearby delegation only
+- transport polling and route announcements
 - world-private `QueueEvent()`
+
+### `src/LLMChatterDelivery.cpp`
+
+Owns outbound delivery behavior:
+
+- `DeliverPendingMessagesImpl()`
+- DB polling for ready `llm_chatter_messages` rows
+- pre-send facing selection
+- party, raid, BG, yell, and General delivery paths
+- post-send delivery and retry updates
+
+### `src/LLMChatterAmbient.cpp`
+
+Owns ambient world/event behavior:
+
+- day/night transitions
+- holiday start/stop routing
+- weather state and transition handling
+- ambient zone selection and faction choice
+- ambient chatter queue writes
+
+### `src/LLMChatterNearby.cpp`
+
+Owns nearby scan behavior:
+
+- nearby-object and nearby-creature scanning
+- POI helper structs and interest scoring
+- nearby-local cooldown state
+- direct nearby event queue insertion
+
+### `src/LLMChatterGroupInternal.h`
+
+Shared internal header for the group domain TUs:
+
+- struct definitions: `GroupJoinEntry`, `GroupJoinBatch`,
+  `QuestAcceptEntry`, `QuestAcceptBatch`
+- extern declarations for all shared cooldown maps, batch containers,
+  mutexes, emote cooldowns, named boss cache
+- `EmoteTargetType` enum
+- shared helper and domain entry-point declarations
 
 ### `src/LLMChatterGroup.cpp`
 
-Owns party/group subsystem behavior:
+Retains core group glue:
 
-- `LLMChatterGroupScript`
-- `LLMChatterGroupPlayerScript`
-- `LLMChatterCreatureScript`
-- `CleanupGroupSession()`
-- group join batching
-- quest accept batching
+- shared state variable definitions
+- shared helpers: `GroupHasRealPlayer`, `GetRandomBotInGroup`,
+  `CountBotsInGroup`, `IsLikelyPlayerbotControlCommand`, pre-cache
+  helpers
+- `CleanupGroupSession()` coordinator
 - named-boss cache
-- group combat state and state callouts
-- emote reaction system: `OnPlayerTextEmote`, mirror/verbal/observer
-  paths, `DelayedMirrorEmoteEvent`, `DelayedCreatureMirrorEmoteEvent`,
-  `EvictEmoteCooldowns()`, emote cooldown maps
-- group-owned cooldown and state maps
+ - thin `LLMChatterGroupPlayerScript` wrappers
+ - group registration
+
+### `src/LLMChatterGroupCombat.cpp`
+
+Owns the moved group PlayerScript implementation bodies plus the
+remaining zone/state helpers:
+
+- kill, death, loot, combat, chat, level, quest objectives, quest
+  complete, achievement, spell, resurrect, corpse run, dungeon entry,
+  and emote dispatch hook implementations
+- `HandleGroupPlayerUpdateZone()`
+- `CheckGroupCombatState()`
+- file-local `QueueStateCallout()`
+
+### `src/LLMChatterGroupJoin.cpp`
+
+Owns join batching and GroupScript:
+
+- `QueueBotGreetingEvent()`
+- `EnsureGroupJoinQueued()`
+- `FlushGroupJoinBatches()`
+- `LLMChatterGroupScript` (GroupScript: `OnAddMember`, `OnRemoveMember`
+  with farewell, `OnDisband`)
+
+### `src/LLMChatterGroupEmote.cpp`
+
+Owns emote reaction system:
+
+- `DelayedMirrorEmoteEvent`, `DelayedCreatureMirrorEmoteEvent`
+- emote static data: mirror map, denylist, combat callouts, contagious
+  set
+- `HandleEmoteAtGroupBot()`, `HandleEmoteAtCreature()`,
+  `HandleEmoteObserver()`
+- `EvictEmoteCooldowns()`
+
+### `src/LLMChatterGroupQuest.cpp`
+
+Owns quest accept batching and CreatureScript:
+
+- `FlushQuestAcceptBatches()`
+- `LLMChatterCreatureScript` (`CanCreatureQuestAccept` with
+  debounce/immediate paths)
 
 ### `src/LLMChatterPlayer.cpp`
 
@@ -539,6 +624,12 @@ Relevant responsibilities:
 - per-zone General cooldown handling
 - writing/retaining `llm_general_chat_history`
 
+Shared note:
+
+- `CanSpeakInGeneralChannel()` is a shared helper in
+  `LLMChatterShared.cpp`; `LLMChatterPlayer.cpp` still owns
+  `EnsureBotInGeneralChannel()` and the General-channel hook paths
+
 ### Python ownership
 
 Python handling lives in:
@@ -592,6 +683,7 @@ context is now covered by zone transition events instead.
 Current group-side ownership is in:
 
 - `LLMChatterGroup.cpp`
+- `LLMChatterGroupCombat.cpp`
 
 Important responsibilities:
 
@@ -623,7 +715,8 @@ That path is separate from live event generation and lives mainly in:
 
 ## 10. World Events
 
-World-owned C++ logic now lives in `LLMChatterWorld.cpp`.
+World-owned C++ logic now spans `LLMChatterWorld.cpp`,
+`LLMChatterAmbient.cpp`, and `LLMChatterNearby.cpp`.
 
 ### Main categories
 
@@ -657,7 +750,7 @@ short group conversation.
 
 Current C++ scanning logic lives in:
 
-- `LLMChatterWorld.cpp`
+- `LLMChatterNearby.cpp`
 
 Specifically:
 
@@ -1178,6 +1271,11 @@ the emote instruction block is omitted entirely, saving ~500 tokens
 per LLM call. Applied centrally in `append_json_instruction()` and
 `append_conversation_json_instruction()` in `chatter_prompts.py`.
 
+If the parser later returns `"emote": null`, insert paths should keep it
+null. Python should not synthesize a fallback emote on insert. The
+prompt-side `EmoteChance` roll is the source of truth for whether the
+LLM was asked for an emote at all.
+
 ### ActionChance (centralized)
 
 `LLMChatter.ActionChance` (default 10) controls whether the `action`
@@ -1199,9 +1297,11 @@ repetitive LLM output.
 
 ## 13j. Emote Reaction System
 
-When a player performs a `/emote` (text emote) while in a group with
-bots, the `OnPlayerTextEmote` hook in `LLMChatterGroup.cpp` classifies
-the emote and routes it through one of three paths.
+When a player performs a `/emote` (text emote), the
+`OnPlayerTextEmote` hook owned by `LLMChatterGroupCombat.cpp`
+classifies the target and routes it through the group-aware reaction
+paths below when eligible. Bot verbal reactions and observer chatter
+still require grouped bots. Direct creature mirror reactions do not.
 
 ### Three reaction paths
 
@@ -1212,7 +1312,16 @@ the emote and routes it through one of three paths.
 | Observer comment | Player emotes at a creature, external player, or nobody | A random group bot queues a `bot_group_emote_observer` event. Python handler has the bot make an offhand remark about the emote. Per-group cooldown `_emoteObserverCooldowns` |
 
 Creatures also mirror emotes directed at them via
-`DelayedCreatureMirrorEmoteEvent`.
+`DelayedCreatureMirrorEmoteEvent`. That direct mirror path is allowed
+even when the player is solo; only the observer-comment path remains
+group-gated.
+
+### Ownership split for emote bugs
+
+- edit `LLMChatterGroupCombat.cpp` when the bug is about target
+  classification, solo-vs-group gating, or which reaction path runs
+- edit `LLMChatterGroupEmote.cpp` when the bug is about mirror maps,
+  mirror cooldowns, creature/bot facing, or delayed emote execution
 
 ### Emote coverage
 
@@ -1687,8 +1796,16 @@ constructor's `enabledHooks` vector or it will silently never fire.
 
 ### C++ file routing
 
-- `LLMChatterWorld.cpp` for world/delivery/environment logic
-- `LLMChatterGroup.cpp` for group/state/batching logic
+- `LLMChatterDelivery.cpp` for outbound delivery logic
+- `LLMChatterAmbient.cpp` for ambient world/event logic
+- `LLMChatterNearby.cpp` for nearby scan logic
+- `LLMChatterWorld.cpp` for world transport/dispatcher logic
+- `LLMChatterGroup.cpp` for group shared helpers, cleanup, registration
+- `LLMChatterGroupCombat.cpp` for group PlayerScript hooks and combat
+  state
+- `LLMChatterGroupJoin.cpp` for join batching and GroupScript
+- `LLMChatterGroupEmote.cpp` for emote reaction system
+- `LLMChatterGroupQuest.cpp` for quest accept batching and CreatureScript
 - `LLMChatterPlayer.cpp` for General-channel player logic
 - `LLMChatterShared.cpp` for shared helper contracts
 - `LLMChatterScript.cpp` is registration only — do not add features here

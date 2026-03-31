@@ -146,6 +146,7 @@ public:
     uint32 _reactDelayNearbyObject;
     uint32 _reactDelayBGEvent;
     uint32 _reactDelayGeneralMsg;
+    uint32 _reactDelayEmote;
 
     // Group chatter - combat engagement chances (0-100)
     uint32 _combatChanceBoss;

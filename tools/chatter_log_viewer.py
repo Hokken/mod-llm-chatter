@@ -245,7 +245,17 @@ a{color:#e94560}
   padding:5px 10px;font-weight:bold;
   font-size:12px;color:#e94560;
   display:flex;align-items:center;gap:8px;
-  border-radius:3px 3px 0 0}
+  border-radius:3px 3px 0 0;cursor:pointer;
+  user-select:none}
+.section-hdr::before{content:'';
+  display:inline-block;width:0;height:0;
+  border-left:5px solid transparent;
+  border-right:5px solid transparent;
+  border-top:6px solid #e94560;
+  transition:transform 0.2s;margin-right:4px}
+.section.collapsed .section-hdr::before{
+  transform:rotate(-90deg)}
+.section.collapsed .section-body{display:none}
 .section-hdr .count{color:#888;
   font-size:11px;font-weight:normal}
 .tbl-wrap{overflow-x:auto}
@@ -303,10 +313,12 @@ tr.fm-row:hover td{background:#4a3500}
 
 <!-- MEMORIES section -->
 <div class="section">
-  <div class="section-hdr">
+  <div class="section-hdr"
+    onclick="toggleSection(this)">
     llm_bot_memories
     <span class="count" id="mem-count"></span>
   </div>
+  <div class="section-body">
   <div class="filter-row">
     <select id="mem-type-filter"
       onchange="applyMemFilter()">
@@ -336,14 +348,17 @@ tr.fm-row:hover td{background:#4a3500}
     <div id="mem-empty" class="empty"
       style="display:none">No rows</div>
   </div>
+  </div>
 </div>
 
 <!-- QUEUE section -->
 <div class="section">
-  <div class="section-hdr">
+  <div class="section-hdr"
+    onclick="toggleSection(this)">
     llm_chatter_queue
     <span class="count" id="q-count"></span>
   </div>
+  <div class="section-body">
   <div class="filter-row">
     <select id="q-status-filter"
       onchange="applyQueueFilter()">
@@ -368,14 +383,17 @@ tr.fm-row:hover td{background:#4a3500}
     <div id="q-empty" class="empty"
       style="display:none">No rows</div>
   </div>
+  </div>
 </div>
 
 <!-- MESSAGES section -->
 <div class="section">
-  <div class="section-hdr">
+  <div class="section-hdr"
+    onclick="toggleSection(this)">
     llm_chatter_messages
     <span class="count" id="msg-count"></span>
   </div>
+  <div class="section-body">
   <div class="filter-row">
     <select id="msg-del-filter"
       onchange="applyMsgFilter()">
@@ -402,9 +420,13 @@ tr.fm-row:hover td{background:#4a3500}
     <div id="msg-empty" class="empty"
       style="display:none">No rows</div>
   </div>
+  </div>
 </div>
 
 <script>
+function toggleSection(hdr){
+  hdr.parentElement.classList.toggle('collapsed');
+}
 function esc(s){
   if(s===null||s===undefined)return '';
   const d=document.createElement('div');
@@ -695,6 +717,10 @@ a{color:#e94560}
   display:flex;flex-direction:column;
   overflow:hidden}
 .sys-prompt-pane.hidden{display:none}
+.sys-prompt-pane.pane-collapsed .sys-prompt-body{
+  display:none}
+.sys-prompt-pane.pane-collapsed{
+  max-height:none;flex:0 0 auto}
 .sys-prompt-body{padding:8px 10px;flex:1;
   overflow-y:auto;white-space:pre-wrap;
   word-break:break-word;font-size:12px;
@@ -704,9 +730,19 @@ a{color:#e94560}
 .prompt-pane{flex:1;display:flex;
   flex-direction:column;overflow:hidden;
   min-height:150px}
+.prompt-pane.pane-collapsed .prompt-body{
+  display:none}
+.prompt-pane.pane-collapsed{flex:0 0 auto;
+  min-height:0;overflow:visible}
 .response-pane{flex:0 0 200px;min-height:150px;
   display:flex;flex-direction:column;
   overflow:hidden}
+.response-pane.pane-collapsed .response-body{
+  display:none}
+.response-pane.pane-collapsed{flex:0 0 auto;
+  min-height:0;overflow:visible}
+.ctx-section.pane-collapsed .ctx-table{
+  display:none}
 .divider{height:3px;background:#222;
   cursor:row-resize;flex-shrink:0}
 .divider:hover{background:#444}
@@ -714,7 +750,16 @@ a{color:#e94560}
   padding:4px 10px;font-weight:bold;
   font-size:12px;color:#e94560;
   display:flex;align-items:center;gap:8px;
-  flex-shrink:0}
+  flex-shrink:0;cursor:pointer;
+  user-select:none}
+.section-title::before{content:'';
+  display:inline-block;width:0;height:0;
+  border-left:5px solid transparent;
+  border-right:5px solid transparent;
+  border-top:6px solid #e94560;
+  transition:transform 0.2s}
+.pane-collapsed .section-title::before{
+  transform:rotate(-90deg)}
 .section-title button{background:#333;
   color:#ccc;border:1px solid #555;
   padding:2px 8px;cursor:pointer;
@@ -789,7 +834,17 @@ a{color:#e94560}
   flex-shrink:0;display:none}
 .ctx-section .ctx-title{font-size:11px;
   color:#e94560;font-weight:bold;
-  margin-bottom:3px}
+  margin-bottom:3px;cursor:pointer;
+  user-select:none}
+.ctx-section .ctx-title::before{content:'';
+  display:inline-block;width:0;height:0;
+  border-left:5px solid transparent;
+  border-right:5px solid transparent;
+  border-top:6px solid #e94560;
+  transition:transform 0.2s;margin-right:5px}
+.ctx-section.pane-collapsed
+  .ctx-title::before{
+  transform:rotate(-90deg)}
 </style>
 </head>
 <body>
@@ -830,14 +885,18 @@ a{color:#e94560}
   <div class="detail-hdr" id="detailHdr">
     Select an entry</div>
   <div class="ctx-section" id="ctxSection">
-    <div class="ctx-title">Context</div>
+    <div class="ctx-title"
+      onclick="this.parentElement.classList.toggle(
+        'pane-collapsed')">Context</div>
     <table class="ctx-table">
       <tbody id="ctxBody"></tbody>
     </table>
   </div>
   <div class="sys-prompt-pane hidden"
     id="sysPromptPane">
-    <div class="section-title">
+    <div class="section-title"
+      onclick="this.parentElement.classList.toggle(
+        'pane-collapsed')">
       <span>System Prompt</span>
       <button id="copySysPromptBtn"
         onclick="copySysPrompt()">Copy</button>
@@ -846,7 +905,9 @@ a{color:#e94560}
       id="sysPromptBody"></div>
   </div>
   <div class="prompt-pane" id="promptPane">
-    <div class="section-title">
+    <div class="section-title"
+      onclick="this.parentElement.classList.toggle(
+        'pane-collapsed')">
       <span>Prompt</span>
       <span class="section-pills"
         id="promptPills"></span>
@@ -857,7 +918,9 @@ a{color:#e94560}
   </div>
   <div class="divider" id="divider"></div>
   <div class="response-pane" id="responsePane">
-    <div class="section-title">Response
+    <div class="section-title"
+      onclick="this.parentElement.classList.toggle(
+        'pane-collapsed')">Response
       <button id="copyResponseBtn"
         onclick="copyResponse()">Copy</button>
     </div>

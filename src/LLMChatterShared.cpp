@@ -5,6 +5,8 @@
 #include "LLMChatterShared.h"
 
 #include "LLMChatterConfig.h"
+#include "Channel.h"
+#include "ChannelMgr.h"
 #include "Chat.h"
 #include "DatabaseEnv.h"
 #include "DBCStores.h"
@@ -13,13 +15,17 @@
 #include "Player.h"
 #include "Playerbots.h"
 #include "RandomPlayerbotMgr.h"
+#include "World.h"
 #include "WorldSession.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
+#include <ctime>
+#include <map>
+#include <random>
 #include <sstream>
 #include <unordered_map>
-#include <random>
 #include <unordered_set>
 #include <vector>
 
@@ -34,6 +40,52 @@ constexpr uint8 PRIORITY_HIGH =
 constexpr uint8 PRIORITY_HIGH_LOCAL = PRIORITY_HIGH + 1;
 constexpr uint8 PRIORITY_CRITICAL =
     static_cast<uint8>(LLMChatterPriorityBand::Critical);
+
+using DelayMember = uint32 LLMChatterConfig::*;
+
+struct EventPriorityRule
+{
+    const char* eventType;
+    uint8 priority;
+};
+
+struct ExactRangeDelayRule
+{
+    const char* eventType;
+    DelayMember minMember;
+    DelayMember maxMember;
+};
+
+struct ExactFixedDelayRule
+{
+    const char* eventType;
+    DelayMember delayMember;
+};
+
+struct ExactLiteralDelayRule
+{
+    const char* eventType;
+    uint32 delaySeconds;
+};
+
+struct PredicatePriorityRule
+{
+    bool (*matches)(const std::string& eventType);
+    uint8 priority;
+};
+
+struct PredicateRangeDelayRule
+{
+    bool (*matches)(const std::string& eventType);
+    DelayMember minMember;
+    DelayMember maxMember;
+};
+
+struct PredicateFixedDelayRule
+{
+    bool (*matches)(const std::string& eventType);
+    DelayMember delayMember;
+};
 
 bool IsBattlegroundEventType(const std::string& eventType)
 {
@@ -55,76 +107,330 @@ bool IsStateCalloutEventType(const std::string& eventType)
         || eventType == "bot_group_aggro_loss";
 }
 
+bool IsHolidayBoundaryEventType(
+    const std::string& eventType)
+{
+    return eventType == "holiday_start"
+        || eventType == "holiday_end";
+}
+
+bool IsQuestAcceptEventType(const std::string& eventType)
+{
+    return eventType == "bot_group_quest_accept"
+        || eventType == "bot_group_quest_accept_batch";
+}
+
+bool IsZoneTransitionEventType(
+    const std::string& eventType)
+{
+    return eventType == "bot_group_zone_transition"
+        || eventType == "bot_group_subzone_change";
+}
+
+bool IsEmoteReactionEventType(
+    const std::string& eventType)
+{
+    return eventType == "bot_group_emote_reaction"
+        || eventType == "bot_group_emote_observer";
+}
+
+template <typename Rule, size_t N>
+const Rule* FindExactRule(
+    const std::array<Rule, N>& rules,
+    const std::string& eventType)
+{
+    for (auto const& rule : rules)
+        if (eventType == rule.eventType)
+            return &rule;
+
+    return nullptr;
+}
+
+template <typename Rule, size_t N>
+const Rule* FindPredicateRule(
+    const std::array<Rule, N>& rules,
+    const std::string& eventType)
+{
+    for (auto const& rule : rules)
+        if (rule.matches(eventType))
+            return &rule;
+
+    return nullptr;
+}
+
+uint32 RollConfiguredDelay(
+    DelayMember minMember,
+    DelayMember maxMember)
+{
+    return urand(
+        sLLMChatterConfig->*minMember,
+        sLLMChatterConfig->*maxMember);
+}
+
+constexpr std::array<EventPriorityRule, 28>
+    kTierPriorityRules = {{
+        {"bot_group_combat",        PRIORITY_CRITICAL},
+        {"bot_group_spell_cast",    PRIORITY_CRITICAL},
+        {"bot_group_nearby_object", PRIORITY_CRITICAL},
+        {"weather_change",          PRIORITY_CRITICAL},
+        {"transport_arrives",       PRIORITY_CRITICAL},
+        {"bg_flag_picked_up",       PRIORITY_CRITICAL},
+        {"bg_flag_dropped",         PRIORITY_CRITICAL},
+        {"bg_flag_captured",        PRIORITY_CRITICAL},
+        {"bg_flag_returned",        PRIORITY_CRITICAL},
+        {"bg_node_contested",       PRIORITY_CRITICAL},
+        {"bg_node_captured",        PRIORITY_CRITICAL},
+        {"raid_boss_pull",          PRIORITY_CRITICAL},
+        {"raid_boss_kill",          PRIORITY_CRITICAL},
+        {"raid_boss_wipe",          PRIORITY_CRITICAL},
+        {"bot_group_player_msg",    PRIORITY_HIGH_LOCAL},
+        {"player_general_msg",      PRIORITY_HIGH},
+        {"bot_group_death",         PRIORITY_HIGH},
+        {"bot_group_wipe",          PRIORITY_HIGH},
+        {"bot_group_join",          PRIORITY_HIGH},
+        {"bot_group_join_batch",    PRIORITY_HIGH},
+        {"bg_match_start",          PRIORITY_HIGH},
+        {"bg_pvp_kill",             PRIORITY_HIGH},
+        {"player_enters_zone",      PRIORITY_HIGH},
+        {"bg_idle_chatter",         PRIORITY_FILLER},
+        {"raid_idle_morale",        PRIORITY_FILLER},
+        {"weather_ambient",         PRIORITY_FILLER},
+        {"minor_event",             PRIORITY_FILLER},
+        {"day_night_transition",    PRIORITY_FILLER},
+    }};
+
+constexpr std::array<PredicatePriorityRule, 1>
+    kTierPriorityPredicateRules = {{
+        {IsStateCalloutEventType, PRIORITY_CRITICAL},
+    }};
+
+constexpr std::array<EventPriorityRule, 16>
+    kLegacyPriorityRules = {{
+        {"player_general_msg",       8},
+        {"day_night_transition",     7},
+        {"transport_arrives",        6},
+        {"player_enters_zone",       6},
+        {"weather_change",           5},
+        {"bot_group_nearby_object",  5},
+        {"weather_ambient",          3},
+        {"bot_group_zone_transition", 3},
+        {"bot_group_subzone_change", 3},
+        {"holiday_start",            2},
+        {"holiday_end",              2},
+        {"minor_event",              2},
+        {"bot_group_combat",         2},
+        {"bot_group_join",           0},
+        {"bot_group_join_batch",     0},
+        {"raid_idle_morale",         0},
+    }};
+
+constexpr std::array<PredicatePriorityRule, 1>
+    kLegacyPriorityPredicateRules = {{
+        {IsStateCalloutEventType, 2},
+    }};
+
+struct TierDelayRule
+{
+    uint8 minimumPriority;
+    DelayMember minMember;
+    DelayMember maxMember;
+};
+
+constexpr std::array<TierDelayRule, 4>
+    kTierDelayRules = {{
+        {
+            PRIORITY_CRITICAL,
+            &LLMChatterConfig::_priorityReactRangeCriticalMin,
+            &LLMChatterConfig::_priorityReactRangeCriticalMax,
+        },
+        {
+            PRIORITY_HIGH,
+            &LLMChatterConfig::_priorityReactRangeHighMin,
+            &LLMChatterConfig::_priorityReactRangeHighMax,
+        },
+        {
+            PRIORITY_NORMAL,
+            &LLMChatterConfig::_priorityReactRangeNormalMin,
+            &LLMChatterConfig::_priorityReactRangeNormalMax,
+        },
+        {
+            PRIORITY_FILLER,
+            &LLMChatterConfig::_priorityReactRangeFillerMin,
+            &LLMChatterConfig::_priorityReactRangeFillerMax,
+        },
+    }};
+
+constexpr std::array<ExactRangeDelayRule, 4>
+    kLegacyExactRangeDelayRules = {{
+        {
+            "day_night_transition",
+            &LLMChatterConfig::_reactRangeDayNightMin,
+            &LLMChatterConfig::_reactRangeDayNightMax,
+        },
+        {
+            "weather_change",
+            &LLMChatterConfig::_reactRangeWeatherMin,
+            &LLMChatterConfig::_reactRangeWeatherMax,
+        },
+        {
+            "weather_ambient",
+            &LLMChatterConfig::_reactRangeWeatherAmbientMin,
+            &LLMChatterConfig::_reactRangeWeatherAmbientMax,
+        },
+        {
+            "transport_arrives",
+            &LLMChatterConfig::_reactRangeTransportMin,
+            &LLMChatterConfig::_reactRangeTransportMax,
+        },
+    }};
+
+constexpr std::array<PredicateRangeDelayRule, 2>
+    kLegacyPredicateRangeDelayRules = {{
+        {
+            IsHolidayBoundaryEventType,
+            &LLMChatterConfig::_reactRangeHolidayMin,
+            &LLMChatterConfig::_reactRangeHolidayMax,
+        },
+        {
+            IsQuestAcceptEventType,
+            &LLMChatterConfig::_reactRangeQuestAcceptMin,
+            &LLMChatterConfig::_reactRangeQuestAcceptMax,
+        },
+    }};
+
+constexpr std::array<ExactFixedDelayRule, 18>
+    kLegacyExactFixedDelayRules = {{
+        {"bot_group_join",             &LLMChatterConfig::_reactDelayJoin},
+        {
+            "bot_group_join_batch",
+            &LLMChatterConfig::_reactDelayJoinBatch,
+        },
+        {"bot_group_kill",             &LLMChatterConfig::_reactDelayKill},
+        {"bot_group_wipe",             &LLMChatterConfig::_reactDelayWipe},
+        {"bot_group_death",            &LLMChatterConfig::_reactDelayDeath},
+        {"bot_group_loot",             &LLMChatterConfig::_reactDelayLoot},
+        {"bot_group_combat",           &LLMChatterConfig::_reactDelayCombat},
+        {
+            "bot_group_player_msg",
+            &LLMChatterConfig::_reactDelayPlayerMsg,
+        },
+        {
+            "bot_group_levelup",
+            &LLMChatterConfig::_reactDelayLevelUp,
+        },
+        {
+            "bot_group_quest_objectives",
+            &LLMChatterConfig::_reactDelayQuestObjectives,
+        },
+        {
+            "bot_group_quest_complete",
+            &LLMChatterConfig::_reactDelayQuestComplete,
+        },
+        {
+            "bot_group_achievement",
+            &LLMChatterConfig::_reactDelayAchievement,
+        },
+        {
+            "bot_group_spell_cast",
+            &LLMChatterConfig::_reactDelaySpellCast,
+        },
+        {
+            "bot_group_resurrect",
+            &LLMChatterConfig::_reactDelayResurrect,
+        },
+        {
+            "bot_group_corpse_run",
+            &LLMChatterConfig::_reactDelayCorpseRun,
+        },
+        {
+            "bot_group_dungeon_entry",
+            &LLMChatterConfig::_reactDelayDungeonEntry,
+        },
+        {
+            "bot_group_nearby_object",
+            &LLMChatterConfig::_reactDelayNearbyObject,
+        },
+        {
+            "player_general_msg",
+            &LLMChatterConfig::_reactDelayGeneralMsg,
+        },
+    }};
+
+constexpr std::array<PredicateFixedDelayRule, 5>
+    kLegacyPredicateFixedDelayRules = {{
+        {
+            IsZoneTransitionEventType,
+            &LLMChatterConfig::_reactDelayZoneTransition,
+        },
+        {
+            IsStateCalloutEventType,
+            &LLMChatterConfig::_reactDelayStateCallout,
+        },
+        {
+            IsBattlegroundEventType,
+            &LLMChatterConfig::_reactDelayBGEvent,
+        },
+        {
+            IsRaidEventType,
+            // Preserve the historical shared BG/Raid delay bucket.
+            &LLMChatterConfig::_reactDelayBGEvent,
+        },
+        {
+            IsEmoteReactionEventType,
+            &LLMChatterConfig::_reactDelayEmote,
+        },
+    }};
+
+constexpr std::array<ExactLiteralDelayRule, 1>
+    kLegacyExactLiteralDelayRules = {{
+        {"player_enters_zone", 2},
+    }};
+
+std::string GetBotRoleName(Player* player)
+{
+    if (!player)
+        return "dps";
+
+    PlayerbotAI* ai = GET_PLAYERBOT_AI(player);
+    if (!ai)
+        return "dps";
+
+    if (PlayerbotAI::IsTank(player))
+        return "tank";
+    if (PlayerbotAI::IsHeal(player))
+        return "healer";
+    if (PlayerbotAI::IsRanged(player))
+        return "ranged_dps";
+    return "melee_dps";
+}
+
 uint8 GetTierPriority(const std::string& eventType)
 {
-    if (eventType == "bot_group_combat"
-        || eventType == "bot_group_spell_cast"
-        || IsStateCalloutEventType(eventType)
-        || eventType == "bot_group_nearby_object"
-        || eventType == "weather_change"
-        || eventType == "transport_arrives"
-        || eventType == "bg_flag_picked_up"
-        || eventType == "bg_flag_dropped"
-        || eventType == "bg_flag_captured"
-        || eventType == "bg_flag_returned"
-        || eventType == "bg_node_contested"
-        || eventType == "bg_node_captured"
-        || eventType == "raid_boss_pull"
-        || eventType == "raid_boss_kill"
-        || eventType == "raid_boss_wipe")
-        return PRIORITY_CRITICAL;
+    if (const auto* predicateRule = FindPredicateRule(
+            kTierPriorityPredicateRules,
+            eventType))
+        return predicateRule->priority;
 
-    if (eventType == "bot_group_player_msg")
-        return PRIORITY_HIGH_LOCAL;
-
-    if (eventType == "player_general_msg"
-        || eventType == "bot_group_death"
-        || eventType == "bot_group_wipe"
-        || eventType == "bot_group_join"
-        || eventType == "bot_group_join_batch"
-        || eventType == "bg_match_start"
-        || eventType == "bg_pvp_kill"
-        || eventType == "player_enters_zone")
-        return PRIORITY_HIGH;
-
-    if (eventType == "bg_idle_chatter"
-        || eventType == "raid_idle_morale"
-        || eventType == "weather_ambient"
-        || eventType == "minor_event"
-        || eventType == "day_night_transition")
-        return PRIORITY_FILLER;
+    if (const auto* exactRule = FindExactRule(
+            kTierPriorityRules,
+            eventType))
+        return exactRule->priority;
 
     return PRIORITY_NORMAL;
 }
 
 uint8 GetLegacyPriority(const std::string& eventType)
 {
-    if (eventType == "player_general_msg")
-        return 8;
-    if (eventType == "day_night_transition")
-        return 7;
-    if (eventType == "transport_arrives")
-        return 6;
-    if (eventType == "player_enters_zone")
-        return 6;
-    if (eventType == "weather_change"
-        || eventType == "bot_group_nearby_object")
-        return 5;
+    if (const auto* predicateRule = FindPredicateRule(
+            kLegacyPriorityPredicateRules,
+            eventType))
+        return predicateRule->priority;
 
-    if (eventType == "weather_ambient"
-        || eventType == "bot_group_zone_transition"
-        || eventType == "bot_group_subzone_change")
-        return 3;
-    if (eventType == "bot_group_combat"
-        || IsStateCalloutEventType(eventType)
-        || eventType == "holiday_start"
-        || eventType == "holiday_end"
-        || eventType == "minor_event")
-        return 2;
-    if (eventType == "bot_group_join"
-        || eventType == "bot_group_join_batch"
-        || eventType == "raid_idle_morale")
-        return 0;
+    if (const auto* exactRule = FindExactRule(
+            kLegacyPriorityRules,
+            eventType))
+        return exactRule->priority;
+
     // Historical default for most group and battleground event
     // producers was inline priority 1.
     return 1;
@@ -135,140 +441,52 @@ uint32 GetTierReactionDelaySeconds(
 {
     uint8 priority = GetTierPriority(eventType);
 
-    if (priority >= PRIORITY_CRITICAL)
-        return urand(
-            sLLMChatterConfig
-                ->_priorityReactRangeCriticalMin,
-            sLLMChatterConfig
-                ->_priorityReactRangeCriticalMax);
-    if (priority >= PRIORITY_HIGH)
-        return urand(
-            sLLMChatterConfig
-                ->_priorityReactRangeHighMin,
-            sLLMChatterConfig
-                ->_priorityReactRangeHighMax);
-    if (priority >= PRIORITY_NORMAL)
-        return urand(
-            sLLMChatterConfig
-                ->_priorityReactRangeNormalMin,
-            sLLMChatterConfig
-                ->_priorityReactRangeNormalMax);
-    return urand(
-        sLLMChatterConfig
-            ->_priorityReactRangeFillerMin,
-        sLLMChatterConfig
-            ->_priorityReactRangeFillerMax);
+    for (auto const& rule : kTierDelayRules)
+        if (priority >= rule.minimumPriority)
+            return RollConfiguredDelay(
+                rule.minMember,
+                rule.maxMember);
+
+    return RollConfiguredDelay(
+        &LLMChatterConfig::_priorityReactRangeFillerMin,
+        &LLMChatterConfig::_priorityReactRangeFillerMax);
 }
 
 uint32 GetLegacyReactionDelaySeconds(
     const std::string& eventType)
 {
-    uint32 minDelay = 0;
-    uint32 maxDelay = 0;
+    if (const auto* exactRangeRule = FindExactRule(
+            kLegacyExactRangeDelayRules,
+            eventType))
+        return RollConfiguredDelay(
+            exactRangeRule->minMember,
+            exactRangeRule->maxMember);
 
-    if (eventType == "day_night_transition")
-    {
-        minDelay = sLLMChatterConfig
-            ->_reactRangeDayNightMin;
-        maxDelay = sLLMChatterConfig
-            ->_reactRangeDayNightMax;
-    }
-    else if (eventType == "holiday_start"
-        || eventType == "holiday_end")
-    {
-        minDelay = sLLMChatterConfig
-            ->_reactRangeHolidayMin;
-        maxDelay = sLLMChatterConfig
-            ->_reactRangeHolidayMax;
-    }
-    else if (eventType == "weather_change")
-    {
-        minDelay = sLLMChatterConfig
-            ->_reactRangeWeatherMin;
-        maxDelay = sLLMChatterConfig
-            ->_reactRangeWeatherMax;
-    }
-    else if (eventType == "weather_ambient")
-    {
-        minDelay = sLLMChatterConfig
-            ->_reactRangeWeatherAmbientMin;
-        maxDelay = sLLMChatterConfig
-            ->_reactRangeWeatherAmbientMax;
-    }
-    else if (eventType == "transport_arrives")
-    {
-        minDelay = sLLMChatterConfig
-            ->_reactRangeTransportMin;
-        maxDelay = sLLMChatterConfig
-            ->_reactRangeTransportMax;
-    }
-    else if (eventType == "bot_group_quest_accept"
-        || eventType == "bot_group_quest_accept_batch")
-    {
-        minDelay = sLLMChatterConfig
-            ->_reactRangeQuestAcceptMin;
-        maxDelay = sLLMChatterConfig
-            ->_reactRangeQuestAcceptMax;
-    }
-    else if (eventType == "bot_group_join")
-        return sLLMChatterConfig->_reactDelayJoin;
-    else if (eventType == "bot_group_join_batch")
-        return sLLMChatterConfig->_reactDelayJoinBatch;
-    else if (eventType == "bot_group_kill")
-        return sLLMChatterConfig->_reactDelayKill;
-    else if (eventType == "bot_group_wipe")
-        return sLLMChatterConfig->_reactDelayWipe;
-    else if (eventType == "bot_group_death")
-        return sLLMChatterConfig->_reactDelayDeath;
-    else if (eventType == "bot_group_loot")
-        return sLLMChatterConfig->_reactDelayLoot;
-    else if (eventType == "bot_group_combat")
-        return sLLMChatterConfig->_reactDelayCombat;
-    else if (eventType == "bot_group_player_msg")
-        return sLLMChatterConfig->_reactDelayPlayerMsg;
-    else if (eventType == "bot_group_levelup")
-        return sLLMChatterConfig->_reactDelayLevelUp;
-    else if (eventType == "bot_group_quest_objectives")
-        return sLLMChatterConfig
-            ->_reactDelayQuestObjectives;
-    else if (eventType == "bot_group_quest_complete")
-        return sLLMChatterConfig
-            ->_reactDelayQuestComplete;
-    else if (eventType == "bot_group_achievement")
-        return sLLMChatterConfig->_reactDelayAchievement;
-    else if (eventType == "bot_group_spell_cast")
-        return sLLMChatterConfig->_reactDelaySpellCast;
-    else if (eventType == "bot_group_resurrect")
-        return sLLMChatterConfig->_reactDelayResurrect;
-    else if (eventType == "bot_group_corpse_run")
-        return sLLMChatterConfig->_reactDelayCorpseRun;
-    else if (eventType == "bot_group_dungeon_entry")
-        return sLLMChatterConfig->_reactDelayDungeonEntry;
-    else if (eventType == "bot_group_zone_transition"
-        || eventType == "bot_group_subzone_change")
-        return sLLMChatterConfig
-            ->_reactDelayZoneTransition;
-    else if (eventType == "bot_group_nearby_object")
-        return sLLMChatterConfig->_reactDelayNearbyObject;
-    else if (IsStateCalloutEventType(eventType))
-        return sLLMChatterConfig->_reactDelayStateCallout;
-    else if (IsBattlegroundEventType(eventType))
-        return sLLMChatterConfig->_reactDelayBGEvent;
-    else if (IsRaidEventType(eventType))
-        return sLLMChatterConfig->_reactDelayBGEvent;
-    else if (eventType == "player_general_msg")
-        return sLLMChatterConfig->_reactDelayGeneralMsg;
-    else if (eventType == "player_enters_zone")
-        return 2;
-    else
-    {
-        minDelay = sLLMChatterConfig
-            ->_reactRangeDefaultMin;
-        maxDelay = sLLMChatterConfig
-            ->_reactRangeDefaultMax;
-    }
+    if (const auto* predicateRangeRule = FindPredicateRule(
+            kLegacyPredicateRangeDelayRules,
+            eventType))
+        return RollConfiguredDelay(
+            predicateRangeRule->minMember,
+            predicateRangeRule->maxMember);
 
-    return urand(minDelay, maxDelay);
+    if (const auto* exactFixedRule = FindExactRule(
+            kLegacyExactFixedDelayRules,
+            eventType))
+        return sLLMChatterConfig->*(exactFixedRule->delayMember);
+
+    if (const auto* literalFixedRule = FindExactRule(
+            kLegacyExactLiteralDelayRules,
+            eventType))
+        return literalFixedRule->delaySeconds;
+
+    if (const auto* predicateFixedRule = FindPredicateRule(
+            kLegacyPredicateFixedDelayRules,
+            eventType))
+        return sLLMChatterConfig->*(predicateFixedRule->delayMember);
+
+    return RollConfiguredDelay(
+        &LLMChatterConfig::_reactRangeDefaultMin,
+        &LLMChatterConfig::_reactRangeDefaultMax);
 }
 
 const char* GetQualityColor(uint8 quality)
@@ -786,6 +1004,185 @@ std::string JsonEscape(const std::string& str)
     return result;
 }
 
+std::string GetClassName(uint8 classId)
+{
+    switch (classId)
+    {
+        case CLASS_WARRIOR: return "Warrior";
+        case CLASS_PALADIN: return "Paladin";
+        case CLASS_HUNTER: return "Hunter";
+        case CLASS_ROGUE: return "Rogue";
+        case CLASS_PRIEST: return "Priest";
+        case CLASS_DEATH_KNIGHT: return "Death Knight";
+        case CLASS_SHAMAN: return "Shaman";
+        case CLASS_MAGE: return "Mage";
+        case CLASS_WARLOCK: return "Warlock";
+        case CLASS_DRUID: return "Druid";
+        default: return "Unknown";
+    }
+}
+
+std::string GetRaceName(uint8 raceId)
+{
+    switch (raceId)
+    {
+        case RACE_HUMAN: return "Human";
+        case RACE_ORC: return "Orc";
+        case RACE_DWARF: return "Dwarf";
+        case RACE_NIGHTELF: return "Night Elf";
+        case RACE_UNDEAD_PLAYER: return "Undead";
+        case RACE_TAUREN: return "Tauren";
+        case RACE_GNOME: return "Gnome";
+        case RACE_TROLL: return "Troll";
+        case RACE_BLOODELF: return "Blood Elf";
+        case RACE_DRAENEI: return "Draenei";
+        default: return "Unknown";
+    }
+}
+
+std::string GetZoneName(uint32 zoneId)
+{
+    if (AreaTableEntry const* area =
+            sAreaTableStore.LookupEntry(zoneId))
+    {
+        uint8 locale = sWorld->GetDefaultDbcLocale();
+        char const* n = area->area_name[locale];
+        std::string zoneName = n ? n : "";
+        if (zoneName.empty())
+        {
+            n = area->area_name[LOCALE_enUS];
+            zoneName = n ? n : "";
+        }
+        if (!zoneName.empty())
+            return zoneName;
+    }
+
+    return "Unknown Zone";
+}
+
+std::string BuildBotIdentityFields(
+    Player* player, bool includeRoles)
+{
+    if (!player)
+    {
+        LOG_ERROR(
+            "module",
+            "LLMChatter: BuildBotIdentityFields called with null player");
+
+        std::string json =
+            "\"bot_guid\":0,"
+            "\"bot_name\":\"Unknown\","
+            "\"bot_class\":0,"
+            "\"bot_race\":0,"
+            "\"bot_level\":0";
+
+        if (includeRoles)
+            json += ",\"role\":\"dps\"";
+
+        return json;
+    }
+
+    std::string json =
+        "\"bot_guid\":" +
+            std::to_string(
+                player->GetGUID().GetCounter())
+        + ",\"bot_name\":\""
+        + JsonEscape(player->GetName()) + "\","
+        + "\"bot_class\":"
+        + std::to_string(player->getClass())
+        + ",\"bot_race\":"
+        + std::to_string(player->getRace())
+        + ",\"bot_level\":"
+        + std::to_string(player->GetLevel());
+
+    if (includeRoles)
+        json += ",\"role\":\""
+            + GetBotRoleName(player) + "\"";
+
+    return json;
+}
+
+bool IsEventOnCooldown(
+    std::map<std::string, time_t>& cooldownCache,
+    const std::string& cooldownKey,
+    uint32 cooldownSeconds)
+{
+    auto it = cooldownCache.find(cooldownKey);
+    if (it != cooldownCache.end())
+    {
+        time_t now = time(nullptr);
+        if (now - it->second < cooldownSeconds)
+            return true;
+    }
+
+    QueryResult result = CharacterDatabase.Query(
+        "SELECT 1 FROM llm_chatter_events "
+        "WHERE cooldown_key = '{}' AND created_at > "
+        "DATE_SUB(NOW(), INTERVAL {} SECOND) LIMIT 1",
+        cooldownKey, cooldownSeconds);
+
+    return static_cast<bool>(result);
+}
+
+void SetEventCooldown(
+    std::map<std::string, time_t>& cooldownCache,
+    const std::string& cooldownKey)
+{
+    cooldownCache[cooldownKey] = time(nullptr);
+}
+
+bool CanSpeakInGeneralChannel(Player* bot)
+{
+    if (!bot || !bot->IsInWorld())
+        return false;
+
+    // Ensure the bot is joined to the correct
+    // General channel for its current zone.
+    // Bots present when the server starts never
+    // trigger OnPlayerUpdateZone, so without this
+    // they would never be in any General channel.
+    EnsureBotInGeneralChannel(bot);
+
+    uint32 zoneId = bot->GetZoneId();
+    AreaTableEntry const* area =
+        sAreaTableStore.LookupEntry(zoneId);
+    if (!area)
+        return false;
+
+    char const* zn =
+        area->area_name[sWorld->GetDefaultDbcLocale()];
+    std::string zoneName = zn ? zn : "";
+    if (zoneName.empty())
+    {
+        zn = area->area_name[LOCALE_enUS];
+        zoneName = zn ? zn : "";
+    }
+    if (zoneName.empty())
+        return false;
+
+    ChannelMgr* cMgr =
+        ChannelMgr::forTeam(bot->GetTeamId());
+    if (!cMgr)
+        return false;
+
+    for (auto const& [key, channel] :
+         cMgr->GetChannels())
+    {
+        if (!channel)
+            continue;
+        if (channel->GetChannelId()
+            != ChatChannelId::GENERAL)
+            continue;
+        if (channel->GetName().find(zoneName)
+            == std::string::npos)
+            continue;
+
+        return bot->IsInChannel(channel);
+    }
+
+    return false;
+}
+
 std::string ConvertAllLinks(const std::string& text)
 {
     std::string result = text;
@@ -1063,19 +1460,7 @@ std::string BuildBotStateJson(Player* player)
         manaPctInt =
             static_cast<int>(player->GetPowerPct(POWER_MANA));
 
-    std::string role = "dps";
     PlayerbotAI* ai = GET_PLAYERBOT_AI(player);
-    if (ai)
-    {
-        if (PlayerbotAI::IsTank(player))
-            role = "tank";
-        else if (PlayerbotAI::IsHeal(player))
-            role = "healer";
-        else if (PlayerbotAI::IsRanged(player))
-            role = "ranged_dps";
-        else
-            role = "melee_dps";
-    }
 
     std::string targetName;
     Unit* victim = player->GetVictim();
@@ -1098,7 +1483,7 @@ std::string BuildBotStateJson(Player* player)
             std::to_string(static_cast<int>(healthPct)) + ","
         "\"mana_pct\":" +
             std::to_string(manaPctInt) + ","
-        "\"role\":\"" + role + "\","
+        "\"role\":\"" + GetBotRoleName(player) + "\","
         "\"in_combat\":" +
             std::string(
                 inCombat ? "true" : "false")

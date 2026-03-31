@@ -1,6 +1,7 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-03-30 (through Python registry/pipeline refactor)
+Last updated: 2026-03-31 (post Python/C++ refactor completion, cleanup,
+and follow-up emote-path fixes)
 
 ## Purpose
 
@@ -8,6 +9,10 @@ Reference architecture for humans and LLMs editing
 `modules/mod-llm-chatter`.
 
 This document reflects the current source architecture.
+
+For new work, route by ownership first. If you are unsure where a
+change belongs, use "Where To Edit What" in this file before touching
+code.
 
 ## Guiding Principle: Separation of Concerns
 
@@ -109,8 +114,13 @@ Two config-driven RNG checks in `append_json_instruction()` and
 `append_conversation_json_instruction()` control optional prompt
 sections:
 
-- `EmoteChance` — gates inclusion of the ~244-emote list (~500 tokens)
-- `ActionChance` — gates the action field instruction
+- `EmoteChance` - gates inclusion of the ~244-emote list (~500 tokens)
+- `ActionChance` - gates the action field instruction
+
+If the prompt/output parser yields `"emote": null`, Python insert paths
+must preserve that null value. Do not synthesize a fallback emote during
+DB insert. `LLMChatter.EmoteChance` is the source of truth for whether
+the LLM is even asked for an emote.
 
 These are checked once per prompt build and apply uniformly to all
 prompt paths (group, General, BG, raid).
@@ -161,6 +171,8 @@ There are two separate timing stages:
 
 - **Event reaction delay**: C++ sets `react_after` when the event row is
   inserted. This delays when Python is allowed to process the event.
+  The shared C++ implementation now uses table-driven priority and delay
+  registries rather than long conditional chains.
 - **Message delivery delay**: Python sets `deliver_at` when it inserts
   the final message row. This delays when C++ is allowed to speak it in
   game.
@@ -271,18 +283,29 @@ Session 69 added two scheduling controls around that model:
 
 | File | Approx lines | Primary ownership |
 |---|---:|---|
-| `src/LLMChatterScript.cpp` | 13 | Registration coordinator only |
-| `src/LLMChatterShared.cpp` | 803 | Shared helpers: SQL/JSON escaping, queue insert helper, link/emote/delivery helpers, `GetTextEmoteName()` reverse lookup, `SendUnitTextEmote()` consolidated emote packet helper, cross-domain formatting helpers |
-| `src/LLMChatterShared.h` | 42 | Shared declarations still used across domains; `class Unit` forward-declared for `SendUnitTextEmote()`; currently also declares world/player registration |
-| `src/LLMChatterWorld.cpp` | 2220 | WorldScript ownership, delivery tick, world/private `QueueEvent()`, holiday/weather/transport events, nearby-object scanning, world-private state |
-| `src/LLMChatterGroup.cpp` | 4311 | Group batching, cooldown/state maps, combat-state checks, named-boss cache, group/player/creature party-side hooks, emote reaction system (`OnPlayerTextEmote`, mirror/verbal/observer paths, `DelayedMirrorEmoteEvent`, `DelayedCreatureMirrorEmoteEvent`), direct group event queueing |
-| `src/LLMChatterGroup.h` | 12 | World-to-group cross-call surface plus group registration |
-| `src/LLMChatterPlayer.cpp` | 445 | Player General-channel hooks, General cooldowns, `EnsureBotInGeneralChannel()`, player registration |
-| `src/LLMChatterRaid.cpp` | 777 | Raid boss hooks (pull/kill/wipe), boss lookup table (80+ entries across Classic/TBC/WotLK), `IsDatabaseBound() override`, raid registration |
-| `src/LLMChatterBG.cpp` | 1166 | Battleground hooks, BG state polling, BG queue helpers, BG registration |
+| `src/LLMChatterScript.cpp` | 15 | Registration coordinator only |
+| `src/LLMChatterShared.cpp` | 1848 | Shared helpers: SQL/JSON escaping, canonical shared lookup helpers (`GetZoneName()`, `GetClassName()`, `GetRaceName()`), `BuildBotIdentityFields()` / `BuildBotStateJson()`, queue insert helper, shared event cooldown helper, table-driven event priority/reaction-delay registries, link/emote/delivery helpers, `GetTextEmoteName()` reverse lookup, `SendUnitTextEmote()` consolidated emote packet helper, cross-domain formatting helpers, General-channel membership check helper |
+| `src/LLMChatterShared.h` | 83 | Shared declarations still used across domains; `class Unit` forward-declared for `SendUnitTextEmote()`; currently also declares world/player registration |
+| `src/LLMChatterDelivery.cpp` | 429 | Outbound message delivery implementation: DB polling, facing selection, party/raid/BG/General/yell dispatch, post-send delivery state updates |
+| `src/LLMChatterDelivery.h` | 4 | Narrow delivery extraction declaration used by `LLMChatterWorld.cpp` |
+| `src/LLMChatterAmbient.cpp` | 963 | Ambient world/event ownership: day/night transitions, holiday start/stop routing, weather state tracking, weather reactions, zone-level ambient chatter selection, ambient request queue writes |
+| `src/LLMChatterAmbient.h` | 24 | Narrow ambient declarations consumed by `LLMChatterWorld.cpp` |
+| `src/LLMChatterNearby.cpp` | 691 | Nearby-object and nearby-creature scanning, POI scoring, nearby direct event queueing, nearby-local cooldowns |
+| `src/LLMChatterNearby.h` | 6 | Narrow nearby scan declaration consumed by `LLMChatterWorld.cpp` |
+| `src/LLMChatterWorld.cpp` | 789 | WorldScript ownership, thin ambient/nearby/delivery delegation, transport polling and route announcements, transport-private state, retained world-private `QueueEvent()` helper |
+| `src/LLMChatterGroup.cpp` | 842 | Shared group state definitions, shared helpers (`GroupHasRealPlayer`, `GetRandomBotInGroup`, `CountBotsInGroup`, pre-cache helpers), named-boss cache, `CleanupGroupSession()` coordinator, thin `LLMChatterGroupPlayerScript` shell wrappers, registration |
+| `src/LLMChatterGroupCombat.cpp` | 2524 | Remaining group PlayerScript implementation bodies (kill/death/loot/combat/chat/level/quest/achievement/spell/resurrect/corpse-run/dungeon-entry/emote dispatch), text-emote target classification and group gating, zone transition handling, combat state callouts, file-local `QueueStateCallout()` |
+| `src/LLMChatterGroupInternal.h` | 239 | Shared group internal header: struct definitions (`GroupJoinEntry`, `GroupJoinBatch`, `QuestAcceptEntry`, `QuestAcceptBatch`), extern declarations for all shared cooldown maps, batch containers, mutexes, emote cooldowns, named boss cache; shared helper declarations; domain entry-point declarations; `EmoteTargetType` enum |
+| `src/LLMChatterGroupJoin.cpp` | 866 | Group join batching: `QueueBotGreetingEvent()`, `EnsureGroupJoinQueued()`, `FlushGroupJoinBatches()`, `LLMChatterGroupScript` (GroupScript: `OnAddMember`, `OnRemoveMember` with farewell, `OnDisband`) |
+| `src/LLMChatterGroupEmote.cpp` | 529 | Emote reaction system: `DelayedMirrorEmoteEvent`, `DelayedCreatureMirrorEmoteEvent`, emote static data (mirror map, denylist, combat callouts, contagious set), `HandleEmoteAtGroupBot()`, `HandleEmoteAtCreature()`, `HandleEmoteObserver()`, `EvictEmoteCooldowns()` |
+| `src/LLMChatterGroupQuest.cpp` | 520 | Quest accept batching: `FlushQuestAcceptBatches()`, `LLMChatterCreatureScript` (AllCreatureScript: `CanCreatureQuestAccept` with debounce/immediate paths) |
+| `src/LLMChatterGroup.h` | 18 | World-to-group cross-call surface plus group registration |
+| `src/LLMChatterPlayer.cpp` | 1103 | Player General-channel hooks, General cooldowns, `EnsureBotInGeneralChannel()`, player registration |
+| `src/LLMChatterRaid.cpp` | 717 | Raid boss hooks (pull/kill/wipe), boss lookup table (80+ entries across Classic/TBC/WotLK), `IsDatabaseBound() override`, raid registration |
+| `src/LLMChatterBG.cpp` | 1240 | Battleground hooks, BG state polling, BG queue helpers, BG registration |
 | `src/LLMChatterBG.h` | 14 | BG registration declaration |
-| `src/LLMChatterConfig.h/.cpp` | 739 | Config loading and config struct |
-| `src/llm_chatter_loader.cpp` | 10 | Module entry point, calls `AddLLMChatterScripts()` |
+| `src/LLMChatterConfig.h/.cpp` | 781 | Config loading and config struct |
+| `src/llm_chatter_loader.cpp` | 9 | Module entry point, calls `AddLLMChatterScripts()` |
 
 ## Current Registration Shape
 
@@ -323,7 +346,7 @@ This asymmetry is known and acceptable in the shipped source state.
 
 | File | Primary ownership |
 |---|---|
-| `tools/chatter_group.py` | Group join, group player message flow, idle chatter |
+| `tools/chatter_group.py` | Group join, group player message flow, idle chatter, and group-side message inserts for those paths |
 | `tools/chatter_group_handlers.py` | `bot_group_*` reaction handlers, `execute_player_msg_conversation()`, thin wrappers around the shared handler pipeline for most single-reaction group events |
 | `tools/chatter_handler_pipeline.py` | Shared `run_group_handler()` pipeline: extra_data parsing, guard checks, traits lookup, context assembly, prompt dispatch, chat storage, mood update, event completion/failure handling |
 | `tools/chatter_group_prompts.py` | Group prompt builders, nearby-object prompts, pre-cache prompt builders, `build_player_msg_conversation_prompt()`. All major party chatter builders accept `map_id=0` and inject `get_dungeon_flavor(map_id)` as location context when inside a dungeon instance, replacing zone/subzone lore. Excluded: OOM, low-health, level-up. |
@@ -333,7 +356,7 @@ This asymmetry is known and acceptable in the shipped source state.
 
 | File | Primary ownership |
 |---|---|
-| `tools/chatter_shared.py` | Compatibility facade, residual shared helpers, `PromptParts(str)` class for system/user prompt separation, `find_addressed_bot()` (with multi-addressed intent detection), `calculate_dynamic_delay()` (with responsive mode), `should_include_action()` (single RNG roll for narrator action gating at conversation delivery sites) |
+| `tools/chatter_shared.py` | Compatibility facade and residual shared helpers only: `PromptParts(str)` class for system/user prompt separation, `find_addressed_bot()` (with multi-addressed intent detection), `calculate_dynamic_delay()` (with responsive mode), `should_include_action()` (single RNG roll for narrator action gating at conversation delivery sites). Avoid adding new domain-specific handler logic here unless it is truly cross-domain. |
 | `tools/chatter_text.py` | Parsing, sanitization, anti-repetition |
 | `tools/chatter_llm.py` | Provider/model calls; `get_llm_client()` shared client factory; `_split_prompt()`, `_build_chat_messages()`, `_ollama_user_msg()` for system/user prompt separation; `label=` param logs every call via `chatter_request_logger` |
 | `tools/chatter_db.py` | DB access, inserts, zone/cache queries, `any_real_players_online()`, `cleanup_stale_groups()`, `cleanup_all_session_data()` |
@@ -386,10 +409,15 @@ This asymmetry is known and acceptable in the shipped source state.
 
 - `EscapeString()`
 - `JsonEscape()`
+- `GetZoneName()`
+- `GetClassName()`
+- `GetRaceName()`
+- `BuildBotIdentityFields()`
 - `QueueChatterEvent()`
 - `BuildBotStateJson()`
 - `AppendRaidContext()`
 - `GroupHasBots()`
+- `CanSpeakInGeneralChannel()`
 - `GetTextEmoteName()` — reverse emote ID-to-name lookup (170+ entries)
 - `SendUnitTextEmote(Unit*, uint32, const std::string&)` — consolidated
   emote packet helper; `SendBotTextEmote` overloads delegate to it
@@ -405,6 +433,35 @@ Critical contract:
 That contract is enforced by convention and comments, not by the type
 system.
 
+### Delivery ownership
+
+`LLMChatterDelivery.cpp` owns:
+
+- `DeliverPendingMessagesImpl()`
+- outbound message polling from `llm_chatter_messages`
+- facing selection before speech delivery
+- final chat-channel dispatch for party, raid, BG, yell, and General
+- delivery success/retry marking
+
+### Ambient ownership
+
+`LLMChatterAmbient.cpp` owns:
+
+- holiday processing
+- day/night processing
+- weather state and transitions
+- ambient zone discovery and faction selection
+- ambient chatter request queue writes
+
+### Nearby ownership
+
+`LLMChatterNearby.cpp` owns:
+
+- nearby-object / nearby-creature scanning
+- nearby POI helper structs and scoring helpers
+- nearby-local cooldown state
+- direct nearby event queue insertion path
+
 ### World ownership
 
 `LLMChatterWorld.cpp` owns:
@@ -412,47 +469,85 @@ system.
 - `LLMChatterWorldScript`
 - `LLMChatterGameEventScript`
 - `LLMChatterALEScript`
-- `DeliverPendingMessages()`
+- thin delivery tick delegation
+- thin ambient delegation
+- thin nearby delegation
 - world-private `QueueEvent()`
-- holiday processing
-- day/night processing
-- weather state and transitions
 - transport state and route announcements via transport-object zone
   transitions, but only when the destination zone currently contains a
   real player; eligible zone bots speak in General
-- nearby-object / nearby-creature scanning
 
 `QueueEvent()` SQL-escapes its `extraData` before forwarding to
 `QueueChatterEvent()`.
 
-The nearby-object path is the one intentional direct world caller of
-`QueueChatterEvent()`. It now explicitly SQL-escapes `extraJson` before
-calling the shared insert helper.
+### Group ownership (split across five TUs)
 
-### Group ownership
+`LLMChatterGroupInternal.h` declares shared state across the group TUs:
 
-`LLMChatterGroup.cpp` owns:
+- struct definitions: `GroupJoinEntry`, `GroupJoinBatch`,
+  `QuestAcceptEntry`, `QuestAcceptBatch`
+- extern declarations for all shared cooldown maps, batch containers,
+  mutexes, emote cooldowns, named boss cache
+- `EmoteTargetType` enum
+- shared helper and domain entry-point declarations
 
-- `LLMChatterGroupScript`
-- `LLMChatterGroupPlayerScript`
-- `LLMChatterCreatureScript`
-- `CleanupGroupSession()`
+`LLMChatterGroup.cpp` retains:
+
+- shared state variable definitions (all cooldown maps, batch containers,
+  mutexes, emote cooldowns, named boss entries)
+- shared helpers: `GroupHasRealPlayer`, `GetRandomBotInGroup`,
+  `CountBotsInGroup`, `IsLikelyPlayerbotControlCommand`, pre-cache
+  helpers
 - `LoadNamedBossCache()`
-- `FlushGroupJoinBatches()`
-- `FlushQuestAcceptBatches()`
-- `CheckGroupCombatState()`
-- `HandleGroupPlayerUpdateZone()`
-- `QueueStateCallout()`
-- emote reaction system: `OnPlayerTextEmote`, `HandleEmoteAtGroupBot`,
-  `HandleEmoteObserver`, `DelayedMirrorEmoteEvent`,
-  `DelayedCreatureMirrorEmoteEvent`, `EvictEmoteCooldowns()`
-- emote state maps: `_emoteReactCooldowns`, `_emoteVerbalCooldowns`,
-  `_emoteObserverCooldowns`, `s_mirrorEmoteMap`, `s_contagiousEmotes`,
-  `s_combatCalloutEmotes`, `s_ignoredEmotes`
-- group cooldown/state maps
-- group join and quest-accept batch structs/maps/mutexes
+- `CleanupGroupSession()` coordinator
+ - thin `LLMChatterGroupPlayerScript` wrappers
+ - `AddLLMChatterGroupScripts()` registration
 
-Important: the creature quest-accept hook ended up group-owned, not in a
+`LLMChatterGroupCombat.cpp` owns:
+
+- the remaining `LLMChatterGroupPlayerScript` implementation bodies for
+  kill, death, loot, combat, chat, level, quest objectives, quest
+  complete, achievement, spell, resurrect, corpse run, dungeon entry,
+  and emote dispatch
+- text-emote target classification and the decision of which paths still
+  require group/bot context
+- `HandleGroupPlayerUpdateZone()`
+- `CheckGroupCombatState()`
+- file-local `QueueStateCallout()`
+
+`LLMChatterGroupJoin.cpp` owns:
+
+- `QueueBotGreetingEvent()`
+- `EnsureGroupJoinQueued()`
+- `FlushGroupJoinBatches()`
+- `LLMChatterGroupScript` (GroupScript: `OnAddMember`, `OnRemoveMember`
+  with farewell, `OnDisband`)
+
+`LLMChatterGroupEmote.cpp` owns:
+
+- `DelayedMirrorEmoteEvent`, `DelayedCreatureMirrorEmoteEvent`
+- emote static data: `s_mirrorEmoteMap`, `s_ignoredEmotes`,
+  `s_combatCalloutEmotes`, `s_contagiousEmotes`
+- `HandleEmoteAtGroupBot()`, `HandleEmoteAtCreature()`,
+  `HandleEmoteObserver()`
+- `EvictEmoteCooldowns()`
+
+Important split:
+
+- `LLMChatterGroupCombat.cpp` decides who/what the text emote targeted
+  and whether the follow-up path is group-gated
+- `LLMChatterGroupEmote.cpp` owns the actual mirror execution,
+  cooldowns, and observer event queueing
+- creature mirror emotes can now fire even when the player is solo;
+  observer chatter still requires eligible grouped bots
+
+`LLMChatterGroupQuest.cpp` owns:
+
+- `FlushQuestAcceptBatches()`
+- `LLMChatterCreatureScript` (AllCreatureScript:
+  `CanCreatureQuestAccept` with debounce/immediate paths)
+
+Important: the creature quest-accept hook is group-owned, not in a
 separate creature file.
 
 ### Player ownership
@@ -572,22 +667,28 @@ source:
 | Group reaction runtime behavior | `tools/chatter_group_handlers.py` |
 | Shared group-handler pipeline behavior | `tools/chatter_handler_pipeline.py` |
 | Group prompt wording | `tools/chatter_group_prompts.py` |
+| Group message insert behavior / preserve `emote: null` | `tools/chatter_group.py`, `tools/chatter_shared.py`, `tools/chatter_cache.py` |
 | General-channel Python behavior | `tools/chatter_general.py` |
 | DB inserts, history tables, zone/query cache behavior | `tools/chatter_db.py` |
 | Shared parsing/sanitization | `tools/chatter_text.py` |
 | Provider/model calls | `tools/chatter_llm.py` |
 | Shared compatibility helpers | `tools/chatter_shared.py` |
+| Python event-to-handler ownership map | `tools/chatter_event_registry.py` |
 | Emote reaction verbal responses | `tools/chatter_emote_reaction.py` |
 | Emote observer comments | `tools/chatter_emote_observer.py` |
-| Emote C++ hooks, mirror maps, cooldowns | `src/LLMChatterGroup.cpp` |
+| C++ text-emote target classification / solo-vs-group pathing | `src/LLMChatterGroupCombat.cpp` |
+| Emote C++ hooks, mirror maps, cooldowns | `src/LLMChatterGroupEmote.cpp` |
 | BG event handling | `tools/chatter_battlegrounds.py` |
 | BG prompt wording/lore | `tools/chatter_bg_prompts.py` |
 | Raid event handling | `tools/chatter_raids.py` |
 | Raid prompt wording | `tools/chatter_raid_prompts.py` |
 | C++ raid boss hooks | `src/LLMChatterRaid.cpp` |
 | C++ shared helper contracts | `src/LLMChatterShared.cpp`, `src/LLMChatterShared.h` |
-| C++ delivery/world/environment logic | `src/LLMChatterWorld.cpp` |
-| C++ group batching/combat/state logic | `src/LLMChatterGroup.cpp`, `src/LLMChatterGroup.h` |
+| C++ delivery logic | `src/LLMChatterDelivery.cpp`, `src/LLMChatterDelivery.h` |
+| C++ ambient world/event logic | `src/LLMChatterAmbient.cpp`, `src/LLMChatterAmbient.h` |
+| C++ nearby scan logic | `src/LLMChatterNearby.cpp`, `src/LLMChatterNearby.h` |
+| C++ world transport/dispatcher logic | `src/LLMChatterWorld.cpp` |
+| C++ group batching/combat/state logic | `src/LLMChatterGroup.cpp`, `src/LLMChatterGroupCombat.cpp`, `src/LLMChatterGroupJoin.cpp`, `src/LLMChatterGroupEmote.cpp`, `src/LLMChatterGroupQuest.cpp`, `src/LLMChatterGroup.h`, `src/LLMChatterGroupInternal.h` |
 | C++ General-channel player logic | `src/LLMChatterPlayer.cpp` |
 | C++ BG logic | `src/LLMChatterBG.cpp`, `src/LLMChatterBG.h` |
 | Screenshot vision capture agent (host-side) | `tools/screenshot_agent.py` |
@@ -604,6 +705,11 @@ in:
 - `chatter_text.py`
 - `chatter_llm.py`
 - `chatter_db.py`
+
+Do not treat `chatter_shared.py` as the default place for new Python
+features just because it is imported widely. New domain logic should
+usually go in the owning domain file and only small cross-domain helpers
+should live here.
 
 ### Bridge ambient wrappers are delegates
 
@@ -627,8 +733,12 @@ Any new C++ hook override must add the correct enum to its constructor's
 
 ### `LLMChatterScript.cpp` is registration-only
 
-- world logic lives in `LLMChatterWorld.cpp`
-- group logic lives in `LLMChatterGroup.cpp`
+- world transport/dispatcher logic lives in `LLMChatterWorld.cpp`
+- ambient world/event logic lives in `LLMChatterAmbient.cpp`
+- nearby scan logic lives in `LLMChatterNearby.cpp`
+- group logic lives in `LLMChatterGroup.cpp`,
+  `LLMChatterGroupCombat.cpp`, `LLMChatterGroupJoin.cpp`,
+  `LLMChatterGroupEmote.cpp`, `LLMChatterGroupQuest.cpp`
 - player General-channel logic lives in `LLMChatterPlayer.cpp`
 - shared helpers live in `LLMChatterShared.cpp`
 

@@ -935,10 +935,9 @@ def validate_registry():
             )
             errors += 1
     logger.info(
-        "Registry: %d live events, %d dead events"
-        ", %d validation errors",
+        "Registry: %d live events, "
+        "%d validation errors",
         len(EVENT_REGISTRY),
-        len(DEAD_EVENTS),
         errors,
     )
     return errors

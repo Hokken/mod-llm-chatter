@@ -588,6 +588,16 @@ LLMChatter.GroupChatter.SpellCastChance = 30
 LLMChatter.GroupChatter.SpellCastCooldown = 10
 
 #
+#   LLMChatter.GroupChatter.EmoteReactDelay
+#       Seconds before emote reactions are picked up
+#       by Python. Lower = faster bot response to
+#       player emotes.
+#       Default: 2
+#       [SERVER]
+#
+LLMChatter.GroupChatter.EmoteReactDelay = 2
+
+#
 #   LLMChatter.GroupChatter.NearbyObjectEnable
 #       Enable ambient comments about nearby objects/creatures
 #       Default: 1
@@ -848,7 +858,7 @@ LLMChatter.ActionChance = 10
 #       Lower values improve speed on smaller models.
 #       Default: 30
 #
-LLMChatter.EmoteChance = 30
+LLMChatter.EmoteChance = 20
 
 #
 #   LLMChatter.RaceLoreChance

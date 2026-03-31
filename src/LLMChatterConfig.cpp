@@ -268,6 +268,10 @@ void LLMChatterConfig::LoadConfig()
         sConfigMgr->GetOption<uint32>(
             "LLMChatter.GeneralChat."
             "ReactDelay", 5);
+    _reactDelayEmote =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "EmoteReactDelay", 2);
 
     // Group chatter - combat engagement chances
     _combatChanceBoss =

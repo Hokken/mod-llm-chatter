@@ -434,13 +434,11 @@ def _build_general_response_prompt(
     if twist:
         prompt += f"Creative twist: {twist}\n"
 
-    # 40% chance to address the player by name
-    address_hint = ""
-    if random.random() < 0.4:
-        address_hint = (
-            f"- You may address {player_name} by "
-            f"name in your reply\n"
-        )
+    address_hint = (
+        f"- Address {player_name} by name "
+        f"somewhere in your reply (not always "
+        f"at the start)\n"
+    )
 
     prompt += (
         f"You are in {zone_name}."
@@ -831,14 +829,15 @@ def process_general_player_msg_event(
 
         # Queue first bot's message — responsive
         # since player is waiting for a reply.
-        # Also enforce zone gap so player reactions
-        # don't stack with ambient messages.
-        zone_gap = _zone_delivery_delay(
-            zone_id, config
+        # Skip zone gap: the player asked a direct
+        # question and is actively waiting. Cap at
+        # 5s so the reply feels conversational.
+        delay1 = min(
+            calculate_dynamic_delay(
+                len(msg1), config, responsive=True,
+            ),
+            5.0,
         )
-        delay1 = calculate_dynamic_delay(
-            len(msg1), config, responsive=True,
-        ) + zone_gap
         conv_label = "conv" if is_conversation else "stmt"
         logger.info(
             "[GEN-FLOW] player-react %s | "

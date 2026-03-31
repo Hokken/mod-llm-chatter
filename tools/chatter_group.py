@@ -708,10 +708,7 @@ def process_group_event(db, client, config, event):
 
 
         # 5. Insert message for delivery via party
-        emote = (
-            parsed.get('emote')
-            or pick_emote_for_statement(message)
-        )
+        emote = parsed.get('emote')
         insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=0,
@@ -1109,11 +1106,7 @@ def process_group_join_batch_event(
             delay = idx * 2
             last_delay = delay
 
-            emote = (
-                parsed.get('emote')
-                or pick_emote_for_statement(
-                    message)
-            )
+            emote = parsed.get('emote')
             insert_chat_message(
                 db, bot_guid, bot_name, message,
                 channel='party',
@@ -1381,10 +1374,7 @@ def _batch_welcome(
         msg = msg[:252] + "..."
 
 
-    emote = (
-        parsed.get('emote')
-        or pick_emote_for_statement(msg)
-    )
+    emote = parsed.get('emote')
     insert_chat_message(
         db, wb_guid, wb_name, msg,
         channel='party',
@@ -1779,10 +1769,7 @@ def process_group_player_msg_event(
             message = message[:252] + "..."
 
 
-        emote = (
-            parsed.get('emote')
-            or pick_emote_for_statement(message)
-        )
+        emote = parsed.get('emote')
         reply_delay = calculate_dynamic_delay(
             len(message), config,
             prev_message_length=len(
@@ -2084,10 +2071,7 @@ def _try_second_bot_response(
         msg2 = msg2[:252] + "..."
 
 
-    emote = (
-        parsed.get('emote')
-        or pick_emote_for_statement(msg2)
-    )
+    emote = parsed.get('emote')
     bot2_delay = calculate_dynamic_delay(
         len(msg2), config,
         prev_message_length=len(
@@ -2192,10 +2176,7 @@ def _welcome_from_existing_bot(
 
 
     # Insert with 5s delay (greeting is at 2s)
-    emote = (
-        parsed.get('emote')
-        or pick_emote_for_statement(msg)
-    )
+    emote = parsed.get('emote')
     insert_chat_message(
         db, wb_guid, wb_name, msg,
         channel='party', delay_seconds=5,
@@ -2438,10 +2419,7 @@ def _maybe_comment_on_composition(
         msg = msg[:252] + "..."
 
 
-    emote = (
-        parsed.get('emote')
-        or pick_emote_for_statement(msg)
-    )
+    emote = parsed.get('emote')
     insert_chat_message(
         db, bot['guid'], bot['name'], msg,
         channel='party',
@@ -3921,10 +3899,7 @@ def _idle_single_statement(
 
 
         # Insert directly into messages table
-        emote = (
-            parsed.get('emote')
-            or pick_emote_for_statement(message)
-        )
+        emote = parsed.get('emote')
         insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=2,
@@ -4657,10 +4632,7 @@ def check_bot_questions(db, client, config):
             message = message[:254] + "?"
 
         # Deliver the question
-        emote = (
-            parsed.get('emote')
-            or pick_emote_for_statement(message)
-        )
+        emote = parsed.get('emote')
         insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=2,

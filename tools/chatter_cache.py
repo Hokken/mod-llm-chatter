@@ -384,11 +384,7 @@ def refill_precache_pool(db, client, config):
             if len(message) > 255:
                 message = message[:252] + "..."
 
-            # Pick emote
-            emote = (
-                parsed.get('emote')
-                or pick_emote_for_statement(message)
-            )
+            emote = parsed.get('emote')
 
             # Insert into cache
             _insert_cached_response(

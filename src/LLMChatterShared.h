@@ -3,6 +3,8 @@
 
 #include "Define.h"
 #include "SharedDefines.h"
+#include <ctime>
+#include <map>
 #include <string>
 
 class Group;
@@ -22,6 +24,10 @@ enum class LLMChatterPriorityBand : uint8
 bool IsPlayerBot(Player* player);
 std::string EscapeString(const std::string& str);
 std::string JsonEscape(const std::string& str);
+std::string GetClassName(uint8 classId);
+std::string GetRaceName(uint8 raceId);
+std::string BuildBotIdentityFields(
+    Player* player, bool includeRoles = false);
 std::string BuildBotStateJson(Player* player);
 std::string ConvertAllLinks(const std::string& text);
 std::string GetZoneName(uint32 zoneId);
@@ -40,6 +46,13 @@ void SendPartyMessageInstant(
     const std::string& emote);
 void EnsureBotInGeneralChannel(Player* bot);
 bool CanSpeakInGeneralChannel(Player* bot);
+bool IsEventOnCooldown(
+    std::map<std::string, time_t>& cooldownCache,
+    const std::string& cooldownKey,
+    uint32 cooldownSeconds);
+void SetEventCooldown(
+    std::map<std::string, time_t>& cooldownCache,
+    const std::string& cooldownKey);
 // NOTE: extraData must already be valid JSON text and SQL-safe for
 // direct insertion into a single-quoted SQL string literal.
 void QueueChatterEvent(
