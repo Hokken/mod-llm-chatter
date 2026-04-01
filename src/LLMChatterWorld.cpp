@@ -624,28 +624,24 @@ private:
             if (!GroupHasBots(group))
                 continue;
 
-            // Check if ANY group member is in combat
-            // or dead/ghost — morale is between-pull
-            // only, not during wipe recovery
-            bool anyBusy = false;
+            // Block morale only during active combat.
+            // Dead/ghost members are fine — banter
+            // between pulls should still fire even if
+            // someone hasn't been rezzed yet.
+            bool anyCombat = false;
             for (auto const& mRef :
                  group->GetMemberSlots())
             {
                 Player* member =
                     ObjectAccessor::FindPlayer(
                         mRef.guid);
-                if (member
-                    && (member->IsInCombat()
-                        || !member->IsAlive()
-                        || member->HasFlag(
-                            PLAYER_FLAGS,
-                            PLAYER_FLAGS_GHOST)))
+                if (member && member->IsInCombat())
                 {
-                    anyBusy = true;
+                    anyCombat = true;
                     break;
                 }
             }
-            if (anyBusy)
+            if (anyCombat)
                 continue;
 
             uint32 groupId =

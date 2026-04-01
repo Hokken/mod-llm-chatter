@@ -330,7 +330,7 @@ def fire_subgroup_worker(
         is_raid_worker=False)
     max_tokens = int(config.get(
         f'LLMChatter.{config_prefix}.MaxTokens',
-        32,
+        200,
     ))
 
     sg_meta = {}
@@ -435,7 +435,7 @@ def fire_raid_worker(
         is_raid_worker=True)
     max_tokens = int(config.get(
         f'LLMChatter.{config_prefix}.MaxTokens',
-        32,
+        200,
     ))
 
     # Channel: 'battleground' for BGs, 'raid' for

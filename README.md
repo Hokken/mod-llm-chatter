@@ -45,6 +45,17 @@ This feature runs entirely on the host side with a tiny vision model (GPT-4o-min
 
 ## Changelog
 
+### 2026-04-01 — Raid Chatter Enhancements
+
+* **Raid Battle Cries**: When engaging enemies in a raid instance, a bot shouts a short battle cry in raid chat — race and class flavored. Configurable via `RaidChatter.BattleCryChance` (default 70%).
+* **Raid Banter**: Between-pull idle events now alternate 50/50 between motivational morale and casual banter (environment jokes, class jabs, loot drama commentary).
+* **Raid Idle Boost**: Idle chatter fires twice as often inside raid instances with half the cooldown, keeping the conversation flowing during dungeon crawls.
+* **Dead Bot Awareness**: Dead bots know they're dead. Their idle dialogue shifts to ghost humor, resurrection pleas, and floor commentary instead of pretending they're alive.
+* **Zone Transitions in Raids**: Bots now comment on subzone changes inside raid instances (e.g., moving between wings in Naxxramas).
+* **Morale Between Deaths**: Morale and banter chatter no longer gets blocked when party members are dead — only active combat suppresses it.
+* **Double-Delivery Prevention**: Messages are claimed before processing to prevent duplicate delivery on fast poll ticks.
+* **Truncated JSON Recovery**: LLM responses cut short by token limits are now recovered via regex fallback instead of being dropped.
+
 ### 2026-04-01 — State Callouts, Greeting Improvements, Parser Hardening
 
 * **Low Health & OOM Callouts**: Bots now vocalize when they're low on health or running out of mana. Configurable thresholds (`LowHealthThreshold`, `OOMThreshold`), chance, and cooldown. Automatically scales in battlegrounds (halved chance, doubled cooldown) to avoid spam.

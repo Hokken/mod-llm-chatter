@@ -92,7 +92,26 @@ def parse_single_response(response: str) -> dict:
         except (json.JSONDecodeError, ValueError):
             continue
 
-    # Fallback: treat as plain text
+    # Fallback: extract "message" value from truncated
+    # JSON (max_tokens cutoff before closing brace)
+    m = re.search(
+        r'"message"\s*:\s*"((?:[^"\\]|\\.)*)"',
+        cleaned,
+    )
+    if m:
+        raw = m.group(1).strip()
+        # Decode JSON escapes (\\n, \\\", etc.)
+        try:
+            decoded = json.loads(f'"{raw}"')
+        except (json.JSONDecodeError, ValueError):
+            decoded = raw
+        return {
+            'message': decoded,
+            'emote': None,
+            'action': None,
+        }
+
+    # Last resort: treat as plain text
     msg = cleaned.strip().strip('"')
     return {
         'message': msg,

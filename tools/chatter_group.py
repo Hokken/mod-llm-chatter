@@ -148,6 +148,7 @@ from chatter_constants import (
     AMBIENT_CHAT_TOPICS,
     AMBIENT_CHAT_TOPICS_RP,
     BG_MAP_NAMES,
+    RAID_MAP_IDS,
 )
 
 logger = logging.getLogger(__name__)
@@ -2722,6 +2723,19 @@ def build_idle_chatter_prompt(
             f"\nCurrent weather: {env['weather']}"
         )
 
+    # Dead bot awareness — let the LLM know so it
+    # can produce fitting dialogue (gallows humor,
+    # pleas for a rez, floor commentary, etc.)
+    if bot.get('is_dead'):
+        rp_context += (
+            "\nYou are DEAD — lying on the ground "
+            "as a ghost. Speak accordingly: dark "
+            "humor, complain about the cold floor, "
+            "ask for a resurrection, or comment on "
+            "the view from down here. Do NOT pretend "
+            "you are alive or give tactical advice."
+        )
+
     if members:
         others = [
             m for m in members
@@ -2920,12 +2934,17 @@ def build_idle_conversation_prompt(
                     ', '.join(t)
                     if t else 'average'
                 )
+                dead_tag = (
+                    " [DEAD]"
+                    if bot.get('is_dead') else ""
+                )
                 parts.append(
                     f"{bot['name']} is a level "
                     f"{bot['level']} "
                     f"{bot['race']} "
                     f"{bot['class']} "
                     f"(personality: {trait_str})"
+                    f"{dead_tag}"
                 )
 
             # Per-bot memory blocks
@@ -3161,11 +3180,16 @@ def build_idle_conversation_prompt(
         trait_str = (
             ', '.join(t) if t else 'average'
         )
+        dead_tag = (
+            " [DEAD - lying on the ground]"
+            if bot.get('is_dead') else ""
+        )
         parts.append(
             f"{bot['name']} is a level "
             f"{bot['level']} {bot['race']} "
             f"{bot['class']} "
             f"(personality: {trait_str})"
+            f"{dead_tag}"
         )
         if is_rp:
             race = bot.get('race', '')
@@ -3440,6 +3464,41 @@ def check_idle_group_chatter(
             f"{len(groups)} group(s), "
             f"picked group {group_id}")
 
+    # Quick map lookup from traits for raid boost
+    # (before cooldown check so we can halve it)
+    _pre_map = None
+    try:
+        cursor.execute(
+            "SELECT map FROM llm_group_bot_traits "
+            "WHERE group_id = %s LIMIT 1",
+            (group_id,),
+        )
+        _pre_row = cursor.fetchone()
+        if _pre_row:
+            _pre_map = int(
+                _pre_row.get('map') or 0)
+    except Exception:
+        pass
+
+    # Raid instance: use dedicated idle chance/cooldown
+    _in_raid = (
+        _pre_map is not None
+        and _pre_map in RAID_MAP_IDS
+    )
+    if _in_raid:
+        idle_chance = int(config.get(
+            'LLMChatter.RaidChatter.IdleChance',
+            30))
+        idle_cooldown = int(config.get(
+            'LLMChatter.RaidChatter.IdleCooldown',
+            20))
+        if _dbg:
+            logger.info(
+                "[DEBUG] idle: raid config "
+                "active (chance=%d%%, cd=%ds)",
+                idle_chance, idle_cooldown,
+            )
+
     # Atomic cooldown check + inflight reservation
     with _last_idle_chatter_lock:
         # Prune stale entries (older than 30 min)
@@ -3468,13 +3527,17 @@ def check_idle_group_chatter(
         _idle_inflight.add(group_id)
 
     try:
-        # Get all bots in this group
+        # Get all bots in this group, with health
+        # from characters table to detect dead bots
         cursor.execute("""
-            SELECT bot_guid, bot_name,
-                   trait1, trait2, trait3, role,
-                   tone, zone, map
-            FROM llm_group_bot_traits
-            WHERE group_id = %s
+            SELECT t.bot_guid, t.bot_name,
+                   t.trait1, t.trait2, t.trait3,
+                   t.role, t.tone, t.zone, t.map,
+                   COALESCE(c.health, 1) AS health
+            FROM llm_group_bot_traits t
+            LEFT JOIN characters c
+                ON c.guid = t.bot_guid
+            WHERE t.group_id = %s
             ORDER BY RAND()
         """, (group_id,))
         all_bots = cursor.fetchall()
@@ -3730,6 +3793,7 @@ def _idle_single_statement(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'role': bot_row.get('role'),
+        'is_dead': int(bot_row.get('health', 1)) == 0,
     }
 
     # Determine address target
@@ -3971,6 +4035,8 @@ def _idle_conversation(
             'race': get_race_name(char['race']),
             'level': char['level'],
             'role': br.get('role'),
+            'is_dead': int(
+                br.get('health', 1)) == 0,
         }
         bots.append(bot)
         traits_map[br['bot_name']] = [

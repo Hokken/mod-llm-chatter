@@ -2242,9 +2242,7 @@ void HandleGroupPlayerUpdateZoneImpl(
 
     {
         Map* zMap = player->GetMap();
-        if (zMap
-            && (zMap->IsRaid()
-                || zMap->IsBattleground()))
+        if (zMap && zMap->IsBattleground())
             return;
     }
 

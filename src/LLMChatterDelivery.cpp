@@ -69,6 +69,15 @@ void DeliverPendingMessagesImpl()
 
     Field* fields = result->Fetch();
     uint32 messageId = fields[0].Get<uint32>();
+
+    // Claim the row immediately to prevent
+    // double-delivery on the next poll tick.
+    // Final delivered_at is set after send.
+    CharacterDatabase.DirectExecute(
+        "UPDATE llm_chatter_messages "
+        "SET delivered = 1 "
+        "WHERE id = {} AND delivered = 0",
+        messageId);
     uint32 botGuid = fields[1].Get<uint32>();
     std::string botName =
         fields[2].Get<std::string>();
@@ -419,9 +428,11 @@ void DeliverPendingMessagesImpl()
     }
     else
     {
+        // Unclaim and reschedule for retry
         CharacterDatabase.DirectExecute(
             "UPDATE llm_chatter_messages "
-            "SET deliver_at = DATE_ADD("
+            "SET delivered = 0, "
+            "deliver_at = DATE_ADD("
             "NOW(), INTERVAL 5 SECOND) "
             "WHERE id = {}",
             messageId);

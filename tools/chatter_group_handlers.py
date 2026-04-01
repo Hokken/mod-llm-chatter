@@ -3,7 +3,6 @@
 import logging
 import random
 import re
-
 from chatter_shared import (
     parse_extra_data,
     get_class_name,
@@ -31,7 +30,7 @@ from chatter_db import (
     insert_chat_message,
     get_character_info_by_name,
 )
-from chatter_constants import BG_MAP_NAMES
+from chatter_constants import BG_MAP_NAMES, RAID_MAP_IDS
 from chatter_text import (
     strip_speaker_prefix,
     cleanup_message,
@@ -81,6 +80,9 @@ from chatter_group_prompts import (
 from chatter_raid_base import (
     dual_worker_dispatch,
 )
+from chatter_raid_prompts import (
+    build_raid_battle_cry_prompt,
+)
 from chatter_handler_pipeline import (
     run_group_handler,
     _maybe_talent_context,
@@ -96,6 +98,7 @@ from chatter_bg_prompts import (
 )
 
 logger = logging.getLogger(__name__)
+
 
 
 
@@ -301,13 +304,114 @@ def _loot_msg_xform(raw_message, event):
         )
     return raw_message
 
+def _maybe_raid_battle_cry(
+    db, client, config, extra_data,
+    party_bot_guid,
+):
+    """Fire a raid battle cry if in a raid and
+    fighting a boss/elite. Picks a DIFFERENT bot
+    from the one that spoke in party chat.
+
+    Gated by config chance and per-group cooldown.
+    """
+    group_id = int(
+        extra_data.get('group_id', 0))
+    if not group_id:
+        return
+
+    # Check if in a raid instance
+    _, _, map_id = get_group_location(
+        db, group_id)
+    if map_id not in RAID_MAP_IDS:
+        return
+
+    # Must be boss or elite
+    is_boss = bool(int(
+        extra_data.get('is_boss', 0)))
+    is_elite = bool(int(
+        extra_data.get('is_elite', 0)))
+    if not (is_boss or is_elite):
+        return
+
+    # Config chance gate
+    chance = int(config.get(
+        'LLMChatter.RaidChatter'
+        '.BattleCryChance', 70))
+    if chance <= 0:
+        return
+    if random.randint(1, 100) > chance:
+        return
+
+    # Pick a different bot
+    cry_bot = get_other_group_bot(
+        db, group_id, party_bot_guid)
+    if not cry_bot:
+        return
+
+    # Build bot_data dict for the prompt
+    cry_guid = cry_bot['guid']
+    cry_name = cry_bot['name']
+
+    # Skip dead/ghost bots — no battle cry
+    # from a corpse
+    cursor = db.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT class, race, health "
+        "FROM characters WHERE guid = %s",
+        (cry_guid,),
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    if not row or int(row.get('health', 0)) == 0:
+        return
+
+    bot_data = {
+        'bot_name': cry_name,
+        'race': '',
+        'class': '',
+        'traits': cry_bot.get('traits'),
+    }
+    if row:
+        bot_data['race'] = get_race_name(
+            row['race'])
+        bot_data['class'] = get_class_name(
+            row['class'])
+
+    # Inject config and db for prompt builder
+    extra_data['_config'] = config
+    extra_data['_db'] = db
+
+    prompt = build_raid_battle_cry_prompt(
+        extra_data, bot_data,
+        is_raid_worker=True,
+    )
+
+    result = run_single_reaction(
+        db, client, config,
+        prompt=prompt,
+        speaker_name=cry_name,
+        bot_guid=cry_guid,
+        channel='raid',
+        delay_seconds=2,
+        allow_emote_fallback=False,
+        max_tokens_override=100,
+        context=(
+            f"raid-battle-cry:{cry_name}"),
+        label='raid_battle_cry',
+    )
+
+    return
+
+
 def process_group_combat_event(
     db, client, config, event
 ):
     """Handle a bot_group_combat event.
 
     A bot shouts a short battle cry when engaging
-    an elite or boss creature.
+    an elite or boss creature. If in a raid and
+    fighting a boss/elite, also fires a raid-wide
+    battle cry from a different bot.
     """
     # Pre-pipeline dedup: DB-based recent event check
     event_id = event['id']
@@ -324,7 +428,7 @@ def process_group_combat_event(
             _mark_event(db, event_id, 'skipped')
             return False
 
-    return run_group_handler(
+    result = run_group_handler(
         db, client, config, event,
         event_type_label='bot_group_combat',
         extract_fields=lambda ed: {
@@ -354,6 +458,23 @@ def process_group_combat_event(
         label='reaction_combat',
         bg_fallback_prompt=build_bg_combat_prompt,
     )
+
+    # Attempt raid battle cry regardless of whether
+    # the party reaction succeeded — the reactor bot
+    # may lack traits but another bot can still shout.
+    if ed:
+        try:
+            _maybe_raid_battle_cry(
+                db, client, config, ed,
+                int(ed.get('bot_guid', 0)),
+            )
+        except Exception:
+            logger.error(
+                "Raid battle cry failed",
+                exc_info=True,
+            )
+
+    return result
 
 def process_group_death_event(
     db, client, config, event
@@ -1304,13 +1425,26 @@ def process_group_zone_transition_event(
             extra_data.get('area_id', 0)
         )
 
-    # The bot that entered the zone reacts
+    # The queued GUID is the real player (zone
+    # transitions are player-centric). Try bot
+    # traits first; if that fails (player GUID),
+    # pick a random bot from the group to react.
     trait_data = get_bot_traits(
         db, group_id, bot_guid
     )
     if not trait_data:
-        _mark_event(db, event_id, 'skipped')
-        return False
+        reactor = get_other_group_bot(
+            db, group_id, bot_guid)
+        if not reactor:
+            _mark_event(db, event_id, 'skipped')
+            return False
+        bot_guid = reactor['guid']
+        bot_name = reactor['name']
+        trait_data = get_bot_traits(
+            db, group_id, bot_guid)
+        if not trait_data:
+            _mark_event(db, event_id, 'skipped')
+            return False
 
     traits = trait_data['traits']
     stored_tone = trait_data.get('tone')
@@ -1361,6 +1495,13 @@ def process_group_zone_transition_event(
             ),
         )
 
+        # Use raid chat in raid instances so all
+        # sub-groups see the message
+        zt_channel = (
+            'raid' if map_id in RAID_MAP_IDS
+            else 'party'
+        )
+
         result = run_single_reaction(
             db,
             client,
@@ -1368,7 +1509,7 @@ def process_group_zone_transition_event(
             prompt=prompt,
             speaker_name=bot_name,
             bot_guid=bot_guid,
-            channel='party',
+            channel=zt_channel,
             delay_seconds=2,
             event_id=event_id,
             allow_emote_fallback=True,

@@ -567,6 +567,98 @@ def build_raid_boss_wipe_prompt(
     )
 
 
+def build_raid_battle_cry_prompt(
+    extra_data, bot_data, is_raid_worker=True
+):
+    """Short battle cry for raid chat during
+    boss/elite combat.
+
+    Kept very short (5-15 words) and punchy.
+    Race/class/personality flavored.
+    """
+    creature_name = extra_data.get(
+        'creature_name', 'the enemy')
+    is_boss = bool(int(
+        extra_data.get('is_boss', 0)))
+
+    ctx = _raid_base_context(extra_data, bot_data)
+
+    ctx += (
+        "You are shouting a BATTLE CRY to your "
+        "entire raid as you charge into combat.\n"
+    )
+    if is_boss:
+        ctx += (
+            f"Your raid is engaging the boss "
+            f"{creature_name}!\n"
+        )
+    else:
+        ctx += (
+            f"Your raid is fighting the elite "
+            f"{creature_name}!\n"
+        )
+    ctx += (
+        "Write ONE short, punchy battle cry. "
+        "5 to 15 words maximum. Think war shouts, "
+        "rallying calls, or fierce declarations. "
+        "Draw from your race and class identity.\n"
+        "Examples of the style (do NOT copy these): "
+        "\"For the Light!\", \"Into the fire!\", "
+        "\"Elune guide my arrows!\", "
+        "\"Blood and thunder!\"\n"
+        "No asterisks. No narration. Just the cry."
+    )
+    return append_json_instruction(
+        ctx, allow_action=False, skip_emote=True
+    )
+
+
+def build_raid_banter_prompt(
+    extra_data, bot_data, is_raid_worker=True
+):
+    """Casual banter between pulls — humorous,
+    lore-aware, environment-focused."""
+    ctx = _raid_base_context(extra_data, bot_data)
+
+    banter_topics = random.choice([
+        "a funny observation about the raid "
+        "environment or architecture",
+        "a playful jab at a fellow raider or "
+        "a class stereotype",
+        "a lore tidbit or rumor about this place",
+        "a humorous complaint about the trash "
+        "mobs or the walk back",
+        "an irreverent comment about the bosses",
+        "wondering aloud about something weird "
+        "you noticed in this raid",
+        "a joke about repair bills, wipe recovery, "
+        "or consumable costs",
+        "casual banter about food, drink, or "
+        "downtime activities",
+        "a sarcastic remark about raid readiness "
+        "or someone going AFK",
+        "a lighthearted comment about loot drama "
+        "or RNG luck",
+    ])
+
+    ctx += (
+        "You are making casual BANTER in raid "
+        "chat between pulls. The mood is relaxed. "
+        "Be humorous, observational, or playful. "
+        "NOT motivational or tactical — save that "
+        "for morale. This is just friends chatting "
+        "in a dungeon.\n"
+    )
+    ctx += f"Topic hint: {banter_topics}\n"
+    ctx += (
+        "ONE short sentence (10-25 words). Stay "
+        "in character. No asterisks."
+    )
+    return append_json_instruction(
+        ctx, allow_action=False, skip_emote=True
+    )
+
+
 def build_raid_morale_prompt(
     extra_data, bot_data, is_raid_worker=True
 ):

@@ -1123,6 +1123,16 @@ BG_MAP_NAMES = {
     566: "Eye of the Storm",
 }
 
+# Raid instance map IDs (Classic, TBC, WotLK)
+RAID_MAP_IDS = {
+    # Classic
+    249, 309, 409, 469, 509, 531,
+    # TBC
+    532, 534, 544, 548, 550, 564, 565, 580,
+    # WotLK
+    533, 603, 615, 616, 624, 631, 649, 724,
+}
+
 # DUNGEON FLAVOR - Rich context for immersive dungeon/raid chat generation
 # =============================================================================
 # Each dungeon/raid gets a description that gives the LLM world knowledge.

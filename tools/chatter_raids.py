@@ -10,6 +10,7 @@ via dual_worker_dispatch, and mark event status.
 """
 
 import logging
+import random
 
 from chatter_shared import parse_extra_data
 from chatter_group_state import _mark_event
@@ -25,6 +26,7 @@ from chatter_raid_prompts import (
     build_raid_boss_kill_prompt,
     build_raid_boss_wipe_prompt,
     build_raid_morale_prompt,
+    build_raid_banter_prompt,
 )
 
 LOG = logging.getLogger("chatter_raids")
@@ -50,11 +52,10 @@ def process_raid_boss_pull_event(
 
     result = dual_worker_dispatch(
         db, client, config, event, extra_data,
-        subgroup_prompt_fn=(
-            build_raid_boss_pull_prompt),
+        subgroup_prompt_fn=None,
         raid_prompt_fn=(
             build_raid_boss_pull_prompt),
-        dispatch_mode=DISPATCH_BOTH_IF_BIG,
+        dispatch_mode=DISPATCH_RAID_ONLY,
         config_prefix='RaidChatter')
 
     status = (
@@ -83,11 +84,10 @@ def process_raid_boss_kill_event(
 
     result = dual_worker_dispatch(
         db, client, config, event, extra_data,
-        subgroup_prompt_fn=(
-            build_raid_boss_kill_prompt),
+        subgroup_prompt_fn=None,
         raid_prompt_fn=(
             build_raid_boss_kill_prompt),
-        dispatch_mode=DISPATCH_BOTH_IF_BIG,
+        dispatch_mode=DISPATCH_RAID_ONLY,
         config_prefix='RaidChatter')
 
     status = (
@@ -116,11 +116,10 @@ def process_raid_boss_wipe_event(
 
     result = dual_worker_dispatch(
         db, client, config, event, extra_data,
-        subgroup_prompt_fn=(
-            build_raid_boss_wipe_prompt),
+        subgroup_prompt_fn=None,
         raid_prompt_fn=(
             build_raid_boss_wipe_prompt),
-        dispatch_mode=DISPATCH_BOTH_IF_BIG,
+        dispatch_mode=DISPATCH_RAID_ONLY,
         config_prefix='RaidChatter')
 
     status = (
@@ -148,10 +147,16 @@ def process_raid_idle_morale_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
+    # 50/50 split between morale and banter
+    if random.random() < 0.5:
+        prompt_fn = build_raid_morale_prompt
+    else:
+        prompt_fn = build_raid_banter_prompt
+
     result = dual_worker_dispatch(
         db, client, config, event, extra_data,
         subgroup_prompt_fn=None,
-        raid_prompt_fn=build_raid_morale_prompt,
+        raid_prompt_fn=prompt_fn,
         dispatch_mode=DISPATCH_RAID_ONLY,
         config_prefix='RaidChatter')
 

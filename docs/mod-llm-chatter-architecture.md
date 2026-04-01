@@ -397,7 +397,7 @@ This asymmetry is known and acceptable in the shipped source state.
 |---|---|
 | `tools/chatter_raid_base.py` | Dual-worker dispatch and suppression logic |
 | `tools/chatter_raids.py` | PvE raid event handlers (boss, morale) |
-| `tools/chatter_raid_prompts.py` | Raid prompt builders (boss, morale) |
+| `tools/chatter_raid_prompts.py` | Raid prompt builders (boss, morale, battle cry, banter) |
 | `tools/chatter_battlegrounds.py` | BG event handlers |
 | `tools/chatter_bg_prompts.py` | BG prompt builders and lore tables |
 

@@ -943,12 +943,36 @@ to BG-only, allowing existing group features to fire inside raids:
 - **Join batch** — now BG-only guard
 
 Guards kept suppressed (not suitable for raids):
-OnAddMember, OnRemoveMember, LevelUp, Discovery, ZoneTransition.
+OnAddMember, OnRemoveMember, LevelUp, Discovery.
+
+Zone transitions are now allowed in raids (Session 94) — subzone
+changes fire inside raid instances for wing/area commentary.
 
 New event: `raid_idle_morale` — ambient morale chatter between boss
 encounters. `CheckRaidIdleMorale()` in `LLMChatterWorld.cpp` fires on
-the world timer. Suppressed during combat and wipe recovery (dead/ghost
-bots).
+the world timer. Suppressed during active combat only — dead/ghost
+members no longer block morale (Session 94 relaxation).
+
+### Phase 3 (Session 94): Battle Cries, Banter, Idle Boost
+
+**Battle cries**: `_maybe_raid_battle_cry()` in
+`chatter_group_handlers.py`. After a party combat reaction in a raid
+instance, a different bot shouts a short battle cry in raid chat.
+`build_raid_battle_cry_prompt()` produces 5-15 word race/class
+flavored war shouts. `BattleCryChance=70`, no cooldown.
+
+**Raid banter**: `build_raid_banter_prompt()` in
+`chatter_raid_prompts.py`. Casual between-pulls humor with 10 random
+topic hints. `process_raid_idle_morale_event()` picks morale or
+banter with 50/50 probability.
+
+**Raid idle boost**: Groups in `RAID_MAP_IDS` (24 Classic/TBC/WotLK
+raid map IDs in `chatter_constants.py`) get 2x idle chance and 0.5x
+idle cooldown.
+
+**Dead bot awareness**: Idle chatter queries `characters.health` via
+LEFT JOIN. Dead bots (`health==0`) get ghost-themed prompt injection
+and `[DEAD]` tags in conversation participant lists.
 
 ### C++ ownership
 
@@ -964,8 +988,9 @@ bots).
 
 | File | Responsibility |
 |---|---|
-| `chatter_raids.py` | Boss and morale event handlers |
-| `chatter_raid_prompts.py` | Boss and morale prompt builders |
+| `chatter_raids.py` | Boss, morale, and banter event handlers |
+| `chatter_raid_prompts.py` | Boss, morale, battle cry, and banter prompts |
+| `chatter_group_handlers.py` | `_maybe_raid_battle_cry()` (combat follow-up) |
 | `chatter_raid_base.py` | Shared dispatch, subgroup workers |
 | `llm_chatter_bridge.py` | Event routing for `raid_*` types |
 
@@ -976,6 +1001,7 @@ bots).
 | `MoraleEnable` | 1 | Enable/disable morale chatter |
 | `MoraleCooldown` | 300 | Per-group cooldown (seconds) |
 | `MoraleChance` | 30 | % chance per check |
+| `BattleCryChance` | 70 | % chance for raid battle cry on combat |
 
 ### Dispatch model
 

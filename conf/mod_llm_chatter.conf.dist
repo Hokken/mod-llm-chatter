@@ -892,6 +892,34 @@ LLMChatter.RaidChatter.MoraleChance = 30
 #
 LLMChatter.RaidChatter.MoraleCooldown = 60
 
+#
+#   LLMChatter.RaidChatter.BattleCryChance
+#       Percent chance (0-100) that a raid-wide battle cry
+#       fires when engaging a boss or elite in a raid instance.
+#       A different bot from the party reactor shouts in raid chat.
+#       No cooldown — pure RNG gating.
+#       Default: 70
+#
+LLMChatter.RaidChatter.BattleCryChance = 70
+
+#
+#   LLMChatter.RaidChatter.IdleChance
+#       Percent chance (0-100) for idle chatter per tick
+#       when inside a raid instance. Overrides the normal
+#       GroupChatter.IdleChance for raids.
+#       Default: 30
+#
+LLMChatter.RaidChatter.IdleChance = 30
+
+#
+#   LLMChatter.RaidChatter.IdleCooldown
+#       Minimum seconds between idle chatter messages
+#       when inside a raid instance. Overrides the normal
+#       GroupChatter.IdleCooldown for raids.
+#       Default: 20
+#
+LLMChatter.RaidChatter.IdleCooldown = 20
+
 ###############################################################################
 # PROMPT / OUTPUT TUNING [BRIDGE]
 ###############################################################################
@@ -1381,6 +1409,15 @@ LLMChatter.EmoteReactions.NPCMirrorEnable = 1
 #       Default: 0 (disabled)
 #
 LLMChatter.Screenshot.Enable = 0
+
+#
+#   LLMChatter.Screenshot.DBHost
+#       MySQL host for the screenshot agent, which runs
+#       on the host machine (not inside Docker). Use
+#       127.0.0.1 when MySQL is exposed on localhost.
+#       Default: 127.0.0.1
+#
+LLMChatter.Screenshot.DBHost = 127.0.0.1
 
 #
 #   LLMChatter.Screenshot.IntervalMinSeconds
