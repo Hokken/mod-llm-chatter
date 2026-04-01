@@ -1477,7 +1477,7 @@ LLMChatter.Screenshot.ConversationChance = 40
 #       1280 is a good balance.
 #       Default: 1280
 #
-LLMChatter.Screenshot.MaxWidthPx = 1280
+LLMChatter.Screenshot.MaxWidthPx = 1024
 
 #
 #   LLMChatter.Screenshot.JpegQuality
