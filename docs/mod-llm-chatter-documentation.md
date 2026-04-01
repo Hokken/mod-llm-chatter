@@ -234,6 +234,7 @@ Registration coordinator only. Calls:
 - `AddLLMChatterGroupScripts()`
 - `AddLLMChatterPlayerScripts()`
 - `AddLLMChatterBGScripts()`
+- `AddLLMChatterRaidScripts()`
 
 ### `src/LLMChatterShared.cpp`
 
@@ -258,6 +259,8 @@ registries instead of a single long conditional block.
   sender for any unit (bot or creature); both `SendBotTextEmote` overloads
   delegate to this; `SendCreatureTextEmote` was removed in favour of this
   single shared implementation
+- `IsEventOnCooldown()` / `SetEventCooldown()` — shared event cooldown
+  helper (cache-first, DB fallback) used by world, ambient, and nearby
 - shared link conversion helpers
 - shared emote and delivery helpers
 
@@ -1659,7 +1662,7 @@ from the resulting description.
 **Stage 1 — Host agent** (`screenshot_agent.py`):
 
 1. Captures the WoW game window via Win32 API (`BitBlt`)
-2. Applies light crop (bottom 15%, sides 5%) to reduce UI clutter
+2. Crops UI elements (bottom 20%, sides 12%) to isolate the 3D world
 3. Resizes to `MaxWidthPx` and encodes as JPEG (`JpegQuality`)
 4. Sends to vision LLM (OpenAI or Anthropic)
 5. Receives structured JSON: environment description, atmosphere,

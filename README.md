@@ -45,6 +45,14 @@ This feature runs entirely on the host side with a tiny vision model (GPT-4o-min
 
 ## Changelog
 
+### 2026-04-01 — State Callouts, Greeting Improvements, Parser Hardening
+
+* **Low Health & OOM Callouts**: Bots now vocalize when they're low on health or running out of mana. Configurable thresholds (`LowHealthThreshold`, `OOMThreshold`), chance, and cooldown. Automatically scales in battlegrounds (halved chance, doubled cooldown) to avoid spam.
+* **Time-of-Day Greetings**: Bot greetings now include the current time of day, preventing immersion-breaking lines like "good evening" when it's morning.
+* **Greeting Anti-Repetition**: Bots no longer echo each other's greetings when multiple join at once. Each bot reads the recent chat history and avoids repeating what others already said.
+* **Robust JSON Parser**: The LLM response parser now extracts valid JSON even when the model leaks internal reasoning around it, preventing raw prompt fragments from appearing in chat.
+* **State Callout Config Keys**: Five new config keys exposed: `StateCalloutEnable`, `StateCalloutChance`, `StateCalloutCooldown`, `LowHealthThreshold`, `OOMThreshold`.
+
 ### 2026-03-29 — Screenshot Vision, Emote Reactions, BG Improvements
 
 * **Screenshot Vision (Experimental)**: Bots can now see the actual game world through periodic screenshot analysis. A lightweight host-side agent captures your screen, sends it to a vision AI, and bots comment on what they see, from ancient ruins to glowing flora to approaching storms. Supports both GPT-4o-mini and Claude Haiku. See [Screenshot Vision](#screenshot-vision) for setup.

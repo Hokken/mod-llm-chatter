@@ -137,11 +137,11 @@ void LLMChatterConfig::LoadConfig()
     _lowHealthThreshold =
         sConfigMgr->GetOption<uint32>(
             "LLMChatter.GroupChatter."
-            "LowHealthThreshold", 25);
+            "LowHealthThreshold", 40);
     _oomThreshold =
         sConfigMgr->GetOption<uint32>(
             "LLMChatter.GroupChatter."
-            "OOMThreshold", 15);
+            "OOMThreshold", 30);
 
     // Group chatter - reaction chances (0-100)
     _groupKillChanceNormal = sConfigMgr->GetOption<uint32>("LLMChatter.GroupChatter.KillChanceNormal", 20);

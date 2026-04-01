@@ -19,7 +19,6 @@ import ctypes.wintypes
 import io
 import json
 import logging
-import os
 import random
 import re
 import sys
@@ -222,14 +221,15 @@ def capture_wow_window() -> 'Image.Image | None':
 
 
 def crop_screenshot(img: 'Image.Image') -> 'Image.Image':
-    """Light crop to reduce UI clutter while keeping
-    most of the game world visible. Removes bottom 15%
-    (action bars) and 5% from each side."""
+    """Crop UI elements to isolate the 3D game world.
+    Keeps the top 2/3 of the viewport (above chat/action
+    bars) with party frames and minimap trimmed from the
+    sides."""
     w, h = img.size
-    left = int(w * 0.05)
-    right = int(w * 0.95)
+    left = int(w * 0.12)
+    right = int(w * 0.88)
     top = 0
-    bottom = int(h * 0.85)
+    bottom = int(h * 0.80)
     return img.crop((left, top, right, bottom))
 
 
@@ -587,18 +587,18 @@ def _do_capture_cycle(
         len(jpeg_bytes),
     )
 
-    # Save screenshot for inspection
-    from datetime import datetime
-    logs_dir = os.path.join(
-        os.path.dirname(os.path.abspath(__file__)),
-        '..', 'logs', 'screenshots',
-    )
-    os.makedirs(logs_dir, exist_ok=True)
-    ts = datetime.now().strftime('%Y%m%d_%H%M%S')
-    debug_path = os.path.join(
-        logs_dir, f'screenshot_{ts}.jpg')
-    with open(debug_path, 'wb') as f:
-        f.write(jpeg_bytes)
+    # To save captures for debugging, uncomment:
+    # import os
+    # from datetime import datetime
+    # dbg_dir = os.path.join(
+    #     os.path.dirname(__file__),
+    #     '..', 'logs', 'screenshots')
+    # os.makedirs(dbg_dir, exist_ok=True)
+    # ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+    # with open(os.path.join(
+    #         dbg_dir, f'screenshot_{ts}.jpg'),
+    #         'wb') as f:
+    #     f.write(jpeg_bytes)
 
     description = analyze_screenshot(
         jpeg_bytes,

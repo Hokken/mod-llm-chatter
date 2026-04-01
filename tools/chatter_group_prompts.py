@@ -22,6 +22,7 @@ from chatter_prompts import (
     pick_personality_spices,
     generate_conversation_mood_sequence,
     generate_conversation_length_sequence,
+    get_time_of_day_context,
 )
 from chatter_constants import (
     RACE_SPEECH_PROFILES,
@@ -261,6 +262,8 @@ def build_bot_greeting_prompt(
                     f"\nLocation: {zone_flav}"
                 )
 
+    _, time_desc = get_time_of_day_context()
+
     prompt = (
         f"You are {bot['name']}, a level "
         f"{bot['level']} {bot['race']} "
@@ -268,6 +271,7 @@ def build_bot_greeting_prompt(
         f"Your personality: {trait_str}"
         f"{rp_context}"
         f"{location_context}\n"
+        f"Time of day: {time_desc}\n"
     )
     if speaker_talent_context:
         prompt += f"{speaker_talent_context}\n"
@@ -372,6 +376,8 @@ def build_bot_greeting_prompt(
             f"- Don't mention your class or race\n"
             f"- Don't recite memories verbatim\n"
             f"- Do NOT begin with the player's name\n"
+            f"- Don't repeat or echo greetings "
+            f"already in the chat history above\n"
         )
     else:
         prompt += (
@@ -398,6 +404,8 @@ def build_bot_greeting_prompt(
             f"- No quotes around your message\n"
             f"- No emojis\n"
             f"- Don't mention your class or race\n"
+            f"- Don't repeat or echo greetings "
+            f"already in the chat history above\n"
         )
 
     if use_player_name:

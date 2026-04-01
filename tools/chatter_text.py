@@ -54,30 +54,43 @@ def parse_single_response(response: str) -> dict:
         flags=re.IGNORECASE
     ).strip()
 
-    try:
-        data = json.loads(cleaned)
-        if isinstance(data, dict):
-            msg = data.get('message', '')
-            if isinstance(msg, str):
-                msg = msg.strip().strip('"')
-            else:
-                msg = str(msg).strip()
+    # Try direct parse first, then extract embedded
+    # JSON if the LLM leaked reasoning around it.
+    candidates = [cleaned]
+    # Look for { ... } blocks containing "message".
+    # Use the last match — if the LLM revised its
+    # answer, the final JSON is the intended one.
+    matches = re.findall(
+        r'\{[^{}]*"message"[^{}]*\}', cleaned
+    )
+    if matches:
+        candidates.append(matches[-1])
 
-            # Validate emote
-            raw_emote = data.get('emote')
-            emote = _validate_emote(raw_emote)
+    for candidate in candidates:
+        try:
+            data = json.loads(candidate)
+            if isinstance(data, dict) and 'message' in data:
+                msg = data.get('message', '')
+                if isinstance(msg, str):
+                    msg = msg.strip().strip('"')
+                else:
+                    msg = str(msg).strip()
 
-            # Sanitize action
-            raw_action = data.get('action')
-            action = _sanitize_action(raw_action)
+                # Validate emote
+                raw_emote = data.get('emote')
+                emote = _validate_emote(raw_emote)
 
-            return {
-                'message': msg,
-                'emote': emote,
-                'action': action,
-            }
-    except (json.JSONDecodeError, ValueError):
-        pass
+                # Sanitize action
+                raw_action = data.get('action')
+                action = _sanitize_action(raw_action)
+
+                return {
+                    'message': msg,
+                    'emote': emote,
+                    'action': action,
+                }
+        except (json.JSONDecodeError, ValueError):
+            continue
 
     # Fallback: treat as plain text
     msg = cleaned.strip().strip('"')

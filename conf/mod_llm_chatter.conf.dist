@@ -588,6 +588,52 @@ LLMChatter.GroupChatter.SpellCastChance = 30
 LLMChatter.GroupChatter.SpellCastCooldown = 10
 
 #
+#   LLMChatter.GroupChatter.StateCalloutEnable
+#       Master toggle for state-triggered callouts
+#       (low health, OOM, aggro loss).
+#       Default: 1
+#       [SERVER]
+#
+LLMChatter.GroupChatter.StateCalloutEnable = 1
+
+#
+#   LLMChatter.GroupChatter.StateCalloutChance
+#       Percentage chance (0-100) a state callout fires
+#       when a bot meets the threshold. In BGs this is
+#       halved automatically.
+#       Default: 60
+#       [SERVER]
+#
+LLMChatter.GroupChatter.StateCalloutChance = 60
+
+#
+#   LLMChatter.GroupChatter.StateCalloutCooldown
+#       Seconds between state callouts per bot.
+#       In BGs this is doubled automatically.
+#       Default: 60
+#       [SERVER]
+#
+LLMChatter.GroupChatter.StateCalloutCooldown = 60
+
+#
+#   LLMChatter.GroupChatter.LowHealthThreshold
+#       Health percentage at or below which a bot may
+#       call out that it is low on health.
+#       Default: 40
+#       [SERVER]
+#
+LLMChatter.GroupChatter.LowHealthThreshold = 40
+
+#
+#   LLMChatter.GroupChatter.OOMThreshold
+#       Mana percentage at or below which a mana-using
+#       bot may call out that it is out of mana.
+#       Default: 30
+#       [SERVER]
+#
+LLMChatter.GroupChatter.OOMThreshold = 30
+
+#
 #   LLMChatter.GroupChatter.EmoteReactDelay
 #       Seconds before emote reactions are picked up
 #       by Python. Lower = faster bot response to
@@ -758,6 +804,15 @@ LLMChatter.GeneralChat.QuestionChance = 80
 #       Default: 30
 #
 LLMChatter.GeneralChat.Cooldown = 30
+
+#
+#   LLMChatter.GeneralChat.ReactDelay
+#       Seconds before General chat reactions are
+#       picked up by Python after being queued by C++.
+#       Default: 5
+#       [SERVER]
+#
+LLMChatter.GeneralChat.ReactDelay = 5
 
 #
 #   LLMChatter.GeneralChat.MinZoneGap

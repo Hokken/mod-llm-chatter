@@ -283,7 +283,7 @@ Session 69 added two scheduling controls around that model:
 
 | File | Approx lines | Primary ownership |
 |---|---:|---|
-| `src/LLMChatterScript.cpp` | 15 | Registration coordinator only |
+| `src/LLMChatterScript.cpp` | 17 | Registration coordinator only |
 | `src/LLMChatterShared.cpp` | 1848 | Shared helpers: SQL/JSON escaping, canonical shared lookup helpers (`GetZoneName()`, `GetClassName()`, `GetRaceName()`), `BuildBotIdentityFields()` / `BuildBotStateJson()`, queue insert helper, shared event cooldown helper, table-driven event priority/reaction-delay registries, link/emote/delivery helpers, `GetTextEmoteName()` reverse lookup, `SendUnitTextEmote()` consolidated emote packet helper, cross-domain formatting helpers, General-channel membership check helper |
 | `src/LLMChatterShared.h` | 83 | Shared declarations still used across domains; `class Unit` forward-declared for `SendUnitTextEmote()`; currently also declares world/player registration |
 | `src/LLMChatterDelivery.cpp` | 429 | Outbound message delivery implementation: DB polling, facing selection, party/raid/BG/General/yell dispatch, post-send delivery state updates |
@@ -294,18 +294,18 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterNearby.h` | 6 | Narrow nearby scan declaration consumed by `LLMChatterWorld.cpp` |
 | `src/LLMChatterWorld.cpp` | 789 | WorldScript ownership, thin ambient/nearby/delivery delegation, transport polling and route announcements, transport-private state, retained world-private `QueueEvent()` helper |
 | `src/LLMChatterGroup.cpp` | 842 | Shared group state definitions, shared helpers (`GroupHasRealPlayer`, `GetRandomBotInGroup`, `CountBotsInGroup`, pre-cache helpers), named-boss cache, `CleanupGroupSession()` coordinator, thin `LLMChatterGroupPlayerScript` shell wrappers, registration |
-| `src/LLMChatterGroupCombat.cpp` | 2524 | Remaining group PlayerScript implementation bodies (kill/death/loot/combat/chat/level/quest/achievement/spell/resurrect/corpse-run/dungeon-entry/emote dispatch), text-emote target classification and group gating, zone transition handling, combat state callouts, file-local `QueueStateCallout()` |
+| `src/LLMChatterGroupCombat.cpp` | 2525 | Remaining group PlayerScript implementation bodies (kill/death/loot/combat/chat/level/quest/achievement/spell/resurrect/corpse-run/dungeon-entry/emote dispatch), text-emote target classification and group gating, zone transition handling, combat state callouts, file-local `QueueStateCallout()` |
 | `src/LLMChatterGroupInternal.h` | 239 | Shared group internal header: struct definitions (`GroupJoinEntry`, `GroupJoinBatch`, `QuestAcceptEntry`, `QuestAcceptBatch`), extern declarations for all shared cooldown maps, batch containers, mutexes, emote cooldowns, named boss cache; shared helper declarations; domain entry-point declarations; `EmoteTargetType` enum |
 | `src/LLMChatterGroupJoin.cpp` | 866 | Group join batching: `QueueBotGreetingEvent()`, `EnsureGroupJoinQueued()`, `FlushGroupJoinBatches()`, `LLMChatterGroupScript` (GroupScript: `OnAddMember`, `OnRemoveMember` with farewell, `OnDisband`) |
 | `src/LLMChatterGroupEmote.cpp` | 529 | Emote reaction system: `DelayedMirrorEmoteEvent`, `DelayedCreatureMirrorEmoteEvent`, emote static data (mirror map, denylist, combat callouts, contagious set), `HandleEmoteAtGroupBot()`, `HandleEmoteAtCreature()`, `HandleEmoteObserver()`, `EvictEmoteCooldowns()` |
 | `src/LLMChatterGroupQuest.cpp` | 520 | Quest accept batching: `FlushQuestAcceptBatches()`, `LLMChatterCreatureScript` (AllCreatureScript: `CanCreatureQuestAccept` with debounce/immediate paths) |
 | `src/LLMChatterGroup.h` | 18 | World-to-group cross-call surface plus group registration |
 | `src/LLMChatterPlayer.cpp` | 1103 | Player General-channel hooks, General cooldowns, `EnsureBotInGeneralChannel()`, player registration |
-| `src/LLMChatterRaid.cpp` | 717 | Raid boss hooks (pull/kill/wipe), boss lookup table (80+ entries across Classic/TBC/WotLK), `IsDatabaseBound() override`, raid registration |
-| `src/LLMChatterBG.cpp` | 1240 | Battleground hooks, BG state polling, BG queue helpers, BG registration |
+| `src/LLMChatterRaid.cpp` | 767 | Raid boss hooks (pull/kill/wipe), boss lookup table (80+ entries across Classic/TBC/WotLK), `IsDatabaseBound() override`, raid registration |
+| `src/LLMChatterBG.cpp` | 1348 | Battleground hooks, BG state polling, BG queue helpers, BG registration |
 | `src/LLMChatterBG.h` | 14 | BG registration declaration |
-| `src/LLMChatterConfig.h/.cpp` | 781 | Config loading and config struct |
-| `src/llm_chatter_loader.cpp` | 9 | Module entry point, calls `AddLLMChatterScripts()` |
+| `src/LLMChatterConfig.h/.cpp` | 839 | Config loading and config struct |
+| `src/llm_chatter_loader.cpp` | 11 | Module entry point, calls `AddLLMChatterScripts()` |
 
 ## Current Registration Shape
 
@@ -374,7 +374,7 @@ This asymmetry is known and acceptable in the shipped source state.
 
 | File | Primary ownership |
 |---|---|
-| `tools/screenshot_agent.py` | Host-side capture agent (runs outside Docker). Captures WoW window via Win32 API, light-crops UI clutter (bottom 15%, sides 5%), sends JPEG to vision LLM (OpenAI or Anthropic), receives structured JSON with environment description, atmosphere, and canonical tags. Queues `bot_group_screenshot_observation` events directly into `llm_chatter_events`. Configurable interval, chance, and vision provider/model |
+| `tools/screenshot_agent.py` | Host-side capture agent (runs outside Docker). Captures WoW window via Win32 API, crops UI clutter (bottom 20%, sides 12%), sends JPEG to vision LLM (OpenAI or Anthropic), receives structured JSON with environment description, atmosphere, and canonical tags. Queues `bot_group_screenshot_observation` events directly into `llm_chatter_events`. Configurable interval, chance, and vision provider/model |
 | `tools/chatter_screenshot_handler.py` | Bridge handler for `bot_group_screenshot_observation` events. Generates in-character bot comments using personality traits, zone/subzone context, and the vision description. Supports single statements via `run_single_reaction()` and multi-bot conversations via `append_conversation_json_instruction()` / `parse_conversation_response()`. Canonical tag dedup prevents repetitive observations |
 
 ### Development tools
@@ -421,6 +421,8 @@ This asymmetry is known and acceptable in the shipped source state.
 - `GetTextEmoteName()` — reverse emote ID-to-name lookup (170+ entries)
 - `SendUnitTextEmote(Unit*, uint32, const std::string&)` — consolidated
   emote packet helper; `SendBotTextEmote` overloads delegate to it
+- `IsEventOnCooldown()` / `SetEventCooldown()` — shared event cooldown
+  helper (cache-first, DB fallback) used by world, ambient, and nearby
 - link conversion helpers
 - emote/delivery helpers
 

@@ -2077,6 +2077,8 @@ void HandleGroupPlayerTextEmoteImpl(
     if (!sLLMChatterConfig->_emoteReactionsEnable)
         return;
 
+    Group* group = player->GetGroup();
+
     EmoteTargetType tgtType = EMOTE_TGT_NONE;
     std::string targetName;
     uint32 npcRank = 0;
@@ -2140,7 +2142,6 @@ void HandleGroupPlayerTextEmoteImpl(
             player, cachedTargetCreature,
             textEmote);
 
-    Group* group = player->GetGroup();
     if (!group || !GroupHasRealPlayer(group))
         return;
 
@@ -2389,7 +2390,7 @@ void CheckGroupCombatStateImpl()
 
             if (inBG)
             {
-                cd *= 3;
+                cd *= 2;
                 chance /= 2;
             }
 
@@ -2419,9 +2420,9 @@ void CheckGroupCombatStateImpl()
                                 "bot_group_"
                                 "low_health",
                                 groupId);
+                            _botLowHealthCooldowns
+                                [botGuid] = now;
                         }
-                        _botLowHealthCooldowns
-                            [botGuid] = now;
                     }
                 }
             }
@@ -2456,9 +2457,9 @@ void CheckGroupCombatStateImpl()
                                     "bot_group_"
                                     "oom",
                                     groupId);
+                                _botOomCooldowns
+                                    [botGuid] = now;
                             }
-                            _botOomCooldowns
-                                [botGuid] = now;
                         }
                     }
                 }
