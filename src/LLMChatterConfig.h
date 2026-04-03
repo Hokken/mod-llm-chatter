@@ -241,6 +241,23 @@ public:
     bool _zoneIntrusionEnable;
     uint32 _zoneIntrusionZoneThrottleSec;
 
+    // Proximity chatter
+    bool _proxChatterEnable;
+    uint32 _proxChatterScanInterval;
+    uint32 _proxChatterScanRadius;
+    uint32 _proxChatterChance;
+    uint32 _proxChatterEntityCooldown;
+    uint32 _proxChatterZoneFatigueThreshold;
+    uint32 _proxChatterZoneFatigueDecay;
+    uint32 _proxChatterConversationChance;
+    uint32 _proxChatterPlayerAddressChance;
+    uint32 _proxChatterMaxConversationLines;
+    uint32 _proxChatterConversationLineDelay;
+    uint32 _proxChatterReplyWindowSeconds;
+    uint32 _proxChatterReplyMaxTurns;
+    uint32 _proxChatterMaxTokensPerLine;
+    uint32 _proxChatterFacingResetDelay;
+
     // Emote reaction system
     bool   _emoteReactionsEnable;
     uint32 _emoteMirrorChance;

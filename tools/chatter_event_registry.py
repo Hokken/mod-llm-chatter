@@ -517,6 +517,46 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         },
     ),
 
+    'proximity_say': EventSpec(
+        handler_module='chatter_proximity',
+        handler_func='handle_proximity_say',
+        producer='LLMChatterProximity.cpp',
+        priority='filler',
+        description='Ambient nearby /say line',
+        payload_fields={
+            'player_guid': (int, True),
+            'zone_name': (str, True),
+            'participants': (list, True),
+        },
+    ),
+
+    'proximity_conversation': EventSpec(
+        handler_module='chatter_proximity',
+        handler_func='handle_proximity_conversation',
+        producer='LLMChatterProximity.cpp',
+        priority='filler',
+        description='Ambient nearby multi-speaker scene',
+        payload_fields={
+            'player_guid': (int, True),
+            'zone_name': (str, True),
+            'participants': (list, True),
+            'max_lines': (int, True),
+        },
+    ),
+
+    'proximity_reply': EventSpec(
+        handler_module='chatter_proximity',
+        handler_func='handle_proximity_reply',
+        producer='LLMChatterProximity.cpp',
+        priority='normal',
+        description='Reply to player /say near active scene',
+        payload_fields={
+            'player_guid': (int, True),
+            'player_message': (str, True),
+            'responder_name': (str, True),
+        },
+    ),
+
     # -- BG events (chatter_battlegrounds) --------
 
     'bg_match_start': EventSpec(

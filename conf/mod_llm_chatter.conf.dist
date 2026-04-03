@@ -482,6 +482,131 @@ LLMChatter.HolidayZoneChance = 15
 LLMChatter.Events.MinorEventChance = 20
 
 ###############################################################################
+# PROXIMITY CHATTER [BOTH]
+#
+#   Ambient /say and monster-say scenes around real players.
+#   Uses the event system, Python bridge, and C++ local delivery.
+#
+###############################################################################
+
+#
+#   LLMChatter.ProximityChatter.Enable
+#       Master toggle for proximity chatter.
+#       Default: 1
+#
+LLMChatter.ProximityChatter.Enable = 1
+
+#
+#   LLMChatter.ProximityChatter.ScanIntervalSeconds
+#       How often the server scans around each real player.
+#       Default: 30
+#
+LLMChatter.ProximityChatter.ScanIntervalSeconds = 30
+
+#
+#   LLMChatter.ProximityChatter.ScanRadius
+#       Detection radius in yards around the player.
+#       Must not exceed ListenRange.Say (default 40)
+#       or NPC speech will be inaudible.
+#       Default: 40
+#
+LLMChatter.ProximityChatter.ScanRadius = 40
+
+#
+#   LLMChatter.ProximityChatter.Chance
+#       Base chance (0-100) per scan that a proximity
+#       scene is queued.
+#       Default: 30
+#
+LLMChatter.ProximityChatter.Chance = 30
+
+#
+#   LLMChatter.ProximityChatter.EntityCooldown
+#       Seconds before the same bot or NPC can be used
+#       again as the lead speaker.
+#       Default: 60
+#
+LLMChatter.ProximityChatter.EntityCooldown = 60
+
+#
+#   LLMChatter.ProximityChatter.ZoneFatigueThreshold
+#       Number of recent scenes around the same player /
+#       zone before chance decay starts.
+#       Default: 3
+#
+LLMChatter.ProximityChatter.ZoneFatigueThreshold = 3
+
+#
+#   LLMChatter.ProximityChatter.ZoneFatigueDecay
+#       Percent chance removed per scene after the
+#       fatigue threshold.
+#       Default: 20
+#
+LLMChatter.ProximityChatter.ZoneFatigueDecay = 20
+
+#
+#   LLMChatter.ProximityChatter.ConversationChance
+#       Chance (0-100) to generate a multi-speaker scene
+#       instead of a single line.
+#       Default: 40
+#
+LLMChatter.ProximityChatter.ConversationChance = 40
+
+#
+#   LLMChatter.ProximityChatter.PlayerAddressChance
+#       Chance (0-100) for a single nearby line to be
+#       framed as if it might address the player.
+#       Default: 30
+#
+LLMChatter.ProximityChatter.PlayerAddressChance = 30
+
+#
+#   LLMChatter.ProximityChatter.MaxConversationLines
+#       Maximum number of lines in an unsolicited
+#       proximity conversation.
+#       Default: 4
+#
+LLMChatter.ProximityChatter.MaxConversationLines = 4
+
+#
+#   LLMChatter.ProximityChatter.ConversationLineDelay
+#       Seconds between proximity conversation lines.
+#       Default: 2
+#
+LLMChatter.ProximityChatter.ConversationLineDelay = 2
+
+#
+#   LLMChatter.ProximityChatter.ReplyWindowSeconds
+#       How long a delivered scene stays eligible for a
+#       player /say reply.
+#       Default: 30
+#
+LLMChatter.ProximityChatter.ReplyWindowSeconds = 30
+
+#
+#   LLMChatter.ProximityChatter.ReplyMaxTurns
+#       Maximum delivered turns tracked for a live
+#       proximity scene before replies stop.
+#       Default: 5
+#
+LLMChatter.ProximityChatter.ReplyMaxTurns = 5
+
+#
+#   LLMChatter.ProximityChatter.MaxTokensPerLine
+#       Response token budget per line.
+#       Default: 40
+#
+LLMChatter.ProximityChatter.MaxTokensPerLine = 40
+
+#
+#   LLMChatter.ProximityChatter.FacingResetDelay
+#       Seconds before an NPC speaker restores its
+#       original facing after an `msay` line.
+#       Default: 8
+#
+LLMChatter.ProximityChatter.FacingResetDelay = 8
+
+###############################################################################
 # GROUP CHATTER TUNING [SERVER]
 ###############################################################################
 

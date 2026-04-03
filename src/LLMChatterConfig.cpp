@@ -542,6 +542,68 @@ void LLMChatterConfig::LoadConfig()
             "LLMChatter.ZoneIntrusion."
             "ZoneThrottleSec", 30);
 
+    // Proximity chatter
+    _proxChatterEnable =
+        sConfigMgr->GetOption<bool>(
+            "LLMChatter.ProximityChatter.Enable",
+            false);
+    _proxChatterScanInterval =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "ScanIntervalSeconds", 30);
+    _proxChatterScanRadius =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "ScanRadius", 80);
+    _proxChatterChance =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "Chance", 65);
+    _proxChatterEntityCooldown =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "EntityCooldown", 300);
+    _proxChatterZoneFatigueThreshold =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "ZoneFatigueThreshold", 3);
+    _proxChatterZoneFatigueDecay =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "ZoneFatigueDecay", 20);
+    _proxChatterConversationChance =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "ConversationChance", 40);
+    _proxChatterPlayerAddressChance =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "PlayerAddressChance", 30);
+    _proxChatterMaxConversationLines =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "MaxConversationLines", 4);
+    _proxChatterConversationLineDelay =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "ConversationLineDelay", 4);
+    _proxChatterReplyWindowSeconds =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "ReplyWindowSeconds", 30);
+    _proxChatterReplyMaxTurns =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "ReplyMaxTurns", 5);
+    _proxChatterMaxTokensPerLine =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "MaxTokensPerLine", 40);
+    _proxChatterFacingResetDelay =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "FacingResetDelay", 8);
+
     // Emote reaction system
     _emoteReactionsEnable =
         sConfigMgr->GetOption<bool>(

@@ -4,14 +4,17 @@
 
 #include "LLMChatterConfig.h"
 #include "LLMChatterDelivery.h"
+#include "LLMChatterProximity.h"
 #include "LLMChatterShared.h"
 
 #include "Channel.h"
 #include "ChannelMgr.h"
 #include "Chat.h"
+#include "Creature.h"
 #include "DatabaseEnv.h"
 #include "DBCStores.h"
 #include "Group.h"
+#include "Map.h"
 #include "ObjectAccessor.h"
 #include "Player.h"
 #include "Playerbots.h"
@@ -19,6 +22,46 @@
 #include "WorldSession.h"
 
 #include <cstdio>
+
+namespace
+{
+class DelayedNPCFacingResetEvent : public BasicEvent
+{
+public:
+    DelayedNPCFacingResetEvent(
+        ObjectGuid playerGuid, uint32 spawnId,
+        float orientation)
+        : _playerGuid(playerGuid)
+        , _spawnId(spawnId)
+        , _orientation(orientation)
+    {
+    }
+
+    bool Execute(uint64 /*time*/,
+                 uint32 /*diff*/) override
+    {
+        Player* player =
+            ObjectAccessor::FindConnectedPlayer(
+                _playerGuid);
+        if (!player || !player->IsInWorld())
+            return true;
+
+        Creature* creature = FindCreatureBySpawnId(
+            player->GetMap(), _spawnId);
+        if (!creature || !creature->IsAlive()
+            || creature->IsInCombat())
+            return true;
+
+        creature->SetFacingTo(_orientation);
+        return true;
+    }
+
+private:
+    ObjectGuid _playerGuid;
+    uint32 _spawnId;
+    float _orientation;
+};
+} // namespace
 
 void DeliverPendingMessagesImpl()
 {
@@ -41,7 +84,8 @@ void DeliverPendingMessagesImpl()
             "SELECT m.id, m.bot_guid, "
             "m.bot_name, m.message, "
             "m.channel, m.emote, "
-            "m.event_id, e.zone_id "
+            "m.npc_spawn_id, m.player_guid, "
+            "m.sequence, m.event_id, e.zone_id "
             "FROM llm_chatter_messages m "
             "LEFT JOIN llm_chatter_events e "
             "ON m.event_id = e.id "
@@ -55,7 +99,8 @@ void DeliverPendingMessagesImpl()
         result = CharacterDatabase.Query(
             "SELECT m.id, m.bot_guid, m.bot_name, "
             "m.message, m.channel, m.emote, "
-            "m.event_id, e.zone_id "
+            "m.npc_spawn_id, m.player_guid, "
+            "m.sequence, m.event_id, e.zone_id "
             "FROM llm_chatter_messages m "
             "LEFT JOIN llm_chatter_events e "
             "ON m.event_id = e.id "
@@ -89,14 +134,26 @@ void DeliverPendingMessagesImpl()
         fields[5].IsNull()
             ? ""
             : fields[5].Get<std::string>();
-    uint32 eventId =
+    uint32 npcSpawnId =
         fields[6].IsNull()
             ? 0
             : fields[6].Get<uint32>();
-    uint32 eventZoneId =
+    uint32 playerGuid =
         fields[7].IsNull()
             ? 0
             : fields[7].Get<uint32>();
+    uint32 sequence =
+        fields[8].IsNull()
+            ? 0
+            : fields[8].Get<uint32>();
+    uint32 eventId =
+        fields[9].IsNull()
+            ? 0
+            : fields[9].Get<uint32>();
+    uint32 eventZoneId =
+        fields[10].IsNull()
+            ? 0
+            : fields[10].Get<uint32>();
 
     ObjectGuid guid =
         ObjectGuid::Create<HighGuid::Player>(
@@ -117,7 +174,15 @@ void DeliverPendingMessagesImpl()
     // retrying would not help).
     bool sent = false;
     bool botUnavailable =
-        !bot || !bot->IsInWorld();
+        (channel == "msay")
+            ? false
+            : !bot || !bot->IsInWorld();
+
+    ObjectGuid playerObjGuid =
+        ObjectGuid::Create<HighGuid::Player>(
+            playerGuid);
+    Player* anchorPlayer =
+        ObjectAccessor::FindPlayer(playerObjGuid);
 
     if (bot && bot->IsInWorld())
     {
@@ -175,6 +240,75 @@ void DeliverPendingMessagesImpl()
                                 faced = true;
                             }
                         }
+                    }
+                }
+
+                if (!faced
+                    && channel == "say"
+                    && anchorPlayer
+                    && anchorPlayer->IsInWorld())
+                {
+                    if (sequence > 0 && eventId > 0)
+                    {
+                        QueryResult prevRes =
+                            CharacterDatabase.Query(
+                                "SELECT bot_guid,"
+                                " npc_spawn_id"
+                                " FROM llm_chatter_messages"
+                                " WHERE event_id = {}"
+                                " AND sequence = {}"
+                                " LIMIT 1",
+                                eventId, sequence - 1);
+                        if (prevRes)
+                        {
+                            Field* pf = prevRes->Fetch();
+                            uint32 prevBotGuid =
+                                pf[0].IsNull()
+                                    ? 0
+                                    : pf[0].Get<uint32>();
+                            uint32 prevNpcSpawnId =
+                                pf[1].IsNull()
+                                    ? 0
+                                    : pf[1].Get<uint32>();
+                            if (prevNpcSpawnId)
+                            {
+                                Creature* prevCreature =
+                                    FindCreatureBySpawnId(
+                                        anchorPlayer->GetMap(),
+                                        prevNpcSpawnId);
+                                if (prevCreature)
+                                {
+                                    bot->SetFacingToObject(
+                                        prevCreature);
+                                    faced = true;
+                                }
+                            }
+                            else if (prevBotGuid)
+                            {
+                                ObjectGuid prevGuid =
+                                    ObjectGuid::Create
+                                        <HighGuid::Player>(
+                                            prevBotGuid);
+                                Player* prevBot =
+                                    ObjectAccessor
+                                        ::FindPlayer(
+                                            prevGuid);
+                                if (prevBot
+                                    && prevBot->IsInWorld())
+                                {
+                                    bot->SetFacingToObject(
+                                        prevBot);
+                                    faced = true;
+                                }
+                            }
+                        }
+                    }
+
+                    if (!faced)
+                    {
+                        bot->SetFacingToObject(
+                            anchorPlayer);
+                        faced = true;
                     }
                 }
 
@@ -303,6 +437,10 @@ void DeliverPendingMessagesImpl()
                     sent = true;
                 }
             }
+            else if (channel == "say")
+            {
+                sent = ai->Say(processedMessage);
+            }
             else if (channel == "yell")
             {
                 if (!bot->IsAlive())
@@ -415,6 +553,142 @@ void DeliverPendingMessagesImpl()
                 }
             }
         }
+    }
+    else if (channel == "msay"
+        && anchorPlayer
+        && anchorPlayer->IsInWorld())
+    {
+        Creature* speaker = FindCreatureBySpawnId(
+            anchorPlayer->GetMap(), npcSpawnId);
+        bool speakerUnavailable =
+            !speaker || !speaker->IsAlive()
+            || speaker->IsInCombat();
+        if (speakerUnavailable)
+            botUnavailable = true;
+        else
+        {
+            float originalOrientation =
+                speaker->GetOrientation();
+            if (sLLMChatterConfig->_facingEnable)
+            {
+                bool faced = false;
+                if (sequence > 0 && eventId > 0)
+                {
+                    QueryResult prevRes =
+                        CharacterDatabase.Query(
+                            "SELECT bot_guid,"
+                            " npc_spawn_id"
+                            " FROM llm_chatter_messages"
+                            " WHERE event_id = {}"
+                            " AND sequence = {}"
+                            " LIMIT 1",
+                            eventId, sequence - 1);
+                    if (prevRes)
+                    {
+                        Field* pf = prevRes->Fetch();
+                        uint32 prevBotGuid =
+                            pf[0].IsNull()
+                                ? 0
+                                : pf[0].Get<uint32>();
+                        uint32 prevNpcSpawnId =
+                            pf[1].IsNull()
+                                ? 0
+                                : pf[1].Get<uint32>();
+                        if (prevNpcSpawnId)
+                        {
+                            Creature* prevCreature =
+                                FindCreatureBySpawnId(
+                                    anchorPlayer->GetMap(),
+                                    prevNpcSpawnId);
+                            if (prevCreature)
+                            {
+                                speaker->SetFacingToObject(
+                                    prevCreature);
+                                faced = true;
+                            }
+                        }
+                        else if (prevBotGuid)
+                        {
+                            ObjectGuid prevGuid =
+                                ObjectGuid::Create
+                                    <HighGuid::Player>(
+                                        prevBotGuid);
+                            Player* prevBot =
+                                ObjectAccessor
+                                    ::FindPlayer(
+                                        prevGuid);
+                            if (prevBot
+                                && prevBot->IsInWorld())
+                            {
+                                speaker->SetFacingToObject(
+                                    prevBot);
+                                faced = true;
+                            }
+                        }
+                    }
+                }
+
+                if (!faced)
+                    speaker->SetFacingToObject(
+                        anchorPlayer);
+            }
+            std::string msayMessage =
+                ConvertAllLinks(message);
+            speaker->Say(
+                msayMessage, LANG_UNIVERSAL);
+            sent = true;
+
+            if (!emoteName.empty())
+            {
+                uint32 textEmoteId =
+                    GetTextEmoteId(emoteName);
+                if (textEmoteId)
+                    SendUnitTextEmote(
+                        speaker, textEmoteId,
+                        anchorPlayer->GetName());
+            }
+
+            if (sLLMChatterConfig
+                    ->_proxChatterFacingResetDelay
+                > 0)
+            {
+                speaker->m_Events.AddEvent(
+                    new DelayedNPCFacingResetEvent(
+                        playerObjGuid,
+                        npcSpawnId,
+                        originalOrientation),
+                    speaker->m_Events.CalculateTime(
+                        sLLMChatterConfig
+                                ->_proxChatterFacingResetDelay
+                            * IN_MILLISECONDS));
+            }
+        }
+    }
+
+    if (sent && eventId > 0
+        && playerGuid > 0
+        && (channel == "say" || channel == "msay"))
+    {
+        bool replyEligible = true;
+        QueryResult pendingRes =
+            CharacterDatabase.Query(
+                "SELECT 1 FROM llm_chatter_messages "
+                "WHERE event_id = {} "
+                "AND sequence > {} "
+                "AND delivered = 0 LIMIT 1",
+                eventId, sequence);
+        if (pendingRes)
+            replyEligible = false;
+
+        RecordDeliveredProximityLine(
+            eventId,
+            playerGuid,
+            eventZoneId,
+            channel == "say" ? botGuid : 0,
+            channel == "msay" ? npcSpawnId : 0,
+            replyEligible,
+            botName,
+            message);
     }
 
     if (sent || botUnavailable)

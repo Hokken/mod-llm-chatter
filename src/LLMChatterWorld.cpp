@@ -7,6 +7,7 @@
 #include "LLMChatterDelivery.h"
 #include "LLMChatterGroup.h"
 #include "LLMChatterNearby.h"
+#include "LLMChatterProximity.h"
 #include "LLMChatterShared.h"
 
 #include "DatabaseEnv.h"
@@ -325,6 +326,7 @@ public:
         _lastEnvironmentCheckTime = 0;
         _lastTransportCheckTime = 0;
         _lastGoScanTime = 0;
+        _lastProximityScanTime = 0;
         _lastQuestFlushTime = 0;
         _lastGroupJoinFlushTime = 0;
         _lastRaidMoraleTime = 0;
@@ -402,6 +404,16 @@ public:
             CheckNearbyGameObjects();
         }
 
+        if (sLLMChatterConfig->_proxChatterEnable
+            && now - _lastProximityScanTime
+                >= sLLMChatterConfig
+                       ->_proxChatterScanInterval
+                    * 1000)
+        {
+            _lastProximityScanTime = now;
+            CheckProximityChatter();
+        }
+
         if (sLLMChatterConfig->_useGroupChatter
             && now - _lastQuestFlushTime >= 1000)
         {
@@ -435,6 +447,7 @@ private:
     uint32 _lastEnvironmentCheckTime = 0;
     uint32 _lastTransportCheckTime = 0;
     uint32 _lastGoScanTime = 0;
+    uint32 _lastProximityScanTime = 0;
     uint32 _lastQuestFlushTime = 0;
     uint32 _lastGroupJoinFlushTime = 0;
     uint32 _lastRaidMoraleTime = 0;

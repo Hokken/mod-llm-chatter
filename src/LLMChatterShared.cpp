@@ -8,10 +8,12 @@
 #include "Channel.h"
 #include "ChannelMgr.h"
 #include "Chat.h"
+#include "Creature.h"
 #include "DatabaseEnv.h"
 #include "DBCStores.h"
 #include "Group.h"
 #include "Log.h"
+#include "Map.h"
 #include "Player.h"
 #include "Playerbots.h"
 #include "RandomPlayerbotMgr.h"
@@ -167,7 +169,7 @@ uint32 RollConfiguredDelay(
         sLLMChatterConfig->*maxMember);
 }
 
-constexpr std::array<EventPriorityRule, 28>
+constexpr std::array<EventPriorityRule, 31>
     kTierPriorityRules = {{
         {"bot_group_combat",        PRIORITY_CRITICAL},
         {"bot_group_spell_cast",    PRIORITY_CRITICAL},
@@ -197,6 +199,9 @@ constexpr std::array<EventPriorityRule, 28>
         {"weather_ambient",         PRIORITY_FILLER},
         {"minor_event",             PRIORITY_FILLER},
         {"day_night_transition",    PRIORITY_FILLER},
+        {"proximity_say",           PRIORITY_FILLER},
+        {"proximity_conversation",  PRIORITY_FILLER},
+        {"proximity_reply",         PRIORITY_NORMAL},
     }};
 
 constexpr std::array<PredicatePriorityRule, 1>
@@ -204,7 +209,7 @@ constexpr std::array<PredicatePriorityRule, 1>
         {IsStateCalloutEventType, PRIORITY_CRITICAL},
     }};
 
-constexpr std::array<EventPriorityRule, 16>
+constexpr std::array<EventPriorityRule, 19>
     kLegacyPriorityRules = {{
         {"player_general_msg",       8},
         {"day_night_transition",     7},
@@ -222,6 +227,9 @@ constexpr std::array<EventPriorityRule, 16>
         {"bot_group_join",           0},
         {"bot_group_join_batch",     0},
         {"raid_idle_morale",         0},
+        {"proximity_say",           0},
+        {"proximity_conversation",  0},
+        {"proximity_reply",         1},
     }};
 
 constexpr std::array<PredicatePriorityRule, 1>
@@ -948,6 +956,78 @@ bool IsPlayerBot(Player* player)
 
     PlayerbotAI* ai = GET_PLAYERBOT_AI(player);
     return ai != nullptr;
+}
+
+Creature* FindCreatureBySpawnId(
+    Map* map, uint32 spawnId)
+{
+    if (!map || !spawnId)
+        return nullptr;
+
+    auto bounds =
+        map->GetCreatureBySpawnIdStore()
+            .equal_range(spawnId);
+    for (auto itr = bounds.first;
+         itr != bounds.second; ++itr)
+    {
+        Creature* creature = itr->second;
+        if (creature && creature->IsInWorld())
+            return creature;
+    }
+
+    return nullptr;
+}
+
+std::string GetCreatureRoleName(Creature* creature)
+{
+    if (!creature || !creature->GetCreatureTemplate())
+        return "NPC";
+
+    if (creature->IsGuard())
+        return "Guard";
+
+    uint32 npcFlags =
+        creature->GetUInt32Value(UNIT_NPC_FLAGS);
+    if (npcFlags & UNIT_NPC_FLAG_FLIGHTMASTER)
+        return "Flight Master";
+    if (npcFlags & UNIT_NPC_FLAG_INNKEEPER)
+        return "Innkeeper";
+    if (npcFlags & UNIT_NPC_FLAG_QUESTGIVER)
+        return "Quest Giver";
+    if (npcFlags
+        & (UNIT_NPC_FLAG_TRAINER
+            | UNIT_NPC_FLAG_TRAINER_CLASS
+            | UNIT_NPC_FLAG_TRAINER_PROFESSION))
+    {
+        return "Trainer";
+    }
+    if (npcFlags
+        & (UNIT_NPC_FLAG_VENDOR
+            | UNIT_NPC_FLAG_VENDOR_AMMO
+            | UNIT_NPC_FLAG_VENDOR_FOOD
+            | UNIT_NPC_FLAG_VENDOR_POISON
+            | UNIT_NPC_FLAG_VENDOR_REAGENT))
+    {
+        return "Vendor";
+    }
+
+    CreatureTemplate const* tmpl =
+        creature->GetCreatureTemplate();
+    if (tmpl->rank == CREATURE_ELITE_RARE
+        || tmpl->rank == CREATURE_ELITE_RAREELITE)
+    {
+        return "Rare Creature";
+    }
+
+    switch (tmpl->type)
+    {
+        case CREATURE_TYPE_CRITTER:
+            return "Critter";
+        case CREATURE_TYPE_BEAST:
+            return "Beast";
+        default:
+            return "NPC";
+    }
 }
 
 std::string EscapeString(const std::string& str)

@@ -213,43 +213,6 @@ static int GetGoInterestScore(GameObject* go)
     return 1;
 }
 
-static const char* GetCreatureRoleName(Creature* cr)
-{
-    uint32 npcFlags =
-        cr->GetUInt32Value(UNIT_NPC_FLAGS);
-
-    if (npcFlags & UNIT_NPC_FLAG_FLIGHTMASTER)
-        return "FlightMaster";
-    if (npcFlags & UNIT_NPC_FLAG_INNKEEPER)
-        return "Innkeeper";
-    if (npcFlags & UNIT_NPC_FLAG_QUESTGIVER)
-        return "QuestGiver";
-    if (npcFlags
-        & (UNIT_NPC_FLAG_TRAINER
-            | UNIT_NPC_FLAG_TRAINER_CLASS
-            | UNIT_NPC_FLAG_TRAINER_PROFESSION))
-        return "Trainer";
-    if (npcFlags
-        & (UNIT_NPC_FLAG_VENDOR
-            | UNIT_NPC_FLAG_VENDOR_AMMO
-            | UNIT_NPC_FLAG_VENDOR_FOOD
-            | UNIT_NPC_FLAG_VENDOR_POISON
-            | UNIT_NPC_FLAG_VENDOR_REAGENT))
-        return "Vendor";
-
-    uint32 rank = cr->GetCreatureTemplate()->rank;
-    if (rank == 4)
-        return "RareCreature";
-
-    uint32 cType = cr->GetCreatureTemplate()->type;
-    if (cType == CREATURE_TYPE_CRITTER)
-        return "Critter";
-    if (cType == CREATURE_TYPE_BEAST)
-        return "Beast";
-
-    return "NPC";
-}
-
 static bool IsInterestingCreature(
     Creature* cr, Player* bot)
 {

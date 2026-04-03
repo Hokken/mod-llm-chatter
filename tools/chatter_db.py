@@ -535,6 +535,8 @@ def insert_chat_message(
     queue_id: int = None,
     sequence: int = 0,
     emote: str = None,
+    npc_spawn_id: int = None,
+    player_guid: int = None,
 ):
     """Insert a message into llm_chatter_messages.
 
@@ -546,16 +548,17 @@ def insert_chat_message(
     cursor.execute("""
         INSERT INTO llm_chatter_messages
         (event_id, queue_id, sequence, bot_guid,
-         bot_name, message, emote, channel,
-         delivered, deliver_at)
+         bot_name, message, emote, npc_spawn_id,
+         player_guid, channel, delivered, deliver_at)
         VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, 0,
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0,
             DATE_ADD(NOW(), INTERVAL %s SECOND)
         )
     """, (
         event_id, queue_id, sequence,
         bot_guid, bot_name, message,
-        validate_emote(emote), channel,
+        validate_emote(emote), npc_spawn_id,
+        player_guid, channel,
         int(delay_seconds),
     ))
     db.commit()

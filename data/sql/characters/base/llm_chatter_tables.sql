@@ -48,7 +48,6 @@ CREATE TABLE `llm_chatter_events` (
         'bot_group_aggro_loss',
         'bot_group_quest_accept',
         'bot_group_quest_accept_batch',
-        'bot_group_discovery',
         'weather_ambient',
         'bot_group_nearby_object',
         'bot_group_join_batch',
@@ -72,7 +71,10 @@ CREATE TABLE `llm_chatter_events` (
         'bot_group_subzone_change',
         'bot_group_emote_observer',
         'bot_group_emote_reaction',
-        'bot_group_screenshot_observation'
+        'bot_group_screenshot_observation',
+        'proximity_say',
+        'proximity_conversation',
+        'proximity_reply'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,
@@ -146,6 +148,8 @@ CREATE TABLE `llm_chatter_messages` (
     `bot_name` VARCHAR(64) NOT NULL,
     `message` TEXT NOT NULL,
     `emote` VARCHAR(32) DEFAULT NULL,
+    `npc_spawn_id` INT UNSIGNED DEFAULT NULL,
+    `player_guid` INT UNSIGNED DEFAULT NULL,
     `channel` VARCHAR(32) NOT NULL DEFAULT 'general',
     `delivered` TINYINT(1) NOT NULL DEFAULT 0,
     `deliver_at` TIMESTAMP NULL DEFAULT NULL,

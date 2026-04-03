@@ -11,6 +11,7 @@
 #include "LLMChatterBG.h"
 #include "LLMChatterGroup.h"
 #include "LLMChatterGroupInternal.h"
+#include "LLMChatterProximity.h"
 #include "LLMChatterShared.h"
 
 #include "AchievementMgr.h"
@@ -758,6 +759,8 @@ void HandleGroupPlayerBeforeSendChatMessageImpl(
     Player* player, uint32& type,
     std::string& msg)
 {
+    HandleProximityPlayerSay(player, type, msg);
+
     if (type != CHAT_MSG_PARTY
         && type != CHAT_MSG_PARTY_LEADER)
         return;

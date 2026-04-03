@@ -7,7 +7,9 @@
 #include <map>
 #include <string>
 
+class Creature;
 class Group;
+class Map;
 class Player;
 class Unit;
 
@@ -22,8 +24,10 @@ enum class LLMChatterPriorityBand : uint8
 };
 
 bool IsPlayerBot(Player* player);
+Creature* FindCreatureBySpawnId(Map* map, uint32 spawnId);
 std::string EscapeString(const std::string& str);
 std::string JsonEscape(const std::string& str);
+std::string GetCreatureRoleName(Creature* creature);
 std::string GetClassName(uint8 classId);
 std::string GetRaceName(uint8 raceId);
 std::string BuildBotIdentityFields(
