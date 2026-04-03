@@ -18,7 +18,21 @@ An AI-powered conversation engine for [AzerothCore](https://www.azerothcore.org/
 
 ---
 
-## What's New: TRUE VISION — Bots See What You See
+## What's New: MULTIDIRECTIONAL PROXIMITY CHATTER - The World Talks Back
+
+The world no longer falls silent between quests. As you walk through Stormwind, Darnassus, or a quiet crossroads village, you'll **overhear snippets of life** happening around you, a guard grumbling about the night shift, a vendor gossiping about a burglary, two adventurers debating the best route to Blackrock Mountain, a sentinel greeting your party bot by name.
+
+This is **proximity chatter**: ambient, spatially-aware `/say` conversations between any combination of nearby bots, NPCs, and the player. Guards, vendors, trainers, innkeepers, citizens, children, anyone with something to say can join in. Your own party bots participate too, chatting with NPCs via `/say` while party-internal conversation stays in party chat.
+
+Conversations are brief and evanescent, 8-15 words per line, 2-4 lines per exchange, designed to be caught in passing as you move through the world. You might arrive mid-conversation and catch only the last line, or miss it entirely. That's by design. It's the background hum of a living world.
+
+Speakers face each other when talking. NPCs return to their original orientation afterward. The player can reply via `/say` and the nearby speaker will respond, up to 5 exchanges before gracefully exiting. Every tunable value, scan interval, trigger chance, cooldowns, token budget, line delays, is config-driven.
+
+> *15 config keys under `LLMChatter.ProximityChatter.*`. Enabled by default. Requires the event system and Python bridge.*
+
+---
+
+## TRUE VISION - Bots See What You See
 
 Your companions can now **literally see the world through your eyes**. Using lightweight screenshot analysis, bots observe the actual scenery on your screen, a crumbling ruin half-swallowed by vines, a lake shimmering under moonlight, a spider lurking at the edge of a cave, and react to it in character. They don't just know the zone name from a database. They *look around* and notice things, just like a real party member would.
 
@@ -37,13 +51,25 @@ This feature runs entirely on the host side with a tiny vision model (GPT-4o-min
 * **Deep Spatial & Lore Awareness**: Bots possess an intimate understanding of their surroundings, maintaining full awareness of both the broader world zones and the specific subzones within them. Whether you are wandering the vibrant paths of Elwynn Forest, traversing the vast snows of Dragonblight, or delving into the ancient mysteries of the Ruins of Mathystra in Darkshore, bots draw from over 3,000 unique descriptions to comment on the history, magic, and atmosphere of your exact location. In cities, they notice when you enter a new district, walking into the Cenarion Enclave or Krasus' Landing prompts a natural comment about the surroundings.
 * **Conscious World Sensing**: The world is alive, and your companions notice it. Bots dynamically react to everything in their vicinity, from wildlife and rare creatures to NPCs, ancient ruins, weathered statues, and eerie altars. They also observe functional points of interest like moonwells, crackling fireplaces, and bustling forges, while adapting to weather changes, the time of day, arriving zeppelins, and seasonal holidays.
 * **Organic Party Interactivity**: Your companions don't just follow; they interact. They will strike up multi-bot conversations, ask you unprompted questions about your journey, and react authentically to combat, loot, and quest milestones. Seamlessly integrated with the game's emote and voice systems, bots punctuate their dialogue with physical gestures and audible character voices, bringing an extra layer of life to everything from the thrill of an achievement to quiet banter by the campfire.
-* **Living Ecosystems**: The immersion extends beyond your immediate party. The open world's General channel hums with ambient bot chatter, reacting to real player messages and world events. In battlegrounds, bots shout tactical callouts, while in raids, they brace for encounters across 148 iconic bosses, sharing morale-boosting lore between pulls.
+* **Living Ecosystems**: The immersion extends beyond your immediate party. The open world's General channel hums with ambient bot chatter, reacting to real player messages and world events. Guards, vendors, trainers, and citizens engage in proximity `/say` conversations as you walk past — your party bots join in too. In battlegrounds, bots shout tactical callouts, while in raids, they brace for encounters across 148 iconic bosses, sharing morale-boosting lore between pulls.
 * **Seamless Immersion**: Designed to preserve the fantasy atmosphere, the module features smart pacing, multi-character conversation flow, and natural reading delays. No repetitive robotic spam, just natural, contextual dialogue that enhances your journey through every corner of the world.
 * **Zero Server Impact**: All LLM processing runs in a separate bridge service with a thread-pool worker model. The game server simply drops event rows into the database and moves on, never waiting on an API call. Responses flow back through the same queue and are delivered on the next world tick, keeping your server performance completely unaffected.
 
 ---
 
 ## Changelog
+
+### 2026-04-03 — Multidirectional Proximity Chatter
+
+* **Ambient `/say` Conversations**: NPCs and non-party bots now talk to each other — and to the player — via `/say` as you move through the world. Guards, vendors, trainers, citizens, sentinels, and party bots all participate. Conversations are brief (8-15 words per line) and spatially grounded.
+* **Multi-Speaker Scenes**: 2-4 speakers exchange lines with 3-5 second random delays. Speakers face each other before speaking; NPCs reset orientation afterward.
+* **Player Reply Routing**: Reply via `/say` within 30 seconds of a nearby speaker and they'll respond. Up to 5 exchanges before the conversation winds down naturally.
+* **Name Addressing**: Speakers can address nearby bots, NPCs, and the player by name, creating personal interactions.
+* **250+ Topic Pool**: Casual, lightweight conversation seeds across 17 categories — weather, gossip, petty crime, food, travel, guard talk, children's chatter, and more.
+* **Scene State Tracking**: In-memory `ProximityScene` objects track participants, turn counts, and expiry for accurate reply routing across overlapping conversations.
+* **NPC Spawn-GUID Delivery**: NPCs are identified by stable spawn GUID (`Creature::GetSpawnId()`), not entry ID, ensuring the correct specific NPC speaks even when dozens share the same template.
+* **15 Config Keys**: Full control over scan interval, radius, trigger chance, cooldowns, conversation behavior, reply limits, token budget, and facing reset delay.
+* **Schema Migration**: `npc_spawn_id` and `player_guid` columns on `llm_chatter_messages`. Three new event types: `proximity_say`, `proximity_conversation`, `proximity_reply`.
 
 ### 2026-04-01 — Raid Chatter Enhancements
 
@@ -422,7 +448,6 @@ up-to-date database. Run them in date order after each
 ## On the Horizon
 
 - More battlegrounds and deeper raid integration
-- Open-world proximity encounters between bots and players
 - New immersive features that deepen the living-world experience
 
 ---

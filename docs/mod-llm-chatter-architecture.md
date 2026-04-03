@@ -1,7 +1,6 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-03-31 (post Python/C++ refactor completion, cleanup,
-and follow-up emote-path fixes)
+Last updated: 2026-04-03 (added proximity chatter subsystem)
 
 ## Purpose
 
@@ -86,6 +85,39 @@ C++ server:
 The agent runs on the host machine (not in Docker) and connects to
 MySQL directly. It is configured via the same `.conf` file and is
 disabled by default.
+
+### Proximity chatter data flow
+
+Proximity chatter creates ambient `/say` conversations between bots,
+NPCs, and real players as they move through the world:
+
+1. C++ `CheckProximityChatter()` runs on a configurable timer
+   (default 30s) in `LLMChatterWorld.cpp`.
+2. `LLMChatterProximity.cpp` scans around each real player within
+   a 40-yard radius for eligible humanoid NPCs and party bots.
+3. One or more speakers are selected from the candidate pool.
+   If all candidates are party bots, the scan is skipped (idle chat
+   handles that case).
+4. A `proximity_say` (single statement) or `proximity_conversation`
+   (multi-speaker) event is queued to `llm_chatter_events` with
+   NPC spawn GUIDs and nearby entity names in `extra_data`.
+5. Python `chatter_proximity.py` claims the event, builds prompts
+   with zone context and a topic from the 250+ entry topic pool,
+   and generates messages.
+6. Messages are written to `llm_chatter_messages` with channel
+   `"say"` (for bots) or `"msay"` (for NPCs).
+7. C++ delivery dispatches bot messages via `CHAT_MSG_SAY` and NPC
+   messages via `CHAT_MSG_MONSTER_SAY` (speech bubbles). Speakers
+   face each other via `SetFacingToObject()`, and NPC orientation
+   resets after delivery via `BasicEvent`.
+8. When a real player speaks in `/say` near a recent proximity scene,
+   `HandleProximityPlayerSay()` in `LLMChatterGroupCombat.cpp`
+   detects the reply and queues a `proximity_reply` event, enabling
+   natural player-to-NPC/bot exchanges.
+
+NPCs are identified by spawn GUID (`Creature::GetSpawnId()`) rather
+than entry ID, allowing per-instance entity cooldowns. The
+`ProximityScene` struct tracks active conversations for reply matching.
 
 ## System Prompt Architecture
 
@@ -284,15 +316,15 @@ Session 69 added two scheduling controls around that model:
 | File | Approx lines | Primary ownership |
 |---|---:|---|
 | `src/LLMChatterScript.cpp` | 17 | Registration coordinator only |
-| `src/LLMChatterShared.cpp` | 1848 | Shared helpers: SQL/JSON escaping, canonical shared lookup helpers (`GetZoneName()`, `GetClassName()`, `GetRaceName()`), `BuildBotIdentityFields()` / `BuildBotStateJson()`, queue insert helper, shared event cooldown helper, table-driven event priority/reaction-delay registries, link/emote/delivery helpers, `GetTextEmoteName()` reverse lookup, `SendUnitTextEmote()` consolidated emote packet helper, cross-domain formatting helpers, General-channel membership check helper |
+| `src/LLMChatterShared.cpp` | ~1900 | Shared helpers: SQL/JSON escaping, canonical shared lookup helpers (`GetZoneName()`, `GetClassName()`, `GetRaceName()`), `BuildBotIdentityFields()` / `BuildBotStateJson()`, queue insert helper, shared event cooldown helper, table-driven event priority/reaction-delay registries, link/emote/delivery helpers, `GetTextEmoteName()` reverse lookup, `SendUnitTextEmote()` consolidated emote packet helper, cross-domain formatting helpers, General-channel membership check helper, `FindCreatureBySpawnId()` spawn-GUID creature lookup, `GetCreatureRoleName()` NPC role description helper |
 | `src/LLMChatterShared.h` | 83 | Shared declarations still used across domains; `class Unit` forward-declared for `SendUnitTextEmote()`; currently also declares world/player registration |
-| `src/LLMChatterDelivery.cpp` | 429 | Outbound message delivery implementation: DB polling, facing selection, party/raid/BG/General/yell dispatch, post-send delivery state updates |
+| `src/LLMChatterDelivery.cpp` | ~500 | Outbound message delivery implementation: DB polling, facing selection, party/raid/BG/General/yell/say/msay dispatch, spawn-GUID creature lookup for NPC delivery, NPC orientation reset via BasicEvent, sequence-based facing for multi-speaker proximity scenes, post-send delivery state updates |
 | `src/LLMChatterDelivery.h` | 4 | Narrow delivery extraction declaration used by `LLMChatterWorld.cpp` |
 | `src/LLMChatterAmbient.cpp` | 963 | Ambient world/event ownership: day/night transitions, holiday start/stop routing, weather state tracking, weather reactions, zone-level ambient chatter selection, ambient request queue writes |
 | `src/LLMChatterAmbient.h` | 24 | Narrow ambient declarations consumed by `LLMChatterWorld.cpp` |
 | `src/LLMChatterNearby.cpp` | 691 | Nearby-object and nearby-creature scanning, POI scoring, nearby direct event queueing, nearby-local cooldowns |
 | `src/LLMChatterNearby.h` | 6 | Narrow nearby scan declaration consumed by `LLMChatterWorld.cpp` |
-| `src/LLMChatterWorld.cpp` | 789 | WorldScript ownership, thin ambient/nearby/delivery delegation, transport polling and route announcements, transport-private state, retained world-private `QueueEvent()` helper |
+| `src/LLMChatterWorld.cpp` | ~800 | WorldScript ownership, thin ambient/nearby/delivery/proximity delegation, transport polling and route announcements, transport-private state, retained world-private `QueueEvent()` helper |
 | `src/LLMChatterGroup.cpp` | 842 | Shared group state definitions, shared helpers (`GroupHasRealPlayer`, `GetRandomBotInGroup`, `CountBotsInGroup`, pre-cache helpers), named-boss cache, `CleanupGroupSession()` coordinator, thin `LLMChatterGroupPlayerScript` shell wrappers, registration |
 | `src/LLMChatterGroupCombat.cpp` | 2525 | Remaining group PlayerScript implementation bodies (kill/death/loot/combat/chat/level/quest/achievement/spell/resurrect/corpse-run/dungeon-entry/emote dispatch), text-emote target classification and group gating, zone transition handling, combat state callouts, file-local `QueueStateCallout()` |
 | `src/LLMChatterGroupInternal.h` | 239 | Shared group internal header: struct definitions (`GroupJoinEntry`, `GroupJoinBatch`, `QuestAcceptEntry`, `QuestAcceptBatch`), extern declarations for all shared cooldown maps, batch containers, mutexes, emote cooldowns, named boss cache; shared helper declarations; domain entry-point declarations; `EmoteTargetType` enum |
@@ -302,6 +334,8 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterGroup.h` | 18 | World-to-group cross-call surface plus group registration |
 | `src/LLMChatterPlayer.cpp` | 1103 | Player General-channel hooks, General cooldowns, `EnsureBotInGeneralChannel()`, player registration |
 | `src/LLMChatterRaid.cpp` | 767 | Raid boss hooks (pull/kill/wipe), boss lookup table (80+ entries across Classic/TBC/WotLK), `IsDatabaseBound() override`, raid registration |
+| `src/LLMChatterProximity.cpp` | ~800 | Proximity chatter: periodic scan around real players, NPC/bot eligibility filtering, candidate scoring, `proximity_say`/`proximity_conversation` event queueing, `ProximityScene` tracking for player reply detection, entity cooldown management |
+| `src/LLMChatterProximity.h` | ~20 | Proximity scan and player-say hook declarations consumed by `LLMChatterWorld.cpp` and `LLMChatterGroupCombat.cpp` |
 | `src/LLMChatterBG.cpp` | 1348 | Battleground hooks, BG state polling, BG queue helpers, BG registration |
 | `src/LLMChatterBG.h` | 14 | BG registration declaration |
 | `src/LLMChatterConfig.h/.cpp` | 839 | Config loading and config struct |
@@ -391,6 +425,12 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_emote_reaction.py` | Directed verbal reaction handler (`bot_group_emote_reaction` event) — bot responds verbally when player emotes at them |
 | `tools/chatter_emote_observer.py` | Observer comment handler (`bot_group_emote_observer` event) — random group bot remarks when player emotes at a creature or nobody |
 
+### Proximity chatter domain
+
+| File | Primary ownership |
+|---|---|
+| `tools/chatter_proximity.py` | Handlers and prompt builders for `proximity_say`, `proximity_conversation`, and `proximity_reply` events. Builds prompts with zone context, nearby entity names, and topic pool. Supports single NPC/bot statements and multi-speaker conversations |
+
 ### Raid/BG domain
 
 | File | Primary ownership |
@@ -423,6 +463,10 @@ This asymmetry is known and acceptable in the shipped source state.
   emote packet helper; `SendBotTextEmote` overloads delegate to it
 - `IsEventOnCooldown()` / `SetEventCooldown()` — shared event cooldown
   helper (cache-first, DB fallback) used by world, ambient, and nearby
+- `FindCreatureBySpawnId(Map*, uint32)` — spawn-GUID creature lookup
+  used by delivery and proximity
+- `GetCreatureRoleName(Creature*)` — NPC role description from subname
+  or NPC flags, used by proximity and nearby
 - link conversion helpers
 - emote/delivery helpers
 
@@ -442,7 +486,12 @@ system.
 - `DeliverPendingMessagesImpl()`
 - outbound message polling from `llm_chatter_messages`
 - facing selection before speech delivery
-- final chat-channel dispatch for party, raid, BG, yell, and General
+- final chat-channel dispatch for party, raid, BG, yell, General,
+  say (bot `CHAT_MSG_SAY`), and msay (NPC `CHAT_MSG_MONSTER_SAY`
+  with speech bubbles)
+- spawn-GUID creature lookup for NPC delivery via
+  `FindCreatureBySpawnId()`
+- NPC orientation reset after speech via `BasicEvent`
 - delivery success/retry marking
 
 ### Ambient ownership
@@ -463,6 +512,24 @@ system.
 - nearby POI helper structs and scoring helpers
 - nearby-local cooldown state
 - direct nearby event queue insertion path
+
+### Proximity ownership
+
+`LLMChatterProximity.cpp` owns:
+
+- periodic proximity scan around real players (40-yard radius)
+- humanoid NPC eligibility filtering (guards, vendors, trainers,
+  innkeepers, citizens, sentinels, children)
+- bot eligibility filtering (party bots only, all-bot guard rail)
+- candidate selection and `proximity_say`/`proximity_conversation`
+  event queueing
+- `ProximityScene` struct for tracking active conversations
+- player `/say` reply detection (`HandleProximityPlayerSay()`)
+- per-entity cooldown management via spawn GUID
+
+`FindCreatureBySpawnId()` and `GetCreatureRoleName()` were extracted
+to `LLMChatterShared.cpp` as shared helpers used by both proximity
+and delivery code.
 
 ### World ownership
 
@@ -599,6 +666,16 @@ Player-zone updates also cross from player to group via:
 
 - `HandleGroupPlayerUpdateZone(Player*, uint32)`
 
+The world layer also delegates to the proximity subsystem via
+`LLMChatterProximity.h`:
+
+- `CheckProximityChatter(uint32 diff)` — periodic scan timer
+
+And `LLMChatterGroupCombat.cpp` calls into proximity via:
+
+- `HandleProximityPlayerSay(Player*, const std::string&)` — player
+  `/say` reply detection
+
 That explicit boundary is one of the main reasons the split is easier to
 reason about now.
 
@@ -616,6 +693,8 @@ registry and `llm_chatter_bridge.py` uses the resulting map at runtime.
 - `bot_group_emote_observer` routes to `chatter_emote_observer.py`
 - `bot_group_screenshot_observation` routes to
   `chatter_screenshot_handler.py`
+- `proximity_say`, `proximity_conversation`, `proximity_reply` route to
+  `chatter_proximity.py`
 - `bg_*` events route to battleground handlers
 - `player_general_msg` routes through the adapter path to
   `chatter_general.py`
@@ -678,6 +757,8 @@ source:
 | Python event-to-handler ownership map | `tools/chatter_event_registry.py` |
 | Emote reaction verbal responses | `tools/chatter_emote_reaction.py` |
 | Emote observer comments | `tools/chatter_emote_observer.py` |
+| Proximity chatter Python handlers/prompts | `tools/chatter_proximity.py` |
+| Proximity chatter C++ scan/scene logic | `src/LLMChatterProximity.cpp`, `src/LLMChatterProximity.h` |
 | C++ text-emote target classification / solo-vs-group pathing | `src/LLMChatterGroupCombat.cpp` |
 | Emote C++ hooks, mirror maps, cooldowns | `src/LLMChatterGroupEmote.cpp` |
 | BG event handling | `tools/chatter_battlegrounds.py` |

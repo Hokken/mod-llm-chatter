@@ -32,6 +32,9 @@ High-level behavior:
   injected into prompts
 - screenshot vision: host-side agent captures the game window, sends
   to a vision LLM, and bots react to what the player sees on screen
+- proximity chatter: ambient `/say` conversations between bots, NPCs,
+  and the player as they move through the world, with NPC speech bubbles
+  and natural player reply detection
 
 ---
 
@@ -451,6 +454,10 @@ handler map.
 - `tools/chatter_emote_reaction.py`
 - `tools/chatter_emote_observer.py`
 
+### Proximity chatter
+
+- `tools/chatter_proximity.py`
+
 ### Screenshot vision
 
 - `tools/screenshot_agent.py`
@@ -730,6 +737,7 @@ World-owned C++ logic now spans `LLMChatterWorld.cpp`,
   player-relevant zone, with delivery in General channel
 - pending message delivery
 - nearby-object / nearby-creature scan events
+- proximity chatter scans (delegated to `LLMChatterProximity.cpp`)
 
 ### World-to-group boundary
 
@@ -1752,6 +1760,142 @@ All under `LLMChatter.Screenshot.*`:
 
 ---
 
+## 13q. Proximity Chatter
+
+Bots and NPCs can engage in ambient `/say` conversations as the player
+moves through the world. Unlike General-channel chatter (zone-wide) or
+party chat (group-scoped), proximity chatter is spatially local — only
+players and bots within `/say` range (~40 yards) see it.
+
+### Scan and trigger
+
+C++ `CheckProximityChatter()` runs on a configurable timer (default
+30s) in `LLMChatterWorld.cpp`, delegating to
+`LLMChatterProximity.cpp`:
+
+1. Iterates real players in the world
+2. Scans within `ProximityChatter.ScanRadius` (default 40 yards) for
+   eligible humanoid NPCs and party bots
+3. NPC eligibility: all humanoids — guards, vendors, trainers,
+   innkeepers, quest givers, citizens, sentinels, children
+4. Bot eligibility: party bots can participate, but conversations
+   where all speakers are party bots are skipped (idle chat handles
+   that case)
+5. Rolls `ProximityChatter.TriggerChance` (default 30%)
+6. Selects 1-4 speakers from the candidate pool
+7. Queues either a `proximity_say` (single statement) or
+   `proximity_conversation` (multi-speaker) event
+
+NPCs are identified by spawn GUID (`Creature::GetSpawnId()`) rather
+than entry ID, allowing per-instance entity cooldowns (default 60s).
+
+### Delivery channels
+
+Two new delivery channels in `LLMChatterDelivery.cpp`:
+
+| Channel | Packet | Visual |
+|---------|--------|--------|
+| `say` | `CHAT_MSG_SAY` | Normal `/say` text for bots |
+| `msay` | `CHAT_MSG_MONSTER_SAY` | NPC speech bubble |
+
+Speaker facing: each speaker faces the next speaker in the
+conversation sequence via `SetFacingToObject()`. NPCs have their
+orientation reset after delivery via a `BasicEvent` timer.
+
+### Player reply detection
+
+When a real player speaks in `/say` near a recent proximity scene,
+`HandleProximityPlayerSay()` in `LLMChatterGroupCombat.cpp` detects
+the reply and queues a `proximity_reply` event. The `ProximityScene`
+struct tracks:
+
+- active conversation participants
+- scene location and timestamp
+- the original topic context
+
+This enables natural player-to-NPC/bot exchanges without requiring
+the player to target or emote at anyone.
+
+### Topic pool
+
+`PROXIMITY_CHAT_TOPICS` in `chatter_constants.py` provides 250+
+topics across 17 categories:
+
+- weather, travel, local flavor, trade, rumors, daily life, military,
+  faction politics, wildlife, profession, food and drink, history,
+  adventure, philosophy, humor, seasonal, and general social
+
+### Python handling
+
+`chatter_proximity.py` owns all three event handlers:
+
+| Event type | Handler | Behavior |
+|------------|---------|----------|
+| `proximity_say` | Single NPC or bot statement | One speaker, zone context + topic |
+| `proximity_conversation` | Multi-speaker conversation | 2-4 speakers with staggered delivery |
+| `proximity_reply` | Player reply response | NPC/bot replies to player `/say` |
+
+Prompts include nearby entity names so speakers can address each other
+by name. Uses global `EmoteChance` and `ActionChance` gates (not custom
+proximity-specific ones).
+
+### C++ ownership
+
+| File | Responsibility |
+|------|----------------|
+| `LLMChatterProximity.cpp` | Scan, filter, select, queue, scene tracking |
+| `LLMChatterProximity.h` | Declarations for world and group combat |
+| `LLMChatterDelivery.cpp` | `say` and `msay` channel delivery, facing, NPC reset |
+| `LLMChatterWorld.cpp` | Timer delegation |
+| `LLMChatterGroupCombat.cpp` | `HandleProximityPlayerSay()` hook |
+| `LLMChatterShared.cpp` | `FindCreatureBySpawnId()`, `GetCreatureRoleName()` |
+| `LLMChatterConfig.h/.cpp` | 15 proximity config members |
+
+### Python ownership
+
+| File | Responsibility |
+|------|----------------|
+| `chatter_proximity.py` | All 3 event handlers and prompt builders |
+| `chatter_constants.py` | `PROXIMITY_CHAT_TOPICS` (250+ entries) |
+| `chatter_db.py` | `npc_spawn_id` and `player_guid` params on insert |
+| `chatter_event_registry.py` | 3 new `EventSpec` entries |
+
+### Config keys
+
+All under `LLMChatter.ProximityChatter.*`:
+
+| Key | Default | Purpose |
+|-----|---------|---------|
+| `Enable` | 1 | Master toggle |
+| `CheckIntervalSeconds` | 30 | Scan timer interval |
+| `ScanRadius` | 40 | Yards around player to scan |
+| `TriggerChance` | 30 | % chance per scan per player |
+| `ConversationChance` | 50 | % multi-speaker vs single statement |
+| `EntityCooldown` | 60 | Seconds per-entity (spawn GUID) cooldown |
+| `PlayerAddressChance` | 20 | % chance to address the real player |
+| `MaxSpeakers` | 4 | Maximum speakers per conversation |
+| `LineDelayMin` | 3 | Min seconds between conversation lines |
+| `LineDelayMax` | 5 | Max seconds between conversation lines |
+| `ReplyWindowSeconds` | 60 | How long a scene stays active for replies |
+| `ReplyChance` | 80 | % chance to reply when player speaks in scene |
+| `MaxTopicLength` | 0 | Max topic hint length (0 = no limit) |
+| `NPCOnly` | 0 | When 1, only NPCs speak (no party bots) |
+| `ListenRange` | 40 | `/say` audibility range (should match ScanRadius) |
+
+### Schema changes
+
+Migration `20260403_proximity_chatter.sql` adds two columns to
+`llm_chatter_messages`:
+
+- `npc_spawn_id` INT UNSIGNED DEFAULT NULL — creature spawn GUID for
+  NPC speakers
+- `player_guid` INT UNSIGNED DEFAULT NULL — real player GUID for
+  proximity scene tracking
+
+Base schema `llm_chatter_tables.sql` updated to match.
+
+---
+
 ## 14. JSON and Queue Contracts
 
 ### `QueueChatterEvent()`
@@ -1798,7 +1942,7 @@ Typical multi-message JSON shape:
 |---|---|---|---|
 | `llm_chatter_events` | C++ | Python | Event queue |
 | `llm_chatter_queue` | C++ | Python | Ambient request queue |
-| `llm_chatter_messages` | Python | C++ | Outbound delivery queue |
+| `llm_chatter_messages` | Python | C++ | Outbound delivery queue (includes `npc_spawn_id` for NPC speakers and `player_guid` for proximity scene tracking) |
 | `llm_group_cached_responses` | Python | C++ | Pre-cached instant reactions |
 | `llm_group_bot_traits` | Python | Python | Group personality state |
 | `llm_group_chat_history` | Python | Python | Group anti-repetition history |
@@ -1828,6 +1972,7 @@ constructor's `enabledHooks` vector or it will silently never fire.
 - `LLMChatterDelivery.cpp` for outbound delivery logic
 - `LLMChatterAmbient.cpp` for ambient world/event logic
 - `LLMChatterNearby.cpp` for nearby scan logic
+- `LLMChatterProximity.cpp` for proximity chatter scan and scene logic
 - `LLMChatterWorld.cpp` for world transport/dispatcher logic
 - `LLMChatterGroup.cpp` for group shared helpers, cleanup, registration
 - `LLMChatterGroupCombat.cpp` for group PlayerScript hooks and combat
@@ -1835,6 +1980,7 @@ constructor's `enabledHooks` vector or it will silently never fire.
 - `LLMChatterGroupJoin.cpp` for join batching and GroupScript
 - `LLMChatterGroupEmote.cpp` for emote reaction system
 - `LLMChatterGroupQuest.cpp` for quest accept batching and CreatureScript
+- `LLMChatterProximity.cpp` for proximity chatter scan and scene logic
 - `LLMChatterPlayer.cpp` for General-channel player logic
 - `LLMChatterShared.cpp` for shared helper contracts
 - `LLMChatterScript.cpp` is registration only — do not add features here
