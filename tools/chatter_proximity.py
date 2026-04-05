@@ -688,6 +688,11 @@ def _player_say_conversation_prompt(
             f"The player ({player_name}) is "
             f"addressing {addressed} directly."
         )
+        lines.append(
+            f"IMPORTANT: The FIRST message in the "
+            f"array MUST be spoken by {addressed}, "
+            f"since the player is talking to them."
+        )
     lines.append(
         f"A nearby player ({player_name}) said: "
         f"{player_message}"
@@ -880,6 +885,17 @@ def handle_proximity_player_conversation(
         parsed,
         label='proximity_player_conversation',
     )
+
+    # Enforce that the addressed (targeted) speaker
+    # speaks first — reorder if the LLM ignored it.
+    addressed = extra.get('addressed_name', '')
+    if addressed and parsed:
+        first_name = parsed[0].get('name', '')
+        if first_name != addressed:
+            for i, line in enumerate(parsed):
+                if line.get('name', '') == addressed:
+                    parsed.insert(0, parsed.pop(i))
+                    break
 
     inserted = 0
     cumulative_delay = 0
