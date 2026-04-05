@@ -111,6 +111,8 @@ static std::mutex _generalChatCooldownsMutex;
 
 // Per-group+area subzone cooldown:
 // (groupId << 32) | areaId -> last comment time
+// Uses the same configured cooldown as
+// GroupChatter.ZoneTransitionCooldown.
 static std::map<uint64, time_t>
     _subzoneCommentCooldowns;
 static std::mutex _subzoneCooldownMutex;
@@ -868,14 +870,23 @@ public:
         if (oldZone != curZone)
             return;
 
-        // Per-group+area cooldown (120s) with
-        // periodic eviction of stale entries
+        uint32 subzoneCooldown =
+            sLLMChatterConfig->_groupZoneCooldown;
+        uint32 subzoneChance =
+            sLLMChatterConfig->_groupZoneChance;
+
+        // Per-group+area cooldown using the same
+        // config surface as zone transitions, with
+        // periodic eviction of stale entries.
         time_t now = time(nullptr);
         uint64 cdKey =
             ((uint64)gId << 32) | (uint64)newArea;
         {
             std::lock_guard<std::mutex> guard(
                 _subzoneCooldownMutex);
+            time_t staleCutoff = static_cast<time_t>(
+                std::max<uint32>(
+                    subzoneCooldown, 300u));
             if (_subzoneCommentCooldowns.size() > 200)
             {
                 auto sit =
@@ -883,7 +894,8 @@ public:
                 while (sit !=
                     _subzoneCommentCooldowns.end())
                 {
-                    if (now - sit->second > 300)
+                    if (now - sit->second
+                        > staleCutoff)
                         sit = _subzoneCommentCooldowns
                             .erase(sit);
                     else
@@ -893,9 +905,14 @@ public:
             auto it =
                 _subzoneCommentCooldowns.find(cdKey);
             if (it != _subzoneCommentCooldowns.end()
-                && (now - it->second) < 120)
+                && (now - it->second)
+                   < static_cast<time_t>(
+                         subzoneCooldown))
                 return;
         }
+
+        if (urand(1, 100) > subzoneChance)
+            return;
 
         // Resolve area name
         std::string areaName;
@@ -986,6 +1003,7 @@ public:
         extraData = EscapeString(extraData);
 
         // Stamp cooldown only after all guards pass
+        // and the configured RNG succeeded.
         {
             std::lock_guard<std::mutex> guard(
                 _subzoneCooldownMutex);
