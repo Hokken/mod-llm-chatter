@@ -22,7 +22,7 @@ from chatter_shared import (
     calculate_dynamic_delay,
     build_talent_context,
     build_zone_metadata,
-    should_include_action,
+    strip_conversation_actions,
 )
 from chatter_db import (
     fail_event,
@@ -2312,7 +2312,9 @@ def _nearby_object_conversation(
 
 
     # Insert messages with staggered delivery.
-    # Only the first message gets an action.
+    strip_conversation_actions(
+        messages, label='nearby_obj_conv'
+    )
     cumulative_delay = 2.0
     prev_len = 0
     for seq, msg in enumerate(messages):
@@ -2320,13 +2322,8 @@ def _nearby_object_conversation(
         text = strip_speaker_prefix(
             msg_text, msg['name']
         )
-        action = (
-            msg.get('action')
-            if should_include_action()
-            else None
-        )
         text = cleanup_message(
-            text, action=action
+            text, action=msg.get('action')
         )
         if not text:
             continue
@@ -2551,9 +2548,11 @@ def execute_player_msg_conversation(
 
 
     # Insert messages with staggered delivery.
-    # Only the first message gets an action.
     # Player msg conversations use responsive
     # timing — player is actively waiting.
+    strip_conversation_actions(
+        messages, label='player_msg_conv'
+    )
     cumulative_delay = 2.0
     prev_len = 0
     for seq, msg in enumerate(messages):
@@ -2561,13 +2560,8 @@ def execute_player_msg_conversation(
         text = strip_speaker_prefix(
             msg_text, msg['name']
         )
-        action = (
-            msg.get('action')
-            if should_include_action()
-            else None
-        )
         text = cleanup_message(
-            text, action=action
+            text, action=msg.get('action')
         )
         if not text:
             continue
@@ -2682,6 +2676,9 @@ def _quest_conversation_deliver(
     staggered delays. Updates mood for first
     speaker only. Returns True on success.
     """
+    strip_conversation_actions(
+        messages, label='quest_conv'
+    )
     cumulative_delay = 2.0
     prev_len = 0
     for seq, msg in enumerate(messages):
@@ -2689,13 +2686,8 @@ def _quest_conversation_deliver(
         text = strip_speaker_prefix(
             msg_text, msg['name']
         )
-        action = (
-            msg.get('action')
-            if should_include_action()
-            else None
-        )
         text = cleanup_message(
-            text, action=action
+            text, action=msg.get('action')
         )
         if not text:
             continue

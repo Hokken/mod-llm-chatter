@@ -30,6 +30,7 @@ from chatter_shared import (
     get_recent_zone_messages,
     append_json_instruction,
     parse_single_response,
+    should_include_action,
     _zone_delivery_delay,
     _zone_last_delivery,
     get_zone_flavor,
@@ -500,7 +501,8 @@ def _build_general_response_prompt(
     if anti_rep:
         prompt += f"\n{anti_rep}"
     prompt = append_json_instruction(
-        prompt, allow_action, skip_emote=True
+        prompt, allow_action, skip_emote=True,
+        skip_action_rng=True,
     )
     return prompt
 
@@ -641,7 +643,8 @@ def _build_general_followup_prompt(
     if anti_rep:
         prompt += f"\n{anti_rep}"
     prompt = append_json_instruction(
-        prompt, allow_action, skip_emote=True
+        prompt, allow_action, skip_emote=True,
+        skip_action_rng=True,
     )
     return prompt
 
@@ -773,12 +776,14 @@ def process_general_player_msg_event(
                 )
 
         # Build and send first bot prompt
+        allow_action = (mode == 'roleplay')
         prompt1 = _build_general_response_prompt(
             bot1_name, bot1_race, bot1_class,
             bot1_level, bot1_traits,
             player_name, player_message,
             zone_name, chat_hist, mode,
             recent_messages=recent_msgs,
+            allow_action=allow_action,
             link_context=link_context,
             speaker_talent_context=speaker_talent,
             target_talent_context=target_talent,
@@ -814,6 +819,9 @@ def process_general_player_msg_event(
             return False
 
         parsed1 = parse_single_response(response1)
+        if (parsed1.get('action')
+                and not should_include_action()):
+            parsed1['action'] = None
         msg1 = strip_speaker_prefix(
             parsed1['message'], bot1_name
         )
@@ -871,6 +879,7 @@ def process_general_player_msg_event(
                     player_name, player_message,
                     mode, delay1,
                     recent_msgs=recent_msgs,
+                    allow_action=allow_action,
                     link_context=link_context,
                     speaker_talent_context=(
                         speaker_talent
@@ -908,6 +917,7 @@ def process_general_player_msg_event(
                             mode,
                             followup['delay2'],
                             recent_msgs=recent_msgs,
+                            allow_action=allow_action,
                             link_context=link_context,
                             speaker_talent_context=(
                                 speaker_talent
@@ -954,6 +964,7 @@ def _general_followup(
     player_name, player_message,
     mode, delay1,
     recent_msgs=None,
+    allow_action=True,
     link_context="",
     speaker_talent_context=None,
     target_talent_context=None,
@@ -1013,7 +1024,7 @@ def _general_followup(
         player_name, player_message,
         zone_name, chat_hist, mode,
         recent_messages=recent_msgs,
-        allow_action=False,
+        allow_action=allow_action,
         link_context=link_context,
         speaker_talent_context=(
             bot2_speaker_talent
@@ -1050,6 +1061,9 @@ def _general_followup(
         return
 
     parsed2 = parse_single_response(response2)
+    if (parsed2.get('action')
+            and not should_include_action()):
+        parsed2['action'] = None
     msg2 = strip_speaker_prefix(
         parsed2['message'], bot2_name
     )
@@ -1253,7 +1267,8 @@ def _build_general_continuation_prompt(
     if anti_rep:
         prompt += f"\n{anti_rep}"
     prompt = append_json_instruction(
-        prompt, allow_action, skip_emote=True
+        prompt, allow_action, skip_emote=True,
+        skip_action_rng=True,
     )
     return prompt
 
@@ -1269,6 +1284,7 @@ def _general_extended_conversation(
     player_name, player_message,
     mode, last_delay,
     recent_msgs=None,
+    allow_action=True,
     link_context="",
     speaker_talent_context=None,
     target_talent_context=None,
@@ -1420,7 +1436,7 @@ def _general_extended_conversation(
             sp_level, speaker['traits'],
             thread, zone_name, chat_hist, mode,
             recent_messages=recent_msgs,
-            allow_action=False,
+            allow_action=allow_action,
             remaining_messages=remaining,
             link_context=link_context,
             speaker_talent_context=(
@@ -1461,6 +1477,9 @@ def _general_extended_conversation(
             break
 
         parsed = parse_single_response(response)
+        if (parsed.get('action')
+                and not should_include_action()):
+            parsed['action'] = None
         msg = strip_speaker_prefix(
             parsed['message'], speaker['name']
         )

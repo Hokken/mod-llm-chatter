@@ -164,3 +164,78 @@ def log_request(
             logger.error(
                 "RequestLog: write failed: %s", exc
             )
+
+
+def log_delivered_messages(
+    label: str,
+    original_messages: list,
+    delivered_messages: list,
+) -> None:
+    """Log before/after action stripping for
+    conversation messages. No-op when disabled.
+
+    original_messages: snapshot before stripping
+    delivered_messages: same list after stripping
+    """
+    if not _enabled:
+        return
+
+    global _seq
+
+    ts = datetime.now(timezone.utc).isoformat()
+
+    with _lock:
+        _seq += 1
+        seq = _seq
+
+        _rotate_if_needed()
+
+        # Format as readable text for log viewer
+        orig_lines = []
+        deliv_lines = []
+        for o, d in zip(
+            original_messages, delivered_messages
+        ):
+            name = o.get('name', '?')
+            o_act = o.get('action') or '(none)'
+            d_act = d.get('action') or '(none)'
+            orig_lines.append(
+                f"{name}: {o_act}"
+            )
+            kept = d.get('action') is not None
+            tag = 'KEPT' if kept else 'STRIPPED'
+            deliv_lines.append(
+                f"{name}: {d_act}  [{tag}]"
+            )
+
+        entry = {
+            'timestamp': ts,
+            'seq': seq,
+            'label': f'{label}__delivered',
+            'model': '',
+            'provider': '',
+            'duration_ms': 0,
+            'prompt': (
+                "ORIGINAL actions (from LLM):\n"
+                + "\n".join(orig_lines)
+            ),
+            'response': (
+                "DELIVERED actions (after "
+                "ActionChance strip):\n"
+                + "\n".join(deliv_lines)
+            ),
+        }
+
+        try:
+            with open(
+                _log_path, 'a', encoding='utf-8'
+            ) as fh:
+                fh.write(
+                    json.dumps(
+                        entry, ensure_ascii=False
+                    ) + '\n'
+                )
+        except OSError as exc:
+            logger.error(
+                "RequestLog: write failed: %s", exc
+            )
