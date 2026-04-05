@@ -18,7 +18,7 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, List, Optional
+from typing import Dict, Optional
 
 from chatter_db import (
     get_db_connection, get_group_location,

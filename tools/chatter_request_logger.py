@@ -14,9 +14,7 @@ Only imports stdlib — no circular dependency risk.
 
 import json
 import logging
-import os
 import threading
-import time
 from datetime import datetime, timezone
 from pathlib import Path
 

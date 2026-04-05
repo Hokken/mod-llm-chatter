@@ -19,7 +19,6 @@ This script:
 import argparse
 import json
 import logging
-import random
 import sys
 import threading
 import time

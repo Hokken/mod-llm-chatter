@@ -9,7 +9,7 @@ and formats enriched context for LLM prompts.
 
 import logging
 import re
-from typing import List, Optional
+from typing import Optional
 
 logger = logging.getLogger(__name__)
 

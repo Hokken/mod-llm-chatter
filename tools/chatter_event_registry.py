@@ -9,7 +9,7 @@ maintained EVENT_HANDLERS dict in the bridge.
 import importlib
 import logging
 from dataclasses import dataclass, field
-from typing import Dict, Tuple, Optional
+from typing import Dict, Tuple
 
 logger = logging.getLogger(__name__)
 
