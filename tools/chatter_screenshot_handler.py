@@ -39,7 +39,7 @@ from chatter_shared import (
     parse_extra_data,
     run_single_reaction,
     append_json_instruction,
-    should_include_action,
+    strip_conversation_actions,
 )
 from chatter_prompts import get_time_of_day_context
 from chatter_text import cleanup_message, strip_speaker_prefix
@@ -265,7 +265,7 @@ def _screenshot_single(
     if anti_rep:
         prompt += anti_rep + '\n'
     prompt = append_json_instruction(
-        prompt, allow_action=False)
+        prompt, allow_action=True)
 
     result = run_single_reaction(
         db, client, config,
@@ -401,7 +401,7 @@ def _screenshot_conversation(
     # JSON format for conversation
     prompt = append_conversation_json_instruction(
         prompt, bot_names, num_bots,
-        allow_action=False,
+        allow_action=True,
     )
 
     max_tokens = min(80 * num_bots, 400)
@@ -422,13 +422,19 @@ def _screenshot_conversation(
         _mark_event(db, event_id, 'skipped')
         return False
 
+    strip_conversation_actions(
+        messages, label='screenshot_conv'
+    )
+
     # Deliver with staggered delays
     cumulative_delay = 2.0
     prev_len = 0
     for seq, msg in enumerate(messages):
         text = strip_speaker_prefix(
             msg['message'], msg['name'])
-        text = cleanup_message(text, action=None)
+        text = cleanup_message(
+            text, action=msg.get('action')
+        )
         if not text:
             continue
         if len(text) > 255:

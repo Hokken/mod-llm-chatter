@@ -1025,9 +1025,45 @@ def should_include_action() -> bool:
     return random.random() < get_action_chance()
 
 
+def strip_conversation_actions(
+    messages: List[dict],
+    label: str = '',
+) -> None:
+    """Strip actions per-message via ActionChance RNG.
+
+    Each message gets an independent roll. Modifies
+    the list in place. Logs before/after to the
+    request log when enabled.
+    """
+    # Snapshot before stripping
+    original = [
+        {'name': m.get('name', ''),
+         'action': m.get('action')}
+        for m in messages
+    ]
+
+    for msg in messages:
+        if (msg.get('action')
+                and not should_include_action()):
+            msg['action'] = None
+
+    # Log before/after if any action was present
+    if any(o['action'] for o in original):
+        try:
+            from chatter_request_logger import (
+                log_delivered_messages,
+            )
+            log_delivered_messages(
+                label, original, messages,
+            )
+        except Exception:
+            pass
+
+
 def append_json_instruction(
     prompt: str, allow_action: bool = True,
-    skip_emote: bool = False
+    skip_emote: bool = False,
+    skip_action_rng: bool = False,
 ) -> str:
     """Append structured JSON response instruction
     to a prompt.
@@ -1037,12 +1073,17 @@ def append_json_instruction(
     skip_emote=True omits the emote list (saves
     ~200 tokens for General channel prompts where
     emotes are not displayed).
+    skip_action_rng=True bypasses the pre-call RNG
+    so the caller can apply post-parse stripping
+    instead (used by General conversation paths).
     """
     # Apply ActionChance RNG: allow_action=True means
     # "eligible for action" — the RNG decides.
     # allow_action=False means "never include action"
-    # (e.g. raid channel, General chat).
-    if allow_action and random.random() >= _action_chance:
+    # (e.g. raid channel).
+    # skip_action_rng=True defers RNG to post-parse.
+    if (allow_action and not skip_action_rng
+            and random.random() >= _action_chance):
         allow_action = False
     action_desc = ""
     if allow_action:
@@ -1099,9 +1140,9 @@ def append_conversation_json_instruction(
     Conversation prompts return an array where each
     item has speaker/message/emote/action fields.
     """
-    # Tell the LLM which speakers may include actions.
-    # ActionChance is enforced at delivery time (not here)
-    # to avoid double-applying the probability.
+    # When actions are enabled, every message MUST
+    # include an action — strip_conversation_actions()
+    # enforces ActionChance per-message post-parse.
     # _action_disabled=True (non-RP mode) disables all.
     action_speakers: List[str] = (
         list(bot_names)
@@ -1115,13 +1156,11 @@ def append_conversation_json_instruction(
         "\"message\" field."
     )
     if action_speakers:
-        names_str = ', '.join(action_speakers)
         action_text = (
-            f"Actions: Only {names_str} may have a "
-            "non-null action field — a 2-5 word "
+            "Actions: EVERY message MUST include a "
+            "non-null \"action\" field — a 2-5 word "
             "physical narration (e.g. \"leans against "
-            "the wall\"). Every other speaker MUST "
-            "have \"action\": null. "
+            "the wall\"). "
             "NEVER put {item:}, {quest:}, or "
             "{spell:} placeholders in the action "
             f"field — those belong in message only. "
@@ -1150,13 +1189,15 @@ def append_conversation_json_instruction(
         )
         emote_ex = '"emote": null'
 
-    action_ex_null = '"action": null'
-    action_ex_val = '"action": "..."'
+    action_ex = (
+        '"action": "..."' if action_speakers
+        else '"action": null'
+    )
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", "message": "...", '
             f'{emote_ex}, '
-            f'{action_ex_val if name in action_speakers else action_ex_null}}}'
+            f'{action_ex}}}'
             for name in bot_names
         ]
     )

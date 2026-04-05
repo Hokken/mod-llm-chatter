@@ -1313,22 +1313,29 @@ null. Python should not synthesize a fallback emote on insert. The
 prompt-side `EmoteChance` roll is the source of truth for whether the
 LLM was asked for an emote at all.
 
-### ActionChance (centralized)
+### ActionChance (dual strategy)
 
-`LLMChatter.ActionChance` (default 10) controls whether the `action`
-field instruction is included in the JSON format block. Previously
-each caller site (~48 locations) applied the RNG individually; it is
-now applied centrally in `append_json_instruction()` and
-`append_conversation_json_instruction()`. When included, the action
-field is described as "max 8 words" with no examples to avoid
-repetitive LLM output.
+`LLMChatter.ActionChance` (default 10) controls whether action
+narrations appear in bot messages. Two strategies:
+
+- **Single statements**: pre-call RNG in `append_json_instruction()`
+  decides before the LLM call whether to request an action (saves
+  tokens when disabled).
+- **Conversations** (General, Proximity, Group idle, Group handlers,
+  Screenshot vision): prompts always request actions (in RP mode).
+  Python enforces ActionChance per-message post-parse via
+  `strip_conversation_actions()` in `chatter_shared.py`. This avoids
+  trusting the LLM to randomize naturally.
+
+In normal mode, actions are suppressed at the prompt level for all
+conversation paths (no wasted tokens).
 
 ### Config keys
 
 | Key | Default | Purpose |
 |---|---|---|
-| `LLMChatter.EmoteChance` | 50 | % chance emote list is included in prompt |
-| `LLMChatter.ActionChance` | 10 | % chance action field is included in prompt |
+| `LLMChatter.EmoteChance` | 50 | % chance emote list is included in prompt (not applied to General channel — emotes are proximity-based) |
+| `LLMChatter.ActionChance` | 10 | % chance eligible responses retain/include an action after action gating |
 
 ---
 

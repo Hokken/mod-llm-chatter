@@ -15,6 +15,7 @@ from chatter_shared import (
     parse_extra_data,
     get_class_name,
     get_race_name,
+    strip_conversation_actions,
 )
 from chatter_text import (
     cleanup_message,
@@ -407,6 +408,13 @@ def handle_proximity_conversation(
         for speaker in participants
     }
 
+    # Strip actions per-message based on
+    # ActionChance — LLM always provides them,
+    # Python enforces randomness post-parse.
+    strip_conversation_actions(
+        parsed, label='proximity_conversation'
+    )
+
     inserted = 0
     cumulative_delay = 0
     for index, line in enumerate(parsed):
@@ -416,7 +424,7 @@ def handle_proximity_conversation(
         if not speaker:
             continue
         if index > 0:
-            cumulative_delay += random.randint(3, 5)
+            cumulative_delay += random.randint(5, 8)
         ok = _insert_proximity_line(
             db,
             event_id,

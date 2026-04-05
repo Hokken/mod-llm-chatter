@@ -142,20 +142,27 @@ It carries two extra attributes:
 
 ### Token-Saving Gates
 
-Two config-driven RNG checks in `append_json_instruction()` and
-`append_conversation_json_instruction()` control optional prompt
-sections:
+Two config-driven RNG checks control optional prompt sections:
 
-- `EmoteChance` - gates inclusion of the ~244-emote list (~500 tokens)
-- `ActionChance` - gates the action field instruction
+- `EmoteChance` - gates inclusion of the ~244-emote list (~500 tokens).
+  Checked once per prompt build. Does NOT apply to General channel
+  (emotes are proximity-based animations; General is zone-wide text,
+  so emotes are intentionally suppressed via `skip_emote=True`).
+- `ActionChance` - controls whether action narrations appear. Two
+  strategies depending on path:
+  - **Single statements**: pre-call RNG in `append_json_instruction()`
+    decides before the LLM call whether to ask for an action (saves
+    tokens when disabled).
+  - **Conversations** (General, Proximity, Group idle, Group handlers,
+    Screenshot vision): prompts always tell the LLM to include actions
+    (in RP mode). `strip_conversation_actions()` in `chatter_shared.py`
+    enforces ActionChance per-message post-parse. This avoids trusting
+    the LLM to randomize naturally.
 
 If the prompt/output parser yields `"emote": null`, Python insert paths
 must preserve that null value. Do not synthesize a fallback emote during
 DB insert. `LLMChatter.EmoteChance` is the source of truth for whether
 the LLM is even asked for an emote.
-
-These are checked once per prompt build and apply uniformly to all
-prompt paths (group, General, BG, raid).
 
 ## Queue Model, Timing, and Priority
 

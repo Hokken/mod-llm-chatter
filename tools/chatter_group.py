@@ -63,9 +63,8 @@ from chatter_shared import (
     stagger_if_needed,
     build_zone_metadata,
     get_player_zone,
-    should_include_action,
-
-    PromptParts,
+    strip_conversation_actions,
+    append_conversation_json_instruction,
 )
 from chatter_db import (
     get_character_info_by_name,
@@ -143,7 +142,6 @@ from chatter_group_prompts import (
 )
 from chatter_constants import (
     RACE_SPEECH_PROFILES,
-    EMOTE_LIST_STR,
     CLASS_ROLE_MAP,
     AMBIENT_CHAT_TOPICS,
     AMBIENT_CHAT_TOPICS_RP,
@@ -3009,70 +3007,11 @@ def build_idle_conversation_prompt(
             if anti_rep:
                 parts.append(anti_rep)
 
-            # JSON format — split into system prompt
-            from chatter_shared import _emote_chance
-            if random.random() < _emote_chance:
-                emote_rule = (
-                    "Emotes: Each message may "
-                    "include an optional \"emote\""
-                    f" field (one of: "
-                    f"{EMOTE_LIST_STR}). Pick an "
-                    "emote that fits the message "
-                    "mood, or omit it.\n"
-                )
-                emote_ex = '"emote": "talk"'
-            else:
-                emote_rule = (
-                    "Emotes: Set \"emote\" to "
-                    "null for all messages.\n"
-                )
-                emote_ex = '"emote": null'
-            if allow_action:
-                action_rule = (
-                    "Actions: Each message may "
-                    "include an optional "
-                    "\"action\" field — a short "
-                    "physical action (2-5 words, "
-                    "no asterisks). Omit if not "
-                    "needed.\n"
-                )
-                action_ex = ', "action": "..."'
-            else:
-                action_rule = (
-                    "Actions: Set \"action\" to "
-                    "null for ALL messages.\n"
-                )
-                action_ex = ', "action": null'
-            example_msgs = ',\n  '.join(
-                [
-                    f'{{"speaker": "{name}", '
-                    f'"message": "...", '
-                    f'{emote_ex}'
-                    f'{action_ex}}}'
-                    for name in bot_names
-                ]
-            )
-            sys_block = (
-                f"\n\n{emote_rule}"
-                f"{action_rule}"
-                "JSON rules: Use double quotes, "
-                "escape quotes/newlines, no "
-                "trailing commas, no code "
-                "fences.\n"
-                f"Respond with EXACTLY "
-                f"{msg_count} messages in "
-                f"JSON:\n[\n  "
-                f"{example_msgs}\n]\n"
-                f"ONLY the JSON array, "
-                f"nothing else.\n"
-                "CRITICAL: Follow the Length "
-                "instruction in the prompt "
-                "exactly — never exceed the "
-                "stated character limit."
-            )
-
-            return PromptParts(
-                '\n'.join(parts), sys_block
+            return append_conversation_json_instruction(
+                '\n'.join(parts),
+                bot_names,
+                msg_count,
+                allow_action=allow_action,
             )
     # memories_map was empty or all sanitized away
     # — fall through to the normal full prompt.
@@ -3361,61 +3300,11 @@ def build_idle_conversation_prompt(
     if anti_rep:
         parts.append(anti_rep)
 
-    from chatter_shared import _emote_chance
-    if random.random() < _emote_chance:
-        emote_rule = (
-            "Emotes: Each message may include an "
-            f"optional \"emote\" field (one of: "
-            f"{EMOTE_LIST_STR}). Pick an emote "
-            "that fits the mood, or omit it.\n"
-        )
-        emote_ex = '"emote": "talk"'
-    else:
-        emote_rule = (
-            "Emotes: Set \"emote\" to null for "
-            "all messages.\n"
-        )
-        emote_ex = '"emote": null'
-    if allow_action:
-        action_rule = (
-            "Actions: Each message may include an "
-            "optional \"action\" field — a short "
-            "physical action (2-5 words, no "
-            "asterisks). Omit if not needed.\n"
-        )
-        action_ex = ', "action": "..."'
-    else:
-        action_rule = (
-            "Actions: Set \"action\" to null for "
-            "ALL messages.\n"
-        )
-        action_ex = ', "action": null'
-    example_msgs = ',\n  '.join(
-        [
-            f'{{"speaker": "{name}", '
-            f'"message": "...", {emote_ex}'
-            f'{action_ex}}}'
-            for name in bot_names
-        ]
-    )
-    sys_block = (
-        f"\n\n{emote_rule}"
-        f"{action_rule}"
-        "JSON rules: Use double quotes, escape "
-        "quotes/newlines, no trailing commas, "
-        "no code fences.\n"
-        f"Respond with EXACTLY {msg_count} "
-        f"messages in JSON:\n[\n  "
-        f"{example_msgs}\n]\n"
-        f"ONLY the JSON array, nothing else.\n"
-        "CRITICAL: Follow the Length "
-        "instruction in the prompt "
-        "exactly — never exceed the "
-        "stated character limit."
-    )
-
-    return PromptParts(
-        '\n'.join(parts), sys_block
+    return append_conversation_json_instruction(
+        '\n'.join(parts),
+        bot_names,
+        msg_count,
+        allow_action=allow_action,
     )
 
 
@@ -4227,9 +4116,9 @@ def _idle_conversation(
         # Strip actions per-message based on
         # ActionChance — LLM can't apply true RNG
         # so Python enforces it post-parse.
-        for msg in messages:
-            if msg.get('action') and not should_include_action():
-                msg['action'] = None
+        strip_conversation_actions(
+            messages, label='group_idle_conv'
+        )
 
         # Insert messages with staggered delivery
         cumulative_delay = 2.0
