@@ -61,15 +61,12 @@ This feature runs entirely on the host side with a tiny vision model (GPT-4o-min
 
 ### 2026-04-03 — Multidirectional Proximity Chatter
 
-* **Ambient `/say` Conversations**: NPCs and non-party bots now talk to each other — and to the player — via `/say` as you move through the world. Guards, vendors, trainers, citizens, sentinels, and party bots all participate. Conversations are brief (8-15 words per line) and spatially grounded.
-* **Multi-Speaker Scenes**: 2-4 speakers exchange lines with 3-5 second random delays. Speakers face each other before speaking; NPCs reset orientation afterward.
-* **Player Reply Routing**: Reply via `/say` within 30 seconds of a nearby speaker and they'll respond. Up to 5 exchanges before the conversation winds down naturally.
-* **Name Addressing**: Speakers can address nearby bots, NPCs, and the player by name, creating personal interactions.
-* **250+ Topic Pool**: Casual, lightweight conversation seeds across 17 categories — weather, gossip, petty crime, food, travel, guard talk, children's chatter, and more.
-* **Scene State Tracking**: In-memory `ProximityScene` objects track participants, turn counts, and expiry for accurate reply routing across overlapping conversations.
-* **NPC Spawn-GUID Delivery**: NPCs are identified by stable spawn GUID (`Creature::GetSpawnId()`), not entry ID, ensuring the correct specific NPC speaks even when dozens share the same template.
-* **15 Config Keys**: Full control over scan interval, radius, trigger chance, cooldowns, conversation behavior, reply limits, token budget, and facing reset delay.
-* **Schema Migration**: `npc_spawn_id` and `player_guid` columns on `llm_chatter_messages`. Three new event types: `proximity_say`, `proximity_conversation`, `proximity_reply`.
+* **Ambient `/say` Conversations**: NPCs and bots now talk to each other — and to you — via `/say` as you move through the world. Guards, vendors, trainers, citizens, and your party bots all participate. Conversations are brief and spatially grounded.
+* **Multi-Speaker Scenes**: 2-4 speakers exchange short lines with natural pauses. Speakers face each other when talking; NPCs return to their original orientation afterward.
+* **Player Reply**: Reply via `/say` within 30 seconds and the nearby speaker will respond. Up to 5 exchanges before the conversation winds down naturally.
+* **Name Addressing**: Speakers can address nearby bots, NPCs, and you by name.
+* **250+ Topic Pool**: Casual conversation seeds across 17 categories — weather, gossip, petty crime, food, travel, guard talk, children's chatter, and more.
+* **Fully Configurable**: 15 config keys control scan interval, trigger chance, cooldowns, conversation length, reply limits, and more.
 
 ### 2026-04-01 — Raid Chatter Enhancements
 
@@ -79,16 +76,15 @@ This feature runs entirely on the host side with a tiny vision model (GPT-4o-min
 * **Dead Bot Awareness**: Dead bots know they're dead. Their idle dialogue shifts to ghost humor, resurrection pleas, and floor commentary instead of pretending they're alive.
 * **Zone Transitions in Raids**: Bots now comment on subzone changes inside raid instances (e.g., moving between wings in Naxxramas).
 * **Morale Between Deaths**: Morale and banter chatter no longer gets blocked when party members are dead — only active combat suppresses it.
-* **Double-Delivery Prevention**: Messages are claimed before processing to prevent duplicate delivery on fast poll ticks.
-* **Truncated JSON Recovery**: LLM responses cut short by token limits are now recovered via regex fallback instead of being dropped.
+* **Reliability Improvements**: Fixed duplicate message delivery and improved handling of truncated AI responses.
 
 ### 2026-04-01 — State Callouts, Greeting Improvements, Parser Hardening
 
 * **Low Health & OOM Callouts**: Bots now vocalize when they're low on health or running out of mana. Configurable thresholds (`LowHealthThreshold`, `OOMThreshold`), chance, and cooldown. Automatically scales in battlegrounds (halved chance, doubled cooldown) to avoid spam.
 * **Time-of-Day Greetings**: Bot greetings now include the current time of day, preventing immersion-breaking lines like "good evening" when it's morning.
 * **Greeting Anti-Repetition**: Bots no longer echo each other's greetings when multiple join at once. Each bot reads the recent chat history and avoids repeating what others already said.
-* **Robust JSON Parser**: The LLM response parser now extracts valid JSON even when the model leaks internal reasoning around it, preventing raw prompt fragments from appearing in chat.
-* **State Callout Config Keys**: Five new config keys exposed: `StateCalloutEnable`, `StateCalloutChance`, `StateCalloutCooldown`, `LowHealthThreshold`, `OOMThreshold`.
+* **Robust Response Handling**: Improved parser reliability — raw AI artifacts no longer leak into chat.
+* **State Callout Config**: Five new config keys for tuning health and mana callout behavior.
 
 ### 2026-03-29 — Screenshot Vision, Emote Reactions, BG Improvements
 
@@ -96,8 +92,7 @@ This feature runs entirely on the host side with a tiny vision model (GPT-4o-min
 * **Emote Reaction System**: Bots now react when you emote at them. `/wave` at a bot and they might wave back, `/flex` and they'll have something to say about it. Three reaction paths: silent mirror (bot mirrors your emote), verbal reaction (personal response), and observer comment (a nearby bot notices and chimes in). Covers all ~170 text emotes.
 * **Dungeon Context Injection**: Party chatter prompts now detect when you're inside a dungeon and inject dungeon-specific flavor instead of outdoor zone lore. Affects kill, loot, death, achievement, wipe, corpse run, and nearby object events.
 * **BG Chatter Quality Pass**: Reduced noise in battleground chatter, suppressed narrator actions in fast-paced BG events, unified the join path for cleaner group formation, and synced config defaults with tested values.
-* **System Prompt Support**: All 16 BG prompt builders and 4 raid prompt builders now use a system prompt block for JSON formatting rules, improving response consistency.
-* **Action & Emote RNG**: `EmoteChance` and `ActionChance` config keys control how often bots include physical emotes and narrator actions in their messages, preventing emote spam.
+* **Action & Emote Frequency**: `EmoteChance` and `ActionChance` config keys control how often bots include physical emotes and narrator actions in their messages.
 
 ### 2026-03-22 — Persistent Memories & Personality Traits
 
@@ -105,10 +100,9 @@ This feature runs entirely on the host side with a tiny vision model (GPT-4o-min
 * **Memory System**: 14 memory types (ambient, boss_kill, quest_complete, discovery, achievement, level_up, pvp_kill, bg_win/loss, wipe, dungeon, party_member, player_message, first_meeting) are generated via LLM and stored per bot-player pair. Memories are recalled during idle chatter, reunion greetings, and bot questions, creating recognizable callbacks to shared experiences.
 * **Configurable Generation & Recall**: Every memory type has a `*GenerationChance` config key controlling how often memories are created. Recall frequency is controlled by `IdleRecallChance` and `RecallChance` (reunion).
 * **Zone & Subzone Awareness in Prompts**: Zone flavor and subzone lore are now injected into quest, discovery, idle, and event prompts. The player's subzone is tracked from the moment bots join the group.
-* **Compact Memory Prompts**: When memories are present, prompts switch to a lean format focused on the memory reference, producing clear and recognizable callbacks instead of vague allusions.
-* **Message Length Controls**: Stricter length limits across all prompt types prevent wall-of-text messages. Link-based messages (spell/quest/loot) capped at 80 characters.
-* **Debug Export Enhancements**: The web UI debug export now includes structured metadata per LLM call, a Party Chat Deliveries section, and longer prompt/response previews.
-* **Database Migration**: Run `data/sql/db-characters/updates/20260320_bot_memory_system.sql` to add the required tables and columns if upgrading from a previous version.
+* **Focused Memory Callbacks**: When bots recall shared memories, the references are clear and recognizable — not vague allusions.
+* **Message Length Controls**: Stricter length limits prevent wall-of-text messages.
+* **Database Migration**: Run `data/sql/db-characters/updates/20260320_bot_memory_system.sql` if upgrading from a previous version.
 
 ---
 
