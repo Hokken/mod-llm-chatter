@@ -2,9 +2,20 @@
 -- Migration: add emote observer/reaction event types
 -- Adds bot_group_emote_observer and
 -- bot_group_emote_reaction to llm_chatter_events ENUM.
+-- Idempotent: MODIFY COLUMN ENUM is safe to re-run.
 -- --------------------------------------------------------
 
-ALTER TABLE `llm_chatter_events`
+-- Guard: skip if the new values already exist
+SET @has_emote = (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME   = 'llm_chatter_events'
+    AND COLUMN_NAME  = 'event_type'
+    AND COLUMN_TYPE LIKE '%bot_group_emote_observer%'
+);
+SET @sql = IF(@has_emote = 0,
+  "ALTER TABLE `llm_chatter_events`
     MODIFY COLUMN `event_type` ENUM(
         'weather_change',
         'holiday_start',
@@ -70,4 +81,8 @@ ALTER TABLE `llm_chatter_events`
         'bot_group_subzone_change',
         'bot_group_emote_observer',
         'bot_group_emote_reaction'
-    ) NOT NULL;
+    ) NOT NULL",
+  'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

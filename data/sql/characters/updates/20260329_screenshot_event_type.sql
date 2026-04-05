@@ -1,5 +1,16 @@
 -- Add screenshot observation event type
-ALTER TABLE `llm_chatter_events`
+-- Idempotent: guarded by COLUMN_TYPE check.
+
+SET @has_screenshot = (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME   = 'llm_chatter_events'
+    AND COLUMN_NAME  = 'event_type'
+    AND COLUMN_TYPE LIKE '%screenshot_observation%'
+);
+SET @sql = IF(@has_screenshot = 0,
+  "ALTER TABLE `llm_chatter_events`
   MODIFY COLUMN `event_type` ENUM(
     'weather_change',
     'holiday_start',
@@ -66,4 +77,8 @@ ALTER TABLE `llm_chatter_events`
     'bot_group_emote_observer',
     'bot_group_emote_reaction',
     'bot_group_screenshot_observation'
-  ) NOT NULL;
+  ) NOT NULL",
+  'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;

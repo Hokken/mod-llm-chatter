@@ -1,5 +1,16 @@
 -- Add player-initiated proximity chatter event types
-ALTER TABLE `llm_chatter_events`
+-- Idempotent: guarded by COLUMN_TYPE check.
+
+SET @has_player_say = (
+  SELECT COUNT(*)
+  FROM information_schema.COLUMNS
+  WHERE TABLE_SCHEMA = DATABASE()
+    AND TABLE_NAME   = 'llm_chatter_events'
+    AND COLUMN_NAME  = 'event_type'
+    AND COLUMN_TYPE LIKE '%proximity_player_say%'
+);
+SET @sql = IF(@has_player_say = 0,
+  "ALTER TABLE `llm_chatter_events`
   MODIFY COLUMN `event_type` ENUM(
     'weather_change',
     'holiday_start',
@@ -70,4 +81,8 @@ ALTER TABLE `llm_chatter_events`
     'proximity_reply',
     'proximity_player_say',
     'proximity_player_conversation'
-  ) NOT NULL;
+  ) NOT NULL",
+  'SELECT 1');
+PREPARE stmt FROM @sql;
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
