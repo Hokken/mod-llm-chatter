@@ -28,7 +28,7 @@ class EventSpec:
 
 
 # --------------------------------------------------
-# Live event registry — 52 entries
+# Live event registry — 54 entries
 # --------------------------------------------------
 
 EVENT_REGISTRY: Dict[str, EventSpec] = {
@@ -554,6 +554,44 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'player_guid': (int, True),
             'player_message': (str, True),
             'responder_name': (str, True),
+        },
+    ),
+
+    'proximity_player_say': EventSpec(
+        handler_module='chatter_proximity',
+        handler_func='handle_proximity_player_say',
+        producer='LLMChatterProximity.cpp',
+        priority='normal',
+        description=(
+            'Response to player /say with no '
+            'active scene'
+        ),
+        payload_fields={
+            'player_guid': (int, True),
+            'player_name': (str, True),
+            'player_message': (str, True),
+            'zone_name': (str, True),
+            'participants': (list, True),
+        },
+    ),
+
+    'proximity_player_conversation': EventSpec(
+        handler_module='chatter_proximity',
+        handler_func=(
+            'handle_proximity_player_conversation'
+        ),
+        producer='LLMChatterProximity.cpp',
+        priority='normal',
+        description=(
+            'Multi-speaker response to player /say'
+        ),
+        payload_fields={
+            'player_guid': (int, True),
+            'player_name': (str, True),
+            'player_message': (str, True),
+            'zone_name': (str, True),
+            'participants': (list, True),
+            'max_lines': (int, True),
         },
     ),
 

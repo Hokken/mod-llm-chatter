@@ -37,6 +37,7 @@ from chatter_shared import (
     call_llm,
     parse_extra_data,
     parse_conversation_response,
+    strip_conversation_actions,
     strip_speaker_prefix,
     cleanup_message,
     calculate_dynamic_delay,
@@ -225,6 +226,10 @@ def _deliver_conversation(
     )
     if not messages:
         return False
+
+    strip_conversation_actions(
+        messages, label='event_conv',
+    )
 
     cumulative_delay = 0.0
     for i, msg in enumerate(messages):

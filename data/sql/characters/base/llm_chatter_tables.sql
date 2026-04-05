@@ -74,7 +74,9 @@ CREATE TABLE `llm_chatter_events` (
         'bot_group_screenshot_observation',
         'proximity_say',
         'proximity_conversation',
-        'proximity_reply'
+        'proximity_reply',
+        'proximity_player_say',
+        'proximity_player_conversation'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,

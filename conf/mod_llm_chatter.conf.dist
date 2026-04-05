@@ -616,6 +616,15 @@ LLMChatter.ProximityChatter.MaxTokensPerLine = 40
 #
 LLMChatter.ProximityChatter.FacingResetDelay = 8
 
+#
+#   LLMChatter.ProximityChatter.PlayerSayScanRadius
+#       Detection radius (yards) when a player types
+#       /say and no active proximity scene exists.
+#       Matches the default WoW /say listen range.
+#       Default: 40
+#
+LLMChatter.ProximityChatter.PlayerSayScanRadius = 40
+
 ###############################################################################
 # GROUP CHATTER TUNING [SERVER]
 ###############################################################################

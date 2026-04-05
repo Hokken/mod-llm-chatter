@@ -245,6 +245,7 @@ public:
     bool _proxChatterEnable;
     uint32 _proxChatterScanInterval;
     uint32 _proxChatterScanRadius;
+    uint32 _proxChatterPlayerSayScanRadius;
     uint32 _proxChatterChance;
     uint32 _proxChatterEntityCooldown;
     uint32 _proxChatterZoneFatigueThreshold;

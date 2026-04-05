@@ -169,7 +169,7 @@ uint32 RollConfiguredDelay(
         sLLMChatterConfig->*maxMember);
 }
 
-constexpr std::array<EventPriorityRule, 31>
+constexpr std::array<EventPriorityRule, 33>
     kTierPriorityRules = {{
         {"bot_group_combat",        PRIORITY_CRITICAL},
         {"bot_group_spell_cast",    PRIORITY_CRITICAL},
@@ -202,6 +202,10 @@ constexpr std::array<EventPriorityRule, 31>
         {"proximity_say",           PRIORITY_FILLER},
         {"proximity_conversation",  PRIORITY_FILLER},
         {"proximity_reply",         PRIORITY_NORMAL},
+        {"proximity_player_say",
+            PRIORITY_NORMAL},
+        {"proximity_player_conversation",
+            PRIORITY_NORMAL},
     }};
 
 constexpr std::array<PredicatePriorityRule, 1>
@@ -209,7 +213,7 @@ constexpr std::array<PredicatePriorityRule, 1>
         {IsStateCalloutEventType, PRIORITY_CRITICAL},
     }};
 
-constexpr std::array<EventPriorityRule, 19>
+constexpr std::array<EventPriorityRule, 21>
     kLegacyPriorityRules = {{
         {"player_general_msg",       8},
         {"day_night_transition",     7},
@@ -230,6 +234,8 @@ constexpr std::array<EventPriorityRule, 19>
         {"proximity_say",           0},
         {"proximity_conversation",  0},
         {"proximity_reply",         1},
+        {"proximity_player_say",          1},
+        {"proximity_player_conversation", 1},
     }};
 
 constexpr std::array<PredicatePriorityRule, 1>
@@ -389,9 +395,11 @@ constexpr std::array<PredicateFixedDelayRule, 5>
         },
     }};
 
-constexpr std::array<ExactLiteralDelayRule, 1>
+constexpr std::array<ExactLiteralDelayRule, 3>
     kLegacyExactLiteralDelayRules = {{
         {"player_enters_zone", 2},
+        {"proximity_player_say", 1},
+        {"proximity_player_conversation", 1},
     }};
 
 std::string GetBotRoleName(Player* player)

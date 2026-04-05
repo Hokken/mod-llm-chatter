@@ -555,6 +555,10 @@ void LLMChatterConfig::LoadConfig()
         sConfigMgr->GetOption<uint32>(
             "LLMChatter.ProximityChatter."
             "ScanRadius", 80);
+    _proxChatterPlayerSayScanRadius =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "PlayerSayScanRadius", 40);
     _proxChatterChance =
         sConfigMgr->GetOption<uint32>(
             "LLMChatter.ProximityChatter."

@@ -656,6 +656,256 @@ void QueueProximityEvent(
     NoteZoneTrigger(player);
 }
 
+void QueuePlayerSayProximityEvent(
+    Player* player, char const* eventType,
+    std::vector<ProximityCandidate> const& speakers,
+    std::vector<ProximityCandidate> const& allCandidates,
+    uint32 maxLines,
+    std::string const& playerMessage,
+    std::string const& addressedName)
+{
+    if (!player || speakers.empty())
+        return;
+
+    ProximityCandidate const& first = speakers[0];
+
+    std::string json = BuildBaseEventJson(
+        player, speakers, allCandidates,
+        true, maxLines);
+
+    // Inject player_message and optional
+    // addressed_name before closing brace.
+    std::string extra =
+        ",\"player_message\":\""
+        + JsonEscape(playerMessage) + "\"";
+    if (!addressedName.empty())
+        extra += ",\"addressed_name\":\""
+            + JsonEscape(addressedName) + "\"";
+    if (!json.empty() && json.back() == '}')
+        json.insert(json.size() - 1, extra);
+
+    std::string escaped = EscapeString(json);
+    std::string cooldownKey =
+        GetEntityCooldownKey(first);
+
+    QueueChatterEvent(
+        eventType,
+        "player",
+        player->GetZoneId(),
+        player->GetMapId(),
+        GetChatterEventPriority(eventType),
+        cooldownKey,
+        first.isNPC ? 0 : first.id,
+        first.name,
+        player->GetGUID().GetCounter(),
+        player->GetName(),
+        first.entry,
+        escaped,
+        GetReactionDelaySeconds(eventType),
+        sLLMChatterConfig
+            ->_eventExpirationSeconds,
+        false);
+
+    // Set cooldown on speakers (not checked here,
+    // but prevents ambient scan from re-using them).
+    for (auto const& s : speakers)
+        SetEventCooldown(
+            _entityCooldowns,
+            GetEntityCooldownKey(s));
+}
+
+void HandleProximityPlayerSayNewScene(
+    Player* player, std::string const& safeMsg)
+{
+    if (!player || !player->IsInWorld())
+        return;
+    if (player->IsInCombat() || player->IsMounted()
+        || player->IsFlying())
+        return;
+
+    Map* map = player->GetMap();
+    if (!map || map->IsRaid() || map->IsDungeon()
+        || map->IsBattleground())
+        return;
+
+    float radius = static_cast<float>(
+        sLLMChatterConfig
+            ->_proxChatterPlayerSayScanRadius);
+    std::vector<ProximityCandidate> candidates;
+    CollectNearbyBots(player, radius, candidates);
+    CollectNearbyNPCs(player, radius, candidates);
+    DeduplicateCandidates(candidates);
+
+    // Filter out cooled-down candidates BEFORE
+    // speaker selection so we never silently drop
+    // a player-initiated /say when others are free.
+    candidates.erase(
+        std::remove_if(
+            candidates.begin(), candidates.end(),
+            [](ProximityCandidate const& c)
+            {
+                return IsEventOnCooldown(
+                    _entityCooldowns,
+                    GetEntityCooldownKey(c),
+                    sLLMChatterConfig
+                        ->_proxChatterEntityCooldown);
+            }),
+        candidates.end());
+
+    if (candidates.empty())
+        return;
+
+    // Partition into party bots vs non-party
+    // (NPCs + non-grouped bots).
+    Group* playerGroup = player->GetGroup();
+    std::vector<ProximityCandidate> nonParty;
+    for (auto const& c : candidates)
+    {
+        if (c.isNPC
+            || !IsSameGroup(c.bot, playerGroup))
+            nonParty.push_back(c);
+    }
+
+    // If zero non-party candidates, skip — party
+    // chatter owns grouped-bot-only conversations.
+    if (nonParty.empty())
+        return;
+
+    // Check if the player has a target that matches
+    // a candidate — if so, that entity should be the
+    // primary responder.
+    ProximityCandidate const* targetCandidate =
+        nullptr;
+    ObjectGuid selGuid =
+        player->GetGuidValue(UNIT_FIELD_TARGET);
+    if (selGuid)
+    {
+        for (auto const& c : nonParty)
+        {
+            if (c.isNPC && c.npc
+                && c.npc->GetGUID() == selGuid)
+            {
+                targetCandidate = &c;
+                break;
+            }
+            if (!c.isNPC && c.bot
+                && c.bot->GetGUID() == selGuid)
+            {
+                targetCandidate = &c;
+                break;
+            }
+        }
+    }
+
+    std::string addressedName =
+        targetCandidate
+            ? targetCandidate->name
+            : std::string();
+
+    std::shuffle(
+        candidates.begin(), candidates.end(),
+        _rng);
+
+    bool wantsConversation =
+        candidates.size() >= 2
+        && urand(1, 100)
+            <= sLLMChatterConfig
+                   ->_proxChatterConversationChance;
+
+    if (wantsConversation)
+    {
+        size_t participantCount = std::min<size_t>(
+            candidates.size(), 3);
+        std::vector<ProximityCandidate> speakers(
+            candidates.begin(),
+            candidates.begin() + participantCount);
+
+        // If player has a targeted candidate,
+        // ensure it is the first speaker.
+        if (targetCandidate)
+        {
+            bool found = false;
+            for (size_t i = 0; i < speakers.size();
+                 ++i)
+            {
+                if (speakers[i].id
+                        == targetCandidate->id
+                    && speakers[i].isNPC
+                        == targetCandidate->isNPC)
+                {
+                    std::swap(speakers[0],
+                              speakers[i]);
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+                speakers[0] = *targetCandidate;
+        }
+
+        // Ensure at least one non-party speaker.
+        bool hasNonParty = false;
+        for (auto const& s : speakers)
+        {
+            if (s.isNPC
+                || !IsSameGroup(
+                    s.bot, playerGroup))
+            {
+                hasNonParty = true;
+                break;
+            }
+        }
+        if (!hasNonParty && !nonParty.empty())
+        {
+            // Swap last speaker with a random
+            // non-party candidate.
+            std::shuffle(
+                nonParty.begin(), nonParty.end(),
+                _rng);
+            speakers.back() = nonParty.front();
+        }
+
+        uint32 maxLines = std::clamp<uint32>(
+            sLLMChatterConfig
+                ->_proxChatterMaxConversationLines,
+            2, 4);
+        QueuePlayerSayProximityEvent(
+            player,
+            "proximity_player_conversation",
+            speakers,
+            candidates,
+            maxLines,
+            safeMsg,
+            addressedName);
+        return;
+    }
+
+    // Single speaker — prefer player's target,
+    // then any non-party candidate.
+    ProximityCandidate chosen;
+    if (targetCandidate)
+    {
+        chosen = *targetCandidate;
+    }
+    else
+    {
+        std::shuffle(
+            nonParty.begin(), nonParty.end(),
+            _rng);
+        chosen = nonParty.front();
+    }
+    std::vector<ProximityCandidate> speaker = {
+        chosen};
+    QueuePlayerSayProximityEvent(
+        player,
+        "proximity_player_say",
+        speaker,
+        candidates,
+        1,
+        safeMsg,
+        addressedName);
+}
+
 void MaybeQueueProximityScene(Player* player)
 {
     if (!player || !player->IsInWorld())
@@ -871,7 +1121,11 @@ void HandleProximityPlayerSay(
 
     ProximityScene* scene = FindBestScene(player);
     if (!scene)
+    {
+        HandleProximityPlayerSayNewScene(
+            player, safeMsg);
         return;
+    }
 
     ProximityParticipant responder;
     responder.id = scene->lastSpeakerId;
