@@ -397,9 +397,9 @@ def handle_proximity_conversation(
     parsed = parse_conversation_response(
         response, names
     )
-    line_delay = int(
+    line_delay = max(0, int(
         extra.get('line_delay_seconds', 4) or 4
-    )
+    ))
     player_guid = int(
         extra.get('player_guid', 0) or 0
     )
@@ -424,7 +424,7 @@ def handle_proximity_conversation(
         if not speaker:
             continue
         if index > 0:
-            cumulative_delay += random.randint(5, 8)
+            cumulative_delay += line_delay
         ok = _insert_proximity_line(
             db,
             event_id,
