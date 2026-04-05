@@ -77,15 +77,11 @@ static void QueueEvent(
         && !sLLMChatterConfig->_eventsWeather)
         return;
 
-    bool bypassEventCooldown =
-        (eventType == "weather_change");
-
-    if (!bypassEventCooldown
-        && !cooldownKey.empty()
+    if (!cooldownKey.empty()
         && IsOnCooldown(cooldownKey, cooldownSeconds))
         return;
 
-    if (!bypassEventCooldown && !cooldownKey.empty())
+    if (!cooldownKey.empty())
         SetCooldown(cooldownKey);
 
     bool alwaysFire =

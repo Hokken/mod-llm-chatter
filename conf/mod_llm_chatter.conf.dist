@@ -404,6 +404,16 @@ LLMChatter.ConversationChance = 40
 LLMChatter.EventReactionChance = 25
 
 #
+#   LLMChatter.EventConversationChance
+#       Chance (0-100) that a world event reaction becomes
+#       a multi-bot conversation instead of a single
+#       statement. Requires 2+ eligible bots.
+#       Default: 60
+#       [BRIDGE]
+#
+LLMChatter.EventConversationChance = 60
+
+#
 #   LLMChatter.WeatherAmbientChance
 #       Override chance for weather_ambient events (0 = use EventReactionChance)
 #       Default: 0
@@ -671,12 +681,28 @@ LLMChatter.GroupChatter.KillCooldown = 120
 LLMChatter.GroupChatter.DeathChance = 40
 
 #
+#   LLMChatter.GroupChatter.DeathCooldown
+#       Minimum seconds between death reactions for the
+#       same group.
+#       Default: 30
+#
+LLMChatter.GroupChatter.DeathCooldown = 30
+
+#
 #   LLMChatter.GroupChatter.CorpseRunChance
 #       Percent chance (0-100) that releasing spirit
 #       triggers a corpse run comment.
 #       Default: 80
 #
 LLMChatter.GroupChatter.CorpseRunChance = 80
+
+#
+#   LLMChatter.GroupChatter.CorpseRunCooldown
+#       Minimum seconds between corpse run comments for
+#       the same group.
+#       Default: 120
+#
+LLMChatter.GroupChatter.CorpseRunCooldown = 120
 
 #
 #   LLMChatter.GroupChatter.LootChanceGreen
@@ -694,6 +720,30 @@ LLMChatter.GroupChatter.LootChanceGreen = 20
 #       Default: 60
 #
 LLMChatter.GroupChatter.LootChanceBlue = 60
+
+#
+#   LLMChatter.GroupChatter.LootCooldown
+#       Minimum seconds between loot reactions for the
+#       same group.
+#       Default: 60
+#
+LLMChatter.GroupChatter.LootCooldown = 60
+
+#
+#   LLMChatter.GroupChatter.ResurrectChance
+#       Percent chance (0-100) that a resurrection event
+#       triggers a group reaction.
+#       Default: 100
+#
+LLMChatter.GroupChatter.ResurrectChance = 100
+
+#
+#   LLMChatter.GroupChatter.ResurrectCooldown
+#       Minimum seconds between resurrection reactions for
+#       the same group.
+#       Default: 30
+#
+LLMChatter.GroupChatter.ResurrectCooldown = 30
 
 #
 #   LLMChatter.GroupChatter.SpellCastChance
@@ -802,6 +852,16 @@ LLMChatter.GroupChatter.NearbyObjectCheckInterval = 30
 LLMChatter.GroupChatter.NearbyObjectCooldown = 180
 
 #
+#   LLMChatter.NearbyObject.ConversationChance
+#       Chance (0-100) that a nearby object reaction
+#       becomes a multi-bot conversation instead of a
+#       single statement.
+#       Default: 40
+#       [BRIDGE]
+#
+LLMChatter.NearbyObject.ConversationChance = 40
+
+#
 #   LLMChatter.GroupChatter.ZoneTransitionChance
 #       Percent chance (0-100) that a zone or subzone
 #       transition triggers a party chat reaction.
@@ -821,6 +881,38 @@ LLMChatter.GroupChatter.ZoneTransitionChance = 30
 LLMChatter.GroupChatter.ZoneTransitionCooldown = 120
 
 #
+#   LLMChatter.GroupChatter.DungeonEntryChance
+#       Percent chance (0-100) that entering a dungeon
+#       instance triggers a party chat reaction.
+#       Default: 100
+#
+LLMChatter.GroupChatter.DungeonEntryChance = 100
+
+#
+#   LLMChatter.GroupChatter.DungeonEntryCooldown
+#       Minimum seconds between dungeon entry reactions
+#       for the same group.
+#       Default: 300
+#
+LLMChatter.GroupChatter.DungeonEntryCooldown = 300
+
+#
+#   LLMChatter.GroupChatter.WipeChance
+#       Percent chance (0-100) that a full-party wipe
+#       triggers a reaction.
+#       Default: 100
+#
+LLMChatter.GroupChatter.WipeChance = 100
+
+#
+#   LLMChatter.GroupChatter.WipeCooldown
+#       Minimum seconds between wipe reactions for the
+#       same group.
+#       Default: 120
+#
+LLMChatter.GroupChatter.WipeCooldown = 120
+
+#
 #   LLMChatter.GroupChatter.BotQuestionEnable
 #       Enable bot-initiated questions to player.
 #       Default: 1
@@ -838,6 +930,15 @@ LLMChatter.GroupChatter.BotQuestionEnable = 1
 LLMChatter.GroupChatter.BotQuestionChance = 1
 
 #
+#   LLMChatter.GroupChatter.BotQuestionCheckInterval
+#       How often (in seconds) the bridge checks for
+#       bot-initiated player questions.
+#       Default: 30
+#       [BRIDGE]
+#
+LLMChatter.GroupChatter.BotQuestionCheckInterval = 30
+
+#
 #   LLMChatter.GroupChatter.QuestAcceptChance
 #       Percent chance (0-100) that accepting a quest
 #       triggers a group reaction.
@@ -846,12 +947,36 @@ LLMChatter.GroupChatter.BotQuestionChance = 1
 LLMChatter.GroupChatter.QuestAcceptChance = 50
 
 #
+#   LLMChatter.GroupChatter.QuestAcceptCooldown
+#       Minimum seconds between quest accept reactions
+#       for the same group.
+#       Default: 30
+#
+LLMChatter.GroupChatter.QuestAcceptCooldown = 30
+
+#
+#   LLMChatter.GroupChatter.QuestAcceptDebounceSec
+#       Seconds to batch near-simultaneous quest accepts
+#       before emitting a chatter event.
+#       Default: 5
+#
+LLMChatter.GroupChatter.QuestAcceptDebounceSec = 5
+
+#
 #   LLMChatter.GroupChatter.QuestObjectiveChance
 #       Percent chance (0-100) that completing quest
 #       objectives triggers a group reaction.
 #       Default: 70
 #
 LLMChatter.GroupChatter.QuestObjectiveChance = 50
+
+#
+#   LLMChatter.GroupChatter.QuestObjectiveCooldown
+#       Minimum seconds between quest objective reactions
+#       for the same group.
+#       Default: 30
+#
+LLMChatter.GroupChatter.QuestObjectiveCooldown = 30
 
 #
 #   LLMChatter.GroupChatter.QuestObjSuppressWindow
@@ -896,6 +1021,14 @@ LLMChatter.GroupChatter.PlayerMsgConversationChance = 30
 #       Default: 25
 #
 LLMChatter.GroupChatter.PlayerMsgSecondBotChance = 25
+
+#
+#   LLMChatter.GroupChatter.PlayerMsgCooldown
+#       Minimum seconds between group reactions to player
+#       chat messages.
+#       Default: 15
+#
+LLMChatter.GroupChatter.PlayerMsgCooldown = 15
 
 ###############################################################################
 # GENERAL CHANNEL TUNING [BOTH]
@@ -991,6 +1124,30 @@ LLMChatter.GeneralChat.ExtendedMaxMessages = 3
 ###############################################################################
 # RAID CHATTER TUNING [SERVER]
 ###############################################################################
+
+#
+#   LLMChatter.RaidChatter.BossPullChance
+#       Percent chance (0-100) that a raid boss pull
+#       triggers chatter.
+#       Default: 80
+#
+LLMChatter.RaidChatter.BossPullChance = 80
+
+#
+#   LLMChatter.RaidChatter.BossKillChance
+#       Percent chance (0-100) that a raid boss kill
+#       triggers chatter.
+#       Default: 100
+#
+LLMChatter.RaidChatter.BossKillChance = 100
+
+#
+#   LLMChatter.RaidChatter.BossWipeChance
+#       Percent chance (0-100) that a raid boss wipe
+#       triggers chatter.
+#       Default: 100
+#
+LLMChatter.RaidChatter.BossWipeChance = 100
 
 #
 #   LLMChatter.RaidChatter.MoraleEnable
