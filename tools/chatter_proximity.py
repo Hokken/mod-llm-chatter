@@ -688,6 +688,11 @@ def _player_say_conversation_prompt(
             f"The player ({player_name}) is "
             f"addressing {addressed} directly."
         )
+        lines.append(
+            f"IMPORTANT: The FIRST message in the "
+            f"array MUST be spoken by {addressed}, "
+            f"since the player is talking to them."
+        )
     lines.append(
         f"A nearby player ({player_name}) said: "
         f"{player_message}"
