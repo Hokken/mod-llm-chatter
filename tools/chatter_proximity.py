@@ -886,16 +886,23 @@ def handle_proximity_player_conversation(
         label='proximity_player_conversation',
     )
 
-    # Enforce that the addressed (targeted) speaker
-    # speaks first — reorder if the LLM ignored it.
+    # If the player targeted a specific entity, the
+    # first line MUST come from that speaker.  Discard
+    # the whole conversation and fall back to a single
+    # line from the target rather than reorder (which
+    # would break conversational coherence).
     addressed = extra.get('addressed_name', '')
     if addressed and parsed:
         first_name = parsed[0].get('name', '')
         if first_name != addressed:
-            for i, line in enumerate(parsed):
-                if line.get('name', '') == addressed:
-                    parsed.insert(0, parsed.pop(i))
-                    break
+            logger.warning(
+                "proximity_player_conversation "
+                "event %s: LLM assigned first line "
+                "to %s instead of addressed %s — "
+                "falling back to single line",
+                event_id, first_name, addressed,
+            )
+            parsed = []
 
     inserted = 0
     cumulative_delay = 0
