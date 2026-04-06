@@ -988,8 +988,21 @@ void MaybeQueueProximityScene(Player* player)
         return;
     }
 
+    // Filter to non-party candidates only — party
+    // chatter owns grouped-bot conversations.
+    Group* grp = player->GetGroup();
+    std::vector<ProximityCandidate> nonParty;
+    for (auto const& c : candidates)
+    {
+        if (c.isNPC
+            || !IsSameGroup(c.bot, grp))
+            nonParty.push_back(c);
+    }
+    if (nonParty.empty())
+        return;
+
     std::vector<ProximityCandidate> speaker = {
-        candidates.front()};
+        nonParty.front()};
     QueueProximityEvent(
         player,
         "proximity_say",
