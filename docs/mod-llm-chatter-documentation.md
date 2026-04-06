@@ -856,7 +856,7 @@ rows instead of speaking directly.
 
 ## 13. Battleground Chatter
 
-Battleground-specific logic remains isolated from the later split.
+Battleground-specific logic is self-contained in its own files.
 
 ### C++ ownership
 
