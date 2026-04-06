@@ -877,7 +877,7 @@ LLMChatter.NearbyObject.ConversationChance = 40
 #       Fires when the player crosses any zone or area
 #       boundary (e.g. Darnassus → Teldrassil, or
 #       Shadowglen → Aldrassil).
-#       Default: 50
+#       Default: 30
 #
 LLMChatter.GroupChatter.ZoneTransitionChance = 30
 

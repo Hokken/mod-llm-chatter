@@ -218,6 +218,7 @@ def queue_memory(
     memory_type, event_context,
     bot_name="", bot_class="", bot_race="",
     bot_gender="",
+    player_name="",
     db=None,
 ):
     """Validate eligibility and submit a memory
@@ -302,6 +303,7 @@ def queue_memory(
         bot_class=bot_class,
         bot_race=bot_race,
         bot_gender=bot_gender,
+        player_name=player_name,
         location=location,
         session_start=session_start,
         insert_active=False,
@@ -435,6 +437,7 @@ def _execute_generate_memory(
     memory_type, event_context,
     bot_name="", bot_class="", bot_race="",
     bot_gender="",
+    player_name="",
     location="",
     session_start=0.0, insert_active=False,
 ):
@@ -466,6 +469,26 @@ def _execute_generate_memory(
     try:
         conn = get_db_connection(config)
 
+        # Resolve player_name from DB if not
+        # provided but player_guid is known
+        if not player_name and player_guid:
+            try:
+                pc = conn.cursor(dictionary=True)
+                pc.execute(
+                    "SELECT name FROM characters"
+                    " WHERE guid = %s",
+                    (player_guid,),
+                )
+                pr = pc.fetchone()
+                if pr:
+                    player_name = pr['name']
+                pc.close()
+            except Exception:
+                logger.debug(
+                    "Could not resolve player_name"
+                    " for guid=%s", player_guid,
+                )
+
         # Pick mood and expression style
         moods = MEMORY_MOODS.get(
             memory_type,
@@ -483,6 +506,7 @@ def _execute_generate_memory(
             bot_class=bot_class,
             bot_race=bot_race,
             bot_gender=bot_gender,
+            player_name=player_name,
             memory_type=memory_type,
             event_context=event_context,
             mood=mood,
@@ -551,6 +575,7 @@ def _call_llm_for_memory(
     config,
     bot_name="", bot_class="", bot_race="",
     bot_gender="",
+    player_name="",
     memory_type="ambient", event_context="",
     mood="contemplative", style="sincere",
     location="",
@@ -610,6 +635,10 @@ def _call_llm_for_memory(
         f"{build_bot_identity(bot_name, bot_race, bot_class, bot_gender)} "
         f"in World of Warcraft.\n"
     )
+    if player_name:
+        prompt += (
+            f"Player companion: {player_name}\n"
+        )
     if location:
         prompt += f"Location: {location}\n"
     prompt += (
@@ -635,6 +664,16 @@ def _call_llm_for_memory(
         f"- Only reference the location given above"
         f" — never invent or guess a location\n"
         f"- Emote is optional (null if none)\n"
+    )
+    if player_name:
+        prompt += (
+            f"- When the memory involves the player,"
+            f" refer to them by name"
+            f" ({player_name}) — never use generic"
+            f" terms like 'a traveler' or 'someone'"
+            f" or 'a stranger'\n"
+        )
+    prompt += (
         f"- Just the JSON, nothing else"
     )
 

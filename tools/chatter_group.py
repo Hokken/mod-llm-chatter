@@ -1847,6 +1847,7 @@ def process_group_player_msg_event(
                 _maybe_queue_player_msg_memory(
                     config, group_id,
                     player_message, all_bots,
+                    player_name=player_name,
                 )
         except Exception:
             logger.error(
@@ -1868,6 +1869,7 @@ def process_group_player_msg_event(
 
 def _maybe_queue_player_msg_memory(
     config, group_id, player_message, all_bots,
+    player_name="",
 ):
     """Queue player_message memory generation for
     random bots in the group.
@@ -1943,12 +1945,14 @@ def _maybe_queue_player_msg_memory(
                 config, group_id, bg, player_guid,
                 memory_type='player_message',
                 event_context=(
-                    f"Player said: {msg[:100]}"
+                    f"{player_name or 'Player'}"
+                    f" said: {msg[:100]}"
                 ),
                 bot_name=bd.get('bot_name', ''),
                 bot_class=bd.get('class', ''),
                 bot_race=bd.get('race', ''),
                 bot_gender=bd.get('gender', ''),
+                player_name=player_name,
             )
         except Exception:
             logger.error(
