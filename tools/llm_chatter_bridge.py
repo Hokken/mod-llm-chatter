@@ -63,6 +63,9 @@ from chatter_group import (
     check_idle_group_chatter,
     check_bot_questions,
 )
+from chatter_group_state import (
+    regenerate_missing_identity_tones,
+)
 from chatter_general import (
     init_general_config,
     process_general_player_msg_event,
@@ -1572,6 +1575,7 @@ def main():
     idle_chatter_future = None
     bot_question_future = None
     legacy_future = None
+    tone_regen_future = None
     # Track online→offline transition for full wipe
     was_players_online = True
 
@@ -1646,6 +1650,15 @@ def main():
                     "legacy-requests"
                 )
                 legacy_future = None
+            if (
+                tone_regen_future
+                and tone_regen_future.done()
+            ):
+                _harvest_future(
+                    tone_regen_future,
+                    "tone-regeneration"
+                )
+                tone_regen_future = None
 
             # DB connection with proper lifecycle
             db = None
@@ -1722,6 +1735,19 @@ def main():
                             _run_in_worker,
                             "legacy-requests",
                             process_pending_requests,
+                            client, config
+                        )
+                    )
+
+                if (
+                    players_online
+                    and not tone_regen_future
+                ):
+                    tone_regen_future = (
+                        executor.submit(
+                            _run_in_worker,
+                            "tone-regeneration",
+                            regenerate_missing_identity_tones,
                             client, config
                         )
                     )

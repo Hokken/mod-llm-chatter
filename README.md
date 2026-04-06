@@ -16,6 +16,10 @@ An AI-powered conversation engine for [AzerothCore](https://www.azerothcore.org/
 
 > See my other module: **[mod-llm-guide](https://github.com/Hokken/mod-llm-guide)** — AI-powered in-game assistant
 
+> **Companion Addon:** **[Chatter Companion](https://github.com/Hokken/Chatter-Companion)** — A lightweight WoW addon that lets you view and edit your bots' personality traits and tone directly from the game UI. Open it with `/chatter` or `/llmc`, pick a bot from your roster, tweak their personality, and see the changes reflected in their dialogue immediately. No server restart required.
+>
+> <img src="images/chatter-companion.png" alt="Chatter Companion addon" width="340">
+
 ---
 
 ## What's New: MULTIDIRECTIONAL PROXIMITY CHATTER - The World Talks Back

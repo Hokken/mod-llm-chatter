@@ -16,6 +16,8 @@ from chatter_shared import (
     build_bot_identity,
     call_llm,
     cleanup_message,
+    get_class_name,
+    get_race_name,
     strip_speaker_prefix,
 )
 from chatter_db import mark_event
@@ -203,7 +205,7 @@ def check_or_create_bot_identity(
         cursor = db.cursor(dictionary=True)
         cursor.execute(
             "SELECT trait1, trait2, trait3, role,"
-            "   farewell_msg, identity_version"
+            "   tone, farewell_msg, identity_version"
             " FROM llm_bot_identities"
             " WHERE bot_guid = %s",
             (bot_guid,),
@@ -222,6 +224,7 @@ def check_or_create_bot_identity(
                 'trait2': row['trait2'],
                 'trait3': row['trait3'],
                 'role': row.get('role'),
+                'tone': row.get('tone'),
                 'farewell_msg': row.get(
                     'farewell_msg'
                 ),
@@ -250,14 +253,17 @@ def check_or_create_bot_identity(
             INSERT INTO llm_bot_identities
             (bot_guid, bot_name,
              trait1, trait2, trait3,
+             tone,
              farewell_msg,
              identity_version)
-            VALUES (%s, %s, %s, %s, %s, NULL, %s)
+            VALUES (%s, %s, %s, %s, %s, NULL,
+                    NULL, %s)
             ON DUPLICATE KEY UPDATE
                 bot_name = VALUES(bot_name),
                 trait1 = VALUES(trait1),
                 trait2 = VALUES(trait2),
                 trait3 = VALUES(trait3),
+                tone = NULL,
                 farewell_msg = NULL,
                 identity_version =
                     VALUES(identity_version),
@@ -283,6 +289,7 @@ def check_or_create_bot_identity(
         'trait2': traits[1],
         'trait3': traits[2],
         'role': None,
+        'tone': None,
         'farewell_msg': None,
         'reason': (
             'version_bump' if had_row else 'new'
@@ -305,18 +312,51 @@ def _generate_bot_tone(
     """
     fallback = "thoughtful and measured"
 
+    def _sync_group_rows(cursor, tone_value):
+        if group_id:
+            cursor.execute(
+                "UPDATE llm_group_bot_traits"
+                " SET tone = %s"
+                " WHERE group_id = %s"
+                "   AND bot_guid = %s"
+                "   AND tone IS NULL",
+                (tone_value, group_id, bot_guid),
+            )
+        else:
+            cursor.execute(
+                "UPDATE llm_group_bot_traits"
+                " SET tone = %s"
+                " WHERE bot_guid = %s"
+                "   AND tone IS NULL",
+                (tone_value, bot_guid),
+            )
+
     # Check if tone already stored
     try:
         cursor = db.cursor(dictionary=True)
+        if group_id:
+            cursor.execute(
+                "SELECT tone FROM llm_group_bot_traits"
+                " WHERE group_id = %s"
+                "   AND bot_guid = %s",
+                (group_id, bot_guid),
+            )
+            row = cursor.fetchone()
+            if row and row.get('tone'):
+                return row['tone']
+
         cursor.execute(
-            "SELECT tone FROM llm_group_bot_traits"
-            " WHERE group_id = %s"
-            "   AND bot_guid = %s",
-            (group_id, bot_guid),
+            "SELECT tone FROM llm_bot_identities"
+            " WHERE bot_guid = %s",
+            (bot_guid,),
         )
         row = cursor.fetchone()
         if row and row.get('tone'):
-            return row['tone']
+            tone = row['tone']
+            cursor = db.cursor()
+            _sync_group_rows(cursor, tone)
+            db.commit()
+            return tone
     except Exception:
         pass
 
@@ -392,12 +432,12 @@ def _generate_bot_tone(
 
         # Store in DB
         cursor = db.cursor()
+        _sync_group_rows(cursor, tone)
         cursor.execute(
-            "UPDATE llm_group_bot_traits"
+            "UPDATE llm_bot_identities"
             " SET tone = %s"
-            " WHERE group_id = %s"
-            "   AND bot_guid = %s",
-            (tone, group_id, bot_guid),
+            " WHERE bot_guid = %s",
+            (tone, bot_guid),
         )
         db.commit()
 
@@ -413,18 +453,98 @@ def _generate_bot_tone(
         # every subsequent call for this bot+group
         try:
             cursor = db.cursor()
+            _sync_group_rows(cursor, fallback)
             cursor.execute(
-                "UPDATE llm_group_bot_traits"
+                "UPDATE llm_bot_identities"
                 " SET tone = %s"
-                " WHERE group_id = %s"
-                "   AND bot_guid = %s"
+                " WHERE bot_guid = %s"
                 "   AND tone IS NULL",
-                (fallback, group_id, bot_guid),
+                (fallback, bot_guid),
             )
             db.commit()
         except Exception:
             pass
         return fallback
+
+
+def regenerate_missing_identity_tones(
+    db, client, config, limit=3,
+):
+    """Backfill derived tones for bots whose traits are
+    set but whose stored tone is currently NULL.
+
+    This supports addon-driven trait edits where the
+    traits are the user's input and tone is a derived
+    output generated asynchronously.
+    """
+    if not config or int(config.get(
+        'LLMChatter.Memory.Enable', 1
+    )) != 1:
+        return 0
+
+    try:
+        limit = max(1, int(limit))
+    except (TypeError, ValueError):
+        limit = 1
+
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT i.bot_guid,
+               COALESCE(i.bot_name, c.name) AS bot_name,
+               i.trait1, i.trait2, i.trait3,
+               c.class, c.race
+        FROM llm_bot_identities i
+        JOIN characters c
+          ON c.guid = i.bot_guid
+        WHERE i.tone IS NULL
+          AND i.trait1 IS NOT NULL
+          AND i.trait1 != ''
+          AND i.trait2 IS NOT NULL
+          AND i.trait2 != ''
+          AND i.trait3 IS NOT NULL
+          AND i.trait3 != ''
+        ORDER BY i.created_at DESC, i.bot_guid DESC
+        LIMIT %s
+    """, (limit,))
+    rows = cursor.fetchall()
+
+    generated = 0
+    for row in rows:
+        bot_guid = int(row.get('bot_guid') or 0)
+        if not bot_guid:
+            continue
+
+        bot_name = row.get('bot_name', '') or ''
+        bot_class = get_class_name(
+            int(row.get('class') or 0)
+        )
+        bot_race = get_race_name(
+            int(row.get('race') or 0)
+        )
+        if not bot_name or not bot_class or not bot_race:
+            continue
+
+        traits = [
+            row.get('trait1', '') or '',
+            row.get('trait2', '') or '',
+            row.get('trait3', '') or '',
+        ]
+        if not all(traits):
+            continue
+
+        tone = _generate_bot_tone(
+            db, config, bot_guid, None,
+            bot_name, bot_class, bot_race,
+            traits,
+        )
+        if tone:
+            generated += 1
+            logger.info(
+                "Regenerated tone for %s (%s): %s",
+                bot_name, bot_guid, tone,
+            )
+
+    return generated
 
 
 def assign_bot_traits(
@@ -457,6 +577,7 @@ def assign_bot_traits(
             identity['trait2'],
             identity['trait3'],
         ]
+        persistent_tone = identity.get('tone')
         # Use stored role if caller didn't provide
         if not role and identity.get('role'):
             role = identity['role']
@@ -468,20 +589,22 @@ def assign_bot_traits(
             random.choice(PERSONALITY_TRAITS[cat])
             for cat in categories
         ]
+        persistent_tone = None
 
     cursor = db.cursor()
     cursor.execute("""
         INSERT INTO llm_group_bot_traits
         (group_id, bot_guid, bot_name,
-         trait1, trait2, trait3, role,
+         trait1, trait2, trait3, role, tone,
          zone, area, map)
         VALUES (%s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s)
+                %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             trait1 = VALUES(trait1),
             trait2 = VALUES(trait2),
             trait3 = VALUES(trait3),
             role = VALUES(role),
+            tone = COALESCE(VALUES(tone), tone),
             zone = VALUES(zone),
             area = VALUES(area),
             map = VALUES(map),
@@ -489,7 +612,8 @@ def assign_bot_traits(
     """, (
         group_id, bot_guid, bot_name,
         traits[0], traits[1], traits[2],
-        role, zone, int(area_id or 0), map_id
+        role, persistent_tone,
+        zone, int(area_id or 0), map_id
     ))
     db.commit()
 

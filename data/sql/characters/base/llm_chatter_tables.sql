@@ -238,6 +238,7 @@ CREATE TABLE `llm_bot_identities` (
     `trait2`           VARCHAR(64)  NOT NULL,
     `trait3`           VARCHAR(64)  NOT NULL,
     `role`             VARCHAR(32)  DEFAULT NULL,
+    `tone`             VARCHAR(120) DEFAULT NULL,
     `farewell_msg`     VARCHAR(255) DEFAULT NULL,
     `identity_version` INT UNSIGNED NOT NULL DEFAULT 1,
     `created_at`       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP

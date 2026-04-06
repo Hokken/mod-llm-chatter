@@ -7,6 +7,8 @@
 #include "LLMChatterRaid.h"
 #include "LLMChatterShared.h"
 
+void AddLLMChatterCommandScripts();
+
 void AddLLMChatterScripts()
 {
     AddLLMChatterWorldScripts();
@@ -14,4 +16,5 @@ void AddLLMChatterScripts()
     AddLLMChatterPlayerScripts();
     AddLLMChatterBGScripts();
     AddLLMChatterRaidScripts();
+    AddLLMChatterCommandScripts();
 }
