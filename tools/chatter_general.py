@@ -422,14 +422,15 @@ def _build_general_response_prompt(
 
     tod = get_time_of_day_context()
 
+    identity = build_bot_identity_with_level(
+        bot_name,
+        bot_race,
+        bot_class,
+        bot_level,
+        gender=bot_gender,
+    )
     prompt = (
-        f"{build_bot_identity_with_level(
-            bot_name,
-            bot_race,
-            bot_class,
-            bot_level,
-            gender=bot_gender,
-        )}\n"
+        f"{identity}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -583,14 +584,15 @@ def _build_general_followup_prompt(
             f"name in your reply\n"
         )
 
+    identity = build_bot_identity_with_level(
+        bot_name,
+        bot_race,
+        bot_class,
+        bot_level,
+        gender=bot_gender,
+    )
     prompt = (
-        f"{build_bot_identity_with_level(
-            bot_name,
-            bot_race,
-            bot_class,
-            bot_level,
-            gender=bot_gender,
-        )}\n"
+        f"{identity}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -1210,14 +1212,15 @@ def _build_general_continuation_prompt(
             f"name in your reply\n"
         )
 
+    identity = build_bot_identity_with_level(
+        bot_name,
+        bot_race,
+        bot_class,
+        bot_level,
+        gender=bot_gender,
+    )
     prompt = (
-        f"{build_bot_identity_with_level(
-            bot_name,
-            bot_race,
-            bot_class,
-            bot_level,
-            gender=bot_gender,
-        )}\n"
+        f"{identity}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:

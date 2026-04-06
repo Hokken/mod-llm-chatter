@@ -370,13 +370,14 @@ def build_plain_statement_prompt(
     parts = []
 
     if is_rp:
+        identity = build_bot_identity(
+            bot['name'],
+            bot.get('race', ''),
+            bot.get('class', ''),
+            bot.get('gender', ''),
+        )
         parts.append(
-            f"{build_bot_identity(
-                bot['name'],
-                bot.get('race', ''),
-                bot.get('class', ''),
-                bot.get('gender', ''),
-            )} "
+            f"{identity} "
             f"Speak in-character in General chat in "
             f"{bot['zone']}."
         )
@@ -512,13 +513,14 @@ def build_quest_statement_prompt(
     parts = []
 
     if is_rp:
+        identity = build_bot_identity(
+            bot['name'],
+            bot.get('race', ''),
+            bot.get('class', ''),
+            bot.get('gender', ''),
+        )
         parts.append(
-            f"{build_bot_identity(
-                bot['name'],
-                bot.get('race', ''),
-                bot.get('class', ''),
-                bot.get('gender', ''),
-            )} Speak in-character about "
+            f"{identity} Speak in-character about "
             f"a quest in {bot['zone']}."
         )
         rp_ctx = build_race_class_context(
@@ -650,13 +652,14 @@ def build_loot_statement_prompt(
     item_placeholder = f"{{{{item:{item['item_name']}}}}}"
 
     if is_rp:
+        identity = build_bot_identity(
+            bot['name'],
+            bot.get('race', ''),
+            bot.get('class', ''),
+            bot.get('gender', ''),
+        )
         parts.append(
-            f"{build_bot_identity(
-                bot['name'],
-                bot.get('race', ''),
-                bot.get('class', ''),
-                bot.get('gender', ''),
-            )} Speak in-character about "
+            f"{identity} Speak in-character about "
             f"finding loot."
         )
         rp_ctx = build_race_class_context(
@@ -802,13 +805,14 @@ def build_quest_reward_statement_prompt(
     parts = []
 
     if is_rp:
+        identity = build_bot_identity(
+            bot['name'],
+            bot.get('race', ''),
+            bot.get('class', ''),
+            bot.get('gender', ''),
+        )
         parts.append(
-            f"{build_bot_identity(
-                bot['name'],
-                bot.get('race', ''),
-                bot.get('class', ''),
-                bot.get('gender', ''),
-            )} Speak in-character about "
+            f"{identity} Speak in-character about "
             f"completing a quest and its reward."
         )
         rp_ctx = build_race_class_context(
@@ -1827,14 +1831,15 @@ def build_event_statement_prompt(
                     f"\nSubzone: {subzone_name}"
                 )
 
+    identity = build_bot_identity_with_level(
+        bot['bot1_name'],
+        bot['bot1_race'],
+        bot['bot1_class'],
+        bot['bot1_level'],
+        suffix=' adventurer in World of Warcraft.\n',
+    )
     prompt = (
-        f"{build_bot_identity_with_level(
-            bot['bot1_name'],
-            bot['bot1_race'],
-            bot['bot1_class'],
-            bot['bot1_level'],
-            suffix=' adventurer in World of Warcraft.\n',
-        )}"
+        f"{identity}"
         f"and currently in "
         f"{zone_name}."
         f"{env_lines}"
@@ -1880,13 +1885,14 @@ def build_spell_statement_prompt(
     )
 
     if is_rp:
+        identity = build_bot_identity(
+            bot['name'],
+            bot.get('race', ''),
+            bot.get('class', ''),
+            bot.get('gender', ''),
+        )
         parts.append(
-            f"{build_bot_identity(
-                bot['name'],
-                bot.get('race', ''),
-                bot.get('class', ''),
-                bot.get('gender', ''),
-            )} "
+            f"{identity} "
             f"Speak in-character about a spell "
             f"or ability you know."
         )
@@ -2267,13 +2273,14 @@ def build_trade_statement_prompt(
     )
 
     if is_rp:
+        identity = build_bot_identity(
+            bot['name'],
+            bot.get('race', ''),
+            bot.get('class', ''),
+            bot.get('gender', ''),
+        )
         parts.append(
-            f"{build_bot_identity(
-                bot['name'],
-                bot.get('race', ''),
-                bot.get('class', ''),
-                bot.get('gender', ''),
-            )} You want to "
+            f"{identity} You want to "
             f"sell or trade an item you found. "
             f"Speak in-character."
         )

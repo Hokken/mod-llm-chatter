@@ -687,10 +687,11 @@ def _generate_farewell(
         if rp_ctx:
             rp_ctx = f"\n{rp_ctx}"
 
+    identity = build_bot_identity(
+        bot_name, bot_race, bot_class, bot_gender,
+    )
     prompt = (
-        f"{build_bot_identity(
-            bot_name, bot_race, bot_class, bot_gender
-        )}\n"
+        f"{identity}\n"
         f"Personality: {trait_str}{rp_ctx}\n\n"
         f"Write a short farewell message for when "
         f"you leave a party. One sentence, under "
