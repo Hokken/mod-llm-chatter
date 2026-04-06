@@ -17,6 +17,7 @@ from chatter_shared import (
     run_single_reaction,
     build_bot_identity,
     append_json_instruction,
+    get_gender_label,
 )
 from chatter_group_state import _mark_event, _store_chat
 
@@ -50,6 +51,9 @@ def handle_emote_observer(db, client, config, event):
     bot_race = RACE_NAMES.get(
         int(extra.get('bot_race') or 0), ''
     )
+    bot_gender = get_gender_label(
+        int(extra.get('bot_gender') or 0)
+    )
 
     emote_id = EMOTE_NAME_TO_ID.get(emote, 0)
     category = EMOTE_CATEGORIES.get(
@@ -59,6 +63,7 @@ def handle_emote_observer(db, client, config, event):
     if tgt == 'creature':
         prompt = _build_creature_prompt(
             bot_name, bot_race, bot_class,
+            bot_gender,
             p_name, emote, t_name,
             category, npc_rank, npc_type,
             npc_subname,
@@ -66,11 +71,13 @@ def handle_emote_observer(db, client, config, event):
     elif tgt == 'player_external':
         prompt = _build_player_prompt(
             bot_name, bot_race, bot_class,
+            bot_gender,
             p_name, emote, t_name, category,
         )
     else:
         prompt = _build_undirected_prompt(
             bot_name, bot_race, bot_class,
+            bot_gender,
             p_name, emote,
         )
 
@@ -114,7 +121,7 @@ def _pick_tone(category: str) -> str:
 
 
 def _build_creature_prompt(
-    bot_name, bot_race, bot_class,
+    bot_name, bot_race, bot_class, bot_gender,
     p_name, emote, t_name,
     category, npc_rank, npc_type,
     npc_subname='',
@@ -138,7 +145,7 @@ def _build_creature_prompt(
         role_label = f"{rank_label}{type_str}"
     tone = _pick_tone(category)
     identity = build_bot_identity(
-        bot_name, bot_race, bot_class
+        bot_name, bot_race, bot_class, bot_gender
     )
     prompt = (
         f"{identity} You witness {p_name} "
@@ -153,12 +160,12 @@ def _build_creature_prompt(
 
 
 def _build_player_prompt(
-    bot_name, bot_race, bot_class,
+    bot_name, bot_race, bot_class, bot_gender,
     p_name, emote, t_name, category,
 ):
     tone = _pick_tone(category)
     identity = build_bot_identity(
-        bot_name, bot_race, bot_class
+        bot_name, bot_race, bot_class, bot_gender
     )
     prompt = (
         f"{identity} You notice {p_name} "
@@ -173,7 +180,7 @@ def _build_player_prompt(
 
 
 def _build_undirected_prompt(
-    bot_name, bot_race, bot_class,
+    bot_name, bot_race, bot_class, bot_gender,
     p_name, emote,
 ):
     category = EMOTE_CATEGORIES.get(
@@ -181,7 +188,7 @@ def _build_undirected_prompt(
     )
     tone = _pick_tone(category)
     identity = build_bot_identity(
-        bot_name, bot_race, bot_class
+        bot_name, bot_race, bot_class, bot_gender
     )
     prompt = (
         f"{identity} You notice {p_name} "

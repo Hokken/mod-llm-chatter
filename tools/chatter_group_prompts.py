@@ -8,6 +8,9 @@ from chatter_shared import (
     get_subzone_lore,
     get_dungeon_flavor,
     get_dungeon_bosses,
+    build_bot_identity,
+    build_bot_identity_from_dict,
+    build_bot_identity_with_level,
     build_race_class_context,
     build_race_class_context_parts,
     build_bot_state_context,
@@ -265,9 +268,7 @@ def build_bot_greeting_prompt(
     _, time_desc = get_time_of_day_context()
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}"
         f"{rp_context}"
         f"{location_context}\n"
@@ -488,9 +489,7 @@ def build_bot_welcome_prompt(
         )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}"
         f"{rp_context}\n"
     )
@@ -628,9 +627,7 @@ def build_batch_welcome_prompt(
     count = len(new_bot_names)
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}"
         f"{rp_context}\n"
     )
@@ -813,9 +810,7 @@ def build_kill_reaction_prompt(
         )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -955,9 +950,7 @@ def build_loot_reaction_prompt(
         )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -1063,9 +1056,7 @@ def build_combat_reaction_prompt(
         )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -1182,10 +1173,7 @@ def build_death_reaction_prompt(
             )
 
     prompt = (
-        f"You are {reactor['name']}, a level "
-        f"{reactor['level']} {reactor['race']} "
-        f"{reactor['class']} in World of "
-        f"Warcraft.\n"
+        f"{build_bot_identity_from_dict(reactor)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -1274,9 +1262,7 @@ def build_levelup_reaction_prompt(
         )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -1385,9 +1371,7 @@ def build_quest_complete_reaction_prompt(
         )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -1494,9 +1478,7 @@ def build_quest_objectives_reaction_prompt(
         )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -1616,9 +1598,7 @@ def build_achievement_reaction_prompt(
             )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -1717,9 +1697,7 @@ def build_group_achievement_reaction_prompt(
         )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -2035,9 +2013,7 @@ def build_spell_cast_reaction_prompt(
                 anti_rep_block += f'- "{pl}"\n'
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -2146,9 +2122,7 @@ def build_player_response_prompt(
         )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -2308,9 +2282,7 @@ def build_resurrect_reaction_prompt(
         )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -2431,9 +2403,7 @@ def build_zone_transition_prompt(
     )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -2565,9 +2535,7 @@ def build_quest_accept_reaction_prompt(
         )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -2671,9 +2639,7 @@ def build_quest_accept_batch_prompt(
         )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -2791,9 +2757,7 @@ def build_dungeon_entry_prompt(
             )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -2898,9 +2862,7 @@ def build_wipe_reaction_prompt(
         )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -3035,9 +2997,7 @@ def build_corpse_run_reaction_prompt(
             )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -3117,9 +3077,7 @@ def build_low_health_callout_prompt(
         )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -3192,9 +3150,7 @@ def build_oom_callout_prompt(
     )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -3257,9 +3213,7 @@ def build_aggro_loss_callout_prompt(
     )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -3307,8 +3261,10 @@ def build_precache_combat_pull_prompt(
         )
 
     prompt = (
-        f"You are {bot_name}, a level {level} "
-        f"{race} {class_name} in World of Warcraft."
+        build_bot_identity_with_level(
+            bot_name, race, class_name, level,
+        )
+        +
         f"\nPersonality: {trait_str}"
     )
     if rp_ctx:
@@ -3357,8 +3313,10 @@ def build_precache_state_prompt(
         )
 
     prompt = (
-        f"You are {bot_name}, a level {level} "
-        f"{race} {class_name} in World of Warcraft."
+        build_bot_identity_with_level(
+            bot_name, race, class_name, level,
+        )
+        +
         f"\nPersonality: {trait_str}"
     )
     if rp_ctx:
@@ -3450,8 +3408,10 @@ def build_precache_spell_support_prompt(
         )
 
     prompt = (
-        f"You are {bot_name}, a level {level} "
-        f"{race} {class_name} in World of Warcraft."
+        build_bot_identity_with_level(
+            bot_name, race, class_name, level,
+        )
+        +
         f"\nPersonality: {trait_str}"
     )
     if rp_ctx:
@@ -3508,8 +3468,10 @@ def build_precache_spell_offensive_prompt(
         )
 
     prompt = (
-        f"You are {bot_name}, a level {level} "
-        f"{race} {class_name} in World of Warcraft."
+        build_bot_identity_with_level(
+            bot_name, race, class_name, level,
+        )
+        +
         f"\nPersonality: {trait_str}"
     )
     if rp_ctx:
@@ -3635,8 +3597,9 @@ def build_nearby_object_reaction_prompt(
     is_rp = (mode == 'roleplay')
 
     prompt = (
-        f"You are {bot_name}, a "
-        f"{race_name} {class_name}."
+        build_bot_identity(
+            bot_name, race_name, class_name,
+        )
     )
     if trait_str:
         prompt += f" Personality: {trait_str}."
@@ -4184,6 +4147,7 @@ BG_QUESTION_TOPICS = [
 def build_bot_question_prompt(
     bot, traits, mode,
     player_name, player_class, player_race,
+    player_gender,
     player_level,
     chat_history="", members=None,
     zone_id=0, map_id=0,
@@ -4205,6 +4169,7 @@ def build_bot_question_prompt(
         mode: 'normal' or 'roleplay'
         player_name: real player's character name
         player_class: player's class name string
+        player_gender: player's gender label string
         player_race: player's race name string
         player_level: player's level (int)
         chat_history: formatted recent chat string
@@ -4238,9 +4203,7 @@ def build_bot_question_prompt(
                 f"  - {m}" for m in sanitized
             )
             prompt = (
-                f"You are {bot['name']}, a level "
-                f"{bot['level']} {bot['race']} "
-                f"{bot['class']}.\n"
+                f"{build_bot_identity_from_dict(bot, suffix='.')}\n"
                 f"Your personality: {trait_str}\n"
             )
             if speaker_talent_context:
@@ -4262,7 +4225,9 @@ def build_bot_question_prompt(
                 f"</past_memories>\n\n"
                 f"You are grouped with "
                 f"{player_name}, a level "
-                f"{player_level} {player_race} "
+                f"{player_level} "
+                f"{player_gender + ' ' if player_gender else ''}"
+                f"{player_race} "
                 f"{player_class} (real player).\n\n"
                 f"Ask {player_name} ONE short "
                 f"question about a shared memory "
@@ -4409,9 +4374,7 @@ def build_bot_question_prompt(
         )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -4427,7 +4390,9 @@ def build_bot_question_prompt(
     prompt += (
         f"{rp_context}\n\n"
         f"You are grouped with {player_name}, "
-        f"a level {player_level} {player_race} "
+        f"a level {player_level} "
+        f"{player_gender + ' ' if player_gender else ''}"
+        f"{player_race} "
         f"{player_class} (real player).\n"
         f"You want to ask {player_name} about "
         f"{topic}.\n\n"

@@ -1162,6 +1162,7 @@ std::string BuildBotIdentityFields(
             "\"bot_name\":\"Unknown\","
             "\"bot_class\":0,"
             "\"bot_race\":0,"
+            "\"bot_gender\":0,"
             "\"bot_level\":0";
 
         if (includeRoles)
@@ -1180,6 +1181,8 @@ std::string BuildBotIdentityFields(
         + std::to_string(player->getClass())
         + ",\"bot_race\":"
         + std::to_string(player->getRace())
+        + ",\"bot_gender\":"
+        + std::to_string(player->getGender())
         + ",\"bot_level\":"
         + std::to_string(player->GetLevel());
 

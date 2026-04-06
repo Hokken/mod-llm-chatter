@@ -21,6 +21,8 @@ from chatter_constants import (
 from chatter_shared import (
     get_chatter_mode, build_race_class_context,
     build_race_class_context_parts,
+    build_bot_identity,
+    build_bot_identity_with_level,
     get_zone_flavor, format_price,
     build_anti_repetition_context,
     append_json_instruction,
@@ -369,8 +371,12 @@ def build_plain_statement_prompt(
 
     if is_rp:
         parts.append(
-            f"You are {bot['name']}, a {bot.get('race', '')} "
-            f"{bot.get('class', '')} in World of Warcraft. "
+            f"{build_bot_identity(
+                bot['name'],
+                bot.get('race', ''),
+                bot.get('class', ''),
+                bot.get('gender', ''),
+            )} "
             f"Speak in-character in General chat in "
             f"{bot['zone']}."
         )
@@ -507,8 +513,12 @@ def build_quest_statement_prompt(
 
     if is_rp:
         parts.append(
-            f"You are {bot['name']}, a {bot.get('race', '')} "
-            f"{bot.get('class', '')}. Speak in-character about "
+            f"{build_bot_identity(
+                bot['name'],
+                bot.get('race', ''),
+                bot.get('class', ''),
+                bot.get('gender', ''),
+            )} Speak in-character about "
             f"a quest in {bot['zone']}."
         )
         rp_ctx = build_race_class_context(
@@ -641,8 +651,12 @@ def build_loot_statement_prompt(
 
     if is_rp:
         parts.append(
-            f"You are {bot['name']}, a {bot.get('race', '')} "
-            f"{bot.get('class', '')}. Speak in-character about "
+            f"{build_bot_identity(
+                bot['name'],
+                bot.get('race', ''),
+                bot.get('class', ''),
+                bot.get('gender', ''),
+            )} Speak in-character about "
             f"finding loot."
         )
         rp_ctx = build_race_class_context(
@@ -789,8 +803,12 @@ def build_quest_reward_statement_prompt(
 
     if is_rp:
         parts.append(
-            f"You are {bot['name']}, a {bot.get('race', '')} "
-            f"{bot.get('class', '')}. Speak in-character about "
+            f"{build_bot_identity(
+                bot['name'],
+                bot.get('race', ''),
+                bot.get('class', ''),
+                bot.get('gender', ''),
+            )} Speak in-character about "
             f"completing a quest and its reward."
         )
         rp_ctx = build_race_class_context(
@@ -1810,13 +1828,13 @@ def build_event_statement_prompt(
                 )
 
     prompt = (
-        f"You are {bot['bot1_name']}, "
-        f"a {bot['bot1_race']} "
-        f"{bot['bot1_class']} "
-        f"adventurer in World of "
-        f"Warcraft.\n"
-        f"You are level "
-        f"{bot['bot1_level']} "
+        f"{build_bot_identity_with_level(
+            bot['bot1_name'],
+            bot['bot1_race'],
+            bot['bot1_class'],
+            bot['bot1_level'],
+            suffix=' adventurer in World of Warcraft.\n',
+        )}"
         f"and currently in "
         f"{zone_name}."
         f"{env_lines}"
@@ -1863,9 +1881,12 @@ def build_spell_statement_prompt(
 
     if is_rp:
         parts.append(
-            f"You are {bot['name']}, a "
-            f"{bot.get('race', '')} "
-            f"{bot.get('class', '')}. "
+            f"{build_bot_identity(
+                bot['name'],
+                bot.get('race', ''),
+                bot.get('class', ''),
+                bot.get('gender', ''),
+            )} "
             f"Speak in-character about a spell "
             f"or ability you know."
         )
@@ -2247,9 +2268,12 @@ def build_trade_statement_prompt(
 
     if is_rp:
         parts.append(
-            f"You are {bot['name']}, a "
-            f"{bot.get('race', '')} "
-            f"{bot.get('class', '')}. You want to "
+            f"{build_bot_identity(
+                bot['name'],
+                bot.get('race', ''),
+                bot.get('class', ''),
+                bot.get('gender', ''),
+            )} You want to "
             f"sell or trade an item you found. "
             f"Speak in-character."
         )
@@ -2642,9 +2666,13 @@ def build_zone_intrusion_prompt(
 
     parts = []
     parts.append(
-        f"You are {defender_name}, a level "
-        f"{defender_level} {defender_race} "
-        f"{defender_class}."
+        build_bot_identity_with_level(
+            defender_name,
+            defender_race,
+            defender_class,
+            defender_level,
+            suffix='.',
+        )
     )
     if rc_context:
         parts.append(rc_context)

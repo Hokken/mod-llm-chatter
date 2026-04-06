@@ -109,11 +109,10 @@ void EnsureBotInGeneralChannel(
 static std::map<uint32, time_t> _generalChatCooldowns;
 static std::mutex _generalChatCooldownsMutex;
 
-// Per-group+area subzone cooldown:
-// (groupId << 32) | areaId -> last comment time
+// Per-group subzone cooldown keyed by group counter.
 // Uses the same configured cooldown as
 // GroupChatter.ZoneTransitionCooldown.
-static std::map<uint64, time_t>
+static std::map<uint32, time_t>
     _subzoneCommentCooldowns;
 static std::mutex _subzoneCooldownMutex;
 
@@ -735,6 +734,8 @@ public:
         std::string extraData = "{"
             "\"player_name\":\"" +
                 JsonEscape(playerName) + "\","
+            "\"player_gender\":" +
+                std::to_string(player->getGender()) + ","
             "\"player_message\":\"" +
                 JsonEscape(safeMsg) + "\","
             "\"zone_id\":" +
@@ -875,35 +876,15 @@ public:
         uint32 subzoneChance =
             sLLMChatterConfig->_groupZoneChance;
 
-        // Per-group+area cooldown using the same
-        // config surface as zone transitions, with
-        // periodic eviction of stale entries.
+        // Per-group cooldown (shared across all
+        // subzones so rapid area crossings don't
+        // spam the party channel).
         time_t now = time(nullptr);
-        uint64 cdKey =
-            ((uint64)gId << 32) | (uint64)newArea;
         {
             std::lock_guard<std::mutex> guard(
                 _subzoneCooldownMutex);
-            time_t staleCutoff = static_cast<time_t>(
-                std::max<uint32>(
-                    subzoneCooldown, 300u));
-            if (_subzoneCommentCooldowns.size() > 200)
-            {
-                auto sit =
-                    _subzoneCommentCooldowns.begin();
-                while (sit !=
-                    _subzoneCommentCooldowns.end())
-                {
-                    if (now - sit->second
-                        > staleCutoff)
-                        sit = _subzoneCommentCooldowns
-                            .erase(sit);
-                    else
-                        ++sit;
-                }
-            }
             auto it =
-                _subzoneCommentCooldowns.find(cdKey);
+                _subzoneCommentCooldowns.find(gId);
             if (it != _subzoneCommentCooldowns.end()
                 && (now - it->second)
                    < static_cast<time_t>(
@@ -985,6 +966,9 @@ public:
             "\"bot_race\":" +
                 std::to_string(
                     bot->getRace()) + ","
+            "\"bot_gender\":" +
+                std::to_string(
+                    bot->getGender()) + ","
             "\"bot_level\":" +
                 std::to_string(
                     bot->GetLevel()) + ","
@@ -1007,7 +991,7 @@ public:
         {
             std::lock_guard<std::mutex> guard(
                 _subzoneCooldownMutex);
-            _subzoneCommentCooldowns[cdKey] = now;
+            _subzoneCommentCooldowns[gId] = now;
         }
 
         QueueChatterEvent(

@@ -251,7 +251,8 @@ registries instead of a single long conditional block.
 - `GetZoneName()`
 - `GetClassName()`
 - `GetRaceName()`
-- `BuildBotIdentityFields()`
+- `BuildBotIdentityFields()` — emits `bot_name`, `bot_class`,
+  `bot_race`, `bot_gender`, `bot_level` into event JSON
 - `QueueChatterEvent()`
 - `BuildBotStateJson()`
 - `AppendRaidContext()`
@@ -271,6 +272,9 @@ Critical contract:
 
 - direct callers of `QueueChatterEvent()` must provide `extraData` that
   is already SQL-safe for insertion into a single-quoted SQL string
+- all event hooks include `bot_gender` (and `player_gender` where
+  applicable) in the `extra_data` JSON so Python prompt builders can
+  use correct pronouns via `resolve_gender()`
 
 ### `src/LLMChatterWorld.cpp`
 
@@ -1649,7 +1653,7 @@ experiences rather than treating the player as a stranger.
 
 | File | Role |
 |------|------|
-| `chatter_memory.py` | Session tracking, memory generation, flush, retrieval |
+| `chatter_memory.py` | Session tracking, memory generation (with `player_name` threading and DB fallback), flush, retrieval |
 | `chatter_group.py` | Calls `start_session`, `get_bot_memories`, first-meeting insert |
 | `chatter_group_prompts.py` | `build_bot_greeting_prompt` — reunion mode and `<past_memories>` injection |
 
@@ -1719,7 +1723,7 @@ from the resulting description.
 2. Resolves zone/subzone context via existing `get_zone_name()`,
    `get_zone_flavor()`, `get_subzone_name()`, `get_subzone_lore()`,
    `get_dungeon_flavor()`, `get_time_of_day_context()`
-3. Builds bot identity via `build_bot_identity()`
+3. Builds bot identity via `build_bot_identity(name, race, class, gender)`
 4. Rolls for single statement (`run_single_reaction()`) or multi-bot
    conversation (`append_conversation_json_instruction()` +
    `parse_conversation_response()`)

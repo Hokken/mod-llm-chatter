@@ -156,6 +156,8 @@ def process_bg_match_end_event(
                                 'class', ''),
                             bot_race=bot_data.get(
                                 'race', ''),
+                            bot_gender=bot_data.get(
+                                'gender', ''),
                         )
         except Exception:
             logger.error(
@@ -440,6 +442,8 @@ def process_bg_pvp_kill_event(
                                 'class', ''),
                             bot_race=bot_data.get(
                                 'race', ''),
+                            bot_gender=bot_data.get(
+                                'gender', ''),
                         )
         except Exception:
             logger.error(

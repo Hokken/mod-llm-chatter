@@ -22,11 +22,13 @@ _extended_max_messages = 3
 from chatter_shared import (
     call_llm, cleanup_message, strip_speaker_prefix,
     get_chatter_mode, get_class_name, get_race_name,
+    get_gender_label,
     build_race_class_context, parse_extra_data,
     calculate_dynamic_delay,
     find_addressed_bot,
     insert_chat_message,
     build_anti_repetition_context,
+    build_bot_identity_with_level,
     get_recent_zone_messages,
     append_json_instruction,
     parse_single_response,
@@ -248,7 +250,7 @@ def _get_bot_info(db, bot_guid):
     """Fetch bot class/race/level from characters."""
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
-        SELECT name, class, race, level
+        SELECT name, class, race, level, gender
         FROM characters
         WHERE guid = %s
     """, (bot_guid,))
@@ -353,6 +355,7 @@ def _select_primary_bot(
         ),
         'bot1_class_id': bot1_info['class'],
         'bot1_level': bot1_info['level'],
+        'bot1_gender': get_gender_label(bot1_info['gender']),
         'bot1_traits': _pick_random_traits(),
         'is_conversation': is_conversation,
     }
@@ -360,6 +363,7 @@ def _select_primary_bot(
 
 def _build_general_response_prompt(
     bot_name, bot_race, bot_class, bot_level,
+    bot_gender,
     traits, player_name, player_message,
     zone_name, chat_history, mode,
     recent_messages=None, allow_action=True,
@@ -419,9 +423,13 @@ def _build_general_response_prompt(
     tod = get_time_of_day_context()
 
     prompt = (
-        f"You are {bot_name}, a level "
-        f"{bot_level} {bot_race} "
-        f"{bot_class} in World of Warcraft.\n"
+        f"{build_bot_identity_with_level(
+            bot_name,
+            bot_race,
+            bot_class,
+            bot_level,
+            gender=bot_gender,
+        )}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -509,6 +517,7 @@ def _build_general_response_prompt(
 
 def _build_general_followup_prompt(
     bot_name, bot_race, bot_class, bot_level,
+    bot_gender,
     traits, first_bot_name, first_bot_response,
     player_name, player_message,
     zone_name, chat_history, mode,
@@ -575,9 +584,13 @@ def _build_general_followup_prompt(
         )
 
     prompt = (
-        f"You are {bot_name}, a level "
-        f"{bot_level} {bot_race} "
-        f"{bot_class} in World of Warcraft.\n"
+        f"{build_bot_identity_with_level(
+            bot_name,
+            bot_race,
+            bot_class,
+            bot_level,
+            gender=bot_gender,
+        )}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -736,6 +749,7 @@ def process_general_player_msg_event(
         bot1_class = primary['bot1_class']
         bot1_class_id = primary['bot1_class_id']
         bot1_level = primary['bot1_level']
+        bot1_gender = primary['bot1_gender']
         bot1_traits = primary['bot1_traits']
         is_conversation = primary['is_conversation']
 
@@ -779,7 +793,7 @@ def process_general_player_msg_event(
         allow_action = (mode == 'roleplay')
         prompt1 = _build_general_response_prompt(
             bot1_name, bot1_race, bot1_class,
-            bot1_level, bot1_traits,
+            bot1_level, bot1_gender, bot1_traits,
             player_name, player_message,
             zone_name, chat_hist, mode,
             recent_messages=recent_msgs,
@@ -993,6 +1007,7 @@ def _general_followup(
     bot2_race = get_race_name(bot2_info['race'])
     bot2_class = get_class_name(bot2_info['class'])
     bot2_level = bot2_info['level']
+    bot2_gender = get_gender_label(bot2_info['gender'])
     bot2_traits = _pick_random_traits()
 
     # Recompute speaker talent for bot2
@@ -1019,7 +1034,7 @@ def _general_followup(
 
     prompt2 = _build_general_followup_prompt(
         bot2_name, bot2_race, bot2_class,
-        bot2_level, bot2_traits,
+        bot2_level, bot2_gender, bot2_traits,
         bot1_name, bot1_response,
         player_name, player_message,
         zone_name, chat_hist, mode,
@@ -1115,6 +1130,7 @@ def _general_followup(
 
 def _build_general_continuation_prompt(
     bot_name, bot_race, bot_class, bot_level,
+    bot_gender,
     traits, conversation_thread,
     zone_name, chat_history, mode,
     recent_messages=None, allow_action=True,
@@ -1195,9 +1211,13 @@ def _build_general_continuation_prompt(
         )
 
     prompt = (
-        f"You are {bot_name}, a level "
-        f"{bot_level} {bot_race} "
-        f"{bot_class} in World of Warcraft.\n"
+        f"{build_bot_identity_with_level(
+            bot_name,
+            bot_race,
+            bot_class,
+            bot_level,
+            gender=bot_gender,
+        )}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -1402,6 +1422,7 @@ def _general_extended_conversation(
         sp_race = get_race_name(sp_info['race'])
         sp_class = get_class_name(sp_info['class'])
         sp_level = sp_info['level']
+        sp_gender = get_gender_label(sp_info['gender'])
 
         # Recompute speaker talent for this bot
         sp_speaker_talent = None
@@ -1433,7 +1454,7 @@ def _general_extended_conversation(
         remaining = max_msgs - (msg_count + 1)
         prompt = _build_general_continuation_prompt(
             speaker['name'], sp_race, sp_class,
-            sp_level, speaker['traits'],
+            sp_level, sp_gender, speaker['traits'],
             thread, zone_name, chat_hist, mode,
             recent_messages=recent_msgs,
             allow_action=allow_action,

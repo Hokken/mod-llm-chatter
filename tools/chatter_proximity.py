@@ -14,6 +14,7 @@ from chatter_shared import (
     parse_conversation_response,
     parse_extra_data,
     get_class_name,
+    get_gender_label,
     get_race_name,
     strip_conversation_actions,
 )
@@ -54,7 +55,7 @@ def _query_bot_identity(
     try:
         cursor = db.cursor(dictionary=True)
         cursor.execute(
-            "SELECT class, race FROM characters "
+            "SELECT class, race, gender FROM characters "
             "WHERE guid = %s",
             (bot_guid,),
         )
@@ -67,6 +68,9 @@ def _query_bot_identity(
             ),
             'race': get_race_name(
                 int(row.get('race', 0) or 0)
+            ),
+            'gender': get_gender_label(
+                int(row.get('gender', 0) or 0)
             ),
         }
     except Exception:
@@ -96,9 +100,13 @@ def _describe_speaker(
     race_name = speaker.get('race') or info.get(
         'race', 'Unknown'
     )
+    gender = speaker.get('gender') or info.get(
+        'gender', ''
+    )
+    gender_prefix = f"{gender} " if gender else ""
     return (
         f"{speaker.get('name', 'Bot')} | "
-        f"{race_name} {class_name}"
+        f"{gender_prefix}{race_name} {class_name}"
     )
 
 

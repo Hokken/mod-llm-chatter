@@ -895,6 +895,8 @@ void HandleGroupPlayerBeforeSendChatMessageImpl(
     std::string extraData = "{"
         "\"player_name\":\"" +
             JsonEscape(playerName) + "\","
+        "\"player_gender\":" +
+            std::to_string(player->getGender()) + ","
         "\"player_message\":\"" +
             JsonEscape(safeMsg) + "\","
         "\"group_id\":" +
@@ -993,6 +995,9 @@ void HandleGroupPlayerLevelChangedImpl(
         "\"bot_race\":" +
             std::to_string(
                 reactor->getRace()) + ","
+        "\"bot_gender\":" +
+            std::to_string(
+                reactor->getGender()) + ","
         "\"bot_level\":" +
             std::to_string(newLevel) + ","
         "\"old_level\":" +

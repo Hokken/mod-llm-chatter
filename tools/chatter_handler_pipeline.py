@@ -15,6 +15,7 @@ from chatter_shared import (
     parse_extra_data,
     get_class_name,
     get_race_name,
+    get_gender_label,
     get_chatter_mode,
     get_dungeon_flavor,
     run_single_reaction,
@@ -53,6 +54,9 @@ def _build_bot_from_extra(extra_data):
         'level': int(
             extra_data.get('bot_level', 1)
         ),
+        'gender': get_gender_label(
+            int(extra_data.get('bot_gender', 0))
+        ),
     }
 
 
@@ -62,7 +66,7 @@ def _build_bot_from_db(db, bot_guid, bot_name):
     """
     cursor = db.cursor(dictionary=True)
     cursor.execute(
-        "SELECT class, race, level "
+        "SELECT class, race, level, gender "
         "FROM characters WHERE guid = %s",
         (bot_guid,),
     )
@@ -76,6 +80,7 @@ def _build_bot_from_db(db, bot_guid, bot_name):
         'class': get_class_name(row['class']),
         'race': get_race_name(row['race']),
         'level': row['level'],
+        'gender': get_gender_label(row['gender']),
     }
 
 

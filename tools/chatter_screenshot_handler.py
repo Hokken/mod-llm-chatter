@@ -27,8 +27,10 @@ from chatter_shared import (
     append_conversation_json_instruction,
     build_anti_repetition_context,
     build_bot_identity,
+    build_bot_identity_with_level,
     calculate_dynamic_delay,
     get_class_name,
+    get_gender_label,
     get_dungeon_flavor,
     get_race_name,
     get_subzone_lore,
@@ -192,7 +194,7 @@ def _get_bot_identity(db, bot_guid, bot_name):
     """Fetch race/class for a bot and build identity."""
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
-        SELECT class, race FROM characters
+        SELECT class, race, gender FROM characters
         WHERE guid = %s
     """, (bot_guid,))
     row = cursor.fetchone()
@@ -202,6 +204,7 @@ def _get_bot_identity(db, bot_guid, bot_name):
             bot_name,
             get_race_name(row['race']),
             get_class_name(row['class']),
+            get_gender_label(row['gender']),
         )
     return f"You are {bot_name}."
 
@@ -334,7 +337,7 @@ def _screenshot_conversation(
         ]
         cursor = db.cursor(dictionary=True)
         cursor.execute("""
-            SELECT class, race, level
+            SELECT class, race, level, gender
             FROM characters WHERE guid = %s
         """, (guid,))
         char = cursor.fetchone()
@@ -346,6 +349,7 @@ def _screenshot_conversation(
             'class': get_class_name(char['class']),
             'race': get_race_name(char['race']),
             'level': char['level'],
+            'gender': get_gender_label(char['gender']),
         })
 
     if len(bots) < 2:
@@ -360,8 +364,12 @@ def _screenshot_conversation(
         traits = traits_map.get(b['name'], [])
         trait_str = ', '.join(
             t for t in traits if t) or 'adventurous'
+        gender_prefix = (
+            f"{b['gender']} " if b.get('gender') else ''
+        )
         bot_lines.append(
-            f"- {b['name']}: {b['race']} {b['class']}, "
+            f"- {b['name']}: {gender_prefix}"
+            f"{b['race']} {b['class']}, "
             f"personality: {trait_str}")
     bot_block = '\n'.join(bot_lines)
 

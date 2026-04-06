@@ -39,6 +39,7 @@ struct GroupJoinEntry {
     std::string botName;
     uint8 botClass{0};
     uint8 botRace{0};
+    uint8 botGender{0};
     uint8 botLevel{0};
     std::string role;
     uint32 zoneId{0};
@@ -70,6 +71,7 @@ struct QuestAcceptBatch {
     std::string reactorName;
     uint8 reactorClass;
     uint8 reactorRace;
+    uint8 reactorGender;
     uint32 reactorLevel;
     std::string acceptorName;
     uint32 zoneId;

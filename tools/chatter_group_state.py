@@ -13,6 +13,7 @@ import time
 
 from chatter_shared import (
     build_race_class_context,
+    build_bot_identity,
     call_llm,
     cleanup_message,
     strip_speaker_prefix,
@@ -617,7 +618,7 @@ def get_other_group_bot(db, group_id, exclude_guid):
 
 def _generate_farewell(
     db, client, config,
-    bot_name, bot_race, bot_class,
+    bot_name, bot_race, bot_class, bot_gender,
     traits, mode, group_id, bot_guid,
 ):
     """Generate and store a farewell message for later
@@ -687,8 +688,9 @@ def _generate_farewell(
             rp_ctx = f"\n{rp_ctx}"
 
     prompt = (
-        f"You are {bot_name}, a {bot_race} "
-        f"{bot_class}.\n"
+        f"{build_bot_identity(
+            bot_name, bot_race, bot_class, bot_gender
+        )}\n"
         f"Personality: {trait_str}{rp_ctx}\n\n"
         f"Write a short farewell message for when "
         f"you leave a party. One sentence, under "

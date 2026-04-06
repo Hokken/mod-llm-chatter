@@ -351,10 +351,16 @@ def get_race_name(race_id: int) -> str:
     return RACE_NAMES.get(race_id, "Unknown")
 
 
+def get_gender_label(gender_id: int) -> str:
+    """Get human-readable gender label from gender ID."""
+    return 'female' if gender_id == 1 else 'male'
+
+
 def build_bot_identity(
     bot_name: str,
     bot_race: str,
     bot_class: str,
+    gender: str = '',
 ) -> str:
     """Return an identity prefix for bot prompts.
 
@@ -362,11 +368,53 @@ def build_bot_identity(
     share the same "You are X, a Y Z." format.
     """
     if bot_race and bot_class:
+        gender_prefix = f"{gender} " if gender else ""
         return (
             f"You are {bot_name}, "
-            f"a {bot_race} {bot_class}."
+            f"a {gender_prefix}{bot_race} {bot_class}."
         )
     return f"You are {bot_name}."
+
+
+def build_bot_identity_with_level(
+    bot_name: str,
+    bot_race: str,
+    bot_class: str,
+    bot_level,
+    gender: str = '',
+    suffix: str = ' in World of Warcraft.',
+) -> str:
+    """Return a leveled identity prefix for bot prompts."""
+    gender_prefix = f"{gender} " if gender else ""
+    return (
+        f"You are {bot_name}, a level "
+        f"{bot_level} {gender_prefix}{bot_race} "
+        f"{bot_class}{suffix}"
+    )
+
+
+def build_bot_identity_from_dict(
+    bot: dict,
+    include_level: bool = True,
+    suffix: str = ' in World of Warcraft.',
+) -> str:
+    """Build a standard identity line from a bot dict."""
+    gender = bot.get('gender', '')
+    if include_level:
+        return build_bot_identity_with_level(
+            bot['name'],
+            bot['race'],
+            bot['class'],
+            bot['level'],
+            gender=gender,
+            suffix=suffix,
+        )
+    return build_bot_identity(
+        bot['name'],
+        bot['race'],
+        bot['class'],
+        gender=gender,
+    )
 
 
 def get_chatter_mode(config: dict) -> str:

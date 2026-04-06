@@ -18,6 +18,7 @@ import random
 from chatter_shared import (
     get_class_name,
     build_race_class_context,
+    build_bot_identity,
     build_anti_repetition_context,
     get_recent_zone_messages,
     append_json_instruction,
@@ -194,6 +195,7 @@ def _bg_base_context(
     traits = bot_data.get('traits')
     race = bot_data.get('race', '')
     cls = bot_data.get('class', '')
+    gender = bot_data.get('gender', '')
 
     # Time of day
     _, time_desc = get_time_of_day_context()
@@ -202,7 +204,9 @@ def _bg_base_context(
         f"You are {bot_name}"
     )
     if race and cls:
-        ctx += f", a {race} {cls}"
+        ctx = build_bot_identity(
+            bot_name, race, cls, gender
+        )[:-1]
     ctx += (
         f", fighting in "
         f"{lore.get('name', 'a battleground')}. "
