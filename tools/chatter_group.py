@@ -744,6 +744,7 @@ def process_group_event(db, client, config, event):
                 db, client, config, group_id,
                 bot, traits, mode, event_id,
                 player_name=player_name,
+                stored_tone=stored_tone,
             )
         except Exception as e:
             logger.error(
@@ -1144,6 +1145,7 @@ def process_group_join_batch_event(
                 'traits': traits,
                 'bot_class': bot_class,
                 'bot_race': bot_race,
+                'stored_tone': stored_tone,
             }
 
             # 5. Pre-generate farewell
@@ -1268,6 +1270,9 @@ def process_group_join_batch_event(
                     mode, event_id,
                     player_name=player_name,
                     delay_seconds=comp_delay,
+                    stored_tone=last_bot.get(
+                        'stored_tone'
+                    ),
                 )
             except Exception as e:
                 logger.error(
@@ -2288,6 +2293,7 @@ def _build_composition_comment_prompt(
     player_class="",
     allow_action=True,
     speaker_talent_context=None,
+    stored_tone=None,
 ):
     """Build a short prompt for a bot to comment
     on the group's composition after joining.
@@ -2307,6 +2313,8 @@ def _build_composition_comment_prompt(
     prompt = (
         f"{build_bot_identity_from_dict(bot, suffix='.')}\n"
         f"Your personality: {trait_str}"
+        f"\nYour tone: "
+        f"{stored_tone or pick_random_tone(mode)}"
         f"{rp_context}\n"
     )
     if speaker_talent_context:
@@ -2368,7 +2376,8 @@ def _maybe_comment_on_composition(
     db, client, config, group_id,
     bot, traits, mode, event_id,
     player_name="",
-    delay_seconds=8
+    delay_seconds=8,
+    stored_tone=None,
 ):
     """Optionally generate a composition comment
     after the bot joins a group. Chance controlled
@@ -2420,6 +2429,7 @@ def _maybe_comment_on_composition(
         role_info, player_name,
         player_class=player_class,
         speaker_talent_context=speaker_talent,
+        stored_tone=stored_tone,
     )
 
     max_tokens = int(config.get(
@@ -2586,6 +2596,7 @@ def build_idle_chatter_prompt(
         ]
         sanitized = [s for s in sanitized if s]
         if sanitized:
+            tone = stored_tone or pick_random_tone(mode)
             p_label = (
                 player_name
                 or 'your party leader'
@@ -2596,6 +2607,7 @@ def build_idle_chatter_prompt(
             prompt = (
                 f"{build_bot_identity_from_dict(bot, suffix='.')}\n"
                 f"Your personality: {trait_str}\n"
+                f"Your tone: {tone}\n"
             )
             if speaker_talent_context:
                 prompt += (

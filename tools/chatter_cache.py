@@ -123,12 +123,12 @@ def _get_active_bots(db):
     """Get all bots with active group traits.
 
     Returns list of dicts with group_id, bot_guid,
-    bot_name, trait1, trait2, trait3, role.
+    bot_name, trait1, trait2, trait3, tone, role.
     """
     cursor = db.cursor(dictionary=True)
     cursor.execute(
         "SELECT DISTINCT group_id, bot_guid, "
-        "bot_name, trait1, trait2, trait3, role "
+        "bot_name, trait1, trait2, trait3, tone, role "
         "FROM llm_group_bot_traits"
     )
     return cursor.fetchall()
@@ -199,7 +199,8 @@ def _get_recent_cached(db, group_id, bot_guid, cat):
 
 def _build_prompt(
     cat, prompt_type, bot_name, race, class_name,
-    level, traits, mood, role, recent_cached,
+    level, traits, mood, stored_tone, role,
+    recent_cached,
 ):
     """Dispatch to the correct prompt builder."""
     if prompt_type == 'state':
@@ -207,24 +208,25 @@ def _build_prompt(
         return build_precache_state_prompt(
             state_type, bot_name, race,
             class_name, level, traits, mood,
+            stored_tone,
             role=role, recent_cached=recent_cached,
         )
     elif prompt_type == 'combat':
         return build_precache_combat_pull_prompt(
             bot_name, race, class_name, level,
-            traits, mood,
+            traits, mood, stored_tone,
             role=role, recent_cached=recent_cached,
         )
     elif prompt_type == 'spell':
         return build_precache_spell_support_prompt(
             bot_name, race, class_name, level,
-            traits, mood,
+            traits, mood, stored_tone,
             role=role, recent_cached=recent_cached,
         )
     elif prompt_type == 'spell_offensive':
         return build_precache_spell_offensive_prompt(
             bot_name, race, class_name, level,
-            traits, mood,
+            traits, mood, stored_tone,
             role=role, recent_cached=recent_cached,
         )
     return None
@@ -294,6 +296,7 @@ def refill_precache_pool(db, client, config):
                 traits.append(val)
 
         role = bot_row.get('role')
+        stored_tone = bot_row.get('tone')
 
         # Look up race/class/level/class_id
         char_info = _get_bot_race_class(
@@ -352,7 +355,8 @@ def refill_precache_pool(db, client, config):
             prompt = _build_prompt(
                 cat, prompt_type, bot_name,
                 race, class_name, level, traits,
-                mood, role, recent_cached,
+                mood, stored_tone, role,
+                recent_cached,
             )
             if not prompt:
                 continue

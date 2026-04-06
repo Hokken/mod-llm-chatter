@@ -81,6 +81,42 @@ def _query_bot_identity(
         return {}
 
 
+def _query_bot_traits(
+    db, bot_guid: int
+) -> Dict[str, object]:
+    if not bot_guid:
+        return {}
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT trait1, trait2, trait3, tone "
+            "FROM llm_group_bot_traits "
+            "WHERE bot_guid = %s LIMIT 1",
+            (bot_guid,),
+        )
+        row = cursor.fetchone()
+        if not row:
+            return {}
+        return {
+            'traits': [
+                trait for trait in (
+                    row.get('trait1'),
+                    row.get('trait2'),
+                    row.get('trait3'),
+                )
+                if trait
+            ],
+            'tone': row.get('tone') or '',
+        }
+    except Exception:
+        logger.error(
+            "query bot traits failed",
+            exc_info=True,
+        )
+        return {}
+
+
 def _describe_speaker(
     db, speaker: Dict
 ) -> str:
@@ -172,6 +208,15 @@ def _single_prompt(
     )
     speaker_desc = _describe_speaker(db, speaker)
     nearby_names = extra.get('nearby_names') or []
+    speaker_traits = []
+    speaker_tone = ''
+    if not speaker.get('is_npc'):
+        profile = _query_bot_traits(
+            db,
+            int(speaker.get('bot_guid', 0) or 0),
+        )
+        speaker_traits = profile.get('traits', [])
+        speaker_tone = profile.get('tone', '')
 
     lines = [
         "You write extremely short, immersive World of "
@@ -184,6 +229,13 @@ def _single_prompt(
         f"Speaker: {speaker_desc}",
         f"Zone: {zone_name}",
     ]
+    if speaker_traits:
+        lines.append(
+            "Speaker personality: "
+            + ", ".join(speaker_traits)
+        )
+    if speaker_tone:
+        lines.append(f"Speaker tone: {speaker_tone}")
     if subzone_name:
         lines.append(f"Subzone: {subzone_name}")
     lines.append(f"Topic seed: {topic}")
@@ -226,10 +278,25 @@ def _conversation_prompt(
             len(participants) + 1,
         ),
     )
-    roster = "\n".join(
-        f"- {_describe_speaker(db, speaker)}"
-        for speaker in participants
-    )
+    roster_lines = []
+    for speaker in participants:
+        line = f"- {_describe_speaker(db, speaker)}"
+        if not speaker.get('is_npc'):
+            profile = _query_bot_traits(
+                db,
+                int(speaker.get('bot_guid', 0) or 0),
+            )
+            traits = profile.get('traits', [])
+            tone = profile.get('tone', '')
+            if traits:
+                line += (
+                    "; personality: "
+                    + ", ".join(traits)
+                )
+            if tone:
+                line += f"; tone: {tone}"
+        roster_lines.append(line)
+    roster = "\n".join(roster_lines)
 
     nearby_names = extra.get('nearby_names') or []
     player_name = extra.get('player_name', '')

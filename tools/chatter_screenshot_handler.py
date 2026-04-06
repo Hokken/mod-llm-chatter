@@ -222,7 +222,7 @@ def _screenshot_single(
     # Fetch personality traits
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
-        SELECT trait1, trait2, trait3
+        SELECT trait1, trait2, trait3, tone
         FROM llm_group_bot_traits
         WHERE group_id = %s AND bot_name = %s
     """, (group_id, bot_name))
@@ -234,12 +234,15 @@ def _screenshot_single(
              ('trait1', 'trait2', 'trait3') if traits_row[k]]
         if t:
             traits = f"Your personality: {', '.join(t)}\n"
+    tone = ''
+    if traits_row and traits_row.get('tone'):
+        tone = f"Your tone: {traits_row['tone']}\n"
 
     location_block = _build_location_block(
         bot_name, context_str, zone_flavor)
 
     prompt = (
-        f"{identity} {traits}"
+        f"{identity} {traits}{tone}"
         f"Travelling through {context_str} "
         f"with your group.\n"
         + (f"About this place: {zone_flavor}\n"
@@ -319,10 +322,12 @@ def _screenshot_conversation(
     bots = []
     bot_guids = {}
     traits_map = {}
+    tone_map = {}
     for name in picked:
         cursor = db.cursor(dictionary=True)
         cursor.execute("""
-            SELECT bot_guid, trait1, trait2, trait3
+            SELECT bot_guid, trait1, trait2, trait3,
+                   tone
             FROM llm_group_bot_traits
             WHERE group_id = %s AND bot_name = %s
         """, (group_id, name))
@@ -335,6 +340,7 @@ def _screenshot_conversation(
         traits_map[name] = [
             row['trait1'], row['trait2'], row['trait3'],
         ]
+        tone_map[name] = row.get('tone') or ''
         cursor = db.cursor(dictionary=True)
         cursor.execute("""
             SELECT class, race, level, gender
@@ -370,7 +376,12 @@ def _screenshot_conversation(
         bot_lines.append(
             f"- {b['name']}: {gender_prefix}"
             f"{b['race']} {b['class']}, "
-            f"personality: {trait_str}")
+            f"personality: {trait_str}"
+            + (
+                f", tone: {tone_map.get(b['name'], '')}"
+                if tone_map.get(b['name'], '')
+                else ""
+            ))
     bot_block = '\n'.join(bot_lines)
 
     # Build conversation prompt

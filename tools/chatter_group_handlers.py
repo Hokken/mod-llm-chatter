@@ -1968,6 +1968,7 @@ def process_group_low_health_event(
                 extra_data=ctx['extra_data'],
                 speaker_talent_context=(
                     ctx['speaker_talent']),
+                stored_tone=ctx['stored_tone'],
             )
         ),
         needs_reactor_from_db=True,
@@ -1999,6 +2000,7 @@ def process_group_oom_event(
                 extra_data=ctx['extra_data'],
                 speaker_talent_context=(
                     ctx['speaker_talent']),
+                stored_tone=ctx['stored_tone'],
             )
         ),
         needs_reactor_from_db=True,
@@ -2032,6 +2034,7 @@ def process_group_aggro_loss_event(
                 extra_data=ctx['extra_data'],
                 speaker_talent_context=(
                     ctx['speaker_talent']),
+                stored_tone=ctx['stored_tone'],
             )
         ),
         needs_reactor_from_db=True,
@@ -2182,6 +2185,7 @@ def process_group_nearby_object_event(
                     ctx['subzone_lore']
                 ),
                 map_id=ctx['obj_map_id'],
+                stored_tone=ctx['stored_tone'],
             )
         )
         if ctx['speaker_talent']:

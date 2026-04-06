@@ -18,7 +18,11 @@ from chatter_shared import (
     append_json_instruction,
     get_gender_label,
 )
-from chatter_group_state import _mark_event, _store_chat
+from chatter_group_state import (
+    _mark_event,
+    _store_chat,
+    get_bot_traits,
+)
 
 _DEFAULT_TONES = [
     "with dry wit", "with humor",
@@ -65,11 +69,24 @@ def handle_emote_reaction(db, client, config, event):
     category = EMOTE_CATEGORIES.get(
         emote_id, 'greeting'
     )
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    ) if group_id and bot_guid else None
+    traits = (
+        trait_data.get('traits', [])
+        if trait_data else []
+    )
+    stored_tone = (
+        trait_data.get('tone')
+        if trait_data else None
+    )
 
     prompt = _build_reaction_prompt(
         bot_name, bot_race, bot_class,
         bot_gender,
         p_name, emote, category,
+        traits=traits,
+        stored_tone=stored_tone,
     )
 
     result = run_single_reaction(
@@ -101,13 +118,22 @@ def handle_emote_reaction(db, client, config, event):
 def _build_reaction_prompt(
     bot_name, bot_race, bot_class, bot_gender,
     p_name, emote, category,
+    traits=None,
+    stored_tone=None,
 ):
-    tone = _pick_tone(category)
+    tone = stored_tone or _pick_tone(category)
     identity = build_bot_identity(
         bot_name, bot_race, bot_class, bot_gender
     )
-    prompt = (
-        f"{identity} Your party member {p_name} "
+    prompt = identity
+    if traits:
+        prompt += (
+            " Your personality: "
+            f"{', '.join(traits)}."
+        )
+    prompt += (
+        f" Your tone: {tone}. "
+        f"Your party member {p_name} "
         f"just /{emote} at you. React {tone}. "
         "1-2 sentences. "
         "NEVER put /slash commands in your "

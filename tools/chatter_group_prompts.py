@@ -3032,6 +3032,7 @@ def build_low_health_callout_prompt(
     chat_history="", extra_data=None,
     allow_action=False,
     speaker_talent_context=None,
+    stored_tone=None,
 ):
     """Bot is critically wounded (combat or OOC)."""
     is_rp = (mode == 'roleplay')
@@ -3079,6 +3080,8 @@ def build_low_health_callout_prompt(
     prompt = (
         f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
+        f"Your tone: "
+        f"{stored_tone or pick_random_tone(mode)}\n"
     )
     if speaker_talent_context:
         prompt += f"{speaker_talent_context}\n"
@@ -3104,6 +3107,7 @@ def build_oom_callout_prompt(
     chat_history="", extra_data=None,
     allow_action=False,
     speaker_talent_context=None,
+    stored_tone=None,
 ):
     """Bot is running out of mana (combat or OOC).
 
@@ -3152,6 +3156,8 @@ def build_oom_callout_prompt(
     prompt = (
         f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
+        f"Your tone: "
+        f"{stored_tone or pick_random_tone(mode)}\n"
     )
     if speaker_talent_context:
         prompt += f"{speaker_talent_context}\n"
@@ -3178,6 +3184,7 @@ def build_aggro_loss_callout_prompt(
     mode, chat_history="", extra_data=None,
     allow_action=False,
     speaker_talent_context=None,
+    stored_tone=None,
 ):
     """Tank lost aggro — mob attacking someone
     else in group."""
@@ -3215,6 +3222,8 @@ def build_aggro_loss_callout_prompt(
     prompt = (
         f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
+        f"Your tone: "
+        f"{stored_tone or pick_random_tone(mode)}\n"
     )
     if speaker_talent_context:
         prompt += f"{speaker_talent_context}\n"
@@ -3241,7 +3250,8 @@ def build_aggro_loss_callout_prompt(
 
 def build_precache_combat_pull_prompt(
     bot_name, race, class_name, level,
-    traits, mood, role=None, recent_cached=None,
+    traits, mood, stored_tone=None,
+    role=None, recent_cached=None,
     allow_action=False,
 ):
     """Build prompt for a cached combat pull cry.
@@ -3266,6 +3276,8 @@ def build_precache_combat_pull_prompt(
         )
         +
         f"\nPersonality: {trait_str}"
+        f"\nYour tone: "
+        f"{stored_tone or mood or pick_random_tone('normal')}"
     )
     if rp_ctx:
         prompt += f"\n{rp_ctx}"
@@ -3292,7 +3304,8 @@ def build_precache_combat_pull_prompt(
 
 def build_precache_state_prompt(
     state_type, bot_name, race, class_name, level,
-    traits, mood, role=None, recent_cached=None,
+    traits, mood, stored_tone=None,
+    role=None, recent_cached=None,
     allow_action=False,
 ):
     """Build prompt for a cached state callout.
@@ -3318,6 +3331,8 @@ def build_precache_state_prompt(
         )
         +
         f"\nPersonality: {trait_str}"
+        f"\nYour tone: "
+        f"{stored_tone or mood or pick_random_tone('normal')}"
     )
     if rp_ctx:
         prompt += f"\n{rp_ctx}"
@@ -3385,7 +3400,8 @@ def build_precache_state_prompt(
 
 def build_precache_spell_support_prompt(
     bot_name, race, class_name, level,
-    traits, mood, role=None, recent_cached=None,
+    traits, mood, stored_tone=None,
+    role=None, recent_cached=None,
     allow_action=False,
 ):
     """Build prompt for a cached spell support
@@ -3413,6 +3429,8 @@ def build_precache_spell_support_prompt(
         )
         +
         f"\nPersonality: {trait_str}"
+        f"\nYour tone: "
+        f"{stored_tone or mood or pick_random_tone('normal')}"
     )
     if rp_ctx:
         prompt += f"\n{rp_ctx}"
@@ -3447,7 +3465,8 @@ def build_precache_spell_support_prompt(
 
 def build_precache_spell_offensive_prompt(
     bot_name, race, class_name, level,
-    traits, mood, role=None, recent_cached=None,
+    traits, mood, stored_tone=None,
+    role=None, recent_cached=None,
     allow_action=False,
 ):
     """Build prompt for a cached offensive spell
@@ -3473,6 +3492,8 @@ def build_precache_spell_offensive_prompt(
         )
         +
         f"\nPersonality: {trait_str}"
+        f"\nYour tone: "
+        f"{stored_tone or mood or pick_random_tone('normal')}"
     )
     if rp_ctx:
         prompt += f"\n{rp_ctx}"
@@ -3571,6 +3592,7 @@ def build_nearby_object_reaction_prompt(
     speaker_talent_context=None,
     subzone_lore=None,
     map_id=0,
+    stored_tone=None,
 ):
     """Build prompt for a bot commenting on nearby
     GameObjects.
@@ -3603,6 +3625,10 @@ def build_nearby_object_reaction_prompt(
     )
     if trait_str:
         prompt += f" Personality: {trait_str}."
+    prompt += (
+        " Your tone: "
+        f"{stored_tone or pick_random_tone(mode)}."
+    )
     prompt += (
         f"\n\nYou are walking through {location} "
         f"({setting}) with your group."
@@ -4199,12 +4225,14 @@ def build_bot_question_prompt(
         ]
         sanitized = [s for s in sanitized if s]
         if sanitized:
+            tone = stored_tone or pick_random_tone(mode)
             mem_lines = '\n'.join(
                 f"  - {m}" for m in sanitized
             )
             prompt = (
                 f"{build_bot_identity_from_dict(bot, suffix='.')}\n"
                 f"Your personality: {trait_str}\n"
+                f"Your tone: {tone}\n"
             )
             if speaker_talent_context:
                 prompt += (

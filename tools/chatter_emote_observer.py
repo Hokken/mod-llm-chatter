@@ -19,7 +19,11 @@ from chatter_shared import (
     append_json_instruction,
     get_gender_label,
 )
-from chatter_group_state import _mark_event, _store_chat
+from chatter_group_state import (
+    _mark_event,
+    _store_chat,
+    get_bot_traits,
+)
 
 
 def handle_emote_observer(db, client, config, event):
@@ -59,6 +63,17 @@ def handle_emote_observer(db, client, config, event):
     category = EMOTE_CATEGORIES.get(
         emote_id, 'greeting'
     )
+    trait_data = get_bot_traits(
+        db, group_id, bot_guid
+    ) if group_id and bot_guid else None
+    traits = (
+        trait_data.get('traits', [])
+        if trait_data else []
+    )
+    stored_tone = (
+        trait_data.get('tone')
+        if trait_data else None
+    )
 
     if tgt == 'creature':
         prompt = _build_creature_prompt(
@@ -67,18 +82,24 @@ def handle_emote_observer(db, client, config, event):
             p_name, emote, t_name,
             category, npc_rank, npc_type,
             npc_subname,
+            traits=traits,
+            stored_tone=stored_tone,
         )
     elif tgt == 'player_external':
         prompt = _build_player_prompt(
             bot_name, bot_race, bot_class,
             bot_gender,
             p_name, emote, t_name, category,
+            traits=traits,
+            stored_tone=stored_tone,
         )
     else:
         prompt = _build_undirected_prompt(
             bot_name, bot_race, bot_class,
             bot_gender,
             p_name, emote,
+            traits=traits,
+            stored_tone=stored_tone,
         )
 
     result = run_single_reaction(
@@ -125,6 +146,8 @@ def _build_creature_prompt(
     p_name, emote, t_name,
     category, npc_rank, npc_type,
     npc_subname='',
+    traits=None,
+    stored_tone=None,
 ):
     rank_str = NPC_RANK_NAMES.get(npc_rank, "")
     type_str = NPC_TYPE_NAMES.get(
@@ -143,12 +166,19 @@ def _build_creature_prompt(
         role_label = npc_subname
     else:
         role_label = f"{rank_label}{type_str}"
-    tone = _pick_tone(category)
+    tone = stored_tone or _pick_tone(category)
     identity = build_bot_identity(
         bot_name, bot_race, bot_class, bot_gender
     )
-    prompt = (
-        f"{identity} You witness {p_name} "
+    prompt = identity
+    if traits:
+        prompt += (
+            " Your personality: "
+            f"{', '.join(traits)}."
+        )
+    prompt += (
+        f" Your tone: {tone}. "
+        f"You witness {p_name} "
         f"/{emote} at {creature_label} "
         f"({role_label}). "
         f"Make a brief offhand remark about it "
@@ -162,13 +192,22 @@ def _build_creature_prompt(
 def _build_player_prompt(
     bot_name, bot_race, bot_class, bot_gender,
     p_name, emote, t_name, category,
+    traits=None,
+    stored_tone=None,
 ):
-    tone = _pick_tone(category)
+    tone = stored_tone or _pick_tone(category)
     identity = build_bot_identity(
         bot_name, bot_race, bot_class, bot_gender
     )
-    prompt = (
-        f"{identity} You notice {p_name} "
+    prompt = identity
+    if traits:
+        prompt += (
+            " Your personality: "
+            f"{', '.join(traits)}."
+        )
+    prompt += (
+        f" Your tone: {tone}. "
+        f"You notice {p_name} "
         f"/{emote} at {t_name}, "
         "a stranger outside the group. "
         f"Make a brief comment about it "
@@ -182,16 +221,25 @@ def _build_player_prompt(
 def _build_undirected_prompt(
     bot_name, bot_race, bot_class, bot_gender,
     p_name, emote,
+    traits=None,
+    stored_tone=None,
 ):
     category = EMOTE_CATEGORIES.get(
         EMOTE_NAME_TO_ID.get(emote, 0), "ambient"
     )
-    tone = _pick_tone(category)
+    tone = stored_tone or _pick_tone(category)
     identity = build_bot_identity(
         bot_name, bot_race, bot_class, bot_gender
     )
-    prompt = (
-        f"{identity} You notice {p_name} "
+    prompt = identity
+    if traits:
+        prompt += (
+            " Your personality: "
+            f"{', '.join(traits)}."
+        )
+    prompt += (
+        f" Your tone: {tone}. "
+        f"You notice {p_name} "
         f"just /{emote}. "
         f"Make a brief offhand remark — {tone}. "
         "1-2 sentences. "
