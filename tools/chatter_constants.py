@@ -1261,6 +1261,94 @@ BG_MAP_NAMES = {
     566: "Eye of the Storm",
 }
 
+BG_LORE = {
+    1: {  # AV (BATTLEGROUND_AV = 1)
+        'name': 'Alterac Valley',
+        'alliance_faction': 'Stormpike Expedition',
+        'horde_faction': 'Frostwolf Clan',
+        'lore': (
+            'The frozen mountain conflict — Stormpike dwarves vs '
+            'Frostwolf orcs in the Alterac Mountains.'
+        ),
+        'tone': (
+            'Epic, large-scale, war-like. 40v40 feels like an '
+            'actual battle.'
+        ),
+        'objectives': (
+            'Kill the enemy general. Capture towers and graveyards.'
+        ),
+        'landmarks': (
+            'Key locations: Stormpike Base, Dun Baldar, Icewing '
+            'Bunker, Stonehearth Graveyard, Snowfall Graveyard, '
+            'Iceblood Tower, Tower Point, Frostwolf Graveyard, '
+            'Frostwolf Keep. Do NOT mention locations from other '
+            'battlegrounds.'
+        ),
+    },
+    2: {  # WSG (BATTLEGROUND_WS = 2)
+        'name': 'Warsong Gulch',
+        'alliance_faction': 'Silverwing Sentinels',
+        'horde_faction': 'Warsong Outriders',
+        'lore': (
+            'The lumber war in Ashenvale — Silverwing defend the '
+            'forest, Warsong seek its resources.'
+        ),
+        'tone': (
+            'Intense, fast, personal. Small team, every player '
+            'matters.'
+        ),
+        'objectives': 'Capture the enemy flag 3 times.',
+        'landmarks': (
+            'Key locations: Silverwing Hold (Alliance base), '
+            'Warsong Fort (Horde base), the tunnel, midfield, the '
+            'ramp. Do NOT mention locations from other battlegrounds '
+            'like mills, farms, or towers.'
+        ),
+    },
+    3: {  # AB (BATTLEGROUND_AB = 3)
+        'name': 'Arathi Basin',
+        'alliance_faction': 'League of Arathor',
+        'horde_faction': 'The Defilers',
+        'lore': (
+            'The fight for Arathi Highlands resources between '
+            'Stromgarde and Forsaken.'
+        ),
+        'tone': (
+            'Strategic, territorial, spread out. Reactions about '
+            'node control.'
+        ),
+        'objectives': 'Control nodes to reach 1600 resources first.',
+        'landmarks': (
+            'Key locations: Stables (north, open pastures with horse '
+            'pens), Blacksmith (center crossroads, smoke and anvils), '
+            'Lumber Mill (hilltop overlook, wooden platforms and '
+            'sawblades), Gold Mine (southeast cave entrance, mine '
+            'carts and torches), Farm (south, fields and haystacks '
+            'near a farmhouse). Do NOT mention locations from other '
+            'battlegrounds.'
+        ),
+    },
+    7: {  # EY (BATTLEGROUND_EY = 7)
+        'name': 'Eye of the Storm',
+        'alliance_faction': 'Alliance',
+        'horde_faction': 'Horde',
+        'lore': 'A Netherstorm battlefield over a fragment of Draenor.',
+        'tone': (
+            'Hybrid tension. Holding bases while fighting over a '
+            'central flag.'
+        ),
+        'objectives': (
+            'Control bases and capture the central flag to reach '
+            '1600 points.'
+        ),
+        'landmarks': (
+            'Key locations: Fel Reaver Ruins, Blood Elf Tower, '
+            'Draenei Ruins, Mage Tower, the center flag. Do NOT '
+            'mention locations from other battlegrounds.'
+        ),
+    },
+}
+
 # Raid instance map IDs (Classic, TBC, WotLK)
 RAID_MAP_IDS = {
     # Classic
@@ -1453,6 +1541,37 @@ ITEM_QUALITY_COLORS = {
     5: "FFff8000",  # Legendary (Orange)
     6: "FFe6cc80",  # Artifact (Light Gold)
     7: "FF00ccff",  # Heirloom (Light Blue)
+}
+
+ITEM_QUALITY_NAMES = {
+    0: 'Poor', 1: 'Common', 2: 'Uncommon',
+    3: 'Rare', 4: 'Epic', 5: 'Legendary',
+    6: 'Artifact', 7: 'Heirloom',
+}
+
+ITEM_CLASS_NAMES = {
+    0: "Consumable", 1: "Container",
+    2: "Weapon", 3: "Gem", 4: "Armor",
+    5: "Reagent", 6: "Projectile",
+    7: "Trade Goods", 9: "Recipe",
+    12: "Quest Item", 15: "Miscellaneous",
+}
+
+WEAPON_SUBCLASS_NAMES = {
+    0: "One-Handed Axe", 1: "Two-Handed Axe",
+    2: "Bow", 3: "Gun", 4: "One-Handed Mace",
+    5: "Two-Handed Mace", 6: "Polearm",
+    7: "One-Handed Sword", 8: "Two-Handed Sword",
+    10: "Staff", 13: "Fist Weapon",
+    15: "Dagger", 16: "Thrown",
+    17: "Spear", 18: "Crossbow",
+    19: "Wand", 20: "Fishing Pole",
+}
+
+ARMOR_SUBCLASS_NAMES = {
+    0: "Miscellaneous", 1: "Cloth",
+    2: "Leather", 3: "Mail", 4: "Plate",
+    6: "Shield",
 }
 
 # Class bitmask values for AllowableClass field in item_template

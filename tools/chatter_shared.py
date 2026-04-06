@@ -22,7 +22,9 @@ from chatter_constants import (
     RACE_SPEECH_PROFILES, CLASS_SPEECH_MODIFIERS,
     CLASS_ROLE_MAP, ROLE_COMBAT_PERSPECTIVES,
     ZONE_FLAVOR, DUNGEON_FLAVOR,
-    ITEM_QUALITY_COLORS, CLASS_BITMASK,
+    ITEM_QUALITY_COLORS, ITEM_QUALITY_NAMES,
+    ITEM_CLASS_NAMES, WEAPON_SUBCLASS_NAMES,
+    ARMOR_SUBCLASS_NAMES, CLASS_BITMASK,
     MSG_TYPE_PLAIN, MSG_TYPE_QUEST, MSG_TYPE_LOOT,
     MSG_TYPE_QUEST_REWARD, MSG_TYPE_TRADE,
     EMOTE_KEYWORDS,
@@ -1918,37 +1920,6 @@ def detect_item_links(
     ]
 
 
-_ITEM_CLASS_NAMES = {
-    0: "Consumable", 1: "Container",
-    2: "Weapon", 3: "Gem", 4: "Armor",
-    5: "Reagent", 6: "Projectile",
-    7: "Trade Goods", 9: "Recipe",
-    12: "Quest Item", 15: "Miscellaneous",
-}
-
-_WEAPON_SUBCLASS = {
-    0: "One-Handed Axe", 1: "Two-Handed Axe",
-    2: "Bow", 3: "Gun", 4: "One-Handed Mace",
-    5: "Two-Handed Mace", 6: "Polearm",
-    7: "One-Handed Sword", 8: "Two-Handed Sword",
-    10: "Staff", 13: "Fist Weapon",
-    15: "Dagger", 16: "Thrown",
-    17: "Spear", 18: "Crossbow",
-    19: "Wand", 20: "Fishing Pole",
-}
-
-_ARMOR_SUBCLASS = {
-    0: "Miscellaneous", 1: "Cloth",
-    2: "Leather", 3: "Mail", 4: "Plate",
-    6: "Shield",
-}
-
-_QUALITY_NAMES = {
-    0: "Poor", 1: "Common", 2: "Uncommon",
-    3: "Rare", 4: "Epic", 5: "Legendary",
-}
-
-
 def format_item_context(
     items_info: List[dict],
     bot_class: str,
@@ -1960,7 +1931,7 @@ def format_item_context(
     """
     parts = []
     for item in items_info:
-        quality = _QUALITY_NAMES.get(
+        quality = ITEM_QUALITY_NAMES.get(
             item.get('Quality', 1), 'Common'
         )
         item_class = item.get('item_class', 0)
@@ -1968,15 +1939,15 @@ def format_item_context(
 
         # Subclass-level type name for weapons/armor
         if item_class == 2:
-            type_name = _WEAPON_SUBCLASS.get(
+            type_name = WEAPON_SUBCLASS_NAMES.get(
                 item_sub, 'Weapon'
             )
         elif item_class == 4:
-            type_name = _ARMOR_SUBCLASS.get(
+            type_name = ARMOR_SUBCLASS_NAMES.get(
                 item_sub, 'Armor'
             )
         else:
-            type_name = _ITEM_CLASS_NAMES.get(
+            type_name = ITEM_CLASS_NAMES.get(
                 item_class, 'Item'
             )
 

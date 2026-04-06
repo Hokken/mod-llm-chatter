@@ -33,7 +33,6 @@ from chatter_raid_base import (
 )
 from chatter_memory import queue_memory
 from chatter_bg_prompts import (
-    BG_LORE,
     build_bg_match_start_prompt,
     build_bg_match_end_prompt,
     build_bg_flag_prompt,
@@ -44,6 +43,7 @@ from chatter_bg_prompts import (
     build_bg_score_milestone_prompt,
     build_bg_idle_prompt,
 )
+from chatter_constants import BG_LORE
 
 LOG = logging.getLogger("chatter_battlegrounds")
 

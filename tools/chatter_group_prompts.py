@@ -33,9 +33,9 @@ from chatter_constants import (
     LENGTH_HINTS,
     RP_LENGTH_HINTS,
     BG_MAP_NAMES,
+    BG_LORE,
     CLASS_ROLE_MAP,
 )
-from chatter_bg_prompts import BG_LORE
 
 logger = logging.getLogger(__name__)
 

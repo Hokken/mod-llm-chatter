@@ -10,6 +10,12 @@ and formats enriched context for LLM prompts.
 import logging
 import re
 from typing import Optional
+from chatter_constants import (
+    ITEM_QUALITY_NAMES,
+    ITEM_CLASS_NAMES,
+    WEAPON_SUBCLASS_NAMES,
+    ARMOR_SUBCLASS_NAMES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -19,37 +25,6 @@ _WOW_LINK_RE = re.compile(
     r'\|H(quest|item|spell):(\d+)'
     r'[^|]*\|h\[([^\]]+)\]\|h\|r'
 )
-
-ITEM_QUALITY_NAMES = {
-    0: 'Poor', 1: 'Common', 2: 'Uncommon',
-    3: 'Rare', 4: 'Epic', 5: 'Legendary',
-    6: 'Artifact', 7: 'Heirloom',
-}
-
-_ITEM_CLASS_NAMES = {
-    0: "Consumable", 1: "Container",
-    2: "Weapon", 3: "Gem", 4: "Armor",
-    5: "Reagent", 6: "Projectile",
-    7: "Trade Goods", 9: "Recipe",
-    12: "Quest Item", 15: "Miscellaneous",
-}
-
-_WEAPON_SUBCLASS = {
-    0: "One-Handed Axe", 1: "Two-Handed Axe",
-    2: "Bow", 3: "Gun", 4: "One-Handed Mace",
-    5: "Two-Handed Mace", 6: "Polearm",
-    7: "One-Handed Sword", 8: "Two-Handed Sword",
-    10: "Staff", 13: "Fist Weapon",
-    15: "Dagger", 16: "Thrown",
-    17: "Spear", 18: "Crossbow",
-    19: "Wand", 20: "Fishing Pole",
-}
-
-_ARMOR_SUBCLASS = {
-    0: "Miscellaneous", 1: "Cloth",
-    2: "Leather", 3: "Mail", 4: "Plate",
-    6: "Shield",
-}
 
 
 def parse_wow_links(message: str) -> list:
@@ -190,15 +165,15 @@ def _resolve_item(cursor, link: dict):
     item_sub = int(raw_s) if raw_s is not None else 0
 
     if item_class == 2:
-        type_name = _WEAPON_SUBCLASS.get(
+        type_name = WEAPON_SUBCLASS_NAMES.get(
             item_sub, 'Weapon'
         )
     elif item_class == 4:
-        type_name = _ARMOR_SUBCLASS.get(
+        type_name = ARMOR_SUBCLASS_NAMES.get(
             item_sub, 'Armor'
         )
     else:
-        type_name = _ITEM_CLASS_NAMES.get(
+        type_name = ITEM_CLASS_NAMES.get(
             item_class, 'Item'
         )
 
