@@ -35,6 +35,8 @@ High-level behavior:
 - proximity chatter: ambient `/say` conversations between bots, NPCs,
   and the player as they move through the world, with NPC speech bubbles
   and natural player reply detection
+- in-game addon bridge: `.llmc` command lets the Chatter Companion addon
+  read and write bot personality traits and tone from the game UI
 
 ---
 

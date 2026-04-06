@@ -1,6 +1,6 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-04-03 (added proximity chatter subsystem)
+Last updated: 2026-04-06 (added command bridge, constants consolidation)
 
 ## Purpose
 
@@ -345,6 +345,7 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterProximity.h` | ~20 | Proximity scan and player-say hook declarations consumed by `LLMChatterWorld.cpp` and `LLMChatterGroupCombat.cpp` |
 | `src/LLMChatterBG.cpp` | 1348 | Battleground hooks, BG state polling, BG queue helpers, BG registration |
 | `src/LLMChatterBG.h` | 14 | BG registration declaration |
+| `src/LLMChatterCommand.cpp` | ~594 | Player command bridge for the Chatter Companion addon. `.llmc` command with `roster`, `get`, `set` subcommands. Percent-encoding protocol, SQL-escaped writes to `llm_bot_identities` and `llm_group_bot_traits`, config guard via `sLLMChatterConfig->IsEnabled()`, cache invalidation on trait update |
 | `src/LLMChatterConfig.h/.cpp` | 839 | Config loading and config struct |
 | `src/llm_chatter_loader.cpp` | 11 | Module entry point, calls `AddLLMChatterScripts()` |
 
@@ -361,6 +362,7 @@ Session 69 added two scheduling controls around that model:
 - `AddLLMChatterPlayerScripts()`
 - `AddLLMChatterBGScripts()`
 - `AddLLMChatterRaidScripts()`
+- `AddLLMChatterCommandScripts()`
 
 Current header topology is intentionally functional, not perfectly
 uniform:
@@ -407,7 +409,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_memory.py` | Persistent memory system: session tracking, background memory generation via `queue_memory()`, flush/activate on farewell, orphan recovery. Key helpers: `_resolve_location()`, `_ensure_cap_and_insert()`, `_count_active_memories()`, `_evict_one_used()`. Memory prompts thread `player_name` so the LLM references the player by name (DB fallback from `player_guid` when caller doesn't supply it) |
 | `tools/chatter_cache.py` | Pre-cache refill |
 | `tools/chatter_events.py` | Event context building and cleanup |
-| `tools/chatter_constants.py` | Static constants and lore data |
+| `tools/chatter_constants.py` | Static constants and lore data: zone names/levels/flavor, race/class speech profiles, personality traits (16 categories, 264 traits), BG lore, item/weapon/armor classification maps, item quality names/colors, raid map IDs, dungeon flavor, emote keywords |
 | `tools/talent_catalog.py` | Talent description catalog used by prompt-side talent injection |
 | `tools/spell_names.py` | Spell name/description loader used by DB and link helpers |
 
@@ -446,7 +448,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_raids.py` | PvE raid event handlers (boss, morale) |
 | `tools/chatter_raid_prompts.py` | Raid prompt builders (boss, morale, battle cry, banter) |
 | `tools/chatter_battlegrounds.py` | BG event handlers |
-| `tools/chatter_bg_prompts.py` | BG prompt builders and lore tables |
+| `tools/chatter_bg_prompts.py` | BG prompt builders (lore tables moved to `chatter_constants.py`) |
 
 ## Ownership Boundaries That Matter
 
