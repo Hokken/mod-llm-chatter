@@ -15,6 +15,7 @@ from typing import Any, Callable, Dict, List, Optional
 
 from chatter_shared import (
     get_class_name,
+    get_gender_label,
     get_race_name,
     run_single_reaction,
     build_talent_context,
@@ -146,7 +147,7 @@ def get_lightweight_bot_data(
     cursor = db.cursor(dictionary=True)
     try:
         cursor.execute(
-            "SELECT name, race, class "
+            "SELECT name, race, class, gender "
             "FROM characters WHERE guid = %s",
             (bot_guid,)
         )
@@ -159,6 +160,8 @@ def get_lightweight_bot_data(
             'race': get_race_name(int(row['race'])),
             'class': get_class_name(
                 int(row['class'])),
+            'gender': get_gender_label(
+                int(row['gender'])),
         }
     finally:
         cursor.close()

@@ -53,6 +53,7 @@ void QueueBotGreetingEvent(
     // Get bot info
     uint8 botClass = bot->getClass();
     uint8 botRace = bot->getRace();
+    uint8 botGender = bot->getGender();
     uint8 botLevel = bot->GetLevel();
 
     // Find real player name and area
@@ -115,6 +116,8 @@ void QueueBotGreetingEvent(
                 std::to_string(botClass) + ","
             "\"bot_race\":" +
                 std::to_string(botRace) + ","
+            "\"bot_gender\":" +
+                std::to_string(botGender) + ","
             "\"bot_level\":" +
                 std::to_string(botLevel) + ","
             "\"role\":\"" + role + "\","
@@ -162,6 +165,7 @@ void QueueBotGreetingEvent(
     entry.botName = botName;
     entry.botClass = botClass;
     entry.botRace = botRace;
+    entry.botGender = botGender;
     entry.botLevel = botLevel;
     entry.role = role;
     entry.zoneId = zoneId;
@@ -259,6 +263,7 @@ void EnsureGroupJoinQueued(
             entry.botName = bot->GetName();
             entry.botClass = bot->getClass();
             entry.botRace = bot->getRace();
+            entry.botGender = bot->getGender();
             entry.botLevel = bot->GetLevel();
             entry.role = "dps";
             PlayerbotAI* ai =
@@ -317,6 +322,7 @@ void EnsureGroupJoinQueued(
         entry.botName = member->GetName();
         entry.botClass = member->getClass();
         entry.botRace = member->getRace();
+        entry.botGender = member->getGender();
         entry.botLevel = member->GetLevel();
 
         entry.role = "dps";
@@ -495,6 +501,8 @@ void FlushGroupJoinBatches()
                     std::to_string(e.botClass) + ","
                 "\"bot_race\":" +
                     std::to_string(e.botRace) + ","
+                "\"bot_gender\":" +
+                    std::to_string(e.botGender) + ","
                 "\"bot_level\":" +
                     std::to_string(e.botLevel) + ","
                 "\"role\":\"" + e.role + "\","
@@ -548,6 +556,9 @@ void FlushGroupJoinBatches()
                     "\"bot_race\":" +
                         std::to_string(
                             e.botRace) + ","
+                    "\"bot_gender\":" +
+                        std::to_string(
+                            e.botGender) + ","
                     "\"bot_level\":" +
                         std::to_string(
                             e.botLevel) + ","

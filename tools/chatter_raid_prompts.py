@@ -14,6 +14,7 @@ import random
 
 from chatter_shared import (
     build_race_class_context,
+    build_bot_identity,
     build_anti_repetition_context,
     get_recent_zone_messages,
     append_json_instruction,
@@ -361,6 +362,7 @@ def _raid_base_context(extra_data, bot_data):
     bot_name = bot_data.get('bot_name', 'Unknown')
     race = bot_data.get('race', '')
     cls = bot_data.get('class', '')
+    gender = bot_data.get('gender', '')
     traits = bot_data.get('traits')
 
     # Race/class context
@@ -395,7 +397,9 @@ def _raid_base_context(extra_data, bot_data):
     # Build the context string
     ctx = f"You are {bot_name}"
     if race and cls:
-        ctx += f", a {race} {cls}"
+        ctx = build_bot_identity(
+            bot_name, race, cls, gender
+        )[:-1]
     ctx += (
         f", raiding {raid_name}"
     )

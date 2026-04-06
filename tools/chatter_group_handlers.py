@@ -7,6 +7,7 @@ from chatter_shared import (
     parse_extra_data,
     get_class_name,
     get_race_name,
+    get_gender_label,
     get_chatter_mode,
     get_zone_name,
     get_zone_flavor,
@@ -146,7 +147,7 @@ def _kill_post_success(db, ctx, message):
     mc = db.cursor(dictionary=True)
     mc.execute(
         "SELECT t.bot_guid, t.bot_name,"
-        " c.class, c.race"
+        " c.class, c.race, c.gender"
         " FROM llm_group_bot_traits t"
         " JOIN characters c"
         "   ON c.guid = t.bot_guid"
@@ -172,6 +173,9 @@ def _kill_post_success(db, ctx, message):
                 ),
                 bot_race=get_race_name(
                     ab['race']
+                ),
+                bot_gender=get_gender_label(
+                    ab.get('gender', 0)
                 ),
             )
         except Exception:
@@ -551,13 +555,16 @@ def _levelup_post_success(db, ctx, message):
             bot_name=reactor_name,
             bot_class=ctx['bot']['class'],
             bot_race=ctx['bot']['race'],
+            bot_gender=ctx['bot'].get(
+                'gender', ''
+            ),
         )
 
     # Leveler remembers own milestone (bot only)
     if is_bot and leveler_guid != reactor_guid:
         lv_c = db.cursor(dictionary=True)
         lv_c.execute(
-            "SELECT class, race FROM"
+            "SELECT class, race, gender FROM"
             " characters WHERE guid = %s",
             (leveler_guid,),
         )
@@ -577,6 +584,9 @@ def _levelup_post_success(db, ctx, message):
                 ),
                 bot_race=get_race_name(
                     lv_row['race']
+                ),
+                bot_gender=get_gender_label(
+                    lv_row.get('gender', 0)
                 ),
             )
 
@@ -643,6 +653,9 @@ def _quest_complete_memory(db, ctx, message):
             bot_name=ctx['bot_name'],
             bot_class=ctx['bot']['class'],
             bot_race=ctx['bot']['race'],
+            bot_gender=ctx['bot'].get(
+                'gender', ''
+            ),
         )
 
 
@@ -715,6 +728,9 @@ def process_group_quest_complete_event(
                 bot_race = get_race_name(int(
                     extra_data.get('bot_race', 0)
                 ))
+                bot_gender = get_gender_label(int(
+                    extra_data.get('bot_gender', 0)
+                ))
                 try:
                     mem_ch = int(config.get(
                         'LLMChatter.Memory'
@@ -738,6 +754,7 @@ def process_group_quest_complete_event(
                             bot_name=reactor_name,
                             bot_class=bot_class,
                             bot_race=bot_race,
+                            bot_gender=bot_gender,
                         )
                 except Exception:
                     logger.error(
@@ -1090,7 +1107,7 @@ def _achievement_post_success(db, ctx, message):
     mc = db.cursor(dictionary=True)
     mc.execute(
         "SELECT t.bot_guid, t.bot_name,"
-        " c.class, c.race"
+        " c.class, c.race, c.gender"
         " FROM llm_group_bot_traits t"
         " JOIN characters c"
         "   ON c.guid = t.bot_guid"
@@ -1116,6 +1133,9 @@ def _achievement_post_success(db, ctx, message):
                 ),
                 bot_race=get_race_name(
                     ab['race']
+                ),
+                bot_gender=get_gender_label(
+                    ab.get('gender', 0)
                 ),
             )
         except Exception:
@@ -1452,7 +1472,7 @@ def process_group_zone_transition_event(
     # Get class/race from characters table
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
-        SELECT class, race, level
+        SELECT class, race, level, gender
         FROM characters
         WHERE guid = %s
     """, (bot_guid,))
@@ -1468,6 +1488,7 @@ def process_group_zone_transition_event(
         'class': get_class_name(char_row['class']),
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
+        'gender': get_gender_label(char_row['gender']),
     }
 
 
@@ -1552,6 +1573,9 @@ def process_group_zone_transition_event(
                     bot_name=bot_name,
                     bot_class=bot['class'],
                     bot_race=bot['race'],
+                    bot_gender=bot.get(
+                        'gender', ''
+                    ),
                 )
         except Exception:
             logger.error(
@@ -1834,6 +1858,9 @@ def _wipe_post_success(db, ctx, message):
             bot_name=bot_name,
             bot_class=ctx['bot']['class'],
             bot_race=ctx['bot']['race'],
+            bot_gender=ctx['bot'].get(
+                'gender', ''
+            ),
         )
 
 
@@ -2229,7 +2256,7 @@ def _nearby_object_conversation(
         ]
         # Look up class/race/level from characters
         cursor.execute("""
-            SELECT class, race, level
+            SELECT class, race, level, gender
             FROM characters
             WHERE guid = %s
         """, (guid,))
@@ -2243,6 +2270,7 @@ def _nearby_object_conversation(
             ),
             'race': get_race_name(char['race']),
             'level': char['level'],
+            'gender': get_gender_label(char['gender']),
         })
 
     if len(bots) < 2:
@@ -2425,7 +2453,7 @@ def execute_player_msg_conversation(
         # Look up class/race/level
         cursor = db.cursor(dictionary=True)
         cursor.execute("""
-            SELECT class, race, level
+            SELECT class, race, level, gender
             FROM characters
             WHERE guid = %s
         """, (guid,))
@@ -2442,6 +2470,7 @@ def execute_player_msg_conversation(
             ),
             'race': get_race_name(char['race']),
             'level': char['level'],
+            'gender': get_gender_label(char['gender']),
         })
 
     if len(bots) < 2:
@@ -2646,7 +2675,7 @@ def _quest_conversation_pick_bots(
             row['trait3'],
         ]
         cursor.execute("""
-            SELECT class, race, level
+            SELECT class, race, level, gender
             FROM characters
             WHERE guid = %s
         """, (guid,))
@@ -2660,6 +2689,7 @@ def _quest_conversation_pick_bots(
             ),
             'race': get_race_name(char['race']),
             'level': char['level'],
+            'gender': get_gender_label(char['gender']),
         })
 
     if len(bots) < 2:

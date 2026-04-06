@@ -735,6 +735,8 @@ public:
         std::string extraData = "{"
             "\"player_name\":\"" +
                 JsonEscape(playerName) + "\","
+            "\"player_gender\":" +
+                std::to_string(player->getGender()) + ","
             "\"player_message\":\"" +
                 JsonEscape(safeMsg) + "\","
             "\"zone_id\":" +
@@ -985,6 +987,9 @@ public:
             "\"bot_race\":" +
                 std::to_string(
                     bot->getRace()) + ","
+            "\"bot_gender\":" +
+                std::to_string(
+                    bot->getGender()) + ","
             "\"bot_level\":" +
                 std::to_string(
                     bot->GetLevel()) + ","

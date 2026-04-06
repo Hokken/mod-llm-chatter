@@ -95,6 +95,9 @@ void FlushQuestAcceptBatches()
                 "\"bot_race\":" +
                     std::to_string(
                         b.reactorRace) + ","
+                "\"bot_gender\":" +
+                    std::to_string(
+                        b.reactorGender) + ","
                 "\"bot_level\":" +
                     std::to_string(
                         b.reactorLevel) + ","
@@ -189,6 +192,9 @@ void FlushQuestAcceptBatches()
                 "\"bot_race\":" +
                     std::to_string(
                         b.reactorRace) + ","
+                "\"bot_gender\":" +
+                    std::to_string(
+                        b.reactorGender) + ","
                 "\"bot_level\":" +
                     std::to_string(
                         b.reactorLevel) + ","
@@ -343,6 +349,9 @@ public:
                 "\"bot_race\":" +
                     std::to_string(
                         reactor->getRace()) + ","
+                "\"bot_gender\":" +
+                    std::to_string(
+                        reactor->getGender()) + ","
                 "\"bot_level\":" +
                     std::to_string(
                         reactor->GetLevel()) + ","
@@ -486,6 +495,7 @@ public:
             batch.reactorName = rName;
             batch.reactorClass = rClass;
             batch.reactorRace = rRace;
+            batch.reactorGender = reactor->getGender();
             batch.reactorLevel = rLevel;
             batch.acceptorName = playerName;
             batch.zoneId = pZoneId;

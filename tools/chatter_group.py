@@ -38,7 +38,9 @@ _spice_count = 2
 from chatter_shared import (
     call_llm, cleanup_message, strip_speaker_prefix,
     get_chatter_mode, get_class_name, get_race_name,
+    get_gender_label,
     get_db_connection, build_race_class_context,
+    build_bot_identity_from_dict,
     build_race_class_context_parts,
     parse_extra_data, get_zone_flavor,
     get_subzone_lore,
@@ -449,6 +451,9 @@ def process_group_event(db, client, config, event):
         'class': bot_class,
         'race': bot_race,
         'level': bot_level,
+        'gender': get_gender_label(
+            int(extra_data.get('bot_gender', 0))
+        ),
     }
 
 
@@ -511,6 +516,9 @@ def process_group_event(db, client, config, event):
                     'name': bot_name,
                     'class': bot_class,
                     'race': bot_race,
+                    'gender': bot.get(
+                        'gender', ''
+                    ),
                 },
             }
             start_session(
@@ -637,6 +645,9 @@ def process_group_event(db, client, config, event):
                         bot_name=bot_name,
                         bot_class=bot_class,
                         bot_race=bot_race,
+                        bot_gender=bot.get(
+                            'gender', ''
+                        ),
                     )
                 except Exception:
                     logger.error(
@@ -745,6 +756,7 @@ def process_group_event(db, client, config, event):
             _generate_farewell(
                 db, client, config,
                 bot_name, bot_race, bot_class,
+                bot.get('gender', ''),
                 traits, mode, group_id, bot_guid,
             )
         except Exception as e:
@@ -881,6 +893,9 @@ def process_group_join_batch_event(
                 'class': bot_class,
                 'race': bot_race,
                 'level': bot_level,
+                'gender': get_gender_label(
+                    int(bot_raw.get('bot_gender', 0))
+                ),
             }
 
             # 1. Assign traits
@@ -926,6 +941,9 @@ def process_group_join_batch_event(
                         'name': bot_name,
                         'class': bot_class,
                         'race': bot_race,
+                        'gender': bot.get(
+                            'gender', ''
+                        ),
                     },
                 }
                 start_session(
@@ -1133,6 +1151,7 @@ def process_group_join_batch_event(
                 _generate_farewell(
                     db, client, config,
                     bot_name, bot_race, bot_class,
+                    bot.get('gender', ''),
                     traits, mode,
                     group_id, bot_guid,
                 )
@@ -1201,6 +1220,9 @@ def process_group_join_batch_event(
                             ),
                             bot_race=b.get(
                                 'race', ''
+                            ),
+                            bot_gender=b.get(
+                                'gender', ''
                             ),
                         )
                     except Exception:
@@ -1316,7 +1338,7 @@ def _batch_welcome(
     # Get class/race/level for the welcoming bot
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
-        SELECT class, race, level
+        SELECT class, race, level, gender
         FROM characters
         WHERE guid = %s
     """, (wb_guid,))
@@ -1330,6 +1352,7 @@ def _batch_welcome(
         'class': get_class_name(char_row['class']),
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
+        'gender': get_gender_label(char_row['gender']),
     }
 
     history = _get_recent_chat(db, group_id)
@@ -1491,7 +1514,7 @@ def process_group_player_msg_event(
 
     # Get bot class/race from characters table
     cursor.execute("""
-        SELECT class, race, level
+        SELECT class, race, level, gender
         FROM characters
         WHERE guid = %s
     """, (bot_guid,))
@@ -1507,6 +1530,7 @@ def process_group_player_msg_event(
         'class': get_class_name(char_row['class']),
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
+        'gender': get_gender_label(char_row['gender']),
     }
 
 
@@ -1924,6 +1948,7 @@ def _maybe_queue_player_msg_memory(
                 bot_name=bd.get('bot_name', ''),
                 bot_class=bd.get('class', ''),
                 bot_race=bd.get('race', ''),
+                bot_gender=bd.get('gender', ''),
             )
         except Exception:
             logger.error(
@@ -1987,7 +2012,7 @@ def _try_second_bot_response(
     # Get class/race for second bot
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
-        SELECT class, race, level
+        SELECT class, race, level, gender
         FROM characters
         WHERE guid = %s
     """, (bot2_guid,))
@@ -2001,6 +2026,7 @@ def _try_second_bot_response(
         'class': get_class_name(char_row['class']),
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
+        'gender': get_gender_label(char_row['gender']),
     }
 
     # Get updated history (includes first bot's msg)
@@ -2116,7 +2142,7 @@ def _welcome_from_existing_bot(
     # Get class/race/level for the welcoming bot
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
-        SELECT class, race, level
+        SELECT class, race, level, gender
         FROM characters
         WHERE guid = %s
     """, (wb_guid,))
@@ -2130,6 +2156,7 @@ def _welcome_from_existing_bot(
         'class': get_class_name(char_row['class']),
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
+        'gender': get_gender_label(char_row['gender']),
     }
 
     # Build context
@@ -2274,9 +2301,7 @@ def _build_composition_comment_prompt(
             rp_context = f"\n{ctx}"
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']}.\n"
+        f"{build_bot_identity_from_dict(bot, suffix='.')}\n"
         f"Your personality: {trait_str}"
         f"{rp_context}\n"
     )
@@ -2565,9 +2590,7 @@ def build_idle_chatter_prompt(
                 f"  - {m}" for m in sanitized
             )
             prompt = (
-                f"You are {bot['name']}, a level "
-                f"{bot['level']} {bot['race']} "
-                f"{bot['class']}.\n"
+                f"{build_bot_identity_from_dict(bot, suffix='.')}\n"
                 f"Your personality: {trait_str}\n"
             )
             if speaker_talent_context:
@@ -2781,9 +2804,7 @@ def build_idle_chatter_prompt(
         )
 
     prompt = (
-        f"You are {bot['name']}, a level "
-        f"{bot['level']} {bot['race']} "
-        f"{bot['class']} in World of Warcraft.\n"
+        f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -3666,7 +3687,7 @@ def _idle_single_statement(
     # Get class/race from characters table
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
-        SELECT class, race, level
+        SELECT class, race, level, gender
         FROM characters
         WHERE guid = %s
     """, (bot_guid,))
@@ -3681,6 +3702,7 @@ def _idle_single_statement(
         'class': get_class_name(char_row['class']),
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
+        'gender': get_gender_label(char_row['gender']),
         'role': bot_row.get('role'),
         'is_dead': int(bot_row.get('health', 1)) == 0,
     }
@@ -3908,7 +3930,7 @@ def _idle_conversation(
     for br in selected_rows:
         cursor = db.cursor(dictionary=True)
         cursor.execute("""
-            SELECT class, race, level
+            SELECT class, race, level, gender
             FROM characters
             WHERE guid = %s
         """, (br['bot_guid'],))
@@ -3923,6 +3945,7 @@ def _idle_conversation(
             ),
             'race': get_race_name(char['race']),
             'level': char['level'],
+            'gender': get_gender_label(char['gender']),
             'role': br.get('role'),
             'is_dead': int(
                 br.get('health', 1)) == 0,
@@ -4297,7 +4320,7 @@ def check_bot_questions(db, client, config):
         player_row = None
         if player_name:
             cursor.execute("""
-                SELECT class, race, level
+                SELECT name, class, race, level, gender
                 FROM characters
                 WHERE name = %s LIMIT 1
             """, (player_name,))
@@ -4349,6 +4372,9 @@ def check_bot_questions(db, client, config):
         player_race = get_race_name(
             player_row['race']
         )
+        player_gender = get_gender_label(
+            player_row['gender']
+        )
         player_level = int(player_row['level'])
 
         # Get all bots in this group
@@ -4378,7 +4404,7 @@ def check_bot_questions(db, client, config):
 
         # Get bot class/race/level
         cursor.execute("""
-            SELECT class, race, level
+            SELECT class, race, level, gender
             FROM characters
             WHERE guid = %s
         """, (bot_guid,))
@@ -4396,6 +4422,7 @@ def check_bot_questions(db, client, config):
                 char_row['race']
             ),
             'level': char_row['level'],
+            'gender': get_gender_label(char_row['gender']),
             'role': bot_row.get('role'),
         }
 
@@ -4478,6 +4505,7 @@ def check_bot_questions(db, client, config):
             bot, traits, mode,
             player_name=player_name,
             player_class=player_class,
+            player_gender=player_gender,
             player_race=player_race,
             player_level=player_level,
             chat_history=chat_hist,

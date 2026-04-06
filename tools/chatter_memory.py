@@ -26,6 +26,7 @@ from chatter_db import (
 from chatter_shared import (
     get_zone_name, get_dungeon_flavor,
     format_location_label,
+    build_bot_identity,
 )
 from chatter_llm import call_llm, get_llm_client
 
@@ -118,7 +119,7 @@ _active_sessions: Dict[int, dict] = {}
 #   "start": float,        # set ONCE at first bot
 #   "player_guid": int,
 #   "bots": set(),         # bot_guids still in session
-#   "members": dict,       # {guid: {name, class, race}}
+#   "members": dict,       # {guid: {name, class, race, gender}}
 #   "msg_count": int,      # player_message count
 #   "party_memories_generated": bool,
 # }}
@@ -216,6 +217,7 @@ def queue_memory(
     config, group_id, bot_guid, player_guid,
     memory_type, event_context,
     bot_name="", bot_class="", bot_race="",
+    bot_gender="",
     db=None,
 ):
     """Validate eligibility and submit a memory
@@ -299,6 +301,7 @@ def queue_memory(
         bot_name=bot_name,
         bot_class=bot_class,
         bot_race=bot_race,
+        bot_gender=bot_gender,
         location=location,
         session_start=session_start,
         insert_active=False,
@@ -431,6 +434,7 @@ def _execute_generate_memory(
     config, group_id, bot_guid, player_guid,
     memory_type, event_context,
     bot_name="", bot_class="", bot_race="",
+    bot_gender="",
     location="",
     session_start=0.0, insert_active=False,
 ):
@@ -478,6 +482,7 @@ def _execute_generate_memory(
             bot_name=bot_name,
             bot_class=bot_class,
             bot_race=bot_race,
+            bot_gender=bot_gender,
             memory_type=memory_type,
             event_context=event_context,
             mood=mood,
@@ -545,6 +550,7 @@ def _execute_generate_memory(
 def _call_llm_for_memory(
     config,
     bot_name="", bot_class="", bot_race="",
+    bot_gender="",
     memory_type="ambient", event_context="",
     mood="contemplative", style="sincere",
     location="",
@@ -601,8 +607,8 @@ def _call_llm_for_memory(
     }.get(memory_type, "a shared moment")
 
     prompt = (
-        f"You are {bot_name}, a {bot_race} "
-        f"{bot_class} in World of Warcraft.\n"
+        f"{build_bot_identity(bot_name, bot_race, bot_class, bot_gender)} "
+        f"in World of Warcraft.\n"
     )
     if location:
         prompt += f"Location: {location}\n"
@@ -801,6 +807,9 @@ def flush_session_memories(
                     bot_name=member.get('name', ''),
                     bot_class=member.get('class', ''),
                     bot_race=member.get('race', ''),
+                    bot_gender=member.get(
+                        'gender', ''
+                    ),
                     location=flush_loc,
                     session_start=session_start,
                     insert_active=True,
