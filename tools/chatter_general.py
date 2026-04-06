@@ -49,6 +49,7 @@ from chatter_prompts import (
     pick_personality_spices,
 )
 from chatter_constants import (
+    PERSONALITY_TRAITS,
     RACE_SPEECH_PROFILES,
     LENGTH_HINTS, RP_LENGTH_HINTS,
 )
@@ -110,31 +111,6 @@ def init_general_config(config):
     except (ValueError, TypeError):
         _extended_max_messages = 3
 
-
-# Same personality traits as group chatter
-PERSONALITY_TRAITS = {
-    'social': [
-        'friendly', 'reserved', 'talkative',
-        'shy', 'thoughtful', 'polite',
-    ],
-    'attitude': [
-        'optimistic', 'cynical', 'cautious',
-        'easygoing', 'stoic',
-    ],
-    'focus': [
-        'combat-focused', 'loot-driven',
-        'explorer', 'quest-obsessed',
-        'socializer',
-    ],
-    'humor': [
-        'sarcastic', 'deadpan', 'cheerful',
-        'dry wit', 'warmhearted',
-    ],
-    'energy': [
-        'eager', 'laid-back', 'steady',
-        'drowsy', 'relaxed',
-    ],
-}
 
 
 def _pick_random_traits():

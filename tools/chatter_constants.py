@@ -731,6 +731,99 @@ CLASS_ROLE_MAP = {
 }
 
 # =============================================================================
+# PERSONALITY TRAITS - Used for random bot personality assignment
+# =============================================================================
+PERSONALITY_TRAITS = {
+    'temperament': [
+        'fiery', 'calm', 'brooding', 'volatile',
+        'serene', 'melancholic', 'jovial',
+        'quick-tempered', 'patient', 'restless',
+        'placid', 'intense', 'mercurial',
+        'even-keeled', 'passionate',
+    ],
+    'social': [
+        'gregarious', 'reclusive', 'charming',
+        'blunt', 'diplomatic', 'awkward',
+        'commanding', 'deferential', 'flirtatious',
+        'standoffish', 'nurturing', 'aloof',
+        'boisterous', 'soft-spoken', 'gossipy',
+        'tactful', 'abrasive', 'endearing',
+    ],
+    'outlook': [
+        'hopeful', 'fatalistic', 'pragmatic',
+        'idealistic', 'cynical', 'wistful',
+        'defiant', 'resigned', 'ambitious',
+        'content', 'suspicious', 'trusting',
+        'world-weary', 'wide-eyed', 'jaded',
+        'reverent', 'skeptical',
+    ],
+    'courage': [
+        'fearless', 'cautious', 'reckless',
+        'hesitant', 'bold', 'calculating',
+        'foolhardy', 'steadfast', 'skittish',
+        'dauntless', 'wary', 'brash',
+        'unshakable', 'nervous', 'daring',
+    ],
+    'moral': [
+        'honorable', 'ruthless', 'merciful',
+        'vengeful', 'selfless', 'self-serving',
+        'just', 'cunning', 'compassionate',
+        'cold-hearted', 'principled', 'opportunistic',
+        'forgiving', 'grudge-holding', 'charitable',
+        'greedy', 'noble-spirited',
+    ],
+    'intellect': [
+        'scholarly', 'simple-minded', 'cunning',
+        'absent-minded', 'sharp-witted', 'naive',
+        'perceptive', 'oblivious', 'philosophical',
+        'literal-minded', 'inquisitive', 'incurious',
+        'shrewd', 'bookish', 'street-smart',
+    ],
+    'humor': [
+        'sarcastic', 'deadpan', 'mirthful',
+        'dark-humored', 'self-deprecating', 'witty',
+        'prankster', 'humorless', 'dry',
+        'bawdy', 'whimsical', 'sardonic',
+        'teasing', 'earnest', 'irreverent',
+    ],
+    'demeanor': [
+        'stoic', 'dramatic', 'gruff',
+        'gentle', 'stern', 'playful',
+        'solemn', 'lighthearted', 'imposing',
+        'unassuming', 'eccentric', 'dignified',
+        'wild', 'composed', 'theatrical',
+        'mysterious', 'plain-spoken',
+    ],
+    'drive': [
+        'glory-seeker', 'duty-bound', 'treasure-hunter',
+        'wanderer', 'protector', 'knowledge-seeker',
+        'thrill-chaser', 'peacekeeper', 'avenger',
+        'survivor', 'storyteller', 'homeward-bound',
+        'legend-chaser', 'debt-payer', 'oath-keeper',
+    ],
+    'arcane': [
+        'mystical', 'occult-minded', 'enigmatic',
+        'attuned to ley lines', 'spirit-touched',
+        'rune-obsessed', 'shadow-whisperer',
+        'star-gazer', 'void-curious', 'flame-drawn',
+        'frost-blooded', 'nature-bonded',
+        'death-touched', 'light-devoted',
+        'fel-scarred', 'dream-walker',
+        'ancestor-speaker', 'totem-listener',
+    ],
+    'quirk': [
+        'superstitious', 'nostalgic', 'perfectionist',
+        'absent-minded', 'competitive', 'sentimental',
+        'paranoid', 'daydreamer', 'stubborn',
+        'impulsive', 'methodical', 'hot-headed',
+        'easily distracted', 'overly literal',
+        'chronically late', 'hums when nervous',
+        'talks to their weapon', 'collects bones',
+        'afraid of the dark', 'never sits down',
+    ],
+}
+
+# =============================================================================
 # ROLE COMBAT PERSPECTIVES - Injected into group prompts
 # =============================================================================
 ROLE_COMBAT_PERSPECTIVES = {

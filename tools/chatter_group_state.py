@@ -20,6 +20,7 @@ from chatter_shared import (
     get_race_name,
     strip_speaker_prefix,
 )
+from chatter_constants import PERSONALITY_TRAITS
 from chatter_db import mark_event
 
 logger = logging.getLogger(__name__)
@@ -153,33 +154,6 @@ def cleanup_group_moods(group_id: int):
         for k in keys_to_remove:
             del _bot_mood_scores[k]
 
-
-# ============================================================
-# PERSONALITY TRAITS
-# ============================================================
-PERSONALITY_TRAITS = {
-    'social': [
-        'friendly', 'reserved', 'talkative',
-        'shy', 'thoughtful', 'polite',
-    ],
-    'attitude': [
-        'optimistic', 'cynical', 'cautious',
-        'easygoing', 'stoic',
-    ],
-    'focus': [
-        'combat-focused', 'loot-driven',
-        'explorer', 'quest-obsessed',
-        'socializer',
-    ],
-    'humor': [
-        'sarcastic', 'deadpan', 'cheerful',
-        'dry wit', 'warmhearted',
-    ],
-    'energy': [
-        'eager', 'laid-back', 'steady',
-        'drowsy', 'relaxed',
-    ],
-}
 
 
 def check_or_create_bot_identity(
