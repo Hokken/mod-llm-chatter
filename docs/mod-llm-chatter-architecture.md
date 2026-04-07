@@ -22,9 +22,7 @@ Shared utilities belong in the dedicated shared layer
 `chatter_constants.py` for Python). Each file should have one clear
 ownership domain.
 
-This rule exists because the original monolithic layout caused real
-problems (see "Why The C++ Split Happened" below) and because keeping
-files focused allows AI agents to work on a single file without
+Keeping files focused allows AI agents to work on a single file without
 loading the entire module into context.
 
 ## Repository Boundaries
@@ -536,8 +534,8 @@ system.
 - player `/say` reply detection (`HandleProximityPlayerSay()`)
 - per-entity cooldown management via spawn GUID
 
-`FindCreatureBySpawnId()` and `GetCreatureRoleName()` were extracted
-to `LLMChatterShared.cpp` as shared helpers used by both proximity
+`FindCreatureBySpawnId()` and `GetCreatureRoleName()` live in
+`LLMChatterShared.cpp` as shared helpers used by both proximity
 and delivery code.
 
 ### World ownership
@@ -558,7 +556,7 @@ and delivery code.
 `QueueEvent()` SQL-escapes its `extraData` before forwarding to
 `QueueChatterEvent()`.
 
-### Group ownership (split across five TUs)
+### Group ownership (five TUs)
 
 `LLMChatterGroupInternal.h` declares shared state across the group TUs:
 
@@ -610,13 +608,13 @@ and delivery code.
   `HandleEmoteObserver()`
 - `EvictEmoteCooldowns()`
 
-Important split:
+Ownership boundary:
 
 - `LLMChatterGroupCombat.cpp` decides who/what the text emote targeted
   and whether the follow-up path is group-gated
 - `LLMChatterGroupEmote.cpp` owns the actual mirror execution,
   cooldowns, and observer event queueing
-- creature mirror emotes can now fire even when the player is solo;
+- creature mirror emotes can fire even when the player is solo;
   observer chatter still requires eligible grouped bots
 
 `LLMChatterGroupQuest.cpp` owns:
@@ -642,8 +640,8 @@ separate creature file.
 
 ### BG ownership
 
-`LLMChatterBG.cpp` still owns battleground-specific hooks and BG queue
-helpers. The later split phases did not move BG code again.
+`LLMChatterBG.cpp` owns battleground-specific hooks and BG queue
+helpers.
 
 ### Transport detection shape
 
@@ -687,8 +685,7 @@ And `LLMChatterGroupCombat.cpp` calls into proximity via:
 - `HandleProximityPlayerSay(Player*, const std::string&)` — player
   `/say` reply detection
 
-That explicit boundary is one of the main reasons the split is easier to
-reason about now.
+That explicit boundary keeps the two domains easy to reason about.
 
 ## Event Routing Ownership
 
