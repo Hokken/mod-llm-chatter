@@ -1316,31 +1316,10 @@ def calculate_dynamic_delay(
     )
 
     if responsive:
-        # Player is waiting — fast reply, skip
-        # reading simulation (bot "saw it live")
-        reading_time = 0
-        reaction_time = random.uniform(0.3, 1.0)
-        if message_length < 15:
-            typing_time = random.uniform(0.5, 1.5)
-        elif message_length < 40:
-            typing_time = message_length / random.uniform(
-                5.0, 9.0
-            )
-        elif message_length < 80:
-            typing_time = message_length / random.uniform(
-                4.0, 7.0
-            )
-        else:
-            typing_time = message_length / random.uniform(
-                3.0, 5.0
-            )
-        total_delay = (
-            reading_time + reaction_time + typing_time
-        )
-        floor = max(min_delay, 1.0)
-        total_delay = max(total_delay, floor)
-        total_delay *= random.uniform(0.9, 1.1)
-        return min(total_delay, max_delay)
+        # Player is waiting — fast reply.  The LLM
+        # already took several seconds ("thinking"),
+        # so keep the typing simulation short.
+        return random.uniform(4.0, 8.0)
 
     # Ambient/idle — full simulation
     reading_time = (
