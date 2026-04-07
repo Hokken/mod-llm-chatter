@@ -230,8 +230,8 @@ CREATE TABLE `llm_group_chat_history` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Persistent bot identities (traits + farewell survive across sessions)
-DROP TABLE IF EXISTS `llm_bot_identities`;
-CREATE TABLE `llm_bot_identities` (
+-- NOTE: No DROP TABLE — this data is persistent across sessions/restarts
+CREATE TABLE IF NOT EXISTS `llm_bot_identities` (
     `bot_guid`         INT UNSIGNED NOT NULL PRIMARY KEY,
     `bot_name`         VARCHAR(12)  NOT NULL,
     `trait1`           VARCHAR(64)  NOT NULL,
@@ -245,8 +245,8 @@ CREATE TABLE `llm_bot_identities` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Bot memories (accumulated journal of moments shared with players)
-DROP TABLE IF EXISTS `llm_bot_memories`;
-CREATE TABLE `llm_bot_memories` (
+-- NOTE: No DROP TABLE — this data is persistent across sessions/restarts
+CREATE TABLE IF NOT EXISTS `llm_bot_memories` (
     `id`            INT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
     `bot_guid`      INT UNSIGNED NOT NULL,
     `player_guid`   INT UNSIGNED NOT NULL,
