@@ -854,8 +854,11 @@ def process_group_quest_objectives_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
-    completer_guid = int(
+    reactor_guid = int(
         extra_data.get('bot_guid', 0)
+    )
+    reactor_name = extra_data.get(
+        'bot_name', 'Unknown'
     )
     completer_name = extra_data.get(
         'completer_name',
@@ -868,7 +871,7 @@ def process_group_quest_objectives_event(
         extra_data.get('group_id', 0)
     )
 
-    if not completer_guid or not group_id:
+    if not reactor_guid or not group_id:
         _mark_event(db, event_id, 'skipped')
         return False
 
@@ -876,23 +879,11 @@ def process_group_quest_objectives_event(
     # event for this bot within 60 seconds
     if _has_recent_event(
         db, 'bot_group_quest_objectives',
-        completer_guid, 60,
+        reactor_guid, 60,
         exclude_id=event_id,
     ):
         _mark_event(db, event_id, 'skipped')
         return False
-
-    # Pick a different bot to react
-    reactor_data = get_other_group_bot(
-        db, group_id, completer_guid,
-    )
-    if reactor_data:
-        reactor_guid = reactor_data['guid']
-        reactor_name = reactor_data['name']
-    else:
-        # No other bot — use the completing bot
-        reactor_guid = completer_guid
-        reactor_name = completer_name
 
     # -- Try conversation path first --
     conv_chance = int(config.get(
@@ -921,15 +912,6 @@ def process_group_quest_objectives_event(
                 " failed, falling through",
                 exc_info=True,
             )
-
-    # -- Fall through to statement via pipeline --
-    # Patch extra_data so pipeline uses reactor
-    extra_data['bot_guid'] = reactor_guid
-    extra_data['bot_name'] = reactor_name
-    # Re-serialize into the event dict
-    import json as _json
-    event = dict(event)
-    event['extra_data'] = _json.dumps(extra_data)
 
     def _extract(ed):
         return {
