@@ -4,9 +4,11 @@
 
 # mod-llm-chatter
 
-**Your bots don't just fight beside you. They live in Azeroth.**
+**Every hero has a story. Your companions are ready to tell theirs.**
 
-An AI-powered conversation engine for [AzerothCore](https://www.azerothcore.org/) WotLK (3.3.5a) and [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots). It replaces the silence of automated bots with personality-driven, lore-accurate dialogue,  whether you're soloing through Duskwood, running Ulduar with a full raid, or battling in Warsong Gulch.
+A fantasy roleplay conversation engine for [AzerothCore](https://www.azerothcore.org/) WotLK (3.3.5a) and [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots). It replaces the silence of automated bots with personality-driven, lore-grounded dialogue — giving every companion a voice shaped by their race, class, and the world around them. Whether you're soloing through the cursed woods of Duskwood, descending into the titan halls of Ulduar with a full raid, or clashing over flags in Warsong Gulch, your party feels like a band of adventurers sharing a journey through Azeroth.
+
+Built from the ground up for **fantasy roleplay immersion**, not casual out-of-character chat. Every system — personalities, memories, prompts, spatial awareness — is designed to keep bots speaking as inhabitants of Azeroth, not as AI assistants breaking the fourth wall.
 
 ---
 
@@ -16,50 +18,29 @@ An AI-powered conversation engine for [AzerothCore](https://www.azerothcore.org/
 
 > See my other module: **[mod-llm-guide](https://github.com/Hokken/mod-llm-guide)** — AI-powered in-game assistant
 
+---
+
+### Chatter Companion Addon
+
 <table>
 <tr>
 <td width="340"><img src="images/chatter-companion.png" alt="Chatter Companion addon" width="340"></td>
-<td valign="top"><strong>Companion Addon: <a href="https://github.com/Hokken/Chatter-Companion">Chatter Companion</a></strong><br><br>A lightweight WoW addon that lets you view and edit your bots' personality traits and tone directly from the game UI. Open it with <code>/chatter</code> or <code>/llmc</code>, pick a bot from your roster, tweak their personality, and see the changes reflected in their dialogue immediately. No server restart required.</td>
+<td valign="top"><a href="https://github.com/Hokken/Chatter-Companion"><strong>Chatter Companion</strong></a><br><br>A lightweight WoW addon that lets you view and edit your bots' personality traits and tone directly from the game UI. Open it with <code>/chatter</code> or <code>/llmc</code>, pick a bot from your roster, tweak their personality, and see the changes reflected in their dialogue immediately. No server restart required.</td>
 </tr>
 </table>
 
 ---
 
-## What's New: MULTIDIRECTIONAL PROXIMITY CHATTER - The World Talks Back
-
-The world no longer falls silent between quests. As you walk through Stormwind, Darnassus, or a quiet crossroads village, you'll **overhear snippets of life** happening around you, a guard grumbling about the night shift, a vendor gossiping about a burglary, two adventurers debating the best route to Blackrock Mountain, a sentinel greeting your party bot by name.
-
-This is **proximity chatter**: ambient, spatially-aware `/say` conversations between any combination of nearby bots, NPCs, and the player. Guards, vendors, trainers, innkeepers, citizens, children, anyone with something to say can join in. Your own party bots participate too, chatting with NPCs via `/say` while party-internal conversation stays in party chat.
-
-Conversations are brief and evanescent, 8-15 words per line, 2-4 lines per exchange, designed to be caught in passing as you move through the world. You might arrive mid-conversation and catch only the last line, or miss it entirely. That's by design. It's the background hum of a living world.
-
-Speakers face each other when talking. NPCs return to their original orientation afterward. The player can reply via `/say` and the nearby speaker will respond, up to 5 exchanges before gracefully exiting. Every tunable value, scan interval, trigger chance, cooldowns, token budget, line delays, is config-driven.
-
-> *15 config keys under `LLMChatter.ProximityChatter.*`. Enabled by default. Requires the event system and Python bridge.*
-
----
-
-## TRUE VISION - Bots See What You See
-
-Your companions can now **literally see the world through your eyes**. Using lightweight screenshot analysis, bots observe the actual scenery on your screen, a crumbling ruin half-swallowed by vines, a lake shimmering under moonlight, a spider lurking at the edge of a cave, and react to it in character. They don't just know the zone name from a database. They *look around* and notice things, just like a real party member would.
-
-Sometimes one bot points something out. Sometimes two of them start a conversation about what they see, one admiring the view, the other warning about what might be hiding in it. Every observation is shaped by the bot's personality, race, class, and knowledge of the area.
-
-This feature runs entirely on the host side with a tiny vision model (GPT-4o-mini). Cost is roughly **$0.05-0.10 per hour** of play, less than a penny per observation. It's experimental, opt-in, and disabled by default. Enable it, run the lightweight screenshot agent alongside your game, and watch your bots come alive in a way no other bot module has done before.
-
-> *Requires `screenshot_agent.py` running on the host machine. See [Screenshot Vision Setup](#screenshot-vision) for details.*
-
----
 
 ## Features
 
-* **Roleplay-First Personalities**: Every bot is a distinct character. Their dialogue is deeply rooted in their race, class, and assigned personality traits, dynamically enhanced by their specialized talent builds. In Roleplay mode, bots stay in character, grounding their speech in the rich lore of Azeroth to feel like living, breathing companions.
-* **Persistent Personality & Memories**: Your companions remember you. Each bot carries a unique, permanent personality. Every dungeon you clear together, every boss you defeat, every achievement you earn, every level milestone, all of it is written into that bot's memory as a personal journal entry. The next time you group up, they might reference that time you wiped in Shadowfang Keep, or fondly recall discovering a hidden corner of Teldrassil together. Your relationship with each bot deepens over time. They're not just bots anymore, they're companions with a shared history.
+* **Roleplay-First Personalities**: Every bot is a distinct character in Azeroth's story. Their dialogue is deeply rooted in their race, class, and assigned personality traits, dynamically enhanced by their specialized talent builds. Bots stay in character — a Forsaken warlock speaks nothing like a Draenei paladin, and both draw from the lore and culture of their people to feel like living, breathing inhabitants of the world.
+* **Persistent Personality & Memories**: Your companions remember you. Each bot carries a unique, permanent personality. Every dungeon you clear together, every boss you defeat, every achievement you earn, every level milestone — all of it is written into that bot's memory as a personal journal entry. The next time you group up, they might reference that time you wiped in Shadowfang Keep, or fondly recall discovering a hidden corner of Teldrassil together. Your relationship with each companion deepens over time, building the kind of shared history that makes a party of adventurers feel like old friends reunited at an inn.
 * **Deep Spatial & Lore Awareness**: Bots possess an intimate understanding of their surroundings, maintaining full awareness of both the broader world zones and the specific subzones within them. Whether you are wandering the vibrant paths of Elwynn Forest, traversing the vast snows of Dragonblight, or delving into the ancient mysteries of the Ruins of Mathystra in Darkshore, bots draw from over 3,000 unique descriptions to comment on the history, magic, and atmosphere of your exact location. In cities, they notice when you enter a new district, walking into the Cenarion Enclave or Krasus' Landing prompts a natural comment about the surroundings.
 * **Conscious World Sensing**: The world is alive, and your companions notice it. Bots dynamically react to everything in their vicinity, from wildlife and rare creatures to NPCs, ancient ruins, weathered statues, and eerie altars. They also observe functional points of interest like moonwells, crackling fireplaces, and bustling forges, while adapting to weather changes, the time of day, arriving zeppelins, and seasonal holidays.
 * **Organic Party Interactivity**: Your companions don't just follow; they interact. They will strike up multi-bot conversations, ask you unprompted questions about your journey, and react authentically to combat, loot, and quest milestones. Seamlessly integrated with the game's emote and voice systems, bots punctuate their dialogue with physical gestures and audible character voices, bringing an extra layer of life to everything from the thrill of an achievement to quiet banter by the campfire.
-* **Living Ecosystems**: The immersion extends beyond your immediate party. The open world's General channel hums with ambient bot chatter, reacting to real player messages and world events. Guards, vendors, trainers, and citizens engage in proximity `/say` conversations as you walk past — your party bots join in too. In battlegrounds, bots shout tactical callouts, while in raids, they brace for encounters across 148 iconic bosses, sharing morale-boosting lore between pulls.
-* **Seamless Immersion**: Designed to preserve the fantasy atmosphere, the module features smart pacing, multi-character conversation flow, and natural reading delays. No repetitive robotic spam, just natural, contextual dialogue that enhances your journey through every corner of the world.
+* **A Living, Breathing World**: The immersion extends beyond your immediate party. The open world's General channel hums with ambient bot chatter, reacting to real player messages and world events. Guards, vendors, trainers, and citizens engage in proximity `/say` conversations as you walk past — your party bots join in too, slipping naturally between party chat and the world around them. In battlegrounds, bots shout tactical callouts rooted in faction pride, while in raids, they brace for encounters across 148 iconic bosses, sharing lore and rallying morale between pulls.
+* **Seamless Fantasy Immersion**: Designed to preserve the roleplay atmosphere, the module features smart pacing, multi-character conversation flow, and natural reading delays. No repetitive robotic spam, no fourth-wall breaks — just natural, in-character dialogue that deepens the fantasy of adventuring through Azeroth.
 * **Zero Server Impact**: All LLM processing runs in a separate bridge service with a thread-pool worker model. The game server simply drops event rows into the database and moves on, never waiting on an API call. Responses flow back through the same queue and are delivered on the next world tick, keeping your server performance completely unaffected.
 
 ---
@@ -449,7 +430,7 @@ up-to-date database. Run them in date order after each
 ## On the Horizon
 
 - More battlegrounds and deeper raid integration
-- New immersive features that deepen the living-world experience
+- New features that deepen the fantasy roleplay experience and bring more of Azeroth's lore to life
 
 ---
 
