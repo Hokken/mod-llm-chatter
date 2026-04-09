@@ -498,6 +498,11 @@ void HandleGroupLootEventImpl(
 
     if (!item)
         return;
+    // Guard: item may be freed (m_uint32Values==null) if it stacked
+    // into an existing slot. IsInWorld() reads m_inWorld directly (not
+    // through m_uint32Values) and is false for any freed/invalid item.
+    if (!item->IsInWorld())
+        return;
     ItemTemplate const* tmpl =
         item->GetTemplate();
     if (!tmpl)
