@@ -361,19 +361,19 @@ std::unordered_map<uint32, time_t>
 void LoadNamedBossCache()
 {
     _namedBossEntries.clear();
-    // Named bosses: mechanic_immune_mask > 0 and
+    // Named bosses: CreatureImmunitiesId > 0 and
     // only 1 spawn on their map (filters out trash
     // like Molten Elementals that have immunities
     // but spawn many times)
     QueryResult result = WorldDatabase.Query(
         "SELECT entry FROM ("
         "  SELECT ct.entry, ct.`rank`,"
-        "    ct.mechanic_immune_mask,"
+        "    ct.CreatureImmunitiesId,"
         "    COUNT(*) AS spawns"
         "  FROM creature_template ct"
         "  JOIN creature c ON c.id1 = ct.entry"
         "  WHERE ct.`rank` = 3"
-        "    OR ct.mechanic_immune_mask > 0"
+        "    OR ct.CreatureImmunitiesId > 0"
         "  GROUP BY ct.entry, c.map"
         "  HAVING ct.`rank` = 3 OR COUNT(*) = 1"
         ") AS bosses");

@@ -880,8 +880,8 @@ def get_dungeon_bosses(
     Queries creature + creature_template from
     acore_world. Detects bosses via:
     - rank=3 (raid bosses)
-    - mechanic_immune_mask > 0 AND single spawn
-      (named dungeon bosses — CC-immune mobs that
+    - CreatureImmunitiesId > 0 AND single spawn
+      (named dungeon bosses — immune mobs that
       spawn only once per map are reliably bosses;
       multi-spawn immune mobs like Molten Elementals
       or Haunted Servitors are trash)
@@ -898,7 +898,7 @@ def get_dungeon_bosses(
                 ON c.id1 = ct.entry
             WHERE c.map = %s
                 AND (ct.`rank` = 3
-                     OR ct.mechanic_immune_mask > 0)
+                     OR ct.CreatureImmunitiesId > 0)
             GROUP BY ct.entry, ct.name, ct.`rank`
             HAVING ct.`rank` = 3 OR COUNT(*) = 1
             ORDER BY ct.name
