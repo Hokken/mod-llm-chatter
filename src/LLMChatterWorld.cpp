@@ -6,6 +6,7 @@
 #include "LLMChatterConfig.h"
 #include "LLMChatterDelivery.h"
 #include "LLMChatterGroup.h"
+#include "LLMChatterGroupInternal.h"
 #include "LLMChatterNearby.h"
 #include "LLMChatterProximity.h"
 #include "LLMChatterShared.h"
@@ -423,6 +424,8 @@ public:
             _lastGroupJoinFlushTime = now;
             FlushGroupJoinBatches();
         }
+
+        ProcessPendingRejoins();
 
         if (sLLMChatterConfig->_useEventSystem
             && sLLMChatterConfig->_raidChatterEnable

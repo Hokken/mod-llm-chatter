@@ -220,7 +220,7 @@ RACE_SPEECH_PROFILES = {
         ],
         "flavor_words": [
             "for the Alliance", "by the Light", "Stormwind",
-            "Lordaeron", "the Light", "King Varian",
+            "Lordaeron", "the cathedral", "King Varian",
             "honor", "duty", "the kingdom",
             "Northshire", "the crown", "fallen heroes",
         ],
@@ -341,7 +341,7 @@ RACE_SPEECH_PROFILES = {
         ],
         "flavor_words": [
             "Elune", "Elune guide you", "starlight",
-            "Kaldorei", "Darnassus", "moonwell",
+            "Kaldorei", "Darnassus", "Nordrassil",
             "ancient roots", "Teldrassil", "the old ways",
             "Cenarius", "moonlight", "the Emerald Dream",
         ],
@@ -361,7 +361,7 @@ RACE_SPEECH_PROFILES = {
             "Long history of fighting demons, satyrs, and corruption in sacred forests.",
             "Immortality ended after events surrounding Nordrassil and the Third War.",
             "Alliance membership after Warcraft III remains practical rather than intimate.",
-            "Guardianship of moonwells, world trees, and wilderness sanctuaries is central.",
+            "Guardianship of world trees, sacred groves, and wilderness sanctuaries is central.",
             "Arcane excess is feared due to memories of past global catastrophe.",
         ],
         "worldview": (
@@ -385,7 +385,7 @@ RACE_SPEECH_PROFILES = {
         "flavor_words": [
             "Dark Lady", "plague", "the grave",
             "Forsaken", "Undercity", "Scourge",
-            "Sylvanas", "the apothecary", "Lordaeron",
+            "vengeance", "the apothecary", "Lordaeron",
             "rot", "free will", "the Lich King",
         ],
         "vocabulary": [
@@ -422,7 +422,7 @@ RACE_SPEECH_PROFILES = {
             "spiritually attuned and physically imposing, balancing tenderness with raw strength",
         ],
         "flavor_words": [
-            "Earth Mother", "walk with the Earth Mother",
+            "Earth Mother", "the great hunt",
             "ancestors", "Thunder Bluff", "shu'halo",
             "the plains", "Mulgore", "tribal elders",
             "the hunt", "totem", "Cairne", "the wind",
@@ -554,7 +554,7 @@ RACE_SPEECH_PROFILES = {
         ],
         "lore": [
             "Sin'dorei are survivors of Quel'Thalas after Scourge devastation.",
-            "Sunwell destruction caused magical withdrawal and social crisis.",
+            "Destruction of their sacred fount caused magical withdrawal and social crisis.",
             "Kael'thas alliance with the Legion ended in open betrayal.",
             "Sunwell was restored with Light and arcane energy in late TBC.",
             "Lor'themar Theron governs as regent lord in the Wrath period.",
@@ -1041,8 +1041,8 @@ terrible happened here.""",
     # -------------------------------------------------------------------------
     141: """Teldrassil: Massive world tree home to the night elves. Despite some
 troubles with hostile Gnarlpine furbolgs and timberlings, the forest remains
-breathtakingly beautiful - ancient trees glow softly at twilight, moonwells
-shimmer with arcane energy, and peaceful glades invite quiet reflection.
+breathtakingly beautiful - ancient trees glow softly at twilight, sacred
+glades shimmer with lingering magic, and quiet clearings invite reflection.
 Darnassus sits serenely above the canopy. The air carries whispers of old
 magic. Night elves go about daily life: training, crafting, tending gardens.
 A place where nature's beauty persists even as adventurers deal with threats.""",
@@ -1227,17 +1227,17 @@ or oblivion.""",
     # -------------------------------------------------------------------------
     # Capital Cities
     # -------------------------------------------------------------------------
-    1519: """Stormwind City: The grand human capital, rebuilt after the First War. Cathedral of Light dominates the skyline, the canals wind between stone districts, and the bustling Trade District never sleeps. Guards patrol everywhere. The harbor connects to distant lands. King Varian Wrynn rules from Stormwind Keep. A city of cobblestones, banners, and civic pride — the heart of the Alliance.""",
+    1519: """Stormwind City: The grand human capital, rebuilt after the First War. The great cathedral dominates the skyline, the canals wind between stone districts, and the bustling Trade District never sleeps. Guards patrol everywhere. The harbor connects to distant lands. King Varian Wrynn rules from Stormwind Keep. A city of cobblestones, banners, and civic pride — the heart of the Alliance.""",
 
     1537: """Ironforge: The great dwarven city carved into the heart of a mountain. A massive forge of molten metal dominates the center, surrounded by the Great Forge district where master smiths hammer day and night. The air is warm and smells of iron and ale. Tunnels branch into the Military Ward, Mystic Ward, and the Deeprun Tram to Stormwind. Solid, ancient, and built to last forever.""",
 
-    1657: """Darnassus: The serene night elf capital atop the world tree Teldrassil. Moonwells shimmer in quiet courtyards, ancient trees arch overhead, and soft purple light filters through the canopy. The Temple of the Moon honors Elune. Druids meditate in the Cenarion Enclave. The city feels timeless and peaceful, far removed from the wars below — though that peace is more fragile than it appears.""",
+    1657: """Darnassus: The serene night elf capital atop the world tree Teldrassil. Ancient trees arch overhead, soft purple light filters through the canopy, and still pools reflect the stars even at midday. The Temple of the Moon honors Elune. Druids meditate in the Cenarion Enclave. The city feels timeless and peaceful, far removed from the wars below — though that peace is more fragile than it appears.""",
 
-    3557: """The Exodar: The crashed dimensional ship of the draenei, now repurposed as their capital. Crystal pylons hum with naaru energy, purple and blue light bathes geometric corridors, and the Seat of the Naaru glows at its heart. The architecture is alien and beautiful — part cathedral, part starship. Draenei go about their lives with quiet dignity, rebuilding after yet another exile.""",
+    3557: """The Exodar: The crashed dimensional ship of the draenei, now repurposed as their capital. Crystal pylons hum with otherworldly energy, purple and blue light bathes geometric corridors, and a radiant sanctuary glows at its heart. The architecture is alien and beautiful — part cathedral, part starship. Draenei go about their lives with quiet dignity, rebuilding after yet another long journey.""",
 
     1637: """Orgrimmar: The brutal orcish capital carved into red desert canyons. Iron spikes, war banners, and massive gates define the skyline. The Valley of Strength echoes with grunts of training warriors and the clang of the auction house. Thrall's legacy hangs in the air. The city is raw, loud, and unapologetically aggressive — a fortress city built for a people who expect war.""",
 
-    1638: """Thunder Bluff: The tauren capital built on towering mesas connected by rope bridges high above the Mulgore plains. Wind sweeps across the open-air platforms. Totems and hides decorate every structure. The Elder Rise hosts druids, the Spirit Rise the priests. Cairne Bloodhoof leads with ancient wisdom. The most peaceful Horde capital — sky, wind, grass, and the quiet strength of the Earth Mother.""",
+    1638: """Thunder Bluff: The tauren capital built on towering mesas connected by rope bridges high above the Mulgore plains. Wind sweeps across the open-air platforms. Totems and hides decorate every structure. The Elder Rise hosts druids, the Spirit Rise the priests. Cairne Bloodhoof leads with ancient wisdom. The most peaceful Horde capital — sky, wind, grass, and the quiet strength of an ancient people.""",
 
     1497: """Undercity: The Forsaken capital beneath the ruins of Lordaeron. A dark, circular sewer city where the undead conduct their existence among green slime canals and flickering torches. The Royal Quarter houses Sylvanas Windrunner. Apothecaries brew dubious concoctions. The air is damp, cold, and faintly toxic. Grim, functional, and unsettling — but home to those who have nowhere else.""",
 

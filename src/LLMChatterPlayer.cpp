@@ -5,6 +5,7 @@
 #include "LLMChatterConfig.h"
 #include "LLMChatterBG.h"
 #include "LLMChatterGroup.h"
+#include "LLMChatterGroupInternal.h"
 #include "LLMChatterShared.h"
 
 #include "Battleground.h"
@@ -435,6 +436,228 @@ static void HandleBotEntersEnemyTerritory(
 
 }
 
+// ============================================================
+// Delayed rejoin queue — definitions + processing
+// ============================================================
+
+std::mutex _rejoinMutex;
+std::vector<PendingRejoin> _pendingRejoins;
+
+void ProcessPendingRejoins()
+{
+    if (!sLLMChatterConfig->_useGroupChatter)
+        return;
+
+    std::vector<PendingRejoin> work;
+    {
+        std::lock_guard<std::mutex> guard(
+            _rejoinMutex);
+        if (_pendingRejoins.empty())
+            return;
+        work.swap(_pendingRejoins);
+    }
+
+    time_t now = time(nullptr);
+    std::vector<PendingRejoin> deferred;
+
+    for (auto const& entry : work)
+    {
+        // Minimum 10s before first attempt.
+        if (now - entry.loginTime < 10)
+        {
+            deferred.push_back(entry);
+            continue;
+        }
+
+        bool timedOut =
+            (now - entry.loginTime > 120);
+
+        Player* player =
+            ObjectAccessor::FindPlayer(
+                ObjectGuid::Create<HighGuid::Player>(
+                    entry.playerGuid));
+        if (!player)
+            continue;
+
+        Group* group = player->GetGroup();
+        if (!group)
+            continue;
+        if (group->GetGUID().GetCounter()
+            != entry.groupId)
+            continue;
+
+        // Check if all non-self members have loaded
+        // Player* objects. Uses the persisted member
+        // list (GetMemberSlots) for the total count
+        // and live GroupReference for loaded count.
+        // No bot-type filtering — avoids coupling
+        // to mod-playerbots eligibility categories.
+        auto const& slots =
+            group->GetMemberSlots();
+        uint32 totalOther = 0;
+        for (auto const& slot : slots)
+        {
+            if (slot.guid.GetCounter()
+                != entry.playerGuid)
+                ++totalOther;
+        }
+        uint32 loadedOther = 0;
+        for (GroupReference* itr =
+                 group->GetFirstMember();
+             itr != nullptr; itr = itr->next())
+        {
+            Player* m = itr->GetSource();
+            if (m && m->GetGUID().GetCounter()
+                != entry.playerGuid)
+                ++loadedOther;
+        }
+
+        // Defer if members still loading, unless
+        // the hard cap (120s) has been reached —
+        // then process whatever is available.
+        if (loadedOther < totalOther && !timedOut)
+        {
+            deferred.push_back(entry);
+            continue;
+        }
+
+        // All members loaded — collect bot data.
+        uint32 groupId = entry.groupId;
+        uint32 pZone = player->GetZoneId();
+        uint32 pArea = player->GetAreaId();
+        uint32 pMap  = player->GetMapId();
+
+        std::vector<uint32> botGuids;
+        std::string firstBotName;
+        std::string botsJson = "[";
+        bool first = true;
+
+        for (GroupReference* itr =
+                 group->GetFirstMember();
+             itr != nullptr; itr = itr->next())
+        {
+            Player* member = itr->GetSource();
+            if (!member
+                || !IsPlayerBot(member))
+                continue;
+
+            uint32 bguid =
+                member->GetGUID().GetCounter();
+            botGuids.push_back(bguid);
+            if (first)
+                firstBotName = member->GetName();
+
+            std::string role = "dps";
+            PlayerbotAI* ai =
+                GET_PLAYERBOT_AI(member);
+            if (ai)
+            {
+                if (PlayerbotAI::IsTank(member))
+                    role = "tank";
+                else if (
+                    PlayerbotAI::IsHeal(member))
+                    role = "healer";
+                else if (
+                    PlayerbotAI::IsRanged(member))
+                    role = "ranged_dps";
+                else
+                    role = "melee_dps";
+            }
+
+            if (!first) botsJson += ",";
+            first = false;
+            botsJson += "{"
+                "\"bot_guid\":" +
+                    std::to_string(bguid) + ","
+                "\"bot_name\":\"" +
+                    JsonEscape(
+                        member->GetName()) +
+                    "\","
+                "\"bot_class\":" +
+                    std::to_string(
+                        member->getClass()) +
+                    ","
+                "\"bot_race\":" +
+                    std::to_string(
+                        member->getRace()) +
+                    ","
+                "\"bot_gender\":" +
+                    std::to_string(
+                        member->getGender()) +
+                    ","
+                "\"bot_level\":" +
+                    std::to_string(
+                        member->GetLevel()) +
+                    ","
+                "\"role\":\"" + role + "\","
+                "\"zone\":" +
+                    std::to_string(pZone) + ","
+                "\"map\":" +
+                    std::to_string(pMap) +
+                "}";
+        }
+
+        if (botGuids.empty())
+            continue;
+
+        botsJson += "]";
+
+        std::string extraData = "{"
+            "\"group_id\":" +
+                std::to_string(groupId) + ","
+            "\"player_name\":\"" +
+                JsonEscape(player->GetName()) +
+                "\","
+            "\"zone\":" +
+                std::to_string(pZone) + ","
+            "\"area\":" +
+                std::to_string(pArea) + ","
+            "\"map\":" +
+                std::to_string(pMap) + ","
+            "\"rejoin\":true,"
+            "\"bots\":" + botsJson +
+            "}";
+        extraData = EscapeString(extraData);
+
+        QueueChatterEvent(
+            "bot_group_join_batch",
+            "player",
+            pZone, pMap,
+            GetChatterEventPriority(
+                "bot_group_join_batch"), "",
+            botGuids[0], firstBotName,
+            0, "", 0,
+            extraData,
+            GetReactionDelaySeconds(
+                "bot_group_join_batch"),
+            120, false);
+
+        // Mark bots as greeted.
+        {
+            std::lock_guard<std::mutex> guard(
+                _groupJoinBatchMutex);
+            for (uint32 bguid : botGuids)
+            {
+                _greetedBotGuids.insert(bguid);
+                _groupGreetedBots[groupId]
+                    .push_back(bguid);
+            }
+            _groupJoinFlushed.insert(groupId);
+        }
+    }
+
+    // Re-insert entries that haven't aged enough.
+    if (!deferred.empty())
+    {
+        std::lock_guard<std::mutex> guard(
+            _rejoinMutex);
+        _pendingRejoins.insert(
+            _pendingRejoins.end(),
+            deferred.begin(),
+            deferred.end());
+    }
+}
+
 class LLMChatterPlayerScript : public PlayerScript
 {
 public:
@@ -477,6 +700,50 @@ public:
             "WHERE delivered = 0 "
             "AND deliver_at < NOW() "
             "- INTERVAL 5 MINUTE");
+
+        // Re-initialize group state after relog.
+        // Python cleanup_stale_groups() deletes
+        // bot_traits while the player is offline;
+        // OnAddMember doesn't fire on relog because
+        // the group already exists.  Bots aren't
+        // loaded yet at login time (PlayerbotMgr
+        // spawns them asynchronously), so queue for
+        // delayed processing from OnUpdate.
+        if (!sLLMChatterConfig->_useGroupChatter)
+            return;
+
+        Group* group = player->GetGroup();
+        if (!group)
+            return;
+
+        uint32 groupId =
+            group->GetGUID().GetCounter();
+
+        // Clear dedup state so the rejoin batch
+        // can be queued when bots are loaded.
+        {
+            std::lock_guard<std::mutex> guard(
+                _groupJoinBatchMutex);
+            _groupJoinFlushed.erase(groupId);
+            auto git =
+                _groupGreetedBots.find(groupId);
+            if (git != _groupGreetedBots.end())
+            {
+                for (uint32 bguid : git->second)
+                    _greetedBotGuids.erase(bguid);
+                _groupGreetedBots.erase(git);
+            }
+        }
+
+        // Queue for delayed processing.
+        {
+            std::lock_guard<std::mutex> guard(
+                _rejoinMutex);
+            _pendingRejoins.push_back(
+                {groupId,
+                 player->GetGUID().GetCounter(),
+                 time(nullptr)});
+        }
     }
 
     bool OnPlayerCanUseChat(
