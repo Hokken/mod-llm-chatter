@@ -158,6 +158,16 @@ extern std::unordered_map<uint32, time_t>
 extern std::unordered_map<uint32, time_t>
     _creatureEmoteCooldowns;
 
+// -- Pending rejoin queue (relog) --
+struct PendingRejoin
+{
+    uint32 groupId;
+    uint32 playerGuid;
+    time_t loginTime;
+};
+extern std::mutex _rejoinMutex;
+extern std::vector<PendingRejoin> _pendingRejoins;
+
 // -- Named boss cache --
 extern std::unordered_set<uint32>
     _namedBossEntries;
@@ -192,6 +202,9 @@ void RecordCachedChatHistory(
 
 // Cleanup coordinator
 void CleanupGroupSession(uint32 groupId);
+
+// Delayed rejoin processing (relog)
+void ProcessPendingRejoins();
 
 // ============================================================
 // Domain entry-point declarations used by

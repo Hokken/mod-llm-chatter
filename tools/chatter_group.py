@@ -425,6 +425,9 @@ def process_group_event(db, client, config, event):
     group_size = int(
         extra_data.get('group_size', 0)
     )
+    is_rejoin = bool(
+        int(extra_data.get('rejoin', 0))
+    )
 
     if not bot_guid or not group_id:
         _mark_event(db, event_id, 'skipped')
@@ -434,7 +437,7 @@ def process_group_event(db, client, config, event):
     # greeted recently in this group (checks both
     # single and batch join events, scoped by
     # group_id to avoid cross-group suppression).
-    if _has_recent_join_greeting(
+    if not is_rejoin and _has_recent_join_greeting(
         db, group_id, bot_guid, 60,
         exclude_id=event_id
     ):
@@ -655,6 +658,12 @@ def process_group_event(db, client, config, event):
                         exc_info=True,
                     )
 
+        # On rejoin, traits and memory are set up
+        # but no greeting messages are generated.
+        if is_rejoin:
+            _mark_event(db, event_id, 'completed')
+            return True
+
         # 2. Build prompt with chat history
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
@@ -804,6 +813,9 @@ def process_group_join_batch_event(
     group_id = int(extra_data.get('group_id', 0))
     player_name = extra_data.get('player_name', '')
     bots_raw = extra_data.get('bots', [])
+    is_rejoin = bool(
+        int(extra_data.get('rejoin', 0))
+    )
 
     if not group_id or not isinstance(
         bots_raw, list
@@ -878,8 +890,10 @@ def process_group_join_batch_event(
 
             # Dedup: skip if this bot was already
             # greeted recently in this group (checks
-            # both single and batch join events)
-            if _has_recent_join_greeting(
+            # both single and batch join events).
+            # Rejoin bypasses this — traits must be
+            # restored even if a recent greeting exists.
+            if not is_rejoin and _has_recent_join_greeting(
                 db, group_id, bot_guid, 60,
                 exclude_id=event_id
             ):
@@ -1033,6 +1047,11 @@ def process_group_join_batch_event(
                         db.commit()
                         mc.close()
                         bot_player_known = True
+
+            # On rejoin, skip greeting but track bot
+            if is_rejoin:
+                greeted_bots.append(bot)
+                continue
 
             # 2. Build greeting prompt
             history = _get_recent_chat(
@@ -1188,97 +1207,102 @@ def process_group_join_batch_event(
             )
             db.commit()
 
-        # Dungeon entry memory: if the player is
-        # in a dungeon/raid, queue a memory for
-        # each bot. Player-centric: pm comes from
-        # get_player_zone() (source of truth).
-        if memory_enabled and pm:
-            dungeon_name = get_dungeon_flavor(pm)
-            dng_chance = int(config.get(
-                'LLMChatter.Memory'
-                '.DungeonGenerationChance', 50
-            ))
-            if dungeon_name:
-                dungeon_name = (
-                    dungeon_name.split(':')[0]
-                )
-                for b in greeted_bots:
-                    if (random.random() * 100
-                            >= dng_chance):
-                        continue
-                    try:
-                        queue_memory(
-                            config, group_id,
-                            b['guid'],
-                            batch_player_guid,
-                            memory_type='dungeon',
-                            event_context=(
-                                f"Entered "
-                                f"{dungeon_name}"
-                            ),
-                            bot_name=b['name'],
-                            bot_class=b.get(
-                                'class', ''
-                            ),
-                            bot_race=b.get(
-                                'race', ''
-                            ),
-                            bot_gender=b.get(
-                                'gender', ''
-                            ),
-                        )
-                    except Exception:
-                        logger.error(
-                            "queue_memory (batch) "
-                            "failed",
-                            exc_info=True,
-                        )
+        if not is_rejoin:
+            # Dungeon entry memory: if the player
+            # is in a dungeon/raid, queue a memory
+            # for each bot. Player-centric: pm comes
+            # from get_player_zone() (source of
+            # truth).
+            if memory_enabled and pm:
+                dungeon_name = get_dungeon_flavor(pm)
+                dng_chance = int(config.get(
+                    'LLMChatter.Memory'
+                    '.DungeonGenerationChance', 50
+                ))
+                if dungeon_name:
+                    dungeon_name = (
+                        dungeon_name.split(':')[0]
+                    )
+                    for b in greeted_bots:
+                        if (random.random() * 100
+                                >= dng_chance):
+                            continue
+                        try:
+                            queue_memory(
+                                config, group_id,
+                                b['guid'],
+                                batch_player_guid,
+                                memory_type='dungeon',
+                                event_context=(
+                                    f"Entered "
+                                    f"{dungeon_name}"
+                                ),
+                                bot_name=b['name'],
+                                bot_class=b.get(
+                                    'class', ''
+                                ),
+                                bot_race=b.get(
+                                    'race', ''
+                                ),
+                                bot_gender=b.get(
+                                    'gender', ''
+                                ),
+                            )
+                        except Exception:
+                            logger.error(
+                                "queue_memory"
+                                " (batch) failed",
+                                exc_info=True,
+                            )
 
-        # --- ONE welcome from existing bot ---
-        new_names = [
-            b['name'] for b in greeted_bots
-        ]
-        new_guids = {
-            b['guid'] for b in greeted_bots
-        }
+        if not is_rejoin:
+            # --- ONE welcome from existing bot ---
+            new_names = [
+                b['name'] for b in greeted_bots
+            ]
+            new_guids = {
+                b['guid'] for b in greeted_bots
+            }
 
-        # Find an existing bot NOT in the batch
-        wb = _find_existing_welcomer(
-            db, group_id, new_guids
-        )
-        if wb:
-            welcome_delay = last_delay + 3
-            _batch_welcome(
-                db, client, config, wb,
-                new_names, group_id, mode,
-                event_id, welcome_delay
+            # Find an existing bot NOT in the batch
+            wb = _find_existing_welcomer(
+                db, group_id, new_guids
             )
-
-        # --- ONE composition comment ---
-        # Delay after welcome (or last greeting if
-        # no welcomer was found)
-        comp_delay = last_delay + 5
-        if wb:
-            comp_delay = last_delay + 6
-
-        if last_bot:
-            try:
-                _maybe_comment_on_composition(
-                    db, client, config, group_id,
-                    last_bot['bot'],
-                    last_bot['traits'],
-                    mode, event_id,
-                    player_name=player_name,
-                    delay_seconds=comp_delay,
-                    stored_tone=last_bot.get(
-                        'stored_tone'
-                    ),
+            if wb:
+                welcome_delay = last_delay + 3
+                _batch_welcome(
+                    db, client, config, wb,
+                    new_names, group_id, mode,
+                    event_id, welcome_delay
                 )
-            except Exception as e:
-                logger.error(
-                    "Batch composition comment "
-                    "failed", exc_info=True,
-                )
+
+            # --- ONE composition comment ---
+            # Delay after welcome (or last greeting
+            # if no welcomer was found)
+            comp_delay = last_delay + 5
+            if wb:
+                comp_delay = last_delay + 6
+
+            if last_bot:
+                try:
+                    _maybe_comment_on_composition(
+                        db, client, config,
+                        group_id,
+                        last_bot['bot'],
+                        last_bot['traits'],
+                        mode, event_id,
+                        player_name=player_name,
+                        delay_seconds=comp_delay,
+                        stored_tone=last_bot.get(
+                            'stored_tone'
+                        ),
+                    )
+                except Exception as e:
+                    logger.error(
+                        "Batch composition "
+                        "comment failed",
+                        exc_info=True,
+                    )
 
         _mark_event(db, event_id, 'completed')
         return True
