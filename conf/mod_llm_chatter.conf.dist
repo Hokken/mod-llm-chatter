@@ -783,17 +783,17 @@ LLMChatter.GroupChatter.StateCalloutEnable = 1
 #
 #   LLMChatter.GroupChatter.StateCalloutChance
 #       Percentage chance (0-100) a state callout fires
-#       when a bot meets the threshold. In BGs this is
-#       halved automatically.
-#       Default: 60
+#       when a bot meets the threshold. In BGs and raids
+#       this is halved automatically.
+#       Default: 100
 #       [SERVER]
 #
-LLMChatter.GroupChatter.StateCalloutChance = 60
+LLMChatter.GroupChatter.StateCalloutChance = 100
 
 #
 #   LLMChatter.GroupChatter.StateCalloutCooldown
 #       Seconds between state callouts per bot.
-#       In BGs this is doubled automatically.
+#       In BGs and raids this is doubled automatically.
 #       Default: 60
 #       [SERVER]
 #
