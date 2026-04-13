@@ -78,6 +78,33 @@ _CATEGORIES = [
 # make no sense for these classes.
 _NON_MANA_CLASS_IDS = {1, 4, 6}
 
+# Classes that actually cast healing/protective
+# support spells — Paladin (2), Priest (5),
+# Shaman (7), Druid (11).  spell_support
+# pre-cache for any other class produces lines
+# where a rogue/warrior/mage claims to have
+# healed someone.
+_SUPPORT_CLASS_IDS = {2, 5, 7, 11}
+
+# Combat style hint for spell_offensive pre-cache.
+# Lets the LLM phrase a weapon swing differently
+# from an arcane bolt.
+#   melee  = weapon strikes only (no castable magic)
+#   caster = pure spellcaster
+#   hybrid = mixes weapon abilities and spells
+_CLASS_COMBAT_STYLE = {
+    1: 'melee',    # Warrior
+    2: 'hybrid',   # Paladin
+    3: 'hybrid',   # Hunter (ranged weapon + shots)
+    4: 'melee',    # Rogue
+    5: 'caster',   # Priest
+    6: 'hybrid',   # Death Knight
+    7: 'hybrid',   # Shaman
+    8: 'caster',   # Mage
+    9: 'caster',   # Warlock
+    11: 'hybrid',  # Druid
+}
+
 # Map category to state_type for state prompts
 _STATE_TYPE_MAP = {
     'state_low_health': 'low_health',
@@ -200,7 +227,7 @@ def _get_recent_cached(db, group_id, bot_guid, cat):
 def _build_prompt(
     cat, prompt_type, bot_name, race, class_name,
     level, traits, mood, stored_tone, role,
-    recent_cached,
+    recent_cached, combat_style,
 ):
     """Dispatch to the correct prompt builder."""
     if prompt_type == 'state':
@@ -228,6 +255,7 @@ def _build_prompt(
             bot_name, race, class_name, level,
             traits, mood, stored_tone,
             role=role, recent_cached=recent_cached,
+            combat_style=combat_style,
         )
     return None
 
@@ -336,6 +364,18 @@ def refill_precache_pool(db, client, config):
             ):
                 continue
 
+            # Skip spell_support for non-support
+            # classes.  Only Paladin/Priest/Shaman/
+            # Druid cast healing or protective
+            # spells on groupmates; a rogue
+            # generating "Lesser Heal's got you
+            # covered" is a class/spell mismatch.
+            if (
+                cat == 'spell_support'
+                and class_id not in _SUPPORT_CLASS_IDS
+            ):
+                continue
+
             # Check depth
             target_depth = int(
                 config.get(depth_key, 2)
@@ -352,11 +392,14 @@ def refill_precache_pool(db, client, config):
             )
 
             # Build prompt
+            combat_style = _CLASS_COMBAT_STYLE.get(
+                class_id, 'hybrid'
+            )
             prompt = _build_prompt(
                 cat, prompt_type, bot_name,
                 race, class_name, level, traits,
                 mood, stored_tone, role,
-                recent_cached,
+                recent_cached, combat_style,
             )
             if not prompt:
                 continue
