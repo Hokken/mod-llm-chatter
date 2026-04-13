@@ -2386,6 +2386,7 @@ void CheckGroupCombatStateImpl()
         visitedGroups.insert(groupId);
 
         bool inBG = player->InBattleground();
+        bool inRaid = group->isRaidGroup();
 
         for (GroupReference* itr =
                  group->GetFirstMember();
@@ -2402,7 +2403,10 @@ void CheckGroupCombatStateImpl()
             uint32 chance = sLLMChatterConfig
                 ->_stateCalloutChance;
 
-            if (inBG)
+            // Scale down in BG and raid to avoid
+            // spam; default chance is tuned for
+            // normal 5-man parties (100%).
+            if (inBG || inRaid)
             {
                 cd *= 2;
                 chance /= 2;
