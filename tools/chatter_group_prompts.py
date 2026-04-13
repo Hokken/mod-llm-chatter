@@ -3469,13 +3469,18 @@ def build_precache_spell_offensive_prompt(
     bot_name, race, class_name, level,
     traits, mood, stored_tone=None,
     role=None, recent_cached=None,
-    allow_action=False,
+    allow_action=False, combat_style='hybrid',
 ):
-    """Build prompt for a cached offensive spell
+    """Build prompt for a cached offensive ability
     reaction. Uses {target} and {spell} placeholders.
 
     Caster perspective - the bot IS the caster.
     C++ only uses this cache when casterIsBot.
+
+    ``combat_style`` is one of 'melee', 'caster',
+    or 'hybrid' and shapes how the LLM should
+    describe the ``{spell}`` — as a weapon strike,
+    a cast, or either.
     """
     trait_str = ', '.join(traits) if traits else ''
     rp_ctx = build_race_class_context(
@@ -3500,17 +3505,55 @@ def build_precache_spell_offensive_prompt(
     if rp_ctx:
         prompt += f"\n{rp_ctx}"
 
+    if combat_style == 'melee':
+        action_verb = (
+            "just hit an enemy with a weapon "
+            "ability"
+        )
+        ability_word = (
+            "weapon strike or finisher"
+        )
+        style_rule = (
+            "- {spell} is a WEAPON ability "
+            "(sword/dagger/axe strike, stab, "
+            "finisher) — NEVER describe it as "
+            "a cast, bolt, or arcane magic.\n"
+        )
+    elif combat_style == 'caster':
+        action_verb = (
+            "just cast an offensive spell on "
+            "an enemy"
+        )
+        ability_word = "spell you cast"
+        style_rule = (
+            "- {spell} is a CAST spell — phrase "
+            "it as magic (bolt, blast, searing, "
+            "etc.), not a weapon swing.\n"
+        )
+    else:  # hybrid
+        action_verb = (
+            "just unleashed an offensive ability "
+            "on an enemy"
+        )
+        ability_word = "ability you used"
+        style_rule = (
+            "- {spell} may be a weapon strike OR "
+            "a cast spell — keep phrasing neutral "
+            "so it reads right either way "
+            "(avoid words like 'cast', 'bolt', "
+            "'swing').\n"
+        )
+
     prompt += (
-        "\n\nYou just cast an offensive spell on "
-        "an enemy in combat. Write a very short "
-        "battle cry or taunt (1 sentence, 3-10 "
-        "words) from the CASTER perspective."
+        f"\n\nYou {action_verb} in combat. Write "
+        "a very short battle cry or taunt "
+        "(1 sentence, 3-10 words) from the "
+        "CASTER perspective."
         "\nUse these placeholders:\n"
-        "- {spell} = the spell you cast\n"
+        f"- {{spell}} = the {ability_word}\n"
         "- {target} = the enemy you hit (may be "
         "absent - write lines that work without it)\n"
-        "Example: \"{spell} incoming!\" or "
-        "\"Eat {spell}, {target}!\" or "
+        "Example: \"Eat {spell}, {target}!\" or "
         "\"They won't last long.\"\n"
     )
 
@@ -3519,9 +3562,11 @@ def build_precache_spell_offensive_prompt(
         "- Use the placeholders exactly as shown "
         "(with curly braces)\n"
         "- Do NOT invent spell names — use {spell} "
-        "for the spell name\n"
-        "- This is a DAMAGE spell — your tone must "
-        "be combative, not healing or supportive\n"
+        "for the ability name\n"
+        "- This is a DAMAGE ability — your tone "
+        "must be combative, not healing or "
+        "supportive\n"
+        + style_rule +
         "- Reflect your personality\n"
         "- No quotes, no emojis\n"
         "- Respond with ONLY the message text"

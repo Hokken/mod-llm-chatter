@@ -1695,6 +1695,8 @@ void HandleGroupPlayerSpellCastImpl(
     else
     {
         cacheKey = "spell_support";
+        if (!casterIsBot)
+            canUseCache = false;
     }
 
     if (spellCategory != "resurrect"
