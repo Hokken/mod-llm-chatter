@@ -302,6 +302,23 @@ LLMChatter.ChatterMode = roleplay
 #       Accepted values:
 #           GB / US - English (default, no extra instruction)
 #           FR      - French
+#       Adding a new language:
+#           Edit modules/mod-llm-chatter/tools/chatter_shared.py
+#           and add an entry to the _LANGUAGE_LABELS dict
+#           (search for "_LANGUAGE_LABELS"). The key is the
+#           code used here; the value is the English name
+#           injected into the LLM prompt. Examples:
+#               "DE": "German"
+#               "ES": "Spanish"
+#               "RU": "Russian"
+#               "PT": "Portuguese"
+#           No other code changes needed — the prompt
+#           pipeline is language-agnostic. After adding the
+#           code, you may also want to bump
+#           LLMChatter.ProximityChatter.MaxTokensPerLine if
+#           the language tokenizes significantly larger than
+#           English (French/German/Spanish need ~80-100;
+#           Russian/Chinese/Japanese can need 150+).
 #       Changes require a bridge restart
 #       (docker restart ac-llm-chatter-bridge).
 #       Default: GB
@@ -618,10 +635,19 @@ LLMChatter.ProximityChatter.ReplyMaxTurns = 5
 
 #
 #   LLMChatter.ProximityChatter.MaxTokensPerLine
-#       Response token budget per line.
-#       Default: 40
+#       Response token budget per line. This is a
+#       hard ceiling, not a target — the prompt
+#       constrains the LLM to 8-15 words. The cap
+#       only needs to fit the JSON wrapper plus the
+#       longest plausible reply in the configured
+#       LLMChatter.Language. English fits in ~50
+#       tokens; French/German/Spanish need ~80-100
+#       because they tokenize ~30-50% larger. Set
+#       too low and responses truncate mid-sentence,
+#       producing unparseable JSON in chat.
+#       Default: 120
 #
-LLMChatter.ProximityChatter.MaxTokensPerLine = 40
+LLMChatter.ProximityChatter.MaxTokensPerLine = 120
 
 #
 #   LLMChatter.ProximityChatter.FacingResetDelay
