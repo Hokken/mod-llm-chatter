@@ -294,6 +294,21 @@ LLMChatter.Database.Name = acore_characters
 LLMChatter.ChatterMode = roleplay
 
 #
+#   LLMChatter.Language [BRIDGE]
+#       Language the LLM should use when generating bot chat.
+#       WoW proper nouns (zone, creature, item, spell, quest,
+#       and character names) are always kept in English so
+#       in-game references still match client data.
+#       Accepted values:
+#           GB / US - English (default, no extra instruction)
+#           FR      - French
+#       Changes require a bridge restart
+#       (docker restart ac-llm-chatter-bridge).
+#       Default: GB
+#
+LLMChatter.Language = GB
+
+#
 #   LLMChatter.GroupChatter.Enable
 #       Enable group chatter when bots are grouped with real players.
 #       Bots will react in party chat to events like kills, deaths,

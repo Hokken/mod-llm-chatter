@@ -2711,4 +2711,12 @@ def build_zone_intrusion_prompt(
         "\n- Keep it short and urgent"
     )
 
+    # Plain-string prompt path — not routed through
+    # append_json_instruction, so inject the language
+    # rule directly.
+    from chatter_shared import get_language_rule
+    lang_rule = get_language_rule()
+    if lang_rule:
+        parts.append(lang_rule)
+
     return '\n'.join(parts)

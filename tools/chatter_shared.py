@@ -1036,6 +1036,55 @@ _action_disabled = True
 # Module-level emote chance (set from config at startup)
 _emote_chance = 0.50
 
+# Module-level response language (set from config at startup).
+# Empty string = English default (no extra instruction emitted).
+_language = ""
+
+# Human-readable label used in the prompt rule.
+_LANGUAGE_LABELS = {
+    "FR": "French",
+    "GB": "English",
+    "US": "English",
+}
+
+
+def set_language(code: str) -> None:
+    """Set from config: LLMChatter.Language (FR | GB | US).
+
+    Stored as the canonical label ('French' / 'English').
+    Empty / unknown / English values are stored as "" so
+    no extra instruction is emitted (saves tokens on the
+    default English case).
+    """
+    global _language
+    if not code:
+        _language = ""
+        return
+    label = _LANGUAGE_LABELS.get(code.strip().upper(), "")
+    # English is the implicit default — emit nothing.
+    _language = "" if label in ("", "English") else label
+
+
+def get_language_rule() -> str:
+    """Return the language instruction line, or empty.
+
+    Used by JSON instruction builders to force the LLM
+    to respond in the server's configured language while
+    preserving WoW proper nouns in English.
+    """
+    if not _language:
+        return ""
+    return (
+        f"\nLanguage: Write EVERY field in {_language} — "
+        "the \"message\" field AND the \"action\" "
+        "narrator field must both be fully in "
+        f"{_language}. Do not mix languages. "
+        "Exception: keep WoW proper nouns (zone, "
+        "subzone, creature, NPC, item, spell, quest, "
+        "and character names) in English exactly as "
+        "written — never translate them."
+    )
+
 
 def set_emote_chance(chance_pct: int):
     """Set from config: LLMChatter.EmoteChance (0-100).
@@ -1162,6 +1211,14 @@ def append_json_instruction(
             "or null,\n"
         )
 
+    lang_rule = get_language_rule()
+    # Also inject the language rule into the user
+    # prompt so split-system providers (Anthropic)
+    # see it close to generation — system prompts
+    # lose steering weight against English few-shot
+    # content that sits inside the user prompt.
+    if lang_rule:
+        prompt = prompt + lang_rule
     block = (
         "\n\nRESPONSE FORMAT: You MUST respond with "
         "ONLY valid JSON. No other text.\n"
@@ -1175,6 +1232,7 @@ def append_json_instruction(
         "CRITICAL: Follow the Length instruction "
         "in the prompt exactly — never exceed the "
         "stated character limit."
+        f"{lang_rule}"
     )
     return PromptParts(prompt, block)
 
@@ -1252,6 +1310,9 @@ def append_conversation_json_instruction(
         ]
     )
 
+    lang_rule = get_language_rule()
+    if lang_rule:
+        prompt = prompt + lang_rule
     block = (
         f"\n\n{emote_rule}"
         f"{action_text}\n"
@@ -1265,6 +1326,7 @@ def append_conversation_json_instruction(
         "CRITICAL: Follow the Length instruction "
         "in the prompt exactly — never exceed the "
         "stated character limit."
+        f"{lang_rule}"
     )
     return PromptParts(prompt, block)
 
