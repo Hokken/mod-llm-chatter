@@ -353,6 +353,14 @@ def _generate_bot_tone(
         "no quotes, no punctuation at the end."
     )
 
+    # Plain-string prompt — inject language rule
+    # directly since this path doesn't go through
+    # append_json_instruction.
+    from chatter_shared import get_language_rule
+    lang_rule = get_language_rule()
+    if lang_rule:
+        prompt += lang_rule
+
     # Build LLM client inline (same pattern as
     # _call_llm_for_memory in chatter_memory.py)
     client = None
