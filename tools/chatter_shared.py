@@ -1190,7 +1190,9 @@ def append_json_instruction(
             '"action": a short physical narration '
             '(max 8 words). '
             "NEVER put {item:}, {quest:}, or "
-            "{spell:} placeholders in action.\n"
+            "{spell:} placeholders in action. "
+            "NEVER include your own name in the "
+            "action — the client already shows it.\n"
         )
     else:
         action_desc = (
@@ -1269,6 +1271,8 @@ def append_conversation_json_instruction(
             "non-null \"action\" field — a 2-5 word "
             "physical narration (e.g. \"leans against "
             "the wall\"). "
+            "NEVER include the speaker's own name in "
+            "the action — the client already shows it. "
             "NEVER put {item:}, {quest:}, or "
             "{spell:} placeholders in the action "
             f"field — those belong in message only. "

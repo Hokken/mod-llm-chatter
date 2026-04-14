@@ -376,7 +376,7 @@ def _generate_single_line(
         prompt,
         config,
         max_tokens_override=_get_proximity_int(
-            config, 'MaxTokensPerLine', 40
+            config, 'MaxTokensPerLine', 120
         ),
         label=label,
         metadata={
@@ -852,7 +852,7 @@ def handle_proximity_player_say(
         prompt,
         config,
         max_tokens_override=_get_proximity_int(
-            config, 'MaxTokensPerLine', 40
+            config, 'MaxTokensPerLine', 120
         ),
         label='proximity_player_say',
         metadata={

@@ -2637,6 +2637,18 @@ def build_idle_chatter_prompt(
                 prompt += (
                     f"{speaker_talent_context}\n"
                 )
+            # Detect solo bot: no other bots in
+            # group. `members` includes bots + players;
+            # we are alone if removing this bot and the
+            # player leaves nothing.
+            solo_bot = False
+            if members:
+                other_bots = [
+                    m for m in members
+                    if m != bot['name']
+                    and m != player_name
+                ]
+                solo_bot = (len(other_bots) == 0)
             prompt += (
                 f"\n<past_memories>\n"
                 f"Your memories from past "
@@ -2649,6 +2661,19 @@ def build_idle_chatter_prompt(
                 f"callback. Keep it natural "
                 f"(not a full retelling).\n"
                 f"</past_memories>\n\n"
+            )
+            if solo_bot and player_name:
+                prompt += (
+                    f"IMPORTANT: You are the ONLY "
+                    f"bot in this party — there are "
+                    f"no other companions to address "
+                    f"or refer to. Speak directly to "
+                    f"{player_name}, never refer to "
+                    f"a third party, and use "
+                    f"second-person \"you\" to mean "
+                    f"{player_name}.\n\n"
+                )
+            prompt += (
                 f"Say something in party chat that "
                 f"references one of your memories "
                 f"above. The memory should be the "

@@ -111,8 +111,41 @@ def parse_single_response(response: str) -> dict:
             'action': None,
         }
 
-    # Last resort: treat as plain text
+    # Tolerant fallback: unterminated "message" value
+    # (truncated by max_tokens before the closing quote).
+    # Grab everything from the message field to end of
+    # buffer, then trim trailing partial JSON syntax.
+    m = re.search(
+        r'"message"\s*:\s*"((?:[^"\\]|\\.)*)$',
+        cleaned,
+    )
+    if m:
+        raw = m.group(1).strip()
+        try:
+            decoded = json.loads(f'"{raw}"')
+        except (json.JSONDecodeError, ValueError):
+            decoded = raw
+        # Trim trailing partial-field artifacts like
+        # ', "emote' or ', "action'
+        decoded = re.sub(
+            r'\s*,?\s*"(?:emote|action)\b.*$', '', decoded
+        )
+        return {
+            'message': decoded.strip(),
+            'emote': None,
+            'action': None,
+        }
+
+    # Last resort: treat as plain text, but strip any
+    # leaked JSON scaffolding so users never see raw
+    # `{ "message": "...` in chat.
     msg = cleaned.strip().strip('"')
+    if msg.startswith('{'):
+        m = re.search(
+            r'"message"\s*:\s*"?(.*)$', msg, re.DOTALL
+        )
+        if m:
+            msg = m.group(1).strip().strip('"').rstrip(',}')
     return {
         'message': msg,
         'emote': None,

@@ -331,6 +331,21 @@ def build_bot_greeting_prompt(
                     f"\"{safe_recall}\" — "
                     f"reference this naturally.\n"
                 )
+        # Solo-bot guard: when this bot is the only
+        # bot in the party, the LLM must not refer to
+        # third parties when recalling memories.
+        # group_size includes player + bots, so == 2
+        # means 1 player + just this bot.
+        if group_size == 2 and player_name:
+            prompt += (
+                f"\nIMPORTANT: You are the ONLY bot "
+                f"in this party — there are no other "
+                f"companions to address or refer to. "
+                f"Speak directly to {player_name}, "
+                f"never refer to a third party, and "
+                f"use second-person \"you\" to mean "
+                f"{player_name}.\n"
+            )
 
     # If just player + this bot (group_size=2),
     # 80% chance to use the player's name
@@ -2180,6 +2195,16 @@ def build_player_response_prompt(
             mem_lines = '\n'.join(
                 f"  - {m}" for m in sanitized
             )
+            # Detect solo bot: no other bots in
+            # group. members includes bots + players.
+            solo_bot = False
+            if members:
+                other_bots = [
+                    m for m in members
+                    if m != bot['name']
+                    and m != player_name
+                ]
+                solo_bot = (len(other_bots) == 0)
             rp_context += (
                 f"\n<past_memories>\n"
                 f"Your memories from past "
@@ -2196,6 +2221,19 @@ def build_player_response_prompt(
                 f"(not a full retelling).\n"
                 f"</past_memories>"
             )
+            if solo_bot:
+                rp_context += (
+                    f"\nIMPORTANT: You are the "
+                    f"ONLY bot in this party — "
+                    f"there are no other "
+                    f"companions to address or "
+                    f"refer to. Speak directly "
+                    f"to {player_name}, never "
+                    f"refer to a third party, "
+                    f"and use second-person "
+                    f"\"you\" to mean "
+                    f"{player_name}."
+                )
 
     prompt += f"{rp_context}\n\n"
     if link_context:
@@ -4280,6 +4318,18 @@ def build_bot_question_prompt(
             mem_lines = '\n'.join(
                 f"  - {m}" for m in sanitized
             )
+            # Detect solo bot: no other bots in group.
+            # `members` includes bots + players; we are
+            # alone if removing this bot and the player
+            # leaves nothing.
+            solo_bot = False
+            if members:
+                other_bots = [
+                    m for m in members
+                    if m != bot['name']
+                    and m != player_name
+                ]
+                solo_bot = (len(other_bots) == 0)
             prompt = (
                 f"{build_bot_identity_from_dict(bot, suffix='.')}\n"
                 f"Your personality: {trait_str}\n"
@@ -4308,6 +4358,18 @@ def build_bot_question_prompt(
                 f"{player_gender + ' ' if player_gender else ''}"
                 f"{player_race} "
                 f"{player_class} (real player).\n\n"
+            )
+            if solo_bot:
+                prompt += (
+                    f"IMPORTANT: You are the ONLY "
+                    f"bot in this party — there are "
+                    f"no other companions to address. "
+                    f"Speak directly to {player_name}, "
+                    f"never refer to a third party, "
+                    f"and use second-person "
+                    f"\"you\" to mean {player_name}.\n\n"
+                )
+            prompt += (
                 f"Ask {player_name} ONE short "
                 f"question about a shared memory "
                 f"above.\n"
