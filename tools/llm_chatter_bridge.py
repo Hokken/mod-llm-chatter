@@ -49,6 +49,7 @@ from chatter_shared import (
     set_race_vocab_chance,
     set_action_chance,
     set_emote_chance,
+    set_language,
     parse_config, get_db_connection,
     parse_extra_data,
     wait_for_database,
@@ -1142,6 +1143,9 @@ def main():
     set_emote_chance(int(config.get(
         'LLMChatter.EmoteChance', 50
     )))
+    set_language(config.get(
+        'LLMChatter.Language', 'GB'
+    ))
     init_group_config(config)
     init_general_config(config)
 

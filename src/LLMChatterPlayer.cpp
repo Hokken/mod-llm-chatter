@@ -317,10 +317,6 @@ static void HandleBotEntersEnemyTerritory(
     if (!area)
         return;
 
-    // Bots only alert in enemy capitals
-    if (!(area->flags & AREA_FLAG_CAPITAL))
-        return;
-
     if (area->team != AREATEAM_ALLY
         && area->team != AREATEAM_HORDE)
         return;
@@ -343,6 +339,31 @@ static void HandleBotEntersEnemyTerritory(
 
     if (!isEnemy)
         return;
+
+    // Only fire when a real human player is in the
+    // target zone to witness the yell — no point
+    // generating LLM chatter for bot-vs-bot events
+    // in empty zones the user will never see.
+    {
+        bool hasRealPlayer = false;
+        uint32 intruderMap = player->GetMapId();
+        for (auto const& [pguid, p] :
+             ObjectAccessor::GetPlayers())
+        {
+            if (!p || !p->IsInWorld())
+                continue;
+            if (IsPlayerBot(p))
+                continue;
+            if (p->GetZoneId() != newZone)
+                continue;
+            if (p->GetMapId() != intruderMap)
+                continue;
+            hasRealPlayer = true;
+            break;
+        }
+        if (!hasRealPlayer)
+            return;
+    }
 
     uint32 guid = player->GetGUID().GetCounter();
     time_t now = time(nullptr);
