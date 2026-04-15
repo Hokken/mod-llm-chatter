@@ -2357,6 +2357,8 @@ def build_zone_transition_prompt(
     stored_tone=None,
     is_subzone=False,
     area_name="",
+    player_name=None,
+    solo_bot=False,
 ):
     """Build prompt for a bot commenting on arriving
     in a new zone or subzone.
@@ -2401,6 +2403,12 @@ def build_zone_transition_prompt(
         sn = get_subzone_name(zone_id, area_id)
         area_label = sn or area_name or ""
 
+    subject = (
+        f"You and {player_name}"
+        if solo_bot and player_name
+        else "Your party"
+    )
+
     if is_rp:
         if is_subzone and area_label:
             style = (
@@ -2433,10 +2441,10 @@ def build_zone_transition_prompt(
             )
 
     arrival_text = (
-        f"Your party just entered the "
+        f"{subject} just entered the "
         f"{area_label} area of {zone_name}."
         if is_subzone and area_label
-        else f"Your party just arrived in "
+        else f"{subject} just arrived in "
         f"{zone_name}."
     )
 
@@ -2469,6 +2477,16 @@ def build_zone_transition_prompt(
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )
+    if solo_bot and player_name:
+        prompt += (
+            f"\n\nIMPORTANT: You are the ONLY bot "
+            f"in this party — there are no other "
+            f"companions to address or refer to. "
+            f"Speak directly to {player_name}, "
+            f"never refer to a third party, and "
+            f"use second-person \"you\" to mean "
+            f"{player_name} (not a group)."
+        )
     spices = pick_personality_spices(
         mode=mode, spice_count_override=_spice_count
     )
