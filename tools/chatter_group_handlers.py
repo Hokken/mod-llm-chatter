@@ -1485,6 +1485,11 @@ def process_group_zone_transition_event(
         is_subzone = (
             event_type == 'bot_group_subzone_change'
         )
+        members = get_group_members(db, group_id)
+        solo_bot = len(members) <= 1
+        player_name = get_group_player_name(
+            db, group_id
+        )
         prompt = build_zone_transition_prompt(
             bot, traits, zone_name, zone_id,
             mode,
@@ -1496,6 +1501,8 @@ def process_group_zone_transition_event(
             area_name=extra_data.get(
                 'area_name', ''
             ),
+            player_name=player_name,
+            solo_bot=solo_bot,
         )
 
         # Use raid chat in raid instances so all
