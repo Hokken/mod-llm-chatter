@@ -179,7 +179,8 @@ def check_or_create_bot_identity(
         cursor = db.cursor(dictionary=True)
         cursor.execute(
             "SELECT trait1, trait2, trait3, role,"
-            "   tone, farewell_msg, identity_version"
+            "   tone, farewell_msg, backstory,"
+            "   identity_version"
             " FROM llm_bot_identities"
             " WHERE bot_guid = %s",
             (bot_guid,),
@@ -202,6 +203,7 @@ def check_or_create_bot_identity(
                 'farewell_msg': row.get(
                     'farewell_msg'
                 ),
+                'backstory': row.get('backstory'),
             }
         had_row = row is not None
     except Exception:
@@ -219,19 +221,19 @@ def check_or_create_bot_identity(
 
     try:
         cursor = db.cursor()
-        # Clear farewell_msg on version bump so
-        # _generate_farewell() regenerates it for
-        # the new personality instead of reusing a
-        # stale farewell from the previous version
+        # Clear farewell_msg and backstory on version
+        # bump so they regenerate for the new
+        # personality instead of reusing stale values
         cursor.execute("""
             INSERT INTO llm_bot_identities
             (bot_guid, bot_name,
              trait1, trait2, trait3,
              tone,
              farewell_msg,
+             backstory,
              identity_version)
             VALUES (%s, %s, %s, %s, %s, NULL,
-                    NULL, %s)
+                    NULL, NULL, %s)
             ON DUPLICATE KEY UPDATE
                 bot_name = VALUES(bot_name),
                 trait1 = VALUES(trait1),
@@ -239,6 +241,7 @@ def check_or_create_bot_identity(
                 trait3 = VALUES(trait3),
                 tone = NULL,
                 farewell_msg = NULL,
+                backstory = NULL,
                 identity_version =
                     VALUES(identity_version),
                 created_at = CURRENT_TIMESTAMP
@@ -265,6 +268,7 @@ def check_or_create_bot_identity(
         'role': None,
         'tone': None,
         'farewell_msg': None,
+        'backstory': None,
         'reason': (
             'version_bump' if had_row else 'new'
         ),
@@ -449,6 +453,188 @@ def _generate_bot_tone(
         return fallback
 
 
+def _generate_bot_backstory(
+    db, config, bot_guid, group_id,
+    bot_name, bot_class, bot_race, traits, tone,
+):
+    """Generate a short background story via LLM.
+
+    Checks if backstory is already stored for this
+    bot. If not, calls LLM to generate one based on
+    the bot's race, class, traits, and tone.
+
+    Returns the backstory string, or None on failure.
+    """
+    if not int(config.get(
+        'LLMChatter.Backstory.Enable', 1
+    )):
+        return None
+
+    def _sync_group_rows(cursor, value):
+        if group_id:
+            cursor.execute(
+                "UPDATE llm_group_bot_traits"
+                " SET backstory = %s"
+                " WHERE group_id = %s"
+                "   AND bot_guid = %s"
+                "   AND backstory IS NULL",
+                (value, group_id, bot_guid),
+            )
+        else:
+            cursor.execute(
+                "UPDATE llm_group_bot_traits"
+                " SET backstory = %s"
+                " WHERE bot_guid = %s"
+                "   AND backstory IS NULL",
+                (value, bot_guid),
+            )
+
+    # Check if backstory already stored
+    try:
+        cursor = db.cursor(dictionary=True)
+        if group_id:
+            cursor.execute(
+                "SELECT backstory"
+                " FROM llm_group_bot_traits"
+                " WHERE group_id = %s"
+                "   AND bot_guid = %s",
+                (group_id, bot_guid),
+            )
+            row = cursor.fetchone()
+            if row and row.get('backstory'):
+                return row['backstory']
+
+        cursor.execute(
+            "SELECT backstory"
+            " FROM llm_bot_identities"
+            " WHERE bot_guid = %s",
+            (bot_guid,),
+        )
+        row = cursor.fetchone()
+        if row and row.get('backstory'):
+            bs = row['backstory']
+            cursor = db.cursor()
+            _sync_group_rows(cursor, bs)
+            db.commit()
+            return bs
+    except Exception:
+        pass
+
+    # Build LLM prompt
+    trait_str = ', '.join(traits)
+    tone_line = (
+        f"\nSpeaking tone: {tone}"
+        if tone else ""
+    )
+    prompt = (
+        "You are a World of Warcraft lore writer.\n\n"
+        f"Character: {bot_name}, a {bot_race} "
+        f"{bot_class}.\n"
+        f"Personality traits: {trait_str}\n"
+        f"{tone_line}\n\n"
+        "Write a 3-4 sentence background story for "
+        "this character. Include:\n"
+        "- A birthplace appropriate to their race "
+        "and Warcraft lore\n"
+        "- A brief mention of their parents or "
+        "upbringing\n"
+        "- 1-2 formative events that shaped them\n\n"
+        "The story should hint at their current "
+        "personality but not rigidly explain every "
+        "trait. Stay consistent with Warcraft lore "
+        "and the character's race/class "
+        "combination.\n\n"
+        "Respond with ONLY the backstory paragraph, "
+        "no quotes, no character name prefix."
+    )
+
+    # Inject language rule
+    from chatter_shared import get_language_rule
+    lang_rule = get_language_rule()
+    if lang_rule:
+        prompt += lang_rule
+
+    # Build LLM client inline
+    client = None
+    try:
+        provider = config.get(
+            'LLMChatter.Provider', 'anthropic'
+        ).lower()
+        if provider == 'ollama':
+            import openai as _openai
+            base = config.get(
+                'LLMChatter.Ollama.BaseUrl',
+                'http://localhost:11434',
+            )
+            client = _openai.OpenAI(
+                base_url=f"{base.rstrip('/')}/v1",
+                api_key='ollama',
+            )
+        elif provider == 'openai':
+            import openai as _openai
+            client = _openai.OpenAI(
+                api_key=config.get(
+                    'LLMChatter.OpenAI.ApiKey', ''
+                )
+            )
+        else:
+            import anthropic as _anthropic
+            client = _anthropic.Anthropic(
+                api_key=config.get(
+                    'LLMChatter.Anthropic.ApiKey', ''
+                )
+            )
+    except Exception:
+        pass
+
+    try:
+        response = call_llm(
+            client, prompt, config,
+            max_tokens_override=200,
+            context=f"backstory:{bot_name}",
+            label='bot_backstory',
+        )
+        if not response:
+            raise ValueError("empty response")
+
+        backstory = response.strip().strip('"').strip()
+        if not backstory:
+            raise ValueError("blank backstory")
+        # Cap at 1000 chars
+        backstory = backstory[:1000]
+
+        # Store in DB — upsert identity so backstory
+        # persists even if no identity row existed
+        cursor = db.cursor()
+        _sync_group_rows(cursor, backstory)
+        target_version = int(config.get(
+            'LLMChatter.Memory.IdentityVersion', 1
+        ))
+        cursor.execute(
+            "INSERT INTO llm_bot_identities"
+            " (bot_guid, bot_name,"
+            "  trait1, trait2, trait3,"
+            "  backstory, identity_version)"
+            " VALUES (%s, %s, %s, %s, %s, %s, %s)"
+            " ON DUPLICATE KEY UPDATE"
+            "  backstory = VALUES(backstory)",
+            (bot_guid, bot_name,
+             traits[0], traits[1], traits[2],
+             backstory, target_version),
+        )
+        db.commit()
+
+        logger.debug(
+            "Backstory generated for %s: %s",
+            bot_name, backstory[:80],
+        )
+
+        return backstory
+
+    except Exception:
+        return None
+
+
 def regenerate_missing_identity_tones(
     db, client, config, limit=3,
 ):
@@ -529,6 +715,126 @@ def regenerate_missing_identity_tones(
     return generated
 
 
+def regenerate_bot_backstory(
+    db, config, bot_guid,
+):
+    """Clear and regenerate backstory for a bot.
+
+    Called by the bot_backstory_regen event handler
+    when the player requests a new backstory via addon.
+    """
+    # Clear existing backstory
+    try:
+        cursor = db.cursor()
+        cursor.execute(
+            "UPDATE llm_bot_identities"
+            " SET backstory = NULL"
+            " WHERE bot_guid = %s",
+            (bot_guid,),
+        )
+        cursor.execute(
+            "UPDATE llm_group_bot_traits"
+            " SET backstory = NULL"
+            " WHERE bot_guid = %s",
+            (bot_guid,),
+        )
+        db.commit()
+    except Exception:
+        pass
+
+    # Fetch bot info for generation — try identity
+    # table first, fall back to session traits
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT i.bot_guid,
+               COALESCE(i.bot_name, c.name)
+                   AS bot_name,
+               i.trait1, i.trait2, i.trait3,
+               i.tone,
+               c.class, c.race
+        FROM llm_bot_identities i
+        JOIN characters c
+          ON c.guid = i.bot_guid
+        WHERE i.bot_guid = %s
+    """, (bot_guid,))
+    row = cursor.fetchone()
+    if not row:
+        # Fall back to session traits
+        cursor.execute("""
+            SELECT t.bot_guid,
+                   COALESCE(t.bot_name, c.name)
+                       AS bot_name,
+                   t.trait1, t.trait2, t.trait3,
+                   t.tone,
+                   c.class, c.race
+            FROM llm_group_bot_traits t
+            JOIN characters c
+              ON c.guid = t.bot_guid
+            WHERE t.bot_guid = %s
+            ORDER BY t.assigned_at DESC
+            LIMIT 1
+        """, (bot_guid,))
+        row = cursor.fetchone()
+    if not row:
+        return None
+
+    bot_name = row.get('bot_name', '') or ''
+    bot_class = get_class_name(
+        int(row.get('class') or 0)
+    )
+    bot_race = get_race_name(
+        int(row.get('race') or 0)
+    )
+    traits = [
+        row.get('trait1', ''),
+        row.get('trait2', ''),
+        row.get('trait3', ''),
+    ]
+    tone = row.get('tone', '')
+
+    if not bot_name or not bot_class or not bot_race:
+        return None
+    if not all(traits):
+        return None
+
+    backstory = _generate_bot_backstory(
+        db, config, bot_guid, None,
+        bot_name, bot_class, bot_race,
+        traits, tone,
+    )
+    if backstory:
+        logger.info(
+            "Regenerated backstory for %s (%s)",
+            bot_name, bot_guid,
+        )
+    return backstory
+
+
+def handle_backstory_regen_event(
+    db, client, config, event,
+):
+    """Event handler for bot_backstory_regen.
+
+    Called when a player requests backstory
+    regeneration via the addon. Clears and
+    regenerates the backstory, then marks the
+    event completed.
+    """
+    import json
+    extra = event.get('extra_data')
+    if isinstance(extra, str):
+        extra = json.loads(extra)
+
+    bot_guid = int(extra.get('bot_guid') or 0)
+    if not bot_guid:
+        return True
+
+    backstory = regenerate_bot_backstory(
+        db, config, bot_guid,
+    )
+    return True
+
+
 def assign_bot_traits(
     db, group_id, bot_guid, bot_name,
     role=None, zone=0, area_id=0, map_id=0,
@@ -560,6 +866,9 @@ def assign_bot_traits(
             identity['trait3'],
         ]
         persistent_tone = identity.get('tone')
+        persistent_backstory = identity.get(
+            'backstory'
+        )
         # Use stored role if caller didn't provide
         if not role and identity.get('role'):
             role = identity['role']
@@ -572,21 +881,25 @@ def assign_bot_traits(
             for cat in categories
         ]
         persistent_tone = None
+        persistent_backstory = None
 
     cursor = db.cursor()
     cursor.execute("""
         INSERT INTO llm_group_bot_traits
         (group_id, bot_guid, bot_name,
          trait1, trait2, trait3, role, tone,
-         zone, area, map)
+         backstory, zone, area, map)
         VALUES (%s, %s, %s, %s, %s, %s, %s,
-                %s, %s, %s, %s)
+                %s, %s, %s, %s, %s)
         ON DUPLICATE KEY UPDATE
             trait1 = VALUES(trait1),
             trait2 = VALUES(trait2),
             trait3 = VALUES(trait3),
             role = VALUES(role),
             tone = COALESCE(VALUES(tone), tone),
+            backstory = COALESCE(
+                VALUES(backstory), backstory
+            ),
             zone = VALUES(zone),
             area = VALUES(area),
             map = VALUES(map),
@@ -595,6 +908,7 @@ def assign_bot_traits(
         group_id, bot_guid, bot_name,
         traits[0], traits[1], traits[2],
         role, persistent_tone,
+        persistent_backstory,
         zone, int(area_id or 0), map_id
     ))
     db.commit()
@@ -613,13 +927,14 @@ def assign_bot_traits(
         except Exception:
             pass
 
-    # Clear stored tone on fresh identity (new or
-    # version bump) so a new one gets generated below
+    # Clear stored tone and backstory on fresh identity
+    # (new or version bump) so they get regenerated
     if identity and identity.get('reason'):
         try:
             cursor.execute(
                 "UPDATE llm_group_bot_traits"
-                " SET tone = NULL"
+                " SET tone = NULL,"
+                "     backstory = NULL"
                 " WHERE group_id = %s"
                 "   AND bot_guid = %s",
                 (group_id, bot_guid),
@@ -640,9 +955,22 @@ def assign_bot_traits(
         except Exception:
             pass
 
+    # Generate LLM-derived backstory if not already set
+    backstory = None
+    if config and bot_class and bot_race:
+        try:
+            backstory = _generate_bot_backstory(
+                db, config, bot_guid, group_id,
+                bot_name, bot_class, bot_race,
+                traits, tone,
+            )
+        except Exception:
+            pass
+
     return {
         'traits': traits,
         'tone': tone,
+        'backstory': backstory,
     }
 
 
@@ -653,7 +981,8 @@ def get_bot_traits(
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
         SELECT trait1, trait2, trait3,
-            bot_name, role, tone, zone, area, map
+            bot_name, role, tone, backstory,
+            zone, area, map
         FROM llm_group_bot_traits
         WHERE group_id = %s AND bot_guid = %s
     """, (group_id, bot_guid))
@@ -687,6 +1016,7 @@ def get_bot_traits(
             'bot_name': name,
             'role': row.get('role'),
             'tone': row.get('tone'),
+            'backstory': row.get('backstory'),
             'zone': zone,
             'area': area,
             'map': map_id,

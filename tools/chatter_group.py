@@ -2590,6 +2590,7 @@ def build_idle_chatter_prompt(
     area_id=0,
     stored_tone=None,
     memories=None,
+    backstory=None,
 ):
     """Build prompt for idle party chat.
 
@@ -2877,6 +2878,15 @@ def build_idle_chatter_prompt(
     prompt += (
         f"Your tone: {tone}\n"
     )
+    if backstory:
+        prompt += (
+            f"\n<backstory>\n"
+            f"Your history: {backstory}\n"
+            f"Draw from this background naturally "
+            f"if it fits the moment -- don't force "
+            f"it.\n"
+            f"</backstory>\n"
+        )
     if twist:
         prompt += f"Creative twist: {twist}\n"
 
@@ -2935,6 +2945,7 @@ def build_idle_conversation_prompt(
     speaker_talent_context=None,
     area_id=0,
     memories_map=None,
+    backstory_map=None,
 ):
     """Build prompt for a multi-bot idle conversation.
 
@@ -3247,6 +3258,25 @@ def build_idle_conversation_prompt(
                     parts.append(f"  {shared_class}")
                 seen_classes.add(cls_role_key)
 
+    # Inject backstories for participating bots
+    if backstory_map:
+        bs_lines = []
+        for bot in bots:
+            bs = backstory_map.get(bot['name'])
+            if bs:
+                bs_lines.append(
+                    f"  {bot['name']}: {bs}"
+                )
+        if bs_lines:
+            parts.append(
+                "<backstories>\n"
+                + "\n".join(bs_lines)
+                + "\nDraw from these backgrounds "
+                "naturally if they fit the moment "
+                "-- don't force them.\n"
+                "</backstories>"
+            )
+
     if speaker_talent_context:
         parts.append(speaker_talent_context)
 
@@ -3507,7 +3537,8 @@ def check_idle_group_chatter(
         cursor.execute("""
             SELECT t.bot_guid, t.bot_name,
                    t.trait1, t.trait2, t.trait3,
-                   t.role, t.tone, t.zone, t.map,
+                   t.role, t.tone, t.backstory,
+                   t.zone, t.map,
                    COALESCE(c.health, 1) AS health
             FROM llm_group_bot_traits t
             LEFT JOIN characters c
@@ -3847,6 +3878,18 @@ def _idle_single_statement(
                     if not idle_memories:
                         idle_memories = None
 
+    # RNG-gate backstory injection for idle chatter
+    idle_backstory = None
+    backstory_enabled = int(config.get(
+        'LLMChatter.Backstory.Enable', 1
+    ))
+    if backstory_enabled:
+        idle_chance = int(config.get(
+            'LLMChatter.Backstory.IdleChance', 25
+        )) / 100.0
+        if random.random() < idle_chance:
+            idle_backstory = bot_row.get('backstory')
+
     try:
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
@@ -3867,6 +3910,7 @@ def _idle_single_statement(
             area_id=area_id,
             stored_tone=stored_tone,
             memories=idle_memories,
+            backstory=idle_backstory,
         )
 
         _dflav = get_dungeon_flavor(map_id)
@@ -4101,6 +4145,23 @@ def _idle_conversation(
                                 b['guid']
                             ] = mems
 
+    # RNG-gate backstory injection per bot
+    conv_backstory_map = None
+    backstory_enabled = int(config.get(
+        'LLMChatter.Backstory.Enable', 1
+    ))
+    if backstory_enabled:
+        idle_chance = int(config.get(
+            'LLMChatter.Backstory.IdleChance', 25
+        )) / 100.0
+        _bs_map = {}
+        for br in selected_rows:
+            bs = br.get('backstory')
+            if bs and random.random() < idle_chance:
+                _bs_map[br['bot_name']] = bs
+        if _bs_map:
+            conv_backstory_map = _bs_map
+
     try:
         # Talent context for first bot only
         first_bot = bots[0] if bots else None
@@ -4150,6 +4211,7 @@ def _idle_conversation(
             speaker_talent_context=speaker_talent,
             area_id=area_id,
             memories_map=memories_map or None,
+            backstory_map=conv_backstory_map,
             allow_action=allow_action,
         )
         logger.info(
@@ -4446,7 +4508,7 @@ def check_bot_questions(db, client, config):
         cursor.execute("""
             SELECT bot_guid, bot_name,
                    trait1, trait2, trait3, role,
-                   tone, zone, map
+                   tone, backstory, zone, map
             FROM llm_group_bot_traits
             WHERE group_id = %s
             ORDER BY RAND()

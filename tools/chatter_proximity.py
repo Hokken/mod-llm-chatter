@@ -90,7 +90,8 @@ def _query_bot_traits(
     try:
         cursor = db.cursor(dictionary=True)
         cursor.execute(
-            "SELECT trait1, trait2, trait3, tone "
+            "SELECT trait1, trait2, trait3,"
+            "       tone, backstory "
             "FROM llm_group_bot_traits "
             "WHERE bot_guid = %s LIMIT 1",
             (bot_guid,),
@@ -108,6 +109,7 @@ def _query_bot_traits(
                 if trait
             ],
             'tone': row.get('tone') or '',
+            'backstory': row.get('backstory') or '',
         }
     except Exception:
         logger.error(
@@ -199,6 +201,7 @@ def _single_prompt(
     topic: str,
     player_message: Optional[str] = None,
     last_message: Optional[str] = None,
+    config: Optional[Dict] = None,
 ) -> PromptParts:
     zone_name = extra.get('zone_name', 'the area')
     subzone_name = extra.get('subzone_name', '')
@@ -210,6 +213,7 @@ def _single_prompt(
     nearby_names = extra.get('nearby_names') or []
     speaker_traits = []
     speaker_tone = ''
+    speaker_backstory = ''
     if not speaker.get('is_npc'):
         profile = _query_bot_traits(
             db,
@@ -217,6 +221,9 @@ def _single_prompt(
         )
         speaker_traits = profile.get('traits', [])
         speaker_tone = profile.get('tone', '')
+        speaker_backstory = profile.get(
+            'backstory', ''
+        )
 
     lines = [
         "You write extremely short, immersive World of "
@@ -236,6 +243,20 @@ def _single_prompt(
         )
     if speaker_tone:
         lines.append(f"Speaker tone: {speaker_tone}")
+    # RNG-gate backstory injection
+    if speaker_backstory and config:
+        bs_enabled = int(config.get(
+            'LLMChatter.Backstory.Enable', 1
+        ))
+        prox_chance = int(config.get(
+            'LLMChatter.Backstory.ProximityChance',
+            15,
+        )) / 100.0
+        if bs_enabled and random.random() < prox_chance:
+            lines.append(
+                f"Speaker background: "
+                f"{speaker_backstory}"
+            )
     if subzone_name:
         lines.append(f"Subzone: {subzone_name}")
     lines.append(f"Topic seed: {topic}")
@@ -267,7 +288,8 @@ def _single_prompt(
 
 
 def _conversation_prompt(
-    db, extra: Dict, participants: List[Dict]
+    db, extra: Dict, participants: List[Dict],
+    config: Optional[Dict] = None,
 ) -> PromptParts:
     topic = random.choice(PROXIMITY_CHAT_TOPICS)
     zone_name = extra.get('zone_name', 'the area')
@@ -278,6 +300,18 @@ def _conversation_prompt(
             len(participants) + 1,
         ),
     )
+    # Check backstory config once
+    _bs_enabled = False
+    _bs_chance = 0.0
+    if config:
+        _bs_enabled = int(config.get(
+            'LLMChatter.Backstory.Enable', 1
+        )) == 1
+        _bs_chance = int(config.get(
+            'LLMChatter.Backstory.ProximityChance',
+            15,
+        )) / 100.0
+
     roster_lines = []
     for speaker in participants:
         line = f"- {_describe_speaker(db, speaker)}"
@@ -288,6 +322,7 @@ def _conversation_prompt(
             )
             traits = profile.get('traits', [])
             tone = profile.get('tone', '')
+            backstory = profile.get('backstory', '')
             if traits:
                 line += (
                     "; personality: "
@@ -295,6 +330,11 @@ def _conversation_prompt(
                 )
             if tone:
                 line += f"; tone: {tone}"
+            if (backstory and _bs_enabled
+                    and random.random() < _bs_chance):
+                line += (
+                    f"; background: {backstory}"
+                )
         roster_lines.append(line)
     roster = "\n".join(roster_lines)
 
@@ -370,6 +410,7 @@ def _generate_single_line(
         ),
         player_message=player_message,
         last_message=last_message,
+        config=config,
     )
     response = call_llm(
         client,
@@ -442,7 +483,7 @@ def handle_proximity_conversation(
         return False
 
     prompt = _conversation_prompt(
-        db, extra, participants
+        db, extra, participants, config=config,
     )
     max_lines = int(extra.get('max_lines', 3) or 3)
     # Each line needs ~60-80 tokens for JSON structure

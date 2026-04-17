@@ -1656,6 +1656,41 @@ LLMChatter.Memory.PartyMemberGenerationChance = 50
 LLMChatter.Memory.IdleRecallChance = 20
 
 ###############################################################################
+# BACKSTORY
+###############################################################################
+
+#
+#   LLMChatter.Backstory.Enable [BRIDGE]
+#       Master switch for bot background stories.
+#       When enabled, an LLM-generated backstory is
+#       created for each bot when they join a group.
+#       The backstory is persistent across sessions.
+#       Requires bridge restart to take effect.
+#       Default: 1
+#
+LLMChatter.Backstory.Enable = 1
+
+#
+#   LLMChatter.Backstory.IdleChance [BRIDGE]
+#       Percent chance (0-100) that a bot's backstory
+#       is included in idle chatter prompts.
+#       Higher values mean more backstory-influenced
+#       idle messages.
+#       Requires bridge restart to take effect.
+#       Default: 25
+#
+LLMChatter.Backstory.IdleChance = 25
+
+#
+#   LLMChatter.Backstory.ProximityChance [BRIDGE]
+#       Percent chance (0-100) that a bot's backstory
+#       is included in proximity chatter prompts.
+#       Requires bridge restart to take effect.
+#       Default: 15
+#
+LLMChatter.Backstory.ProximityChance = 15
+
+###############################################################################
 # EMOTE REACTION SYSTEM
 ###############################################################################
 

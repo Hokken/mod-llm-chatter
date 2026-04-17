@@ -934,6 +934,22 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'description': (str, True),
         },
     ),
+
+    # -- Backstory regen (addon-triggered) ----------
+
+    'bot_backstory_regen': EventSpec(
+        handler_module='chatter_group_state',
+        handler_func='handle_backstory_regen_event',
+        producer='LLMChatterCommand.cpp',
+        priority='normal',
+        description=(
+            'Player requests backstory regeneration'
+        ),
+        payload_fields={
+            'bot_guid': (int, True),
+            'player_guid': (int, True),
+        },
+    ),
 }
 
 

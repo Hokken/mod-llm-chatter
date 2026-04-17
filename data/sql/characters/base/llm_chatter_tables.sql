@@ -76,7 +76,8 @@ CREATE TABLE `llm_chatter_events` (
         'proximity_conversation',
         'proximity_reply',
         'proximity_player_say',
-        'proximity_player_conversation'
+        'proximity_player_conversation',
+        'bot_backstory_regen'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,
@@ -178,6 +179,7 @@ CREATE TABLE `llm_group_bot_traits` (
     `area` INT UNSIGNED NOT NULL DEFAULT 0,
     `map` INT UNSIGNED NOT NULL DEFAULT 0,
     `farewell_msg` VARCHAR(255) DEFAULT NULL,
+    `backstory` TEXT DEFAULT NULL,
     `assigned_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (`id`),
     UNIQUE KEY `uk_group_bot` (`group_id`, `bot_guid`),
@@ -240,6 +242,7 @@ CREATE TABLE IF NOT EXISTS `llm_bot_identities` (
     `role`             VARCHAR(32)  DEFAULT NULL,
     `tone`             VARCHAR(120) DEFAULT NULL,
     `farewell_msg`     VARCHAR(255) DEFAULT NULL,
+    `backstory`        TEXT         DEFAULT NULL,
     `identity_version` INT UNSIGNED NOT NULL DEFAULT 1,
     `created_at`       TIMESTAMP    DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
