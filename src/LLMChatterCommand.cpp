@@ -795,6 +795,63 @@ bool HandleRegenBackstoryCommand(
         + PercentEncode(profile.name));
     return true;
 }
+bool HandleForgetCommand(
+    ChatHandler* handler, std::string const& args)
+{
+    Player* player = handler->GetSession()->GetPlayer();
+    if (!player)
+        return true;
+
+    uint32 botGuid = 0;
+    if (!ParseGuidArg(Trim(args), botGuid))
+    {
+        SendAddonLine(
+            handler,
+            "ERROR usage "
+            + PercentEncode(
+                "Usage: .llmc forget <botGuid>"));
+        return true;
+    }
+
+    uint32 playerGuid =
+        player->GetGUID().GetCounter();
+    if (!IsKnownBotForPlayer(playerGuid, botGuid))
+    {
+        SendAddonLine(
+            handler,
+            "ERROR access "
+            + PercentEncode(
+                "That bot is not in your "
+                "Chatter roster"));
+        return true;
+    }
+
+    // Delete only this player's memories of this bot
+    CharacterDatabase.Execute(
+        "DELETE FROM llm_bot_memories "
+        "WHERE player_guid = {} "
+        "  AND bot_guid = {}",
+        playerGuid,
+        botGuid);
+
+    // Fetch name from characters table for response
+    std::string botName;
+    QueryResult nameResult = CharacterDatabase.Query(
+        "SELECT name FROM characters "
+        "WHERE guid = {}",
+        botGuid);
+    if (nameResult)
+        botName = nameResult->Fetch()[0]
+            .Get<std::string>();
+
+    SendAddonLine(
+        handler,
+        "FORGOTTEN "
+        + std::to_string(botGuid)
+        + " "
+        + PercentEncode(botName));
+    return true;
+}
 }  // namespace
 
 class LLMChatterCommandScript : public CommandScript
@@ -855,13 +912,17 @@ public:
             return HandleRegenBackstoryCommand(
                 handler, rest);
 
+        if (command == "forget")
+            return HandleForgetCommand(
+                handler, rest);
+
         SendAddonLine(
             handler,
             "ERROR usage "
             + PercentEncode(
                 "Supported commands: roster, "
                 "get, set, setbackstory, "
-                "regenbackstory"));
+                "regenbackstory, forget"));
         return true;
     }
 };
