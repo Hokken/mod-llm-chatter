@@ -17,6 +17,7 @@ from chatter_shared import (
     call_llm,
     cleanup_message,
     get_class_name,
+    get_gender_label,
     get_race_name,
     strip_speaker_prefix,
 )
@@ -456,6 +457,7 @@ def _generate_bot_tone(
 def _generate_bot_backstory(
     db, config, bot_guid, group_id,
     bot_name, bot_class, bot_race, traits, tone,
+    bot_gender='',
 ):
     """Generate a short background story via LLM.
 
@@ -526,10 +528,13 @@ def _generate_bot_backstory(
         f"\nSpeaking tone: {tone}"
         if tone else ""
     )
+    gender_str = (
+        f"{bot_gender} " if bot_gender else ""
+    )
     prompt = (
         "You are a World of Warcraft lore writer.\n\n"
-        f"Character: {bot_name}, a {bot_race} "
-        f"{bot_class}.\n"
+        f"Character: {bot_name}, a {gender_str}"
+        f"{bot_race} {bot_class}.\n"
         f"Personality traits: {trait_str}\n"
         f"{tone_line}\n\n"
         "Write a 3-4 sentence background story for "
@@ -543,7 +548,8 @@ def _generate_bot_backstory(
         "personality but not rigidly explain every "
         "trait. Stay consistent with Warcraft lore "
         "and the character's race/class "
-        "combination.\n\n"
+        f"combination. Use {'she/her' if bot_gender == 'female' else 'he/him'} "
+        "pronouns throughout.\n\n"
         "Respond with ONLY the backstory paragraph, "
         "no quotes, no character name prefix."
     )
@@ -751,7 +757,7 @@ def regenerate_bot_backstory(
                    AS bot_name,
                i.trait1, i.trait2, i.trait3,
                i.tone,
-               c.class, c.race
+               c.class, c.race, c.gender
         FROM llm_bot_identities i
         JOIN characters c
           ON c.guid = i.bot_guid
@@ -766,7 +772,7 @@ def regenerate_bot_backstory(
                        AS bot_name,
                    t.trait1, t.trait2, t.trait3,
                    t.tone,
-                   c.class, c.race
+                   c.class, c.race, c.gender
             FROM llm_group_bot_traits t
             JOIN characters c
               ON c.guid = t.bot_guid
@@ -785,6 +791,9 @@ def regenerate_bot_backstory(
     bot_race = get_race_name(
         int(row.get('race') or 0)
     )
+    bot_gender = get_gender_label(
+        int(row.get('gender') or 0)
+    )
     traits = [
         row.get('trait1', ''),
         row.get('trait2', ''),
@@ -801,6 +810,7 @@ def regenerate_bot_backstory(
         db, config, bot_guid, None,
         bot_name, bot_class, bot_race,
         traits, tone,
+        bot_gender=bot_gender,
     )
     if backstory:
         logger.info(
@@ -839,7 +849,7 @@ def assign_bot_traits(
     db, group_id, bot_guid, bot_name,
     role=None, zone=0, area_id=0, map_id=0,
     config=None,
-    bot_class='', bot_race='',
+    bot_class='', bot_race='', bot_gender='',
 ):
     """Pick 3 random traits and store them.
 
@@ -963,6 +973,7 @@ def assign_bot_traits(
                 db, config, bot_guid, group_id,
                 bot_name, bot_class, bot_race,
                 traits, tone,
+                bot_gender=bot_gender,
             )
         except Exception:
             pass

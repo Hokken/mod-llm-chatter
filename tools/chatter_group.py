@@ -490,6 +490,7 @@ def process_group_event(db, client, config, event):
             config=config,
             bot_class=bot_class,
             bot_race=bot_race,
+            bot_gender=bot.get('gender', ''),
         )
         traits = trait_result['traits']
         stored_tone = trait_result.get('tone')
@@ -950,6 +951,7 @@ def process_group_join_batch_event(
                 config=config,
                 bot_class=bot_class,
                 bot_race=bot_race,
+                bot_gender=bot.get('gender', ''),
             )
             traits = trait_result['traits']
             stored_tone = trait_result.get('tone')
