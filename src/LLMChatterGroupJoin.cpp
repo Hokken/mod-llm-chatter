@@ -59,6 +59,15 @@ void QueueBotGreetingEvent(
     // Find real player name and area
     std::string playerName;
     Player* realPlayer = nullptr;
+    if (Player* leader = ObjectAccessor::FindPlayer(
+            group->GetLeaderGUID()))
+    {
+        if (!IsPlayerBot(leader))
+        {
+            playerName = leader->GetName();
+            realPlayer = leader;
+        }
+    }
     for (GroupReference* itr =
              group->GetFirstMember();
          itr != nullptr; itr = itr->next())
@@ -75,6 +84,8 @@ void QueueBotGreetingEvent(
     }
     uint32 playerAreaId = realPlayer
         ? realPlayer->GetAreaId() : 0;
+    uint32 playerGuid = realPlayer
+        ? realPlayer->GetGUID().GetCounter() : 0;
 
     // Detect bot role for Python trait storage
     std::string role = "dps";
@@ -125,6 +136,8 @@ void QueueBotGreetingEvent(
                 std::to_string(groupId) + ","
             "\"player_name\":\"" +
                 JsonEscape(playerName) + "\","
+            "\"player_guid\":" +
+                std::to_string(playerGuid) + ","
             "\"group_size\":" +
                 std::to_string(groupSize) + ","
             "\"zone\":" +
@@ -200,6 +213,7 @@ void QueueBotGreetingEvent(
         {
             GroupJoinBatch batch;
             batch.groupId = groupId;
+            batch.playerGuid = playerGuid;
             batch.playerName = playerName;
             batch.zoneId = zoneId;
             batch.areaId = playerAreaId;
@@ -290,9 +304,24 @@ void EnsureGroupJoinQueued(
     // Gather info for ALL bots in the group
     std::string playerName;
     Player* realPlayer = nullptr;
+    uint32 realPlayerGuid = 0;
     uint32 realPlayerZone = 0;
     uint32 realPlayerMap = 0;
     std::vector<GroupJoinEntry> botEntries;
+
+    if (Player* leader = ObjectAccessor::FindPlayer(
+            group->GetLeaderGUID()))
+    {
+        if (!IsPlayerBot(leader))
+        {
+            realPlayer = leader;
+            realPlayerGuid =
+                leader->GetGUID().GetCounter();
+            playerName = leader->GetName();
+            realPlayerZone = leader->GetZoneId();
+            realPlayerMap = leader->GetMapId();
+        }
+    }
 
     for (GroupReference* itr =
              group->GetFirstMember();
@@ -307,6 +336,8 @@ void EnsureGroupJoinQueued(
             if (!realPlayer)
             {
                 realPlayer = member;
+                realPlayerGuid =
+                    member->GetGUID().GetCounter();
                 playerName = member->GetName();
                 realPlayerZone =
                     member->GetZoneId();
@@ -350,6 +381,7 @@ void EnsureGroupJoinQueued(
     // flushes on the very next OnUpdate tick
     GroupJoinBatch batch;
     batch.groupId = groupId;
+    batch.playerGuid = realPlayerGuid;
     batch.playerName = playerName;
     // For instances, use MapEntry::linked_zone
     // (always correct from DBC). Bot/player
@@ -510,6 +542,8 @@ void FlushGroupJoinBatches()
                     std::to_string(b.groupId) + ","
                 "\"player_name\":\"" +
                     JsonEscape(b.playerName) + "\","
+                "\"player_guid\":" +
+                    std::to_string(b.playerGuid) + ","
                 "\"group_size\":0,"
                 "\"zone\":" +
                     std::to_string(e.zoneId) + ","
@@ -584,6 +618,8 @@ void FlushGroupJoinBatches()
                 "\"player_name\":\"" +
                     JsonEscape(b.playerName)
                     + "\","
+                "\"player_guid\":" +
+                    std::to_string(b.playerGuid) + ","
                 "\"zone\":" +
                     std::to_string(b.zoneId) + ","
                 "\"area\":" +

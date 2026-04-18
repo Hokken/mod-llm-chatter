@@ -1,14 +1,40 @@
 -- Add backstory column to session-scoped bot traits
-ALTER TABLE `llm_group_bot_traits`
-  ADD COLUMN `backstory` TEXT DEFAULT NULL
-  AFTER `farewell_msg`;
+-- (idempotent — skips if column already exists)
+SET @dbname = DATABASE();
+SET @tablename = 'llm_group_bot_traits';
+SET @columnname = 'backstory';
+SET @preparedStatement = (SELECT IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS
+   WHERE TABLE_SCHEMA = @dbname
+     AND TABLE_NAME = @tablename
+     AND COLUMN_NAME = @columnname) > 0,
+  'SELECT 1',
+  CONCAT('ALTER TABLE `', @tablename,
+         '` ADD COLUMN `', @columnname,
+         '` TEXT DEFAULT NULL AFTER `farewell_msg`')
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
 
 -- Add backstory column to persistent bot identities
-ALTER TABLE `llm_bot_identities`
-  ADD COLUMN `backstory` TEXT DEFAULT NULL
-  AFTER `farewell_msg`;
+SET @tablename = 'llm_bot_identities';
+SET @preparedStatement = (SELECT IF(
+  (SELECT COUNT(*) FROM information_schema.COLUMNS
+   WHERE TABLE_SCHEMA = @dbname
+     AND TABLE_NAME = @tablename
+     AND COLUMN_NAME = @columnname) > 0,
+  'SELECT 1',
+  CONCAT('ALTER TABLE `', @tablename,
+         '` ADD COLUMN `', @columnname,
+         '` TEXT DEFAULT NULL AFTER `farewell_msg`')
+));
+PREPARE alterIfNotExists FROM @preparedStatement;
+EXECUTE alterIfNotExists;
+DEALLOCATE PREPARE alterIfNotExists;
 
 -- Add bot_backstory_regen event type
+-- (MODIFY COLUMN is idempotent — safe to rerun)
 ALTER TABLE `llm_chatter_events`
   MODIFY COLUMN `event_type` ENUM(
     'weather_change',

@@ -500,6 +500,9 @@ void ProcessPendingRejoins()
         if (!player)
             continue;
 
+        if (IsPlayerBot(player))
+            continue;
+
         Group* group = player->GetGroup();
         if (!group)
             continue;
@@ -629,6 +632,9 @@ void ProcessPendingRejoins()
             "\"player_name\":\"" +
                 JsonEscape(player->GetName()) +
                 "\","
+            "\"player_guid\":" +
+                std::to_string(
+                    player->GetGUID().GetCounter()) + ","
             "\"zone\":" +
                 std::to_string(pZone) + ","
             "\"area\":" +

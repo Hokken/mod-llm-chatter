@@ -368,6 +368,11 @@ def fetch_pending_events(db, config, max_count):
                         AND rp.zone = e.zone_id
                         AND a.username
                             NOT LIKE 'RNDBOT%%%%'
+                        AND NOT EXISTS (
+                            SELECT 1
+                            FROM llm_group_bot_traits t
+                            WHERE t.bot_guid = rp.guid
+                        )
                   )
               )
           )

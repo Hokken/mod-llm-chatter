@@ -1307,9 +1307,33 @@ def get_group_player_name(db, group_id):
     if row:
         return row['speaker_name']
 
-    # Fallback: check join events first (most recent
-    # join captures current player name reliably),
-    # then player_msg events
+    # Current group membership is more reliable
+    # than historical join events. Same-account alt
+    # bots do not have RNDBOT accounts, so exclude
+    # GUIDs registered as bots in trait state too.
+    cursor.execute("""
+        SELECT c.name
+        FROM group_member gm
+        JOIN `groups` g
+          ON g.guid = gm.guid
+        JOIN characters c
+          ON c.guid = gm.memberGuid
+        JOIN acore_auth.account a
+          ON a.id = c.account
+        LEFT JOIN llm_group_bot_traits t
+          ON t.group_id = gm.guid
+         AND t.bot_guid = gm.memberGuid
+        WHERE gm.guid = %s
+          AND a.username NOT LIKE 'RNDBOT%%'
+          AND t.bot_guid IS NULL
+        ORDER BY (gm.memberGuid = g.leaderGuid) DESC
+        LIMIT 1
+    """, (group_id,))
+    row = cursor.fetchone()
+    if row and row.get('name'):
+        return row['name']
+
+    # Last fallback: check join/player_msg events.
     cursor.execute("""
         SELECT JSON_EXTRACT(
             extra_data, '$.player_name'

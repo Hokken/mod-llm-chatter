@@ -427,6 +427,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         payload_fields={
             'role': (str, True),
             'player_name': (str, True),
+            'player_guid': (int, False),
             'group_size': (int, False),
             'zone': (int, True),
             'area': (int, False),
@@ -446,6 +447,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         ),
         payload_fields={
             'player_name': (str, True),
+            'player_guid': (int, False),
             'zone': (int, True),
             'area': (int, False),
             'map': (int, False),

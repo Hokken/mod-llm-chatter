@@ -962,23 +962,21 @@ bool IsPlayerBot(Player* player)
     if (!player)
         return false;
 
+    WorldSession* session = player->GetSession();
+    if (session && session->IsBot())
+        return true;
+
     PlayerbotAI* ai = GET_PLAYERBOT_AI(player);
     if (!ai)
         return false;
 
-    // A user-controlled character (e.g. an alt the
-    // owner has taken over via mod-playerbots) still
-    // has a PlayerbotAI attached, but IsRealPlayer()
-    // returns true for it.  Chatter must treat that
-    // character as the real player, not as a bot —
-    // otherwise the same character ends up in both
-    // the bots[] list and player_name of a join
-    // batch, which propagates into llm_group_bot_traits
-    // and makes the bot "ask itself questions".
-    // This does not trigger for randombots (they are
-    // never user-controlled), which matches the
-    // observed symptom: bug only occurs with alt
-    // playerbots.
+    // During playerbot login, the synthetic bot
+    // WorldSession exists before PlayerbotAI master
+    // state is always available. Session::IsBot()
+    // handles that timing window. A user-controlled
+    // self-bot uses a real client session and sets
+    // master == bot, so IsRealPlayer() keeps it in
+    // the real-player side of chatter ownership.
     return !ai->IsRealPlayer();
 }
 

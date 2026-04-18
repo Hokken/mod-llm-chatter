@@ -502,18 +502,22 @@ def process_group_event(db, client, config, event):
         if int(config.get(
             'LLMChatter.Memory.Enable', 1
         )):
-            p_info = get_character_info_by_name(
-                db, player_name,
+            player_guid = int(
+                extra_data.get('player_guid', 0) or 0
             )
-            if p_info:
-                player_guid = int(p_info['guid'])
-            else:
-                logger.warning(
-                    "Memory disabled: player"
-                    " '%s' not found"
-                    " in characters table",
-                    player_name,
+            if not player_guid:
+                p_info = get_character_info_by_name(
+                    db, player_name,
                 )
+                if p_info:
+                    player_guid = int(p_info['guid'])
+                else:
+                    logger.warning(
+                        "Memory disabled: player"
+                        " '%s' not found"
+                        " in characters table",
+                        player_name,
+                    )
             member_data = {
                 bot_guid: {
                     'name': bot_name,
@@ -844,18 +848,22 @@ def process_group_join_batch_event(
         'LLMChatter.Memory.Enable', 1
     ))
     if memory_enabled and player_name:
-        p_info = get_character_info_by_name(
-            db, player_name,
+        batch_player_guid = int(
+            extra_data.get('player_guid', 0) or 0
         )
-        if p_info:
-            batch_player_guid = int(p_info['guid'])
-        else:
-            logger.warning(
-                "Memory disabled: player"
-                " '%s' not found"
-                " in characters table",
-                player_name,
+        if not batch_player_guid:
+            p_info = get_character_info_by_name(
+                db, player_name,
             )
+            if p_info:
+                batch_player_guid = int(p_info['guid'])
+            else:
+                logger.warning(
+                    "Memory disabled: player"
+                    " '%s' not found"
+                    " in characters table",
+                    player_name,
+                )
 
     greeted_bots = []
     last_bot = None

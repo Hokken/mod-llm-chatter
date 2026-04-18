@@ -699,8 +699,10 @@ def get_recent_bot_messages(
 def get_real_player_guid_for_group(db, group_id):
     """Find the real player's guid for a group.
 
-    Looks up group_member rows, finds the member
-    whose account is NOT a RNDBOT account.
+    Looks up group_member rows, excluding members
+    already registered as bots in llm_group_bot_traits.
+    The RNDBOT account prefix is only a fallback
+    guard; same-account alt bots do not use it.
 
     Returns int guid or 0.
     """
@@ -711,13 +713,21 @@ def get_real_player_guid_for_group(db, group_id):
         cursor.execute(
             "SELECT gm.memberGuid"
             " FROM group_member gm"
+            " JOIN `groups` g"
+            "   ON g.guid = gm.guid"
             " JOIN characters c"
             "   ON gm.memberGuid = c.guid"
             " JOIN acore_auth.account a"
             "   ON c.account = a.id"
+            " LEFT JOIN llm_group_bot_traits t"
+            "   ON t.group_id = gm.guid"
+            "  AND t.bot_guid = gm.memberGuid"
             " WHERE gm.guid = %s"
             "   AND a.username"
             "       NOT LIKE 'RNDBOT%%'"
+            "   AND t.bot_guid IS NULL"
+            " ORDER BY"
+            "   (gm.memberGuid = g.leaderGuid) DESC"
             " LIMIT 1",
             (group_id,),
         )
@@ -946,8 +956,9 @@ def any_real_players_online(db) -> bool:
 
     Single cheap query — use as a global gate to
     skip all background work when nobody is playing.
-    Excludes playerbot accounts (username LIKE
-    'RNDBOT%') which also set online=1.
+    Excludes random bot accounts and session bots
+    registered in llm_group_bot_traits. Same-account
+    alt bots do not use RNDBOT account names.
     """
     try:
         cursor = db.cursor()
@@ -957,6 +968,11 @@ def any_real_players_online(db) -> bool:
             "  ON c.account = a.id "
             "WHERE c.online = 1 "
             "  AND a.username NOT LIKE 'RNDBOT%%' "
+            "  AND NOT EXISTS ("
+            "      SELECT 1"
+            "      FROM llm_group_bot_traits t"
+            "      WHERE t.bot_guid = c.guid"
+            "  ) "
             "LIMIT 1"
         )
         row = cursor.fetchone()

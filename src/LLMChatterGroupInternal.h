@@ -48,6 +48,7 @@ struct GroupJoinEntry {
 
 struct GroupJoinBatch {
     uint32 groupId{0};
+    uint32 playerGuid{0};
     std::string playerName;
     uint32 zoneId{0};
     uint32 areaId{0};
