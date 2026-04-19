@@ -14,6 +14,8 @@ Built from the ground up for **fantasy roleplay immersion**. Every system, perso
 
 <p align="center">
   <a href="https://discord.gg/tvVcecuR"><img src="https://img.shields.io/badge/Discord-Join%20the%20Community-5865F2?style=for-the-badge&logo=discord&logoColor=white" alt="Join Discord"></a>
+  <br><br>
+  <a href="https://www.buymeacoffee.com/hokken" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/v2/default-violet.png" alt="Buy Me a Coffee" height="34"></a>
 </p>
 
 > See my other module: **[mod-llm-guide](https://github.com/Hokken/mod-llm-guide)** — AI-powered in-game assistant
