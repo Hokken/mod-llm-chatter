@@ -106,5 +106,6 @@ ALTER TABLE `llm_chatter_events`
     'proximity_reply',
     'proximity_player_say',
     'proximity_player_conversation',
-    'bot_backstory_regen'
+    'bot_backstory_regen',
+    'bot_tone_regen'
   ) NOT NULL;

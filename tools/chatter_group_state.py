@@ -845,6 +845,113 @@ def handle_backstory_regen_event(
     return True
 
 
+def regenerate_bot_tone(db, config, bot_guid):
+    """Clear and regenerate tone for a bot.
+
+    Called by the bot_tone_regen event handler
+    when the player saves new traits via addon.
+    """
+    try:
+        cursor = db.cursor()
+        cursor.execute(
+            "UPDATE llm_bot_identities"
+            " SET tone = NULL"
+            " WHERE bot_guid = %s",
+            (bot_guid,),
+        )
+        cursor.execute(
+            "UPDATE llm_group_bot_traits"
+            " SET tone = NULL"
+            " WHERE bot_guid = %s",
+            (bot_guid,),
+        )
+        db.commit()
+    except Exception:
+        pass
+
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT i.bot_guid,
+               COALESCE(i.bot_name, c.name)
+                   AS bot_name,
+               i.trait1, i.trait2, i.trait3,
+               c.class, c.race
+        FROM llm_bot_identities i
+        JOIN characters c
+          ON c.guid = i.bot_guid
+        WHERE i.bot_guid = %s
+    """, (bot_guid,))
+    row = cursor.fetchone()
+    if not row:
+        cursor.execute("""
+            SELECT t.bot_guid,
+                   COALESCE(t.bot_name, c.name)
+                       AS bot_name,
+                   t.trait1, t.trait2, t.trait3,
+                   c.class, c.race
+            FROM llm_group_bot_traits t
+            JOIN characters c
+              ON c.guid = t.bot_guid
+            WHERE t.bot_guid = %s
+            ORDER BY t.assigned_at DESC
+            LIMIT 1
+        """, (bot_guid,))
+        row = cursor.fetchone()
+    if not row:
+        return None
+
+    bot_name = row.get('bot_name', '') or ''
+    bot_class = get_class_name(
+        int(row.get('class') or 0)
+    )
+    bot_race = get_race_name(
+        int(row.get('race') or 0)
+    )
+    traits = [
+        row.get('trait1', '') or '',
+        row.get('trait2', '') or '',
+        row.get('trait3', '') or '',
+    ]
+
+    if not bot_name or not bot_class or not bot_race:
+        return None
+    if not all(traits):
+        return None
+
+    tone = _generate_bot_tone(
+        db, config, bot_guid, None,
+        bot_name, bot_class, bot_race, traits,
+    )
+    if tone:
+        logger.info(
+            "Regenerated tone for %s (%s): %s",
+            bot_name, bot_guid, tone,
+        )
+    return tone
+
+
+def handle_tone_regen_event(
+    db, client, config, event,
+):
+    """Event handler for bot_tone_regen.
+
+    Called when a player saves new traits via the
+    addon. Clears and regenerates the tone, then
+    marks the event completed.
+    """
+    import json
+    extra = event.get('extra_data')
+    if isinstance(extra, str):
+        extra = json.loads(extra)
+
+    bot_guid = int(extra.get('bot_guid') or 0)
+    if not bot_guid:
+        return True
+
+    regenerate_bot_tone(db, config, bot_guid)
+    return True
+
+
 def assign_bot_traits(
     db, group_id, bot_guid, bot_name,
     role=None, zone=0, area_id=0, map_id=0,

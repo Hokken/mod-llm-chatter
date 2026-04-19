@@ -952,6 +952,22 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'player_guid': (int, True),
         },
     ),
+
+    # -- Tone regen (addon-triggered) ---------------
+
+    'bot_tone_regen': EventSpec(
+        handler_module='chatter_group_state',
+        handler_func='handle_tone_regen_event',
+        producer='LLMChatterCommand.cpp',
+        priority='normal',
+        description=(
+            'Player saves new traits, tone regenerates'
+        ),
+        payload_fields={
+            'bot_guid': (int, True),
+            'player_guid': (int, True),
+        },
+    ),
 }
 
 

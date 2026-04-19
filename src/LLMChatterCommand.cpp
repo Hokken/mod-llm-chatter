@@ -481,73 +481,135 @@ bool HandleSetCommand(
         return true;
     }
 
-    CharacterDatabase.Execute(
-        "INSERT INTO llm_bot_identities "
-        "(bot_guid, bot_name, trait1, trait2, "
-        " trait3, tone, farewell_msg, backstory, "
-        " identity_version) "
-        "VALUES ({}, '{}', '{}', '{}', '{}', "
-        "        NULL, NULL, NULL, {}) "
-        "ON DUPLICATE KEY UPDATE "
-        " bot_name = VALUES(bot_name), "
-        " trait1 = VALUES(trait1), "
-        " trait2 = VALUES(trait2), "
-        " trait3 = VALUES(trait3), "
-        " tone = NULL, "
-        " farewell_msg = NULL, "
-        " backstory = NULL",
-        botGuid,
-        EscapeString(profile.name),
-        EscapeString(trait1),
-        EscapeString(trait2),
-        EscapeString(trait3),
-        sConfigMgr->GetOption<uint32>(
-            "LLMChatter.Memory.IdentityVersion",
-            1));
+    bool traitsChanged =
+        (trait1 != profile.trait1
+         || trait2 != profile.trait2
+         || trait3 != profile.trait3);
 
-    CharacterDatabase.Execute(
-        "UPDATE llm_group_bot_traits "
-        "SET bot_name = '{}', "
-        "    trait1 = '{}', "
-        "    trait2 = '{}', "
-        "    trait3 = '{}', "
-        "    tone = NULL, "
-        "    farewell_msg = NULL, "
-        "    backstory = NULL "
-        "WHERE bot_guid = {}",
-        EscapeString(profile.name),
-        EscapeString(trait1),
-        EscapeString(trait2),
-        EscapeString(trait3),
-        botGuid);
+    if (traitsChanged)
+    {
+        // Traits changed — clear tone/backstory
+        // so they regenerate for the new traits
+        CharacterDatabase.Execute(
+            "INSERT INTO llm_bot_identities "
+            "(bot_guid, bot_name, trait1, trait2, "
+            " trait3, tone, farewell_msg, backstory,"
+            " identity_version) "
+            "VALUES ({}, '{}', '{}', '{}', '{}', "
+            "        NULL, NULL, NULL, {}) "
+            "ON DUPLICATE KEY UPDATE "
+            " bot_name = VALUES(bot_name), "
+            " trait1 = VALUES(trait1), "
+            " trait2 = VALUES(trait2), "
+            " trait3 = VALUES(trait3), "
+            " tone = NULL, "
+            " farewell_msg = NULL, "
+            " backstory = NULL",
+            botGuid,
+            EscapeString(profile.name),
+            EscapeString(trait1),
+            EscapeString(trait2),
+            EscapeString(trait3),
+            sConfigMgr->GetOption<uint32>(
+                "LLMChatter.Memory.IdentityVersion",
+                1));
 
-    CharacterDatabase.Execute(
-        "DELETE FROM llm_group_cached_responses "
-        "WHERE bot_guid = {}",
-        botGuid);
+        CharacterDatabase.Execute(
+            "UPDATE llm_group_bot_traits "
+            "SET bot_name = '{}', "
+            "    trait1 = '{}', "
+            "    trait2 = '{}', "
+            "    trait3 = '{}', "
+            "    tone = NULL, "
+            "    farewell_msg = NULL, "
+            "    backstory = NULL "
+            "WHERE bot_guid = {}",
+            EscapeString(profile.name),
+            EscapeString(trait1),
+            EscapeString(trait2),
+            EscapeString(trait3),
+            botGuid);
 
-    // Auto-regenerate backstory for new traits
-    std::string bsExtra =
-        "{\"bot_guid\": "
-        + std::to_string(botGuid)
-        + ", \"player_guid\": "
-        + std::to_string(playerGuid)
-        + "}";
-    QueueChatterEvent(
-        "bot_backstory_regen",
-        "player",
-        0, 0, 5, "",
-        botGuid, "",
-        0, "", 0,
-        bsExtra,
-        5, 120, true);
+        CharacterDatabase.Execute(
+            "DELETE FROM llm_group_cached_responses "
+            "WHERE bot_guid = {}",
+            botGuid);
 
+        // Queue tone regen first (faster than backstory)
+        std::string regenExtra =
+            "{\"bot_guid\": "
+            + std::to_string(botGuid)
+            + ", \"player_guid\": "
+            + std::to_string(playerGuid)
+            + "}";
+        QueueChatterEvent(
+            "bot_tone_regen",
+            "player",
+            0, 0, 5, "",
+            botGuid, "",
+            0, "", 0,
+            regenExtra,
+            5, 120, true);
+
+        // Queue backstory regen for new traits
+        QueueChatterEvent(
+            "bot_backstory_regen",
+            "player",
+            0, 0, 5, "",
+            botGuid, "",
+            0, "", 0,
+            regenExtra,
+            5, 120, true);
+    }
+    else
+    {
+        // Traits unchanged — just save name,
+        // preserve tone/backstory/farewell as-is
+        CharacterDatabase.Execute(
+            "INSERT INTO llm_bot_identities "
+            "(bot_guid, bot_name, trait1, trait2, "
+            " trait3, identity_version) "
+            "VALUES ({}, '{}', '{}', '{}', '{}', {})"
+            " ON DUPLICATE KEY UPDATE "
+            " bot_name = VALUES(bot_name), "
+            " trait1 = VALUES(trait1), "
+            " trait2 = VALUES(trait2), "
+            " trait3 = VALUES(trait3)",
+            botGuid,
+            EscapeString(profile.name),
+            EscapeString(trait1),
+            EscapeString(trait2),
+            EscapeString(trait3),
+            sConfigMgr->GetOption<uint32>(
+                "LLMChatter.Memory.IdentityVersion",
+                1));
+
+        CharacterDatabase.Execute(
+            "UPDATE llm_group_bot_traits "
+            "SET bot_name = '{}', "
+            "    trait1 = '{}', "
+            "    trait2 = '{}', "
+            "    trait3 = '{}' "
+            "WHERE bot_guid = {}",
+            EscapeString(profile.name),
+            EscapeString(trait1),
+            EscapeString(trait2),
+            EscapeString(trait3),
+            botGuid);
+    }
+
+    std::string changedFlag =
+        traitsChanged ? "changed" : "unchanged";
     SendAddonLine(
         handler,
         "UPDATED "
         + std::to_string(botGuid)
         + " "
-        + PercentEncode(profile.name));
+        + PercentEncode(profile.name)
+        + " "
+        + changedFlag);
+    std::string toneToSend =
+        traitsChanged ? "" : profile.tone;
     SendAddonLine(
         handler,
         "PROFILE "
@@ -556,12 +618,16 @@ bool HandleSetCommand(
         + " " + PercentEncode(trait1)
         + " " + PercentEncode(trait2)
         + " " + PercentEncode(trait3)
-        + " " + PercentEncode(""));
-    SendAddonLine(
-        handler,
-        "BACKSTORY "
-        + std::to_string(botGuid)
-        + " " + PercentEncode(""));
+        + " " + PercentEncode(toneToSend));
+    if (!traitsChanged)
+    {
+        SendAddonLine(
+            handler,
+            "BACKSTORY "
+            + std::to_string(botGuid)
+            + " "
+            + PercentEncode(profile.backstory));
+    }
     return true;
 }
 bool HandleSetBackstoryCommand(
