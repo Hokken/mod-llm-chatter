@@ -73,6 +73,11 @@ void DeliverPendingMessagesImpl()
         "INTERVAL 60 SECOND)");
 
     QueryResult result;
+    // Proximity conversations are scheduled with
+    // cumulative deliver_at gaps. If one line is
+    // delivered late, gate the next line on the
+    // previous line's actual delivered_at so the
+    // conversation cannot bunch up afterward.
     if (sLLMChatterConfig->_prioritySystemEnable
         && sLLMChatterConfig
                ->_priorityDeliveryOrderEnable)
@@ -91,6 +96,18 @@ void DeliverPendingMessagesImpl()
             "ON m.event_id = e.id "
             "WHERE m.delivered = 0 "
             "AND m.deliver_at <= NOW() "
+            "AND (m.channel NOT IN ('say', 'msay') "
+            "OR m.sequence = 0 "
+            "OR NOT EXISTS ("
+            "SELECT 1 FROM llm_chatter_messages p "
+            "WHERE p.event_id = m.event_id "
+            "AND p.sequence = m.sequence - 1 "
+            "AND (p.delivered = 0 "
+            "OR p.delivered_at IS NULL "
+            "OR TIMESTAMPDIFF(SECOND, "
+            "p.delivered_at, NOW()) < "
+            "TIMESTAMPDIFF(SECOND, "
+            "p.deliver_at, m.deliver_at)))) "
             "ORDER BY COALESCE(e.priority, 0) "
             "DESC, m.deliver_at ASC LIMIT 1");
     }
@@ -106,6 +123,18 @@ void DeliverPendingMessagesImpl()
             "ON m.event_id = e.id "
             "WHERE m.delivered = 0 "
             "AND m.deliver_at <= NOW() "
+            "AND (m.channel NOT IN ('say', 'msay') "
+            "OR m.sequence = 0 "
+            "OR NOT EXISTS ("
+            "SELECT 1 FROM llm_chatter_messages p "
+            "WHERE p.event_id = m.event_id "
+            "AND p.sequence = m.sequence - 1 "
+            "AND (p.delivered = 0 "
+            "OR p.delivered_at IS NULL "
+            "OR TIMESTAMPDIFF(SECOND, "
+            "p.delivered_at, NOW()) < "
+            "TIMESTAMPDIFF(SECOND, "
+            "p.deliver_at, m.deliver_at)))) "
             "ORDER BY m.deliver_at ASC LIMIT 1");
     }
 
