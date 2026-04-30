@@ -24,6 +24,7 @@
 #include "WorldSessionMgr.h"
 
 #include <algorithm>
+#include <cctype>
 #include <ctime>
 #include <list>
 #include <map>
@@ -243,6 +244,160 @@ WorldObject* ResolveParticipantObject(
     if (bot->GetMapId() != player->GetMapId())
         return nullptr;
     return bot;
+}
+
+WorldObject* GetCandidateObject(
+    ProximityCandidate const& candidate)
+{
+    if (candidate.isNPC)
+        return candidate.npc;
+    return candidate.bot;
+}
+
+bool SameCandidate(
+    ProximityCandidate const& left,
+    ProximityCandidate const& right)
+{
+    return left.id == right.id
+        && left.isNPC == right.isNPC;
+}
+
+std::string ToLowerAscii(std::string value)
+{
+    std::transform(
+        value.begin(), value.end(), value.begin(),
+        [](unsigned char c)
+        {
+            return static_cast<char>(
+                std::tolower(c));
+        });
+    return value;
+}
+
+bool IsAsciiNameChar(char c)
+{
+    unsigned char uc =
+        static_cast<unsigned char>(c);
+    return std::isalnum(uc) != 0;
+}
+
+bool ContainsNameWithBoundary(
+    std::string const& messageLower,
+    std::string const& nameLower)
+{
+    if (messageLower.empty() || nameLower.empty())
+        return false;
+
+    size_t pos = messageLower.find(nameLower);
+    while (pos != std::string::npos)
+    {
+        bool beforeOk =
+            pos == 0
+            || !IsAsciiNameChar(
+                messageLower[pos - 1]);
+        size_t end = pos + nameLower.size();
+        bool afterOk =
+            end >= messageLower.size()
+            || !IsAsciiNameChar(
+                messageLower[end]);
+        if (beforeOk && afterOk)
+            return true;
+
+        pos = messageLower.find(
+            nameLower, pos + 1);
+    }
+
+    return false;
+}
+
+std::string FirstNameToken(
+    std::string const& name)
+{
+    size_t end = name.find_first_of(" \t\r\n");
+    if (end == std::string::npos)
+        return name;
+    return name.substr(0, end);
+}
+
+ProximityCandidate const* FindSelectedCandidate(
+    Player* player,
+    std::vector<ProximityCandidate> const& candidates)
+{
+    if (!player)
+        return nullptr;
+
+    ObjectGuid selGuid =
+        player->GetGuidValue(UNIT_FIELD_TARGET);
+    if (!selGuid)
+        return nullptr;
+
+    for (auto const& c : candidates)
+    {
+        if (c.isNPC && c.npc
+            && c.npc->GetGUID() == selGuid)
+            return &c;
+        if (!c.isNPC && c.bot
+            && c.bot->GetGUID() == selGuid)
+            return &c;
+    }
+
+    return nullptr;
+}
+
+ProximityCandidate const* FindNamedCandidate(
+    Player* player,
+    std::vector<ProximityCandidate> const& candidates,
+    std::string const& message)
+{
+    if (!player || message.empty())
+        return nullptr;
+
+    std::string msgLower = ToLowerAscii(message);
+
+    auto findBest = [&](
+        bool firstTokenOnly) -> ProximityCandidate const*
+    {
+        ProximityCandidate const* best = nullptr;
+        float bestDist = 1e9f;
+
+        for (auto const& c : candidates)
+        {
+            std::string matchName =
+                firstTokenOnly
+                    ? FirstNameToken(c.name)
+                    : c.name;
+            if (matchName.size() < 3)
+                continue;
+
+            std::string nameLower =
+                ToLowerAscii(matchName);
+            if (!ContainsNameWithBoundary(
+                    msgLower, nameLower))
+                continue;
+
+            WorldObject* obj =
+                GetCandidateObject(c);
+            if (!obj)
+                continue;
+
+            float dist =
+                player->GetDistance(obj);
+            if (!best || dist < bestDist)
+            {
+                best = &c;
+                bestDist = dist;
+            }
+        }
+
+        return best;
+    };
+
+    ProximityCandidate const* fullName =
+        findBest(false);
+    if (fullName)
+        return fullName;
+
+    return findBest(true);
 }
 
 void EvictExpiredScenes()
@@ -714,6 +869,60 @@ void QueuePlayerSayProximityEvent(
             GetEntityCooldownKey(s));
 }
 
+bool QueueNamedPlayerSayProximityEvent(
+    Player* player, std::string const& safeMsg)
+{
+    if (!player || safeMsg.empty())
+        return false;
+    if (player->IsInCombat() || player->IsMounted()
+        || player->IsFlying())
+        return false;
+
+    Map* map = player->GetMap();
+    if (!map || map->IsRaid() || map->IsDungeon()
+        || map->IsBattleground())
+        return false;
+
+    float radius = static_cast<float>(
+        sLLMChatterConfig
+            ->_proxChatterPlayerSayScanRadius);
+    std::vector<ProximityCandidate> candidates;
+    CollectNearbyBots(player, radius, candidates);
+    CollectNearbyNPCs(player, radius, candidates);
+    DeduplicateCandidates(candidates);
+    if (candidates.empty())
+        return false;
+
+    Group* playerGroup = player->GetGroup();
+    std::vector<ProximityCandidate> nonParty;
+    for (auto const& c : candidates)
+    {
+        if (c.isNPC
+            || !IsSameGroup(c.bot, playerGroup))
+            nonParty.push_back(c);
+    }
+    if (nonParty.empty())
+        return false;
+
+    ProximityCandidate const* named =
+        FindNamedCandidate(
+            player, nonParty, safeMsg);
+    if (!named)
+        return false;
+
+    std::vector<ProximityCandidate> speaker = {
+        *named};
+    QueuePlayerSayProximityEvent(
+        player,
+        "proximity_player_say",
+        speaker,
+        candidates,
+        1,
+        safeMsg,
+        named->name);
+    return true;
+}
+
 void HandleProximityPlayerSayNewScene(
     Player* player, std::string const& safeMsg)
 {
@@ -771,31 +980,14 @@ void HandleProximityPlayerSayNewScene(
     if (nonParty.empty())
         return;
 
-    // Check if the player has a target that matches
-    // a candidate — if so, that entity should be the
-    // primary responder.
+    // Prefer a nearby candidate explicitly named
+    // in /say, then the selected target.
     ProximityCandidate const* targetCandidate =
-        nullptr;
-    ObjectGuid selGuid =
-        player->GetGuidValue(UNIT_FIELD_TARGET);
-    if (selGuid)
-    {
-        for (auto const& c : nonParty)
-        {
-            if (c.isNPC && c.npc
-                && c.npc->GetGUID() == selGuid)
-            {
-                targetCandidate = &c;
-                break;
-            }
-            if (!c.isNPC && c.bot
-                && c.bot->GetGUID() == selGuid)
-            {
-                targetCandidate = &c;
-                break;
-            }
-        }
-    }
+        FindNamedCandidate(
+            player, nonParty, safeMsg);
+    if (!targetCandidate)
+        targetCandidate =
+            FindSelectedCandidate(player, nonParty);
 
     std::string addressedName =
         targetCandidate
@@ -820,18 +1012,17 @@ void HandleProximityPlayerSayNewScene(
             candidates.begin(),
             candidates.begin() + participantCount);
 
-        // If player has a targeted candidate,
-        // ensure it is the first speaker.
+        // If player has a direct candidate, ensure
+        // it is the first speaker.
         if (targetCandidate)
         {
             bool found = false;
             for (size_t i = 0; i < speakers.size();
                  ++i)
             {
-                if (speakers[i].id
-                        == targetCandidate->id
-                    && speakers[i].isNPC
-                        == targetCandidate->isNPC)
+                if (SameCandidate(
+                        speakers[i],
+                        *targetCandidate))
                 {
                     std::swap(speakers[0],
                               speakers[i]);
@@ -880,7 +1071,7 @@ void HandleProximityPlayerSayNewScene(
         return;
     }
 
-    // Single speaker — prefer player's target,
+    // Single speaker: prefer the direct target,
     // then any non-party candidate.
     ProximityCandidate chosen;
     if (targetCandidate)
@@ -1130,6 +1321,10 @@ void HandleProximityPlayerSay(
 
     std::string safeMsg = TrimChatMessage(msg);
     if (safeMsg.empty())
+        return;
+
+    if (QueueNamedPlayerSayProximityEvent(
+            player, safeMsg))
         return;
 
     ProximityScene* scene = FindBestScene(player);
