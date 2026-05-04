@@ -775,7 +775,7 @@ public:
     }
     void OnPlayerResurrect(
         Player* player, float /*restore_percent*/,
-        bool /*applySickness*/) override
+        bool& /*applySickness*/) override
     {
         HandleGroupPlayerResurrectImpl(player);
     }
