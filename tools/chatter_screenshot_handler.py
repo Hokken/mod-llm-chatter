@@ -43,7 +43,7 @@ from chatter_shared import (
     append_json_instruction,
     strip_conversation_actions,
 )
-from chatter_prompts import get_time_of_day_context
+from chatter_prompts import build_environmental_context_lines
 from chatter_text import cleanup_message, strip_speaker_prefix
 
 # Varied reaction styles to avoid samey comments
@@ -126,11 +126,10 @@ def handle_screenshot_observation(db, client, config, event):
         location_str = f"{zone_name} — {subzone_name}"
     else:
         location_str = zone_name
-    _, time_desc = get_time_of_day_context()
     context_parts = [f"Location: {location_str}"]
     if weather and weather != 'none':
         context_parts.append(f"Weather: {weather}")
-    context_parts.append(f"Time of day: {time_desc}")
+    context_parts.extend(build_environmental_context_lines())
     context_str = ', '.join(context_parts)
 
     # -- Recent chat + anti-repetition --

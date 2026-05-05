@@ -25,7 +25,7 @@ from chatter_prompts import (
     pick_personality_spices,
     generate_conversation_mood_sequence,
     generate_conversation_length_sequence,
-    get_time_of_day_context,
+    build_environmental_context_lines,
 )
 from chatter_constants import (
     RACE_SPEECH_PROFILES,
@@ -265,14 +265,15 @@ def build_bot_greeting_prompt(
                     f"\nLocation: {zone_flav}"
                 )
 
-    _, time_desc = get_time_of_day_context()
-
     prompt = (
         f"{build_bot_identity_from_dict(bot)}\n"
         f"Your personality: {trait_str}"
         f"{rp_context}"
         f"{location_context}\n"
-        f"Time of day: {time_desc}\n"
+        + "\n".join(
+            build_environmental_context_lines()
+        )
+        + "\n"
     )
     if speaker_talent_context:
         prompt += f"{speaker_talent_context}\n"
@@ -4484,19 +4485,13 @@ def build_bot_question_prompt(
             )
 
     # Environmental context
-    from chatter_prompts import get_environmental_context
     weather_arg = (
         None if in_dungeon else current_weather
     )
-    env = get_environmental_context(weather_arg)
-    if env['time']:
-        rp_context += (
-            f"\nTime of day: {env['time']}"
-        )
-    if env['weather']:
-        rp_context += (
-            f"\nCurrent weather: {env['weather']}"
-        )
+    for line in build_environmental_context_lines(
+        weather_arg
+    ):
+        rp_context += f"\n{line}"
 
     # Party context
     if members:

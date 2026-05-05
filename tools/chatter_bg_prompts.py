@@ -25,7 +25,7 @@ from chatter_shared import (
 )
 from chatter_prompts import (
     pick_personality_spices,
-    get_time_of_day_context,
+    build_environmental_context_lines,
 )
 from chatter_constants import BG_LORE
 
@@ -103,8 +103,8 @@ def _bg_base_context(
     cls = bot_data.get('class', '')
     gender = bot_data.get('gender', '')
 
-    # Time of day
-    _, time_desc = get_time_of_day_context()
+    # Environmental context
+    env_lines = build_environmental_context_lines()
 
     ctx = (
         f"You are {bot_name}"
@@ -124,7 +124,7 @@ def _bg_base_context(
         f"{extra_data.get('players_alive_team', '?')}. "
         f"Alive on enemy team: "
         f"{extra_data.get('players_alive_enemy', '?')}.\n"
-        f"Time of day: {time_desc}.\n"
+        + "\n".join(env_lines) + "\n"
     )
 
     # Flag carrier status (WSG)

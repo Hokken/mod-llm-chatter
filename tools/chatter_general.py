@@ -45,7 +45,7 @@ from chatter_prompts import (
     pick_random_tone,
     pick_random_mood,
     maybe_get_creative_twist,
-    get_time_of_day_context,
+    build_environmental_context_lines,
     pick_personality_spices,
 )
 from chatter_constants import (
@@ -396,7 +396,7 @@ def _build_general_response_prompt(
             "abilities, and creatures by name."
         )
 
-    tod = get_time_of_day_context()
+    env_lines = build_environmental_context_lines()
 
     identity = build_bot_identity_with_level(
         bot_name,
@@ -429,8 +429,8 @@ def _build_general_response_prompt(
     prompt += (
         f"You are in {zone_name}."
     )
-    if tod:
-        prompt += f" {tod}"
+    if env_lines:
+        prompt += "\n" + "\n".join(env_lines)
     if is_rp and zone_flavor:
         prompt += f"\nZone context: {zone_flavor}"
     if is_rp and subzone_lore:

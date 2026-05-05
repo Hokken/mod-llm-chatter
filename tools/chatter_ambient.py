@@ -46,6 +46,10 @@ from chatter_shared import (
     build_zone_metadata,
     should_include_action,
 )
+from chatter_db import (
+    query_zone_bot_gossip_targets,
+    query_zone_npcs,
+)
 from chatter_text import pick_statement_length
 from chatter_prompts import (
     build_plain_statement_prompt,
@@ -59,9 +63,13 @@ from chatter_prompts import (
     build_loot_conversation_prompt,
     build_trade_conversation_prompt,
     build_spell_conversation_prompt,
+    build_gossip_statement_prompt,
+    build_gossip_conversation_prompt,
 )
 
 logger = logging.getLogger(__name__)
+
+_gossip_target_cooldowns = {}
 
 
 def _build_zone_metadata(zone_id, area_id=0):
@@ -128,6 +136,121 @@ def _fetch_loot_data(config, zone_id, level):
     return item_data
 
 
+def _select_gossip_or_existing_type(config, conversation=False):
+    """Select ambient type with optional NPC/bot gossip gates."""
+    npc_chance = max(0, int(config.get(
+        'LLMChatter.AmbientNpcGossipChance', 5
+    )))
+    bot_chance = max(0, int(config.get(
+        'LLMChatter.AmbientBotGossipChance', 5
+    )))
+    roll = random.randint(1, 100)
+    if roll <= npc_chance:
+        return 'npc'
+    if roll <= npc_chance + bot_chance:
+        return 'bot'
+
+    if not conversation:
+        return select_message_type()
+
+    roll = random.randint(1, 100)
+    if roll <= 45:
+        return 'plain'
+    if roll <= 65:
+        return 'quest'
+    if roll <= 80:
+        return 'loot'
+    if roll <= 90:
+        return 'trade'
+    return 'spell'
+
+
+def _get_gossip_target_cooldown(config):
+    """Return gossip target cooldown in seconds."""
+    try:
+        return max(0, int(config.get(
+            'LLMChatter.AmbientGossipTargetCooldownSeconds',
+            1800,
+        )))
+    except (TypeError, ValueError):
+        return 1800
+
+
+def _gossip_target_key(target_type, zone_id, target):
+    """Build the recent-subject key for an NPC or bot."""
+    if target_type == "bot":
+        target_id = target.get('guid') or target.get('name', '')
+    else:
+        target_id = target.get('entry') or target.get('name', '')
+    return (target_type, int(zone_id or 0), target_id)
+
+
+def _filter_recent_gossip_targets(
+    targets, target_type, zone_id, cooldown
+):
+    """Remove recently used gossip subjects."""
+    if cooldown <= 0:
+        return targets
+
+    now = time.time()
+    expired = [
+        key for key, expires_at
+        in _gossip_target_cooldowns.items()
+        if expires_at <= now
+    ]
+    for key in expired:
+        _gossip_target_cooldowns.pop(key, None)
+
+    return [
+        target for target in targets
+        if _gossip_target_cooldowns.get(
+            _gossip_target_key(target_type, zone_id, target),
+            0,
+        ) <= now
+    ]
+
+
+def _mark_gossip_target_seen(
+    target, target_type, zone_id, cooldown
+):
+    """Mark a gossip subject as recently used."""
+    if cooldown <= 0 or not target:
+        return
+    _gossip_target_cooldowns[
+        _gossip_target_key(target_type, zone_id, target)
+    ] = time.time() + cooldown
+
+
+def _pick_npc_gossip_target(config, zone_id):
+    """Pick a random NPC gossip subject for this zone."""
+    targets = query_zone_npcs(config, zone_id)
+    cooldown = _get_gossip_target_cooldown(config)
+    targets = _filter_recent_gossip_targets(
+        targets, "npc", zone_id, cooldown
+    )
+    target = random.choice(targets) if targets else None
+    _mark_gossip_target_seen(
+        target, "npc", zone_id, cooldown
+    )
+    return target
+
+
+def _pick_bot_gossip_target(config, cursor, zone_id, speaker_guids):
+    """Pick a random bot gossip subject for this zone."""
+    targets = query_zone_bot_gossip_targets(
+        cursor, zone_id, exclude_guids=speaker_guids
+    )
+    cooldown = _get_gossip_target_cooldown(config)
+    targets = _filter_recent_gossip_targets(
+        targets, "bot", zone_id, cooldown
+    )
+    target = random.choice(targets) if targets else None
+    _mark_gossip_target_seen(
+        target, "bot", zone_id, cooldown
+    )
+    return target
+
+
 def process_statement(
     db, cursor, client, config, request, bot: dict
 ):
@@ -144,7 +267,7 @@ def process_statement(
     zone_meta = _build_zone_metadata(
         zone_id, area_id
     )
-    msg_type = select_message_type()
+    msg_type = _select_gossip_or_existing_type(config)
 
     # Skip loot/trade in capital cities (no zone
     # creatures to reference, causes empty queries)
@@ -160,6 +283,8 @@ def process_statement(
     item_data = None
     item_can_use = False
     spell_data = None
+    gossip_target = None
+    gossip_target_type = None
 
     if msg_type == "quest" or msg_type == "quest_reward":
         quests = query_zone_quests(
@@ -200,6 +325,24 @@ def process_statement(
         )
         if spells:
             spell_data = random.choice(spells)
+        else:
+            msg_type = "plain"  # Fallback
+
+    if msg_type == "npc":
+        gossip_target = _pick_npc_gossip_target(
+            config, zone_id
+        )
+        if gossip_target:
+            gossip_target_type = "npc"
+        else:
+            msg_type = "plain"  # Fallback
+
+    if msg_type == "bot":
+        gossip_target = _pick_bot_gossip_target(
+            config, cursor, zone_id, [bot['guid']]
+        )
+        if gossip_target:
+            gossip_target_type = "bot"
         else:
             msg_type = "plain"  # Fallback
 
@@ -304,6 +447,18 @@ def process_statement(
             recent_messages=recent_msgs,
             speaker_talent_context=speaker_talent,
             zone_id=zone_id,
+        )
+    elif msg_type in ("npc", "bot"):
+        chosen_topic = (
+            f"{gossip_target_type}:{gossip_target.get('name')}"
+        )
+        prompt = build_gossip_statement_prompt(
+            bot, gossip_target, gossip_target_type,
+            zone_id, config, current_weather,
+            recent_messages=recent_msgs,
+            speaker_talent_context=speaker_talent,
+            area_id=area_id,
+            length_hint=rng_length,
         )
     else:
         topic_pool = (
@@ -430,25 +585,18 @@ def process_conversation(
             perspective='speaker',
         )
 
-    # Select message type
-    # (conversations: 45% plain, 20% quest,
-    #  15% loot, 10% trade, 10% spell)
-    roll = random.randint(1, 100)
-    if roll <= 45:
-        msg_type = "plain"
-    elif roll <= 65:
-        msg_type = "quest"
-    elif roll <= 80:
-        msg_type = "loot"
-    elif roll <= 90:
-        msg_type = "trade"
-    else:
-        msg_type = "spell"
+    # Select message type. Existing conversation mix is preserved
+    # unless an additive gossip gate wins first.
+    msg_type = _select_gossip_or_existing_type(
+        config, conversation=True
+    )
 
     # Get quest/loot/spell data if needed
     quest_data = None
     item_data = None
     spell_data = None
+    gossip_target = None
+    gossip_target_type = None
 
     if msg_type == "quest":
         quests = query_zone_quests(
@@ -482,6 +630,25 @@ def process_conversation(
         )
         if spells:
             spell_data = random.choice(spells)
+        else:
+            msg_type = "plain"
+
+    speaker_guids = [b['guid'] for b in bots]
+    if msg_type == "npc":
+        gossip_target = _pick_npc_gossip_target(
+            config, zone_id
+        )
+        if gossip_target:
+            gossip_target_type = "npc"
+        else:
+            msg_type = "plain"
+
+    if msg_type == "bot":
+        gossip_target = _pick_bot_gossip_target(
+            config, cursor, zone_id, speaker_guids
+        )
+        if gossip_target:
+            gossip_target_type = "bot"
         else:
             msg_type = "plain"
 
@@ -535,6 +702,17 @@ def process_conversation(
             recent_messages=recent_msgs,
             speaker_talent_context=speaker_talent,
             zone_id=zone_id,
+        )
+    elif msg_type in ("npc", "bot"):
+        chosen_topic = (
+            f"{gossip_target_type}:{gossip_target.get('name')}"
+        )
+        prompt = build_gossip_conversation_prompt(
+            bots, gossip_target, gossip_target_type,
+            zone_id, config, current_weather,
+            recent_messages=recent_msgs,
+            speaker_talent_context=speaker_talent,
+            area_id=area_id,
         )
     else:  # loot
         prompt = build_loot_conversation_prompt(

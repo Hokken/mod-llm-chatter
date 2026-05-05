@@ -612,7 +612,24 @@ Ambient requests can become:
 - loot statements
 - quest + reward statements
 - trade-style statements
+- NPC gossip statements/conversations
+- bot gossip statements/conversations
 - multi-bot conversations
+
+NPC and bot gossip are selected by additive Python-side RNG gates
+(`AmbientNpcGossipChance`, `AmbientBotGossipChance`) before the
+regular plain/quest/loot/trade/spell mix. If a target cannot be
+resolved, the request falls back to plain ambient chatter.
+
+NPC gossip targets are service/social NPCs spawned in the current zone,
+with the prompt receiving the NPC name, title/subname, function, creature
+kind, and combat-style class when available. Bot gossip targets are
+online random bots in the current zone, excluding the speaking bots, with
+the prompt receiving name, race, class, and level.
+
+Recently selected gossip targets are held in a per-zone cooldown
+(`AmbientGossipTargetCooldownSeconds`) so high test chances do not make
+the same NPC or bot become the subject repeatedly.
 
 Prompt generation and runtime logic live mainly in:
 

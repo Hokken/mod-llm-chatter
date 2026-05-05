@@ -10,7 +10,9 @@ import mysql.connector
 from chatter_constants import (
     CAPITAL_CITY_ZONES,
     CLASS_IDS,
+    CLASS_NAMES,
     EMOTE_LIST,
+    RACE_NAMES,
     ZONE_COORDINATES,
     ZONE_LEVELS,
 )
@@ -440,6 +442,199 @@ def query_zone_mobs(
 
     except Exception:
         return []
+
+
+def _npc_function_from_flags(npcflag: int, subname: str = '') -> str:
+    """Return a concise gameplay/social function for an NPC."""
+    roles = []
+    flag_roles = [
+        (2, 'quest giver'),
+        (16, 'trainer'),
+        (128, 'merchant'),
+        (8192, 'flight master'),
+        (32768, 'spirit healer'),
+        (65536, 'innkeeper'),
+        (131072, 'banker'),
+        (262144, 'petition vendor'),
+        (524288, 'tabard designer'),
+        (1048576, 'battlemaster'),
+        (2097152, 'auctioneer'),
+        (4194304, 'stable master'),
+        (8388608, 'guild banker'),
+    ]
+    for bit, label in flag_roles:
+        if npcflag & bit:
+            roles.append(label)
+
+    lower_sub = (subname or '').lower()
+    if 'guard' in lower_sub and 'guard' not in roles:
+        roles.append('guard')
+    if 'vendor' in lower_sub and 'merchant' not in roles:
+        roles.append('merchant')
+    if 'trainer' in lower_sub and 'trainer' not in roles:
+        roles.append('trainer')
+
+    return ', '.join(roles[:3]) or subname or 'local NPC'
+
+
+def _creature_type_name(type_id: int) -> str:
+    """Map creature_template.type to a readable kind."""
+    return {
+        1: 'beast',
+        2: 'dragonkin',
+        3: 'demon',
+        4: 'elemental',
+        5: 'giant',
+        6: 'undead',
+        7: 'humanoid',
+        8: 'critter',
+        9: 'mechanical',
+        10: 'not specified',
+        11: 'totem',
+        12: 'non-combat pet',
+        13: 'gas cloud',
+    }.get(int(type_id or 0), 'unknown')
+
+
+def _unit_class_name(unit_class: int) -> str:
+    """Map creature_template.unit_class to a readable combat class."""
+    return {
+        1: 'warrior-like',
+        2: 'paladin-like',
+        4: 'rogue-like',
+        8: 'mage-like',
+    }.get(int(unit_class or 0), '')
+
+
+def query_zone_npcs(
+    config: dict, zone_id: int, limit: int = 40
+) -> List[dict]:
+    """Query gossip-worthy NPCs spawned in a zone.
+
+    Focuses on named/service NPCs rather than hostile mobs.
+    """
+    if not zone_id:
+        return []
+
+    try:
+        db = get_db_connection(config, 'acore_world')
+        cursor = db.cursor(dictionary=True)
+        rows = []
+
+        npc_filter = """
+            (
+                ct.npcflag <> 0
+                OR (
+                    ct.subname IS NOT NULL
+                    AND TRIM(ct.subname) <> ''
+                )
+                OR ct.name LIKE '%%Guard%%'
+                OR ct.subname LIKE '%%Guard%%'
+            )
+            AND ct.type <> 8
+            AND ct.name NOT LIKE '%%Trigger%%'
+            AND ct.name NOT LIKE '%%Invisible%%'
+            AND ct.name NOT LIKE '%%Bunny%%'
+            AND ct.name NOT LIKE '%%DND%%'
+            AND ct.name NOT LIKE '%%Spirit%%'
+            AND ct.name NOT LIKE '%%Quest Credit%%'
+            AND ct.name NOT LIKE '%%(%%'
+            AND ct.name NOT LIKE '%%[%%'
+            AND ct.name NOT LIKE '%%<%%'
+            AND LENGTH(ct.name) > 3
+        """
+
+        if zone_id in ZONE_COORDINATES:
+            map_id, min_x, max_x, min_y, max_y = (
+                ZONE_COORDINATES[zone_id]
+            )
+            cursor.execute(f"""
+                SELECT DISTINCT
+                    ct.entry, ct.name, ct.subname,
+                    ct.npcflag, ct.type, ct.unit_class,
+                    ct.minlevel, ct.maxlevel
+                FROM creature c
+                JOIN creature_template ct ON c.id1 = ct.entry
+                WHERE c.map = %s
+                  AND c.position_x BETWEEN %s AND %s
+                  AND c.position_y BETWEEN %s AND %s
+                  AND {npc_filter}
+                ORDER BY RAND()
+                LIMIT %s
+            """, (
+                map_id, min_x, max_x, min_y, max_y,
+                limit,
+            ))
+            rows = cursor.fetchall()
+
+        db.close()
+
+        results = []
+        for row in rows:
+            npcflag = int(row.get('npcflag') or 0)
+            subname = row.get('subname') or ''
+            results.append({
+                'entry': int(row.get('entry') or 0),
+                'name': row.get('name') or 'Unknown NPC',
+                'subname': subname,
+                'function': _npc_function_from_flags(
+                    npcflag, subname
+                ),
+                'kind': _creature_type_name(row.get('type') or 0),
+                'combat_class': _unit_class_name(
+                    row.get('unit_class') or 0
+                ),
+                'minlevel': int(row.get('minlevel') or 0),
+                'maxlevel': int(row.get('maxlevel') or 0),
+            })
+        return results
+
+    except Exception:
+        return []
+
+
+def query_zone_bot_gossip_targets(
+    cursor, zone_id: int, exclude_guids=None, limit: int = 30
+) -> List[dict]:
+    """Return online random bots in a zone for gossip targets."""
+    if not zone_id:
+        return []
+
+    exclude_guids = {
+        int(g) for g in (exclude_guids or []) if g
+    }
+    cursor.execute("""
+        SELECT DISTINCT
+            c.guid, c.name, c.class, c.race,
+            c.level, c.zone
+        FROM characters c
+        JOIN acore_auth.account a
+            ON c.account = a.id
+        WHERE c.online = 1
+          AND c.zone = %s
+          AND a.username LIKE 'RNDBOT%%%%'
+        ORDER BY RAND()
+        LIMIT %s
+    """, (zone_id, limit))
+
+    targets = []
+    for row in cursor.fetchall():
+        guid = int(row.get('guid') or 0)
+        if guid in exclude_guids:
+            continue
+        targets.append({
+            'guid': guid,
+            'name': row.get('name') or 'Unknown bot',
+            'class': CLASS_NAMES.get(
+                int(row.get('class') or 0), 'Adventurer'
+            ),
+            'race': RACE_NAMES.get(
+                int(row.get('race') or 0), 'Unknown'
+            ),
+            'level': int(row.get('level') or 0),
+            'zone_id': int(row.get('zone') or 0),
+        })
+    return targets
 
 
 def query_bot_spells(

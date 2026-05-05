@@ -76,7 +76,7 @@ from chatter_db import (
 from chatter_prompts import (
     pick_random_tone,
     maybe_get_creative_twist,
-    get_environmental_context,
+    build_environmental_context_lines,
     generate_conversation_mood_sequence,
     generate_conversation_length_sequence,
     pick_personality_spices,
@@ -2810,15 +2810,10 @@ def build_idle_chatter_prompt(
     weather_arg = (
         None if in_dungeon else current_weather
     )
-    env = get_environmental_context(weather_arg)
-    if env['time']:
-        rp_context += (
-            f"\nTime of day: {env['time']}"
-        )
-    if env['weather']:
-        rp_context += (
-            f"\nCurrent weather: {env['weather']}"
-        )
+    for line in build_environmental_context_lines(
+        weather_arg
+    ):
+        rp_context += f"\n{line}"
 
     # Dead bot awareness — let the LLM know so it
     # can produce fitting dialogue (gallows humor,
@@ -3189,13 +3184,9 @@ def build_idle_conversation_prompt(
     weather_arg = (
         None if in_dungeon else current_weather
     )
-    env = get_environmental_context(weather_arg)
-    if env['time']:
-        parts.append(f"Time of day: {env['time']}")
-    if env['weather']:
-        parts.append(
-            f"Current weather: {env['weather']}"
-        )
+    parts.extend(
+        build_environmental_context_lines(weather_arg)
+    )
 
     # Precompute shared race context once per unique
     # race to avoid duplicating worldview/lore for

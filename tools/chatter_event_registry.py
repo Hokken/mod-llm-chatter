@@ -858,6 +858,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'transition': (str, True),
             'category': (str, True),
             'intensity': (str, True),
+            'season': (str, False),
         },
     ),
 
@@ -874,6 +875,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'category': (str, True),
             'intensity': (str, True),
             'is_ambient': (int, True),
+            'season': (str, False),
         },
     ),
 
@@ -934,6 +936,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'time_period': (str, True),
             'previous_period': (str, True),
             'description': (str, True),
+            'season': (str, False),
         },
     ),
 

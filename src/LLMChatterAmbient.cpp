@@ -9,11 +9,13 @@
 
 #include "DatabaseEnv.h"
 #include "DBCStores.h"
+#include "GameTime.h"
 #include "GameEventMgr.h"
 #include "Group.h"
 #include "Player.h"
 #include "Playerbots.h"
 #include "RandomPlayerbotMgr.h"
+#include "Timer.h"
 #include "Weather.h"
 #include "World.h"
 #include "WorldSession.h"
@@ -29,6 +31,23 @@
 
 static std::map<std::string, time_t> _ambientCooldownCache;
 static std::map<uint32, WeatherState> _zoneWeatherState;
+
+static std::string GetSeasonName()
+{
+    int32 dayOfYear = static_cast<int32>(
+        Acore::Time::GetDayInYear(GameTime::GetGameTime()));
+    uint32 season = static_cast<uint32>(
+        ((dayOfYear - 78 + 365) / 91) % 4);
+
+    switch (season)
+    {
+        case 0: return "spring";
+        case 1: return "summer";
+        case 2: return "fall";
+        case 3: return "winter";
+        default: return "unknown";
+    }
+}
 
 static bool IsOnAmbientCooldown(
     const std::string& cooldownKey,
@@ -419,6 +438,7 @@ void HandleWeatherChange(
         GetWeatherIntensity(grade);
     std::string category =
         GetWeatherCategory(state);
+    std::string season = GetSeasonName();
     std::string cooldownKey =
         "weather:" + std::to_string(zoneId)
         + ":" + transitionType;
@@ -430,7 +450,8 @@ void HandleWeatherChange(
         + transitionType + "\",\"category\":\""
         + category + "\",\"intensity\":\""
         + intensity + "\",\"grade\":"
-        + std::to_string(grade) + "}";
+        + std::to_string(grade) + ",\"season\":\""
+        + season + "\"}";
 
     QueueAmbientEvent(
         "weather_change", "zone",
@@ -517,6 +538,7 @@ void CheckDayNightTransition(
         return;
 
     bool isDay = (hour >= 6 && hour < 18);
+    std::string season = GetSeasonName();
     std::string cooldownKey =
         "time_period:" + timePeriod;
     std::string extraData = "{"
@@ -527,7 +549,8 @@ void CheckDayNightTransition(
         + ",\"time_period\":\"" + timePeriod
         + "\",\"previous_period\":\""
         + previousPeriod + "\",\"description\":\""
-        + JsonEscape(description) + "\"}";
+        + JsonEscape(description) + "\",\"season\":\""
+        + season + "\"}";
 
     std::vector<uint32> playerZones =
         GetZonesWithRealPlayers();
@@ -584,6 +607,7 @@ void CheckAmbientWeather()
             GetWeatherStateName(state);
         std::string category =
             GetWeatherCategory(state);
+        std::string season = GetSeasonName();
         std::string cooldownKey =
             "weather_ambient:"
             + std::to_string(zoneId) + ":"
@@ -592,7 +616,8 @@ void CheckAmbientWeather()
             "{\"weather_type\":\""
             + weatherName + "\",\"category\":\""
             + category + "\",\"intensity\":\"sustained\","
-            "\"is_ambient\":true}";
+            "\"is_ambient\":true,\"season\":\""
+            + season + "\"}";
 
         QueueAmbientEvent(
             "weather_ambient", "zone",

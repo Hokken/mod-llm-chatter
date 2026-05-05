@@ -21,7 +21,7 @@ from chatter_shared import (
 )
 from chatter_prompts import (
     pick_personality_spices,
-    get_time_of_day_context,
+    build_environmental_context_lines,
 )
 
 LOG = logging.getLogger("chatter_raid_prompts")
@@ -387,8 +387,7 @@ def _raid_base_context(extra_data, bot_data):
         'difficulty', 'Normal')
     lore_entry = RAID_LORE.get(raid_name, {})
 
-    # Time of day
-    _, time_desc = get_time_of_day_context()
+    env_lines = build_environmental_context_lines()
 
     # Talent context
     talent_ctx = extra_data.get(
@@ -406,7 +405,7 @@ def _raid_base_context(extra_data, bot_data):
     if wing:
         ctx += f" ({wing})"
     ctx += f". Difficulty: {difficulty}.\n"
-    ctx += f"Time of day: {time_desc}.\n"
+    ctx += "\n".join(env_lines) + "\n"
 
     if lore_entry.get('lore'):
         ctx += f"Lore: {lore_entry['lore']}\n"

@@ -425,6 +425,40 @@ LLMChatter.TriggerChance = 15
 LLMChatter.ConversationChance = 40
 
 #
+#   LLMChatter.AmbientNpcGossipChance
+#       Additive chance (0-100) that an ambient General channel
+#       message uses the NPC gossip subject type before falling
+#       back to the regular plain/quest/loot/trade/spell mix.
+#       If no suitable zone NPC is found, the message falls back
+#       to plain ambient chatter.
+#       Default: 5
+#
+LLMChatter.AmbientNpcGossipChance = 5
+
+#
+#   LLMChatter.AmbientBotGossipChance
+#       Additive chance (0-100) that an ambient General channel
+#       message uses the bot gossip subject type before falling
+#       back to the regular plain/quest/loot/trade/spell mix.
+#       The selected target is an online random bot in the zone,
+#       excluding the speakers. If none is found, falls back to
+#       plain ambient chatter.
+#       Default: 5
+#
+LLMChatter.AmbientBotGossipChance = 5
+
+#
+#   LLMChatter.AmbientGossipTargetCooldownSeconds
+#       Minimum time before the same NPC or bot can be selected
+#       again as an ambient gossip subject in the same zone.
+#       Prevents repeated gossip about the same subject when
+#       NPC/bot gossip chances are raised for testing.
+#       Set to 0 to disable.
+#       Default: 1800
+#
+LLMChatter.AmbientGossipTargetCooldownSeconds = 1800
+
+#
 #   LLMChatter.EventReactionChance
 #       Base chance (0-100) that a world event triggers a General
 #       channel reaction. Used for transport arrivals and weather

@@ -12,8 +12,10 @@ from typing import List, Tuple
 
 from chatter_constants import (
     TONES, MOODS, CREATIVE_TWISTS, MESSAGE_CATEGORIES,
+    GOSSIP_CREATIVE_TWISTS,
     LENGTH_HINTS,
     RP_TONES, RP_MOODS, RP_CREATIVE_TWISTS,
+    RP_GOSSIP_CREATIVE_TWISTS,
     RP_MESSAGE_CATEGORIES, RP_LENGTH_HINTS,
     PERSONALITY_SPICES, RP_PERSONALITY_SPICES,
     CLASS_NAMES, RACE_NAMES, CLASS_ROLE_MAP,
@@ -121,6 +123,20 @@ def maybe_get_creative_twist(
     return None
 
 
+def maybe_get_gossip_creative_twist(
+    chance: float = 0.3, mode: str = 'normal'
+) -> str:
+    """Maybe return a gossip-specific creative twist."""
+    if random.random() < chance:
+        pool = (
+            RP_GOSSIP_CREATIVE_TWISTS
+            if mode == 'roleplay'
+            else GOSSIP_CREATIVE_TWISTS
+        )
+        return random.choice(pool)
+    return None
+
+
 def pick_random_message_category(mode: str = 'normal') -> str:
     """Pick a random message category."""
     pool = (
@@ -199,21 +215,68 @@ def get_time_of_day_context() -> Tuple[str, str]:
         )
 
 
+def get_season_context() -> Tuple[str, str]:
+    """Get current season using AzerothCore weather season logic."""
+    day_of_year = datetime.now().timetuple().tm_yday - 1
+    season_index = ((day_of_year - 78 + 365) // 91) % 4
+    seasons = [
+        ("spring", "Spring is in the air"),
+        ("summer", "It is summer"),
+        ("fall", "It is fall"),
+        ("winter", "Winter has settled in"),
+    ]
+    return seasons[season_index]
+
+
 def get_environmental_context(
-    current_weather: str = None
+    current_weather: str = None,
+    season_chance: float = 0.30,
 ) -> dict:
     """Get environmental context for prompts.
 
-    Time is always included. Weather is included
-    when available (50% chance to mention it).
+    Time is always included. Season and weather are
+    included opportunistically to avoid repetitive
+    prompt patterns.
     """
     _, time_desc = get_time_of_day_context()
-    result = {'time': time_desc, 'weather': None}
+    result = {
+        'time': time_desc,
+        'season': None,
+        'weather': None,
+    }
 
     if current_weather and random.random() < 0.50:
         result['weather'] = current_weather
 
+    if random.random() < season_chance:
+        _, season_desc = get_season_context()
+        result['season'] = season_desc
+
     return result
+
+
+def build_environmental_context_lines(
+    current_weather: str = None
+) -> List[str]:
+    """Build prompt lines for shared environment context."""
+    env_context = get_environmental_context(current_weather)
+    lines = []
+    if env_context['time']:
+        lines.append(f"Time of day: {env_context['time']}")
+    if env_context['season']:
+        lines.append(f"Season: {env_context['season']}")
+    if env_context['weather']:
+        lines.append(
+            f"Current weather: {env_context['weather']}"
+        )
+    return lines
+
+
+def append_environmental_context(
+    parts: list, current_weather: str = None
+) -> None:
+    """Append shared environment context to prompt parts."""
+    parts.extend(build_environmental_context_lines(current_weather))
 
 
 # =============================================================================
@@ -414,13 +477,7 @@ def build_plain_statement_prompt(
         if sz_name:
             parts.append(f"Subzone: {sz_name}")
 
-    env_context = get_environmental_context(current_weather)
-    if env_context['time']:
-        parts.append(f"Time of day: {env_context['time']}")
-    if env_context['weather']:
-        parts.append(
-            f"Current weather: {env_context['weather']}"
-        )
+    append_environmental_context(parts, current_weather)
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -539,13 +596,7 @@ def build_quest_statement_prompt(
     if is_rp and zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
 
-    env_context = get_environmental_context(current_weather)
-    if env_context['time']:
-        parts.append(f"Time of day: {env_context['time']}")
-    if env_context['weather']:
-        parts.append(
-            f"Current weather: {env_context['weather']}"
-        )
+    append_environmental_context(parts, current_weather)
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -677,13 +728,7 @@ def build_loot_statement_prompt(
     if is_rp and zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
 
-    env_context = get_environmental_context(current_weather)
-    if env_context['time']:
-        parts.append(f"Time of day: {env_context['time']}")
-    if env_context['weather']:
-        parts.append(
-            f"Current weather: {env_context['weather']}"
-        )
+    append_environmental_context(parts, current_weather)
     if speaker_talent_context:
         parts.append(speaker_talent_context)
 
@@ -830,13 +875,7 @@ def build_quest_reward_statement_prompt(
     if is_rp and zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
 
-    env_context = get_environmental_context(current_weather)
-    if env_context['time']:
-        parts.append(f"Time of day: {env_context['time']}")
-    if env_context['weather']:
-        parts.append(
-            f"Current weather: {env_context['weather']}"
-        )
+    append_environmental_context(parts, current_weather)
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -974,13 +1013,7 @@ def build_plain_conversation_prompt(
         if sz_name:
             parts.append(f"Subzone: {sz_name}")
 
-    env_context = get_environmental_context(current_weather)
-    if env_context['time']:
-        parts.append(f"Time of day: {env_context['time']}")
-    if env_context['weather']:
-        parts.append(
-            f"Current weather: {env_context['weather']}"
-        )
+    append_environmental_context(parts, current_weather)
 
     parts.append(f"Speakers: {', '.join(bot_names)}")
     parts.append(
@@ -1154,6 +1187,286 @@ def build_plain_conversation_prompt(
     )
 
 
+def _format_gossip_target(target: dict, target_type: str) -> str:
+    """Build a compact target description for gossip prompts."""
+    if target_type == 'npc':
+        details = [
+            f"name={target.get('name', 'Unknown NPC')}",
+            f"function={target.get('function', 'local NPC')}",
+        ]
+        if target.get('subname'):
+            details.append(f"title={target['subname']}")
+        if target.get('kind'):
+            details.append(f"kind={target['kind']}")
+        if target.get('combat_class'):
+            details.append(
+                f"combat style={target['combat_class']}"
+            )
+        min_level = int(target.get('minlevel') or 0)
+        max_level = int(target.get('maxlevel') or 0)
+        if min_level or max_level:
+            if min_level == max_level:
+                details.append(f"level={min_level}")
+            else:
+                details.append(
+                    f"level range={min_level}-{max_level}"
+                )
+        return "; ".join(details)
+
+    return "; ".join([
+        f"name={target.get('name', 'Unknown bot')}",
+        f"race={target.get('race', 'Unknown')}",
+        f"class={target.get('class', 'Adventurer')}",
+        f"level={target.get('level', '?')}",
+    ])
+
+
+def _append_gossip_context(
+    parts: list,
+    zone_id: int,
+    area_id: int,
+    current_weather: str,
+    target: dict,
+    target_type: str,
+    is_rp: bool,
+) -> None:
+    """Append shared local and target context for gossip prompts."""
+    zone_flavor = get_zone_flavor(zone_id)
+    if is_rp and zone_flavor:
+        parts.append(f"Zone context: {zone_flavor}")
+
+    subzone_lore = get_subzone_lore(zone_id, area_id)
+    if is_rp and subzone_lore:
+        parts.append(f"Current subzone: {subzone_lore}")
+    else:
+        subzone_name = get_subzone_name(zone_id, area_id)
+        if subzone_name:
+            parts.append(f"Subzone: {subzone_name}")
+
+    append_environmental_context(parts, current_weather)
+
+    label = 'NPC' if target_type == 'npc' else 'bot'
+    parts.append(
+        f"Gossip subject ({label}): "
+        f"{_format_gossip_target(target, target_type)}"
+    )
+    parts.append(
+        "The subject is someone people could plausibly talk "
+        "about, not someone being addressed directly."
+    )
+
+
+def build_gossip_statement_prompt(
+    bot: dict,
+    target: dict,
+    target_type: str,
+    zone_id: int,
+    config: dict = None,
+    current_weather: str = 'clear',
+    recent_messages: list = None,
+    allow_action: bool = True,
+    speaker_talent_context=None,
+    area_id: int = 0,
+    length_hint: str = "",
+) -> str:
+    """Build a General-channel gossip statement prompt."""
+    mode = get_chatter_mode(config) if config else 'normal'
+    is_rp = (mode == 'roleplay')
+    parts = []
+
+    if is_rp:
+        identity = build_bot_identity(
+            bot['name'], bot.get('race', ''),
+            bot.get('class', ''), bot.get('gender', ''),
+        )
+        parts.append(
+            f"{identity} Speak in-character in General "
+            f"chat in {bot['zone']}."
+        )
+        rp_ctx = build_race_class_context(
+            bot.get('race', ''), bot.get('class', '')
+        )
+        if rp_ctx:
+            parts.append(rp_ctx)
+    else:
+        parts.append(
+            f"Generate a brief WoW General chat message "
+            f"from a player in {bot['zone']}."
+        )
+
+    _append_gossip_context(
+        parts, zone_id, area_id, current_weather,
+        target, target_type, is_rp,
+    )
+
+    if speaker_talent_context:
+        parts.append(speaker_talent_context)
+
+    tone = pick_random_tone(mode)
+    mood = pick_random_mood(mode)
+    parts.append(f"Tone: {tone}")
+    parts.append(f"Mood: {mood}")
+
+    twist = maybe_get_gossip_creative_twist(mode=mode)
+    if twist:
+        parts.append(f"Creative twist: {twist}")
+
+    target_label = 'NPC' if target_type == 'npc' else 'bot'
+    guidelines = build_dynamic_guidelines(
+        config=config, mode=mode,
+        length_hint=length_hint,
+    )
+    guidelines.extend([
+        f"Gossip about the {target_label}; do not speak "
+        f"as the {target_label}",
+        "Do not address the gossip subject directly",
+        "Use the subject's exact name if it sounds natural",
+        "No brackets around names",
+    ])
+    if is_rp:
+        guidelines.append(
+            "Stay in character but sound natural, not theatrical"
+        )
+    else:
+        guidelines.append(
+            "Speak as a player discussing the game, not as "
+            "the character roleplaying"
+        )
+    parts.append("Guidelines: " + "; ".join(guidelines))
+
+    anti_rep = build_anti_repetition_context(recent_messages)
+    if anti_rep:
+        parts.append(anti_rep)
+
+    prompt = "\n".join(parts)
+    return append_json_instruction(
+        prompt, allow_action, skip_emote=True
+    )
+
+
+def build_gossip_conversation_prompt(
+    bots: List[dict],
+    target: dict,
+    target_type: str,
+    zone_id: int,
+    config: dict = None,
+    current_weather: str = 'clear',
+    recent_messages: list = None,
+    allow_action: bool = True,
+    speaker_talent_context=None,
+    area_id: int = 0,
+) -> str:
+    """Build a General-channel gossip conversation prompt."""
+    mode = get_chatter_mode(config) if config else 'normal'
+    is_rp = (mode == 'roleplay')
+    parts = []
+    bot_count = len(bots)
+    bot_names = [b['name'] for b in bots]
+
+    if is_rp:
+        parts.append(
+            f"Generate an in-character General chat exchange "
+            f"between {bot_count} adventurers in "
+            f"{bots[0]['zone']}."
+        )
+    else:
+        parts.append(
+            f"Generate a casual General chat exchange between "
+            f"{bot_count} WoW players in {bots[0]['zone']}."
+        )
+
+    _append_gossip_context(
+        parts, zone_id, area_id, current_weather,
+        target, target_type, is_rp,
+    )
+
+    parts.append(f"Speakers: {', '.join(bot_names)}")
+
+    seen_races = set()
+    seen_classes = set()
+    for bot in bots:
+        if is_rp or random.random() < 0.4:
+            race = bot.get('race', '')
+            cls = bot.get('class', '')
+            parts.append(f"{bot['name']} is a {race} {cls}")
+            if is_rp:
+                per_bot, shared_race, shared_class = (
+                    build_race_class_context_parts(race, cls)
+                )
+                if per_bot:
+                    parts.append(f"  {per_bot}")
+                if race not in seen_races and shared_race:
+                    parts.append(f"  {shared_race}")
+                    seen_races.add(race)
+                if cls not in seen_classes and shared_class:
+                    parts.append(f"  {shared_class}")
+                    seen_classes.add(cls)
+
+    if speaker_talent_context:
+        parts.append(speaker_talent_context)
+
+    tone = pick_random_tone(mode)
+    parts.append(f"Overall tone: {tone}")
+
+    twist = maybe_get_gossip_creative_twist(
+        chance=0.4, mode=mode
+    )
+    if twist:
+        parts.append(
+            f"Creative twist for this conversation: {twist}"
+        )
+
+    msg_count = random.randint(bot_count, bot_count + 3)
+    mood_sequence = generate_conversation_mood_sequence(
+        msg_count, mode
+    )
+    length_sequence = generate_conversation_length_sequence(
+        msg_count
+    )
+    parts.append(
+        "\nMOOD AND LENGTH SEQUENCE "
+        "(follow this for each message):"
+    )
+    for i, mood in enumerate(mood_sequence):
+        speaker = bot_names[i % bot_count]
+        parts.append(
+            f"  Message {i+1} ({speaker}): "
+            f"mood={mood}, length={length_sequence[i]}"
+        )
+
+    target_label = 'NPC' if target_type == 'npc' else 'bot'
+    guidelines = build_dynamic_guidelines(
+        config=config, mode=mode
+    )
+    guidelines.extend([
+        f"The conversation is gossip about the {target_label}",
+        f"Do not make the {target_label} a speaker",
+        "Do not address the gossip subject directly",
+        "Use the subject's exact name if it sounds natural",
+        "Follow the mood and length sequence above",
+    ])
+    if bot_count > 2:
+        guidelines.append(
+            f"EVERY speaker MUST have at least one message "
+            f"- do NOT skip any participant"
+        )
+    if is_rp:
+        guidelines.append(
+            "Each speaker stays in character for their "
+            "race and class"
+        )
+    parts.append("Guidelines: " + "; ".join(guidelines))
+
+    anti_rep = build_anti_repetition_context(recent_messages)
+    if anti_rep:
+        parts.append(anti_rep)
+
+    prompt = "\n".join(parts)
+    return append_conversation_json_instruction(
+        prompt, bot_names, msg_count, allow_action
+    )
+
+
 def build_quest_conversation_prompt(
     bots: List[dict],
     quest: dict,
@@ -1202,13 +1515,7 @@ def build_quest_conversation_prompt(
     if speaker_talent_context:
         parts.append(speaker_talent_context)
 
-    env_context = get_environmental_context(current_weather)
-    if env_context['time']:
-        parts.append(f"Time of day: {env_context['time']}")
-    if env_context['weather']:
-        parts.append(
-            f"Current weather: {env_context['weather']}"
-        )
+    append_environmental_context(parts, current_weather)
 
     parts.append(
         f"Quest: {quest['quest_name']} "
@@ -1360,13 +1667,7 @@ def build_loot_conversation_prompt(
     if speaker_talent_context:
         parts.append(speaker_talent_context)
 
-    env_context = get_environmental_context(current_weather)
-    if env_context['time']:
-        parts.append(f"Time of day: {env_context['time']}")
-    if env_context['weather']:
-        parts.append(
-            f"Current weather: {env_context['weather']}"
-        )
+    append_environmental_context(parts, current_weather)
 
     parts.append(
         f"Item: {item['item_name']} ({quality} quality)"
@@ -1584,15 +1885,7 @@ def build_event_conversation_prompt(
         if 'weather' not in event_context.lower()
         else None
     )
-    env_context = get_environmental_context(
-        weather_for_context
-    )
-    if env_context['time']:
-        parts.append(f"Time of day: {env_context['time']}")
-    if env_context['weather']:
-        parts.append(
-            f"Current weather: {env_context['weather']}"
-        )
+    append_environmental_context(parts, weather_for_context)
 
     # Precompute shared race context once per unique race.
     # Pass race_count so lore uses cumulative probability
@@ -1772,20 +2065,12 @@ def build_event_statement_prompt(
             'current_weather', 'clear'
         )
 
-    env_context = get_environmental_context(
-        weather_for_context
+    env_lines = "".join(
+        f"\n{line}" for line
+        in build_environmental_context_lines(
+            weather_for_context
+        )
     )
-    env_lines = ""
-    if env_context['time']:
-        env_lines += (
-            f"\nTime of day: "
-            f"{env_context['time']}"
-        )
-    if env_context['weather']:
-        env_lines += (
-            f"\nCurrent weather: "
-            f"{env_context['weather']}"
-        )
 
     rp_personality = ""
     rp_style = ""
@@ -1909,18 +2194,7 @@ def build_spell_statement_prompt(
         )
         parts.append(f"Zone: {bot['zone']}")
 
-    env_context = get_environmental_context(
-        current_weather
-    )
-    if env_context['time']:
-        parts.append(
-            f"Time of day: {env_context['time']}"
-        )
-    if env_context['weather']:
-        parts.append(
-            f"Current weather: "
-            f"{env_context['weather']}"
-        )
+    append_environmental_context(parts, current_weather)
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -2107,18 +2381,7 @@ def build_spell_conversation_prompt(
     if speaker_talent_context:
         parts.append(speaker_talent_context)
 
-    env_context = get_environmental_context(
-        current_weather
-    )
-    if env_context['time']:
-        parts.append(
-            f"Time of day: {env_context['time']}"
-        )
-    if env_context['weather']:
-        parts.append(
-            f"Current weather: "
-            f"{env_context['weather']}"
-        )
+    append_environmental_context(parts, current_weather)
 
     parts.append(
         f"Spell being discussed: "
@@ -2296,18 +2559,7 @@ def build_trade_statement_prompt(
             "to trade an item."
         )
 
-    env_context = get_environmental_context(
-        current_weather
-    )
-    if env_context['time']:
-        parts.append(
-            f"Time of day: {env_context['time']}"
-        )
-    if env_context['weather']:
-        parts.append(
-            f"Current weather: "
-            f"{env_context['weather']}"
-        )
+    append_environmental_context(parts, current_weather)
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -2467,18 +2719,7 @@ def build_trade_conversation_prompt(
     if speaker_talent_context:
         parts.append(speaker_talent_context)
 
-    env_context = get_environmental_context(
-        current_weather
-    )
-    if env_context['time']:
-        parts.append(
-            f"Time of day: {env_context['time']}"
-        )
-    if env_context['weather']:
-        parts.append(
-            f"Current weather: "
-            f"{env_context['weather']}"
-        )
+    append_environmental_context(parts, current_weather)
 
     parts.append(
         f"Item for sale: {item['item_name']} "

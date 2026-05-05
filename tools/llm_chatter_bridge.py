@@ -1364,6 +1364,19 @@ def main():
         f"{config.get('LLMChatter.TransportEventChance', 0)}%"
     )
     logger.info(
+        f"  AmbientNpcGossipChance: "
+        f"{config.get('LLMChatter.AmbientNpcGossipChance', 5)}%"
+        f"  AmbientBotGossipChance: "
+        f"{config.get('LLMChatter.AmbientBotGossipChance', 5)}%"
+    )
+    logger.info(
+        "  AmbientGossipTargetCooldown: %ss",
+        config.get(
+            'LLMChatter.AmbientGossipTargetCooldownSeconds',
+            1800,
+        ),
+    )
+    logger.info(
         f"  TransportCooldown: "
         f"{config.get('LLMChatter.TransportCooldownSeconds', 600)}s"
         f"  WeatherCooldown: "
