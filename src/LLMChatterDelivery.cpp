@@ -90,7 +90,9 @@ void DeliverPendingMessagesImpl()
             "m.bot_name, m.message, "
             "m.channel, m.emote, "
             "m.npc_spawn_id, m.player_guid, "
-            "m.sequence, m.event_id, e.zone_id "
+            "m.sequence, m.event_id, e.zone_id, "
+            "m.group_id, m.delivery_policy, "
+            "m.delivery_reason "
             "FROM llm_chatter_messages m "
             "LEFT JOIN llm_chatter_events e "
             "ON m.event_id = e.id "
@@ -117,7 +119,9 @@ void DeliverPendingMessagesImpl()
             "SELECT m.id, m.bot_guid, m.bot_name, "
             "m.message, m.channel, m.emote, "
             "m.npc_spawn_id, m.player_guid, "
-            "m.sequence, m.event_id, e.zone_id "
+            "m.sequence, m.event_id, e.zone_id, "
+            "m.group_id, m.delivery_policy, "
+            "m.delivery_reason "
             "FROM llm_chatter_messages m "
             "LEFT JOIN llm_chatter_events e "
             "ON m.event_id = e.id "
@@ -183,6 +187,18 @@ void DeliverPendingMessagesImpl()
         fields[10].IsNull()
             ? 0
             : fields[10].Get<uint32>();
+    uint32 groupId =
+        fields[11].IsNull()
+            ? 0
+            : fields[11].Get<uint32>();
+    std::string deliveryPolicy =
+        fields[12].IsNull()
+            ? ""
+            : fields[12].Get<std::string>();
+    std::string deliveryReason =
+        fields[13].IsNull()
+            ? ""
+            : fields[13].Get<std::string>();
 
     ObjectGuid guid =
         ObjectGuid::Create<HighGuid::Player>(
@@ -718,6 +734,23 @@ void DeliverPendingMessagesImpl()
             replyEligible,
             botName,
             message);
+    }
+
+    if (sent && channel == "party")
+    {
+        uint32 gateGroupId = groupId;
+        if (gateGroupId == 0 && bot)
+        {
+            if (Group* grp = bot->GetGroup())
+                gateGroupId = grp->GetGUID().GetCounter();
+        }
+
+        RecordPartyChatGateActivity(
+            gateGroupId,
+            deliveryPolicy.empty()
+                ? "contextual" : deliveryPolicy,
+            deliveryReason.empty()
+                ? "party_delivery" : deliveryReason);
     }
 
     if (sent || botUnavailable)

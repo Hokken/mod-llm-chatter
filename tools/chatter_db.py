@@ -7,6 +7,7 @@ from typing import Dict, List, Optional, Tuple
 
 import mysql.connector
 
+from chatter_party_gate import reserve_party_slot
 from chatter_constants import (
     CAPITAL_CITY_ZONES,
     CLASS_IDS,
@@ -732,6 +733,10 @@ def insert_chat_message(
     emote: str = None,
     npc_spawn_id: int = None,
     player_guid: int = None,
+    config: dict = None,
+    group_id: int = None,
+    delivery_policy: str = None,
+    delivery_reason: str = None,
 ):
     """Insert a message into llm_chatter_messages.
 
@@ -739,22 +744,40 @@ def insert_chat_message(
     statements across the codebase. Handles the emote
     column transparently.
     """
+    final_delay = delay_seconds
+    if (
+        config is not None
+        and channel == 'party'
+        and group_id
+    ):
+        final_delay = reserve_party_slot(
+            db,
+            config,
+            group_id,
+            delay_seconds,
+            delivery_policy,
+            delivery_reason,
+        )
+
     cursor = db.cursor()
     cursor.execute("""
         INSERT INTO llm_chatter_messages
         (event_id, queue_id, sequence, bot_guid,
          bot_name, message, emote, npc_spawn_id,
-         player_guid, channel, delivered, deliver_at)
+         player_guid, channel, delivered, deliver_at,
+         group_id, delivery_policy, delivery_reason)
         VALUES (
             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0,
-            DATE_ADD(NOW(), INTERVAL %s SECOND)
+            DATE_ADD(NOW(), INTERVAL %s SECOND),
+            %s, %s, %s
         )
     """, (
         event_id, queue_id, sequence,
         bot_guid, bot_name, message,
         validate_emote(emote), npc_spawn_id,
         player_guid, channel,
-        int(delay_seconds),
+        int(final_delay),
+        group_id, delivery_policy, delivery_reason,
     ))
     db.commit()
 

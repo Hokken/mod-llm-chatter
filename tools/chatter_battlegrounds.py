@@ -22,6 +22,10 @@ from chatter_group_state import (
     _mark_event,
     get_bot_traits,
 )
+from chatter_party_gate import (
+    defer_event_for_party_gate,
+    should_defer_party_generation,
+)
 from chatter_raid_base import (
     dual_worker_dispatch,
     is_event_suppressed,
@@ -267,6 +271,9 @@ def _try_carrier_self_message(
             f":#{event_id}:{name}"),
         metadata=fc_meta or None,
         label='reaction_bg_carrier',
+        group_id=int(extra_data.get('group_id', 0) or 0),
+        delivery_policy='urgent',
+        delivery_reason=event.get('event_type', 'bg_flag'),
     )
 
 
@@ -498,6 +505,17 @@ def process_bg_idle_chatter_event(
     if is_event_suppressed(
             'bg_idle_chatter', extra_data):
         _mark_event(db, event_id, 'skipped')
+        return False
+
+    group_id = int(extra_data.get('group_id', 0) or 0)
+    if should_defer_party_generation(
+        db, config, group_id,
+        policy='filler',
+        reason='bg_idle_chatter',
+    ):
+        defer_event_for_party_gate(
+            db, config, event_id, 'bg_idle_chatter',
+        )
         return False
 
     result = dual_worker_dispatch(

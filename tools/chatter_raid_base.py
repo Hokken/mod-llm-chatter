@@ -20,6 +20,7 @@ from chatter_shared import (
     run_single_reaction,
     build_talent_context,
 )
+from chatter_party_gate import policy_for_reason
 from chatter_group_state import get_bot_traits
 
 LOG = logging.getLogger("chatter_raid_base")
@@ -354,6 +355,11 @@ def fire_subgroup_worker(
             f":{bot_name}"),
         metadata=sg_meta or None,
         label=label,
+        group_id=group_id,
+        delivery_policy=policy_for_reason(
+            event.get('event_type', label),
+        ),
+        delivery_reason=event.get('event_type', label),
     )
 
     if not result.get('ok'):

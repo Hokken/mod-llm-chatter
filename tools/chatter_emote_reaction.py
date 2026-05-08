@@ -103,6 +103,9 @@ def handle_emote_reaction(db, client, config, event):
         ),
         bypass_speaker_cooldown=True,
         label='reaction_emote',
+        group_id=group_id,
+        delivery_policy='responsive',
+        delivery_reason='bot_group_emote_reaction',
     )
     if not result['ok']:
         _mark_event(db, event_id, 'skipped')

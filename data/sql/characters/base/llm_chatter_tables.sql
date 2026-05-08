@@ -153,6 +153,9 @@ CREATE TABLE `llm_chatter_messages` (
     `emote` VARCHAR(32) DEFAULT NULL,
     `npc_spawn_id` INT UNSIGNED DEFAULT NULL,
     `player_guid` INT UNSIGNED DEFAULT NULL,
+    `group_id` INT UNSIGNED DEFAULT NULL,
+    `delivery_policy` VARCHAR(24) DEFAULT NULL,
+    `delivery_reason` VARCHAR(64) DEFAULT NULL,
     `channel` VARCHAR(32) NOT NULL DEFAULT 'general',
     `delivered` TINYINT(1) NOT NULL DEFAULT 0,
     `deliver_at` TIMESTAMP NULL DEFAULT NULL,
@@ -160,7 +163,22 @@ CREATE TABLE `llm_chatter_messages` (
     PRIMARY KEY (`id`),
     KEY `idx_queue` (`queue_id`),
     KEY `idx_event` (`event_id`),
-    KEY `idx_delivery` (`delivered`, `deliver_at`)
+    KEY `idx_delivery` (`delivered`, `deliver_at`),
+    KEY `idx_party_gate`
+        (`channel`, `group_id`, `delivered`, `deliver_at`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
+-- Per-group party chat pacing reservations.
+DROP TABLE IF EXISTS `llm_party_chat_pacing`;
+CREATE TABLE `llm_party_chat_pacing` (
+    `group_id` INT UNSIGNED NOT NULL,
+    `next_available_at` TIMESTAMP NULL DEFAULT NULL,
+    `last_activity_at` TIMESTAMP NULL DEFAULT NULL,
+    `last_policy` VARCHAR(24) DEFAULT NULL,
+    `updated_at` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+        ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (`group_id`),
+    KEY `idx_updated_at` (`updated_at`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- Personality traits for bots in player groups

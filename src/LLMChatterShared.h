@@ -48,6 +48,10 @@ void SendPartyMessageInstant(
     Player* bot, Group* group,
     const std::string& message,
     const std::string& emote);
+void RecordPartyChatGateActivity(
+    uint32 groupId,
+    const std::string& deliveryPolicy,
+    const std::string& deliveryReason);
 void EnsureBotInGeneralChannel(Player* bot);
 bool CanSpeakInGeneralChannel(Player* bot);
 bool IsEventOnCooldown(

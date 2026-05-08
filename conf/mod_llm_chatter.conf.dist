@@ -1442,6 +1442,74 @@ LLMChatter.MessageDelayMin = 1000
 LLMChatter.MessageDelayMax = 30000
 
 #
+# PARTY CHAT PACING GATE [BRIDGE]
+#
+#   LLMChatter.PartyGate.Enable
+#       Enables a single per-party delivery gate for Python-generated
+#       party chat messages. This prevents idle, flavor, and contextual
+#       chatter from appearing as a burst when several systems trigger
+#       close together. C++ pre-cache instant reactions are not delayed.
+#       Default: 1
+#
+LLMChatter.PartyGate.Enable = 1
+
+#
+#   LLMChatter.PartyGate.FillerMinGapSeconds
+#       Minimum visible gap after filler party chat such as idle chatter,
+#       bot questions, screenshot observations, and nearby flavor.
+#       Default: 12
+#
+LLMChatter.PartyGate.FillerMinGapSeconds = 12
+
+#
+#   LLMChatter.PartyGate.ContextualMinGapSeconds
+#       Minimum visible gap after normal contextual party reactions such
+#       as zone transitions, quests, loot, level-ups, and greetings.
+#       Default: 10
+#
+LLMChatter.PartyGate.ContextualMinGapSeconds = 10
+
+#
+#   LLMChatter.PartyGate.ResponsiveMinGapSeconds
+#       Minimum visible gap for player-directed replies. Keep this low so
+#       bots still feel responsive when the player speaks to them.
+#       Default: 4
+#
+LLMChatter.PartyGate.ResponsiveMinGapSeconds = 4
+
+#
+#   LLMChatter.PartyGate.UrgentMinGapSeconds
+#       Minimum visible gap after urgent generated reactions. Set to 0 to
+#       avoid delaying combat/state feedback.
+#       Default: 0
+#
+LLMChatter.PartyGate.UrgentMinGapSeconds = 0
+
+#
+#   LLMChatter.PartyGate.PreLLMDeferThresholdSeconds
+#       Filler systems skip the LLM call when the group's next party-chat
+#       slot is farther than this many seconds away. They will try again
+#       on a later timer tick instead of spending tokens immediately.
+#       Default: 4
+#
+LLMChatter.PartyGate.PreLLMDeferThresholdSeconds = 4
+
+#
+#   LLMChatter.PartyGate.MaxFillerDelaySeconds
+#       Maximum post-LLM delay applied to already-generated filler
+#       messages. Generated messages are deferred, not dropped.
+#       Default: 45
+#
+LLMChatter.PartyGate.MaxFillerDelaySeconds = 45
+
+#
+#   LLMChatter.PartyGate.DebugLog
+#       Log party gate reservations and pre-LLM deferrals.
+#       Default: 0
+#
+LLMChatter.PartyGate.DebugLog = 0
+
+#
 #   LLMChatter.DistanceUnit
 #       Unit for distances shown in LLM prompts
 #       "yards" (WoW native) or "meters"

@@ -15,6 +15,10 @@ from chatter_db import (
     get_group_location,
     insert_chat_message,
 )
+from chatter_party_gate import (
+    defer_event_for_party_gate,
+    should_defer_party_generation,
+)
 from chatter_group_state import (
     _get_recent_chat,
     format_chat_history,
@@ -82,6 +86,19 @@ def handle_screenshot_observation(db, client, config, event):
     atmosphere    = extra.get('atmosphere', '')
     environment   = extra.get('environment', '')
     creatures     = extra.get('creatures', '')
+
+    if should_defer_party_generation(
+        db, config, group_id,
+        policy='filler',
+        reason='bot_group_screenshot_observation',
+    ):
+        defer_event_for_party_gate(
+            db,
+            config,
+            event_id,
+            'bot_group_screenshot_observation',
+        )
+        return False
 
     # -- Resolve zone, subzone, flavor --
     zone_name = 'the area'
@@ -286,6 +303,9 @@ def _screenshot_single(
         ),
         label='screenshot_vision',
         max_tokens_override=120,
+        group_id=group_id,
+        delivery_policy='filler',
+        delivery_reason='bot_group_screenshot_observation',
     )
     if not result['ok']:
         _mark_event(db, event_id, 'skipped')
@@ -477,6 +497,10 @@ def _screenshot_conversation(
             channel='party',
             delay_seconds=cumulative_delay,
             event_id=event_id,
+            config=config,
+            group_id=group_id,
+            delivery_policy='filler',
+            delivery_reason='bot_group_screenshot_observation',
         )
         _store_chat(
             db, group_id, speaker_guid,

@@ -26,6 +26,7 @@ from chatter_db import (
     get_group_location,
     mark_event,
 )
+from chatter_party_gate import policy_for_reason
 from chatter_group_state import (
     _mark_event,
     _store_chat,
@@ -325,6 +326,11 @@ def run_group_handler(
             ),
             label=label,
             metadata=zone_meta,
+            group_id=group_id,
+            delivery_policy=policy_for_reason(
+                event_type_label,
+            ),
+            delivery_reason=event_type_label,
         )
 
         if not result['ok']:

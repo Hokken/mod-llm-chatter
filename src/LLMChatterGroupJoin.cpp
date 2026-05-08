@@ -786,6 +786,7 @@ public:
                             farewellMsg);
 
                         // Send to remaining members
+                        bool sentFarewell = false;
                         for (GroupReference* itr =
                                  group->GetFirstMember();
                              itr != nullptr;
@@ -801,7 +802,15 @@ public:
                                     ->GetSession()
                                     ->SendPacket(
                                         &data);
+                                sentFarewell = true;
                             }
+                        }
+                        if (sentFarewell)
+                        {
+                            RecordPartyChatGateActivity(
+                                groupId,
+                                "contextual",
+                                "bot_group_farewell");
                         }
                     }
                 }

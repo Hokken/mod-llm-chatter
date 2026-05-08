@@ -219,6 +219,25 @@ stage for most Python-generated messages. Player-directed replies use
 `responsive=True`; ambient/group conversations can also include reading
 time from the previous message length.
 
+### Party Chat Pacing Gate
+
+Party-channel messages use a DB-backed pacing table,
+`llm_party_chat_pacing`, keyed by `group_id`.
+
+- Python-generated party messages reserve delivery slots through
+  `tools/chatter_party_gate.py` before inserting into
+  `llm_chatter_messages`.
+- Final party rows carry `group_id`, `delivery_policy`, and
+  `delivery_reason` so delivery can refresh the same pacing state when
+  the line actually appears in game.
+- C++ direct party paths that bypass Python delivery, such as
+  pre-cached instant reactions and farewell packets, call
+  `RecordPartyChatGateActivity()` after sending. They are not delayed,
+  but they still make later filler chatter back off.
+- Policy names are `urgent`, `responsive`, `contextual`, `filler`, and
+  `bypass`. Combat/state/BG/raid-critical feedback remains immediate;
+  idle-style filler can defer before spending LLM tokens.
+
 ### Group serialization
 
 The bridge processes many events in parallel, but it uses a per-group

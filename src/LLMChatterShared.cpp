@@ -1951,3 +1951,79 @@ void SendPartyMessageInstant(
             SendBotTextEmote(bot, textEmoteId);
     }
 }
+
+void RecordPartyChatGateActivity(
+    uint32 groupId,
+    const std::string& deliveryPolicy,
+    const std::string& deliveryReason)
+{
+    if (!sLLMChatterConfig
+        || !sLLMChatterConfig->_partyGateEnable
+        || groupId == 0)
+        return;
+
+    std::string policy = deliveryPolicy.empty()
+        ? "contextual"
+        : deliveryPolicy;
+    uint32 gap = sLLMChatterConfig
+        ->_partyGateContextualMinGapSeconds;
+
+    if (policy == "filler")
+    {
+        gap = sLLMChatterConfig
+            ->_partyGateFillerMinGapSeconds;
+    }
+    else if (policy == "responsive")
+    {
+        gap = sLLMChatterConfig
+            ->_partyGateResponsiveMinGapSeconds;
+    }
+    else if (policy == "urgent")
+    {
+        gap = sLLMChatterConfig
+            ->_partyGateUrgentMinGapSeconds;
+    }
+    else if (policy == "bypass")
+    {
+        gap = 0;
+    }
+    else
+    {
+        policy = "contextual";
+    }
+
+    std::string nextAt =
+        "DATE_ADD(NOW(), INTERVAL " +
+        std::to_string(gap) + " SECOND)";
+
+    CharacterDatabase.DirectExecute(
+        "INSERT INTO llm_party_chat_pacing "
+        "(group_id, next_available_at, "
+        "last_activity_at, last_policy) "
+        "VALUES ({}, {}, NOW(), '{}') "
+        "ON DUPLICATE KEY UPDATE "
+        "next_available_at = IF("
+        "next_available_at IS NULL "
+        "OR next_available_at < {}, "
+        "{}, next_available_at), "
+        "last_activity_at = NOW(), "
+        "last_policy = '{}'",
+        groupId,
+        nextAt,
+        EscapeString(policy),
+        nextAt,
+        nextAt,
+        EscapeString(policy));
+
+    if (sLLMChatterConfig->IsDebugLog())
+    {
+        LOG_INFO(
+            "module",
+            "LLMChatter party gate activity: group={} "
+            "policy={} reason={} gap={}s",
+            groupId,
+            policy,
+            deliveryReason,
+            gap);
+    }
+}

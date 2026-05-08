@@ -1471,6 +1471,9 @@ def run_single_reaction(
     label: str = 'single_reaction',
     num_bots: int = 1,
     bypass_speaker_cooldown: bool = True,
+    group_id: int = None,
+    delivery_policy: str = None,
+    delivery_reason: str = None,
 ) -> Dict[str, Any]:
     """Run shared single-message reaction pipeline.
 
@@ -1580,6 +1583,10 @@ def run_single_reaction(
             event_id=event_id,
             sequence=sequence,
             emote=emote,
+            config=config,
+            group_id=group_id,
+            delivery_policy=delivery_policy,
+            delivery_reason=delivery_reason,
         )
     except Exception:
         logger.error(

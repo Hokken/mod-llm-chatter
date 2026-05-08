@@ -31,6 +31,10 @@ from chatter_db import (
     insert_chat_message,
     get_character_info_by_name,
 )
+from chatter_party_gate import (
+    defer_event_for_party_gate,
+    should_defer_party_generation,
+)
 from chatter_constants import BG_MAP_NAMES, RAID_MAP_IDS
 from chatter_text import (
     strip_speaker_prefix,
@@ -1528,6 +1532,9 @@ def process_group_zone_transition_event(
                 f"grp-zone:#{event_id}"
                 f":{bot_name}"
             ),
+            group_id=group_id,
+            delivery_policy='contextual',
+            delivery_reason=event_type,
         )
         if not result['ok']:
             _mark_event(db, event_id, 'skipped')
@@ -2062,6 +2069,19 @@ def process_group_nearby_object_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
+    if should_defer_party_generation(
+        db, config, group_id,
+        policy='filler',
+        reason='bot_group_nearby_object',
+    ):
+        defer_event_for_party_gate(
+            db,
+            config,
+            event_id,
+            'bot_group_nearby_object',
+        )
+        return False
+
     # Pre-resolve zone data for both paths
     zone_name = _resolve_zone_name(
         db, group_id,
@@ -2372,6 +2392,10 @@ def _nearby_object_conversation(
             delay_seconds=cumulative_delay,
             event_id=event_id, sequence=seq,
             emote=msg.get('emote'),
+            config=config,
+            group_id=group_id,
+            delivery_policy='filler',
+            delivery_reason='bot_group_nearby_object',
         )
         _store_chat(
             db, group_id, speaker_guid,
@@ -2613,6 +2637,10 @@ def execute_player_msg_conversation(
             delay_seconds=cumulative_delay,
             event_id=event_id, sequence=seq,
             emote=emote,
+            config=config,
+            group_id=group_id,
+            delivery_policy='responsive',
+            delivery_reason='bot_group_player_msg',
         )
         _store_chat(
             db, group_id, speaker_guid,
@@ -2736,6 +2764,10 @@ def _quest_conversation_deliver(
             delay_seconds=cumulative_delay,
             event_id=event_id, sequence=seq,
             emote=msg.get('emote'),
+            config=config,
+            group_id=group_id,
+            delivery_policy='contextual',
+            delivery_reason='quest_conversation',
         )
         _store_chat(
             db, group_id, speaker_guid,

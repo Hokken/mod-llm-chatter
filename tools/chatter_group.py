@@ -73,6 +73,7 @@ from chatter_db import (
     get_group_location,
     is_player_online,
 )
+from chatter_party_gate import should_defer_party_generation
 from chatter_prompts import (
     pick_random_tone,
     maybe_get_creative_twist,
@@ -737,6 +738,10 @@ def process_group_event(db, client, config, event):
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=0,
             event_id=event_id, emote=emote,
+            config=config,
+            group_id=group_id,
+            delivery_policy='contextual',
+            delivery_reason='bot_group_join',
         )
 
         # 6. Store in chat history
@@ -1160,6 +1165,10 @@ def process_group_join_batch_event(
                 delay_seconds=delay,
                 event_id=event_id,
                 emote=emote,
+                config=config,
+                group_id=group_id,
+                delivery_policy='contextual',
+                delivery_reason='bot_group_join_batch',
             )
 
             _store_chat(
@@ -1443,6 +1452,10 @@ def _batch_welcome(
         event_id=event_id,
         sequence=1,
         emote=emote,
+        config=config,
+        group_id=group_id,
+        delivery_policy='contextual',
+        delivery_reason='bot_group_join',
     )
 
     _store_chat(
@@ -1844,6 +1857,10 @@ def process_group_player_msg_event(
             channel='party',
             delay_seconds=reply_delay,
             event_id=event_id, emote=emote,
+            config=config,
+            group_id=group_id,
+            delivery_policy='responsive',
+            delivery_reason='bot_group_player_msg',
         )
 
         _store_chat(
@@ -2153,6 +2170,10 @@ def _try_second_bot_response(
         delay_seconds=bot2_delay,
         event_id=event_id, sequence=1,
         emote=emote,
+        config=config,
+        group_id=group_id,
+        delivery_policy='responsive',
+        delivery_reason='bot_group_player_msg',
     )
 
     _store_chat(
@@ -2251,6 +2272,10 @@ def _welcome_from_existing_bot(
         channel='party', delay_seconds=5,
         event_id=event_id, sequence=1,
         emote=emote,
+        config=config,
+        group_id=group_id,
+        delivery_policy='contextual',
+        delivery_reason='bot_group_join',
     )
 
     _store_chat(
@@ -2498,6 +2523,10 @@ def _maybe_comment_on_composition(
         delay_seconds=delay_seconds,
         event_id=event_id, sequence=2,
         emote=emote,
+        config=config,
+        group_id=group_id,
+        delivery_policy='filler',
+        delivery_reason='group_composition',
     )
 
     _store_chat(
@@ -3564,6 +3593,13 @@ def check_idle_group_chatter(
                     f"({idle_chance}%)")
             return False
 
+        if should_defer_party_generation(
+            db, config, group_id,
+            policy='filler',
+            reason='group_idle',
+        ):
+            return False
+
         idle_history_limit = int(config.get(
             'LLMChatter.GroupChatter.'
             'IdleHistoryLimit', 5
@@ -3989,6 +4025,10 @@ def _idle_single_statement(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=2,
             event_id=None, emote=emote,
+            config=config,
+            group_id=group_id,
+            delivery_policy='filler',
+            delivery_reason='group_idle',
         )
 
         _store_chat(
@@ -4314,6 +4354,10 @@ def _idle_conversation(
                 delay_seconds=int(cumulative_delay),
                 event_id=None, sequence=seq,
                 emote=msg.get('emote'),
+                config=config,
+                group_id=group_id,
+                delivery_policy='filler',
+                delivery_reason='group_idle_conv',
             )
 
             _store_chat(
@@ -4431,6 +4475,13 @@ def check_bot_questions(db, client, config):
             LIMIT 1
         """, (group_id,))
         if cursor.fetchone():
+            return False
+
+        if should_defer_party_generation(
+            db, config, group_id,
+            policy='filler',
+            reason='group_bot_question',
+        ):
             return False
 
         # Get player name — try chat history first,
@@ -4748,6 +4799,10 @@ def check_bot_questions(db, client, config):
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=2,
             event_id=None, emote=emote,
+            config=config,
+            group_id=group_id,
+            delivery_policy='filler',
+            delivery_reason='group_bot_question',
         )
 
         _store_chat(

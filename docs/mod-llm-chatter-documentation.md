@@ -186,6 +186,27 @@ So urgent event-backed rows can now overtake filler rows at final
 delivery time, while ambient rows with `event_id = NULL` stay lowest
 priority.
 
+### Party chat pacing gate
+
+Party chat has an additional per-group pacing layer to avoid several
+LLM-generated lines landing in the chat window at nearly the same time.
+
+The gate uses `llm_party_chat_pacing`:
+
+- Python inserts party messages with `group_id`, `delivery_policy`, and
+  `delivery_reason`, then reserves the next visible slot for that group.
+- Filler work such as idle chatter, bot questions, nearby-object
+  comments, screenshot observations, and observer comments can defer
+  before the LLM call when the group's party chat is already busy.
+- Responsive and contextual messages are delayed only enough to avoid
+  overlap. Urgent and bypass-style feedback can remain immediate.
+- C++ delivery refreshes the pacing row when a party line is actually
+  sent, so late delivery does not cause following lines to bunch up.
+- C++ instant paths that do not use `llm_chatter_messages`, including
+  pre-cached combat/state/spell reactions and farewell packets, record
+  gate activity after sending. They are not delayed, but they still
+  suppress immediate filler spam behind them.
+
 ### Current priority behavior and remaining limits
 
 The system now has real priority behavior across multiple stages, but it

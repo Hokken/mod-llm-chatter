@@ -24,6 +24,10 @@ from chatter_group_state import (
     _store_chat,
     get_bot_traits,
 )
+from chatter_party_gate import (
+    defer_event_for_party_gate,
+    should_defer_party_generation,
+)
 
 
 def handle_emote_observer(db, client, config, event):
@@ -58,6 +62,17 @@ def handle_emote_observer(db, client, config, event):
     bot_gender = get_gender_label(
         int(extra.get('bot_gender') or 0)
     )
+
+    if should_defer_party_generation(
+        db, config, group_id,
+        policy='filler',
+        reason='bot_group_emote_observer',
+    ):
+        defer_event_for_party_gate(
+            db, config, event_id,
+            'bot_group_emote_observer',
+        )
+        return False
 
     emote_id = EMOTE_NAME_TO_ID.get(emote, 0)
     category = EMOTE_CATEGORIES.get(
@@ -116,6 +131,9 @@ def handle_emote_observer(db, client, config, event):
         ),
         bypass_speaker_cooldown=True,
         label='reaction_emote_obs',
+        group_id=group_id,
+        delivery_policy='filler',
+        delivery_reason='bot_group_emote_observer',
     )
     if not result['ok']:
         _mark_event(db, event_id, 'skipped')

@@ -27,6 +27,25 @@ void LLMChatterConfig::LoadConfig()
     _deliveryPollMs = sConfigMgr->GetOption<uint32>("LLMChatter.DeliveryPollMs", 1000);
     _messageDelayMin = sConfigMgr->GetOption<uint32>("LLMChatter.MessageDelayMin", 1000);
     _messageDelayMax = sConfigMgr->GetOption<uint32>("LLMChatter.MessageDelayMax", 30000);
+    _partyGateEnable =
+        sConfigMgr->GetOption<bool>(
+            "LLMChatter.PartyGate.Enable", true);
+    _partyGateFillerMinGapSeconds =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.PartyGate."
+            "FillerMinGapSeconds", 8);
+    _partyGateContextualMinGapSeconds =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.PartyGate."
+            "ContextualMinGapSeconds", 6);
+    _partyGateResponsiveMinGapSeconds =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.PartyGate."
+            "ResponsiveMinGapSeconds", 2);
+    _partyGateUrgentMinGapSeconds =
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.PartyGate."
+            "UrgentMinGapSeconds", 0);
 
     // Event system settings
     _useEventSystem = sConfigMgr->GetOption<bool>("LLMChatter.UseEventSystem", true);

@@ -92,6 +92,8 @@ void QueueStateCallout(
                 SendPartyMessageInstant(
                     bot, group,
                     cachedMsg, cachedEmote);
+                RecordPartyChatGateActivity(
+                    groupId, "urgent", eventType);
                 RecordCachedChatHistory(
                     groupId, botGuid,
                     botName, cachedMsg);
@@ -704,6 +706,9 @@ void HandleGroupPlayerEnterCombatImpl(
             SendPartyMessageInstant(
                 player, group,
                 cachedMsg, cachedEmote);
+            RecordPartyChatGateActivity(
+                groupId, "urgent",
+                "bot_group_combat");
             RecordCachedChatHistory(
                 groupId, botGuid,
                 botName, cachedMsg);
@@ -1717,6 +1722,9 @@ void HandleGroupPlayerSpellCastImpl(
             SendPartyMessageInstant(
                 reactor, group,
                 cachedMsg, cachedEmote);
+            RecordPartyChatGateActivity(
+                groupId, "urgent",
+                "bot_group_spell_cast");
             RecordCachedChatHistory(
                 groupId, botGuid,
                 botName, cachedMsg);

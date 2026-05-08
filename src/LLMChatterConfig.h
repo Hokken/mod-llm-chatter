@@ -43,6 +43,11 @@ public:
     uint32 _deliveryPollMs;
     uint32 _messageDelayMin;
     uint32 _messageDelayMax;
+    bool _partyGateEnable;
+    uint32 _partyGateFillerMinGapSeconds;
+    uint32 _partyGateContextualMinGapSeconds;
+    uint32 _partyGateResponsiveMinGapSeconds;
+    uint32 _partyGateUrgentMinGapSeconds;
 
     // Event system settings
     bool _useEventSystem;
