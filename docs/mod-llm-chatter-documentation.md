@@ -1755,7 +1755,9 @@ from the resulting description.
    `creature_presence`)
 6. Canonical tag dedup prevents repeated observations of the same scene
 7. Inserts `bot_group_screenshot_observation` event into
-   `llm_chatter_events` via direct MySQL connection
+   `llm_chatter_events` via direct MySQL connection. If available, the
+   selected bot's live travel state from `llm_group_bot_traits` is
+   embedded into event `extra_data`.
 
 **Stage 2 — Bridge handler** (`chatter_screenshot_handler.py`):
 
@@ -1764,10 +1766,13 @@ from the resulting description.
    `get_zone_flavor()`, `get_subzone_name()`, `get_subzone_lore()`,
    `get_dungeon_flavor()`, `get_time_of_day_context()`
 3. Builds bot identity via `build_bot_identity(name, race, class, gender)`
-4. Rolls for single statement (`run_single_reaction()`) or multi-bot
+4. Adds live travel context when present. This lets the LLM use taxi
+   flight, flying mount, ground mount, swimming, or world-transport
+   context while avoiding impossible ground actions.
+5. Rolls for single statement (`run_single_reaction()`) or multi-bot
    conversation (`append_conversation_json_instruction()` +
    `parse_conversation_response()`)
-5. Writes messages to `llm_chatter_messages` for C++ delivery
+6. Writes messages to `llm_chatter_messages` for C++ delivery
 
 ### Config keys
 
@@ -1995,7 +2000,7 @@ Typical multi-message JSON shape:
 | `llm_chatter_queue` | C++ | Python | Ambient request queue |
 | `llm_chatter_messages` | Python | C++ | Outbound delivery queue (includes `npc_spawn_id` for NPC speakers and `player_guid` for proximity scene tracking) |
 | `llm_group_cached_responses` | Python | C++ | Pre-cached instant reactions |
-| `llm_group_bot_traits` | Python | Python | Group personality state |
+| `llm_group_bot_traits` | Python + C++ travel refresh | Python | Group personality, location, and live travel state |
 | `llm_group_chat_history` | Python | Python | Group anti-repetition history |
 | `llm_general_chat_history` | C++/Python read path | Python/C++ | General-channel history |
 | `llm_bot_memories` | Python | Python | Per-bot-per-player memory journal (active=1 persists; first_meeting immune to prune) |

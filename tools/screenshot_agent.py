@@ -442,7 +442,11 @@ def get_bound_player_group(
     cursor = db.cursor(dictionary=True)
     try:
         cursor.execute("""
-            SELECT t.bot_guid, t.bot_name
+            SELECT t.bot_guid, t.bot_name,
+                   t.travel_mode, t.travel_context,
+                   t.is_mounted, t.is_flying,
+                   t.is_taxi_flying, t.is_on_transport,
+                   t.mount_display_id, t.transport_name
             FROM llm_group_bot_traits t
             JOIN group_member bot_gm
                 ON bot_gm.guid = t.group_id
@@ -458,8 +462,7 @@ def get_bound_player_group(
     if not bot:
         return None
 
-    row['bot_guid'] = bot['bot_guid']
-    row['bot_name'] = bot['bot_name']
+    row.update(bot)
     return row
 
 
@@ -470,6 +473,10 @@ def get_active_group_fallback(db) -> 'dict | None':
     try:
         cursor.execute("""
             SELECT t.group_id, t.bot_guid, t.bot_name,
+                   t.travel_mode, t.travel_context,
+                   t.is_mounted, t.is_flying,
+                   t.is_taxi_flying, t.is_on_transport,
+                   t.mount_display_id, t.transport_name,
                    c.zone, c.map
             FROM llm_group_bot_traits t
             JOIN group_member bot_gm
@@ -498,7 +505,25 @@ def queue_screenshot_event(
     """Insert screenshot observation into events table.
     Zone name is resolved by the bridge handler, not here.
     """
-    extra = json.dumps({
+    travel_state = None
+    if group_info.get('travel_mode'):
+        travel_state = {
+            "mode": str(group_info.get('travel_mode') or ''),
+            "context": str(
+                group_info.get('travel_context') or ''),
+            "mounted": bool(group_info.get('is_mounted')),
+            "flying": bool(group_info.get('is_flying')),
+            "taxi_flight": bool(
+                group_info.get('is_taxi_flying')),
+            "on_transport": bool(
+                group_info.get('is_on_transport')),
+            "mount_display_id": int(
+                group_info.get('mount_display_id') or 0),
+            "transport_name": str(
+                group_info.get('transport_name') or ''),
+        }
+
+    payload = {
         "bot_guid":      group_info['bot_guid'],
         "bot_name":      group_info['bot_name'],
         "group_id":      group_info['group_id'],
@@ -516,7 +541,11 @@ def queue_screenshot_event(
             description.get('environment') or ''),
         "creatures":     str(
             description.get('creatures') or ''),
-    })
+    }
+    if travel_state:
+        payload["travel_state"] = travel_state
+
+    extra = json.dumps(payload)
     cursor = db.cursor()
     try:
         cursor.execute("""

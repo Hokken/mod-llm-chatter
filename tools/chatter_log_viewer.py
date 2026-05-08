@@ -1261,6 +1261,9 @@ function selectEntry(i){
     ['zone_flavor','Zone flavor'],
     ['subzone_name','Subzone'],
     ['subzone_lore','Subzone lore'],
+    ['travel_mode','Travel mode'],
+    ['travel_modes','Travel modes'],
+    ['travel_context','Travel context'],
     ['speaker_talent','Speaker talent'],
     ['target_talent','Target talent']
   ];
@@ -2142,6 +2145,11 @@ def _build_export(entries):
             meta_parts.append(
                 f'subzone={subzone}'
             )
+        travel = e.get('travel_mode', '')
+        if not travel:
+            travel = e.get('travel_modes', '')
+        if travel:
+            meta_parts.append(f'travel={travel}')
         has_memory = 'memory' in label.lower()
         if has_memory:
             meta_parts.append('HAS_MEMORY')

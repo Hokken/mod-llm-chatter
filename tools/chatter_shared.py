@@ -678,7 +678,175 @@ def build_bot_state_context(extra_data):
             f"{target}."
         )
 
+    travel_ctx = format_travel_context(
+        state.get('travel_state')
+    )
+    if travel_ctx:
+        parts.append(travel_ctx)
+
     return ' '.join(parts)
+
+
+def format_travel_context(travel_state):
+    """Format live travel state for LLM prompts.
+
+    The C++ side supplies this for event payloads and
+    stores it in llm_group_bot_traits for Python-owned
+    events such as screenshot and idle chatter.
+    """
+    if not travel_state or not isinstance(travel_state, dict):
+        return ""
+
+    mode = str(travel_state.get('mode') or '').strip()
+    context = str(
+        travel_state.get('context') or ''
+    ).strip()
+    if context:
+        return context
+
+    transport = str(
+        travel_state.get('transport_name') or ''
+    ).strip()
+
+    if mode == 'taxi_flight':
+        return (
+            "Current travel: on a taxi flight path, "
+            "airborne and carried by a flight mount. "
+            "Use sky, wind, height, route, and "
+            "flight-perspective details. Do not "
+            "describe jumping, kneeling, walking, "
+            "touching the ground, or interacting "
+            "with terrain."
+        )
+    if mode == 'world_transport':
+        name = f" named {transport}" if transport else ""
+        return (
+            f"Current travel: riding a world transport"
+            f"{name}. Use deck, railing, motion, "
+            "route, water, sky, or machinery details "
+            "when fitting. Do not describe walking on "
+            "or touching nearby terrain."
+        )
+    if mode == 'flying_mount':
+        return (
+            "Current travel: mounted on a flying "
+            "mount. Use flight, reins, saddle, wind, "
+            "height, and view-from-above details. Do "
+            "not describe ground-only actions."
+        )
+    if mode == 'flight':
+        return (
+            "Current travel: airborne through flight "
+            "or flight form. Use sky, wind, height, "
+            "and motion details. Do not describe "
+            "ground-only actions."
+        )
+    if mode == 'ground_mount':
+        return (
+            "Current travel: mounted on the ground. "
+            "Actions should stay mounted: reins, "
+            "saddle, posture, scanning the road. Do "
+            "not describe dismounting unless it "
+            "already happened."
+        )
+    if mode == 'swimming':
+        return (
+            "Current travel: swimming or moving "
+            "through water. Use water, current, "
+            "breath, and surface details when "
+            "fitting."
+        )
+
+    return ""
+
+
+def build_travel_state_from_row(row):
+    """Normalize DB travel columns into prompt state."""
+    if not row:
+        return {}
+
+    return {
+        'mode': row.get('travel_mode') or '',
+        'context': row.get('travel_context') or '',
+        'mounted': bool(row.get('is_mounted')),
+        'flying': bool(row.get('is_flying')),
+        'taxi_flight': bool(row.get('is_taxi_flying')),
+        'on_transport': bool(row.get('is_on_transport')),
+        'mount_display_id': int(
+            row.get('mount_display_id') or 0),
+        'transport_name': row.get('transport_name') or '',
+    }
+
+
+def build_travel_metadata(travel_state, travel_context=None):
+    """Build compact request-log metadata for travel state."""
+    if not travel_state or not isinstance(travel_state, dict):
+        return {}
+
+    mode = str(travel_state.get('mode') or '').strip()
+    context = (
+        str(travel_context).strip()
+        if travel_context is not None
+        else format_travel_context(travel_state)
+    )
+
+    meta = {}
+    if mode:
+        meta['travel_mode'] = mode
+    if context:
+        meta['travel_context'] = context
+    return meta
+
+
+def build_group_travel_metadata(bots):
+    """Build request-log metadata for one or more bots."""
+    entries = []
+    contexts = []
+
+    for bot in bots or []:
+        state = bot.get('travel_state') or {}
+        mode = str(
+            bot.get('travel_mode')
+            or state.get('mode')
+            or ''
+        ).strip()
+        context = str(
+            bot.get('travel_context')
+            or format_travel_context(state)
+            or ''
+        ).strip()
+        if not mode and not context:
+            continue
+        name = str(bot.get('name') or '').strip()
+        if mode:
+            entries.append(f"{name}:{mode}" if name else mode)
+        if context:
+            contexts.append(context)
+
+    meta = {}
+    if entries:
+        unique_modes = sorted({
+            entry.split(':', 1)[-1]
+            for entry in entries
+        })
+        if len(unique_modes) == 1:
+            meta['travel_mode'] = unique_modes[0]
+        else:
+            meta['travel_modes'] = ', '.join(entries)
+
+    unique_contexts = []
+    for context in contexts:
+        if context not in unique_contexts:
+            unique_contexts.append(context)
+    if len(unique_contexts) == 1:
+        meta['travel_context'] = unique_contexts[0]
+    elif unique_contexts:
+        meta['travel_context'] = (
+            f"{len(unique_contexts)} mixed travel contexts; "
+            "see travel_modes and prompt."
+        )
+
+    return meta
 
 
 # =============================================================================

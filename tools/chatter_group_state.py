@@ -14,8 +14,10 @@ import time
 from chatter_shared import (
     build_race_class_context,
     build_bot_identity,
+    build_travel_state_from_row,
     call_llm,
     cleanup_message,
+    format_travel_context,
     get_class_name,
     get_gender_label,
     get_race_name,
@@ -1100,7 +1102,11 @@ def get_bot_traits(
     cursor.execute("""
         SELECT trait1, trait2, trait3,
             bot_name, role, tone, backstory,
-            zone, area, map
+            zone, area, map,
+            travel_mode, travel_context,
+            is_mounted, is_flying,
+            is_taxi_flying, is_on_transport,
+            mount_display_id, transport_name
         FROM llm_group_bot_traits
         WHERE group_id = %s AND bot_guid = %s
     """, (group_id, bot_guid))
@@ -1138,6 +1144,20 @@ def get_bot_traits(
             'zone': zone,
             'area': area,
             'map': map_id,
+            'travel_state': {
+                'mode': row.get('travel_mode') or '',
+                'context': row.get('travel_context') or '',
+                'mounted': bool(row.get('is_mounted')),
+                'flying': bool(row.get('is_flying')),
+                'taxi_flight': bool(
+                    row.get('is_taxi_flying')),
+                'on_transport': bool(
+                    row.get('is_on_transport')),
+                'mount_display_id': int(
+                    row.get('mount_display_id') or 0),
+                'transport_name': row.get(
+                    'transport_name') or '',
+            },
         }
     return None
 
@@ -1149,7 +1169,11 @@ def get_other_group_bot(db, group_id, exclude_guid):
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
         SELECT bot_guid, bot_name,
-               trait1, trait2, trait3, role, tone
+               trait1, trait2, trait3, role, tone,
+               travel_mode, travel_context,
+               is_mounted, is_flying,
+               is_taxi_flying, is_on_transport,
+               mount_display_id, transport_name
         FROM llm_group_bot_traits
         WHERE group_id = %s AND bot_guid != %s
         ORDER BY RAND()
@@ -1157,6 +1181,7 @@ def get_other_group_bot(db, group_id, exclude_guid):
     """, (group_id, exclude_guid))
     row = cursor.fetchone()
     if row:
+        travel_state = build_travel_state_from_row(row)
         return {
             'guid': row['bot_guid'],
             'name': row['bot_name'],
@@ -1166,6 +1191,10 @@ def get_other_group_bot(db, group_id, exclude_guid):
             ],
             'role': row.get('role'),
             'tone': row.get('tone'),
+            'travel_mode': travel_state.get('mode') or '',
+            'travel_context': format_travel_context(
+                travel_state),
+            'travel_state': travel_state,
         }
     return None
 

@@ -62,6 +62,10 @@ from chatter_shared import (
     build_talent_context,
     get_zone_name,
     get_subzone_name,
+    format_travel_context,
+    build_group_travel_metadata,
+    build_travel_metadata,
+    build_travel_state_from_row,
     stagger_if_needed,
     build_zone_metadata,
     get_player_zone,
@@ -1521,7 +1525,11 @@ def process_group_player_msg_event(
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
         SELECT bot_guid, bot_name,
-               trait1, trait2, trait3, tone
+               trait1, trait2, trait3, tone,
+               travel_mode, travel_context,
+               is_mounted, is_flying,
+               is_taxi_flying, is_on_transport,
+               mount_display_id, transport_name
         FROM llm_group_bot_traits
         WHERE group_id = %s
     """, (group_id,))
@@ -1563,6 +1571,8 @@ def process_group_player_msg_event(
         bot_row['trait3'],
     ]
     stored_tone = bot_row.get('tone')
+    travel_state = build_travel_state_from_row(bot_row)
+    travel_context = format_travel_context(travel_state)
 
     # Get bot class/race from characters table
     cursor.execute("""
@@ -1583,6 +1593,9 @@ def process_group_player_msg_event(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'travel_mode': travel_state.get('mode') or '',
+        'travel_context': travel_context,
+        'travel_state': travel_state,
     }
 
 
@@ -1686,6 +1699,9 @@ def process_group_player_msg_event(
                 'trait1': bot_row['trait1'],
                 'trait2': bot_row['trait2'],
                 'trait3': bot_row['trait3'],
+                'travel_mode': travel_state.get('mode') or '',
+                'travel_context': travel_context,
+                'travel_state': travel_state,
             }
             try:
                 conv_ok = (
@@ -1781,6 +1797,7 @@ def process_group_player_msg_event(
             map_id=map_id,
             stored_tone=stored_tone,
             memories=msg_memories,
+            travel_context=travel_context,
         )
 
         max_tokens = pick_random_max_tokens(config)
@@ -1815,6 +1832,10 @@ def process_group_player_msg_event(
             ),
             dungeon_flavor=_dflav_pmsg or '',
         )
+        pmsg_meta.update(build_travel_metadata(
+            travel_state,
+            travel_context,
+        ))
         response = call_llm(
             client, prompt, config,
             max_tokens_override=max_tokens,
@@ -2068,6 +2089,11 @@ def _try_second_bot_response(
     bot2_name = second['name']
     bot2_traits = second['traits']
     bot2_tone = second.get('tone')
+    bot2_travel_state = second.get('travel_state') or {}
+    bot2_travel_context = (
+        second.get('travel_context')
+        or format_travel_context(bot2_travel_state)
+    )
 
     # Get class/race for second bot
     cursor = db.cursor(dictionary=True)
@@ -2087,12 +2113,17 @@ def _try_second_bot_response(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'travel_mode': bot2_travel_state.get('mode') or '',
+        'travel_context': bot2_travel_context,
+        'travel_state': bot2_travel_state,
     }
 
     # Get updated history (includes first bot's msg)
     history = _get_recent_chat(db, group_id)
     chat_hist = format_chat_history(history)
     members = get_group_members(db, group_id)
+    zone_id, area_id, map_id = get_group_location(
+        db, group_id)
 
     bot2_item_context = ""
     if items_info:
@@ -2128,7 +2159,9 @@ def _try_second_bot_response(
         target_talent_context=target_talent,
         zone_id=zone_id,
         area_id=area_id,
+        map_id=map_id,
         stored_tone=bot2_tone,
+        travel_context=bot2_travel_context,
     )
 
     max_tokens = int(config.get(
@@ -2139,6 +2172,10 @@ def _try_second_bot_response(
         max_tokens_override=max_tokens,
         context=f"2nd-reply:{bot2_name}",
         label='group_player_msg',
+        metadata=build_travel_metadata(
+            bot2_travel_state,
+            bot2_travel_context,
+        ) or None,
     )
     if not response:
         return
@@ -2630,6 +2667,7 @@ def build_idle_chatter_prompt(
     stored_tone=None,
     memories=None,
     backstory=None,
+    travel_context='',
 ):
     """Build prompt for idle party chat.
 
@@ -2677,6 +2715,8 @@ def build_idle_chatter_prompt(
                 prompt += (
                     f"{speaker_talent_context}\n"
                 )
+            if travel_context:
+                prompt += f"{travel_context}\n"
             # Detect solo bot: no other bots in
             # group. `members` includes bots + players;
             # we are alone if removing this bot and the
@@ -2912,6 +2952,8 @@ def build_idle_chatter_prompt(
     prompt += (
         f"Your tone: {tone}\n"
     )
+    if travel_context:
+        prompt += f"{travel_context}\n"
     if backstory:
         prompt += (
             f"\n<backstory>\n"
@@ -3075,6 +3117,11 @@ def build_idle_conversation_prompt(
                     f"(personality: {trait_str})"
                     f"{dead_tag}"
                 )
+                if bot.get('travel_context'):
+                    parts.append(
+                        f"{bot['name']} travel state: "
+                        f"{bot['travel_context']}"
+                    )
 
             # Per-bot memory blocks
             for b in bots:
@@ -3257,6 +3304,11 @@ def build_idle_conversation_prompt(
             f"(personality: {trait_str})"
             f"{dead_tag}"
         )
+        if bot.get('travel_context'):
+            parts.append(
+                f"  {bot['name']} travel state: "
+                f"{bot['travel_context']}"
+            )
         if is_rp:
             race = bot.get('race', '')
             cls = bot.get('class', '')
@@ -3569,6 +3621,10 @@ def check_idle_group_chatter(
                    t.trait1, t.trait2, t.trait3,
                    t.role, t.tone, t.backstory,
                    t.zone, t.map,
+                   t.travel_mode, t.travel_context,
+                   t.is_mounted, t.is_flying,
+                   t.is_taxi_flying, t.is_on_transport,
+                   t.mount_display_id, t.transport_name,
                    COALESCE(c.health, 1) AS health
             FROM llm_group_bot_traits t
             LEFT JOIN characters c
@@ -3839,6 +3895,21 @@ def _idle_single_statement(
         'role': bot_row.get('role'),
         'is_dead': int(bot_row.get('health', 1)) == 0,
     }
+    travel_state = {
+        'mode': bot_row.get('travel_mode') or '',
+        'context': bot_row.get('travel_context') or '',
+        'mounted': bool(bot_row.get('is_mounted')),
+        'flying': bool(bot_row.get('is_flying')),
+        'taxi_flight': bool(
+            bot_row.get('is_taxi_flying')),
+        'on_transport': bool(
+            bot_row.get('is_on_transport')),
+        'mount_display_id': int(
+            bot_row.get('mount_display_id') or 0),
+        'transport_name': bot_row.get(
+            'transport_name') or '',
+    }
+    travel_context = format_travel_context(travel_state)
 
     # Determine address target
     if len(all_bots) == 1:
@@ -3948,6 +4019,7 @@ def _idle_single_statement(
             stored_tone=stored_tone,
             memories=idle_memories,
             backstory=idle_backstory,
+            travel_context=travel_context,
         )
 
         _dflav = get_dungeon_flavor(map_id)
@@ -3982,6 +4054,10 @@ def _idle_single_statement(
             )
         zone_meta['channel'] = 'party'
         zone_meta['bot_name'] = bot_name
+        zone_meta.update(build_travel_metadata(
+            travel_state,
+            travel_context,
+        ))
         if idle_memories:
             zone_meta['has_memory'] = True
             zone_meta['memory_count'] = len(
@@ -4087,6 +4163,21 @@ def _idle_conversation(
         char = cursor.fetchone()
         if not char:
             return False
+        travel_state = {
+            'mode': br.get('travel_mode') or '',
+            'context': br.get('travel_context') or '',
+            'mounted': bool(br.get('is_mounted')),
+            'flying': bool(br.get('is_flying')),
+            'taxi_flight': bool(
+                br.get('is_taxi_flying')),
+            'on_transport': bool(
+                br.get('is_on_transport')),
+            'mount_display_id': int(
+                br.get('mount_display_id') or 0),
+            'transport_name': br.get(
+                'transport_name') or '',
+        }
+        travel_context = format_travel_context(travel_state)
         bot = {
             'guid': br['bot_guid'],
             'name': br['bot_name'],
@@ -4099,6 +4190,9 @@ def _idle_conversation(
             'role': br.get('role'),
             'is_dead': int(
                 br.get('health', 1)) == 0,
+            'travel_mode': travel_state.get('mode') or '',
+            'travel_context': travel_context,
+            'travel_state': travel_state,
         }
         bots.append(bot)
         traits_map[br['bot_name']] = [
@@ -4274,6 +4368,7 @@ def _idle_conversation(
         zone_meta['channel'] = 'party'
         zone_meta['bot_name'] = ','.join(bot_names)
         zone_meta['bot_count'] = num_bots
+        zone_meta.update(build_group_travel_metadata(bots))
         if memories_map:
             zone_meta['has_memory'] = True
             zone_meta['memory_bots'] = ','.join(

@@ -41,6 +41,8 @@ from chatter_shared import (
     get_subzone_name,
     get_zone_flavor,
     get_zone_name,
+    build_travel_metadata,
+    format_travel_context,
     parse_conversation_response,
     parse_extra_data,
     run_single_reaction,
@@ -86,6 +88,16 @@ def handle_screenshot_observation(db, client, config, event):
     atmosphere    = extra.get('atmosphere', '')
     environment   = extra.get('environment', '')
     creatures     = extra.get('creatures', '')
+    travel_state  = extra.get('travel_state')
+    if not isinstance(travel_state, dict):
+        travel_state = _get_bot_travel_state(
+            db, group_id, bot_guid)
+    travel_context = format_travel_context(
+        travel_state)
+    travel_meta = build_travel_metadata(
+        travel_state,
+        travel_context,
+    )
 
     if should_defer_party_generation(
         db, config, group_id,
@@ -177,6 +189,7 @@ def handle_screenshot_observation(db, client, config, event):
                 group_id, bot_guid, bot_name,
                 members, observation, context_str,
                 zone_flavor, chat_block, anti_rep,
+                travel_context, travel_meta,
             )
         except Exception:
             fail_event(
@@ -190,7 +203,8 @@ def handle_screenshot_observation(db, client, config, event):
         db, client, config, event_id,
         group_id, bot_guid, bot_name,
         observation, context_str, zone_flavor,
-        chat_block, anti_rep,
+        chat_block, anti_rep, travel_context,
+        travel_meta,
     )
 
 
@@ -225,11 +239,44 @@ def _get_bot_identity(db, bot_guid, bot_name):
     return f"You are {bot_name}."
 
 
+def _get_bot_travel_state(db, group_id, bot_guid):
+    """Fetch persisted travel state for old screenshot
+    events that predate embedded travel_state."""
+    if not group_id or not bot_guid:
+        return None
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT travel_mode, travel_context,
+               is_mounted, is_flying,
+               is_taxi_flying, is_on_transport,
+               mount_display_id, transport_name
+        FROM llm_group_bot_traits
+        WHERE group_id = %s AND bot_guid = %s
+        LIMIT 1
+    """, (group_id, bot_guid))
+    row = cursor.fetchone()
+    cursor.close()
+    if not row or not row.get('travel_mode'):
+        return None
+    return {
+        'mode': row.get('travel_mode') or '',
+        'context': row.get('travel_context') or '',
+        'mounted': bool(row.get('is_mounted')),
+        'flying': bool(row.get('is_flying')),
+        'taxi_flight': bool(row.get('is_taxi_flying')),
+        'on_transport': bool(row.get('is_on_transport')),
+        'mount_display_id': int(
+            row.get('mount_display_id') or 0),
+        'transport_name': row.get('transport_name') or '',
+    }
+
+
 def _screenshot_single(
     db, client, config, event_id,
     group_id, bot_guid, bot_name,
     observation, context_str, zone_flavor,
-    chat_block, anti_rep,
+    chat_block, anti_rep, travel_context='',
+    travel_meta=None,
 ):
     """Single-bot statement about the screenshot."""
     style = random.choice(_REACTION_STYLES)
@@ -286,6 +333,8 @@ def _screenshot_single(
         prompt += chat_block + '\n'
     if anti_rep:
         prompt += anti_rep + '\n'
+    if travel_context:
+        prompt += travel_context + '\n'
     prompt = append_json_instruction(
         prompt, allow_action=True)
 
@@ -303,6 +352,7 @@ def _screenshot_single(
         ),
         label='screenshot_vision',
         max_tokens_override=120,
+        metadata=travel_meta,
         group_id=group_id,
         delivery_policy='filler',
         delivery_reason='bot_group_screenshot_observation',
@@ -324,6 +374,7 @@ def _screenshot_conversation(
     group_id, bot_guid, bot_name,
     members, observation, context_str,
     zone_flavor, chat_block, anti_rep,
+    travel_context='', travel_meta=None,
 ):
     """Multi-bot conversation about the screenshot.
     Follows the same pattern as nearby object
@@ -433,6 +484,8 @@ def _screenshot_conversation(
         prompt += chat_block + '\n'
     if anti_rep:
         prompt += anti_rep + '\n'
+    if travel_context:
+        prompt += travel_context + '\n'
 
     num_bots = len(bots)
 
@@ -449,6 +502,7 @@ def _screenshot_conversation(
         max_tokens_override=max_tokens,
         context=f"screenshot-conv:{','.join(bot_names)}",
         label='screenshot_vision',
+        metadata=travel_meta,
     )
     if not response:
         _mark_event(db, event_id, 'skipped')

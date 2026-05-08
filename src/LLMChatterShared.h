@@ -33,6 +33,10 @@ std::string GetRaceName(uint8 raceId);
 std::string BuildBotIdentityFields(
     Player* player, bool includeRoles = false);
 std::string BuildBotStateJson(Player* player);
+std::string BuildBotTravelStateJson(Player* player);
+std::string GetBotTravelContext(Player* player);
+std::string GetBotTravelMode(Player* player);
+void UpdateGroupBotTravelState(Player* player, uint32 groupId = 0);
 std::string ConvertAllLinks(const std::string& text);
 std::string GetZoneName(uint32 zoneId);
 uint32 GetTextEmoteId(const std::string& emoteName);

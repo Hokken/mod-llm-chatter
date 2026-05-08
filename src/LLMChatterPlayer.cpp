@@ -130,6 +130,80 @@ static std::map<uint32, time_t>
 static time_t _lastIntrusionEviction = 0;
 static std::mutex _intrusionMutex;
 
+static std::map<uint32, std::pair<time_t, std::string>>
+    _travelStateCache;
+static std::mutex _travelStateMutex;
+
+static void MaybePersistBotTravelState(
+    Player* bot, uint32 groupId, bool force = false)
+{
+    if (!bot || !IsPlayerBot(bot) || !groupId)
+        return;
+
+    time_t now = time(nullptr);
+    std::string signature =
+        std::to_string(bot->GetZoneId()) + ":" +
+        std::to_string(bot->GetAreaId()) + ":" +
+        std::to_string(bot->GetMapId()) + ":" +
+        std::to_string(bot->GetMountID()) + ":" +
+        BuildBotTravelStateJson(bot);
+
+    {
+        std::lock_guard<std::mutex> guard(
+            _travelStateMutex);
+        auto it = _travelStateCache.find(
+            bot->GetGUID().GetCounter());
+        if (!force && it != _travelStateCache.end())
+        {
+            bool checkedRecently =
+                (now - it->second.first) < 5;
+            bool unchanged =
+                it->second.second == signature;
+            bool freshEnough =
+                (now - it->second.first) < 60;
+            if (checkedRecently
+                || (unchanged && freshEnough))
+                return;
+        }
+
+        _travelStateCache[
+            bot->GetGUID().GetCounter()] =
+            {now, signature};
+    }
+
+    UpdateGroupBotTravelState(bot, groupId);
+}
+
+static void RefreshGroupBotTravelStates(
+    Player* player, bool force = false)
+{
+    if (!player || !sLLMChatterConfig
+        || !sLLMChatterConfig->_useGroupChatter)
+        return;
+
+    Group* group = player->GetGroup();
+    if (!group || !GroupHasBots(group))
+        return;
+
+    uint32 groupId = group->GetGUID().GetCounter();
+    if (IsPlayerBot(player))
+    {
+        MaybePersistBotTravelState(player, groupId, force);
+        return;
+    }
+
+    for (auto const& ref : group->GetMemberSlots())
+    {
+        Player* member =
+            ObjectAccessor::FindPlayer(ref.guid);
+        if (!member || !IsPlayerBot(member)
+            || !member->IsInWorld())
+            continue;
+        MaybePersistBotTravelState(
+            member, groupId, force);
+    }
+}
+
 static void CleanupIntrusionStateOnZoneChange(
     uint32 guid, uint32 newZone)
 {
@@ -692,6 +766,7 @@ public:
         : PlayerScript(
               "LLMChatterPlayerScript",
               {PLAYERHOOK_ON_LOGIN,
+               PLAYERHOOK_ON_UPDATE,
                PLAYERHOOK_CAN_PLAYER_USE_CHANNEL_CHAT,
                PLAYERHOOK_ON_UPDATE_ZONE,
                PLAYERHOOK_ON_UPDATE_AREA,
@@ -1066,6 +1141,16 @@ public:
         return true;
     }
 
+    void OnPlayerUpdate(
+        Player* player, uint32 /*p_time*/) override
+    {
+        if (!sLLMChatterConfig
+            || !sLLMChatterConfig->IsEnabled())
+            return;
+
+        RefreshGroupBotTravelStates(player);
+    }
+
     void OnPlayerPVPKill(
         Player* killer, Player* killed) override
     {
@@ -1147,6 +1232,7 @@ public:
             "SET area = {} "
             "WHERE group_id = {}",
             newArea, gId);
+        RefreshGroupBotTravelStates(player, true);
 
         // Skip if area didn't actually change
         // (can happen on login/teleport)
@@ -1266,6 +1352,7 @@ public:
             "\"bot_level\":" +
                 std::to_string(
                     bot->GetLevel()) + ","
+            + BuildBotStateJson(bot) + ","
             "\"group_id\":" +
                 std::to_string(gId) + ","
             "\"zone_id\":" +
@@ -1379,6 +1466,7 @@ public:
             // in group + check for enemy zone
             HandleGroupPlayerUpdateZone(
                 player, newZone, newArea);
+            RefreshGroupBotTravelStates(player, true);
             HandleEnemyZoneIntrusion(
                 player, newZone);
             return;
@@ -1388,6 +1476,7 @@ public:
         EnsureBotInGeneralChannel(player);
         HandleGroupPlayerUpdateZone(
             player, newZone, newArea);
+        RefreshGroupBotTravelStates(player, true);
         HandleBotEntersEnemyTerritory(
             player, newZone);
     }

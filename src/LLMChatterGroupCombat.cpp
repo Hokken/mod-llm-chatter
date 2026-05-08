@@ -2248,14 +2248,7 @@ void HandleGroupPlayerUpdateZoneImpl(
     }
     else
     {
-        uint32 bGuid =
-            player->GetGUID().GetCounter();
-        CharacterDatabase.Execute(
-            "UPDATE llm_group_bot_traits "
-            "SET zone = {}, map = {} "
-            "WHERE group_id = {} "
-            "AND bot_guid = {}",
-            newZone, mapId, gId, bGuid);
+        UpdateGroupBotTravelState(player, gId);
     }
 
     if (IsPlayerBot(player))
@@ -2323,6 +2316,7 @@ void HandleGroupPlayerUpdateZoneImpl(
 
     std::string extraData = "{"
         + BuildBotIdentityFields(player) + ","
+        + BuildBotStateJson(player) + ","
         "\"group_id\":" +
             std::to_string(groupId) + ","
         "\"zone_id\":" +

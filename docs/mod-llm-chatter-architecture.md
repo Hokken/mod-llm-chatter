@@ -694,6 +694,15 @@ Player-zone updates also cross from player to group via:
 
 - `HandleGroupPlayerUpdateZone(Player*, uint32)`
 
+Player updates also maintain live bot travel state for party prompts.
+`LLMChatterPlayer.cpp` periodically calls
+`UpdateGroupBotTravelState()` for grouped bots, and forced refreshes run
+on zone/area changes. The persisted state is written to
+`llm_group_bot_traits` (`travel_mode`, `travel_context`, mounted/flying
+flags, mount display id, transport name). C++ event payloads also embed
+the same state under `bot_state.travel_state` via
+`BuildBotStateJson()`.
+
 The world layer also delegates to the proximity subsystem via
 `LLMChatterProximity.h`:
 
@@ -874,7 +883,7 @@ This reduces duplicate near-identical lines across party and raid.
 | `llm_chatter_queue` | C++ | Python | Ambient statement/conversation queue |
 | `llm_chatter_messages` | Python | C++ | Outbound message delivery queue |
 | `llm_group_cached_responses` | Python | C++ | Instant reaction pre-cache |
-| `llm_group_bot_traits` | Python | Python | Group traits/state |
+| `llm_group_bot_traits` | Python + C++ travel refresh | Python | Group traits/state, location, and live travel context |
 | `llm_group_chat_history` | Python | Python | Group anti-repetition history |
 | `llm_general_chat_history` | C++/Python read path | Python/C++ | General-channel history |
 

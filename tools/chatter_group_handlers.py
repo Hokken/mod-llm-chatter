@@ -23,6 +23,9 @@ from chatter_shared import (
     calculate_dynamic_delay,
     build_talent_context,
     build_zone_metadata,
+    build_group_travel_metadata,
+    build_travel_state_from_row,
+    format_travel_context,
     strip_conversation_actions,
 )
 from chatter_db import (
@@ -2444,6 +2447,16 @@ def execute_player_msg_conversation(
     extra_count = max_conv_bots - 1
     extra_rows = other_bots[:extra_count]
 
+    if not addressed_bot.get('travel_context'):
+        travel_state = addressed_bot.get(
+            'travel_state') or build_travel_state_from_row(
+                addressed_bot)
+        addressed_bot['travel_state'] = travel_state
+        addressed_bot['travel_mode'] = (
+            travel_state.get('mode') or '')
+        addressed_bot['travel_context'] = (
+            format_travel_context(travel_state))
+
     # Build bot dicts and traits_map
     bots = [addressed_bot]
     traits_map = {
@@ -2479,6 +2492,9 @@ def execute_player_msg_conversation(
             bot_guids.pop(name, None)
             traits_map.pop(name, None)
             continue
+        travel_state = build_travel_state_from_row(row)
+        travel_context = format_travel_context(
+            travel_state)
         bots.append({
             'name': name,
             'guid': guid,
@@ -2488,6 +2504,9 @@ def execute_player_msg_conversation(
             'race': get_race_name(char['race']),
             'level': char['level'],
             'gender': get_gender_label(char['gender']),
+            'travel_mode': travel_state.get('mode') or '',
+            'travel_context': travel_context,
+            'travel_state': travel_state,
         })
 
     if len(bots) < 2:
@@ -2572,6 +2591,7 @@ def execute_player_msg_conversation(
         pmsg_meta['target_talent'] = (
             target_talent
         )
+    pmsg_meta.update(build_group_travel_metadata(bots))
     names_ctx = ','.join(bot_names)
 
     response = call_llm(

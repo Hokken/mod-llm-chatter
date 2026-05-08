@@ -116,6 +116,11 @@ def _append_bots_with_rp(parts, bots, traits_map, is_rp):
             f"{bot['class']} "
             f"(personality: {trait_str})"
         )
+        if bot.get('travel_context'):
+            parts.append(
+                f"  {bot['name']} travel state: "
+                f"{bot['travel_context']}"
+            )
         if is_rp:
             race = bot.get('race', '')
             cls = bot.get('class', '')
@@ -2071,6 +2076,7 @@ def build_player_response_prompt(
     zone_id=0, area_id=0, map_id=0,
     stored_tone=None,
     memories=None,
+    travel_context="",
 ):
     """Build prompt for a bot responding to a real
     player's party chat message. The bot should
@@ -2163,6 +2169,13 @@ def build_player_response_prompt(
             )
     if chat_history:
         rp_context += f"{chat_history}"
+    if travel_context:
+        rp_context += (
+            f"\n{travel_context}"
+            "\nWhen the player asks about the group's "
+            "current situation, factor this travel "
+            "state into the reply."
+        )
 
     # 40% chance to suggest addressing someone
     address_hint = ""

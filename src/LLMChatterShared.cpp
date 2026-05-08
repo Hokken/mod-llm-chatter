@@ -17,6 +17,7 @@
 #include "Player.h"
 #include "Playerbots.h"
 #include "RandomPlayerbotMgr.h"
+#include "Transport.h"
 #include "World.h"
 #include "WorldSession.h"
 
@@ -1595,8 +1596,254 @@ std::string BuildBotStateJson(Player* player)
             + ","
         "\"target\":\"" +
             JsonEscape(targetName) + "\","
-        "\"bot_ai_state\":\"" + botState + "\""
+        "\"bot_ai_state\":\"" + botState + "\","
+        + BuildBotTravelStateJson(player) + "}";
+}
+
+std::string GetBotTravelMode(Player* player)
+{
+    if (!player)
+        return "unknown";
+
+    bool isTaxiFlight =
+        player->IsInFlight()
+        || player->HasUnitState(UNIT_STATE_IN_FLIGHT);
+    bool isOnTransport =
+        player->GetTransport()
+        || player->HasUnitMovementFlag(
+            MOVEMENTFLAG_ONTRANSPORT);
+    bool isMounted = player->IsMounted();
+    bool isFlying =
+        player->IsFlying()
+        || player->HasFlyAura()
+        || player->HasIncreaseMountedFlightSpeedAura();
+    bool isSwimming =
+        player->isSwimming()
+        || player->HasUnitMovementFlag(
+            MOVEMENTFLAG_SWIMMING)
+        || player->HasUnitFlag(UNIT_FLAG_SWIMMING)
+        || player->IsInWater()
+        || player->IsUnderWater();
+    if (!isSwimming)
+    {
+        if (Map* map = player->GetMap())
+        {
+            isSwimming =
+                map->IsInWater(
+                    player->GetPhaseMask(),
+                    player->GetPositionX(),
+                    player->GetPositionY(),
+                    player->GetPositionZ(),
+                    player->GetCollisionHeight())
+                || map->IsUnderWater(
+                    player->GetPhaseMask(),
+                    player->GetPositionX(),
+                    player->GetPositionY(),
+                    player->GetPositionZ(),
+                    player->GetCollisionHeight());
+        }
+    }
+
+    if (isTaxiFlight)
+        return "taxi_flight";
+    if (isOnTransport)
+        return "world_transport";
+    if (isMounted && isFlying)
+        return "flying_mount";
+    if (!isMounted && isFlying)
+        return "flight";
+    if (isSwimming)
+        return "swimming";
+    if (isMounted)
+        return "ground_mount";
+    return "on_foot";
+}
+
+std::string GetBotTravelContext(Player* player)
+{
+    if (!player)
+        return "";
+
+    std::string mode = GetBotTravelMode(player);
+    if (mode == "taxi_flight")
+    {
+        return
+            "Current travel: on a taxi flight path, "
+            "airborne and carried by a flight mount. "
+            "Use sky, wind, height, route, and "
+            "flight-perspective details. Do not "
+            "describe jumping, kneeling, walking, "
+            "touching the ground, or interacting with "
+            "terrain.";
+    }
+    if (mode == "world_transport")
+    {
+        std::string transportName;
+        if (Transport* transport = player->GetTransport())
+        {
+            GameObjectTemplate const* goInfo =
+                transport->GetGOInfo();
+            if (goInfo)
+                transportName = goInfo->name;
+        }
+
+        std::string context =
+            "Current travel: riding a world transport";
+        if (!transportName.empty())
+            context += " named " + transportName;
+        context +=
+            ". Use deck, railing, motion, route, "
+            "water, sky, or machinery details when "
+            "fitting. Do not describe walking on or "
+            "touching nearby terrain.";
+        return context;
+    }
+    if (mode == "flying_mount")
+    {
+        return
+            "Current travel: mounted on a flying mount. "
+            "Use flight, reins, saddle, wind, height, "
+            "and view-from-above details. Do not "
+            "describe ground-only actions.";
+    }
+    if (mode == "flight")
+    {
+        return
+            "Current travel: airborne through flight "
+            "or flight form. Use sky, wind, height, "
+            "and motion details. Do not describe "
+            "ground-only actions.";
+    }
+    if (mode == "ground_mount")
+    {
+        return
+            "Current travel: mounted on the ground. "
+            "Actions should stay mounted: reins, "
+            "saddle, posture, scanning the road. Do "
+            "not describe dismounting unless it "
+            "already happened.";
+    }
+    if (mode == "swimming")
+    {
+        return
+            "Current travel: swimming or moving "
+            "through water. Use water, current, "
+            "breath, and surface details when "
+            "fitting.";
+    }
+
+    return "";
+}
+
+std::string BuildBotTravelStateJson(Player* player)
+{
+    if (!player)
+        return "\"travel_state\":{}";
+
+    bool isTaxiFlight =
+        player->IsInFlight()
+        || player->HasUnitState(UNIT_STATE_IN_FLIGHT);
+    bool isOnTransport =
+        player->GetTransport()
+        || player->HasUnitMovementFlag(
+            MOVEMENTFLAG_ONTRANSPORT);
+    bool isMounted = player->IsMounted();
+    bool isFlying =
+        player->IsFlying()
+        || player->HasFlyAura()
+        || player->HasIncreaseMountedFlightSpeedAura();
+
+    std::string transportName;
+    if (Transport* transport = player->GetTransport())
+    {
+        GameObjectTemplate const* goInfo =
+            transport->GetGOInfo();
+        if (goInfo)
+            transportName = goInfo->name;
+    }
+
+    return
+        "\"travel_state\":{"
+        "\"mode\":\"" + GetBotTravelMode(player) + "\","
+        "\"context\":\"" +
+            JsonEscape(GetBotTravelContext(player)) + "\","
+        "\"mounted\":" +
+            std::string(isMounted ? "true" : "false")
+            + ","
+        "\"flying\":" +
+            std::string(isFlying ? "true" : "false")
+            + ","
+        "\"taxi_flight\":" +
+            std::string(isTaxiFlight ? "true" : "false")
+            + ","
+        "\"on_transport\":" +
+            std::string(isOnTransport ? "true" : "false")
+            + ","
+        "\"mount_display_id\":" +
+            std::to_string(player->GetMountID()) + ","
+        "\"transport_name\":\"" +
+            JsonEscape(transportName) + "\""
         "}";
+}
+
+void UpdateGroupBotTravelState(Player* player, uint32 groupId)
+{
+    if (!player || !IsPlayerBot(player))
+        return;
+
+    Group* group = player->GetGroup();
+    if (!group && !groupId)
+        return;
+
+    uint32 resolvedGroupId =
+        groupId ? groupId : group->GetGUID().GetCounter();
+    if (!resolvedGroupId)
+        return;
+
+    bool isTaxiFlight =
+        player->IsInFlight()
+        || player->HasUnitState(UNIT_STATE_IN_FLIGHT);
+    bool isOnTransport =
+        player->GetTransport()
+        || player->HasUnitMovementFlag(
+            MOVEMENTFLAG_ONTRANSPORT);
+    bool isMounted = player->IsMounted();
+    bool isFlying =
+        player->IsFlying()
+        || player->HasFlyAura()
+        || player->HasIncreaseMountedFlightSpeedAura();
+
+    std::string transportName;
+    if (Transport* transport = player->GetTransport())
+    {
+        GameObjectTemplate const* goInfo =
+            transport->GetGOInfo();
+        if (goInfo)
+            transportName = goInfo->name;
+    }
+
+    CharacterDatabase.Execute(
+        "UPDATE llm_group_bot_traits "
+        "SET zone = {}, area = {}, map = {}, "
+        "travel_mode = '{}', travel_context = '{}', "
+        "is_mounted = {}, is_flying = {}, "
+        "is_taxi_flying = {}, is_on_transport = {}, "
+        "mount_display_id = {}, transport_name = '{}', "
+        "travel_updated_at = NOW() "
+        "WHERE group_id = {} AND bot_guid = {}",
+        player->GetZoneId(),
+        player->GetAreaId(),
+        player->GetMapId(),
+        EscapeString(GetBotTravelMode(player)),
+        EscapeString(GetBotTravelContext(player)),
+        isMounted ? 1 : 0,
+        isFlying ? 1 : 0,
+        isTaxiFlight ? 1 : 0,
+        isOnTransport ? 1 : 0,
+        player->GetMountID(),
+        EscapeString(transportName),
+        resolvedGroupId,
+        player->GetGUID().GetCounter());
 }
 
 void QueueChatterEvent(
