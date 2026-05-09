@@ -1402,12 +1402,21 @@ def process_group_zone_transition_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
-    # Use live traits (single source of truth) for
-    # all location data — avoids mixing event-time
-    # extra_data with live-time traits lookups.
-    zone_id, area_id, map_id = get_group_location(
-        db, group_id
-    )
+    # Use event-time location for transition prompts.
+    # Live traits can be stale during dungeon-finder
+    # teleports while group-join work is still running.
+    zone_id = int(extra_data.get(
+        'zone_id', event.get('zone_id', 0)
+    ) or 0)
+    area_id = int(extra_data.get('area_id', 0) or 0)
+    map_id = int(event.get('map_id', 0) or 0)
+    if not zone_id or not map_id:
+        live_zone_id, live_area_id, live_map_id = (
+            get_group_location(db, group_id)
+        )
+        zone_id = zone_id or live_zone_id
+        area_id = area_id or live_area_id
+        map_id = map_id or live_map_id
 
     # BG subzone moves are constant noise — bots
     # sprint between flag rooms, lumber mill, etc.
@@ -1416,22 +1425,16 @@ def process_group_zone_transition_event(
     if map_id in BG_MAP_NAMES:
         _mark_event(db, event_id, 'skipped')
         return False
-    zone_name = (
+    zone_name = extra_data.get('zone_name') or (
         get_zone_name(zone_id)
         if zone_id else None
     )
     if not zone_name or zone_name.startswith(
         'zone '
     ):
-        # Fallback to C++ extra_data zone_name
+        # Fallback to C++ extra_data zone_name.
         zone_name = extra_data.get(
             'zone_name', 'somewhere'
-        )
-        zone_id = int(
-            extra_data.get('zone_id', 0)
-        )
-        area_id = int(
-            extra_data.get('area_id', 0)
         )
 
     # The queued GUID is the real player (zone
