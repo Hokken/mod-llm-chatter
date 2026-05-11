@@ -30,6 +30,7 @@ CREATE TABLE `llm_chatter_events` (
         'bot_group_death',
         'bot_group_loot',
         'bot_group_player_msg',
+        'bot_group_general_reaction',
         'bot_group_combat',
         'bot_group_levelup',
         'bot_group_quest_complete',
@@ -77,7 +78,8 @@ CREATE TABLE `llm_chatter_events` (
         'proximity_reply',
         'proximity_player_say',
         'proximity_player_conversation',
-        'bot_backstory_regen'
+        'bot_backstory_regen',
+        'bot_tone_regen'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,

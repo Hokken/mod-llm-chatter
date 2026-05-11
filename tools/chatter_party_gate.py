@@ -45,6 +45,7 @@ _CRITICAL_EVENTS = {
 
 _RESPONSIVE_EVENTS = {
     'bot_group_player_msg',
+    'bot_group_general_reaction',
     'bot_group_emote_reaction',
     'proximity_reply',
 }

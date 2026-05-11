@@ -462,6 +462,7 @@ EVENT_HANDLERS['player_general_msg'] = (
 
 EVENT_LOG_OVERRIDES = {
     'bot_group_screenshot_observation': 'Screenshot vision',
+    'bot_group_general_reaction': 'General-to-party relay',
     'player_general_msg': 'General chat event',
     'player_enters_zone': 'Zone intrusion',
     'bot_group_low_health': 'State callout',

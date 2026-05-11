@@ -50,6 +50,9 @@ from chatter_db import (
     query_zone_bot_gossip_targets,
     query_zone_npcs,
 )
+from chatter_group_general_reaction import (
+    maybe_queue_group_general_reaction,
+)
 from chatter_text import pick_statement_length
 from chatter_prompts import (
     build_plain_statement_prompt,
@@ -524,6 +527,15 @@ def process_statement(
             queue_id=request['id'],
             sequence=0,
         )
+        if channel == 'general':
+            maybe_queue_group_general_reaction(
+                db, config,
+                bot['guid'], bot['name'], message,
+                zone_id, 0,
+                source_queue_id=request['id'],
+                source_sequence=0,
+                source_delay_seconds=extra,
+            )
 
         return True
     return False
@@ -836,6 +848,17 @@ def process_conversation(
                     queue_id=request['id'],
                     sequence=i,
                 )
+                if channel == 'general':
+                    maybe_queue_group_general_reaction(
+                        db, config,
+                        bot_guid, msg['name'],
+                        final_message, zone_id, 0,
+                        source_queue_id=request['id'],
+                        source_sequence=i,
+                        source_delay_seconds=(
+                            cumulative_delay
+                        ),
+                    )
 
 
             # Push zone timestamp to after the last

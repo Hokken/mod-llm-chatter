@@ -59,6 +59,9 @@ from chatter_db import (
     get_character_info_by_name,
     mark_event,
 )
+from chatter_group_general_reaction import (
+    maybe_queue_group_general_reaction,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -854,6 +857,14 @@ def process_general_player_msg_event(
             event_id=event_id,
             sequence=0,
         )
+        maybe_queue_group_general_reaction(
+            db, config,
+            bot1_guid, bot1_name, msg1,
+            zone_id, int(event.get('map_id') or 0),
+            source_event_id=event_id,
+            source_sequence=0,
+            source_delay_seconds=delay1,
+        )
 
         # Store in General chat history
         _store_general_chat(
@@ -1084,6 +1095,14 @@ def _general_followup(
         delay_seconds=delay2,
         event_id=event_id,
         sequence=1,
+    )
+    maybe_queue_group_general_reaction(
+        db, config,
+        bot2_guid, bot2_name, msg2,
+        zone_id, 0,
+        source_event_id=event_id,
+        source_sequence=1,
+        source_delay_seconds=delay2,
     )
 
     # Push zone timestamp past bot2's delivery so
@@ -1510,6 +1529,14 @@ def _general_extended_conversation(
             delay_seconds=current_delay,
             event_id=event_id,
             sequence=msg_count - 1,
+        )
+        maybe_queue_group_general_reaction(
+            db, config,
+            speaker['guid'], speaker['name'], msg,
+            zone_id, 0,
+            source_event_id=event_id,
+            source_sequence=msg_count - 1,
+            source_delay_seconds=current_delay,
         )
 
         _store_general_chat(

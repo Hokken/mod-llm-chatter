@@ -411,6 +411,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_handler_pipeline.py` | Shared `run_group_handler()` pipeline: extra_data parsing, guard checks, traits lookup, context assembly, prompt dispatch, chat storage, mood update, event completion/failure handling |
 | `tools/chatter_group_prompts.py` | Group prompt builders, nearby-object prompts, pre-cache prompt builders, `build_player_msg_conversation_prompt()`. All major party chatter builders accept `map_id=0` and inject `get_dungeon_flavor(map_id)` as location context when inside a dungeon instance, replacing zone/subzone lore. Excluded: OOM, low-health, level-up. |
 | `tools/chatter_group_state.py` | Group mood/traits/history state |
+| `tools/chatter_group_general_reaction.py` | General-to-party relay: queues and handles `bot_group_general_reaction` events when grouped bots react in party chat to bot-authored General lines |
 
 ### Shared and support layers
 
@@ -729,6 +730,8 @@ registry and `llm_chatter_bridge.py` uses the resulting map at runtime.
 - `bot_group_emote_observer` routes to `chatter_emote_observer.py`
 - `bot_group_screenshot_observation` routes to
   `chatter_screenshot_handler.py`
+- `bot_group_general_reaction` routes to
+  `chatter_group_general_reaction.py`
 - `proximity_say`, `proximity_conversation`, `proximity_reply` route to
   `chatter_proximity.py`
 - `bg_*` events route to battleground handlers
@@ -786,6 +789,7 @@ source:
 | Group prompt wording | `tools/chatter_group_prompts.py` |
 | Group message insert behavior / preserve `emote: null` | `tools/chatter_group.py`, `tools/chatter_shared.py`, `tools/chatter_cache.py` |
 | General-channel Python behavior | `tools/chatter_general.py` |
+| General-to-party relay behavior | `tools/chatter_group_general_reaction.py` |
 | DB inserts, history tables, zone/query cache behavior | `tools/chatter_db.py` |
 | Shared parsing/sanitization | `tools/chatter_text.py` |
 | Provider/model calls | `tools/chatter_llm.py` |

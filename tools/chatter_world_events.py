@@ -23,6 +23,9 @@ from chatter_db import (
     insert_chat_message,
     mark_event,
 )
+from chatter_group_general_reaction import (
+    maybe_queue_group_general_reaction,
+)
 from chatter_events import build_event_context
 from chatter_prompts import (
     build_event_conversation_prompt,
@@ -261,6 +264,14 @@ def _deliver_conversation(
             event_id=event_id,
             sequence=i,
         )
+        maybe_queue_group_general_reaction(
+            db, config,
+            bot_guid, msg['name'], final_message,
+            zone_id, int(event.get('map_id') or 0),
+            source_event_id=event_id,
+            source_sequence=i,
+            source_delay_seconds=cumulative_delay,
+        )
 
     mark_event(db, event_id, 'completed')
     return True
@@ -329,6 +340,17 @@ def _deliver_statement(
     )
 
     if result and result.get('ok'):
+        maybe_queue_group_general_reaction(
+            db, config,
+            int(bot['bot1_guid']),
+            bot['bot1_name'],
+            result['message'],
+            use_zone_id,
+            int(event.get('map_id') or 0),
+            source_event_id=event_id,
+            source_sequence=0,
+            source_delay_seconds=delay_ms // 1000,
+        )
         mark_event(db, event_id, 'completed')
         return True
 

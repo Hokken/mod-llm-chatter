@@ -1114,6 +1114,71 @@ LLMChatter.GroupChatter.PlayerMsgSecondBotChance = 25
 #
 LLMChatter.GroupChatter.PlayerMsgCooldown = 15
 
+#
+#   LLMChatter.GroupChatter.GeneralRelayEnable
+#       Enables party-chat reactions to bot-authored General
+#       channel messages in the same zone.
+#       Default: 1
+#       [BRIDGE]
+#
+LLMChatter.GroupChatter.GeneralRelayEnable = 1
+
+#
+#   LLMChatter.GroupChatter.GeneralRelayChance
+#       Percent chance (0-100) that a bot-authored General
+#       channel message triggers one grouped party reaction.
+#       Default: 15
+#       [BRIDGE]
+#
+LLMChatter.GroupChatter.GeneralRelayChance = 15
+
+#
+#   LLMChatter.GroupChatter.GeneralRelayConversationChance
+#       After GeneralRelayChance succeeds, percent chance
+#       (0-100) that 2-3 grouped bots have a short party
+#       conversation instead of one bot making a statement.
+#       Requires at least 2 eligible responder bots.
+#       Default: 75
+#       [BRIDGE]
+#
+LLMChatter.GroupChatter.GeneralRelayConversationChance = 75
+
+#
+#   LLMChatter.GroupChatter.GeneralRelayCooldown
+#       Minimum seconds between General-to-party relay
+#       reactions per group.
+#       Default: 120
+#       [BRIDGE]
+#
+LLMChatter.GroupChatter.GeneralRelayCooldown = 120
+
+#
+#   LLMChatter.GroupChatter.GeneralRelayMinLagSeconds
+#       Minimum seconds after the General line is scheduled
+#       to appear before the first party reaction appears.
+#       Default: 3
+#       [BRIDGE]
+#
+LLMChatter.GroupChatter.GeneralRelayMinLagSeconds = 3
+
+#
+#   LLMChatter.GroupChatter.GeneralRelayMaxLagSeconds
+#       Maximum seconds after the General line is scheduled
+#       to appear before the first party reaction appears.
+#       Default: 6
+#       [BRIDGE]
+#
+LLMChatter.GroupChatter.GeneralRelayMaxLagSeconds = 6
+
+#
+#   LLMChatter.GroupChatter.GeneralRelayMaxGroups
+#       Maximum active groups that can receive a party relay
+#       for one General channel line.
+#       Default: 1
+#       [BRIDGE]
+#
+LLMChatter.GroupChatter.GeneralRelayMaxGroups = 1
+
 ###############################################################################
 # GENERAL CHANNEL TUNING [BOTH]
 ###############################################################################

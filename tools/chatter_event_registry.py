@@ -471,6 +471,25 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         },
     ),
 
+    'bot_group_general_reaction': EventSpec(
+        handler_module='chatter_group_general_reaction',
+        handler_func=(
+            'process_group_general_reaction_event'
+        ),
+        producer='chatter_group_general_reaction.py',
+        priority='high',
+        description=(
+            'Party reacts to a bot General chat line'
+        ),
+        payload_fields={
+            'group_id': (int, True),
+            'source_bot_guid': (int, True),
+            'source_bot_name': (str, True),
+            'source_message': (str, True),
+            'source_visible_at_epoch': (float, True),
+        },
+    ),
+
     # -- Player events ------------------------
 
     'player_general_msg': EventSpec(

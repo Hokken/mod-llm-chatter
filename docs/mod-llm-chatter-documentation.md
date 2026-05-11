@@ -456,6 +456,9 @@ handler map.
 ### General/shared support
 
 - `tools/chatter_general.py`
+- `tools/chatter_group_general_reaction.py` - queues and handles
+  `bot_group_general_reaction` events so grouped bots can react in party
+  chat to bot-authored General lines
 - `tools/chatter_shared.py`
 - `tools/chatter_text.py`
 - `tools/chatter_llm.py` — LLM call dispatch, system prompt splitting
@@ -705,6 +708,20 @@ That path:
 | `chatter_general.py` | Prompt building and event handler |
 | `chatter_shared.py` | `PromptParts` class, addressed-bot detection, quick LLM analysis |
 | `llm_chatter_bridge.py` | Event dispatch entry |
+
+### General-to-party relay
+
+Bot-authored General messages can trigger a party-chat reaction for an
+active group in the same zone. The bridge queues
+`bot_group_general_reaction` from General-producing Python paths, then
+`tools/chatter_group_general_reaction.py` generates either one party
+statement or a short 2-3 bot party conversation.
+
+The relay chance is controlled by
+`LLMChatter.GroupChatter.GeneralRelayChance` and defaults to 10%. When a
+relay fires, the first party line is scheduled for 3-6 seconds after the
+General line's planned visible time. The first party line must reference
+the General speaker by name.
 
 ---
 
