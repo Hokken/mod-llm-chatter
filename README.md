@@ -161,8 +161,10 @@ This module requires a working AzerothCore server with mod-playerbots. If you do
 Tested extensively with excellent results:
 - **Claude Haiku 4.5** (Anthropic),  fast, affordable, excellent quality
 - **GPT-4o-mini** (OpenAI),  great alternative, similar cost
+- **GPT-4.1-mini** (OpenAI),  a little more expensive, but tested with
+  fantastic quality and speed
 
-Ollama is supported for local/free inference, but the module's advanced prompt architecture (structured JSON responses, system/user message separation, emote and action fields) demands strong instruction-following capabilities that smaller open-source models may not consistently deliver. For the best experience, we recommend Claude Haiku or GPT-4o-mini. See the config file header for Ollama setup details.
+Ollama is supported for local/free inference, but the module's advanced prompt architecture (structured JSON responses, system/user message separation, emote and action fields) demands strong instruction-following capabilities that smaller open-source models may not consistently deliver. For the best experience, we recommend Claude Haiku, GPT-4o-mini, or GPT-4.1-mini. See the config file header for Ollama setup details.
 
 ### Tuning the Chattiness
 
