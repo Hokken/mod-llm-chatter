@@ -41,6 +41,7 @@ std::string ConvertAllLinks(const std::string& text);
 std::string GetZoneName(uint32 zoneId);
 uint32 GetTextEmoteId(const std::string& emoteName);
 bool IsBGAllowedEmote(const std::string& emoteName);
+void PlayUnitTextEmoteAnimation(Unit* unit, uint32 textEmoteId);
 void SendUnitTextEmote(Unit* unit, uint32 textEmoteId,
                        const std::string& targetName = "");
 void SendBotTextEmote(Player* bot, uint32 textEmoteId);

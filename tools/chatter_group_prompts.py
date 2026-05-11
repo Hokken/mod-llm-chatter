@@ -4208,7 +4208,7 @@ def build_player_msg_conversation_prompt(
         [
             f'{{"speaker": "{name}", '
             f'"message": "...", '
-            f'"emote": "talk", '
+            f'"emote": "nod", '
             f'"action": "..."}}'
             for name in bot_names
         ]

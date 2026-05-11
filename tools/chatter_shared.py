@@ -1461,7 +1461,7 @@ def append_conversation_json_instruction(
             f"{EMOTE_LIST_STR}). Pick an emote "
             "that fits the mood, or use null.\n"
         )
-        emote_ex = '"emote": "talk"'
+        emote_ex = '"emote": "nod"'
     else:
         emote_rule = (
             "Emotes: Set the \"emote\" field to "

@@ -234,6 +234,20 @@ void DeliverPendingMessagesImpl()
         if (PlayerbotAI* ai =
                 GET_PLAYERBOT_AI(bot))
         {
+            Player* emoteTarget = nullptr;
+            if (channel == "party" || channel == "raid")
+            {
+                Group* grp = bot->GetGroup();
+                if (grp)
+                {
+                    emoteTarget = FindMentionedMember(
+                        bot, grp, message);
+                    if (emoteTarget
+                        && !emoteTarget->IsInWorld())
+                        emoteTarget = nullptr;
+                }
+            }
+
             if (sLLMChatterConfig->_facingEnable
                 && !bot->IsInCombat())
             {
@@ -361,19 +375,11 @@ void DeliverPendingMessagesImpl()
                     && (channel == "party"
                         || channel == "raid"))
                 {
-                    Group* grp = bot->GetGroup();
-                    if (grp)
+                    if (emoteTarget)
                     {
-                        Player* mentioned =
-                            FindMentionedMember(
-                                bot, grp, message);
-                        if (mentioned
-                            && mentioned->IsInWorld())
-                        {
-                            bot->SetFacingToObject(
-                                mentioned);
-                            faced = true;
-                        }
+                        bot->SetFacingToObject(
+                            emoteTarget);
+                        faced = true;
                     }
                 }
 
@@ -592,8 +598,22 @@ void DeliverPendingMessagesImpl()
                         GetTextEmoteId(emoteName);
                     if (textEmoteId)
                     {
-                        SendBotTextEmote(
-                            bot, textEmoteId);
+                        std::string emoteTargetName =
+                            emoteTarget
+                                ? emoteTarget->GetName()
+                                : "";
+                        if (emoteName == "talk"
+                            && emoteTargetName.empty())
+                        {
+                            PlayUnitTextEmoteAnimation(
+                                bot, textEmoteId);
+                        }
+                        else
+                        {
+                            SendBotTextEmote(
+                                bot, textEmoteId,
+                                emoteTargetName);
+                        }
                     }
                 }
             }

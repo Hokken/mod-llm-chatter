@@ -2115,8 +2115,7 @@ bool IsBGAllowedEmote(const std::string& emoteName)
     return allowed.count(emoteName) > 0;
 }
 
-void SendUnitTextEmote(Unit* unit, uint32 textEmoteId,
-                       const std::string& targetName)
+void PlayUnitTextEmoteAnimation(Unit* unit, uint32 textEmoteId)
 {
     if (!unit || !textEmoteId)
         return;
@@ -2142,6 +2141,15 @@ void SendUnitTextEmote(Unit* unit, uint32 textEmoteId,
                 break;
         }
     }
+}
+
+void SendUnitTextEmote(Unit* unit, uint32 textEmoteId,
+                       const std::string& targetName)
+{
+    if (!unit || !textEmoteId)
+        return;
+
+    PlayUnitTextEmoteAnimation(unit, textEmoteId);
 
     WorldPacket data(SMSG_TEXT_EMOTE,
                      20 + targetName.size() + 1);
