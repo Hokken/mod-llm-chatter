@@ -1025,6 +1025,8 @@ def _write_db_snapshot(db, snapshot_dir):
     from datetime import datetime, timezone
 
     try:
+        os.makedirs(snapshot_dir, exist_ok=True)
+
         cursor = db.cursor(dictionary=True)
 
         cursor.execute(
@@ -1112,6 +1114,21 @@ def _write_db_snapshot(db, snapshot_dir):
         )
 
 
+def _prepare_snapshot_dir(snapshot_dir):
+    import os
+
+    try:
+        os.makedirs(snapshot_dir, exist_ok=True)
+        return snapshot_dir
+    except OSError as exc:
+        logger.warning(
+            "DB snapshots disabled: cannot create %s: %s",
+            snapshot_dir,
+            exc,
+        )
+        return None
+
+
 # =============================================================================
 # MAIN
 # =============================================================================
@@ -1170,6 +1187,7 @@ def main():
     snapshot_dir = (
         _os.path.dirname(_log_path) or '/logs'
     )
+    snapshot_dir = _prepare_snapshot_dir(snapshot_dir)
 
     # Get provider and initialize appropriate client
     provider = config.get(
@@ -1741,6 +1759,8 @@ def main():
 
                 # DB state snapshot for log viewer
                 if (
+                    snapshot_dir
+                    and
                     current_time
                     - last_db_snapshot
                     >= db_snapshot_interval
