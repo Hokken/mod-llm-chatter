@@ -1107,7 +1107,7 @@ std::string JsonEscape(const std::string& str)
     return result;
 }
 
-std::string GetClassName(uint8 classId)
+std::string GetChatterClassName(uint8 classId)
 {
     switch (classId)
     {

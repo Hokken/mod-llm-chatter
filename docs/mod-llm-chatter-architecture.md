@@ -340,7 +340,7 @@ Session 69 added two scheduling controls around that model:
 | File | Approx lines | Primary ownership |
 |---|---:|---|
 | `src/LLMChatterScript.cpp` | 17 | Registration coordinator only |
-| `src/LLMChatterShared.cpp` | 1939 | Shared helpers: SQL/JSON escaping, canonical shared lookup helpers (`GetZoneName()`, `GetClassName()`, `GetRaceName()`), `BuildBotIdentityFields()` (emits `bot_gender` / `player_gender`) / `BuildBotStateJson()`, queue insert helper, shared event cooldown helper, table-driven event priority/reaction-delay registries, link/emote/delivery helpers, `GetTextEmoteName()` reverse lookup, `SendUnitTextEmote()` consolidated emote packet helper, cross-domain formatting helpers, General-channel membership check helper, `FindCreatureBySpawnId()` spawn-GUID creature lookup, `GetCreatureRoleName()` NPC role description helper |
+| `src/LLMChatterShared.cpp` | 1939 | Shared helpers: SQL/JSON escaping, canonical shared lookup helpers (`GetZoneName()`, `GetChatterClassName()`, `GetRaceName()`), `BuildBotIdentityFields()` (emits `bot_gender` / `player_gender`) / `BuildBotStateJson()`, queue insert helper, shared event cooldown helper, table-driven event priority/reaction-delay registries, link/emote/delivery helpers, `GetTextEmoteName()` reverse lookup, `SendUnitTextEmote()` consolidated emote packet helper, cross-domain formatting helpers, General-channel membership check helper, `FindCreatureBySpawnId()` spawn-GUID creature lookup, `GetCreatureRoleName()` NPC role description helper |
 | `src/LLMChatterShared.h` | 83 | Shared declarations still used across domains; `class Unit` forward-declared for `SendUnitTextEmote()`; currently also declares world/player registration |
 | `src/LLMChatterDelivery.cpp` | ~500 | Outbound message delivery implementation: DB polling, facing selection, party/raid/BG/General/yell/say/msay dispatch, spawn-GUID creature lookup for NPC delivery, NPC orientation reset via BasicEvent, sequence-based facing for multi-speaker proximity scenes, post-send delivery state updates |
 | `src/LLMChatterDelivery.h` | 4 | Narrow delivery extraction declaration used by `LLMChatterWorld.cpp` |
@@ -477,7 +477,7 @@ This asymmetry is known and acceptable in the shipped source state.
 - `EscapeString()`
 - `JsonEscape()`
 - `GetZoneName()`
-- `GetClassName()`
+- `GetChatterClassName()`
 - `GetRaceName()`
 - `BuildBotIdentityFields()`
 - `QueueChatterEvent()`

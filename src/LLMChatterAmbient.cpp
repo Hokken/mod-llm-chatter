@@ -897,7 +897,7 @@ static void QueueChatterRequest(
             : "statement";
     std::string bot1Name = bot1->GetName();
     std::string bot1Class =
-        GetClassName(bot1->getClass());
+        GetChatterClassName(bot1->getClass());
     std::string bot1Race =
         GetRaceName(bot1->getRace());
     uint8 bot1Level = bot1->GetLevel();
@@ -911,7 +911,7 @@ static void QueueChatterRequest(
     {
         std::string bot2Name = bot2->GetName();
         std::string bot2Class =
-            GetClassName(bot2->getClass());
+            GetChatterClassName(bot2->getClass());
         std::string bot2Race =
             GetRaceName(bot2->getRace());
         uint8 bot2Level = bot2->GetLevel();
@@ -946,7 +946,7 @@ static void QueueChatterRequest(
         {
             std::string bot3Name = bot3->GetName();
             std::string bot3Class =
-                GetClassName(bot3->getClass());
+                GetChatterClassName(bot3->getClass());
             std::string bot3Race =
                 GetRaceName(bot3->getRace());
             uint8 bot3Level = bot3->GetLevel();
@@ -966,7 +966,7 @@ static void QueueChatterRequest(
         {
             std::string bot4Name = bot4->GetName();
             std::string bot4Class =
-                GetClassName(bot4->getClass());
+                GetChatterClassName(bot4->getClass());
             std::string bot4Race =
                 GetRaceName(bot4->getRace());
             uint8 bot4Level = bot4->GetLevel();

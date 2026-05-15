@@ -457,7 +457,7 @@ std::string BuildBotParticipantJson(Player* bot)
         + std::to_string(
             bot->GetGUID().GetCounter())
         + ",\"class\":\""
-        + JsonEscape(GetClassName(bot->getClass()))
+        + JsonEscape(GetChatterClassName(bot->getClass()))
         + "\",\"race\":\""
         + JsonEscape(GetRaceName(bot->getRace()))
         + "\",\"role\":\"bot\"}";
@@ -642,7 +642,7 @@ void CollectNearbyBots(
         candidate.entry = 0;
         candidate.name = bot->GetName();
         candidate.className =
-            GetClassName(bot->getClass());
+            GetChatterClassName(bot->getClass());
         candidate.raceName =
             GetRaceName(bot->getRace());
         out.push_back(candidate);
