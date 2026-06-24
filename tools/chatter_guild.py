@@ -99,6 +99,23 @@ def _query_speaker(db, bot_guid: int) -> Dict[str, object]:
         return {}
 
 
+import random
+from chatter_constants import GUILD_CHAT_TOPICS, GUILD_CHAT_TOPICS_RP
+
+
+def _guild_length_hint():
+    """Roadmap #5: vary message length so guild lines do not all read the
+    same length. Favors short/medium, occasionally a full sentence."""
+    return random.choices(
+        ["very short (under 50 characters)",
+         "short (50-90 characters)",
+         "short (50-90 characters)",
+         "medium (90-150 characters)",
+         "a full sentence (150-200 characters)"],
+        weights=[20, 30, 30, 15, 5],
+    )[0]
+
+
 def _build_guild_prompt(
     speaker_name: str,
     speaker: Dict,
@@ -148,6 +165,11 @@ def _build_guild_prompt(
                 "it — this is guild chat, so guildmates "
                 "elsewhere will read it."
             )
+    topic = random.choice(GUILD_CHAT_TOPICS_RP)
+    lines.append(
+        "Topic idea (optional - only use it if it fits "
+        f"naturally, do not force it): {topic}."
+    )
     lines.append(
         "Stay fully in character — you ARE this person "
         "in Azeroth. No fourth-wall breaks and no "
@@ -160,7 +182,7 @@ def _build_guild_prompt(
         "Write ONE short, casual line for guild "
         "chat, in character, the way a real person "
         "playing WoW would chat with their guild. "
-        "Length: keep it under 200 characters. No "
+        f"Length: {_guild_length_hint()}. HARD LIMIT: never exceed 200 characters. No "
         "quotation marks, no name prefix, no "
         "roleplay asterisks."
     )

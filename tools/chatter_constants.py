@@ -3465,3 +3465,77 @@ REACTION_TONES = {
         "with curiosity",
     ],
 }
+
+
+# =============================================================================
+# GUILD CHAT TOPICS (roadmap #2) — random subject pool for guild idle chatter.
+# Leveling-realistic, everyday-WoW-player flavor (NO endgame/raid/dungeon-run
+# invention — matches the guild prompt's level-appropriate guard). Selected per
+# event and injected as an optional "topic idea" nudge.
+# =============================================================================
+GUILD_CHAT_TOPICS = [
+    "a quest you're stuck on",
+    "a gear upgrade that just dropped",
+    "running low on bag space",
+    "a quest item that just won't drop",
+    "asking if anyone wants to group up",
+    "a brutally long flight path",
+    "a rare mob you just spotted",
+    "skilling up a profession",
+    "needing mats for a profession",
+    "being broke while saving for a mount",
+    "a close call that nearly killed you",
+    "how pretty (or grim) your current zone is",
+    "being lost and asking for quest directions",
+    "a stupid death you just had",
+    "wishing someone could summon you",
+    "what to put your next talent points into",
+    "an elite quest you can't solo",
+    "talking smack about the other faction",
+    "looking for a healer for a dungeon",
+    "an annoying escort quest",
+    "loot envy over a guildmate's drop",
+    "planning to play more this weekend",
+    "stepping away for food real quick",
+    "just dinged a level",
+    "a big vendor-trash haul you just sold",
+    "asking how a class ability works",
+    "corpse-running back after a wipe",
+    "auction house prices being absurd",
+    "your pet or minion acting up",
+    "an NPC with a ridiculous name",
+    "grinding the same mobs over and over",
+    "finally finishing a long quest chain",
+    "getting ganked and wanting revenge",
+    "comparing two gear pieces you can't decide between",
+    "a guildmate who logged on you haven't seen in a while",
+    "repairs eating all your gold",
+    "a quest reward that was totally worth it",
+    "the weather/scenery where you're questing",
+    "wanting to run an instance later tonight",
+    "a near-impossible jumping puzzle or hard-to-reach chest",
+]
+
+# In-character-only variant (used when PersonaMode == 'character').
+GUILD_CHAT_TOPICS_RP = [
+    "the dangers of the road you're traveling",
+    "a rumor overheard in the last town",
+    "your faith, code, or philosophy",
+    "honoring a fallen comrade",
+    "the beauty or menace of the land around you",
+    "a personal vow or quest you carry",
+    "distrust of the opposing faction",
+    "the burden of your calling",
+    "a memory from your homeland",
+    "wariness of the local wildlife",
+    "an omen or strange sight on your path",
+    "gratitude for a guildmate's aid",
+    "the toll of endless fighting",
+    "a prayer or blessing for the guild",
+    "longing for a quieter life",
+    "pride in your craft or lineage",
+    "a warning about a place best avoided",
+    "the changing of the seasons or the hour",
+    "an old legend tied to this region",
+    "resolve before a hard task ahead",
+]
