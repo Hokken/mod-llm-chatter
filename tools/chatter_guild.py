@@ -16,6 +16,7 @@ from chatter_db import insert_chat_message
 from chatter_llm import call_llm
 from chatter_shared import (
     append_json_instruction,
+    get_chatter_mode,
     get_class_name,
     get_gender_label,
     get_race_name,
@@ -101,53 +102,15 @@ def _query_speaker(db, bot_guid: int) -> Dict[str, object]:
 
 
 from chatter_constants import GUILD_CHAT_TOPICS_RP
+from chatter_general import _pick_length_hint
 
 
-# Roadmap #5 / review #1: deterministic length buckets. The model is unreliable
-# at obeying character limits (observed compliance was poor), so we pick a bucket,
-# hint it in the prompt, AND hard-cap the parsed output to the bucket's max after
-# the fact. Hint + enforcement are kept in lockstep here.
-GUILD_LENGTH_BUCKETS = [
-    # (key, prompt hint, hard max chars, weight)
-    ("very_short", "very short — just a few words", 48, 20),
-    ("short", "short — one brief line", 90, 40),
-    ("medium", "medium — a single sentence", 145, 30),
-    ("long", "a full sentence", 190, 10),
-]
-
-
-def _pick_guild_length():
-    """Return (key, hint, max_chars) for one weighted length bucket."""
-    bucket = random.choices(
-        GUILD_LENGTH_BUCKETS,
-        weights=[b[3] for b in GUILD_LENGTH_BUCKETS],
-    )[0]
-    return bucket[0], bucket[1], bucket[2]
-
-
-def _truncate_to(message: str, max_chars: int) -> str:
-    """Hard-cap a message to max_chars, avoiding a mid-word split WHEN POSSIBLE:
-    prefers a sentence boundary, then a word boundary, and only falls back to a
-    hard cut for unbroken text (e.g. a single very long token). Never emits an
-    ellipsis so the result stays strictly within the bucket's char budget."""
-    message = message.strip()
-    if len(message) <= max_chars:
-        return message
-    window = message[:max_chars]
-    # 1) end on sentence punctuation if one sits in the back half of the window
-    best = -1
-    for p in ('. ', '! ', '? ', '; '):
-        idx = window.rfind(p)
-        if idx > best:
-            best = idx
-    if best >= max_chars * 0.5:
-        return window[:best + 1].strip()
-    # 2) otherwise cut on the last word boundary
-    idx = window.rfind(' ')
-    if idx >= max_chars * 0.4:
-        return window[:idx].rstrip(' ,;:-').strip()
-    # 3) last resort: hard cut
-    return window.rstrip()
+# Length control mirrors the General channel, which works well: we do NOT
+# hard-cap or chop the model's output after the fact (the old per-bucket
+# _truncate_to butchered lines mid-sentence). Instead we reuse General's
+# _pick_length_hint(mode) — a char-range target plus a single generous
+# "HARD LIMIT: Never exceed 150 characters total" stated in the prompt —
+# and deliver the model's full, coherent sentence intact.
 
 
 # Review #4: never insult your own faction. Derive Alliance/Horde from race so
@@ -258,9 +221,10 @@ def _build_guild_prompt(
     guildmates: str,
     config: Optional[Dict] = None,
     zone_id: int = 0,
-    length_hint: str = "short — one brief line",
+    length_hint: str = "",
     topic: str = "",
     faction: str = "",
+    name_zone: bool = False,
 ) -> str:
     lines = [_guild_identity(speaker_name, speaker)]
     lines.append(
@@ -301,22 +265,45 @@ def _build_guild_prompt(
     if zone_id:
         zone = get_zone_name(zone_id)
         if zone:
-            # Review #5: prefer the curated, lore-accurate zone flavor as
-            # POSITIVE context so the model draws on real local color rather
-            # than inventing NPCs/towns/factions that may not exist there.
+            # Guild chat reaches guildmates scattered across other zones who
+            # cannot see where the speaker stands, so deictic references ("this
+            # swamp", "here") read as nonsense to them. Whether to name the
+            # location is decided by an RNG roll in the handler (name_zone) —
+            # the model cannot be trusted to self-pace it. We deliberately give
+            # NO phrasing examples here: examples make the model echo them into
+            # repetitive patterns.
             flavor = get_zone_flavor(zone_id)
-            if flavor:
+            if name_zone:
+                # Review #5: curated lore flavor as POSITIVE context so the
+                # model draws on real local color rather than inventing it.
+                if flavor:
+                    lines.append(
+                        f"You are currently in {zone}. Local color you may "
+                        f"draw on: {flavor} Use only this for specifics; do "
+                        "NOT invent other local NPCs, towns, factions, or "
+                        "events."
+                    )
+                else:
+                    lines.append(
+                        f"You are currently in {zone}. You may react to the "
+                        "land itself (its weather, danger, mood) but do NOT "
+                        "invent specific local NPCs, towns, or events you "
+                        "cannot be sure exist."
+                    )
                 lines.append(
-                    f"You are currently in {zone}. Local color you may "
-                    f"draw on: {flavor} Use only this for specifics; do "
-                    "NOT invent other local NPCs, towns, factions, or events."
+                    f"Most of your guildmates are far away in other lands and "
+                    f"cannot see where you are, so name {zone} somewhere in "
+                    "your line, woven in naturally, so they know where you "
+                    "speak from."
                 )
             else:
+                # RNG said no: forbid referencing the location at all this
+                # round so we never get a deictic line with no place name.
                 lines.append(
-                    f"You are currently in {zone}. You may react to "
-                    "the land itself (its weather, danger, mood) but "
-                    "do NOT invent specific local NPCs, towns, or "
-                    "events you cannot be sure exist."
+                    "Most of your guildmates are far away and cannot see "
+                    "where you are. Do NOT name or describe your current "
+                    "location or immediate surroundings this time — speak of "
+                    "other matters instead."
                 )
     if not topic:
         topic = random.choice(GUILD_CHAT_TOPICS_RP)
@@ -344,11 +331,14 @@ def _build_guild_prompt(
     )
     lines.append(
         "Write ONE casual, in-character line for guild chat, the "
-        "way this person would actually speak. "
-        f"Length: {length_hint}. No quotation marks, no name "
-        "prefix, no roleplay asterisks, no emotes or actions — "
-        "just the spoken line."
+        "way this person would actually speak. No quotation marks, "
+        "no name prefix, no roleplay asterisks, no emotes or "
+        "actions — just the spoken line."
     )
+    # Length control mirrors the General channel: a char-range target plus a
+    # single generous HARD LIMIT, stated in the prompt. No post-parse cut.
+    if length_hint:
+        lines.append(length_hint)
 
     # Review #2: message-only JSON. Do not request emote/action
     # fields so they cannot leak into the displayed line.
@@ -391,15 +381,26 @@ def process_guild_idle_chatter_event(
         return False
 
     zone_id = int(extra.get('zone_id', 0) or 0)
-    length_key, length_hint, length_max = _pick_guild_length()
+    # Length control mirrors the General channel (which works well): reuse
+    # its _pick_length_hint(mode) and let the prompt enforce length. No
+    # post-parse truncation — the model's full sentence is delivered intact.
+    length_hint = _pick_length_hint(get_chatter_mode(config))
     topic = random.choice(GUILD_CHAT_TOPICS_RP)
     # PR #30 follow-up #1: prefer the C++ GetTeamId() faction (extra_data
     # "team"); fall back to the Python race-derived faction.
     faction = extra.get('team') or _speaker_faction(speaker)
+    # Zone-naming is decided here by RNG, not left to the model (it cannot
+    # self-pace "occasionally"). On a hit the prompt asks the bot to name its
+    # zone so scattered guildmates have context; on a miss it forbids any
+    # location reference. Tunable via LLMChatter.GuildChatter.ZoneNameChance.
+    zone_name_chance = int(config.get(
+        'LLMChatter.GuildChatter.ZoneNameChance', 10))
+    name_zone = random.randint(1, 100) <= zone_name_chance
     prompt = _build_guild_prompt(
         speaker_name, speaker, guild_name,
         guildmates, config, zone_id=zone_id,
         length_hint=length_hint, topic=topic, faction=faction,
+        name_zone=name_zone,
     )
 
     max_tokens = int(config.get(
@@ -409,9 +410,10 @@ def process_guild_idle_chatter_event(
     # metadata so they land as top-level fields in llm_requests.jsonl
     # (the monitoring pass can read them without parsing prompt text).
     metadata = {
-        "guild_length_bucket": length_key,
-        "guild_length_max_chars": length_max,
+        "guild_length_hint": length_hint.split("\n", 1)[0]
+        .replace("Length: ", "").strip(),
         "guild_topic": topic,
+        "guild_named_zone": name_zone,
         "guild_faction": faction,
         "guild_zone_id": zone_id,
         "guild_zone_name": get_zone_name(zone_id) or "",
@@ -441,14 +443,13 @@ def process_guild_idle_chatter_event(
     if not message:
         _mark_event(db, event_id, 'skipped')
         return False
-    # Review #1: deterministic hard cap to the chosen length bucket
-    # (the model is unreliable at obeying the in-prompt limit).
-    message = _truncate_to(message, length_max)
-    # Review #7: surface the generation controls for later verification.
+    # No post-parse truncation (mirrors the General channel): the prompt's
+    # length hint + HARD LIMIT control length, and the full coherent line is
+    # delivered as-is so messages are never cut mid-sentence.
     logger.info(
-        "guild_idle_chatter speaker=%s bucket=%s max_chars=%d "
+        "guild_idle_chatter speaker=%s "
         "faction=%s zone_id=%d topic=%r out_len=%d",
-        speaker_name, length_key, length_max,
+        speaker_name,
         faction or "-", zone_id, topic, len(message),
     )
 

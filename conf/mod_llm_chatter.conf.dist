@@ -1564,6 +1564,21 @@ LLMChatter.GuildChatter.ScanInterval = 30
 LLMChatter.GuildChatter.MaxTokens = 200
 
 #
+#   LLMChatter.GuildChatter.ZoneNameChance
+#       Percent chance (0-100) that a guild line is told to
+#       name the speaker's current zone. Guild chat reaches
+#       guildmates scattered across other zones, so a bot
+#       saying "this swamp" is meaningless to them. The model
+#       cannot be trusted to self-pace this, so the decision
+#       is made per-line by this RNG roll: on a hit the prompt
+#       asks the bot to work the zone name in; on a miss the
+#       prompt forbids referencing the location at all.
+#       Set 0 to never name, 100 to always name.
+#       Default: 20
+#
+LLMChatter.GuildChatter.ZoneNameChance = 20
+
+#
 #   LLMChatter.RaidChatter.BattleCryChance
 #       Percent chance (0-100) that a raid-wide battle cry
 #       fires when engaging a boss or elite in a raid instance.

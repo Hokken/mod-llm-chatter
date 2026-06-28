@@ -3469,54 +3469,10 @@ REACTION_TONES = {
 
 # =============================================================================
 # GUILD CHAT TOPICS (roadmap #2) — random subject pool for guild idle chatter.
-# Leveling-realistic, everyday-WoW-player flavor (NO endgame/raid/dungeon-run
-# invention — matches the guild prompt's level-appropriate guard). Selected per
-# event and injected as an optional "topic idea" nudge.
+# Only the in-character RP pool is used; guild chatter runs in character mode
+# and its prompt bans game-mechanic talk. Selected per event and injected as an
+# optional "topic idea" nudge.
 # =============================================================================
-GUILD_CHAT_TOPICS = [
-    "a quest you're stuck on",
-    "a gear upgrade that just dropped",
-    "running low on bag space",
-    "a quest item that just won't drop",
-    "asking if anyone wants to group up",
-    "a brutally long flight path",
-    "a rare mob you just spotted",
-    "skilling up a profession",
-    "needing mats for a profession",
-    "being broke while saving for a mount",
-    "a close call that nearly killed you",
-    "how pretty (or grim) your current zone is",
-    "being lost and asking for quest directions",
-    "a stupid death you just had",
-    "wishing someone could summon you",
-    "what to put your next talent points into",
-    "an elite quest you can't solo",
-    "talking smack about the other faction",
-    "looking for a healer for a dungeon",
-    "an annoying escort quest",
-    "loot envy over a guildmate's drop",
-    "planning to play more this weekend",
-    "stepping away for food real quick",
-    "just dinged a level",
-    "a big vendor-trash haul you just sold",
-    "asking how a class ability works",
-    "corpse-running back after a wipe",
-    "auction house prices being absurd",
-    "your pet or minion acting up",
-    "an NPC with a ridiculous name",
-    "grinding the same mobs over and over",
-    "finally finishing a long quest chain",
-    "getting ganked and wanting revenge",
-    "comparing two gear pieces you can't decide between",
-    "a guildmate who logged on you haven't seen in a while",
-    "repairs eating all your gold",
-    "a quest reward that was totally worth it",
-    "the weather/scenery where you're questing",
-    "wanting to run an instance later tonight",
-    "a near-impossible jumping puzzle or hard-to-reach chest",
-]
-
-# In-character-only variant (used when PersonaMode == 'character').
 GUILD_CHAT_TOPICS_RP = [
     "the dangers of the road you're traveling",
     "a rumor overheard in the last town",
@@ -3538,4 +3494,77 @@ GUILD_CHAT_TOPICS_RP = [
     "the changing of the seasons or the hour",
     "an old legend tied to this region",
     "resolve before a hard task ahead",
+    # --- camaraderie & guild bonds ---
+    "what the guild's banner means to you",
+    "a newcomer who needs looking after",
+    "trust earned in the heat of battle",
+    "an oath sworn between guildmates",
+    "missing a comrade who rides apart from the rest",
+    "a gathering you hope to share when the fighting's done",
+    "thanks for a warning that saved your skin",
+    "the worth of standing shoulder to shoulder",
+    # --- daily life on the road ---
+    "a hearty meal you can't stop thinking about",
+    "the best tavern you ever set foot in",
+    "a drink shared around a campfire",
+    "good-natured grumbling about sore feet",
+    "the comfort of a warm fire after a cold march",
+    "a tune stuck in your head since morning",
+    "the simple luxury of dry boots",
+    "a long road with no end in sight",
+    # --- humor & light banter ---
+    "teasing a guildmate about an old blunder",
+    "a tall tale you swear is true",
+    "boasting (perhaps too much) about a past victory",
+    "a ridiculous wager between friends",
+    "an argument over the best ale in the land",
+    "a cooking mishap around the campfire",
+    # --- mood & reflection ---
+    "the quiet before a coming storm",
+    "homesickness creeping in at dusk",
+    "gratitude for simply seeing another dawn",
+    "doubts that visit in the dark hours",
+    "the strange peace found in solitude",
+    "weariness that sleep won't cure",
+    "hope found in a small kindness",
+    # --- lore & places ---
+    "ruins that hint at a forgotten people",
+    "a shrine or grave you passed on the road",
+    "stories the elders told when you were young",
+    "a battlefield long since grown over with grass",
+    "spirits said to linger in this place",
+    "a festival or holy day from your youth",
+    # --- the calling & the blade ---
+    "the weight of the weapon you carry",
+    "scars that each tell their own story",
+    "an enemy you respect despite everything",
+    "the thin line between duty and vengeance",
+    "the first time you faced true danger",
+    "the discipline your training demanded",
+    # --- faction & war ---
+    "rumors of the enemy massing nearby",
+    "the price the war has taken from your people",
+    "an uneasy truce you doubt will hold",
+    "tales of heroes who turned the tide",
+    # --- nature, beasts & weather ---
+    "tracks of a great beast crossing your trail",
+    "birdsong, or its uneasy absence, at dawn",
+    "a sudden storm that caught you unready",
+    "the first frost, or the first thaw",
+    "a loyal beast that once saved your life",
+    "the night sky far from any town",
+    # --- craft & trade ---
+    "the satisfaction of mending your own gear by hand",
+    "the smell of a forge or a brewing pot",
+    "a trade secret passed down in your family",
+    "pride in something you made with your hands",
+    # --- omens & the uncanny ---
+    "a dream that felt like a warning",
+    "a stranger's cryptic words on the road",
+    "lights or sounds with no earthly source",
+    "a curse you half-believe in",
+    # --- legacy & loss ---
+    "what you'd want remembered after you're gone",
+    "a debt of honor still unpaid",
+    "the names of those you've lost",
 ]
