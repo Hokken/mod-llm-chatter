@@ -3520,7 +3520,7 @@ GUILD_CHAT_TOPICS = [
 GUILD_CHAT_TOPICS_RP = [
     "the dangers of the road you're traveling",
     "a rumor overheard in the last town",
-    "your faith, code, or philosophy",
+    "the code or philosophy you live by",
     "honoring a fallen comrade",
     "the beauty or menace of the land around you",
     "a personal vow or quest you carry",
@@ -3531,7 +3531,7 @@ GUILD_CHAT_TOPICS_RP = [
     "an omen or strange sight on your path",
     "gratitude for a guildmate's aid",
     "the toll of endless fighting",
-    "a prayer or blessing for the guild",
+    "a wish of good fortune for the guild",
     "longing for a quieter life",
     "pride in your craft or lineage",
     "a warning about a place best avoided",
