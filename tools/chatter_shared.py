@@ -1387,6 +1387,7 @@ def append_json_instruction(
     prompt: str, allow_action: bool = True,
     skip_emote: bool = False,
     skip_action_rng: bool = False,
+    message_only: bool = False,
 ) -> str:
     """Append structured JSON response instruction
     to a prompt.
@@ -1399,7 +1400,27 @@ def append_json_instruction(
     skip_action_rng=True bypasses the pre-call RNG
     so the caller can apply post-parse stripping
     instead (used by General conversation paths).
+    message_only=True emits a strict {"message": "..."} schema with no
+    emote/action fields at all (e.g. guild chat, which is spoken text only).
     """
+    if message_only:
+        lang_rule = get_language_rule()
+        if lang_rule:
+            prompt = prompt + lang_rule
+        block = (
+            "\n\nRESPONSE FORMAT: You MUST respond with "
+            "ONLY valid JSON. No other text.\n"
+            "{\n"
+            '  "message": "your spoken words here"\n'
+            "}\n"
+            "Rules: double quotes only, no trailing "
+            "commas, no code fences, no markdown.\n"
+            "CRITICAL: Follow the Length instruction "
+            "in the prompt exactly — never exceed the "
+            "stated character limit."
+            f"{lang_rule}"
+        )
+        return PromptParts(prompt, block)
     # Apply ActionChance RNG: allow_action=True means
     # "eligible for action" — the RNG decides.
     # allow_action=False means "never include action"

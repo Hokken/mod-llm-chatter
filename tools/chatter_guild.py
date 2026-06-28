@@ -100,8 +100,7 @@ def _query_speaker(db, bot_guid: int) -> Dict[str, object]:
         return {}
 
 
-import random
-from chatter_constants import GUILD_CHAT_TOPICS, GUILD_CHAT_TOPICS_RP
+from chatter_constants import GUILD_CHAT_TOPICS_RP
 
 
 # Roadmap #5 / review #1: deterministic length buckets. The model is unreliable
@@ -261,6 +260,7 @@ def _build_guild_prompt(
     zone_id: int = 0,
     length_hint: str = "short — one brief line",
     topic: str = "",
+    faction: str = "",
 ) -> str:
     lines = [_guild_identity(speaker_name, speaker)]
     lines.append(
@@ -286,7 +286,10 @@ def _build_guild_prompt(
         )
 
     # Review #4: faction awareness — never insult your own side.
-    faction = _speaker_faction(speaker)
+    # PR #30 follow-up #1: prefer the authoritative C++ GetTeamId() value
+    # (extra_data "team"); fall back to the Python race-derived faction.
+    if not faction:
+        faction = _speaker_faction(speaker)
     if faction:
         lines.append(
             f"You fight for the {faction}. Never insult or mock "
@@ -353,6 +356,7 @@ def _build_guild_prompt(
         "\n".join(lines) + "\n",
         allow_action=False,
         skip_emote=True,
+        message_only=True,
     )
 
 
@@ -389,20 +393,36 @@ def process_guild_idle_chatter_event(
     zone_id = int(extra.get('zone_id', 0) or 0)
     length_key, length_hint, length_max = _pick_guild_length()
     topic = random.choice(GUILD_CHAT_TOPICS_RP)
+    # PR #30 follow-up #1: prefer the C++ GetTeamId() faction (extra_data
+    # "team"); fall back to the Python race-derived faction.
+    faction = extra.get('team') or _speaker_faction(speaker)
     prompt = _build_guild_prompt(
         speaker_name, speaker, guild_name,
         guildmates, config, zone_id=zone_id,
-        length_hint=length_hint, topic=topic,
+        length_hint=length_hint, topic=topic, faction=faction,
     )
 
     max_tokens = int(config.get(
         'LLMChatter.GuildChatter.MaxTokens', 200
     ))
+    # PR #30 follow-up #2: pass the generation controls as structured
+    # metadata so they land as top-level fields in llm_requests.jsonl
+    # (the monitoring pass can read them without parsing prompt text).
+    metadata = {
+        "guild_length_bucket": length_key,
+        "guild_length_max_chars": length_max,
+        "guild_topic": topic,
+        "guild_faction": faction,
+        "guild_zone_id": zone_id,
+        "guild_zone_name": get_zone_name(zone_id) or "",
+        "guild_zone_flavor": get_zone_flavor(zone_id) or "",
+    }
     response = call_llm(
         client, prompt, config,
         max_tokens_override=max_tokens,
         context=f"guild:{speaker_name}",
         label='guild_idle_chatter',
+        metadata=metadata,
     )
     if not response:
         _mark_event(db, event_id, 'skipped')
@@ -429,7 +449,7 @@ def process_guild_idle_chatter_event(
         "guild_idle_chatter speaker=%s bucket=%s max_chars=%d "
         "faction=%s zone_id=%d topic=%r out_len=%d",
         speaker_name, length_key, length_max,
-        _speaker_faction(speaker) or "-", zone_id, topic, len(message),
+        faction or "-", zone_id, topic, len(message),
     )
 
     insert_chat_message(

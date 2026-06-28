@@ -730,14 +730,23 @@ private:
                     break;
             }
 
+            // PR #30 follow-up #1: pass the authoritative faction from
+            // GetTeamId() so the bridge need not derive it from a race map.
+            const char* teamName =
+                speaker->GetTeamId() == TEAM_ALLIANCE
+                    ? "Alliance"
+                    : "Horde";
+
             std::string json = fmt::format(
                 R"({{"guild_name":"{}",)"
                 R"("speaker_name":"{}",)"
                 R"("guildmates":"{}",)"
+                R"("team":"{}",)"
                 R"("zone_id":{}}})",
                 JsonEscape(guildName),
                 JsonEscape(speaker->GetName()),
                 JsonEscape(mates),
+                teamName,
                 speaker->GetZoneId());
 
             std::string cooldownKey =
