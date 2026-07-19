@@ -493,16 +493,25 @@ def _probe_anthropic(config, model):
     return resp.content[0].text.strip()
 
 
-def _probe_openai_compatible(client, model):
+def _probe_openai_compatible(client, model, config, provider):
     """Make a minimal OpenAI-compatible call; text or raises."""
-    resp = client.chat.completions.create(
-        model=model,
-        max_tokens=5,
-        messages=[{
+    kwargs = {
+        'model': model,
+        'max_tokens': 5,
+        'messages': [{
             'role': 'user',
             'content': 'Reply with the single word: OK',
         }],
-    )
+    }
+    if provider == 'openrouter':
+        thinking = str(config.get(
+            'LLMChatter.OpenRouter.Thinking', ''
+        )).strip().lower()
+        if thinking in ('enabled', 'disabled'):
+            kwargs['extra_body'] = {
+                'thinking': {'type': thinking}
+            }
+    resp = client.chat.completions.create(**kwargs)
     content = resp.choices[0].message.content
     if isinstance(content, str):
         return content.strip()
@@ -574,7 +583,9 @@ def _check_llm_probe(config):
             client = _build_openai_compatible_client(
                 config, provider
             )
-            text = _probe_openai_compatible(client, model)
+            text = _probe_openai_compatible(
+                client, model, config, provider
+            )
 
         if text:
             return _result(

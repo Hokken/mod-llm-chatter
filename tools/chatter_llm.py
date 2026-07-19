@@ -122,6 +122,24 @@ def _apply_google_options(kwargs, config):
         kwargs['reasoning_effort'] = effort
 
 
+def _apply_openrouter_options(kwargs, config):
+    """Attach optional OpenAI-compatible thinking controls."""
+    thinking = str(config.get(
+        'LLMChatter.OpenRouter.Thinking', ''
+    )).strip().lower()
+    if not thinking:
+        return
+    if thinking not in ('enabled', 'disabled'):
+        logger.warning(
+            "Invalid LLMChatter.OpenRouter.Thinking=%r",
+            thinking,
+        )
+        return
+    kwargs['extra_body'] = {
+        'thinking': {'type': thinking}
+    }
+
+
 def _effective_max_tokens(provider, config, max_tokens):
     """Adjust provider-specific output budget."""
     if provider != 'google':
@@ -353,6 +371,8 @@ def call_llm(
             }
             if provider == 'google':
                 _apply_google_options(kwargs, config)
+            elif provider == 'openrouter':
+                _apply_openrouter_options(kwargs, config)
             response = client.chat.completions.create(
                 **kwargs
             )
@@ -630,6 +650,8 @@ def quick_llm_analyze(
             }
             if provider == 'google':
                 _apply_google_options(kwargs, config)
+            elif provider == 'openrouter':
+                _apply_openrouter_options(kwargs, config)
             response = (
                 active_client
                 .chat.completions.create(

@@ -348,6 +348,14 @@ LLMChatter.OpenRouter.ApiKey = sk-or-v1-xxxxx
 LLMChatter.OpenRouter.BaseUrl = https://openrouter.ai/api/v1
 
 #
+#   LLMChatter.OpenRouter.Thinking
+#       Optional OpenAI-compatible thinking control.
+#       Values: enabled, disabled, or empty.
+#       Leave empty for normal OpenRouter behavior.
+#
+LLMChatter.OpenRouter.Thinking =
+
+#
 #   LLMChatter.OpenRouter.HttpReferer
 #       Optional site URL for OpenRouter attribution/rankings.
 #       Leave empty if you do not want to send this header.
