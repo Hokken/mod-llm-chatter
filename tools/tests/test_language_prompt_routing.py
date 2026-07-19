@@ -88,6 +88,17 @@ def test_de_language_rule_is_available():
     assert "never as a guide" in rule
 
 
+def test_ar_language_preserves_localized_server_names():
+    chatter_shared.set_language("AR")
+    rule = chatter_shared.get_language_rule()
+    assert "Arabic" in rule
+    assert "exactly as it appears" in rule
+    assert "already be localized into Arabic" in rule
+    assert chatter_shared.get_language_label() == "Arabic"
+    assert chatter_shared.is_supported_language_code("AR")
+    assert "never as a guide" in rule
+
+
 def test_anti_repetition_block_neutralizes_language():
     chatter_shared.set_language("DE")
     block = chatter_shared.build_anti_repetition_context(

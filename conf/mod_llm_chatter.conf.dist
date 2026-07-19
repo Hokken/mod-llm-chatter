@@ -468,6 +468,7 @@ LLMChatter.ChatterMode = roleplay
 #           ES      - Spanish
 #           PT      - Portuguese
 #           RU      - Russian
+#           AR      - Arabic (preserves already-localized server names)
 #       Adding a new language:
 #           Edit modules/mod-llm-chatter/tools/chatter_shared.py
 #           and add an entry to the _LANGUAGE_LABELS dict

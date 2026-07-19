@@ -1212,6 +1212,7 @@ _language = ""
 
 # Human-readable label used in the prompt rule.
 _LANGUAGE_LABELS = {
+    "AR": "Arabic",
     "DE": "German",
     "ES": "Spanish",
     "FR": "French",
@@ -1294,6 +1295,23 @@ def get_language_rule() -> str:
     """
     if not _language:
         return ""
+    if _language == "Arabic":
+        return (
+            "\nLanguage: Write EVERY field in Arabic — "
+            "the \"message\" field AND the \"action\" "
+            "narrator field must both be fully in Arabic. "
+            "Do not mix languages. Preserve every WoW "
+            "proper noun (zone, subzone, creature, NPC, "
+            "item, spell, quest, and character name) "
+            "exactly as it appears in the supplied server "
+            "context. Names may already be localized into "
+            "Arabic, so never translate them again or force "
+            "them back to English. Any prior chat, memories, "
+            "quoted lines, or examples in this prompt may be "
+            "in another language — treat them only as content "
+            "to react to, never as a guide for which language "
+            "to use. Your entire output must be in Arabic."
+        )
     return (
         f"\nLanguage: Write EVERY field in {_language} — "
         "the \"message\" field AND the \"action\" "
