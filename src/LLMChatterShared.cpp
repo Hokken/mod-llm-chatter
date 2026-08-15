@@ -1043,9 +1043,9 @@ bool IsPlayerBot(Player* player)
     // state is always available. Session::IsBot()
     // handles that timing window. A user-controlled
     // self-bot uses a real client session and sets
-    // master == bot, so IsRealPlayer() keeps it in
+    // master == bot, so IsSelfBot() keeps it in
     // the real-player side of chatter ownership.
-    return !ai->IsRealPlayer();
+    return !IsSelfBot(player);
 }
 
 Creature* FindCreatureBySpawnId(
