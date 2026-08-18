@@ -13,9 +13,11 @@
 #include "BattlegroundAB.h"
 #include "BattlegroundEY.h"
 #include "BattlegroundWS.h"
+#include "AiObjectContext.h"
 #include "Channel.h"
 #include "ChannelMgr.h"
 #include "Chat.h"
+#include "ChatHelper.h"
 #include "DatabaseEnv.h"
 #include "DBCStores.h"
 #include "Group.h"
@@ -23,6 +25,7 @@
 #include "MapMgr.h"
 #include "ObjectAccessor.h"
 #include "Player.h"
+#include "PlayerbotAI.h"
 #include "Playerbots.h"
 #include "RandomPlayerbotMgr.h"
 #include "ScriptMgr.h"
@@ -31,6 +34,7 @@
 #include "WorldSessionMgr.h"
 
 #include <algorithm>
+#include <cctype>
 #include <ctime>
 #include <cstdio>
 #include <map>
@@ -768,6 +772,7 @@ public:
               "LLMChatterPlayerScript",
               {PLAYERHOOK_ON_LOGIN,
                PLAYERHOOK_ON_UPDATE,
+               PLAYERHOOK_CAN_PLAYER_USE_PRIVATE_CHAT,
                PLAYERHOOK_CAN_PLAYER_USE_CHANNEL_CHAT,
                PLAYERHOOK_ON_UPDATE_ZONE,
                PLAYERHOOK_ON_UPDATE_AREA,

@@ -339,6 +339,23 @@ Tested extensively with excellent results:
   `openai/gpt-4o-mini`, and `openai/gpt-4.1-mini`, useful when users
   want OpenRouter routing while keeping OpenAI-compatible calls
 
+OpenAI-compatible gateways do not all use the same reasoning control
+or request API. Set the matching profile explicitly:
+
+| Endpoint and model | Base URL | Request mode | Disable style |
+|---|---|---|---|
+| DeepSeek V4 Flash, official | `https://api.deepseek.com` | `chat` | `thinking` |
+| DeepSeek V4 Flash, OpenCode Zen | `https://opencode.ai/zen/v1` | `chat` | `thinking` |
+| DeepSeek V4 Flash, OpenCode Go | `https://opencode.ai/zen/go/v1` | `chat` | `reasoning` |
+| GPT-5.6 Luna, OpenCode Go | `https://opencode.ai/zen/go/v1` | `responses` | `reasoning` |
+
+Use `LLMChatter.OpenAICompatible.RequestMode`, enable
+`LLMChatter.OpenAICompatible.DisableThinking`, and set
+`LLMChatter.OpenAICompatible.DisableThinkingStyle` to the values above.
+For Claude Haiku 4.5 through OpenCode Zen, use the Anthropic provider,
+base URL `https://opencode.ai/zen`, and
+`LLMChatter.Anthropic.DisableThinking = 1`.
+
 Ollama is supported for local/free inference, but the module's advanced prompt architecture (structured JSON responses, system/user message separation, emote and action fields) demands strong instruction-following capabilities that smaller open-source models may not consistently deliver. For the best experience, we recommend Claude Haiku, GPT-4o-mini, GPT-4.1-mini, Gemini 3.1 Flash-Lite, or equivalent fast OpenRouter-hosted models such as Claude Haiku 4.5, GPT-4o-mini, or GPT-4.1-mini. See the config file header for provider setup details.
 
 ### Tuning the Chattiness

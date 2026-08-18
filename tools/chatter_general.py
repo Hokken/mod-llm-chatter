@@ -192,6 +192,30 @@ def _format_general_history(history):
     )
 
 
+def _get_whisper_history(db, player_guid, bot_guid,
+                         limit=12):
+    """Return one player/bot private conversation oldest-first."""
+    cursor = db.cursor(dictionary=True)
+    cursor.execute("""
+        SELECT is_bot, message
+        FROM llm_whisper_history
+        WHERE player_guid = %s AND bot_guid = %s
+        ORDER BY id DESC LIMIT %s
+    """, (player_guid, bot_guid, limit))
+    return list(reversed(cursor.fetchall()))
+
+
+def _format_whisper_history(history, player_name,
+                            bot_name):
+    if not history:
+        return ""
+    lines = []
+    for row in history:
+        speaker = bot_name if row['is_bot'] else player_name
+        lines.append(f"  {speaker}: {row['message']}")
+    return "\nPrivate conversation so far:\n" + '\n'.join(lines)
+
+
 def _store_general_chat(
     db, zone_id, speaker_name, is_bot, message
 ):
@@ -670,6 +694,9 @@ def process_general_player_msg_event(
     )
     bot_guids = extra_data.get('bot_guids', [])
     bot_names = extra_data.get('bot_names', [])
+    whisper_player_guid = int(
+        extra_data.get('whisper_player_guid') or 0
+    )
 
     # Resolve zone from player's location
     zctx = _resolve_zone_context(
@@ -706,11 +733,21 @@ def process_general_player_msg_event(
             db, zone_id
         )
 
-        # Fetch chat history for this zone
-        history = _get_general_chat_history(
-            db, zone_id
-        )
-        chat_hist = _format_general_history(history)
+        # Whispers retain their own private transcript and
+        # never inherit or write General-channel context.
+        if whisper_player_guid:
+            history = _get_whisper_history(
+                db, whisper_player_guid,
+                int(bot_guids[0]),
+            )
+            chat_hist = _format_whisper_history(
+                history, player_name, str(bot_names[0]),
+            )
+        else:
+            history = _get_general_chat_history(
+                db, zone_id
+            )
+            chat_hist = _format_general_history(history)
 
         # Pick primary bot and decide conv vs stmt
         primary = _select_primary_bot(
@@ -852,24 +889,36 @@ def process_general_player_msg_event(
         #  to zone-wide recipients)
         insert_chat_message(
             db, bot1_guid, bot1_name, msg1,
-            channel='general',
+            channel=(
+                'whisper' if whisper_player_guid
+                else 'general'
+            ),
             delay_seconds=delay1,
             event_id=event_id,
             sequence=0,
+            player_guid=(
+                whisper_player_guid or None
+            ),
+            owner_subsystem=(
+                'whisper' if whisper_player_guid
+                else 'general'
+            ),
         )
-        maybe_queue_group_general_reaction(
+        if not whisper_player_guid:
+            maybe_queue_group_general_reaction(
             db, config,
             bot1_guid, bot1_name, msg1,
             zone_id, int(event.get('map_id') or 0),
             source_event_id=event_id,
             source_sequence=0,
             source_delay_seconds=delay1,
-        )
+            )
 
         # Store in General chat history
-        _store_general_chat(
-            db, zone_id, bot1_name, True, msg1
-        )
+        if not whisper_player_guid:
+            _store_general_chat(
+                db, zone_id, bot1_name, True, msg1
+            )
 
         # Conversation mode: second bot follows up
         if is_conversation:

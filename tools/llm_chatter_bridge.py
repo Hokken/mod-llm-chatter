@@ -27,6 +27,11 @@ from typing import List
 
 import anthropic
 import openai
+from chatter_provider import (
+    create_anthropic_client,
+    get_openai_compatible_request_mode,
+    get_openai_compatible_thinking_style,
+)
 
 import chatter_ambient
 
@@ -356,6 +361,7 @@ def fetch_pending_events(db, config, max_count):
               OR e.event_type LIKE 'bg_%%'
               OR e.event_type LIKE 'raid_%%'
               OR e.event_type = 'player_general_msg'
+              OR e.event_type = 'player_whisper_msg'
               OR e.event_type = 'player_enters_zone'
               OR e.event_type LIKE 'proximity_%%'
               OR e.event_type LIKE 'guild_%%'
@@ -444,6 +450,23 @@ def fetch_pending_events(db, config, max_count):
                         "from extra_data",
                         exc_info=True,
                     )
+            elif et == 'player_whisper_msg':
+                try:
+                    extra = event.get('extra_data')
+                    if isinstance(extra, str):
+                        extra = json.loads(extra)
+                    if isinstance(extra, dict):
+                        # A stable negative key serializes one private
+                        # conversation without colliding with a group/session.
+                        player_guid = int(extra.get('player_guid') or 0)
+                        bot_guid = int(extra.get('bot_guid') or 0)
+                        if player_guid and bot_guid:
+                            group_id = -((player_guid << 32) | bot_guid)
+                except Exception:
+                    logger.error(
+                        "Failed to parse whisper conversation key",
+                        exc_info=True,
+                    )
             event['_group_id'] = group_id
             claimed.append(event)
 
@@ -493,6 +516,7 @@ EVENT_LOG_OVERRIDES = {
     'bot_group_screenshot_observation': 'Screenshot vision',
     'bot_group_general_reaction': 'General-to-party relay',
     'player_general_msg': 'General chat event',
+    'player_whisper_msg': 'Private whisper event',
     'guild_player_message': 'Guild player turn',
     'guild_login_greeting': 'Guild login greeting',
     'player_enters_zone': 'Zone intrusion',
@@ -1350,7 +1374,7 @@ def main():
         )
         if not api_key:
             sys.exit(1)
-        client = anthropic.Anthropic(api_key=api_key)
+        client = create_anthropic_client(anthropic, config, api_key)
 
     # Get poll interval
     poll_interval = int(config.get(
@@ -1427,6 +1451,36 @@ def main():
         logger.info(
             f"Thinking mode: "
             f"{'disabled (/no_think)' if disable_thinking else 'enabled'}"
+        )
+    elif provider == 'openrouter':
+        base_url = config.get(
+            'LLMChatter.OpenRouter.BaseUrl',
+            OPENROUTER_BASE_URL,
+        )
+        disable_thinking = str(config.get(
+            'LLMChatter.OpenAICompatible.DisableThinking', '0'
+        )).strip().lower() in ('1', 'true', 'yes', 'on')
+        logger.info(f"OpenAI-compatible URL: {base_url}")
+        logger.info(
+            "OpenAI-compatible request mode: %s",
+            get_openai_compatible_request_mode(config),
+        )
+        logger.info(
+            "Thinking control: %s",
+            get_openai_compatible_thinking_style(config)
+            if disable_thinking else 'omitted',
+        )
+    elif provider == 'anthropic':
+        base_url = config.get(
+            'LLMChatter.Anthropic.BaseUrl', ''
+        ).strip() or 'https://api.anthropic.com'
+        disable_thinking = str(config.get(
+            'LLMChatter.Anthropic.DisableThinking', '0'
+        )).strip().lower() in ('1', 'true', 'yes', 'on')
+        logger.info(f"Anthropic-compatible URL: {base_url}")
+        logger.info(
+            "Thinking control: %s",
+            'disabled' if disable_thinking else 'omitted',
         )
     logger.info(f"Poll interval: {poll_interval}s")
     logger.info(

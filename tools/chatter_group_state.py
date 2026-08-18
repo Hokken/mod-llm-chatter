@@ -27,6 +27,7 @@ from chatter_constants import PERSONALITY_TRAITS
 from chatter_constants import GOOGLE_OPENAI_BASE_URL
 from chatter_constants import OPENROUTER_BASE_URL
 from chatter_db import mark_event
+from chatter_provider import create_anthropic_client
 
 logger = logging.getLogger(__name__)
 
@@ -432,11 +433,7 @@ def _generate_bot_tone(
             client = _openai.OpenAI(**kwargs)
         else:
             import anthropic as _anthropic
-            client = _anthropic.Anthropic(
-                api_key=config.get(
-                    'LLMChatter.Anthropic.ApiKey', ''
-                )
-            )
+            client = create_anthropic_client(_anthropic, config)
     except Exception:
         pass
 
@@ -661,11 +658,7 @@ def _generate_bot_backstory(
             client = _openai.OpenAI(**kwargs)
         else:
             import anthropic as _anthropic
-            client = _anthropic.Anthropic(
-                api_key=config.get(
-                    'LLMChatter.Anthropic.ApiKey', ''
-                )
-            )
+            client = create_anthropic_client(_anthropic, config)
     except Exception:
         pass
 
@@ -913,12 +906,17 @@ def handle_backstory_regen_event(
 
     bot_guid = int(extra.get('bot_guid') or 0)
     if not bot_guid:
-        return True
+        mark_event(db, event['id'], 'skipped')
+        return False
 
     backstory = regenerate_bot_backstory(
         db, config, bot_guid,
     )
-    return True
+    mark_event(
+        db, event['id'],
+        'completed' if backstory else 'skipped',
+    )
+    return bool(backstory)
 
 
 def regenerate_bot_tone(db, config, bot_guid):
@@ -1022,10 +1020,15 @@ def handle_tone_regen_event(
 
     bot_guid = int(extra.get('bot_guid') or 0)
     if not bot_guid:
-        return True
+        mark_event(db, event['id'], 'skipped')
+        return False
 
-    regenerate_bot_tone(db, config, bot_guid)
-    return True
+    tone = regenerate_bot_tone(db, config, bot_guid)
+    mark_event(
+        db, event['id'],
+        'completed' if tone else 'skipped',
+    )
+    return bool(tone)
 
 
 def assign_bot_traits(

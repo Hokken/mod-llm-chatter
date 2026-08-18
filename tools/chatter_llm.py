@@ -13,6 +13,12 @@ from chatter_constants import (
     GOOGLE_OPENAI_BASE_URL,
     OPENROUTER_BASE_URL,
 )
+from chatter_provider import (
+    apply_anthropic_options,
+    apply_openai_compatible_options,
+    create_anthropic_client,
+    get_openai_compatible_request_mode,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -165,6 +171,122 @@ def _extract_chat_content(response, label=''):
     return None
 
 
+def _extract_anthropic_content(response, label=''):
+    """Extract all text blocks from an Anthropic response."""
+    parts = []
+    content = (
+        response.get('content')
+        if isinstance(response, dict)
+        else getattr(response, 'content', None)
+    ) or []
+    for block in content:
+        if isinstance(block, dict):
+            block_type = block.get('type')
+            text = block.get('text')
+        else:
+            block_type = getattr(block, 'type', None)
+            text = getattr(block, 'text', None)
+        if block_type in (None, 'text') and text:
+            parts.append(text)
+    if parts:
+        return ''.join(parts).strip()
+    logger.warning(
+        "LLM returned no Anthropic text content (%s): "
+        "stop_reason=%s",
+        label, getattr(response, 'stop_reason', None),
+    )
+    return None
+
+
+def _extract_responses_content(response, label=''):
+    """Extract text from an OpenAI Responses-compatible response."""
+    if isinstance(response, dict):
+        output_text = response.get('output_text')
+        output = response.get('output') or []
+        status = response.get('status')
+        details = response.get('incomplete_details')
+    else:
+        output_text = getattr(response, 'output_text', None)
+        output = getattr(response, 'output', None) or []
+        status = getattr(response, 'status', None)
+        details = getattr(response, 'incomplete_details', None)
+    if isinstance(output_text, str) and output_text.strip():
+        return output_text.strip()
+
+    parts = []
+    for item in output:
+        if isinstance(item, dict):
+            item_type = item.get('type')
+            content = item.get('content') or []
+        else:
+            item_type = getattr(item, 'type', None)
+            content = getattr(item, 'content', None) or []
+        if item_type != 'message':
+            continue
+        for block in content:
+            if isinstance(block, dict):
+                block_type = block.get('type')
+                text = block.get('text')
+            else:
+                block_type = getattr(block, 'type', None)
+                text = getattr(block, 'text', None)
+            if block_type in ('output_text', 'text') and text:
+                parts.append(text)
+    if parts:
+        return ''.join(parts).strip()
+
+    reason = (
+        details.get('reason')
+        if isinstance(details, dict)
+        else getattr(details, 'reason', None)
+    )
+    logger.warning(
+        "LLM returned no Responses API text content (%s): "
+        "status=%s incomplete_reason=%s",
+        label, status, reason,
+    )
+    return None
+
+
+def _call_openai_compatible(
+    client, provider, model, config, max_tokens,
+    temperature, sys_msg, user_msg, label='',
+):
+    """Dispatch one OpenAI-compatible request using its configured API."""
+    request_mode = 'chat'
+    if provider == 'openrouter':
+        request_mode = get_openai_compatible_request_mode(config)
+
+    if request_mode == 'responses':
+        kwargs = {
+            'model': model,
+            'max_output_tokens': max_tokens,
+            'input': user_msg,
+        }
+        if sys_msg:
+            kwargs['instructions'] = sys_msg
+        apply_openai_compatible_options(
+            kwargs, config, request_mode='responses'
+        )
+        response = client.responses.create(**kwargs)
+        return _extract_responses_content(response, label)
+
+    kwargs = {
+        'model': model,
+        'max_tokens': max_tokens,
+        'temperature': temperature,
+        'messages': _build_chat_messages(sys_msg, user_msg),
+    }
+    if provider == 'google':
+        _apply_google_options(kwargs, config)
+    elif provider == 'openrouter':
+        apply_openai_compatible_options(
+            kwargs, config, request_mode='chat'
+        )
+    response = client.chat.completions.create(**kwargs)
+    return _extract_chat_content(response, label)
+
+
 def resolve_model(model_name: str) -> str:
     """Resolve friendly model aliases to provider model IDs."""
     normalized = (model_name or '').strip()
@@ -259,12 +381,7 @@ def get_llm_client(config):
             _main_client = openai.OpenAI(**kwargs)
         else:
             import anthropic
-            _main_client = anthropic.Anthropic(
-                api_key=config.get(
-                    'LLMChatter.Anthropic.ApiKey',
-                    '',
-                ),
-            )
+            _main_client = create_anthropic_client(anthropic, config)
 
         _main_client_provider = provider
         return _main_client
@@ -343,21 +460,10 @@ def call_llm(
                 response, label
             )
         elif provider in ('openai', 'google', 'openrouter'):
-            kwargs = {
-                'model': model,
-                'max_tokens': request_max_tokens,
-                'temperature': temperature,
-                'messages': _build_chat_messages(
-                    sys_msg, user_msg
-                ),
-            }
-            if provider == 'google':
-                _apply_google_options(kwargs, config)
-            response = client.chat.completions.create(
-                **kwargs
-            )
-            result = _extract_chat_content(
-                response, label
+            result = _call_openai_compatible(
+                client, provider, model, config,
+                request_max_tokens, temperature,
+                sys_msg, user_msg, label,
             )
         else:
             # Anthropic (default)
@@ -372,10 +478,13 @@ def call_llm(
             }
             if sys_msg:
                 kwargs["system"] = sys_msg
+            apply_anthropic_options(kwargs, config)
             response = client.messages.create(
                 **kwargs
             )
-            result = response.content[0].text.strip()
+            result = _extract_anthropic_content(
+                response, label
+            )
     except Exception as exc:
         logger.error(
             "LLM call failed (%s): %s", label, exc
@@ -503,8 +612,8 @@ def _get_quick_analyze_client(config):
             )
             if not api_key:
                 return None, main_provider
-            _quick_analyze_client = anthropic.Anthropic(
-                api_key=api_key
+            _quick_analyze_client = create_anthropic_client(
+                anthropic, config, api_key
             )
         else:
             return None, main_provider
@@ -618,26 +727,12 @@ def quick_llm_analyze(
                 response, label
             )
         elif provider in ('openai', 'google', 'openrouter'):
-            kwargs = {
-                'model': model,
-                'max_tokens': _effective_max_tokens(
+            result = _call_openai_compatible(
+                active_client, provider, model, config,
+                _effective_max_tokens(
                     provider, config, max_tokens
                 ),
-                'temperature': 0.1,
-                'messages': _build_chat_messages(
-                    sys_msg, user_msg
-                ),
-            }
-            if provider == 'google':
-                _apply_google_options(kwargs, config)
-            response = (
-                active_client
-                .chat.completions.create(
-                    **kwargs
-                )
-            )
-            result = _extract_chat_content(
-                response, label
+                0.1, sys_msg, user_msg, label,
             )
         else:
             kwargs = {
@@ -651,12 +746,15 @@ def quick_llm_analyze(
             }
             if sys_msg:
                 kwargs["system"] = sys_msg
+            apply_anthropic_options(kwargs, config)
             response = (
                 active_client.messages.create(
                     **kwargs
                 )
             )
-            result = response.content[0].text.strip()
+            result = _extract_anthropic_content(
+                response, label
+            )
     except Exception as exc:
         logger.error(
             "LLM call failed (%s): %s", label, exc

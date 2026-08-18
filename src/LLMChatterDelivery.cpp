@@ -563,6 +563,29 @@ void DeliverPendingMessagesImpl()
                     botUnavailable = true;
                 }
             }
+            else if (channel == "whisper")
+            {
+                Player* recipient =
+                    ObjectAccessor::FindConnectedPlayer(
+                        playerObjGuid);
+                if (recipient && recipient->IsInWorld())
+                {
+                    bot->Whisper(
+                        processedMessage, LANG_UNIVERSAL,
+                        recipient);
+                    CharacterDatabase.Execute(
+                        "INSERT INTO llm_whisper_history "
+                        "(player_guid, bot_guid, speaker_guid, is_bot, message) "
+                        "VALUES ({}, {}, {}, 1, '{}')",
+                        playerGuid, botGuid, botGuid,
+                        EscapeString(processedMessage));
+                    sent = true;
+                }
+                else
+                {
+                    botUnavailable = true;
+                }
+            }
             else if (channel == "yell")
             {
                 if (!bot->IsAlive())

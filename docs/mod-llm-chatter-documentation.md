@@ -588,6 +588,31 @@ LLMChatter.Model = openai/gpt-4o-mini
 LLMChatter.OpenRouter.ApiKey = sk-or-v1-xxxxx
 ```
 
+OpenAI-compatible endpoint profiles that use non-reasoning mode must
+select both their transport and their provider-specific wire control:
+
+| Endpoint and model | `OpenRouter.BaseUrl` | `RequestMode` | `DisableThinkingStyle` |
+|---|---|---|---|
+| DeepSeek V4 Flash, official | `https://api.deepseek.com` | `chat` | `thinking` |
+| DeepSeek V4 Flash, OpenCode Zen | `https://opencode.ai/zen/v1` | `chat` | `thinking` |
+| DeepSeek V4 Flash, OpenCode Go | `https://opencode.ai/zen/go/v1` | `chat` | `reasoning` |
+| GPT-5.6 Luna, OpenCode Go | `https://opencode.ai/zen/go/v1` | `responses` | `reasoning` |
+
+For every row, set
+`LLMChatter.OpenAICompatible.DisableThinking = 1`. Chat mode sends
+system and user messages through Chat Completions. Responses mode uses
+`input`, `instructions`, and `max_output_tokens`, and omits temperature
+for compatibility with Responses-only models.
+
+Claude Haiku 4.5 through OpenCode Zen uses the Anthropic Messages API:
+
+```ini
+LLMChatter.Provider = anthropic
+LLMChatter.Model = claude-haiku-4-5
+LLMChatter.Anthropic.BaseUrl = https://opencode.ai/zen
+LLMChatter.Anthropic.DisableThinking = 1
+```
+
 ```ini
 LLMChatter.Provider = ollama
 LLMChatter.Model = qwen3:4b
@@ -611,8 +636,9 @@ Provider behavior:
   message prepended to the messages array
 - **Google Gemini**: uses Google's OpenAI-compatible chat-completions
   endpoint, so system content is sent as a system role message
-- **OpenRouter**: uses OpenRouter's OpenAI-compatible
-  chat-completions endpoint with optional attribution headers
+- **OpenRouter/OpenAI-compatible**: uses Chat Completions or the
+  Responses API according to `OpenAICompatible.RequestMode`; optional
+  OpenRouter attribution headers remain supported
 - **Ollama**: same as OpenAI (system role message)
 
 When a plain string is passed to `call_llm()` instead of
@@ -627,6 +653,7 @@ When a plain string is passed to `call_llm()` instead of
 | `_build_chat_messages()` | Assembles the provider-specific messages array |
 | `_ollama_user_msg()` | Formats the user message for Ollama's chat API |
 | `_apply_google_options()` | Applies Gemini reasoning/thinking settings for OpenAI compatibility |
+| `_call_openai_compatible()` | Dispatches Chat Completions or Responses with the selected non-reasoning control |
 | `_openrouter_headers()` | Builds optional OpenRouter attribution headers |
 
 ---

@@ -512,6 +512,21 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         },
     ),
 
+    'player_whisper_msg': EventSpec(
+        handler_module='chatter_whisper',
+        handler_func='process_player_whisper_event',
+        producer='LLMChatterWhisper.cpp',
+        priority='high',
+        description='Bot privately replies to a player whisper',
+        payload_fields={
+            'player_guid': (int, True),
+            'bot_guid': (int, True),
+            'turn_id': (int, True),
+            'player_name': (str, True),
+            'player_message': (str, True),
+        },
+    ),
+
     'player_enters_zone': EventSpec(
         handler_module='chatter_events',
         handler_func=(

@@ -46,6 +46,16 @@ from chatter_constants import (
     GOOGLE_OPENAI_BASE_URL,
     OPENROUTER_BASE_URL,
 )
+from chatter_llm import (
+    _extract_anthropic_content,
+    _extract_responses_content,
+)
+from chatter_provider import (
+    apply_anthropic_options,
+    apply_openai_compatible_options,
+    create_anthropic_client,
+    get_openai_compatible_request_mode,
+)
 
 # Path to the base SQL that creates the required tables
 # (used in the "tables" check hint).
@@ -481,30 +491,55 @@ def _is_model_error(exc):
 def _probe_anthropic(config, model):
     """Make a minimal Anthropic call; returns text or raises."""
     import anthropic
-    client = anthropic.Anthropic(
-        api_key=config.get('LLMChatter.Anthropic.ApiKey', ''),
-    )
-    resp = client.messages.create(
-        model=model,
-        max_tokens=5,
-        messages=[{
+    client = create_anthropic_client(anthropic, config)
+    kwargs = {
+        'model': model,
+        'max_tokens': 5,
+        'messages': [{
             'role': 'user',
             'content': 'Reply with the single word: OK',
         }],
-    )
-    return resp.content[0].text.strip()
+    }
+    apply_anthropic_options(kwargs, config)
+    resp = client.messages.create(**kwargs)
+    return _extract_anthropic_content(resp, 'healthcheck') or ''
 
 
-def _probe_openai_compatible(client, model):
+def _probe_openai_compatible(
+    client, model, config=None, provider=''
+):
     """Make a minimal OpenAI-compatible call; text or raises."""
-    resp = client.chat.completions.create(
-        model=model,
-        max_tokens=5,
-        messages=[{
+    request_mode = 'chat'
+    if provider == 'openrouter' and config:
+        request_mode = get_openai_compatible_request_mode(config)
+
+    if request_mode == 'responses':
+        kwargs = {
+            'model': model,
+            'max_output_tokens': 150,
+            'input': 'Reply with the single word: OK',
+        }
+        apply_openai_compatible_options(
+            kwargs, config, request_mode='responses'
+        )
+        resp = client.responses.create(**kwargs)
+        return _extract_responses_content(
+            resp, 'healthcheck'
+        ) or ''
+
+    kwargs = {
+        'model': model,
+        'max_tokens': 150,
+        'messages': [{
             'role': 'user',
             'content': 'Reply with the single word: OK',
         }],
-    )
+    }
+    if provider == 'openrouter' and config:
+        apply_openai_compatible_options(
+            kwargs, config, request_mode='chat'
+        )
+    resp = client.chat.completions.create(**kwargs)
     content = resp.choices[0].message.content
     if isinstance(content, str):
         return content.strip()
@@ -576,7 +611,9 @@ def _check_llm_probe(config):
             client = _build_openai_compatible_client(
                 config, provider
             )
-            text = _probe_openai_compatible(client, model)
+            text = _probe_openai_compatible(
+                client, model, config, provider
+            )
 
         if text:
             return _result(

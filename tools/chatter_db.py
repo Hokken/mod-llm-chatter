@@ -804,6 +804,8 @@ def insert_chat_message(
             owner_subsystem = 'bg'
         elif channel == 'general':
             owner_subsystem = 'general'
+        elif channel == 'whisper':
+            owner_subsystem = 'whisper'
         elif channel in ('say', 'msay'):
             owner_subsystem = 'proximity'
         elif channel == 'yell':

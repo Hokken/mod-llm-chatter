@@ -16,6 +16,7 @@ void AddLLMChatterScripts()
     AddLLMChatterGuildScripts();
     AddLLMChatterGroupScripts();
     AddLLMChatterPlayerScripts();
+    AddLLMChatterWhisperScripts();
     AddLLMChatterBGScripts();
     AddLLMChatterRaidScripts();
     AddLLMChatterCommandScripts();

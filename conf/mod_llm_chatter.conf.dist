@@ -273,6 +273,21 @@ LLMChatter.Model = claude-haiku-4-5-20251001
 #
 LLMChatter.Anthropic.ApiKey = sk-ant-xxxxx
 
+#   LLMChatter.Anthropic.BaseUrl
+#       Optional Anthropic-compatible API base URL. Leave blank to use
+#       api.anthropic.com. The client appends /v1/messages automatically.
+#
+LLMChatter.Anthropic.BaseUrl =
+
+#
+#   LLMChatter.Anthropic.DisableThinking
+#       Explicitly request non-thinking mode on Anthropic-compatible
+#       Messages endpoints. Claude Haiku 4.5 defaults to thinking off, but
+#       setting this to 1 makes that requirement explicit.
+#       Default: 0
+#
+LLMChatter.Anthropic.DisableThinking = 0
+
 ###############################################################################
 # OPENAI SETTINGS [BRIDGE] (only needed if Provider = openai)
 ###############################################################################
@@ -346,6 +361,61 @@ LLMChatter.OpenRouter.ApiKey = sk-or-v1-xxxxx
 #       Only change this if OpenRouter changes the compatibility endpoint.
 #
 LLMChatter.OpenRouter.BaseUrl = https://openrouter.ai/api/v1
+
+###############################################################################
+# OPENAI-COMPATIBLE ROUTING [BRIDGE]
+###############################################################################
+
+#
+#   LLMChatter.OpenAICompatible.RequestMode
+#       API transport used when Provider = openrouter.
+#         chat      - POST through Chat Completions (default)
+#         responses - POST through the OpenAI Responses API
+#       Responses mode uses input/instructions and max_output_tokens, and
+#       omits temperature for compatibility with Responses-only models.
+#       It requires a recent OpenAI Python SDK. Do not select it unless
+#       the endpoint and model document Responses API support.
+#       Default: chat
+#
+LLMChatter.OpenAICompatible.RequestMode = chat
+
+#
+#   LLMChatter.OpenAICompatible.DisableThinking
+#       Send the endpoint-specific non-reasoning request selected by
+#       DisableThinkingStyle. This is for a compatible endpoint that
+#       documents one of these payloads; it is not an OpenRouter setting.
+#       Default: 0
+#
+LLMChatter.OpenAICompatible.DisableThinking = 0
+
+#
+#   LLMChatter.OpenAICompatible.DisableThinkingStyle
+#       Wire format used when DisableThinking = 1:
+#         thinking        - {"thinking":{"type":"disabled"}}
+#         reasoning       - {"reasoning":{"effort":"none"}}
+#         reasoning_effort - {"reasoning_effort":"none"}
+#       In Chat mode, non-standard objects are sent in extra_body. In
+#       Responses mode, reasoning is sent as the native reasoning option.
+#       Default: thinking
+#
+LLMChatter.OpenAICompatible.DisableThinkingStyle = thinking
+
+# Tested profiles:
+#   DeepSeek API / DeepSeek V4 Flash:
+#     BaseUrl=https://api.deepseek.com, Model=deepseek-v4-flash,
+#     RequestMode=chat, DisableThinking=1, Style=thinking
+#   OpenCode Zen / DeepSeek V4 Flash:
+#     BaseUrl=https://opencode.ai/zen/v1, Model=deepseek-v4-flash,
+#     RequestMode=chat, DisableThinking=1, Style=thinking
+#   OpenCode Go / DeepSeek V4 Flash:
+#     BaseUrl=https://opencode.ai/zen/go/v1, Model=deepseek-v4-flash,
+#     RequestMode=chat, DisableThinking=1, Style=reasoning
+#   OpenCode Go / GPT-5.6 Luna:
+#     BaseUrl=https://opencode.ai/zen/go/v1, Model=gpt-5.6-luna,
+#     RequestMode=responses, DisableThinking=1, Style=reasoning
+#   OpenCode Zen / Claude Haiku 4.5:
+#     Provider=anthropic, BaseUrl=https://opencode.ai/zen,
+#     Model=claude-haiku-4-5, Anthropic.DisableThinking=1.
 
 #
 #   LLMChatter.OpenRouter.HttpReferer
@@ -523,6 +593,23 @@ LLMChatter.GeneralChannel.Enable = 1
 #       Default: 1
 #
 LLMChatter.GeneralChat.PlayerReplyEnable = 1
+
+# Whisper replies to individual Playerbots. Uses AzerothCore's existing
+# private-chat hook; no Playerbots core patch is required.
+# Enable: 0 = ignore player whispers to bots, 1 = reply.
+LLMChatter.Whisper.Enable = 1
+# Percentage chance that an eligible bot answers a whisper.
+LLMChatter.Whisper.Chance = 100
+# Minimum seconds between replies from the same bot to a player.
+LLMChatter.Whisper.Cooldown = 8
+# Number of transcript rows retained per player/bot conversation.
+LLMChatter.Whisper.HistoryLimit = 48
+# Number of transcript rows included as model context.
+LLMChatter.Whisper.ContextLimit = 12
+# Do not queue Playerbots control commands (for example "talents", "follow",
+# "@tank attack", or "co +aoe") as LLM prompts. The normal Playerbots command
+# parser still receives and executes them. Default: 1
+LLMChatter.Whisper.SkipPlayerbotCommands = 1
 
 #
 #   LLMChatter.BGChatter.Enable

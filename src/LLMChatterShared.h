@@ -111,6 +111,7 @@ uint8 GetChatterEventPriority(
     const std::string& eventType);
 uint32 GetReactionDelaySeconds(const std::string& eventType);
 void AddLLMChatterPlayerScripts();
+void AddLLMChatterWhisperScripts();
 void AddLLMChatterWorldScripts();
 
 #endif
