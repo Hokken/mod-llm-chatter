@@ -1937,6 +1937,11 @@ def main():
         'BotQuestionCheckInterval',
         30
     ))
+    last_tone_regen = 0
+    tone_regen_interval = int(config.get(
+        'LLMChatter.Bridge.ToneRegenIntervalSeconds',
+        60
+    ))
 
     executor = ThreadPoolExecutor(
         max_workers=max_concurrent + 4
@@ -2104,9 +2109,16 @@ def main():
                     )
                     last_db_snapshot = current_time
 
-                # Legacy requests (General ambient chatter)
-                # Runs freely every cycle — no deferral
-                if players_online and not legacy_future:
+                # Legacy requests (General ambient chatter).
+                # Cheap backlog check on the already-open
+                # connection avoids opening a brand-new DB
+                # connection every poll cycle when the queue
+                # is empty (was pegging CPU continuously).
+                if (
+                    players_online
+                    and not legacy_future
+                    and _has_pending_legacy_requests(db)
+                ):
                     legacy_future = (
                         executor.submit(
                             _run_in_worker,
@@ -2119,7 +2131,11 @@ def main():
                 if (
                     players_online
                     and not tone_regen_future
+                    and current_time
+                    - last_tone_regen
+                    >= tone_regen_interval
                 ):
+                    last_tone_regen = current_time
                     tone_regen_future = (
                         executor.submit(
                             _run_in_worker,
@@ -2259,11 +2275,13 @@ def main():
                     except Exception:
                         pass
 
-            # Fast poll so player messages are
-            # picked up quickly. Background tasks
-            # self-rate-limit via their own
-            # last_X / interval checks.
-            time.sleep(0.2)
+            # Poll cadence honors the configured
+            # Bridge.PollIntervalSeconds instead of a
+            # hardcoded value (previously ignored the
+            # setting, causing excessive DB reconnects and
+            # CPU use). Background tasks self-rate-limit via
+            # their own last_X / interval checks.
+            time.sleep(poll_interval)
 
         except KeyboardInterrupt:
             executor.shutdown(wait=False)
