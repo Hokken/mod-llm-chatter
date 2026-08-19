@@ -2410,13 +2410,18 @@ def build_zone_transition_prompt(
             f"Current subzone: {subzone}\n"
         )
 
-    # Resolve subzone name for subzone events
-    # Prefer lore name, fall back to DBC area_name
+    # Resolve subzone name for subzone events.
+    # Prefer area_name -- it comes from C++/DBC and is
+    # already correctly localized for the configured
+    # language. Only fall back to the hand-authored,
+    # English-only subzone_lore.json name when area_name
+    # is missing/empty (e.g. older callers that don't
+    # pass it).
     area_label = ""
     if is_subzone and area_id:
         from chatter_shared import get_subzone_name
         sn = get_subzone_name(zone_id, area_id)
-        area_label = sn or area_name or ""
+        area_label = area_name or sn or ""
 
     subject = (
         f"You and {player_name}"

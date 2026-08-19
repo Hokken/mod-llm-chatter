@@ -1301,9 +1301,12 @@ def get_language_rule() -> str:
         "narrator field must both be fully in "
         f"{_language}. Do not mix languages. "
         "Exception: keep WoW proper nouns (zone, "
-        "subzone, creature, NPC, item, spell, quest, "
-        "and character names) in English exactly as "
-        "written — never translate them. Class and "
+        "subzone, item, spell, quest, and character "
+        "names) in English exactly as written — "
+        "never translate them. Creature and NPC "
+        "names arrive already localized when "
+        "available — use them exactly as given, "
+        "never re-translate or alter them. Class and "
         "race names (Warrior, Priest, Mage, Blood Elf, "
         "Night Elf, etc.) are NOT exceptions — always "
         "translate them into their standard WoW "
@@ -1320,6 +1323,349 @@ def get_language_rule() -> str:
         f"in {_language} no matter what language that "
         "context is in."
     )
+
+
+# Maps the resolved language label (see _LANGUAGE_LABELS)
+# to the WoW client locale code used by Blizzard's own
+# localized data in acore_world.*_locale tables (e.g.
+# creature_template_locale). Only languages we actually
+# have locale data for are listed here; any language
+# label not present (including "" / English) simply has
+# no lookup performed and callers fall back to the
+# English name they already have in hand.
+_LANGUAGE_LOCALE_CODES = {
+    "Russian": "ruRU",
+}
+
+
+def get_language_locale_code() -> Optional[str]:
+    """Return the WoW client locale code (e.g. 'ruRU')
+    for the currently configured LLMChatter.Language, or
+    None if there's no locale data mapped for it (English
+    default, or a language we haven't added data for yet).
+    """
+    return _LANGUAGE_LOCALE_CODES.get(_language)
+
+
+# Cache for Blizzard-localized creature/NPC names, keyed
+# by (entry, locale). A given entry+locale pair's name
+# never changes at runtime, so cache indefinitely — mirrors
+# the _dungeon_boss_cache pattern above.
+_creature_name_locale_cache: Dict[
+    Tuple[int, str], Optional[str]
+] = {}
+
+
+def get_localized_creature_name(
+    db, entry: Optional[int], locale: Optional[str]
+) -> Optional[str]:
+    """Look up the Blizzard-localized creature name from
+    acore_world.creature_template_locale.
+
+    Returns None (caller should fall back to the English
+    name already in hand) when entry/locale is missing,
+    the entry has no localization row for that locale
+    (~16% of creature_template lacks ruRU coverage), or
+    the query fails for any reason.
+    """
+    if not entry or not locale:
+        return None
+    try:
+        entry = int(entry)
+    except (TypeError, ValueError):
+        return None
+
+    cache_key = (entry, locale)
+    if cache_key in _creature_name_locale_cache:
+        return _creature_name_locale_cache[cache_key]
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT Name FROM "
+            "acore_world.creature_template_locale "
+            "WHERE entry = %s AND locale = %s",
+            (entry, locale),
+        )
+        row = cursor.fetchone()
+        name = (
+            row['Name']
+            if row and row.get('Name') else None
+        )
+        _creature_name_locale_cache[cache_key] = name
+        return name
+    except Exception:
+        logger.error(
+            "get_localized_creature_name failed for "
+            "entry %s locale %s",
+            entry, locale, exc_info=True,
+        )
+        # Don't cache exceptions -- a transient DB
+        # hiccup shouldn't permanently poison the
+        # cache the way a genuine "not found" should.
+        return None
+
+
+def localize_creature_name(
+    db, name: str, entry: Optional[int] = None
+) -> str:
+    """Return the Blizzard-localized creature/NPC name
+    for the configured LLMChatter.Language when available,
+    otherwise return `name` unchanged.
+
+    Safe no-op (returns `name` as-is) when: the configured
+    language has no locale mapping (e.g. English default),
+    no creature entry ID was supplied, or the entry has no
+    matching row in creature_template_locale.
+    """
+    locale = get_language_locale_code()
+    if not locale or not entry:
+        return name
+    localized = get_localized_creature_name(
+        db, entry, locale
+    )
+    return localized or name
+
+
+# Cache for Blizzard-localized item names, keyed by
+# (entry, locale). Mirrors _creature_name_locale_cache.
+_item_name_locale_cache: Dict[
+    Tuple[int, str], Optional[str]
+] = {}
+
+
+def get_localized_item_name(
+    db, entry: Optional[int], locale: Optional[str]
+) -> Optional[str]:
+    """Look up the Blizzard-localized item name from
+    acore_world.item_template_locale.
+
+    Returns None (caller should fall back to the English
+    name already in hand) when entry/locale is missing,
+    the entry has no localization row for that locale, or
+    the query fails for any reason.
+
+    Note: item_template_locale's PK column is named `ID`
+    (not `entry` like creature_template_locale).
+    """
+    if not entry or not locale:
+        return None
+    try:
+        entry = int(entry)
+    except (TypeError, ValueError):
+        return None
+
+    cache_key = (entry, locale)
+    if cache_key in _item_name_locale_cache:
+        return _item_name_locale_cache[cache_key]
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT Name FROM "
+            "acore_world.item_template_locale "
+            "WHERE ID = %s AND locale = %s",
+            (entry, locale),
+        )
+        row = cursor.fetchone()
+        name = (
+            row['Name']
+            if row and row.get('Name') else None
+        )
+        _item_name_locale_cache[cache_key] = name
+        return name
+    except Exception:
+        logger.error(
+            "get_localized_item_name failed for "
+            "entry %s locale %s",
+            entry, locale, exc_info=True,
+        )
+        # Don't cache exceptions -- a transient DB
+        # hiccup shouldn't permanently poison the
+        # cache the way a genuine "not found" should.
+        return None
+
+
+def localize_item_name(
+    db, name: str, entry: Optional[int] = None
+) -> str:
+    """Return the Blizzard-localized item name for the
+    configured LLMChatter.Language when available,
+    otherwise return `name` unchanged.
+
+    Safe no-op (returns `name` as-is) when: the configured
+    language has no locale mapping, no item entry ID was
+    supplied, or the entry has no matching row in
+    item_template_locale.
+    """
+    locale = get_language_locale_code()
+    if not locale or not entry:
+        return name
+    localized = get_localized_item_name(
+        db, entry, locale
+    )
+    return localized or name
+
+
+# Cache for Blizzard-localized quest titles, keyed by
+# (quest_id, locale). Mirrors _creature_name_locale_cache.
+_quest_name_locale_cache: Dict[
+    Tuple[int, str], Optional[str]
+] = {}
+
+
+def get_localized_quest_name(
+    db, quest_id: Optional[int], locale: Optional[str]
+) -> Optional[str]:
+    """Look up the Blizzard-localized quest title from
+    acore_world.quest_template_locale.
+
+    Returns None (caller should fall back to the English
+    name already in hand) when quest_id/locale is missing,
+    the quest has no localization row for that locale, or
+    the query fails for any reason.
+
+    Note: quest_template_locale's PK column is named `ID`
+    (not `entry`/`quest_id`).
+    """
+    if not quest_id or not locale:
+        return None
+    try:
+        quest_id = int(quest_id)
+    except (TypeError, ValueError):
+        return None
+
+    cache_key = (quest_id, locale)
+    if cache_key in _quest_name_locale_cache:
+        return _quest_name_locale_cache[cache_key]
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT Title FROM "
+            "acore_world.quest_template_locale "
+            "WHERE ID = %s AND locale = %s",
+            (quest_id, locale),
+        )
+        row = cursor.fetchone()
+        title = (
+            row['Title']
+            if row and row.get('Title') else None
+        )
+        _quest_name_locale_cache[cache_key] = title
+        return title
+    except Exception:
+        logger.error(
+            "get_localized_quest_name failed for "
+            "quest_id %s locale %s",
+            quest_id, locale, exc_info=True,
+        )
+        # Don't cache exceptions -- a transient DB
+        # hiccup shouldn't permanently poison the
+        # cache the way a genuine "not found" should.
+        return None
+
+
+def localize_quest_name(
+    db, name: str, quest_id: Optional[int] = None
+) -> str:
+    """Return the Blizzard-localized quest title for the
+    configured LLMChatter.Language when available,
+    otherwise return `name` unchanged.
+
+    Safe no-op (returns `name` as-is) when: the configured
+    language has no locale mapping, no quest ID was
+    supplied, or the quest has no matching row in
+    quest_template_locale.
+    """
+    locale = get_language_locale_code()
+    if not locale or not quest_id:
+        return name
+    localized = get_localized_quest_name(
+        db, quest_id, locale
+    )
+    return localized or name
+
+
+# Cache for Blizzard-localized creature/NPC titles
+# (SubName), keyed by (entry, locale). Mirrors
+# _creature_name_locale_cache -- a parallel lookup since
+# creature_template_locale carries Name and Title as
+# separate columns.
+_creature_title_locale_cache: Dict[
+    Tuple[int, str], Optional[str]
+] = {}
+
+
+def get_localized_creature_title(
+    db, entry: Optional[int], locale: Optional[str]
+) -> Optional[str]:
+    """Look up the Blizzard-localized creature title
+    (SubName) from acore_world.creature_template_locale.
+
+    Returns None (caller should fall back to the English
+    title already in hand) when entry/locale is missing,
+    the entry has no localization row for that locale, the
+    row's Title is empty (many creatures have no SubName),
+    or the query fails for any reason.
+    """
+    if not entry or not locale:
+        return None
+    try:
+        entry = int(entry)
+    except (TypeError, ValueError):
+        return None
+
+    cache_key = (entry, locale)
+    if cache_key in _creature_title_locale_cache:
+        return _creature_title_locale_cache[cache_key]
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT Title FROM "
+            "acore_world.creature_template_locale "
+            "WHERE entry = %s AND locale = %s",
+            (entry, locale),
+        )
+        row = cursor.fetchone()
+        title = (
+            row['Title']
+            if row and row.get('Title') else None
+        )
+        _creature_title_locale_cache[cache_key] = title
+        return title
+    except Exception:
+        logger.error(
+            "get_localized_creature_title failed for "
+            "entry %s locale %s",
+            entry, locale, exc_info=True,
+        )
+        # Don't cache exceptions -- a transient DB
+        # hiccup shouldn't permanently poison the
+        # cache the way a genuine "not found" should.
+        return None
+
+
+def localize_creature_title(
+    db, title: str, entry: Optional[int] = None
+) -> str:
+    """Return the Blizzard-localized creature/NPC title
+    (SubName) for the configured LLMChatter.Language when
+    available, otherwise return `title` unchanged.
+
+    Safe no-op (returns `title` as-is) when: the configured
+    language has no locale mapping, no creature entry ID
+    was supplied, or the entry has no matching Title row in
+    creature_template_locale.
+    """
+    locale = get_language_locale_code()
+    if not locale or not entry:
+        return title
+    localized = get_localized_creature_title(
+        db, entry, locale
+    )
+    return localized or title
 
 
 def set_emote_chance(chance_pct: int):

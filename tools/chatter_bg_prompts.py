@@ -22,6 +22,7 @@ from chatter_shared import (
     build_anti_repetition_context,
     get_recent_zone_messages,
     append_json_instruction,
+    localize_creature_name,
 )
 from chatter_prompts import (
     pick_personality_spices,
@@ -796,8 +797,11 @@ def build_bg_combat_prompt(
 ):
     """Combat pull reaction in BG context."""
     ctx = _bg_base_context(extra_data, bot_data)
-    creature = extra_data.get(
-        'creature_name', 'enemies')
+    creature = localize_creature_name(
+        extra_data.get('_db'),
+        extra_data.get(
+            'creature_name', 'enemies'),
+        extra_data.get('creature_entry'))
     is_boss = bool(int(
         extra_data.get('is_boss', 0)))
     if is_boss:
