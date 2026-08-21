@@ -953,6 +953,88 @@ bool IsLikelyPlayerbotControlCommand(
     if (msg.empty())
         return false;
 
+    // Playerbots @target selector syntax is control traffic,
+    // not conversational content.
+    if (msg[0] == '@')
+    {
+        size_t selectorEnd = msg.find_first_of(" \t");
+        std::string selector =
+            msg.substr(0, selectorEnd);
+
+        static std::unordered_set<std::string>
+            selectorPrefixes = {
+                "@tank", "@dps", "@heal",
+                "@ranged", "@melee",
+                "@rangeddps", "@meleedps",
+                "@dk", "@druid", "@hunter",
+                "@mage", "@paladin", "@priest",
+                "@rogue", "@shaman", "@warlock",
+                "@warrior",
+                "@star", "@circle", "@diamond",
+                "@triangle", "@moon", "@square",
+                "@cross", "@skull",
+                "@hpal", "@ppal", "@rpal",
+                "@disc", "@hpr", "@spr",
+                "@arc", "@frost", "@fire",
+                "@arms", "@fury", "@pwar",
+                "@affl", "@demo", "@dest",
+                "@ele", "@enh", "@rsha",
+                "@bal", "@rdru",
+                "@bmh", "@mmh", "@svh",
+                "@mut", "@comb", "@sub",
+                "@fdk", "@udk"
+            };
+
+        bool knownSelector =
+            selectorPrefixes.find(selector)
+                != selectorPrefixes.end()
+            || selector.rfind("@group", 0) == 0
+            || selector.rfind("@aura", 0) == 0
+            || selector.rfind("@noaura", 0) == 0
+            || selector.rfind("@aggroby", 0) == 0;
+
+        auto isDigits = [](std::string const& value)
+        {
+            if (value.empty())
+                return false;
+
+            return std::all_of(
+                value.begin(), value.end(),
+                [](unsigned char c)
+                {
+                    return std::isdigit(c) != 0;
+                });
+        };
+
+        if (!knownSelector && selector.size() > 1)
+        {
+            std::string levelSelector =
+                selector.substr(1);
+            size_t dash = levelSelector.find('-');
+
+            knownSelector =
+                isDigits(levelSelector)
+                || (dash != std::string::npos
+                    && isDigits(
+                        levelSelector.substr(0, dash))
+                    && isDigits(
+                        levelSelector.substr(dash + 1)));
+        }
+
+        if (knownSelector)
+            return true;
+
+        // Also support @command forms such as @follow while
+        // preserving normal @name conversation.
+        msg.erase(0, 1);
+        size_t commandStart =
+            msg.find_first_not_of(" \t");
+        if (commandStart == std::string::npos)
+            return true;
+        if (commandStart > 0)
+            msg.erase(0, commandStart);
+    }
+
     static std::unordered_set<std::string>
         exactCommands = {
             "u", "c", "e", "s", "b", "r", "t",
