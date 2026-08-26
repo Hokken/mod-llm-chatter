@@ -129,7 +129,7 @@ def _pick_random_traits():
 
 
 def _pick_length_hint(mode):
-    """Pick a random length hint.
+    """Pick a random length hint."""
     is_rp = (mode == 'roleplay')
     pool = RP_LENGTH_HINTS if is_rp else LENGTH_HINTS
     hint = random.choice(pool)
