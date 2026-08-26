@@ -35,6 +35,7 @@ from chatter_constants import (
     BG_MAP_NAMES,
     BG_LORE,
     CLASS_ROLE_MAP,
+    PLAYER_REPLY_EXCLUDED_TWISTS,
 )
 
 logger = logging.getLogger(__name__)
@@ -2086,7 +2087,8 @@ def build_player_response_prompt(
     trait_str = ', '.join(traits)
     tone = stored_tone or pick_random_tone(mode)
     twist = maybe_get_creative_twist(
-        chance=1.0, mode=mode
+        chance=0.15, mode=mode,
+        exclude=PLAYER_REPLY_EXCLUDED_TWISTS,
     )
 
 

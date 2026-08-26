@@ -2406,6 +2406,15 @@ RP_CREATIVE_TWISTS = [
     "Mock the situation with dry wit",
 ]
 
+# Twists that can be excluded from player questions
+PLAYER_REPLY_EXCLUDED_TWISTS = [
+    "Respond to an imaginary previous message",
+    "Change topic abruptly",
+    "Agree with something nobody said",
+    "Disagree politely with thin air",
+    "Change the subject abruptly",
+]
+
 RP_GOSSIP_CREATIVE_TWISTS = [
     "Frame it as something heard from another traveler",
     "Mention a small rumor without claiming certainty",

@@ -52,6 +52,7 @@ from chatter_constants import (
     PERSONALITY_TRAITS,
     RACE_SPEECH_PROFILES,
     LENGTH_HINTS, RP_LENGTH_HINTS,
+    PLAYER_REPLY_EXCLUDED_TWISTS,
 )
 from chatter_links import resolve_and_format_links
 from chatter_db import (
@@ -128,7 +129,7 @@ def _pick_random_traits():
 
 
 def _pick_length_hint(mode):
-    """Pick a random length hint."""
+    """Pick a random length hint.
     is_rp = (mode == 'roleplay')
     pool = RP_LENGTH_HINTS if is_rp else LENGTH_HINTS
     hint = random.choice(pool)
@@ -138,17 +139,9 @@ def _pick_length_hint(mode):
             f"Length: {hint}\n"
             f"Length mode: longer allowed "
             f"(up to ~150 chars max) — one "
-            f"sentence\n"
-            f"HARD LIMIT: Never exceed 150 "
-            f"characters total"
+            f"sentence — follow this closely."
         )
-    return (
-        f"Length: {hint}\n"
-        f"Length mode: short/medium only "
-        f"(avoid long messages)\n"
-        f"HARD LIMIT: Never exceed 150 "
-        f"characters total"
-    )
+    return f"Length: {hint} — follow this closely."
 
 
 
@@ -361,7 +354,8 @@ def _build_general_response_prompt(
     tone = pick_random_tone(mode)
     mood = pick_random_mood(mode)
     twist = maybe_get_creative_twist(
-        chance=1.0, mode=mode
+        chance=0.15, mode=mode,
+        exclude=PLAYER_REPLY_EXCLUDED_TWISTS,
     )
 
     rp_context = ""
@@ -471,8 +465,6 @@ def _build_general_response_prompt(
         f"- Don't repeat what they said\n"
         f"- If there's chat history, stay "
         f"consistent with the conversation\n"
-        f"- Keep it brief - this is General chat, "
-        f"not a private conversation\n"
     )
     spices = pick_personality_spices(
         mode=mode, spice_count_override=_spice_count
