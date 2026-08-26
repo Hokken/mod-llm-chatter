@@ -857,7 +857,11 @@ def parse_config(config_path: str) -> dict:
     """Parse the WoW-style config file."""
     config = {}
     try:
-        with open(config_path, 'r') as f:
+        # utf-8-sig: reads UTF-8, strips a BOM if present, and stays
+        # correct for pure-ASCII files. Without an explicit encoding,
+        # open() defaults to the OS locale (cp1252 on Windows), which
+        # cannot decode common UTF-8 bytes and killed the bridge silently.
+        with open(config_path, 'r', encoding='utf-8-sig') as f:
             for line in f:
                 line = line.strip()
                 if not line or line.startswith('#'):
@@ -866,6 +870,12 @@ def parse_config(config_path: str) -> dict:
                     key, value = line.split('=', 1)
                     config[key.strip()] = value.strip()
     except Exception as e:
+        logger.error(
+            "FATAL: could not read config file %s: %s: %s",
+            config_path,
+            type(e).__name__,
+            e,
+        )
         sys.exit(1)
     return config
 
