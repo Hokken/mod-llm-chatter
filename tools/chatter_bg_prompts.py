@@ -17,6 +17,7 @@ import random
 
 from chatter_shared import (
     get_class_name,
+    get_bg_lore,
     build_race_class_context,
     build_bot_identity,
     build_anti_repetition_context,
@@ -27,7 +28,6 @@ from chatter_prompts import (
     pick_personality_spices,
     build_environmental_context_lines,
 )
-from chatter_constants import BG_LORE
 
 LOG = logging.getLogger("chatter_bg_prompts")
 
@@ -85,7 +85,7 @@ def _bg_base_context(
     if config is None:
         config = extra_data.get('_config')
     bg_type_id = int(extra_data.get('bg_type_id', 0))
-    lore = BG_LORE.get(bg_type_id, {})
+    lore = get_bg_lore(bg_type_id)
     team = extra_data.get('team', 'Unknown')
 
     faction_name = lore.get(

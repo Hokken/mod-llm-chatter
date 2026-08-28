@@ -17,11 +17,17 @@ import time
 from typing import Optional, Dict, List, Tuple, Any
 
 from chatter_constants import (
-    ZONE_LEVELS, ZONE_NAMES,
+    ZONE_LEVELS, ZONE_NAMES, ZONE_NAMES_RU, ZONE_NAMES_FR, ZONE_NAMES_DE,
+    ZONE_NAMES_ES, ZONE_NAMES_KO,
     CLASS_NAMES, RACE_NAMES,
-    RACE_SPEECH_PROFILES, CLASS_SPEECH_MODIFIERS,
+    RACE_SPEECH_PROFILES, RACE_SPEECH_PROFILES_RU, RACE_SPEECH_PROFILES_FR,
+    RACE_SPEECH_PROFILES_DE, RACE_SPEECH_PROFILES_ES,
+    CLASS_SPEECH_MODIFIERS,
     CLASS_ROLE_MAP, ROLE_COMBAT_PERSPECTIVES,
-    ZONE_FLAVOR, DUNGEON_FLAVOR,
+    ZONE_FLAVOR, ZONE_FLAVOR_RU, ZONE_FLAVOR_FR, ZONE_FLAVOR_DE, ZONE_FLAVOR_ES,
+    DUNGEON_FLAVOR, DUNGEON_FLAVOR_RU, DUNGEON_FLAVOR_FR, DUNGEON_FLAVOR_DE,
+    DUNGEON_FLAVOR_ES,
+    BG_LORE, BG_LORE_RU, BG_LORE_FR, BG_LORE_DE, BG_LORE_ES,
     ITEM_QUALITY_COLORS, ITEM_QUALITY_NAMES,
     ITEM_CLASS_NAMES, WEAPON_SUBCLASS_NAMES,
     ARMOR_SUBCLASS_NAMES, CLASS_BITMASK,
@@ -277,12 +283,85 @@ def pick_random_max_tokens(config: dict) -> int:
 
 
 # =============================================================================
+# Maps a WoW client locale code (see _LANGUAGE_LOCALE_CODES
+# above) to the corresponding locale-specific zone-name
+# dict. Add further locales here (mirroring
+# _LANGUAGE_LOCALE_CODES) as more locale-specific zone-name
+# data becomes available.
+#
+# Provenance differs by locale, and that difference matters:
+#   - ruRU (ZONE_NAMES_RU): extracted directly from
+#     Blizzard's own ruRU AreaTable.dbc client data --
+#     100% authoritative.
+#   - frFR / deDE (ZONE_NAMES_FR / ZONE_NAMES_DE): sourced
+#     from warcraft.wiki.gg's community-maintained
+#     "LocalizedMapZones" addon-localization table, NOT from
+#     an official Blizzard client data extraction. Names are
+#     likely accurate (real translated zone names, not
+#     guesses) but have not been independently verified
+#     against official client data, and coverage is known to
+#     be incomplete -- French in particular is missing most/
+#     all of Northrend and a handful of other zones. Missing
+#     entries simply fall back to English below rather than
+#     being guessed at.
+#   - esES (ZONE_NAMES_ES): mixed provenance -- most entries
+#     sourced from an old (2007) Spanish WoW fan blog
+#     (worldofwarcraftesp.blogspot.com), community-sourced
+#     and unverified like frFR/deDE above, but nine entries
+#     (Borean Tundra, Howling Fjord, Hellfire Peninsula,
+#     Dragonblight, Grizzly Hills, Zul'Drak, Sholazar Basin,
+#     The Storm Peaks, Icecrown) come from an official
+#     Blizzard press source instead (news.blizzard.com/es-es)
+#     and are genuinely higher-confidence -- see the inline
+#     comments on those nine entries in ZONE_NAMES_ES above
+#     for details.
+#   - frFR (ZONE_NAMES_FR) also has 8 Northrend entries
+#     (Borean Tundra, Howling Fjord, Dragonblight, Grizzly
+#     Hills, Zul'Drak, Sholazar Basin, The Storm Peaks,
+#     Icecrown) sourced the same official way
+#     (news.blizzard.com/fr-fr), layered on top of the rest
+#     of the wiki-sourced frFR data described above.
+#   - koKR (ZONE_NAMES_KO): a brand-new locale, covering only
+#     8 Northrend zones (the same set as the frFR/esES
+#     official-source additions above), sourced entirely from
+#     official Blizzard ko-kr press articles
+#     (news.blizzard.com/ko-kr). koKR creature/item/quest
+#     names above were already live (sourced from
+#     acore_world.*_locale, which does carry that locale);
+#     this is the first koKR zone-name data. Every zone
+#     outside those 8 falls back to English via
+#     get_zone_name(), same as the other locales.
+_ZONE_NAME_LOCALE_MAPS: Dict[str, Dict[int, str]] = {
+    "ruRU": ZONE_NAMES_RU,
+    "frFR": ZONE_NAMES_FR,
+    "deDE": ZONE_NAMES_DE,
+    "esES": ZONE_NAMES_ES,
+    "koKR": ZONE_NAMES_KO,
+}
+
+
 def get_zone_name(zone_id: int) -> Optional[str]:
     """Get human-readable zone name from zone ID.
+
+    Prefers the localized name for the configured
+    LLMChatter.Language (via _ZONE_NAME_LOCALE_MAPS) when
+    available, falling back to the static English ZONE_NAMES
+    entry, mirroring the same fallback-safe pattern used for
+    creature/item/quest name localization. See the
+    _ZONE_NAME_LOCALE_MAPS comment above for the differing
+    provenance/confidence of each locale's data (ruRU is
+    DBC-extracted and authoritative; frFR/deDE are
+    community-wiki-sourced and unverified against official
+    client data).
 
     Returns None when the zone ID is unknown to avoid
     injecting 'zone 123' placeholder text into prompts.
     """
+    locale = get_language_locale_code()
+    if locale:
+        localized_map = _ZONE_NAME_LOCALE_MAPS.get(locale)
+        if localized_map and zone_id in localized_map:
+            return localized_map[zone_id]
     if zone_id in ZONE_NAMES:
         return ZONE_NAMES[zone_id]
     return None
@@ -470,7 +549,7 @@ def build_race_class_context(
 ) -> str:
     """Build an RP personality fragment for prompts."""
     parts = []
-    profile = RACE_SPEECH_PROFILES.get(race)
+    profile = get_race_speech_profile(race)
     if profile:
         traits = profile['traits']
         if isinstance(traits, list):
@@ -543,7 +622,7 @@ def build_race_class_context_parts(
     shared_race_parts = []
     shared_class_parts = []
 
-    profile = RACE_SPEECH_PROFILES.get(race)
+    profile = get_race_speech_profile(race)
     if profile:
         # Per-bot: traits (random choice) + vocab phrase
         traits = profile['traits']
@@ -882,14 +961,129 @@ def get_zone_level_range(
     return (max(1, bot_level - 5), bot_level + 5)
 
 
+# Locale-keyed zone flavor text maps, mirroring
+# _ZONE_NAME_LOCALE_MAPS above. Only ruRU has a translated
+# ZONE_FLAVOR_RU dict so far; any other locale (or zone_id
+# missing from the localized map) falls back to the English
+# ZONE_FLAVOR via get_zone_flavor() below.
+_ZONE_FLAVOR_LOCALE_MAPS: Dict[str, Dict[int, str]] = {
+    "ruRU": ZONE_FLAVOR_RU,
+    "frFR": ZONE_FLAVOR_FR,
+    "deDE": ZONE_FLAVOR_DE,
+    "esES": ZONE_FLAVOR_ES,
+}
+
+
+# Locale-keyed race speech profile maps, mirroring
+# _ZONE_FLAVOR_LOCALE_MAPS above. Only ruRU has a translated
+# RACE_SPEECH_PROFILES_RU dict so far; any other locale (or
+# race missing from the localized map) falls back to the
+# static English RACE_SPEECH_PROFILES via
+# get_race_speech_profile() below.
+_RACE_SPEECH_LOCALE_MAPS: Dict[str, Dict[str, Dict]] = {
+    "ruRU": RACE_SPEECH_PROFILES_RU,
+    "frFR": RACE_SPEECH_PROFILES_FR,
+    "deDE": RACE_SPEECH_PROFILES_DE,
+    "esES": RACE_SPEECH_PROFILES_ES,
+}
+
+
+def get_race_speech_profile(race: str) -> Optional[Dict]:
+    """Get race speech profile for prompt context.
+
+    Prefers the localized profile for the configured
+    LLMChatter.Language (via _RACE_SPEECH_LOCALE_MAPS) when
+    available, falling back to the static English
+    RACE_SPEECH_PROFILES entry, mirroring get_zone_flavor()'s
+    locale-fallback pattern.
+    """
+    locale = get_language_locale_code()
+    if locale:
+        localized_map = _RACE_SPEECH_LOCALE_MAPS.get(locale)
+        if localized_map and race in localized_map:
+            return localized_map[race]
+    return RACE_SPEECH_PROFILES.get(race)
+
+
 def get_zone_flavor(zone_id: int) -> Optional[str]:
-    """Get rich zone flavor text for immersive context."""
+    """Get rich zone flavor text for immersive context.
+
+    Prefers the localized flavor text for the configured
+    LLMChatter.Language (via _ZONE_FLAVOR_LOCALE_MAPS) when
+    available, falling back to the static English ZONE_FLAVOR
+    entry, mirroring get_zone_name()'s locale-fallback pattern.
+
+    Returns None when the zone ID has no flavor text at all
+    (8 zones aren't covered even in English), exactly as before.
+    """
+    locale = get_language_locale_code()
+    if locale:
+        localized_map = _ZONE_FLAVOR_LOCALE_MAPS.get(locale)
+        if localized_map and zone_id in localized_map:
+            return localized_map[zone_id]
     return ZONE_FLAVOR.get(zone_id)
 
 
+# Locale-keyed dungeon/raid flavor text maps, mirroring
+# _ZONE_FLAVOR_LOCALE_MAPS above. Only ruRU has a translated
+# DUNGEON_FLAVOR_RU dict so far; any other locale (or map_id
+# missing from the localized map) falls back to the static
+# English DUNGEON_FLAVOR via get_dungeon_flavor() below.
+_DUNGEON_FLAVOR_LOCALE_MAPS: Dict[str, Dict[int, str]] = {
+    "ruRU": DUNGEON_FLAVOR_RU,
+    "frFR": DUNGEON_FLAVOR_FR,
+    "deDE": DUNGEON_FLAVOR_DE,
+    "esES": DUNGEON_FLAVOR_ES,
+}
+
+
 def get_dungeon_flavor(map_id: int) -> Optional[str]:
-    """Get dungeon/raid flavor text by map ID."""
+    """Get dungeon/raid flavor text by map ID.
+
+    Prefers the localized flavor text for the configured
+    LLMChatter.Language (via _DUNGEON_FLAVOR_LOCALE_MAPS) when
+    available, falling back to the static English
+    DUNGEON_FLAVOR entry, mirroring get_zone_flavor()'s
+    locale-fallback pattern.
+    """
+    locale = get_language_locale_code()
+    if locale:
+        localized_map = _DUNGEON_FLAVOR_LOCALE_MAPS.get(locale)
+        if localized_map and map_id in localized_map:
+            return localized_map[map_id]
     return DUNGEON_FLAVOR.get(map_id)
+
+
+# Locale-keyed battleground lore maps, mirroring
+# _DUNGEON_FLAVOR_LOCALE_MAPS above. Only ruRU has a translated
+# BG_LORE_RU dict so far; any other locale (or bg_type_id missing
+# from the localized map) falls back to the static English BG_LORE
+# entry via get_bg_lore() below.
+_BG_LORE_LOCALE_MAPS: Dict[str, Dict[int, Dict]] = {
+    "ruRU": BG_LORE_RU,
+    "frFR": BG_LORE_FR,
+    "deDE": BG_LORE_DE,
+    "esES": BG_LORE_ES,
+}
+
+
+def get_bg_lore(bg_type_id: int) -> Dict:
+    """Get battleground lore dict by bg_type_id.
+
+    Prefers the localized lore dict for the configured
+    LLMChatter.Language (via _BG_LORE_LOCALE_MAPS) when
+    available, falling back to the static English BG_LORE
+    entry, mirroring get_zone_flavor()'s locale-fallback
+    pattern. Returns {} (not None) when bg_type_id has no
+    lore at all, matching BG_LORE.get(bg_type_id, {})
+    semantics.
+    """
+    locale = get_language_locale_code()
+    if locale:
+        localized_map = _BG_LORE_LOCALE_MAPS.get(locale)
+        if localized_map and bg_type_id in localized_map:
+            return localized_map[bg_type_id]
+    return BG_LORE.get(bg_type_id, {})
 
 
 def get_group_area(db, group_id: int) -> int:
@@ -1311,6 +1505,32 @@ def get_language_rule() -> str:
         f"use. Your entire output must be in {_language} "
         "no matter what language that context is in."
     )
+
+
+# Maps the resolved language label (see _LANGUAGE_LABELS)
+# to the WoW client locale code used by Blizzard's own
+# localized data in acore_world.*_locale tables (e.g.
+# creature_template_locale). Only languages we actually
+# have locale data for are listed here; any language
+# label not present (including "" / English) simply has
+# no lookup performed and callers fall back to the
+# English name they already have in hand.
+_LANGUAGE_LOCALE_CODES = {
+    "Russian": "ruRU",
+    "French": "frFR",
+    "German": "deDE",
+    "Spanish": "esES",
+    "Korean": "koKR",
+}
+
+
+def get_language_locale_code() -> Optional[str]:
+    """Return the WoW client locale code (e.g. 'ruRU')
+    for the currently configured LLMChatter.Language, or
+    None if there's no locale data mapped for it (English
+    default, or a language we haven't added data for yet).
+    """
+    return _LANGUAGE_LOCALE_CODES.get(_language)
 
 
 def set_emote_chance(chance_pct: int):
