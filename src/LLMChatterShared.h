@@ -7,10 +7,16 @@
 #include <map>
 #include <string>
 
+struct AchievementEntry;
+struct CharTitlesEntry;
 class Creature;
+class GameObject;
 class Group;
+struct ItemTemplate;
 class Map;
 class Player;
+class Quest;
+class SpellInfo;
 class Unit;
 
 enum class LLMChatterPriorityBand : uint8
@@ -54,6 +60,22 @@ bool IsSafeForChatterFacing(Unit* unit);
 void UpdateGroupBotTravelState(Player* player, uint32 groupId = 0);
 std::string ConvertAllLinks(const std::string& text);
 std::string GetZoneName(uint32 zoneId);
+
+// Locale-aware name/text lookups (mirror the fallback semantics of
+// GetZoneName() above: prefer sWorld->GetDefaultDbcLocale(), fall back
+// to the English-default value baked into the template/DBC row, never
+// throw on a missing locale entry).
+std::string GetLocalizedCreatureName(Creature* creature);
+std::string GetLocalizedCreatureSubName(Creature* creature);
+std::string GetLocalizedGameObjectName(GameObject* go);
+std::string GetLocalizedUnitName(Unit* unit);
+std::string GetLocalizedItemName(ItemTemplate const* tmpl);
+std::string GetLocalizedQuestTitle(Quest const* quest);
+std::string GetLocalizedQuestDetails(Quest const* quest);
+std::string GetLocalizedQuestObjectives(Quest const* quest);
+std::string GetLocalizedSpellName(SpellInfo const* spellInfo);
+std::string GetLocalizedAchievementName(AchievementEntry const* achievement);
+std::string GetLocalizedTitleName(CharTitlesEntry const* title, uint8 gender);
 uint32 GetTextEmoteId(const std::string& emoteName);
 bool IsBGAllowedEmote(const std::string& emoteName);
 void PlayUnitTextEmoteAnimation(Unit* unit, uint32 textEmoteId);

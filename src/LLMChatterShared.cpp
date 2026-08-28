@@ -12,14 +12,20 @@
 #include "CreatureAI.h"
 #include "DatabaseEnv.h"
 #include "DBCStores.h"
+#include "GameObject.h"
 #include "Group.h"
+#include "ItemTemplate.h"
 #include "Log.h"
 #include "Map.h"
 #include "MotionMaster.h"
+#include "ObjectMgr.h"
 #include "Player.h"
 #include "Playerbots.h"
+#include "QuestDef.h"
 #include "RandomPlayerbotMgr.h"
+#include "SpellInfo.h"
 #include "Transport.h"
+#include "Unit.h"
 #include "Util.h"
 #include "World.h"
 #include "WorldSession.h"
@@ -1273,6 +1279,204 @@ std::string GetZoneName(uint32 zoneId)
     return "Unknown Zone";
 }
 
+// ---------------------------------------------------------------------
+// Locale-aware name/text lookups.
+//
+// All of these key off sWorld->GetDefaultDbcLocale() -- the same
+// server-wide "DBC locale" mechanism GetZoneName() above already uses
+// -- and gracefully fall back to the English-default value (the field
+// already baked into the in-memory template/DBC row) whenever no
+// locale-specific row exists. None of them can throw or crash on a
+// missing locale entry; a missing/null lookup simply falls through to
+// the default-locale value.
+// ---------------------------------------------------------------------
+
+std::string GetLocalizedCreatureName(Creature* creature)
+{
+    if (!creature)
+        return "";
+
+    LocaleConstant locale = sWorld->GetDefaultDbcLocale();
+    return creature->GetNameForLocaleIdx(locale);
+}
+
+std::string GetLocalizedCreatureSubName(Creature* creature)
+{
+    if (!creature)
+        return "";
+
+    CreatureTemplate const* tmpl =
+        creature->GetCreatureTemplate();
+    if (!tmpl)
+        return "";
+
+    LocaleConstant locale = sWorld->GetDefaultDbcLocale();
+    if (locale != LOCALE_enUS)
+    {
+        if (CreatureLocale const* cl =
+                sObjectMgr->GetCreatureLocale(
+                    creature->GetEntry()))
+        {
+            if (cl->Title.size() > (size_t)locale
+                && !cl->Title[locale].empty())
+                return cl->Title[locale];
+        }
+    }
+
+    return tmpl->SubName;
+}
+
+std::string GetLocalizedGameObjectName(GameObject* go)
+{
+    if (!go)
+        return "";
+
+    LocaleConstant locale = sWorld->GetDefaultDbcLocale();
+    return go->GetNameForLocaleIdx(locale);
+}
+
+std::string GetLocalizedUnitName(Unit* unit)
+{
+    if (!unit)
+        return "";
+
+    if (Creature* creature = unit->ToCreature())
+        return GetLocalizedCreatureName(creature);
+
+    return unit->GetName();
+}
+
+std::string GetLocalizedItemName(ItemTemplate const* tmpl)
+{
+    if (!tmpl)
+        return "";
+
+    LocaleConstant locale = sWorld->GetDefaultDbcLocale();
+    if (locale != LOCALE_enUS)
+    {
+        if (ItemLocale const* il =
+                sObjectMgr->GetItemLocale(tmpl->ItemId))
+        {
+            if (il->Name.size() > (size_t)locale
+                && !il->Name[locale].empty())
+                return il->Name[locale];
+        }
+    }
+
+    return tmpl->Name1;
+}
+
+std::string GetLocalizedQuestTitle(Quest const* quest)
+{
+    if (!quest)
+        return "";
+
+    LocaleConstant locale = sWorld->GetDefaultDbcLocale();
+    if (locale != LOCALE_enUS)
+    {
+        if (QuestLocale const* ql =
+                sObjectMgr->GetQuestLocale(
+                    quest->GetQuestId()))
+        {
+            if (ql->Title.size() > (size_t)locale
+                && !ql->Title[locale].empty())
+                return ql->Title[locale];
+        }
+    }
+
+    return quest->GetTitle();
+}
+
+std::string GetLocalizedQuestDetails(Quest const* quest)
+{
+    if (!quest)
+        return "";
+
+    LocaleConstant locale = sWorld->GetDefaultDbcLocale();
+    if (locale != LOCALE_enUS)
+    {
+        if (QuestLocale const* ql =
+                sObjectMgr->GetQuestLocale(
+                    quest->GetQuestId()))
+        {
+            if (ql->Details.size() > (size_t)locale
+                && !ql->Details[locale].empty())
+                return ql->Details[locale];
+        }
+    }
+
+    return quest->GetDetails();
+}
+
+std::string GetLocalizedQuestObjectives(Quest const* quest)
+{
+    if (!quest)
+        return "";
+
+    LocaleConstant locale = sWorld->GetDefaultDbcLocale();
+    if (locale != LOCALE_enUS)
+    {
+        if (QuestLocale const* ql =
+                sObjectMgr->GetQuestLocale(
+                    quest->GetQuestId()))
+        {
+            if (ql->Objectives.size() > (size_t)locale
+                && !ql->Objectives[locale].empty())
+                return ql->Objectives[locale];
+        }
+    }
+
+    return quest->GetObjectives();
+}
+
+std::string GetLocalizedSpellName(SpellInfo const* spellInfo)
+{
+    if (!spellInfo)
+        return "";
+
+    uint8 locale = sWorld->GetDefaultDbcLocale();
+    char const* name = spellInfo->SpellName[locale];
+    if (name && name[0] != '\0')
+        return name;
+
+    name = spellInfo->SpellName[LOCALE_enUS];
+    return name ? name : "";
+}
+
+std::string GetLocalizedAchievementName(AchievementEntry const* achievement)
+{
+    if (!achievement)
+        return "";
+
+    uint8 locale = sWorld->GetDefaultDbcLocale();
+    char const* name = achievement->name[locale];
+    if (name && name[0] != '\0')
+        return name;
+
+    name = achievement->name[LOCALE_enUS];
+    return name ? name : "";
+}
+
+std::string GetLocalizedTitleName(
+    CharTitlesEntry const* title, uint8 gender)
+{
+    if (!title)
+        return "";
+
+    uint8 locale = sWorld->GetDefaultDbcLocale();
+    char const* const* names =
+        (gender == GENDER_FEMALE)
+            ? title->nameFemale
+            : title->nameMale;
+
+    char const* name = names[locale];
+    if (name && name[0] != '\0')
+        return name;
+
+    name = names[LOCALE_enUS];
+    return name ? name : "";
+}
+
 std::string BuildBotIdentityFields(
     Player* player, bool includeRoles)
 {
@@ -1730,7 +1934,7 @@ std::string BuildBotStateJson(Player* player)
     std::string targetName;
     Unit* victim = player->GetVictim();
     if (victim)
-        targetName = victim->GetName();
+        targetName = GetLocalizedUnitName(victim);
 
     std::string botState = "non_combat";
     if (ai)
