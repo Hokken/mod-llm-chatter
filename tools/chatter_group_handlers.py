@@ -114,14 +114,19 @@ def _resolve_zone_name(
     db, group_id, extra_data_zone_name
 ):
     """Resolve the authoritative zone name for a
-    group using llm_group_bot_traits (single source
-    of truth, updated by C++ OnPlayerUpdateZone).
+    group.
 
-    Falls back to C++ extra_data zone_name if
-    the traits lookup fails.
+    Prefers the C++ extra_data zone_name (pushed by
+    OnPlayerUpdateZone), which is already correctly
+    Blizzard-localized. Falls back to the static
+    get_zone_name(zone_id) lookup via
+    llm_group_bot_traits only when extra_data has
+    nothing usable.
 
     Returns zone_name string.
     """
+    if extra_data_zone_name:
+        return extra_data_zone_name
     zone_id, _, _ = get_group_location(
         db, group_id
     )
@@ -131,7 +136,6 @@ def _resolve_zone_name(
             'zone '
         ):
             return resolved
-    # Fallback to C++ extra_data zone_name
     return extra_data_zone_name or 'somewhere'
 
 

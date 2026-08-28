@@ -340,6 +340,35 @@ _ZONE_NAME_LOCALE_MAPS: Dict[str, Dict[int, str]] = {
 }
 
 
+def _load_subzone_names_ru() -> Dict[int, str]:
+    """Load ruRU subzone names from subzone_names_ru.json.
+
+    Maps area_id -> Russian subzone name, extracted directly
+    from Blizzard's ruRU AreaTable.dbc (100% authoritative,
+    same provenance as ZONE_NAMES_RU). Returns {} when the
+    file is absent so the English subzone_lore.json fallback
+    still applies.
+    """
+    try:
+        path = os.path.join(
+            os.path.dirname(__file__),
+            "subzone_names_ru.json",
+        )
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return {
+            int(key): value
+            for key, value in data.get("subzones", {}).items()
+        }
+    except Exception:
+        return {}
+
+
+_SUBZONE_NAME_LOCALE_MAPS: Dict[str, Dict[int, str]] = {
+    "ruRU": _load_subzone_names_ru(),
+}
+
+
 def get_zone_name(zone_id: int) -> Optional[str]:
     """Get human-readable zone name from zone ID.
 
@@ -1170,12 +1199,19 @@ def get_subzone_lore(
 def get_subzone_name(
     zone_id: int, area_id: int
 ) -> Optional[str]:
-    """Get subzone name from subzone_lore.json.
+    """Get subzone name, localized when available.
 
-    Returns None if area equals zone or no entry.
+    Prefers the ruRU DBC-extracted name for the configured
+    locale, falling back to the English subzone_lore.json
+    entry. Returns None if area equals zone or no entry.
     """
     if not area_id or area_id == zone_id:
         return None
+    locale = get_language_locale_code()
+    if locale:
+        localized_map = _SUBZONE_NAME_LOCALE_MAPS.get(locale)
+        if localized_map and area_id in localized_map:
+            return localized_map[area_id]
     lore = _load_subzone_lore()
     zones = lore.get("zones", {})
     zdata = zones.get(str(zone_id), {})
