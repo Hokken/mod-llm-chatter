@@ -15,6 +15,7 @@ from chatter_constants import (
 from chatter_shared import (
     parse_extra_data, get_zone_name,
     run_single_reaction,
+    localize_creature_name,
 )
 from chatter_prompts import (
     build_zone_intrusion_prompt,
@@ -26,8 +27,17 @@ logger = logging.getLogger(__name__)
 # =============================================================================
 # EVENT CONTEXT BUILDING
 # =============================================================================
-def build_event_context(event: dict) -> str:
-    """Build context string for an event."""
+def build_event_context(
+    event: dict, db=None
+) -> str:
+    """Build context string for an event.
+
+    db: optional DB connection, used to resolve
+    Blizzard-localized creature/NPC names for the
+    world-boss/rare/creature-death branches below
+    (falls back to the plain English target_name
+    when omitted or when no locale row exists).
+    """
     event_type = event['event_type']
     extra_data = parse_extra_data(
         event.get('extra_data'),
@@ -75,29 +85,41 @@ def build_event_context(event: dict) -> str:
             )
 
     elif event_type == 'world_boss_spawn':
-        target = event.get('target_name', 'A world boss')
+        target = localize_creature_name(
+            db,
+            event.get(
+                'target_name', 'A world boss'),
+            event.get('target_entry'))
         context_parts.append(
             f"{target} has been spotted in the world!"
         )
 
     elif event_type == 'rare_spawn':
-        target = event.get(
-            'target_name', 'A rare creature'
-        )
+        target = localize_creature_name(
+            db,
+            event.get(
+                'target_name', 'A rare creature'),
+            event.get('target_entry'))
         context_parts.append(
             f"A rare creature ({target}) has appeared "
             f"nearby."
         )
 
     elif event_type == 'creature_death_boss':
-        target = event.get('target_name', 'A boss')
+        target = localize_creature_name(
+            db,
+            event.get('target_name', 'A boss'),
+            event.get('target_entry'))
         killer = extra_data.get('killer_name', 'someone')
         context_parts.append(
             f"{target} has been defeated by {killer}!"
         )
 
     elif event_type == 'creature_death_rare':
-        target = event.get('target_name', 'A rare')
+        target = localize_creature_name(
+            db,
+            event.get('target_name', 'A rare'),
+            event.get('target_entry'))
         context_parts.append(
             f"A rare creature ({target}) was just killed."
         )

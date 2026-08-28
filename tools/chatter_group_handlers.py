@@ -27,6 +27,9 @@ from chatter_shared import (
     build_travel_state_from_row,
     format_travel_context,
     strip_conversation_actions,
+    localize_creature_name,
+    localize_item_name,
+    localize_quest_name,
 )
 from chatter_db import (
     fail_event,
@@ -208,8 +211,10 @@ def process_group_kill_event(
         db, client, config, event,
         event_type_label='bot_group_kill',
         extract_fields=lambda ed: {
-            'creature_name': ed.get(
-                'creature_name', 'something'),
+            'creature_name': localize_creature_name(
+                db, ed.get(
+                    'creature_name', 'something'),
+                ed.get('creature_entry')),
             'is_boss': bool(int(
                 ed.get('is_boss', 0))),
             'is_rare': bool(int(
@@ -256,8 +261,10 @@ def process_group_loot_event(
             'looter_name': ed.get(
                 'looter_name',
                 ed.get('bot_name', 'Unknown')),
-            'item_name': ed.get(
-                'item_name', 'something'),
+            'item_name': localize_item_name(
+                db, ed.get(
+                    'item_name', 'something'),
+                ed.get('item_entry')),
             'item_quality': int(
                 ed.get('item_quality', 2)),
             'item_entry': int(
@@ -290,14 +297,20 @@ def process_group_loot_event(
             else 'loot'
         ),
         message_transform=lambda msg: (
-            _loot_msg_xform(msg, event)
+            _loot_msg_xform(db, msg, event)
         ),
         label='reaction_loot',
     )
 
 
-def _loot_msg_xform(raw_message, event):
-    """Inject clickable item link into loot msg."""
+def _loot_msg_xform(db, raw_message, event):
+    """Inject clickable item link into loot msg.
+
+    Localizes item_name the same way extract_fields did
+    (via item_entry) so the regex match/link text lines up
+    with what the model actually wrote in raw_message when
+    a locale is configured.
+    """
     import json
     try:
         ed = json.loads(
@@ -306,7 +319,9 @@ def _loot_msg_xform(raw_message, event):
     except Exception:
         return raw_message
     item_entry = int(ed.get('item_entry', 0))
-    item_name = ed.get('item_name', '')
+    item_name = localize_item_name(
+        db, ed.get('item_name', ''), item_entry,
+    )
     item_quality = int(ed.get('item_quality', 2))
     if item_entry and item_name:
         link = format_item_link(
@@ -447,8 +462,10 @@ def process_group_combat_event(
         db, client, config, event,
         event_type_label='bot_group_combat',
         extract_fields=lambda ed: {
-            'creature_name': ed.get(
-                'creature_name', 'something'),
+            'creature_name': localize_creature_name(
+                db, ed.get(
+                    'creature_name', 'something'),
+                ed.get('creature_entry')),
             'is_boss': bool(int(
                 ed.get('is_boss', 0))),
             'is_elite': bool(int(
@@ -690,6 +707,23 @@ def process_group_quest_complete_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
+    # Localize quest_name in-place (Blizzard-localized
+    # title from quest_template_locale) so every
+    # downstream consumer -- conversation path, memory
+    # context, and the fallback single-reaction prompt --
+    # picks it up automatically via this same extra_data
+    # dict (safe no-op when quest_id is missing or the
+    # configured language has no locale mapping).
+    quest_id_for_locale = int(
+        extra_data.get('quest_id', 0)
+    )
+    if quest_id_for_locale:
+        extra_data['quest_name'] = localize_quest_name(
+            db, extra_data.get(
+                'quest_name', 'a quest'),
+            quest_id_for_locale,
+        )
+
     conv_chance = int(config.get(
         'LLMChatter.GroupChatter'
         '.QuestConversationChance', 30,
@@ -864,6 +898,23 @@ def process_group_quest_objectives_event(
     if not extra_data:
         _mark_event(db, event_id, 'skipped')
         return False
+
+    # Localize quest_name in-place (Blizzard-localized
+    # title from quest_template_locale) so every
+    # downstream consumer -- conversation path, memory
+    # context, and the fallback single-reaction prompt --
+    # picks it up automatically via this same extra_data
+    # dict (safe no-op when quest_id is missing or the
+    # configured language has no locale mapping).
+    quest_id_for_locale = int(
+        extra_data.get('quest_id', 0)
+    )
+    if quest_id_for_locale:
+        extra_data['quest_name'] = localize_quest_name(
+            db, extra_data.get(
+                'quest_name', 'a quest'),
+            quest_id_for_locale,
+        )
 
     reactor_guid = int(
         extra_data.get('bot_guid', 0)
@@ -1618,6 +1669,23 @@ def process_group_quest_accept_event(
     if not extra_data:
         _mark_event(db, event_id, 'skipped')
         return False
+
+    # Localize quest_name in-place (Blizzard-localized
+    # title from quest_template_locale) so every
+    # downstream consumer -- conversation path, memory
+    # context, and the fallback single-reaction prompt --
+    # picks it up automatically via this same extra_data
+    # dict (safe no-op when quest_id is missing or the
+    # configured language has no locale mapping).
+    quest_id_for_locale = int(
+        extra_data.get('quest_id', 0)
+    )
+    if quest_id_for_locale:
+        extra_data['quest_name'] = localize_quest_name(
+            db, extra_data.get(
+                'quest_name', 'a quest'),
+            quest_id_for_locale,
+        )
 
     conv_chance = int(config.get(
         'LLMChatter.GroupChatter'
