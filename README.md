@@ -65,6 +65,31 @@ Built from the ground up for **fantasy roleplay immersion**. Every system, perso
 * **Regression coverage**: Focused tests protect both Anthropic request
   paths from future SDK argument regressions.
 
+### 2026-08-22 - Localization, Battleground, and Prompt Fixes
+
+* **Female characters are addressed as female**: in languages that inflect
+  verbs and adjectives for gender, bots fell back to masculine forms no matter
+  who they were talking to or about. They now match the character's actual
+  gender, and past-tense verbs about themselves get the same treatment.
+* **Official names instead of invented ones**: boss names, creature names, NPC
+  titles and quest names are now looked up in the client's own localized data
+  before they reach the prompt, and a bot with no localized name in hand keeps
+  the English one instead of sounding it out. No more coining "Дурнхольд"
+  where the game says "Дарнхольд".
+* **Localized world flavor**: zone, dungeon and battleground flavor text is now
+  written in Russian, French, German and Spanish instead of being fed to the
+  model in English.
+* **The startup health check probes more reliably**: its provider test call
+  capped the reply at five tokens, tight enough that a model opening with any
+  preamble could come back empty and get the working endpoint marked down. It
+  now allows room for a real answer.
+* **The bridge no longer idles at full CPU**: with nobody online it kept
+  re-opening database connections and polling flat out, burning a core for
+  nothing. It now waits between polls and only does the work it has work for.
+* **Two bridges can't fight over the same server**: starting a second bridge by
+  hand while one was already running doubled every reply and every database
+  write. The second one now notices and refuses to start.
+
 ### 2026-08-16 - Korean Language and Unicode Cleanup
 
 * **Korean language support**: `LLMChatter.Language = KO` now resolves
