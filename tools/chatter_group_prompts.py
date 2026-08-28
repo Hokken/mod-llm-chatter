@@ -7,6 +7,7 @@ from chatter_shared import (
     get_zone_flavor,
     get_race_speech_profile,
     get_bg_lore,
+    get_language_rule,
     get_subzone_lore,
     get_dungeon_flavor,
     get_dungeon_bosses,
@@ -4201,7 +4202,8 @@ def build_player_msg_conversation_prompt(
             "Actions: Each message may include "
             "an optional \"action\" field — a "
             "short physical action (2-5 words, "
-            "e.g. \"scratches chin\"). Omit if "
+            "e.g. \"scratches chin\") written in "
+            "the configured language. Omit if "
             "not needed. "
             "NEVER put {item:}, {quest:}, or "
             "{spell:} placeholders in the action "
@@ -4223,12 +4225,17 @@ def build_player_msg_conversation_prompt(
         ]
     )
 
+    lang_rule = get_language_rule()
+
     prompt += (
         f"\n\nEmotes: Each message may include "
         f"an optional \"emote\" field (one of: "
         f"{EMOTE_LIST_STR}). Pick an emote that "
         f"fits the message mood, or omit it.\n"
         f"{action_text}\n"
+        "IMPORTANT: do NOT put *narrator text* "
+        "or *physical actions* inside any "
+        "\"message\" field.\n"
         f"JSON rules: Use double quotes, escape "
         f"quotes/newlines, no trailing commas, "
         f"no code fences.\n"
@@ -4236,6 +4243,7 @@ def build_player_msg_conversation_prompt(
         f"messages in JSON:\n[\n  "
         f"{example_msgs}\n]\n"
         f"ONLY the JSON array, nothing else."
+        f"{lang_rule}"
     )
 
     return prompt
