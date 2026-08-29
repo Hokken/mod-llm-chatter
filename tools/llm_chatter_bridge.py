@@ -17,8 +17,10 @@ This script:
 """
 
 import argparse
+import atexit
 import json
 import logging
+import os
 import sys
 import threading
 import time
@@ -97,6 +99,71 @@ logger = logging.getLogger(__name__)
 # (fires on every Ollama API call)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("openai").setLevel(logging.WARNING)
+
+
+# =============================================================================
+# SINGLE-INSTANCE LOCK
+# =============================================================================
+# Prevents two bridge processes from accidentally running against the
+# same config/DB at once (e.g. a stray manual `nohup ... &` left
+# alongside the systemd-managed instance), which would duplicate LLM
+# calls and DB writes.
+SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+PID_FILE = os.path.join(SCRIPT_DIR, 'bridge.pid')
+
+
+def _pid_is_this_bridge(pid):
+    """Return True if `pid` is alive and looks like this bridge
+    script (guards against a stale pidfile whose PID got reused by
+    an unrelated process)."""
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    try:
+        with open(f'/proc/{pid}/cmdline', 'rb') as f:
+            cmdline = f.read().decode('utf-8', errors='replace')
+    except OSError:
+        # Can't inspect /proc for some reason - treat a live PID as
+        # a match rather than risk a false negative.
+        return True
+    return 'llm_chatter_bridge.py' in cmdline
+
+
+def _acquire_single_instance_lock():
+    """Refuse to start if another live process already holds the
+    PID file for this script. A stale PID file (dead process, or PID
+    reused by something unrelated) is silently overwritten."""
+    if os.path.exists(PID_FILE):
+        try:
+            with open(PID_FILE, 'r') as f:
+                existing_pid = int(f.read().strip())
+        except (OSError, ValueError):
+            existing_pid = None
+        if (
+            existing_pid
+            and existing_pid != os.getpid()
+            and _pid_is_this_bridge(existing_pid)
+        ):
+            logger.error(
+                "Bridge already running as PID %d (lock file %s); "
+                "refusing to start a second instance",
+                existing_pid, PID_FILE,
+            )
+            sys.exit(1)
+
+    with open(PID_FILE, 'w') as f:
+        f.write(str(os.getpid()))
+
+    def _release_lock():
+        try:
+            with open(PID_FILE, 'r') as f:
+                if f.read().strip() == str(os.getpid()):
+                    os.remove(PID_FILE)
+        except OSError:
+            pass
+
+    atexit.register(_release_lock)
 
 
 # =============================================================================
@@ -1205,6 +1272,11 @@ def main():
         help='Path to config file'
     )
     args = parser.parse_args()
+
+    # Guard against accidentally running a second instance against
+    # the same config/DB (e.g. a stray manual launch left alongside
+    # the systemd-managed process).
+    _acquire_single_instance_lock()
 
     # Load config
     config = parse_config(args.config)
