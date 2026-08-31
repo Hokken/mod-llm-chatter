@@ -112,14 +112,18 @@ def pick_random_mood(mode: str = 'normal') -> str:
 
 
 def maybe_get_creative_twist(
-    chance: float = 0.3, mode: str = 'normal'
+    chance: float = 0.3, mode: str = 'normal',
+    exclude: List[str] = None,
 ) -> str:
-    """Maybe return a creative twist (30% chance by default)."""
     if random.random() < chance:
         pool = (
             RP_CREATIVE_TWISTS if mode == 'roleplay'
             else CREATIVE_TWISTS
         )
+        if exclude:
+            pool = [t for t in pool if t not in exclude]
+            if not pool:
+                return None
         return random.choice(pool)
     return None
 
