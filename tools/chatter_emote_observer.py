@@ -18,6 +18,7 @@ from chatter_shared import (
     build_bot_identity,
     append_json_instruction,
     get_gender_label,
+    localize_creature_title,
 )
 from chatter_group_state import (
     _mark_event,
@@ -91,6 +92,13 @@ def handle_emote_observer(db, client, config, event):
     )
 
     if tgt == 'creature':
+        # npc_subname arrives raw/English from C++
+        # (Creature::GetSubName()) -- localize it via the
+        # creature entry passed as the event's target_entry
+        # column (only populated for creature targets).
+        npc_subname = localize_creature_title(
+            db, npc_subname, event.get('target_entry'),
+        )
         prompt = _build_creature_prompt(
             bot_name, bot_race, bot_class,
             bot_gender,

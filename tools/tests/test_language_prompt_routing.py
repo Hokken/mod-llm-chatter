@@ -46,6 +46,7 @@ if str(TOOLS_DIR) not in sys.path:
 _install_non_strict_stubs()
 
 import chatter_group_state  # noqa: E402
+import chatter_constants
 import chatter_shared  # noqa: E402
 
 
@@ -264,6 +265,57 @@ def test_message_only_repair_schema():
     assert '"message"' in repair_prompt
 
 
+def test_race_speech_profiles_are_read_through_the_accessor():
+    """Prompt builders must not read RACE_SPEECH_PROFILES directly.
+
+    A direct dict read silently bypasses get_race_speech_profile(),
+    which is the only thing that resolves the localized profile for
+    the configured LLMChatter.Language. Bypassing it produces prompts
+    that are localized everywhere except the race flavor words, which
+    is exactly the bug this guards against -- and it is invisible in
+    English, so only a source-level check catches it.
+    """
+    tools_dir = Path(__file__).resolve().parent.parent
+    offenders = []
+    for module in sorted(tools_dir.glob("chatter_*.py")):
+        # The constants module defines the tables; the shared module
+        # implements the accessor. Everything else must go through it.
+        if module.name in ("chatter_constants.py", "chatter_shared.py"):
+            continue
+        for lineno, line in enumerate(
+            module.read_text(encoding="utf-8").splitlines(), 1
+        ):
+            code = line.split("#", 1)[0]
+            if "RACE_SPEECH_PROFILES" in code:
+                offenders.append(f"{module.name}:{lineno}: {line.strip()}")
+
+    assert not offenders, (
+        "these read RACE_SPEECH_PROFILES directly instead of calling "
+        "get_race_speech_profile(); localized flavor words will be "
+        "dropped:\n  " + "\n  ".join(offenders)
+    )
+
+
+def test_localized_race_profile_is_returned_for_configured_language():
+    """The accessor must actually return the localized profile."""
+    chatter_shared.set_language("RU")
+    try:
+        profile = chatter_shared.get_race_speech_profile("Orc")
+        assert profile is not None
+        russian = chatter_constants.RACE_SPEECH_PROFILES_RU.get("Orc")
+        assert russian is not None
+        assert profile == russian, (
+            "expected the ruRU profile, got the English one"
+        )
+    finally:
+        chatter_shared.set_language("GB")
+
+    # And an unmapped language must fall back to English, not to None.
+    chatter_shared.set_language("GB")
+    english = chatter_shared.get_race_speech_profile("Orc")
+    assert english == chatter_constants.RACE_SPEECH_PROFILES.get("Orc")
+
+
 def main() -> int:
     tests = [
         test_de_language_rule_is_available,
@@ -276,6 +328,8 @@ def main() -> int:
         test_message_only_conversation_schema,
         test_conversation_message_count_bounds,
         test_message_only_repair_schema,
+        test_race_speech_profiles_are_read_through_the_accessor,
+        test_localized_race_profile_is_returned_for_configured_language,
     ]
     for test in tests:
         test()

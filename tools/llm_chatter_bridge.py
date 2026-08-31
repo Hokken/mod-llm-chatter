@@ -17,9 +17,14 @@ This script:
 """
 
 import argparse
+import atexit
+import fcntl
+import hashlib
 import json
 import logging
+import os
 import sys
+import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -97,6 +102,149 @@ logger = logging.getLogger(__name__)
 # (fires on every Ollama API call)
 logging.getLogger("httpx").setLevel(logging.WARNING)
 logging.getLogger("openai").setLevel(logging.WARNING)
+
+
+# =============================================================================
+# SINGLE-INSTANCE LOCK
+# =============================================================================
+# Prevents two bridge processes from accidentally running against the
+# same config/DB at once (e.g. a stray manual `nohup ... &` left
+# alongside the systemd-managed instance), which would duplicate LLM
+# calls and DB writes.
+
+
+def _resolve_runtime_dir(config=None):
+    """Pick a writable directory to hold the bridge lock file.
+
+    The lock deliberately does NOT live next to the script: the
+    documented Docker setup mounts the tools directory read-only
+    (./modules/mod-llm-chatter/tools:/app:ro), so a lock written
+    there would fail and stop the bridge from starting at all.
+
+    Order of preference: an explicit LLMChatter.RuntimeDir config
+    key, then the usual runtime/temp environment variables, then
+    the platform temp directory.
+    """
+    candidates = []
+    if config:
+        configured = str(
+            config.get('LLMChatter.RuntimeDir', '')
+        ).strip()
+        if configured:
+            candidates.append(configured)
+    for var in (
+        'LLM_CHATTER_RUNTIME_DIR', 'XDG_RUNTIME_DIR', 'TMPDIR',
+    ):
+        value = os.environ.get(var, '').strip()
+        if value:
+            candidates.append(value)
+    candidates.append(tempfile.gettempdir())
+
+    for path in candidates:
+        try:
+            os.makedirs(path, exist_ok=True)
+        except OSError:
+            continue
+        if os.access(path, os.W_OK):
+            return path
+    return tempfile.gettempdir()
+
+
+def _lock_file_path(config_path, runtime_dir):
+    """Build the lock filename for one bridge instance.
+
+    Keyed by the resolved config path so that two intentionally
+    separate bridges (different configs, different databases) can
+    run side by side without locking each other out, while two
+    launches of the SAME config still collide as intended.
+    """
+    resolved = os.path.realpath(os.path.abspath(config_path))
+    digest = hashlib.sha256(
+        resolved.encode('utf-8')
+    ).hexdigest()[:16]
+    return os.path.join(
+        runtime_dir, 'llm_chatter_bridge.%s.lock' % digest
+    )
+
+
+# Kept alive for the whole process lifetime: closing this handle
+# would drop the kernel lock, so it must not be garbage collected.
+_lock_handle = None
+
+
+def _acquire_single_instance_lock(config_path, config=None):
+    """Refuse to start if another live bridge holds this config's lock.
+
+    Uses an advisory whole-file lock (flock) rather than a bare PID
+    file. Two things fall out of that for free: the kernel releases
+    the lock when the holder dies, so a crashed bridge can never
+    leave a stale lock behind that needs cleaning up by hand; and
+    the acquisition is atomic, so two bridges starting at the same
+    instant cannot both decide they are the only one.
+    """
+    global _lock_handle
+
+    runtime_dir = _resolve_runtime_dir(config)
+    lock_path = _lock_file_path(config_path, runtime_dir)
+
+    try:
+        handle = open(lock_path, 'a+')
+    except OSError as exc:
+        # A missing lock is worth a warning, but it is not worth
+        # refusing to run: better a bridge with no guard than no
+        # bridge at all.
+        logger.warning(
+            "Could not open lock file %s (%s); starting without a "
+            "single-instance guard", lock_path, exc,
+        )
+        return
+
+    try:
+        fcntl.flock(
+            handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB
+        )
+    except OSError:
+        try:
+            handle.seek(0)
+            holder = handle.read().strip() or 'unknown'
+        except OSError:
+            holder = 'unknown'
+        handle.close()
+        logger.error(
+            "Another bridge is already running for this config "
+            "(PID %s, lock file %s); refusing to start a second "
+            "instance", holder, lock_path,
+        )
+        sys.exit(1)
+
+    # Record our PID purely so the message above can name a culprit;
+    # the lock itself is held by the kernel, not by this content.
+    try:
+        handle.seek(0)
+        handle.truncate()
+        handle.write(str(os.getpid()))
+        handle.flush()
+    except OSError:
+        pass
+
+    _lock_handle = handle
+    logger.debug("Acquired bridge lock %s", lock_path)
+
+    def _release_lock():
+        try:
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            pass
+        try:
+            os.remove(lock_path)
+        except OSError:
+            pass
+        try:
+            handle.close()
+        except OSError:
+            pass
+
+    atexit.register(_release_lock)
 
 
 # =============================================================================
@@ -1206,8 +1354,14 @@ def main():
     )
     args = parser.parse_args()
 
-    # Load config
+    # Load config first so the lock can honour LLMChatter.RuntimeDir.
     config = parse_config(args.config)
+
+    # Guard against accidentally running a second instance against
+    # the same config/DB (e.g. a stray manual launch left alongside
+    # the systemd-managed process). Keyed by config path, so a
+    # deliberately separate second bridge is still allowed.
+    _acquire_single_instance_lock(args.config, config)
 
     # Check if enabled - if disabled, wait and check
     # periodically
@@ -1937,6 +2091,11 @@ def main():
         'BotQuestionCheckInterval',
         30
     ))
+    last_tone_regen = 0
+    tone_regen_interval = int(config.get(
+        'LLMChatter.Bridge.ToneRegenIntervalSeconds',
+        60
+    ))
 
     executor = ThreadPoolExecutor(
         max_workers=max_concurrent + 4
@@ -2104,9 +2263,16 @@ def main():
                     )
                     last_db_snapshot = current_time
 
-                # Legacy requests (General ambient chatter)
-                # Runs freely every cycle — no deferral
-                if players_online and not legacy_future:
+                # Legacy requests (General ambient chatter).
+                # Cheap backlog check on the already-open
+                # connection avoids opening a brand-new DB
+                # connection every poll cycle when the queue
+                # is empty (was pegging CPU continuously).
+                if (
+                    players_online
+                    and not legacy_future
+                    and _has_pending_legacy_requests(db)
+                ):
                     legacy_future = (
                         executor.submit(
                             _run_in_worker,
@@ -2119,7 +2285,11 @@ def main():
                 if (
                     players_online
                     and not tone_regen_future
+                    and current_time
+                    - last_tone_regen
+                    >= tone_regen_interval
                 ):
+                    last_tone_regen = current_time
                     tone_regen_future = (
                         executor.submit(
                             _run_in_worker,
@@ -2259,11 +2429,13 @@ def main():
                     except Exception:
                         pass
 
-            # Fast poll so player messages are
-            # picked up quickly. Background tasks
-            # self-rate-limit via their own
-            # last_X / interval checks.
-            time.sleep(0.2)
+            # Poll cadence honors the configured
+            # Bridge.PollIntervalSeconds instead of a
+            # hardcoded value (previously ignored the
+            # setting, causing excessive DB reconnects and
+            # CPU use). Background tasks self-rate-limit via
+            # their own last_X / interval checks.
+            time.sleep(poll_interval)
 
         except KeyboardInterrupt:
             executor.shutdown(wait=False)

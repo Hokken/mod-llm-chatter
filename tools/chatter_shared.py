@@ -17,11 +17,17 @@ import time
 from typing import Optional, Dict, List, Tuple, Any
 
 from chatter_constants import (
-    ZONE_LEVELS, ZONE_NAMES,
+    ZONE_LEVELS, ZONE_NAMES, ZONE_NAMES_RU, ZONE_NAMES_FR, ZONE_NAMES_DE,
+    ZONE_NAMES_ES, ZONE_NAMES_KO,
     CLASS_NAMES, RACE_NAMES,
-    RACE_SPEECH_PROFILES, CLASS_SPEECH_MODIFIERS,
+    RACE_SPEECH_PROFILES, RACE_SPEECH_PROFILES_RU, RACE_SPEECH_PROFILES_FR,
+    RACE_SPEECH_PROFILES_DE, RACE_SPEECH_PROFILES_ES,
+    CLASS_SPEECH_MODIFIERS,
     CLASS_ROLE_MAP, ROLE_COMBAT_PERSPECTIVES,
-    ZONE_FLAVOR, DUNGEON_FLAVOR,
+    ZONE_FLAVOR, ZONE_FLAVOR_RU, ZONE_FLAVOR_FR, ZONE_FLAVOR_DE, ZONE_FLAVOR_ES,
+    DUNGEON_FLAVOR, DUNGEON_FLAVOR_RU, DUNGEON_FLAVOR_FR, DUNGEON_FLAVOR_DE,
+    DUNGEON_FLAVOR_ES,
+    BG_LORE, BG_LORE_RU, BG_LORE_FR, BG_LORE_DE, BG_LORE_ES,
     ITEM_QUALITY_COLORS, ITEM_QUALITY_NAMES,
     ITEM_CLASS_NAMES, WEAPON_SUBCLASS_NAMES,
     ARMOR_SUBCLASS_NAMES, CLASS_BITMASK,
@@ -277,12 +283,114 @@ def pick_random_max_tokens(config: dict) -> int:
 
 
 # =============================================================================
+# Maps a WoW client locale code (see _LANGUAGE_LOCALE_CODES
+# above) to the corresponding locale-specific zone-name
+# dict. Add further locales here (mirroring
+# _LANGUAGE_LOCALE_CODES) as more locale-specific zone-name
+# data becomes available.
+#
+# Provenance differs by locale, and that difference matters:
+#   - ruRU (ZONE_NAMES_RU): extracted directly from
+#     Blizzard's own ruRU AreaTable.dbc client data --
+#     100% authoritative.
+#   - frFR / deDE (ZONE_NAMES_FR / ZONE_NAMES_DE): sourced
+#     from warcraft.wiki.gg's community-maintained
+#     "LocalizedMapZones" addon-localization table, NOT from
+#     an official Blizzard client data extraction. Names are
+#     likely accurate (real translated zone names, not
+#     guesses) but have not been independently verified
+#     against official client data, and coverage is known to
+#     be incomplete -- French in particular is missing most/
+#     all of Northrend and a handful of other zones. Missing
+#     entries simply fall back to English below rather than
+#     being guessed at.
+#   - esES (ZONE_NAMES_ES): mixed provenance -- most entries
+#     sourced from an old (2007) Spanish WoW fan blog
+#     (worldofwarcraftesp.blogspot.com), community-sourced
+#     and unverified like frFR/deDE above, but nine entries
+#     (Borean Tundra, Howling Fjord, Hellfire Peninsula,
+#     Dragonblight, Grizzly Hills, Zul'Drak, Sholazar Basin,
+#     The Storm Peaks, Icecrown) come from an official
+#     Blizzard press source instead (news.blizzard.com/es-es)
+#     and are genuinely higher-confidence -- see the inline
+#     comments on those nine entries in ZONE_NAMES_ES above
+#     for details.
+#   - frFR (ZONE_NAMES_FR) also has 8 Northrend entries
+#     (Borean Tundra, Howling Fjord, Dragonblight, Grizzly
+#     Hills, Zul'Drak, Sholazar Basin, The Storm Peaks,
+#     Icecrown) sourced the same official way
+#     (news.blizzard.com/fr-fr), layered on top of the rest
+#     of the wiki-sourced frFR data described above.
+#   - koKR (ZONE_NAMES_KO): a brand-new locale, covering only
+#     8 Northrend zones (the same set as the frFR/esES
+#     official-source additions above), sourced entirely from
+#     official Blizzard ko-kr press articles
+#     (news.blizzard.com/ko-kr). koKR creature/item/quest
+#     names above were already live (sourced from
+#     acore_world.*_locale, which does carry that locale);
+#     this is the first koKR zone-name data. Every zone
+#     outside those 8 falls back to English via
+#     get_zone_name(), same as the other locales.
+_ZONE_NAME_LOCALE_MAPS: Dict[str, Dict[int, str]] = {
+    "ruRU": ZONE_NAMES_RU,
+    "frFR": ZONE_NAMES_FR,
+    "deDE": ZONE_NAMES_DE,
+    "esES": ZONE_NAMES_ES,
+    "koKR": ZONE_NAMES_KO,
+}
+
+
+def _load_subzone_names_ru() -> Dict[int, str]:
+    """Load ruRU subzone names from subzone_names_ru.json.
+
+    Maps area_id -> Russian subzone name, extracted directly
+    from Blizzard's ruRU AreaTable.dbc (100% authoritative,
+    same provenance as ZONE_NAMES_RU). Returns {} when the
+    file is absent so the English subzone_lore.json fallback
+    still applies.
+    """
+    try:
+        path = os.path.join(
+            os.path.dirname(__file__),
+            "subzone_names_ru.json",
+        )
+        with open(path, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return {
+            int(key): value
+            for key, value in data.get("subzones", {}).items()
+        }
+    except Exception:
+        return {}
+
+
+_SUBZONE_NAME_LOCALE_MAPS: Dict[str, Dict[int, str]] = {
+    "ruRU": _load_subzone_names_ru(),
+}
+
+
 def get_zone_name(zone_id: int) -> Optional[str]:
     """Get human-readable zone name from zone ID.
+
+    Prefers the localized name for the configured
+    LLMChatter.Language (via _ZONE_NAME_LOCALE_MAPS) when
+    available, falling back to the static English ZONE_NAMES
+    entry, mirroring the same fallback-safe pattern used for
+    creature/item/quest name localization. See the
+    _ZONE_NAME_LOCALE_MAPS comment above for the differing
+    provenance/confidence of each locale's data (ruRU is
+    DBC-extracted and authoritative; frFR/deDE are
+    community-wiki-sourced and unverified against official
+    client data).
 
     Returns None when the zone ID is unknown to avoid
     injecting 'zone 123' placeholder text into prompts.
     """
+    locale = get_language_locale_code()
+    if locale:
+        localized_map = _ZONE_NAME_LOCALE_MAPS.get(locale)
+        if localized_map and zone_id in localized_map:
+            return localized_map[zone_id]
     if zone_id in ZONE_NAMES:
         return ZONE_NAMES[zone_id]
     return None
@@ -470,7 +578,7 @@ def build_race_class_context(
 ) -> str:
     """Build an RP personality fragment for prompts."""
     parts = []
-    profile = RACE_SPEECH_PROFILES.get(race)
+    profile = get_race_speech_profile(race)
     if profile:
         traits = profile['traits']
         if isinstance(traits, list):
@@ -543,7 +651,7 @@ def build_race_class_context_parts(
     shared_race_parts = []
     shared_class_parts = []
 
-    profile = RACE_SPEECH_PROFILES.get(race)
+    profile = get_race_speech_profile(race)
     if profile:
         # Per-bot: traits (random choice) + vocab phrase
         traits = profile['traits']
@@ -882,14 +990,129 @@ def get_zone_level_range(
     return (max(1, bot_level - 5), bot_level + 5)
 
 
+# Locale-keyed zone flavor text maps, mirroring
+# _ZONE_NAME_LOCALE_MAPS above. Only ruRU has a translated
+# ZONE_FLAVOR_RU dict so far; any other locale (or zone_id
+# missing from the localized map) falls back to the English
+# ZONE_FLAVOR via get_zone_flavor() below.
+_ZONE_FLAVOR_LOCALE_MAPS: Dict[str, Dict[int, str]] = {
+    "ruRU": ZONE_FLAVOR_RU,
+    "frFR": ZONE_FLAVOR_FR,
+    "deDE": ZONE_FLAVOR_DE,
+    "esES": ZONE_FLAVOR_ES,
+}
+
+
+# Locale-keyed race speech profile maps, mirroring
+# _ZONE_FLAVOR_LOCALE_MAPS above. Only ruRU has a translated
+# RACE_SPEECH_PROFILES_RU dict so far; any other locale (or
+# race missing from the localized map) falls back to the
+# static English RACE_SPEECH_PROFILES via
+# get_race_speech_profile() below.
+_RACE_SPEECH_LOCALE_MAPS: Dict[str, Dict[str, Dict]] = {
+    "ruRU": RACE_SPEECH_PROFILES_RU,
+    "frFR": RACE_SPEECH_PROFILES_FR,
+    "deDE": RACE_SPEECH_PROFILES_DE,
+    "esES": RACE_SPEECH_PROFILES_ES,
+}
+
+
+def get_race_speech_profile(race: str) -> Optional[Dict]:
+    """Get race speech profile for prompt context.
+
+    Prefers the localized profile for the configured
+    LLMChatter.Language (via _RACE_SPEECH_LOCALE_MAPS) when
+    available, falling back to the static English
+    RACE_SPEECH_PROFILES entry, mirroring get_zone_flavor()'s
+    locale-fallback pattern.
+    """
+    locale = get_language_locale_code()
+    if locale:
+        localized_map = _RACE_SPEECH_LOCALE_MAPS.get(locale)
+        if localized_map and race in localized_map:
+            return localized_map[race]
+    return RACE_SPEECH_PROFILES.get(race)
+
+
 def get_zone_flavor(zone_id: int) -> Optional[str]:
-    """Get rich zone flavor text for immersive context."""
+    """Get rich zone flavor text for immersive context.
+
+    Prefers the localized flavor text for the configured
+    LLMChatter.Language (via _ZONE_FLAVOR_LOCALE_MAPS) when
+    available, falling back to the static English ZONE_FLAVOR
+    entry, mirroring get_zone_name()'s locale-fallback pattern.
+
+    Returns None when the zone ID has no flavor text at all
+    (8 zones aren't covered even in English), exactly as before.
+    """
+    locale = get_language_locale_code()
+    if locale:
+        localized_map = _ZONE_FLAVOR_LOCALE_MAPS.get(locale)
+        if localized_map and zone_id in localized_map:
+            return localized_map[zone_id]
     return ZONE_FLAVOR.get(zone_id)
 
 
+# Locale-keyed dungeon/raid flavor text maps, mirroring
+# _ZONE_FLAVOR_LOCALE_MAPS above. Only ruRU has a translated
+# DUNGEON_FLAVOR_RU dict so far; any other locale (or map_id
+# missing from the localized map) falls back to the static
+# English DUNGEON_FLAVOR via get_dungeon_flavor() below.
+_DUNGEON_FLAVOR_LOCALE_MAPS: Dict[str, Dict[int, str]] = {
+    "ruRU": DUNGEON_FLAVOR_RU,
+    "frFR": DUNGEON_FLAVOR_FR,
+    "deDE": DUNGEON_FLAVOR_DE,
+    "esES": DUNGEON_FLAVOR_ES,
+}
+
+
 def get_dungeon_flavor(map_id: int) -> Optional[str]:
-    """Get dungeon/raid flavor text by map ID."""
+    """Get dungeon/raid flavor text by map ID.
+
+    Prefers the localized flavor text for the configured
+    LLMChatter.Language (via _DUNGEON_FLAVOR_LOCALE_MAPS) when
+    available, falling back to the static English
+    DUNGEON_FLAVOR entry, mirroring get_zone_flavor()'s
+    locale-fallback pattern.
+    """
+    locale = get_language_locale_code()
+    if locale:
+        localized_map = _DUNGEON_FLAVOR_LOCALE_MAPS.get(locale)
+        if localized_map and map_id in localized_map:
+            return localized_map[map_id]
     return DUNGEON_FLAVOR.get(map_id)
+
+
+# Locale-keyed battleground lore maps, mirroring
+# _DUNGEON_FLAVOR_LOCALE_MAPS above. Only ruRU has a translated
+# BG_LORE_RU dict so far; any other locale (or bg_type_id missing
+# from the localized map) falls back to the static English BG_LORE
+# entry via get_bg_lore() below.
+_BG_LORE_LOCALE_MAPS: Dict[str, Dict[int, Dict]] = {
+    "ruRU": BG_LORE_RU,
+    "frFR": BG_LORE_FR,
+    "deDE": BG_LORE_DE,
+    "esES": BG_LORE_ES,
+}
+
+
+def get_bg_lore(bg_type_id: int) -> Dict:
+    """Get battleground lore dict by bg_type_id.
+
+    Prefers the localized lore dict for the configured
+    LLMChatter.Language (via _BG_LORE_LOCALE_MAPS) when
+    available, falling back to the static English BG_LORE
+    entry, mirroring get_zone_flavor()'s locale-fallback
+    pattern. Returns {} (not None) when bg_type_id has no
+    lore at all, matching BG_LORE.get(bg_type_id, {})
+    semantics.
+    """
+    locale = get_language_locale_code()
+    if locale:
+        localized_map = _BG_LORE_LOCALE_MAPS.get(locale)
+        if localized_map and bg_type_id in localized_map:
+            return localized_map[bg_type_id]
+    return BG_LORE.get(bg_type_id, {})
 
 
 def get_group_area(db, group_id: int) -> int:
@@ -976,12 +1199,19 @@ def get_subzone_lore(
 def get_subzone_name(
     zone_id: int, area_id: int
 ) -> Optional[str]:
-    """Get subzone name from subzone_lore.json.
+    """Get subzone name, localized when available.
 
-    Returns None if area equals zone or no entry.
+    Prefers the ruRU DBC-extracted name for the configured
+    locale, falling back to the English subzone_lore.json
+    entry. Returns None if area equals zone or no entry.
     """
     if not area_id or area_id == zone_id:
         return None
+    locale = get_language_locale_code()
+    if locale:
+        localized_map = _SUBZONE_NAME_LOCALE_MAPS.get(locale)
+        if localized_map and area_id in localized_map:
+            return localized_map[area_id]
     lore = _load_subzone_lore()
     zones = lore.get("zones", {})
     zdata = zones.get(str(zone_id), {})
@@ -1296,21 +1526,420 @@ def get_language_rule() -> str:
     if not _language:
         return ""
     return (
-        f"\nLanguage: Write EVERY field in {_language} — "
-        "the \"message\" field AND the \"action\" "
-        "narrator field must both be fully in "
-        f"{_language}. Do not mix languages. "
-        "Exception: keep WoW proper nouns (zone, "
-        "subzone, creature, NPC, item, spell, quest, "
-        "and character names) in English exactly as "
-        "written — never translate them. Any prior "
-        "chat, memories, quoted lines, or examples in "
-        "this prompt may be in English or another "
-        "language — treat them only as content to react "
-        "to, never as a guide for which language to "
-        f"use. Your entire output must be in {_language} "
-        "no matter what language that context is in."
+        f"\nLanguage: Write EVERY text field of your "
+        f"JSON response fully in {_language} — this "
+        "includes every prose field the schema below "
+        "asks for, whatever it is named (for example "
+        "\"message\", the \"action\" narrator field, "
+        "or a \"memory\" journal entry). No prose "
+        "field may be left in another language. "
+        "Do not mix languages. "
+        "Exception — proper nouns: names of zones, "
+        "subzones, creatures, NPCs, items, spells, "
+        "quests and characters are supplied to you "
+        "already in the form the game will use. "
+        f"Depending on what data exists, that form "
+        f"may be {_language} or it may be English; "
+        "both are correct. Use the form you were "
+        "given. Do not translate it, do not "
+        "transliterate it, and never invent a "
+        "spelling of your own — if a name was given "
+        "to you in English, it stays English rather "
+        "than being guessed at. Class and "
+        "race names (Warrior, Priest, Mage, Blood Elf, "
+        "Night Elf, etc.) are NOT exceptions — always "
+        "translate them into their standard WoW "
+        f"localization terms for {_language}. Never "
+        "glue an English word to a "
+        f"{_language} grammatical ending (e.g. never "
+        "write \"priesta\" — write the real translated "
+        "word, fully inflected in that language). Any "
+        "prior chat, memories, quoted lines, or "
+        "examples in this prompt may be in English or "
+        "another language — treat them only as content "
+        "to react to, never as a guide for which "
+        "language to use. Your entire output must be "
+        f"in {_language} no matter what language that "
+        "context is in. "
+        "Grammatical gender: where "
+        f"{_language} inflects verbs, adjectives, "
+        "participles or pronouns for gender, every "
+        "such form referring to yourself must match "
+        "your own gender exactly as stated in your "
+        "identity line above, and every form "
+        "referring to another character must match "
+        "that character's stated gender. Past-tense "
+        "verbs about yourself are the most common "
+        "mistake — check each one. Never fall back "
+        "to masculine forms as a default. "
+        "Declension: when a proper noun appears as "
+        "plain text in your sentence, inflect it to "
+        "the grammatical case the sentence requires "
+        "(genitive, accusative, dative, etc.) rather "
+        "than leaving it in the nominative — keep the "
+        "spelling you were given for the stem. The one "
+        "thing you must never inflect is a token in "
+        "curly braces such as {item}: those are "
+        "replaced with clickable game links after you "
+        "write, so they have to survive exactly as "
+        "written. Word the sentence so the token reads "
+        "naturally without being changed. "
+        "Naturalness: write natural, idiomatic "
+        f"{_language} — avoid word-for-word metaphors "
+        "and stilted constructions no native speaker "
+        "would actually say; if a phrase sounds odd "
+        "when read back, rephrase it plainly. Prefer "
+        "direct, concrete speech over abstract or "
+        "poetic imagery unless it genuinely fits the "
+        "moment."
     )
+
+
+# Maps the resolved language label (see _LANGUAGE_LABELS)
+# to the WoW client locale code used by Blizzard's own
+# localized data in acore_world.*_locale tables (e.g.
+# creature_template_locale). Only languages we actually
+# have locale data for are listed here; any language
+# label not present (including "" / English) simply has
+# no lookup performed and callers fall back to the
+# English name they already have in hand.
+_LANGUAGE_LOCALE_CODES = {
+    "Russian": "ruRU",
+    "French": "frFR",
+    "German": "deDE",
+    "Spanish": "esES",
+    "Korean": "koKR",
+}
+
+
+def get_language_locale_code() -> Optional[str]:
+    """Return the WoW client locale code (e.g. 'ruRU')
+    for the currently configured LLMChatter.Language, or
+    None if there's no locale data mapped for it (English
+    default, or a language we haven't added data for yet).
+    """
+    return _LANGUAGE_LOCALE_CODES.get(_language)
+
+
+# Cache for Blizzard-localized creature/NPC names, keyed
+# by (entry, locale). A given entry+locale pair's name
+# never changes at runtime, so cache indefinitely — mirrors
+# the _dungeon_boss_cache pattern above.
+_creature_name_locale_cache: Dict[
+    Tuple[int, str], Optional[str]
+] = {}
+
+
+def get_localized_creature_name(
+    db, entry: Optional[int], locale: Optional[str]
+) -> Optional[str]:
+    """Look up the Blizzard-localized creature name from
+    acore_world.creature_template_locale.
+
+    Returns None (caller should fall back to the English
+    name already in hand) when entry/locale is missing,
+    the entry has no localization row for that locale
+    (~16% of creature_template lacks ruRU coverage), or
+    the query fails for any reason.
+    """
+    if not entry or not locale:
+        return None
+    try:
+        entry = int(entry)
+    except (TypeError, ValueError):
+        return None
+
+    cache_key = (entry, locale)
+    if cache_key in _creature_name_locale_cache:
+        return _creature_name_locale_cache[cache_key]
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT Name FROM "
+            "acore_world.creature_template_locale "
+            "WHERE entry = %s AND locale = %s",
+            (entry, locale),
+        )
+        row = cursor.fetchone()
+        name = (
+            row['Name']
+            if row and row.get('Name') else None
+        )
+        _creature_name_locale_cache[cache_key] = name
+        return name
+    except Exception:
+        logger.error(
+            "get_localized_creature_name failed for "
+            "entry %s locale %s",
+            entry, locale, exc_info=True,
+        )
+        # Don't cache exceptions -- a transient DB
+        # hiccup shouldn't permanently poison the
+        # cache the way a genuine "not found" should.
+        return None
+
+
+def localize_creature_name(
+    db, name: str, entry: Optional[int] = None
+) -> str:
+    """Return the Blizzard-localized creature/NPC name
+    for the configured LLMChatter.Language when available,
+    otherwise return `name` unchanged.
+
+    Safe no-op (returns `name` as-is) when: the configured
+    language has no locale mapping (e.g. English default),
+    no creature entry ID was supplied, or the entry has no
+    matching row in creature_template_locale.
+    """
+    locale = get_language_locale_code()
+    if not locale or not entry:
+        return name
+    localized = get_localized_creature_name(
+        db, entry, locale
+    )
+    return localized or name
+
+
+# Cache for Blizzard-localized item names, keyed by
+# (entry, locale). Mirrors _creature_name_locale_cache.
+_item_name_locale_cache: Dict[
+    Tuple[int, str], Optional[str]
+] = {}
+
+
+def get_localized_item_name(
+    db, entry: Optional[int], locale: Optional[str]
+) -> Optional[str]:
+    """Look up the Blizzard-localized item name from
+    acore_world.item_template_locale.
+
+    Returns None (caller should fall back to the English
+    name already in hand) when entry/locale is missing,
+    the entry has no localization row for that locale, or
+    the query fails for any reason.
+
+    Note: item_template_locale's PK column is named `ID`
+    (not `entry` like creature_template_locale).
+    """
+    if not entry or not locale:
+        return None
+    try:
+        entry = int(entry)
+    except (TypeError, ValueError):
+        return None
+
+    cache_key = (entry, locale)
+    if cache_key in _item_name_locale_cache:
+        return _item_name_locale_cache[cache_key]
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT Name FROM "
+            "acore_world.item_template_locale "
+            "WHERE ID = %s AND locale = %s",
+            (entry, locale),
+        )
+        row = cursor.fetchone()
+        name = (
+            row['Name']
+            if row and row.get('Name') else None
+        )
+        _item_name_locale_cache[cache_key] = name
+        return name
+    except Exception:
+        logger.error(
+            "get_localized_item_name failed for "
+            "entry %s locale %s",
+            entry, locale, exc_info=True,
+        )
+        # Don't cache exceptions -- a transient DB
+        # hiccup shouldn't permanently poison the
+        # cache the way a genuine "not found" should.
+        return None
+
+
+def localize_item_name(
+    db, name: str, entry: Optional[int] = None
+) -> str:
+    """Return the Blizzard-localized item name for the
+    configured LLMChatter.Language when available,
+    otherwise return `name` unchanged.
+
+    Safe no-op (returns `name` as-is) when: the configured
+    language has no locale mapping, no item entry ID was
+    supplied, or the entry has no matching row in
+    item_template_locale.
+    """
+    locale = get_language_locale_code()
+    if not locale or not entry:
+        return name
+    localized = get_localized_item_name(
+        db, entry, locale
+    )
+    return localized or name
+
+
+# Cache for Blizzard-localized quest titles, keyed by
+# (quest_id, locale). Mirrors _creature_name_locale_cache.
+_quest_name_locale_cache: Dict[
+    Tuple[int, str], Optional[str]
+] = {}
+
+
+def get_localized_quest_name(
+    db, quest_id: Optional[int], locale: Optional[str]
+) -> Optional[str]:
+    """Look up the Blizzard-localized quest title from
+    acore_world.quest_template_locale.
+
+    Returns None (caller should fall back to the English
+    name already in hand) when quest_id/locale is missing,
+    the quest has no localization row for that locale, or
+    the query fails for any reason.
+
+    Note: quest_template_locale's PK column is named `ID`
+    (not `entry`/`quest_id`).
+    """
+    if not quest_id or not locale:
+        return None
+    try:
+        quest_id = int(quest_id)
+    except (TypeError, ValueError):
+        return None
+
+    cache_key = (quest_id, locale)
+    if cache_key in _quest_name_locale_cache:
+        return _quest_name_locale_cache[cache_key]
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT Title FROM "
+            "acore_world.quest_template_locale "
+            "WHERE ID = %s AND locale = %s",
+            (quest_id, locale),
+        )
+        row = cursor.fetchone()
+        title = (
+            row['Title']
+            if row and row.get('Title') else None
+        )
+        _quest_name_locale_cache[cache_key] = title
+        return title
+    except Exception:
+        logger.error(
+            "get_localized_quest_name failed for "
+            "quest_id %s locale %s",
+            quest_id, locale, exc_info=True,
+        )
+        # Don't cache exceptions -- a transient DB
+        # hiccup shouldn't permanently poison the
+        # cache the way a genuine "not found" should.
+        return None
+
+
+def localize_quest_name(
+    db, name: str, quest_id: Optional[int] = None
+) -> str:
+    """Return the Blizzard-localized quest title for the
+    configured LLMChatter.Language when available,
+    otherwise return `name` unchanged.
+
+    Safe no-op (returns `name` as-is) when: the configured
+    language has no locale mapping, no quest ID was
+    supplied, or the quest has no matching row in
+    quest_template_locale.
+    """
+    locale = get_language_locale_code()
+    if not locale or not quest_id:
+        return name
+    localized = get_localized_quest_name(
+        db, quest_id, locale
+    )
+    return localized or name
+
+
+# Cache for Blizzard-localized creature/NPC titles
+# (SubName), keyed by (entry, locale). Mirrors
+# _creature_name_locale_cache -- a parallel lookup since
+# creature_template_locale carries Name and Title as
+# separate columns.
+_creature_title_locale_cache: Dict[
+    Tuple[int, str], Optional[str]
+] = {}
+
+
+def get_localized_creature_title(
+    db, entry: Optional[int], locale: Optional[str]
+) -> Optional[str]:
+    """Look up the Blizzard-localized creature title
+    (SubName) from acore_world.creature_template_locale.
+
+    Returns None (caller should fall back to the English
+    title already in hand) when entry/locale is missing,
+    the entry has no localization row for that locale, the
+    row's Title is empty (many creatures have no SubName),
+    or the query fails for any reason.
+    """
+    if not entry or not locale:
+        return None
+    try:
+        entry = int(entry)
+    except (TypeError, ValueError):
+        return None
+
+    cache_key = (entry, locale)
+    if cache_key in _creature_title_locale_cache:
+        return _creature_title_locale_cache[cache_key]
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT Title FROM "
+            "acore_world.creature_template_locale "
+            "WHERE entry = %s AND locale = %s",
+            (entry, locale),
+        )
+        row = cursor.fetchone()
+        title = (
+            row['Title']
+            if row and row.get('Title') else None
+        )
+        _creature_title_locale_cache[cache_key] = title
+        return title
+    except Exception:
+        logger.error(
+            "get_localized_creature_title failed for "
+            "entry %s locale %s",
+            entry, locale, exc_info=True,
+        )
+        # Don't cache exceptions -- a transient DB
+        # hiccup shouldn't permanently poison the
+        # cache the way a genuine "not found" should.
+        return None
+
+
+def localize_creature_title(
+    db, title: str, entry: Optional[int] = None
+) -> str:
+    """Return the Blizzard-localized creature/NPC title
+    (SubName) for the configured LLMChatter.Language when
+    available, otherwise return `title` unchanged.
+
+    Safe no-op (returns `title` as-is) when: the configured
+    language has no locale mapping, no creature entry ID
+    was supplied, or the entry has no matching Title row in
+    creature_template_locale.
+    """
+    locale = get_language_locale_code()
+    if not locale or not entry:
+        return title
+    localized = get_localized_creature_title(
+        db, entry, locale
+    )
+    return localized or title
 
 
 def set_emote_chance(chance_pct: int):
