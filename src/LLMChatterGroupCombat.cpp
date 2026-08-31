@@ -1639,6 +1639,17 @@ void HandleGroupPlayerSpellCastImpl(
         return;
     }
 
+    // Only comment on crowd control and offensive
+    // (attack) casts — heal/buff/dispel/shield/support
+    // spam was flooding party chat with ability
+    // commentary. Resurrect keeps its own gate below.
+    if (spellCategory != "cc"
+        && spellCategory != "offensive"
+        && spellCategory != "resurrect")
+    {
+        return;
+    }
+
     if (spellCategory == "resurrect")
     {
         Map* rzMap = player->GetMap();
@@ -1658,6 +1669,13 @@ void HandleGroupPlayerSpellCastImpl(
             sLLMChatterConfig
                 ->_groupSpellCastChance
             / std::max(numBots, 1u);
+
+        // Comment less on the real player's own
+        // ability usage than on bots' — keep the
+        // focus on bot-to-bot banter.
+        if (!IsPlayerBot(player))
+            effectiveChance /= 2;
+
         if (effectiveChance < 1)
             effectiveChance = 1;
         if (urand(1, 100) > effectiveChance)
