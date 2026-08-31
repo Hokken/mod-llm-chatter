@@ -54,6 +54,17 @@ Built from the ground up for **fantasy roleplay immersion**. Every system, perso
 
 ## Changelog
 
+### 2026-08-31 - Anthropic SDK v1 Compatibility
+
+* **Anthropic request compatibility**: Normal generation and
+  quick-analysis requests now send sampling temperature through
+  `extra_body`, avoiding SDK v1's rejection of the direct argument.
+* **Supported dependency range**: Bridge requirements now constrain
+  Anthropic to `>=1.0.0,<2.0.0`, with Python 3.10+ documented as the
+  supported runtime.
+* **Regression coverage**: Focused tests protect both Anthropic request
+  paths from future SDK argument regressions.
+
 ### 2026-08-16 - Korean Language and Unicode Cleanup
 
 * **Korean language support**: `LLMChatter.Language = KO` now resolves
