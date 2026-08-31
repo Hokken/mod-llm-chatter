@@ -321,8 +321,12 @@ This module requires a working AzerothCore server with mod-playerbots. If you do
 |-------------|---------|
 | AzerothCore | [Playerbot branch](https://github.com/mod-playerbots/azerothcore-wotlk/tree/Playerbot) (WotLK 3.3.5a) |
 | mod-playerbots | [liyunfan1223/mod-playerbots](https://github.com/mod-playerbots/mod-playerbots) |
-| Python | 3.8+ |
+| Python | 3.10+ |
 | LLM Provider | Anthropic, OpenAI, Google Gemini, OpenRouter, or Ollama |
+
+Install the Python bridge dependencies from `tools/requirements.txt`.
+Anthropic deployments use the supported 1.x SDK; installing provider
+packages individually can bypass the module's compatibility constraints.
 
 ### Recommended Models
 
