@@ -153,6 +153,24 @@ LLMChatter.HealthCheck.LLMProbe = 1
 LLMChatter.HealthCheck.LogPath =
 
 #
+#   LLMChatter.RuntimeDir
+#       Directory for the bridge's single-instance lock file.
+#       The bridge takes this lock at startup so a second copy
+#       started by hand cannot double every reply and database
+#       write; the lock is keyed by config path, so running a
+#       deliberately separate bridge against a different config
+#       still works.
+#       Leave empty to pick one automatically: $XDG_RUNTIME_DIR,
+#       then $TMPDIR, then the system temp directory. Set it
+#       explicitly only if none of those are writable. Note that
+#       the Docker setup mounts the tools directory read-only,
+#       which is why the lock never lives beside the scripts.
+#       Default: (empty -> auto-detected runtime/temp directory)
+#       [BRIDGE]
+#
+LLMChatter.RuntimeDir =
+
+#
 #   LLMChatter.RequestLog.Enable
 #       Log every LLM API call (prompt, response,
 #       timing) to a JSONL file for offline analysis.

@@ -18,10 +18,13 @@ This script:
 
 import argparse
 import atexit
+import fcntl
+import hashlib
 import json
 import logging
 import os
 import sys
+import tempfile
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
@@ -108,58 +111,136 @@ logging.getLogger("openai").setLevel(logging.WARNING)
 # same config/DB at once (e.g. a stray manual `nohup ... &` left
 # alongside the systemd-managed instance), which would duplicate LLM
 # calls and DB writes.
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-PID_FILE = os.path.join(SCRIPT_DIR, 'bridge.pid')
 
 
-def _pid_is_this_bridge(pid):
-    """Return True if `pid` is alive and looks like this bridge
-    script (guards against a stale pidfile whose PID got reused by
-    an unrelated process)."""
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    try:
-        with open(f'/proc/{pid}/cmdline', 'rb') as f:
-            cmdline = f.read().decode('utf-8', errors='replace')
-    except OSError:
-        # Can't inspect /proc for some reason - treat a live PID as
-        # a match rather than risk a false negative.
-        return True
-    return 'llm_chatter_bridge.py' in cmdline
+def _resolve_runtime_dir(config=None):
+    """Pick a writable directory to hold the bridge lock file.
 
+    The lock deliberately does NOT live next to the script: the
+    documented Docker setup mounts the tools directory read-only
+    (./modules/mod-llm-chatter/tools:/app:ro), so a lock written
+    there would fail and stop the bridge from starting at all.
 
-def _acquire_single_instance_lock():
-    """Refuse to start if another live process already holds the
-    PID file for this script. A stale PID file (dead process, or PID
-    reused by something unrelated) is silently overwritten."""
-    if os.path.exists(PID_FILE):
+    Order of preference: an explicit LLMChatter.RuntimeDir config
+    key, then the usual runtime/temp environment variables, then
+    the platform temp directory.
+    """
+    candidates = []
+    if config:
+        configured = str(
+            config.get('LLMChatter.RuntimeDir', '')
+        ).strip()
+        if configured:
+            candidates.append(configured)
+    for var in (
+        'LLM_CHATTER_RUNTIME_DIR', 'XDG_RUNTIME_DIR', 'TMPDIR',
+    ):
+        value = os.environ.get(var, '').strip()
+        if value:
+            candidates.append(value)
+    candidates.append(tempfile.gettempdir())
+
+    for path in candidates:
         try:
-            with open(PID_FILE, 'r') as f:
-                existing_pid = int(f.read().strip())
-        except (OSError, ValueError):
-            existing_pid = None
-        if (
-            existing_pid
-            and existing_pid != os.getpid()
-            and _pid_is_this_bridge(existing_pid)
-        ):
-            logger.error(
-                "Bridge already running as PID %d (lock file %s); "
-                "refusing to start a second instance",
-                existing_pid, PID_FILE,
-            )
-            sys.exit(1)
+            os.makedirs(path, exist_ok=True)
+        except OSError:
+            continue
+        if os.access(path, os.W_OK):
+            return path
+    return tempfile.gettempdir()
 
-    with open(PID_FILE, 'w') as f:
-        f.write(str(os.getpid()))
+
+def _lock_file_path(config_path, runtime_dir):
+    """Build the lock filename for one bridge instance.
+
+    Keyed by the resolved config path so that two intentionally
+    separate bridges (different configs, different databases) can
+    run side by side without locking each other out, while two
+    launches of the SAME config still collide as intended.
+    """
+    resolved = os.path.realpath(os.path.abspath(config_path))
+    digest = hashlib.sha256(
+        resolved.encode('utf-8')
+    ).hexdigest()[:16]
+    return os.path.join(
+        runtime_dir, 'llm_chatter_bridge.%s.lock' % digest
+    )
+
+
+# Kept alive for the whole process lifetime: closing this handle
+# would drop the kernel lock, so it must not be garbage collected.
+_lock_handle = None
+
+
+def _acquire_single_instance_lock(config_path, config=None):
+    """Refuse to start if another live bridge holds this config's lock.
+
+    Uses an advisory whole-file lock (flock) rather than a bare PID
+    file. Two things fall out of that for free: the kernel releases
+    the lock when the holder dies, so a crashed bridge can never
+    leave a stale lock behind that needs cleaning up by hand; and
+    the acquisition is atomic, so two bridges starting at the same
+    instant cannot both decide they are the only one.
+    """
+    global _lock_handle
+
+    runtime_dir = _resolve_runtime_dir(config)
+    lock_path = _lock_file_path(config_path, runtime_dir)
+
+    try:
+        handle = open(lock_path, 'a+')
+    except OSError as exc:
+        # A missing lock is worth a warning, but it is not worth
+        # refusing to run: better a bridge with no guard than no
+        # bridge at all.
+        logger.warning(
+            "Could not open lock file %s (%s); starting without a "
+            "single-instance guard", lock_path, exc,
+        )
+        return
+
+    try:
+        fcntl.flock(
+            handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB
+        )
+    except OSError:
+        try:
+            handle.seek(0)
+            holder = handle.read().strip() or 'unknown'
+        except OSError:
+            holder = 'unknown'
+        handle.close()
+        logger.error(
+            "Another bridge is already running for this config "
+            "(PID %s, lock file %s); refusing to start a second "
+            "instance", holder, lock_path,
+        )
+        sys.exit(1)
+
+    # Record our PID purely so the message above can name a culprit;
+    # the lock itself is held by the kernel, not by this content.
+    try:
+        handle.seek(0)
+        handle.truncate()
+        handle.write(str(os.getpid()))
+        handle.flush()
+    except OSError:
+        pass
+
+    _lock_handle = handle
+    logger.debug("Acquired bridge lock %s", lock_path)
 
     def _release_lock():
         try:
-            with open(PID_FILE, 'r') as f:
-                if f.read().strip() == str(os.getpid()):
-                    os.remove(PID_FILE)
+            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        except OSError:
+            pass
+        try:
+            os.remove(lock_path)
+        except OSError:
+            pass
+        try:
+            handle.close()
         except OSError:
             pass
 
@@ -1273,13 +1354,14 @@ def main():
     )
     args = parser.parse_args()
 
+    # Load config first so the lock can honour LLMChatter.RuntimeDir.
+    config = parse_config(args.config)
+
     # Guard against accidentally running a second instance against
     # the same config/DB (e.g. a stray manual launch left alongside
-    # the systemd-managed process).
-    _acquire_single_instance_lock()
-
-    # Load config
-    config = parse_config(args.config)
+    # the systemd-managed process). Keyed by config path, so a
+    # deliberately separate second bridge is still allowed.
+    _acquire_single_instance_lock(args.config, config)
 
     # Check if enabled - if disabled, wait and check
     # periodically
