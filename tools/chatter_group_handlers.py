@@ -116,28 +116,30 @@ logger = logging.getLogger(__name__)
 def _resolve_zone_name(
     db, group_id, extra_data_zone_name
 ):
-    """Resolve the authoritative zone name for a
-    group.
+    """Resolve the zone name for a group in the configured chatter
+    language.
 
-    Prefers the C++ extra_data zone_name (pushed by
-    OnPlayerUpdateZone), which is already correctly
-    Blizzard-localized. Falls back to the static
-    get_zone_name(zone_id) lookup via
-    llm_group_bot_traits only when extra_data has
-    nothing usable.
+    Localization is driven from the stable zone_id by the bridge, so
+    that every name in a prompt comes from one consistent locale.
+    LLMChatter.Language is the authoritative setting here: the C++
+    zone_name in extra_data is resolved with
+    sWorld->GetDefaultDbcLocale(), which is a separate, server-wide
+    setting and can disagree (an English worldserver configured for
+    Russian chatter would otherwise inject English zone names into
+    Russian prompts).
+
+    The C++ string is still a useful fallback -- it covers ids the
+    bridge has no table entry for -- so it is used whenever the
+    bridge lookup comes back empty.
 
     Returns zone_name string.
     """
-    if extra_data_zone_name:
-        return extra_data_zone_name
     zone_id, _, _ = get_group_location(
         db, group_id
     )
     if zone_id:
         resolved = get_zone_name(zone_id)
-        if resolved and not resolved.startswith(
-            'zone '
-        ):
+        if resolved:
             return resolved
     return extra_data_zone_name or 'somewhere'
 
