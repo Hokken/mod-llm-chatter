@@ -230,7 +230,9 @@ It carries two extra attributes:
 2. `call_llm()` or `quick_llm_analyze()` in `chatter_llm.py`
    auto-detects `PromptParts` via `_split_prompt()`.
 3. Provider dispatch:
-   - **Anthropic**: native `system=` parameter + user message
+   - **Anthropic**: native `system=` parameter + user message;
+     sampling temperature is sent through `extra_body` for Anthropic
+     SDK v1 compatibility
    - **OpenAI / Google / OpenRouter / Ollama**: system role message +
      user role message
 4. If a plain string is passed instead of `PromptParts`, the entire

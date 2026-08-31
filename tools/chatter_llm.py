@@ -45,6 +45,26 @@ def _build_chat_messages(sys_msg, user_content):
     return messages
 
 
+def _build_anthropic_request_kwargs(
+    model, max_tokens, temperature, sys_msg, user_msg
+):
+    """Build Anthropic SDK v1-compatible request arguments."""
+    kwargs = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "messages": [{
+            "role": "user",
+            "content": user_msg,
+        }],
+        "extra_body": {
+            "temperature": temperature,
+        },
+    }
+    if sys_msg:
+        kwargs["system"] = sys_msg
+    return kwargs
+
+
 def _openrouter_headers(config):
     """Build optional OpenRouter app-attribution headers."""
     headers = {}
@@ -361,17 +381,13 @@ def call_llm(
             )
         else:
             # Anthropic (default)
-            kwargs = {
-                "model": model,
-                "max_tokens": request_max_tokens,
-                "temperature": temperature,
-                "messages": [{
-                    "role": "user",
-                    "content": user_msg,
-                }],
-            }
-            if sys_msg:
-                kwargs["system"] = sys_msg
+            kwargs = _build_anthropic_request_kwargs(
+                model,
+                request_max_tokens,
+                temperature,
+                sys_msg,
+                user_msg,
+            )
             response = client.messages.create(
                 **kwargs
             )
@@ -640,17 +656,13 @@ def quick_llm_analyze(
                 response, label
             )
         else:
-            kwargs = {
-                "model": model,
-                "max_tokens": max_tokens,
-                "temperature": 0.1,
-                "messages": [{
-                    "role": "user",
-                    "content": user_msg,
-                }],
-            }
-            if sys_msg:
-                kwargs["system"] = sys_msg
+            kwargs = _build_anthropic_request_kwargs(
+                model,
+                max_tokens,
+                0.1,
+                sys_msg,
+                user_msg,
+            )
             response = (
                 active_client.messages.create(
                     **kwargs

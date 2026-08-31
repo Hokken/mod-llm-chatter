@@ -606,7 +606,8 @@ system message and a user message.
 Provider behavior:
 
 - **Anthropic**: system content passed via the `system=` parameter
-  on the API call (native system prompt support)
+  on the API call (native system prompt support); sampling temperature
+  is sent through `extra_body` for Anthropic SDK v1 compatibility
 - **OpenAI**: system content sent as a `{"role": "system", ...}`
   message prepended to the messages array
 - **Google Gemini**: uses Google's OpenAI-compatible chat-completions
