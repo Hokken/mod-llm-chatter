@@ -306,12 +306,19 @@ def process_group_loot_event(
 
 
 def _loot_msg_xform(db, raw_message, event):
-    """Inject clickable item link into loot msg.
+    """Inject a clickable item link into a loot message.
 
-    Localizes item_name the same way extract_fields did
-    (via item_entry) so the regex match/link text lines up
-    with what the model actually wrote in raw_message when
-    a locale is configured.
+    The prompt asks the model to write the stable {item} token rather
+    than the item's name. That token is what we substitute here, which
+    keeps the link working in inflected languages: the language rule
+    tells the model to decline proper nouns, so the written form of a
+    name often will not match the nominative we hold, and an
+    exact-name match would silently drop the link.
+
+    Two fallbacks remain for messages that do not carry the token --
+    older queued events, or a model that ignored the instruction:
+    an exact (case-insensitive) name match, then any [bracketed]
+    span, mirroring replace_placeholders()'s own fallback.
     """
     import json
     try:
@@ -325,15 +332,49 @@ def _loot_msg_xform(db, raw_message, event):
         db, ed.get('item_name', ''), item_entry,
     )
     item_quality = int(ed.get('item_quality', 2))
-    if item_entry and item_name:
-        link = format_item_link(
-            item_entry, item_quality, item_name,
-        )
+    if not (item_entry and item_name):
+        return raw_message
+
+    link = format_item_link(
+        item_entry, item_quality, item_name,
+    )
+
+    # Preferred path: the stable token, immune to declension.
+    token_pattern = r'\{item(?::[^}]*)?\}'
+    if re.search(token_pattern, raw_message):
         return re.sub(
-            re.escape(item_name), link,
+            token_pattern, lambda _m: link,
+            raw_message, count=1,
+        )
+
+    # Fallback: the model wrote the name verbatim. Absorb the
+    # brackets when it already wrote [Name], since the link supplies
+    # its own pair and would otherwise render as [[Name]].
+    bracketed_name = r'\[\s*' + re.escape(item_name) + r'\s*\]'
+    if re.search(bracketed_name, raw_message, flags=re.IGNORECASE):
+        return re.sub(
+            bracketed_name, lambda _m: link,
             raw_message, count=1,
             flags=re.IGNORECASE,
         )
+    if re.search(
+        re.escape(item_name), raw_message,
+        flags=re.IGNORECASE,
+    ):
+        return re.sub(
+            re.escape(item_name), lambda _m: link,
+            raw_message, count=1,
+            flags=re.IGNORECASE,
+        )
+
+    # Last resort: a bracketed span, as replace_placeholders does.
+    bracket_pattern = r'\[[^\]]{2,40}\]'
+    if re.search(bracket_pattern, raw_message):
+        return re.sub(
+            bracket_pattern, lambda _m: link,
+            raw_message, count=1,
+        )
+
     return raw_message
 
 def _maybe_raid_battle_cry(
