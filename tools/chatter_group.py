@@ -37,6 +37,7 @@ _spice_count = 2
 
 from chatter_shared import (
     call_llm, cleanup_message, strip_speaker_prefix,
+    get_race_speech_profile,
     get_chatter_mode, get_class_name, get_race_name,
     get_gender_label,
     get_db_connection, build_race_class_context,
@@ -149,7 +150,6 @@ from chatter_group_prompts import (
     build_bot_question_prompt,
 )
 from chatter_constants import (
-    RACE_SPEECH_PROFILES,
     CLASS_ROLE_MAP,
     AMBIENT_CHAT_TOPICS,
     AMBIENT_CHAT_TOPICS_RP,
@@ -2826,7 +2826,7 @@ def build_idle_chatter_prompt(
         if ctx:
             rp_context = f"\n{ctx}"
 
-        profile = RACE_SPEECH_PROFILES.get(
+        profile = get_race_speech_profile(
             bot['race']
         )
         if profile:
