@@ -277,7 +277,7 @@ def _try_carrier_self_message(
         label='reaction_bg_carrier',
         group_id=int(extra_data.get('group_id', 0) or 0),
         delivery_policy='urgent',
-        delivery_reason=event.get('event_type', 'bg_flag'),
+        delivery_reason=event_type,
     )
 
 
