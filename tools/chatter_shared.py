@@ -908,7 +908,15 @@ def get_zone_flavor(zone_id: int) -> Optional[str]:
 
 
 def get_dungeon_flavor(map_id: int) -> Optional[str]:
-    """Get dungeon/raid flavor text by map ID."""
+    """Get dungeon/raid flavor text by map ID.
+
+    RNG-gated for the same reason as get_zone_flavor/
+    get_subzone_lore — injected into nearly every group
+    reaction prompt via map_id, unlike those two this had
+    no gate at all, so bots leaned on it constantly.
+    """
+    if random.random() >= 0.25:
+        return None
     return DUNGEON_FLAVOR.get(map_id)
 
 
