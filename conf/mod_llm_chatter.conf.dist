@@ -2017,6 +2017,34 @@ LLMChatter.ConversationMaxTokens = 700
 LLMChatter.Temperature = 0.8
 
 #
+#   LLMChatter.FrequencyPenalty
+#       OpenAI-compatible sampling penalty (OpenAI, Google,
+#       OpenRouter, Ollama only — no effect on Anthropic,
+#       which has no equivalent param) that reduces the
+#       chance of the model reusing the same tokens/phrases
+#       within a single response. Raise this if bot chat
+#       feels repetitive in wording/structure across
+#       messages. Range: -2.0 to 2.0. 0 = disabled (matches
+#       prior behavior).
+#       Recommended starting value for gpt-4o-mini: 0.3-0.5
+#       Default: 0 (disabled)
+#
+LLMChatter.FrequencyPenalty = 0
+
+#
+#   LLMChatter.PresencePenalty
+#       OpenAI-compatible sampling penalty (same provider
+#       support as FrequencyPenalty) that nudges the model
+#       toward introducing new topics/words rather than
+#       sticking to ones already used in the response.
+#       Range: -2.0 to 2.0. 0 = disabled (matches prior
+#       behavior).
+#       Recommended starting value for gpt-4o-mini: 0.2-0.3
+#       Default: 0 (disabled)
+#
+LLMChatter.PresencePenalty = 0
+
+#
 #   LLMChatter.MaxMessageLength
 #       Maximum character length for chat messages.
 #       Messages longer than this are truncated.
