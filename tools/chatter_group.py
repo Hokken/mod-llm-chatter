@@ -288,6 +288,59 @@ PLAYERBOT_COMMANDS = {
 }
 
 
+PLAYERBOT_SELECTOR_PREFIXES = {
+    # Role / combat type
+    '@tank', '@dps', '@heal', '@ranged', '@melee',
+    '@rangeddps', '@meleedps',
+
+    # Classes
+    '@dk', '@druid', '@hunter', '@mage', '@paladin',
+    '@priest', '@rogue', '@shaman', '@warlock',
+    '@warrior',
+
+    # Raid target icons
+    '@star', '@circle', '@diamond', '@triangle',
+    '@moon', '@square', '@cross', '@skull',
+
+    # Specs
+    '@hpal', '@ppal', '@rpal',
+    '@disc', '@hpr', '@spr',
+    '@arc', '@frost', '@fire',
+    '@arms', '@fury', '@pwar',
+    '@affl', '@demo', '@dest',
+    '@ele', '@enh', '@rsha',
+    '@bal', '@rdru',
+    '@bmh', '@mmh', '@svh',
+    '@mut', '@comb', '@sub',
+    '@fdk', '@udk',
+}
+
+
+def _is_playerbot_selector(message: str) -> bool:
+    """Return True for Playerbots @target selector syntax."""
+    first_token = message.split(maxsplit=1)[0]
+
+    if first_token in PLAYERBOT_SELECTOR_PREFIXES:
+        return True
+
+    if first_token.startswith(
+        ('@group', '@aura', '@noaura', '@aggroby')
+    ):
+        return True
+
+    # Playerbots also supports @LEVEL and @FROM-TO.
+    level_selector = first_token[1:]
+    if level_selector.isdigit():
+        return True
+
+    if '-' in level_selector:
+        lower, upper = level_selector.split('-', 1)
+        if lower.isdigit() and upper.isdigit():
+            return True
+
+    return False
+
+
 def _is_playerbot_command(message: str) -> bool:
     """Check if a message is a playerbot command.
     Returns True if the full message (stripped,
@@ -298,6 +351,18 @@ def _is_playerbot_command(message: str) -> bool:
     msg = message.strip().lower()
     if not msg:
         return False
+
+    # Playerbots @target selector syntax is control traffic,
+    # not conversational content.
+    if msg.startswith('@'):
+        if _is_playerbot_selector(msg):
+            return True
+
+        # Also support @command forms such as @follow while
+        # preserving normal @name conversation.
+        msg = msg[1:].lstrip()
+        if not msg:
+            return True
 
     # Exact match (e.g. "follow", "stay", "ss")
     if msg in PLAYERBOT_COMMANDS:
