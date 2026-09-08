@@ -15,11 +15,12 @@ from chatter_constants import (
 from chatter_shared import (
     parse_extra_data,
     run_single_reaction,
-    build_bot_identity,
     append_json_instruction,
+    get_chatter_mode,
     get_gender_label,
     localize_creature_title,
 )
+from chatter_mode import build_player_prompt_header
 from chatter_group_state import (
     _mark_event,
     _store_chat,
@@ -107,6 +108,7 @@ def handle_emote_observer(db, client, config, event):
             npc_subname,
             traits=traits,
             stored_tone=stored_tone,
+            mode=get_chatter_mode(config),
         )
     elif tgt == 'player_external':
         prompt = _build_player_prompt(
@@ -115,6 +117,7 @@ def handle_emote_observer(db, client, config, event):
             p_name, emote, t_name, category,
             traits=traits,
             stored_tone=stored_tone,
+            mode=get_chatter_mode(config),
         )
     else:
         prompt = _build_undirected_prompt(
@@ -123,6 +126,7 @@ def handle_emote_observer(db, client, config, event):
             p_name, emote,
             traits=traits,
             stored_tone=stored_tone,
+            mode=get_chatter_mode(config),
         )
 
     result = run_single_reaction(
@@ -174,6 +178,7 @@ def _build_creature_prompt(
     npc_subname='',
     traits=None,
     stored_tone=None,
+    mode='roleplay',
 ):
     rank_str = NPC_RANK_NAMES.get(npc_rank, "")
     type_str = NPC_TYPE_NAMES.get(
@@ -193,8 +198,9 @@ def _build_creature_prompt(
     else:
         role_label = f"{rank_label}{type_str}"
     tone = stored_tone or _pick_tone(category)
-    identity = build_bot_identity(
-        bot_name, bot_race, bot_class, bot_gender
+    identity = build_player_prompt_header(
+        bot_name, bot_race, bot_class,
+        gender=bot_gender, mode=mode, channel='party'
     )
     prompt = identity
     if traits:
@@ -220,10 +226,12 @@ def _build_player_prompt(
     p_name, emote, t_name, category,
     traits=None,
     stored_tone=None,
+    mode='roleplay',
 ):
     tone = stored_tone or _pick_tone(category)
-    identity = build_bot_identity(
-        bot_name, bot_race, bot_class, bot_gender
+    identity = build_player_prompt_header(
+        bot_name, bot_race, bot_class,
+        gender=bot_gender, mode=mode, channel='party'
     )
     prompt = identity
     if traits:
@@ -249,13 +257,15 @@ def _build_undirected_prompt(
     p_name, emote,
     traits=None,
     stored_tone=None,
+    mode='roleplay',
 ):
     category = EMOTE_CATEGORIES.get(
         EMOTE_NAME_TO_ID.get(emote, 0), "ambient"
     )
     tone = stored_tone or _pick_tone(category)
-    identity = build_bot_identity(
-        bot_name, bot_race, bot_class, bot_gender
+    identity = build_player_prompt_header(
+        bot_name, bot_race, bot_class,
+        gender=bot_gender, mode=mode, channel='party'
     )
     prompt = identity
     if traits:

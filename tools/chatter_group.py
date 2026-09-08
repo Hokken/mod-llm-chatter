@@ -41,7 +41,6 @@ from chatter_shared import (
     get_chatter_mode, get_class_name, get_race_name,
     get_gender_label,
     get_db_connection, build_race_class_context,
-    build_bot_identity_from_dict,
     build_race_class_context_parts,
     parse_extra_data, get_zone_flavor,
     get_subzone_lore,
@@ -80,6 +79,10 @@ from chatter_db import (
     is_player_online,
 )
 from chatter_party_gate import should_defer_party_generation
+from chatter_mode import (
+    build_player_chat_guidance,
+    build_player_prompt_header_from_dict,
+)
 from chatter_prompts import (
     pick_random_tone,
     maybe_get_creative_twist,
@@ -288,6 +291,97 @@ PLAYERBOT_COMMANDS = {
 }
 
 
+PLAYERBOT_SELECTOR_PREFIXES = {
+    # Role / combat type
+    '@tank', '@dps', '@heal', '@ranged', '@melee',
+    '@rangeddps', '@meleedps',
+
+    # Classes
+    '@dk', '@druid', '@hunter', '@mage', '@paladin',
+    '@priest', '@rogue', '@shaman', '@warlock',
+    '@warrior',
+
+    # Raid target icons
+    '@star', '@circle', '@diamond', '@triangle',
+    '@moon', '@square', '@cross', '@skull',
+
+    # Specs
+    '@hpal', '@ppal', '@rpal',
+    '@disc', '@hpr', '@spr',
+    '@arc', '@frost', '@fire',
+    '@arms', '@fury', '@pwar',
+    '@affl', '@demo', '@dest',
+    '@ele', '@enh', '@rsha',
+    '@bal', '@rdru',
+    '@bmh', '@mmh', '@svh',
+    '@mut', '@comb', '@sub',
+    '@fdk', '@udk',
+}
+
+
+def _is_ascii_digits(value: str) -> bool:
+    """Return True only for non-empty ASCII decimal digits."""
+    return bool(value) and value.isascii() and value.isdigit()
+
+
+def _split_playerbot_selector(message: str):
+    """Parse a leading Playerbot selector.
+
+    Returns ``(recognized, unconditional, command_tail)``.
+    Ordinary role/class/marker/spec/level/group selectors expose
+    their remaining text for normal command validation. Aura and
+    aggro selectors are unconditional control traffic because their
+    selector arguments are part of Playerbots' filter expression.
+    """
+    parts = message.split(maxsplit=1)
+    first_token = parts[0]
+    command_tail = parts[1] if len(parts) > 1 else ''
+
+    if first_token in PLAYERBOT_SELECTOR_PREFIXES:
+        return True, False, command_tail
+
+    group_selector = first_token.removeprefix('@group')
+    if group_selector != first_token:
+        valid_group = (
+            bool(group_selector)
+            and group_selector.isascii()
+            and any(char.isdigit() for char in group_selector)
+            and all(
+                char.isdigit() or char in ',-'
+                for char in group_selector
+            )
+        )
+        if valid_group:
+            return True, False, command_tail
+
+    # Playerbots also supports @LEVEL and @FROM-TO.
+    level_selector = first_token[1:]
+    if _is_ascii_digits(level_selector):
+        return True, False, command_tail
+
+    if '-' in level_selector:
+        lower, upper = level_selector.split('-', 1)
+        if (
+            _is_ascii_digits(lower)
+            and _is_ascii_digits(upper)
+        ):
+            return True, False, command_tail
+
+    for prefix in ('@noaura', '@aura'):
+        if not first_token.startswith(prefix):
+            continue
+        aura_token = first_token[len(prefix):]
+        if not aura_token and command_tail:
+            aura_token = command_tail.split(maxsplit=1)[0]
+        if _is_ascii_digits(aura_token):
+            return True, True, ''
+
+    if first_token.startswith('@aggroby'):
+        return True, True, ''
+
+    return False, False, ''
+
+
 def _is_playerbot_command(message: str) -> bool:
     """Check if a message is a playerbot command.
     Returns True if the full message (stripped,
@@ -298,6 +392,26 @@ def _is_playerbot_command(message: str) -> bool:
     msg = message.strip().lower()
     if not msg:
         return False
+
+    # Playerbots @target selector syntax is control traffic,
+    # not conversational content.
+    if msg.startswith('@'):
+        recognized, unconditional, command_tail = (
+            _split_playerbot_selector(msg)
+        )
+        if unconditional:
+            return True
+        if recognized:
+            msg = command_tail
+        else:
+            first_token = msg.split(maxsplit=1)[0]
+            if first_token == '@':
+                return False
+            # Support @command forms such as @follow while
+            # preserving normal @name conversation.
+            msg = msg[1:].lstrip()
+        if not msg:
+            return False
 
     # Exact match (e.g. "follow", "stay", "ss")
     if msg in PLAYERBOT_COMMANDS:
@@ -1510,17 +1624,19 @@ def process_group_player_msg_event(
     # Parse and resolve WoW links in message
     # Keep raw message for detect_item_links
     raw_player_message = player_message
+
+    # Filter the original text before link resolution so the fallback
+    # sees the same Playerbot syntax that the C++ guard received.
+    if _is_playerbot_command(raw_player_message):
+        _mark_event(db, event_id, 'skipped')
+        return False
+
     link_context = ""
     player_message, link_context = (
         resolve_and_format_links(
             config, player_message
         )
     )
-
-    # Skip playerbot commands (follow, stay, etc.)
-    if _is_playerbot_command(player_message):
-        _mark_event(db, event_id, 'skipped')
-        return False
 
     # Get all bots in group for name matching
     cursor = db.cursor(dictionary=True)
@@ -2408,7 +2524,7 @@ def _build_composition_comment_prompt(
             rp_context = f"\n{ctx}"
 
     prompt = (
-        f"{build_bot_identity_from_dict(bot, suffix='.')}\n"
+        f"{build_player_prompt_header_from_dict(bot, mode)}\n"
         f"Your personality: {trait_str}"
         f"\nYour tone: "
         f"{stored_tone or pick_random_tone(mode)}"
@@ -2711,7 +2827,7 @@ def build_idle_chatter_prompt(
                 f"  - {m}" for m in sanitized
             )
             prompt = (
-                f"{build_bot_identity_from_dict(bot, suffix='.')}\n"
+                f"{build_player_prompt_header_from_dict(bot, mode)}\n"
                 f"Your personality: {trait_str}\n"
                 f"Your tone: {tone}\n"
             )
@@ -2720,7 +2836,11 @@ def build_idle_chatter_prompt(
                     f"{speaker_talent_context}\n"
                 )
             if travel_context:
-                prompt += f"{travel_context}\n"
+                label = (
+                    "Travel context"
+                    if is_rp else "Character gameplay travel state"
+                )
+                prompt += f"{label}: {travel_context}\n"
             # Detect solo bot: no other bots in
             # group. `members` includes bots + players;
             # we are alone if removing this bot and the
@@ -2746,6 +2866,12 @@ def build_idle_chatter_prompt(
                 f"(not a full retelling).\n"
                 f"</past_memories>\n\n"
             )
+            if not is_rp:
+                prompt += (
+                    "Treat these as remembered gameplay events. Paraphrase "
+                    "them as a player and never copy in-character journal "
+                    "wording.\n\n"
+                )
             if solo_bot and player_name:
                 prompt += (
                     f"IMPORTANT: You are the ONLY "
@@ -2846,9 +2972,12 @@ def build_idle_chatter_prompt(
     in_dungeon = dungeon_flav is not None
     bg_name = BG_MAP_NAMES.get(map_id)
     if in_dungeon:
-        rp_context += (
-            f"\nDungeon context: {dungeon_flav}"
-        )
+        if is_rp:
+            rp_context += (
+                f"\nDungeon context: {dungeon_flav}"
+            )
+        else:
+            rp_context += "\nYour character is inside a dungeon instance."
         if dungeon_bosses:
             boss_list = ', '.join(dungeon_bosses[:6])
             rp_context += f"\nBosses here: {boss_list}"
@@ -2883,23 +3012,26 @@ def build_idle_chatter_prompt(
     weather_arg = (
         None if in_dungeon else current_weather
     )
-    for line in build_environmental_context_lines(
-        weather_arg
-    ):
-        rp_context += f"\n{line}"
+    if is_rp:
+        for line in build_environmental_context_lines(
+            weather_arg
+        ):
+            rp_context += f"\n{line}"
 
     # Dead bot awareness — let the LLM know so it
     # can produce fitting dialogue (gallows humor,
     # pleas for a rez, floor commentary, etc.)
     if bot.get('is_dead'):
-        rp_context += (
-            "\nYou are DEAD — lying on the ground "
-            "as a ghost. Speak accordingly: dark "
-            "humor, complain about the cold floor, "
-            "ask for a resurrection, or comment on "
-            "the view from down here. Do NOT pretend "
-            "you are alive or give tactical advice."
-        )
+        if is_rp:
+            rp_context += (
+                "\nYou are dead and present as a ghost. React in-world and "
+                "do not pretend you are alive."
+            )
+        else:
+            rp_context += (
+                "\nYour character is dead. You may ask for a resurrection, "
+                "make a dry joke, or comment on the gameplay situation."
+            )
 
     if members:
         others = [
@@ -2923,12 +3055,8 @@ def build_idle_chatter_prompt(
         )
     else:
         style = (
-            "Say something in party chat as a "
-            "regular WoW player — could be any age, "
-            "mature and grounded. Talk about the "
-            "game naturally, as a player not a "
-            "character. Reference zones, classes, "
-            "abilities, and creatures by name."
+            "Say something casual and natural in party "
+            "chat while playing."
         )
 
     # Address direction
@@ -2948,7 +3076,7 @@ def build_idle_chatter_prompt(
         )
 
     prompt = (
-        f"{build_bot_identity_from_dict(bot)}\n"
+        f"{build_player_prompt_header_from_dict(bot, mode)}\n"
         f"Your personality: {trait_str}\n"
     )
     if speaker_talent_context:
@@ -2957,8 +3085,12 @@ def build_idle_chatter_prompt(
         f"Your tone: {tone}\n"
     )
     if travel_context:
-        prompt += f"{travel_context}\n"
-    if backstory:
+        label = (
+            "Travel context"
+            if is_rp else "Character gameplay travel state"
+        )
+        prompt += f"{label}: {travel_context}\n"
+    if is_rp and backstory:
         prompt += (
             f"\n<backstory>\n"
             f"Your history: {backstory}\n"
@@ -3090,13 +3222,19 @@ def build_idle_conversation_prompt(
             else:
                 speaker_desc = "four"
 
-            parts.append(
-                f"Generate a short party chat "
-                f"exchange between {speaker_desc} "
-                f"adventurers sharing memories "
-                f"from past adventures with "
-                f"{p_label}."
-            )
+            if is_rp:
+                parts.append(
+                    f"Generate a short party chat exchange between "
+                    f"{speaker_desc} adventurers sharing memories from "
+                    f"past adventures with {p_label}."
+                )
+            else:
+                parts.append(
+                    f"Generate a short party chat exchange between "
+                    f"{speaker_desc} WoW players recalling gameplay with "
+                    f"{p_label}."
+                )
+                parts.append(build_player_chat_guidance(mode, 'party'))
 
             # Compact bot identities — no worldview
             parts.append(
@@ -3111,10 +3249,12 @@ def build_idle_conversation_prompt(
                     ', '.join(t)
                     if t else 'average'
                 )
-                dead_tag = (
-                    " [DEAD]"
-                    if bot.get('is_dead') else ""
-                )
+                dead_tag = ""
+                if bot.get('is_dead'):
+                    dead_tag = (
+                        " [DEAD]"
+                        if is_rp else " [CHARACTER DEAD]"
+                    )
                 parts.append(
                     f"{bot['name']} is a level "
                     f"{bot['level']} "
@@ -3124,8 +3264,13 @@ def build_idle_conversation_prompt(
                     f"{dead_tag}"
                 )
                 if bot.get('travel_context'):
+                    travel_label = (
+                        "travel state"
+                        if is_rp
+                        else "character gameplay travel state"
+                    )
                     parts.append(
-                        f"{bot['name']} travel state: "
+                        f"{bot['name']} {travel_label}: "
                         f"{bot['travel_context']}"
                     )
 
@@ -3167,6 +3312,11 @@ def build_idle_conversation_prompt(
                 "share them; bots without react "
                 "naturally."
             )
+            if not is_rp:
+                parts.append(
+                    "Treat every memory as a gameplay event. Paraphrase it "
+                    "as a player and do not copy in-character wording."
+                )
 
             if chat_history:
                 parts.append(
@@ -3231,9 +3381,14 @@ def build_idle_conversation_prompt(
     in_dungeon = dungeon_flav is not None
     bg_name = BG_MAP_NAMES.get(map_id)
     if in_dungeon:
-        parts.append(
-            f"Dungeon context: {dungeon_flav}"
-        )
+        if is_rp:
+            parts.append(
+                f"Dungeon context: {dungeon_flav}"
+            )
+        else:
+            parts.append(
+                "The characters are inside a dungeon instance."
+            )
         if dungeon_bosses:
             boss_list = ', '.join(dungeon_bosses[:6])
             parts.append(f"Bosses here: {boss_list}")
@@ -3266,9 +3421,10 @@ def build_idle_conversation_prompt(
     weather_arg = (
         None if in_dungeon else current_weather
     )
-    parts.extend(
-        build_environmental_context_lines(weather_arg)
-    )
+    if is_rp:
+        parts.extend(
+            build_environmental_context_lines(weather_arg)
+        )
 
     # Precompute shared race context once per unique
     # race to avoid duplicating worldview/lore for
@@ -3299,10 +3455,12 @@ def build_idle_conversation_prompt(
         trait_str = (
             ', '.join(t) if t else 'average'
         )
-        dead_tag = (
-            " [DEAD - lying on the ground]"
-            if bot.get('is_dead') else ""
-        )
+        dead_tag = ""
+        if bot.get('is_dead'):
+            dead_tag = (
+                " [DEAD - lying on the ground]"
+                if is_rp else " [CHARACTER DEAD]"
+            )
         parts.append(
             f"{bot['name']} is a level "
             f"{bot['level']} {bot['race']} "
@@ -3311,8 +3469,12 @@ def build_idle_conversation_prompt(
             f"{dead_tag}"
         )
         if bot.get('travel_context'):
+            travel_label = (
+                "travel state"
+                if is_rp else "character gameplay travel state"
+            )
             parts.append(
-                f"  {bot['name']} travel state: "
+                f"  {bot['name']} {travel_label}: "
                 f"{bot['travel_context']}"
             )
         if is_rp:
@@ -3347,7 +3509,7 @@ def build_idle_conversation_prompt(
                 seen_classes.add(cls_role_key)
 
     # Inject backstories for participating bots
-    if backstory_map:
+    if is_rp and backstory_map:
         bs_lines = []
         for bot in bots:
             bs = backstory_map.get(bot['name'])
@@ -3460,13 +3622,8 @@ def build_idle_conversation_prompt(
             f"OOC; {length_hint}."
         )
     else:
-        parts.append(
-            "Guidelines: Sound like regular WoW "
-            "players chatting — could be any age, "
-            "mature and grounded; talk about the "
-            "game as players, not as characters; "
-            f"{length_hint}."
-        )
+        parts.append(build_player_chat_guidance(mode, 'party'))
+        parts.append(f"Guidelines: {length_hint}.")
 
     parts.append(
         "Do NOT mention quests, quest rewards, "

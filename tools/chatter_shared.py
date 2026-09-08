@@ -722,7 +722,7 @@ def build_race_class_context_parts(
     )
 
 
-def build_bot_state_context(extra_data):
+def build_bot_state_context(extra_data, mode='roleplay'):
     """Build natural-language state description
     from C++ bot_state data in extra_data."""
     if not extra_data:
@@ -731,6 +731,8 @@ def build_bot_state_context(extra_data):
     if not state or not isinstance(state, dict):
         return ""
 
+    from chatter_mode import is_roleplay
+    roleplay = is_roleplay(mode)
     parts = []
 
     # Real role (replaces CLASS_ROLE_MAP guessing)
@@ -753,15 +755,21 @@ def build_bot_state_context(extra_data):
     if hp is not None:
         hp = int(hp)
         if hp <= 20:
-            parts.append(
-                f"You are critically wounded "
-                f"({hp}% health)."
-            )
+            if roleplay:
+                parts.append(
+                    f"You are critically wounded ({hp}% health)."
+                )
+            else:
+                parts.append(
+                    f"Your character is critically low on health ({hp}%)."
+                )
         elif hp <= 50:
-            parts.append(
-                f"You are injured "
-                f"({hp}% health)."
-            )
+            if roleplay:
+                parts.append(f"You are injured ({hp}% health).")
+            else:
+                parts.append(
+                    f"Your character is low on health ({hp}%)."
+                )
 
     # Mana (skip for non-mana classes: -1 sentinel)
     mp = state.get('mana_pct')
@@ -782,16 +790,19 @@ def build_bot_state_context(extra_data):
     # Current target
     target = state.get('target', '')
     if target:
-        parts.append(
-            f"You are currently fighting "
-            f"{target}."
-        )
+        subject = "You are" if roleplay else "Your character is"
+        parts.append(f"{subject} currently fighting {target}.")
 
     travel_ctx = format_travel_context(
         state.get('travel_state')
     )
     if travel_ctx:
-        parts.append(travel_ctx)
+        if roleplay:
+            parts.append(travel_ctx)
+        else:
+            parts.append(
+                f"Character gameplay travel state: {travel_ctx}"
+            )
 
     return ' '.join(parts)
 

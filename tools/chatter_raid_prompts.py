@@ -19,6 +19,11 @@ from chatter_shared import (
     get_recent_zone_messages,
     append_json_instruction,
     localize_creature_name,
+    get_chatter_mode,
+)
+from chatter_mode import (
+    build_player_prompt_header,
+    is_roleplay,
 )
 from chatter_prompts import (
     pick_personality_spices,
@@ -366,17 +371,20 @@ def _raid_base_context(extra_data, bot_data):
     gender = bot_data.get('gender', '')
     traits = bot_data.get('traits')
 
+    config = extra_data.get('_config') or {}
+    mode = get_chatter_mode(config)
+    roleplay = is_roleplay(mode)
+
     # Race/class context
     rc_ctx = ''
-    if race and cls:
+    if roleplay and race and cls:
         rc_ctx = build_race_class_context(race, cls)
 
     # Personality spices
-    config = extra_data.get('_config')
     spice_str = ''
     if config:
         spices = pick_personality_spices(
-            config, spice_count_override=1)
+            config, mode=mode, spice_count_override=1)
         if spices:
             spice_str = ', '.join(spices)
 
@@ -388,32 +396,41 @@ def _raid_base_context(extra_data, bot_data):
         'difficulty', 'Normal')
     lore_entry = RAID_LORE.get(raid_name, {})
 
-    env_lines = build_environmental_context_lines()
+    env_lines = (
+        build_environmental_context_lines()
+        if roleplay else []
+    )
 
     # Talent context
     talent_ctx = extra_data.get(
         '_talent_context', '')
 
     # Build the context string
-    ctx = f"You are {bot_name}"
-    if race and cls:
-        ctx = build_bot_identity(
-            bot_name, race, cls, gender
-        )[:-1]
-    ctx += (
-        f", raiding {raid_name}"
-    )
+    if roleplay:
+        ctx = f"You are {bot_name}"
+        if race and cls:
+            ctx = build_bot_identity(
+                bot_name, race, cls, gender
+            )[:-1]
+        ctx += f", raiding {raid_name}"
+    else:
+        ctx = build_player_prompt_header(
+            bot_name, race, cls,
+            bot_data.get('level'), gender,
+            mode, channel='raid',
+        )
+        ctx += f"\nYour character is raiding {raid_name}"
     if wing:
         ctx += f" ({wing})"
     ctx += f". Difficulty: {difficulty}.\n"
     ctx += "\n".join(env_lines) + "\n"
 
-    if lore_entry.get('lore'):
+    if roleplay and lore_entry.get('lore'):
         ctx += f"Lore: {lore_entry['lore']}\n"
-    if lore_entry.get('landmarks'):
+    if roleplay and lore_entry.get('landmarks'):
         ctx += (
             f"Setting: {lore_entry['landmarks']}\n")
-    if lore_entry.get('tone'):
+    if roleplay and lore_entry.get('tone'):
         ctx += f"Tone: {lore_entry['tone']}\n"
 
     if traits:
@@ -497,7 +514,7 @@ def build_raid_boss_pull_prompt(
         )
 
     ctx += (
-        "ONE short sentence. Stay in character. "
+        "ONE short sentence in the configured chat mode. "
         "No asterisks."
     )
     return append_json_instruction(
@@ -531,7 +548,7 @@ def build_raid_boss_kill_prompt(
 
     ctx += (
         f"Your raid has defeated {boss_name}!\n"
-        "ONE short sentence. Stay in character. "
+        "ONE short sentence in the configured chat mode. "
         "No asterisks."
     )
     return append_json_instruction(
@@ -559,15 +576,22 @@ def build_raid_boss_wipe_prompt(
             "individuals.\n"
         )
     else:
-        ctx += (
-            "Talk to your SQUAD after dying. "
-            "Frustration, dark humor, "
-            "determination.\n"
-        )
+        if is_roleplay(get_chatter_mode(
+            extra_data.get('_config') or {}
+        )):
+            ctx += (
+                "Talk to your SQUAD after dying. Frustration, dark humor, "
+                "or determination.\n"
+            )
+        else:
+            ctx += (
+                "Talk to your SQUAD after your character died. React with "
+                "mild frustration, analysis, humor, or determination.\n"
+            )
 
     ctx += (
         f"Your raid wiped on {boss_name}.\n"
-        "ONE short sentence. Stay in character. "
+        "ONE short sentence in the configured chat mode. "
         "No asterisks."
     )
     return append_json_instruction(
@@ -596,10 +620,18 @@ def build_raid_battle_cry_prompt(
 
     ctx = _raid_base_context(extra_data, bot_data)
 
-    ctx += (
-        "You are shouting a BATTLE CRY to your "
-        "entire raid as you charge into combat.\n"
-    )
+    roleplay = is_roleplay(get_chatter_mode(
+        extra_data.get('_config') or {}
+    ))
+    if roleplay:
+        ctx += (
+            "You are shouting a BATTLE CRY to your entire raid as you "
+            "charge into combat.\n"
+        )
+    else:
+        ctx += (
+            "Give your raid one quick combat-start callout or hype line.\n"
+        )
     if is_boss:
         ctx += (
             f"Your raid is engaging the boss "
@@ -610,17 +642,17 @@ def build_raid_battle_cry_prompt(
             f"Your raid is fighting the elite "
             f"{creature_name}!\n"
         )
-    ctx += (
-        "Write ONE short, punchy battle cry. "
-        "5 to 15 words maximum. Think war shouts, "
-        "rallying calls, or fierce declarations. "
-        "Draw from your race and class identity.\n"
-        "Examples of the style (do NOT copy these): "
-        "\"For the Light!\", \"Into the fire!\", "
-        "\"Elune guide my arrows!\", "
-        "\"Blood and thunder!\"\n"
-        "No asterisks. No narration. Just the cry."
-    )
+    if roleplay:
+        ctx += (
+            "Write ONE short, punchy battle cry, 5 to 15 words maximum. "
+            "Draw from your race and class identity. No asterisks or "
+            "narration; just the cry."
+        )
+    else:
+        ctx += (
+            "Write ONE natural raid-chat line, 5 to 15 words maximum. It "
+            "may be practical, excited, calm, or lightly playful."
+        )
     return append_json_instruction(
         ctx, allow_action=False, skip_emote=True
     )
@@ -664,8 +696,8 @@ def build_raid_banter_prompt(
     )
     ctx += f"Topic hint: {banter_topics}\n"
     ctx += (
-        "ONE short sentence (10-25 words). Stay "
-        "in character. No asterisks."
+        "ONE short sentence (10-25 words) in the configured chat mode. "
+        "No asterisks."
     )
     return append_json_instruction(
         ctx, allow_action=False, skip_emote=True
@@ -713,7 +745,7 @@ def build_raid_morale_prompt(
     )
     ctx += f"Topic hint: {topics}\n"
     ctx += (
-        "ONE short sentence. Stay in character. "
+        "ONE short sentence in the configured chat mode. "
         "No asterisks."
     )
     return append_json_instruction(

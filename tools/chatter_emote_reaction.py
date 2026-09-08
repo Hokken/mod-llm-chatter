@@ -14,10 +14,11 @@ from chatter_constants import (
 from chatter_shared import (
     parse_extra_data,
     run_single_reaction,
-    build_bot_identity,
     append_json_instruction,
+    get_chatter_mode,
     get_gender_label,
 )
+from chatter_mode import build_player_prompt_header
 from chatter_group_state import (
     _mark_event,
     _store_chat,
@@ -87,6 +88,7 @@ def handle_emote_reaction(db, client, config, event):
         p_name, emote, category,
         traits=traits,
         stored_tone=stored_tone,
+        mode=get_chatter_mode(config),
     )
 
     result = run_single_reaction(
@@ -123,10 +125,12 @@ def _build_reaction_prompt(
     p_name, emote, category,
     traits=None,
     stored_tone=None,
+    mode='roleplay',
 ):
     tone = stored_tone or _pick_tone(category)
-    identity = build_bot_identity(
-        bot_name, bot_race, bot_class, bot_gender
+    identity = build_player_prompt_header(
+        bot_name, bot_race, bot_class,
+        gender=bot_gender, mode=mode, channel='party'
     )
     prompt = identity
     if traits:

@@ -13,7 +13,6 @@ import time
 
 from chatter_shared import (
     build_race_class_context,
-    build_bot_identity,
     build_travel_state_from_row,
     call_llm,
     cleanup_message,
@@ -22,6 +21,12 @@ from chatter_shared import (
     get_gender_label,
     get_race_name,
     strip_speaker_prefix,
+)
+from chatter_mode import (
+    build_player_prompt_header,
+    is_roleplay,
+    normalize_chatter_mode,
+    resolve_player_personality,
 )
 from chatter_constants import PERSONALITY_TRAITS
 from chatter_constants import GOOGLE_OPENAI_BASE_URL
@@ -40,6 +45,51 @@ def set_group_chat_history_limit(value: int):
     """Set shared chat-history limit used by group helpers."""
     global _chat_history_limit
     _chat_history_limit = max(1, min(int(value), 50))
+
+
+def normalize_active_group_personalities(db, config) -> int:
+    """Replace legacy RP metadata in active normal-mode group rows.
+
+    Persistent identities remain unchanged for roleplay mode. Only the
+    session-scoped group rows are normalized so existing groups immediately
+    receive ordinary player styles after a bridge restart.
+    """
+    mode = normalize_chatter_mode(
+        (config or {}).get('LLMChatter.ChatterMode', 'normal')
+    )
+    if is_roleplay(mode):
+        return 0
+
+    cursor = db.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT group_id, bot_guid, bot_name "
+        "FROM llm_group_bot_traits"
+    )
+    rows = cursor.fetchall()
+    if not rows:
+        return 0
+
+    update_cursor = db.cursor()
+    for row in rows:
+        traits, tone = resolve_player_personality(
+            row.get('bot_name', ''), mode=mode
+        )
+        update_cursor.execute(
+            "UPDATE llm_group_bot_traits "
+            "SET trait1 = %s, trait2 = %s, trait3 = %s, "
+            "tone = %s, backstory = NULL "
+            "WHERE group_id = %s AND bot_guid = %s",
+            (
+                traits[0], traits[1], traits[2], tone,
+                row.get('group_id'), row.get('bot_guid'),
+            ),
+        )
+    db.commit()
+    logger.info(
+        "Normalized %d active group personality row(s) for normal mode",
+        len(rows),
+    )
+    return len(rows)
 
 
 # ============================================================
@@ -1076,6 +1126,15 @@ def assign_bot_traits(
         persistent_tone = None
         persistent_backstory = None
 
+    mode = normalize_chatter_mode(
+        (config or {}).get('LLMChatter.ChatterMode', 'normal')
+    )
+    traits, persistent_tone = resolve_player_personality(
+        bot_name, traits, persistent_tone, mode
+    )
+    if not is_roleplay(mode):
+        persistent_backstory = None
+
     cursor = db.cursor()
     cursor.execute("""
         INSERT INTO llm_group_bot_traits
@@ -1122,7 +1181,8 @@ def assign_bot_traits(
 
     # Clear stored tone and backstory on fresh identity
     # (new or version bump) so they get regenerated
-    if identity and identity.get('reason'):
+    if (is_roleplay(mode) and identity
+            and identity.get('reason')):
         try:
             cursor.execute(
                 "UPDATE llm_group_bot_traits"
@@ -1137,8 +1197,11 @@ def assign_bot_traits(
             pass
 
     # Generate LLM-derived tone if not already set
-    tone = None
-    if config and bot_class and bot_race:
+    tone = (
+        None if is_roleplay(mode)
+        else persistent_tone
+    )
+    if is_roleplay(mode) and config and bot_class and bot_race:
         try:
             tone = _generate_bot_tone(
                 db, config, bot_guid, group_id,
@@ -1150,7 +1213,7 @@ def assign_bot_traits(
 
     # Generate LLM-derived backstory if not already set
     backstory = None
-    if config and bot_class and bot_race:
+    if is_roleplay(mode) and config and bot_class and bot_race:
         try:
             backstory = _generate_bot_backstory(
                 db, config, bot_guid, group_id,
@@ -1288,7 +1351,7 @@ def _generate_farewell(
     # Check for stored farewell in identity table,
     # but only reuse it if it matches the current
     # identity_version (version bumps clear it)
-    if config and int(config.get(
+    if mode == 'roleplay' and config and int(config.get(
         'LLMChatter.Memory.Enable', 1
     )):
         target_version = int(config.get(
@@ -1344,8 +1407,13 @@ def _generate_farewell(
         if rp_ctx:
             rp_ctx = f"\n{rp_ctx}"
 
-    identity = build_bot_identity(
-        bot_name, bot_race, bot_class, bot_gender,
+    identity = build_player_prompt_header(
+        bot_name,
+        bot_race,
+        bot_class,
+        gender=bot_gender,
+        mode=mode,
+        channel='party',
     )
     prompt = (
         f"{identity}\n"
@@ -1390,7 +1458,7 @@ def _generate_farewell(
         db.commit()
 
         # Also store in persistent identity table
-        if config and int(config.get(
+        if is_rp and config and int(config.get(
             'LLMChatter.Memory.Enable', 1
         )):
             try:

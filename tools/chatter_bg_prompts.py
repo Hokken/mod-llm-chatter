@@ -24,6 +24,11 @@ from chatter_shared import (
     get_recent_zone_messages,
     append_json_instruction,
     localize_creature_name,
+    get_chatter_mode,
+)
+from chatter_mode import (
+    build_player_prompt_header,
+    is_roleplay,
 )
 from chatter_prompts import (
     pick_personality_spices,
@@ -85,6 +90,8 @@ def _bg_base_context(
         db = extra_data.get('_db')
     if config is None:
         config = extra_data.get('_config')
+    mode = get_chatter_mode(config or {})
+    roleplay = is_roleplay(mode)
     bg_type_id = int(extra_data.get('bg_type_id', 0))
     lore = get_bg_lore(bg_type_id)
     team = extra_data.get('team', 'Unknown')
@@ -105,20 +112,35 @@ def _bg_base_context(
     gender = bot_data.get('gender', '')
 
     # Environmental context
-    env_lines = build_environmental_context_lines()
-
-    ctx = (
-        f"You are {bot_name}"
+    env_lines = (
+        build_environmental_context_lines()
+        if roleplay else []
     )
-    if race and cls:
-        ctx = build_bot_identity(
-            bot_name, race, cls, gender
-        )[:-1]
+
+    if roleplay:
+        ctx = f"You are {bot_name}"
+        if race and cls:
+            ctx = build_bot_identity(
+                bot_name, race, cls, gender
+            )[:-1]
+        ctx += (
+            f", fighting in "
+            f"{lore.get('name', 'a battleground')}. "
+            f"You fight for the {faction_name} "
+            f"({team}).\n"
+        )
+    else:
+        ctx = build_player_prompt_header(
+            bot_name, race, cls,
+            bot_data.get('level'), gender,
+            mode, channel='battleground',
+        ) + "\n"
+        ctx += (
+            "Your character is fighting in "
+            f"{lore.get('name', 'a battleground')} "
+            f"for the {faction_name} ({team}).\n"
+        )
     ctx += (
-        f", fighting in "
-        f"{lore.get('name', 'a battleground')}. "
-        f"You fight for the {faction_name} "
-        f"({team}).\n"
         f"Score: Alliance {score_a} \u2014 "
         f"Horde {score_h}.\n"
         f"Alive on your team: "
@@ -160,10 +182,10 @@ def _bg_base_context(
                 + ", ".join(parts) + ".\n"
             )
 
-    if lore.get('lore'):
+    if roleplay and lore.get('lore'):
         ctx += f"Lore: {lore['lore']}\n"
 
-    if lore.get('landmarks'):
+    if roleplay and lore.get('landmarks'):
         ctx += f"{lore['landmarks']}\n"
 
     if traits:
@@ -172,7 +194,7 @@ def _bg_base_context(
         ctx += f"Your personality: {trait_str}\n"
 
     # Race/class personality context
-    if race and cls:
+    if roleplay and race and cls:
         rp_ctx = build_race_class_context(race, cls)
         if rp_ctx:
             ctx += f"{rp_ctx}\n"
@@ -180,7 +202,7 @@ def _bg_base_context(
     # Personality spices
     if config:
         spices = pick_personality_spices(
-            config, spice_count_override=1)
+            config, mode=mode, spice_count_override=1)
         if spices:
             ctx += (
                 f"Background flavor: "
@@ -220,12 +242,19 @@ def build_bg_match_start_prompt(
 ):
     """Match start \u2014 battle cries, faction pride."""
     ctx = _bg_base_context(extra_data, bot_data)
-    ctx += (
-        "\nThe gates just opened! The match is "
-        "starting. React with a battle cry, "
-        "faction pride, or encouragement for "
-        "your team. Be fierce and energetic."
-    )
+    roleplay = is_roleplay(get_chatter_mode(
+        extra_data.get('_config') or {}
+    ))
+    if roleplay:
+        ctx += (
+            "\nThe gates just opened. React with a battle cry, faction "
+            "pride, or encouragement for your team."
+        )
+    else:
+        ctx += (
+            "\nThe match just started. Give a quick, natural team-chat "
+            "reaction, objective reminder, or bit of encouragement."
+        )
     return append_json_instruction(
         ctx, allow_action=False, skip_emote=True
     )
@@ -736,18 +765,31 @@ def build_bg_low_health_prompt(
     ctx = _bg_base_context(extra_data, bot_data)
     target = extra_data.get(
         'target_name', '')
-    if target:
+    roleplay = is_roleplay(get_chatter_mode(
+        extra_data.get('_config') or {}
+    ))
+    if target and roleplay:
         ctx += (
             f"\n{target} is badly wounded in "
             "combat! Brief urgent callout -- "
             "panic, plea for healing, or "
             "defiant last stand."
         )
-    else:
+    elif target:
+        ctx += (
+            f"\n{target}'s character is critically low on health. Give a "
+            "brief urgent callout or ask for healing."
+        )
+    elif roleplay:
         ctx += (
             "\nYou're badly wounded in combat! "
             "Brief urgent callout -- panic, plea "
             "for healing, or defiant last stand."
+        )
+    else:
+        ctx += (
+            "\nYour character is critically low on health. Give a brief "
+            "urgent player callout or ask for healing."
         )
     return append_json_instruction(
         ctx, allow_action=False)
@@ -776,17 +818,30 @@ def build_bg_death_prompt(
     dead = extra_data.get(
         'dead_name', 'a teammate')
     killer = extra_data.get('killer_name', '')
-    if killer:
+    roleplay = is_roleplay(get_chatter_mode(
+        extra_data.get('_config') or {}
+    ))
+    if killer and roleplay:
         ctx += (
             f"\n{dead} was just killed by {killer}! "
             "Brief urgent reaction -- mourn, vow "
             "revenge, or rally the team."
         )
-    else:
+    elif killer:
+        ctx += (
+            f"\n{killer} just killed {dead}'s character. Give a brief "
+            "tactical, frustrated, or encouraging reaction."
+        )
+    elif roleplay:
         ctx += (
             f"\n{dead} just went down! Brief urgent "
             "reaction -- mourn, vow revenge, or "
             "rally the team."
+        )
+    else:
+        ctx += (
+            f"\n{dead}'s character just died. Give a brief tactical, "
+            "frustrated, or encouraging reaction."
         )
     return append_json_instruction(
         ctx, allow_action=False)
@@ -820,7 +875,7 @@ def build_bg_combat_prompt(
 
 # -- Idle chatter ------------------------------------
 
-BG_IDLE_CATEGORIES = [
+BG_IDLE_CATEGORIES_RP = [
     "battle humor or sarcasm about the match",
     "faction pride or a brief war cry",
     "tactical observation (score, team strength)",
@@ -846,18 +901,77 @@ BG_IDLE_CATEGORIES = [
     "swagger or overconfidence when winning",
 ]
 
+BG_IDLE_CATEGORIES = [
+    "a useful tactical observation about the score or objectives",
+    "brief encouragement after a good play",
+    "a mild complaint about the match without blaming a player",
+    "a concise callout about team positioning or pressure",
+    "a quick reaction to an enemy class or strategy",
+    "friendly competitive banter",
+    "a dry joke about dying, respawning, queues, or gear",
+    "a compliment or grateful reaction to a teammate",
+    "calm optimism or realistic concern about the match",
+    "a quick reminder to focus an objective",
+    "a suggestion to regroup before the next push",
+    "a warning that an objective has been left undefended",
+    "a reminder to watch for enemies approaching from another route",
+    "a quick count of allies or enemies near an objective",
+    "a suggestion to stop chasing and return to the objective",
+    "a note that the enemy team is grouped tightly",
+    "a note that the enemy team is spread too thin",
+    "a request for help without blaming anyone for being elsewhere",
+    "a suggestion to protect a healer or vulnerable teammate",
+    "a suggestion to pressure an exposed enemy healer",
+    "a reminder to use crowd control or interrupts",
+    "a practical comment about the remaining match time",
+    "a reaction to the score becoming unexpectedly close",
+    "a restrained celebration after taking an objective",
+    "a composed response after losing an objective",
+    "a reminder that the match is still recoverable",
+    "an honest acknowledgment that the enemy made a good play",
+    "a quick apology for an ordinary positioning mistake",
+    "a short thank-you for a heal, peel, rescue, or useful callout",
+    "a mild joke about guarding a quiet objective",
+    "a dry comment about a badly timed respawn",
+    "a self-deprecating remark after losing a duel",
+    "a friendly comment about an unexpectedly effective strategy",
+    "a practical observation about where most fighting is happening",
+    "a suggestion to change targets instead of forcing the same fight",
+    "a note that several opponents are currently dead or respawning",
+    "a reminder to recover health or mana before re-engaging",
+    "a concise question about which objective the team wants next",
+    "a comment on whether the opening plan worked",
+    "a suggestion to adapt without arguing over the failed plan",
+    "a quick check that someone is staying to defend",
+    "a reminder not to fight too far from a useful position",
+    "a small morale boost aimed at the whole team",
+    "a realistic comment about playing for the next objective",
+    "a brief reaction to an unusual enemy team composition",
+    "a comment about queue time compared with match length",
+    "a mild observation about gear differences without insulting anyone",
+    "a question about whether an enemy cooldown was just used",
+    "a note that communication is improving as the match continues",
+    "a calm end-of-match thought without declaring victory too early",
+]
+
 
 def build_bg_idle_prompt(
     extra_data, bot_data, is_raid_worker=False
 ):
     """Ambient idle chatter during a BG match."""
     ctx = _bg_base_context(extra_data, bot_data)
-    category = random.choice(BG_IDLE_CATEGORIES)
+    mode = get_chatter_mode(
+        extra_data.get('_config') or {}
+    )
+    category = random.choice(
+        BG_IDLE_CATEGORIES_RP
+        if is_roleplay(mode) else BG_IDLE_CATEGORIES
+    )
     ctx += (
         f"\nThere's a lull in the action. Say "
         f"something to your team about: "
         f"{category}. "
-        "Keep it natural and in-character. "
+        "Keep it natural for the configured chat mode. "
         "One sentence only."
     )
     return append_json_instruction(

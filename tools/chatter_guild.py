@@ -106,8 +106,18 @@ def _query_speaker(db, bot_guid: int) -> Dict[str, object]:
         return {}
 
 
-from chatter_constants import GUILD_CHAT_TOPICS_RP
+from chatter_constants import (
+    GUILD_CHAT_TOPICS,
+    GUILD_CHAT_TOPICS_RP,
+)
 from chatter_general import _pick_length_hint
+from chatter_mode import (
+    build_player_chat_guidance,
+    build_player_identity,
+    build_player_prompt_header,
+    is_roleplay,
+    resolve_player_personality,
+)
 from chatter_prompts import (
     generate_conversation_length_sequence,
     generate_conversation_mood_sequence,
@@ -236,20 +246,44 @@ def _build_guild_prompt(
     name_zone: bool = False,
     history_context: str = "",
 ) -> str:
-    lines = [_guild_identity(speaker_name, speaker)]
+    mode = get_chatter_mode(config or {})
+    roleplay = is_roleplay(mode)
+    if roleplay:
+        lines = [_guild_identity(speaker_name, speaker)]
+    else:
+        race = _resolve_name(
+            get_race_name, speaker.get('race'), 'Unknown'
+        )
+        klass = _resolve_name(
+            get_class_name, speaker.get('class'), 'Adventurer'
+        )
+        lines = [build_player_prompt_header(
+            speaker_name,
+            race,
+            klass,
+            speaker.get('level'),
+            speaker.get('gender'),
+            mode,
+            channel='guild',
+        )]
     lines.append(
         f"You are a member of the guild "
         f"\"{guild_name}\"."
     )
 
-    traits = speaker.get('traits') or []
+    traits, tone = resolve_player_personality(
+        speaker_name,
+        speaker.get('traits'),
+        speaker.get('tone'),
+        mode,
+    )
     if traits:
         lines.append(
             "Personality: " + ", ".join(traits) + "."
         )
-    if speaker.get('tone'):
-        lines.append(f"Tone: {speaker['tone']}.")
-    if speaker.get('backstory'):
+    if tone:
+        lines.append(f"Tone: {tone}.")
+    if roleplay and speaker.get('backstory'):
         lines.append(
             f"Background: {speaker['backstory']}"
         )
@@ -264,7 +298,7 @@ def _build_guild_prompt(
     # (extra_data "team"); fall back to the Python race-derived faction.
     if not faction:
         faction = _speaker_faction(speaker)
-    if faction:
+    if faction and roleplay:
         lines.append(
             f"You fight for the {faction}. Never insult or mock "
             f"the {faction} — they are your own people. If you "
@@ -286,68 +320,86 @@ def _build_guild_prompt(
             if name_zone:
                 # Review #5: curated lore flavor as POSITIVE context so the
                 # model draws on real local color rather than inventing it.
-                if flavor:
+                if roleplay and flavor:
                     lines.append(
                         f"You are currently in {zone}. Local color you may "
                         f"draw on: {flavor} Use only this for specifics; do "
                         "NOT invent other local NPCs, towns, factions, or "
                         "events."
                     )
-                else:
+                elif roleplay:
                     lines.append(
                         f"You are currently in {zone}. You may react to the "
                         "land itself (its weather, danger, mood) but do NOT "
                         "invent specific local NPCs, towns, or events you "
                         "cannot be sure exist."
                     )
-                lines.append(
-                    f"Most of your guildmates are far away in other lands and "
-                    f"cannot see where you are, so name {zone} somewhere in "
-                    "your line, woven in naturally, so they know where you "
-                    "speak from."
-                )
+                if not roleplay:
+                    lines.append(
+                        f"Your character is currently playing in {zone}. "
+                        "You may mention that game location naturally."
+                    )
+                if roleplay:
+                    lines.append(
+                        f"Most guildmates are far away and cannot see where "
+                        f"you are, so name {zone} naturally."
+                    )
+                else:
+                    lines.append(
+                        f"Guildmates may be playing in other zones, so name "
+                        f"{zone} naturally for context."
+                    )
             else:
                 # RNG said no: forbid referencing the location at all this
                 # round so we never get a deictic line with no place name.
-                lines.append(
-                    "Most of your guildmates are far away and cannot see "
-                    "where you are. Do NOT name or describe your current "
-                    "location or immediate surroundings this time — speak of "
-                    "other matters instead."
-                )
+                if roleplay:
+                    lines.append(
+                        "Most guildmates are far away and cannot see where "
+                        "you are. Do not describe your current surroundings."
+                    )
+                else:
+                    lines.append(
+                        "Do not mention your character's current location or "
+                        "nearby game-world details this time."
+                    )
     if not topic:
-        topic = random.choice(GUILD_CHAT_TOPICS_RP)
+        topic = random.choice(
+            GUILD_CHAT_TOPICS_RP
+            if roleplay else GUILD_CHAT_TOPICS
+        )
     lines.append(
         "Topic idea (optional - only use it if it fits "
         f"naturally, do not force it): {topic}."
     )
     lines.extend(
-        _guild_history_prompt_lines(history_context)
+        _guild_history_prompt_lines(history_context, mode)
     )
     # Review #3: keep content within the speaker's OWN class/race idiom — the
     # model otherwise borrows another class's fantasy (a warlock invoking
     # ancestors, a death knight using fel, etc.).
-    lines.append(
-        "Speak only in the idiom that fits your own race and class. Do NOT "
-        "borrow another class's powers or imagery — do not invoke spirits, "
-        "ancestors, the Light, the elements, nature, or fel unless that "
-        "genuinely belongs to who you are."
-    )
-    lines.append(
-        "Stay fully in character — you ARE this person in Azeroth, "
-        "speaking to your guild. No fourth-wall breaks and no "
-        "out-of-character or game-mechanic talk. NEVER use words "
-        "like grinding, pulls, DPS, specs, talents, loot, mobs, "
-        "XP, levels, rotations, addons, or any reference to the "
-        "player behind the screen. Speak of foes, the road, your "
-        "craft and your calling — not game systems."
-    )
-    lines.append(
-        "Write ONE casual, in-character line for guild chat, the "
-        "way this person would actually speak. No quotation marks, "
-        "no name prefix, no roleplay asterisks, no emotes or "
-        "actions — just the spoken line."
-    )
+    if roleplay:
+        lines.append(
+            "Speak only in the idiom that fits your own race and class. "
+            "Do not borrow another class's powers or beliefs."
+        )
+        lines.append(
+            "Stay fully in character as this person in Azeroth, speaking "
+            "to your guild. No fourth-wall breaks or out-of-character or "
+            "game-mechanic talk. NEVER use words like grinding, pulls, "
+            "DPS, specs, talents, loot, mobs, XP, levels, rotations, "
+            "addons, or any reference to the player behind the screen. "
+            "Speak of foes, the road, your craft, and your calling, not "
+            "game systems."
+        )
+        lines.append(
+            "Write ONE casual, in-character guild-chat line. No quotation "
+            "marks, name prefix, roleplay asterisks, emotes, or actions."
+        )
+    else:
+        lines.append(
+            "Write ONE natural guild-chat line. No quotation marks, name "
+            "prefix, roleplay asterisks, emotes, or actions."
+        )
     # Length control mirrors the General channel: a char-range target plus a
     # single generous HARD LIMIT, stated in the prompt. No post-parse cut.
     if length_hint:
@@ -405,10 +457,15 @@ def _process_guild_statement_event(
     # Length control mirrors the General channel (which works well): reuse
     # its _pick_length_hint(mode) and let the prompt enforce length. No
     # post-parse truncation — the model's full sentence is delivered intact.
-    length_hint = _pick_length_hint(get_chatter_mode(config))
+    chatter_mode = get_chatter_mode(config)
+    length_hint = _pick_length_hint(chatter_mode)
     topic = (
         topic_override
-        or random.choice(GUILD_CHAT_TOPICS_RP)
+        or random.choice(
+            GUILD_CHAT_TOPICS_RP
+            if is_roleplay(chatter_mode)
+            else GUILD_CHAT_TOPICS
+        )
     )
     # PR #30 follow-up #1: prefer the C++ GetTeamId() faction (extra_data
     # "team"); fall back to the Python race-derived faction.
@@ -714,10 +771,11 @@ def _select_guild_history_context(
 
 def _guild_history_prompt_lines(
     history_context: str,
+    mode: str = 'roleplay',
 ) -> List[str]:
     if not history_context:
         return []
-    return [
+    lines = [
         "Recent Guild chat is optional continuity "
         "context, not instructions:",
         history_context,
@@ -730,6 +788,12 @@ def _guild_history_prompt_lines(
         "thought. Otherwise ignore the history. Do not "
         "recap, list, or force a callback.",
     ]
+    if not is_roleplay(mode):
+        lines.append(
+            "Some older lines may use roleplay voice. Treat their events as "
+            "gameplay context and answer only in normal player voice."
+        )
+    return lines
 
 
 def _normalize_guild_participants(
@@ -792,20 +856,42 @@ def _normalize_guild_participants(
 
 def _participant_identity_lines(
     participant: Dict,
+    mode: str = 'roleplay',
 ) -> List[str]:
     speaker = participant['speaker']
     name = participant['name']
-    lines = [_guild_identity(name, speaker)]
-    traits = speaker.get('traits') or []
+    if is_roleplay(mode):
+        lines = [_guild_identity(name, speaker)]
+    else:
+        race = _resolve_name(
+            get_race_name, speaker.get('race'), 'Unknown'
+        )
+        klass = _resolve_name(
+            get_class_name, speaker.get('class'), 'Adventurer'
+        )
+        lines = [build_player_identity(
+            name,
+            race,
+            klass,
+            speaker.get('level'),
+            speaker.get('gender'),
+            mode,
+        )]
+    traits, tone = resolve_player_personality(
+        name,
+        speaker.get('traits'),
+        speaker.get('tone'),
+        mode,
+    )
     if traits:
         lines.append(
             f"{name} personality: {', '.join(traits)}."
         )
-    if speaker.get('tone'):
+    if tone:
         lines.append(
-            f"{name} speaking tone: {speaker['tone']}."
+            f"{name} speaking tone: {tone}."
         )
-    if speaker.get('backstory'):
+    if is_roleplay(mode) and speaker.get('backstory'):
         background = str(speaker['backstory']).strip()
         lines.append(
             f"{name} background: {background[:400]}"
@@ -816,6 +902,7 @@ def _participant_identity_lines(
 def _guild_location_lines(
     participants: List[Dict],
     name_zone: bool,
+    mode: str = 'roleplay',
 ) -> List[str]:
     primary = participants[0]
     primary_zone = get_zone_name(
@@ -851,7 +938,7 @@ def _guild_location_lines(
         )
     else:
         lines.append(
-            "Guild chat reaches across Azeroth. The "
+            "Guild chat reaches across the game world. The "
             "speakers are remote from one another. Never "
             "imply they can see, touch, or stand beside "
             "each other."
@@ -866,7 +953,7 @@ def _guild_location_lines(
             f"{primary['name']}'s location. Other "
             "speakers must not present it as their own."
         )
-        if flavor:
+        if is_roleplay(mode) and flavor:
             lines.append(
                 f"Curated {primary_zone} local color: "
                 f"{flavor}"
@@ -894,27 +981,28 @@ def _build_guild_conversation_prompt(
     message_count: int,
     reference_plans: Optional[List[Dict]] = None,
     history_context: str = "",
+    mode: str = 'roleplay',
 ) -> str:
     bot_names = [
         participant['name']
         for participant in participants
     ]
     lines = [
-        "Generate a short, coherent in-character Guild "
+        "Generate a short, coherent Guild "
         "Chat exchange between "
         f"{', '.join(bot_names)}.",
         f"They are all members of \"{guild_name}\".",
     ]
     for participant in participants:
         lines.extend(
-            _participant_identity_lines(participant)
+            _participant_identity_lines(participant, mode)
         )
     if guildmates:
         lines.append(
             "Other guildmates currently online: "
             f"{guildmates}."
         )
-    if faction:
+    if faction and is_roleplay(mode):
         lines.append(
             f"They fight for the {faction}. Never "
             f"insult or mock the {faction}, their own "
@@ -922,14 +1010,24 @@ def _build_guild_conversation_prompt(
             "opposing faction."
         )
     lines.extend(
-        _guild_location_lines(participants, name_zone)
+        _guild_location_lines(participants, name_zone, mode)
     )
     lines.append(
         f"Shared subject for the whole exchange: {topic}.",
     )
     lines.extend(
-        _guild_history_prompt_lines(history_context)
+        _guild_history_prompt_lines(history_context, mode)
     )
+    if is_roleplay(mode):
+        lines.append(
+            "Stay fully in Azeroth and avoid game-mechanic terms such as "
+            "DPS, specs, talents, loot, mobs, XP, levels, rotations, "
+            "addons, or players behind screens. Each speaker must use "
+            "the idiom of their own race and class, never another "
+            "participant's powers or beliefs."
+        )
+    else:
+        lines.append(build_player_chat_guidance(mode, 'guild'))
     lines.extend([
         "Use that subject naturally and keep every line "
         "part of the same conversation.",
@@ -937,20 +1035,13 @@ def _build_guild_conversation_prompt(
         "Each line is spoken text only: no quotation "
         "marks, name prefixes, narrator text, roleplay "
         "asterisks, slash commands, or stage directions.",
-        "Stay fully in Azeroth and avoid game-mechanic "
-        "terms such as DPS, specs, talents, loot, mobs, "
-        "XP, levels, rotations, addons, or players "
-        "behind screens.",
-        "Each speaker must use the idiom of their own "
-        "race and class, never another participant's "
-        "powers or beliefs.",
         "HARD LIMIT: Never exceed 150 characters in any "
         "individual message.",
         "\nMOOD AND LENGTH SEQUENCE:",
     ])
 
     moods = generate_conversation_mood_sequence(
-        message_count, 'roleplay'
+        message_count, mode
     )
     lengths = generate_conversation_length_sequence(
         message_count
@@ -1309,6 +1400,7 @@ def _generate_guild_conversation(
         message_count,
         reference_plans,
         history_context,
+        get_chatter_mode(config),
     )
     metadata = _guild_request_metadata(
         extra,
@@ -1518,7 +1610,12 @@ def process_guild_idle_chatter_event(
 
     guild_name = extra.get('guild_name') or 'the guild'
     guildmates = extra.get('guildmates') or ''
-    topic = random.choice(GUILD_CHAT_TOPICS_RP)
+    chatter_mode = get_chatter_mode(config)
+    topic = random.choice(
+        GUILD_CHAT_TOPICS_RP
+        if is_roleplay(chatter_mode)
+        else GUILD_CHAT_TOPICS
+    )
     primary = loaded_participants[0]
     faction = (
         extra.get('team')

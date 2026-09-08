@@ -19,6 +19,7 @@ from chatter_guild import (
     _valid_guild_conversation,
 )
 from chatter_llm import call_llm
+from chatter_mode import build_player_chat_guidance, is_roleplay
 from chatter_prompts import (
     generate_conversation_length_sequence,
     generate_conversation_mood_sequence,
@@ -29,6 +30,7 @@ from chatter_shared import (
     build_conversation_json_repair_prompt,
     calculate_dynamic_delay,
     find_addressed_bot,
+    get_chatter_mode,
     parse_conversation_response,
     parse_extra_data,
     select_conversation_message_count,
@@ -122,6 +124,7 @@ def _fetch_session_context(
 def _format_session_context(
     summary: str,
     recent: List[Dict],
+    mode: str = 'roleplay',
 ) -> str:
     blocks = []
     if summary:
@@ -155,6 +158,11 @@ def _format_session_context(
             "during this session:",
             "\n".join(lines),
         ])
+    if blocks and not is_roleplay(mode):
+        blocks.append(
+            "Older bot lines may use roleplay voice. Treat their events as "
+            "gameplay context and reply only in normal player voice."
+        )
     return "\n".join(blocks)
 
 
@@ -381,25 +389,28 @@ def _shared_prompt_lines(
     player_message: str,
     session_context: str,
     callback_requested: bool,
+    mode: str = 'roleplay',
 ) -> List[str]:
-    lines = [
-        "Write natural in-character World of Warcraft "
-        "Guild Chat.",
-        f"The guild is \"{guild_name}\".",
-    ]
+    lines = [f"The guild is \"{guild_name}\"."]
+    if is_roleplay(mode):
+        lines.insert(
+            0, "Write natural in-character World of Warcraft Guild Chat."
+        )
+    else:
+        lines.insert(0, build_player_chat_guidance(mode, 'guild'))
     for participant in participants:
         lines.extend(
-            _participant_identity_lines(participant)
+            _participant_identity_lines(participant, mode)
         )
 
-    if faction:
+    if faction and is_roleplay(mode):
         lines.append(
             f"They fight for the {faction}. Never "
             f"insult or mock the {faction}, their own "
             "faction."
         )
     lines.extend(
-        _guild_location_lines(participants, False)
+        _guild_location_lines(participants, False, mode)
     )
     if session_context:
         lines.extend(["", session_context])
@@ -416,18 +427,18 @@ def _shared_prompt_lines(
         "Preserve unresolved questions and promises "
         "naturally; do not recite the memory.",
         "Do not invent facts that were not said.",
-        "Guild Chat reaches across Azeroth. Never imply "
+        "Guild Chat reaches across the game world. Never imply "
         "the speakers can see, touch, or stand beside "
         "one another.",
         "Each line is spoken text only: no narrator "
         "text, roleplay asterisks, slash commands, "
         "emotes, or name prefixes.",
-        "Stay fully in Azeroth and avoid game-mechanic "
-        "terms such as DPS, specs, talents, loot, mobs, "
-        "XP, levels, rotations, addons, or players "
-        "behind screens.",
         "Never exceed 150 characters in one message.",
     ])
+    if is_roleplay(mode):
+        lines.append(
+            "Stay fully in Azeroth and avoid game-mechanic terms."
+        )
     if callback_requested:
         lines.append(
             "If genuinely relevant, make one subtle "
@@ -453,6 +464,7 @@ def _build_single_prompt(
     callback_requested: bool,
     name_requested: bool,
     question_requested: bool,
+    mode: str = 'roleplay',
 ) -> str:
     lines = _shared_prompt_lines(
         [participant],
@@ -462,12 +474,13 @@ def _build_single_prompt(
         player_message,
         session_context,
         callback_requested,
+        mode,
     )
     lines.extend([
         "",
         f"{participant['name']} gives one direct, "
         "meaningful reply.",
-        _pick_length_hint('roleplay'),
+        _pick_length_hint(mode),
     ])
     if name_requested:
         lines.append(
@@ -504,6 +517,7 @@ def _build_multi_prompt(
     question_requested: bool,
     config: Dict,
 ) -> Tuple[str, List[Dict], int]:
+    mode = get_chatter_mode(config)
     names = [
         participant['name']
         for participant in participants
@@ -564,6 +578,7 @@ def _build_multi_prompt(
         player_message,
         session_context,
         callback_requested,
+        mode,
     )
     lines.append("")
     if topology == 'multi_reply':
@@ -586,7 +601,7 @@ def _build_multi_prompt(
         ])
 
     moods = generate_conversation_mood_sequence(
-        message_count, 'roleplay'
+        message_count, mode
     )
     lengths = generate_conversation_length_sequence(
         message_count
@@ -665,6 +680,7 @@ def _generate_single_reply(
         callback_requested,
         name_requested,
         question_requested,
+        get_chatter_mode(config),
     )
     response = call_llm(
         client,
@@ -1095,7 +1111,9 @@ def process_guild_player_message_event(
         'SessionMemory.Enable',
     )
     session_context = (
-        _format_session_context(summary, recent)
+        _format_session_context(
+            summary, recent, get_chatter_mode(config)
+        )
         if memory_enabled
         else ""
     )

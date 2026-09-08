@@ -78,13 +78,17 @@ from chatter_group import (
     check_bot_questions,
 )
 from chatter_group_state import (
+    normalize_active_group_personalities,
     regenerate_missing_identity_tones,
 )
 from chatter_general import (
     init_general_config,
     process_general_player_msg_event,
 )
-from chatter_cache import refill_precache_pool
+from chatter_cache import (
+    discard_ready_precache,
+    refill_precache_pool,
+)
 from chatter_event_registry import (
     build_handler_map,
     validate_registry,
@@ -1627,7 +1631,7 @@ def main():
     )
     logger.info(
         f"  ChatterMode: "
-        f"{config.get('LLMChatter.ChatterMode', 'roleplay')}"
+        f"{config.get('LLMChatter.ChatterMode', 'normal')}"
     )
     logger.info(
         f"  Ollama.BaseUrl: "
@@ -2044,6 +2048,8 @@ def main():
         try:
             db = get_db_connection(config)
             reset_stuck_processing_events(db)
+            discard_ready_precache(db)
+            normalize_active_group_personalities(db, config)
 
             # Memory system startup recovery
             if int(config.get(

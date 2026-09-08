@@ -928,12 +928,12 @@ bool IsLikelyPlayerbotControlCommand(
     auto trim = [](std::string const& input)
     {
         size_t start =
-            input.find_first_not_of(" \t\n\r");
+            input.find_first_not_of(" \t\n\r\f\v");
         if (start == std::string::npos)
             return std::string();
 
         size_t end =
-            input.find_last_not_of(" \t\n\r");
+            input.find_last_not_of(" \t\n\r\f\v");
         return input.substr(start, end - start + 1);
     };
 
@@ -952,6 +952,165 @@ bool IsLikelyPlayerbotControlCommand(
     std::string msg = toLowerAscii(trim(message));
     if (msg.empty())
         return false;
+
+    // Playerbots @target selector syntax is control traffic,
+    // not conversational content.
+    if (msg[0] == '@')
+    {
+        size_t selectorEnd =
+            msg.find_first_of(" \t\n\r\f\v");
+        std::string selector =
+            msg.substr(0, selectorEnd);
+        std::string commandTail =
+            selectorEnd == std::string::npos
+                ? std::string()
+                : trim(msg.substr(selectorEnd + 1));
+
+        static std::unordered_set<std::string>
+            selectorPrefixes = {
+                // Role / combat type
+                "@tank", "@dps", "@heal",
+                "@ranged", "@melee",
+                "@rangeddps", "@meleedps",
+
+                // Classes
+                "@dk", "@druid", "@hunter",
+                "@mage", "@paladin", "@priest",
+                "@rogue", "@shaman", "@warlock",
+                "@warrior",
+
+                // Raid target icons
+                "@star", "@circle", "@diamond",
+                "@triangle", "@moon", "@square",
+                "@cross", "@skull",
+
+                // Specs
+                "@hpal", "@ppal", "@rpal",
+                "@disc", "@hpr", "@spr",
+                "@arc", "@frost", "@fire",
+                "@arms", "@fury", "@pwar",
+                "@affl", "@demo", "@dest",
+                "@ele", "@enh", "@rsha",
+                "@bal", "@rdru",
+                "@bmh", "@mmh", "@svh",
+                "@mut", "@comb", "@sub",
+                "@fdk", "@udk"
+            };
+
+        bool knownSelector =
+            selectorPrefixes.find(selector)
+                != selectorPrefixes.end();
+        bool unconditionalSelector = false;
+
+        auto isDigits = [](std::string const& value)
+        {
+            if (value.empty())
+                return false;
+
+            return std::all_of(
+                value.begin(), value.end(),
+                [](unsigned char c)
+                {
+                    return std::isdigit(c) != 0;
+                });
+        };
+
+        if (!knownSelector
+            && selector.rfind("@group", 0) == 0)
+        {
+            std::string groupSelector =
+                selector.substr(6);
+            knownSelector =
+                !groupSelector.empty()
+                && std::any_of(
+                    groupSelector.begin(),
+                    groupSelector.end(),
+                    [](unsigned char c)
+                    {
+                        return std::isdigit(c) != 0;
+                    })
+                && std::all_of(
+                    groupSelector.begin(),
+                    groupSelector.end(),
+                    [](unsigned char c)
+                    {
+                        return std::isdigit(c) != 0
+                            || c == ',' || c == '-';
+                    });
+        }
+
+        if (!knownSelector && selector.size() > 1)
+        {
+            std::string levelSelector =
+                selector.substr(1);
+            size_t dash = levelSelector.find('-');
+
+            knownSelector =
+                isDigits(levelSelector)
+                || (dash != std::string::npos
+                    && isDigits(
+                        levelSelector.substr(0, dash))
+                    && isDigits(
+                        levelSelector.substr(dash + 1)));
+        }
+
+        if (!knownSelector)
+        {
+            std::string auraPrefix;
+            if (selector.rfind("@noaura", 0) == 0)
+                auraPrefix = "@noaura";
+            else if (selector.rfind("@aura", 0) == 0)
+                auraPrefix = "@aura";
+
+            if (!auraPrefix.empty())
+            {
+                std::string auraToken =
+                    selector.substr(auraPrefix.size());
+                if (auraToken.empty()
+                    && !commandTail.empty())
+                {
+                    size_t auraEnd =
+                        commandTail.find_first_of(
+                            " \t\n\r\f\v");
+                    auraToken = commandTail.substr(
+                        0, auraEnd);
+                }
+
+                if (isDigits(auraToken))
+                {
+                    knownSelector = true;
+                    unconditionalSelector = true;
+                }
+            }
+        }
+
+        if (!knownSelector
+            && selector.rfind("@aggroby", 0) == 0)
+        {
+            knownSelector = true;
+            unconditionalSelector = true;
+        }
+
+        if (unconditionalSelector)
+            return true;
+
+        if (knownSelector)
+        {
+            msg = commandTail;
+        }
+        else
+        {
+            if (selector == "@")
+                return false;
+
+            // Support @command forms such as @follow while
+            // preserving normal @name conversation.
+            msg = trim(msg.substr(1));
+        }
+
+        if (msg.empty())
+            return false;
+    }
 
     static std::unordered_set<std::string>
         exactCommands = {

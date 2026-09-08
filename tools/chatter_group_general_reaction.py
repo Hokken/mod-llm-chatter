@@ -23,6 +23,10 @@ from chatter_group_state import (
     format_chat_history,
     get_group_player_name,
 )
+from chatter_mode import (
+    build_player_chat_guidance,
+    build_player_prompt_header_from_dict,
+)
 from chatter_shared import (
     append_conversation_json_instruction,
     append_json_instruction,
@@ -422,19 +426,22 @@ def _build_statement_prompt(
         ] if t
     )
     prompt = (
-        f"{bot['name']} is a level {bot['level']} "
-        f"{bot['race']} {bot['class']} in a party "
-        f"with {player_name}.\n"
+        f"{build_player_prompt_header_from_dict(bot, mode)}\n"
+        f"You are in a party with {player_name}.\n"
     )
     if traits:
         prompt += f"Personality traits: {traits}.\n"
     if bot.get('travel_context'):
-        prompt += f"{bot['travel_context']}\n"
-    if loc.get('dungeon_flavor'):
+        label = (
+            "Travel context"
+            if is_rp else "Character gameplay travel state"
+        )
+        prompt += f"{label}: {bot['travel_context']}\n"
+    if is_rp and loc.get('dungeon_flavor'):
         prompt += f"Dungeon context: {loc['dungeon_flavor']}\n"
-    elif loc.get('zone_flavor'):
+    elif is_rp and loc.get('zone_flavor'):
         prompt += f"Zone context: {loc['zone_flavor']}\n"
-    if loc.get('subzone_lore'):
+    if is_rp and loc.get('subzone_lore'):
         prompt += f"Subzone context: {loc['subzone_lore']}\n"
     if chat_hist:
         prompt += f"{chat_hist}\n"
@@ -464,10 +471,7 @@ def _build_statement_prompt(
             "Keep it natural, brief, and grounded.\n"
         )
     else:
-        prompt += (
-            "Sound like a normal WoW player. Keep it "
-            "brief and casual.\n"
-        )
+        prompt += "Keep it brief and natural.\n"
     return append_json_instruction(
         prompt,
         allow_action=is_rp,
@@ -490,6 +494,8 @@ def _build_conversation_prompt(
         f"{len(bots)} grouped bots reacting to something "
         "they just heard in General chat.\n"
     )
+    if not is_rp:
+        prompt += build_player_chat_guidance(mode, 'party') + "\n"
     prompt += (
         f"\nA bot named {source_bot['name']} just said "
         f"in General chat:\n\"{source_message}\"\n"
@@ -499,11 +505,11 @@ def _build_conversation_prompt(
         f"{source_bot['name']} by name. This is private "
         "party chat, not another General reply.\n"
     )
-    if loc.get('dungeon_flavor'):
+    if is_rp and loc.get('dungeon_flavor'):
         prompt += f"Dungeon context: {loc['dungeon_flavor']}\n"
-    elif loc.get('zone_flavor'):
+    elif is_rp and loc.get('zone_flavor'):
         prompt += f"Zone context: {loc['zone_flavor']}\n"
-    if loc.get('subzone_lore'):
+    if is_rp and loc.get('subzone_lore'):
         prompt += f"Subzone context: {loc['subzone_lore']}\n"
 
     prompt += "\nSpeakers:\n"
@@ -522,7 +528,11 @@ def _build_conversation_prompt(
         if traits:
             line += f"; traits: {traits}"
         if bot.get('travel_context'):
-            line += f"; {bot['travel_context']}"
+            label = (
+                "travel context"
+                if is_rp else "character gameplay travel state"
+            )
+            line += f"; {label}: {bot['travel_context']}"
         prompt += line + "\n"
 
     if chat_hist:
@@ -534,10 +544,7 @@ def _build_conversation_prompt(
             "and class; keep it grounded and brief.\n"
         )
     else:
-        prompt += (
-            "\nGuidelines: Sound like normal people "
-            "chatting in a game; keep it brief.\n"
-        )
+        prompt += "\nGuidelines: Keep it brief and natural.\n"
     prompt += (
         f"- {names[0]} speaks first and mentions "
         f"{source_bot['name']} by name\n"

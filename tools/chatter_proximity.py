@@ -4,7 +4,10 @@ import logging
 import random
 from typing import Dict, List, Optional
 
-from chatter_constants import PROXIMITY_CHAT_TOPICS
+from chatter_constants import (
+    PROXIMITY_CHAT_TOPICS,
+    PROXIMITY_PLAYER_CHAT_TOPICS,
+)
 from chatter_db import insert_chat_message
 from chatter_llm import call_llm
 from chatter_shared import (
@@ -14,9 +17,17 @@ from chatter_shared import (
     parse_conversation_response,
     parse_extra_data,
     get_class_name,
+    get_chatter_mode,
     get_gender_label,
     get_race_name,
     strip_conversation_actions,
+)
+from chatter_mode import (
+    build_npc_chat_guidance,
+    build_player_chat_guidance,
+    build_player_prompt_header,
+    is_roleplay,
+    resolve_player_personality,
 )
 from chatter_text import (
     cleanup_message,
@@ -55,7 +66,7 @@ def _query_bot_identity(
     try:
         cursor = db.cursor(dictionary=True)
         cursor.execute(
-            "SELECT class, race, gender FROM characters "
+            "SELECT class, race, gender, level FROM characters "
             "WHERE guid = %s",
             (bot_guid,),
         )
@@ -72,6 +83,7 @@ def _query_bot_identity(
             'gender': get_gender_label(
                 int(row.get('gender', 0) or 0)
             ),
+            'level': int(row.get('level', 0) or 0),
         }
     except Exception:
         logger.error(
@@ -152,6 +164,36 @@ def _speaker_channel(speaker: Dict) -> str:
     return 'msay' if speaker.get('is_npc') else 'say'
 
 
+def _speaker_is_roleplay(speaker: Dict, mode: str) -> bool:
+    """NPCs are always in-world; only playerbots follow the mode."""
+    return bool(speaker.get('is_npc')) or is_roleplay(mode)
+
+
+def _playerbot_topic(config: Optional[Dict]) -> str:
+    mode = get_chatter_mode(config or {})
+    pool = (
+        PROXIMITY_CHAT_TOPICS
+        if is_roleplay(mode)
+        else PROXIMITY_PLAYER_CHAT_TOPICS
+    )
+    return random.choice(pool)
+
+
+def _mixed_voice_guidance(mode: str) -> List[str]:
+    lines = [
+        "For each roster entry tagged [NPC], follow this rule: "
+        + build_npc_chat_guidance(),
+    ]
+    lines.append(
+        "For each roster entry tagged [PLAYERBOT]: "
+        + build_player_chat_guidance(mode, 'say')
+    )
+    lines.append(
+        "Apply the appropriate rule independently to every speaker."
+    )
+    return lines
+
+
 def _insert_proximity_line(
     db,
     event_id: int,
@@ -203,6 +245,8 @@ def _single_prompt(
     last_message: Optional[str] = None,
     config: Optional[Dict] = None,
 ) -> PromptParts:
+    mode = get_chatter_mode(config or {})
+    speaker_roleplay = _speaker_is_roleplay(speaker, mode)
     zone_name = extra.get('zone_name', 'the area')
     subzone_name = extra.get('subzone_name', '')
     player_name = extra.get('player_name', 'the player')
@@ -224,18 +268,51 @@ def _single_prompt(
         speaker_backstory = profile.get(
             'backstory', ''
         )
+        speaker_traits, speaker_tone = resolve_player_personality(
+            speaker.get('name', 'Bot'),
+            speaker_traits,
+            speaker_tone,
+            mode,
+        )
 
-    lines = [
-        "You write extremely short, immersive World of "
-        "Warcraft in-world /say lines.",
-        "message must be 8-15 words, grounded, local, "
-        "and low-stakes.",
-        "Keep it lore-friendly. No modern memes, no AI "
-        "talk, no markdown.",
+    if speaker.get('is_npc'):
+        lines = [
+            build_npc_chat_guidance(),
+            "Write an extremely short, immersive in-world /say line.",
+        ]
+    elif speaker_roleplay:
+        lines = [
+            "Write an extremely short, immersive in-world /say line.",
+            build_player_prompt_header(
+                speaker.get('name', 'Bot'),
+                speaker.get('race') or '',
+                speaker.get('class') or '',
+                speaker.get('level'),
+                speaker.get('gender') or '',
+                mode,
+                channel='say',
+            ),
+        ]
+    else:
+        info = _query_bot_identity(
+            db, int(speaker.get('bot_guid', 0) or 0)
+        )
+        lines = [build_player_prompt_header(
+            speaker.get('name', 'Bot'),
+            speaker.get('race') or info.get('race', ''),
+            speaker.get('class') or info.get('class', ''),
+            speaker.get('level') or info.get('level'),
+            speaker.get('gender') or info.get('gender', ''),
+            mode,
+            channel='say',
+        )]
+    lines.extend([
+        "Message must be 8-15 words, natural, local, and low-stakes.",
+        "No AI talk, markdown, or forced slang.",
         "",
         f"Speaker: {speaker_desc}",
         f"Zone: {zone_name}",
-    ]
+    ])
     if speaker_traits:
         lines.append(
             "Speaker personality: "
@@ -244,7 +321,7 @@ def _single_prompt(
     if speaker_tone:
         lines.append(f"Speaker tone: {speaker_tone}")
     # RNG-gate backstory injection
-    if speaker_backstory and config:
+    if speaker_roleplay and speaker_backstory and config:
         bs_enabled = int(config.get(
             'LLMChatter.Backstory.Enable', 1
         ))
@@ -282,7 +359,7 @@ def _single_prompt(
     # Use global EmoteChance / ActionChance gates
     return append_json_instruction(
         "\n".join(lines) + "\n",
-        allow_action=True,
+        allow_action=speaker_roleplay,
         skip_emote=False,
     )
 
@@ -291,7 +368,23 @@ def _conversation_prompt(
     db, extra: Dict, participants: List[Dict],
     config: Optional[Dict] = None,
 ) -> PromptParts:
-    topic = random.choice(PROXIMITY_CHAT_TOPICS)
+    mode = get_chatter_mode(config or {})
+    has_playerbot = any(
+        not speaker.get('is_npc')
+        for speaker in participants
+    )
+    has_npc = any(
+        speaker.get('is_npc')
+        for speaker in participants
+    )
+    if is_roleplay(mode) or not has_playerbot:
+        topic = random.choice(PROXIMITY_CHAT_TOPICS)
+    else:
+        topic = (
+            "NPC angle: " + random.choice(PROXIMITY_CHAT_TOPICS)
+            + "; playerbot angle: "
+            + random.choice(PROXIMITY_PLAYER_CHAT_TOPICS)
+        )
     zone_name = extra.get('zone_name', 'the area')
     subzone_name = extra.get('subzone_name', '')
     max_lines = max(
@@ -314,7 +407,13 @@ def _conversation_prompt(
 
     roster_lines = []
     for speaker in participants:
-        line = f"- {_describe_speaker(db, speaker)}"
+        speaker_type = (
+            'NPC' if speaker.get('is_npc') else 'PLAYERBOT'
+        )
+        line = (
+            f"- [{speaker_type}] "
+            f"{_describe_speaker(db, speaker)}"
+        )
         if not speaker.get('is_npc'):
             profile = _query_bot_traits(
                 db,
@@ -323,6 +422,12 @@ def _conversation_prompt(
             traits = profile.get('traits', [])
             tone = profile.get('tone', '')
             backstory = profile.get('backstory', '')
+            traits, tone = resolve_player_personality(
+                speaker.get('name', 'Bot'),
+                traits,
+                tone,
+                mode,
+            )
             if traits:
                 line += (
                     "; personality: "
@@ -330,7 +435,7 @@ def _conversation_prompt(
                 )
             if tone:
                 line += f"; tone: {tone}"
-            if (backstory and _bs_enabled
+            if (is_roleplay(mode) and backstory and _bs_enabled
                     and random.random() < _bs_chance):
                 line += (
                     f"; background: {backstory}"
@@ -348,15 +453,16 @@ def _conversation_prompt(
         "You write short World of Warcraft ambient "
         "overheard /say conversations.",
         "Use only the provided speaker names.",
-        "Each message must be 6-14 words, natural, and "
-        "grounded in the immediate place.",
-        "Keep the exchange brief and immersive.",
+        "Each message must be 6-14 words, natural, and relevant to the "
+        "nearby exchange.",
+        "Keep the exchange brief.",
         "",
         f"Zone: {zone_name}",
         f"Topic seed: {topic}",
         f"Write EXACTLY {max_lines} messages.",
         "Speakers may address each other by name.",
     ]
+    lines.extend(_mixed_voice_guidance(mode))
     if subzone_name:
         lines.append(f"Subzone: {subzone_name}")
 
@@ -381,7 +487,7 @@ def _conversation_prompt(
         "\n".join(lines) + "\n",
         speaker_names,
         max_lines,
-        allow_action=True,
+        allow_action=is_roleplay(mode) or has_npc,
     )
 
 
@@ -405,8 +511,10 @@ def _generate_single_line(
         db,
         extra,
         speaker,
-        topic or random.choice(
-            PROXIMITY_CHAT_TOPICS
+        topic or (
+            random.choice(PROXIMITY_CHAT_TOPICS)
+            if speaker.get('is_npc')
+            else _playerbot_topic(config)
         ),
         player_message=player_message,
         last_message=last_message,
@@ -703,7 +811,10 @@ def _player_say_single_prompt(
     speaker: Dict,
     player_message: str,
     history: List[Dict],
+    config: Optional[Dict] = None,
 ) -> PromptParts:
+    mode = get_chatter_mode(config or {})
+    speaker_roleplay = _speaker_is_roleplay(speaker, mode)
     zone_name = extra.get('zone_name', 'the area')
     subzone_name = extra.get('subzone_name', '')
     player_name = extra.get(
@@ -712,17 +823,38 @@ def _player_say_single_prompt(
     speaker_desc = _describe_speaker(db, speaker)
     nearby_names = extra.get('nearby_names') or []
 
-    lines = [
-        "You write extremely short, immersive World "
-        "of Warcraft in-world /say lines.",
-        "message must be 8-15 words, grounded, "
-        "local, and low-stakes.",
-        "Keep it lore-friendly. No modern memes, no "
-        "AI talk, no markdown.",
+    if speaker.get('is_npc'):
+        lines = [build_npc_chat_guidance()]
+    elif speaker_roleplay:
+        lines = [build_player_prompt_header(
+            speaker.get('name', 'Bot'),
+            speaker.get('race', ''),
+            speaker.get('class', ''),
+            speaker.get('level'),
+            speaker.get('gender', ''),
+            mode,
+            channel='say',
+        )]
+    else:
+        info = _query_bot_identity(
+            db, int(speaker.get('bot_guid', 0) or 0)
+        )
+        lines = [build_player_prompt_header(
+            speaker.get('name', 'Bot'),
+            speaker.get('race') or info.get('race', ''),
+            speaker.get('class') or info.get('class', ''),
+            speaker.get('level') or info.get('level'),
+            speaker.get('gender') or info.get('gender', ''),
+            mode,
+            channel='say',
+        )]
+    lines.extend([
+        "Write an extremely short /say reply of 8-15 words.",
+        "Keep it natural and low-stakes. No AI talk or markdown.",
         "",
         f"Speaker: {speaker_desc}",
         f"Zone: {zone_name}",
-    ]
+    ])
     if subzone_name:
         lines.append(f"Subzone: {subzone_name}")
 
@@ -756,7 +888,7 @@ def _player_say_single_prompt(
 
     return append_json_instruction(
         "\n".join(lines) + "\n",
-        allow_action=True,
+        allow_action=speaker_roleplay,
         skip_emote=False,
     )
 
@@ -767,7 +899,9 @@ def _player_say_conversation_prompt(
     participants: List[Dict],
     player_message: str,
     history: List[Dict],
+    config: Optional[Dict] = None,
 ) -> PromptParts:
+    mode = get_chatter_mode(config or {})
     zone_name = extra.get('zone_name', 'the area')
     subzone_name = extra.get('subzone_name', '')
     player_name = extra.get(
@@ -780,7 +914,8 @@ def _player_say_conversation_prompt(
         ),
     )
     roster = "\n".join(
-        f"- {_describe_speaker(db, speaker)}"
+        f"- [{'NPC' if speaker.get('is_npc') else 'PLAYERBOT'}] "
+        f"{_describe_speaker(db, speaker)}"
         for speaker in participants
     )
     nearby_names = extra.get('nearby_names') or []
@@ -789,12 +924,13 @@ def _player_say_conversation_prompt(
         "You write short World of Warcraft "
         "overheard /say conversations.",
         "Use only the provided speaker names.",
-        "Each message must be 6-14 words, natural, "
-        "and grounded in the immediate place.",
-        "Keep the exchange brief and immersive.",
+        "Each message must be 6-14 words, natural, and relevant to the "
+        "nearby exchange.",
+        "Keep the exchange brief.",
         "",
         f"Zone: {zone_name}",
     ]
+    lines.extend(_mixed_voice_guidance(mode))
     if subzone_name:
         lines.append(f"Subzone: {subzone_name}")
 
@@ -849,7 +985,10 @@ def _player_say_conversation_prompt(
         "\n".join(lines) + "\n",
         speaker_names,
         max_lines,
-        allow_action=True,
+        allow_action=(
+            is_roleplay(mode)
+            or any(s.get('is_npc') for s in participants)
+        ),
     )
 
 
@@ -886,7 +1025,8 @@ def handle_proximity_player_say(
 
     speaker = participants[0]
     prompt = _player_say_single_prompt(
-        db, extra, speaker, player_message, history
+        db, extra, speaker, player_message, history,
+        config,
     )
     response = call_llm(
         client,
@@ -959,7 +1099,7 @@ def handle_proximity_player_conversation(
 
     prompt = _player_say_conversation_prompt(
         db, extra, participants,
-        player_message, history
+        player_message, history, config
     )
     max_lines = int(
         extra.get('max_lines', 3) or 3

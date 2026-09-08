@@ -24,13 +24,16 @@ from chatter_shared import (
     get_chatter_mode, build_race_class_context,
     build_race_class_context_parts,
     build_bot_identity,
-    build_bot_identity_with_level,
     get_zone_flavor, format_price,
     build_anti_repetition_context,
     append_json_instruction,
     append_conversation_json_instruction,
     select_conversation_message_count,
     get_subzone_name, get_subzone_lore,
+)
+from chatter_mode import (
+    build_player_chat_guidance,
+    build_player_prompt_header,
 )
 
 logger = logging.getLogger(__name__)
@@ -314,7 +317,7 @@ def build_dynamic_guidelines(
         ]
     else:
         guidelines = [
-            "Sound like a real player, not an NPC",
+            build_player_chat_guidance(mode, 'general'),
             "NEVER use brackets [] around names "
             "(quests, items, zones, creatures, NPCs, "
             "factions) - write everything as plain "
@@ -478,7 +481,8 @@ def build_plain_statement_prompt(
         if sz_name:
             parts.append(f"Subzone: {sz_name}")
 
-    append_environmental_context(parts, current_weather)
+    if is_rp:
+        append_environmental_context(parts, current_weather)
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -597,7 +601,8 @@ def build_quest_statement_prompt(
     if is_rp and zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
 
-    append_environmental_context(parts, current_weather)
+    if is_rp:
+        append_environmental_context(parts, current_weather)
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -729,7 +734,8 @@ def build_loot_statement_prompt(
     if is_rp and zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
 
-    append_environmental_context(parts, current_weather)
+    if is_rp:
+        append_environmental_context(parts, current_weather)
     if speaker_talent_context:
         parts.append(speaker_talent_context)
 
@@ -876,7 +882,8 @@ def build_quest_reward_statement_prompt(
     if is_rp and zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
 
-    append_environmental_context(parts, current_weather)
+    if is_rp:
+        append_environmental_context(parts, current_weather)
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -1014,7 +1021,8 @@ def build_plain_conversation_prompt(
         if sz_name:
             parts.append(f"Subzone: {sz_name}")
 
-    append_environmental_context(parts, current_weather)
+    if is_rp:
+        append_environmental_context(parts, current_weather)
 
     parts.append(f"Speakers: {', '.join(bot_names)}")
     parts.append(
@@ -1246,7 +1254,8 @@ def _append_gossip_context(
         if subzone_name:
             parts.append(f"Subzone: {subzone_name}")
 
-    append_environmental_context(parts, current_weather)
+    if is_rp:
+        append_environmental_context(parts, current_weather)
 
     label = 'NPC' if target_type == 'npc' else 'bot'
     parts.append(
@@ -1520,7 +1529,8 @@ def build_quest_conversation_prompt(
     if speaker_talent_context:
         parts.append(speaker_talent_context)
 
-    append_environmental_context(parts, current_weather)
+    if is_rp:
+        append_environmental_context(parts, current_weather)
 
     parts.append(
         f"Quest: {quest['quest_name']} "
@@ -1674,7 +1684,8 @@ def build_loot_conversation_prompt(
     if speaker_talent_context:
         parts.append(speaker_talent_context)
 
-    append_environmental_context(parts, current_weather)
+    if is_rp:
+        append_environmental_context(parts, current_weather)
 
     parts.append(
         f"Item: {item['item_name']} ({quality} quality)"
@@ -2051,13 +2062,16 @@ def build_event_statement_prompt(
             "phrases."
         )
     elif is_holiday:
-        event_instruction = (
-            "React to this event! "
-            "Mention the event by name "
-            "and share your character's "
-            "opinion or feelings about "
-            "it."
-        )
+        if is_rp:
+            event_instruction = (
+                "React to this event, mention it by name, and share your "
+                "character's opinion or feelings about it."
+            )
+        else:
+            event_instruction = (
+                "React as a player, mention the event by name, and share a "
+                "natural opinion about the gameplay event."
+            )
     else:
         event_instruction = (
             "You may naturally reference"
@@ -2076,12 +2090,14 @@ def build_event_statement_prompt(
             'current_weather'
         ) or None
 
-    env_lines = "".join(
-        f"\n{line}" for line
-        in build_environmental_context_lines(
-            weather_for_context
+    env_lines = ""
+    if is_rp:
+        env_lines = "".join(
+            f"\n{line}" for line
+            in build_environmental_context_lines(
+                weather_for_context
+            )
         )
-    )
 
     rp_personality = ""
     rp_style = ""
@@ -2127,17 +2143,22 @@ def build_event_statement_prompt(
                     f"\nSubzone: {subzone_name}"
                 )
 
-    identity = build_bot_identity_with_level(
+    identity = build_player_prompt_header(
         bot['bot1_name'],
         bot['bot1_race'],
         bot['bot1_class'],
         bot['bot1_level'],
-        suffix=' adventurer in World of Warcraft.\n',
+        mode=mode,
+        channel='general',
+    )
+    location_line = (
+        f"You are currently in {zone_name}."
+        if is_rp
+        else f"Your character is currently in {zone_name}."
     )
     prompt = (
-        f"{identity}"
-        f"and currently in "
-        f"{zone_name}."
+        f"{identity}\n"
+        f"{location_line}"
         f"{env_lines}"
         f"{zone_context}"
         f"{rp_personality}\n\n"
@@ -2205,7 +2226,8 @@ def build_spell_statement_prompt(
         )
         parts.append(f"Zone: {bot['zone']}")
 
-    append_environmental_context(parts, current_weather)
+    if is_rp:
+        append_environmental_context(parts, current_weather)
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -2392,7 +2414,8 @@ def build_spell_conversation_prompt(
     if speaker_talent_context:
         parts.append(speaker_talent_context)
 
-    append_environmental_context(parts, current_weather)
+    if is_rp:
+        append_environmental_context(parts, current_weather)
 
     parts.append(
         f"Spell being discussed: "
@@ -2572,7 +2595,8 @@ def build_trade_statement_prompt(
             "to trade an item."
         )
 
-    append_environmental_context(parts, current_weather)
+    if is_rp:
+        append_environmental_context(parts, current_weather)
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -2732,7 +2756,8 @@ def build_trade_conversation_prompt(
     if speaker_talent_context:
         parts.append(speaker_talent_context)
 
-    append_environmental_context(parts, current_weather)
+    if is_rp:
+        append_environmental_context(parts, current_weather)
 
     parts.append(
         f"Item for sale: {item['item_name']} "
@@ -2877,6 +2902,9 @@ def build_zone_intrusion_prompt(
     about the enemy intruder, flavored by their
     race/class personality.
     """
+    mode = get_chatter_mode(config)
+    is_rp = (mode == 'roleplay')
+
     # Defender identity
     defender_name = extra_data.get(
         'defender_name', 'Unknown'
@@ -2917,9 +2945,11 @@ def build_zone_intrusion_prompt(
     )
 
     # Race/class personality context
-    rc_context = build_race_class_context(
-        defender_race, defender_class
-    )
+    rc_context = ''
+    if is_rp:
+        rc_context = build_race_class_context(
+            defender_race, defender_class
+        )
 
     capital_suffix = (
         " -- your faction's capital city!"
@@ -2929,12 +2959,13 @@ def build_zone_intrusion_prompt(
 
     parts = []
     parts.append(
-        build_bot_identity_with_level(
+        build_player_prompt_header(
             defender_name,
             defender_race,
             defender_class,
             defender_level,
-            suffix='.',
+            mode=mode,
+            channel='general',
         )
     )
     if rc_context:
@@ -2948,14 +2979,16 @@ def build_zone_intrusion_prompt(
         + capital_suffix
     )
 
-    parts.append(
-        "\nYell a brief, urgent warning to alert "
-        "nearby allies. 1-2 sentences max. "
-        "Your personality should shape the tone: "
-        "a warrior might roar a battle cry, "
-        "a rogue might give a terse warning, "
-        "a priest might invoke the Light."
-    )
+    if is_rp:
+        parts.append(
+            "\nYell a brief in-character warning to nearby allies. Let "
+            "race, class, and personality shape the tone."
+        )
+    else:
+        parts.append(
+            "\nGive a brief, urgent player warning about the enemy in "
+            "zone chat. Use natural WoW PvP language without abuse."
+        )
 
     parts.append(
         "\nRules:"

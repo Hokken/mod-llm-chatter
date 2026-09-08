@@ -24,11 +24,13 @@ from chatter_guild_player import (
     _session_is_current,
 )
 from chatter_llm import call_llm
+from chatter_mode import build_player_chat_guidance, is_roleplay
 from chatter_shared import (
     append_conversation_json_instruction,
     append_json_instruction,
     build_conversation_json_repair_prompt,
     calculate_dynamic_delay,
+    get_chatter_mode,
     parse_conversation_response,
     parse_extra_data,
 )
@@ -164,25 +166,28 @@ def _shared_prompt_lines(
     faction: str,
     player_name: str,
     maximum: int,
+    mode: str = 'roleplay',
 ) -> List[str]:
-    lines = [
-        "Write natural in-character World of Warcraft "
-        "Guild Chat.",
-        f"The guild is \"{guild_name}\".",
-    ]
+    lines = [f"The guild is \"{guild_name}\"."]
+    if is_roleplay(mode):
+        lines.insert(
+            0, "Write natural in-character World of Warcraft Guild Chat."
+        )
+    else:
+        lines.insert(0, build_player_chat_guidance(mode, 'guild'))
     for participant in participants:
         lines.extend(
-            _participant_identity_lines(participant)
+            _participant_identity_lines(participant, mode)
         )
 
-    if faction:
+    if faction and is_roleplay(mode):
         lines.append(
             f"They fight for the {faction}. Never "
             f"insult or mock the {faction}, their own "
             "faction."
         )
     lines.extend(
-        _guild_location_lines(participants, False)
+        _guild_location_lines(participants, False, mode)
     )
     lines.extend([
         "",
@@ -192,21 +197,21 @@ def _shared_prompt_lines(
         "stranger or a newly recruited member.",
         "Keep every greeting warm, casual, and brief. "
         "It may acknowledge their return, ask what they "
-        "are doing, or offer a small in-character wish.",
+        "are doing, or offer a small friendly wish.",
         "Do not invent where they have been, how long "
         "they were absent, or what they intend to do.",
-        "Guild Chat reaches across Azeroth. Never imply "
+        "Guild Chat reaches across the game world. Never imply "
         "the speakers can see, touch, or stand beside "
         "the player or one another.",
         "Each line is spoken text only: no narrator "
         "text, roleplay asterisks, slash commands, "
         "emotes, or name prefixes.",
-        "Stay fully in Azeroth and avoid game-mechanic "
-        "terms such as DPS, specs, talents, mobs, XP, "
-        "levels, rotations, addons, or players behind "
-        "screens.",
         f"Hard limit: {maximum} characters per message.",
     ])
+    if is_roleplay(mode):
+        lines.append(
+            "Stay fully in Azeroth and avoid game-mechanic terms."
+        )
     return lines
 
 
@@ -217,6 +222,7 @@ def _build_single_prompt(
     player_name: str,
     name_requested: bool,
     maximum: int,
+    mode: str = 'roleplay',
 ):
     lines = _shared_prompt_lines(
         [participant],
@@ -224,6 +230,7 @@ def _build_single_prompt(
         faction,
         player_name,
         maximum,
+        mode,
     )
     lines.extend([
         "",
@@ -251,6 +258,7 @@ def _build_multi_prompt(
     player_name: str,
     name_requested: bool,
     maximum: int,
+    mode: str = 'roleplay',
 ) -> Tuple[object, List[str]]:
     names = [
         participant['name']
@@ -262,6 +270,7 @@ def _build_multi_prompt(
         faction,
         player_name,
         maximum,
+        mode,
     )
     lines.extend([
         "",
@@ -324,6 +333,7 @@ def _generate_single(
         player_name,
         name_requested,
         maximum,
+        get_chatter_mode(config),
     )
     token_budget = max(80, _safe_int(config.get(
         'LLMChatter.GuildChatter.MaxTokens',
@@ -403,6 +413,7 @@ def _generate_multi(
         player_name,
         name_requested,
         maximum,
+        get_chatter_mode(config),
     )
     base_tokens = max(100, _safe_int(config.get(
         'LLMChatter.GuildChatter.MaxTokens',
