@@ -932,6 +932,28 @@ LLMChatter.ProximityChatter.FacingResetDelay = 8
 LLMChatter.ProximityChatter.PlayerSayScanRadius = 40
 
 #
+#   LLMChatter.ProximityChatter.SpeakerAllowEntries
+#       Comma-separated creature template entry IDs for ordinary
+#       non-humanoid speakers deliberately approved by the server owner.
+#       This does not override universal safety checks, the speaker
+#       denylist, or boss exclusion. Interactive quest, vendor, trainer,
+#       innkeeper, flight-master, and guard NPCs do not need to be listed.
+#       Invalid values are logged and ignored.
+#       Default: (empty)
+#
+LLMChatter.ProximityChatter.SpeakerAllowEntries =
+
+#
+#   LLMChatter.ProximityChatter.SpeakerDenyEntries
+#       Comma-separated creature template entry IDs that must never join
+#       ordinary proximity chatter. This wins over the allowlist and also
+#       applies to humanoids and interactive NPCs.
+#       Invalid values are logged and ignored.
+#       Default: (empty)
+#
+LLMChatter.ProximityChatter.SpeakerDenyEntries =
+
+#
 #   LLMChatter.ProximityChatter.EnableBossDialogue
 #       Allow hostile dungeon and raid bosses to deliver one
 #       pre-aggro line when a real player safely approaches or

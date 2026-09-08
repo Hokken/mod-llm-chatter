@@ -202,6 +202,119 @@ std::string GetCreatureRankLabel(
     }
 }
 
+std::string GetCreatureTypeLabel(
+    CreatureTemplate const* creatureTemplate)
+{
+    if (!creatureTemplate)
+        return "unknown";
+
+    switch (creatureTemplate->type)
+    {
+        case CREATURE_TYPE_BEAST:
+            return "beast";
+        case CREATURE_TYPE_DRAGONKIN:
+            return "dragonkin";
+        case CREATURE_TYPE_DEMON:
+            return "demon";
+        case CREATURE_TYPE_ELEMENTAL:
+            return "elemental";
+        case CREATURE_TYPE_GIANT:
+            return "giant";
+        case CREATURE_TYPE_UNDEAD:
+            return "undead";
+        case CREATURE_TYPE_HUMANOID:
+            return "humanoid";
+        case CREATURE_TYPE_CRITTER:
+            return "critter";
+        case CREATURE_TYPE_MECHANICAL:
+            return "mechanical";
+        case CREATURE_TYPE_NOT_SPECIFIED:
+            return "not specified";
+        case CREATURE_TYPE_TOTEM:
+            return "totem";
+        case CREATURE_TYPE_NON_COMBAT_PET:
+            return "non-combat pet";
+        case CREATURE_TYPE_GAS_CLOUD:
+            return "gas cloud";
+        default:
+            return "unknown";
+    }
+}
+
+enum class ProximityNPCQualification
+{
+    None,
+    Guard,
+    FunctionalNPC,
+    Humanoid,
+    ConfiguredEntry
+};
+
+bool HasConversationalNPCFlags(Creature const* creature)
+{
+    if (!creature)
+        return false;
+
+    uint32 npcFlags = creature->GetNpcFlags();
+    return npcFlags
+        & (UNIT_NPC_FLAG_VENDOR
+            | UNIT_NPC_FLAG_VENDOR_AMMO
+            | UNIT_NPC_FLAG_VENDOR_FOOD
+            | UNIT_NPC_FLAG_VENDOR_POISON
+            | UNIT_NPC_FLAG_VENDOR_REAGENT
+            | UNIT_NPC_FLAG_TRAINER
+            | UNIT_NPC_FLAG_TRAINER_CLASS
+            | UNIT_NPC_FLAG_TRAINER_PROFESSION
+            | UNIT_NPC_FLAG_INNKEEPER
+            | UNIT_NPC_FLAG_FLIGHTMASTER
+            | UNIT_NPC_FLAG_QUESTGIVER);
+}
+
+ProximityNPCQualification GetProximityNPCQualification(
+    Creature const* creature)
+{
+    if (!creature || !sLLMChatterConfig)
+        return ProximityNPCQualification::None;
+
+    CreatureTemplate const* creatureTemplate =
+        creature->GetCreatureTemplate();
+    if (!creatureTemplate)
+        return ProximityNPCQualification::None;
+
+    uint32 entry = creature->GetEntry();
+    if (sLLMChatterConfig->IsProximitySpeakerDenied(entry))
+        return ProximityNPCQualification::None;
+    if (IsLLMChatterBoss(creature))
+        return ProximityNPCQualification::None;
+    if (creature->IsGuard())
+        return ProximityNPCQualification::Guard;
+    if (HasConversationalNPCFlags(creature))
+        return ProximityNPCQualification::FunctionalNPC;
+    if (creatureTemplate->type == CREATURE_TYPE_HUMANOID)
+        return ProximityNPCQualification::Humanoid;
+    if (sLLMChatterConfig->IsProximitySpeakerAllowed(entry))
+        return ProximityNPCQualification::ConfiguredEntry;
+    return ProximityNPCQualification::None;
+}
+
+std::string GetProximityNPCQualificationLabel(
+    ProximityNPCQualification qualification)
+{
+    switch (qualification)
+    {
+        case ProximityNPCQualification::Guard:
+            return "guard";
+        case ProximityNPCQualification::FunctionalNPC:
+            return "functional NPC";
+        case ProximityNPCQualification::Humanoid:
+            return "humanoid";
+        case ProximityNPCQualification::ConfiguredEntry:
+            return "configured entry";
+        default:
+            return "";
+    }
+}
+
 bool IsSameGroup(Player* left, Group* group)
 {
     if (!left || !group)
@@ -267,46 +380,8 @@ bool IsEligibleProximityNPC(
         return false;
     if (cr->GetName().empty())
         return false;
-    if (IsLLMChatterBoss(cr))
-        return false;
-    if (cr->IsHostileTo(player)
-        && tmpl->type != CREATURE_TYPE_HUMANOID)
-        return false;
-
-    switch (tmpl->type)
-    {
-        case CREATURE_TYPE_CRITTER:
-        case CREATURE_TYPE_BEAST:
-        case CREATURE_TYPE_MECHANICAL:
-        case CREATURE_TYPE_ELEMENTAL:
-        case CREATURE_TYPE_GAS_CLOUD:
-        case CREATURE_TYPE_NON_COMBAT_PET:
-        case CREATURE_TYPE_TOTEM:
-            return false;
-        default:
-            break;
-    }
-
-    if (cr->IsGuard())
-        return true;
-
-    uint32 npcFlags =
-        cr->GetNpcFlags();
-    if (npcFlags
-        & (UNIT_NPC_FLAG_VENDOR
-            | UNIT_NPC_FLAG_VENDOR_AMMO
-            | UNIT_NPC_FLAG_VENDOR_FOOD
-            | UNIT_NPC_FLAG_VENDOR_POISON
-            | UNIT_NPC_FLAG_VENDOR_REAGENT
-            | UNIT_NPC_FLAG_TRAINER
-            | UNIT_NPC_FLAG_TRAINER_CLASS
-            | UNIT_NPC_FLAG_TRAINER_PROFESSION
-            | UNIT_NPC_FLAG_INNKEEPER
-            | UNIT_NPC_FLAG_FLIGHTMASTER
-            | UNIT_NPC_FLAG_QUESTGIVER))
-        return true;
-
-    return tmpl->type == CREATURE_TYPE_HUMANOID;
+    return GetProximityNPCQualification(cr)
+        != ProximityNPCQualification::None;
 }
 
 WorldObject* ResolveParticipantObject(
@@ -619,6 +694,13 @@ std::string BuildNPCParticipantJson(
         + "\",\"rank\":\""
         + JsonEscape(
             GetCreatureRankLabel(creatureTemplate))
+        + "\",\"creature_type\":\""
+        + JsonEscape(
+            GetCreatureTypeLabel(creatureTemplate))
+        + "\",\"qualification\":\""
+        + JsonEscape(
+            GetProximityNPCQualificationLabel(
+                GetProximityNPCQualification(cr)))
         + "\"}";
 }
 
@@ -1563,6 +1645,17 @@ void HandleProximityPlayerSay(
             responderTemplate
                 ? GetCreatureRankLabel(
                     responderTemplate) : "")
+        + "\",\"responder_creature_type\":\""
+        + JsonEscape(
+            responderTemplate
+                ? GetCreatureTypeLabel(
+                    responderTemplate) : "")
+        + "\",\"responder_qualification\":\""
+        + JsonEscape(
+            responderCreature
+                ? GetProximityNPCQualificationLabel(
+                    GetProximityNPCQualification(
+                        responderCreature)) : "")
         + "}";
 
     QueueChatterEvent(

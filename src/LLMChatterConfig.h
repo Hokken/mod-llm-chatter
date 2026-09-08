@@ -30,6 +30,8 @@ public:
     void LoadConfig();
     bool IsEnabled() const { return _enabled; }
     bool IsDebugLog() const { return _debugLog; }
+    bool IsProximitySpeakerAllowed(uint32 creatureEntry) const;
+    bool IsProximitySpeakerDenied(uint32 creatureEntry) const;
     bool IsProximityBossSpeakerDenied(uint32 creatureEntry) const;
 
     // General settings
@@ -294,6 +296,12 @@ public:
     uint32 _proxChatterReplyMaxTurns;
     uint32 _proxChatterMaxTokensPerLine;
     uint32 _proxChatterFacingResetDelay;
+    std::atomic<std::shared_ptr<
+        std::unordered_set<uint32> const>>
+            _proxSpeakerAllowEntries;
+    std::atomic<std::shared_ptr<
+        std::unordered_set<uint32> const>>
+            _proxSpeakerDenyEntries;
     bool _proxBossDialogueEnable;
     uint32 _proxBossApproachCheckInterval;
     uint32 _proxBossApproachMaxRadius;

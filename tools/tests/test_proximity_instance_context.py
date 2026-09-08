@@ -370,8 +370,9 @@ def test_cpp_source_contracts_cover_instance_safety():
     assert 'player->IsWithinLOSInMap(bot)' in source
     assert 'uint32 instanceId = 0;' in source
     assert 'scene.instanceId != instanceId' in source
-    assert 'IsLLMChatterBoss(cr)' in source
-    assert 'tmpl->type != CREATURE_TYPE_HUMANOID' in source
+    assert 'IsLLMChatterBoss(creature)' in source
+    assert 'IsProximitySpeakerAllowed(entry)' in source
+    assert 'IsProximitySpeakerDenied(entry)' in source
     assert '_proxChatterEnableInDungeons' in header
     assert '_proxChatterEnableInRaids' in header
     assert 'bool IsLLMChatterBoss' in shared
@@ -385,7 +386,8 @@ def test_cpp_source_contracts_cover_instance_safety():
     assert 'TryBeginBossDirectedScan' in boss
     assert 'return messageNamesSelectedBoss;' in boss
     assert 'ambiguousFirstToken = true' in boss
-    assert '_proxBossSpeakerDenyEntries.load()' in config
+    assert 'ContainsCreatureEntry(' in config
+    assert '_proxBossSpeakerDenyEntries, creatureEntry' in config
     assert '_proxBossSpeakerDenyEntries.store(' in config
     enter_combat = group_combat.split(
         'void HandleGroupPlayerEnterCombatImpl(', 1

@@ -148,10 +148,16 @@ def _describe_speaker(
             parts.append(sub_name)
         disposition = speaker.get('disposition') or ''
         rank = speaker.get('rank') or ''
+        creature_type = speaker.get('creature_type') or ''
+        qualification = speaker.get('qualification') or ''
         if disposition:
             parts.append(f"disposition: {disposition}")
         if rank and rank != 'normal':
             parts.append(f"rank: {rank}")
+        if creature_type:
+            parts.append(f"creature type: {creature_type}")
+        if qualification:
+            parts.append(f"qualified by: {qualification}")
         return " | ".join(part for part in parts if part)
 
     bot_guid = int(speaker.get('bot_guid', 0) or 0)
@@ -207,6 +213,11 @@ def _mixed_voice_guidance(mode: str) -> List[str]:
         "Respect each NPC disposition tag. Hostile can mean wary, mocking, "
         "dismissive, or threatening, but does not mean combat has started."
     )
+    lines.append(
+        "Respect NPC creature-type and qualification tags. A listed "
+        "non-humanoid is intentionally capable of speech; do not imply "
+        "that every creature of its type can talk."
+    )
     return lines
 
 
@@ -226,6 +237,30 @@ def _npc_disposition_guidance(speaker: Dict) -> str:
             "guarded tone is appropriate, but violence is not inevitable."
         )
     return ''
+
+
+def _npc_speech_capability_guidance(speaker: Dict) -> str:
+    if not speaker.get('is_npc'):
+        return ''
+    creature_type = str(
+        speaker.get('creature_type') or ''
+    ).lower()
+    if not creature_type or creature_type == 'humanoid':
+        return ''
+    qualification = str(
+        speaker.get('qualification') or ''
+    ).lower()
+    if qualification == 'configured entry':
+        reason = 'this exact creature entry was deliberately approved'
+    elif qualification == 'functional npc':
+        reason = 'its established interactive NPC role permits speech'
+    else:
+        reason = 'the supplied eligibility metadata permits speech'
+    return (
+        f"This {creature_type} can genuinely speak because {reason}. "
+        "Ground its voice in the supplied name, title, role, and location; "
+        "do not invent a persistent backstory or species-wide speech rule."
+    )
 
 
 def _location_lines(
@@ -374,6 +409,11 @@ def _single_prompt(
     )
     if disposition_guidance:
         lines.append(disposition_guidance)
+    speech_guidance = _npc_speech_capability_guidance(
+        speaker
+    )
+    if speech_guidance:
+        lines.append(speech_guidance)
     if speaker_traits:
         lines.append(
             "Speaker personality: "
@@ -774,6 +814,12 @@ def handle_proximity_reply(db, client, config, event):
             'responder_disposition', ''
         ),
         'rank': extra.get('responder_rank', ''),
+        'creature_type': extra.get(
+            'responder_creature_type', ''
+        ),
+        'qualification': extra.get(
+            'responder_qualification', ''
+        ),
     }
     if (
         not responder['bot_guid']
@@ -942,6 +988,11 @@ def _player_say_single_prompt(
     )
     if disposition_guidance:
         lines.append(disposition_guidance)
+    speech_guidance = _npc_speech_capability_guidance(
+        speaker
+    )
+    if speech_guidance:
+        lines.append(speech_guidance)
 
     addressed = extra.get('addressed_name', '')
     if addressed:

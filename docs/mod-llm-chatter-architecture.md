@@ -93,9 +93,11 @@ NPCs, and real players as they move through the world:
 1. C++ `CheckProximityChatter()` runs on a configurable timer
    (default 30s) in `LLMChatterWorld.cpp`.
 2. `LLMChatterProximity.cpp` scans around each alive, out-of-combat
-   real player within a 40-yard radius for eligible humanoid NPCs and
-   party bots. Outdoor, dungeon, and raid maps are supported; BG and
-   arena maps are excluded.
+   real player within a 40-yard radius for eligible NPCs and party bots.
+   Outdoor, dungeon, and raid maps are supported; BG and arena maps are
+   excluded. NPC qualification follows one global ordered policy:
+   denylist, boss exclusion, guard/interactive role, humanoid, configured
+   non-humanoid allowlist, then reject.
 3. One or more speakers are selected from the candidate pool.
    If all candidates are party bots, the scan is skipped (idle chat
    handles that case).
@@ -105,7 +107,7 @@ NPCs, and real players as they move through the world:
 5. Python `chatter_proximity.py` claims the event and uses
    `chatter_instance_context.py` for canonical map name, current area,
    and curated dungeon-lore grounding. NPC payloads also carry
-   disposition and creature rank.
+   disposition, creature rank, creature type, and qualification reason.
 6. Messages are written to `llm_chatter_messages` with channel
    `"say"` (for bots) or `"msay"` (for NPCs).
 7. C++ delivery dispatches bot messages via `CHAT_MSG_SAY` and NPC
@@ -122,8 +124,11 @@ NPCs, and real players as they move through the world:
 NPCs are identified by spawn GUID (`Creature::GetSpawnId()`) rather
 than entry ID. Cooldowns, scene matching, and history include map and
 instance IDs so parallel copies cannot share state. Ordinary hostile
-humanoids may speak while safely out of combat; bosses and hostile
-non-humanoids remain outside this ambient scanner.
+humanoids may speak while safely out of combat. A hostile non-humanoid
+must be deliberately approved by creature entry unless its established
+guard or interactive NPC role independently qualifies it. Bosses remain
+outside this ambient scanner. `SpeakerDenyEntries` overrides every
+ordinary qualification, including humanoids and interactive NPCs.
 
 Boss dialogue is a separate flow owned by
 `LLMChatterBossDialogue.cpp` and `chatter_boss_dialogue.py`. A boss can
@@ -508,13 +513,13 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterGroup.h` | 18 | World-to-group cross-call surface plus group registration |
 | `src/LLMChatterPlayer.cpp` | 1105 | Player General-channel hooks, General cooldowns, subzone cooldowns, `EnsureBotInGeneralChannel()`, player registration |
 | `src/LLMChatterRaid.cpp` | 767 | Raid boss hooks (pull/kill/wipe), boss lookup table (80+ entries across Classic/TBC/WotLK), `IsDatabaseBound() override`, raid registration |
-| `src/LLMChatterProximity.cpp` | ~1600 | Ordinary outdoor/instance proximity scans, NPC/playerbot eligibility and compatibility, authoritative selected/named `/say` routing, map/instance-aware scenes and cooldowns, and event payload construction |
+| `src/LLMChatterProximity.cpp` | ~1700 | Ordinary outdoor/instance proximity scans, global curated NPC/playerbot eligibility and compatibility, authoritative selected/named `/say` routing, map/instance-aware scenes and cooldowns, and event payload construction |
 | `src/LLMChatterProximity.h` | ~20 | Proximity scan and player-say hook declarations consumed by `LLMChatterWorld.cpp` and `LLMChatterGroupCombat.cpp` |
 | `src/LLMChatterBossDialogue.cpp/.h` | ~500 | Separate boss-only pre-aggro scanning, safe-band eligibility, selected/named `/say` routing, denylist, and player/boss/instance cooldown ownership |
 | `src/LLMChatterBG.cpp` | 1348 | Battleground hooks, BG state polling, BG queue helpers, BG registration |
 | `src/LLMChatterBG.h` | 14 | BG registration declaration |
 | `src/LLMChatterCommand.cpp` | ~594 | Player command bridge for the Chatter Companion addon. `.llmc` command with `roster`, `get`, `set` subcommands. Percent-encoding protocol, SQL-escaped writes to `llm_bot_identities` and `llm_group_bot_traits`, config guard via `sLLMChatterConfig->IsEnabled()`, cache invalidation on trait update |
-| `src/LLMChatterConfig.h/.cpp` | 839 | Config loading and config struct |
+| `src/LLMChatterConfig.h/.cpp` | ~900 | Config loading, reload-safe creature-entry sets, and config struct |
 | `src/llm_chatter_loader.cpp` | 11 | Module entry point, calls `AddLLMChatterScripts()` |
 
 ## Current Registration Shape

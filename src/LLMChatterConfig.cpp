@@ -23,47 +23,96 @@ T GetChatterOption(std::string const& name, T const& def)
 }
 
 std::unordered_set<uint32> ParseCreatureEntrySet(
-    std::string const& configured)
+    std::string const& configured,
+    std::string const& optionName)
 {
     std::unordered_set<uint32> entries;
     std::istringstream input(configured);
     std::string token;
     while (std::getline(input, token, ','))
     {
-        token.erase(
-            std::remove_if(
-                token.begin(), token.end(),
-                [](unsigned char value)
-                {
-                    return std::isspace(value) != 0;
-                }),
-            token.end());
+        auto first = std::find_if_not(
+            token.begin(), token.end(),
+            [](unsigned char value)
+            {
+                return std::isspace(value) != 0;
+            });
+        auto last = std::find_if_not(
+            token.rbegin(), token.rend(),
+            [](unsigned char value)
+            {
+                return std::isspace(value) != 0;
+            }).base();
+        token = first < last
+            ? std::string(first, last) : std::string();
         if (token.empty())
             continue;
 
+        bool valid = false;
+        bool digitsOnly = std::all_of(
+            token.begin(), token.end(),
+            [](unsigned char value)
+            {
+                return std::isdigit(value) != 0;
+            });
         try
         {
-            size_t consumed = 0;
-            unsigned long value = std::stoul(token, &consumed);
-            if (consumed == token.size() && value > 0
+            unsigned long value = digitsOnly
+                ? std::stoul(token) : 0;
+            if (digitsOnly && value > 0
                 && value <= std::numeric_limits<uint32>::max())
+            {
                 entries.insert(static_cast<uint32>(value));
+                valid = true;
+            }
         }
         catch (...)
         {
-            // Ignore malformed entries while preserving valid ones.
+            // Report below while preserving every valid token.
+        }
+
+        if (!valid)
+        {
+            LOG_WARN(
+                "module",
+                "LLMChatter: ignoring invalid creature entry "
+                "'{}' in {}",
+                token, optionName);
         }
     }
     return entries;
 }
+
+bool ContainsCreatureEntry(
+    std::atomic<std::shared_ptr<
+        std::unordered_set<uint32> const>> const& configured,
+    uint32 creatureEntry)
+{
+    auto entries = configured.load();
+    return creatureEntry > 0 && entries
+        && entries->count(creatureEntry) > 0;
+}
+}
+
+bool LLMChatterConfig::IsProximitySpeakerAllowed(
+    uint32 creatureEntry) const
+{
+    return ContainsCreatureEntry(
+        _proxSpeakerAllowEntries, creatureEntry);
+}
+
+bool LLMChatterConfig::IsProximitySpeakerDenied(
+    uint32 creatureEntry) const
+{
+    return ContainsCreatureEntry(
+        _proxSpeakerDenyEntries, creatureEntry);
 }
 
 bool LLMChatterConfig::IsProximityBossSpeakerDenied(
     uint32 creatureEntry) const
 {
-    auto entries = _proxBossSpeakerDenyEntries.load();
-    return creatureEntry > 0 && entries
-        && entries->count(creatureEntry) > 0;
+    return ContainsCreatureEntry(
+        _proxBossSpeakerDenyEntries, creatureEntry);
 }
 
 void LLMChatterConfig::LoadConfig()
@@ -805,6 +854,28 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
             "FacingResetDelay", 8);
+    std::string speakerAllowEntries =
+        GetChatterOption<std::string>(
+            "LLMChatter.ProximityChatter."
+            "SpeakerAllowEntries", "");
+    auto parsedSpeakerAllowEntries =
+        std::make_shared<std::unordered_set<uint32> const>(
+            ParseCreatureEntrySet(
+                speakerAllowEntries,
+                "SpeakerAllowEntries"));
+    _proxSpeakerAllowEntries.store(
+        std::move(parsedSpeakerAllowEntries));
+    std::string speakerDenyEntries =
+        GetChatterOption<std::string>(
+            "LLMChatter.ProximityChatter."
+            "SpeakerDenyEntries", "");
+    auto parsedSpeakerDenyEntries =
+        std::make_shared<std::unordered_set<uint32> const>(
+            ParseCreatureEntrySet(
+                speakerDenyEntries,
+                "SpeakerDenyEntries"));
+    _proxSpeakerDenyEntries.store(
+        std::move(parsedSpeakerDenyEntries));
     _proxBossDialogueEnable =
         GetChatterOption<bool>(
             "LLMChatter.ProximityChatter."
@@ -839,7 +910,9 @@ void LLMChatterConfig::LoadConfig()
             "BossSpeakerDenyEntries", "");
     auto parsedBossSpeakerDenyEntries =
         std::make_shared<std::unordered_set<uint32> const>(
-            ParseCreatureEntrySet(bossSpeakerDenyEntries));
+            ParseCreatureEntrySet(
+                bossSpeakerDenyEntries,
+                "BossSpeakerDenyEntries"));
     _proxBossSpeakerDenyEntries.store(
         std::move(parsedBossSpeakerDenyEntries));
 

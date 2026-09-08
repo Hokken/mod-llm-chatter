@@ -1946,11 +1946,13 @@ C++ `CheckProximityChatter()` runs on a configurable timer (default
 
 1. Iterates alive, out-of-combat real players in eligible maps
 2. Scans within `ProximityChatter.ScanRadius` (default 40 yards) for
-   eligible humanoid NPCs and party bots
-3. NPC eligibility: all humanoids — guards, vendors, trainers,
-   innkeepers, quest givers, citizens, sentinels, and children. Safe,
-   out-of-combat hostile humanoids are also eligible; hostile
-   non-humanoids and bosses remain excluded.
+   eligible NPCs and party bots
+3. NPC eligibility follows one policy in every supported map: universal
+   life/combat/movement/range/LOS safety checks; `SpeakerDenyEntries`;
+   boss exclusion; guards and strong interactive NPC roles; humanoids;
+   then explicitly allowlisted non-humanoid entries. Everything else is
+   rejected. This permits carefully selected friendly or hostile
+   non-humanoids without making ordinary wildlife or summons talk.
 4. Bot eligibility: party bots can participate, but conversations
    where all speakers are party bots are skipped (idle chat handles
    that case)
@@ -2000,6 +2002,9 @@ Every ordinary proximity prompt receives the canonical DBC map name,
 map and instance IDs, zone/current-area names, and existing curated
 dungeon flavor where available. `chatter_instance_context.py` owns this
 shared normalization. NPCs also carry disposition and creature rank.
+Curated non-humanoids additionally carry creature type and their
+qualification reason so the model knows that the individual can speak
+without generalizing that ability to its whole species.
 Normal-mode playerbots treat lore as game knowledge; actual NPCs always
 remain in-world speakers.
 
@@ -2095,6 +2100,8 @@ All under `LLMChatter.ProximityChatter.*`:
 | `ScanIntervalSeconds` | 30 | Ordinary scan timer interval |
 | `ScanRadius` | 40 | Yards around player to scan |
 | `PlayerSayScanRadius` | 40 | New-scene `/say` response radius |
+| `SpeakerAllowEntries` | empty | Explicitly approved non-humanoid creature entries |
+| `SpeakerDenyEntries` | empty | Ordinary speaker exclusions; overrides all qualifications |
 | `Chance` | 30 | % chance per scan per player |
 | `ConversationChance` | 40 | % multi-speaker vs single statement |
 | `EntityCooldown` | 60 | Seconds per-entity (spawn GUID) cooldown |

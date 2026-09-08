@@ -10,6 +10,12 @@
   creature rank, LOS, participant compatibility, and delivery-time
   eligibility checks keep the result grounded without changing faction
   or combat behavior.
+* **Curated non-humanoid voices**: Interactive guards, quest givers,
+  vendors, trainers, innkeepers, and flight masters can qualify before
+  creature-type filtering, while arbitrary non-humanoids require an
+  explicit creature-entry allowlist. A separate denylist always wins;
+  bosses and universal movement/combat safety exclusions remain intact.
+  Prompts receive creature type and the reason each NPC qualified.
 * **Instance isolation and direction**: Cooldowns, active scenes, and
   reply history include map and instance identity. Explicit names and
   selected targets take priority over recent-scene or nearby fallbacks.
