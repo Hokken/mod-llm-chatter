@@ -787,6 +787,23 @@ LLMChatter.Events.MinorEventChance = 20
 LLMChatter.ProximityChatter.Enable = 1
 
 #
+#   LLMChatter.ProximityChatter.EnableInDungeons
+#       Allow the existing proximity system to run inside
+#       dungeon maps. The master proximity toggle still wins.
+#       Default: 1
+#
+LLMChatter.ProximityChatter.EnableInDungeons = 1
+
+#
+#   LLMChatter.ProximityChatter.EnableInRaids
+#       Allow the existing proximity system to run inside
+#       raid maps. Battlegrounds and arenas stay excluded.
+#       The master proximity toggle still wins.
+#       Default: 1
+#
+LLMChatter.ProximityChatter.EnableInRaids = 1
+
+#
 #   LLMChatter.ProximityChatter.ScanIntervalSeconds
 #       How often the server scans around each real player.
 #       Default: 30
@@ -913,6 +930,81 @@ LLMChatter.ProximityChatter.FacingResetDelay = 8
 #       Default: 40
 #
 LLMChatter.ProximityChatter.PlayerSayScanRadius = 40
+
+#
+#   LLMChatter.ProximityChatter.EnableBossDialogue
+#       Allow hostile dungeon and raid bosses to deliver one
+#       pre-aggro line when a real player safely approaches or
+#       directly addresses them in /say. Bosses are deliberately
+#       separate from ordinary ambient proximity conversations.
+#       Keep disabled until the boss in-game matrix has been checked.
+#       Default: 0
+#
+LLMChatter.ProximityChatter.EnableBossDialogue = 0
+
+#
+#   LLMChatter.ProximityChatter.BossApproachCheckIntervalSeconds
+#       Interval between safe pre-aggro boss scan passes. Each pass
+#       checks one eligible real player in round-robin order, which
+#       caps creature-grid work in populated instances.
+#       Default: 2
+#
+LLMChatter.ProximityChatter.BossApproachCheckIntervalSeconds = 2
+
+#
+#   LLMChatter.ProximityChatter.BossApproachMaxRadius
+#       Maximum detection and yell-delivery radius in yards.
+#       This is intentionally larger than ordinary /say range so
+#       hostile bosses can speak before the player pulls them.
+#       Default: 80
+#
+LLMChatter.ProximityChatter.BossApproachMaxRadius = 80
+
+#
+#   LLMChatter.ProximityChatter.BossAggroSafetyMargin
+#       Additional yards required beyond the boss's calculated
+#       aggro distance before a generated line can be queued or
+#       delivered. Higher values reduce accidental pull overlap.
+#       Default: 10
+#
+LLMChatter.ProximityChatter.BossAggroSafetyMargin = 10
+
+#
+#   LLMChatter.ProximityChatter.BossDialogueCooldownSeconds
+#       Minimum seconds between automatic generated lines from the
+#       same boss spawn to the same player in the same instance.
+#       Default: 1800
+#
+LLMChatter.ProximityChatter.BossDialogueCooldownSeconds = 1800
+
+#
+#   LLMChatter.ProximityChatter.BossDirectedReplyCooldownSeconds
+#       Minimum seconds between generated replies when the player
+#       explicitly names or targets a boss and speaks in /say.
+#       This is separate from the longer automatic approach cooldown.
+#       Default: 15
+#
+LLMChatter.ProximityChatter.BossDirectedReplyCooldownSeconds = 15
+
+#
+#   LLMChatter.ProximityChatter.BossDirectedScanCooldownSeconds
+#       Minimum seconds between extended boss searches caused by
+#       /say for the same player, map, and instance. This bounds chat
+#       spam before a matching boss and reply cooldown can be known.
+#       During the throttle window, merely targeting a boss does not
+#       suppress unrelated ordinary proximity replies.
+#       Default: 1
+#
+LLMChatter.ProximityChatter.BossDirectedScanCooldownSeconds = 1
+
+#
+#   LLMChatter.ProximityChatter.BossSpeakerDenyEntries
+#       Comma-separated creature entry IDs which must never use
+#       generated boss dialogue. Use this for encounters whose
+#       scripted presentation would conflict with extra speech.
+#       Default: (empty)
+#
+LLMChatter.ProximityChatter.BossSpeakerDenyEntries =
 
 ###############################################################################
 # GROUP CHATTER TUNING [SERVER]

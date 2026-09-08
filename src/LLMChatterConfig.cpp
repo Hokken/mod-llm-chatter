@@ -8,6 +8,11 @@
 #include "Log.h"
 
 #include <algorithm>
+#include <cctype>
+#include <limits>
+#include <memory>
+#include <sstream>
+#include <unordered_set>
 
 namespace
 {
@@ -16,6 +21,49 @@ T GetChatterOption(std::string const& name, T const& def)
 {
     return sConfigMgr->GetOption<T>(name, def, false);
 }
+
+std::unordered_set<uint32> ParseCreatureEntrySet(
+    std::string const& configured)
+{
+    std::unordered_set<uint32> entries;
+    std::istringstream input(configured);
+    std::string token;
+    while (std::getline(input, token, ','))
+    {
+        token.erase(
+            std::remove_if(
+                token.begin(), token.end(),
+                [](unsigned char value)
+                {
+                    return std::isspace(value) != 0;
+                }),
+            token.end());
+        if (token.empty())
+            continue;
+
+        try
+        {
+            size_t consumed = 0;
+            unsigned long value = std::stoul(token, &consumed);
+            if (consumed == token.size() && value > 0
+                && value <= std::numeric_limits<uint32>::max())
+                entries.insert(static_cast<uint32>(value));
+        }
+        catch (...)
+        {
+            // Ignore malformed entries while preserving valid ones.
+        }
+    }
+    return entries;
+}
+}
+
+bool LLMChatterConfig::IsProximityBossSpeakerDenied(
+    uint32 creatureEntry) const
+{
+    auto entries = _proxBossSpeakerDenyEntries.load();
+    return creatureEntry > 0 && entries
+        && entries->count(creatureEntry) > 0;
 }
 
 void LLMChatterConfig::LoadConfig()
@@ -688,7 +736,15 @@ void LLMChatterConfig::LoadConfig()
     _proxChatterEnable =
         GetChatterOption<bool>(
             "LLMChatter.ProximityChatter.Enable",
-            false);
+            true);
+    _proxChatterEnableInDungeons =
+        GetChatterOption<bool>(
+            "LLMChatter.ProximityChatter."
+            "EnableInDungeons", true);
+    _proxChatterEnableInRaids =
+        GetChatterOption<bool>(
+            "LLMChatter.ProximityChatter."
+            "EnableInRaids", true);
     _proxChatterScanInterval =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
@@ -696,7 +752,7 @@ void LLMChatterConfig::LoadConfig()
     _proxChatterScanRadius =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
-            "ScanRadius", 80);
+            "ScanRadius", 40);
     _proxChatterPlayerSayScanRadius =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
@@ -704,11 +760,11 @@ void LLMChatterConfig::LoadConfig()
     _proxChatterChance =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
-            "Chance", 65);
+            "Chance", 30);
     _proxChatterEntityCooldown =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
-            "EntityCooldown", 300);
+            "EntityCooldown", 60);
     _proxChatterZoneFatigueThreshold =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
@@ -732,7 +788,7 @@ void LLMChatterConfig::LoadConfig()
     _proxChatterConversationLineDelay =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
-            "ConversationLineDelay", 4);
+            "ConversationLineDelay", 2);
     _proxChatterReplyWindowSeconds =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
@@ -744,11 +800,48 @@ void LLMChatterConfig::LoadConfig()
     _proxChatterMaxTokensPerLine =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
-            "MaxTokensPerLine", 40);
+            "MaxTokensPerLine", 120);
     _proxChatterFacingResetDelay =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
             "FacingResetDelay", 8);
+    _proxBossDialogueEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.ProximityChatter."
+            "EnableBossDialogue", false);
+    _proxBossApproachCheckInterval =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "BossApproachCheckIntervalSeconds", 2);
+    _proxBossApproachMaxRadius =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "BossApproachMaxRadius", 80);
+    _proxBossAggroSafetyMargin =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "BossAggroSafetyMargin", 10);
+    _proxBossDialogueCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "BossDialogueCooldownSeconds", 1800);
+    _proxBossDirectedReplyCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "BossDirectedReplyCooldownSeconds", 15);
+    _proxBossDirectedScanCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "BossDirectedScanCooldownSeconds", 1);
+    std::string bossSpeakerDenyEntries =
+        GetChatterOption<std::string>(
+            "LLMChatter.ProximityChatter."
+            "BossSpeakerDenyEntries", "");
+    auto parsedBossSpeakerDenyEntries =
+        std::make_shared<std::unordered_set<uint32> const>(
+            ParseCreatureEntrySet(bossSpeakerDenyEntries));
+    _proxBossSpeakerDenyEntries.store(
+        std::move(parsedBossSpeakerDenyEntries));
 
     // Emote reaction system
     _emoteReactionsEnable =

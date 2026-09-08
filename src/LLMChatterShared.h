@@ -25,6 +25,8 @@ enum class LLMChatterPriorityBand : uint8
 
 bool IsPlayerBot(Player* player);
 Creature* FindCreatureBySpawnId(Map* map, uint32 spawnId);
+void LoadNamedBossCache();
+bool IsLLMChatterBoss(Creature const* creature);
 
 // Strip invalid UTF-8 byte sequences, preserving every
 // valid UTF-8 run. Returns input unchanged when already
@@ -77,6 +79,9 @@ bool CanSpeakInGeneralChannel(Player* bot);
 bool IsEventOnCooldown(
     std::map<std::string, time_t>& cooldownCache,
     const std::string& cooldownKey,
+    uint32 cooldownSeconds);
+bool IsPersistedEventOnCooldown(
+    std::string const& cooldownKey,
     uint32 cooldownSeconds);
 void SetEventCooldown(
     std::map<std::string, time_t>& cooldownCache,

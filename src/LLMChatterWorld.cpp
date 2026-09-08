@@ -3,6 +3,7 @@
  */
 
 #include "LLMChatterAmbient.h"
+#include "LLMChatterBossDialogue.h"
 #include "LLMChatterConfig.h"
 #include "LLMChatterDelivery.h"
 #include "LLMChatterGuild.h"
@@ -332,6 +333,7 @@ public:
         _lastTransportCheckTime = 0;
         _lastGoScanTime = 0;
         _lastProximityScanTime = 0;
+        _lastBossDialogueCheckTime = 0;
         _lastQuestFlushTime = 0;
         _lastGroupJoinFlushTime = 0;
         _lastRaidMoraleTime = 0;
@@ -422,6 +424,19 @@ public:
             CheckProximityChatter();
         }
 
+        if (sLLMChatterConfig->_proxChatterEnable
+            && sLLMChatterConfig->_proxBossDialogueEnable
+            && now - _lastBossDialogueCheckTime
+                >= std::max<uint32>(
+                    1,
+                    sLLMChatterConfig
+                        ->_proxBossApproachCheckInterval)
+                    * 1000)
+        {
+            _lastBossDialogueCheckTime = now;
+            CheckBossProximityDialogue();
+        }
+
         if (sLLMChatterConfig->_useGroupChatter
             && now - _lastQuestFlushTime >= 1000)
         {
@@ -480,6 +495,7 @@ private:
     uint32 _lastTransportCheckTime = 0;
     uint32 _lastGoScanTime = 0;
     uint32 _lastProximityScanTime = 0;
+    uint32 _lastBossDialogueCheckTime = 0;
     uint32 _lastQuestFlushTime = 0;
     uint32 _lastGroupJoinFlushTime = 0;
     uint32 _lastRaidMoraleTime = 0;

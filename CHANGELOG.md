@@ -1,5 +1,36 @@
 # Changelog
 
+### 2026-09-08 - Instance Proximity Chatter
+
+* **Dungeon and raid parity**: Ordinary proximity chatter now runs in
+  eligible dungeon and raid maps with canonical map/current-area data
+  and the existing curated dungeon context supplied to every prompt.
+* **Hostile humanoid voices**: Safe, out-of-combat hostile humanoids
+  can participate or answer a selected/named player `/say`. Disposition,
+  creature rank, LOS, participant compatibility, and delivery-time
+  eligibility checks keep the result grounded without changing faction
+  or combat behavior.
+* **Instance isolation and direction**: Cooldowns, active scenes, and
+  reply history include map and instance identity. Explicit names and
+  selected targets take priority over recent-scene or nearby fallbacks.
+* **Pre-aggro boss moments**: A separate boss-only subsystem can emit
+  one original approach line or answer a directed `/say` through monster
+  yell. It requires the player to remain beyond calculated aggro range
+  plus a configurable safety margin, revalidates before delivery, never
+  changes boss facing or threat, and supports independent cooldowns and
+  a creature-entry denylist. Per-player scans use a fair round-robin
+  schedule that caps expensive creature-grid work in populated raids.
+* **Shared contracts and coverage**: Group kill reactions and proximity
+  now use one comprehensive boss classifier, while enter-combat reactions
+  preserve their established narrower classification and probabilities.
+  Focused tests protect instance context, NPC metadata, history isolation,
+  boss prompt constraints, fail-closed safety data, registry routing, and
+  boss delivery ownership.
+* **Database migration**: Existing installations must apply
+  `data/sql/characters/updates/20260908_instance_proximity_boss_events.sql`
+  so the event queue accepts the two new boss event types. Fresh installs
+  receive them from the base schema.
+
 ### 2026-09-07 - Normal Player Chat Mode
 
 * **Player-side normal mode**: Playerbots now speak as people playing

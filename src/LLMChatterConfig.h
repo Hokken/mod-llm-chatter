@@ -13,7 +13,10 @@
 #define LLM_CHATTER_CONFIG_H
 
 #include "Define.h"
+#include <atomic>
+#include <memory>
 #include <string>
+#include <unordered_set>
 
 class LLMChatterConfig
 {
@@ -27,6 +30,7 @@ public:
     void LoadConfig();
     bool IsEnabled() const { return _enabled; }
     bool IsDebugLog() const { return _debugLog; }
+    bool IsProximityBossSpeakerDenied(uint32 creatureEntry) const;
 
     // General settings
     bool _enabled;
@@ -273,6 +277,8 @@ public:
 
     // Proximity chatter
     bool _proxChatterEnable;
+    bool _proxChatterEnableInDungeons;
+    bool _proxChatterEnableInRaids;
     uint32 _proxChatterScanInterval;
     uint32 _proxChatterScanRadius;
     uint32 _proxChatterPlayerSayScanRadius;
@@ -288,6 +294,16 @@ public:
     uint32 _proxChatterReplyMaxTurns;
     uint32 _proxChatterMaxTokensPerLine;
     uint32 _proxChatterFacingResetDelay;
+    bool _proxBossDialogueEnable;
+    uint32 _proxBossApproachCheckInterval;
+    uint32 _proxBossApproachMaxRadius;
+    uint32 _proxBossAggroSafetyMargin;
+    uint32 _proxBossDialogueCooldown;
+    uint32 _proxBossDirectedReplyCooldown;
+    uint32 _proxBossDirectedScanCooldown;
+    std::atomic<std::shared_ptr<
+        std::unordered_set<uint32> const>>
+            _proxBossSpeakerDenyEntries;
 
     // Emote reaction system
     bool   _emoteReactionsEnable;

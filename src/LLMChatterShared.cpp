@@ -48,6 +48,30 @@ constexpr uint8 PRIORITY_HIGH =
 constexpr uint8 PRIORITY_HIGH_LOCAL = PRIORITY_HIGH + 1;
 constexpr uint8 PRIORITY_CRITICAL =
     static_cast<uint8>(LLMChatterPriorityBand::Critical);
+std::unordered_set<uint32> _namedBossEntries;
+
+std::string const& GetCreatureEntryColumn()
+{
+    // Upstream AzerothCore renamed creature.id1 to
+    // creature.id. Resolve the live schema once so the
+    // boss cache works on both layouts.
+    static std::string const column = []() -> std::string
+    {
+        if (QueryResult result = WorldDatabase.Query(
+                "SELECT COLUMN_NAME FROM "
+                "information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = 'acore_world' "
+                "AND TABLE_NAME = 'creature' "
+                "AND COLUMN_NAME IN ('id', 'id1') "
+                "ORDER BY (COLUMN_NAME = 'id') DESC "
+                "LIMIT 1"))
+        {
+            return (*result)[0].Get<std::string>();
+        }
+        return "id";
+    }();
+    return column;
+}
 
 std::string EscapeLogPreview(
     std::string const& text, size_t maxBytes)
@@ -231,7 +255,7 @@ uint32 RollConfiguredDelay(
         sLLMChatterConfig->*maxMember);
 }
 
-constexpr std::array<EventPriorityRule, 36>
+constexpr std::array<EventPriorityRule, 38>
     kTierPriorityRules = {{
         {"bot_group_combat",        PRIORITY_CRITICAL},
         {"bot_group_spell_cast",    PRIORITY_CRITICAL},
@@ -267,6 +291,8 @@ constexpr std::array<EventPriorityRule, 36>
         {"proximity_say",           PRIORITY_FILLER},
         {"proximity_conversation",  PRIORITY_FILLER},
         {"proximity_reply",         PRIORITY_NORMAL},
+        {"proximity_boss_approach", PRIORITY_NORMAL},
+        {"proximity_boss_player_say", PRIORITY_HIGH},
         {"proximity_player_say",
             PRIORITY_NORMAL},
         {"proximity_player_conversation",
@@ -278,7 +304,7 @@ constexpr std::array<PredicatePriorityRule, 1>
         {IsStateCalloutEventType, PRIORITY_CRITICAL},
     }};
 
-constexpr std::array<EventPriorityRule, 24>
+constexpr std::array<EventPriorityRule, 26>
     kLegacyPriorityRules = {{
         {"player_general_msg",       8},
         {"guild_player_message",     8},
@@ -302,6 +328,8 @@ constexpr std::array<EventPriorityRule, 24>
         {"proximity_say",           0},
         {"proximity_conversation",  0},
         {"proximity_reply",         1},
+        {"proximity_boss_approach", 1},
+        {"proximity_boss_player_say", 2},
         {"proximity_player_say",          1},
         {"proximity_player_conversation", 1},
     }};
@@ -1120,6 +1148,55 @@ std::string GetCreatureRoleName(Creature* creature)
     }
 }
 
+void LoadNamedBossCache()
+{
+    _namedBossEntries.clear();
+    std::string query =
+        "SELECT entry FROM ("
+        "  SELECT ct.entry, ct.`rank`,"
+        "    ct.CreatureImmunitiesId,"
+        "    COUNT(*) AS spawns"
+        "  FROM creature_template ct"
+        "  JOIN creature c ON c."
+        + GetCreatureEntryColumn()
+        + " = ct.entry"
+        "  WHERE ct.`rank` = 3"
+        "    OR ct.CreatureImmunitiesId > 0"
+        "  GROUP BY ct.entry, c.map"
+        "  HAVING ct.`rank` = 3 OR COUNT(*) = 1"
+        ") AS bosses";
+    QueryResult result = WorldDatabase.Query(query);
+    if (!result)
+        return;
+
+    do
+    {
+        Field* fields = result->Fetch();
+        _namedBossEntries.insert(
+            fields[0].Get<uint32>());
+    } while (result->NextRow());
+}
+
+bool IsLLMChatterBoss(Creature const* creature)
+{
+    if (!creature)
+        return false;
+
+    CreatureTemplate const* creatureTemplate =
+        creature->GetCreatureTemplate();
+    if (!creatureTemplate)
+        return false;
+
+    return creature->isWorldBoss()
+        || creature->IsDungeonBoss()
+        || creatureTemplate->rank
+            == CREATURE_ELITE_WORLDBOSS
+        || (creatureTemplate->type_flags
+            & CREATURE_TYPE_FLAG_BOSS_MOB)
+        || _namedBossEntries.count(
+            creature->GetEntry()) > 0;
+}
+
 std::string SanitizeUtf8(const std::string& str)
 {
     // Fast path: input is already valid UTF-8.
@@ -1331,6 +1408,14 @@ bool IsEventOnCooldown(
             return true;
     }
 
+    return IsPersistedEventOnCooldown(
+        cooldownKey, cooldownSeconds);
+}
+
+bool IsPersistedEventOnCooldown(
+    std::string const& cooldownKey,
+    uint32 cooldownSeconds)
+{
     QueryResult result = CharacterDatabase.Query(
         "SELECT 1 FROM llm_chatter_events "
         "WHERE cooldown_key = '{}' AND created_at > "
