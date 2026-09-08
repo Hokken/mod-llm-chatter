@@ -429,6 +429,9 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<bool>(
             "LLMChatter.GroupChatter."
             "FacingEnable", true);
+    _actionAsEmote =
+        GetChatterOption<bool>(
+            "LLMChatter.ActionAsEmote.Enable", true);
 
     // Group chatter - state-triggered callouts
     _stateCalloutEnabled = GetChatterOption<bool>(
@@ -750,6 +753,40 @@ void LLMChatterConfig::LoadConfig()
             "LLMChatter.ProximityChatter."
             "FacingResetDelay", 8);
 
+    // Chatter Log addon
+    _addonLogEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.AddonLog.Enable", false);
+    _addonLogPath =
+        GetChatterOption<std::string>(
+            "LLMChatter.AddonLog.Path",
+            "/azerothcore/modules/mod-llm-chatter/"
+            "logs/llm_requests.jsonl");
+    _addonLogMinSecurity =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.AddonLog.MinSecurity", 2),
+            4u);
+    _addonLogMaxEntries =
+        std::max(
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.AddonLog.MaxEntries", 100),
+                500u),
+            1u);
+    _addonLogTailBytes =
+        std::max(
+            GetChatterOption<uint32>(
+                "LLMChatter.AddonLog.TailBytes", 2097152),
+            65536u);
+    _addonLogChunkChars =
+        std::max(
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.AddonLog.ChunkChars", 512),
+                2048u),
+            64u);
+
     // Emote reaction system
     _emoteReactionsEnable =
         GetChatterOption<bool>(
@@ -783,5 +820,13 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<bool>(
             "LLMChatter.EmoteReactions."
             "NPCMirrorEnable", true);
+    _emoteCustomEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.EmoteReactions."
+            "CustomEnable", true);
+    _emoteCustomMaxChars =
+        GetChatterOption<uint32>(
+            "LLMChatter.EmoteReactions."
+            "CustomMaxChars", 120);
 
 }

@@ -64,6 +64,31 @@ private:
     uint32 _spawnId;
     float _orientation;
 };
+
+/// Wrap a free-text action so the client renders the
+/// speaker's name in front of it.
+///
+/// CHAT_MSG_MONSTER_EMOTE does not prepend the name the way
+/// a player's /e does. The client substitutes the name into
+/// a literal "%s" inside the text instead, which is why
+/// nearly every creature_text emote row is written as
+/// "%s throws a rotten apple at $n." Without the
+/// placeholder the name is simply never drawn.
+std::string BuildEmoteLine(std::string const& action)
+{
+    std::string text = action;
+
+    // A "%s" written by the model would swallow the name
+    // substitution, so drop any it produced.
+    for (size_t at = text.find("%s");
+         at != std::string::npos;
+         at = text.find("%s", at))
+    {
+        text.erase(at, 2);
+    }
+
+    return "%s " + text;
+}
 } // namespace
 
 void DeliverPendingMessagesImpl()
@@ -91,7 +116,7 @@ void DeliverPendingMessagesImpl()
         result = CharacterDatabase.Query(
             "SELECT m.id, m.bot_guid, "
             "m.bot_name, m.message, "
-            "m.channel, m.emote, "
+            "m.channel, m.emote, m.action, "
             "m.npc_spawn_id, m.player_guid, "
             "m.sequence, m.event_id, e.zone_id, "
             "m.group_id, m.delivery_policy, "
@@ -120,7 +145,7 @@ void DeliverPendingMessagesImpl()
     {
         result = CharacterDatabase.Query(
             "SELECT m.id, m.bot_guid, m.bot_name, "
-            "m.message, m.channel, m.emote, "
+            "m.message, m.channel, m.emote, m.action, "
             "m.npc_spawn_id, m.player_guid, "
             "m.sequence, m.event_id, e.zone_id, "
             "m.group_id, m.delivery_policy, "
@@ -170,42 +195,56 @@ void DeliverPendingMessagesImpl()
         fields[5].IsNull()
             ? ""
             : fields[5].Get<std::string>();
-    uint32 npcSpawnId =
+    std::string actionText =
         fields[6].IsNull()
-            ? 0
-            : fields[6].Get<uint32>();
-    uint32 playerGuid =
+            ? ""
+            : fields[6].Get<std::string>();
+    uint32 npcSpawnId =
         fields[7].IsNull()
             ? 0
             : fields[7].Get<uint32>();
-    uint32 sequence =
+    uint32 playerGuid =
         fields[8].IsNull()
             ? 0
             : fields[8].Get<uint32>();
-    uint32 eventId =
+    uint32 sequence =
         fields[9].IsNull()
             ? 0
             : fields[9].Get<uint32>();
-    uint32 eventZoneId =
+    uint32 eventId =
         fields[10].IsNull()
             ? 0
             : fields[10].Get<uint32>();
-    uint32 groupId =
+    uint32 eventZoneId =
         fields[11].IsNull()
             ? 0
             : fields[11].Get<uint32>();
-    std::string deliveryPolicy =
+    uint32 groupId =
         fields[12].IsNull()
-            ? ""
-            : fields[12].Get<std::string>();
-    std::string deliveryReason =
+            ? 0
+            : fields[12].Get<uint32>();
+    std::string deliveryPolicy =
         fields[13].IsNull()
             ? ""
             : fields[13].Get<std::string>();
-    std::string ownerSubsystem =
+    std::string deliveryReason =
         fields[14].IsNull()
             ? ""
             : fields[14].Get<std::string>();
+    std::string ownerSubsystem =
+        fields[15].IsNull()
+            ? ""
+            : fields[15].Get<std::string>();
+
+    // ActionAsEmote disabled: fall back to the historical
+    // inline "*action* text" rendering so the action is not
+    // silently dropped for rows queued while it was on.
+    if (!actionText.empty()
+        && !sLLMChatterConfig->_actionAsEmote)
+    {
+        message = "*" + actionText + "* " + message;
+        actionText.clear();
+    }
 
     // Master General-channel toggle. If General chatter is
     // disabled, deliberately consume any already-queued General
@@ -478,6 +517,26 @@ void DeliverPendingMessagesImpl()
 
             std::string processedMessage =
                 ConvertAllLinks(message);
+
+            // Free-text action goes out as an emote just
+            // ahead of the speech, so the log reads
+            // "Bot scans the treeline" then the spoken line.
+            //
+            // Deliberately Unit:: and not Player::TextEmote.
+            // The Player override sends CHAT_MSG_EMOTE, whose
+            // packet carries only the sender GUID and leaves
+            // the client to resolve the name, which it fails
+            // to do for bots — the emote renders with no name
+            // at all. Unit::TextEmote sends
+            // CHAT_MSG_MONSTER_EMOTE, one of the types
+            // BuildChatPacket serialises the sender name into.
+            // See BuildEmoteLine for why the "%s" matters.
+            //
+            // Proximity based either way: on party/raid/guild/
+            // General only players near the bot see it.
+            if (!actionText.empty())
+                bot->Unit::TextEmote(
+                    BuildEmoteLine(actionText));
 
             if (channel == "party")
             {
@@ -777,6 +836,14 @@ void DeliverPendingMessagesImpl()
             }
             std::string msayMessage =
                 ConvertAllLinks(message);
+
+            // Same ordering and same CHAT_MSG_MONSTER_EMOTE
+            // as the bot path; Creature does not override
+            // TextEmote, so this is already the Unit version.
+            if (!actionText.empty())
+                speaker->TextEmote(
+                    BuildEmoteLine(actionText));
+
             speaker->Say(
                 msayMessage, LANG_UNIVERSAL);
             sent = true;

@@ -55,12 +55,140 @@ up, calls the LLM, writes results to MySQL. The addon polls for results.
 | `.llmc get <guid>` | `PROFILE <guid> <name> <t1> <t2> <t3> <tone>` then `BACKSTORY <guid> <encoded>` |
 | `.llmc set <guid> <t1> <t2> <t3>` — traits **changed** | `UPDATED <guid> <name> changed`, then `PROFILE` with empty tone (regen queued); **no BACKSTORY** |
 | `.llmc set <guid> <t1> <t2> <t3>` — traits **unchanged** | `UPDATED <guid> <name> unchanged`, then `PROFILE` with existing tone, then `BACKSTORY` |
+| `.llmc put <guid> <field> <seq> <total> <chunk>` | nothing on success; `ERROR chunk <text>` on a protocol fault |
+| `.llmc commit <guid>` | same responses as the matching `set` / `setbackstory` |
+| `.llmc cancel <guid>` | nothing; drops the staged edit |
 | `.llmc regenbackstory <guid>` | `BACKSTORY_REGEN <guid> <name>` (immediate ack); result arrives later via `get` polling |
 | `.llmc forget <guid>` | `FORGOTTEN <guid> <name>` |
 
 All string fields are percent-encoded. `-` is the sentinel for an empty
 string. The addon uses `Encode()`/`Decode()` for all string values crossing
 this boundary.
+
+### Chunked Upload (`put` / `commit` / `cancel`)
+
+The 3.3.5 client truncates an outgoing chat line at 255 characters, and
+percent-encoding costs three characters per non-alphanumeric byte — six per
+Cyrillic character. Three sentence-length traits therefore do not always fit
+in one `.llmc set` line, and a truncated line fails to parse, losing the
+save silently. `put` streams the same payload in pieces instead.
+
+- `<field>` is `t1`, `t2`, `t3` or `bs` (backstory); `<seq>` is 1-based and
+  must be `<= <total>`.
+- `<chunk>` is percent-encoded text, at most 200 characters, and never cuts
+  a `%XX` escape in half. At most 24 chunks per field.
+- Chunks are staged per player, addressed by `seq`, so a resend overwrites
+  in place. A `put` for a different bot discards the whole staged edit; so
+  does a logout or 60 seconds of inactivity.
+- `commit` reassembles the fields in `seq` order, rejects gaps, decodes,
+  validates, and applies through the very same write path as `set` (and
+  `setbackstory` for `bs`), so responses and tone/backstory regeneration are
+  identical. Fields that were not staged keep their stored values. The
+  staged edit is dropped whether the commit succeeded or failed.
+
+The addon builds the single-shot `set` line first and only falls back to
+chunks when that line would exceed 255 characters, so short ASCII traits
+still take exactly one message. Chunks are drained from a FIFO at one
+message per 0.3 s, and the Save button stays disabled until the server
+answers.
+
+`chunked-upload-verification.md` in this folder is the in-game test plan for
+this path.
+
+---
+
+## Request Log Protocol (`.llmc log`, prefix `CHATTER_LOG `)
+
+Serves the bridge's JSONL request log to the **Chatter Log** addon
+(`/chatterlog`), a separate addon from Chatter Companion. This is the only
+way to see an LLM prompt in game: the worldserver never builds one, so it
+reads the file the bridge writes.
+
+Replies use the prefix `CHATTER_LOG ` rather than `CHATTER_ADDON `, because
+Chatter Companion's filter returns `true` for every `CHATTER_ADDON ` line
+and would otherwise swallow this traffic. Both addons can be loaded at once.
+
+| Addon sends | Server responds |
+|---|---|
+| `.llmc log status` | `LOG_STATUS <enabled> <found> <encPath> <lastSeq> <count>` |
+| `.llmc log list [count] [sinceSeq]` | `LOG_LIST_BEGIN <n>`, `LOG_ENTRY ...` × n (oldest first), `LOG_LIST_END <lastSeq>` |
+| `.llmc log get <seq>` | `LOG_BEGIN <seq>`, `LOG_PART ...` × n, `LOG_END <seq>` |
+
+```
+LOG_ENTRY <seq> <encTimestamp> <encLabel> <encModel> <durationMs>
+          <promptBytes> <responseBytes> <encPreview>
+LOG_PART  <seq> <field> <index> <total> <encChunk>
+```
+
+`<field>` is `meta`, `system`, `prompt` or `response`. Only `meta` is
+synthesised server side (timestamp, seq, label, model, provider, duration
+and any caller metadata the bridge logged); the other three are verbatim
+from the log. Errors use the same `ERROR <category> <encoded>` shape as the
+profile commands, but on the `CHATTER_LOG ` prefix.
+
+Chunks are percent-encoded at most `LLMChatter.AddonLog.ChunkChars` (512)
+characters each and never cut a `%XX` escape. Unlike the client's `put`
+chunks there is no rate limiting: the 255-character cap and flood
+protection only apply to client → server chat.
+
+### Reading the file
+
+`LLMChatterRequestLog.cpp` tails `LLMChatter.AddonLog.Path`. A cold read
+walks back at most `TailBytes` from the end and drops the leading partial
+line; later reads only parse newly appended bytes. Results are cached
+process-wide and shared by all players. A shrinking file (rotation) or a
+`seq` that steps backwards (bridge restart) resets the cache. The parser is
+a small scanner rather than a JSON library, since the core bundles none and
+every logged line is a flat object of strings, numbers and nulls.
+
+### Gating
+
+`log` is off by default and separately gated from the rest of `.llmc`:
+
+- `LLMChatter.AddonLog.Enable` must be `1` (default `0`).
+- The account's security must be at least
+  `LLMChatter.AddonLog.MinSecurity` (default `2`, gamemaster).
+- `LLMChatter.RequestLog.Enable` must be `1` on the bridge, or the file
+  does not exist.
+
+Prompts embed other players' chat, bot personas and memories, which is why
+this is not open to `SEC_PLAYER` like the rest of the command family.
+
+---
+
+## Memory Browser Protocol (`.llmc mem`, prefix `CHATTER_LOG `)
+
+Serves `llm_bot_memories` to the **Chatter Memory** window (`/chattermemory`)
+of the same addon. Shares the `CHATTER_LOG ` prefix with the request log, so
+one filter and one dispatcher cover both.
+
+| Addon sends | Server responds |
+|---|---|
+| `.llmc mem bots` | `MEM_BOTS_BEGIN <n>`, `MEM_BOT ...` × n (by name), `MEM_BOTS_END <n>` |
+| `.llmc mem list <botGuid> [count]` | `MEM_LIST_BEGIN <botGuid> <n>`, then per memory `MEM_ENTRY ...` followed by its `MEM_PART ...` × n, then `MEM_LIST_END <botGuid>` |
+
+```
+MEM_BOT   <botGuid> <encName> <total> <active> <used> <encNewest>
+MEM_ENTRY <id> <encType> <encMood> <encEmote> <active> <used>
+          <encCreated> <encLastUsed>
+MEM_PART  <id> <index> <total> <encChunk>
+```
+
+A memory is capped at 500 characters by the generator, so the whole journal
+fits in one burst and the text ships inline with the list — there is no
+per-entry `get` round trip like the request log has. `count` defaults to 30
+(matching `Memory.MaxPerBotPlayer`) and is clamped to 200. Memories are sent
+newest first. Timestamps are pre-formatted by MySQL as `%Y-%m-%d %H:%i`, and
+`SUM()` aggregates are wrapped in `CAST(... AS UNSIGNED)` because
+`Field::Get<uint32>` rejects `DECIMAL`.
+
+### Gating
+
+Unlike `log`, `mem` needs no configuration and stays at `SEC_PLAYER`. Every
+query is scoped to the caller's own guid, and `mem list` additionally passes
+through `IsKnownBotForPlayer()` — the same check `get` and `forget` use. A
+player therefore sees exactly the pairing they can already inspect with
+`roster` and erase with `forget`, and never another player's side of a bot.
 
 ---
 
@@ -132,7 +260,10 @@ The floating window also has a Close button and an X button (UIPanelCloseButton)
 ## UI Component Behaviors
 
 ### Trait Edit Boxes
-- Editable, 64 character limit enforced both client-side and server-side
+- Editable, 64 character limit enforced both client-side and server-side.
+  Characters, not bytes, everywhere: `SetMaxLetters(64)` on the box, a UTF-8
+  count in `SaveProfile()` and in the server's `ValidateField()`, and
+  `VARCHAR(64)` in MySQL
 - `sanitizeInput()` strips control characters and collapses whitespace on
   save
 - All three must be non-empty before the server command is sent

@@ -62,6 +62,124 @@
 * **Regression coverage**: Focused tests protect both Anthropic request
   paths from future SDK argument regressions.
 
+### 2026-08-31 - Bots Notice Custom Emotes
+
+* **`/e` and `/me` now reach the bots**: previously only the ~244 named
+  emotes (`/point`, `/salute`) triggered reactions, because those arrive on the
+  `OnPlayerTextEmote` hook. A typed `/e grabs hand` is ordinary
+  `CHAT_MSG_EMOTE` chat, which the module was discarding. It is now routed into
+  the same reaction pipeline and the typed text is handed to the model as the
+  action.
+* **Targeting comes from your selection**: the client sends no target with a
+  custom emote, so the bot you have selected is treated as the target, matching
+  how the emote reads to a human. With nothing selected it becomes an
+  undirected emote that a nearby bot may remark on.
+* **Verbal only, by nature**: a custom emote has no emote id, so there is
+  nothing to mirror. Bots answer in words; the mirrored animation and the NPC
+  mirror remain named-emote features.
+* Controlled by `LLMChatter.EmoteReactions.CustomEnable` (default on) and
+  clamped by `LLMChatter.EmoteReactions.CustomMaxChars` (default 120).
+
+### 2026-08-30 - Actions Are Real Emotes
+
+* **The `action` field is now sent as `/e`**: a response like
+  `{"message": "Fairbreeze burning again?", "action": "scans the treeline"}`
+  used to arrive as one line, `*scans the treeline* Fairbreeze burning again?`.
+  It is now delivered as two: a text emote (`Ennien scans the treeline`)
+  immediately followed by the spoken line. Actions read as actions in the chat
+  log instead of asterisks glued to speech.
+* **The split happens at queue time**: `llm_chatter_messages` gained an
+  `action` column, and `insert_chat_message()` peels the `*action*` prefix off
+  the cleaned message into it, so every producer is covered without touching
+  each call site. C++ delivery emits it via `TextEmote` just before the speech.
+* **Reversible**: set `LLMChatter.ActionAsEmote.Enable = 0` to restore the old
+  inline rendering. Note that `/e` is proximity based, so on party, raid, guild
+  and General messages only players standing near the bot see the emote, while
+  the spoken line still reaches the whole channel.
+
+### 2026-08-29 - Shorter Memories, Sent Whole
+
+* **Memories reach the model intact**: `sanitize_memory_for_prompt()` no
+  longer chops memories at 200 characters before injection. It now only
+  strips control characters and normalises whitespace, so every prompt
+  carries the memory exactly as the browser and the log viewer show it.
+* **Length is bounded when the memory is written**: the generator asks for a
+  single factual sentence of at most 160 characters, and `_clamp_memory_text()`
+  trims anything past 240 at a sentence boundary before it is stored. Bounding
+  the write side rather than the read side means a bot asked to "reference
+  this naturally" is never building a line around a severed clause.
+* **Drier, less florid journal entries**: the memory prompt now asks for a
+  terse log entry recording who was involved, what was done and where, with
+  no metaphors and at most a short clause of feeling. The `poetic` and
+  `vivid` expression styles were replaced with `plain`, `matter_of_fact` and
+  `observational`, and the chosen mood is passed as a subtle hint rather than
+  an instruction to emote. Existing memories are untouched.
+
+### 2026-08-27 - In-Game Bot Memory Browser
+
+* **Read any bot's journal in game**: `/chattermemory` (or `/cmem`) in the
+  Chatter Log addon lists every bot that remembers your character and shows
+  its `llm_bot_memories` entries in full, newest first, with a filter and a
+  copy box. Backed by a new `.llmc mem` command family.
+* **Shows the lifecycle, not just the text**: each memory is annotated with
+  `PENDING` while it is still `active = 0` (and would be discarded if the
+  session ended early), and with `recalled <time>` once it has been surfaced
+  in a prompt.
+* **No configuration, no elevation**: every query is scoped to the caller's
+  own guid and `mem list` reuses `IsKnownBotForPlayer()`, so this exposes
+  exactly the pairing a player can already inspect with `roster` and erase
+  with `forget`. It stays at `SEC_PLAYER` and is unaffected by the
+  `AddonLog` gate that guards the raw prompt log.
+
+### 2026-08-26 - In-Game Request Log Viewer
+
+* **See the prompt behind any bot line**: a new `.llmc log` command family
+  serves the bridge's JSONL request log to the **Chatter Log** addon
+  (`/chatterlog`), so the system prompt, the assembled user prompt and the
+  raw model response can be read and copied in game instead of tailing a
+  file on the host. This is aimed at diagnosing phrases that come out wrong.
+* **No new moving parts**: the worldserver reads the file the bridge already
+  writes. Both containers bind-mount the same host directory, so there is no
+  new table, no schema migration and no change to the Python bridge.
+  `LLMChatterRequestLog.cpp` tails the file, caching parsed entries and
+  re-parsing only appended bytes; rotation and a bridge restart both reset
+  the cache automatically.
+* **Off by default, gamemaster only**: prompts embed other players' chat and
+  bot memories, so `LLMChatter.AddonLog.Enable` defaults to `0` and access
+  is gated on `LLMChatter.AddonLog.MinSecurity` (default gamemaster),
+  separately from the rest of `.llmc`. Requires
+  `LLMChatter.RequestLog.Enable = 1` on the bridge.
+* Replies travel under a `CHATTER_LOG ` prefix so Chatter Log and Chatter
+  Companion can be loaded at the same time.
+
+### 2026-08-25 - Lossless Trait Upload
+
+* **Long traits reach the server intact**: the client cuts an outgoing chat
+  line at 255 characters, so three sentence-length traits — and any Cyrillic
+  ones, which cost six characters each once percent-encoded — overflowed the
+  single `.llmc set` line and the save was silently lost. The addon now falls
+  back to a chunked upload (`.llmc put` / `commit` / `cancel`) whenever the
+  single-shot line would not fit, and keeps using `set` when it does.
+* **Trait limits count characters everywhere**: the server counted bytes,
+  which rejected a 64-character Cyrillic trait at 128 bytes even though the
+  column is `VARCHAR(64)`. Server and addon now both count UTF-8 characters,
+  matching the edit boxes and MySQL.
+* Requires the updated Chatter Companion addon; the server accepts the old
+  addon unchanged.
+
+### 2026-08-25 - Longer Traits Accepted
+
+* **Traits up to 64 characters are stored correctly**: The session table
+  `llm_group_bot_traits` still capped each trait at 32 characters while
+  `llm_bot_identities` and the `/chatter` panel already allowed 64. Traits
+  longer than 32 characters broke the bridge with
+  `Data too long for column 'trait1'` when a bot joined a group, and were
+  silently truncated in the session row.
+* **Database Migration**: Run
+  `data/sql/characters/updates/20260827_widen_group_bot_traits.sql` if
+  upgrading from a previous version. Fresh installs already have the wider
+  columns from the base schema.
+
 ### 2026-08-16 - Korean Language and Unicode Cleanup
 
 * **Korean language support**: `LLMChatter.Language = KO` now resolves
@@ -292,7 +410,7 @@
 * **Emote Reaction System**: Bots now react when you emote at them. `/wave` at a bot and they might wave back, `/flex` and they'll have something to say about it. Three reaction paths: silent mirror (bot mirrors your emote), verbal reaction (personal response), and observer comment (a nearby bot notices and chimes in). Covers all ~170 text emotes.
 * **Dungeon Context Injection**: Party chatter prompts now detect when you're inside a dungeon and inject dungeon-specific flavor instead of outdoor zone lore. Affects kill, loot, death, achievement, wipe, corpse run, and nearby object events.
 * **BG Chatter Quality Pass**: Reduced noise in battleground chatter, suppressed narrator actions in fast-paced BG events, unified the join path for cleaner group formation, and synced config defaults with tested values.
-* **Action & Emote Frequency**: `EmoteChance` and `ActionChance` config keys control how often bots include physical emotes and narrator actions in their messages.
+* **Action & Emote Frequency**: `EmoteChance` and `ActionChance` config keys control how often bots include physical emotes and narrator actions in their messages. Actions are delivered as a separate `/e` text emote ahead of the spoken line; `LLMChatter.ActionAsEmote.Enable = 0` restores the old inline `*action*` form.
 
 ### 2026-03-22 — Persistent Memories & Personality Traits
 

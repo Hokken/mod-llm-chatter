@@ -181,6 +181,80 @@ LLMChatter.RequestLog.Path = /logs/llm_requests.jsonl
 LLMChatter.RequestLog.MaxSizeMB = 50
 
 ###############################################################################
+# CHATTER LOG ADDON [SERVER]
+###############################################################################
+#
+# Serves the bridge's request log to the Chatter Log in-game addon
+# (/chatterlog) through the `.llmc log` command. The worldserver only
+# reads the file, so LLMChatter.RequestLog.Enable must be 1 as well or
+# there is nothing to show.
+#
+
+#
+#   LLMChatter.AddonLog.Enable
+#       Allow the Chatter Log addon to browse the request log.
+#       Prompts contain other players' chat and bot personas, so
+#       this stays off unless you are actively debugging.
+#       Default: 0 (disabled)
+#       [SERVER]
+#
+LLMChatter.AddonLog.Enable = 0
+
+#
+#   LLMChatter.AddonLog.Path
+#       The request log as the *worldserver* sees it. This is the
+#       same file as LLMChatter.RequestLog.Path, but that path is
+#       the bridge container's view (/logs/...). Under the shipped
+#       docker-compose the worldserver mounts ./modules read-only
+#       at /azerothcore/modules, so the default below resolves to
+#       the same host file. Non-Docker users should point both keys
+#       at the same absolute path.
+#       Default: /azerothcore/modules/mod-llm-chatter/logs/llm_requests.jsonl
+#       [SERVER]
+#
+LLMChatter.AddonLog.Path = /azerothcore/modules/mod-llm-chatter/logs/llm_requests.jsonl
+
+#
+#   LLMChatter.AddonLog.MinSecurity
+#       Minimum account security level allowed to read the log.
+#       0 = player, 1 = moderator, 2 = gamemaster,
+#       3 = administrator, 4 = console.
+#       Default: 2 (gamemaster)
+#       [SERVER]
+#
+LLMChatter.AddonLog.MinSecurity = 2
+
+#
+#   LLMChatter.AddonLog.MaxEntries
+#       How many of the most recent log entries the worldserver
+#       keeps in memory and offers to the addon. Clamped to 1-500.
+#       Default: 100
+#       [SERVER]
+#
+LLMChatter.AddonLog.MaxEntries = 100
+
+#
+#   LLMChatter.AddonLog.TailBytes
+#       How far back from the end of the file a cold read scans.
+#       Later reads only parse newly appended bytes, so this only
+#       bounds the first request after a worldserver restart.
+#       Minimum 65536.
+#       Default: 2097152 (2 MB)
+#       [SERVER]
+#
+LLMChatter.AddonLog.TailBytes = 2097152
+
+#
+#   LLMChatter.AddonLog.ChunkChars
+#       Maximum percent-encoded characters per system message when
+#       streaming a prompt to the addon. Lower this if long prompts
+#       arrive truncated on your client. Clamped to 64-2048.
+#       Default: 512
+#       [SERVER]
+#
+LLMChatter.AddonLog.ChunkChars = 512
+
+###############################################################################
 # LLM PROVIDER SETTINGS [BRIDGE]
 ###############################################################################
 #
@@ -1981,12 +2055,28 @@ LLMChatter.RaidChatter.IdleCooldown = 20
 
 #
 #   LLMChatter.ActionChance
-#       Chance (0-100) that a response includes a narrator action
-#       displayed as *action* before the spoken text.
+#       Chance (0-100) that a response includes a narrator action.
+#       How the action is shown depends on
+#       LLMChatter.ActionAsEmote.Enable below.
 #       Only applies in roleplay mode.
 #       Default: 20
 #
 LLMChatter.ActionChance = 10
+
+#
+#   LLMChatter.ActionAsEmote.Enable
+#       Deliver the action as a separate text emote sent just
+#       before the spoken line, so it reads as a real emote in the
+#       chat log ("Miranda looks out the window") rather than
+#       *asterisks* glued to the speech.
+#       Set to 0 to restore the old inline "*action* text" form.
+#       Note that /e is proximity based: on party, raid, guild and
+#       General messages the emote is only seen by players standing
+#       near the bot, while the spoken line still reaches the whole
+#       channel.
+#       Default: 1
+#
+LLMChatter.ActionAsEmote.Enable = 1
 
 #
 #   LLMChatter.EmoteChance
@@ -2552,6 +2642,30 @@ LLMChatter.EmoteReactions.MoodSpreadChance = 50
 #       Default: 1
 #
 LLMChatter.EmoteReactions.NPCMirrorEnable = 1
+
+#
+#   LLMChatter.EmoteReactions.CustomEnable
+#       React to free-text emotes typed as /e or /me
+#       ("/e grabs hand"), not just the ~244 named emotes
+#       like /point and /salute. The typed text is passed to
+#       the model as the action.
+#       Because a custom emote has no emote id, bots can only
+#       answer verbally: there is no animation to mirror, and
+#       NPC mirroring stays named-emote only. The target is
+#       taken from whoever the player has selected, since the
+#       client sends no target with a custom emote.
+#       Requires LLMChatter.EmoteReactions.Enable.
+#       Default: 1
+#
+LLMChatter.EmoteReactions.CustomEnable = 1
+
+#
+#   LLMChatter.EmoteReactions.CustomMaxChars
+#       Clamp for the typed emote text before it reaches the
+#       prompt. Longer emotes are cut at a UTF-8 boundary.
+#       Default: 120
+#
+LLMChatter.EmoteReactions.CustomMaxChars = 120
 
 ###############################################
 # Screenshot Vision Feature (Experimental)

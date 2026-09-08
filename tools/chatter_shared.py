@@ -364,6 +364,7 @@ def build_bot_identity(
     bot_race: str,
     bot_class: str,
     gender: str = '',
+    suffix: str = '.',
 ) -> str:
     """Return an identity prefix for bot prompts.
 
@@ -374,9 +375,10 @@ def build_bot_identity(
         gender_prefix = f"{gender} " if gender else ""
         return (
             f"You are {bot_name}, "
-            f"a {gender_prefix}{bot_race} {bot_class}."
+            f"a {gender_prefix}{bot_race} "
+            f"{bot_class}{suffix}"
         )
-    return f"You are {bot_name}."
+    return f"You are {bot_name}{suffix}"
 
 
 def build_bot_identity_with_level(

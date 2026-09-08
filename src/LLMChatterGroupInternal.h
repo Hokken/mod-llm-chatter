@@ -218,10 +218,22 @@ void QueueBotGreetingEvent(
 void EnsureGroupJoinQueued(
     Player* bot, Group* group);
 
+// Free-text /e and /me reach the module through the chat
+// hook, not OnPlayerTextEmote, so the chat handler needs this
+// ahead of its definition further down LLMChatterGroupCombat.
+void HandleGroupPlayerCustomEmoteImpl(
+    Player* player, std::string const& text);
+
 // Emote domain (LLMChatterGroupEmote.cpp)
+//
+// customText carries a free-text /e or /me. When it is
+// non-empty textEmote is meaningless (there is no id for a
+// custom emote) and only verbal reactions are produced,
+// since there is no animation to mirror.
 void HandleEmoteAtGroupBot(
     Player* player, Player* targetBot,
-    uint32 textEmote, Group* group);
+    uint32 textEmote, Group* group,
+    const std::string& customText = "");
 void HandleEmoteAtCreature(
     Player* player, Creature* creature,
     uint32 textEmote);
@@ -233,7 +245,8 @@ void HandleEmoteObserver(
     uint32 npcRank, uint32 npcType,
     uint32 npcEntry,
     const std::string& npcSubName,
-    const std::vector<Player*>& candidates);
+    const std::vector<Player*>& candidates,
+    const std::string& customText = "");
 
 // Emote statics (used by PlayerScript dispatch)
 extern const std::unordered_set<uint32>

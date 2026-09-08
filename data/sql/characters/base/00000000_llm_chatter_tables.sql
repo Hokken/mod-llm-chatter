@@ -153,6 +153,10 @@ CREATE TABLE IF NOT EXISTS `llm_chatter_messages` (
     `bot_name` VARCHAR(64) NOT NULL,
     `message` TEXT NOT NULL,
     `emote` VARCHAR(32) DEFAULT NULL,
+    -- Free-text physical action from the LLM's `action` field.
+    -- Delivered as a /e text emote just before the spoken line
+    -- rather than inlined into `message` as *asterisks*.
+    `action` VARCHAR(120) DEFAULT NULL,
     `npc_spawn_id` INT UNSIGNED DEFAULT NULL,
     `player_guid` INT UNSIGNED DEFAULT NULL,
     `group_id` INT UNSIGNED DEFAULT NULL,
@@ -198,9 +202,9 @@ CREATE TABLE IF NOT EXISTS `llm_group_bot_traits` (
     `group_id` INT UNSIGNED NOT NULL,
     `bot_guid` INT UNSIGNED NOT NULL,
     `bot_name` VARCHAR(64) NOT NULL,
-    `trait1` VARCHAR(32) NOT NULL,
-    `trait2` VARCHAR(32) NOT NULL,
-    `trait3` VARCHAR(32) NOT NULL,
+    `trait1` VARCHAR(64) NOT NULL,
+    `trait2` VARCHAR(64) NOT NULL,
+    `trait3` VARCHAR(64) NOT NULL,
     `role` VARCHAR(16) DEFAULT NULL,
     `tone` VARCHAR(120) DEFAULT NULL,
     `zone` INT UNSIGNED NOT NULL DEFAULT 0,

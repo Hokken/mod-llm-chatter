@@ -66,10 +66,17 @@ def handle_emote_reaction(db, client, config, event):
         int(extra.get('bot_gender') or 0)
     )
 
-    emote_id = EMOTE_NAME_TO_ID.get(emote, 0)
-    category = EMOTE_CATEGORIES.get(
-        emote_id, 'greeting'
-    )
+    is_custom = bool(int(extra.get('custom_emote') or 0))
+    if is_custom:
+        # Free text has no id, so no emote category and no
+        # category tone pool. 'custom' is not a REACTION_TONES
+        # key, which lands _pick_tone on the generic pool.
+        category = 'custom'
+    else:
+        emote_id = EMOTE_NAME_TO_ID.get(emote, 0)
+        category = EMOTE_CATEGORIES.get(
+            emote_id, 'greeting'
+        )
     trait_data = get_bot_traits(
         db, group_id, bot_guid
     ) if group_id and bot_guid else None
@@ -89,6 +96,7 @@ def handle_emote_reaction(db, client, config, event):
         traits=traits,
         stored_tone=stored_tone,
         mode=get_chatter_mode(config),
+        is_custom=is_custom,
     )
 
     result = run_single_reaction(
@@ -126,6 +134,7 @@ def _build_reaction_prompt(
     traits=None,
     stored_tone=None,
     mode='roleplay',
+    is_custom=False,
 ):
     tone = stored_tone or _pick_tone(category)
     identity = build_player_prompt_header(
@@ -138,10 +147,19 @@ def _build_reaction_prompt(
             " Your personality: "
             f"{', '.join(traits)}."
         )
+    if is_custom:
+        # Free text is already phrased as an action
+        # ("grabs your hand"), so quote it rather than
+        # rendering it as a /slash command.
+        did = (
+            f"just did this to you: \"{emote}\""
+        )
+    else:
+        did = f"just /{emote} at you"
     prompt += (
         f" Your tone: {tone}. "
         f"Your party member {p_name} "
-        f"just /{emote} at you. React {tone}. "
+        f"{did}. React {tone}. "
         "1-2 sentences. "
         "NEVER put /slash commands in your "
         "response."

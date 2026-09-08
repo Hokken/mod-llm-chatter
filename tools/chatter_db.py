@@ -17,6 +17,7 @@ from chatter_constants import (
     ZONE_COORDINATES,
     ZONE_LEVELS,
 )
+from chatter_text import split_action_prefix
 from spell_names import SPELL_DESCRIPTIONS, SPELL_NAMES
 
 logger = logging.getLogger(__name__)
@@ -831,23 +832,30 @@ def insert_chat_message(
             delivery_reason,
         )
 
+    # cleanup_message() inlines the LLM's action field as a
+    # leading *asterisk* prefix. Pull it back out here so C++
+    # delivery can send it as a /e text emote ahead of the
+    # spoken line. Doing it at the single insert chokepoint
+    # covers every producer without touching each call site.
+    message, action = split_action_prefix(message)
+
     cursor = db.cursor()
     cursor.execute("""
         INSERT INTO llm_chatter_messages
         (event_id, queue_id, sequence, bot_guid,
-         bot_name, message, emote, npc_spawn_id,
+         bot_name, message, emote, action, npc_spawn_id,
          player_guid, channel, owner_subsystem,
          delivered, deliver_at,
          group_id, delivery_policy, delivery_reason)
         VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0,
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0,
             DATE_ADD(NOW(), INTERVAL %s SECOND),
             %s, %s, %s
         )
     """, (
         event_id, queue_id, sequence,
         bot_guid, bot_name, message,
-        validate_emote(emote), npc_spawn_id,
+        validate_emote(emote), action, npc_spawn_id,
         player_guid, channel, owner_subsystem,
         int(final_delay),
         group_id, delivery_policy, delivery_reason,
