@@ -867,7 +867,7 @@ LLMChatter.ProximityChatter.Chance = 100
 #       proximity scene is queued.
 #       Default: 30
 #
-LLMChatter.ProximityChatter.OutdoorChance = 5
+LLMChatter.ProximityChatter.OutdoorChance = 15
 
 #
 #   LLMChatter.ProximityChatter.InstanceChance
@@ -1174,7 +1174,7 @@ LLMChatter.GroupChatter.IdleChance = 7
 #       2+ bots in the group.
 #       Default: 50
 #
-LLMChatter.GroupChatter.ConversationBias = 50
+LLMChatter.GroupChatter.ConversationBias = 30
 
 #
 #   LLMChatter.GroupChatter.IdleCooldown
