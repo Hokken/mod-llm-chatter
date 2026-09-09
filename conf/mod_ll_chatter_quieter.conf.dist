@@ -867,7 +867,7 @@ LLMChatter.ProximityChatter.Chance = 100
 #       proximity scene is queued.
 #       Default: 30
 #
-LLMChatter.ProximityChatter.OutdoorChance = 5
+LLMChatter.ProximityChatter.OutdoorChance = 15
 
 #
 #   LLMChatter.ProximityChatter.InstanceChance
