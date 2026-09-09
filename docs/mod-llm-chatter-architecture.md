@@ -1,6 +1,6 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-09-07 (OpenRouter reasoning controls)
+Last updated: 2026-09-08 (instance proximity chatter)
 
 ## Purpose
 
@@ -90,33 +90,97 @@ disabled by default.
 Proximity chatter creates ambient `/say` conversations between bots,
 NPCs, and real players as they move through the world:
 
-1. C++ `CheckProximityChatter()` runs on a configurable timer
-   (default 30s) in `LLMChatterWorld.cpp`.
-2. `LLMChatterProximity.cpp` scans around each real player within
-   a 40-yard radius for eligible humanoid NPCs and party bots.
+1. C++ `CheckProximityChatter(bool instanceMaps)` runs on independent
+   outdoor and dungeon/raid timers in `LLMChatterWorld.cpp`. Legacy
+   configs without scoped values inherit `ScanIntervalSeconds`.
+2. `LLMChatterProximity.cpp` scans around each alive, out-of-combat
+   real player within a 40-yard radius for eligible NPCs and party bots.
+   Outdoor, dungeon, and raid maps are supported; BG and arena maps are
+   excluded. NPC qualification follows one global ordered policy:
+   client visibility, non-selectable, fake-dead, trigger-creature, and
+   internal-name-marker exclusions; denylist; boss exclusion;
+   guard/interactive role; humanoid; configured non-humanoid allowlist;
+   then reject.
 3. One or more speakers are selected from the candidate pool.
    If all candidates are party bots, the scan is skipped (idle chat
    handles that case).
 4. A `proximity_say` (single statement) or `proximity_conversation`
    (multi-speaker) event is queued to `llm_chatter_events` with
    NPC spawn GUIDs and nearby entity names in `extra_data`.
-5. Python `chatter_proximity.py` claims the event, builds prompts
-   with zone context and a topic from the 250+ entry topic pool,
-   and generates messages.
+5. Python `chatter_proximity.py` claims the event and uses
+   `chatter_instance_context.py` for canonical map name, current area,
+   and curated dungeon-lore grounding. NPC payloads also carry
+   disposition, creature rank, creature type, and qualification reason.
 6. Messages are written to `llm_chatter_messages` with channel
    `"say"` (for bots) or `"msay"` (for NPCs).
 7. C++ delivery dispatches bot messages via `CHAT_MSG_SAY` and NPC
-   messages via `CHAT_MSG_MONSTER_SAY` (speech bubbles). Speakers
-   face each other via `SetFacingToObject()`, and NPC orientation
-   resets after delivery via `BasicEvent`.
-8. When a real player speaks in `/say` near a recent proximity scene,
+   messages via `CHAT_MSG_MONSTER_SAY` (speech bubbles). Movement never
+   disqualifies a speaker. Stationary, facing-safe speakers may face each
+   other via `SetFacingToObject()`; moving or pathing speakers talk without
+   rotation. NPC orientation resets via `BasicEvent` only when facing was
+   applied.
+8. When a real player speaks in `/say`, an explicitly named eligible
+   creature wins first, followed by the selected target, then a recent
+   scene or ordinary nearby candidate.
    `HandleProximityPlayerSay()` in `LLMChatterGroupCombat.cpp`
    detects the reply and queues a `proximity_reply` event, enabling
    natural player-to-NPC/bot exchanges.
 
 NPCs are identified by spawn GUID (`Creature::GetSpawnId()`) rather
-than entry ID, allowing per-instance entity cooldowns. The
-`ProximityScene` struct tracks active conversations for reply matching.
+than entry ID. Cooldowns, scene matching, and history include map and
+instance IDs so parallel copies cannot share state. Ordinary hostile
+humanoids may speak while safely out of combat. A hostile non-humanoid
+must be deliberately approved by creature entry unless its established
+guard or interactive NPC role independently qualifies it. Bosses remain
+outside this ambient scanner. `SpeakerDenyEntries` overrides every
+ordinary qualification, including humanoids and interactive NPCs.
+Internal `[DND]`/`(DND)`, `[PH]`/`(PH)`, and
+`[UNUSED]`/`(UNUSED)` templates and engine-marked trigger creatures are
+excluded across ordinary and boss dialogue. Nearby-name prompt context
+is case-insensitively deduplicated.
+One conversation also cannot select two creatures with the same display
+name because the JSON response contract identifies speakers by name.
+
+Boss dialogue is a separate flow owned by
+`LLMChatterBossDialogue.cpp` and `chatter_boss_dialogue.py`. A boss can
+produce a paced sequence of original pre-aggro lines or answer an
+explicitly targeted or named `/say` within its extended radius. Queueing
+and delivery both require LOS, no combat, an instance map, the shared
+boss classifier, and distance greater than calculated aggro range plus
+the configured safety margin. Delivery uses the private `myell` queue
+channel and monster yell; it never changes facing or threat.
+
+Automatic speech is governed by one presence session per boss spawn and
+instance, shared by every nearby real player. The first line follows a
+short random delay. Later opportunities use random delays and a decaying
+chance that stops decaying at a configurable floor. A missed chance
+schedules a new delayed opportunity instead of rerolling each scan, so
+the boss retains a small chance to speak throughout a long presence.
+Open-ended opportunities are enabled by default; disabling them applies
+the configured hard line cap. The session resets after no eligible player
+has been nearby for the configured period.
+Recent delivered lines are passed back to the prompt so later speech
+continues the moment without repeating it. A directed `/say` uses its
+separate per-player cooldown and postpones the next automatic opportunity
+without consuming the automatic line allowance.
+
+The same comprehensive classifier remains shared with group-kill chatter.
+Consequently, an eligible registered-encounter kill, including an
+ordinary-rank miniboss, follows the existing guaranteed boss-kill reaction
+path instead of normal-trash chance and cooldown rules. This is one reaction
+opportunity per actual encounter kill, not a recurring proximity trigger.
+Enter-combat chatter deliberately retains its narrower legacy classifier and
+probabilities.
+
+The boss denylist limits interference with scripted encounters.
+Automatic checks use one round-robin candidate per configured scan pass,
+so no more than one expensive creature-grid search runs per interval and
+later session-map entries cannot starve. Directed `/say` searches have a
+separate per-player/map/instance throttle. Presence, cooldown, pending,
+and scan state is synchronized across the world update and player `/say`
+hooks, but persistent event queries run outside that mutex. The parsed
+denylist is published as an immutable configuration snapshot on load or
+reload.
 
 ### Guild chatter data flow
 
@@ -343,6 +407,19 @@ stage for most Python-generated messages. Player-directed replies use
 `responsive=True`; ambient/group conversations can also include reading
 time from the previous message length.
 
+### General-Channel Pacing Gate
+
+Automated General statements and conversations share a bridge-side,
+per-zone reservation timeline. A producer calculates every relative
+follow-up delay, then atomically reserves the full sequence through its
+last scheduled line. The next ambient or world-event sequence begins
+only after `GeneralChat.MinZoneGap` has elapsed from that endpoint. This
+prevents independently processed ambient, transport, weather, and
+holiday conversations from stacking their follow-ups into the same few
+seconds. Player-directed General replies remain responsive and may
+interrupt automated chatter, but extend the known zone endpoint so later
+automation backs off.
+
 ### Party Chat Pacing Gate
 
 Party-channel messages use a DB-backed pacing table,
@@ -464,32 +541,33 @@ Session 69 added two scheduling controls around that model:
 | File | Approx lines | Primary ownership |
 |---|---:|---|
 | `src/LLMChatterScript.cpp` | 17 | Registration coordinator only |
-| `src/LLMChatterShared.cpp` | 1939 | Shared helpers: SQL/JSON escaping, canonical shared lookup helpers (`GetZoneName()`, `GetChatterClassName()`, `GetRaceName()`), `BuildBotIdentityFields()` (emits `bot_gender` / `player_gender`) / `BuildBotStateJson()`, queue insert helper, shared event cooldown helper, table-driven event priority/reaction-delay registries, link/emote/delivery helpers, `GetTextEmoteName()` reverse lookup, `SendUnitTextEmote()` consolidated emote packet helper, cross-domain formatting helpers, General-channel membership check helper, `FindCreatureBySpawnId()` spawn-GUID creature lookup, `GetCreatureRoleName()` NPC role description helper |
+| `src/LLMChatterShared.cpp` | ~2500 | Shared helpers: SQL/JSON escaping, canonical lookups, queue insertion, cooldowns, priorities/delays, delivery helpers, spawn-GUID creature lookup, NPC role descriptions, and the shared named-boss cache/classifier |
 | `src/LLMChatterShared.h` | 83 | Shared declarations still used across domains; `class Unit` forward-declared for `SendUnitTextEmote()`; currently also declares world/player registration |
-| `src/LLMChatterDelivery.cpp` | ~500 | Outbound message delivery implementation: DB polling, facing selection, party/raid/BG/General/yell/say/msay dispatch, spawn-GUID creature lookup for NPC delivery, NPC orientation reset via BasicEvent, sequence-based facing for multi-speaker proximity scenes, post-send delivery state updates |
+| `src/LLMChatterDelivery.cpp` | ~1000 | Outbound DB polling and channel dispatch, including instance-aware local revalidation for `say`/`msay` and safe boss `myell` delivery |
 | `src/LLMChatterDelivery.h` | 4 | Narrow delivery extraction declaration used by `LLMChatterWorld.cpp` |
 | `src/LLMChatterAmbient.cpp` | 963 | Ambient world/event ownership: day/night transitions, holiday start/stop routing, weather state tracking, weather reactions, zone-level ambient chatter selection, ambient request queue writes |
 | `src/LLMChatterAmbient.h` | 24 | Narrow ambient declarations consumed by `LLMChatterWorld.cpp` |
 | `src/LLMChatterNearby.cpp` | 691 | Nearby-object and nearby-creature scanning, POI scoring, nearby direct event queueing, nearby-local cooldowns |
 | `src/LLMChatterNearby.h` | 6 | Narrow nearby scan declaration consumed by `LLMChatterWorld.cpp` |
-| `src/LLMChatterWorld.cpp` | ~800 | WorldScript ownership, thin ambient/nearby/delivery/proximity delegation, transport polling and route announcements, transport-private state, retained world-private `QueueEvent()` helper |
+| `src/LLMChatterWorld.cpp` | ~1000 | WorldScript ownership, thin ambient/nearby/delivery/proximity/boss delegation, transport polling and route announcements, transport-private state, retained world-private `QueueEvent()` helper |
 | `src/LLMChatterGuild.cpp` | ~750 | Player-driven Guild Chat capture, per-login session lifecycle, deferred login greetings, eligible-bot selection, stale-turn cancellation, recent-interaction suppression, and delivered-line history writes |
 | `src/LLMChatterGuild.h` | ~20 | Guild registration and delivery/world cross-call declarations |
-| `src/LLMChatterGroup.cpp` | ~1350 | Shared group state definitions, shared helpers (`GroupHasRealPlayer`, `GetRandomBotInGroup`, `CountBotsInGroup`, pre-cache helpers), disabled-by-default MultiBot-Chatless `MBOT` fallback handler, named-boss cache, `CleanupGroupSession()` coordinator, thin `LLMChatterGroupPlayerScript` shell wrappers, registration |
+| `src/LLMChatterGroup.cpp` | ~1350 | Shared group state definitions, shared helpers (`GroupHasRealPlayer`, `GetRandomBotInGroup`, `CountBotsInGroup`, pre-cache helpers), disabled-by-default MultiBot-Chatless `MBOT` fallback handler, `CleanupGroupSession()` coordinator, thin `LLMChatterGroupPlayerScript` shell wrappers, registration |
 | `src/LLMChatterGroupCombat.cpp` | ~2550 | Remaining group PlayerScript implementation bodies (kill/death/loot/combat/chat/level/quest/achievement/spell/resurrect/corpse-run/dungeon-entry/emote dispatch), text-emote target classification and group gating, zone transition handling, combat state callouts, `MBOT` debug-log suppression, file-local `QueueStateCallout()` |
-| `src/LLMChatterGroupInternal.h` | 239 | Shared group internal header: struct definitions (`GroupJoinEntry`, `GroupJoinBatch`, `QuestAcceptEntry`, `QuestAcceptBatch`), extern declarations for all shared cooldown maps, batch containers, mutexes, emote cooldowns, named boss cache; shared helper declarations; domain entry-point declarations; `EmoteTargetType` enum |
+| `src/LLMChatterGroupInternal.h` | ~235 | Shared group internal structs, cooldown/batch/mutex declarations, helper declarations, domain entry points, and `EmoteTargetType` |
 | `src/LLMChatterGroupJoin.cpp` | 877 | Group join batching: `QueueBotGreetingEvent()`, `EnsureGroupJoinQueued()`, `FlushGroupJoinBatches()`, `LLMChatterGroupScript` (GroupScript: `OnAddMember`, `OnRemoveMember` with farewell, `OnDisband`) |
 | `src/LLMChatterGroupEmote.cpp` | 534 | Emote reaction system: `DelayedMirrorEmoteEvent`, `DelayedCreatureMirrorEmoteEvent`, emote static data (mirror map, denylist, combat callouts, contagious set), `HandleEmoteAtGroupBot()`, `HandleEmoteAtCreature()`, `HandleEmoteObserver()`, `EvictEmoteCooldowns()` |
 | `src/LLMChatterGroupQuest.cpp` | 530 | Quest accept batching: `FlushQuestAcceptBatches()`, `LLMChatterCreatureScript` (AllCreatureScript: `CanCreatureQuestAccept` with debounce/immediate paths) |
 | `src/LLMChatterGroup.h` | 18 | World-to-group cross-call surface plus group registration |
 | `src/LLMChatterPlayer.cpp` | 1105 | Player General-channel hooks, General cooldowns, subzone cooldowns, `EnsureBotInGeneralChannel()`, player registration |
 | `src/LLMChatterRaid.cpp` | 767 | Raid boss hooks (pull/kill/wipe), boss lookup table (80+ entries across Classic/TBC/WotLK), `IsDatabaseBound() override`, raid registration |
-| `src/LLMChatterProximity.cpp` | ~800 | Proximity chatter: periodic scan around real players, NPC/bot eligibility filtering, candidate scoring, `proximity_say`/`proximity_conversation` event queueing, `ProximityScene` tracking for player reply detection, entity cooldown management |
+| `src/LLMChatterProximity.cpp` | ~1700 | Ordinary outdoor/instance proximity scans, global curated NPC/playerbot eligibility and compatibility, authoritative selected/named `/say` routing, map/instance-aware scenes and cooldowns, and event payload construction |
 | `src/LLMChatterProximity.h` | ~20 | Proximity scan and player-say hook declarations consumed by `LLMChatterWorld.cpp` and `LLMChatterGroupCombat.cpp` |
+| `src/LLMChatterBossDialogue.cpp/.h` | ~850 | Separate boss-only pre-aggro scanning, safe-band eligibility, selected/named `/say` routing, denylist, and boss-instance presence scheduling |
 | `src/LLMChatterBG.cpp` | 1348 | Battleground hooks, BG state polling, BG queue helpers, BG registration |
 | `src/LLMChatterBG.h` | 14 | BG registration declaration |
 | `src/LLMChatterCommand.cpp` | ~594 | Player command bridge for the Chatter Companion addon. `.llmc` command with `roster`, `get`, `set` subcommands. Percent-encoding protocol, SQL-escaped writes to `llm_bot_identities` and `llm_group_bot_traits`, config guard via `sLLMChatterConfig->IsEnabled()`, cache invalidation on trait update |
-| `src/LLMChatterConfig.h/.cpp` | 839 | Config loading and config struct |
+| `src/LLMChatterConfig.h/.cpp` | ~900 | Config loading, reload-safe creature-entry sets, and config struct |
 | `src/llm_chatter_loader.cpp` | 11 | Module entry point, calls `AddLLMChatterScripts()` |
 
 ## Current Registration Shape
@@ -587,7 +665,9 @@ This asymmetry is known and acceptable in the shipped source state.
 
 | File | Primary ownership |
 |---|---|
-| `tools/chatter_proximity.py` | Handlers and prompt builders for `proximity_say`, `proximity_conversation`, and `proximity_reply` events. Applies NPC in-world voice and configured playerbot voice independently in single or mixed-speaker scenes |
+| `tools/chatter_proximity.py` | Ordinary proximity event handlers and prompt builders. Applies NPC in-world voice and configured playerbot voice independently in single or mixed-speaker scenes |
+| `tools/chatter_instance_context.py` | Shared canonical map/current-area and curated dungeon-lore context used by ordinary proximity and boss prompts |
+| `tools/chatter_boss_dialogue.py` | Fail-closed, history-aware message-only generation and `myell` queue insertion for boss approach and directed boss events |
 
 ### Raid/BG domain
 
@@ -675,19 +755,35 @@ system.
 
 `LLMChatterProximity.cpp` owns:
 
-- periodic proximity scan around real players (40-yard radius)
-- humanoid NPC eligibility filtering (guards, vendors, trainers,
-  innkeepers, citizens, sentinels, children)
+- periodic ordinary proximity scans around alive real players
+- outdoor, dungeon, and raid map policy (BGs/arenas excluded)
+- humanoid NPC eligibility, disposition, rank, LOS, and delivery policy
 - bot eligibility filtering (party bots only, all-bot guard rail)
-- candidate selection and `proximity_say`/`proximity_conversation`
-  event queueing
-- `ProximityScene` struct for tracking active conversations
-- player `/say` reply detection (`HandleProximityPlayerSay()`)
-- per-entity cooldown management via spawn GUID
+- mutually compatible candidate selection and ordinary event queueing
+- map/instance-scoped `ProximityScene`, history, and cooldown state
+- selected/named player `/say` routing before scene fallback
 
-`FindCreatureBySpawnId()` and `GetCreatureRoleName()` live in
-`LLMChatterShared.cpp` as shared helpers used by both proximity
-and delivery code.
+`LLMChatterBossDialogue.cpp` owns the distinct hostile-boss path:
+
+- shared-classifier and denylist eligibility
+- fair round-robin extended-radius safe approach scans, capped at one
+  creature-grid search per configured scan pass
+- calculated aggro distance plus configurable safety margin
+- automatic approach and unambiguous selected/named player `/say` events
+- shared per-boss-spawn/per-instance presence scheduling with randomized,
+  decaying repeat opportunities and a persistent low-probability floor
+- separate per-player, per-boss-spawn, per-instance directed cooldowns
+- synchronized state reservations across world and map-thread hooks
+
+`FindCreatureBySpawnId()`, `GetCreatureRoleName()`,
+`LoadNamedBossCache()`, and `IsLLMChatterBoss()` live in
+`LLMChatterShared.cpp` for proximity, group-kill, boss, and delivery
+callers. The cache uses AzerothCore's registered creature encounters as
+its authoritative dungeon/raid source, with rank, boss flag, and
+single-spawn immunity metadata retained as fallbacks for unregistered
+special bosses. The enter-combat reaction intentionally retains its legacy
+rank/boss-flag predicate so this feature does not alter established combat
+reaction probabilities.
 
 ### World ownership
 
@@ -714,14 +810,14 @@ and delivery code.
 - struct definitions: `GroupJoinEntry`, `GroupJoinBatch`,
   `QuestAcceptEntry`, `QuestAcceptBatch`
 - extern declarations for all shared cooldown maps, batch containers,
-  mutexes, emote cooldowns, named boss cache
+  mutexes, and emote cooldowns
 - `EmoteTargetType` enum
 - shared helper and domain entry-point declarations
 
 `LLMChatterGroup.cpp` retains:
 
 - shared state variable definitions (all cooldown maps, batch containers,
-  mutexes, emote cooldowns, named boss entries)
+  mutexes, and emote cooldowns)
 - shared helpers: `GroupHasRealPlayer`, `GetRandomBotInGroup`,
   `CountBotsInGroup`, `IsLikelyPlayerbotControlCommand`, pre-cache
   helpers
@@ -844,7 +940,7 @@ the same state under `bot_state.travel_state` via
 The world layer also delegates to the proximity subsystem via
 `LLMChatterProximity.h`:
 
-- `CheckProximityChatter(uint32 diff)` — periodic scan timer
+- `CheckProximityChatter(bool instanceMaps)` — scoped periodic scan
 
 And `LLMChatterGroupCombat.cpp` calls into proximity via:
 
@@ -869,8 +965,9 @@ registry and `llm_chatter_bridge.py` uses the resulting map at runtime.
   `chatter_screenshot_handler.py`
 - `bot_group_general_reaction` routes to
   `chatter_group_general_reaction.py`
-- `proximity_say`, `proximity_conversation`, `proximity_reply` route to
-  `chatter_proximity.py`
+- ordinary `proximity_*` events route to `chatter_proximity.py`
+- `proximity_boss_approach` and `proximity_boss_player_say` route to
+  `chatter_boss_dialogue.py`
 - `bg_*` events route to battleground handlers
 - `player_general_msg` routes through the adapter path to
   `chatter_general.py`

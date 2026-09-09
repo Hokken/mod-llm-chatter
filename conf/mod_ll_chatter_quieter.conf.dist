@@ -1,4 +1,23 @@
 #
+# LLM Chatter Module Configuration - Quieter Production Preset
+#
+# This is a template and is NOT loaded automatically while its filename ends
+# in .conf.dist. To use it, copy it into the server's module-config directory
+# and rename the copy to exactly:
+#
+#   mod_llm_chatter.conf
+#
+# Configure the database connection and one LLM provider/API key in the copied
+# file before starting the bridge. All credentials are intentionally blank in
+# this distributable preset. Debug logging, full request logging, and the
+# optional host-side screenshot agent are also disabled for normal production
+# use. Enable those only when deliberately needed.
+#
+# This preset keeps important combat, dungeon, raid, boss, and player-directed
+# reactions lively while reducing cumulative ambient chatter. Outdoor
+# proximity uses a 5% chance per 30-second scan; ambient General uses 15% per
+# 30-second zone check. Dungeon and raid proximity remain highly available.
+#
 # LLM Chatter Module Configuration
 #
 # Dynamic bot conversations powered by AI
@@ -271,7 +290,7 @@ LLMChatter.Model = claude-haiku-4-5-20251001
 #       Your Anthropic API key (starts with sk-ant-)
 #       Get one at: https://console.anthropic.com/
 #
-LLMChatter.Anthropic.ApiKey = sk-ant-xxxxx
+LLMChatter.Anthropic.ApiKey =
 
 ###############################################################################
 # OPENAI SETTINGS [BRIDGE] (only needed if Provider = openai)
@@ -282,7 +301,7 @@ LLMChatter.Anthropic.ApiKey = sk-ant-xxxxx
 #       Your OpenAI API key (starts with sk-)
 #       Get one at: https://platform.openai.com/api-keys
 #
-LLMChatter.OpenAI.ApiKey = sk-xxxxx
+LLMChatter.OpenAI.ApiKey =
 
 ###############################################################################
 # GOOGLE SETTINGS [BRIDGE] (only needed if Provider = google)
@@ -293,7 +312,7 @@ LLMChatter.OpenAI.ApiKey = sk-xxxxx
 #       Your Google Gemini API key.
 #       Get one at: https://aistudio.google.com/app/apikey
 #
-LLMChatter.Google.ApiKey = AIza-xxxxx
+LLMChatter.Google.ApiKey =
 
 #
 #   LLMChatter.Google.BaseUrl
@@ -338,7 +357,7 @@ LLMChatter.Google.MaxTokensMultiplier = 2
 #       Your OpenRouter API key.
 #       Get one at: https://openrouter.ai/keys
 #
-LLMChatter.OpenRouter.ApiKey = sk-or-v1-xxxxx
+LLMChatter.OpenRouter.ApiKey =
 
 #
 #   LLMChatter.OpenRouter.BaseUrl
@@ -451,14 +470,14 @@ LLMChatter.Database.Port = 3306
 #       Database username
 #       Default: acore
 #
-LLMChatter.Database.User = root
+LLMChatter.Database.User =
 
 #
 #   LLMChatter.Database.Password
 #       Database password
 #       Default: acore
 #
-LLMChatter.Database.Password = acore
+LLMChatter.Database.Password =
 
 #
 #   LLMChatter.Database.Name
@@ -484,7 +503,7 @@ LLMChatter.Database.Name = acore_characters
 #       Actual NPCs remain in character in either mode
 #       Default: normal
 #
-LLMChatter.ChatterMode = normal
+LLMChatter.ChatterMode = roleplay
 
 #
 #   LLMChatter.Language [BRIDGE]
@@ -636,7 +655,7 @@ LLMChatter.TriggerChance = 15
 #       statement. Requires 2+ bots in the zone.
 #       Default: 40
 #
-LLMChatter.ConversationChance = 40
+LLMChatter.ConversationChance = 50
 
 #
 #   LLMChatter.AmbientNpcGossipChance
@@ -681,7 +700,7 @@ LLMChatter.AmbientGossipTargetCooldownSeconds = 1800
 #       and weather ambient have optional per-event overrides below.
 #       Default: 25
 #
-LLMChatter.EventReactionChance = 25
+LLMChatter.EventReactionChance = 15
 
 #
 #   LLMChatter.EventConversationChance
@@ -691,7 +710,7 @@ LLMChatter.EventReactionChance = 25
 #       Default: 60
 #       [BRIDGE]
 #
-LLMChatter.EventConversationChance = 60
+LLMChatter.EventConversationChance = 40
 
 #
 #   LLMChatter.WeatherAmbientChance
@@ -840,7 +859,7 @@ LLMChatter.ProximityChatter.ScanRadius = 40
 #       does not define the outdoor or instance setting below.
 #       Default: 30
 #
-LLMChatter.ProximityChatter.Chance = 30
+LLMChatter.ProximityChatter.Chance = 100
 
 #
 #   LLMChatter.ProximityChatter.OutdoorChance
@@ -848,7 +867,7 @@ LLMChatter.ProximityChatter.Chance = 30
 #       proximity scene is queued.
 #       Default: 30
 #
-LLMChatter.ProximityChatter.OutdoorChance = 30
+LLMChatter.ProximityChatter.OutdoorChance = 5
 
 #
 #   LLMChatter.ProximityChatter.InstanceChance
@@ -912,7 +931,7 @@ LLMChatter.ProximityChatter.MaxConversationLines = 4
 #       Seconds between proximity conversation lines.
 #       Default: 2
 #
-LLMChatter.ProximityChatter.ConversationLineDelay = 2
+LLMChatter.ProximityChatter.ConversationLineDelay = 8
 
 #
 #   LLMChatter.ProximityChatter.ReplyWindowSeconds
@@ -994,7 +1013,7 @@ LLMChatter.ProximityChatter.SpeakerDenyEntries =
 #       Keep disabled until the boss in-game matrix has been checked.
 #       Default: 0
 #
-LLMChatter.ProximityChatter.EnableBossDialogue = 0
+LLMChatter.ProximityChatter.EnableBossDialogue = 1
 
 #
 #   LLMChatter.ProximityChatter.BossApproachCheckIntervalSeconds
@@ -1146,7 +1165,7 @@ LLMChatter.GroupChatter.IdleCheckInterval = 30
 #       chatting during downtime.
 #       Default: 15
 #
-LLMChatter.GroupChatter.IdleChance = 15
+LLMChatter.GroupChatter.IdleChance = 7
 
 #
 #   LLMChatter.GroupChatter.ConversationBias
@@ -1172,7 +1191,7 @@ LLMChatter.GroupChatter.IdleCooldown = 40
 #       Boss and rare kills always trigger (100%).
 #       Default: 20
 #
-LLMChatter.GroupChatter.KillChanceNormal = 20
+LLMChatter.GroupChatter.KillChanceNormal = 8
 
 #
 #   LLMChatter.GroupChatter.KillCooldown
@@ -1221,7 +1240,7 @@ LLMChatter.GroupChatter.CorpseRunCooldown = 120
 #       quality item triggers a group reaction.
 #       Default: 20
 #
-LLMChatter.GroupChatter.LootChanceGreen = 20
+LLMChatter.GroupChatter.LootChanceGreen = 15
 
 #
 #   LLMChatter.GroupChatter.LootChanceBlue
@@ -1278,7 +1297,7 @@ LLMChatter.GroupChatter.ResurrectCooldown = 30
 #       triggers a group reaction.
 #       Default: 20
 #
-LLMChatter.GroupChatter.SpellCastChance = 30
+LLMChatter.GroupChatter.SpellCastChance = 5
 
 #
 #   LLMChatter.GroupChatter.SpellCastCooldown
@@ -1333,7 +1352,7 @@ LLMChatter.GroupChatter.LowHealthThreshold = 40
 #       Default: 30
 #       [SERVER]
 #
-LLMChatter.GroupChatter.OOMThreshold = 30
+LLMChatter.GroupChatter.OOMThreshold = 20
 
 #
 #   LLMChatter.GroupChatter.EmoteReactDelay
@@ -1359,7 +1378,7 @@ LLMChatter.GroupChatter.NearbyObjectEnable = 1
 #       triggers a comment. Scanned periodically per group.
 #       Default: 15
 #
-LLMChatter.GroupChatter.NearbyObjectChance = 20
+LLMChatter.GroupChatter.NearbyObjectChance = 8
 
 #
 #   LLMChatter.GroupChatter.NearbyObjectCheckInterval
@@ -1397,7 +1416,7 @@ LLMChatter.NearbyObject.ConversationChance = 40
 #       Shadowglen → Aldrassil).
 #       Default: 30
 #
-LLMChatter.GroupChatter.ZoneTransitionChance = 30
+LLMChatter.GroupChatter.ZoneTransitionChance = 20
 
 #
 #   LLMChatter.GroupChatter.ZoneTransitionCooldown
@@ -1454,7 +1473,7 @@ LLMChatter.GroupChatter.BotQuestionEnable = 1
 #       cooldown to prevent question fatigue.
 #       Default: 1
 #
-LLMChatter.GroupChatter.BotQuestionChance = 1
+LLMChatter.GroupChatter.BotQuestionChance = 3
 
 #
 #   LLMChatter.GroupChatter.BotQuestionCheckInterval
@@ -1471,7 +1490,7 @@ LLMChatter.GroupChatter.BotQuestionCheckInterval = 30
 #       triggers a group reaction.
 #       Default: 70
 #
-LLMChatter.GroupChatter.QuestAcceptChance = 50
+LLMChatter.GroupChatter.QuestAcceptChance = 25
 
 #
 #   LLMChatter.GroupChatter.QuestAcceptCooldown
@@ -1495,7 +1514,7 @@ LLMChatter.GroupChatter.QuestAcceptDebounceSec = 5
 #       objectives triggers a group reaction.
 #       Default: 70
 #
-LLMChatter.GroupChatter.QuestObjectiveChance = 50
+LLMChatter.GroupChatter.QuestObjectiveChance = 20
 
 #
 #   LLMChatter.GroupChatter.QuestObjectiveCooldown
@@ -1523,7 +1542,7 @@ LLMChatter.GroupChatter.QuestObjSuppressWindow = 10
 #       triggers a group reaction.
 #       Default: 70
 #
-LLMChatter.GroupChatter.QuestCompleteChance = 50
+LLMChatter.GroupChatter.QuestCompleteChance = 40
 
 #
 #   LLMChatter.GroupChatter.QuestConversationChance
@@ -1573,7 +1592,7 @@ LLMChatter.GroupChatter.GeneralRelayEnable = 1
 #       Default: 15
 #       [BRIDGE]
 #
-LLMChatter.GroupChatter.GeneralRelayChance = 15
+LLMChatter.GroupChatter.GeneralRelayChance = 10
 
 #
 #   LLMChatter.GroupChatter.GeneralRelayConversationChance
@@ -1584,7 +1603,7 @@ LLMChatter.GroupChatter.GeneralRelayChance = 15
 #       Default: 75
 #       [BRIDGE]
 #
-LLMChatter.GroupChatter.GeneralRelayConversationChance = 75
+LLMChatter.GroupChatter.GeneralRelayConversationChance = 50
 
 #
 #   LLMChatter.GroupChatter.GeneralRelayCooldown
@@ -1788,7 +1807,7 @@ LLMChatter.GuildChatter.Enable = 1
 #       produces a statement or conversation on each check.
 #       Default: 15
 #
-LLMChatter.GuildChatter.Chance = 15
+LLMChatter.GuildChatter.Chance = 8
 
 #
 #   LLMChatter.GuildChatter.Cooldown
@@ -1796,7 +1815,7 @@ LLMChatter.GuildChatter.Chance = 15
 #       the same guild.
 #       Default: 300
 #
-LLMChatter.GuildChatter.Cooldown = 300
+LLMChatter.GuildChatter.Cooldown = 180
 
 #
 #   LLMChatter.GuildChatter.ScanInterval
@@ -1817,7 +1836,7 @@ LLMChatter.GuildChatter.ScanInterval = 30
 #       Requires at least two eligible guild bots.
 #       Default: 50
 #
-LLMChatter.GuildChatter.ConversationChance = 50
+LLMChatter.GuildChatter.ConversationChance = 35
 
 #
 #   LLMChatter.GuildChatter.MaxParticipants
@@ -2178,7 +2197,7 @@ LLMChatter.RaidChatter.BattleCryChance = 70
 #       GroupChatter.IdleChance for raids.
 #       Default: 30
 #
-LLMChatter.RaidChatter.IdleChance = 30
+LLMChatter.RaidChatter.IdleChance = 15
 
 #
 #   LLMChatter.RaidChatter.IdleCooldown
@@ -2187,7 +2206,7 @@ LLMChatter.RaidChatter.IdleChance = 30
 #       GroupChatter.IdleCooldown for raids.
 #       Default: 20
 #
-LLMChatter.RaidChatter.IdleCooldown = 20
+LLMChatter.RaidChatter.IdleCooldown = 60
 
 ###############################################################################
 # PROMPT / OUTPUT TUNING [BRIDGE]
@@ -2200,7 +2219,7 @@ LLMChatter.RaidChatter.IdleCooldown = 20
 #       Only applies in roleplay mode.
 #       Default: 20
 #
-LLMChatter.ActionChance = 10
+LLMChatter.ActionChance = 15
 
 #
 #   LLMChatter.EmoteChance
@@ -2210,7 +2229,7 @@ LLMChatter.ActionChance = 10
 #       Lower values improve speed on smaller models.
 #       Default: 30
 #
-LLMChatter.EmoteChance = 20
+LLMChatter.EmoteChance = 30
 
 #
 #   LLMChatter.RaceLoreChance
@@ -2218,7 +2237,7 @@ LLMChatter.EmoteChance = 20
 #       is injected into chatter prompts (roleplay mode only).
 #       Default: 15
 #
-LLMChatter.RaceLoreChance = 15
+LLMChatter.RaceLoreChance = 20
 
 #
 #   LLMChatter.ConversationPacing
@@ -2809,7 +2828,7 @@ LLMChatter.Screenshot.IntervalMaxSeconds = 120
 #       the capture may be skipped based on this roll.
 #       Default: 90
 #
-LLMChatter.Screenshot.Chance = 90
+LLMChatter.Screenshot.Chance = 40
 
 #
 #   LLMChatter.Screenshot.VisionProvider
@@ -2839,7 +2858,7 @@ LLMChatter.Screenshot.VisionModel = gpt-4o-mini
 #       group.
 #       Default: 40
 #
-LLMChatter.Screenshot.ConversationChance = 40
+LLMChatter.Screenshot.ConversationChance = 25
 
 #
 #   LLMChatter.Screenshot.MaxWidthPx
@@ -2882,4 +2901,3 @@ LLMChatter.Screenshot.BoundAccountId = 0
 #       Default: (uses LLMChatter.Database.Host)
 #
 # LLMChatter.Screenshot.DBHost = 127.0.0.1
-
