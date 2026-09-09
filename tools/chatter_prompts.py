@@ -442,6 +442,7 @@ def build_plain_statement_prompt(
             bot.get('race', ''),
             bot.get('class', ''),
             bot.get('gender', ''),
+            gear=bot.get('gear', ''),
         )
         parts.append(
             f"{identity} "
@@ -580,6 +581,7 @@ def build_quest_statement_prompt(
             bot.get('race', ''),
             bot.get('class', ''),
             bot.get('gender', ''),
+            gear=bot.get('gear', ''),
         )
         parts.append(
             f"{identity} Speak in-character about "
@@ -714,6 +716,7 @@ def build_loot_statement_prompt(
             bot.get('race', ''),
             bot.get('class', ''),
             bot.get('gender', ''),
+            gear=bot.get('gear', ''),
         )
         parts.append(
             f"{identity} Speak in-character about "
@@ -862,6 +865,7 @@ def build_quest_reward_statement_prompt(
             bot.get('race', ''),
             bot.get('class', ''),
             bot.get('gender', ''),
+            gear=bot.get('gear', ''),
         )
         parts.append(
             f"{identity} Speak in-character about "
@@ -1290,6 +1294,7 @@ def build_gossip_statement_prompt(
         identity = build_bot_identity(
             bot['name'], bot.get('race', ''),
             bot.get('class', ''), bot.get('gender', ''),
+            gear=bot.get('gear', ''),
         )
         parts.append(
             f"{identity} Speak in-character in General "
@@ -2207,6 +2212,7 @@ def build_spell_statement_prompt(
             bot.get('race', ''),
             bot.get('class', ''),
             bot.get('gender', ''),
+            gear=bot.get('gear', ''),
         )
         parts.append(
             f"{identity} "
@@ -2577,6 +2583,7 @@ def build_trade_statement_prompt(
             bot.get('race', ''),
             bot.get('class', ''),
             bot.get('gender', ''),
+            gear=bot.get('gear', ''),
         )
         parts.append(
             f"{identity} You want to "

@@ -14,6 +14,7 @@ from chatter_constants import (
     CLASS_NAMES,
     EMOTE_LIST,
     RACE_NAMES,
+    WEAPON_SUBCLASS_NAMES,
     ZONE_COORDINATES,
     ZONE_LEVELS,
 )
@@ -28,6 +29,8 @@ logger = logging.getLogger(__name__)
 _char_info_cache: dict = {}
 _talent_cache: dict = {}
 _online_cache: dict = {}
+_weapon_cache: dict = {}
+_pet_cache: dict = {}
 _cache_lock = threading.Lock()
 
 
@@ -1248,6 +1251,138 @@ def get_character_talents(
 
     except Exception:
         return empty
+
+
+# Equipment slots holding what a character fights with.
+_MAIN_HAND_SLOT = 15
+_OFF_HAND_SLOT = 16
+_RANGED_SLOT = 17
+
+# The off hand and ranged slots also accept armor-class
+# items: shields, held items, and the class relics.
+_ARMOR_ITEM_KINDS = {
+    0: "held item",
+    6: "shield",
+    7: "libram",
+    8: "idol",
+    9: "totem",
+    10: "sigil",
+}
+
+_ITEM_CLASS_WEAPON = 2
+_ITEM_CLASS_ARMOR = 4
+
+
+def _describe_item_kind(item_class: int, subclass: int):
+    """Return a readable weapon/off-hand type, or None."""
+    if item_class == _ITEM_CLASS_WEAPON:
+        name = WEAPON_SUBCLASS_NAMES.get(subclass)
+        return name.lower() if name else None
+    if item_class == _ITEM_CLASS_ARMOR:
+        return _ARMOR_ITEM_KINDS.get(subclass)
+    return None
+
+
+def get_character_weapons(db, char_guid: int) -> List[dict]:
+    """Return what a character is currently wielding.
+
+    Each entry has 'name', 'kind' (readable type such as
+    "two-handed sword" or "shield") and 'slot'. Ordered
+    main hand, off hand, ranged.
+    """
+    cached = _cache_get(_weapon_cache, char_guid, 300)
+    if cached is not None:
+        return cached
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT ci.slot,
+                   it.name AS item_name,
+                   it.class AS item_class,
+                   it.subclass AS item_subclass
+            FROM acore_characters.character_inventory ci
+            JOIN acore_characters.item_instance ii
+                ON ii.guid = ci.item
+            JOIN acore_world.item_template it
+                ON it.entry = ii.itemEntry
+            WHERE ci.guid = %s
+              AND ci.bag = 0
+              AND ci.slot IN (%s, %s, %s)
+            ORDER BY ci.slot
+        """, (
+            char_guid,
+            _MAIN_HAND_SLOT,
+            _OFF_HAND_SLOT,
+            _RANGED_SLOT,
+        ))
+        rows = cursor.fetchall()
+        cursor.close()
+    except Exception:
+        return []
+
+    weapons = []
+    for row in rows:
+        name = (row.get('item_name') or '').strip()
+        if not name:
+            continue
+        kind = _describe_item_kind(
+            int(row.get('item_class') or 0),
+            int(row.get('item_subclass') or 0),
+        )
+        if not kind:
+            continue
+        weapons.append({
+            'name': name,
+            'kind': kind,
+            'slot': int(row.get('slot') or 0),
+        })
+
+    _cache_put(_weapon_cache, char_guid, weapons, 500)
+    return weapons
+
+
+def get_character_pet(db, char_guid: int) -> Optional[dict]:
+    """Return a character's pet as {'name', 'species'}.
+
+    Prefers the pet that is currently out (slot 0) over
+    stabled ones. Returns None when there is no pet.
+    """
+    cached = _cache_get(_pet_cache, char_guid, 300)
+    if cached is not None:
+        # Absence is cached as an empty dict so that
+        # petless characters skip the query too.
+        return cached or None
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT cp.name AS pet_name,
+                   ct.name AS species
+            FROM acore_characters.character_pet cp
+            JOIN acore_world.creature_template ct
+                ON ct.entry = cp.entry
+            WHERE cp.owner = %s
+            ORDER BY (cp.slot = 0) DESC, cp.slot
+            LIMIT 1
+        """, (char_guid,))
+        row = cursor.fetchone()
+        cursor.close()
+    except Exception:
+        return None
+
+    pet = {}
+    if row:
+        name = (row.get('pet_name') or '').strip()
+        species = (row.get('species') or '').strip()
+        if name or species:
+            pet = {
+                'name': name or species,
+                'species': species,
+            }
+
+    _cache_put(_pet_cache, char_guid, pet, 500)
+    return pet or None
 
 
 def any_real_players_online(db) -> bool:

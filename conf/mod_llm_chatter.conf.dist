@@ -2667,6 +2667,23 @@ LLMChatter.EmoteReactions.CustomEnable = 1
 #
 LLMChatter.EmoteReactions.CustomMaxChars = 120
 
+#
+#   LLMChatter.GearContext.Enable
+#       [BRIDGE]
+#       Tell bots what they are actually carrying: the
+#       equipped main hand, off hand and ranged items by
+#       name and type, plus the pet of a hunter or warlock
+#       by name and species. Without it a bot invents its
+#       gear, talking about a sword while holding a mace,
+#       or treats its own pet as a stranger.
+#       Applies to party chatter, emote reactions and
+#       ambient chatter. Reads the character database and
+#       caches per bot, so the cost is one small query
+#       every few minutes rather than one per message.
+#       Default: 1 (enabled)
+#
+LLMChatter.GearContext.Enable = 1
+
 ###############################################
 # Screenshot Vision Feature (Experimental)
 # Requires screenshot_agent.py running on host

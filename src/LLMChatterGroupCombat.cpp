@@ -2343,7 +2343,8 @@ static void DispatchPlayerEmote(
                     tgtType, targetName,
                     npcRank, npcType,
                     0u, "",
-                    nearbyAliveBots, customText);
+                    nearbyAliveBots, customText,
+                    cachedTargetPlayer);
             break;
         case EMOTE_TGT_GROUP_PLAYER:
             break;

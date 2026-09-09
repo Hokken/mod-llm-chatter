@@ -18,11 +18,13 @@ from chatter_shared import (
     append_json_instruction,
     get_chatter_mode,
     get_gender_label,
+    build_gear_context,
 )
 from chatter_mode import build_player_prompt_header
 from chatter_group_state import (
     _mark_event,
     _store_chat,
+    build_party_context,
     get_bot_traits,
 )
 from chatter_party_gate import (
@@ -98,6 +100,13 @@ def handle_emote_observer(db, client, config, event):
         if trait_data else None
     )
 
+    gear = build_gear_context(
+        db, bot_guid, bot_class, config,
+    )
+    party_context = build_party_context(
+        db, group_id, bot_name,
+    )
+
     if tgt == 'creature':
         prompt = _build_creature_prompt(
             bot_name, bot_race, bot_class,
@@ -109,6 +118,8 @@ def handle_emote_observer(db, client, config, event):
             stored_tone=stored_tone,
             mode=get_chatter_mode(config),
             is_custom=is_custom,
+            gear=gear,
+            party_context=party_context,
         )
     elif tgt == 'player_external':
         prompt = _build_player_prompt(
@@ -119,6 +130,9 @@ def handle_emote_observer(db, client, config, event):
             stored_tone=stored_tone,
             mode=get_chatter_mode(config),
             is_custom=is_custom,
+            gear=gear,
+            party_context=party_context,
+            target_desc=_describe_target_player(extra),
         )
     else:
         prompt = _build_undirected_prompt(
@@ -129,6 +143,8 @@ def handle_emote_observer(db, client, config, event):
             stored_tone=stored_tone,
             mode=get_chatter_mode(config),
             is_custom=is_custom,
+            gear=gear,
+            party_context=party_context,
         )
 
     result = run_single_reaction(
@@ -173,6 +189,27 @@ def _pick_tone(category: str) -> str:
     return random.choice(pool)
 
 
+def _describe_target_player(extra) -> str:
+    """Describe an emote's player target, e.g.
+    "a level 24 Orc Hunter". Empty when C++ sent no
+    details for the target."""
+    level = int(extra.get('target_level') or 0)
+    race = RACE_NAMES.get(
+        int(extra.get('target_race') or 0), ''
+    )
+    class_name = CLASS_NAMES.get(
+        int(extra.get('target_class') or 0), ''
+    )
+    parts = []
+    if level:
+        parts.append(f"level {level}")
+    if race:
+        parts.append(race)
+    if class_name:
+        parts.append(class_name)
+    return ' '.join(parts)
+
+
 def _build_creature_prompt(
     bot_name, bot_race, bot_class, bot_gender,
     p_name, emote, t_name,
@@ -182,6 +219,8 @@ def _build_creature_prompt(
     stored_tone=None,
     mode='roleplay',
     is_custom=False,
+    gear='',
+    party_context='',
 ):
     rank_str = NPC_RANK_NAMES.get(npc_rank, "")
     type_str = NPC_TYPE_NAMES.get(
@@ -203,7 +242,8 @@ def _build_creature_prompt(
     tone = stored_tone or _pick_tone(category)
     identity = build_player_prompt_header(
         bot_name, bot_race, bot_class,
-        gender=bot_gender, mode=mode, channel='party'
+        gender=bot_gender, mode=mode, channel='party',
+        gear=gear,
     )
     prompt = identity
     if traits:
@@ -211,6 +251,8 @@ def _build_creature_prompt(
             " Your personality: "
             f"{', '.join(traits)}."
         )
+    if party_context:
+        prompt += f"\n{party_context}"
     if is_custom:
         seen = (
             f"You witness {p_name} do this at "
@@ -224,7 +266,7 @@ def _build_creature_prompt(
             f"({role_label})"
         )
     prompt += (
-        f" Your tone: {tone}. "
+        f"\nYour tone: {tone}. "
         f"{seen}. "
         f"Make a brief offhand remark about it "
         f"— {tone}. 1-2 sentences. "
@@ -241,11 +283,15 @@ def _build_player_prompt(
     stored_tone=None,
     mode='roleplay',
     is_custom=False,
+    gear='',
+    party_context='',
+    target_desc='',
 ):
     tone = stored_tone or _pick_tone(category)
     identity = build_player_prompt_header(
         bot_name, bot_race, bot_class,
-        gender=bot_gender, mode=mode, channel='party'
+        gender=bot_gender, mode=mode, channel='party',
+        gear=gear,
     )
     prompt = identity
     if traits:
@@ -253,20 +299,25 @@ def _build_player_prompt(
             " Your personality: "
             f"{', '.join(traits)}."
         )
+    if party_context:
+        prompt += f"\n{party_context}"
+    stranger = (
+        f"{t_name}, a {target_desc} from outside the group"
+        if target_desc
+        else f"{t_name}, a stranger outside the group"
+    )
     if is_custom:
         seen = (
             f"You notice {p_name} do this at "
-            f"{t_name}, a stranger outside the "
-            f"group: \"{emote}\""
+            f"{stranger}: \"{emote}\""
         )
     else:
         seen = (
             f"You notice {p_name} "
-            f"/{emote} at {t_name}, "
-            "a stranger outside the group"
+            f"/{emote} at {stranger}"
         )
     prompt += (
-        f" Your tone: {tone}. "
+        f"\nYour tone: {tone}. "
         f"{seen}. "
         f"Make a brief comment about it "
         f"— {tone}. 1-2 sentences. "
@@ -283,6 +334,8 @@ def _build_undirected_prompt(
     stored_tone=None,
     mode='roleplay',
     is_custom=False,
+    gear='',
+    party_context='',
 ):
     if is_custom:
         category = 'custom'
@@ -293,7 +346,8 @@ def _build_undirected_prompt(
     tone = stored_tone or _pick_tone(category)
     identity = build_player_prompt_header(
         bot_name, bot_race, bot_class,
-        gender=bot_gender, mode=mode, channel='party'
+        gender=bot_gender, mode=mode, channel='party',
+        gear=gear,
     )
     prompt = identity
     if traits:
@@ -301,12 +355,14 @@ def _build_undirected_prompt(
             " Your personality: "
             f"{', '.join(traits)}."
         )
+    if party_context:
+        prompt += f"\n{party_context}"
     if is_custom:
         seen = f"You notice {p_name} do this: \"{emote}\""
     else:
         seen = f"You notice {p_name} just /{emote}"
     prompt += (
-        f" Your tone: {tone}. "
+        f"\nYour tone: {tone}. "
         f"{seen}. "
         f"Make a brief offhand remark — {tone}. "
         "1-2 sentences. "

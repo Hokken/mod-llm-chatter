@@ -22,6 +22,7 @@ from chatter_shared import (
     parse_conversation_response,
     calculate_dynamic_delay,
     build_talent_context,
+    build_gear_context,
     build_zone_metadata,
     build_group_travel_metadata,
     build_travel_state_from_row,
@@ -1481,6 +1482,10 @@ def process_group_zone_transition_event(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'gear': build_gear_context(
+            db, bot_guid,
+            get_class_name(char_row['class']), config,
+        ),
     }
 
 

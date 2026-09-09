@@ -365,6 +365,7 @@ def build_bot_identity(
     bot_class: str,
     gender: str = '',
     suffix: str = '.',
+    gear: str = '',
 ) -> str:
     """Return an identity prefix for bot prompts.
 
@@ -373,12 +374,16 @@ def build_bot_identity(
     """
     if bot_race and bot_class:
         gender_prefix = f"{gender} " if gender else ""
-        return (
+        identity = (
             f"You are {bot_name}, "
             f"a {gender_prefix}{bot_race} "
             f"{bot_class}{suffix}"
         )
-    return f"You are {bot_name}{suffix}"
+    else:
+        identity = f"You are {bot_name}{suffix}"
+
+    gear = (gear or '').strip()
+    return f"{identity} {gear}" if gear else identity
 
 
 def build_bot_identity_with_level(
@@ -2838,6 +2843,82 @@ def build_talent_context(
                 f"{spec_personality}")
 
     return result
+
+
+def format_weapon_list(weapons) -> str:
+    """Render equipped weapons as "Name (type)" phrases."""
+    parts = []
+    for weapon in weapons or []:
+        name = (weapon.get('name') or '').strip()
+        kind = (weapon.get('kind') or '').strip()
+        if not name:
+            continue
+        parts.append(f"{name} ({kind})" if kind else name)
+    return ', '.join(parts)
+
+
+def format_pet_phrase(pet) -> str:
+    """Render a pet as "Name, a Species" (or just one)."""
+    if not pet:
+        return ''
+    name = (pet.get('name') or '').strip()
+    species = (pet.get('species') or '').strip()
+    if name and species and name.lower() != species.lower():
+        return f"{name}, a {species}"
+    return name or species
+
+
+def build_gear_context(
+    db, char_guid, char_class=None, config=None,
+) -> str:
+    """Describe what a bot carries and who follows it.
+
+    Returns a short line naming equipped weapons and, for
+    pet classes, the pet by name and species — so bots stop
+    inventing gear or treating their own pet as a stranger.
+    Empty string when there is nothing worth stating.
+    """
+    from chatter_db import (
+        get_character_pet,
+        get_character_weapons,
+    )
+
+    if config is not None and str(
+        config.get('LLMChatter.GearContext.Enable', '1')
+    ).strip() not in ('1', 'true', 'True'):
+        return ''
+
+    try:
+        guid = int(char_guid or 0)
+    except (TypeError, ValueError):
+        return ''
+    if guid <= 0:
+        return ''
+
+    parts = []
+
+    weapons = format_weapon_list(
+        get_character_weapons(db, guid)
+    )
+    if weapons:
+        parts.append(f"You are wielding {weapons}.")
+
+    # Only hunters and warlocks keep a permanent companion,
+    # so other classes never pay for the pet lookup.
+    class_name = char_class
+    if isinstance(class_name, int):
+        class_name = CLASS_NAMES.get(class_name, '')
+    if str(class_name or '').lower() in ('hunter', 'warlock'):
+        pet = format_pet_phrase(
+            get_character_pet(db, guid)
+        )
+        if pet:
+            parts.append(
+                f"Your pet is {pet} — a companion you "
+                "know well, not a stranger."
+            )
+
+    return ' '.join(parts)
 
 
 # =============================================================================

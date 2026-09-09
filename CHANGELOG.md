@@ -1,5 +1,50 @@
 # Changelog
 
+### 2026-09-09 - Bots Know Their Own Gear and Pet
+
+* **Equipped weapons reach the prompt**: a bot's identity line now names
+  what it is actually holding, such as `Fist of Reckoning (one-handed
+  mace), Zulian Defender (shield), Libram of Fervor (libram)`. The model
+  previously had only race, class, and level, so a bot swinging a mace
+  would happily talk about its sword. Main hand, off hand, and ranged
+  slots are covered, including shields, held items, and class relics.
+* **Hunters and warlocks know their companion**: the pet is introduced by
+  name and species, as in `Kreenum, a Felhunter`, so bots stop treating
+  their own pet as a stranger. Only pet classes are looked up, and a pet
+  named after its species reads as `Sporebat` rather than the doubled
+  `Sporebat, a Sporebat`.
+* **Applies to party, emote, and ambient chatter**: the context is
+  attached once in the group handler pipeline, covering the group
+  reaction prompts, plus the join, idle, conversation, and ambient paths.
+* **Cached per bot**: equipment and pet are read from the character
+  database and held for five minutes, so the cost is one small query
+  every few minutes rather than one per message. Gear swapped in game can
+  take that long to show up in prompts.
+* Controlled by `LLMChatter.GearContext.Enable` (default on).
+* **Regression coverage**: focused tests protect weapon and relic naming,
+  pet deduplication, the pet-class gate, the config switch, and the
+  identity line itself.
+
+### 2026-09-09 - Emote Reactions Know the Room
+
+* **Party roster in emote prompts**: a bot reacting to `/point` or to a
+  typed `/e grabs hand` is now told who else is in the party, with the
+  human marked as `(player)`. Bots previously answered emotes as though
+  they were standing alone.
+* **Recent chat history included**: emote prompts now carry the same
+  recent party chat the dialogue prompts already used, so a gesture can
+  be connected to what was just said instead of being read as an isolated
+  event.
+* **The target is described, not just named**: when a player emotes at
+  someone outside the group, the observing bot is told who that is —
+  `Thrall, a level 24 Orc Hunter` rather than `Thrall, a stranger outside
+  the group`. `HandleEmoteObserver` now receives the target player and
+  sends race, class, and level in the payload, so this one needs a
+  recompile.
+* **Regression coverage**: focused tests cover roster and history
+  assembly, the target description, and the fallback used when the target
+  is unknown.
+
 ### 2026-09-07 - Normal Player Chat Mode
 
 * **Player-side normal mode**: Playerbots now speak as people playing

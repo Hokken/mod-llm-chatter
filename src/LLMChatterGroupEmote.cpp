@@ -420,7 +420,8 @@ void HandleEmoteObserver(
     uint32 npcEntry,
     const std::string& npcSubName,
     const std::vector<Player*>& candidates,
-    const std::string& customText)
+    const std::string& customText,
+    Player* targetPlayer)
 {
     if (candidates.empty()) return;
 
@@ -491,8 +492,20 @@ void HandleEmoteObserver(
         + "\",\"custom_emote\":"
         + (isCustom ? "1" : "0")
         + ",\"group_id\":"
-        + std::to_string(groupId)
-        + "}";
+        + std::to_string(groupId);
+
+    // Let the bridge describe a player target ("a level 24
+    // Orc Hunter") instead of naming a stranger blindly.
+    if (targetPlayer)
+        extraData +=
+            ",\"target_race\":"
+            + std::to_string(targetPlayer->getRace())
+            + ",\"target_class\":"
+            + std::to_string(targetPlayer->getClass())
+            + ",\"target_level\":"
+            + std::to_string(targetPlayer->GetLevel());
+
+    extraData += "}";
 
     // For creature targets pass npcEntry as both
     // target_guid (creature sentinel: non-zero)

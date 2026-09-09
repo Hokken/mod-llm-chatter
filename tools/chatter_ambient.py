@@ -43,6 +43,7 @@ from chatter_shared import (
 )
 from chatter_shared import (
     build_talent_context,
+    build_gear_context,
     build_zone_metadata,
     should_include_action,
 )
@@ -352,6 +353,10 @@ def process_statement(
     # Fetch recent zone messages for anti-repetition
     recent_msgs = get_recent_zone_messages(
         db, zone_id
+    )
+
+    bot['gear'] = build_gear_context(
+        db, bot['guid'], bot['class'], config,
     )
 
     # Talent context injection (speaker only)

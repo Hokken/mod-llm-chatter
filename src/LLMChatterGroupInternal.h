@@ -237,6 +237,9 @@ void HandleEmoteAtGroupBot(
 void HandleEmoteAtCreature(
     Player* player, Creature* creature,
     uint32 textEmote);
+// targetPlayer is the emote's target when it is a player
+// outside the group, so the observing bot can be told who
+// it is looking at rather than just a bare name.
 void HandleEmoteObserver(
     Player* player, uint32 textEmote,
     Group* group,
@@ -246,7 +249,8 @@ void HandleEmoteObserver(
     uint32 npcEntry,
     const std::string& npcSubName,
     const std::vector<Player*>& candidates,
-    const std::string& customText = "");
+    const std::string& customText = "",
+    Player* targetPlayer = nullptr);
 
 // Emote statics (used by PlayerScript dispatch)
 extern const std::unordered_set<uint32>
