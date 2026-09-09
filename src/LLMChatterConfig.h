@@ -331,14 +331,6 @@ public:
         std::unordered_set<uint32> const>>
             _proxBossSpeakerDenyEntries;
 
-    // Chatter Log addon (reads the bridge's request log)
-    bool _addonLogEnable{false};
-    std::string _addonLogPath;
-    uint32 _addonLogMinSecurity{2};
-    uint32 _addonLogMaxEntries{100};
-    uint32 _addonLogTailBytes{2097152};
-    uint32 _addonLogChunkChars{512};
-
     // Emote reaction system
     bool   _emoteReactionsEnable;
     uint32 _emoteMirrorChance;

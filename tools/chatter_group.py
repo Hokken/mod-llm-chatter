@@ -60,6 +60,8 @@ from chatter_shared import (
     parse_single_response,
     build_talent_context,
     build_gear_context,
+    attach_speaker_gear,
+    append_speaker_gear,
     get_zone_name,
     get_subzone_name,
     format_travel_context,
@@ -3286,6 +3288,7 @@ def build_idle_conversation_prompt(
                     f"(personality: {trait_str})"
                     f"{dead_tag}"
                 )
+                append_speaker_gear(parts, bot, indent='')
                 if bot.get('travel_context'):
                     travel_label = (
                         "travel state"
@@ -3491,6 +3494,7 @@ def build_idle_conversation_prompt(
             f"(personality: {trait_str})"
             f"{dead_tag}"
         )
+        append_speaker_gear(parts, bot)
         if bot.get('travel_context'):
             travel_label = (
                 "travel state"
@@ -4393,6 +4397,8 @@ def _idle_conversation(
             br['trait1'], br['trait2'],
             br['trait3'],
         ]
+
+    attach_speaker_gear(db, bots, config)
 
     bot_names = [b['name'] for b in bots]
     # Skip AMBIENT topics inside dungeons and BGs —

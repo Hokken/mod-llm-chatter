@@ -44,6 +44,7 @@ from chatter_shared import (
 from chatter_shared import (
     build_talent_context,
     build_gear_context,
+    attach_speaker_gear,
     build_zone_metadata,
     should_include_action,
 )
@@ -583,6 +584,8 @@ def process_conversation(
     recent_msgs = get_recent_zone_messages(
         db, zone_id
     )
+
+    attach_speaker_gear(db, bots, config)
 
     # Talent context injection (speaker only,
     # uses first bot as representative)

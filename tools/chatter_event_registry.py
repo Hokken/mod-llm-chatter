@@ -407,6 +407,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'target_race': (int, False),
             'target_class': (int, False),
             'target_level': (int, False),
+            'target_gender': (int, False),
         },
     ),
 

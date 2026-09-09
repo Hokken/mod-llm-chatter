@@ -69,7 +69,12 @@ from chatter_group_state import (  # noqa: E402
 from chatter_mode import (  # noqa: E402
     build_player_identity,
 )
+from chatter_group_prompts import (  # noqa: E402
+    _append_bots_with_rp,
+)
 from chatter_shared import (  # noqa: E402
+    append_speaker_gear,
+    attach_speaker_gear,
     build_gear_context,
     format_pet_phrase,
     format_weapon_list,
@@ -141,6 +146,11 @@ def test_pet_named_after_its_species_is_not_repeated():
         {'name': 'Sporebat', 'species': 'Sporebat'}
     ) == 'Sporebat'
     assert format_pet_phrase(None) == ''
+    # Imp, Owl and friends need "an", and the model
+    # copies whatever article the prompt uses.
+    assert format_pet_phrase(
+        {'name': 'Zeprot', 'species': 'Imp'}
+    ) == 'Zeprot, an Imp'
 
 
 def test_hunter_context_names_weapons_and_pet():
@@ -295,6 +305,56 @@ def test_observer_prompt_describes_a_player_target():
     assert 'Party members: Veliana' in prompt
 
 
+def test_observer_prompt_describes_a_gendered_target():
+    described = _describe_target_player({
+        'target_level': 28,
+        'target_race': 8,
+        'target_class': 1,
+        'target_gender': 1,
+    })
+    assert described == 'level 28 female Troll Warrior'
+
+    prompt = _build_player_prompt(
+        'Miranda', 'Human', 'Paladin', 'female',
+        'Vladimir', 'hello', 'Soza', 'greeting',
+        target_desc=described,
+    )
+    assert (
+        'Soza, a level 28 female Troll Warrior '
+        'from outside the group' in prompt
+    )
+
+
+def test_observer_target_gender_defaults_to_male():
+    # gender 0 is the enum's male, not "absent" -- must not be
+    # confused with a target payload that omitted the field.
+    described = _describe_target_player({
+        'target_level': 24,
+        'target_race': 2,
+        'target_class': 3,
+        'target_gender': 0,
+    })
+    assert described == 'level 24 male Orc Hunter'
+
+
+def test_observer_target_gender_omitted_from_older_payloads():
+    # A payload built before target_gender existed must still
+    # describe race/class/level without inventing a gender.
+    described = _describe_target_player({
+        'target_level': 24,
+        'target_race': 2,
+        'target_class': 3,
+    })
+    assert described == 'level 24 Orc Hunter'
+    assert 'male' not in described
+
+
+def test_observer_gender_alone_describes_nothing():
+    # Gender with no race or class conveys nothing useful and
+    # must not render as a bare "a female".
+    assert _describe_target_player({'target_gender': 1}) == ''
+
+
 def test_observer_falls_back_when_target_unknown():
     assert _describe_target_player({}) == ''
 
@@ -303,6 +363,111 @@ def test_observer_falls_back_when_target_unknown():
         'Vladimir', 'point', 'Thrall', 'greeting',
     )
     assert 'Thrall, a stranger outside the group' in prompt
+
+
+def test_named_subject_switches_gear_to_third_person():
+    db = FakeDb(
+        weapons=[{
+            'slot': 15,
+            'item_name': 'Staff of the Sun',
+            'item_class': 2,
+            'item_subclass': 10,
+        }],
+        pet=[{
+            'pet_name': 'Kreenum',
+            'species': 'Felhunter',
+        }],
+    )
+    solo = build_gear_context(db, 9101, 'Warlock')
+    assert solo.startswith('You are wielding')
+    assert 'Your pet is Kreenum, a Felhunter' in solo
+
+    listed = build_gear_context(
+        db, 9101, 'Warlock', subject='Samik',
+    )
+    assert listed.startswith(
+        'Samik wields Staff of the Sun (staff).'
+    )
+    assert "Samik's pet is Kreenum, a Felhunter" in listed
+    # Second person would misattribute the gear to whoever
+    # the model is speaking as.
+    assert 'You are' not in listed
+    assert 'Your pet' not in listed
+
+
+def test_attach_speaker_gear_fills_every_speaker():
+    db = FakeDb(weapons=[{
+        'slot': 15,
+        'item_name': 'Outlaw Sabre',
+        'item_class': 2,
+        'item_subclass': 7,
+    }])
+    bots = [
+        {'guid': 1003, 'name': 'Erodora', 'class': 'Paladin'},
+        {'guid': 1004, 'name': 'Veliana', 'class': 'Priest'},
+    ]
+    attach_speaker_gear(db, bots, None)
+    assert bots[0]['gear_third'].startswith('Erodora wields')
+    assert bots[1]['gear_third'].startswith('Veliana wields')
+
+
+def test_attach_speaker_gear_skips_incomplete_speakers():
+    db = FakeDb(weapons=[{
+        'slot': 15,
+        'item_name': 'Outlaw Sabre',
+        'item_class': 2,
+        'item_subclass': 7,
+    }])
+    # A nameless or guidless speaker would render as
+    # " wields ...", so it must be left alone.
+    bots = [
+        {'name': 'Erodora', 'class': 'Paladin'},
+        {'guid': 1004, 'class': 'Priest'},
+    ]
+    attach_speaker_gear(db, bots, None)
+    assert 'gear_third' not in bots[0]
+    assert 'gear_third' not in bots[1]
+
+
+def test_append_speaker_gear_only_emits_real_lines():
+    parts = []
+    append_speaker_gear(parts, {'gear_third': 'Erodora wields X.'})
+    append_speaker_gear(parts, {'gear_third': ''})
+    append_speaker_gear(parts, {})
+    assert parts == ['  Erodora wields X.']
+
+
+def test_multi_speaker_block_introduces_each_bots_gear():
+    parts = []
+    bots = [
+        {
+            'name': 'Erodora', 'level': 26,
+            'race': 'Blood Elf', 'class': 'Paladin',
+            'gear_third': (
+                'Erodora wields Outlaw Sabre '
+                '(one-handed sword).'
+            ),
+        },
+        {
+            'name': 'Veliana', 'level': 26,
+            'race': 'Blood Elf', 'class': 'Priest',
+            'gear_third': (
+                'Veliana wields Staff of the Sun (staff).'
+            ),
+        },
+    ]
+    _append_bots_with_rp(
+        parts, bots,
+        {'Erodora': ['serious'], 'Veliana': ['playful']},
+        is_rp=True,
+    )
+    block = '\n'.join(parts)
+    assert 'Erodora wields Outlaw Sabre' in block
+    assert 'Veliana wields Staff of the Sun' in block
+    # Each gear line must follow its own speaker.
+    assert block.index('Erodora is a level') < block.index(
+        'Erodora wields'
+    ) < block.index('Veliana is a level')
 
 
 def main() -> int:
@@ -317,7 +482,16 @@ def main() -> int:
     test_party_context_empty_without_a_group()
     test_emote_reaction_prompt_carries_context()
     test_observer_prompt_describes_a_player_target()
+    test_observer_prompt_describes_a_gendered_target()
+    test_observer_target_gender_defaults_to_male()
+    test_observer_target_gender_omitted_from_older_payloads()
+    test_observer_gender_alone_describes_nothing()
     test_observer_falls_back_when_target_unknown()
+    test_named_subject_switches_gear_to_third_person()
+    test_attach_speaker_gear_fills_every_speaker()
+    test_attach_speaker_gear_skips_incomplete_speakers()
+    test_append_speaker_gear_only_emits_real_lines()
+    test_multi_speaker_block_introduces_each_bots_gear()
     print("OK")
     return 0
 

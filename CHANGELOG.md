@@ -9,21 +9,31 @@
   would happily talk about its sword. Main hand, off hand, and ranged
   slots are covered, including shields, held items, and class relics.
 * **Hunters and warlocks know their companion**: the pet is introduced by
-  name and species, as in `Kreenum, a Felhunter`, so bots stop treating
-  their own pet as a stranger. Only pet classes are looked up, and a pet
-  named after its species reads as `Sporebat` rather than the doubled
-  `Sporebat, a Sporebat`.
-* **Applies to party, emote, and ambient chatter**: the context is
-  attached once in the group handler pipeline, covering the group
-  reaction prompts, plus the join, idle, conversation, and ambient paths.
+  name and species, as in `Kreenum, a Felhunter` (`an Imp`, not `a Imp`,
+  for vowel-starting species), so bots stop treating their own pet as a
+  stranger. Only pet classes are looked up, and a pet named after its
+  species reads as `Sporebat` rather than the doubled `Sporebat, a
+  Sporebat`.
+* **Reaches every conversation shape**: a bot speaking alone gets the
+  second-person `You are wielding ...` / `Your pet is ...` phrasing, while
+  a bot introduced inside a multi-speaker scene — idle party chatter, the
+  nearby-object, player-message and quest conversations, and the ambient
+  and world-event conversations — gets the third-person `Veliana wields
+  Staff of the Sun (staff)` instead, so gear is never misattributed to
+  whoever the model is currently speaking as. `attach_speaker_gear` fills
+  every speaker in a bot list and `append_speaker_gear` places the line
+  directly under its own speaker.
 * **Cached per bot**: equipment and pet are read from the character
   database and held for five minutes, so the cost is one small query
   every few minutes rather than one per message. Gear swapped in game can
   take that long to show up in prompts.
 * Controlled by `LLMChatter.GearContext.Enable` (default on).
 * **Regression coverage**: focused tests protect weapon and relic naming,
-  pet deduplication, the pet-class gate, the config switch, and the
-  identity line itself.
+  pet deduplication, the pet-class gate, the config switch, the identity
+  line itself, third-person rendering, the article rule, speakers skipped
+  when a name or guid is missing, and gear-line ordering within a
+  multi-speaker block. `manual_gear_prompt_check.py` prints a real speaker
+  block from the live database for eyeball checks.
 
 ### 2026-09-09 - Emote Reactions Know the Room
 
@@ -37,10 +47,10 @@
   event.
 * **The target is described, not just named**: when a player emotes at
   someone outside the group, the observing bot is told who that is —
-  `Thrall, a level 24 Orc Hunter` rather than `Thrall, a stranger outside
-  the group`. `HandleEmoteObserver` now receives the target player and
-  sends race, class, and level in the payload, so this one needs a
-  recompile.
+  `Soza, a level 28 female Troll Warrior` rather than `Soza, a stranger
+  outside the group`. `HandleEmoteObserver` now receives the target player
+  and sends race, class, level, and gender in the payload, so this one
+  needs a recompile.
 * **Regression coverage**: focused tests cover roster and history
   assembly, the target description, and the fallback used when the target
   is unknown.
@@ -235,43 +245,6 @@
   `vivid` expression styles were replaced with `plain`, `matter_of_fact` and
   `observational`, and the chosen mood is passed as a subtle hint rather than
   an instruction to emote. Existing memories are untouched.
-
-### 2026-08-27 - In-Game Bot Memory Browser
-
-* **Read any bot's journal in game**: `/chattermemory` (or `/cmem`) in the
-  Chatter Log addon lists every bot that remembers your character and shows
-  its `llm_bot_memories` entries in full, newest first, with a filter and a
-  copy box. Backed by a new `.llmc mem` command family.
-* **Shows the lifecycle, not just the text**: each memory is annotated with
-  `PENDING` while it is still `active = 0` (and would be discarded if the
-  session ended early), and with `recalled <time>` once it has been surfaced
-  in a prompt.
-* **No configuration, no elevation**: every query is scoped to the caller's
-  own guid and `mem list` reuses `IsKnownBotForPlayer()`, so this exposes
-  exactly the pairing a player can already inspect with `roster` and erase
-  with `forget`. It stays at `SEC_PLAYER` and is unaffected by the
-  `AddonLog` gate that guards the raw prompt log.
-
-### 2026-08-26 - In-Game Request Log Viewer
-
-* **See the prompt behind any bot line**: a new `.llmc log` command family
-  serves the bridge's JSONL request log to the **Chatter Log** addon
-  (`/chatterlog`), so the system prompt, the assembled user prompt and the
-  raw model response can be read and copied in game instead of tailing a
-  file on the host. This is aimed at diagnosing phrases that come out wrong.
-* **No new moving parts**: the worldserver reads the file the bridge already
-  writes. Both containers bind-mount the same host directory, so there is no
-  new table, no schema migration and no change to the Python bridge.
-  `LLMChatterRequestLog.cpp` tails the file, caching parsed entries and
-  re-parsing only appended bytes; rotation and a bridge restart both reset
-  the cache automatically.
-* **Off by default, gamemaster only**: prompts embed other players' chat and
-  bot memories, so `LLMChatter.AddonLog.Enable` defaults to `0` and access
-  is gated on `LLMChatter.AddonLog.MinSecurity` (default gamemaster),
-  separately from the rest of `.llmc`. Requires
-  `LLMChatter.RequestLog.Enable = 1` on the bridge.
-* Replies travel under a `CHATTER_LOG ` prefix so Chatter Log and Chatter
-  Companion can be loaded at the same time.
 
 ### 2026-08-25 - Lossless Trait Upload
 

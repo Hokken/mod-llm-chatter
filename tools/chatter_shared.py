@@ -2910,12 +2910,16 @@ def format_pet_phrase(pet) -> str:
     name = (pet.get('name') or '').strip()
     species = (pet.get('species') or '').strip()
     if name and species and name.lower() != species.lower():
-        return f"{name}, a {species}"
+        article = (
+            'an' if species[:1].lower() in 'aeiou' else 'a'
+        )
+        return f"{name}, {article} {species}"
     return name or species
 
 
 def build_gear_context(
     db, char_guid, char_class=None, config=None,
+    subject=None,
 ) -> str:
     """Describe what a bot carries and who follows it.
 
@@ -2923,6 +2927,11 @@ def build_gear_context(
     pet classes, the pet by name and species — so bots stop
     inventing gear or treating their own pet as a stranger.
     Empty string when there is nothing worth stating.
+
+    Pass `subject` (a bot name) for multi-speaker prompts,
+    which describe bots from the outside. Without it the
+    line is second person, for prompts the bot itself
+    speaks through.
     """
     from chatter_db import (
         get_character_pet,
@@ -2942,12 +2951,17 @@ def build_gear_context(
         return ''
 
     parts = []
+    subject = (subject or '').strip()
 
     weapons = format_weapon_list(
         get_character_weapons(db, guid)
     )
     if weapons:
-        parts.append(f"You are wielding {weapons}.")
+        parts.append(
+            f"{subject} wields {weapons}."
+            if subject
+            else f"You are wielding {weapons}."
+        )
 
     # Only hunters and warlocks keep a permanent companion,
     # so other classes never pay for the pet lookup.
@@ -2960,11 +2974,42 @@ def build_gear_context(
         )
         if pet:
             parts.append(
-                f"Your pet is {pet} — a companion you "
+                f"{subject}'s pet is {pet} — a familiar "
+                "companion, not a stranger."
+                if subject
+                else f"Your pet is {pet} — a companion you "
                 "know well, not a stranger."
             )
 
     return ' '.join(parts)
+
+
+def attach_speaker_gear(db, bots, config=None) -> None:
+    """Give every speaker in a list a third-person gear line.
+
+    Multi-speaker prompts introduce bots from the outside
+    ("Veliana is a level 26 Blood Elf Priest"), so the
+    second-person string built for solo prompts cannot be
+    reused there. Stores the result as 'gear_third'.
+    """
+    for bot in bots or []:
+        if bot.get('gear_third') is not None:
+            continue
+        guid = bot.get('guid')
+        name = (bot.get('name') or '').strip()
+        if not guid or not name:
+            continue
+        bot['gear_third'] = build_gear_context(
+            db, guid, bot.get('class'), config,
+            subject=name,
+        )
+
+
+def append_speaker_gear(parts, bot, indent='  ') -> None:
+    """Append a speaker's gear line to a prompt part list."""
+    line = (bot.get('gear_third') or '').strip()
+    if line:
+        parts.append(f"{indent}{line}")
 
 
 # =============================================================================

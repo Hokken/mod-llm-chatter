@@ -503,7 +503,9 @@ void HandleEmoteObserver(
             + ",\"target_class\":"
             + std::to_string(targetPlayer->getClass())
             + ",\"target_level\":"
-            + std::to_string(targetPlayer->GetLevel());
+            + std::to_string(targetPlayer->GetLevel())
+            + ",\"target_gender\":"
+            + std::to_string(targetPlayer->getGender());
 
     extraData += "}";
 

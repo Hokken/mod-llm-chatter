@@ -191,8 +191,8 @@ def _pick_tone(category: str) -> str:
 
 def _describe_target_player(extra) -> str:
     """Describe an emote's player target, e.g.
-    "a level 24 Orc Hunter". Empty when C++ sent no
-    details for the target."""
+    "a level 24 female Orc Hunter". Empty when C++
+    sent no details for the target."""
     level = int(extra.get('target_level') or 0)
     race = RACE_NAMES.get(
         int(extra.get('target_race') or 0), ''
@@ -200,9 +200,19 @@ def _describe_target_player(extra) -> str:
     class_name = CLASS_NAMES.get(
         int(extra.get('target_class') or 0), ''
     )
+    # Gender is only meaningful alongside a race/class —
+    # on its own "female" describes nothing useful, and an
+    # absent field must not silently read as male.
+    gender = (
+        get_gender_label(int(extra.get('target_gender') or 0))
+        if 'target_gender' in extra and (race or class_name)
+        else ''
+    )
     parts = []
     if level:
         parts.append(f"level {level}")
+    if gender:
+        parts.append(gender)
     if race:
         parts.append(race)
     if class_name:
