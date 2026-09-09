@@ -90,14 +90,17 @@ disabled by default.
 Proximity chatter creates ambient `/say` conversations between bots,
 NPCs, and real players as they move through the world:
 
-1. C++ `CheckProximityChatter()` runs on a configurable timer
-   (default 30s) in `LLMChatterWorld.cpp`.
+1. C++ `CheckProximityChatter(bool instanceMaps)` runs on independent
+   outdoor and dungeon/raid timers in `LLMChatterWorld.cpp`. Legacy
+   configs without scoped values inherit `ScanIntervalSeconds`.
 2. `LLMChatterProximity.cpp` scans around each alive, out-of-combat
    real player within a 40-yard radius for eligible NPCs and party bots.
    Outdoor, dungeon, and raid maps are supported; BG and arena maps are
    excluded. NPC qualification follows one global ordered policy:
-   denylist, boss exclusion, guard/interactive role, humanoid, configured
-   non-humanoid allowlist, then reject.
+   client visibility, non-selectable, fake-dead, trigger-creature, and
+   internal-name-marker exclusions; denylist; boss exclusion;
+   guard/interactive role; humanoid; configured non-humanoid allowlist;
+   then reject.
 3. One or more speakers are selected from the candidate pool.
    If all candidates are party bots, the scan is skipped (idle chat
    handles that case).
@@ -111,9 +114,11 @@ NPCs, and real players as they move through the world:
 6. Messages are written to `llm_chatter_messages` with channel
    `"say"` (for bots) or `"msay"` (for NPCs).
 7. C++ delivery dispatches bot messages via `CHAT_MSG_SAY` and NPC
-   messages via `CHAT_MSG_MONSTER_SAY` (speech bubbles). Speakers
-   face each other via `SetFacingToObject()`, and NPC orientation
-   resets after delivery via `BasicEvent`.
+   messages via `CHAT_MSG_MONSTER_SAY` (speech bubbles). Movement never
+   disqualifies a speaker. Stationary, facing-safe speakers may face each
+   other via `SetFacingToObject()`; moving or pathing speakers talk without
+   rotation. NPC orientation resets via `BasicEvent` only when facing was
+   applied.
 8. When a real player speaks in `/say`, an explicitly named eligible
    creature wins first, followed by the selected target, then a recent
    scene or ordinary nearby candidate.
@@ -129,23 +134,53 @@ must be deliberately approved by creature entry unless its established
 guard or interactive NPC role independently qualifies it. Bosses remain
 outside this ambient scanner. `SpeakerDenyEntries` overrides every
 ordinary qualification, including humanoids and interactive NPCs.
+Internal `[DND]`/`(DND)`, `[PH]`/`(PH)`, and
+`[UNUSED]`/`(UNUSED)` templates and engine-marked trigger creatures are
+excluded across ordinary and boss dialogue. Nearby-name prompt context
+is case-insensitively deduplicated.
+One conversation also cannot select two creatures with the same display
+name because the JSON response contract identifies speakers by name.
 
 Boss dialogue is a separate flow owned by
 `LLMChatterBossDialogue.cpp` and `chatter_boss_dialogue.py`. A boss can
-produce one original pre-aggro line or answer an explicitly targeted or
-named `/say` within its extended radius. Queueing and delivery both
-require LOS, no combat, an instance map, the shared boss classifier,
-and distance greater than calculated aggro range plus the configured
-safety margin. Delivery uses the private `myell` queue channel and
-monster yell; it never changes facing or threat. A per-player,
-per-spawn, per-instance cooldown and denylist limit interference with
-scripted encounters. Automatic checks use one round-robin candidate per
-configured scan pass, so no more than one expensive creature-grid search runs
-per interval and later session-map entries cannot starve. Directed `/say`
-searches have a separate per-player/map/instance throttle. Cooldown, pending,
+produce a paced sequence of original pre-aggro lines or answer an
+explicitly targeted or named `/say` within its extended radius. Queueing
+and delivery both require LOS, no combat, an instance map, the shared
+boss classifier, and distance greater than calculated aggro range plus
+the configured safety margin. Delivery uses the private `myell` queue
+channel and monster yell; it never changes facing or threat.
+
+Automatic speech is governed by one presence session per boss spawn and
+instance, shared by every nearby real player. The first line follows a
+short random delay. Later opportunities use random delays and a decaying
+chance that stops decaying at a configurable floor. A missed chance
+schedules a new delayed opportunity instead of rerolling each scan, so
+the boss retains a small chance to speak throughout a long presence.
+Open-ended opportunities are enabled by default; disabling them applies
+the configured hard line cap. The session resets after no eligible player
+has been nearby for the configured period.
+Recent delivered lines are passed back to the prompt so later speech
+continues the moment without repeating it. A directed `/say` uses its
+separate per-player cooldown and postpones the next automatic opportunity
+without consuming the automatic line allowance.
+
+The same comprehensive classifier remains shared with group-kill chatter.
+Consequently, an eligible registered-encounter kill, including an
+ordinary-rank miniboss, follows the existing guaranteed boss-kill reaction
+path instead of normal-trash chance and cooldown rules. This is one reaction
+opportunity per actual encounter kill, not a recurring proximity trigger.
+Enter-combat chatter deliberately retains its narrower legacy classifier and
+probabilities.
+
+The boss denylist limits interference with scripted encounters.
+Automatic checks use one round-robin candidate per configured scan pass,
+so no more than one expensive creature-grid search runs per interval and
+later session-map entries cannot starve. Directed `/say` searches have a
+separate per-player/map/instance throttle. Presence, cooldown, pending,
 and scan state is synchronized across the world update and player `/say`
-hooks, but persistent cooldown queries run outside that mutex. The parsed
-denylist is published as an immutable configuration snapshot on load or reload.
+hooks, but persistent event queries run outside that mutex. The parsed
+denylist is published as an immutable configuration snapshot on load or
+reload.
 
 ### Guild chatter data flow
 
@@ -372,6 +407,19 @@ stage for most Python-generated messages. Player-directed replies use
 `responsive=True`; ambient/group conversations can also include reading
 time from the previous message length.
 
+### General-Channel Pacing Gate
+
+Automated General statements and conversations share a bridge-side,
+per-zone reservation timeline. A producer calculates every relative
+follow-up delay, then atomically reserves the full sequence through its
+last scheduled line. The next ambient or world-event sequence begins
+only after `GeneralChat.MinZoneGap` has elapsed from that endpoint. This
+prevents independently processed ambient, transport, weather, and
+holiday conversations from stacking their follow-ups into the same few
+seconds. Player-directed General replies remain responsive and may
+interrupt automated chatter, but extend the known zone endpoint so later
+automation backs off.
+
 ### Party Chat Pacing Gate
 
 Party-channel messages use a DB-backed pacing table,
@@ -515,7 +563,7 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterRaid.cpp` | 767 | Raid boss hooks (pull/kill/wipe), boss lookup table (80+ entries across Classic/TBC/WotLK), `IsDatabaseBound() override`, raid registration |
 | `src/LLMChatterProximity.cpp` | ~1700 | Ordinary outdoor/instance proximity scans, global curated NPC/playerbot eligibility and compatibility, authoritative selected/named `/say` routing, map/instance-aware scenes and cooldowns, and event payload construction |
 | `src/LLMChatterProximity.h` | ~20 | Proximity scan and player-say hook declarations consumed by `LLMChatterWorld.cpp` and `LLMChatterGroupCombat.cpp` |
-| `src/LLMChatterBossDialogue.cpp/.h` | ~500 | Separate boss-only pre-aggro scanning, safe-band eligibility, selected/named `/say` routing, denylist, and player/boss/instance cooldown ownership |
+| `src/LLMChatterBossDialogue.cpp/.h` | ~850 | Separate boss-only pre-aggro scanning, safe-band eligibility, selected/named `/say` routing, denylist, and boss-instance presence scheduling |
 | `src/LLMChatterBG.cpp` | 1348 | Battleground hooks, BG state polling, BG queue helpers, BG registration |
 | `src/LLMChatterBG.h` | 14 | BG registration declaration |
 | `src/LLMChatterCommand.cpp` | ~594 | Player command bridge for the Chatter Companion addon. `.llmc` command with `roster`, `get`, `set` subcommands. Percent-encoding protocol, SQL-escaped writes to `llm_bot_identities` and `llm_group_bot_traits`, config guard via `sLLMChatterConfig->IsEnabled()`, cache invalidation on trait update |
@@ -619,7 +667,7 @@ This asymmetry is known and acceptable in the shipped source state.
 |---|---|
 | `tools/chatter_proximity.py` | Ordinary proximity event handlers and prompt builders. Applies NPC in-world voice and configured playerbot voice independently in single or mixed-speaker scenes |
 | `tools/chatter_instance_context.py` | Shared canonical map/current-area and curated dungeon-lore context used by ordinary proximity and boss prompts |
-| `tools/chatter_boss_dialogue.py` | Fail-closed, message-only generation and `myell` queue insertion for boss approach and directed boss events |
+| `tools/chatter_boss_dialogue.py` | Fail-closed, history-aware message-only generation and `myell` queue insertion for boss approach and directed boss events |
 
 ### Raid/BG domain
 
@@ -722,13 +770,18 @@ system.
   creature-grid search per configured scan pass
 - calculated aggro distance plus configurable safety margin
 - automatic approach and unambiguous selected/named player `/say` events
-- per-player, per-boss-spawn, per-instance pending and cooldown state
+- shared per-boss-spawn/per-instance presence scheduling with randomized,
+  decaying repeat opportunities and a persistent low-probability floor
+- separate per-player, per-boss-spawn, per-instance directed cooldowns
 - synchronized state reservations across world and map-thread hooks
 
 `FindCreatureBySpawnId()`, `GetCreatureRoleName()`,
 `LoadNamedBossCache()`, and `IsLLMChatterBoss()` live in
 `LLMChatterShared.cpp` for proximity, group-kill, boss, and delivery
-callers. The enter-combat reaction intentionally retains its legacy
+callers. The cache uses AzerothCore's registered creature encounters as
+its authoritative dungeon/raid source, with rank, boss flag, and
+single-spawn immunity metadata retained as fallbacks for unregistered
+special bosses. The enter-combat reaction intentionally retains its legacy
 rank/boss-flag predicate so this feature does not alter established combat
 reaction probabilities.
 
@@ -887,7 +940,7 @@ the same state under `bot_state.travel_state` via
 The world layer also delegates to the proximity subsystem via
 `LLMChatterProximity.h`:
 
-- `CheckProximityChatter(uint32 diff)` — periodic scan timer
+- `CheckProximityChatter(bool instanceMaps)` — scoped periodic scan
 
 And `LLMChatterGroupCombat.cpp` calls into proximity via:
 

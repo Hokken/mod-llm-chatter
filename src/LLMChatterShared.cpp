@@ -1152,7 +1152,12 @@ void LoadNamedBossCache()
 {
     _namedBossEntries.clear();
     std::string query =
-        "SELECT entry FROM ("
+        "SELECT creditEntry AS entry"
+        "  FROM instance_encounters"
+        "  WHERE creditType = 0"
+        "    AND creditEntry > 0"
+        " UNION"
+        " SELECT entry FROM ("
         "  SELECT ct.entry, ct.`rank`,"
         "    ct.CreatureImmunitiesId,"
         "    COUNT(*) AS spawns"
@@ -1195,6 +1200,29 @@ bool IsLLMChatterBoss(Creature const* creature)
             & CREATURE_TYPE_FLAG_BOSS_MOB)
         || _namedBossEntries.count(
             creature->GetEntry()) > 0;
+}
+
+bool IsLLMChatterInternalCreature(Creature const* creature)
+{
+    if (!creature)
+        return false;
+    if (creature->IsTrigger())
+        return true;
+
+    std::string const& name = creature->GetName();
+    if (name.empty())
+        return true;
+
+    static constexpr std::array<char const*, 6> markers = {
+        "[DND]", "(DND)", "[PH]", "(PH)",
+        "[UNUSED]", "(UNUSED)"
+    };
+    return std::any_of(
+        markers.begin(), markers.end(),
+        [&name](char const* marker)
+        {
+            return StringContainsStringI(name, marker);
+        });
 }
 
 std::string SanitizeUtf8(const std::string& str)

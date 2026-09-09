@@ -19,6 +19,7 @@
 #include "Playerbots.h"
 #include "RandomPlayerbotMgr.h"
 #include "ScriptedCreature.h"
+#include "Util.h"
 #include "Map.h"
 #include "World.h"
 #include "WorldSession.h"
@@ -30,6 +31,7 @@
 #include <list>
 #include <map>
 #include <random>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -152,6 +154,11 @@ bool IsProximityMapAllowed(Map const* map)
             && sLLMChatterConfig
                    ->_proxChatterEnableInDungeons;
     return true;
+}
+
+bool IsInstanceProximityMap(Map const* map)
+{
+    return map && (map->IsDungeon() || map->IsRaid());
 }
 
 bool IsEligibleProximityAnchor(Player* player)
@@ -339,8 +346,6 @@ bool IsEligibleProximityBot(
     if (bot->IsInCombat() || bot->IsMounted()
         || bot->IsFlying())
         return false;
-    if (HasUnsafeChatterFacingMotion(bot))
-        return false;
     if (bot->GetMap() != player->GetMap())
         return false;
     if (!player->IsWithinDistInMap(bot, radius))
@@ -360,25 +365,27 @@ bool IsEligibleProximityNPC(
 {
     if (!player || !cr || !cr->IsAlive())
         return false;
+    if (IsLLMChatterInternalCreature(cr)
+        || cr->HasUnitFlag(UNIT_FLAG_NOT_SELECTABLE))
+        return false;
+    if (cr->HasUnitState(UNIT_STATE_DIED)
+        || cr->HasDynamicFlag(UNIT_DYNFLAG_DEAD))
+        return false;
     if (!player->IsWithinDistInMap(cr, radius))
         return false;
-    if (!player->IsWithinLOSInMap(cr))
+    if (!player->CanSeeOrDetect(cr)
+        || !player->IsWithinLOSInMap(cr))
         return false;
     if (cr->IsPet() || cr->IsTotem()
         || cr->IsGuardian())
         return false;
     if (cr->IsPlayer() || cr->IsInCombat())
         return false;
-    if (HasUnsafeChatterFacingMotion(cr))
-        return false;
-
     CreatureTemplate const* tmpl =
         cr->GetCreatureTemplate();
     if (!tmpl)
         return false;
     if (!cr->GetSpawnId())
-        return false;
-    if (cr->GetName().empty())
         return false;
     return GetProximityNPCQualification(cr)
         != ProximityNPCQualification::None;
@@ -459,8 +466,10 @@ std::vector<ProximityCandidate> SelectCompatibleSpeakers(
             [&candidate](
                 ProximityCandidate const& selected)
             {
-                return CanShareProximityScene(
-                    candidate, selected);
+                return !StringEqualI(
+                        candidate.name, selected.name)
+                    && CanShareProximityScene(
+                        candidate, selected);
             });
         if (compatible)
             speakers.push_back(candidate);
@@ -751,16 +760,22 @@ std::string GetAreaNameForLocale(uint32 areaId)
 
 uint32 ComputeEffectiveChance(Player* player)
 {
-    uint32 chance =
-        sLLMChatterConfig->_proxChatterChance;
+    Map* map = player ? player->GetMap() : nullptr;
+    bool instanceMap = IsInstanceProximityMap(map);
+    uint32 chance = instanceMap
+        ? sLLMChatterConfig->_proxChatterInstanceChance
+        : sLLMChatterConfig->_proxChatterOutdoorChance;
     if (!player)
         return chance;
 
+    uint32 scanInterval = instanceMap
+        ? sLLMChatterConfig
+              ->_proxChatterInstanceScanInterval
+        : sLLMChatterConfig
+              ->_proxChatterOutdoorScanInterval;
     uint32 windowSeconds = std::max<uint32>(
         sLLMChatterConfig->_proxChatterEntityCooldown,
-        sLLMChatterConfig->_proxChatterScanInterval
-            * 3);
-    Map* map = player->GetMap();
+        scanInterval * 3);
     std::string key = std::to_string(
         player->GetGUID().GetCounter())
         + ":" + std::to_string(player->GetMapId())
@@ -817,8 +832,11 @@ void EvictExpiredProximityCooldowns()
     uint32 zoneWindow = std::max<uint32>(
         sLLMChatterConfig
             ->_proxChatterEntityCooldown,
-        sLLMChatterConfig
-                ->_proxChatterScanInterval
+        std::max(
+            sLLMChatterConfig
+                ->_proxChatterOutdoorScanInterval,
+            sLLMChatterConfig
+                ->_proxChatterInstanceScanInterval)
             * 3);
     time_t zoneCutoff =
         static_cast<time_t>(zoneWindow);
@@ -939,15 +957,19 @@ std::string BuildNearbyNamesJson(
     std::vector<ProximityCandidate> const& allCandidates,
     std::vector<ProximityCandidate> const& speakers)
 {
-    std::set<uint32> speakerIds;
+    std::set<std::pair<bool, uint32>> speakerIds;
     for (auto const& s : speakers)
-        speakerIds.insert(s.id);
+        speakerIds.emplace(s.isNPC, s.id);
 
     std::string json = "[";
     size_t count = 0;
+    std::set<std::string> includedNames;
     for (auto const& c : allCandidates)
     {
-        if (speakerIds.count(c.id))
+        if (speakerIds.count({c.isNPC, c.id}))
+            continue;
+        if (!includedNames.insert(
+                ToLowerAscii(c.name)).second)
             continue;
         if (count >= 4)
             break;
@@ -1470,7 +1492,7 @@ bool IsProximityNPCEligible(
         player, creature, radius);
 }
 
-void CheckProximityChatter()
+void CheckProximityChatter(bool instanceMaps)
 {
     if (!sLLMChatterConfig
         || !sLLMChatterConfig->IsEnabled()
@@ -1492,6 +1514,11 @@ void CheckProximityChatter()
         Player* player = session->GetPlayer();
         if (!player || !player->IsInWorld()
             || IsPlayerBot(player))
+            continue;
+        Map* map = player->GetMap();
+        bool playerInInstance =
+            IsInstanceProximityMap(map);
+        if (playerInInstance != instanceMaps)
             continue;
 
         MaybeQueueProximityScene(player);

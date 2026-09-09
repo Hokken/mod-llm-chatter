@@ -798,6 +798,16 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
             "ScanIntervalSeconds", 30);
+    _proxChatterOutdoorScanInterval =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "OutdoorScanIntervalSeconds",
+            _proxChatterScanInterval);
+    _proxChatterInstanceScanInterval =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "InstanceScanIntervalSeconds",
+            _proxChatterScanInterval);
     _proxChatterScanRadius =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
@@ -810,6 +820,14 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
             "Chance", 30);
+    _proxChatterOutdoorChance =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "OutdoorChance", _proxChatterChance);
+    _proxChatterInstanceChance =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "InstanceChance", _proxChatterChance);
     _proxChatterEntityCooldown =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
@@ -891,11 +909,47 @@ void LLMChatterConfig::LoadConfig()
     _proxBossAggroSafetyMargin =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
-            "BossAggroSafetyMargin", 10);
-    _proxBossDialogueCooldown =
+            "BossAggroSafetyMargin", 0);
+    _proxBossInitialDelayMin =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
-            "BossDialogueCooldownSeconds", 1800);
+            "BossInitialDelayMinSeconds", 2);
+    _proxBossInitialDelayMax =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "BossInitialDelayMaxSeconds", 6);
+    _proxBossRepeatDelayMin =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "BossRepeatDelayMinSeconds", 20);
+    _proxBossRepeatDelayMax =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "BossRepeatDelayMaxSeconds", 60);
+    _proxBossRepeatChance =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "BossRepeatChance", 80);
+    _proxBossRepeatChanceDecay =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "BossRepeatChanceDecayPercent", 50);
+    _proxBossRepeatChanceFloor =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "BossRepeatChanceFloor", 10);
+    _proxBossUnlimitedAutomaticLines =
+        GetChatterOption<bool>(
+            "LLMChatter.ProximityChatter."
+            "BossUnlimitedAutomaticLines", true);
+    _proxBossMaxAutomaticLines =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "BossMaxAutomaticLines", 3);
+    _proxBossPresenceReset =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "BossPresenceResetSeconds", 90);
     _proxBossDirectedReplyCooldown =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."

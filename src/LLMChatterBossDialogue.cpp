@@ -47,12 +47,21 @@ struct NearbyBossCheck
     bool operator()(Creature* creature)
     {
         return creature && creature->IsAlive()
+            && !IsLLMChatterInternalCreature(creature)
             && IsLLMChatterBoss(creature)
             && focus->IsWithinDistInMap(creature, radius);
     }
 };
 
-std::map<std::string, time_t> _bossApproachCooldowns;
+struct BossPresenceState
+{
+    uint32 linesQueued = 0;
+    uint64 presenceId = 0;
+    time_t lastEligibleAt = 0;
+    time_t nextOpportunityAt = 0;
+};
+
+std::map<std::string, BossPresenceState> _bossPresenceStates;
 std::map<std::string, time_t> _bossDirectedCooldowns;
 std::map<std::string, time_t> _bossPendingUntil;
 std::map<uint32, time_t> _bossPlayerScanTimes;
@@ -79,6 +88,7 @@ bool IsBossAnchorEligible(Player* player)
 
 float GetBossAggroDistance(
     Player* player, Creature* creature);
+void MaybeEvictExpiredBossDialogueState(time_t now);
 
 float GetBossSafeDistance(
     Player* player, Creature* creature)
@@ -100,7 +110,19 @@ float GetBossAggroDistance(
         + std::max(0.0f, creature->m_CombatDistance);
 }
 
-std::string GetBossCooldownKey(
+std::string GetBossPresenceKey(Creature* creature)
+{
+    Map* map = creature ? creature->GetMap() : nullptr;
+    return "boss:auto:"
+        + std::to_string(
+            creature ? creature->GetMapId() : 0)
+        + ":" + std::to_string(
+            map ? map->GetInstanceId() : 0)
+        + ":" + std::to_string(
+            creature ? creature->GetSpawnId() : 0);
+}
+
+std::string GetBossDirectedCooldownKey(
     Player* player, Creature* creature)
 {
     Map* map = player ? player->GetMap() : nullptr;
@@ -293,17 +315,34 @@ std::string BuildBossEventJson(
 void QueueBossDialogueEvent(
     Player* player, Creature* boss,
     char const* eventType,
-    std::string const& playerMessage)
+    std::string const& playerMessage,
+    std::string const& cooldownKey,
+    uint32 automaticLineNumber,
+    uint64 presenceId)
 {
     std::string json = BuildBossEventJson(
         player, boss, eventType, playerMessage);
+    if (automaticLineNumber > 0)
+    {
+        std::string lineMetadata =
+            ",\"automatic_line_number\":"
+            + std::to_string(automaticLineNumber);
+        json.insert(json.size() - 1, lineMetadata);
+    }
+    if (presenceId > 0)
+    {
+        std::string presenceMetadata =
+            ",\"presence_id\":"
+            + std::to_string(presenceId);
+        json.insert(json.size() - 1, presenceMetadata);
+    }
     QueueChatterEvent(
         eventType,
         "player",
         player->GetZoneId(),
         player->GetMapId(),
         GetChatterEventPriority(eventType),
-        GetBossCooldownKey(player, boss),
+        cooldownKey,
         0,
         boss->GetName(),
         player->GetGUID().GetCounter(),
@@ -313,6 +352,117 @@ void QueueBossDialogueEvent(
         1,
         15,
         false);
+}
+
+uint32 GetRandomBossDelay(uint32 minimum, uint32 maximum)
+{
+    minimum = std::max<uint32>(1, minimum);
+    maximum = std::max(minimum, maximum);
+    return urand(minimum, maximum);
+}
+
+uint32 GetBossRepeatChance(uint32 linesQueued)
+{
+    uint32 chance = std::min<uint32>(
+        100, sLLMChatterConfig->_proxBossRepeatChance);
+    uint32 minimumChance = std::min(
+        chance,
+        std::min<uint32>(
+            100,
+            sLLMChatterConfig->_proxBossRepeatChanceFloor));
+    uint32 decay = std::min<uint32>(
+        100, sLLMChatterConfig->_proxBossRepeatChanceDecay);
+    for (uint32 line = 1; line < linesQueued; ++line)
+        chance = std::max(
+            minimumChance, chance * decay / 100);
+    return chance;
+}
+
+void ResetBossPresenceState(
+    BossPresenceState& state, time_t now)
+{
+    state = BossPresenceState{};
+    state.presenceId = static_cast<uint64>(now);
+    state.lastEligibleAt = now;
+}
+
+bool TryScheduleBossApproach(
+    Creature* boss, uint32& automaticLineNumber,
+    uint64& presenceId)
+{
+    automaticLineNumber = 0;
+    presenceId = 0;
+    std::string presenceKey = GetBossPresenceKey(boss);
+    uint32 resetSeconds = std::max<uint32>(
+        1, sLLMChatterConfig->_proxBossPresenceReset);
+
+    std::lock_guard<std::mutex> lock(
+        _bossDialogueStateMutex);
+    time_t now = time(nullptr);
+    MaybeEvictExpiredBossDialogueState(now);
+    BossPresenceState& state =
+        _bossPresenceStates[presenceKey];
+    if (state.lastEligibleAt == 0
+        || now - state.lastEligibleAt
+            > static_cast<time_t>(resetSeconds))
+        ResetBossPresenceState(state, now);
+    else
+        state.lastEligibleAt = now;
+    presenceId = state.presenceId;
+
+    if (state.nextOpportunityAt == 0)
+    {
+        state.nextOpportunityAt = now
+            + static_cast<time_t>(GetRandomBossDelay(
+                sLLMChatterConfig->_proxBossInitialDelayMin,
+                sLLMChatterConfig->_proxBossInitialDelayMax));
+        return false;
+    }
+
+    uint32 maximumLines =
+        sLLMChatterConfig->_proxBossMaxAutomaticLines;
+    bool reachedConfiguredLimit =
+        !sLLMChatterConfig->_proxBossUnlimitedAutomaticLines
+        && (maximumLines == 0
+            || state.linesQueued >= maximumLines);
+    if (reachedConfiguredLimit
+        || now < state.nextOpportunityAt)
+        return false;
+
+    state.nextOpportunityAt = now
+        + static_cast<time_t>(GetRandomBossDelay(
+            sLLMChatterConfig->_proxBossRepeatDelayMin,
+            sLLMChatterConfig->_proxBossRepeatDelayMax));
+    if (state.linesQueued > 0
+        && urand(1, 100)
+            > GetBossRepeatChance(state.linesQueued))
+        return false;
+
+    automaticLineNumber = ++state.linesQueued;
+    return true;
+}
+
+uint64 PostponeBossApproach(Creature* boss)
+{
+    std::lock_guard<std::mutex> lock(
+        _bossDialogueStateMutex);
+    time_t now = time(nullptr);
+    std::string presenceKey = GetBossPresenceKey(boss);
+    BossPresenceState& state =
+        _bossPresenceStates[presenceKey];
+    uint32 resetSeconds = std::max<uint32>(
+        1, sLLMChatterConfig->_proxBossPresenceReset);
+    if (state.lastEligibleAt == 0
+        || now - state.lastEligibleAt
+            > static_cast<time_t>(resetSeconds))
+        ResetBossPresenceState(state, now);
+    else
+        state.lastEligibleAt = now;
+    state.nextOpportunityAt = now
+        + static_cast<time_t>(GetRandomBossDelay(
+            sLLMChatterConfig->_proxBossRepeatDelayMin,
+            sLLMChatterConfig->_proxBossRepeatDelayMax));
+    return state.presenceId;
 }
 
 void EvictExpiredBossDialogueState(time_t now)
@@ -331,11 +481,19 @@ void EvictExpiredBossDialogueState(time_t now)
         }
     };
     evictCooldowns(
-        _bossApproachCooldowns,
-        sLLMChatterConfig->_proxBossDialogueCooldown);
-    evictCooldowns(
         _bossDirectedCooldowns,
         sLLMChatterConfig->_proxBossDirectedReplyCooldown);
+    uint32 presenceResetSeconds = std::max<uint32>(
+        1, sLLMChatterConfig->_proxBossPresenceReset);
+    for (auto it = _bossPresenceStates.begin();
+         it != _bossPresenceStates.end();)
+    {
+        if (now - it->second.lastEligibleAt
+            > static_cast<time_t>(presenceResetSeconds))
+            it = _bossPresenceStates.erase(it);
+        else
+            ++it;
+    }
     for (auto it = _bossPendingUntil.begin();
          it != _bossPendingUntil.end();)
     {
@@ -489,6 +647,10 @@ bool IsBossDialogueSpeakerEligible(
         return false;
     if (!creature->IsAlive() || creature->IsInCombat())
         return false;
+    if (IsLLMChatterInternalCreature(creature)
+        || creature->HasUnitState(UNIT_STATE_DIED)
+        || creature->HasDynamicFlag(UNIT_DYNFLAG_DEAD))
+        return false;
     if (!creature->GetSpawnId()
         || !IsLLMChatterBoss(creature)
         || IsBossDialogueEntryDenied(creature->GetEntry()))
@@ -497,11 +659,10 @@ bool IsBossDialogueSpeakerEligible(
         return false;
     if (!creature->IsHostileTo(player))
         return false;
-    if (HasUnsafeChatterFacingMotion(creature))
-        return false;
     if (!player->IsWithinDistInMap(creature, radius))
         return false;
-    if (!player->IsWithinLOSInMap(creature)
+    if (!player->CanSeeOrDetect(creature)
+        || !player->IsWithinLOSInMap(creature)
         || !creature->CanSeeOrDetect(player))
         return false;
 
@@ -569,18 +730,20 @@ void CheckBossProximityDialogue()
             return;
 
         Creature* boss = bosses.front();
-        std::string cooldownKey =
-            GetBossCooldownKey(player, boss);
-        if (!TryReserveBossDialogue(
-                _bossApproachCooldowns,
-                cooldownKey,
-                sLLMChatterConfig
-                    ->_proxBossDialogueCooldown))
+        uint32 automaticLineNumber = 0;
+        uint64 presenceId = 0;
+        if (!TryScheduleBossApproach(
+                boss, automaticLineNumber,
+                presenceId))
             return;
 
+        std::string presenceKey =
+            GetBossPresenceKey(boss);
         QueueBossDialogueEvent(
             player, boss,
-            "proximity_boss_approach", "");
+            "proximity_boss_approach", "",
+            presenceKey, automaticLineNumber,
+            presenceId);
         return;
     }
 }
@@ -604,6 +767,7 @@ bool HandleBossProximityPlayerSay(
     Creature* selectedBoss = selected
         ? selected->ToCreature() : nullptr;
     bool selectedNearbyBoss = selectedBoss
+        && !IsLLMChatterInternalCreature(selectedBoss)
         && IsLLMChatterBoss(selectedBoss)
         && selectedBoss->GetMap() == player->GetMap()
         && player->IsWithinDistInMap(selectedBoss, radius);
@@ -680,7 +844,7 @@ bool HandleBossProximityPlayerSay(
         return false;
 
     std::string cooldownKey =
-        GetBossCooldownKey(player, directedBoss);
+        GetBossDirectedCooldownKey(player, directedBoss);
     if (!TryReserveBossDialogue(
             _bossDirectedCooldowns,
             cooldownKey,
@@ -688,8 +852,11 @@ bool HandleBossProximityPlayerSay(
                 ->_proxBossDirectedReplyCooldown))
         return true;
 
+    uint64 presenceId = PostponeBossApproach(
+        directedBoss);
     QueueBossDialogueEvent(
         player, directedBoss,
-        "proximity_boss_player_say", message);
+        "proximity_boss_player_say", message,
+        cooldownKey, 0, presenceId);
     return true;
 }

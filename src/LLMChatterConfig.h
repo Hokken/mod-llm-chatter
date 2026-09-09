@@ -282,9 +282,13 @@ public:
     bool _proxChatterEnableInDungeons;
     bool _proxChatterEnableInRaids;
     uint32 _proxChatterScanInterval;
+    uint32 _proxChatterOutdoorScanInterval;
+    uint32 _proxChatterInstanceScanInterval;
     uint32 _proxChatterScanRadius;
     uint32 _proxChatterPlayerSayScanRadius;
     uint32 _proxChatterChance;
+    uint32 _proxChatterOutdoorChance;
+    uint32 _proxChatterInstanceChance;
     uint32 _proxChatterEntityCooldown;
     uint32 _proxChatterZoneFatigueThreshold;
     uint32 _proxChatterZoneFatigueDecay;
@@ -306,7 +310,16 @@ public:
     uint32 _proxBossApproachCheckInterval;
     uint32 _proxBossApproachMaxRadius;
     uint32 _proxBossAggroSafetyMargin;
-    uint32 _proxBossDialogueCooldown;
+    uint32 _proxBossInitialDelayMin;
+    uint32 _proxBossInitialDelayMax;
+    uint32 _proxBossRepeatDelayMin;
+    uint32 _proxBossRepeatDelayMax;
+    uint32 _proxBossRepeatChance;
+    uint32 _proxBossRepeatChanceDecay;
+    uint32 _proxBossRepeatChanceFloor;
+    bool _proxBossUnlimitedAutomaticLines;
+    uint32 _proxBossMaxAutomaticLines;
+    uint32 _proxBossPresenceReset;
     uint32 _proxBossDirectedReplyCooldown;
     uint32 _proxBossDirectedScanCooldown;
     std::atomic<std::shared_ptr<

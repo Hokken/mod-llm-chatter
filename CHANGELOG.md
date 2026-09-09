@@ -1,5 +1,18 @@
 # Changelog
 
+### 2026-09-09 - General Channel Pacing
+
+* **Cross-source conversation spacing**: Automated ambient, transport,
+  weather, holiday, and minor-event General chatter now shares one
+  per-zone delivery timeline. Multi-line exchanges reserve their full
+  scheduled window, preventing independently generated follow-ups from
+  arriving in a wall while keeping player-directed replies responsive.
+* **Quieter production preset**: Added
+  `conf/mod_ll_chatter_quieter.conf.dist` as an optional lower-volume
+  configuration. It preserves contextual combat and instance reactions while
+  reducing cumulative ambient chatter. Credentials and local diagnostic
+  settings are intentionally excluded or disabled.
+
 ### 2026-09-08 - Instance Proximity Chatter
 
 * **Dungeon and raid parity**: Ordinary proximity chatter now runs in
@@ -14,21 +27,47 @@
   vendors, trainers, innkeepers, and flight masters can qualify before
   creature-type filtering, while arbitrary non-humanoids require an
   explicit creature-entry allowlist. A separate denylist always wins;
-  bosses and universal movement/combat safety exclusions remain intact.
+  bosses and universal combat safety exclusions remain intact. Movement
+  never excludes an otherwise eligible speaker; moving or pathing
+  creatures simply skip optional facing during delivery.
   Prompts receive creature type and the reason each NPC qualified.
+  Non-selectable, fake-dead, undetectable, trigger, `[DND]`, `[PH]`, and
+  `[UNUSED]` internal helpers are rejected, preventing invisible event
+  targets such as Valentine vial bunnies from leaking into ambient
+  dialogue. Nearby-name prompt context now deduplicates repeated names,
+  and one conversation cannot select ambiguous same-name speakers.
 * **Instance isolation and direction**: Cooldowns, active scenes, and
   reply history include map and instance identity. Explicit names and
   selected targets take priority over recent-scene or nearby fallbacks.
+* **Environment-specific pacing**: Ordinary proximity scans and trigger
+  chances can now be tuned independently for outdoor maps and
+  dungeons/raids. Existing installations without the scoped keys inherit
+  their legacy global values, while the distributed instance chance is
+  intentionally higher because combat and movement remove opportunities.
 * **Pre-aggro boss moments**: A separate boss-only subsystem can emit
-  one original approach line or answer a directed `/say` through monster
-  yell. It requires the player to remain beyond calculated aggro range
-  plus a configurable safety margin, revalidates before delivery, never
-  changes boss facing or threat, and supports independent cooldowns and
-  a creature-entry denylist. Per-player scans use a fair round-robin
-  schedule that caps expensive creature-grid work in populated raids.
+  a short, paced sequence of original approach lines or answer a
+  directed `/say` through monster yell. A shared per-boss-instance
+  presence session combines randomized delays, decaying repeat chances,
+  a persistent low-probability floor, and recent-line prompt history so
+  encounters feel less mechanical without becoming noisy. Automatic
+  opportunities are open-ended by default rather than stopping after
+  three lines; an explicit toggle can restore a configurable hard cap.
+  Directed replies postpone the next automatic opportunity. The path
+  requires the player to remain beyond calculated aggro range plus a
+  configurable safety margin
+  (zero by default so compact rooms retain a usable pre-pull band),
+  revalidates before delivery, never changes boss facing or threat, and
+  supports a creature-entry denylist. Per-player scans use a fair
+  round-robin schedule that caps expensive creature-grid work in
+  populated raids.
 * **Shared contracts and coverage**: Group kill reactions and proximity
-  now use one comprehensive boss classifier, while enter-combat reactions
+  now use one comprehensive boss classifier seeded from AzerothCore's
+  registered dungeon/raid encounters, with metadata fallbacks for special
+  bosses. This includes ordinary-rank encounter minibosses such as
+  Rethilgore without misclassifying every elite. Enter-combat reactions
   preserve their established narrower classification and probabilities.
+  Eligible registered-encounter kills use the established guaranteed boss-
+  kill reaction path rather than normal-trash chance and cooldown rules.
   Focused tests protect instance context, NPC metadata, history isolation,
   boss prompt constraints, fail-closed safety data, registry routing, and
   boss delivery ownership.

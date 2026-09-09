@@ -14,7 +14,7 @@ bool IsProximityPlayerbotEligible(
 bool IsProximityNPCEligible(
     Player* player, Creature* creature, float radius);
 
-void CheckProximityChatter();
+void CheckProximityChatter(bool instanceMaps);
 void HandleProximityPlayerSay(
     Player* player, uint32 type, uint32 language,
     std::string const& msg);

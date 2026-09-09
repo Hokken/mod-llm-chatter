@@ -46,6 +46,7 @@ from chatter_instance_context import (  # noqa: E402
 import chatter_boss_dialogue  # noqa: E402
 from chatter_boss_dialogue import (  # noqa: E402
     _build_prompt as build_boss_prompt,
+    _fetch_previous_boss_lines,
 )
 from chatter_event_registry import EVENT_REGISTRY  # noqa: E402
 from chatter_proximity import (  # noqa: E402
@@ -95,6 +96,7 @@ INSTANCE_EXTRA = {
 BOSS_EXTRA = {
     **INSTANCE_EXTRA,
     'trigger': 'proximity_boss_player_say',
+    'presence_id': 1725796800,
     'encounter_state': 'pre_aggro',
     'player_message': 'Baron, your keep is falling.',
     'distance': 55,
@@ -237,12 +239,32 @@ def test_boss_prompt_is_grounded_directed_and_action_free():
     assert 'do not narrate an attack' in prompt.lower()
 
 
+def test_repeat_boss_prompt_continues_without_repeating():
+    prompt = build_boss_prompt({
+        **BOSS_EXTRA,
+        'trigger': 'proximity_boss_approach',
+        'player_message': '',
+        'automatic_line_number': 2,
+        'previous_boss_lines': [
+            'You have wandered far from the surface.',
+        ],
+    }).user_prompt
+    assert 'automatic line 2' in prompt
+    assert 'later observation, not another introduction' in prompt
+    assert 'You have wandered far from the surface.' in prompt
+    assert 'Do not repeat, paraphrase, or contradict' in prompt
+
+
 def test_boss_events_have_separate_registry_ownership():
     approach = EVENT_REGISTRY['proximity_boss_approach']
     directed = EVENT_REGISTRY['proximity_boss_player_say']
     assert approach.handler_module == 'chatter_boss_dialogue'
     assert directed.handler_module == 'chatter_boss_dialogue'
     assert directed.priority == 'high'
+    assert 'automatic_line_number' in approach.payload_fields
+    assert 'automatic_line_number' not in directed.payload_fields
+    assert 'presence_id' in approach.payload_fields
+    assert 'presence_id' in directed.payload_fields
 
 
 def test_boss_handler_fails_closed_without_safety_metadata():
@@ -338,6 +360,27 @@ def test_history_accepts_eastern_kingdoms_map_zero():
     assert db.cursor_value.queries[0][1][:2] == (12, 0)
 
 
+def test_boss_history_is_scoped_in_sql_to_presence():
+    db = _DB([
+        {
+            'message': 'Second warning.',
+        },
+        {
+            'message': 'First warning.',
+        },
+    ])
+    history = _fetch_previous_boss_lines(
+        db, 9010, 33, 12, 1725796800
+    )
+    query, params = db.cursor_value.queries[0]
+    assert "m.owner_subsystem = 'boss_dialogue'" in query
+    assert "e.event_type IN (" in query
+    assert "'$.instance_id'" in query
+    assert "'$.presence_id'" in query
+    assert params == (9010, 33, 12, 1725796800, 3)
+    assert history == ['First warning.', 'Second warning.']
+
+
 def test_cpp_source_contracts_cover_instance_safety():
     source = (
         MODULE_DIR / 'src' / 'LLMChatterProximity.cpp'
@@ -375,12 +418,59 @@ def test_cpp_source_contracts_cover_instance_safety():
     assert 'IsProximitySpeakerDenied(entry)' in source
     assert '_proxChatterEnableInDungeons' in header
     assert '_proxChatterEnableInRaids' in header
+    assert '_proxChatterOutdoorScanInterval' in header
+    assert '_proxChatterInstanceScanInterval' in header
+    assert '_proxChatterOutdoorChance' in header
+    assert '_proxChatterInstanceChance' in header
+    scoped_scan = source.split(
+        'void CheckProximityChatter(bool instanceMaps)', 1
+    )[1].split('void HandleProximityPlayerSay(', 1)[0]
+    assert 'playerInInstance != instanceMaps' in scoped_scan
+    effective_chance = source.split(
+        'uint32 ComputeEffectiveChance(', 1
+    )[1].split('void NoteZoneTrigger(', 1)[0]
+    assert '_proxChatterInstanceChance' in effective_chance
+    assert '_proxChatterOutdoorChance' in effective_chance
+    assert '_proxChatterInstanceScanInterval' in effective_chance
+    assert '_proxChatterOutdoorScanInterval' in effective_chance
     assert 'bool IsLLMChatterBoss' in shared
+    assert 'FROM instance_encounters' in shared
+    assert 'creditType = 0' in shared
+    assert 'CreatureImmunitiesId > 0' in shared
     assert 'GetAggroRange(player)' in boss
     assert '_proxBossAggroSafetyMargin' in boss
     assert 'IsBossDialogueEntryDenied' in boss
     assert 'creature->IsHostileTo(player)' in boss
+    boss_eligibility = boss.split(
+        'bool IsBossDialogueSpeakerEligible(', 1
+    )[1].split('void CheckBossProximityDialogue()', 1)[0]
+    assert 'HasUnsafeChatterFacingMotion(creature)' not in boss_eligibility
+    assert 'IsLLMChatterInternalCreature(creature)' in boss_eligibility
+    assert 'creature->HasUnitState(UNIT_STATE_DIED)' in boss_eligibility
+    assert 'creature->HasDynamicFlag(UNIT_DYNFLAG_DEAD)' in boss_eligibility
+    assert 'player->CanSeeOrDetect(creature)' in boss_eligibility
     assert 'TryReserveBossDialogue' in boss
+    assert 'TryScheduleBossApproach' in boss
+    repeat_chance = boss.split(
+        'uint32 GetBossRepeatChance(', 1
+    )[1].split('void ResetBossPresenceState(', 1)[0]
+    assert '_proxBossRepeatChanceFloor' in repeat_chance
+    assert 'minimumChance' in repeat_chance
+    assert 'std::max(' in repeat_chance
+    scheduling = boss.split(
+        'bool TryScheduleBossApproach(', 1
+    )[1].split('uint64 PostponeBossApproach(', 1)[0]
+    assert '_proxBossUnlimitedAutomaticLines' in scheduling
+    assert 'maximumLines == 0' in scheduling
+    assert 'state.linesQueued >= maximumLines' in scheduling
+    assert 'reachedConfiguredLimit' in scheduling
+    assert 'GetBossPresenceKey(Creature* creature)' in boss
+    assert '_bossPresenceStates' in boss
+    assert '_bossApproachCooldowns' not in boss
+    assert 'automatic_line_number' in boss
+    assert 'presence_id' in boss
+    assert 'PostponeBossApproach(' in boss
+    assert 'directedBoss);' in boss
     assert '_bossDialogueStateMutex' in boss
     assert 'TryBeginBossPlayerScan' in boss
     assert 'TryBeginBossDirectedScan' in boss
@@ -388,7 +478,12 @@ def test_cpp_source_contracts_cover_instance_safety():
     assert 'ambiguousFirstToken = true' in boss
     assert 'ContainsCreatureEntry(' in config
     assert '_proxBossSpeakerDenyEntries, creatureEntry' in config
+    assert 'std::atomic<std::shared_ptr<' in header
     assert '_proxBossSpeakerDenyEntries.store(' in config
+    group_kill = group_combat.split(
+        'void HandleGroupCreatureKillImpl(', 1
+    )[1].split('\nvoid ', 1)[0]
+    assert 'IsLLMChatterBoss(killed)' in group_kill
     enter_combat = group_combat.split(
         'void HandleGroupPlayerEnterCombatImpl(', 1
     )[1].split('\nvoid ', 1)[0]
@@ -396,6 +491,10 @@ def test_cpp_source_contracts_cover_instance_safety():
     assert 'CREATURE_TYPE_FLAG_BOSS_MOB' in enter_combat
     assert '_lastBossDialogueCheckTime' in world
     assert 'CheckBossProximityDialogue();' in world
+    assert '_lastOutdoorProximityScanTime' in world
+    assert '_lastInstanceProximityScanTime' in world
+    assert 'CheckProximityChatter(false);' in world
+    assert 'CheckProximityChatter(true);' in world
 
     reservation = boss.split(
         'bool TryReserveBossDialogue(', 1
@@ -412,6 +511,8 @@ def test_cpp_source_contracts_cover_instance_safety():
     assert 'GetBossAggroDistance' in boss
     assert 'ownerSubsystem == "boss_dialogue"' in delivery
     assert 'channel == "myell"' in delivery
+    assert 'IsSafeForChatterFacing(bot)' in delivery
+    assert 'IsSafeForChatterFacing(speaker)' in delivery
 
     directed = source.index(
         'QueueDirectedPlayerSayProximityEvent('
@@ -420,6 +521,19 @@ def test_cpp_source_contracts_cover_instance_safety():
         'ProximityScene* scene = FindBestScene(player);'
     )
     assert directed < active_scene
+
+
+def test_dungeon_boss_lookup_uses_registered_encounters():
+    shared = (
+        MODULE_DIR / 'tools' / 'chatter_shared.py'
+    ).read_text(encoding='utf-8')
+    lookup = shared.split(
+        'def get_dungeon_bosses(', 1
+    )[1].split('\ndef can_class_use_item(', 1)[0]
+    assert 'instance_encounters' in lookup
+    assert 'ie.creditType = 0' in lookup
+    assert 'CreatureImmunitiesId > 0' in lookup
+    assert '(map_id, map_id)' in lookup
 
 
 def test_boss_event_types_are_persistable():
@@ -443,14 +557,40 @@ def test_config_fallbacks_match_distributed_values():
     source = (
         MODULE_DIR / 'src' / 'LLMChatterConfig.cpp'
     ).read_text(encoding='utf-8')
+    distributed = (
+        MODULE_DIR / 'conf' / 'mod_llm_chatter.conf.dist'
+    ).read_text(encoding='utf-8')
     assert '"ScanRadius", 40)' in source
     assert '"Chance", 30)' in source
+    assert '"OutdoorScanIntervalSeconds",' in source
+    assert '"InstanceScanIntervalSeconds",' in source
+    assert '"OutdoorChance", _proxChatterChance)' in source
+    assert '"InstanceChance", _proxChatterChance)' in source
+    assert 'OutdoorScanIntervalSeconds = 30' in distributed
+    assert 'InstanceScanIntervalSeconds = 30' in distributed
+    assert 'OutdoorChance = 30' in distributed
+    assert 'InstanceChance = 100' in distributed
     assert '"EntityCooldown", 60)' in source
     assert '"ConversationLineDelay", 2)' in source
     assert '"MaxTokensPerLine", 120)' in source
     assert '"EnableBossDialogue", false)' in source
     assert '"BossApproachMaxRadius", 80)' in source
-    assert '"BossAggroSafetyMargin", 10)' in source
+    assert '"BossAggroSafetyMargin", 0)' in source
+    assert '"BossInitialDelayMinSeconds", 2)' in source
+    assert '"BossInitialDelayMaxSeconds", 6)' in source
+    assert '"BossRepeatDelayMinSeconds", 20)' in source
+    assert '"BossRepeatDelayMaxSeconds", 60)' in source
+    assert '"BossRepeatChance", 80)' in source
+    assert '"BossRepeatChanceDecayPercent", 50)' in source
+    assert '"BossRepeatChanceFloor", 10)' in source
+    assert '"BossUnlimitedAutomaticLines", true)' in source
+    assert '"BossMaxAutomaticLines", 3)' in source
+    assert 'BossRepeatChanceFloor = 10' in distributed
+    assert 'BossUnlimitedAutomaticLines = 1' in distributed
+    assert 'BossMaxAutomaticLines = 3' in distributed
+    assert 'Set to 0 to disable automatic lines' in distributed
+    assert '"BossPresenceResetSeconds", 90)' in source
+    assert 'BossDialogueCooldownSeconds' not in source
     assert '"BossDirectedScanCooldownSeconds", 1)' in source
 
 

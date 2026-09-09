@@ -42,6 +42,65 @@ def _get_int(config: Dict, name: str, default: int) -> int:
     ))
 
 
+def _fetch_previous_boss_lines(
+    db, boss_spawn_id: int, map_id: int,
+    instance_id: int, presence_id: int,
+    limit: int = 3,
+):
+    """Return recent delivered lines from this boss presence."""
+    if (
+        not boss_spawn_id
+        or not map_id
+        or not instance_id
+        or not presence_id
+    ):
+        return []
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT m.message"
+            "  FROM llm_chatter_messages m"
+            "  JOIN llm_chatter_events e"
+            "    ON m.event_id = e.id"
+            "  WHERE m.delivered = 1"
+            "    AND m.channel = 'myell'"
+            "    AND m.owner_subsystem = 'boss_dialogue'"
+            "    AND m.npc_spawn_id = %s"
+            "    AND e.map_id = %s"
+            "    AND CAST(JSON_EXTRACT("
+            "        e.extra_data, '$.instance_id'"
+            "    ) AS UNSIGNED) = %s"
+            "    AND CAST(JSON_EXTRACT("
+            "        e.extra_data, '$.presence_id'"
+            "    ) AS UNSIGNED) = %s"
+            "    AND e.event_type IN ("
+            "        'proximity_boss_approach',"
+            "        'proximity_boss_player_say')"
+            "  ORDER BY m.delivered_at DESC"
+            "  LIMIT %s",
+            (
+                boss_spawn_id,
+                map_id,
+                instance_id,
+                presence_id,
+                limit,
+            ),
+        )
+        history = []
+        for row in cursor.fetchall():
+            message = cleanup_message(row.get('message', ''))
+            if message:
+                history.append(message)
+        history.reverse()
+        return history
+    except Exception:
+        logger.error(
+            "fetch previous boss lines failed",
+            exc_info=True,
+        )
+        return []
+
+
 def _build_prompt(extra: Dict) -> PromptParts:
     boss = extra.get('boss') or {}
     boss_name = str(boss.get('name') or 'The boss')
@@ -56,6 +115,14 @@ def _build_prompt(extra: Dict) -> PromptParts:
     trigger = str(extra.get('trigger') or '')
     player_message = str(
         extra.get('player_message') or ''
+    )
+    previous_lines = [
+        str(line) for line in (
+            extra.get('previous_boss_lines') or []
+        ) if str(line).strip()
+    ]
+    automatic_line_number = int(
+        extra.get('automatic_line_number', 0) or 0
     )
 
     lines = [
@@ -77,6 +144,20 @@ def _build_prompt(extra: Dict) -> PromptParts:
         "Length: 5-22 words, at most 180 characters.",
         f"Nearby adventurer: {player_name}.",
     ]
+    if previous_lines:
+        lines.extend([
+            "You already said the following during this same nearby "
+            "presence:",
+            json.dumps(previous_lines, ensure_ascii=False),
+            "Continue the moment naturally. Do not repeat, paraphrase, "
+            "or contradict those lines.",
+        ])
+    if automatic_line_number > 1:
+        lines.append(
+            f"This is your automatic line {automatic_line_number} "
+            "during the same nearby presence; make it feel like a "
+            "later observation, not another introduction."
+        )
     if trigger == 'proximity_boss_player_say' and player_message:
         lines.extend([
             "The adventurer directly addressed you in /say. Respond to "
@@ -136,6 +217,14 @@ def handle_boss_dialogue(db, client, config, event):
         _mark_event(db, event_id, 'skipped')
         return False
 
+    extra['previous_boss_lines'] = _fetch_previous_boss_lines(
+        db,
+        boss_spawn_id,
+        int(extra.get('map_id', 0) or 0),
+        int(extra.get('instance_id', 0) or 0),
+        int(extra.get('presence_id', 0) or 0),
+    )
+
     response = call_llm(
         client,
         _build_prompt(extra),
@@ -151,6 +240,9 @@ def handle_boss_dialogue(db, client, config, event):
                 boss.get('entry', 0) or 0
             ),
             'trigger': extra.get('trigger', ''),
+            'automatic_line_number': int(
+                extra.get('automatic_line_number', 0) or 0
+            ),
         },
     )
     parsed = parse_single_response(response) if response else {}

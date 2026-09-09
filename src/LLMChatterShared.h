@@ -27,6 +27,7 @@ bool IsPlayerBot(Player* player);
 Creature* FindCreatureBySpawnId(Map* map, uint32 spawnId);
 void LoadNamedBossCache();
 bool IsLLMChatterBoss(Creature const* creature);
+bool IsLLMChatterInternalCreature(Creature const* creature);
 
 // Strip invalid UTF-8 byte sequences, preserving every
 // valid UTF-8 run. Returns input unchanged when already

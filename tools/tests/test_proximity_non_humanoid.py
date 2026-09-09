@@ -147,11 +147,59 @@ def test_cpp_policy_order_is_conservative_and_global():
         'cr->IsTotem()',
         'cr->IsGuardian()',
         'cr->IsInCombat()',
-        'HasUnsafeChatterFacingMotion(cr)',
         'cr->GetSpawnId()',
+        'cr->HasUnitFlag(UNIT_FLAG_NOT_SELECTABLE)',
+        'IsLLMChatterInternalCreature(cr)',
+        'cr->HasUnitState(UNIT_STATE_DIED)',
+        'cr->HasDynamicFlag(UNIT_DYNFLAG_DEAD)',
+        'player->CanSeeOrDetect(cr)',
     ):
         assert safety_check in eligibility
     assert 'cr->IsHostileTo(player)' not in eligibility
+    assert 'HasUnsafeChatterFacingMotion(cr)' not in eligibility
+
+    bot_eligibility = source.split(
+        'bool IsEligibleProximityBot(', 1
+    )[1].split('bool IsEligibleProximityNPC(', 1)[0]
+    assert 'HasUnsafeChatterFacingMotion(bot)' not in bot_eligibility
+
+    delivery = (
+        MODULE_DIR / 'src' / 'LLMChatterDelivery.cpp'
+    ).read_text(encoding='utf-8')
+    assert 'IsSafeForChatterFacing(bot)' in delivery
+    assert 'IsSafeForChatterFacing(speaker)' in delivery
+
+    shared = (
+        MODULE_DIR / 'src' / 'LLMChatterShared.cpp'
+    ).read_text(encoding='utf-8')
+    internal = shared.split(
+        'bool IsLLMChatterInternalCreature(', 1
+    )[1].split('std::string SanitizeUtf8(', 1)[0]
+    for marker in (
+        '[DND]', '(DND)', '[PH]', '(PH)', '[UNUSED]', '(UNUSED)',
+    ):
+        assert marker in internal
+    assert 'creature->IsTrigger()' in internal
+    assert 'StringContainsStringI(name, marker)' in internal
+
+
+def test_nearby_name_context_deduplicates_names_and_typed_ids():
+    source = (
+        MODULE_DIR / 'src' / 'LLMChatterProximity.cpp'
+    ).read_text(encoding='utf-8')
+    nearby = source.split(
+        'std::string BuildNearbyNamesJson(', 1
+    )[1].split('std::string BuildProximityExtraJson(', 1)[0]
+    assert 'std::set<std::pair<bool, uint32>> speakerIds' in nearby
+    assert 'speakerIds.emplace(s.isNPC, s.id)' in nearby
+    assert 'std::set<std::string> includedNames' in nearby
+    assert 'ToLowerAscii(c.name)' in nearby
+
+    selection = source.split(
+        'std::vector<ProximityCandidate> SelectCompatibleSpeakers(', 1
+    )[1].split('std::string ToLowerAscii(', 1)[0]
+    assert 'StringEqualI(' in selection
+    assert 'candidate.name, selected.name' in selection
 
 
 def test_entry_lists_are_reload_safe_and_deny_wins():
@@ -169,8 +217,10 @@ def test_entry_lists_are_reload_safe_and_deny_wins():
         assert name in distributed
     assert '_proxSpeakerAllowEntries' in header
     assert '_proxSpeakerDenyEntries' in header
+    assert 'std::atomic<std::shared_ptr<' in header
     assert '_proxSpeakerAllowEntries.store(' in config
     assert '_proxSpeakerDenyEntries.store(' in config
+    assert 'configured.load()' in config
     assert 'LOG_WARN(' in config
 
     source = (
