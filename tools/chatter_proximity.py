@@ -1,5 +1,6 @@
 """Proximity chatter event handlers."""
 
+import json
 import logging
 import random
 from typing import Dict, List, Optional
@@ -10,6 +11,11 @@ from chatter_constants import (
 )
 from chatter_db import insert_chat_message
 from chatter_llm import call_llm
+from chatter_instance_context import (
+    build_instance_context,
+    build_location_metadata,
+    build_location_prompt_lines,
+)
 from chatter_shared import (
     PromptParts,
     append_json_instruction,
@@ -140,6 +146,18 @@ def _describe_speaker(
         parts = [speaker.get('name', 'NPC'), role]
         if sub_name:
             parts.append(sub_name)
+        disposition = speaker.get('disposition') or ''
+        rank = speaker.get('rank') or ''
+        creature_type = speaker.get('creature_type') or ''
+        qualification = speaker.get('qualification') or ''
+        if disposition:
+            parts.append(f"disposition: {disposition}")
+        if rank and rank != 'normal':
+            parts.append(f"rank: {rank}")
+        if creature_type:
+            parts.append(f"creature type: {creature_type}")
+        if qualification:
+            parts.append(f"qualified by: {qualification}")
         return " | ".join(part for part in parts if part)
 
     bot_guid = int(speaker.get('bot_guid', 0) or 0)
@@ -191,6 +209,79 @@ def _mixed_voice_guidance(mode: str) -> List[str]:
     lines.append(
         "Apply the appropriate rule independently to every speaker."
     )
+    lines.append(
+        "Respect each NPC disposition tag. Hostile can mean wary, mocking, "
+        "dismissive, or threatening, but does not mean combat has started."
+    )
+    lines.append(
+        "Respect NPC creature-type and qualification tags. A listed "
+        "non-humanoid is intentionally capable of speech; do not imply "
+        "that every creature of its type can talk."
+    )
+    return lines
+
+
+def _npc_disposition_guidance(speaker: Dict) -> str:
+    disposition = str(
+        speaker.get('disposition') or ''
+    ).lower()
+    if disposition == 'hostile':
+        return (
+            "This NPC is hostile to the player but not yet in combat. "
+            "Sound wary, mocking, dismissive, or threatening as fits the "
+            "NPC; do not force a combat taunt."
+        )
+    if disposition == 'unfriendly':
+        return (
+            "This NPC is unfriendly rather than openly hostile. A cool or "
+            "guarded tone is appropriate, but violence is not inevitable."
+        )
+    return ''
+
+
+def _npc_speech_capability_guidance(speaker: Dict) -> str:
+    if not speaker.get('is_npc'):
+        return ''
+    creature_type = str(
+        speaker.get('creature_type') or ''
+    ).lower()
+    if not creature_type or creature_type == 'humanoid':
+        return ''
+    qualification = str(
+        speaker.get('qualification') or ''
+    ).lower()
+    if qualification == 'configured entry':
+        reason = 'this exact creature entry was deliberately approved'
+    elif qualification == 'functional npc':
+        reason = 'its established interactive NPC role permits speech'
+    else:
+        reason = 'the supplied eligibility metadata permits speech'
+    return (
+        f"This {creature_type} can genuinely speak because {reason}. "
+        "Ground its voice in the supplied name, title, role, and location; "
+        "do not invent a persistent backstory or species-wide speech rule."
+    )
+
+
+def _location_lines(
+    extra: Dict,
+    mode: str,
+    speakers: List[Dict],
+) -> List[str]:
+    lines = build_location_prompt_lines(extra)
+    context = build_instance_context(extra)
+    has_normal_playerbot = (
+        not is_roleplay(mode)
+        and any(
+            not speaker.get('is_npc')
+            for speaker in speakers
+        )
+    )
+    if context['is_instance'] and has_normal_playerbot:
+        lines.append(
+            "Normal-mode playerbots treat the instance context as game "
+            "knowledge. They must not claim to physically sense its lore."
+        )
     return lines
 
 
@@ -247,8 +338,6 @@ def _single_prompt(
 ) -> PromptParts:
     mode = get_chatter_mode(config or {})
     speaker_roleplay = _speaker_is_roleplay(speaker, mode)
-    zone_name = extra.get('zone_name', 'the area')
-    subzone_name = extra.get('subzone_name', '')
     player_name = extra.get('player_name', 'the player')
     player_addressed = bool(
         extra.get('player_addressed', False)
@@ -311,8 +400,20 @@ def _single_prompt(
         "No AI talk, markdown, or forced slang.",
         "",
         f"Speaker: {speaker_desc}",
-        f"Zone: {zone_name}",
     ])
+    lines.extend(_location_lines(
+        extra, mode, [speaker]
+    ))
+    disposition_guidance = _npc_disposition_guidance(
+        speaker
+    )
+    if disposition_guidance:
+        lines.append(disposition_guidance)
+    speech_guidance = _npc_speech_capability_guidance(
+        speaker
+    )
+    if speech_guidance:
+        lines.append(speech_guidance)
     if speaker_traits:
         lines.append(
             "Speaker personality: "
@@ -334,8 +435,6 @@ def _single_prompt(
                 f"Speaker background: "
                 f"{speaker_backstory}"
             )
-    if subzone_name:
-        lines.append(f"Subzone: {subzone_name}")
     lines.append(f"Topic seed: {topic}")
 
     if player_message:
@@ -385,8 +484,6 @@ def _conversation_prompt(
             + "; playerbot angle: "
             + random.choice(PROXIMITY_PLAYER_CHAT_TOPICS)
         )
-    zone_name = extra.get('zone_name', 'the area')
-    subzone_name = extra.get('subzone_name', '')
     max_lines = max(
         2, min(
             int(extra.get('max_lines', 3) or 3),
@@ -457,14 +554,14 @@ def _conversation_prompt(
         "nearby exchange.",
         "Keep the exchange brief.",
         "",
-        f"Zone: {zone_name}",
         f"Topic seed: {topic}",
         f"Write EXACTLY {max_lines} messages.",
         "Speakers may address each other by name.",
     ]
+    lines.extend(_location_lines(
+        extra, mode, participants
+    ))
     lines.extend(_mixed_voice_guidance(mode))
-    if subzone_name:
-        lines.append(f"Subzone: {subzone_name}")
 
     addressable = list(nearby_names)
     if player_addressed and player_name:
@@ -529,7 +626,7 @@ def _generate_single_line(
         ),
         label=label,
         metadata={
-            'zone_name': extra.get('zone_name', ''),
+            **build_location_metadata(extra),
             'speaker_name': speaker.get('name', ''),
         },
     )
@@ -606,7 +703,7 @@ def handle_proximity_conversation(
         max_tokens_override=max_tokens,
         label='proximity_conversation',
         metadata={
-            'zone_name': extra.get('zone_name', ''),
+            **build_location_metadata(extra),
             'speaker_count': len(participants),
         },
     )
@@ -706,6 +803,23 @@ def handle_proximity_reply(db, client, config, event):
                 'responder_npc_spawn_id', 0
             ) or 0
         ),
+        'npc_entry': int(
+            extra.get('responder_npc_entry', 0) or 0
+        ),
+        'role': extra.get('responder_role', ''),
+        'sub_name': extra.get(
+            'responder_sub_name', ''
+        ),
+        'disposition': extra.get(
+            'responder_disposition', ''
+        ),
+        'rank': extra.get('responder_rank', ''),
+        'creature_type': extra.get(
+            'responder_creature_type', ''
+        ),
+        'qualification': extra.get(
+            'responder_qualification', ''
+        ),
     }
     if (
         not responder['bot_guid']
@@ -748,6 +862,7 @@ def handle_proximity_reply(db, client, config, event):
 
 def _fetch_proximity_history(
     db, player_guid: int, zone_id: int,
+    map_id: int, instance_id: int,
     limit: int = 10,
 ) -> List[Dict]:
     """Fetch recent proximity messages for context."""
@@ -756,32 +871,45 @@ def _fetch_proximity_history(
     try:
         cursor = db.cursor(dictionary=True)
         cursor.execute(
-            "SELECT t.bot_name, t.message FROM ("
-            "  SELECT m.bot_name, m.message,"
-            "         m.delivered_at"
+            "SELECT m.bot_name, m.message,"
+            "       m.delivered_at, e.extra_data"
             "  FROM llm_chatter_messages m"
             "  JOIN llm_chatter_events e"
             "    ON m.event_id = e.id"
             "  WHERE m.delivered = 1"
             "    AND m.channel IN ('say', 'msay')"
             "    AND e.zone_id = %s"
+            "    AND e.map_id = %s"
             "    AND m.player_guid = %s"
             "    AND m.delivered_at"
             "        > DATE_SUB(NOW(),"
             "          INTERVAL 5 MINUTE)"
             "  ORDER BY m.delivered_at DESC"
-            "  LIMIT %s"
-            ") t ORDER BY t.delivered_at ASC",
-            (zone_id, player_guid, limit),
+            "  LIMIT %s",
+            (zone_id, map_id, player_guid, limit * 4),
         )
         rows = cursor.fetchall()
-        return [
-            {
-                'name': r['bot_name'],
-                'message': r['message'],
-            }
-            for r in rows
-        ]
+        history = []
+        for row in rows:
+            if instance_id:
+                try:
+                    event_extra = json.loads(
+                        row.get('extra_data') or '{}'
+                    )
+                except (TypeError, ValueError):
+                    continue
+                if int(
+                    event_extra.get('instance_id', 0) or 0
+                ) != instance_id:
+                    continue
+            history.append({
+                'name': row['bot_name'],
+                'message': row['message'],
+            })
+            if len(history) >= limit:
+                break
+        history.reverse()
+        return history
     except Exception:
         logger.error(
             "fetch proximity history failed",
@@ -815,8 +943,6 @@ def _player_say_single_prompt(
 ) -> PromptParts:
     mode = get_chatter_mode(config or {})
     speaker_roleplay = _speaker_is_roleplay(speaker, mode)
-    zone_name = extra.get('zone_name', 'the area')
-    subzone_name = extra.get('subzone_name', '')
     player_name = extra.get(
         'player_name', 'the player'
     )
@@ -853,10 +979,20 @@ def _player_say_single_prompt(
         "Keep it natural and low-stakes. No AI talk or markdown.",
         "",
         f"Speaker: {speaker_desc}",
-        f"Zone: {zone_name}",
     ])
-    if subzone_name:
-        lines.append(f"Subzone: {subzone_name}")
+    lines.extend(_location_lines(
+        extra, mode, [speaker]
+    ))
+    disposition_guidance = _npc_disposition_guidance(
+        speaker
+    )
+    if disposition_guidance:
+        lines.append(disposition_guidance)
+    speech_guidance = _npc_speech_capability_guidance(
+        speaker
+    )
+    if speech_guidance:
+        lines.append(speech_guidance)
 
     addressed = extra.get('addressed_name', '')
     if addressed:
@@ -902,8 +1038,6 @@ def _player_say_conversation_prompt(
     config: Optional[Dict] = None,
 ) -> PromptParts:
     mode = get_chatter_mode(config or {})
-    zone_name = extra.get('zone_name', 'the area')
-    subzone_name = extra.get('subzone_name', '')
     player_name = extra.get(
         'player_name', 'the player'
     )
@@ -928,11 +1062,11 @@ def _player_say_conversation_prompt(
         "nearby exchange.",
         "Keep the exchange brief.",
         "",
-        f"Zone: {zone_name}",
     ]
+    lines.extend(_location_lines(
+        extra, mode, participants
+    ))
     lines.extend(_mixed_voice_guidance(mode))
-    if subzone_name:
-        lines.append(f"Subzone: {subzone_name}")
 
     addressed = extra.get('addressed_name', '')
     if addressed:
@@ -1019,8 +1153,13 @@ def handle_proximity_player_say(
     zone_id = int(
         extra.get('zone_id', 0) or 0
     )
+    map_id = int(extra.get('map_id', 0) or 0)
+    instance_id = int(
+        extra.get('instance_id', 0) or 0
+    )
     history = _fetch_proximity_history(
-        db, player_guid, zone_id
+        db, player_guid, zone_id,
+        map_id, instance_id,
     )
 
     speaker = participants[0]
@@ -1037,9 +1176,7 @@ def handle_proximity_player_say(
         ),
         label='proximity_player_say',
         metadata={
-            'zone_name': extra.get(
-                'zone_name', ''
-            ),
+            **build_location_metadata(extra),
             'speaker_name': speaker.get(
                 'name', ''
             ),
@@ -1093,8 +1230,13 @@ def handle_proximity_player_conversation(
     zone_id = int(
         extra.get('zone_id', 0) or 0
     )
+    map_id = int(extra.get('map_id', 0) or 0)
+    instance_id = int(
+        extra.get('instance_id', 0) or 0
+    )
     history = _fetch_proximity_history(
-        db, player_guid, zone_id
+        db, player_guid, zone_id,
+        map_id, instance_id,
     )
 
     prompt = _player_say_conversation_prompt(
@@ -1112,9 +1254,7 @@ def handle_proximity_player_conversation(
         max_tokens_override=max_tokens,
         label='proximity_player_conversation',
         metadata={
-            'zone_name': extra.get(
-                'zone_name', ''
-            ),
+            **build_location_metadata(extra),
             'speaker_count': len(participants),
         },
     )

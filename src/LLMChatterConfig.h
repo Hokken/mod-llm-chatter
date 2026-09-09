@@ -13,7 +13,10 @@
 #define LLM_CHATTER_CONFIG_H
 
 #include "Define.h"
+#include <atomic>
+#include <memory>
 #include <string>
+#include <unordered_set>
 
 class LLMChatterConfig
 {
@@ -27,6 +30,9 @@ public:
     void LoadConfig();
     bool IsEnabled() const { return _enabled; }
     bool IsDebugLog() const { return _debugLog; }
+    bool IsProximitySpeakerAllowed(uint32 creatureEntry) const;
+    bool IsProximitySpeakerDenied(uint32 creatureEntry) const;
+    bool IsProximityBossSpeakerDenied(uint32 creatureEntry) const;
 
     // General settings
     bool _enabled;
@@ -278,10 +284,16 @@ public:
 
     // Proximity chatter
     bool _proxChatterEnable;
+    bool _proxChatterEnableInDungeons;
+    bool _proxChatterEnableInRaids;
     uint32 _proxChatterScanInterval;
+    uint32 _proxChatterOutdoorScanInterval;
+    uint32 _proxChatterInstanceScanInterval;
     uint32 _proxChatterScanRadius;
     uint32 _proxChatterPlayerSayScanRadius;
     uint32 _proxChatterChance;
+    uint32 _proxChatterOutdoorChance;
+    uint32 _proxChatterInstanceChance;
     uint32 _proxChatterEntityCooldown;
     uint32 _proxChatterZoneFatigueThreshold;
     uint32 _proxChatterZoneFatigueDecay;
@@ -293,6 +305,31 @@ public:
     uint32 _proxChatterReplyMaxTurns;
     uint32 _proxChatterMaxTokensPerLine;
     uint32 _proxChatterFacingResetDelay;
+    std::atomic<std::shared_ptr<
+        std::unordered_set<uint32> const>>
+            _proxSpeakerAllowEntries;
+    std::atomic<std::shared_ptr<
+        std::unordered_set<uint32> const>>
+            _proxSpeakerDenyEntries;
+    bool _proxBossDialogueEnable;
+    uint32 _proxBossApproachCheckInterval;
+    uint32 _proxBossApproachMaxRadius;
+    uint32 _proxBossAggroSafetyMargin;
+    uint32 _proxBossInitialDelayMin;
+    uint32 _proxBossInitialDelayMax;
+    uint32 _proxBossRepeatDelayMin;
+    uint32 _proxBossRepeatDelayMax;
+    uint32 _proxBossRepeatChance;
+    uint32 _proxBossRepeatChanceDecay;
+    uint32 _proxBossRepeatChanceFloor;
+    bool _proxBossUnlimitedAutomaticLines;
+    uint32 _proxBossMaxAutomaticLines;
+    uint32 _proxBossPresenceReset;
+    uint32 _proxBossDirectedReplyCooldown;
+    uint32 _proxBossDirectedScanCooldown;
+    std::atomic<std::shared_ptr<
+        std::unordered_set<uint32> const>>
+            _proxBossSpeakerDenyEntries;
 
     // Chatter Log addon (reads the bridge's request log)
     bool _addonLogEnable{false};

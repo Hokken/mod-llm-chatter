@@ -4,6 +4,7 @@
 
 #include "LLMChatterProximity.h"
 
+#include "LLMChatterBossDialogue.h"
 #include "LLMChatterConfig.h"
 #include "LLMChatterShared.h"
 
@@ -18,6 +19,7 @@
 #include "Playerbots.h"
 #include "RandomPlayerbotMgr.h"
 #include "ScriptedCreature.h"
+#include "Util.h"
 #include "Map.h"
 #include "World.h"
 #include "WorldSession.h"
@@ -29,6 +31,7 @@
 #include <list>
 #include <map>
 #include <random>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -101,6 +104,7 @@ struct ProximityScene
     uint32 playerGuid = 0;
     uint32 zoneId = 0;
     uint32 mapId = 0;
+    uint32 instanceId = 0;
     std::vector<ProximityParticipant> participants;
     uint32 lastSpeakerId = 0;
     bool lastSpeakerIsNPC = false;
@@ -130,6 +134,194 @@ static std::map<uint32, ProximityScene> _activeScenes;
 static std::map<uint32, std::vector<uint32>> _playerScenes;
 static std::mt19937 _rng(std::random_device{}());
 
+enum class DirectedSayResult
+{
+    NotDirected,
+    Queued,
+    Suppressed
+};
+
+bool IsProximityMapAllowed(Map const* map)
+{
+    if (!map || map->IsBattlegroundOrArena())
+        return false;
+    if (map->IsRaid())
+        return sLLMChatterConfig
+            && sLLMChatterConfig
+                   ->_proxChatterEnableInRaids;
+    if (map->IsDungeon())
+        return sLLMChatterConfig
+            && sLLMChatterConfig
+                   ->_proxChatterEnableInDungeons;
+    return true;
+}
+
+bool IsInstanceProximityMap(Map const* map)
+{
+    return map && (map->IsDungeon() || map->IsRaid());
+}
+
+bool IsEligibleProximityAnchor(Player* player)
+{
+    return player && player->IsInWorld()
+        && player->IsAlive()
+        && !player->IsInCombat()
+        && !player->IsMounted()
+        && !player->IsFlying()
+        && IsProximityMapAllowed(player->GetMap());
+}
+
+std::string GetNPCDisposition(
+    Creature const* creature, Player const* player)
+{
+    if (!creature || !player)
+        return "neutral";
+
+    ReputationRank reaction =
+        creature->GetReactionTo(player);
+    if (reaction <= REP_HOSTILE)
+        return "hostile";
+    if (reaction == REP_UNFRIENDLY)
+        return "unfriendly";
+    if (reaction == REP_NEUTRAL)
+        return "neutral";
+    return "friendly";
+}
+
+std::string GetCreatureRankLabel(
+    CreatureTemplate const* creatureTemplate)
+{
+    if (!creatureTemplate)
+        return "normal";
+
+    switch (creatureTemplate->rank)
+    {
+        case CREATURE_ELITE_ELITE:
+            return "elite";
+        case CREATURE_ELITE_RAREELITE:
+            return "rare elite";
+        case CREATURE_ELITE_WORLDBOSS:
+            return "world boss";
+        case CREATURE_ELITE_RARE:
+            return "rare";
+        default:
+            return "normal";
+    }
+}
+
+std::string GetCreatureTypeLabel(
+    CreatureTemplate const* creatureTemplate)
+{
+    if (!creatureTemplate)
+        return "unknown";
+
+    switch (creatureTemplate->type)
+    {
+        case CREATURE_TYPE_BEAST:
+            return "beast";
+        case CREATURE_TYPE_DRAGONKIN:
+            return "dragonkin";
+        case CREATURE_TYPE_DEMON:
+            return "demon";
+        case CREATURE_TYPE_ELEMENTAL:
+            return "elemental";
+        case CREATURE_TYPE_GIANT:
+            return "giant";
+        case CREATURE_TYPE_UNDEAD:
+            return "undead";
+        case CREATURE_TYPE_HUMANOID:
+            return "humanoid";
+        case CREATURE_TYPE_CRITTER:
+            return "critter";
+        case CREATURE_TYPE_MECHANICAL:
+            return "mechanical";
+        case CREATURE_TYPE_NOT_SPECIFIED:
+            return "not specified";
+        case CREATURE_TYPE_TOTEM:
+            return "totem";
+        case CREATURE_TYPE_NON_COMBAT_PET:
+            return "non-combat pet";
+        case CREATURE_TYPE_GAS_CLOUD:
+            return "gas cloud";
+        default:
+            return "unknown";
+    }
+}
+
+enum class ProximityNPCQualification
+{
+    None,
+    Guard,
+    FunctionalNPC,
+    Humanoid,
+    ConfiguredEntry
+};
+
+bool HasConversationalNPCFlags(Creature const* creature)
+{
+    if (!creature)
+        return false;
+
+    uint32 npcFlags = creature->GetNpcFlags();
+    return npcFlags
+        & (UNIT_NPC_FLAG_VENDOR
+            | UNIT_NPC_FLAG_VENDOR_AMMO
+            | UNIT_NPC_FLAG_VENDOR_FOOD
+            | UNIT_NPC_FLAG_VENDOR_POISON
+            | UNIT_NPC_FLAG_VENDOR_REAGENT
+            | UNIT_NPC_FLAG_TRAINER
+            | UNIT_NPC_FLAG_TRAINER_CLASS
+            | UNIT_NPC_FLAG_TRAINER_PROFESSION
+            | UNIT_NPC_FLAG_INNKEEPER
+            | UNIT_NPC_FLAG_FLIGHTMASTER
+            | UNIT_NPC_FLAG_QUESTGIVER);
+}
+
+ProximityNPCQualification GetProximityNPCQualification(
+    Creature const* creature)
+{
+    if (!creature || !sLLMChatterConfig)
+        return ProximityNPCQualification::None;
+
+    CreatureTemplate const* creatureTemplate =
+        creature->GetCreatureTemplate();
+    if (!creatureTemplate)
+        return ProximityNPCQualification::None;
+
+    uint32 entry = creature->GetEntry();
+    if (sLLMChatterConfig->IsProximitySpeakerDenied(entry))
+        return ProximityNPCQualification::None;
+    if (IsLLMChatterBoss(creature))
+        return ProximityNPCQualification::None;
+    if (creature->IsGuard())
+        return ProximityNPCQualification::Guard;
+    if (HasConversationalNPCFlags(creature))
+        return ProximityNPCQualification::FunctionalNPC;
+    if (creatureTemplate->type == CREATURE_TYPE_HUMANOID)
+        return ProximityNPCQualification::Humanoid;
+    if (sLLMChatterConfig->IsProximitySpeakerAllowed(entry))
+        return ProximityNPCQualification::ConfiguredEntry;
+    return ProximityNPCQualification::None;
+}
+
+std::string GetProximityNPCQualificationLabel(
+    ProximityNPCQualification qualification)
+{
+    switch (qualification)
+    {
+        case ProximityNPCQualification::Guard:
+            return "guard";
+        case ProximityNPCQualification::FunctionalNPC:
+            return "functional NPC";
+        case ProximityNPCQualification::Humanoid:
+            return "humanoid";
+        case ProximityNPCQualification::ConfiguredEntry:
+            return "configured entry";
+        default:
+            return "";
+    }
+}
+
 bool IsSameGroup(Player* left, Group* group)
 {
     if (!left || !group)
@@ -154,11 +346,11 @@ bool IsEligibleProximityBot(
     if (bot->IsInCombat() || bot->IsMounted()
         || bot->IsFlying())
         return false;
-    if (HasUnsafeChatterFacingMotion(bot))
-        return false;
-    if (bot->GetMapId() != player->GetMapId())
+    if (bot->GetMap() != player->GetMap())
         return false;
     if (!player->IsWithinDistInMap(bot, radius))
+        return false;
+    if (!player->IsWithinLOSInMap(bot))
         return false;
 
     WorldSession* session = bot->GetSession();
@@ -173,66 +365,38 @@ bool IsEligibleProximityNPC(
 {
     if (!player || !cr || !cr->IsAlive())
         return false;
+    if (IsLLMChatterInternalCreature(cr)
+        || cr->HasUnitFlag(UNIT_FLAG_NOT_SELECTABLE))
+        return false;
+    if (cr->HasUnitState(UNIT_STATE_DIED)
+        || cr->HasDynamicFlag(UNIT_DYNFLAG_DEAD))
+        return false;
     if (!player->IsWithinDistInMap(cr, radius))
+        return false;
+    if (!player->CanSeeOrDetect(cr)
+        || !player->IsWithinLOSInMap(cr))
         return false;
     if (cr->IsPet() || cr->IsTotem()
         || cr->IsGuardian())
         return false;
     if (cr->IsPlayer() || cr->IsInCombat())
         return false;
-    if (HasUnsafeChatterFacingMotion(cr))
-        return false;
-    if (cr->IsHostileTo(player))
-        return false;
-
     CreatureTemplate const* tmpl =
         cr->GetCreatureTemplate();
     if (!tmpl)
         return false;
-    if (cr->GetName().empty())
+    if (!cr->GetSpawnId())
         return false;
-
-    switch (tmpl->type)
-    {
-        case CREATURE_TYPE_CRITTER:
-        case CREATURE_TYPE_BEAST:
-        case CREATURE_TYPE_MECHANICAL:
-        case CREATURE_TYPE_ELEMENTAL:
-        case CREATURE_TYPE_GAS_CLOUD:
-        case CREATURE_TYPE_NON_COMBAT_PET:
-        case CREATURE_TYPE_TOTEM:
-            return false;
-        default:
-            break;
-    }
-
-    if (cr->IsGuard())
-        return true;
-
-    uint32 npcFlags =
-        cr->GetUInt32Value(UNIT_NPC_FLAGS);
-    if (npcFlags
-        & (UNIT_NPC_FLAG_VENDOR
-            | UNIT_NPC_FLAG_VENDOR_AMMO
-            | UNIT_NPC_FLAG_VENDOR_FOOD
-            | UNIT_NPC_FLAG_VENDOR_POISON
-            | UNIT_NPC_FLAG_VENDOR_REAGENT
-            | UNIT_NPC_FLAG_TRAINER
-            | UNIT_NPC_FLAG_TRAINER_CLASS
-            | UNIT_NPC_FLAG_TRAINER_PROFESSION
-            | UNIT_NPC_FLAG_INNKEEPER
-            | UNIT_NPC_FLAG_FLIGHTMASTER
-            | UNIT_NPC_FLAG_QUESTGIVER))
-        return true;
-
-    return tmpl->type == CREATURE_TYPE_HUMANOID;
+    return GetProximityNPCQualification(cr)
+        != ProximityNPCQualification::None;
 }
 
 WorldObject* ResolveParticipantObject(
     Player* player,
     ProximityParticipant const& participant)
 {
-    if (!player || !player->IsInWorld())
+    if (!player || !player->IsInWorld()
+        || !player->IsAlive())
         return nullptr;
 
     if (participant.isNPC)
@@ -245,7 +409,7 @@ WorldObject* ResolveParticipantObject(
     Player* bot = ObjectAccessor::FindPlayer(guid);
     if (!bot || !bot->IsInWorld())
         return nullptr;
-    if (bot->GetMapId() != player->GetMapId())
+    if (bot->GetMap() != player->GetMap())
         return nullptr;
     return bot;
 }
@@ -258,12 +422,60 @@ WorldObject* GetCandidateObject(
     return candidate.bot;
 }
 
-bool SameCandidate(
+Unit* GetCandidateUnit(
+    ProximityCandidate const& candidate)
+{
+    if (candidate.isNPC)
+        return candidate.npc;
+    return candidate.bot;
+}
+
+bool CanShareProximityScene(
     ProximityCandidate const& left,
     ProximityCandidate const& right)
 {
-    return left.id == right.id
-        && left.isNPC == right.isNPC;
+    Unit* leftUnit = GetCandidateUnit(left);
+    Unit* rightUnit = GetCandidateUnit(right);
+    if (!leftUnit || !rightUnit)
+        return false;
+
+    return !leftUnit->IsHostileTo(rightUnit)
+        && !rightUnit->IsHostileTo(leftUnit);
+}
+
+std::vector<ProximityCandidate> SelectCompatibleSpeakers(
+    std::vector<ProximityCandidate> const& candidates,
+    ProximityCandidate const* preferred,
+    size_t maximum)
+{
+    std::vector<ProximityCandidate> speakers;
+    if (preferred)
+        speakers.push_back(*preferred);
+
+    for (ProximityCandidate const& candidate : candidates)
+    {
+        if (speakers.size() >= maximum)
+            break;
+        if (preferred
+            && candidate.id == preferred->id
+            && candidate.isNPC == preferred->isNPC)
+            continue;
+
+        bool compatible = std::all_of(
+            speakers.begin(), speakers.end(),
+            [&candidate](
+                ProximityCandidate const& selected)
+            {
+                return !StringEqualI(
+                        candidate.name, selected.name)
+                    && CanShareProximityScene(
+                        candidate, selected);
+            });
+        if (compatible)
+            speakers.push_back(candidate);
+    }
+
+    return speakers;
 }
 
 std::string ToLowerAscii(std::string value)
@@ -467,8 +679,11 @@ std::string BuildBotParticipantJson(Player* bot)
         + "\",\"role\":\"bot\"}";
 }
 
-std::string BuildNPCParticipantJson(Creature* cr)
+std::string BuildNPCParticipantJson(
+    Creature* cr, Player* player)
 {
+    CreatureTemplate const* creatureTemplate =
+        cr->GetCreatureTemplate();
     return std::string("{")
         + "\"name\":\""
         + JsonEscape(cr->GetName()) + "\","
@@ -481,16 +696,30 @@ std::string BuildNPCParticipantJson(Creature* cr)
         + JsonEscape(GetCreatureRoleName(cr))
         + "\",\"sub_name\":\""
         + JsonEscape(
-            cr->GetCreatureTemplate()->SubName)
+            creatureTemplate->SubName)
+        + "\",\"disposition\":\""
+        + JsonEscape(
+            GetNPCDisposition(cr, player))
+        + "\",\"rank\":\""
+        + JsonEscape(
+            GetCreatureRankLabel(creatureTemplate))
+        + "\",\"creature_type\":\""
+        + JsonEscape(
+            GetCreatureTypeLabel(creatureTemplate))
+        + "\",\"qualification\":\""
+        + JsonEscape(
+            GetProximityNPCQualificationLabel(
+                GetProximityNPCQualification(cr)))
         + "\"}";
 }
 
 std::string BuildParticipantJson(
-    ProximityCandidate const& candidate)
+    ProximityCandidate const& candidate,
+    Player* player)
 {
     if (candidate.isNPC && candidate.npc)
         return BuildNPCParticipantJson(
-            candidate.npc);
+            candidate.npc, player);
 
     if (candidate.bot)
         return BuildBotParticipantJson(
@@ -500,14 +729,16 @@ std::string BuildParticipantJson(
 }
 
 std::string BuildParticipantsJson(
-    std::vector<ProximityCandidate> const& candidates)
+    std::vector<ProximityCandidate> const& candidates,
+    Player* player)
 {
     std::string json = "[";
     for (size_t i = 0; i < candidates.size(); ++i)
     {
         if (i > 0)
             json += ",";
-        json += BuildParticipantJson(candidates[i]);
+        json += BuildParticipantJson(
+            candidates[i], player);
     }
     json += "]";
     return json;
@@ -529,19 +760,27 @@ std::string GetAreaNameForLocale(uint32 areaId)
 
 uint32 ComputeEffectiveChance(Player* player)
 {
-    uint32 chance =
-        sLLMChatterConfig->_proxChatterChance;
+    Map* map = player ? player->GetMap() : nullptr;
+    bool instanceMap = IsInstanceProximityMap(map);
+    uint32 chance = instanceMap
+        ? sLLMChatterConfig->_proxChatterInstanceChance
+        : sLLMChatterConfig->_proxChatterOutdoorChance;
     if (!player)
         return chance;
 
+    uint32 scanInterval = instanceMap
+        ? sLLMChatterConfig
+              ->_proxChatterInstanceScanInterval
+        : sLLMChatterConfig
+              ->_proxChatterOutdoorScanInterval;
     uint32 windowSeconds = std::max<uint32>(
         sLLMChatterConfig->_proxChatterEntityCooldown,
-        sLLMChatterConfig->_proxChatterScanInterval
-            * 3);
+        scanInterval * 3);
     std::string key = std::to_string(
         player->GetGUID().GetCounter())
-        + ":"
-        + std::to_string(player->GetZoneId());
+        + ":" + std::to_string(player->GetMapId())
+        + ":" + std::to_string(
+            map ? map->GetInstanceId() : 0);
     time_t now = time(nullptr);
     auto& state = _zoneFatigue[key];
 
@@ -573,10 +812,12 @@ void NoteZoneTrigger(Player* player)
     if (!player)
         return;
 
+    Map* map = player->GetMap();
     std::string key = std::to_string(
         player->GetGUID().GetCounter())
-        + ":"
-        + std::to_string(player->GetZoneId());
+        + ":" + std::to_string(player->GetMapId())
+        + ":" + std::to_string(
+            map ? map->GetInstanceId() : 0);
     auto& state = _zoneFatigue[key];
     state.first = time(nullptr);
     ++state.second;
@@ -591,8 +832,11 @@ void EvictExpiredProximityCooldowns()
     uint32 zoneWindow = std::max<uint32>(
         sLLMChatterConfig
             ->_proxChatterEntityCooldown,
-        sLLMChatterConfig
-                ->_proxChatterScanInterval
+        std::max(
+            sLLMChatterConfig
+                ->_proxChatterOutdoorScanInterval,
+            sLLMChatterConfig
+                ->_proxChatterInstanceScanInterval)
             * 3);
     time_t zoneCutoff =
         static_cast<time_t>(zoneWindow);
@@ -617,10 +861,15 @@ void EvictExpiredProximityCooldowns()
 }
 
 std::string GetEntityCooldownKey(
+    Player const* player,
     ProximityCandidate const& candidate)
 {
+    Map const* map = player ? player->GetMap() : nullptr;
     return std::string(candidate.isNPC ? "npc:" : "bot:")
-        + std::to_string(candidate.id);
+        + std::to_string(player ? player->GetMapId() : 0)
+        + ":" + std::to_string(
+            map ? map->GetInstanceId() : 0)
+        + ":" + std::to_string(candidate.id);
 }
 
 void CollectNearbyBots(
@@ -708,15 +957,19 @@ std::string BuildNearbyNamesJson(
     std::vector<ProximityCandidate> const& allCandidates,
     std::vector<ProximityCandidate> const& speakers)
 {
-    std::set<uint32> speakerIds;
+    std::set<std::pair<bool, uint32>> speakerIds;
     for (auto const& s : speakers)
-        speakerIds.insert(s.id);
+        speakerIds.emplace(s.isNPC, s.id);
 
     std::string json = "[";
     size_t count = 0;
+    std::set<std::string> includedNames;
     for (auto const& c : allCandidates)
     {
-        if (speakerIds.count(c.id))
+        if (speakerIds.count({c.isNPC, c.id}))
+            continue;
+        if (!includedNames.insert(
+                ToLowerAscii(c.name)).second)
             continue;
         if (count >= 4)
             break;
@@ -736,6 +989,10 @@ std::string BuildBaseEventJson(
     bool playerAddressed,
     uint32 maxLines)
 {
+    Map* map = player->GetMap();
+    uint32 instanceId = map ? map->GetInstanceId() : 0;
+    char const* rawMapName =
+        map ? map->GetMapName() : nullptr;
     return std::string("{")
         + "\"player_guid\":"
         + std::to_string(
@@ -744,6 +1001,20 @@ std::string BuildBaseEventJson(
         + JsonEscape(player->GetName())
         + "\",\"zone_id\":"
         + std::to_string(player->GetZoneId())
+        + ",\"map_id\":"
+        + std::to_string(player->GetMapId())
+        + ",\"instance_id\":"
+        + std::to_string(instanceId)
+        + ",\"map_name\":\""
+        + JsonEscape(rawMapName ? rawMapName : "")
+        + "\",\"is_dungeon\":"
+        + std::string(
+            map && map->IsDungeon()
+                ? "true" : "false")
+        + ",\"is_raid\":"
+        + std::string(
+            map && map->IsRaid()
+                ? "true" : "false")
         + ",\"zone_name\":\""
         + JsonEscape(
             GetAreaNameForLocale(
@@ -765,7 +1036,7 @@ std::string BuildBaseEventJson(
         + ",\"max_lines\":"
         + std::to_string(maxLines)
         + ",\"participants\":"
-        + BuildParticipantsJson(speakers)
+        + BuildParticipantsJson(speakers, player)
         + "}";
 }
 
@@ -780,7 +1051,7 @@ void QueueProximityEvent(
 
     ProximityCandidate const& first = speakers[0];
     std::string cooldownKey =
-        GetEntityCooldownKey(first);
+        GetEntityCooldownKey(player, first);
     if (IsEventOnCooldown(
             _entityCooldowns,
             cooldownKey,
@@ -845,7 +1116,7 @@ void QueuePlayerSayProximityEvent(
 
     std::string escaped = EscapeString(json);
     std::string cooldownKey =
-        GetEntityCooldownKey(first);
+        GetEntityCooldownKey(player, first);
 
     QueueChatterEvent(
         eventType,
@@ -870,22 +1141,34 @@ void QueuePlayerSayProximityEvent(
     for (auto const& s : speakers)
         SetEventCooldown(
             _entityCooldowns,
-            GetEntityCooldownKey(s));
+            GetEntityCooldownKey(player, s));
 }
 
-bool QueueNamedPlayerSayProximityEvent(
-    Player* player, std::string const& safeMsg)
+bool HasNearbySelectedUnit(
+    Player* player, float radius)
 {
-    if (!player || safeMsg.empty())
-        return false;
-    if (player->IsInCombat() || player->IsMounted()
-        || player->IsFlying())
+    if (!player)
         return false;
 
-    Map* map = player->GetMap();
-    if (!map || map->IsRaid() || map->IsDungeon()
-        || map->IsBattleground())
+    ObjectGuid selectedGuid =
+        player->GetGuidValue(UNIT_FIELD_TARGET);
+    if (!selectedGuid)
         return false;
+
+    Unit* selected = ObjectAccessor::GetUnit(
+        *player, selectedGuid);
+    return selected && selected != player
+        && selected->GetMap() == player->GetMap()
+        && player->IsWithinDistInMap(
+            selected, radius);
+}
+
+DirectedSayResult QueueDirectedPlayerSayProximityEvent(
+    Player* player, std::string const& safeMsg)
+{
+    if (!IsEligibleProximityAnchor(player)
+        || safeMsg.empty())
+        return DirectedSayResult::Suppressed;
 
     float radius = static_cast<float>(
         sLLMChatterConfig
@@ -894,8 +1177,6 @@ bool QueueNamedPlayerSayProximityEvent(
     CollectNearbyBots(player, radius, candidates);
     CollectNearbyNPCs(player, radius, candidates);
     DeduplicateCandidates(candidates);
-    if (candidates.empty())
-        return false;
 
     Group* playerGroup = player->GetGroup();
     std::vector<ProximityCandidate> nonParty;
@@ -905,17 +1186,22 @@ bool QueueNamedPlayerSayProximityEvent(
             || !IsSameGroup(c.bot, playerGroup))
             nonParty.push_back(c);
     }
-    if (nonParty.empty())
-        return false;
-
-    ProximityCandidate const* named =
+    ProximityCandidate const* directed =
         FindNamedCandidate(
             player, nonParty, safeMsg);
-    if (!named)
-        return false;
+    if (!directed)
+        directed = FindSelectedCandidate(
+            player, nonParty);
+
+    if (!directed)
+    {
+        return HasNearbySelectedUnit(player, radius)
+            ? DirectedSayResult::Suppressed
+            : DirectedSayResult::NotDirected;
+    }
 
     std::vector<ProximityCandidate> speaker = {
-        *named};
+        *directed};
     QueuePlayerSayProximityEvent(
         player,
         "proximity_player_say",
@@ -923,22 +1209,14 @@ bool QueueNamedPlayerSayProximityEvent(
         candidates,
         1,
         safeMsg,
-        named->name);
-    return true;
+        directed->name);
+    return DirectedSayResult::Queued;
 }
 
 void HandleProximityPlayerSayNewScene(
     Player* player, std::string const& safeMsg)
 {
-    if (!player || !player->IsInWorld())
-        return;
-    if (player->IsInCombat() || player->IsMounted()
-        || player->IsFlying())
-        return;
-
-    Map* map = player->GetMap();
-    if (!map || map->IsRaid() || map->IsDungeon()
-        || map->IsBattleground())
+    if (!IsEligibleProximityAnchor(player))
         return;
 
     float radius = static_cast<float>(
@@ -955,11 +1233,11 @@ void HandleProximityPlayerSayNewScene(
     candidates.erase(
         std::remove_if(
             candidates.begin(), candidates.end(),
-            [](ProximityCandidate const& c)
+            [player](ProximityCandidate const& c)
             {
                 return IsEventOnCooldown(
                     _entityCooldowns,
-                    GetEntityCooldownKey(c),
+                    GetEntityCooldownKey(player, c),
                     sLLMChatterConfig
                         ->_proxChatterEntityCooldown);
             }),
@@ -984,82 +1262,25 @@ void HandleProximityPlayerSayNewScene(
     if (nonParty.empty())
         return;
 
-    // Prefer a nearby candidate explicitly named
-    // in /say, then the selected target.
-    ProximityCandidate const* targetCandidate =
-        FindNamedCandidate(
-            player, nonParty, safeMsg);
-    if (!targetCandidate)
-        targetCandidate =
-            FindSelectedCandidate(player, nonParty);
-
-    std::string addressedName =
-        targetCandidate
-            ? targetCandidate->name
-            : std::string();
-
     std::shuffle(
         candidates.begin(), candidates.end(),
         _rng);
+    std::shuffle(
+        nonParty.begin(), nonParty.end(),
+        _rng);
+
+    std::vector<ProximityCandidate> speakers =
+        SelectCompatibleSpeakers(
+            candidates, &nonParty.front(), 3);
 
     bool wantsConversation =
-        candidates.size() >= 2
+        speakers.size() >= 2
         && urand(1, 100)
             <= sLLMChatterConfig
                    ->_proxChatterConversationChance;
 
     if (wantsConversation)
     {
-        size_t participantCount = std::min<size_t>(
-            candidates.size(), 3);
-        std::vector<ProximityCandidate> speakers(
-            candidates.begin(),
-            candidates.begin() + participantCount);
-
-        // If player has a direct candidate, ensure
-        // it is the first speaker.
-        if (targetCandidate)
-        {
-            bool found = false;
-            for (size_t i = 0; i < speakers.size();
-                 ++i)
-            {
-                if (SameCandidate(
-                        speakers[i],
-                        *targetCandidate))
-                {
-                    std::swap(speakers[0],
-                              speakers[i]);
-                    found = true;
-                    break;
-                }
-            }
-            if (!found)
-                speakers[0] = *targetCandidate;
-        }
-
-        // Ensure at least one non-party speaker.
-        bool hasNonParty = false;
-        for (auto const& s : speakers)
-        {
-            if (s.isNPC
-                || !IsSameGroup(
-                    s.bot, playerGroup))
-            {
-                hasNonParty = true;
-                break;
-            }
-        }
-        if (!hasNonParty && !nonParty.empty())
-        {
-            // Swap last speaker with a random
-            // non-party candidate.
-            std::shuffle(
-                nonParty.begin(), nonParty.end(),
-                _rng);
-            speakers.back() = nonParty.front();
-        }
-
         uint32 maxLines = std::clamp<uint32>(
             sLLMChatterConfig
                 ->_proxChatterMaxConversationLines,
@@ -1071,26 +1292,12 @@ void HandleProximityPlayerSayNewScene(
             candidates,
             maxLines,
             safeMsg,
-            addressedName);
+            "");
         return;
     }
 
-    // Single speaker: prefer the direct target,
-    // then any non-party candidate.
-    ProximityCandidate chosen;
-    if (targetCandidate)
-    {
-        chosen = *targetCandidate;
-    }
-    else
-    {
-        std::shuffle(
-            nonParty.begin(), nonParty.end(),
-            _rng);
-        chosen = nonParty.front();
-    }
     std::vector<ProximityCandidate> speaker = {
-        chosen};
+        nonParty.front()};
     QueuePlayerSayProximityEvent(
         player,
         "proximity_player_say",
@@ -1098,20 +1305,12 @@ void HandleProximityPlayerSayNewScene(
         candidates,
         1,
         safeMsg,
-        addressedName);
+        "");
 }
 
 void MaybeQueueProximityScene(Player* player)
 {
-    if (!player || !player->IsInWorld())
-        return;
-    if (player->IsInCombat() || player->IsMounted()
-        || player->IsFlying())
-        return;
-
-    Map* map = player->GetMap();
-    if (!map || map->IsRaid() || map->IsDungeon()
-        || map->IsBattleground())
+    if (!IsEligibleProximityAnchor(player))
         return;
 
     uint32 effectiveChance =
@@ -1131,44 +1330,43 @@ void MaybeQueueProximityScene(Player* player)
     if (candidates.empty())
         return;
 
+    Group* playerGroup = player->GetGroup();
+    std::vector<ProximityCandidate> nonParty;
+    for (auto const& candidate : candidates)
+    {
+        if (candidate.isNPC
+            || !IsSameGroup(
+                candidate.bot, playerGroup))
+        {
+            nonParty.push_back(candidate);
+        }
+    }
+    if (nonParty.empty())
+        return;
+
     std::shuffle(
         candidates.begin(), candidates.end(),
         _rng);
+    std::shuffle(
+        nonParty.begin(), nonParty.end(),
+        _rng);
+
+    std::vector<ProximityCandidate> speakers =
+        SelectCompatibleSpeakers(
+            candidates, &nonParty.front(), 3);
 
     bool playerAddressed =
         urand(1, 100)
         <= sLLMChatterConfig
                ->_proxChatterPlayerAddressChance;
     bool wantsConversation =
-        candidates.size() >= 2
+        speakers.size() >= 2
         && urand(1, 100)
             <= sLLMChatterConfig
                    ->_proxChatterConversationChance;
 
     if (wantsConversation)
     {
-        size_t participantCount = std::min<size_t>(
-            candidates.size(), 3);
-        std::vector<ProximityCandidate> speakers(
-            candidates.begin(),
-            candidates.begin() + participantCount);
-
-        // If all speakers are party bots, skip —
-        // idle party chat already handles that.
-        Group* playerGroup = player->GetGroup();
-        bool allPartyBots = playerGroup != nullptr;
-        for (auto const& s : speakers)
-        {
-            if (s.isNPC
-                || !IsSameGroup(s.bot, playerGroup))
-            {
-                allPartyBots = false;
-                break;
-            }
-        }
-        if (allPartyBots)
-            return;
-
         uint32 maxLines = std::clamp<uint32>(
             sLLMChatterConfig
                 ->_proxChatterMaxConversationLines,
@@ -1183,19 +1381,6 @@ void MaybeQueueProximityScene(Player* player)
         return;
     }
 
-    // Filter to non-party candidates only — party
-    // chatter owns grouped-bot conversations.
-    Group* grp = player->GetGroup();
-    std::vector<ProximityCandidate> nonParty;
-    for (auto const& c : candidates)
-    {
-        if (c.isNPC
-            || !IsSameGroup(c.bot, grp))
-            nonParty.push_back(c);
-    }
-    if (nonParty.empty())
-        return;
-
     std::vector<ProximityCandidate> speaker = {
         nonParty.front()};
     QueueProximityEvent(
@@ -1209,8 +1394,14 @@ void MaybeQueueProximityScene(Player* player)
 
 ProximityScene* FindBestScene(Player* player)
 {
-    if (!player)
+    if (!IsEligibleProximityAnchor(player))
         return nullptr;
+
+    Map* map = player->GetMap();
+    uint32 instanceId = map ? map->GetInstanceId() : 0;
+    float replyRadius = static_cast<float>(
+        sLLMChatterConfig
+            ->_proxChatterPlayerSayScanRadius);
 
     auto it = _playerScenes.find(
         player->GetGUID().GetCounter());
@@ -1235,6 +1426,8 @@ ProximityScene* FindBestScene(Player* player)
             continue;
         if (scene.mapId != player->GetMapId())
             continue;
+        if (scene.instanceId != instanceId)
+            continue;
 
         ProximityParticipant responder;
         responder.id = scene.lastSpeakerId;
@@ -1245,7 +1438,12 @@ ProximityScene* FindBestScene(Player* player)
                 player, responder);
         if (!target)
             continue;
-        if (!player->IsWithinDistInMap(target, 40.0f))
+        bool eligible = responder.isNPC
+            ? IsEligibleProximityNPC(
+                player, target->ToCreature(), replyRadius)
+            : IsEligibleProximityBot(
+                player, target->ToPlayer(), replyRadius);
+        if (!eligible)
             continue;
 
         if (!best
@@ -1275,7 +1473,26 @@ std::string TrimChatMessage(
 }
 } // namespace
 
-void CheckProximityChatter()
+bool IsProximityAnchorEligible(Player* player)
+{
+    return IsEligibleProximityAnchor(player);
+}
+
+bool IsProximityPlayerbotEligible(
+    Player* player, Player* bot, float radius)
+{
+    return IsEligibleProximityBot(
+        player, bot, radius);
+}
+
+bool IsProximityNPCEligible(
+    Player* player, Creature* creature, float radius)
+{
+    return IsEligibleProximityNPC(
+        player, creature, radius);
+}
+
+void CheckProximityChatter(bool instanceMaps)
 {
     if (!sLLMChatterConfig
         || !sLLMChatterConfig->IsEnabled()
@@ -1298,6 +1515,11 @@ void CheckProximityChatter()
         if (!player || !player->IsInWorld()
             || IsPlayerBot(player))
             continue;
+        Map* map = player->GetMap();
+        bool playerInInstance =
+            IsInstanceProximityMap(map);
+        if (playerInInstance != instanceMaps)
+            continue;
 
         MaybeQueueProximityScene(player);
     }
@@ -1316,6 +1538,8 @@ void HandleProximityPlayerSay(
     if (!player || IsPlayerBot(player)
         || type != CHAT_MSG_SAY)
         return;
+    if (!IsEligibleProximityAnchor(player))
+        return;
 
     // Ignore hidden addon traffic (DBM, Questie, ElvUI, ...);
     // it is real chat tagged LANG_ADDON, not player speech.
@@ -1332,8 +1556,13 @@ void HandleProximityPlayerSay(
     if (safeMsg.empty())
         return;
 
-    if (QueueNamedPlayerSayProximityEvent(
-            player, safeMsg))
+    if (HandleBossProximityPlayerSay(player, safeMsg))
+        return;
+
+    DirectedSayResult directed =
+        QueueDirectedPlayerSayProximityEvent(
+            player, safeMsg);
+    if (directed != DirectedSayResult::NotDirected)
         return;
 
     ProximityScene* scene = FindBestScene(player);
@@ -1353,6 +1582,17 @@ void HandleProximityPlayerSay(
     if (!target)
         return;
 
+    Map* map = player->GetMap();
+    char const* rawMapName =
+        map ? map->GetMapName() : nullptr;
+    Creature* responderCreature =
+        scene->lastSpeakerIsNPC
+            ? target->ToCreature() : nullptr;
+    CreatureTemplate const* responderTemplate =
+        responderCreature
+            ? responderCreature->GetCreatureTemplate()
+            : nullptr;
+
     std::string json = std::string("{")
         + "\"scene_id\":"
         + std::to_string(scene->sceneId)
@@ -1363,10 +1603,31 @@ void HandleProximityPlayerSay(
         + JsonEscape(player->GetName())
         + "\",\"player_message\":\""
         + JsonEscape(safeMsg)
-        + "\",\"zone_name\":\""
+        + "\",\"zone_id\":"
+        + std::to_string(player->GetZoneId())
+        + ",\"map_id\":"
+        + std::to_string(player->GetMapId())
+        + ",\"instance_id\":"
+        + std::to_string(
+            map ? map->GetInstanceId() : 0)
+        + ",\"map_name\":\""
+        + JsonEscape(rawMapName ? rawMapName : "")
+        + "\",\"is_dungeon\":"
+        + std::string(
+            map && map->IsDungeon()
+                ? "true" : "false")
+        + ",\"is_raid\":"
+        + std::string(
+            map && map->IsRaid()
+                ? "true" : "false")
+        + ",\"zone_name\":\""
         + JsonEscape(
             GetAreaNameForLocale(
                 player->GetZoneId()))
+        + "\",\"subzone_name\":\""
+        + JsonEscape(
+            GetAreaNameForLocale(
+                player->GetAreaId()))
         + "\",\"turn_count\":"
         + std::to_string(scene->replyCount)
         + ",\"last_message\":\""
@@ -1388,6 +1649,40 @@ void HandleProximityPlayerSay(
             scene->lastSpeakerIsNPC
                 ? scene->lastSpeakerId
                 : 0)
+        + ",\"responder_npc_entry\":"
+        + std::to_string(
+            responderCreature
+                ? responderCreature->GetEntry() : 0)
+        + ",\"responder_role\":\""
+        + JsonEscape(
+            responderCreature
+                ? GetCreatureRoleName(
+                    responderCreature) : "")
+        + "\",\"responder_sub_name\":\""
+        + JsonEscape(
+            responderTemplate
+                ? responderTemplate->SubName : "")
+        + "\",\"responder_disposition\":\""
+        + JsonEscape(
+            responderCreature
+                ? GetNPCDisposition(
+                    responderCreature, player) : "")
+        + "\",\"responder_rank\":\""
+        + JsonEscape(
+            responderTemplate
+                ? GetCreatureRankLabel(
+                    responderTemplate) : "")
+        + "\",\"responder_creature_type\":\""
+        + JsonEscape(
+            responderTemplate
+                ? GetCreatureTypeLabel(
+                    responderTemplate) : "")
+        + "\",\"responder_qualification\":\""
+        + JsonEscape(
+            responderCreature
+                ? GetProximityNPCQualificationLabel(
+                    GetProximityNPCQualification(
+                        responderCreature)) : "")
         + "}";
 
     QueueChatterEvent(
@@ -1418,7 +1713,8 @@ void HandleProximityPlayerSay(
 
 void RecordDeliveredProximityLine(
     uint32 eventId, uint32 playerGuid,
-    uint32 zoneId, uint32 botGuid,
+    uint32 zoneId, uint32 mapId,
+    uint32 instanceId, uint32 botGuid,
     uint32 npcSpawnId, bool replyEligible,
     std::string const& speakerName,
     std::string const& message)
@@ -1435,20 +1731,14 @@ void RecordDeliveredProximityLine(
         scene.sceneId = eventId;
         scene.playerGuid = playerGuid;
         scene.zoneId = zoneId;
+        scene.mapId = mapId;
+        scene.instanceId = instanceId;
         auto& ids = _playerScenes[playerGuid];
         if (std::find(
                 ids.begin(), ids.end(), eventId)
             == ids.end())
             ids.push_back(eventId);
     }
-
-    ObjectGuid playerObjGuid =
-        ObjectGuid::Create<HighGuid::Player>(
-            playerGuid);
-    Player* player =
-        ObjectAccessor::FindPlayer(playerObjGuid);
-    if (player && player->IsInWorld())
-        scene.mapId = player->GetMapId();
 
     bool isNPC = npcSpawnId != 0;
     uint32 speakerId = isNPC ? npcSpawnId : botGuid;

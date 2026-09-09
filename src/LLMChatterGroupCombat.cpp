@@ -202,12 +202,7 @@ void HandleGroupCreatureKillImpl(
         return;
 
     uint32 rank = tmpl->rank;
-    bool isBoss = (rank == 3)
-        || (tmpl->type_flags
-            & CREATURE_TYPE_FLAG_BOSS_MOB)
-        || killed->IsDungeonBoss()
-        || _namedBossEntries.count(
-            killed->GetEntry());
+    bool isBoss = IsLLMChatterBoss(killed);
     bool isRare = (rank == 2 || rank == 4);
     bool isNormal = !isBoss && !isRare;
 

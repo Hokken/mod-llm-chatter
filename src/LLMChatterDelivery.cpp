@@ -4,6 +4,7 @@
 
 #include "LLMChatterConfig.h"
 #include "Guild.h"
+#include "LLMChatterBossDialogue.h"
 #include "LLMChatterDelivery.h"
 #include "LLMChatterGuild.h"
 #include "LLMChatterProximity.h"
@@ -23,7 +24,10 @@
 #include "World.h"
 #include "WorldSession.h"
 
+#include <algorithm>
 #include <cstdio>
+#include <cctype>
+#include <limits>
 
 namespace
 {
@@ -89,6 +93,41 @@ std::string BuildEmoteLine(std::string const& action)
 
     return "%s " + text;
 }
+
+uint32 ExtractJsonUInt(
+    std::string const& json, char const* key)
+{
+    if (!key || !*key)
+        return 0;
+
+    std::string marker = std::string("\"")
+        + key + "\":";
+    size_t pos = json.find(marker);
+    if (pos == std::string::npos)
+        return 0;
+    pos += marker.size();
+    while (pos < json.size()
+        && std::isspace(
+            static_cast<unsigned char>(json[pos])))
+    {
+        ++pos;
+    }
+
+    uint64 value = 0;
+    bool foundDigit = false;
+    while (pos < json.size()
+        && std::isdigit(
+            static_cast<unsigned char>(json[pos])))
+    {
+        foundDigit = true;
+        value = value * 10
+            + static_cast<uint64>(json[pos] - '0');
+        if (value > std::numeric_limits<uint32>::max())
+            return 0;
+        ++pos;
+    }
+    return foundDigit ? static_cast<uint32>(value) : 0;
+}
 } // namespace
 
 void DeliverPendingMessagesImpl()
@@ -120,7 +159,8 @@ void DeliverPendingMessagesImpl()
             "m.npc_spawn_id, m.player_guid, "
             "m.sequence, m.event_id, e.zone_id, "
             "m.group_id, m.delivery_policy, "
-            "m.delivery_reason, m.owner_subsystem "
+            "m.delivery_reason, m.owner_subsystem, "
+            "e.map_id, e.extra_data "
             "FROM llm_chatter_messages m "
             "LEFT JOIN llm_chatter_events e "
             "ON m.event_id = e.id "
@@ -149,7 +189,8 @@ void DeliverPendingMessagesImpl()
             "m.npc_spawn_id, m.player_guid, "
             "m.sequence, m.event_id, e.zone_id, "
             "m.group_id, m.delivery_policy, "
-            "m.delivery_reason, m.owner_subsystem "
+            "m.delivery_reason, m.owner_subsystem, "
+            "e.map_id, e.extra_data "
             "FROM llm_chatter_messages m "
             "LEFT JOIN llm_chatter_events e "
             "ON m.event_id = e.id "
@@ -235,6 +276,20 @@ void DeliverPendingMessagesImpl()
         fields[15].IsNull()
             ? ""
             : fields[15].Get<std::string>();
+    // m.action sits at index 6 here but not upstream, so the
+    // event columns land one slot later than they do there.
+    bool hasEventMapId = !fields[16].IsNull();
+    uint32 eventMapId =
+        !hasEventMapId
+            ? 0
+            : fields[16].Get<uint32>();
+    std::string eventExtraData =
+        fields[17].IsNull()
+            ? ""
+            : fields[17].Get<std::string>();
+    uint32 eventInstanceId =
+        ExtractJsonUInt(
+            eventExtraData, "instance_id");
 
     // ActionAsEmote disabled: fall back to the historical
     // inline "*action* text" rendering so the action is not
@@ -272,8 +327,12 @@ void DeliverPendingMessagesImpl()
     // chatter is disabled, so flipping
     // LLMChatter.ProximityChatter.Enable = 0 via .reload
     // config takes effect immediately for pending rows too.
-    if (ownerSubsystem == "proximity"
+    if ((ownerSubsystem == "proximity"
+            || ownerSubsystem == "boss_dialogue")
         && !sLLMChatterConfig->_proxChatterEnable)
+        return;
+    if (ownerSubsystem == "boss_dialogue"
+        && !sLLMChatterConfig->_proxBossDialogueEnable)
         return;
 
     // Master GuildChatter toggle. Consume already-queued
@@ -304,7 +363,7 @@ void DeliverPendingMessagesImpl()
     // retrying would not help).
     bool sent = false;
     bool botUnavailable =
-        (channel == "msay")
+        (channel == "msay" || channel == "myell")
             ? false
             : !bot || !bot->IsInWorld();
 
@@ -313,6 +372,41 @@ void DeliverPendingMessagesImpl()
             playerGuid);
     Player* anchorPlayer =
         ObjectAccessor::FindPlayer(playerObjGuid);
+
+    bool proximityLocal =
+        ownerSubsystem == "proximity"
+        && (channel == "say" || channel == "msay");
+    float proximityRadius = static_cast<float>(
+        std::max(
+            sLLMChatterConfig->_proxChatterScanRadius,
+            sLLMChatterConfig
+                ->_proxChatterPlayerSayScanRadius));
+    if (proximityLocal)
+    {
+        bool anchorValid =
+            IsProximityAnchorEligible(anchorPlayer)
+            && (!hasEventMapId
+                || anchorPlayer->GetMapId()
+                    == eventMapId)
+            && (!eventInstanceId
+                || (anchorPlayer->GetMap()
+                    && anchorPlayer->GetMap()
+                           ->GetInstanceId()
+                        == eventInstanceId));
+        if (!anchorValid)
+        {
+            bot = nullptr;
+            anchorPlayer = nullptr;
+            botUnavailable = true;
+        }
+        else if (channel == "say"
+            && !IsProximityPlayerbotEligible(
+                anchorPlayer, bot, proximityRadius))
+        {
+            bot = nullptr;
+            botUnavailable = true;
+        }
+    }
 
     if (bot && bot->IsInWorld())
     {
@@ -756,8 +850,9 @@ void DeliverPendingMessagesImpl()
         Creature* speaker = FindCreatureBySpawnId(
             anchorPlayer->GetMap(), npcSpawnId);
         bool speakerUnavailable =
-            !speaker || !speaker->IsAlive()
-            || speaker->IsInCombat();
+            !IsProximityNPCEligible(
+                anchorPlayer, speaker,
+                proximityRadius);
         if (speakerUnavailable)
             botUnavailable = true;
         else
@@ -876,6 +971,44 @@ void DeliverPendingMessagesImpl()
         }
     }
 
+    else if (channel == "myell"
+        && ownerSubsystem == "boss_dialogue"
+        && anchorPlayer
+        && anchorPlayer->IsInWorld())
+    {
+        bool anchorValid =
+            IsProximityAnchorEligible(anchorPlayer)
+            && (!hasEventMapId
+                || anchorPlayer->GetMapId() == eventMapId)
+            && (!eventInstanceId
+                || (anchorPlayer->GetMap()
+                    && anchorPlayer->GetMap()->GetInstanceId()
+                        == eventInstanceId));
+        Creature* speaker = anchorValid
+            ? FindCreatureBySpawnId(
+                anchorPlayer->GetMap(), npcSpawnId)
+            : nullptr;
+        bool speakerUnavailable =
+            !anchorValid
+            || !IsBossDialogueSpeakerEligible(
+                anchorPlayer,
+                speaker,
+                static_cast<float>(
+                    sLLMChatterConfig
+                        ->_proxBossApproachMaxRadius));
+        if (speakerUnavailable)
+        {
+            botUnavailable = true;
+        }
+        else
+        {
+            speaker->Yell(
+                ConvertAllLinks(message),
+                LANG_UNIVERSAL);
+            sent = true;
+        }
+    }
+
     if (sent && eventId > 0
         && playerGuid > 0
         && (channel == "say" || channel == "msay"))
@@ -895,6 +1028,8 @@ void DeliverPendingMessagesImpl()
             eventId,
             playerGuid,
             eventZoneId,
+            eventMapId,
+            eventInstanceId,
             channel == "say" ? botGuid : 0,
             channel == "msay" ? npcSpawnId : 0,
             replyEligible,

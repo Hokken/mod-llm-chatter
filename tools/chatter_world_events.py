@@ -44,6 +44,7 @@ from chatter_shared import (
     strip_speaker_prefix,
     cleanup_message,
     calculate_dynamic_delay,
+    _reserve_zone_delivery_window,
 )
 
 logger = logging.getLogger(__name__)
@@ -234,7 +235,8 @@ def _deliver_conversation(
         messages, label='event_conv',
     )
 
-    cumulative_delay = 0.0
+    prepared = []
+    relative_delay = 0.0
     for i, msg in enumerate(messages):
         bot_guid = bot_guids.get(
             msg['name'],
@@ -252,7 +254,22 @@ def _deliver_conversation(
             delay = calculate_dynamic_delay(
                 len(final_message), config,
             )
-            cumulative_delay += delay
+            relative_delay += delay
+
+        prepared.append((
+            i, msg, bot_guid, final_message,
+            relative_delay,
+        ))
+
+    base_delay = _reserve_zone_delivery_window(
+        zone_id, config,
+        duration_seconds=relative_delay,
+    )
+    for (
+        i, msg, bot_guid, final_message,
+        relative_delay,
+    ) in prepared:
+        cumulative_delay = base_delay + relative_delay
 
         insert_chat_message(
             db,
@@ -319,6 +336,14 @@ def _deliver_statement(
         'LLMChatter.MessageDelayMax', 30000
     ))
     delay_ms = random.randint(delay_min, delay_max)
+    initial_delay = delay_ms / 1000.0
+
+    def resolve_delivery_delay(_message):
+        base_delay = _reserve_zone_delivery_window(
+            use_zone_id, config,
+            duration_seconds=initial_delay,
+        )
+        return base_delay + initial_delay
 
     result = run_single_reaction(
         db,
@@ -328,7 +353,8 @@ def _deliver_statement(
         speaker_name=bot['bot1_name'],
         bot_guid=int(bot['bot1_guid']),
         channel='general',
-        delay_seconds=delay_ms // 1000,
+        delay_seconds=initial_delay,
+        delay_resolver=resolve_delivery_delay,
         event_id=event_id,
         bypass_speaker_cooldown=True,
         context=(
@@ -349,7 +375,9 @@ def _deliver_statement(
             int(event.get('map_id') or 0),
             source_event_id=event_id,
             source_sequence=0,
-            source_delay_seconds=delay_ms // 1000,
+            source_delay_seconds=result[
+                'delay_seconds'
+            ],
         )
         mark_event(db, event_id, 'completed')
         return True

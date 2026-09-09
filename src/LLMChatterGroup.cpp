@@ -79,26 +79,6 @@ namespace
     char const* const kMultiBotProtocolVersion = "1";
     char const kMultiBotSeparator = '~';
 
-    // Upstream AzerothCore renamed creature.id1 -> creature.id
-    // (PR #25197, migration 2026_06_16_00). Resolve the column
-    // name once (lazy, thread-safe magic static) so our SQL
-    // works on both the old and updated core source.
-    std::string const& GetCreatureEntryColumn()
-    {
-        static std::string const column = []() -> std::string
-        {
-            if (QueryResult r = WorldDatabase.Query(
-                    "SELECT COLUMN_NAME FROM information_schema.COLUMNS "
-                    "WHERE TABLE_SCHEMA = 'acore_world' "
-                    "AND TABLE_NAME = 'creature' "
-                    "AND COLUMN_NAME IN ('id', 'id1') "
-                    "ORDER BY (COLUMN_NAME = 'id') DESC LIMIT 1"))
-                return (*r)[0].Get<std::string>();
-            return "id";
-        }();
-        return column;
-    }
-
     std::string TrimMultiBot(std::string const& value)
     {
         size_t start = value.find_first_not_of(" \t\r\n");
@@ -826,9 +806,6 @@ std::unordered_map<uint64, time_t>
 std::unordered_map<uint64, time_t>
     _questCompleteCd;
 
-// -- Named boss entries --
-std::unordered_set<uint32> _namedBossEntries;
-
 // -- Per-group cooldown maps --
 std::map<uint32, time_t> _groupKillCooldowns;
 std::map<uint32, time_t> _groupDeathCooldowns;
@@ -878,41 +855,6 @@ std::unordered_map<uint32, time_t>
 // writes under MapUpdate.Threads > 1, these maps
 // need explicit synchronization rather than more
 // shared callers.
-
-// ============================================================================
-// NAMED BOSS CACHE
-// ============================================================================
-
-void LoadNamedBossCache()
-{
-    _namedBossEntries.clear();
-    // Named bosses: CreatureImmunitiesId > 0 and
-    // only 1 spawn on their map (filters out trash
-    // like Molten Elementals that have immunities
-    // but spawn many times)
-    std::string query =
-        "SELECT entry FROM ("
-        "  SELECT ct.entry, ct.`rank`,"
-        "    ct.CreatureImmunitiesId,"
-        "    COUNT(*) AS spawns"
-        "  FROM creature_template ct"
-        "  JOIN creature c ON c." + GetCreatureEntryColumn() + " = ct.entry"
-        "  WHERE ct.`rank` = 3"
-        "    OR ct.CreatureImmunitiesId > 0"
-        "  GROUP BY ct.entry, c.map"
-        "  HAVING ct.`rank` = 3 OR COUNT(*) = 1"
-        ") AS bosses";
-    QueryResult result = WorldDatabase.Query(query);
-    if (result)
-    {
-        do
-        {
-            Field* fields = result->Fetch();
-            _namedBossEntries.insert(
-                fields[0].Get<uint32>());
-        } while (result->NextRow());
-    }
-}
 
 // ============================================================================
 // PLAYERBOT COMMAND FILTER

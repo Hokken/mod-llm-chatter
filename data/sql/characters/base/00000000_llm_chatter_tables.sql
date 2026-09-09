@@ -77,6 +77,8 @@ CREATE TABLE IF NOT EXISTS `llm_chatter_events` (
         'proximity_reply',
         'proximity_player_say',
         'proximity_player_conversation',
+        'proximity_boss_approach',
+        'proximity_boss_player_say',
         'bot_backstory_regen',
         'bot_tone_regen',
         'guild_idle_chatter',
