@@ -8,7 +8,7 @@
   scheduled window, preventing independently generated follow-ups from
   arriving in a wall while keeping player-directed replies responsive.
 * **Quieter production preset**: Added
-  `conf/mod_ll_chatter_quieter.conf.dist` as an optional lower-volume
+  `conf/presets/mod_ll_chatter_quieter.conf.dist` as an optional lower-volume
   configuration. It preserves contextual combat and instance reactions while
   reducing cumulative ambient chatter. Credentials and local diagnostic
   settings are intentionally excluded or disabled.

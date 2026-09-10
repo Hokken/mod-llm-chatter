@@ -300,11 +300,9 @@ public:
     uint32 _proxChatterReplyMaxTurns;
     uint32 _proxChatterMaxTokensPerLine;
     uint32 _proxChatterFacingResetDelay;
-    std::atomic<std::shared_ptr<
-        std::unordered_set<uint32> const>>
+    std::shared_ptr<std::unordered_set<uint32> const>
             _proxSpeakerAllowEntries;
-    std::atomic<std::shared_ptr<
-        std::unordered_set<uint32> const>>
+    std::shared_ptr<std::unordered_set<uint32> const>
             _proxSpeakerDenyEntries;
     bool _proxBossDialogueEnable;
     uint32 _proxBossApproachCheckInterval;
@@ -322,8 +320,7 @@ public:
     uint32 _proxBossPresenceReset;
     uint32 _proxBossDirectedReplyCooldown;
     uint32 _proxBossDirectedScanCooldown;
-    std::atomic<std::shared_ptr<
-        std::unordered_set<uint32> const>>
+    std::shared_ptr<std::unordered_set<uint32> const>
             _proxBossSpeakerDenyEntries;
 
     // Emote reaction system

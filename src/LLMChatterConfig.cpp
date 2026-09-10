@@ -84,11 +84,11 @@ std::unordered_set<uint32> ParseCreatureEntrySet(
 }
 
 bool ContainsCreatureEntry(
-    std::atomic<std::shared_ptr<
-        std::unordered_set<uint32> const>> const& configured,
+    std::shared_ptr<std::unordered_set<uint32> const> const& configured,
     uint32 creatureEntry)
 {
-    auto entries = configured.load();
+    // GCC 11 supports shared_ptr atomic functions, but not atomic<shared_ptr>.
+    auto entries = std::atomic_load(&configured);
     return creatureEntry > 0 && entries
         && entries->count(creatureEntry) > 0;
 }
@@ -881,7 +881,7 @@ void LLMChatterConfig::LoadConfig()
             ParseCreatureEntrySet(
                 speakerAllowEntries,
                 "SpeakerAllowEntries"));
-    _proxSpeakerAllowEntries.store(
+    std::atomic_store(&_proxSpeakerAllowEntries,
         std::move(parsedSpeakerAllowEntries));
     std::string speakerDenyEntries =
         GetChatterOption<std::string>(
@@ -892,7 +892,7 @@ void LLMChatterConfig::LoadConfig()
             ParseCreatureEntrySet(
                 speakerDenyEntries,
                 "SpeakerDenyEntries"));
-    _proxSpeakerDenyEntries.store(
+    std::atomic_store(&_proxSpeakerDenyEntries,
         std::move(parsedSpeakerDenyEntries));
     _proxBossDialogueEnable =
         GetChatterOption<bool>(
@@ -967,7 +967,7 @@ void LLMChatterConfig::LoadConfig()
             ParseCreatureEntrySet(
                 bossSpeakerDenyEntries,
                 "BossSpeakerDenyEntries"));
-    _proxBossSpeakerDenyEntries.store(
+    std::atomic_store(&_proxBossSpeakerDenyEntries,
         std::move(parsedBossSpeakerDenyEntries));
 
     // Emote reaction system

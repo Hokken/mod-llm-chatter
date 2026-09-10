@@ -1,8 +1,9 @@
 #
 # LLM Chatter Module Configuration - Quieter Production Preset
 #
-# This is a template and is NOT loaded automatically while its filename ends
-# in .conf.dist. To use it, copy it into the server's module-config directory
+# This optional preset lives outside the conf/*.conf.dist build scan, so it
+# is not registered for automatic loading. To use it, copy it into the
+# server's module-config directory
 # and rename the copy to exactly:
 #
 #   mod_llm_chatter.conf
