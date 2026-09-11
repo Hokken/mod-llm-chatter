@@ -18,7 +18,6 @@ This script:
 
 import argparse
 import atexit
-import fcntl
 import hashlib
 import json
 import logging
@@ -171,6 +170,47 @@ def _lock_file_path(config_path, runtime_dir):
     )
 
 
+# Advisory whole-file locking, one backend per platform. fcntl exists
+# only on Unix and msvcrt only on Windows, so importing either one
+# unconditionally breaks the bridge on the other platform before any
+# configuration has been read.
+try:
+    import fcntl
+except ImportError:  # pragma: no cover - platform dependent
+    fcntl = None
+
+try:
+    import msvcrt
+except ImportError:  # pragma: no cover - platform dependent
+    msvcrt = None
+
+
+def _lock_file_exclusive(handle):
+    """Take a non-blocking exclusive lock, or raise OSError if held.
+
+    Both backends raise OSError when another process holds the region,
+    so callers treat failure identically on either platform.
+    """
+    if fcntl is not None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB)
+        return
+    if msvcrt is not None:
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_NBLCK, 1)
+        return
+    raise OSError('no file-locking backend on this platform')
+
+
+def _unlock_file(handle):
+    """Release a lock taken by _lock_file_exclusive."""
+    if fcntl is not None:
+        fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
+        return
+    if msvcrt is not None:
+        handle.seek(0)
+        msvcrt.locking(handle.fileno(), msvcrt.LK_UNLCK, 1)
+
+
 # Kept alive for the whole process lifetime: closing this handle
 # would drop the kernel lock, so it must not be garbage collected.
 _lock_handle = None
@@ -204,9 +244,7 @@ def _acquire_single_instance_lock(config_path, config=None):
         return
 
     try:
-        fcntl.flock(
-            handle.fileno(), fcntl.LOCK_EX | fcntl.LOCK_NB
-        )
+        _lock_file_exclusive(handle)
     except OSError:
         try:
             handle.seek(0)
@@ -235,12 +273,15 @@ def _acquire_single_instance_lock(config_path, config=None):
     logger.debug("Acquired bridge lock %s", lock_path)
 
     def _release_lock():
+        # The pathname is deliberately left on disk. Unlinking it opens
+        # a handoff race: another bridge can lock the still-open file
+        # after the unlock, and once the name is gone a third bridge
+        # creates a fresh file at the same path and locks that instead,
+        # so two of them run believing they hold the only lock. The
+        # file is empty-ish and keyed by config hash, so leaving it
+        # costs one small inode per configured bridge.
         try:
-            fcntl.flock(handle.fileno(), fcntl.LOCK_UN)
-        except OSError:
-            pass
-        try:
-            os.remove(lock_path)
+            _unlock_file(handle)
         except OSError:
             pass
         try:
