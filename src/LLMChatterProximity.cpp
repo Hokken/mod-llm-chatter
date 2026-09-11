@@ -686,7 +686,7 @@ std::string BuildNPCParticipantJson(
         cr->GetCreatureTemplate();
     return std::string("{")
         + "\"name\":\""
-        + JsonEscape(cr->GetName()) + "\","
+        + JsonEscape(GetLocalizedCreatureName(cr)) + "\","
         + "\"is_npc\":true,"
         + "\"npc_entry\":"
         + std::to_string(cr->GetEntry())
@@ -696,7 +696,7 @@ std::string BuildNPCParticipantJson(
         + JsonEscape(GetCreatureRoleName(cr))
         + "\",\"sub_name\":\""
         + JsonEscape(
-            creatureTemplate->SubName)
+            GetLocalizedCreatureSubName(cr))
         + "\",\"disposition\":\""
         + JsonEscape(
             GetNPCDisposition(cr, player))
@@ -924,11 +924,11 @@ void CollectNearbyNPCs(
         candidate.npc = creature;
         candidate.id = creature->GetSpawnId();
         candidate.entry = creature->GetEntry();
-        candidate.name = creature->GetName();
+        candidate.name = GetLocalizedCreatureName(creature);
         candidate.role =
             GetCreatureRoleName(creature);
         candidate.subName =
-            creature->GetCreatureTemplate()->SubName;
+            GetLocalizedCreatureSubName(creature);
         out.push_back(candidate);
     }
 }

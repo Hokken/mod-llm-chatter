@@ -486,7 +486,7 @@ def _probe_anthropic(config, model):
     )
     resp = client.messages.create(
         model=model,
-        max_tokens=5,
+        max_tokens=32,
         messages=[{
             'role': 'user',
             'content': 'Reply with the single word: OK',
@@ -499,7 +499,7 @@ def _probe_openai_compatible(client, model):
     """Make a minimal OpenAI-compatible call; text or raises."""
     resp = client.chat.completions.create(
         model=model,
-        max_tokens=5,
+        max_tokens=32,
         messages=[{
             'role': 'user',
             'content': 'Reply with the single word: OK',

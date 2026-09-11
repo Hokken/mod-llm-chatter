@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 from chatter_shared import (
     parse_extra_data,
     run_single_reaction,
+    get_bg_lore,
 )
 from chatter_group_state import (
     _mark_event,
@@ -47,7 +48,6 @@ from chatter_bg_prompts import (
     build_bg_score_milestone_prompt,
     build_bg_idle_prompt,
 )
-from chatter_constants import BG_LORE
 
 LOG = logging.getLogger("chatter_battlegrounds")
 
@@ -123,7 +123,7 @@ def process_bg_match_end_event(
                 bg_type_id = int(
                     extra_data.get('bg_type_id', 0)
                 )
-                lore = BG_LORE.get(bg_type_id, {})
+                lore = get_bg_lore(bg_type_id)
                 bg_name = lore.get(
                     'name', 'a battleground'
                 )
@@ -418,7 +418,7 @@ def process_bg_pvp_kill_event(
                 bg_type_id = int(
                     extra_data.get('bg_type_id', 0)
                 )
-                lore = BG_LORE.get(bg_type_id, {})
+                lore = get_bg_lore(bg_type_id)
                 bg_name = lore.get(
                     'name', 'a battleground'
                 )

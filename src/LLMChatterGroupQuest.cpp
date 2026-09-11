@@ -333,7 +333,7 @@ public:
             std::string playerName =
                 player->GetName();
             std::string questName =
-                quest->GetTitle();
+                GetLocalizedQuestTitle(quest);
             uint32 zoneId = player->GetZoneId();
             std::string zoneName =
                 GetZoneName(zoneId);
@@ -375,12 +375,12 @@ public:
                 "\"quest_details\":\"" +
                     JsonEscape(
                         NormalizeChatTextForDb(
-                            quest->GetDetails(), 200))
+                            GetLocalizedQuestDetails(quest), 200))
                     + "\","
                 "\"quest_objectives\":\"" +
                     JsonEscape(
                         NormalizeChatTextForDb(
-                            quest->GetObjectives(), 150))
+                            GetLocalizedQuestObjectives(quest), 150))
                     + "\","
                 "\"group_id\":" +
                     std::to_string(groupId) +
@@ -420,14 +420,14 @@ public:
         // --- Debounce path: accumulate into batch ---
         // Gather all data from game objects BEFORE
         // acquiring the mutex to minimize hold time.
-        std::string questName = quest->GetTitle();
+        std::string questName = GetLocalizedQuestTitle(quest);
         int32 questLevel = quest->GetQuestLevel();
         std::string questDetails =
             NormalizeChatTextForDb(
-                quest->GetDetails(), 200);
+                GetLocalizedQuestDetails(quest), 200);
         std::string questObjectives =
             NormalizeChatTextForDb(
-                quest->GetObjectives(), 150);
+                GetLocalizedQuestObjectives(quest), 150);
         std::string playerName = player->GetName();
 
         // Pre-select reactor outside lock (only
