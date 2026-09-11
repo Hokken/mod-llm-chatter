@@ -381,6 +381,8 @@ def build_bot_identity(
     bot_race: str,
     bot_class: str,
     gender: str = '',
+    suffix: str = '.',
+    gear: str = '',
 ) -> str:
     """Return an identity prefix for bot prompts.
 
@@ -389,11 +391,16 @@ def build_bot_identity(
     """
     if bot_race and bot_class:
         gender_prefix = f"{gender} " if gender else ""
-        return (
+        identity = (
             f"You are {bot_name}, "
-            f"a {gender_prefix}{bot_race} {bot_class}."
+            f"a {gender_prefix}{bot_race} "
+            f"{bot_class}{suffix}"
         )
-    return f"You are {bot_name}."
+    else:
+        identity = f"You are {bot_name}{suffix}"
+
+    gear = (gear or '').strip()
+    return f"{identity} {gear}" if gear else identity
 
 
 def build_bot_identity_with_level(
@@ -2882,6 +2889,127 @@ def build_talent_context(
                 f"{spec_personality}")
 
     return result
+
+
+def format_weapon_list(weapons) -> str:
+    """Render equipped weapons as "Name (type)" phrases."""
+    parts = []
+    for weapon in weapons or []:
+        name = (weapon.get('name') or '').strip()
+        kind = (weapon.get('kind') or '').strip()
+        if not name:
+            continue
+        parts.append(f"{name} ({kind})" if kind else name)
+    return ', '.join(parts)
+
+
+def format_pet_phrase(pet) -> str:
+    """Render a pet as "Name, a Species" (or just one)."""
+    if not pet:
+        return ''
+    name = (pet.get('name') or '').strip()
+    species = (pet.get('species') or '').strip()
+    if name and species and name.lower() != species.lower():
+        article = (
+            'an' if species[:1].lower() in 'aeiou' else 'a'
+        )
+        return f"{name}, {article} {species}"
+    return name or species
+
+
+def build_gear_context(
+    db, char_guid, char_class=None, config=None,
+    subject=None,
+) -> str:
+    """Describe what a bot carries and who follows it.
+
+    Returns a short line naming equipped weapons and, for
+    pet classes, the pet by name and species — so bots stop
+    inventing gear or treating their own pet as a stranger.
+    Empty string when there is nothing worth stating.
+
+    Pass `subject` (a bot name) for multi-speaker prompts,
+    which describe bots from the outside. Without it the
+    line is second person, for prompts the bot itself
+    speaks through.
+    """
+    from chatter_db import (
+        get_character_pet,
+        get_character_weapons,
+    )
+
+    if config is not None and str(
+        config.get('LLMChatter.GearContext.Enable', '1')
+    ).strip() not in ('1', 'true', 'True'):
+        return ''
+
+    try:
+        guid = int(char_guid or 0)
+    except (TypeError, ValueError):
+        return ''
+    if guid <= 0:
+        return ''
+
+    parts = []
+    subject = (subject or '').strip()
+
+    weapons = format_weapon_list(
+        get_character_weapons(db, guid)
+    )
+    if weapons:
+        parts.append(
+            f"{subject} wields {weapons}."
+            if subject
+            else f"You are wielding {weapons}."
+        )
+
+    # Only hunters and warlocks keep a permanent companion,
+    # so other classes never pay for the pet lookup.
+    class_name = char_class
+    if isinstance(class_name, int):
+        class_name = CLASS_NAMES.get(class_name, '')
+    if str(class_name or '').lower() in ('hunter', 'warlock'):
+        pet = format_pet_phrase(
+            get_character_pet(db, guid)
+        )
+        if pet:
+            parts.append(
+                f"{subject}'s pet is {pet} — a familiar "
+                "companion, not a stranger."
+                if subject
+                else f"Your pet is {pet} — a companion you "
+                "know well, not a stranger."
+            )
+
+    return ' '.join(parts)
+
+
+def attach_speaker_gear(db, bots, config=None) -> None:
+    """Give every speaker in a list a third-person gear line.
+
+    Multi-speaker prompts introduce bots from the outside
+    ("Veliana is a level 26 Blood Elf Priest"), so the
+    second-person string built for solo prompts cannot be
+    reused there. Stores the result as 'gear_third'.
+    """
+    for bot in bots or []:
+        if bot.get('gear_third') is not None:
+            continue
+        guid = bot.get('guid')
+        name = (bot.get('name') or '').strip()
+        if not guid or not name:
+            continue
+        bot['gear_third'] = build_gear_context(
+            db, guid, bot.get('class'), config,
+            subject=name,
+        )
+
+
+def append_speaker_gear(parts, bot, indent='  ') -> None:
+    """Append a speaker's gear line to a prompt part list."""
+    line = (bot.get('gear_third') or '').strip()
+    if line:
+        parts.append(f"{indent}{line}")
 
 
 # =============================================================================

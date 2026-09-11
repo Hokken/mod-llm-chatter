@@ -198,6 +198,11 @@ public:
     uint32   _nearbyObjectMaxObjects;
     bool     _facingEnable;
 
+    // Send the LLM's action field as a /e text emote just
+    // before the spoken line. When false the action stays
+    // inlined in the message as *asterisks*.
+    bool     _actionAsEmote;
+
     // Group chatter - state-triggered callouts
     bool _stateCalloutEnabled;
     bool _stateCalloutLowHealth;
@@ -332,6 +337,12 @@ public:
     uint32 _emoteObserverCooldown;
     uint32 _emoteMoodSpreadChance;
     bool   _emoteNPCMirrorEnable;
+
+    // Free-text emotes (/e, /me). Unlike the ~244 named
+    // emotes these carry no id, so they can only ever
+    // produce a verbal reaction, never a mirrored anim.
+    bool   _emoteCustomEnable;
+    uint32 _emoteCustomMaxChars;
 
 private:
     LLMChatterConfig() = default;

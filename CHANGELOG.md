@@ -1,5 +1,65 @@
 # Changelog
 
+### 2026-09-09 - Bots Know Their Own Gear and Pet
+
+* **Equipped weapons reach the prompt**: a bot's identity line now names
+  what it is actually holding, such as `Fist of Reckoning (one-handed
+  mace), Zulian Defender (shield), Libram of Fervor (libram)`. The model
+  previously had only race, class, and level, so a bot swinging a mace
+  would happily talk about its sword. Main hand, off hand, and ranged
+  slots are covered, including shields, held items, and class relics.
+* **Hunters and warlocks know their companion**: the pet at the bot's side
+  is introduced by name and species, as in `Kreenum, a Felhunter` (`an Imp`,
+  not `a Imp`, for vowel-starting species), so bots stop treating their own
+  pet as a stranger. Only the pet actually summoned counts — AzerothCore
+  records that as slot 0, `PET_SAVE_AS_CURRENT` — so a hunter whose animals
+  are all stabled or dismissed is described alone rather than talking to a
+  companion that is not there. Only pet classes are looked up, and a pet
+  named after its species reads as `Sporebat` rather than the doubled
+  `Sporebat, a Sporebat`.
+* **Reaches every conversation shape**: a bot speaking alone gets the
+  second-person `You are wielding ...` / `Your pet is ...` phrasing, while
+  a bot introduced inside a multi-speaker scene — idle party chatter, the
+  nearby-object, player-message and quest conversations, and the ambient
+  and world-event conversations — gets the third-person `Veliana wields
+  Staff of the Sun (staff)` instead, so gear is never misattributed to
+  whoever the model is currently speaking as. `attach_speaker_gear` fills
+  every speaker in a bot list and `append_speaker_gear` places the line
+  directly under its own speaker.
+* **Cached per bot**: equipment is read from the character database and
+  held for five minutes, so the cost is one small query every few minutes
+  rather than one per message; gear swapped in game can take that long to
+  show up in prompts. The pet is cached for one minute instead, because
+  whether one is out is something a hunter changes mid-play.
+* Controlled by `LLMChatter.GearContext.Enable` (default on).
+* **Regression coverage**: focused tests protect weapon and relic naming,
+  pet deduplication, the summoned-versus-stabled distinction, the pet-class
+  gate, the config switch, the identity line itself, third-person
+  rendering, the article rule, speakers skipped
+  when a name or guid is missing, and gear-line ordering within a
+  multi-speaker block. `manual_gear_prompt_check.py` prints a real speaker
+  block from the live database for eyeball checks.
+
+### 2026-09-09 - Emote Reactions Know the Room
+
+* **Party roster in emote prompts**: a bot reacting to `/point` or to a
+  typed `/e grabs hand` is now told who else is in the party, with the
+  human marked as `(player)`. Bots previously answered emotes as though
+  they were standing alone.
+* **Recent chat history included**: emote prompts now carry the same
+  recent party chat the dialogue prompts already used, so a gesture can
+  be connected to what was just said instead of being read as an isolated
+  event.
+* **The target is described, not just named**: when a player emotes at
+  someone outside the group, the observing bot is told who that is —
+  `Soza, a level 28 female Troll Warrior` rather than `Soza, a stranger
+  outside the group`. `HandleEmoteObserver` now receives the target player
+  and sends race, class, level, and gender in the payload, so this one
+  needs a recompile.
+* **Regression coverage**: focused tests cover roster and history
+  assembly, the target description, and the fallback used when the target
+  is unknown.
+
 ### 2026-09-09 - General Channel Pacing
 
 * **Cross-source conversation spacing**: Automated ambient, transport,
@@ -137,6 +197,100 @@
   supported runtime.
 * **Regression coverage**: Focused tests protect both Anthropic request
   paths from future SDK argument regressions.
+
+### 2026-08-31 - Bots Notice Custom Emotes
+
+* **`/e` and `/me` now reach the bots**: previously only the ~244 named
+  emotes (`/point`, `/salute`) triggered reactions, because those arrive on the
+  `OnPlayerTextEmote` hook. A typed `/e grabs hand` is ordinary
+  `CHAT_MSG_EMOTE` chat, which the module was discarding. It is now routed into
+  the same reaction pipeline and the typed text is handed to the model as the
+  action.
+* **Targeting comes from your selection**: the client sends no target with a
+  custom emote, so the bot you have selected is treated as the target, matching
+  how the emote reads to a human. With nothing selected it becomes an
+  undirected emote that a nearby bot may remark on.
+* **Verbal only, by nature**: a custom emote has no emote id, so there is
+  nothing to mirror. Bots answer in words; the mirrored animation and the NPC
+  mirror remain named-emote features.
+* Controlled by `LLMChatter.EmoteReactions.CustomEnable` (default on) and
+  clamped by `LLMChatter.EmoteReactions.CustomMaxChars` (default 120).
+
+### 2026-08-30 - Actions Are Real Emotes
+
+* **The `action` field is now sent as `/e`**: a response like
+  `{"message": "Fairbreeze burning again?", "action": "scans the treeline"}`
+  used to arrive as one line, `*scans the treeline* Fairbreeze burning again?`.
+  It is now delivered as two: a text emote (`Ennien scans the treeline`)
+  immediately followed by the spoken line. Actions read as actions in the chat
+  log instead of asterisks glued to speech.
+* **The split happens at queue time**: `llm_chatter_messages` gained an
+  `action` column, and `insert_chat_message()` peels the `*action*` prefix off
+  the cleaned message into it, so every producer is covered without touching
+  each call site. C++ delivery emits it via `TextEmote` immediately before the
+  speech, at each send site rather than once up front, so it is tied to the
+  same decision the speech is. A line that is withheld and retried — a yell
+  from a bot that has died or left the zone — does not leave its action
+  broadcast to an empty stage, and cannot replay it on every attempt.
+* **Reversible**: set `LLMChatter.ActionAsEmote.Enable = 0` to restore the old
+  inline rendering. Note that `/e` is proximity based, so on party, raid, guild
+  and General messages only players standing near the bot see the emote, while
+  the spoken line still reaches the whole channel.
+
+### 2026-08-29 - Shorter Memories, Sent Whole
+
+* **Memories reach the model intact**: `sanitize_memory_for_prompt()` no
+  longer chops memories at 200 characters before injection. It now only
+  strips control characters and normalises whitespace, so every prompt
+  carries the memory exactly as the browser and the log viewer show it.
+* **Length is bounded when the memory is written**: the generator asks for a
+  single factual sentence of at most 160 characters, and `_clamp_memory_text()`
+  trims anything past 240 at a sentence boundary before it is stored. Bounding
+  the write side rather than the read side means a bot asked to "reference
+  this naturally" is never building a line around a severed clause.
+* **Drier, less florid journal entries**: the memory prompt now asks for a
+  terse log entry recording who was involved, what was done and where, with
+  no metaphors and at most a short clause of feeling. The `poetic` and
+  `vivid` expression styles were replaced with `plain`, `matter_of_fact` and
+  `observational`, and the chosen mood is passed as a subtle hint rather than
+  an instruction to emote. Existing memories are untouched.
+
+### 2026-08-25 - Lossless Trait Upload
+
+* **Long traits reach the server intact**: the client cuts an outgoing chat
+  line at 255 characters, so three sentence-length traits — and any Cyrillic
+  ones, which cost six characters each once percent-encoded — overflowed the
+  single `.llmc set` line and the save was silently lost. The addon now falls
+  back to a chunked upload (`.llmc put` / `commit` / `cancel`) whenever the
+  single-shot line would not fit, and keeps using `set` when it does.
+* **A commit is all or nothing**: the whole staged edit is validated before
+  any of it is written, so an invalid trait cannot leave a backstory saved and
+  an invalid backstory cannot arrive after the traits have already changed.
+  The player gets one error and the bot is untouched.
+* **An explicit backstory is not regenerated over**: changing traits queues a
+  backstory regeneration, and the worker starts by clearing whatever is
+  stored. A commit that supplies its own story skips that regeneration, so the
+  text the player wrote is not discarded minutes later. Tone still regenerates,
+  since it has to follow the new traits.
+* **Trait limits count characters everywhere**: the server counted bytes,
+  which rejected a 64-character Cyrillic trait at 128 bytes even though the
+  column is `VARCHAR(64)`. Server and addon now both count UTF-8 characters,
+  matching the edit boxes and MySQL.
+* Requires the updated Chatter Companion addon; the server accepts the old
+  addon unchanged.
+
+### 2026-08-25 - Longer Traits Accepted
+
+* **Traits up to 64 characters are stored correctly**: The session table
+  `llm_group_bot_traits` still capped each trait at 32 characters while
+  `llm_bot_identities` and the `/chatter` panel already allowed 64. Traits
+  longer than 32 characters broke the bridge with
+  `Data too long for column 'trait1'` when a bot joined a group, and were
+  silently truncated in the session row.
+* **Database Migration**: Run
+  `data/sql/characters/updates/20260827_widen_group_bot_traits.sql` if
+  upgrading from a previous version. Fresh installs already have the wider
+  columns from the base schema.
 
 ### 2026-08-16 - Korean Language and Unicode Cleanup
 
@@ -368,7 +522,7 @@
 * **Emote Reaction System**: Bots now react when you emote at them. `/wave` at a bot and they might wave back, `/flex` and they'll have something to say about it. Three reaction paths: silent mirror (bot mirrors your emote), verbal reaction (personal response), and observer comment (a nearby bot notices and chimes in). Covers all ~170 text emotes.
 * **Dungeon Context Injection**: Party chatter prompts now detect when you're inside a dungeon and inject dungeon-specific flavor instead of outdoor zone lore. Affects kill, loot, death, achievement, wipe, corpse run, and nearby object events.
 * **BG Chatter Quality Pass**: Reduced noise in battleground chatter, suppressed narrator actions in fast-paced BG events, unified the join path for cleaner group formation, and synced config defaults with tested values.
-* **Action & Emote Frequency**: `EmoteChance` and `ActionChance` config keys control how often bots include physical emotes and narrator actions in their messages.
+* **Action & Emote Frequency**: `EmoteChance` and `ActionChance` config keys control how often bots include physical emotes and narrator actions in their messages. Actions are delivered as a separate `/e` text emote ahead of the spoken line; `LLMChatter.ActionAsEmote.Enable = 0` restores the old inline `*action*` form.
 
 ### 2026-03-22 — Persistent Memories & Personality Traits
 

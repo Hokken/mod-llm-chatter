@@ -14,9 +14,11 @@ from chatter_constants import (
     CLASS_NAMES,
     EMOTE_LIST,
     RACE_NAMES,
+    WEAPON_SUBCLASS_NAMES,
     ZONE_COORDINATES,
     ZONE_LEVELS,
 )
+from chatter_text import split_action_prefix
 from spell_names import SPELL_DESCRIPTIONS, SPELL_NAMES
 
 logger = logging.getLogger(__name__)
@@ -27,6 +29,13 @@ logger = logging.getLogger(__name__)
 _char_info_cache: dict = {}
 _talent_cache: dict = {}
 _online_cache: dict = {}
+_weapon_cache: dict = {}
+_pet_cache: dict = {}
+# Shorter than the other caches because this one answers
+# "is a pet out right now", which a hunter changes mid-play
+# by dismissing or calling one, rather than the far more
+# stable "does this character own a pet".
+_PET_CACHE_TTL = 60
 _cache_lock = threading.Lock()
 
 
@@ -831,23 +840,30 @@ def insert_chat_message(
             delivery_reason,
         )
 
+    # cleanup_message() inlines the LLM's action field as a
+    # leading *asterisk* prefix. Pull it back out here so C++
+    # delivery can send it as a /e text emote ahead of the
+    # spoken line. Doing it at the single insert chokepoint
+    # covers every producer without touching each call site.
+    message, action = split_action_prefix(message)
+
     cursor = db.cursor()
     cursor.execute("""
         INSERT INTO llm_chatter_messages
         (event_id, queue_id, sequence, bot_guid,
-         bot_name, message, emote, npc_spawn_id,
+         bot_name, message, emote, action, npc_spawn_id,
          player_guid, channel, owner_subsystem,
          delivered, deliver_at,
          group_id, delivery_policy, delivery_reason)
         VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0,
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0,
             DATE_ADD(NOW(), INTERVAL %s SECOND),
             %s, %s, %s
         )
     """, (
         event_id, queue_id, sequence,
         bot_guid, bot_name, message,
-        validate_emote(emote), npc_spawn_id,
+        validate_emote(emote), action, npc_spawn_id,
         player_guid, channel, owner_subsystem,
         int(final_delay),
         group_id, delivery_policy, delivery_reason,
@@ -1240,6 +1256,143 @@ def get_character_talents(
 
     except Exception:
         return empty
+
+
+# Equipment slots holding what a character fights with.
+_MAIN_HAND_SLOT = 15
+_OFF_HAND_SLOT = 16
+_RANGED_SLOT = 17
+
+# The off hand and ranged slots also accept armor-class
+# items: shields, held items, and the class relics.
+_ARMOR_ITEM_KINDS = {
+    0: "held item",
+    6: "shield",
+    7: "libram",
+    8: "idol",
+    9: "totem",
+    10: "sigil",
+}
+
+_ITEM_CLASS_WEAPON = 2
+_ITEM_CLASS_ARMOR = 4
+
+
+def _describe_item_kind(item_class: int, subclass: int):
+    """Return a readable weapon/off-hand type, or None."""
+    if item_class == _ITEM_CLASS_WEAPON:
+        name = WEAPON_SUBCLASS_NAMES.get(subclass)
+        return name.lower() if name else None
+    if item_class == _ITEM_CLASS_ARMOR:
+        return _ARMOR_ITEM_KINDS.get(subclass)
+    return None
+
+
+def get_character_weapons(db, char_guid: int) -> List[dict]:
+    """Return what a character is currently wielding.
+
+    Each entry has 'name', 'kind' (readable type such as
+    "two-handed sword" or "shield") and 'slot'. Ordered
+    main hand, off hand, ranged.
+    """
+    cached = _cache_get(_weapon_cache, char_guid, 300)
+    if cached is not None:
+        return cached
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT ci.slot,
+                   it.name AS item_name,
+                   it.class AS item_class,
+                   it.subclass AS item_subclass
+            FROM acore_characters.character_inventory ci
+            JOIN acore_characters.item_instance ii
+                ON ii.guid = ci.item
+            JOIN acore_world.item_template it
+                ON it.entry = ii.itemEntry
+            WHERE ci.guid = %s
+              AND ci.bag = 0
+              AND ci.slot IN (%s, %s, %s)
+            ORDER BY ci.slot
+        """, (
+            char_guid,
+            _MAIN_HAND_SLOT,
+            _OFF_HAND_SLOT,
+            _RANGED_SLOT,
+        ))
+        rows = cursor.fetchall()
+        cursor.close()
+    except Exception:
+        return []
+
+    weapons = []
+    for row in rows:
+        name = (row.get('item_name') or '').strip()
+        if not name:
+            continue
+        kind = _describe_item_kind(
+            int(row.get('item_class') or 0),
+            int(row.get('item_subclass') or 0),
+        )
+        if not kind:
+            continue
+        weapons.append({
+            'name': name,
+            'kind': kind,
+            'slot': int(row.get('slot') or 0),
+        })
+
+    _cache_put(_weapon_cache, char_guid, weapons, 500)
+    return weapons
+
+
+def get_character_pet(db, char_guid: int) -> Optional[dict]:
+    """Return the pet at a character's side as
+    {'name', 'species'}, or None when none is out.
+
+    Only slot 0 counts. AzerothCore stores that as
+    PET_SAVE_AS_CURRENT, the pet actually summoned; slots 1-4
+    are the stable and slot 100 is owned but dismissed. Those
+    are pets the character has, not pets standing next to
+    them, and a bot told about one would talk to a companion
+    that is not there.
+    """
+    cached = _cache_get(_pet_cache, char_guid, _PET_CACHE_TTL)
+    if cached is not None:
+        # Absence is cached as an empty dict so that
+        # petless characters skip the query too.
+        return cached or None
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT cp.name AS pet_name,
+                   ct.name AS species
+            FROM acore_characters.character_pet cp
+            JOIN acore_world.creature_template ct
+                ON ct.entry = cp.entry
+            WHERE cp.owner = %s
+              AND cp.slot = 0
+            LIMIT 1
+        """, (char_guid,))
+        row = cursor.fetchone()
+        cursor.close()
+    except Exception:
+        return None
+
+    pet = {}
+    if row:
+        name = (row.get('pet_name') or '').strip()
+        species = (row.get('species') or '').strip()
+        if name or species:
+            pet = {
+                'name': name or species,
+                'species': species,
+            }
+
+    _cache_put(_pet_cache, char_guid, pet, 500)
+    return pet or None
 
 
 def any_real_players_online(db) -> bool:

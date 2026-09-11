@@ -18,11 +18,13 @@ from chatter_shared import (
     append_json_instruction,
     get_chatter_mode,
     get_gender_label,
+    build_gear_context,
 )
 from chatter_mode import build_player_prompt_header
 from chatter_group_state import (
     _mark_event,
     _store_chat,
+    build_party_context,
     get_bot_traits,
 )
 from chatter_party_gate import (
@@ -75,10 +77,17 @@ def handle_emote_observer(db, client, config, event):
         )
         return False
 
-    emote_id = EMOTE_NAME_TO_ID.get(emote, 0)
-    category = EMOTE_CATEGORIES.get(
-        emote_id, 'greeting'
-    )
+    is_custom = bool(int(extra.get('custom_emote') or 0))
+    if is_custom:
+        # Free text has no id, so no emote category and no
+        # category tone pool. 'custom' is not a REACTION_TONES
+        # key, which lands _pick_tone on the generic pool.
+        category = 'custom'
+    else:
+        emote_id = EMOTE_NAME_TO_ID.get(emote, 0)
+        category = EMOTE_CATEGORIES.get(
+            emote_id, 'greeting'
+        )
     trait_data = get_bot_traits(
         db, group_id, bot_guid
     ) if group_id and bot_guid else None
@@ -91,6 +100,13 @@ def handle_emote_observer(db, client, config, event):
         if trait_data else None
     )
 
+    gear = build_gear_context(
+        db, bot_guid, bot_class, config,
+    )
+    party_context = build_party_context(
+        db, group_id, bot_name,
+    )
+
     if tgt == 'creature':
         prompt = _build_creature_prompt(
             bot_name, bot_race, bot_class,
@@ -101,6 +117,9 @@ def handle_emote_observer(db, client, config, event):
             traits=traits,
             stored_tone=stored_tone,
             mode=get_chatter_mode(config),
+            is_custom=is_custom,
+            gear=gear,
+            party_context=party_context,
         )
     elif tgt == 'player_external':
         prompt = _build_player_prompt(
@@ -110,6 +129,10 @@ def handle_emote_observer(db, client, config, event):
             traits=traits,
             stored_tone=stored_tone,
             mode=get_chatter_mode(config),
+            is_custom=is_custom,
+            gear=gear,
+            party_context=party_context,
+            target_desc=_describe_target_player(extra),
         )
     else:
         prompt = _build_undirected_prompt(
@@ -119,6 +142,9 @@ def handle_emote_observer(db, client, config, event):
             traits=traits,
             stored_tone=stored_tone,
             mode=get_chatter_mode(config),
+            is_custom=is_custom,
+            gear=gear,
+            party_context=party_context,
         )
 
     result = run_single_reaction(
@@ -163,6 +189,37 @@ def _pick_tone(category: str) -> str:
     return random.choice(pool)
 
 
+def _describe_target_player(extra) -> str:
+    """Describe an emote's player target, e.g.
+    "a level 24 female Orc Hunter". Empty when C++
+    sent no details for the target."""
+    level = int(extra.get('target_level') or 0)
+    race = RACE_NAMES.get(
+        int(extra.get('target_race') or 0), ''
+    )
+    class_name = CLASS_NAMES.get(
+        int(extra.get('target_class') or 0), ''
+    )
+    # Gender is only meaningful alongside a race/class —
+    # on its own "female" describes nothing useful, and an
+    # absent field must not silently read as male.
+    gender = (
+        get_gender_label(int(extra.get('target_gender') or 0))
+        if 'target_gender' in extra and (race or class_name)
+        else ''
+    )
+    parts = []
+    if level:
+        parts.append(f"level {level}")
+    if gender:
+        parts.append(gender)
+    if race:
+        parts.append(race)
+    if class_name:
+        parts.append(class_name)
+    return ' '.join(parts)
+
+
 def _build_creature_prompt(
     bot_name, bot_race, bot_class, bot_gender,
     p_name, emote, t_name,
@@ -171,6 +228,9 @@ def _build_creature_prompt(
     traits=None,
     stored_tone=None,
     mode='roleplay',
+    is_custom=False,
+    gear='',
+    party_context='',
 ):
     rank_str = NPC_RANK_NAMES.get(npc_rank, "")
     type_str = NPC_TYPE_NAMES.get(
@@ -192,7 +252,8 @@ def _build_creature_prompt(
     tone = stored_tone or _pick_tone(category)
     identity = build_player_prompt_header(
         bot_name, bot_race, bot_class,
-        gender=bot_gender, mode=mode, channel='party'
+        gender=bot_gender, mode=mode, channel='party',
+        gear=gear,
     )
     prompt = identity
     if traits:
@@ -200,11 +261,23 @@ def _build_creature_prompt(
             " Your personality: "
             f"{', '.join(traits)}."
         )
+    if party_context:
+        prompt += f"\n{party_context}"
+    if is_custom:
+        seen = (
+            f"You witness {p_name} do this at "
+            f"{creature_label} ({role_label}): "
+            f"\"{emote}\""
+        )
+    else:
+        seen = (
+            f"You witness {p_name} "
+            f"/{emote} at {creature_label} "
+            f"({role_label})"
+        )
     prompt += (
-        f" Your tone: {tone}. "
-        f"You witness {p_name} "
-        f"/{emote} at {creature_label} "
-        f"({role_label}). "
+        f"\nYour tone: {tone}. "
+        f"{seen}. "
         f"Make a brief offhand remark about it "
         f"— {tone}. 1-2 sentences. "
         "NEVER put /slash commands in your "
@@ -219,11 +292,16 @@ def _build_player_prompt(
     traits=None,
     stored_tone=None,
     mode='roleplay',
+    is_custom=False,
+    gear='',
+    party_context='',
+    target_desc='',
 ):
     tone = stored_tone or _pick_tone(category)
     identity = build_player_prompt_header(
         bot_name, bot_race, bot_class,
-        gender=bot_gender, mode=mode, channel='party'
+        gender=bot_gender, mode=mode, channel='party',
+        gear=gear,
     )
     prompt = identity
     if traits:
@@ -231,11 +309,26 @@ def _build_player_prompt(
             " Your personality: "
             f"{', '.join(traits)}."
         )
+    if party_context:
+        prompt += f"\n{party_context}"
+    stranger = (
+        f"{t_name}, a {target_desc} from outside the group"
+        if target_desc
+        else f"{t_name}, a stranger outside the group"
+    )
+    if is_custom:
+        seen = (
+            f"You notice {p_name} do this at "
+            f"{stranger}: \"{emote}\""
+        )
+    else:
+        seen = (
+            f"You notice {p_name} "
+            f"/{emote} at {stranger}"
+        )
     prompt += (
-        f" Your tone: {tone}. "
-        f"You notice {p_name} "
-        f"/{emote} at {t_name}, "
-        "a stranger outside the group. "
+        f"\nYour tone: {tone}. "
+        f"{seen}. "
         f"Make a brief comment about it "
         f"— {tone}. 1-2 sentences. "
         "NEVER put /slash commands in your "
@@ -250,14 +343,21 @@ def _build_undirected_prompt(
     traits=None,
     stored_tone=None,
     mode='roleplay',
+    is_custom=False,
+    gear='',
+    party_context='',
 ):
-    category = EMOTE_CATEGORIES.get(
-        EMOTE_NAME_TO_ID.get(emote, 0), "ambient"
-    )
+    if is_custom:
+        category = 'custom'
+    else:
+        category = EMOTE_CATEGORIES.get(
+            EMOTE_NAME_TO_ID.get(emote, 0), "ambient"
+        )
     tone = stored_tone or _pick_tone(category)
     identity = build_player_prompt_header(
         bot_name, bot_race, bot_class,
-        gender=bot_gender, mode=mode, channel='party'
+        gender=bot_gender, mode=mode, channel='party',
+        gear=gear,
     )
     prompt = identity
     if traits:
@@ -265,10 +365,15 @@ def _build_undirected_prompt(
             " Your personality: "
             f"{', '.join(traits)}."
         )
+    if party_context:
+        prompt += f"\n{party_context}"
+    if is_custom:
+        seen = f"You notice {p_name} do this: \"{emote}\""
+    else:
+        seen = f"You notice {p_name} just /{emote}"
     prompt += (
-        f" Your tone: {tone}. "
-        f"You notice {p_name} "
-        f"just /{emote}. "
+        f"\nYour tone: {tone}. "
+        f"{seen}. "
         f"Make a brief offhand remark — {tone}. "
         "1-2 sentences. "
         "NEVER put /slash commands in your "

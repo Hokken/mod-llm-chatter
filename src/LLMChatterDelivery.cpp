@@ -69,6 +69,31 @@ private:
     float _orientation;
 };
 
+/// Wrap a free-text action so the client renders the
+/// speaker's name in front of it.
+///
+/// CHAT_MSG_MONSTER_EMOTE does not prepend the name the way
+/// a player's /e does. The client substitutes the name into
+/// a literal "%s" inside the text instead, which is why
+/// nearly every creature_text emote row is written as
+/// "%s throws a rotten apple at $n." Without the
+/// placeholder the name is simply never drawn.
+std::string BuildEmoteLine(std::string const& action)
+{
+    std::string text = action;
+
+    // A "%s" written by the model would swallow the name
+    // substitution, so drop any it produced.
+    for (size_t at = text.find("%s");
+         at != std::string::npos;
+         at = text.find("%s", at))
+    {
+        text.erase(at, 2);
+    }
+
+    return "%s " + text;
+}
+
 uint32 ExtractJsonUInt(
     std::string const& json, char const* key)
 {
@@ -130,7 +155,7 @@ void DeliverPendingMessagesImpl()
         result = CharacterDatabase.Query(
             "SELECT m.id, m.bot_guid, "
             "m.bot_name, m.message, "
-            "m.channel, m.emote, "
+            "m.channel, m.emote, m.action, "
             "m.npc_spawn_id, m.player_guid, "
             "m.sequence, m.event_id, e.zone_id, "
             "m.group_id, m.delivery_policy, "
@@ -160,7 +185,7 @@ void DeliverPendingMessagesImpl()
     {
         result = CharacterDatabase.Query(
             "SELECT m.id, m.bot_guid, m.bot_name, "
-            "m.message, m.channel, m.emote, "
+            "m.message, m.channel, m.emote, m.action, "
             "m.npc_spawn_id, m.player_guid, "
             "m.sequence, m.event_id, e.zone_id, "
             "m.group_id, m.delivery_policy, "
@@ -211,54 +236,70 @@ void DeliverPendingMessagesImpl()
         fields[5].IsNull()
             ? ""
             : fields[5].Get<std::string>();
-    uint32 npcSpawnId =
+    std::string actionText =
         fields[6].IsNull()
-            ? 0
-            : fields[6].Get<uint32>();
-    uint32 playerGuid =
+            ? ""
+            : fields[6].Get<std::string>();
+    uint32 npcSpawnId =
         fields[7].IsNull()
             ? 0
             : fields[7].Get<uint32>();
-    uint32 sequence =
+    uint32 playerGuid =
         fields[8].IsNull()
             ? 0
             : fields[8].Get<uint32>();
-    uint32 eventId =
+    uint32 sequence =
         fields[9].IsNull()
             ? 0
             : fields[9].Get<uint32>();
-    uint32 eventZoneId =
+    uint32 eventId =
         fields[10].IsNull()
             ? 0
             : fields[10].Get<uint32>();
-    uint32 groupId =
+    uint32 eventZoneId =
         fields[11].IsNull()
             ? 0
             : fields[11].Get<uint32>();
-    std::string deliveryPolicy =
+    uint32 groupId =
         fields[12].IsNull()
-            ? ""
-            : fields[12].Get<std::string>();
-    std::string deliveryReason =
+            ? 0
+            : fields[12].Get<uint32>();
+    std::string deliveryPolicy =
         fields[13].IsNull()
             ? ""
             : fields[13].Get<std::string>();
-    std::string ownerSubsystem =
+    std::string deliveryReason =
         fields[14].IsNull()
             ? ""
             : fields[14].Get<std::string>();
-    bool hasEventMapId = !fields[15].IsNull();
+    std::string ownerSubsystem =
+        fields[15].IsNull()
+            ? ""
+            : fields[15].Get<std::string>();
+    // m.action sits at index 6 here but not upstream, so the
+    // event columns land one slot later than they do there.
+    bool hasEventMapId = !fields[16].IsNull();
     uint32 eventMapId =
         !hasEventMapId
             ? 0
-            : fields[15].Get<uint32>();
+            : fields[16].Get<uint32>();
     std::string eventExtraData =
-        fields[16].IsNull()
+        fields[17].IsNull()
             ? ""
-            : fields[16].Get<std::string>();
+            : fields[17].Get<std::string>();
     uint32 eventInstanceId =
         ExtractJsonUInt(
             eventExtraData, "instance_id");
+
+    // ActionAsEmote disabled: fall back to the historical
+    // inline "*action* text" rendering so the action is not
+    // silently dropped for rows queued while it was on.
+    if (!actionText.empty()
+        && !sLLMChatterConfig->_actionAsEmote)
+    {
+        message = "*" + actionText + "* " + message;
+        actionText.clear();
+    }
 
     // Master General-channel toggle. If General chatter is
     // disabled, deliberately consume any already-queued General
@@ -321,6 +362,10 @@ void DeliverPendingMessagesImpl()
     // send (or if the bot is unavailable and
     // retrying would not help).
     bool sent = false;
+    // Whether the free-text action has already been acted
+    // out. A row that goes back on the queue must not play
+    // it a second time on the next attempt.
+    bool actionEmitted = false;
     bool botUnavailable =
         (channel == "msay" || channel == "myell")
             ? false
@@ -571,9 +616,43 @@ void DeliverPendingMessagesImpl()
             std::string processedMessage =
                 ConvertAllLinks(message);
 
+            // Free-text action goes out as an emote just
+            // ahead of the speech, so the log reads
+            // "Bot scans the treeline" then the spoken line.
+            //
+            // Called at each send site rather than once up
+            // front. The ordering matters, but so does not
+            // acting out a line that is never spoken: a yell
+            // from a dead or relocated bot is withheld and
+            // retried, and an action broadcast ahead of that
+            // decision would replay on every attempt.
+            //
+            // Deliberately Unit:: and not Player::TextEmote.
+            // The Player override sends CHAT_MSG_EMOTE, whose
+            // packet carries only the sender GUID and leaves
+            // the client to resolve the name, which it fails
+            // to do for bots — the emote renders with no name
+            // at all. Unit::TextEmote sends
+            // CHAT_MSG_MONSTER_EMOTE, one of the types
+            // BuildChatPacket serialises the sender name into.
+            // See BuildEmoteLine for why the "%s" matters.
+            //
+            // Proximity based either way: on party/raid/guild/
+            // General only players near the bot see it.
+            auto emitAction = [&]()
+            {
+                if (actionEmitted || actionText.empty())
+                    return;
+
+                bot->Unit::TextEmote(
+                    BuildEmoteLine(actionText));
+                actionEmitted = true;
+            };
+
             if (channel == "party")
             {
                 Group* grp = bot->GetGroup();
+                emitAction();
                 if (grp && grp->isRaidGroup())
                 {
                     SendPartyMessageInstant(
@@ -592,6 +671,8 @@ void DeliverPendingMessagesImpl()
                 Group* grp = bot->GetGroup();
                 if (grp)
                 {
+                    emitAction();
+
                     WorldPacket data;
                     ChatHandler::BuildChatPacket(
                         data,
@@ -612,6 +693,8 @@ void DeliverPendingMessagesImpl()
                 Group* grp = bot->GetGroup();
                 if (grp)
                 {
+                    emitAction();
+
                     WorldPacket data;
                     ChatHandler::BuildChatPacket(
                         data,
@@ -629,6 +712,7 @@ void DeliverPendingMessagesImpl()
             }
             else if (channel == "say")
             {
+                emitAction();
                 sent = ai->Say(processedMessage);
             }
             else if (channel == "guild")
@@ -642,6 +726,7 @@ void DeliverPendingMessagesImpl()
 
                 if (guild && session)
                 {
+                    emitAction();
                     guild->BroadcastToGuild(
                         session, false,
                         processedMessage.c_str(),
@@ -667,6 +752,7 @@ void DeliverPendingMessagesImpl()
                 }
                 else
                 {
+                    emitAction();
                     sent = ai->Yell(
                         processedMessage);
                 }
@@ -733,6 +819,7 @@ void DeliverPendingMessagesImpl()
                                         ch))
                                     continue;
 
+                                emitAction();
                                 ch->Say(
                                     bot->GetGUID(),
                                     processedMessage
@@ -870,6 +957,20 @@ void DeliverPendingMessagesImpl()
             }
             std::string msayMessage =
                 ConvertAllLinks(message);
+
+            // Same ordering and same CHAT_MSG_MONSTER_EMOTE
+            // as the bot path; Creature does not override
+            // TextEmote, so this is already the Unit version.
+            // Reached only once the speaker has passed
+            // eligibility, and the Say below cannot fail, so
+            // there is nothing here to retry into.
+            if (!actionText.empty())
+            {
+                speaker->TextEmote(
+                    BuildEmoteLine(actionText));
+                actionEmitted = true;
+            }
+
             speaker->Say(
                 msayMessage, LANG_UNIVERSAL);
             sent = true;
@@ -1006,7 +1107,19 @@ void DeliverPendingMessagesImpl()
     }
     else
     {
-        // Unclaim and reschedule for retry
+        // Unclaim and reschedule for retry. The speech is
+        // worth another attempt; an action already acted out
+        // is not, so it is consumed here and the retry
+        // delivers the line on its own.
+        if (actionEmitted)
+        {
+            CharacterDatabase.DirectExecute(
+                "UPDATE llm_chatter_messages "
+                "SET action = NULL "
+                "WHERE id = {}",
+                messageId);
+        }
+
         CharacterDatabase.DirectExecute(
             "UPDATE llm_chatter_messages "
             "SET delivered = 0, "

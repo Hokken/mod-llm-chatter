@@ -19,6 +19,7 @@ from chatter_shared import (
     get_chatter_mode,
     get_dungeon_flavor,
     run_single_reaction,
+    build_gear_context,
     build_zone_metadata,
 )
 from chatter_db import (
@@ -223,6 +224,10 @@ def run_group_handler(
             return False
     else:
         bot = _build_bot_from_extra(extra_data)
+
+    bot['gear'] = build_gear_context(
+        db, bot_guid, bot['class'], config,
+    )
 
     try:
         # 9. Build context

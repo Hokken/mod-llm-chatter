@@ -526,6 +526,9 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<bool>(
             "LLMChatter.GroupChatter."
             "FacingEnable", true);
+    _actionAsEmote =
+        GetChatterOption<bool>(
+            "LLMChatter.ActionAsEmote.Enable", true);
 
     // Group chatter - state-triggered callouts
     _stateCalloutEnabled = GetChatterOption<bool>(
@@ -1003,5 +1006,13 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<bool>(
             "LLMChatter.EmoteReactions."
             "NPCMirrorEnable", true);
+    _emoteCustomEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.EmoteReactions."
+            "CustomEnable", true);
+    _emoteCustomMaxChars =
+        GetChatterOption<uint32>(
+            "LLMChatter.EmoteReactions."
+            "CustomMaxChars", 120);
 
 }
