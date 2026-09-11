@@ -218,6 +218,7 @@ def process_group_kill_event(
                 ctx['is_boss'], ctx['is_rare'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 extra_data=ctx['extra_data'],
                 allow_action=not ctx[
                     'extra_data'].get(
@@ -266,6 +267,7 @@ def process_group_loot_event(
                 ctx['item_quality'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 looter_name=(
                     None
                     if ctx['bot_name']
@@ -456,6 +458,7 @@ def process_group_combat_event(
                 ctx['creature_name'],
                 ctx['is_boss'], ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 is_elite=ctx['is_elite'],
                 extra_data=ctx['extra_data'],
                 speaker_talent_context=(
@@ -516,6 +519,7 @@ def process_group_death_event(
                 ctx['killer_name'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 is_player_death=(
                     ctx['is_player_death']),
                 extra_data=ctx['extra_data'],
@@ -629,6 +633,7 @@ def process_group_levelup_event(
                 ctx['is_bot'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 speaker_talent_context=(
                     ctx['speaker_talent']),
                 stored_tone=ctx['stored_tone'],
@@ -811,6 +816,7 @@ def process_group_quest_complete_event(
                 ctx['quest_name'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 turnin_npc=ctx['turnin_npc'],
                 quest_details=(
                     ctx['quest_details']
@@ -1295,7 +1301,29 @@ def process_group_spell_cast_event(
 
     A bot reacts to a notable spell cast (heal, cc,
     resurrect, shield) in party chat.
+
+    Bridge-side filter: only cc/offensive (crowd
+    control or relevant attacks) get a reaction here.
+    Everything else (heal/dispel/shield/buff/support)
+    is dropped before it ever reaches the LLM — the
+    worldserver still emits the event for all
+    categories, this just stops answering most of
+    them. (Cutting reactions to the real player's own
+    casts specifically needs a worldserver-side change
+    — the event payload doesn't say who's a bot vs the
+    player — so that half is in the held C++ patch,
+    not here.)
     """
+    peek = parse_extra_data(
+        event.get('extra_data'), event['id'],
+        'bot_group_spell_cast',
+    )
+    if peek:
+        category = peek.get('spell_category', 'heal')
+        if category not in ('cc', 'offensive'):
+            _mark_event(db, event['id'], 'skipped')
+            return False
+
     return run_group_handler(
         db, client, config, event,
         event_type_label='bot_group_spell_cast',
@@ -1705,6 +1733,7 @@ def process_group_quest_accept_event(
                 ctx['zone_name'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 quest_details=(
                     ctx['quest_details']
                 ),
@@ -1967,6 +1996,7 @@ def process_group_low_health_event(
                 ctx['target_name'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 extra_data=ctx['extra_data'],
                 speaker_talent_context=(
                     ctx['speaker_talent']),
@@ -1999,6 +2029,7 @@ def process_group_oom_event(
                 ctx['target_name'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 extra_data=ctx['extra_data'],
                 speaker_talent_context=(
                     ctx['speaker_talent']),
@@ -2033,6 +2064,7 @@ def process_group_aggro_loss_event(
                 ctx['aggro_target'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 extra_data=ctx['extra_data'],
                 speaker_talent_context=(
                     ctx['speaker_talent']),

@@ -754,6 +754,7 @@ def build_kill_reaction_prompt(
     speaker_talent_context=None,
     stored_tone=None,
     map_id=0,
+    recent_messages=None,
 ):
     """Build prompt for a bot reacting to a kill.
 
@@ -761,6 +762,9 @@ def build_kill_reaction_prompt(
     Rare kills get 'nice find' style prompts.
     Personality traits influence the reaction.
     """
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
     tone = stored_tone or pick_random_tone(mode)
@@ -791,6 +795,8 @@ def build_kill_reaction_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+    if anti_rep:
+        rp_context += f"\n{anti_rep}\n"
 
     # Location context -- dungeon takes priority
     dungeon_flav = get_dungeon_flavor(map_id)
@@ -887,6 +893,7 @@ def build_loot_reaction_prompt(
     speaker_talent_context=None,
     stored_tone=None,
     map_id=0,
+    recent_messages=None,
 ):
     """Build prompt for a bot reacting to looting
     an item. Quality affects excitement level:
@@ -895,6 +902,9 @@ def build_loot_reaction_prompt(
     If looter_name is set, a groupmate looted it
     and this bot is reacting to someone else's loot.
     """
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
     tone = stored_tone or pick_random_tone(mode)
@@ -925,6 +935,8 @@ def build_loot_reaction_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+    if anti_rep:
+        rp_context += f"\n{anti_rep}\n"
 
     # Location context -- dungeon takes priority
     dungeon_flav = get_dungeon_flavor(map_id)
@@ -1028,11 +1040,15 @@ def build_combat_reaction_prompt(
     extra_data=None, allow_action=False,
     speaker_talent_context=None,
     stored_tone=None,
+    recent_messages=None,
 ):
     """Build prompt for a bot's battle cry when
     engaging a creature. Very short — must feel
     like real-time combat chat.
     """
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
     tone = stored_tone or pick_random_tone(mode)
@@ -1063,6 +1079,8 @@ def build_combat_reaction_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+    if anti_rep:
+        rp_context += f"\n{anti_rep}\n"
 
     if is_boss:
         combat_context = (
@@ -1135,11 +1153,15 @@ def build_death_reaction_prompt(
     speaker_talent_context=None,
     stored_tone=None,
     map_id=0,
+    recent_messages=None,
 ):
     """Build prompt for a bot reacting to a
     groupmate dying. The reactor is a DIFFERENT
     bot. Works for both bot and player deaths.
     """
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(reactor_traits)
     tone = stored_tone or pick_random_tone(mode)
@@ -1170,6 +1192,8 @@ def build_death_reaction_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+    if anti_rep:
+        rp_context += f"\n{anti_rep}\n"
 
     # Location context -- dungeon takes priority
     dungeon_flav = get_dungeon_flavor(map_id)
@@ -1253,12 +1277,16 @@ def build_levelup_reaction_prompt(
     mode, chat_history="", allow_action=True,
     speaker_talent_context=None,
     stored_tone=None,
+    recent_messages=None,
 ):
     """Build prompt for a bot reacting to someone
     leveling up. Always congratulatory/excited.
     If is_bot=True, reacting to another bot.
     If is_bot=False, reacting to the real player.
     """
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
     tone = stored_tone or pick_random_tone(mode)
@@ -1277,6 +1305,8 @@ def build_levelup_reaction_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+    if anti_rep:
+        rp_context += f"\n{anti_rep}\n"
 
     who = leveler_name
     if not is_bot:
@@ -1338,11 +1368,15 @@ def build_quest_complete_reaction_prompt(
     speaker_talent_context=None,
     stored_tone=None,
     zone_id=0,
+    recent_messages=None,
 ):
     """Build prompt for a bot reacting to a quest
     completion. Tone varies: relief, satisfaction,
     excitement depending on personality.
     """
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
     tone = stored_tone or pick_random_tone(mode)
@@ -1368,6 +1402,8 @@ def build_quest_complete_reaction_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+    if anti_rep:
+        rp_context += f"\n{anti_rep}\n"
 
     npc_note = ""
     if turnin_npc:
@@ -2541,12 +2577,16 @@ def build_quest_accept_reaction_prompt(
     speaker_talent_context=None,
     stored_tone=None,
     zone_id=0,
+    recent_messages=None,
 ):
     """Build prompt for a bot reacting to the group
     accepting a new quest. Tone varies: excited,
     curious, cautious, matter-of-fact depending
     on personality.
     """
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
     tone = stored_tone or pick_random_tone(mode)
@@ -2572,6 +2612,8 @@ def build_quest_accept_reaction_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+    if anti_rep:
+        rp_context += f"\n{anti_rep}\n"
 
     quest_context = (
         f"{acceptor_name} just "
@@ -3122,8 +3164,12 @@ def build_low_health_callout_prompt(
     allow_action=False,
     speaker_talent_context=None,
     stored_tone=None,
+    recent_messages=None,
 ):
     """Bot is critically wounded (combat or OOC)."""
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
 
@@ -3149,6 +3195,8 @@ def build_low_health_callout_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+    if anti_rep:
+        rp_context += f"\n{anti_rep}\n"
 
     hp = 0
     if extra_data:
@@ -3198,6 +3246,7 @@ def build_oom_callout_prompt(
     allow_action=False,
     speaker_talent_context=None,
     stored_tone=None,
+    recent_messages=None,
 ):
     """Bot is running out of mana (combat or OOC).
 
@@ -3206,6 +3255,9 @@ def build_oom_callout_prompt(
     before the event is queued, so this function
     should only be called for mana-using classes.
     """
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
 
@@ -3231,6 +3283,8 @@ def build_oom_callout_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+    if anti_rep:
+        rp_context += f"\n{anti_rep}\n"
 
     mp = 0
     if extra_data:
@@ -3275,9 +3329,13 @@ def build_aggro_loss_callout_prompt(
     allow_action=False,
     speaker_talent_context=None,
     stored_tone=None,
+    recent_messages=None,
 ):
     """Tank lost aggro — mob attacking someone
     else in group."""
+    anti_rep = build_anti_repetition_context(
+        recent_messages
+    )
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
 
@@ -3303,6 +3361,8 @@ def build_aggro_loss_callout_prompt(
 
     if chat_history:
         rp_context += f"{chat_history}\n"
+    if anti_rep:
+        rp_context += f"\n{anti_rep}\n"
 
     situation = (
         f"You are the tank but {target_name} "

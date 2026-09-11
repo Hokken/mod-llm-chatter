@@ -438,10 +438,23 @@ def build_bot_identity_from_dict(
 
 
 def get_chatter_mode(config: dict) -> str:
-    """Return 'normal' or 'roleplay' from config."""
+    """Return 'normal' or 'roleplay' from config.
+
+    Supports 'mixed', which resolves to 'roleplay' or 'normal' per
+    call with a configurable weighting (LLMChatter.MixedRoleplayChance,
+    default 0.5), so different bots/messages land in different styles
+    instead of the whole server being locked to one voice.
+    """
     if not config:
         return 'normal'
     mode = config.get('LLMChatter.ChatterMode', 'normal').lower()
+    if mode == 'mixed':
+        try:
+            chance = float(config.get('LLMChatter.MixedRoleplayChance', 0.5))
+        except (TypeError, ValueError):
+            chance = 0.5
+        chance = min(1.0, max(0.0, chance))
+        return 'roleplay' if random.random() < chance else 'normal'
     return mode if mode in ('normal', 'roleplay') else 'normal'
 
 
@@ -911,12 +924,27 @@ def get_zone_level_range(
 
 
 def get_zone_flavor(zone_id: int) -> Optional[str]:
-    """Get rich zone flavor text for immersive context."""
+    """Get rich zone flavor text for immersive context.
+
+    RNG-gated so it doesn't get injected into nearly
+    every prompt — bots were leaning on it to comment
+    on their surroundings far too often.
+    """
+    if random.random() >= 0.25:
+        return None
     return ZONE_FLAVOR.get(zone_id)
 
 
 def get_dungeon_flavor(map_id: int) -> Optional[str]:
-    """Get dungeon/raid flavor text by map ID."""
+    """Get dungeon/raid flavor text by map ID.
+
+    RNG-gated for the same reason as get_zone_flavor/
+    get_subzone_lore — injected into nearly every group
+    reaction prompt via map_id, unlike those two this had
+    no gate at all, so bots leaned on it constantly.
+    """
+    if random.random() >= 0.25:
+        return None
     return DUNGEON_FLAVOR.get(map_id)
 
 
@@ -978,9 +1006,13 @@ def get_subzone_lore(
 
     Returns None if area_id equals zone_id (no
     subzone — use zone_flavor instead), or if no
-    lore entry exists for this area.
+    lore entry exists for this area. RNG-gated for
+    the same reason as get_zone_flavor — bots were
+    commenting on their surroundings too often.
     """
     if not area_id or area_id == zone_id:
+        return None
+    if random.random() >= 0.25:
         return None
     lore = _load_subzone_lore()
     zones = lore.get("zones", {})

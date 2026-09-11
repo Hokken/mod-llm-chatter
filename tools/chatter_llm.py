@@ -176,6 +176,35 @@ def _apply_google_options(kwargs, config):
         kwargs['reasoning_effort'] = effort
 
 
+def _sampling_penalties(config):
+    """Return frequency/presence penalty kwargs for
+    OpenAI-compatible chat completions.
+
+    Provider-neutral config (matches LLMChatter.Temperature),
+    only applied on the openai-style branch (Anthropic's
+    API has no equivalent params). Defaults to 0 (no-op,
+    identical to pre-existing behavior) until configured.
+    """
+    kwargs = {}
+    try:
+        freq = float(config.get(
+            'LLMChatter.FrequencyPenalty', 0
+        ))
+        if freq:
+            kwargs['frequency_penalty'] = freq
+    except (TypeError, ValueError):
+        pass
+    try:
+        pres = float(config.get(
+            'LLMChatter.PresencePenalty', 0
+        ))
+        if pres:
+            kwargs['presence_penalty'] = pres
+    except (TypeError, ValueError):
+        pass
+    return kwargs
+
+
 def _effective_max_tokens(provider, config, max_tokens):
     """Adjust provider-specific output budget."""
     if provider == 'google':
@@ -392,18 +421,22 @@ def call_llm(
                     '.ContextSize', 2048
                 )
             )
-            response = client.chat.completions.create(
-                model=model,
-                max_tokens=request_max_tokens,
-                temperature=temperature,
-                messages=_build_chat_messages(
+            ollama_kwargs = {
+                'model': model,
+                'max_tokens': request_max_tokens,
+                'temperature': temperature,
+                'messages': _build_chat_messages(
                     sys_msg, sent_user_msg
                 ),
-                extra_body={
+                'extra_body': {
                     "options": {
                         "num_ctx": context_size
                     }
-                }
+                },
+            }
+            ollama_kwargs.update(_sampling_penalties(config))
+            response = client.chat.completions.create(
+                **ollama_kwargs
             )
             result = _extract_chat_content(
                 response, label
@@ -417,6 +450,7 @@ def call_llm(
                     sys_msg, user_msg
                 ),
             }
+            kwargs.update(_sampling_penalties(config))
             if provider == 'google':
                 _apply_google_options(kwargs, config)
             elif provider == 'openrouter':

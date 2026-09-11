@@ -707,7 +707,7 @@ def build_raid_morale_prompt(
         "raid encouragement or hype",
         "idle commentary between pulls",
         "joke or light trash talk",
-        "compliment a recent play or save",
+        "needle someone about a recent near-death or mistake",
         "reminisce about a past wipe or close call",
         "comment on the raid's architecture or "
         "atmosphere",

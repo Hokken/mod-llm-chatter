@@ -229,6 +229,15 @@ def run_group_handler(
         mode = get_chatter_mode(config)
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
+        # This bot's own recent lines, for an explicit
+        # anti-repetition instruction in reaction prompts
+        # (chat_hist alone is shown but has no "don't
+        # repeat" directive attached).
+        recent_msgs = [
+            h['message'] for h in history
+            if h.get('is_bot')
+            and h.get('speaker_name') == bot_name
+        ]
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
             bot['class'], bot_name,
@@ -257,6 +266,7 @@ def run_group_handler(
             'stored_tone': stored_tone,
             'mode': mode,
             'chat_hist': chat_hist,
+            'recent_msgs': recent_msgs,
             'speaker_talent': speaker_talent,
             'zone_id': zone_id,
             'area_id': area_id,
