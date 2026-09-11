@@ -34,7 +34,7 @@ from chatter_shared import (
     select_message_type,
     calculate_dynamic_delay,
     get_chatter_mode,
-    _zone_last_delivery,
+    _reserve_zone_delivery_window,
     _zone_delivery_delay,
     get_zone_name,
     get_zone_flavor,
@@ -790,12 +790,8 @@ def process_conversation(
                 )
 
         if messages:
-            # Zone gap applies to first message only;
-            # conversation followups stagger on top
-            base_delay = _zone_delivery_delay(
-                zone_id, config
-            )
-            cumulative_delay = base_delay
+            prepared = []
+            relative_delay = 0.0
             prev_msg_len = 0
             for i, msg in enumerate(messages):
                 bot_guid = bot_guids.get(
@@ -824,13 +820,34 @@ def process_conversation(
                         len(final_message), config,
                         prev_message_length=prev_msg_len,
                     )
-                    cumulative_delay += delay
+                    relative_delay += delay
                 prev_msg_len = len(final_message)
 
-                topic_label = (
-                    f" topic={chosen_topic}"
-                    if chosen_topic else ""
+                prepared.append((
+                    i, msg, bot_guid, final_message,
+                    relative_delay,
+                ))
+
+            # Reserve the entire sequence before any
+            # row is inserted. Other General producers
+            # then begin only after this conversation
+            # and the configured zone gap have ended.
+            base_delay = _reserve_zone_delivery_window(
+                zone_id, config,
+                duration_seconds=relative_delay,
+            )
+            topic_label = (
+                f" topic={chosen_topic}"
+                if chosen_topic else ""
+            )
+            for (
+                i, msg, bot_guid, final_message,
+                relative_delay,
+            ) in prepared:
+                cumulative_delay = (
+                    base_delay + relative_delay
                 )
+
                 logger.info(
                     "[GEN-FLOW] ambient conv | "
                     "type=%s%s bot=%s delay=%.1fs "
@@ -861,12 +878,6 @@ def process_conversation(
                     )
 
 
-            # Push zone timestamp to after the last
-            # message so the gap applies from the END
-            # of the conversation, not the start
-            _zone_last_delivery[zone_id] = (
-                time.monotonic() + cumulative_delay
-            )
             db.commit()
             return True
     return False

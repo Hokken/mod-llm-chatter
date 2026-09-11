@@ -169,10 +169,6 @@ struct PendingRejoin
 extern std::mutex _rejoinMutex;
 extern std::vector<PendingRejoin> _pendingRejoins;
 
-// -- Named boss cache --
-extern std::unordered_set<uint32>
-    _namedBossEntries;
-
 // ============================================================
 // Shared helper functions (defined in
 // LLMChatterGroup.cpp)

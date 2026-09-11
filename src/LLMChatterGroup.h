@@ -5,7 +5,6 @@
 
 class Player;
 
-void LoadNamedBossCache();
 void CheckGroupCombatState();
 void FlushQuestAcceptBatches();
 void FlushGroupJoinBatches();

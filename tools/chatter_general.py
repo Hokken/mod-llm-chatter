@@ -11,7 +11,6 @@ bot selection by zone.
 
 import logging
 import random
-import time
 
 # Module-level config defaults (set by init_general_config)
 _chat_history_limit = 10
@@ -33,8 +32,7 @@ from chatter_shared import (
     append_json_instruction,
     parse_single_response,
     should_include_action,
-    _zone_delivery_delay,
-    _zone_last_delivery,
+    _extend_zone_delivery_window,
     get_zone_flavor,
     get_zone_name,
     get_player_zone,
@@ -1103,11 +1101,10 @@ def _general_followup(
         source_delay_seconds=delay2,
     )
 
-    # Push zone timestamp past bot2's delivery so
-    # the gap enforced from the END of the exchange.
-    _zone_last_delivery[zone_id] = (
-        time.monotonic() + delay2
-    )
+    # Keep later automated chatter behind this
+    # player-driven exchange without shortening an
+    # existing reservation from another producer.
+    _extend_zone_delivery_window(zone_id, delay2)
 
     # Store in General chat history
     _store_general_chat(
@@ -1523,6 +1520,9 @@ def _general_extended_conversation(
             delay_seconds=current_delay,
             event_id=event_id,
             sequence=msg_count - 1,
+        )
+        _extend_zone_delivery_window(
+            zone_id, current_delay
         )
         maybe_queue_group_general_reaction(
             db, config,

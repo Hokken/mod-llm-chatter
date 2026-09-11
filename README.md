@@ -105,6 +105,14 @@ The default config ships on the **chatty side** so you can
 experience all the features out of the box. If you prefer a
 quieter, more immersive atmosphere, the key knobs are below.
 
+An optional lower-volume template is available at
+[`conf/presets/mod_ll_chatter_quieter.conf.dist`](conf/presets/mod_ll_chatter_quieter.conf.dist).
+It is not automatically installed or loaded. To use it, back up your active
+config, then copy the preset to your server's module-config directory as
+`mod_llm_chatter.conf` and configure its database and provider credentials.
+Keep alternate presets in `conf/presets/`: files directly under
+`conf/*.conf.dist` are registered as required config filenames at build time.
+
 **Reducing General channel chatter** (ambient bot conversations
 in zone-wide chat):
 
