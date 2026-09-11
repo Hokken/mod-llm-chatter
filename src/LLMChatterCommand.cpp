@@ -352,6 +352,71 @@ bool ValidateField(
     return true;
 }
 
+// Checks a whole trait set without touching the database, so
+// an edit can be rejected as a unit before any of it is
+// written.
+bool ValidateTraitValues(
+    ChatHandler* handler,
+    std::string const& trait1,
+    std::string const& trait2,
+    std::string const& trait3)
+{
+    return ValidateField(
+               handler, "Trait 1", trait1, kMaxTraitChars)
+        && ValidateField(
+               handler, "Trait 2", trait2, kMaxTraitChars)
+        && ValidateField(
+               handler, "Trait 3", trait3, kMaxTraitChars);
+}
+
+// The backstory half of the same check. The traits passed in
+// are the ones the bot will end up with, which for a combined
+// edit are the incoming values rather than the stored ones:
+// a story may not be saved onto a bot with no traits, because
+// the upsert behind it would write blanks over them.
+bool ValidateBackstoryValue(
+    ChatHandler* handler,
+    std::string const& trait1,
+    std::string const& trait2,
+    std::string const& trait3,
+    std::string const& backstory)
+{
+    if (backstory.empty())
+    {
+        SendAddonLine(
+            handler,
+            "ERROR validation "
+            + PercentEncode(
+                "Backstory cannot be empty"));
+        return false;
+    }
+
+    if (Utf8CharCount(backstory) > kMaxBackstoryChars)
+    {
+        SendAddonLine(
+            handler,
+            "ERROR validation "
+            + PercentEncode(
+                "Backstory is too long "
+                "(max 1000 chars)"));
+        return false;
+    }
+
+    if (trait1.empty() || trait2.empty() || trait3.empty())
+    {
+        SendAddonLine(
+            handler,
+            "ERROR validation "
+            + PercentEncode(
+                "Bot has no traits yet. "
+                "Invite them to a group "
+                "first."));
+        return false;
+    }
+
+    return true;
+}
+
 bool HandleRosterCommand(ChatHandler* handler)
 {
     Player* player = handler->GetSession()->GetPlayer();
@@ -458,22 +523,24 @@ bool HandleGetCommand(
     return true;
 }
 
+// Writes a trait set and returns whether it was applied.
+// `backstoryFollows` says the caller saves an explicit
+// backstory immediately after this, which means neither
+// scheduling a regeneration that would overwrite it nor
+// reporting the story this call is about to supersede.
 bool ApplyTraitUpdate(
     ChatHandler* handler,
     uint32 playerGuid,
     uint32 botGuid,
     std::string const& trait1,
     std::string const& trait2,
-    std::string const& trait3)
+    std::string const& trait3,
+    bool backstoryFollows = false)
 {
-    if (!ValidateField(
-            handler, "Trait 1", trait1, kMaxTraitChars)
-        || !ValidateField(
-            handler, "Trait 2", trait2, kMaxTraitChars)
-        || !ValidateField(
-            handler, "Trait 3", trait3, kMaxTraitChars))
+    if (!ValidateTraitValues(
+            handler, trait1, trait2, trait3))
     {
-        return true;
+        return false;
     }
 
     BotProfile profile;
@@ -484,7 +551,7 @@ bool ApplyTraitUpdate(
             "ERROR missing "
             + PercentEncode(
                 "Could not load that bot profile"));
-        return true;
+        return false;
     }
 
     bool traitsChanged =
@@ -557,15 +624,21 @@ bool ApplyTraitUpdate(
             regenExtra,
             5, 120, true);
 
-        // Queue backstory regen for new traits
-        QueueChatterEvent(
-            "bot_backstory_regen",
-            "player",
-            0, 0, 5, "",
-            botGuid, "",
-            0, "", 0,
-            regenExtra,
-            5, 120, true);
+        // Queue backstory regen for new traits, unless this
+        // edit brought a story of its own. The worker starts
+        // by clearing whatever is stored, so scheduling it
+        // here would discard the supplied text minutes later.
+        if (!backstoryFollows)
+        {
+            QueueChatterEvent(
+                "bot_backstory_regen",
+                "player",
+                0, 0, 5, "",
+                botGuid, "",
+                0, "", 0,
+                regenExtra,
+                5, 120, true);
+        }
     }
     else
     {
@@ -625,7 +698,7 @@ bool ApplyTraitUpdate(
         + " " + PercentEncode(trait2)
         + " " + PercentEncode(trait3)
         + " " + PercentEncode(toneToSend));
-    if (!traitsChanged)
+    if (!traitsChanged && !backstoryFollows)
     {
         SendAddonLine(
             handler,
@@ -674,37 +747,22 @@ bool HandleSetCommand(
         return true;
     }
 
-    return ApplyTraitUpdate(
+    // The addon hears the outcome on the UPDATED or ERROR
+    // line. The command itself understood its input either
+    // way, and returning false here would make the core
+    // print its own usage text over that answer.
+    ApplyTraitUpdate(
         handler, playerGuid, botGuid, trait1, trait2,
         trait3);
+    return true;
 }
 
+// Writes a backstory and returns whether it was applied.
 bool ApplyBackstoryUpdate(
     ChatHandler* handler,
     uint32 botGuid,
     std::string const& backstory)
 {
-    if (backstory.empty())
-    {
-        SendAddonLine(
-            handler,
-            "ERROR validation "
-            + PercentEncode(
-                "Backstory cannot be empty"));
-        return true;
-    }
-
-    if (Utf8CharCount(backstory) > kMaxBackstoryChars)
-    {
-        SendAddonLine(
-            handler,
-            "ERROR validation "
-            + PercentEncode(
-                "Backstory is too long "
-                "(max 1000 chars)"));
-        return true;
-    }
-
     BotProfile profile;
     if (!LoadBotProfile(botGuid, profile))
     {
@@ -714,24 +772,15 @@ bool ApplyBackstoryUpdate(
             + PercentEncode(
                 "Could not load that bot "
                 "profile"));
-        return true;
+        return false;
     }
 
-    // Reject if bot has no traits — upserting an
-    // identity with blank traits would poison
-    // future trait assignment
-    if (profile.trait1.empty()
-        || profile.trait2.empty()
-        || profile.trait3.empty())
-    {
-        SendAddonLine(
+    if (!ValidateBackstoryValue(
             handler,
-            "ERROR validation "
-            + PercentEncode(
-                "Bot has no traits yet. "
-                "Invite them to a group "
-                "first."));
-        return true;
+            profile.trait1, profile.trait2,
+            profile.trait3, backstory))
+    {
+        return false;
     }
 
     // Upsert identity row — creates it if the
@@ -835,9 +884,10 @@ bool HandleSetBackstoryCommand(
         return true;
     }
 
-    return ApplyBackstoryUpdate(
+    ApplyBackstoryUpdate(
         handler, botGuid,
         Trim(PercentDecode(bsToken)));
+    return true;
 }
 
 bool HandleRegenBackstoryCommand(
@@ -1269,33 +1319,60 @@ bool HandleCommitCommand(
         return true;
     }
 
-    if (traitsStaged)
+    BotProfile profile;
+    if (!LoadBotProfile(botGuid, profile))
     {
-        BotProfile profile;
-        if (!LoadBotProfile(botGuid, profile))
-        {
-            SendAddonLine(
-                handler,
-                "ERROR missing "
-                + PercentEncode(
-                    "Could not load that bot profile"));
-            return true;
-        }
+        SendAddonLine(
+            handler,
+            "ERROR missing "
+            + PercentEncode(
+                "Could not load that bot profile"));
+        return true;
+    }
 
-        // Fields the addon did not send keep the values
-        // already stored for the bot.
-        if (!staged[PROFILE_FIELD_TRAIT1])
-            values[PROFILE_FIELD_TRAIT1] = profile.trait1;
-        if (!staged[PROFILE_FIELD_TRAIT2])
-            values[PROFILE_FIELD_TRAIT2] = profile.trait2;
-        if (!staged[PROFILE_FIELD_TRAIT3])
-            values[PROFILE_FIELD_TRAIT3] = profile.trait3;
+    // Fields the addon did not send keep the values already
+    // stored for the bot.
+    if (!staged[PROFILE_FIELD_TRAIT1])
+        values[PROFILE_FIELD_TRAIT1] = profile.trait1;
+    if (!staged[PROFILE_FIELD_TRAIT2])
+        values[PROFILE_FIELD_TRAIT2] = profile.trait2;
+    if (!staged[PROFILE_FIELD_TRAIT3])
+        values[PROFILE_FIELD_TRAIT3] = profile.trait3;
 
-        ApplyTraitUpdate(
+    // One edit, one verdict. Traits and backstory arrive
+    // together and are checked together, so a bad value in
+    // either cannot leave the other half written: the player
+    // gets one error and the bot is untouched.
+    if (traitsStaged
+        && !ValidateTraitValues(
+            handler,
+            values[PROFILE_FIELD_TRAIT1],
+            values[PROFILE_FIELD_TRAIT2],
+            values[PROFILE_FIELD_TRAIT3]))
+    {
+        return true;
+    }
+
+    if (staged[PROFILE_FIELD_BACKSTORY]
+        && !ValidateBackstoryValue(
+            handler,
+            values[PROFILE_FIELD_TRAIT1],
+            values[PROFILE_FIELD_TRAIT2],
+            values[PROFILE_FIELD_TRAIT3],
+            values[PROFILE_FIELD_BACKSTORY]))
+    {
+        return true;
+    }
+
+    if (traitsStaged
+        && !ApplyTraitUpdate(
             handler, playerGuid, botGuid,
             values[PROFILE_FIELD_TRAIT1],
             values[PROFILE_FIELD_TRAIT2],
-            values[PROFILE_FIELD_TRAIT3]);
+            values[PROFILE_FIELD_TRAIT3],
+            staged[PROFILE_FIELD_BACKSTORY]))
+    {
+        return true;
     }
 
     if (staged[PROFILE_FIELD_BACKSTORY])

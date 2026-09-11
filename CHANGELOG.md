@@ -8,12 +8,15 @@
   previously had only race, class, and level, so a bot swinging a mace
   would happily talk about its sword. Main hand, off hand, and ranged
   slots are covered, including shields, held items, and class relics.
-* **Hunters and warlocks know their companion**: the pet is introduced by
-  name and species, as in `Kreenum, a Felhunter` (`an Imp`, not `a Imp`,
-  for vowel-starting species), so bots stop treating their own pet as a
-  stranger. Only pet classes are looked up, and a pet named after its
-  species reads as `Sporebat` rather than the doubled `Sporebat, a
-  Sporebat`.
+* **Hunters and warlocks know their companion**: the pet at the bot's side
+  is introduced by name and species, as in `Kreenum, a Felhunter` (`an Imp`,
+  not `a Imp`, for vowel-starting species), so bots stop treating their own
+  pet as a stranger. Only the pet actually summoned counts — AzerothCore
+  records that as slot 0, `PET_SAVE_AS_CURRENT` — so a hunter whose animals
+  are all stabled or dismissed is described alone rather than talking to a
+  companion that is not there. Only pet classes are looked up, and a pet
+  named after its species reads as `Sporebat` rather than the doubled
+  `Sporebat, a Sporebat`.
 * **Reaches every conversation shape**: a bot speaking alone gets the
   second-person `You are wielding ...` / `Your pet is ...` phrasing, while
   a bot introduced inside a multi-speaker scene — idle party chatter, the
@@ -23,14 +26,16 @@
   whoever the model is currently speaking as. `attach_speaker_gear` fills
   every speaker in a bot list and `append_speaker_gear` places the line
   directly under its own speaker.
-* **Cached per bot**: equipment and pet are read from the character
-  database and held for five minutes, so the cost is one small query
-  every few minutes rather than one per message. Gear swapped in game can
-  take that long to show up in prompts.
+* **Cached per bot**: equipment is read from the character database and
+  held for five minutes, so the cost is one small query every few minutes
+  rather than one per message; gear swapped in game can take that long to
+  show up in prompts. The pet is cached for one minute instead, because
+  whether one is out is something a hunter changes mid-play.
 * Controlled by `LLMChatter.GearContext.Enable` (default on).
 * **Regression coverage**: focused tests protect weapon and relic naming,
-  pet deduplication, the pet-class gate, the config switch, the identity
-  line itself, third-person rendering, the article rule, speakers skipped
+  pet deduplication, the summoned-versus-stabled distinction, the pet-class
+  gate, the config switch, the identity line itself, third-person
+  rendering, the article rule, speakers skipped
   when a name or guid is missing, and gear-line ordering within a
   multi-speaker block. `manual_gear_prompt_check.py` prints a real speaker
   block from the live database for eyeball checks.
@@ -222,7 +227,11 @@
 * **The split happens at queue time**: `llm_chatter_messages` gained an
   `action` column, and `insert_chat_message()` peels the `*action*` prefix off
   the cleaned message into it, so every producer is covered without touching
-  each call site. C++ delivery emits it via `TextEmote` just before the speech.
+  each call site. C++ delivery emits it via `TextEmote` immediately before the
+  speech, at each send site rather than once up front, so it is tied to the
+  same decision the speech is. A line that is withheld and retried — a yell
+  from a bot that has died or left the zone — does not leave its action
+  broadcast to an empty stage, and cannot replay it on every attempt.
 * **Reversible**: set `LLMChatter.ActionAsEmote.Enable = 0` to restore the old
   inline rendering. Note that `/e` is proximity based, so on party, raid, guild
   and General messages only players standing near the bot see the emote, while
@@ -254,6 +263,15 @@
   single `.llmc set` line and the save was silently lost. The addon now falls
   back to a chunked upload (`.llmc put` / `commit` / `cancel`) whenever the
   single-shot line would not fit, and keeps using `set` when it does.
+* **A commit is all or nothing**: the whole staged edit is validated before
+  any of it is written, so an invalid trait cannot leave a backstory saved and
+  an invalid backstory cannot arrive after the traits have already changed.
+  The player gets one error and the bot is untouched.
+* **An explicit backstory is not regenerated over**: changing traits queues a
+  backstory regeneration, and the worker starts by clearing whatever is
+  stored. A commit that supplies its own story skips that regeneration, so the
+  text the player wrote is not discarded minutes later. Tone still regenerates,
+  since it has to follow the new traits.
 * **Trait limits count characters everywhere**: the server counted bytes,
   which rejected a 64-character Cyrillic trait at 128 bytes even though the
   column is `VARCHAR(64)`. Server and addon now both count UTF-8 characters,

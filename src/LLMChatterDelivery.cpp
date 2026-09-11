@@ -362,6 +362,10 @@ void DeliverPendingMessagesImpl()
     // send (or if the bot is unavailable and
     // retrying would not help).
     bool sent = false;
+    // Whether the free-text action has already been acted
+    // out. A row that goes back on the queue must not play
+    // it a second time on the next attempt.
+    bool actionEmitted = false;
     bool botUnavailable =
         (channel == "msay" || channel == "myell")
             ? false
@@ -616,6 +620,13 @@ void DeliverPendingMessagesImpl()
             // ahead of the speech, so the log reads
             // "Bot scans the treeline" then the spoken line.
             //
+            // Called at each send site rather than once up
+            // front. The ordering matters, but so does not
+            // acting out a line that is never spoken: a yell
+            // from a dead or relocated bot is withheld and
+            // retried, and an action broadcast ahead of that
+            // decision would replay on every attempt.
+            //
             // Deliberately Unit:: and not Player::TextEmote.
             // The Player override sends CHAT_MSG_EMOTE, whose
             // packet carries only the sender GUID and leaves
@@ -628,13 +639,20 @@ void DeliverPendingMessagesImpl()
             //
             // Proximity based either way: on party/raid/guild/
             // General only players near the bot see it.
-            if (!actionText.empty())
+            auto emitAction = [&]()
+            {
+                if (actionEmitted || actionText.empty())
+                    return;
+
                 bot->Unit::TextEmote(
                     BuildEmoteLine(actionText));
+                actionEmitted = true;
+            };
 
             if (channel == "party")
             {
                 Group* grp = bot->GetGroup();
+                emitAction();
                 if (grp && grp->isRaidGroup())
                 {
                     SendPartyMessageInstant(
@@ -653,6 +671,8 @@ void DeliverPendingMessagesImpl()
                 Group* grp = bot->GetGroup();
                 if (grp)
                 {
+                    emitAction();
+
                     WorldPacket data;
                     ChatHandler::BuildChatPacket(
                         data,
@@ -673,6 +693,8 @@ void DeliverPendingMessagesImpl()
                 Group* grp = bot->GetGroup();
                 if (grp)
                 {
+                    emitAction();
+
                     WorldPacket data;
                     ChatHandler::BuildChatPacket(
                         data,
@@ -690,6 +712,7 @@ void DeliverPendingMessagesImpl()
             }
             else if (channel == "say")
             {
+                emitAction();
                 sent = ai->Say(processedMessage);
             }
             else if (channel == "guild")
@@ -703,6 +726,7 @@ void DeliverPendingMessagesImpl()
 
                 if (guild && session)
                 {
+                    emitAction();
                     guild->BroadcastToGuild(
                         session, false,
                         processedMessage.c_str(),
@@ -728,6 +752,7 @@ void DeliverPendingMessagesImpl()
                 }
                 else
                 {
+                    emitAction();
                     sent = ai->Yell(
                         processedMessage);
                 }
@@ -794,6 +819,7 @@ void DeliverPendingMessagesImpl()
                                         ch))
                                     continue;
 
+                                emitAction();
                                 ch->Say(
                                     bot->GetGUID(),
                                     processedMessage
@@ -935,9 +961,15 @@ void DeliverPendingMessagesImpl()
             // Same ordering and same CHAT_MSG_MONSTER_EMOTE
             // as the bot path; Creature does not override
             // TextEmote, so this is already the Unit version.
+            // Reached only once the speaker has passed
+            // eligibility, and the Say below cannot fail, so
+            // there is nothing here to retry into.
             if (!actionText.empty())
+            {
                 speaker->TextEmote(
                     BuildEmoteLine(actionText));
+                actionEmitted = true;
+            }
 
             speaker->Say(
                 msayMessage, LANG_UNIVERSAL);
@@ -1075,7 +1107,19 @@ void DeliverPendingMessagesImpl()
     }
     else
     {
-        // Unclaim and reschedule for retry
+        // Unclaim and reschedule for retry. The speech is
+        // worth another attempt; an action already acted out
+        // is not, so it is consumed here and the retry
+        // delivers the line on its own.
+        if (actionEmitted)
+        {
+            CharacterDatabase.DirectExecute(
+                "UPDATE llm_chatter_messages "
+                "SET action = NULL "
+                "WHERE id = {}",
+                messageId);
+        }
+
         CharacterDatabase.DirectExecute(
             "UPDATE llm_chatter_messages "
             "SET delivered = 0, "

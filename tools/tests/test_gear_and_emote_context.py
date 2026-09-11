@@ -72,6 +72,10 @@ from chatter_mode import (  # noqa: E402
 from chatter_group_prompts import (  # noqa: E402
     _append_bots_with_rp,
 )
+from chatter_db import (  # noqa: E402
+    _pet_cache,
+    get_character_pet,
+)
 from chatter_shared import (  # noqa: E402
     append_speaker_gear,
     attach_speaker_gear,
@@ -92,7 +96,7 @@ class FakeCursor:
         if 'character_inventory' in sql:
             self.rows = self.data.get('weapons', [])
         elif 'character_pet' in sql:
-            self.rows = self.data.get('pet', [])
+            self.rows = self._pet_rows(sql)
         elif 'llm_group_bot_traits' in sql:
             self.rows = [
                 {'bot_name': name}
@@ -107,6 +111,29 @@ class FakeCursor:
             self.rows = self.data.get('history', [])
         else:
             self.rows = []
+
+    def _pet_rows(self, sql):
+        """Pet rows, honouring the slot filter the real query
+        applies. Test data carries a `slot` the way the table
+        does; the query never selects it, so it is dropped
+        from what comes back.
+        """
+        rows = self.data.get('pet', [])
+        # The whole point is that the slot is filtered in the
+        # WHERE clause, so match that and not a mention of
+        # the column anywhere in the statement.
+        if 'AND cp.slot = 0' in sql:
+            rows = [
+                row for row in rows
+                if int(row.get('slot', 0)) == 0
+            ]
+        return [
+            {
+                key: value for key, value in row.items()
+                if key != 'slot'
+            }
+            for row in rows
+        ]
 
     def fetchall(self):
         return list(self.rows)
@@ -164,12 +191,57 @@ def test_hunter_context_names_weapons_and_pet():
         pet=[{
             'pet_name': 'Krenas',
             'species': 'Springpaw Stalker',
+            'slot': 0,
         }],
     )
     context = build_gear_context(db, 9001, 'Hunter')
     assert "Huntsman's Harpoon (polearm)" in context
     assert 'Krenas, a Springpaw Stalker' in context
     assert 'not a stranger' in context
+
+
+def test_only_a_summoned_pet_counts_as_a_companion():
+    # AzerothCore stores the pet actually out as slot 0.
+    # Slots 1-4 are the stable and 100 is owned but
+    # dismissed: those animals are not at the hunter's side,
+    # and a bot told about one would talk to thin air.
+    for slot, present in (
+        (0, True), (1, False), (4, False), (100, False),
+    ):
+        _pet_cache.clear()
+        db = FakeDb(pet=[{
+            'pet_name': 'Krenas',
+            'species': 'Springpaw Stalker',
+            'slot': slot,
+        }])
+        pet = get_character_pet(db, 9010 + slot)
+        assert (pet is not None) == present, slot
+        if present:
+            assert pet == {
+                'name': 'Krenas',
+                'species': 'Springpaw Stalker',
+            }
+
+
+def test_a_hunter_between_pets_is_described_alone():
+    _pet_cache.clear()
+    db = FakeDb(
+        weapons=[{
+            'slot': 15,
+            'item_name': 'Huntsman\'s Harpoon',
+            'item_class': 2,
+            'item_subclass': 6,
+        }],
+        pet=[{
+            'pet_name': 'Krenas',
+            'species': 'Springpaw Stalker',
+            'slot': 1,
+        }],
+    )
+    context = build_gear_context(db, 9011, 'Hunter')
+    assert "Huntsman's Harpoon (polearm)" in context
+    assert 'Krenas' not in context
+    assert 'pet' not in context.lower()
 
 
 def test_petless_class_gets_weapons_only():
@@ -474,6 +546,8 @@ def main() -> int:
     test_weapons_render_as_name_and_type()
     test_pet_named_after_its_species_is_not_repeated()
     test_hunter_context_names_weapons_and_pet()
+    test_only_a_summoned_pet_counts_as_a_companion()
+    test_a_hunter_between_pets_is_described_alone()
     test_petless_class_gets_weapons_only()
     test_shield_and_relic_slots_are_described()
     test_gear_context_can_be_switched_off()

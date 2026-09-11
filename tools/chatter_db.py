@@ -31,6 +31,11 @@ _talent_cache: dict = {}
 _online_cache: dict = {}
 _weapon_cache: dict = {}
 _pet_cache: dict = {}
+# Shorter than the other caches because this one answers
+# "is a pet out right now", which a hunter changes mid-play
+# by dismissing or calling one, rather than the far more
+# stable "does this character own a pet".
+_PET_CACHE_TTL = 60
 _cache_lock = threading.Lock()
 
 
@@ -1343,12 +1348,17 @@ def get_character_weapons(db, char_guid: int) -> List[dict]:
 
 
 def get_character_pet(db, char_guid: int) -> Optional[dict]:
-    """Return a character's pet as {'name', 'species'}.
+    """Return the pet at a character's side as
+    {'name', 'species'}, or None when none is out.
 
-    Prefers the pet that is currently out (slot 0) over
-    stabled ones. Returns None when there is no pet.
+    Only slot 0 counts. AzerothCore stores that as
+    PET_SAVE_AS_CURRENT, the pet actually summoned; slots 1-4
+    are the stable and slot 100 is owned but dismissed. Those
+    are pets the character has, not pets standing next to
+    them, and a bot told about one would talk to a companion
+    that is not there.
     """
-    cached = _cache_get(_pet_cache, char_guid, 300)
+    cached = _cache_get(_pet_cache, char_guid, _PET_CACHE_TTL)
     if cached is not None:
         # Absence is cached as an empty dict so that
         # petless characters skip the query too.
@@ -1363,7 +1373,7 @@ def get_character_pet(db, char_guid: int) -> Optional[dict]:
             JOIN acore_world.creature_template ct
                 ON ct.entry = cp.entry
             WHERE cp.owner = %s
-            ORDER BY (cp.slot = 0) DESC, cp.slot
+              AND cp.slot = 0
             LIMIT 1
         """, (char_guid,))
         row = cursor.fetchone()
