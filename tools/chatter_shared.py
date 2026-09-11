@@ -1720,21 +1720,77 @@ def get_localized_creature_name(
         return None
 
 
+def get_english_creature_name(
+    db, entry: Optional[int]
+) -> Optional[str]:
+    """Look up the English creature name from
+    acore_world.creature_template.
+
+    creature_template_locale holds only translations, so an
+    English-configured bridge cannot reach English text
+    through it -- the base table is the English row.
+    Returns None when the entry is missing or the query
+    fails, leaving the caller with the name it already has.
+    """
+    if not entry:
+        return None
+    try:
+        entry = int(entry)
+    except (TypeError, ValueError):
+        return None
+
+    cache_key = (entry, 'enUS')
+    if cache_key in _creature_name_locale_cache:
+        return _creature_name_locale_cache[cache_key]
+
+    name = None
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT name FROM "
+            "acore_world.creature_template "
+            "WHERE entry = %s",
+            (entry,),
+        )
+        row = cursor.fetchone()
+        name = (
+            row['name']
+            if row and row.get('name') else None
+        )
+        cursor.close()
+    except Exception as exc:
+        logger.debug(
+            "English creature name lookup failed for "
+            "entry %s: %s", entry, exc,
+        )
+        return None
+
+    _creature_name_locale_cache[cache_key] = name
+    return name
+
+
 def localize_creature_name(
     db, name: str, entry: Optional[int] = None
 ) -> str:
-    """Return the Blizzard-localized creature/NPC name
-    for the configured LLMChatter.Language when available,
-    otherwise return `name` unchanged.
+    """Return the creature/NPC name in the language named
+    by LLMChatter.Language.
 
-    Safe no-op (returns `name` as-is) when: the configured
-    language has no locale mapping (e.g. English default),
-    no creature entry ID was supplied, or the entry has no
-    matching row in creature_template_locale.
+    That setting decides in both directions. For a mapped
+    non-English language the name comes from
+    creature_template_locale. For English it comes from
+    creature_template, because the caller's `name` was
+    resolved by C++ against sWorld->GetDefaultDbcLocale()
+    and may already be in some other language on a server
+    whose client locale is not English.
+
+    Falls back to `name` unchanged when no entry id was
+    supplied or the lookup finds nothing.
     """
-    locale = get_language_locale_code()
-    if not locale or not entry:
+    if not entry:
         return name
+    locale = get_language_locale_code()
+    if not locale:
+        return get_english_creature_name(db, entry) or name
     localized = get_localized_creature_name(
         db, entry, locale
     )
