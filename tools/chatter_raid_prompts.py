@@ -18,6 +18,7 @@ from chatter_shared import (
     build_anti_repetition_context,
     get_recent_zone_messages,
     append_json_instruction,
+    localize_creature_name,
     get_chatter_mode,
 )
 from chatter_mode import (
@@ -472,8 +473,10 @@ def build_raid_boss_pull_prompt(
     extra_data, bot_data, is_raid_worker=False
 ):
     """Boss pull — adrenaline, battle cries."""
-    boss_name = extra_data.get(
-        'boss_name', 'the boss')
+    boss_name = localize_creature_name(
+        extra_data.get('_db'),
+        extra_data.get('boss_name', 'the boss'),
+        extra_data.get('boss_entry'))
     raid_name = extra_data.get(
         'raid_name', 'the raid')
     wing = extra_data.get('wing', '')
@@ -525,8 +528,10 @@ def build_raid_boss_kill_prompt(
     extra_data, bot_data, is_raid_worker=False
 ):
     """Boss kill — celebration, triumph."""
-    boss_name = extra_data.get(
-        'boss_name', 'the boss')
+    boss_name = localize_creature_name(
+        extra_data.get('_db'),
+        extra_data.get('boss_name', 'the boss'),
+        extra_data.get('boss_entry'))
 
     ctx = _raid_base_context(extra_data, bot_data)
 
@@ -557,8 +562,10 @@ def build_raid_boss_wipe_prompt(
     extra_data, bot_data, is_raid_worker=False
 ):
     """Boss wipe — grief, determination."""
-    boss_name = extra_data.get(
-        'boss_name', 'the boss')
+    boss_name = localize_creature_name(
+        extra_data.get('_db'),
+        extra_data.get('boss_name', 'the boss'),
+        extra_data.get('boss_entry'))
 
     ctx = _raid_base_context(extra_data, bot_data)
 
@@ -603,8 +610,11 @@ def build_raid_battle_cry_prompt(
     Kept very short (5-15 words) and punchy.
     Race/class/personality flavored.
     """
-    creature_name = extra_data.get(
-        'creature_name', 'the enemy')
+    creature_name = localize_creature_name(
+        extra_data.get('_db'),
+        extra_data.get(
+            'creature_name', 'the enemy'),
+        extra_data.get('creature_entry'))
     is_boss = bool(int(
         extra_data.get('is_boss', 0)))
 

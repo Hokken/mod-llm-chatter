@@ -5,6 +5,9 @@ import random
 
 from chatter_shared import (
     get_zone_flavor,
+    get_race_speech_profile,
+    get_bg_lore,
+    get_language_rule,
     get_zone_name,
     get_subzone_lore,
     get_dungeon_flavor,
@@ -26,12 +29,10 @@ from chatter_prompts import (
     build_environmental_context_lines,
 )
 from chatter_constants import (
-    RACE_SPEECH_PROFILES,
     EMOTE_LIST_STR,
     LENGTH_HINTS,
     RP_LENGTH_HINTS,
     BG_MAP_NAMES,
-    BG_LORE,
     CLASS_ROLE_MAP,
 )
 from chatter_mode import (
@@ -212,7 +213,7 @@ def build_bot_greeting_prompt(
             rp_context = f"\n{ctx}"
 
         # Add race flavor examples if available
-        profile = RACE_SPEECH_PROFILES.get(
+        profile = get_race_speech_profile(
             bot['race']
         )
         if profile:
@@ -245,7 +246,7 @@ def build_bot_greeting_prompt(
     if bg_context:
         bg_type_id = int(
             bg_context.get('bg_type_id', 0))
-        lore = BG_LORE.get(bg_type_id, {})
+        lore = get_bg_lore(bg_type_id)
         bg_name = lore.get(
             'name',
             bg_context.get('bg_type', 'a battleground'))
@@ -500,7 +501,7 @@ def build_bot_welcome_prompt(
         if ctx:
             rp_context = f"\n{ctx}"
 
-        profile = RACE_SPEECH_PROFILES.get(
+        profile = get_race_speech_profile(
             bot['race']
         )
         if profile:
@@ -635,7 +636,7 @@ def build_batch_welcome_prompt(
         if ctx:
             rp_context = f"\n{ctx}"
 
-        profile = RACE_SPEECH_PROFILES.get(
+        profile = get_race_speech_profile(
             bot['race']
         )
         if profile:
@@ -1010,7 +1011,15 @@ def build_loot_reaction_prompt(
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
-        f"- Can mention the item by name\n"
+        f"- To refer to the item, write the token "
+        f"{{item}} exactly, braces included, instead "
+        f"of typing the item's name. It is replaced "
+        f"with a clickable link afterwards.\n"
+        f"- {{item}} already stands for the full item "
+        f"name, so do not add the name next to it, "
+        f"and do not inflect or translate the token "
+        f"itself. Phrase the sentence so the token "
+        f"reads naturally as-is.\n"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat\n"
@@ -2117,7 +2126,7 @@ def build_player_response_prompt(
         if ctx:
             rp_context = f"\n{ctx}"
 
-        profile = RACE_SPEECH_PROFILES.get(
+        profile = get_race_speech_profile(
             bot['race']
         )
         if profile:
@@ -2428,8 +2437,15 @@ def build_zone_transition_prompt(
             f"Current subzone: {subzone}\n"
         )
 
-    # Resolve subzone name for subzone events
-    # Prefer lore name, fall back to DBC area_name
+    # Resolve subzone name for subzone events.
+    # The bridge lookup wins: it follows
+    # LLMChatter.Language, whereas the C++ area_name is
+    # resolved with sWorld->GetDefaultDbcLocale() and so
+    # reflects the worldserver's locale instead. Those two
+    # disagree on any server whose client locale differs
+    # from the configured chatter language. area_name is
+    # kept as the fallback for ids the bridge has no name
+    # for, and for callers that pass no area_id.
     area_label = ""
     if is_subzone and area_id:
         from chatter_shared import get_subzone_name
@@ -4243,7 +4259,8 @@ def build_player_msg_conversation_prompt(
             "Actions: Each message may include "
             "an optional \"action\" field — a "
             "short physical action (2-5 words, "
-            "e.g. \"scratches chin\"). Omit if "
+            "e.g. \"scratches chin\") written in "
+            "the configured language. Omit if "
             "not needed. "
             "NEVER put {item:}, {quest:}, or "
             "{spell:} placeholders in the action "
@@ -4265,12 +4282,17 @@ def build_player_msg_conversation_prompt(
         ]
     )
 
+    lang_rule = get_language_rule()
+
     prompt += (
         f"\n\nEmotes: Each message may include "
         f"an optional \"emote\" field (one of: "
         f"{EMOTE_LIST_STR}). Pick an emote that "
         f"fits the message mood, or omit it.\n"
         f"{action_text}\n"
+        "IMPORTANT: do NOT put *narrator text* "
+        "or *physical actions* inside any "
+        "\"message\" field.\n"
         f"JSON rules: Use double quotes, escape "
         f"quotes/newlines, no trailing commas, "
         f"no code fences.\n"
@@ -4278,6 +4300,7 @@ def build_player_msg_conversation_prompt(
         f"messages in JSON:\n[\n  "
         f"{example_msgs}\n]\n"
         f"ONLY the JSON array, nothing else."
+        f"{lang_rule}"
     )
 
     return prompt
@@ -4651,7 +4674,7 @@ def build_bot_question_prompt(
         if ctx:
             rp_context = f"\n{ctx}"
 
-        profile = RACE_SPEECH_PROFILES.get(
+        profile = get_race_speech_profile(
             bot['race']
         )
         if profile:

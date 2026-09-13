@@ -588,13 +588,24 @@ def query_zone_npcs(
                 ZONE_COORDINATES[zone_id]
             )
             entry_col = get_creature_entry_column(db)
+            # Deferred import -- chatter_shared imports
+            # FROM chatter_db, so a top-level import here
+            # would be circular.
+            from chatter_shared import (
+                get_language_locale_code,
+            )
+            locale = get_language_locale_code()
             cursor.execute(f"""
                 SELECT DISTINCT
                     ct.entry, ct.name, ct.subname,
+                    ctl.Title AS subname_locale,
                     ct.npcflag, ct.type, ct.unit_class,
                     ct.minlevel, ct.maxlevel
                 FROM creature c
                 JOIN creature_template ct ON c.{entry_col} = ct.entry
+                LEFT JOIN creature_template_locale ctl
+                    ON ctl.entry = ct.entry
+                    AND ctl.locale = %s
                 WHERE c.map = %s
                   AND c.position_x BETWEEN %s AND %s
                   AND c.position_y BETWEEN %s AND %s
@@ -602,7 +613,7 @@ def query_zone_npcs(
                 ORDER BY RAND()
                 LIMIT %s
             """, (
-                map_id, min_x, max_x, min_y, max_y,
+                locale, map_id, min_x, max_x, min_y, max_y,
                 limit,
             ))
             rows = cursor.fetchall()
@@ -613,10 +624,18 @@ def query_zone_npcs(
         for row in rows:
             npcflag = int(row.get('npcflag') or 0)
             subname = row.get('subname') or ''
+            # Blizzard-localized Title when available
+            # (creature_template_locale); function-role
+            # keyword matching below still uses the raw
+            # English subname since flag_roles/keywords
+            # are English-only.
+            subname_display = (
+                row.get('subname_locale') or subname
+            )
             results.append({
                 'entry': int(row.get('entry') or 0),
                 'name': row.get('name') or 'Unknown NPC',
-                'subname': subname,
+                'subname': subname_display,
                 'function': _npc_function_from_flags(
                     npcflag, subname
                 ),
