@@ -1653,3 +1653,54 @@ def get_group_player_name(db, group_id):
             return name
 
     return None
+
+
+def build_party_context(
+    db, group_id, speaker_name='',
+    include_history=True,
+):
+    """Roster and recent party chat for a prompt.
+
+    Gives a reacting bot the same awareness the party
+    conversation prompts already have: who else is here
+    and what was just said. Returns '' when the group has
+    neither.
+    """
+    if not group_id:
+        return ''
+
+    parts = []
+
+    try:
+        members = get_group_members(db, group_id)
+    except Exception:
+        members = []
+
+    others = [
+        name for name in members
+        if name and name != speaker_name
+    ]
+
+    try:
+        player_name = get_group_player_name(db, group_id)
+    except Exception:
+        player_name = None
+    if player_name and player_name not in others:
+        others.append(f"{player_name} (player)")
+
+    if others:
+        parts.append(
+            f"Party members: {', '.join(others)}"
+        )
+
+    if include_history:
+        try:
+            history = format_chat_history(
+                _get_recent_chat(db, group_id)
+            )
+        except Exception:
+            history = ''
+        if history:
+            parts.append(history.strip('\n'))
+
+    return '\n'.join(parts)

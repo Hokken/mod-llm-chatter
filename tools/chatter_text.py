@@ -180,6 +180,40 @@ def _sanitize_action(raw_action) -> Optional[str]:
     return action
 
 
+def split_action_prefix(
+    message: str,
+) -> Tuple[str, Optional[str]]:
+    """Split a leading *action* off a cleaned message.
+
+    Inverts the prefix cleanup_message() adds, so the
+    action can be delivered as a /e text emote ahead of
+    the spoken line instead of riding inside it.
+    Returns (message, action), with action None when
+    there is nothing to split.
+
+    A message that is nothing but an action is left
+    alone: emitting the emote would leave an empty chat
+    line behind it.
+    """
+    if not message or not isinstance(message, str):
+        return message, None
+
+    # _sanitize_action strips '*' from the action, so the
+    # closing delimiter is unambiguous.
+    match = re.match(
+        r'^\*([^*]{2,80})\*\s*(.*)$', message
+    )
+    if not match:
+        return message, None
+
+    action = match.group(1).strip()
+    spoken = match.group(2).strip()
+    if not action or not spoken:
+        return message, None
+
+    return spoken, action
+
+
 def cleanup_message(
     message: str, action: str = None
 ) -> str:

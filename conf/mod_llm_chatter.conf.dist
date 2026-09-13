@@ -2195,12 +2195,28 @@ LLMChatter.RaidChatter.IdleCooldown = 20
 
 #
 #   LLMChatter.ActionChance
-#       Chance (0-100) that a response includes a narrator action
-#       displayed as *action* before the spoken text.
+#       Chance (0-100) that a response includes a narrator action.
+#       How the action is shown depends on
+#       LLMChatter.ActionAsEmote.Enable below.
 #       Only applies in roleplay mode.
 #       Default: 20
 #
 LLMChatter.ActionChance = 10
+
+#
+#   LLMChatter.ActionAsEmote.Enable
+#       Deliver the action as a separate text emote sent just
+#       before the spoken line, so it reads as a real emote in the
+#       chat log ("Miranda looks out the window") rather than
+#       *asterisks* glued to the speech.
+#       Set to 0 to restore the old inline "*action* text" form.
+#       Note that /e is proximity based: on party, raid, guild and
+#       General messages the emote is only seen by players standing
+#       near the bot, while the spoken line still reaches the whole
+#       channel.
+#       Default: 1
+#
+LLMChatter.ActionAsEmote.Enable = 1
 
 #
 #   LLMChatter.EmoteChance
@@ -2766,6 +2782,47 @@ LLMChatter.EmoteReactions.MoodSpreadChance = 50
 #       Default: 1
 #
 LLMChatter.EmoteReactions.NPCMirrorEnable = 1
+
+#
+#   LLMChatter.EmoteReactions.CustomEnable
+#       React to free-text emotes typed as /e or /me
+#       ("/e grabs hand"), not just the ~244 named emotes
+#       like /point and /salute. The typed text is passed to
+#       the model as the action.
+#       Because a custom emote has no emote id, bots can only
+#       answer verbally: there is no animation to mirror, and
+#       NPC mirroring stays named-emote only. The target is
+#       taken from whoever the player has selected, since the
+#       client sends no target with a custom emote.
+#       Requires LLMChatter.EmoteReactions.Enable.
+#       Default: 1
+#
+LLMChatter.EmoteReactions.CustomEnable = 1
+
+#
+#   LLMChatter.EmoteReactions.CustomMaxChars
+#       Clamp for the typed emote text before it reaches the
+#       prompt. Longer emotes are cut at a UTF-8 boundary.
+#       Default: 120
+#
+LLMChatter.EmoteReactions.CustomMaxChars = 120
+
+#
+#   LLMChatter.GearContext.Enable
+#       [BRIDGE]
+#       Tell bots what they are actually carrying: the
+#       equipped main hand, off hand and ranged items by
+#       name and type, plus the pet of a hunter or warlock
+#       by name and species. Without it a bot invents its
+#       gear, talking about a sword while holding a mace,
+#       or treats its own pet as a stranger.
+#       Applies to party chatter, emote reactions and
+#       ambient chatter. Reads the character database and
+#       caches per bot, so the cost is one small query
+#       every few minutes rather than one per message.
+#       Default: 1 (enabled)
+#
+LLMChatter.GearContext.Enable = 1
 
 ###############################################
 # Screenshot Vision Feature (Experimental)

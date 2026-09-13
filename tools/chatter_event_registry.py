@@ -378,6 +378,9 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'emote_name': (str, True),
             'player_name': (str, True),
             'directed': (int, True),
+            # 1 when emote_name is free text from /e or /me
+            # rather than one of the named emotes.
+            'custom_emote': (int, False),
         },
     ),
 
@@ -396,6 +399,15 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'npc_rank': (int, False),
             'npc_type': (int, False),
             'npc_subname': (str, False),
+            # 1 when emote_name is free text from /e or /me
+            # rather than one of the named emotes.
+            'custom_emote': (int, False),
+            # Only sent when the target is a player, so the
+            # observer can describe who was pointed at.
+            'target_race': (int, False),
+            'target_class': (int, False),
+            'target_level': (int, False),
+            'target_gender': (int, False),
         },
     ),
 
