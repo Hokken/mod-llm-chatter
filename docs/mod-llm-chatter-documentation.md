@@ -1841,12 +1841,20 @@ experiences rather than treating the player as a stranger.
      directly with `active=1` and `memory_type='first_meeting'`, guarded by
      `INSERT...SELECT...WHERE NOT EXISTS` to prevent duplicates on re-join.
      This memory is immune to both short-session discard and cap pruning.
+   - A normal join generates the visible greeting and then pre-generates the
+     farewell stored in `llm_group_bot_traits`. A player-session rejoin skips
+     the duplicate greeting but still prepares the farewell. An existing
+     persistent farewell is reused without an LLM call; a missing farewell is
+     generated before the rejoin event completes.
 
 2. **During the session** — event handlers may call `_generate_and_store_memory()`
    to produce LLM-generated memories (boss kills, notable events). These are
    inserted with `active=0` until flush.
 
 3. **Group farewell** (`process_group_farewell_event` → `flush_session_memories()`)
+   - C++ sends the prepared `llm_group_bot_traits.farewell_msg` synchronously
+     during `OnRemoveMember`, before deleting the trait row. The Python
+     farewell event does not generate the visible message.
    - If session was long enough (`SessionMinutes` threshold): activates `active=0`
      rows and prunes oldest memories to the `MaxPerBotPlayer` cap.
      `first_meeting` rows are excluded from the prune DELETE.

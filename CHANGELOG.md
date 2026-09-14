@@ -20,6 +20,15 @@
   Context is configured on the Ollama server, while thinking can be disabled
   through `reasoning_effort = none` with `/no_think` retained as a fallback.
 
+### 2026-09-14 - Rejoin Farewell Reliability
+
+* **Farewells survive bridge restarts**: Bots that silently rejoin an existing
+  group session now prepare their farewell state even though their visible
+  greeting remains suppressed. Removing those bots therefore still produces
+  their expected farewell message after a bridge restart.
+* **Single and batch coverage**: Regression tests protect both individual and
+  batched rejoin paths without introducing duplicate greetings.
+
 ### 2026-09-13 - Existing-Install Spell DBC Repair
 
 * **Legacy override cleanup**: Added an idempotent world-database

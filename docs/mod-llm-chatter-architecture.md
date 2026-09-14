@@ -449,6 +449,11 @@ Party-channel messages use a DB-backed pacing table,
   pre-cached instant reactions and farewell packets, call
   `RecordPartyChatGateActivity()` after sending. They are not delayed,
   but they still make later filler chatter back off.
+- Normal join handling pre-generates each bot's farewell after its greeting.
+  A player-session rejoin deliberately skips another visible greeting, but
+  still restores a persistent farewell or generates a missing one before the
+  join event completes. `OnRemoveMember` can therefore send the stored line
+  synchronously before deleting the session trait row.
 - Policy names are `urgent`, `responsive`, `contextual`, `filler`, and
   `bypass`. Combat/state/BG/raid-critical feedback remains immediate;
   idle-style filler can defer before spending LLM tokens.
