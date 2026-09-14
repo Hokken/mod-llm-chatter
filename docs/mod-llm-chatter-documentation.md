@@ -559,6 +559,31 @@ Supported providers:
 - OpenRouter
 - Ollama
 
+Changing models normally requires only the provider and model ID. The
+bridge resolves a conservative capability profile for OpenAI-compatible
+targets, including direct OpenAI, Google, OpenRouter, and Ollama. Known
+sampling models receive `temperature`; known reasoning models receive
+their supported token-limit shape and configured reasoning effort;
+unrecognized direct OpenAI models start without optional parameters.
+
+If a provider explicitly rejects `temperature`, `reasoning_effort`,
+`max_tokens`, or `max_completion_tokens`, the bridge adjusts that one
+parameter, retries the rejected request, and caches the successful shape
+for that provider/model until restart. This recovery is limited to HTTP 400
+or 422 errors and prefers the provider's structured parameter/code fields;
+other failures are not hidden or retried by this compatibility path.
+
+Generic provider error types such as `invalid_request_error` are not treated
+as parameter rejection codes by themselves. When a dotted GPT-5 generation
+rejects `ReasoningEffort = none`, the retry also removes temperature and
+expands the completion budget before allowing the model's default reasoning.
+
+OpenAI reasoning tokens share the completion-token budget. The bridge applies
+`OpenAI.MaxTokensMultiplier` when reasoning is enabled, left at the model
+default, or cannot be disabled by the selected model. The multiplier is
+clamped to 1-8 and is skipped for models such as Luna when they accept
+`ReasoningEffort = none`.
+
 Examples:
 
 ```ini
@@ -568,7 +593,9 @@ LLMChatter.Model = haiku
 
 ```ini
 LLMChatter.Provider = openai
-LLMChatter.Model = gpt4o-mini
+LLMChatter.Model = gpt-5.6-luna
+LLMChatter.OpenAI.ReasoningEffort = none
+LLMChatter.OpenAI.MaxTokensMultiplier = 4
 ```
 
 ```ini
@@ -612,6 +639,12 @@ LLMChatter.Provider = ollama
 LLMChatter.Model = qwen3:4b
 ```
 
+Ollama context size must be configured on the Ollama server with
+`OLLAMA_CONTEXT_LENGTH` or `PARAMETER num_ctx` in a Modelfile; the
+OpenAI-compatible endpoint does not accept it per request. Verify the loaded
+context with `ollama ps`. `Ollama.DisableThinking = 1` sends
+`reasoning_effort = none` and retains `/no_think` as a model fallback.
+
 ### System prompt support
 
 `call_llm()` in `chatter_llm.py` supports automatic system/user
@@ -628,13 +661,26 @@ Provider behavior:
   on the API call (native system prompt support); sampling temperature
   is sent through `extra_body` for Anthropic SDK v1 compatibility
 - **OpenAI**: system content sent as a `{"role": "system", ...}`
-  message prepended to the messages array
+  message prepended to the messages array. Modern reasoning models use
+  `max_completion_tokens`; custom temperature is used only with a
+  compatible reasoning effort, and `OpenAI.ReasoningEffort` can select
+  an effort such as `none` for short-form chat. Stale reasoning settings
+  are ignored when switching back to a sampling model. Reasoning-capable
+  requests receive a configurable output-budget multiplier when hidden
+  reasoning can be active
 - **Google Gemini**: uses Google's OpenAI-compatible chat-completions
   endpoint, so system content is sent as a system role message
 - **OpenRouter**: uses OpenRouter's OpenAI-compatible
   chat-completions endpoint with optional attribution headers and an
   opt-in `reasoning` object for normal and quick-analysis requests
-- **Ollama**: same as OpenAI (system role message)
+- **Ollama**: same system-role message shape; context is configured on the
+  Ollama server, and thinking can be disabled through the compatibility
+  parameter plus a `/no_think` fallback
+
+The shared `llm_compat.py` layer owns cross-model parameter capability
+selection and the narrow unsupported-parameter recovery path. Provider
+extensions remain in `chatter_llm.py`, keeping model quirks out of the
+feature and prompt modules.
 
 When a plain string is passed to `call_llm()` instead of
 `PromptParts`, the entire prompt is sent as a single user message
@@ -650,6 +696,9 @@ When a plain string is passed to `call_llm()` instead of
 | `_apply_google_options()` | Applies Gemini reasoning/thinking settings for OpenAI compatibility |
 | `_apply_openrouter_options()` | Applies opt-in OpenRouter reasoning settings |
 | `_openrouter_headers()` | Builds optional OpenRouter attribution headers |
+| `build_compatible_chat_request()` | Builds the shared production request used by normal calls, quick analysis, and the health probe |
+| `llm_compat.build_chat_options()` | Selects safe token, sampling, and reasoning parameters for a provider/model target |
+| `llm_compat.create_chat_completion()` | Retries explicit parameter rejections and caches the learned correction |
 
 ---
 

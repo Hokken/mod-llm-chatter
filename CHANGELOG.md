@@ -1,5 +1,25 @@
 # Changelog
 
+### 2026-09-14 - Model Compatibility and Provider Switching
+
+* **Model-aware requests**: OpenAI-compatible calls now select the safe
+  token-limit, temperature, and reasoning parameters for the configured
+  provider and model. Explicit provider rejections receive narrowly scoped
+  retries whose successful corrections are cached for the bridge process.
+* **Reasoning-safe budgets**: Direct OpenAI reasoning models can use the new
+  `LLMChatter.OpenAI.MaxTokensMultiplier`. Hidden reasoning receives a larger
+  completion budget while models running with supported `none` effort retain
+  the original low-cost limit.
+* **Consistent call paths**: Normal chatter, quick analysis, startup health
+  checks, screenshot vision, and offline lore generation use the shared
+  compatibility layer. Fine-tuned OpenAI IDs inherit their base-model profile.
+* **Portable providers**: Setup and configuration guidance now covers direct
+  Anthropic, OpenAI, Google Gemini, OpenRouter, and local Ollama targets with
+  explicit model-ID and parameter formats.
+* **Ollama corrections**: Removed the ineffective per-request context option.
+  Context is configured on the Ollama server, while thinking can be disabled
+  through `reasoning_effort = none` with `/no_think` retained as a fallback.
+
 ### 2026-09-13 - Existing-Install Spell DBC Repair
 
 * **Legacy override cleanup**: Added an idempotent world-database

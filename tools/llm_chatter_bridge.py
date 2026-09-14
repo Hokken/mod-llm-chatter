@@ -88,6 +88,8 @@ from chatter_event_registry import (
     build_handler_map,
     validate_registry,
 )
+from llm_compat import describe_model_compatibility
+from chatter_llm import compatible_reasoning_effort
 
 # Configure logging
 logging.basicConfig(
@@ -1412,13 +1414,21 @@ def main():
     logger.info(
         f"Model: {model}"
     )
+    if provider in (
+        'openai', 'google', 'openrouter', 'ollama'
+    ):
+        logger.info(
+            "Model compatibility: %s",
+            describe_model_compatibility(
+                provider,
+                model,
+                compatible_reasoning_effort(provider, config),
+            ),
+        )
     if provider == 'ollama':
         base_url = config.get(
             'LLMChatter.Ollama.BaseUrl',
             'http://localhost:11434'
-        )
-        context_size = config.get(
-            'LLMChatter.Ollama.ContextSize', 2048
         )
         disable_thinking = (
             config.get(
@@ -1427,10 +1437,9 @@ def main():
             ) == '1'
         )
         logger.info(f"Ollama URL: {base_url}")
-        logger.info(f"Context size: {context_size}")
         logger.info(
             f"Thinking mode: "
-            f"{'disabled (/no_think)' if disable_thinking else 'enabled'}"
+            f"{'disabled' if disable_thinking else 'enabled'}"
         )
     logger.info(f"Poll interval: {poll_interval}s")
     logger.info(
@@ -1482,8 +1491,6 @@ def main():
     logger.info(
         f"  Ollama.BaseUrl: "
         f"{config.get('LLMChatter.Ollama.BaseUrl', 'http://localhost:11434')}"
-        f"  ContextSize: "
-        f"{config.get('LLMChatter.Ollama.ContextSize', 2048)}"
         f"  DisableThinking: "
         f"{config.get('LLMChatter.Ollama.DisableThinking', 1)}"
     )

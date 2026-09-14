@@ -318,11 +318,25 @@ It carries two extra attributes:
      sampling temperature is sent through `extra_body` for Anthropic
      SDK v1 compatibility
    - **OpenAI / Google / OpenRouter / Ollama**: system role message +
-     user role message
+     user role message; `llm_compat.py` selects the token field and
+     optional parameters from a conservative model capability profile
+   - **Modern OpenAI reasoning models**: use
+     `max_completion_tokens`, coordinate temperature with reasoning
+     effort, and apply `LLMChatter.OpenAI.ReasoningEffort` only when
+     compatible; `_effective_max_tokens()` applies the OpenAI multiplier
+     whenever hidden reasoning may consume the output budget
+   - **New or unrecognized models**: start with safe parameters; an
+     explicit provider rejection can remove `temperature` or
+     `reasoning_effort`, or switch the token-limit field, retry the
+     rejected call, and cache that correction for the process lifetime
    - **OpenRouter reasoning**: `_apply_openrouter_options()` adds the
      opt-in `reasoning` object to normal and quick-analysis requests;
      `_effective_max_tokens()` applies its multiplier only while an
      effort other than `none` is enabled
+   - **Ollama**: context size is owned by the Ollama server because its
+     OpenAI-compatible endpoint has no per-request context parameter;
+     disabling thinking sends `reasoning_effort = none` and retains the
+     `/no_think` prompt fallback
 4. If a plain string is passed instead of `PromptParts`, the entire
    string is sent as a single user message (backward compatibility).
 
@@ -626,9 +640,10 @@ This asymmetry is known and acceptable in the shipped source state.
 | File | Primary ownership |
 |---|---|
 | `tools/chatter_shared.py` | Shared prompt, parse, count, and delay helpers |
+| `tools/llm_compat.py` | Declarative OpenAI-compatible model capability profiles plus narrowly scoped parameter-rejection recovery and process-local learned overrides |
 | `tools/chatter_mode.py` | Canonical normal/RP playerbot identity and channel voice rules, plus mode-invariant NPC guidance |
 | `tools/chatter_text.py` | Parsing, sanitization, anti-repetition, and chat length limiting. Never slice LLM chat output by hand; use `shorten_chat_message()` or `shorten_chat_question()` from this file. |
-| `tools/chatter_llm.py` | Provider/model calls for Anthropic, OpenAI, Google Gemini, OpenRouter, and Ollama; `get_llm_client()` shared client factory; `_split_prompt()`, `_build_chat_messages()`, `_ollama_user_msg()`, `_apply_google_options()`, `_apply_openrouter_options()`, `_openrouter_headers()` for system/user prompt separation and provider tuning; `label=` param logs every call via `chatter_request_logger` |
+| `tools/chatter_llm.py` | Provider/model calls for Anthropic, OpenAI, Google Gemini, OpenRouter, and Ollama; `get_llm_client()` shared client factory; `_split_prompt()`, `_build_chat_messages()`, `_ollama_user_msg()`, `_apply_google_options()`, `_apply_openrouter_options()`, `_openrouter_headers()` for system/user prompt separation and provider tuning; delegates cross-model parameter selection to `llm_compat.py`; `label=` param logs every call via `chatter_request_logger` |
 | `tools/chatter_db.py` | DB access, inserts, zone/cache queries, `any_real_players_online()`, stale-group cleanup, and global group/Guild session cleanup |
 | `tools/chatter_links.py` | WoW link parsing and prompt-side link enrichment for player messages |
 | `tools/chatter_prompts.py` | Ambient/event prompt builders |
