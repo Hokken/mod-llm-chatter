@@ -217,10 +217,15 @@ def test_entry_lists_are_reload_safe_and_deny_wins():
         assert name in distributed
     assert '_proxSpeakerAllowEntries' in header
     assert '_proxSpeakerDenyEntries' in header
-    assert 'std::atomic<std::shared_ptr<' in header
-    assert '_proxSpeakerAllowEntries.store(' in config
-    assert '_proxSpeakerDenyEntries.store(' in config
-    assert 'configured.load()' in config
+    assert '#include <memory>' in header
+    assert (
+        'std::shared_ptr<std::unordered_set<uint32> const>'
+        in header
+    )
+    assert 'std::atomic<std::shared_ptr<' not in header
+    assert 'std::atomic_store(&_proxSpeakerAllowEntries,' in config
+    assert 'std::atomic_store(&_proxSpeakerDenyEntries,' in config
+    assert 'std::atomic_load(&configured)' in config
     assert 'LOG_WARN(' in config
 
     source = (

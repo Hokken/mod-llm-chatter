@@ -58,6 +58,7 @@ from chatter_group_prompts import (  # noqa: E402
 )
 from chatter_group import build_idle_chatter_prompt  # noqa: E402
 from chatter_group_general_reaction import (  # noqa: E402
+    _build_conversation_prompt as _general_relay_conversation_prompt,
     _build_statement_prompt as _general_relay_prompt,
 )
 import chatter_group_state as group_state  # noqa: E402
@@ -260,6 +261,40 @@ def test_general_to_party_relay_hides_rp_location_flavor():
     assert 'Character gameplay travel state' in prompt.user_prompt
     assert 'cold stone pressing' not in prompt.user_prompt
     assert 'ancient spirits' not in prompt.user_prompt
+    assert (
+        'HARD LIMIT: Never exceed 150 characters total.'
+        in prompt.user_prompt
+    )
+
+
+def test_general_to_party_conversation_has_per_message_limit():
+    prompt = _general_relay_conversation_prompt(
+        [BOT, {**BOT, 'guid': 43, 'name': 'Borin'}],
+        {'name': 'Rytsen', 'race': 'Dwarf', 'class': 'Warrior'},
+        'anyone need this quest?',
+        'Player',
+        '',
+        'normal',
+        {
+            'dungeon_flavor': '',
+            'zone_flavor': '',
+            'subzone_lore': '',
+        },
+    )
+    assert (
+        'HARD LIMIT: Never exceed 150 characters in any message.'
+        in prompt.user_prompt
+    )
+
+
+def test_bot_question_uses_shared_length_limiter():
+    source = (
+        TOOLS_DIR / 'chatter_group.py'
+    ).read_text(encoding='utf-8')
+    question_path = source.split(
+        'def check_bot_questions(', 1
+    )[1].split('\ndef ', 1)[0]
+    assert 'message = shorten_chat_question(message)' in question_path
 
 
 def test_general_statement_uses_canonical_normal_guidance():

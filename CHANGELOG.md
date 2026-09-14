@@ -1,5 +1,19 @@
 # Changelog
 
+### 2026-09-13 - Existing-Install Spell DBC Repair
+
+* **Legacy override cleanup**: Added an idempotent world-database
+  migration that removes incomplete rank-one talent `spell_dbc` rows
+  created by chatter versions before April 9, 2026. These placeholder
+  overrides could hide the real client spell effects and trigger broad
+  SpellScript validation warnings during worldserver startup.
+* **Custom overrides preserved**: Cleanup requires the legacy
+  all-default gameplay-field signature, so complete overrides supplied
+  by other modules or administrators are retained.
+* **Upgrade guidance**: Existing affected installations must apply
+  `data/sql/world/updates/20260913_remove_legacy_spell_dbc_placeholders.sql`
+  and restart worldserver. Fresh installations are unaffected.
+
 ### 2026-09-09 - Bots Know Their Own Gear and Pet
 
 * **Equipped weapons reach the prompt**: a bot's identity line now names
@@ -68,7 +82,7 @@
   scheduled window, preventing independently generated follow-ups from
   arriving in a wall while keeping player-directed replies responsive.
 * **Quieter production preset**: Added
-  `conf/mod_ll_chatter_quieter.conf.dist` as an optional lower-volume
+  `conf/presets/mod_ll_chatter_quieter.conf.dist` as an optional lower-volume
   configuration. It preserves contextual combat and instance reactions while
   reducing cumulative ambient chatter. Credentials and local diagnostic
   settings are intentionally excluded or disabled.

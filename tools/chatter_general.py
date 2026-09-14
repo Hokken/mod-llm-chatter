@@ -37,6 +37,7 @@ from chatter_shared import (
     get_player_zone,
     build_zone_metadata,
     build_talent_context,
+    shorten_chat_message,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -822,8 +823,7 @@ def process_general_player_msg_event(
         if not msg1:
             mark_event(db, event_id, 'skipped')
             return False
-        if len(msg1) > 255:
-            msg1 = msg1[:252] + "..."
+        msg1 = shorten_chat_message(msg1)
 
 
         # Queue first bot's message — responsive
@@ -1072,8 +1072,7 @@ def _general_followup(
     )
     if not msg2:
         return
-    if len(msg2) > 255:
-        msg2 = msg2[:252] + "..."
+    msg2 = shorten_chat_message(msg2)
 
 
     # Stagger: first bot delay + responsive gap
@@ -1498,8 +1497,7 @@ def _general_extended_conversation(
         )
         if not msg:
             break
-        if len(msg) > 255:
-            msg = msg[:252] + "..."
+        msg = shorten_chat_message(msg)
 
         msg_count += 1
         prev_delay = current_delay

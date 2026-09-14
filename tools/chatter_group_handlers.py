@@ -29,6 +29,7 @@ from chatter_shared import (
     build_travel_state_from_row,
     format_travel_context,
     strip_conversation_actions,
+    shorten_chat_message,
 )
 from chatter_db import (
     fail_event,
@@ -2383,8 +2384,7 @@ def _nearby_object_conversation(
         )
         if not text:
             continue
-        if len(text) > 255:
-            text = text[:252] + "..."
+        text = shorten_chat_message(text)
 
         speaker_guid = bot_guids.get(
             msg['name']
@@ -2645,8 +2645,7 @@ def execute_player_msg_conversation(
         )
         if not text:
             continue
-        if len(text) > 255:
-            text = text[:252] + "..."
+        text = shorten_chat_message(text)
 
         speaker_guid = bot_guids.get(
             msg['name']
@@ -2779,8 +2778,7 @@ def _quest_conversation_deliver(
         )
         if not text:
             continue
-        if len(text) > 255:
-            text = text[:252] + "..."
+        text = shorten_chat_message(text)
 
         speaker_guid = bot_guids.get(
             msg['name']

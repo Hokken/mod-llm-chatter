@@ -20,6 +20,7 @@ from chatter_shared import (
     get_class_name,
     get_gender_label,
     get_race_name,
+    shorten_chat_message,
     strip_speaker_prefix,
 )
 from chatter_mode import (
@@ -1521,7 +1522,7 @@ def _store_chat(
         VALUES (%s, %s, %s, %s, %s)
     """, (
         group_id, speaker_guid, speaker_name,
-        1 if is_bot else 0, message[:255]
+        1 if is_bot else 0, shorten_chat_message(message)
     ))
     db.commit()
 

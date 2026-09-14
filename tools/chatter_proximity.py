@@ -38,6 +38,7 @@ from chatter_mode import (
 from chatter_text import (
     cleanup_message,
     parse_single_response,
+    shorten_chat_message,
     strip_speaker_prefix,
 )
 
@@ -303,8 +304,7 @@ def _insert_proximity_line(
     )
     if not message:
         return False
-    if len(message) > 255:
-        message = message[:252] + "..."
+    message = shorten_chat_message(message)
 
     bot_guid = int(speaker.get('bot_guid', 0) or 0)
     npc_spawn_id = int(

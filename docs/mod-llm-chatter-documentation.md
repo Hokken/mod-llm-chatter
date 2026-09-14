@@ -818,7 +818,10 @@ The relay chance is controlled by
 `LLMChatter.GroupChatter.GeneralRelayChance` and defaults to 10%. When a
 relay fires, the first party line is scheduled for 3-6 seconds after the
 General line's planned visible time. The first party line must reference
-the General speaker by name.
+the General speaker by name. Relay prompts limit every party line to 150
+characters. If a provider still returns an overlong line, cleanup prefers a
+complete sentence and otherwise shortens at a word boundary instead of
+cutting through a word.
 
 ---
 
@@ -1312,7 +1315,7 @@ Two shared functions avoid code triplication:
   always included), looks up traits + class/race from DB. Returns
   `(bots, traits_map, bot_guids)` or `None`.
 - `_quest_conversation_deliver()` — per-message cleanup
-  (`strip_speaker_prefix`, `cleanup_message`, 255-char clamp),
+  (`strip_speaker_prefix`, `cleanup_message`, sentence-aware 255-char limit),
   staggered delays via `calculate_dynamic_delay()`, first message
   gets action, stores chat history, marks event completed.
 

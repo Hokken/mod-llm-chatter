@@ -50,6 +50,7 @@ from chatter_shared import (
     parse_single_response,
     strip_conversation_actions,
     strip_speaker_prefix,
+    shorten_chat_message,
 )
 
 logger = logging.getLogger(__name__)
@@ -377,9 +378,7 @@ def _ensure_source_name(
 
 
 def _clamp_message(message: str) -> str:
-    if len(message) > 255:
-        return message[:252] + "..."
-    return message
+    return shorten_chat_message(message)
 
 
 def _first_delay(extra_data: Dict) -> float:
@@ -464,6 +463,7 @@ def _build_statement_prompt(
         "General reply.\n"
         f"HARD RULE: The message text must mention "
         f"{source_bot['name']} by name.\n"
+        "HARD LIMIT: Never exceed 150 characters total.\n"
     )
     if is_rp:
         prompt += (
@@ -504,6 +504,7 @@ def _build_conversation_prompt(
         f"\nThe first party line must mention "
         f"{source_bot['name']} by name. This is private "
         "party chat, not another General reply.\n"
+        "HARD LIMIT: Never exceed 150 characters in any message.\n"
     )
     if is_rp and loc.get('dungeon_flavor'):
         prompt += f"Dungeon context: {loc['dungeon_flavor']}\n"

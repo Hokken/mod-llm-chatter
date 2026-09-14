@@ -54,7 +54,11 @@ from chatter_mode import (
     is_roleplay,
 )
 from chatter_prompts import build_environmental_context_lines
-from chatter_text import cleanup_message, strip_speaker_prefix
+from chatter_text import (
+    cleanup_message,
+    shorten_chat_message,
+    strip_speaker_prefix,
+)
 
 # Varied reaction styles to avoid samey comments
 _REACTION_STYLES = [
@@ -582,8 +586,7 @@ def _screenshot_conversation(
         )
         if not text:
             continue
-        if len(text) > 255:
-            text = text[:252] + "..."
+        text = shorten_chat_message(text)
 
         speaker_guid = bot_guids.get(msg['name'])
         if not speaker_guid:

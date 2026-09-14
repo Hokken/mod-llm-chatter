@@ -26,6 +26,7 @@ from chatter_shared import (
     strip_speaker_prefix,
     pick_emote_for_statement,
     parse_single_response,
+    shorten_chat_message,
 )
 from chatter_constants import CLASS_NAMES, RACE_NAMES
 
@@ -457,8 +458,7 @@ def refill_precache_pool(db, client, config):
             )
             if not message:
                 continue
-            if len(message) > 255:
-                message = message[:252] + "..."
+            message = shorten_chat_message(message)
 
             emote = parsed.get('emote')
 

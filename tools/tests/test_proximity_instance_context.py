@@ -478,8 +478,17 @@ def test_cpp_source_contracts_cover_instance_safety():
     assert 'ambiguousFirstToken = true' in boss
     assert 'ContainsCreatureEntry(' in config
     assert '_proxBossSpeakerDenyEntries, creatureEntry' in config
-    assert 'std::atomic<std::shared_ptr<' in header
-    assert '_proxBossSpeakerDenyEntries.store(' in config
+    assert '#include <memory>' in header
+    assert (
+        'std::shared_ptr<std::unordered_set<uint32> const>'
+        in header
+    )
+    assert 'std::atomic<std::shared_ptr<' not in header
+    assert 'std::atomic_load(&configured)' in config
+    assert (
+        'std::atomic_store(&_proxBossSpeakerDenyEntries,'
+        in config
+    )
     group_kill = group_combat.split(
         'void HandleGroupCreatureKillImpl(', 1
     )[1].split('\nvoid ', 1)[0]
