@@ -1558,29 +1558,45 @@ conversation paths (no wasted tokens).
 
 When a player performs a `/emote` (text emote), the
 `OnPlayerTextEmote` hook owned by `LLMChatterGroupCombat.cpp`
-classifies the target and routes it through the group-aware reaction
-paths below when eligible. Bot verbal reactions and observer chatter
-still require grouped bots. Direct creature mirror reactions do not.
+classifies the target and routes it through the reaction paths below when
+eligible. Bot verbal reactions and observer chatter still require grouped
+bots. Direct creature verbal and mirror reactions do not.
 
-### Three reaction paths
+### Reaction paths
 
 | Path | Trigger | Behavior |
 |------|---------|----------|
 | Silent mirror | Player emotes at a group bot | Bot mirrors back a matching emote (e.g. wave to wave, rude to chicken) via `DelayedMirrorEmoteEvent` with natural timing. Per-bot cooldown `_emoteReactCooldowns` |
 | Directed verbal reaction | Player emotes at a group bot (after mirror) | Targeted bot queues a `bot_group_emote_reaction` event. Python handler builds an LLM prompt and the bot responds verbally. Per-bot cooldown `_emoteVerbalCooldowns` |
+| Directed NPC verbal reaction | Player emotes at an eligible creature | Independently rolls an 80% default chance, then queues `proximity_player_emote`. The addressed NPC always responds first; zero to three compatible NPCs can join. Per-player/NPC cooldown `_directedEmoteCooldowns`; an actually scheduled mirror animation is included in the prompt so speech cannot contradict it |
 | Observer comment | Player emotes at a creature, external player, or nobody | A random group bot queues a `bot_group_emote_observer` event. Python handler has the bot make an offhand remark about the emote. Per-group cooldown `_emoteObserverCooldowns` |
 
 Creatures also mirror emotes directed at them via
-`DelayedCreatureMirrorEmoteEvent`. That direct mirror path is allowed
-even when the player is solo; only the observer-comment path remains
-group-gated.
+`DelayedCreatureMirrorEmoteEvent`. Creature verbal and mirror reactions
+are independent and are allowed when the player is solo; only the
+observer-comment path remains group-gated. A SmartAI text-emote rule or
+configured C++ `ReceiveEmote()` owner suppresses all module reactions for
+that creature/emote pair except an independent party-bot observer comment,
+so scripted speech, animations, and quest logic cannot be duplicated or
+contradicted. SmartAI values are matched exactly;
+an inert emote value of zero is logged and ignored rather than treated as
+a wildcard. The exclusion cache refreshes at startup and on module config
+reload. After `.reload smart_scripts`, also run `.reload config` before
+testing changed emote ownership.
+
+Directed NPC conversations choose between player-inclusive dialogue and
+an NPC aside about the player's actual action. Prompts forbid fabricated
+player speech or actions and identify each line's addressee for facing.
 
 ### Ownership split for emote bugs
 
 - edit `LLMChatterGroupCombat.cpp` when the bug is about target
   classification, solo-vs-group gating, or which reaction path runs
 - edit `LLMChatterGroupEmote.cpp` when the bug is about mirror maps,
-  mirror cooldowns, creature/bot facing, or delayed emote execution
+  mirror cooldowns, scripted-emote ownership, creature/bot facing, or
+  delayed emote execution
+- edit `LLMChatterProximity.cpp` or `chatter_proximity.py` when the bug is
+  about directed NPC verbal reactions or multi-NPC emote conversations
 
 ### Emote coverage
 
@@ -1607,23 +1623,30 @@ are excluded from observer comments only.
 |------|------------|---------|
 | `tools/chatter_emote_reaction.py` | `bot_group_emote_reaction` | Directed verbal reaction prompt and delivery |
 | `tools/chatter_emote_observer.py` | `bot_group_emote_observer` | Observer comment prompt and delivery |
+| `tools/chatter_proximity.py` | `proximity_player_emote` | Directed NPC response or multi-NPC exchange |
 
 ### Config keys
 
 | Key | Default | Purpose |
 |-----|---------|---------|
 | `LLMChatter.EmoteReactions.Enable` | 1 | Master toggle |
-| `LLMChatter.EmoteReactions.MirrorChance` | 80 | % chance bot mirrors back the emote |
-| `LLMChatter.EmoteReactions.MirrorCooldown` | 30 | Seconds per-bot cooldown for mirroring |
-| `LLMChatter.EmoteReactions.ReactionChance` | 40 | % chance of verbal reaction after mirror |
-| `LLMChatter.EmoteReactions.ObserverChance` | 25 | % chance of observer bot commenting |
-| `LLMChatter.EmoteReactions.ObserverCooldown` | 60 | Seconds per-group cooldown for observer |
-| `LLMChatter.EmoteReactions.MoodSpreadChance` | 30 | % chance contagious emote spreads mood |
+| `LLMChatter.EmoteReactions.MirrorChance` | 90 | % chance bot or NPC mirrors back the emote |
+| `LLMChatter.EmoteReactions.MirrorCooldown` | 15 | Seconds per-entity cooldown for mirroring |
+| `LLMChatter.EmoteReactions.ReactionChance` | 60 | % chance of grouped-bot verbal reaction after mirror |
+| `LLMChatter.EmoteReactions.ObserverChance` | 40 | % chance of grouped-bot observer comment |
+| `LLMChatter.EmoteReactions.ObserverCooldown` | 30 | Seconds per-group cooldown for observer |
+| `LLMChatter.EmoteReactions.MoodSpreadChance` | 50 | Reserved contagious-emote mood chance |
+| `LLMChatter.EmoteReactions.NPCMirrorEnable` | 1 | Enable delayed NPC mirror animations |
+| `LLMChatter.EmoteReactions.NPCVerbalReactionChance` | 80 | Independent chance that a directed eligible NPC speaks |
+| `LLMChatter.EmoteReactions.NPCVerbalCooldown` | 20 | Seconds per player/NPC verbal-emote cooldown |
+| `LLMChatter.EmoteReactions.CxxScriptExclusionEntries` | seven known entries | C++ `ReceiveEmote()` owners suppress direct NPC reactions |
 
 ### Cooldown eviction
 
 `EvictEmoteCooldowns()` runs hourly to clean up stale entries from
-all three emote cooldown maps.
+the four emote cooldown maps. These maps and the directed proximity-emote
+cooldown map are mutex-protected because text-emote hooks may run on map
+worker threads.
 
 ---
 
@@ -2055,26 +2078,41 @@ Three local delivery channels are handled by
 | `msay` | `CHAT_MSG_MONSTER_SAY` | NPC speech bubble |
 | `myell` | monster yell | Extended-range boss line |
 
-Ordinary-scene facing is best effort: a stationary, facing-safe speaker
-may face the next speaker in the conversation sequence via
-`SetFacingToObject()`. Moving or pathing candidates remain eligible and
-speak without being rotated. NPC orientation resets after delivery via a
-`BasicEvent` timer only when facing was applied.
+Ordinary-scene facing is best effort. A speaker with only idle or random
+movement may rotate via `SetFacingToObject()`; any scripted or controlled
+movement speaks without rotation. Directed rows can identify the real
+player, bot, or NPC addressee explicitly, so NPC asides face the other NPC
+while player-inclusive lines face the player when appropriate. One facing
+lease is kept through the final queued line before the original orientation
+is restored.
 
 ### Player reply detection
 
-When a real player speaks in `/say`, an explicitly named eligible
-speaker wins, followed by the selected target, a recent scene, and an
-ordinary nearby fallback. Selecting an ineligible nearby creature
-suppresses an unrelated NPC from answering. The `ProximityScene`
-struct tracks:
+When a real player speaks in `/say`, a selected eligible NPC is the
+addressee. Another nearby NPC overrides that selection only when its name
+is explicitly marked as a vocative with an adjacent comma or colon. With no
+selection, an unambiguous full name or meaningful token that is unique
+among nearby candidates can direct the line anywhere it occurs. Subnames
+and configurable title/place stopwords are excluded; ambiguous matches fail
+closed. A differently named NPC is the preferred joiner rather than
+automatically replacing the selected addressee. A living selected player,
+party bot, boss, or runtime-ineligible speaking NPC suppresses random
+fallback with a diagnostic reason. Dead and non-speaking targets such as
+corpses and critters are ignored, allowing normal fallback. The
+`ProximityScene` struct tracks:
 
 - active conversation participants
 - map, instance, zone, and timestamp
 - the original topic context
 
 This enables natural player-to-NPC/bot exchanges while making direct
-targeting authoritative when the player uses it.
+targeting authoritative when the player uses it. Every direct `/say` and
+eligible NPC emote starts with the addressed NPC, then independently
+selects zero to three additional compatible NPCs. The default weights are
+60%, 25%, 10%, and 5% for zero through three joiners, respectively. A
+multi-NPC event is either player-inclusive or an NPC aside that discusses
+the player's real words/action without addressing or inventing speech for
+the player.
 
 ### Instance and boss grounding
 
@@ -2152,8 +2190,9 @@ receive separate NPC and playerbot topic angles.
 | `proximity_say` | Single NPC or bot statement | One speaker, zone context + topic |
 | `proximity_conversation` | Multi-speaker conversation | 2-4 speakers with staggered delivery |
 | `proximity_reply` | Player reply response | NPC/bot replies to player `/say` |
-| `proximity_player_say` | New directed/nearby response | One selected speaker replies |
-| `proximity_player_conversation` | New nearby exchange | Compatible speakers reply |
+| `proximity_player_say` | Directed/nearby response | Addressed NPC replies |
+| `proximity_player_conversation` | Directed nearby exchange | Addressed NPC plus selected joiners |
+| `proximity_player_emote` | Directed social emote | Addressed NPC verbal response, optionally with joiners |
 
 `chatter_boss_dialogue.py` owns `proximity_boss_approach` and
 `proximity_boss_player_say`. Both produce one message-only `myell` row
@@ -2162,8 +2201,10 @@ tagged with `owner_subsystem='boss_dialogue'`.
 Prompts include up to four distinct nearby entity names so speakers can
 address each other without repeating identical names. One conversation
 also selects at most one speaker with a given display name because the
-response contract identifies speakers by name. Roster entries identify
-each participant as `NPC` or
+response contract identifies speakers by name. Directed parsing accepts
+only exact names or unique tokens, validates an optional `addressee`, and
+falls back to the addressed NPC if the conversation output is invalid.
+Roster entries identify each participant as `NPC` or
 `PLAYERBOT`; the prompt keeps NPCs in-world and applies ChatterMode only
 to playerbots. Uses global `EmoteChance` and `ActionChance` gates (not
 custom proximity-specific ones).
@@ -2172,12 +2213,13 @@ custom proximity-specific ones).
 
 | File | Responsibility |
 |------|----------------|
-| `LLMChatterProximity.cpp` | Scan, filter, select, queue, scene tracking |
+| `LLMChatterProximity.cpp` | Scan, filter, directed name resolution, joiner selection, queue, scene/cooldown tracking |
 | `LLMChatterProximity.h` | Declarations for world and group combat |
 | `LLMChatterBossDialogue.cpp/.h` | Staggered boss safe-band scan, unambiguous direction, synchronized state |
-| `LLMChatterDelivery.cpp` | `say`, `msay`, and `myell` delivery with live revalidation |
+| `LLMChatterDelivery.cpp` | Delivery, drop diagnostics/cancellation, addressee-facing, and live revalidation |
 | `LLMChatterWorld.cpp` | Delegates staggered boss scan scheduling |
-| `LLMChatterGroupCombat.cpp` | `HandleProximityPlayerSay()` hook |
+| `LLMChatterGroupCombat.cpp` | Player `/say` and directed text-emote hooks |
+| `LLMChatterGroupEmote.cpp` | Mirror reactions and scripted-emote exclusion cache |
 | `LLMChatterShared.cpp` | Creature lookup/role and shared boss cache/classifier |
 | `LLMChatterConfig.h/.cpp` | Ordinary and boss proximity configuration |
 
@@ -2185,11 +2227,11 @@ custom proximity-specific ones).
 
 | File | Responsibility |
 |------|----------------|
-| `chatter_proximity.py` | Ordinary event handlers and prompt builders |
+| `chatter_proximity.py` | Ordinary/directed handlers, prompts, strict parser, and addressed history |
 | `chatter_instance_context.py` | Shared instance location/lore grounding |
 | `chatter_boss_dialogue.py` | Safe one-line boss prompt and `myell` insertion |
 | `chatter_constants.py` | `PROXIMITY_CHAT_TOPICS` (250+ entries) |
-| `chatter_db.py` | `npc_spawn_id` and `player_guid` params on insert |
+| `chatter_db.py` | Speaker, player, drop, and explicit addressee message fields |
 | `chatter_event_registry.py` | Ordinary and boss event routing |
 
 ### Config keys
@@ -2206,6 +2248,12 @@ All under `LLMChatter.ProximityChatter.*`:
 | `InstanceScanIntervalSeconds` | 30 | Ordinary dungeon/raid scan timer interval |
 | `ScanRadius` | 40 | Yards around player to scan |
 | `PlayerSayScanRadius` | 40 | New-scene `/say` response radius |
+| `DirectedMaxExtraReactors` | 3 | Maximum NPC joiners, clamped to 0-3 |
+| `DirectedExtraReactorWeights` | 60,25,10,5 | Strictly decreasing weights for 0-3 joiners; must total 100 |
+| `DirectedNPCAsideChance` | 35 | % chance a multi-NPC event is an NPC aside |
+| `DirectedMaxLines` | 5 | Maximum directed conversation lines |
+| `DirectedExpirySeconds` | 30 | Short expiry for directed say, active-scene reply, and emote work |
+| `DirectedNameStopwords` | titles and places | Tokens excluded from short-name addressing |
 | `SpeakerAllowEntries` | empty | Explicitly approved non-humanoid creature entries |
 | `SpeakerDenyEntries` | empty | Ordinary speaker exclusions; overrides all qualifications |
 | `Chance` | 30 | Compatibility fallback for missing scoped chances |
@@ -2247,6 +2295,17 @@ Migration `20260403_proximity_chatter.sql` adds two columns to
   proximity scene tracking
 
 Base schema `00000000_llm_chatter_tables.sql` updated to match.
+
+Migration `20260914_npc_multidirectional_interactions.sql` adds
+`proximity_player_emote`, `drop_reason`, and the three nullable addressee
+columns (`addressee_player_guid`, `addressee_bot_guid`, and
+`addressee_npc_spawn_id`). A consumed row still sets `delivered = 1`;
+successful speech has a null `drop_reason`, while failed delivery records a
+specific reason. Addressed history excludes dropped rows, includes the
+player's stored line, and stays scoped to the same addressed NPC, map, and
+instance. A dropped line in a directed event cancels its remaining lines.
+Apply this migration before starting a bridge or worldserver binary that
+contains the new message insert and delivery queries.
 
 Migration `20260908_instance_proximity_boss_events.sql` extends the
 `llm_chatter_events.event_type` enum with `proximity_boss_approach`
@@ -2677,7 +2736,7 @@ Typical multi-message JSON shape:
 |---|---|---|---|
 | `llm_chatter_events` | C++ | Python | Event queue |
 | `llm_chatter_queue` | C++ | Python | Ambient request queue |
-| `llm_chatter_messages` | Python | C++ | Outbound delivery queue (includes `npc_spawn_id` for NPC speakers and `player_guid` for proximity scene tracking) |
+| `llm_chatter_messages` | Python | C++ | Outbound delivery queue with speaker/player IDs, explicit directed-line addressees, and drop diagnostics |
 | `llm_group_cached_responses` | Python | C++ | Pre-cached instant reactions |
 | `llm_group_bot_traits` | Python + C++ travel refresh | Python | Group personality, location, and live travel state |
 | `llm_group_chat_history` | Python | Python | Group anti-repetition history |

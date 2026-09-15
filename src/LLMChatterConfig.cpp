@@ -8,6 +8,7 @@
 #include "Log.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
 #include <limits>
 #include <memory>
@@ -83,6 +84,116 @@ std::unordered_set<uint32> ParseCreatureEntrySet(
     return entries;
 }
 
+std::array<uint32, 4> ParseDirectedExtraReactorWeights(
+    std::string const& configured)
+{
+    constexpr std::array<uint32, 4> defaults = {
+        60, 25, 10, 5,
+    };
+    std::array<uint32, 4> weights = {};
+    std::istringstream input(configured);
+    std::string token;
+    size_t index = 0;
+    bool valid = true;
+
+    while (std::getline(input, token, ','))
+    {
+        if (index >= weights.size())
+        {
+            valid = false;
+            break;
+        }
+
+        token.erase(
+            token.begin(),
+            std::find_if_not(
+                token.begin(), token.end(),
+                [](unsigned char value)
+                {
+                    return std::isspace(value) != 0;
+                }));
+        token.erase(
+            std::find_if_not(
+                token.rbegin(), token.rend(),
+                [](unsigned char value)
+                {
+                    return std::isspace(value) != 0;
+                }).base(),
+            token.end());
+
+        try
+        {
+            size_t parsed = 0;
+            unsigned long value = std::stoul(token, &parsed);
+            if (parsed != token.size() || value > 100)
+            {
+                valid = false;
+                break;
+            }
+            weights[index++] = static_cast<uint32>(value);
+        }
+        catch (...)
+        {
+            valid = false;
+            break;
+        }
+    }
+
+    bool descending = valid && index == weights.size()
+        && weights[0] > weights[1]
+        && weights[1] > weights[2]
+        && weights[2] > weights[3]
+        && weights[0] + weights[1]
+            + weights[2] + weights[3] == 100;
+    if (!descending)
+    {
+        LOG_WARN(
+            "module",
+            "LLMChatter: DirectedExtraReactorWeights must contain "
+            "four strictly descending percentages totaling 100; "
+            "using 60,25,10,5");
+        return defaults;
+    }
+
+    return weights;
+}
+
+std::unordered_set<std::string> ParseLowerWordSet(
+    std::string const& configured)
+{
+    std::unordered_set<std::string> words;
+    std::istringstream input(configured);
+    std::string token;
+    while (std::getline(input, token, ','))
+    {
+        token.erase(
+            token.begin(),
+            std::find_if_not(
+                token.begin(), token.end(),
+                [](unsigned char value)
+                {
+                    return std::isspace(value) != 0;
+                }));
+        token.erase(
+            std::find_if_not(
+                token.rbegin(), token.rend(),
+                [](unsigned char value)
+                {
+                    return std::isspace(value) != 0;
+                }).base(),
+            token.end());
+        std::transform(
+            token.begin(), token.end(), token.begin(),
+            [](unsigned char value)
+            {
+                return static_cast<char>(std::tolower(value));
+            });
+        if (!token.empty())
+            words.insert(token);
+    }
+    return words;
+}
+
 bool ContainsCreatureEntry(
     std::shared_ptr<std::unordered_set<uint32> const> const& configured,
     uint32 creatureEntry)
@@ -113,6 +224,22 @@ bool LLMChatterConfig::IsProximityBossSpeakerDenied(
 {
     return ContainsCreatureEntry(
         _proxBossSpeakerDenyEntries, creatureEntry);
+}
+
+bool LLMChatterConfig::IsDirectedNameStopword(
+    std::string const& word) const
+{
+    auto words = std::atomic_load(
+        &_proxDirectedNameStopwords);
+    return words && words->count(word) > 0;
+}
+
+bool LLMChatterConfig::IsCxxScriptedEmoteEntry(
+    uint32 creatureEntry) const
+{
+    return ContainsCreatureEntry(
+        _emoteCxxScriptExclusionEntries,
+        creatureEntry);
 }
 
 void LLMChatterConfig::LoadConfig()
@@ -872,6 +999,52 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
             "FacingResetDelay", 8);
+    _proxDirectedMaxExtraReactors =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.ProximityChatter."
+                "DirectedMaxExtraReactors", 3),
+            3u);
+    _proxDirectedExtraReactorWeights =
+        ParseDirectedExtraReactorWeights(
+            GetChatterOption<std::string>(
+                "LLMChatter.ProximityChatter."
+                "DirectedExtraReactorWeights",
+                "60,25,10,5"));
+    _proxDirectedNPCAsideChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.ProximityChatter."
+                "DirectedNPCAsideChance", 35),
+            100u);
+    _proxDirectedMaxLines =
+        std::min(
+            8u,
+            std::max(
+                1u,
+                GetChatterOption<uint32>(
+                    "LLMChatter.ProximityChatter."
+                    "DirectedMaxLines", 5)));
+    _proxDirectedExpirySeconds =
+        std::max(
+            1u,
+            GetChatterOption<uint32>(
+                "LLMChatter.ProximityChatter."
+                "DirectedExpirySeconds", 30));
+    std::string directedNameStopwords =
+        GetChatterOption<std::string>(
+            "LLMChatter.ProximityChatter."
+            "DirectedNameStopwords",
+            "guard,city,mountaineer,innkeeper,vendor,trainer,"
+            "quartermaster,merchant,stablemaster,banker,auctioneer,"
+            "flight,master,officer,captain,stormwind,ironforge,"
+            "orgrimmar,darnassus,undercity,silvermoon,exodar");
+    auto parsedDirectedNameStopwords =
+        std::make_shared<std::unordered_set<std::string> const>(
+            ParseLowerWordSet(directedNameStopwords));
+    std::atomic_store(
+        &_proxDirectedNameStopwords,
+        std::move(parsedDirectedNameStopwords));
     std::string speakerAllowEntries =
         GetChatterOption<std::string>(
             "LLMChatter.ProximityChatter."
@@ -1003,5 +1176,28 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<bool>(
             "LLMChatter.EmoteReactions."
             "NPCMirrorEnable", true);
+    _emoteNPCVerbalReactionChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.EmoteReactions."
+                "NPCVerbalReactionChance", 80),
+            100u);
+    _emoteNPCVerbalCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.EmoteReactions."
+            "NPCVerbalCooldown", 20);
+    std::string cxxScriptExclusionEntries =
+        GetChatterOption<std::string>(
+            "LLMChatter.EmoteReactions."
+            "CxxScriptExclusionEntries",
+            "620,25305,33211,33224,6626,7233,3401");
+    auto parsedCxxScriptExclusionEntries =
+        std::make_shared<std::unordered_set<uint32> const>(
+            ParseCreatureEntrySet(
+                cxxScriptExclusionEntries,
+                "CxxScriptExclusionEntries"));
+    std::atomic_store(
+        &_emoteCxxScriptExclusionEntries,
+        std::move(parsedCxxScriptExclusionEntries));
 
 }

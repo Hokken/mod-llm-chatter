@@ -101,9 +101,10 @@ NPCs, and real players as they move through the world:
    internal-name-marker exclusions; denylist; boss exclusion;
    guard/interactive role; humanoid; configured non-humanoid allowlist;
    then reject.
-3. One or more speakers are selected from the candidate pool.
-   If all candidates are party bots, the scan is skipped (idle chat
-   handles that case).
+3. One or more speakers are selected from the candidate pool. If all
+   candidates are party bots, the scan is skipped (idle chat handles
+   that case). Directed player interactions instead keep the addressed
+   NPC first and can add zero to three compatible nearby NPCs.
 4. A `proximity_say` (single statement) or `proximity_conversation`
    (multi-speaker) event is queued to `llm_chatter_events` with
    NPC spawn GUIDs and nearby entity names in `extra_data`.
@@ -115,16 +116,26 @@ NPCs, and real players as they move through the world:
    `"say"` (for bots) or `"msay"` (for NPCs).
 7. C++ delivery dispatches bot messages via `CHAT_MSG_SAY` and NPC
    messages via `CHAT_MSG_MONSTER_SAY` (speech bubbles). Movement never
-   disqualifies a speaker. Stationary, facing-safe speakers may face each
-   other via `SetFacingToObject()`; moving or pathing speakers talk without
-   rotation. NPC orientation resets via `BasicEvent` only when facing was
-   applied.
-8. When a real player speaks in `/say`, an explicitly named eligible
-   creature wins first, followed by the selected target, then a recent
-   scene or ordinary nearby candidate.
-   `HandleProximityPlayerSay()` in `LLMChatterGroupCombat.cpp`
-   detects the reply and queues a `proximity_reply` event, enabling
-   natural player-to-NPC/bot exchanges.
+   disqualifies a speaker. Only idle or random-wandering NPCs may rotate.
+   A directed line uses its explicit addressee when present; otherwise
+   the conversation sequence supplies the fallback. One facing lease is
+   retained through the final line before the original orientation is
+   restored. Scripted or controlled movement speaks without rotation.
+8. When a real player speaks in `/say`, a selected eligible NPC is the
+   addressee unless another nearby NPC name is explicitly marked with a
+   comma or colon as a vocative. Without a selection, an unambiguous full
+   name or unique meaningful token can direct the line anywhere it occurs.
+   Ambiguous title/place tokens are rejected. A different named NPC is
+   preferred as a joining speaker. A living selected player, party bot,
+   boss, or runtime-ineligible speaking NPC suppresses random fallback;
+   dead and non-speaking targets are ignored. With no direct addressee,
+   recent-scene and ordinary nearby fallback behavior remains available.
+9. A social emote directed at an eligible NPC has its own verbal-reaction
+   chance and cooldown, independent of animation mirroring. SmartAI and
+   configured C++ scripted-emote ownership suppresses generated NPC and
+   mirror reactions so scripted behavior remains authoritative. When a
+   mirror animation is actually scheduled, its emote name is passed to the
+   verbal prompt so generated speech cannot contradict the visible action.
 
 NPCs are identified by spawn GUID (`Creature::GetSpawnId()`) rather
 than entry ID. Cooldowns, scene matching, and history include map and
@@ -140,6 +151,9 @@ excluded across ordinary and boss dialogue. Nearby-name prompt context
 is case-insensitively deduplicated.
 One conversation also cannot select two creatures with the same display
 name because the JSON response contract identifies speakers by name.
+Directed multi-NPC prompts choose either a player-inclusive exchange or
+an NPC aside about the player's real words/action. They never generate
+dialogue or actions for the real player.
 
 Boss dialogue is a separate flow owned by
 `LLMChatterBossDialogue.cpp` and `chatter_boss_dialogue.py`. A boss can
@@ -403,6 +417,10 @@ share one global scheduler.
 - ambient rows with `event_id = NULL` therefore remain lowest priority
 - when the delivery-order feature is disabled, fallback order remains
   `deliver_at ASC`
+- `delivered = 1` means the row was consumed, not necessarily spoken;
+  `drop_reason IS NULL` distinguishes successful delivery from a drop
+- directed rows carry optional player, bot, or NPC addressee IDs used for
+  facing; dropping one directed line cancels its remaining queued lines
 
 ### Timing layers
 
@@ -420,6 +438,9 @@ There are two separate timing stages:
 stage for most Python-generated messages. Player-directed replies use
 `responsive=True`; ambient/group conversations can also include reading
 time from the previous message length.
+Player-triggered proximity say, active-scene reply, conversation, and emote
+events use the high priority tier (0-2 second reaction delay by default) and
+a short expiry, while ambient proximity events remain lower priority.
 
 ### General-Channel Pacing Gate
 
@@ -782,6 +803,14 @@ system.
 - mutually compatible candidate selection and ordinary event queueing
 - map/instance-scoped `ProximityScene`, history, and cooldown state
 - selected/named player `/say` routing before scene fallback
+- directed social-emote verbal events and their synchronized
+  per-player/NPC cooldown
+- weighted selection of zero to three extra directed-scene NPCs
+- strict full-name/unique-token resolution and vocative detection
+
+`LLMChatterGroupEmote.cpp` owns animation mirroring and loads the
+SmartAI/configured C++ scripted-emote exclusions used by the direct
+creature mirror and verbal-reaction paths.
 
 `LLMChatterBossDialogue.cpp` owns the distinct hostile-boss path:
 
@@ -889,6 +918,8 @@ Ownership boundary:
   cooldowns, and observer event queueing
 - creature mirror emotes can fire even when the player is solo;
   observer chatter still requires eligible grouped bots
+- emote cooldown maps are mutex-protected because text-emote hooks can run
+  concurrently on map worker threads
 
 `LLMChatterGroupQuest.cpp` owns:
 

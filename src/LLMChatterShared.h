@@ -24,6 +24,7 @@ enum class LLMChatterPriorityBand : uint8
 };
 
 bool IsPlayerBot(Player* player);
+std::string const& GetCreatureEntryColumn();
 Creature* FindCreatureBySpawnId(Map* map, uint32 spawnId);
 void LoadNamedBossCache();
 bool IsLLMChatterBoss(Creature const* creature);

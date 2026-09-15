@@ -13,10 +13,12 @@
  */
 
 #include "LLMChatterConfig.h"
+#include "LLMChatterGroup.h"
 #include "LLMChatterGroupInternal.h"
 #include "LLMChatterShared.h"
 
 #include "Creature.h"
+#include "DatabaseEnv.h"
 #include "Group.h"
 #include "Log.h"
 #include "ObjectAccessor.h"
@@ -24,12 +26,56 @@
 #include "ScriptMgr.h"
 
 #include <ctime>
+#include <memory>
+#include <mutex>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 // ── Emote reaction system ──────────────────────────────
+
+namespace
+{
+std::shared_ptr<std::unordered_set<uint64> const>
+    _smartEmoteTemplateRules;
+std::shared_ptr<std::unordered_set<uint64> const>
+    _smartEmoteSpawnRules;
+
+uint64 MakeScriptedEmoteKey(
+    uint32 ownerId, uint32 textEmote)
+{
+    return (static_cast<uint64>(ownerId) << 32)
+        | textEmote;
+}
+
+bool IsEmoteCooldownActive(
+    std::unordered_map<uint32, time_t> const& cooldowns,
+    uint32 key, time_t now, time_t cooldownSeconds)
+{
+    std::lock_guard<std::mutex> lock(
+        _emoteCooldownMutex);
+    auto it = cooldowns.find(key);
+    return it != cooldowns.end()
+        && now - it->second < cooldownSeconds;
+}
+
+bool TryStampEmoteCooldown(
+    std::unordered_map<uint32, time_t>& cooldowns,
+    uint32 key, time_t now, time_t cooldownSeconds)
+{
+    std::lock_guard<std::mutex> lock(
+        _emoteCooldownMutex);
+    auto it = cooldowns.find(key);
+    if (it != cooldowns.end()
+        && now - it->second < cooldownSeconds)
+    {
+        return false;
+    }
+    cooldowns[key] = now;
+    return true;
+}
+} // namespace
 
 /// Fires SendBotTextEmote after a short delay so the
 /// mirror emote doesn't look instant/robotic.
@@ -62,8 +108,12 @@ public:
             || creature->IsInCombat())
             return true;
 
-        // Face the player just before animating
-        creature->SetFacingToObject(player);
+        // Never disturb scripted or otherwise controlled movement.
+        if (sLLMChatterConfig->_facingEnable
+            && IsSafeForChatterFacing(creature))
+        {
+            creature->SetFacingToObject(player);
+        }
         SendUnitTextEmote(
             creature, _emoteId, _playerName);
         return true;
@@ -260,14 +310,15 @@ void HandleEmoteAtGroupBot(
     // Per-bot mirror cooldown (checked and stamped
     // after confirming a mirror exists so unsupported
     // emotes don't consume the cooldown slot)
-    auto it =
-        _emoteReactCooldowns.find(botGuid);
-    if (it != _emoteReactCooldowns.end()
-        && (now - it->second)
-           < (time_t)sLLMChatterConfig
-                 ->_emoteMirrorCooldown)
+    if (!TryStampEmoteCooldown(
+            _emoteReactCooldowns,
+            botGuid, now,
+            static_cast<time_t>(
+                sLLMChatterConfig
+                    ->_emoteMirrorCooldown)))
+    {
         return;
-    _emoteReactCooldowns[botGuid] = now;
+    }
 
     uint32 delayMs = urand(800, 2500);
     targetBot->m_Events.AddEvent(
@@ -284,16 +335,14 @@ void HandleEmoteAtGroupBot(
         <= sLLMChatterConfig
                ->_emoteReactionChance)
     {
-        auto vit =
-            _emoteVerbalCooldowns.find(botGuid);
-        if (vit == _emoteVerbalCooldowns.end()
-            || (now - vit->second)
-               >= (time_t)(
-                   sLLMChatterConfig
-                       ->_emoteMirrorCooldown
-                   * 2))
+        if (TryStampEmoteCooldown(
+                _emoteVerbalCooldowns,
+                botGuid, now,
+                static_cast<time_t>(
+                    sLLMChatterConfig
+                        ->_emoteMirrorCooldown
+                    * 2)))
         {
-            _emoteVerbalCooldowns[botGuid] = now;
             std::string emoteName =
                 GetTextEmoteName(textEmote);
 
@@ -350,39 +399,46 @@ void HandleEmoteAtGroupBot(
 // HandleEmoteAtCreature
 // ============================================================================
 
-void HandleEmoteAtCreature(
+uint32 HandleEmoteAtCreature(
     Player* player, Creature* creature,
     uint32 textEmote)
 {
+    if (IsCreatureEmoteScripted(creature, textEmote))
+        return 0;
     if (!sLLMChatterConfig->_emoteNPCMirrorEnable)
-        return;
-    if (!creature->IsAlive()) return;
-    if (creature->IsInCombat()) return;
-    if (creature->IsHostileTo(player)) return;
+        return 0;
+    if (!creature->IsAlive()) return 0;
+    if (creature->IsInCombat()) return 0;
+    if (creature->IsHostileTo(player)) return 0;
     if (creature->GetCreatureTemplate()->rank >= 3)
-        return; // no bosses
+        return 0; // no bosses
 
     auto mit = s_mirrorEmoteMap.find(textEmote);
-    if (mit == s_mirrorEmoteMap.end()) return;
+    if (mit == s_mirrorEmoteMap.end()) return 0;
     uint32 mirrorEmote = mit->second;
 
     uint32 creatureGuidLow =
         creature->GetGUID().GetCounter();
     time_t now = time(nullptr);
-    auto it =
-        _creatureEmoteCooldowns.find(
-            creatureGuidLow);
-    if (it != _creatureEmoteCooldowns.end()
-        && (now - it->second)
-           < (time_t)sLLMChatterConfig
-                 ->_emoteMirrorCooldown)
-        return;
+    time_t cooldownSeconds = static_cast<time_t>(
+        sLLMChatterConfig->_emoteMirrorCooldown);
+    if (IsEmoteCooldownActive(
+            _creatureEmoteCooldowns,
+            creatureGuidLow, now, cooldownSeconds))
+    {
+        return 0;
+    }
 
     if (urand(1, 100)
         > sLLMChatterConfig->_emoteMirrorChance)
-        return;
+        return 0;
 
-    _creatureEmoteCooldowns[creatureGuidLow] = now;
+    if (!TryStampEmoteCooldown(
+            _creatureEmoteCooldowns,
+            creatureGuidLow, now, cooldownSeconds))
+    {
+        return 0;
+    }
 
     uint32 delayMs = urand(800, 2500);
     player->m_Events.AddEvent(
@@ -392,6 +448,7 @@ void HandleEmoteAtCreature(
             mirrorEmote,
             player->GetName()),
         player->m_Events.CalculateTime(delayMs));
+    return mirrorEmote;
 }
 
 // ============================================================================
@@ -415,18 +472,24 @@ void HandleEmoteObserver(
     time_t now = time(nullptr);
 
     // Per-group observer cooldown
-    auto it =
-        _emoteObserverCooldowns.find(groupId);
-    if (it != _emoteObserverCooldowns.end()
-        && (now - it->second)
-           < (time_t)sLLMChatterConfig
-                 ->_emoteObserverCooldown)
+    time_t cooldownSeconds = static_cast<time_t>(
+        sLLMChatterConfig->_emoteObserverCooldown);
+    if (IsEmoteCooldownActive(
+            _emoteObserverCooldowns,
+            groupId, now, cooldownSeconds))
+    {
         return;
+    }
     if (urand(1, 100)
         > sLLMChatterConfig
               ->_emoteObserverChance)
         return;
-    _emoteObserverCooldowns[groupId] = now;
+    if (!TryStampEmoteCooldown(
+            _emoteObserverCooldowns,
+            groupId, now, cooldownSeconds))
+    {
+        return;
+    }
 
     // Pick reactor from nearby alive bots only
     Player* reactor = candidates[
@@ -502,6 +565,124 @@ void HandleEmoteObserver(
     );
 }
 
+void LoadScriptedEmoteExclusions()
+{
+    std::unordered_set<uint64> templateRules;
+    std::unordered_set<uint64> spawnRules;
+
+    std::string query =
+        "SELECT ss.entryorguid, ss.event_param1 "
+        "FROM smart_scripts ss "
+        "LEFT JOIN creature_template direct_ct "
+        "ON ss.entryorguid > 0 "
+        "AND direct_ct.entry = ss.entryorguid "
+        "LEFT JOIN creature spawn "
+        "ON ss.entryorguid < 0 "
+        "AND spawn.guid = -ss.entryorguid "
+        "LEFT JOIN creature_template spawn_ct "
+        "ON spawn_ct.entry = spawn."
+        + GetCreatureEntryColumn() + " "
+        "WHERE ss.source_type = 0 "
+        "AND ss.event_type = 22 "
+        "AND ((ss.entryorguid > 0 "
+        "AND direct_ct.AIName = 'SmartAI') "
+        "OR (ss.entryorguid < 0 "
+        "AND spawn_ct.AIName = 'SmartAI'))";
+    QueryResult result = WorldDatabase.Query(query);
+    if (!result)
+    {
+        std::atomic_store(
+            &_smartEmoteTemplateRules,
+            std::make_shared<
+                std::unordered_set<uint64> const>());
+        std::atomic_store(
+            &_smartEmoteSpawnRules,
+            std::make_shared<
+                std::unordered_set<uint64> const>());
+        LOG_INFO(
+            "module",
+            "LLMChatter: no active SmartAI emote exclusions found");
+        return;
+    }
+
+    uint32 inertRules = 0;
+    do
+    {
+        Field* fields = result->Fetch();
+        int64 entryOrGuid = fields[0].Get<int64>();
+        uint32 textEmote = fields[1].Get<uint32>();
+        if (entryOrGuid == 0 || textEmote == 0)
+        {
+            ++inertRules;
+            continue;
+        }
+
+        if (entryOrGuid > 0)
+        {
+            templateRules.insert(
+                MakeScriptedEmoteKey(
+                    static_cast<uint32>(entryOrGuid),
+                    textEmote));
+        }
+        else
+        {
+            spawnRules.insert(
+                MakeScriptedEmoteKey(
+                    static_cast<uint32>(-entryOrGuid),
+                    textEmote));
+        }
+    } while (result->NextRow());
+
+    size_t templateRuleCount = templateRules.size();
+    size_t spawnRuleCount = spawnRules.size();
+    std::atomic_store(
+        &_smartEmoteTemplateRules,
+        std::make_shared<std::unordered_set<uint64> const>(
+            std::move(templateRules)));
+    std::atomic_store(
+        &_smartEmoteSpawnRules,
+        std::make_shared<std::unordered_set<uint64> const>(
+            std::move(spawnRules)));
+
+    LOG_INFO(
+        "module",
+        "LLMChatter: loaded {} template and {} per-spawn "
+        "SmartAI emote exclusions; ignored {} inert zero-emote rules",
+        templateRuleCount,
+        spawnRuleCount,
+        inertRules);
+}
+
+bool IsCreatureEmoteScripted(
+    Creature const* creature, uint32 textEmote)
+{
+    if (!creature || !textEmote)
+        return false;
+    if (sLLMChatterConfig
+        && sLLMChatterConfig->IsCxxScriptedEmoteEntry(
+            creature->GetEntry()))
+    {
+        return true;
+    }
+
+    auto templateRules = std::atomic_load(
+        &_smartEmoteTemplateRules);
+    if (templateRules && templateRules->count(
+            MakeScriptedEmoteKey(
+                creature->GetEntry(), textEmote)) > 0)
+    {
+        return true;
+    }
+
+    uint32 spawnId = creature->GetSpawnId();
+    auto spawnRules = std::atomic_load(
+        &_smartEmoteSpawnRules);
+    return spawnId && spawnRules
+        && spawnRules->count(
+            MakeScriptedEmoteKey(
+                spawnId, textEmote)) > 0;
+}
+
 // ============================================================================
 // EvictEmoteCooldowns
 // ============================================================================
@@ -513,6 +694,8 @@ void EvictEmoteCooldowns()
     // GUID (not group), so CleanupGroupSession can't
     // reach them.  Called from the World update tick
     // on the same interval as nearby-object scans.
+    std::lock_guard<std::mutex> lock(
+        _emoteCooldownMutex);
     time_t now = time(nullptr);
     auto evict = [now](
         std::unordered_map<uint32, time_t>& m,

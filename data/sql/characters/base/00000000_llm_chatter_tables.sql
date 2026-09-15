@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS `llm_chatter_events` (
         'proximity_reply',
         'proximity_player_say',
         'proximity_player_conversation',
+        'proximity_player_emote',
         'proximity_boss_approach',
         'proximity_boss_player_say',
         'bot_backstory_regen',
@@ -172,6 +173,10 @@ CREATE TABLE IF NOT EXISTS `llm_chatter_messages` (
     -- explicitly. See insert_chat_message() in chatter_db.py.
     `owner_subsystem` VARCHAR(16) NOT NULL DEFAULT 'group',
     `delivered` TINYINT(1) NOT NULL DEFAULT 0,
+    `drop_reason` VARCHAR(64) DEFAULT NULL,
+    `addressee_player_guid` INT UNSIGNED DEFAULT NULL,
+    `addressee_bot_guid` INT UNSIGNED DEFAULT NULL,
+    `addressee_npc_spawn_id` INT UNSIGNED DEFAULT NULL,
     `deliver_at` TIMESTAMP NULL DEFAULT NULL,
     `delivered_at` TIMESTAMP NULL DEFAULT NULL,
     PRIMARY KEY (`id`),

@@ -1009,6 +1009,59 @@ LLMChatter.ProximityChatter.MaxTokensPerLine = 120
 LLMChatter.ProximityChatter.FacingResetDelay = 8
 
 #
+#   LLMChatter.ProximityChatter.DirectedMaxExtraReactors
+#       Maximum nearby NPCs that may join a directed player /say or
+#       emote interaction in addition to the addressed NPC. Range: 0-3.
+#       Default: 3
+#
+LLMChatter.ProximityChatter.DirectedMaxExtraReactors = 3
+
+#
+#   LLMChatter.ProximityChatter.DirectedExtraReactorWeights
+#       Comma-separated percentages for selecting 0, 1, 2, or 3 extra
+#       nearby NPC reactors. Values must strictly descend and total 100.
+#       Default: 60,25,10,5
+#
+LLMChatter.ProximityChatter.DirectedExtraReactorWeights = 60,25,10,5
+
+#
+#   LLMChatter.ProximityChatter.DirectedNPCAsideChance
+#       When extra NPCs join, chance (0-100) that they discuss the
+#       player's real words or action with the addressed NPC without
+#       directly involving the player.
+#       Default: 35
+#
+LLMChatter.ProximityChatter.DirectedNPCAsideChance = 35
+
+#
+#   LLMChatter.ProximityChatter.DirectedMaxLines
+#       Maximum generated NPC lines in one directed interaction.
+#       Range: 1-8.
+#       Default: 5
+#
+LLMChatter.ProximityChatter.DirectedMaxLines = 5
+
+#
+#   LLMChatter.ProximityChatter.DirectedExpirySeconds
+#       Seconds before a queued directed interaction becomes too old
+#       to generate. Keeps replies relevant to the player's action.
+#       Default: 30
+#
+LLMChatter.ProximityChatter.DirectedExpirySeconds = 30
+
+#
+#   LLMChatter.ProximityChatter.DirectedNameStopwords
+#       Comma-separated title and place words that must not identify an
+#       NPC by themselves. Full NPC names still match. Matching is
+#       case-insensitive; an NPC's subname words are also excluded.
+#       Default: guard,city,mountaineer,innkeeper,vendor,trainer,
+#                quartermaster,merchant,stablemaster,banker,auctioneer,
+#                flight,master,officer,captain,stormwind,ironforge,
+#                orgrimmar,darnassus,undercity,silvermoon,exodar
+#
+LLMChatter.ProximityChatter.DirectedNameStopwords = guard,city,mountaineer,innkeeper,vendor,trainer,quartermaster,merchant,stablemaster,banker,auctioneer,flight,master,officer,captain,stormwind,ironforge,orgrimmar,darnassus,undercity,silvermoon,exodar
+
+#
 #   LLMChatter.ProximityChatter.PlayerSayScanRadius
 #       Detection radius (yards) when a player types
 #       /say and no active proximity scene exists.
@@ -2772,13 +2825,13 @@ LLMChatter.EmoteReactions.Enable = 1
 #       Also used for NPC mirror chance.
 #       Default: 90
 #
-LLMChatter.EmoteReactions.MirrorChance = 100
+LLMChatter.EmoteReactions.MirrorChance = 90
 
 #
 #   LLMChatter.EmoteReactions.MirrorCooldown
 #       Seconds before the same bot can mirror an emote again.
-#       Also controls the minimum interval for NPC mirrors and
-#       verbal reaction cooldown (mirror × 2).
+#       Also controls the minimum interval for NPC mirror animations.
+#       NPC verbal reactions use NPCVerbalCooldown independently.
 #       Default: 15
 #
 LLMChatter.EmoteReactions.MirrorCooldown = 15
@@ -2789,7 +2842,7 @@ LLMChatter.EmoteReactions.MirrorCooldown = 15
 #       comment after mirroring an emote directed at it.
 #       Default: 60
 #
-LLMChatter.EmoteReactions.ReactionChance = 100
+LLMChatter.EmoteReactions.ReactionChance = 60
 
 #
 #   LLMChatter.EmoteReactions.ObserverChance
@@ -2797,7 +2850,7 @@ LLMChatter.EmoteReactions.ReactionChance = 100
 #       the player emotes at an NPC, stranger, or nobody.
 #       Default: 40
 #
-LLMChatter.EmoteReactions.ObserverChance = 100
+LLMChatter.EmoteReactions.ObserverChance = 40
 
 #
 #   LLMChatter.EmoteReactions.ObserverCooldown
@@ -2805,7 +2858,7 @@ LLMChatter.EmoteReactions.ObserverChance = 100
 #       observer comment.
 #       Default: 30
 #
-LLMChatter.EmoteReactions.ObserverCooldown = 0
+LLMChatter.EmoteReactions.ObserverCooldown = 30
 
 #
 #   LLMChatter.EmoteReactions.MoodSpreadChance
@@ -2824,6 +2877,31 @@ LLMChatter.EmoteReactions.MoodSpreadChance = 50
 #       Default: 1
 #
 LLMChatter.EmoteReactions.NPCMirrorEnable = 1
+
+#
+#   LLMChatter.EmoteReactions.NPCVerbalReactionChance
+#       Independent chance (0-100) that an eligible NPC verbally reacts
+#       when a player directs a social emote at it.
+#       Default: 80
+#
+LLMChatter.EmoteReactions.NPCVerbalReactionChance = 80
+
+#
+#   LLMChatter.EmoteReactions.NPCVerbalCooldown
+#       Seconds between verbal emote reactions for the same player/NPC
+#       pair. This is independent from the mirror animation cooldown.
+#       Default: 20
+#
+LLMChatter.EmoteReactions.NPCVerbalCooldown = 20
+
+#
+#   LLMChatter.EmoteReactions.CxxScriptExclusionEntries
+#       Creature entries whose C++ scripts own ReceiveEmote behavior.
+#       NPC mirror and generated NPC verbal reactions are suppressed
+#       for these entries to avoid duplicate direct responses.
+#       Default: 620,25305,33211,33224,6626,7233,3401
+#
+LLMChatter.EmoteReactions.CxxScriptExclusionEntries = 620,25305,33211,33224,6626,7233,3401
 
 ###############################################
 # Screenshot Vision Feature (Experimental)

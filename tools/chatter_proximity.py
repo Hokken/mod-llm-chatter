@@ -6,8 +6,11 @@ import random
 from typing import Dict, List, Optional
 
 from chatter_constants import (
+    EMOTE_CATEGORIES,
+    EMOTE_NAME_TO_ID,
     PROXIMITY_CHAT_TOPICS,
     PROXIMITY_PLAYER_CHAT_TOPICS,
+    REACTION_TONES,
 )
 from chatter_db import insert_chat_message
 from chatter_llm import call_llm
@@ -43,6 +46,31 @@ from chatter_text import (
 )
 
 logger = logging.getLogger(__name__)
+
+_DEFAULT_EMOTE_TONES = [
+    "briefly",
+    "with curiosity",
+    "with dry wit",
+    "with restraint",
+]
+
+
+def _prepare_emote_context(
+    extra: Dict, player_emote: str
+) -> None:
+    emote_id = int(
+        extra.get('player_emote_id', 0)
+        or EMOTE_NAME_TO_ID.get(player_emote, 0)
+    )
+    category = EMOTE_CATEGORIES.get(
+        emote_id, 'social'
+    )
+    extra['emote_category'] = category
+    extra['reaction_tone'] = random.choice(
+        REACTION_TONES.get(
+            category, _DEFAULT_EMOTE_TONES
+        )
+    )
 
 
 def _get_proximity_int(
@@ -147,6 +175,9 @@ def _describe_speaker(
         parts = [speaker.get('name', 'NPC'), role]
         if sub_name:
             parts.append(sub_name)
+        gender = speaker.get('gender') or ''
+        if gender:
+            parts.append(f"gender: {gender}")
         disposition = speaker.get('disposition') or ''
         rank = speaker.get('rank') or ''
         creature_type = speaker.get('creature_type') or ''
@@ -323,8 +354,71 @@ def _insert_proximity_line(
         emote=parsed.get('emote'),
         npc_spawn_id=npc_spawn_id or None,
         player_guid=player_guid or None,
+        addressee_player_guid=(
+            int(parsed.get('_addressee_player_guid', 0) or 0)
+            or None
+        ),
+        addressee_bot_guid=(
+            int(parsed.get('_addressee_bot_guid', 0) or 0)
+            or None
+        ),
+        addressee_npc_spawn_id=(
+            int(parsed.get('_addressee_npc_spawn_id', 0) or 0)
+            or None
+        ),
     )
     return True
+
+
+def _set_line_addressee(
+    line: Dict,
+    extra: Dict,
+    participants: List[Dict],
+    fallback_name: str,
+) -> None:
+    addressee = str(
+        line.get('addressee') or fallback_name
+    )
+    speaker_name = str(line.get('name', ''))
+    if addressee == speaker_name:
+        addressee = fallback_name
+    player_name = str(extra.get('player_name', ''))
+    if addressee == speaker_name:
+        if (
+            extra.get('interaction_mode') != 'npc_aside'
+            and player_name
+            and player_name != speaker_name
+        ):
+            addressee = player_name
+        else:
+            addressee = next(
+                (
+                    str(participant.get('name', ''))
+                    for participant in participants
+                    if str(participant.get('name', ''))
+                    and str(participant.get('name', ''))
+                    != speaker_name
+                ),
+                '',
+            )
+    if addressee == player_name:
+        line['_addressee_player_guid'] = int(
+            extra.get('player_guid', 0) or 0
+        )
+        return
+
+    for participant in participants:
+        if addressee != str(participant.get('name', '')):
+            continue
+        if participant.get('is_npc'):
+            line['_addressee_npc_spawn_id'] = int(
+                participant.get('npc_spawn_id', 0) or 0
+            )
+        else:
+            line['_addressee_bot_guid'] = int(
+                participant.get('bot_guid', 0) or 0
+            )
+        return
 
 
 def _single_prompt(
@@ -552,6 +646,7 @@ def _conversation_prompt(
         "Use only the provided speaker names.",
         "Each message must be 6-14 words, natural, and relevant to the "
         "nearby exchange.",
+        "Every listed speaker must speak at least once.",
         "Keep the exchange brief.",
         "",
         f"Topic seed: {topic}",
@@ -738,7 +833,7 @@ def handle_proximity_conversation(
 
     inserted = 0
     cumulative_delay = 0
-    for index, line in enumerate(parsed):
+    for index, line in enumerate(parsed[:max_lines]):
         speaker = speaker_by_name.get(
             line.get('name', '')
         )
@@ -863,20 +958,42 @@ def handle_proximity_reply(db, client, config, event):
 def _fetch_proximity_history(
     db, player_guid: int, zone_id: int,
     map_id: int, instance_id: int,
+    addressed_name: str = '',
+    addressed_npc_spawn_id: int = 0,
     limit: int = 10,
 ) -> List[Dict]:
-    """Fetch recent proximity messages for context."""
-    if not player_guid or not zone_id:
+    """Fetch recent lines involving the addressed NPC."""
+    if not player_guid or not zone_id or not addressed_name:
         return []
     try:
+        if addressed_npc_spawn_id:
+            identity_sql = (
+                "    AND JSON_VALID(e.extra_data)"
+                "    AND JSON_CONTAINS("
+                "JSON_EXTRACT(e.extra_data, '$.participants'), "
+                "JSON_OBJECT('npc_spawn_id', %s))"
+            )
+            identity_params = [addressed_npc_spawn_id]
+        else:
+            identity_sql = (
+                "    AND JSON_VALID(e.extra_data)"
+                "    AND (JSON_UNQUOTE(JSON_EXTRACT("
+                "e.extra_data, '$.addressed_name')) = %s"
+                "      OR JSON_SEARCH(JSON_EXTRACT("
+                "e.extra_data, '$.participants[*].name'), "
+                "'one', %s) IS NOT NULL)"
+            )
+            identity_params = [addressed_name, addressed_name]
+
         cursor = db.cursor(dictionary=True)
         cursor.execute(
-            "SELECT m.bot_name, m.message,"
-            "       m.delivered_at, e.extra_data"
+            "SELECT m.bot_name, m.message, m.delivered_at,"
+            "       e.id AS event_id, e.extra_data"
             "  FROM llm_chatter_messages m"
             "  JOIN llm_chatter_events e"
             "    ON m.event_id = e.id"
             "  WHERE m.delivered = 1"
+            "    AND m.drop_reason IS NULL"
             "    AND m.channel IN ('say', 'msay')"
             "    AND e.zone_id = %s"
             "    AND e.map_id = %s"
@@ -884,32 +1001,90 @@ def _fetch_proximity_history(
             "    AND m.delivered_at"
             "        > DATE_SUB(NOW(),"
             "          INTERVAL 5 MINUTE)"
-            "  ORDER BY m.delivered_at DESC"
+            + identity_sql
+            + "  ORDER BY m.delivered_at DESC"
             "  LIMIT %s",
-            (zone_id, map_id, player_guid, limit * 4),
+            (
+                zone_id, map_id, player_guid,
+                *identity_params, limit * 2,
+            ),
         )
         rows = cursor.fetchall()
         history = []
-        for row in rows:
-            if instance_id:
-                try:
-                    event_extra = json.loads(
-                        row.get('extra_data') or '{}'
-                    )
-                except (TypeError, ValueError):
-                    continue
-                if int(
-                    event_extra.get('instance_id', 0) or 0
-                ) != instance_id:
-                    continue
+        seen_events = set()
+        for row in reversed(rows):
+            try:
+                event_extra = json.loads(
+                    row.get('extra_data') or '{}'
+                )
+            except (TypeError, ValueError):
+                continue
+            if instance_id and int(
+                event_extra.get('instance_id', 0) or 0
+            ) != instance_id:
+                continue
+            participant_names = [
+                str(item.get('name', ''))
+                for item in event_extra.get('participants', [])
+                if isinstance(item, dict)
+            ]
+            previous_addressed = str(
+                event_extra.get('addressed_name', '')
+            )
+            participant_spawn_ids = {
+                int(item.get('npc_spawn_id', 0) or 0)
+                for item in event_extra.get('participants', [])
+                if isinstance(item, dict) and item.get('is_npc')
+            }
+            same_addressed_npc = (
+                addressed_npc_spawn_id > 0
+                and addressed_npc_spawn_id in participant_spawn_ids
+            )
+            same_legacy_name = (
+                not addressed_npc_spawn_id
+                and (
+                    addressed_name == previous_addressed
+                    or addressed_name in participant_names
+                )
+            )
+            if not same_addressed_npc and not same_legacy_name:
+                continue
+
+            event_id = int(row.get('event_id', 0) or 0)
+            if event_id not in seen_events:
+                player_message = str(
+                    event_extra.get('player_message', '')
+                ).strip()
+                player_name = str(
+                    event_extra.get('player_name', 'Player')
+                )
+                if player_message:
+                    history.append({
+                        'name': player_name,
+                        'message': player_message,
+                    })
+                else:
+                    player_emote = str(
+                        event_extra.get('player_emote', '')
+                    ).strip()
+                    if player_emote:
+                        target_name = (
+                            previous_addressed
+                            or addressed_name
+                        )
+                        history.append({
+                            'name': player_name,
+                            'message': (
+                                f"[performed /{player_emote}"
+                                f" at {target_name}]"
+                            ),
+                        })
+                seen_events.add(event_id)
             history.append({
                 'name': row['bot_name'],
                 'message': row['message'],
             })
-            if len(history) >= limit:
-                break
-        history.reverse()
-        return history
+        return history[-limit:]
     except Exception:
         logger.error(
             "fetch proximity history failed",
@@ -1013,13 +1188,11 @@ def _player_say_single_prompt(
         lines.append("")
         lines.append(history_block)
 
-    addressable = list(nearby_names)
-    addressable.insert(0, player_name)
-    if addressable:
+    if nearby_names:
         lines.append(
-            "Nearby people you may address by "
-            "name: "
-            + ", ".join(addressable[:5]) + "."
+            "Reply to the player. Other nearby people may be mentioned "
+            "but not addressed: "
+            + ", ".join(nearby_names[:5]) + "."
         )
 
     return append_json_instruction(
@@ -1083,30 +1256,42 @@ def _player_say_conversation_prompt(
         f"A nearby player ({player_name}) said: "
         f"{player_message}"
     )
-    lines.append(
-        "Speakers should react to or acknowledge "
-        "the player's words."
+    interaction_mode = extra.get(
+        'interaction_mode', 'player_inclusive'
     )
+    if interaction_mode == 'npc_aside':
+        lines.extend([
+            "The NPCs discuss the player's actual words with each other.",
+            "Do not address the player or invent additional player speech.",
+        ])
+    else:
+        lines.append(
+            "Speakers should react to or acknowledge "
+            "the player's words."
+        )
     lines.append(
         f"Write EXACTLY {max_lines} messages."
     )
-    lines.append(
-        "Speakers may address each other or the "
-        "player by name."
-    )
+    if interaction_mode == 'npc_aside':
+        lines.append(
+            "Speakers address only each other, never the player."
+        )
+    else:
+        lines.append(
+            "Speakers may address each other or the "
+            "player by name."
+        )
 
     history_block = _format_history_block(history)
     if history_block:
         lines.append("")
         lines.append(history_block)
 
-    addressable = list(nearby_names)
-    addressable.insert(0, player_name)
-    if addressable:
+    if nearby_names:
         lines.append(
             "Also nearby: "
-            + ", ".join(addressable[:5])
-            + ". A speaker may address one of them."
+            + ", ".join(nearby_names[:5])
+            + ". They may be mentioned but are not participants."
         )
 
     lines.append("Speakers:")
@@ -1123,6 +1308,192 @@ def _player_say_conversation_prompt(
             is_roleplay(mode)
             or any(s.get('is_npc') for s in participants)
         ),
+        addressee_names=(
+            speaker_names
+            if interaction_mode == 'npc_aside'
+            else [player_name] + speaker_names
+        ),
+    )
+
+
+def _player_emote_single_prompt(
+    db,
+    extra: Dict,
+    speaker: Dict,
+    player_emote: str,
+    config: Optional[Dict] = None,
+    history: Optional[List[Dict]] = None,
+) -> PromptParts:
+    mode = get_chatter_mode(config or {})
+    player_name = extra.get('player_name', 'the player')
+    lines = [
+        build_npc_chat_guidance(),
+        "Write an extremely short /say reaction of 8-15 words.",
+        "Keep it natural and low-stakes. No AI talk or markdown.",
+        "",
+        f"Speaker: {_describe_speaker(db, speaker)}",
+    ]
+    lines.extend(_location_lines(extra, mode, [speaker]))
+    disposition = _npc_disposition_guidance(speaker)
+    if disposition:
+        lines.append(disposition)
+    speech_guidance = _npc_speech_capability_guidance(speaker)
+    if speech_guidance:
+        lines.append(speech_guidance)
+    lines.extend([
+        f"The player ({player_name}) performed /{player_emote} "
+        f"directly at {speaker.get('name', 'the NPC')}.",
+        f"Social meaning: {extra.get('emote_category', 'social')}.",
+        f"React {extra.get('reaction_tone', 'briefly')}.",
+        "React to that real action. Do not invent or quote player speech.",
+    ])
+    mirror_emote = str(extra.get('mirror_emote', '')).strip()
+    if mirror_emote:
+        lines.append(
+            f"The NPC is also scheduled to perform /{mirror_emote}; "
+            "the spoken reaction must not contradict that animation."
+        )
+    history_block = _format_history_block(history or [])
+    if history_block:
+        lines.extend(["", history_block])
+    return append_json_instruction(
+        "\n".join(lines) + "\n",
+        allow_action=True,
+        skip_emote=False,
+    )
+
+
+def _player_emote_conversation_prompt(
+    db,
+    extra: Dict,
+    participants: List[Dict],
+    player_emote: str,
+    config: Optional[Dict] = None,
+    history: Optional[List[Dict]] = None,
+) -> PromptParts:
+    mode = get_chatter_mode(config or {})
+    player_name = extra.get('player_name', 'the player')
+    addressed = extra.get('addressed_name', '')
+    max_lines = max(
+        2,
+        min(
+            int(extra.get('max_lines', 3) or 3),
+            len(participants) + 1,
+        ),
+    )
+    roster = "\n".join(
+        f"- [NPC] {_describe_speaker(db, speaker)}"
+        for speaker in participants
+    )
+    lines = [
+        "You write short World of Warcraft overheard /say conversations.",
+        "Use only the provided NPC speaker names.",
+        "Each message must be 6-14 words, natural, and relevant.",
+        "Every listed NPC must speak at least once.",
+        "Never invent dialogue, thoughts, or actions for the real player.",
+        "",
+    ]
+    lines.extend(_location_lines(extra, mode, participants))
+    lines.extend([
+        f"The player ({player_name}) performed /{player_emote} "
+        f"directly at {addressed}.",
+        f"Social meaning: {extra.get('emote_category', 'social')}.",
+        f"Overall reaction tone: "
+        f"{extra.get('reaction_tone', 'briefly')}.",
+        f"The FIRST message MUST be spoken by {addressed}.",
+    ])
+    mirror_emote = str(extra.get('mirror_emote', '')).strip()
+    if mirror_emote:
+        lines.append(
+            f"{addressed} is also scheduled to perform /{mirror_emote}; "
+            "the conversation must not contradict that animation."
+        )
+    interaction_mode = extra.get(
+        'interaction_mode', 'player_inclusive'
+    )
+    if interaction_mode == 'npc_aside':
+        lines.extend([
+            "The NPCs discuss the player's real action with each other.",
+            "Do not address the player or invent speech for them.",
+            "Speakers address only each other, never the player.",
+        ])
+    else:
+        lines.append(
+            "The NPCs may react to the player and to each other."
+        )
+    history_block = _format_history_block(history or [])
+    if history_block:
+        lines.extend(["", history_block])
+    lines.extend([
+        f"Write EXACTLY {max_lines} messages.",
+        "Speakers:",
+        roster,
+    ])
+    return append_conversation_json_instruction(
+        "\n".join(lines) + "\n",
+        [speaker.get('name', '') for speaker in participants],
+        max_lines,
+        allow_action=True,
+        addressee_names=(
+            [
+                speaker.get('name', '')
+                for speaker in participants
+            ]
+            if interaction_mode == 'npc_aside'
+            else [player_name] + [
+                speaker.get('name', '')
+                for speaker in participants
+            ]
+        ),
+    )
+
+
+def _generate_player_say_single(
+    db,
+    client,
+    config,
+    event_id: int,
+    extra: Dict,
+    speaker: Dict,
+    player_message: str,
+    history: List[Dict],
+    *,
+    label: str = 'proximity_player_say',
+) -> bool:
+    prompt = _player_say_single_prompt(
+        db, extra, speaker, player_message, history,
+        config,
+    )
+    response = call_llm(
+        client,
+        prompt,
+        config,
+        max_tokens_override=_get_proximity_int(
+            config, 'MaxTokensPerLine', 120
+        ),
+        label=label,
+        metadata={
+            **build_location_metadata(extra),
+            'speaker_name': speaker.get('name', ''),
+        },
+    )
+    if not response:
+        return False
+    parsed = parse_single_response(response)
+    _set_line_addressee(
+        parsed,
+        extra,
+        [speaker],
+        str(extra.get('player_name', '')),
+    )
+    return _insert_proximity_line(
+        db,
+        event_id,
+        speaker,
+        int(extra.get('player_guid', 0) or 0),
+        0,
+        0,
+        parsed,
     )
 
 
@@ -1157,44 +1528,26 @@ def handle_proximity_player_say(
     instance_id = int(
         extra.get('instance_id', 0) or 0
     )
+    history_addressed_name = str(
+        extra.get('addressed_name')
+        or participants[0].get('name', '')
+    )
     history = _fetch_proximity_history(
         db, player_guid, zone_id,
         map_id, instance_id,
+        history_addressed_name,
+        int(participants[0].get('npc_spawn_id', 0) or 0),
     )
 
-    speaker = participants[0]
-    prompt = _player_say_single_prompt(
-        db, extra, speaker, player_message, history,
-        config,
-    )
-    response = call_llm(
-        client,
-        prompt,
-        config,
-        max_tokens_override=_get_proximity_int(
-            config, 'MaxTokensPerLine', 120
-        ),
-        label='proximity_player_say',
-        metadata={
-            **build_location_metadata(extra),
-            'speaker_name': speaker.get(
-                'name', ''
-            ),
-        },
-    )
-    if not response:
-        _mark_event(db, event_id, 'skipped')
-        return False
-
-    parsed = parse_single_response(response)
-    ok = _insert_proximity_line(
+    ok = _generate_player_say_single(
         db,
+        client,
+        config,
         event_id,
-        speaker,
-        player_guid,
-        0,
-        0,
-        parsed,
+        extra,
+        participants[0],
+        player_message,
+        history,
     )
     _mark_event(
         db, event_id,
@@ -1234,9 +1587,15 @@ def handle_proximity_player_conversation(
     instance_id = int(
         extra.get('instance_id', 0) or 0
     )
+    history_addressed_name = str(
+        extra.get('addressed_name')
+        or participants[0].get('name', '')
+    )
     history = _fetch_proximity_history(
         db, player_guid, zone_id,
         map_id, instance_id,
+        history_addressed_name,
+        int(participants[0].get('npc_spawn_id', 0) or 0),
     )
 
     prompt = _player_say_conversation_prompt(
@@ -1266,8 +1625,15 @@ def handle_proximity_player_conversation(
         speaker.get('name', '')
         for speaker in participants
     ]
+    addressee_names = (
+        names
+        if extra.get('interaction_mode') == 'npc_aside'
+        else [str(extra.get('player_name', '')), *names]
+    )
     parsed = parse_conversation_response(
-        response, names
+        response, names,
+        unique_tokens_only=True,
+        addressee_names=addressee_names,
     )
     line_delay = max(0, int(
         extra.get('line_delay_seconds', 4) or 4
@@ -1276,6 +1642,38 @@ def handle_proximity_player_conversation(
         speaker.get('name', ''): speaker
         for speaker in participants
     }
+    addressed = extra.get('addressed_name', '')
+    parsed = parsed[:max_lines]
+    parsed_speakers = {
+        line.get('name', '') for line in parsed
+    }
+    if not parsed or (
+        addressed and parsed[0].get('name') != addressed
+    ) or not set(names).issubset(parsed_speakers):
+        logger.warning(
+            "proximity_player_conversation event %s "
+            "fell back to its addressed NPC",
+            event_id,
+        )
+        fallback = _generate_player_say_single(
+            db,
+            client,
+            config,
+            event_id,
+            extra,
+            participants[0],
+            player_message,
+            history,
+            label=(
+                'proximity_player_conversation'
+                '_fallback'
+            ),
+        )
+        _mark_event(
+            db, event_id,
+            'completed' if fallback else 'skipped',
+        )
+        return fallback
 
     strip_conversation_actions(
         parsed,
@@ -1292,6 +1690,22 @@ def handle_proximity_player_conversation(
             continue
         if index > 0:
             cumulative_delay += line_delay
+        first_fallback = (
+            names[1]
+            if extra.get('interaction_mode') == 'npc_aside'
+            else str(extra.get('player_name', ''))
+        )
+        fallback_addressee = (
+            first_fallback
+            if index == 0
+            else parsed[index - 1].get('name', '')
+        )
+        _set_line_addressee(
+            line,
+            extra,
+            participants,
+            fallback_addressee,
+        )
         ok = _insert_proximity_line(
             db,
             event_id,
@@ -1310,14 +1724,15 @@ def handle_proximity_player_conversation(
             "event %s fell back to single-line",
             event_id,
         )
-        fallback = _generate_single_line(
+        fallback = _generate_player_say_single(
             db,
             client,
             config,
             event_id,
             extra,
             participants[0],
-            player_message=player_message,
+            player_message,
+            history,
             label=(
                 'proximity_player_conversation'
                 '_fallback'
@@ -1330,4 +1745,227 @@ def handle_proximity_player_conversation(
         return fallback
 
     _mark_event(db, event_id, 'completed')
-    return True
+    return inserted > 0
+
+
+def _generate_player_emote_single(
+    db,
+    client,
+    config,
+    event_id: int,
+    extra: Dict,
+    speaker: Dict,
+    player_emote: str,
+    history: Optional[List[Dict]] = None,
+    *,
+    label: str = 'proximity_player_emote',
+) -> bool:
+    prompt = _player_emote_single_prompt(
+        db, extra, speaker, player_emote,
+        config, history,
+    )
+    response = call_llm(
+        client,
+        prompt,
+        config,
+        max_tokens_override=_get_proximity_int(
+            config, 'MaxTokensPerLine', 120
+        ),
+        label=label,
+        metadata={
+            **build_location_metadata(extra),
+            'speaker_name': speaker.get('name', ''),
+            'player_emote': player_emote,
+        },
+    )
+    if not response:
+        return False
+    parsed = parse_single_response(response)
+    _set_line_addressee(
+        parsed,
+        extra,
+        [speaker],
+        str(extra.get('player_name', '')),
+    )
+    return _insert_proximity_line(
+        db,
+        event_id,
+        speaker,
+        int(extra.get('player_guid', 0) or 0),
+        0,
+        0,
+        parsed,
+    )
+
+
+def handle_proximity_player_emote(
+    db, client, config, event
+):
+    event_id = int(event['id'])
+    extra = parse_extra_data(
+        event.get('extra_data'),
+        event_id,
+        'proximity_player_emote',
+    )
+    participants = extra.get('participants') or []
+    player_emote = extra.get('player_emote', '')
+    addressed = extra.get('addressed_name', '')
+    if not participants or not player_emote or not addressed:
+        _mark_event(db, event_id, 'skipped')
+        return False
+
+    _prepare_emote_context(extra, player_emote)
+    player_guid = int(
+        extra.get('player_guid', 0) or 0
+    )
+    zone_id = int(extra.get('zone_id', 0) or 0)
+    map_id = int(extra.get('map_id', 0) or 0)
+    instance_id = int(
+        extra.get('instance_id', 0) or 0
+    )
+    history = _fetch_proximity_history(
+        db, player_guid, zone_id,
+        map_id, instance_id,
+        str(addressed),
+        int(participants[0].get('npc_spawn_id', 0) or 0),
+    )
+
+    if len(participants) == 1:
+        ok = _generate_player_emote_single(
+            db,
+            client,
+            config,
+            event_id,
+            extra,
+            participants[0],
+            player_emote,
+            history,
+        )
+        _mark_event(
+            db, event_id,
+            'completed' if ok else 'skipped',
+        )
+        return ok
+
+    prompt = _player_emote_conversation_prompt(
+        db, extra, participants, player_emote,
+        config, history,
+    )
+    max_lines = max(
+        2, int(extra.get('max_lines', 3) or 3)
+    )
+    response = call_llm(
+        client,
+        prompt,
+        config,
+        max_tokens_override=80 * max_lines,
+        label='proximity_player_emote',
+        metadata={
+            **build_location_metadata(extra),
+            'speaker_count': len(participants),
+            'player_emote': player_emote,
+            'interaction_mode': extra.get(
+                'interaction_mode', 'player_inclusive'
+            ),
+        },
+    )
+    names = [
+        speaker.get('name', '')
+        for speaker in participants
+    ]
+    addressee_names = (
+        names
+        if extra.get('interaction_mode') == 'npc_aside'
+        else [str(extra.get('player_name', '')), *names]
+    )
+    parsed = (
+        parse_conversation_response(
+            response,
+            names,
+            unique_tokens_only=True,
+            addressee_names=addressee_names,
+        )
+        if response else []
+    )
+    parsed = parsed[:max_lines]
+    parsed_speakers = {
+        line.get('name', '') for line in parsed
+    }
+    if (
+        not parsed
+        or parsed[0].get('name') != addressed
+        or not set(names).issubset(parsed_speakers)
+    ):
+        logger.warning(
+            "proximity_player_emote event %s fell back "
+            "to its addressed NPC",
+            event_id,
+        )
+        fallback = _generate_player_emote_single(
+            db,
+            client,
+            config,
+            event_id,
+            extra,
+            participants[0],
+            player_emote,
+            history,
+            label='proximity_player_emote_fallback',
+        )
+        _mark_event(
+            db, event_id,
+            'completed' if fallback else 'skipped',
+        )
+        return fallback
+
+    strip_conversation_actions(
+        parsed, label='proximity_player_emote'
+    )
+    speaker_by_name = {
+        speaker.get('name', ''): speaker
+        for speaker in participants
+    }
+    line_delay = max(
+        0,
+        int(extra.get('line_delay_seconds', 4) or 4),
+    )
+    inserted = 0
+    cumulative_delay = 0
+    for index, line in enumerate(parsed):
+        speaker = speaker_by_name.get(line.get('name', ''))
+        if not speaker:
+            continue
+        if index > 0:
+            cumulative_delay += line_delay
+        first_fallback = (
+            names[1]
+            if extra.get('interaction_mode') == 'npc_aside'
+            else str(extra.get('player_name', ''))
+        )
+        fallback_addressee = (
+            first_fallback
+            if index == 0
+            else parsed[index - 1].get('name', '')
+        )
+        _set_line_addressee(
+            line,
+            extra,
+            participants,
+            fallback_addressee,
+        )
+        if _insert_proximity_line(
+            db,
+            event_id,
+            speaker,
+            player_guid,
+            index,
+            cumulative_delay,
+            line,
+        ):
+            inserted += 1
+
+    _mark_event(
+        db, event_id,
+        'completed' if inserted else 'skipped',
+    )
+    return inserted > 0

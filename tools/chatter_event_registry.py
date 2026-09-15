@@ -581,7 +581,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         handler_module='chatter_proximity',
         handler_func='handle_proximity_reply',
         producer='LLMChatterProximity.cpp',
-        priority='normal',
+        priority='high',
         description='Reply to player /say near active scene',
         payload_fields={
             'player_guid': (int, True),
@@ -608,7 +608,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         handler_module='chatter_proximity',
         handler_func='handle_proximity_player_say',
         producer='LLMChatterProximity.cpp',
-        priority='normal',
+        priority='high',
         description=(
             'Response to player /say with no '
             'active scene'
@@ -634,7 +634,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'handle_proximity_player_conversation'
         ),
         producer='LLMChatterProximity.cpp',
-        priority='normal',
+        priority='high',
         description=(
             'Multi-speaker response to player /say'
         ),
@@ -642,6 +642,35 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'player_guid': (int, True),
             'player_name': (str, True),
             'player_message': (str, True),
+            'zone_name': (str, True),
+            'subzone_name': (str, False),
+            'map_id': (int, False),
+            'instance_id': (int, False),
+            'map_name': (str, False),
+            'is_dungeon': (bool, False),
+            'is_raid': (bool, False),
+            'participants': (list, True),
+            'max_lines': (int, True),
+        },
+    ),
+
+    'proximity_player_emote': EventSpec(
+        handler_module='chatter_proximity',
+        handler_func='handle_proximity_player_emote',
+        producer='LLMChatterProximity.cpp',
+        priority='high',
+        description=(
+            'Directed NPC response to a player emote'
+        ),
+        payload_fields={
+            'player_guid': (int, True),
+            'player_name': (str, True),
+            'player_emote': (str, True),
+            'player_emote_id': (int, True),
+            'mirror_emote': (str, False),
+            'addressed_name': (str, True),
+            'interaction': (str, True),
+            'interaction_mode': (str, True),
             'zone_name': (str, True),
             'subzone_name': (str, False),
             'map_id': (int, False),
