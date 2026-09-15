@@ -7,6 +7,7 @@ No circular dependencies.
 """
 
 import json
+import locale
 import logging
 import os
 import random
@@ -856,19 +857,13 @@ def build_group_travel_metadata(bots):
 def parse_config(config_path: str) -> dict:
     """Parse the WoW-style config file."""
     config = {}
+    # Read raw bytes so we can decode explicitly. A genuine file-access
+    # error (missing/unreadable) is fatal and logged; encoding is handled
+    # separately below so a decodable-but-non-UTF-8 file is never treated
+    # as a read failure.
     try:
-        # utf-8-sig: reads UTF-8, strips a BOM if present, and stays
-        # correct for pure-ASCII files. Without an explicit encoding,
-        # open() defaults to the OS locale (cp1252 on Windows), which
-        # cannot decode common UTF-8 bytes and killed the bridge silently.
-        with open(config_path, 'r', encoding='utf-8-sig') as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue
-                if '=' in line:
-                    key, value = line.split('=', 1)
-                    config[key.strip()] = value.strip()
+        with open(config_path, 'rb') as f:
+            raw = f.read()
     except Exception as e:
         logger.error(
             "FATAL: could not read config file %s: %s: %s",
@@ -877,6 +872,30 @@ def parse_config(config_path: str) -> dict:
             e,
         )
         sys.exit(1)
+
+    # Decode preference:
+    #   1. utf-8-sig - handles UTF-8 with or without a BOM, and pure ASCII.
+    #      Without an explicit encoding, open() used the OS locale (cp1252
+    #      on Windows), which cannot decode common UTF-8 bytes and killed
+    #      the bridge silently.
+    #   2. On UnicodeDecodeError, fall back to the OS locale encoding so
+    #      pre-existing Windows ANSI/cp1252 configs (e.g. a raw 0xE9 'e')
+    #      keep parsing the way plain open() used to read them. Use
+    #      errors='replace' so this fallback can never itself raise.
+    try:
+        text = raw.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        text = raw.decode(
+            locale.getpreferredencoding(False), errors='replace'
+        )
+
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        if '=' in line:
+            key, value = line.split('=', 1)
+            config[key.strip()] = value.strip()
     return config
 
 
