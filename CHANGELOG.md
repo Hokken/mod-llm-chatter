@@ -1,5 +1,37 @@
 # Changelog
 
+### 2026-09-15 - Multidirectional NPC Interactions
+
+* **Reliable direct NPC replies**: Eligible ordinary NPCs now receive a
+  directed `/say` attempt when selected or unambiguously addressed by name.
+  Vocative punctuation resolves explicit overrides without allowing casual
+  name mentions to steal another selected NPC's reply. Direct interaction
+  remains available while the player is mounted.
+* **Nearby NPC participation**: Directed `/say` and emote interactions can
+  select zero to three additional eligible NPCs using configurable descending
+  weights. Conversations support player-inclusive reactions and NPC asides,
+  require the addressed NPC to speak first, and never generate dialogue for
+  the real player.
+* **Verbal emote reactions**: Eligible NPCs have a configurable 80% chance to
+  speak after a directed social emote, independently of their mirrored
+  animation. SmartAI and known C++ emote handlers suppress duplicate chatter,
+  and synchronized cooldown state keeps map-thread emotes safe.
+* **Responsive interaction timing**: Directed work uses high priority and a
+  short configurable expiry. Direct ordinary-NPC `/say` has no reply cooldown,
+  while entity reuse, verbal emotes, and directed boss replies are
+  configurable and capped at three seconds.
+* **Context and delivery integrity**: Recent player lines, directed emotes,
+  and successfully delivered NPC speech are scoped to the addressed NPC.
+  Per-line addressee identifiers support NPC-to-player and NPC-to-NPC facing;
+  unsafe scripted movement is never rotated. Directed delivery revalidation
+  failures record a drop reason and cancel later lines in the affected scene.
+* **Configuration and upgrade path**: The main template, quieter preset, and
+  contributor documentation expose the new reaction, participant, timing,
+  naming, and exclusion controls. Existing installations must apply
+  `data/sql/characters/updates/20260914_npc_multidirectional_interactions.sql`
+  before running the updated worldserver or bridge; fresh installs receive the
+  matching base schema.
+
 ### 2026-09-14 - Model Compatibility and Provider Switching
 
 * **Model-aware requests**: OpenAI-compatible calls now select the safe
