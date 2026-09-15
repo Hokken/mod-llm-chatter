@@ -158,6 +158,7 @@ extern std::unordered_map<uint32, time_t>
     _emoteVerbalCooldowns;
 extern std::unordered_map<uint32, time_t>
     _creatureEmoteCooldowns;
+extern std::mutex _emoteCooldownMutex;
 
 // -- Pending rejoin queue (relog) --
 struct PendingRejoin
@@ -230,7 +231,7 @@ void HandleEmoteAtGroupBot(
     Player* player, Player* targetBot,
     uint32 textEmote, Group* group,
     const std::string& customText = "");
-void HandleEmoteAtCreature(
+uint32 HandleEmoteAtCreature(
     Player* player, Creature* creature,
     uint32 textEmote);
 // targetPlayer is the emote's target when it is a player

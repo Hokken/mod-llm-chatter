@@ -786,6 +786,9 @@ def insert_chat_message(
     delivery_policy: str = None,
     delivery_reason: str = None,
     owner_subsystem: str = None,
+    addressee_player_guid: int = None,
+    addressee_bot_guid: int = None,
+    addressee_npc_spawn_id: int = None,
 ):
     """Insert a message into llm_chatter_messages.
 
@@ -854,11 +857,13 @@ def insert_chat_message(
          bot_name, message, emote, action, npc_spawn_id,
          player_guid, channel, owner_subsystem,
          delivered, deliver_at,
-         group_id, delivery_policy, delivery_reason)
+         group_id, delivery_policy, delivery_reason,
+         addressee_player_guid, addressee_bot_guid,
+         addressee_npc_spawn_id)
         VALUES (
             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0,
             DATE_ADD(NOW(), INTERVAL %s SECOND),
-            %s, %s, %s
+            %s, %s, %s, %s, %s, %s
         )
     """, (
         event_id, queue_id, sequence,
@@ -867,6 +872,8 @@ def insert_chat_message(
         player_guid, channel, owner_subsystem,
         int(final_delay),
         group_id, delivery_policy, delivery_reason,
+        addressee_player_guid, addressee_bot_guid,
+        addressee_npc_spawn_id,
     ))
     db.commit()
 

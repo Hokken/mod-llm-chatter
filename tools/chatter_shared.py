@@ -1542,6 +1542,7 @@ def append_conversation_json_instruction(
     msg_count: int,
     allow_action: bool = True,
     message_only: bool = False,
+    addressee_names: Optional[List[str]] = None,
 ) -> str:
     """Append conversation JSON array instruction.
 
@@ -1637,11 +1638,26 @@ def append_conversation_json_instruction(
         '"action": "..."' if action_speakers
         else '"action": null'
     )
+    addressee_rule = ''
+    if addressee_names:
+        addressee_rule = (
+            "Addressee: EVERY message MUST include an exact "
+            '"addressee" chosen from: '
+            + ", ".join(addressee_names)
+            + ". It must not be the speaker.\n"
+        )
+
+    def addressee_example(speaker_name: str) -> str:
+        for candidate in addressee_names or []:
+            if candidate.casefold() != speaker_name.casefold():
+                return f', "addressee": "{candidate}"'
+        return ''
+
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", "message": "...", '
             f'{emote_ex}, '
-            f'{action_ex}}}'
+            f'{action_ex}{addressee_example(name)}}}'
             for name in bot_names
         ]
     )
@@ -1649,6 +1665,7 @@ def append_conversation_json_instruction(
     block = (
         f"\n\n{emote_rule}"
         f"{action_text}\n"
+        f"{addressee_rule}"
         "JSON rules: Use double quotes, escape "
         "quotes/newlines, no trailing commas, no code fences.\n"
         f"\nRespond with EXACTLY {msg_count} messages in JSON:\n"
@@ -2240,8 +2257,42 @@ def fuzzy_name_match(
     return differences <= max_distance
 
 
+def _resolve_conversation_speaker(
+    speaker: str,
+    bot_names: List[str],
+    unique_tokens_only: bool,
+) -> Optional[str]:
+    exact = [
+        name for name in bot_names
+        if speaker.casefold() == name.casefold()
+    ]
+    if len(exact) == 1:
+        return exact[0]
+
+    if unique_tokens_only:
+        label_tokens = re.findall(r'[\w]+', speaker.casefold())
+        if len(label_tokens) != 1:
+            return None
+        label = label_tokens[0]
+        matches = []
+        for name in bot_names:
+            name_tokens = re.findall(r'[\w]+', name.casefold())
+            if label in name_tokens:
+                matches.append(name)
+        return matches[0] if len(matches) == 1 else None
+
+    for bot_name in bot_names:
+        if fuzzy_name_match(speaker, bot_name):
+            return bot_name
+    return None
+
+
 def parse_conversation_response(
-    response: str, bot_names: List[str]
+    response: str,
+    bot_names: List[str],
+    *,
+    unique_tokens_only: bool = False,
+    addressee_names: Optional[List[str]] = None,
 ) -> list:
     """Parse conversation JSON response into message list."""
     try:
@@ -2268,11 +2319,11 @@ def parse_conversation_response(
                 speaker = msg.get('speaker', '').strip()
                 message = msg.get('message', '').strip()
                 if speaker and message:
-                    matched_name = None
-                    for bot_name in bot_names:
-                        if fuzzy_name_match(speaker, bot_name):
-                            matched_name = bot_name
-                            break
+                    matched_name = _resolve_conversation_speaker(
+                        speaker,
+                        bot_names,
+                        unique_tokens_only,
+                    )
                     if matched_name:
                         entry = {
                             'name': matched_name,
@@ -2291,6 +2342,17 @@ def parse_conversation_response(
                         )
                         if action:
                             entry['action'] = action
+                        if addressee_names:
+                            raw_addressee = str(
+                                msg.get('addressee', '')
+                            ).strip()
+                            addressee = _resolve_conversation_speaker(
+                                raw_addressee,
+                                addressee_names,
+                                True,
+                            )
+                            if addressee:
+                                entry['addressee'] = addressee
                         result.append(entry)
             return result
     except json.JSONDecodeError:

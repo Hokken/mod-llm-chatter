@@ -186,6 +186,20 @@ LLMChatter.RequestLog.MaxSizeMB = 50
 #
 # To switch providers, just change LLMChatter.Provider and LLMChatter.Model.
 # Only configure the settings for your chosen provider.
+# The bridge selects a safe parameter profile for the model and learns from
+# explicit unsupported-parameter errors, so stale model-specific options do
+# not need to be removed during ordinary switches.
+# Restart the chatter bridge after changing any setting in this section.
+#
+# VALUE FORMAT:
+#   - Write one setting per line as: Key = value
+#   - Do not wrap values in quotes. Quotes become part of the value.
+#   - Keep comments on their own lines; do not append them after a value.
+#   - Leave an optional setting empty as: Key =
+#   - Use 0 or 1 for switches, plain numbers for numeric values, and a dot for
+#     decimals (for example: 1.5). Do not add commas, units, or percent signs.
+#   - Copy model IDs exactly. OpenRouter uses vendor/model; Ollama uses the
+#     name and optional tag shown by `ollama list`.
 #
 # QUICK SETUP EXAMPLES:
 #
@@ -194,10 +208,11 @@ LLMChatter.RequestLog.MaxSizeMB = 50
 #     LLMChatter.Model = claude-haiku-4-5-20251001
 #     LLMChatter.Anthropic.ApiKey = sk-ant-xxxxx
 #
-#   Cloud (OpenAI GPT-4o-mini - fast and cheap):
+#   Cloud (OpenAI GPT-5.6 Luna - fast, low-cost reasoning model):
 #     LLMChatter.Provider = openai
-#     LLMChatter.Model = gpt-4o-mini
+#     LLMChatter.Model = gpt-5.6-luna
 #     LLMChatter.OpenAI.ApiKey = sk-xxxxx
+#     LLMChatter.OpenAI.ReasoningEffort = none
 #
 #   Cloud (Google Gemini Flash):
 #     LLMChatter.Provider = google
@@ -227,14 +242,16 @@ LLMChatter.RequestLog.MaxSizeMB = 50
 #
 #   LLMChatter.Provider
 #       Which LLM provider to use:
-#       "anthropic", "openai", "google", "openrouter", or "ollama"
+#       Format: one lowercase name with no quotes.
+#       Values: anthropic, openai, google, openrouter, or ollama
 #       Default: anthropic
 #
 LLMChatter.Provider = anthropic
 
 #
 #   LLMChatter.Model
-#       Full model name to use with your provider.
+#       Exact model ID to use with the selected provider. Do not use a display
+#       name, add quotes, or add a provider prefix except for OpenRouter.
 #
 #       Anthropic models:
 #         claude-haiku-4-5-20251001 (fast, cheap)
@@ -242,6 +259,7 @@ LLMChatter.Provider = anthropic
 #         claude-opus-4-6 (highest quality)
 #
 #       OpenAI models:
+#         gpt-5.6-luna (fast, low cost, reasoning configurable)
 #         gpt-4o-mini (fast, cheap)
 #         gpt-4o (balanced)
 #
@@ -252,11 +270,12 @@ LLMChatter.Provider = anthropic
 #         Alias accepted: gemini-3-flash
 #
 #       OpenRouter models:
+#         anthropic/claude-haiku-4.5
 #         openai/gpt-4o-mini
 #         openrouter/auto
 #
 #       Ollama models (from 'ollama list'):
-#         qwen3:4b, qwen3:8b, llama3.2:3b, etc.
+#         qwen3:4b, qwen3:8b, llama3.2:3b
 #
 #       Default: claude-haiku-4-5-20251001
 #
@@ -268,7 +287,7 @@ LLMChatter.Model = claude-haiku-4-5-20251001
 
 #
 #   LLMChatter.Anthropic.ApiKey
-#       Your Anthropic API key (starts with sk-ant-)
+#       Format: the complete key as one unquoted value (starts with sk-ant-).
 #       Get one at: https://console.anthropic.com/
 #
 LLMChatter.Anthropic.ApiKey = sk-ant-xxxxx
@@ -279,10 +298,34 @@ LLMChatter.Anthropic.ApiKey = sk-ant-xxxxx
 
 #
 #   LLMChatter.OpenAI.ApiKey
-#       Your OpenAI API key (starts with sk-)
+#       Format: the complete key as one unquoted value (starts with sk-).
 #       Get one at: https://platform.openai.com/api-keys
 #
 LLMChatter.OpenAI.ApiKey = sk-xxxxx
+
+#
+#   LLMChatter.OpenAI.ReasoningEffort
+#       Reasoning effort for modern OpenAI models.
+#       Format: none, low, medium, high, xhigh, or max; support varies by
+#       model. Leave empty for the model default.
+#       Use "none" for low-latency, short-form chatter.
+#       Ignored for non-reasoning models. If a reasoning model rejects the
+#       selected value, the bridge retries safely without it and remembers
+#       that correction for the rest of the process.
+#       Default: (empty)
+#
+LLMChatter.OpenAI.ReasoningEffort =
+
+#
+#   LLMChatter.OpenAI.MaxTokensMultiplier
+#       Multiplies per-call output budgets when an OpenAI reasoning model
+#       can spend tokens on hidden reasoning. It is not applied when the
+#       selected model supports and uses ReasoningEffort = none.
+#       Format: a number from 1 through 8, for example 4 or 1.5.
+#       Values outside that range are clamped by the bridge.
+#       Default: 4
+#
+LLMChatter.OpenAI.MaxTokensMultiplier = 4
 
 ###############################################################################
 # GOOGLE SETTINGS [BRIDGE] (only needed if Provider = google)
@@ -290,7 +333,7 @@ LLMChatter.OpenAI.ApiKey = sk-xxxxx
 
 #
 #   LLMChatter.Google.ApiKey
-#       Your Google Gemini API key.
+#       Format: the complete API key as one unquoted value.
 #       Get one at: https://aistudio.google.com/app/apikey
 #
 LLMChatter.Google.ApiKey = AIza-xxxxx
@@ -298,6 +341,7 @@ LLMChatter.Google.ApiKey = AIza-xxxxx
 #
 #   LLMChatter.Google.BaseUrl
 #       Google Gemini OpenAI-compatible endpoint.
+#       Format: a complete http:// or https:// URL.
 #       Only change this if Google changes the compatibility endpoint.
 #
 LLMChatter.Google.BaseUrl = https://generativelanguage.googleapis.com/v1beta/openai/
@@ -306,6 +350,7 @@ LLMChatter.Google.BaseUrl = https://generativelanguage.googleapis.com/v1beta/ope
 #   LLMChatter.Google.ReasoningEffort
 #       Gemini reasoning effort for the OpenAI-compatible API.
 #       Used only when Google.ThinkingBudget is empty.
+#       Format: a lowercase effort name supported by the selected model.
 #       Recommended for Gemini 3.1 Flash-Lite: "minimal".
 #       Set empty or "off" to omit the parameter.
 #
@@ -314,6 +359,7 @@ LLMChatter.Google.ReasoningEffort = minimal
 #
 #   LLMChatter.Google.ThinkingBudget
 #       Gemini thinking token budget for the OpenAI-compatible API.
+#       Format: a whole number with no commas or suffix, for example 0.
 #       For Gemini 2.5 Flash, set this to 0 to disable thinking for
 #       fast structured chatter and pre-cache calls.
 #       Set empty to use ReasoningEffort instead.
@@ -323,6 +369,8 @@ LLMChatter.Google.ThinkingBudget =
 #
 #   LLMChatter.Google.MaxTokensMultiplier
 #       Multiplies per-call output token budgets for Gemini.
+#       Format: a number from 1 through 8, for example 2 or 1.5.
+#       Values outside that range are clamped by the bridge.
 #       This protects short JSON paths such as pre-cache from
 #       returning empty/truncated content.
 #       Default: 2
@@ -335,7 +383,7 @@ LLMChatter.Google.MaxTokensMultiplier = 2
 
 #
 #   LLMChatter.OpenRouter.ApiKey
-#       Your OpenRouter API key.
+#       Format: the complete key as one unquoted value (normally sk-or-v1-...).
 #       Get one at: https://openrouter.ai/keys
 #
 LLMChatter.OpenRouter.ApiKey = sk-or-v1-xxxxx
@@ -343,6 +391,7 @@ LLMChatter.OpenRouter.ApiKey = sk-or-v1-xxxxx
 #
 #   LLMChatter.OpenRouter.BaseUrl
 #       OpenRouter OpenAI-compatible endpoint.
+#       Format: a complete http:// or https:// URL; normally leave unchanged.
 #       Only change this if OpenRouter changes the compatibility endpoint.
 #
 LLMChatter.OpenRouter.BaseUrl = https://openrouter.ai/api/v1
@@ -354,6 +403,7 @@ LLMChatter.OpenRouter.BaseUrl = https://openrouter.ai/api/v1
 #       Set to "none" to explicitly disable reasoning on hybrid models.
 #       Other values are passed through without validation because
 #       supported efforts vary by model (for example: low, high, xhigh).
+#       Format: an unquoted effort name supported by the routed model.
 #
 LLMChatter.OpenRouter.ReasoningEffort =
 
@@ -361,6 +411,7 @@ LLMChatter.OpenRouter.ReasoningEffort =
 #   LLMChatter.OpenRouter.ReasoningExclude
 #       When 1 and ReasoningEffort is set, asks OpenRouter not to return
 #       reasoning text. This does not reduce reasoning-token usage or cost.
+#       Format: 0 (include/default) or 1 (exclude).
 #       Default: 0
 #
 LLMChatter.OpenRouter.ReasoningExclude = 0
@@ -371,6 +422,7 @@ LLMChatter.OpenRouter.ReasoningExclude = 0
 #       Reasoning tokens share the output budget, so values above 1 can
 #       prevent empty or truncated chatter at higher reasoning efforts.
 #       A value of 5 is a useful starting point for effort "high".
+#       Format: a number such as 2 or 1.5; no suffix or units.
 #       Clamped to the range 1-8. Default: 1
 #
 LLMChatter.OpenRouter.MaxTokensMultiplier = 1
@@ -378,6 +430,7 @@ LLMChatter.OpenRouter.MaxTokensMultiplier = 1
 #
 #   LLMChatter.OpenRouter.HttpReferer
 #       Optional site URL for OpenRouter attribution/rankings.
+#       Format: a complete http:// or https:// URL, or empty to omit it.
 #       Leave empty if you do not want to send this header.
 #
 LLMChatter.OpenRouter.HttpReferer =
@@ -385,6 +438,7 @@ LLMChatter.OpenRouter.HttpReferer =
 #
 #   LLMChatter.OpenRouter.Title
 #       Optional app/site title for OpenRouter attribution/rankings.
+#       Format: plain unquoted text, or empty to omit it.
 #       Leave empty if you do not want to send this header.
 #
 LLMChatter.OpenRouter.Title =
@@ -401,6 +455,7 @@ LLMChatter.OpenRouter.Title =
 #
 #   LLMChatter.Ollama.BaseUrl
 #       Ollama API endpoint.
+#       Format: http://host:port without /v1 and without quotes.
 #       NOTE: If the chatter bridge runs in Docker and Ollama runs on the
 #       host machine, use http://host.docker.internal:11434 instead of
 #       localhost. "localhost" inside a container refers to the container
@@ -410,20 +465,19 @@ LLMChatter.OpenRouter.Title =
 LLMChatter.Ollama.BaseUrl = http://host.docker.internal:11434
 
 #
-#   LLMChatter.Ollama.ContextSize
-#       Context window size (num_ctx). Smaller = faster, less memory.
-#       1024 is good for short chatter messages.
-#       Increase if you get truncated responses.
-#       Default: 4096
-#
-LLMChatter.Ollama.ContextSize = 4096
+#   Ollama context size is controlled by the Ollama server, not by its
+#   OpenAI-compatible API. Set OLLAMA_CONTEXT_LENGTH before starting Ollama,
+#   or create a model with PARAMETER num_ctx in a Modelfile. Run `ollama ps`
+#   to verify the context actually loaded.
 
 #
 #   LLMChatter.Ollama.DisableThinking
 #       Some models like Qwen3 have "thinking" mode enabled by default,
 #       which adds internal reasoning before responding. This makes responses
 #       slower and uses more resources - overkill for simple chatter.
-#       Set to 1 to add /no_think to prompts (recommended for Qwen3).
+#       Set to 1 to request reasoning_effort = none and add /no_think as a
+#       model-level fallback (recommended for Qwen3).
+#       Format: 0 (allow model thinking) or 1 (disable thinking).
 #       Default: 1
 #
 LLMChatter.Ollama.DisableThinking = 1
@@ -863,9 +917,10 @@ LLMChatter.ProximityChatter.InstanceChance = 100
 #   LLMChatter.ProximityChatter.EntityCooldown
 #       Seconds before the same bot or NPC can be used
 #       again as the lead speaker.
-#       Default: 60
+#       Clamped to 0-3 seconds for fluid local interaction.
+#       Default: 3
 #
-LLMChatter.ProximityChatter.EntityCooldown = 60
+LLMChatter.ProximityChatter.EntityCooldown = 3
 
 #
 #   LLMChatter.ProximityChatter.ZoneFatigueThreshold
@@ -953,6 +1008,59 @@ LLMChatter.ProximityChatter.MaxTokensPerLine = 120
 #       Default: 8
 #
 LLMChatter.ProximityChatter.FacingResetDelay = 8
+
+#
+#   LLMChatter.ProximityChatter.DirectedMaxExtraReactors
+#       Maximum nearby NPCs that may join a directed player /say or
+#       emote interaction in addition to the addressed NPC. Range: 0-3.
+#       Default: 3
+#
+LLMChatter.ProximityChatter.DirectedMaxExtraReactors = 3
+
+#
+#   LLMChatter.ProximityChatter.DirectedExtraReactorWeights
+#       Comma-separated percentages for selecting 0, 1, 2, or 3 extra
+#       nearby NPC reactors. Values must strictly descend and total 100.
+#       Default: 60,25,10,5
+#
+LLMChatter.ProximityChatter.DirectedExtraReactorWeights = 60,25,10,5
+
+#
+#   LLMChatter.ProximityChatter.DirectedNPCAsideChance
+#       When extra NPCs join, chance (0-100) that they discuss the
+#       player's real words or action with the addressed NPC without
+#       directly involving the player.
+#       Default: 35
+#
+LLMChatter.ProximityChatter.DirectedNPCAsideChance = 35
+
+#
+#   LLMChatter.ProximityChatter.DirectedMaxLines
+#       Maximum generated NPC lines in one directed interaction.
+#       Range: 1-8.
+#       Default: 5
+#
+LLMChatter.ProximityChatter.DirectedMaxLines = 5
+
+#
+#   LLMChatter.ProximityChatter.DirectedExpirySeconds
+#       Seconds before a queued directed interaction becomes too old
+#       to generate. Keeps replies relevant to the player's action.
+#       Default: 30
+#
+LLMChatter.ProximityChatter.DirectedExpirySeconds = 30
+
+#
+#   LLMChatter.ProximityChatter.DirectedNameStopwords
+#       Comma-separated title and place words that must not identify an
+#       NPC by themselves. Full NPC names still match. Matching is
+#       case-insensitive; an NPC's subname words are also excluded.
+#       Default: guard,city,mountaineer,innkeeper,vendor,trainer,
+#                quartermaster,merchant,stablemaster,banker,auctioneer,
+#                flight,master,officer,captain,stormwind,ironforge,
+#                orgrimmar,darnassus,undercity,silvermoon,exodar
+#
+LLMChatter.ProximityChatter.DirectedNameStopwords = guard,city,mountaineer,innkeeper,vendor,trainer,quartermaster,merchant,stablemaster,banker,auctioneer,flight,master,officer,captain,stormwind,ironforge,orgrimmar,darnassus,undercity,silvermoon,exodar
 
 #
 #   LLMChatter.ProximityChatter.PlayerSayScanRadius
@@ -1103,9 +1211,10 @@ LLMChatter.ProximityChatter.BossPresenceResetSeconds = 90
 #       Minimum seconds between generated replies when the player
 #       explicitly names or targets a boss and speaks in /say.
 #       This is separate from the longer automatic approach cooldown.
-#       Default: 15
+#       Clamped to 0-3 seconds so directed interaction stays responsive.
+#       Default: 3
 #
-LLMChatter.ProximityChatter.BossDirectedReplyCooldownSeconds = 15
+LLMChatter.ProximityChatter.BossDirectedReplyCooldownSeconds = 3
 
 #
 #   LLMChatter.ProximityChatter.BossDirectedScanCooldownSeconds
@@ -2258,6 +2367,7 @@ LLMChatter.ConversationPacing = 1.0
 #
 #   LLMChatter.MaxTokens
 #       Maximum tokens in the LLM response
+#       Format: a positive whole token count with no commas or suffix.
 #       Default: 350
 #
 LLMChatter.MaxTokens = 350
@@ -2265,6 +2375,7 @@ LLMChatter.MaxTokens = 350
 #
 #   LLMChatter.ConversationMaxTokens
 #       Maximum tokens for conversation responses (2-4 messages)
+#       Format: a positive whole token count with no commas or suffix.
 #       Recommended: 700-800 to avoid JSON truncation
 #       Default: 700
 #
@@ -2273,6 +2384,8 @@ LLMChatter.ConversationMaxTokens = 700
 #
 #   LLMChatter.Temperature
 #       LLM temperature (0.0 = focused, 1.0 = creative)
+#       Format: a decimal from 0.0 through 1.0, for example 0.8.
+#       Automatically omitted for models that do not support custom values.
 #       Default: 0.8
 #
 LLMChatter.Temperature = 0.8
@@ -2730,13 +2843,13 @@ LLMChatter.EmoteReactions.Enable = 1
 #       Also used for NPC mirror chance.
 #       Default: 90
 #
-LLMChatter.EmoteReactions.MirrorChance = 100
+LLMChatter.EmoteReactions.MirrorChance = 90
 
 #
 #   LLMChatter.EmoteReactions.MirrorCooldown
 #       Seconds before the same bot can mirror an emote again.
-#       Also controls the minimum interval for NPC mirrors and
-#       verbal reaction cooldown (mirror × 2).
+#       Also controls the minimum interval for NPC mirror animations.
+#       NPC verbal reactions use NPCVerbalCooldown independently.
 #       Default: 15
 #
 LLMChatter.EmoteReactions.MirrorCooldown = 15
@@ -2747,7 +2860,7 @@ LLMChatter.EmoteReactions.MirrorCooldown = 15
 #       comment after mirroring an emote directed at it.
 #       Default: 60
 #
-LLMChatter.EmoteReactions.ReactionChance = 100
+LLMChatter.EmoteReactions.ReactionChance = 60
 
 #
 #   LLMChatter.EmoteReactions.ObserverChance
@@ -2755,7 +2868,7 @@ LLMChatter.EmoteReactions.ReactionChance = 100
 #       the player emotes at an NPC, stranger, or nobody.
 #       Default: 40
 #
-LLMChatter.EmoteReactions.ObserverChance = 100
+LLMChatter.EmoteReactions.ObserverChance = 40
 
 #
 #   LLMChatter.EmoteReactions.ObserverCooldown
@@ -2763,7 +2876,7 @@ LLMChatter.EmoteReactions.ObserverChance = 100
 #       observer comment.
 #       Default: 30
 #
-LLMChatter.EmoteReactions.ObserverCooldown = 0
+LLMChatter.EmoteReactions.ObserverCooldown = 30
 
 #
 #   LLMChatter.EmoteReactions.MoodSpreadChance
@@ -2806,6 +2919,32 @@ LLMChatter.EmoteReactions.CustomEnable = 1
 #       Default: 120
 #
 LLMChatter.EmoteReactions.CustomMaxChars = 120
+
+#
+#   LLMChatter.EmoteReactions.NPCVerbalReactionChance
+#       Independent chance (0-100) that an eligible NPC verbally reacts
+#       when a player directs a social emote at it.
+#       Default: 80
+#
+LLMChatter.EmoteReactions.NPCVerbalReactionChance = 80
+
+#
+#   LLMChatter.EmoteReactions.NPCVerbalCooldown
+#       Seconds between verbal emote reactions for the same player/NPC
+#       pair. This is independent from the mirror animation cooldown.
+#       Clamped to 0-3 seconds so directed interaction stays responsive.
+#       Default: 3
+#
+LLMChatter.EmoteReactions.NPCVerbalCooldown = 3
+
+#
+#   LLMChatter.EmoteReactions.CxxScriptExclusionEntries
+#       Creature entries whose C++ scripts own ReceiveEmote behavior.
+#       NPC mirror and generated NPC verbal reactions are suppressed
+#       for these entries to avoid duplicate direct responses.
+#       Default: 620,25305,33211,33224,6626,7233,3401
+#
+LLMChatter.EmoteReactions.CxxScriptExclusionEntries = 620,25305,33211,33224,6626,7233,3401
 
 #
 #   LLMChatter.GearContext.Enable
@@ -2871,9 +3010,10 @@ LLMChatter.Screenshot.Chance = 90
 #
 #   LLMChatter.Screenshot.VisionProvider
 #       Which AI provider to use for screenshot analysis.
-#       Options: "openai" (recommended, cheaper),
-#       "anthropic", or "google". Requires the
-#       matching API key to be set.
+#       Format: one lowercase name with no quotes.
+#       Values: openai (recommended), anthropic, google, or openrouter.
+#       Ollama is not supported by the screenshot agent.
+#       Requires the matching provider API key above.
 #       Default: openai
 #
 LLMChatter.Screenshot.VisionProvider = openai
@@ -2881,9 +3021,12 @@ LLMChatter.Screenshot.VisionProvider = openai
 #
 #   LLMChatter.Screenshot.VisionModel
 #       Vision model used for screenshot analysis.
-#       Recommended: gpt-4o-mini (fast, ~$0.0005/image)
+#       Format: an exact vision-capable API model ID with no quotes. Use a
+#       vendor/model slug when VisionProvider is openrouter.
+#       Recommended: gpt-4o-mini (fast and inexpensive)
 #       Alternatives: claude-haiku-4-5-20251001,
-#       gemini-3.1-flash-lite, gemini-2.5-flash
+#       gemini-3.1-flash-lite, gemini-2.5-flash,
+#       anthropic/claude-haiku-4.5 (OpenRouter)
 #       Default: gpt-4o-mini
 #
 LLMChatter.Screenshot.VisionModel = gpt-4o-mini

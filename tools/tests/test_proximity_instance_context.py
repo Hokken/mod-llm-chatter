@@ -44,14 +44,19 @@ from chatter_instance_context import (  # noqa: E402
     build_location_prompt_lines,
 )
 import chatter_boss_dialogue  # noqa: E402
+import chatter_proximity  # noqa: E402
+from chatter_db import insert_chat_message  # noqa: E402
 from chatter_boss_dialogue import (  # noqa: E402
     _build_prompt as build_boss_prompt,
     _fetch_previous_boss_lines,
 )
 from chatter_event_registry import EVENT_REGISTRY  # noqa: E402
+from chatter_shared import parse_conversation_response  # noqa: E402
 from chatter_proximity import (  # noqa: E402
     _conversation_prompt,
     _fetch_proximity_history,
+    _player_emote_conversation_prompt,
+    _player_emote_single_prompt,
     _player_say_conversation_prompt,
     _player_say_single_prompt,
     _single_prompt,
@@ -202,10 +207,322 @@ def test_all_proximity_prompt_shapes_receive_instance_context():
             {**INSTANCE_EXTRA, 'participants': [NPC, BOT]},
             [NPC, BOT], 'hello', [], NORMAL_CONFIG,
         ).user_prompt,
+        _player_emote_single_prompt(
+            db, INSTANCE_EXTRA, NPC, 'wave', NORMAL_CONFIG,
+        ).user_prompt,
+        _player_emote_conversation_prompt(
+            db,
+            {
+                **INSTANCE_EXTRA,
+                'participants': [NPC, {**NPC, 'name': 'Thar'}],
+                'addressed_name': NPC['name'],
+                'player_emote': 'wave',
+                'interaction_mode': 'npc_aside',
+            },
+            [NPC, {**NPC, 'name': 'Thar'}],
+            'wave',
+            NORMAL_CONFIG,
+        ).user_prompt,
     ]
     for prompt in prompts:
         assert 'Instance: Shadowfang Keep' in prompt
         assert 'haunted fortress' in prompt.lower()
+
+
+def test_directed_emote_registry_and_player_agency_contract():
+    spec = EVENT_REGISTRY['proximity_player_emote']
+    assert spec.handler_module == 'chatter_proximity'
+    assert spec.handler_func == 'handle_proximity_player_emote'
+    assert spec.priority == 'high'
+    assert spec.payload_fields['player_emote'] == (str, True)
+    assert spec.payload_fields['mirror_emote'] == (str, False)
+    assert spec.payload_fields['participants'] == (list, True)
+
+    participants = [NPC, {**NPC, 'name': 'Thar'}]
+    aside = _player_emote_conversation_prompt(
+        _DB(),
+        {
+            **INSTANCE_EXTRA,
+            'participants': participants,
+            'addressed_name': NPC['name'],
+            'interaction_mode': 'npc_aside',
+        },
+        participants,
+        'wave',
+        NORMAL_CONFIG,
+    ).user_prompt
+    assert 'FIRST message MUST be spoken by Deathstalker Adamant' in aside
+    assert "discuss the player's real action" in aside
+    assert 'Do not address the player' in aside
+    assert 'address only each other' in aside
+    assert 'Never invent dialogue, thoughts, or actions' in aside
+
+    mirrored = _player_emote_single_prompt(
+        _DB(),
+        {
+            **INSTANCE_EXTRA,
+            'mirror_emote': 'wave',
+        },
+        NPC,
+        'wave',
+        NORMAL_CONFIG,
+    ).user_prompt
+    assert 'also scheduled to perform /wave' in mirrored
+    assert 'must not contradict that animation' in mirrored
+
+
+def test_all_player_proximity_replies_use_responsive_timing():
+    assert EVENT_REGISTRY['proximity_reply'].priority == 'high'
+    assert EVENT_REGISTRY['proximity_player_say'].priority == 'high'
+    assert (
+        EVENT_REGISTRY['proximity_player_conversation'].priority
+        == 'high'
+    )
+    assert EVENT_REGISTRY['proximity_player_emote'].priority == 'high'
+
+    source = (
+        MODULE_DIR / 'src' / 'LLMChatterProximity.cpp'
+    ).read_text(encoding='utf-8')
+    active_reply = source.split(
+        'void HandleProximityPlayerSay(', 1
+    )[1].split('void HandleProximityPlayerEmote(', 1)[0]
+    assert '"proximity_reply"' in active_reply
+    assert '->_proxDirectedExpirySeconds' in active_reply
+
+    shared = (
+        MODULE_DIR / 'src' / 'LLMChatterShared.cpp'
+    ).read_text(encoding='utf-8')
+    assert '{"proximity_reply",         PRIORITY_HIGH}' in shared
+    assert '{"proximity_reply",         2}' in shared
+    assert '{"proximity_reply", 1}' in shared
+
+
+def test_directed_parser_accepts_only_exact_or_unique_name_tokens():
+    names = ['Mountaineer Rharen', 'Mountaineer Thar']
+    shortened = parse_conversation_response(
+        '[{"speaker":"Rharen","message":"Aye."}]',
+        names,
+        unique_tokens_only=True,
+    )
+    assert shortened[0]['name'] == 'Mountaineer Rharen'
+
+    ambiguous = parse_conversation_response(
+        '[{"speaker":"Mountaineer","message":"Aye."}]',
+        names,
+        unique_tokens_only=True,
+    )
+    assert ambiguous == []
+
+    typo = parse_conversation_response(
+        '[{"speaker":"Rharex","message":"Aye."}]',
+        names,
+        unique_tokens_only=True,
+    )
+    assert typo == []
+
+    addressed = parse_conversation_response(
+        '[{"speaker":"Rharen","message":"Aye.",'
+        '"addressee":"Calwen"}]',
+        names,
+        unique_tokens_only=True,
+        addressee_names=['Calwen', *names],
+    )
+    assert addressed[0]['addressee'] == 'Calwen'
+
+
+def test_directed_addressee_never_falls_back_to_speaker():
+    rharen = {
+        **NPC,
+        'name': 'Mountaineer Rharen',
+        'npc_spawn_id': 101,
+    }
+    thar = {
+        **NPC,
+        'name': 'Mountaineer Thar',
+        'npc_spawn_id': 102,
+    }
+    line = {
+        'name': rharen['name'],
+        'addressee': rharen['name'],
+    }
+    chatter_proximity._set_line_addressee(
+        line,
+        {
+            **INSTANCE_EXTRA,
+            'interaction_mode': 'npc_aside',
+        },
+        [rharen, thar],
+        rharen['name'],
+    )
+    assert line['_addressee_npc_spawn_id'] == 102
+
+
+def test_scripted_emote_ownership_matches_core_semantics():
+    emote_source = (
+        MODULE_DIR / 'src' / 'LLMChatterGroupEmote.cpp'
+    ).read_text(encoding='utf-8')
+    world_source = (
+        MODULE_DIR / 'src' / 'LLMChatterWorld.cpp'
+    ).read_text(encoding='utf-8')
+    assert "ss.event_type = 22" in emote_source
+    assert "direct_ct.AIName = 'SmartAI'" in emote_source
+    assert "spawn_ct.AIName = 'SmartAI'" in emote_source
+    assert 'ss.entryorguid < 0' in emote_source
+    assert 'textEmote == 0' in emote_source
+    assert 'IsCreatureEmoteScripted(creature, textEmote)' in emote_source
+    assert '_emoteCooldownMutex' in emote_source
+    assert 'TryStampEmoteCooldown(' in emote_source
+    assert 'GetCreatureEntryColumn()' in emote_source
+    assert 'LoadScriptedEmoteExclusions();' in world_source
+
+
+def test_delivery_records_drops_and_explicit_addressees():
+    delivery_source = (
+        MODULE_DIR / 'src' / 'LLMChatterDelivery.cpp'
+    ).read_text(encoding='utf-8')
+    schema = (
+        MODULE_DIR / 'data' / 'sql' / 'characters' / 'base'
+        / '00000000_llm_chatter_tables.sql'
+    ).read_text(encoding='utf-8')
+    migration = (
+        MODULE_DIR / 'data' / 'sql' / 'characters' / 'updates'
+        / '20260914_npc_multidirectional_interactions.sql'
+    ).read_text(encoding='utf-8')
+    assert 'FinalizeDroppedMessage(' in delivery_source
+    assert 'cancelled_after_directed_drop' in delivery_source
+    assert 'drop_reason = NULL' in delivery_source
+    assert 'm.addressee_player_guid' in delivery_source
+    assert 'm.addressee_npc_spawn_id' in delivery_source
+    assert '`drop_reason` VARCHAR(64)' in schema
+    assert '`addressee_player_guid` INT UNSIGNED' in schema
+    assert '`addressee_npc_spawn_id` INT UNSIGNED' in schema
+    assert 'ADD COLUMN IF NOT EXISTS' not in migration
+    assert '@has_addressee_player_guid' in migration
+    assert '@has_addressee_bot_guid' in migration
+    assert '@has_addressee_npc_spawn_id' in migration
+
+
+def test_directed_emote_handler_persists_addressee_ids():
+    rharen = {
+        **NPC,
+        'name': 'Mountaineer Rharen',
+        'npc_spawn_id': 101,
+    }
+    thar = {
+        **NPC,
+        'name': 'Mountaineer Thar',
+        'npc_spawn_id': 102,
+    }
+    extra = {
+        **INSTANCE_EXTRA,
+        'participants': [rharen, thar],
+        'addressed_name': rharen['name'],
+        'player_emote': 'wave',
+        'interaction_mode': 'npc_aside',
+        'max_lines': 2,
+    }
+    event = {'id': 77, 'extra_data': json.dumps(extra)}
+    captured = []
+    original_call = chatter_proximity.call_llm
+    original_insert = chatter_proximity.insert_chat_message
+    try:
+        chatter_proximity.call_llm = lambda *args, **kwargs: json.dumps([
+            {
+                'speaker': 'Rharen',
+                'message': 'That was unexpectedly friendly.',
+                'addressee': 'Calwen',
+            },
+            {
+                'speaker': 'Thar',
+                'message': 'Perhaps they need directions.',
+                'addressee': 'Rharen',
+            },
+        ])
+        chatter_proximity.insert_chat_message = (
+            lambda db, **kwargs: captured.append(kwargs)
+        )
+        assert chatter_proximity.handle_proximity_player_emote(
+            _DB(), None, NORMAL_CONFIG, event
+        )
+    finally:
+        chatter_proximity.call_llm = original_call
+        chatter_proximity.insert_chat_message = original_insert
+
+    assert len(captured) == 2
+    assert captured[0]['npc_spawn_id'] == 101
+    assert captured[0]['addressee_npc_spawn_id'] == 102
+    assert captured[1]['npc_spawn_id'] == 102
+    assert captured[1]['addressee_npc_spawn_id'] == 101
+
+
+def test_message_insert_addressee_parameters_match_placeholders():
+    db = _DB()
+    insert_chat_message(
+        db,
+        event_id=77,
+        bot_guid=0,
+        bot_name='Mountaineer Rharen',
+        message='Aye.',
+        channel='msay',
+        npc_spawn_id=101,
+        player_guid=42,
+        addressee_npc_spawn_id=102,
+    )
+    query, params = db.cursor_value.queries[0]
+    # 19, not 18: insert_chat_message also binds the `action`
+    # column (added on this branch for Actions Are Real
+    # Emotes) ahead of the three addressee_* columns below.
+    assert query.count('%s') == len(params) == 19
+    assert params[-3:] == (None, None, 102)
+
+
+def test_directed_validation_uses_only_insertable_lines():
+    rharen = {
+        **NPC,
+        'name': 'Mountaineer Rharen',
+        'npc_spawn_id': 101,
+    }
+    thar = {
+        **NPC,
+        'name': 'Mountaineer Thar',
+        'npc_spawn_id': 102,
+    }
+    extra = {
+        **INSTANCE_EXTRA,
+        'participants': [rharen, thar],
+        'addressed_name': rharen['name'],
+        'player_message': 'How fares the road?',
+        'interaction_mode': 'player_inclusive',
+        'max_lines': 2,
+    }
+    responses = iter([
+        json.dumps([
+            {'speaker': 'Rharen', 'message': 'Long enough.'},
+            {'speaker': 'Rharen', 'message': 'Still raining.'},
+            {'speaker': 'Thar', 'message': 'Aye.'},
+        ]),
+        json.dumps({'message': 'The road is passable.'}),
+    ])
+    captured = []
+    original_call = chatter_proximity.call_llm
+    original_insert = chatter_proximity.insert_chat_message
+    try:
+        chatter_proximity.call_llm = (
+            lambda *args, **kwargs: next(responses)
+        )
+        chatter_proximity.insert_chat_message = (
+            lambda db, **kwargs: captured.append(kwargs)
+        )
+        assert chatter_proximity.handle_proximity_player_conversation(
+            _DB(), None, NORMAL_CONFIG,
+            {'id': 78, 'extra_data': json.dumps(extra)},
+        )
+    finally:
+        chatter_proximity.call_llm = original_call
+        chatter_proximity.insert_chat_message = original_insert
+
+    assert len(captured) == 1
+    assert captured[0]['npc_spawn_id'] == 101
 
 
 def test_normal_playerbot_treats_lore_as_game_knowledge():
@@ -322,42 +639,134 @@ def test_history_is_scoped_by_zone_map_and_instance():
         {
             'bot_name': 'WrongCopy',
             'message': 'not this one',
-            'extra_data': '{"instance_id":13}',
+            'event_id': 2,
+            'extra_data': (
+                '{"instance_id":13,"addressed_name":"RightCopy"}'
+            ),
         },
         {
             'bot_name': 'RightCopy',
             'message': 'this one',
-            'extra_data': '{"instance_id":12}',
+            'event_id': 1,
+            'extra_data': (
+                '{"instance_id":12,"addressed_name":"RightCopy",'
+                '"player_name":"Calwen",'
+                '"player_message":"How are you?"}'
+            ),
         },
     ]
     db = _DB(rows)
     history = _fetch_proximity_history(
-        db, 42, 209, 33, 12
+        db, 42, 209, 33, 12, 'RightCopy'
     )
     query, params = db.cursor_value.queries[0]
     assert 'e.zone_id = %s' in query
     assert 'e.map_id = %s' in query
+    assert 'm.drop_reason IS NULL' in query
     assert params[:3] == (209, 33, 42)
-    assert history == [{
-        'name': 'RightCopy',
-        'message': 'this one',
-    }]
+    assert history == [
+        {'name': 'Calwen', 'message': 'How are you?'},
+        {'name': 'RightCopy', 'message': 'this one'},
+    ]
 
 
 def test_history_accepts_eastern_kingdoms_map_zero():
     db = _DB([{
         'bot_name': 'Marshal Dughan',
         'message': 'Keep your eyes open.',
-        'extra_data': '{"instance_id":0}',
+        'event_id': 1,
+        'extra_data': (
+            '{"instance_id":0,'
+            '"addressed_name":"Marshal Dughan"}'
+        ),
     }])
     history = _fetch_proximity_history(
-        db, 42, 12, 0, 0
+        db, 42, 12, 0, 0, 'Marshal Dughan'
     )
     assert history == [{
         'name': 'Marshal Dughan',
         'message': 'Keep your eyes open.',
     }]
     assert db.cursor_value.queries[0][1][:2] == (12, 0)
+
+
+def test_history_uses_addressed_spawn_not_duplicate_name():
+    db = _DB([
+        {
+            'bot_name': 'Mountaineer Rharen',
+            'message': 'Wrong Rharen.',
+            'event_id': 2,
+            'extra_data': json.dumps({
+                'instance_id': 0,
+                'addressed_name': 'Mountaineer Rharen',
+                'participants': [{
+                    'name': 'Mountaineer Rharen',
+                    'is_npc': True,
+                    'npc_spawn_id': 202,
+                }],
+            }),
+        },
+        {
+            'bot_name': 'Mountaineer Rharen',
+            'message': 'Right Rharen.',
+            'event_id': 1,
+            'extra_data': json.dumps({
+                'instance_id': 0,
+                'addressed_name': 'Mountaineer Rharen',
+                'participants': [{
+                    'name': 'Mountaineer Rharen',
+                    'is_npc': True,
+                    'npc_spawn_id': 101,
+                }],
+            }),
+        },
+    ])
+    history = _fetch_proximity_history(
+        db, 42, 12, 0, 0,
+        'Mountaineer Rharen', 101,
+    )
+    assert history == [{
+        'name': 'Mountaineer Rharen',
+        'message': 'Right Rharen.',
+    }]
+    query = db.cursor_value.queries[0][0]
+    assert 'JSON_CONTAINS' in query
+    assert "JSON_OBJECT('npc_spawn_id', %s)" in query
+
+
+def test_history_restores_real_player_emote_context():
+    db = _DB([{
+        'bot_name': 'Mountaineer Rharen',
+        'message': 'Well met!',
+        'event_id': 1,
+        'extra_data': json.dumps({
+            'instance_id': 0,
+            'addressed_name': 'Mountaineer Rharen',
+            'player_name': 'Calwen',
+            'player_emote': 'wave',
+            'participants': [{
+                'name': 'Mountaineer Rharen',
+                'is_npc': True,
+                'npc_spawn_id': 101,
+            }],
+        }),
+    }])
+    history = _fetch_proximity_history(
+        db, 42, 12, 0, 0,
+        'Mountaineer Rharen', 101,
+    )
+    assert history == [
+        {
+            'name': 'Calwen',
+            'message': (
+                '[performed /wave at Mountaineer Rharen]'
+            ),
+        },
+        {
+            'name': 'Mountaineer Rharen',
+            'message': 'Well met!',
+        },
+    ]
 
 
 def test_boss_history_is_scoped_in_sql_to_presence():
@@ -411,6 +820,26 @@ def test_cpp_source_contracts_cover_instance_safety():
     assert 'map->IsBattlegroundOrArena()' in source
     assert 'player->IsWithinLOSInMap(cr)' in source
     assert 'player->IsWithinLOSInMap(bot)' in source
+    assert '_proximityCooldownMutex' in source
+    assert 'TryReserveProximityCooldown(' in source
+    assert 'IsExplicitVocativeNameUse(' in source
+    assert 'selected_npc_ineligible' in source
+    selected_target = source.split(
+        'SelectedCandidateMatch FindSelectedCandidate(', 1
+    )[1].split('NamedCandidateMatch FindNamedCandidate(', 1)[0]
+    assert 'if (!IsPlayerBot(selectedPlayer))' in selected_target
+    assert 'selected_party_bot' in selected_target
+    assert 'candidate.bot->GetGUID() == selGuid' in selected_target
+    directed_say = source.split(
+        'DirectedSayResult QueueDirectedPlayerSayProximityEvent(', 1
+    )[1].split('void HandleProximityPlayerSayNewScene(', 1)[0]
+    assert directed_say.index('FindNamedCandidate(') < (
+        directed_say.index('if (selectedMatch.suppress')
+    )
+    assert '&& !explicitNamedOverride' in directed_say
+    assert directed_say.count(
+        'sLLMChatterConfig->IsDebugLog()'
+    ) >= 2
     assert 'uint32 instanceId = 0;' in source
     assert 'scene.instanceId != instanceId' in source
     assert 'IsLLMChatterBoss(creature)' in source
@@ -532,6 +961,34 @@ def test_cpp_source_contracts_cover_instance_safety():
     assert directed < active_scene
 
 
+def test_mounted_players_remain_eligible_for_direct_interactions():
+    source = (
+        MODULE_DIR / 'src' / 'LLMChatterProximity.cpp'
+    ).read_text(encoding='utf-8')
+    anchor = source.split(
+        'bool IsEligibleProximityAnchor(Player* player)', 1
+    )[1].split(
+        'bool IsEligibleAmbientProximityAnchor(Player* player)', 1
+    )[0]
+    ambient = source.split(
+        'bool IsEligibleAmbientProximityAnchor(Player* player)', 1
+    )[1].split('std::string GetNPCDisposition(', 1)[0]
+    directed_say = source.split(
+        'DirectedSayResult QueueDirectedPlayerSayProximityEvent(', 1
+    )[1].split('void HandleProximityPlayerSayNewScene(', 1)[0]
+    directed_emote = source.split(
+        'void HandleProximityPlayerEmote(', 1
+    )[1].split('void RecordDeliveredProximityLine(', 1)[0]
+
+    assert '!player->IsMounted()' not in anchor
+    assert '!player->IsMounted()' in ambient
+    assert 'IsEligibleProximityAnchor(player)' in directed_say
+    assert 'IsEligibleProximityAnchor(player)' in directed_emote
+    assert source.count(
+        'IsEligibleAmbientProximityAnchor(player)'
+    ) == 3
+
+
 def test_dungeon_boss_lookup_uses_registered_encounters():
     shared = (
         MODULE_DIR / 'tools' / 'chatter_shared.py'
@@ -579,7 +1036,8 @@ def test_config_fallbacks_match_distributed_values():
     assert 'InstanceScanIntervalSeconds = 30' in distributed
     assert 'OutdoorChance = 30' in distributed
     assert 'InstanceChance = 100' in distributed
-    assert '"EntityCooldown", 60)' in source
+    assert '"EntityCooldown", 3)' in source
+    assert 'EntityCooldown = 3' in distributed
     assert '"ConversationLineDelay", 2)' in source
     assert '"MaxTokensPerLine", 120)' in source
     assert '"EnableBossDialogue", false)' in source
@@ -601,6 +1059,11 @@ def test_config_fallbacks_match_distributed_values():
     assert '"BossPresenceResetSeconds", 90)' in source
     assert 'BossDialogueCooldownSeconds' not in source
     assert '"BossDirectedScanCooldownSeconds", 1)' in source
+    assert '"BossDirectedReplyCooldownSeconds", 3)' in source
+    assert '"NPCVerbalCooldown", 3)' in source
+    assert source.count('            3u);') >= 3
+    assert 'BossDirectedReplyCooldownSeconds = 3' in distributed
+    assert 'NPCVerbalCooldown = 3' in distributed
 
 
 def main():

@@ -291,15 +291,19 @@ public:
                   WORLDHOOK_ON_STARTUP,
                   WORLDHOOK_ON_UPDATE}) {}
 
-    void OnAfterConfigLoad(bool /*reload*/) override
+    void OnAfterConfigLoad(bool reload) override
     {
         sLLMChatterConfig->LoadConfig();
+        if (reload && sLLMChatterConfig->IsEnabled())
+            LoadScriptedEmoteExclusions();
     }
 
     void OnStartup() override
     {
         if (!sLLMChatterConfig->IsEnabled())
             return;
+
+        LoadScriptedEmoteExclusions();
 
         CharacterDatabase.Execute(
             "DELETE FROM llm_chatter_messages "

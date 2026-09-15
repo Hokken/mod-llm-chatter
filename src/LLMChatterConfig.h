@@ -13,6 +13,7 @@
 #define LLM_CHATTER_CONFIG_H
 
 #include "Define.h"
+#include <array>
 #include <atomic>
 #include <memory>
 #include <string>
@@ -33,6 +34,8 @@ public:
     bool IsProximitySpeakerAllowed(uint32 creatureEntry) const;
     bool IsProximitySpeakerDenied(uint32 creatureEntry) const;
     bool IsProximityBossSpeakerDenied(uint32 creatureEntry) const;
+    bool IsDirectedNameStopword(std::string const& word) const;
+    bool IsCxxScriptedEmoteEntry(uint32 creatureEntry) const;
 
     // General settings
     bool _enabled;
@@ -305,6 +308,13 @@ public:
     uint32 _proxChatterReplyMaxTurns;
     uint32 _proxChatterMaxTokensPerLine;
     uint32 _proxChatterFacingResetDelay;
+    uint32 _proxDirectedMaxExtraReactors;
+    std::array<uint32, 4> _proxDirectedExtraReactorWeights;
+    uint32 _proxDirectedNPCAsideChance;
+    uint32 _proxDirectedMaxLines;
+    uint32 _proxDirectedExpirySeconds;
+    std::shared_ptr<std::unordered_set<std::string> const>
+            _proxDirectedNameStopwords;
     std::shared_ptr<std::unordered_set<uint32> const>
             _proxSpeakerAllowEntries;
     std::shared_ptr<std::unordered_set<uint32> const>
@@ -337,6 +347,10 @@ public:
     uint32 _emoteObserverCooldown;
     uint32 _emoteMoodSpreadChance;
     bool   _emoteNPCMirrorEnable;
+    uint32 _emoteNPCVerbalReactionChance;
+    uint32 _emoteNPCVerbalCooldown;
+    std::shared_ptr<std::unordered_set<uint32> const>
+            _emoteCxxScriptExclusionEntries;
 
     // Free-text emotes (/e, /me). Unlike the ~244 named
     // emotes these carry no id, so they can only ever

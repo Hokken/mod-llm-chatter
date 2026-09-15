@@ -2,9 +2,11 @@
 """Focused regression checks for normal-mode player chat routing."""
 
 import importlib
+import json
 import sys
 import types
 from pathlib import Path
+from unittest.mock import patch
 
 
 def _ensure_module(name):
@@ -56,6 +58,7 @@ from chatter_group_prompts import (  # noqa: E402
     build_nearby_object_reaction_prompt,
     build_precache_state_prompt,
 )
+import chatter_group as group_chat  # noqa: E402
 from chatter_group import build_idle_chatter_prompt  # noqa: E402
 from chatter_group_general_reaction import (  # noqa: E402
     _build_conversation_prompt as _general_relay_conversation_prompt,
@@ -513,6 +516,119 @@ def test_normal_farewell_is_stored_only_for_active_group():
         and 'SET farewell_msg' in query
         for query in queries
     )
+
+
+def test_single_rejoin_prepares_farewell_without_greeting():
+    db = _DB()
+    prepared = []
+    statuses = []
+    event = {
+        'id': 90,
+        'extra_data': json.dumps({
+            'bot_guid': 7,
+            'bot_name': 'Aliss',
+            'bot_class': 8,
+            'bot_race': 1,
+            'bot_gender': 1,
+            'bot_level': 32,
+            'group_id': 42,
+            'group_size': 2,
+            'player_name': 'Tester',
+            'rejoin': True,
+        }),
+    }
+    config = {
+        'LLMChatter.ChatterMode': 'normal',
+        'LLMChatter.Memory.Enable': '0',
+    }
+
+    with patch.object(
+        group_chat,
+        'assign_bot_traits',
+        return_value={'traits': ['patient'], 'tone': None},
+    ), patch.object(
+        group_chat, 'get_player_zone', return_value=(0, 0),
+    ), patch.object(
+        group_chat,
+        '_generate_farewell',
+        side_effect=lambda *args: prepared.append(args[3]),
+    ), patch.object(
+        group_chat,
+        'call_llm',
+        side_effect=AssertionError('rejoin generated a greeting'),
+    ), patch.object(
+        group_chat,
+        '_mark_event',
+        side_effect=lambda db, event_id, status: statuses.append(status),
+    ):
+        assert group_chat.process_group_event(
+            db, object(), config, event,
+        )
+
+    assert prepared == ['Aliss']
+    assert statuses == ['completed']
+
+
+def test_batch_rejoin_prepares_every_farewell_without_greetings():
+    db = _DB()
+    prepared = []
+    statuses = []
+    event = {
+        'id': 91,
+        'extra_data': json.dumps({
+            'group_id': 42,
+            'player_name': 'Tester',
+            'rejoin': True,
+            'bots': [
+                {
+                    'bot_guid': 7,
+                    'bot_name': 'Aliss',
+                    'bot_class': 8,
+                    'bot_race': 1,
+                    'bot_gender': 1,
+                    'bot_level': 32,
+                },
+                {
+                    'bot_guid': 8,
+                    'bot_name': 'Borin',
+                    'bot_class': 1,
+                    'bot_race': 3,
+                    'bot_gender': 0,
+                    'bot_level': 32,
+                },
+            ],
+        }),
+    }
+    config = {
+        'LLMChatter.ChatterMode': 'normal',
+        'LLMChatter.Memory.Enable': '0',
+    }
+
+    with patch.object(
+        group_chat,
+        'assign_bot_traits',
+        return_value={'traits': ['patient'], 'tone': None},
+    ), patch.object(
+        group_chat, 'get_player_zone', return_value=(0, 0),
+    ), patch.object(
+        group_chat,
+        '_generate_farewell',
+        side_effect=lambda *args: prepared.append(args[3]),
+    ), patch.object(
+        group_chat,
+        'call_llm',
+        side_effect=AssertionError('rejoin generated a greeting'),
+    ), patch.object(
+        group_chat,
+        '_mark_event',
+        side_effect=lambda db, event_id, status: statuses.append(status),
+    ):
+        assert group_chat.process_group_join_batch_event(
+            db, object(), config, event,
+        )
+
+    assert prepared == ['Aliss', 'Borin']
+    assert statuses == ['completed']
 
 
 def test_normal_startup_replaces_active_group_rp_metadata():

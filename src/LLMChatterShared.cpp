@@ -37,6 +37,29 @@
 #include <unordered_set>
 #include <vector>
 
+std::string const& GetCreatureEntryColumn()
+{
+    // Upstream AzerothCore renamed creature.id1 to
+    // creature.id. Resolve the live schema once so all
+    // module world-DB queries support both layouts.
+    static std::string const column = []() -> std::string
+    {
+        if (QueryResult result = WorldDatabase.Query(
+                "SELECT COLUMN_NAME FROM "
+                "information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() "
+                "AND TABLE_NAME = 'creature' "
+                "AND COLUMN_NAME IN ('id', 'id1') "
+                "ORDER BY (COLUMN_NAME = 'id') DESC "
+                "LIMIT 1"))
+        {
+            return (*result)[0].Get<std::string>();
+        }
+        return "id";
+    }();
+    return column;
+}
+
 namespace
 {
 constexpr uint8 PRIORITY_FILLER =
@@ -49,29 +72,6 @@ constexpr uint8 PRIORITY_HIGH_LOCAL = PRIORITY_HIGH + 1;
 constexpr uint8 PRIORITY_CRITICAL =
     static_cast<uint8>(LLMChatterPriorityBand::Critical);
 std::unordered_set<uint32> _namedBossEntries;
-
-std::string const& GetCreatureEntryColumn()
-{
-    // Upstream AzerothCore renamed creature.id1 to
-    // creature.id. Resolve the live schema once so the
-    // boss cache works on both layouts.
-    static std::string const column = []() -> std::string
-    {
-        if (QueryResult result = WorldDatabase.Query(
-                "SELECT COLUMN_NAME FROM "
-                "information_schema.COLUMNS "
-                "WHERE TABLE_SCHEMA = 'acore_world' "
-                "AND TABLE_NAME = 'creature' "
-                "AND COLUMN_NAME IN ('id', 'id1') "
-                "ORDER BY (COLUMN_NAME = 'id') DESC "
-                "LIMIT 1"))
-        {
-            return (*result)[0].Get<std::string>();
-        }
-        return "id";
-    }();
-    return column;
-}
 
 std::string EscapeLogPreview(
     std::string const& text, size_t maxBytes)
@@ -255,7 +255,7 @@ uint32 RollConfiguredDelay(
         sLLMChatterConfig->*maxMember);
 }
 
-constexpr std::array<EventPriorityRule, 38>
+constexpr std::array<EventPriorityRule, 39>
     kTierPriorityRules = {{
         {"bot_group_combat",        PRIORITY_CRITICAL},
         {"bot_group_spell_cast",    PRIORITY_CRITICAL},
@@ -290,13 +290,14 @@ constexpr std::array<EventPriorityRule, 38>
         {"day_night_transition",    PRIORITY_FILLER},
         {"proximity_say",           PRIORITY_FILLER},
         {"proximity_conversation",  PRIORITY_FILLER},
-        {"proximity_reply",         PRIORITY_NORMAL},
+        {"proximity_reply",         PRIORITY_HIGH},
         {"proximity_boss_approach", PRIORITY_NORMAL},
         {"proximity_boss_player_say", PRIORITY_HIGH},
         {"proximity_player_say",
-            PRIORITY_NORMAL},
+            PRIORITY_HIGH},
         {"proximity_player_conversation",
-            PRIORITY_NORMAL},
+            PRIORITY_HIGH},
+        {"proximity_player_emote", PRIORITY_HIGH},
     }};
 
 constexpr std::array<PredicatePriorityRule, 1>
@@ -304,7 +305,7 @@ constexpr std::array<PredicatePriorityRule, 1>
         {IsStateCalloutEventType, PRIORITY_CRITICAL},
     }};
 
-constexpr std::array<EventPriorityRule, 26>
+constexpr std::array<EventPriorityRule, 27>
     kLegacyPriorityRules = {{
         {"player_general_msg",       8},
         {"guild_player_message",     8},
@@ -327,11 +328,12 @@ constexpr std::array<EventPriorityRule, 26>
         {"guild_idle_chatter",       0},
         {"proximity_say",           0},
         {"proximity_conversation",  0},
-        {"proximity_reply",         1},
+        {"proximity_reply",         2},
         {"proximity_boss_approach", 1},
         {"proximity_boss_player_say", 2},
-        {"proximity_player_say",          1},
-        {"proximity_player_conversation", 1},
+        {"proximity_player_say",          2},
+        {"proximity_player_conversation", 2},
+        {"proximity_player_emote",        2},
     }};
 
 constexpr std::array<PredicatePriorityRule, 1>
@@ -491,11 +493,13 @@ constexpr std::array<PredicateFixedDelayRule, 5>
         },
     }};
 
-constexpr std::array<ExactLiteralDelayRule, 3>
+constexpr std::array<ExactLiteralDelayRule, 5>
     kLegacyExactLiteralDelayRules = {{
         {"player_enters_zone", 2},
+        {"proximity_reply", 1},
         {"proximity_player_say", 1},
         {"proximity_player_conversation", 1},
+        {"proximity_player_emote", 1},
     }};
 
 std::string GetBotRoleName(Player* player)
@@ -2009,15 +2013,14 @@ std::string GetBotTravelContext(Player* player)
 
 namespace
 {
-bool IsUnsafeChatterFacingMotionType(
+bool IsSafeChatterFacingMotionType(
     MovementGeneratorType type)
 {
     switch (type)
     {
-        case WAYPOINT_MOTION_TYPE:
-        case FLIGHT_MOTION_TYPE:
-        case POINT_MOTION_TYPE:
-        case ESCORT_MOTION_TYPE:
+        case IDLE_MOTION_TYPE:
+        case RANDOM_MOTION_TYPE:
+        case ANIMAL_RANDOM_MOTION_TYPE:
             return true;
         default:
             return false;
@@ -2052,10 +2055,14 @@ bool HasUnsafeChatterFacingMotion(Unit* unit)
         != NULL_MOTION_TYPE)
         return true;
 
-    if (IsUnsafeChatterFacingMotionType(
-            motion->GetCurrentMovementGeneratorType())
-        || IsUnsafeChatterFacingMotionType(
-            motion->GetMotionSlotType(MOTION_SLOT_ACTIVE)))
+    if (!IsSafeChatterFacingMotionType(
+            motion->GetCurrentMovementGeneratorType()))
+        return true;
+
+    MovementGeneratorType activeType =
+        motion->GetMotionSlotType(MOTION_SLOT_ACTIVE);
+    if (activeType != NULL_MOTION_TYPE
+        && !IsSafeChatterFacingMotionType(activeType))
         return true;
 
     if (Creature* creature = unit->ToCreature())

@@ -495,15 +495,42 @@ def _probe_anthropic(config, model):
     return resp.content[0].text.strip()
 
 
-def _probe_openai_compatible(client, model):
+def _probe_openai_compatible(client, model, provider, config):
     """Make a minimal OpenAI-compatible call; text or raises."""
-    resp = client.chat.completions.create(
-        model=model,
-        max_tokens=5,
-        messages=[{
+    from chatter_llm import (
+        build_compatible_chat_request,
+        compatible_reasoning_token_multiplier,
+    )
+    from llm_compat import create_chat_completion
+
+    messages = [{
             'role': 'user',
             'content': 'Reply with the single word: OK',
-        }],
+        }]
+    try:
+        probe_tokens = max(128, min(int(config.get(
+            'LLMChatter.MaxTokens', 256
+        )), 512))
+    except (TypeError, ValueError):
+        probe_tokens = 256
+    kwargs = build_compatible_chat_request(
+        provider,
+        model,
+        messages,
+        config,
+        probe_tokens,
+        temperature=float(config.get(
+            'LLMChatter.Temperature', 0.85
+        )),
+    )
+    resp = create_chat_completion(
+        client.chat.completions.create,
+        kwargs,
+        provider,
+        model,
+        reasoning_token_multiplier=(
+            compatible_reasoning_token_multiplier(provider, config)
+        ),
     )
     content = resp.choices[0].message.content
     if isinstance(content, str):
@@ -576,7 +603,9 @@ def _check_llm_probe(config):
             client = _build_openai_compatible_client(
                 config, provider
             )
-            text = _probe_openai_compatible(client, model)
+            text = _probe_openai_compatible(
+                client, model, provider, config
+            )
 
         if text:
             return _result(

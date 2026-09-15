@@ -2218,6 +2218,7 @@ static void DispatchPlayerEmote(
     uint32 npcType = 0;
     Player* cachedTargetPlayer = nullptr;
     Creature* cachedTargetCreature = nullptr;
+    bool creatureEmoteScripted = false;
 
     if (!guid.IsEmpty())
     {
@@ -2229,7 +2230,7 @@ static void DispatchPlayerEmote(
             {
                 cachedTargetPlayer = tgt;
                 targetName = tgt->GetName();
-                if (tgt->GetGroup() == group)
+                if (group && tgt->GetGroup() == group)
                     tgtType = IsPlayerBot(tgt)
                         ? EMOTE_TGT_GROUP_BOT
                         : EMOTE_TGT_GROUP_PLAYER;
@@ -2254,6 +2255,9 @@ static void DispatchPlayerEmote(
                 npcType =
                     npc->GetCreatureTemplate()
                         ->type;
+                creatureEmoteScripted =
+                    IsCreatureEmoteScripted(
+                        npc, textEmote);
             }
         }
     }
@@ -2276,10 +2280,16 @@ static void DispatchPlayerEmote(
     // to mirror, so this stays named-emote only.
     if (!isCustom
         && tgtType == EMOTE_TGT_CREATURE
-        && cachedTargetCreature)
-        HandleEmoteAtCreature(
+        && cachedTargetCreature
+        && !creatureEmoteScripted)
+    {
+        uint32 mirrorEmote = HandleEmoteAtCreature(
             player, cachedTargetCreature,
             textEmote);
+        HandleProximityPlayerEmote(
+            player, cachedTargetCreature,
+            textEmote, mirrorEmote);
+    }
 
     if (!group || !GroupHasRealPlayer(group))
         return;

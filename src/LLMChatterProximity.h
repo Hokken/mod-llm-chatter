@@ -18,6 +18,9 @@ void CheckProximityChatter(bool instanceMaps);
 void HandleProximityPlayerSay(
     Player* player, uint32 type, uint32 language,
     std::string const& msg);
+void HandleProximityPlayerEmote(
+    Player* player, Creature* creature,
+    uint32 textEmote, uint32 mirrorEmote);
 void RecordDeliveredProximityLine(
     uint32 eventId, uint32 playerGuid,
     uint32 zoneId, uint32 mapId,
