@@ -937,9 +937,10 @@ LLMChatter.ProximityChatter.InstanceChance = 100
 #   LLMChatter.ProximityChatter.EntityCooldown
 #       Seconds before the same bot or NPC can be used
 #       again as the lead speaker.
-#       Default: 60
+#       Clamped to 0-3 seconds for fluid local interaction.
+#       Default: 3
 #
-LLMChatter.ProximityChatter.EntityCooldown = 60
+LLMChatter.ProximityChatter.EntityCooldown = 3
 
 #
 #   LLMChatter.ProximityChatter.ZoneFatigueThreshold
@@ -1027,6 +1028,59 @@ LLMChatter.ProximityChatter.MaxTokensPerLine = 120
 #       Default: 8
 #
 LLMChatter.ProximityChatter.FacingResetDelay = 8
+
+#
+#   LLMChatter.ProximityChatter.DirectedMaxExtraReactors
+#       Maximum nearby NPCs that may join a directed player /say or
+#       emote interaction in addition to the addressed NPC. Range: 0-3.
+#       Default: 3
+#
+LLMChatter.ProximityChatter.DirectedMaxExtraReactors = 3
+
+#
+#   LLMChatter.ProximityChatter.DirectedExtraReactorWeights
+#       Comma-separated percentages for selecting 0, 1, 2, or 3 extra
+#       nearby NPC reactors. Values must strictly descend and total 100.
+#       Default: 60,25,10,5
+#
+LLMChatter.ProximityChatter.DirectedExtraReactorWeights = 60,25,10,5
+
+#
+#   LLMChatter.ProximityChatter.DirectedNPCAsideChance
+#       When extra NPCs join, chance (0-100) that they discuss the
+#       player's real words or action with the addressed NPC without
+#       directly involving the player.
+#       Default: 35
+#
+LLMChatter.ProximityChatter.DirectedNPCAsideChance = 35
+
+#
+#   LLMChatter.ProximityChatter.DirectedMaxLines
+#       Maximum generated NPC lines in one directed interaction.
+#       Range: 1-8.
+#       Default: 5
+#
+LLMChatter.ProximityChatter.DirectedMaxLines = 5
+
+#
+#   LLMChatter.ProximityChatter.DirectedExpirySeconds
+#       Seconds before a queued directed interaction becomes too old
+#       to generate. Keeps replies relevant to the player's action.
+#       Default: 30
+#
+LLMChatter.ProximityChatter.DirectedExpirySeconds = 30
+
+#
+#   LLMChatter.ProximityChatter.DirectedNameStopwords
+#       Comma-separated title and place words that must not identify an
+#       NPC by themselves. Full NPC names still match. Matching is
+#       case-insensitive; an NPC's subname words are also excluded.
+#       Default: guard,city,mountaineer,innkeeper,vendor,trainer,
+#                quartermaster,merchant,stablemaster,banker,auctioneer,
+#                flight,master,officer,captain,stormwind,ironforge,
+#                orgrimmar,darnassus,undercity,silvermoon,exodar
+#
+LLMChatter.ProximityChatter.DirectedNameStopwords = guard,city,mountaineer,innkeeper,vendor,trainer,quartermaster,merchant,stablemaster,banker,auctioneer,flight,master,officer,captain,stormwind,ironforge,orgrimmar,darnassus,undercity,silvermoon,exodar
 
 #
 #   LLMChatter.ProximityChatter.PlayerSayScanRadius
@@ -1177,9 +1231,10 @@ LLMChatter.ProximityChatter.BossPresenceResetSeconds = 90
 #       Minimum seconds between generated replies when the player
 #       explicitly names or targets a boss and speaks in /say.
 #       This is separate from the longer automatic approach cooldown.
-#       Default: 15
+#       Clamped to 0-3 seconds so directed interaction stays responsive.
+#       Default: 3
 #
-LLMChatter.ProximityChatter.BossDirectedReplyCooldownSeconds = 15
+LLMChatter.ProximityChatter.BossDirectedReplyCooldownSeconds = 3
 
 #
 #   LLMChatter.ProximityChatter.BossDirectedScanCooldownSeconds
@@ -2844,6 +2899,32 @@ LLMChatter.EmoteReactions.MoodSpreadChance = 50
 #       Default: 1
 #
 LLMChatter.EmoteReactions.NPCMirrorEnable = 1
+
+#
+#   LLMChatter.EmoteReactions.NPCVerbalReactionChance
+#       Independent chance (0-100) that an eligible NPC verbally reacts
+#       when a player directs a social emote at it.
+#       Default: 80
+#
+LLMChatter.EmoteReactions.NPCVerbalReactionChance = 80
+
+#
+#   LLMChatter.EmoteReactions.NPCVerbalCooldown
+#       Seconds between verbal emote reactions for the same player/NPC
+#       pair. This is independent from the mirror animation cooldown.
+#       Clamped to 0-3 seconds so directed interaction stays responsive.
+#       Default: 3
+#
+LLMChatter.EmoteReactions.NPCVerbalCooldown = 3
+
+#
+#   LLMChatter.EmoteReactions.CxxScriptExclusionEntries
+#       Creature entries whose C++ scripts own ReceiveEmote behavior.
+#       NPC mirror and generated NPC verbal reactions are suppressed
+#       for these entries to avoid duplicate direct responses.
+#       Default: 620,25305,33211,33224,6626,7233,3401
+#
+LLMChatter.EmoteReactions.CxxScriptExclusionEntries = 620,25305,33211,33224,6626,7233,3401
 
 ###############################################
 # Screenshot Vision Feature (Experimental)
