@@ -958,6 +958,34 @@ def test_cpp_source_contracts_cover_instance_safety():
     assert directed < active_scene
 
 
+def test_mounted_players_remain_eligible_for_direct_interactions():
+    source = (
+        MODULE_DIR / 'src' / 'LLMChatterProximity.cpp'
+    ).read_text(encoding='utf-8')
+    anchor = source.split(
+        'bool IsEligibleProximityAnchor(Player* player)', 1
+    )[1].split(
+        'bool IsEligibleAmbientProximityAnchor(Player* player)', 1
+    )[0]
+    ambient = source.split(
+        'bool IsEligibleAmbientProximityAnchor(Player* player)', 1
+    )[1].split('std::string GetNPCDisposition(', 1)[0]
+    directed_say = source.split(
+        'DirectedSayResult QueueDirectedPlayerSayProximityEvent(', 1
+    )[1].split('void HandleProximityPlayerSayNewScene(', 1)[0]
+    directed_emote = source.split(
+        'void HandleProximityPlayerEmote(', 1
+    )[1].split('void RecordDeliveredProximityLine(', 1)[0]
+
+    assert '!player->IsMounted()' not in anchor
+    assert '!player->IsMounted()' in ambient
+    assert 'IsEligibleProximityAnchor(player)' in directed_say
+    assert 'IsEligibleProximityAnchor(player)' in directed_emote
+    assert source.count(
+        'IsEligibleAmbientProximityAnchor(player)'
+    ) == 3
+
+
 def test_dungeon_boss_lookup_uses_registered_encounters():
     shared = (
         MODULE_DIR / 'tools' / 'chatter_shared.py'
@@ -1005,7 +1033,8 @@ def test_config_fallbacks_match_distributed_values():
     assert 'InstanceScanIntervalSeconds = 30' in distributed
     assert 'OutdoorChance = 30' in distributed
     assert 'InstanceChance = 100' in distributed
-    assert '"EntityCooldown", 60)' in source
+    assert '"EntityCooldown", 3)' in source
+    assert 'EntityCooldown = 3' in distributed
     assert '"ConversationLineDelay", 2)' in source
     assert '"MaxTokensPerLine", 120)' in source
     assert '"EnableBossDialogue", false)' in source
@@ -1027,6 +1056,11 @@ def test_config_fallbacks_match_distributed_values():
     assert '"BossPresenceResetSeconds", 90)' in source
     assert 'BossDialogueCooldownSeconds' not in source
     assert '"BossDirectedScanCooldownSeconds", 1)' in source
+    assert '"BossDirectedReplyCooldownSeconds", 3)' in source
+    assert '"NPCVerbalCooldown", 3)' in source
+    assert source.count('            3u);') >= 3
+    assert 'BossDirectedReplyCooldownSeconds = 3' in distributed
+    assert 'NPCVerbalCooldown = 3' in distributed
 
 
 def main():

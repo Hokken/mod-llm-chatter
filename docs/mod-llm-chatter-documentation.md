@@ -1638,7 +1638,7 @@ are excluded from observer comments only.
 | `LLMChatter.EmoteReactions.MoodSpreadChance` | 50 | Reserved contagious-emote mood chance |
 | `LLMChatter.EmoteReactions.NPCMirrorEnable` | 1 | Enable delayed NPC mirror animations |
 | `LLMChatter.EmoteReactions.NPCVerbalReactionChance` | 80 | Independent chance that a directed eligible NPC speaks |
-| `LLMChatter.EmoteReactions.NPCVerbalCooldown` | 20 | Seconds per player/NPC verbal-emote cooldown |
+| `LLMChatter.EmoteReactions.NPCVerbalCooldown` | 3 | Seconds per player/NPC verbal-emote cooldown; clamped to 0-3 |
 | `LLMChatter.EmoteReactions.CxxScriptExclusionEntries` | seven known entries | C++ `ReceiveEmote()` owners suppress direct NPC reactions |
 
 ### Cooldown eviction
@@ -2113,6 +2113,9 @@ selects zero to three additional compatible NPCs. The default weights are
 multi-NPC event is either player-inclusive or an NPC aside that discusses
 the player's real words/action without addressing or inventing speech for
 the player.
+Mounted players remain eligible for these directed interactions. Mounting
+continues to suppress automatic scenes, untargeted fallback selection, and
+active-scene continuation.
 
 ### Instance and boss grounding
 
@@ -2260,7 +2263,7 @@ All under `LLMChatter.ProximityChatter.*`:
 | `OutdoorChance` | 30 | % chance per eligible outdoor scan |
 | `InstanceChance` | 100 | % chance per eligible dungeon/raid scan |
 | `ConversationChance` | 40 | % multi-speaker vs single statement |
-| `EntityCooldown` | 60 | Seconds per-entity (spawn GUID) cooldown |
+| `EntityCooldown` | 3 | Seconds per-entity (spawn GUID) cooldown; clamped to 0-3 |
 | `PlayerAddressChance` | 30 | % chance to address the real player |
 | `MaxConversationLines` | 4 | Maximum ambient lines |
 | `ConversationLineDelay` | 2 | Seconds between lines |
@@ -2280,7 +2283,7 @@ All under `LLMChatter.ProximityChatter.*`:
 | `BossUnlimitedAutomaticLines` | 1 | Keep randomized opportunities open-ended |
 | `BossMaxAutomaticLines` | 3 | Cap used only when unlimited mode is disabled; zero then disables automatic lines |
 | `BossPresenceResetSeconds` | 90 | Eligible-player absence needed to begin a new presence |
-| `BossDirectedReplyCooldownSeconds` | 15 | Directed reply cooldown |
+| `BossDirectedReplyCooldownSeconds` | 3 | Directed reply cooldown; clamped to 0-3 seconds |
 | `BossDirectedScanCooldownSeconds` | 1 | Per-player/map/instance `/say` search throttle |
 | `BossSpeakerDenyEntries` | empty | Comma-separated excluded boss entries |
 

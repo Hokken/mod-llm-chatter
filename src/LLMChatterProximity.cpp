@@ -171,9 +171,14 @@ bool IsEligibleProximityAnchor(Player* player)
     return player && player->IsInWorld()
         && player->IsAlive()
         && !player->IsInCombat()
-        && !player->IsMounted()
         && !player->IsFlying()
         && IsProximityMapAllowed(player->GetMap());
+}
+
+bool IsEligibleAmbientProximityAnchor(Player* player)
+{
+    return IsEligibleProximityAnchor(player)
+        && !player->IsMounted();
 }
 
 std::string GetNPCDisposition(
@@ -1706,7 +1711,7 @@ DirectedSayResult QueueDirectedPlayerSayProximityEvent(
 void HandleProximityPlayerSayNewScene(
     Player* player, std::string const& safeMsg)
 {
-    if (!IsEligibleProximityAnchor(player))
+    if (!IsEligibleAmbientProximityAnchor(player))
         return;
 
     float radius = static_cast<float>(
@@ -1807,7 +1812,7 @@ void HandleProximityPlayerSayNewScene(
 
 void MaybeQueueProximityScene(Player* player)
 {
-    if (!IsEligibleProximityAnchor(player))
+    if (!IsEligibleAmbientProximityAnchor(player))
         return;
 
     uint32 effectiveChance =
@@ -1891,7 +1896,7 @@ void MaybeQueueProximityScene(Player* player)
 
 ProximityScene* FindBestScene(Player* player)
 {
-    if (!IsEligibleProximityAnchor(player))
+    if (!IsEligibleAmbientProximityAnchor(player))
         return nullptr;
 
     Map* map = player->GetMap();

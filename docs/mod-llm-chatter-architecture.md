@@ -805,6 +805,8 @@ system.
 - selected/named player `/say` routing before scene fallback
 - directed social-emote verbal events and their synchronized
   per-player/NPC cooldown
+- mounted real players remain eligible for directed `/say` and emotes;
+  mounting still suppresses automatic, untargeted, and continuation scans
 - weighted selection of zero to three extra directed-scene NPCs
 - strict full-name/unique-token resolution and vocative detection
 

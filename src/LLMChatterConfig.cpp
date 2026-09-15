@@ -956,9 +956,11 @@ void LLMChatterConfig::LoadConfig()
             "LLMChatter.ProximityChatter."
             "InstanceChance", _proxChatterChance);
     _proxChatterEntityCooldown =
-        GetChatterOption<uint32>(
-            "LLMChatter.ProximityChatter."
-            "EntityCooldown", 60);
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.ProximityChatter."
+                "EntityCooldown", 3),
+            3u);
     _proxChatterZoneFatigueThreshold =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
@@ -1124,9 +1126,11 @@ void LLMChatterConfig::LoadConfig()
             "LLMChatter.ProximityChatter."
             "BossPresenceResetSeconds", 90);
     _proxBossDirectedReplyCooldown =
-        GetChatterOption<uint32>(
-            "LLMChatter.ProximityChatter."
-            "BossDirectedReplyCooldownSeconds", 15);
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.ProximityChatter."
+                "BossDirectedReplyCooldownSeconds", 3),
+            3u);
     _proxBossDirectedScanCooldown =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
@@ -1183,9 +1187,11 @@ void LLMChatterConfig::LoadConfig()
                 "NPCVerbalReactionChance", 80),
             100u);
     _emoteNPCVerbalCooldown =
-        GetChatterOption<uint32>(
-            "LLMChatter.EmoteReactions."
-            "NPCVerbalCooldown", 20);
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.EmoteReactions."
+                "NPCVerbalCooldown", 3),
+            3u);
     std::string cxxScriptExclusionEntries =
         GetChatterOption<std::string>(
             "LLMChatter.EmoteReactions."

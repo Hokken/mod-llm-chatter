@@ -917,9 +917,10 @@ LLMChatter.ProximityChatter.InstanceChance = 100
 #   LLMChatter.ProximityChatter.EntityCooldown
 #       Seconds before the same bot or NPC can be used
 #       again as the lead speaker.
-#       Default: 60
+#       Clamped to 0-3 seconds for fluid local interaction.
+#       Default: 3
 #
-LLMChatter.ProximityChatter.EntityCooldown = 60
+LLMChatter.ProximityChatter.EntityCooldown = 3
 
 #
 #   LLMChatter.ProximityChatter.ZoneFatigueThreshold
@@ -1210,9 +1211,10 @@ LLMChatter.ProximityChatter.BossPresenceResetSeconds = 90
 #       Minimum seconds between generated replies when the player
 #       explicitly names or targets a boss and speaks in /say.
 #       This is separate from the longer automatic approach cooldown.
-#       Default: 15
+#       Clamped to 0-3 seconds so directed interaction stays responsive.
+#       Default: 3
 #
-LLMChatter.ProximityChatter.BossDirectedReplyCooldownSeconds = 15
+LLMChatter.ProximityChatter.BossDirectedReplyCooldownSeconds = 3
 
 #
 #   LLMChatter.ProximityChatter.BossDirectedScanCooldownSeconds
@@ -2890,9 +2892,10 @@ LLMChatter.EmoteReactions.NPCVerbalReactionChance = 80
 #   LLMChatter.EmoteReactions.NPCVerbalCooldown
 #       Seconds between verbal emote reactions for the same player/NPC
 #       pair. This is independent from the mirror animation cooldown.
-#       Default: 20
+#       Clamped to 0-3 seconds so directed interaction stays responsive.
+#       Default: 3
 #
-LLMChatter.EmoteReactions.NPCVerbalCooldown = 20
+LLMChatter.EmoteReactions.NPCVerbalCooldown = 3
 
 #
 #   LLMChatter.EmoteReactions.CxxScriptExclusionEntries
