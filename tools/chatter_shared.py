@@ -45,7 +45,6 @@ from chatter_text import (
 from chatter_llm import (
     resolve_model,
     call_llm,
-    _get_quick_analyze_client,
     quick_llm_analyze,
 )
 from chatter_db import (
@@ -1852,6 +1851,7 @@ def run_single_reaction(
     delay_resolver: Any = None,
     metadata: dict = None,
     label: str = 'single_reaction',
+    feature: str = None,
     num_bots: int = 1,
     bypass_speaker_cooldown: bool = True,
     group_id: int = None,
@@ -1914,6 +1914,7 @@ def run_single_reaction(
         max_tokens_override=max_tokens_override,
         context=context,
         label=label,
+        feature=feature,
         metadata=metadata,
     )
     if not response:

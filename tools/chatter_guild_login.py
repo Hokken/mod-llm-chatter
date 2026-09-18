@@ -23,7 +23,7 @@ from chatter_guild_player import (
     _select_responders,
     _session_is_current,
 )
-from chatter_llm import call_llm
+
 from chatter_mode import build_player_chat_guidance, is_roleplay
 from chatter_shared import (
     append_conversation_json_instruction,
@@ -35,6 +35,12 @@ from chatter_shared import (
     parse_extra_data,
 )
 from chatter_text import parse_single_response
+
+from chatter_llm import make_feature_caller
+
+# Every LLM call in this module routes through the
+# guild feature's provider settings.
+call_llm = make_feature_caller('guild')
 
 logger = logging.getLogger(__name__)
 

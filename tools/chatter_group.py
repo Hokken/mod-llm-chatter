@@ -36,7 +36,7 @@ _chat_history_limit = 10
 _spice_count = 2
 
 from chatter_shared import (
-    call_llm, cleanup_message, strip_speaker_prefix,
+    cleanup_message, strip_speaker_prefix,
     get_chatter_mode, get_class_name, get_race_name,
     get_gender_label,
     get_db_connection, build_race_class_context,
@@ -74,6 +74,7 @@ from chatter_shared import (
     shorten_chat_message,
     shorten_chat_question,
 )
+
 from chatter_db import (
     get_character_info_by_name,
     get_group_location,
@@ -161,6 +162,12 @@ from chatter_constants import (
     BG_MAP_NAMES,
     RAID_MAP_IDS,
 )
+
+from chatter_llm import make_feature_caller
+
+# Every LLM call in this module routes through the
+# group feature's provider settings.
+call_llm = make_feature_caller('group')
 
 logger = logging.getLogger(__name__)
 
@@ -1602,12 +1609,6 @@ def _batch_welcome(
     )
 
 
-
-
-
-
-
-
 def process_group_player_msg_event(
     db, client, config, event
 ):
@@ -2173,35 +2174,9 @@ def _maybe_queue_player_msg_memory(
             )
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # ============================================================
 # STATE-TRIGGERED CALLOUT PROCESSORS (Phase 2C)
 # ============================================================
-
-
-
-
 
 
 def _try_second_bot_response(
@@ -2704,27 +2679,9 @@ def _maybe_comment_on_composition(
     )
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 # ============================================================
 # STATE-TRIGGERED CALLOUT PROMPTS (Phase 2C)
 # ============================================================
-
-
-
-
 
 
 # ============================================================
@@ -2735,12 +2692,6 @@ def _maybe_comment_on_composition(
 # ============================================================
 # CHAT HISTORY
 # ============================================================
-
-
-
-
-
-
 
 
 # get_group_player_name moved to chatter_group_state

@@ -19,7 +19,7 @@ _extended_conv_chance = 40
 _extended_max_messages = 3
 
 from chatter_shared import (
-    call_llm, cleanup_message, strip_speaker_prefix,
+    cleanup_message, strip_speaker_prefix,
     get_chatter_mode, get_class_name, get_race_name,
     get_gender_label,
     build_race_class_context, parse_extra_data,
@@ -39,6 +39,7 @@ from chatter_shared import (
     build_talent_context,
     shorten_chat_message,
 )
+
 from chatter_prompts import (
     pick_random_tone,
     pick_random_mood,
@@ -64,6 +65,12 @@ from chatter_db import (
 from chatter_group_general_reaction import (
     maybe_queue_group_general_reaction,
 )
+
+from chatter_llm import make_feature_caller
+
+# Every LLM call in this module routes through the
+# general feature's provider settings.
+call_llm = make_feature_caller('general')
 
 logger = logging.getLogger(__name__)
 
@@ -117,7 +124,6 @@ def init_general_config(config):
         _extended_max_messages = 3
 
 
-
 def _pick_random_traits():
     """Pick 3 random traits for a bot."""
     categories = random.sample(
@@ -151,7 +157,6 @@ def _pick_length_hint(mode):
         f"HARD LIMIT: Never exceed 150 "
         f"characters total"
     )
-
 
 
 def _get_general_chat_history(

@@ -21,14 +21,21 @@ from chatter_group_prompts import (
 )
 from chatter_group_state import get_bot_mood_label
 from chatter_shared import (
-    call_llm, cleanup_message,
+    cleanup_message,
     get_chatter_mode,
     strip_speaker_prefix,
     pick_emote_for_statement,
     parse_single_response,
     shorten_chat_message,
 )
+
 from chatter_constants import CLASS_NAMES, RACE_NAMES
+
+from chatter_llm import make_feature_caller
+
+# Every LLM call in this module routes through the
+# group feature's provider settings.
+call_llm = make_feature_caller('group')
 
 logger = logging.getLogger(__name__)
 

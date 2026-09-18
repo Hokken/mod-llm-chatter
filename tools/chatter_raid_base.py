@@ -13,6 +13,7 @@ import logging
 import random
 from typing import Any, Callable, Dict, List, Optional
 
+from chatter_llm import feature_for_namespace
 from chatter_shared import (
     get_class_name,
     get_gender_label,
@@ -359,6 +360,7 @@ def fire_subgroup_worker(
             f":{bot_name}"),
         metadata=sg_meta or None,
         label=label,
+        feature=feature_for_namespace(config_prefix),
         group_id=group_id,
         delivery_policy=policy_for_reason(
             event.get('event_type', label),
@@ -479,6 +481,7 @@ def fire_raid_worker(
             f":{bot_name}"),
         metadata=rw_meta or None,
         label=label,
+        feature=feature_for_namespace(config_prefix),
     )
 
     if not result.get('ok'):

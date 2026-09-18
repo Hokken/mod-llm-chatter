@@ -155,6 +155,59 @@ value in the `CONTEXT` column from `ollama ps`. `Ollama.DisableThinking = 1`
 uses both the supported `reasoning_effort = none` request and `/no_think`
 fallback for compatible local models.
 
+### Mixing Providers Per Feature
+
+One provider does not have to serve everything. Each feature can name
+its own provider and model, so the high-volume background chatter can
+run on a local model while the lines players actually read come from a
+cloud model — or the other way round.
+
+```ini
+# Bulk chatter stays local and free
+LLMChatter.Provider = ollama
+LLMChatter.Model = qwen3:8b
+
+# Party and guild talk goes to the cloud
+LLMChatter.GroupChatter.Provider = deepseek
+LLMChatter.GroupChatter.Model = deepseek-flash
+LLMChatter.GuildChatter.Provider = deepseek
+LLMChatter.GuildChatter.Model = deepseek-flash
+```
+
+Or keep the cloud as the default and push background work to a local
+model, where latency does not matter because no one is waiting:
+
+```ini
+LLMChatter.Provider = deepseek
+LLMChatter.Model = deepseek-flash
+
+LLMChatter.Memory.Provider = ollama
+LLMChatter.Memory.Model = qwen3:8b
+LLMChatter.Backstory.Provider = ollama
+LLMChatter.Backstory.Model = qwen3:8b
+```
+
+Routable features: `GroupChatter`, `ProximityChatter`, `GuildChatter`,
+`GeneralChat`, `BGChatter`, `RaidChatter`, `Memory`, `Backstory`, and
+`QuickAnalyze`. Ambient zone chatter always uses the main provider —
+it is the baseline, so route the others away from it instead.
+
+Two rules worth knowing:
+
+- **`Provider` alone only works where the new provider has a default
+  model.** DeepSeek has one; Ollama does not, since there is no model
+  tag to assume. Routing to Ollama needs a `Model` line too.
+- **An override that cannot be satisfied is ignored**, and the feature
+  quietly stays on the main provider rather than sending a request
+  certain to fail. The startup health check lists every active route
+  and warns about any override it had to ignore, so check the report
+  after editing.
+
+`QuickAnalyze` covers the short classification calls — such as working
+out which bot a player is addressing. It defaults to the provider's
+fast model rather than `LLMChatter.Model`, because a player waits on
+that call before any bot answers.
+
 ### Tuning the Chattiness
 
 The default config ships on the **chatty side** so you can

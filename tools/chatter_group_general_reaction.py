@@ -32,7 +32,6 @@ from chatter_shared import (
     append_json_instruction,
     build_travel_state_from_row,
     calculate_dynamic_delay,
-    call_llm,
     cleanup_message,
     format_travel_context,
     get_chatter_mode,
@@ -52,6 +51,13 @@ from chatter_shared import (
     strip_speaker_prefix,
     shorten_chat_message,
 )
+
+from chatter_llm import make_feature_caller
+
+# Every LLM call in this module routes through the
+# group feature's provider settings.
+call_llm = make_feature_caller('group')
+
 
 logger = logging.getLogger(__name__)
 

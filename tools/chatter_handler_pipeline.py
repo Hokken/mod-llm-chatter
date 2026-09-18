@@ -325,6 +325,7 @@ def run_group_handler(
                 f":{bot_name}"
             ),
             label=label,
+            feature='group',
             metadata=zone_meta,
             group_id=group_id,
             delivery_policy=policy_for_reason(
