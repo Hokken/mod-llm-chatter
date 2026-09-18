@@ -35,6 +35,7 @@ from chatter_shared import (
     get_zone_name,
     get_class_name,
     get_race_name,
+    attach_speaker_gear,
     run_single_reaction,
     get_effective_speaker_cooldown,
     call_llm,
@@ -186,6 +187,8 @@ def _deliver_conversation(
                 b.get('zone_id', zone_id)
             ),
         })
+
+    attach_speaker_gear(db, formatted, config)
 
     bot_names = [b['name'] for b in formatted]
     bot_guids = {

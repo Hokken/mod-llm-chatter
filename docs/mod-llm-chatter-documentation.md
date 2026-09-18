@@ -1479,12 +1479,35 @@ narrations appear in bot messages. Two strategies:
 In normal mode, actions are suppressed at the prompt level for all
 conversation paths (no wasted tokens).
 
+### Action delivery
+
+With `LLMChatter.ActionAsEmote.Enable` (default 1) the action is split
+back off the message when it is queued — `split_action_prefix()` in
+`chatter_text.py`, called from `insert_chat_message()` — and stored in
+the `action` column of `llm_chatter_messages`. Delivery then sends it as
+a real text emote through `Unit::TextEmote` immediately before the spoken
+line, so the chat log reads:
+
+```
+Sylvara scans the treeline, bow already drawn
+[Party] [Sylvara]: Fairbreeze burning again?
+```
+
+`Unit::TextEmote` is used rather than `Player::TextEmote` so the client
+substitutes the bot's name into the `%s` the C++ side prepends. Setting
+the option to 0 restores the old inline `*action* text` form. A message
+that is nothing but an action is left alone — emitting the emote would
+leave an empty chat line behind it. Note that emotes are proximity-based:
+on party, raid, guild and General messages only players standing near the
+bot see the emote, while the spoken line still reaches the whole channel.
+
 ### Config keys
 
 | Key | Default | Purpose |
 |---|---|---|
 | `LLMChatter.EmoteChance` | 50 | % chance emote list is included in prompt (not applied to General channel — emotes are proximity-based) |
 | `LLMChatter.ActionChance` | 10 | % chance eligible responses retain/include an action after action gating |
+| `LLMChatter.ActionAsEmote.Enable` | 1 | Deliver the action as a text emote before the spoken line instead of inline `*asterisks*` |
 
 ---
 
@@ -1571,6 +1594,8 @@ are excluded from observer comments only.
 | `LLMChatter.EmoteReactions.ObserverCooldown` | 30 | Seconds per-group cooldown for observer |
 | `LLMChatter.EmoteReactions.MoodSpreadChance` | 50 | Reserved contagious-emote mood chance |
 | `LLMChatter.EmoteReactions.NPCMirrorEnable` | 1 | Enable delayed NPC mirror animations |
+| `LLMChatter.EmoteReactions.CustomEnable` | 1 | React to free-text `/e` and `/me` emotes, not just the named ones. The typed text reaches the model as the action; the target comes from the player's current selection, since a custom emote carries none |
+| `LLMChatter.EmoteReactions.CustomMaxChars` | 120 | Clamp on typed emote text before it reaches the prompt, cut at a UTF-8 boundary |
 | `LLMChatter.EmoteReactions.NPCVerbalReactionChance` | 80 | Independent chance that a directed eligible NPC speaks |
 | `LLMChatter.EmoteReactions.NPCVerbalCooldown` | 3 | Seconds per player/NPC verbal-emote cooldown; clamped to 0-3 |
 | `LLMChatter.EmoteReactions.CxxScriptExclusionEntries` | seven known entries | C++ `ReceiveEmote()` owners suppress direct NPC reactions |
@@ -2540,6 +2565,49 @@ Existing installations must also apply
 
 ---
 
+## 13u. Gear, Pet, and Room Context
+
+`LLMChatter.GearContext.Enable` (default 1, bridge-side) tells a bot what
+it is actually carrying instead of leaving it to invent gear — a
+mace-wielder describing a sword swing, or a hunter treating its own pet
+as a stranger.
+
+### What is looked up
+
+`build_gear_context()` in `chatter_shared.py` reads the character
+database for the equipped main hand, off hand, and ranged items (name and
+item type) plus the pet of a hunter or warlock (name and species). The
+result is cached per bot for five minutes, so the cost is one small query
+every few minutes rather than one per message. `run_group_handler()` in
+`chatter_handler_pipeline.py` attaches it as `bot['gear']`.
+
+### How it is rendered
+
+| Scene | Voice | Example |
+|---|---|---|
+| A bot speaking alone | Second person | `You are wielding Fist of Reckoning (one-handed mace)`, `Your pet is Kreenum, a Felhunter` |
+| Multi-speaker scene (party, ambient) | Third person | `Veliana wields Staff of the Sun (staff)` |
+
+Third person in multi-speaker scenes keeps gear from being misattributed
+to whoever the model is currently speaking as. Article grammar follows
+the species name (`an Imp`, `a Felhunter`).
+
+### Emote prompts
+
+Emote prompts previously carried neither the party roster nor recent chat
+history, so a bot reacted to a `/point` with no idea what had just been
+said. Both are now included, with the real player marked in the roster.
+
+An unfamiliar emote target outside the group is described by level, race,
+class, and gender (`Soza, a level 28 female Troll Warrior`) rather than
+the bare `Soza, a stranger` — which is what let a bot call an orc a
+centaur because centaurs had come up earlier in the conversation. The
+extra fields ride on the `bot_group_emote_observer` event as
+`target_race`, `target_class`, `target_level`, and `target_gender`, and
+fall back to a stranger only when nothing is known.
+
+---
+
 ## 14. JSON and Queue Contracts
 
 ### `QueueChatterEvent()`
@@ -2586,7 +2654,7 @@ Typical multi-message JSON shape:
 |---|---|---|---|
 | `llm_chatter_events` | C++ | Python | Event queue |
 | `llm_chatter_queue` | C++ | Python | Ambient request queue |
-| `llm_chatter_messages` | Python | C++ | Outbound delivery queue with speaker/player IDs, explicit directed-line addressees, and drop diagnostics |
+| `llm_chatter_messages` | Python | C++ | Outbound delivery queue with speaker/player IDs, explicit directed-line addressees, the split-off `action` text emote, and drop diagnostics |
 | `llm_group_cached_responses` | Python | C++ | Pre-cached instant reactions |
 | `llm_group_bot_traits` | Python + C++ travel refresh | Python | Group personality, location, and live travel state |
 | `llm_group_chat_history` | Python | Python | Group anti-repetition history |

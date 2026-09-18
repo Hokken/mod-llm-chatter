@@ -16,6 +16,7 @@ from chatter_shared import (
     append_conversation_json_instruction,
     build_anti_repetition_context,
     format_distance,
+    append_speaker_gear,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -123,6 +124,7 @@ def _append_bots_with_rp(parts, bots, traits_map, is_rp):
             f"{bot['class']} "
             f"(personality: {trait_str})"
         )
+        append_speaker_gear(parts, bot)
         if bot.get('travel_context'):
             travel_label = (
                 "travel state"
