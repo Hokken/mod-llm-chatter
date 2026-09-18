@@ -633,6 +633,7 @@ When a plain string is passed to `call_llm()` instead of
 | `build_compatible_chat_request()` | Builds the shared production request used by normal calls, quick analysis, and the health probe |
 | `llm_compat.build_chat_options()` | Builds the token and sampling parameters, applying any learned overrides |
 | `llm_compat.create_chat_completion()` | Retries explicit parameter rejections and caches the learned correction |
+| `_sampling_penalties()` | Adds `LLMChatter.FrequencyPenalty` / `PresencePenalty` when set, clamped to -2.0..2.0 and omitted at `0` |
 
 ---
 
@@ -641,11 +642,16 @@ When a plain string is passed to `call_llm()` instead of
 Configured through:
 
 - `LLMChatter.ChatterMode`
+- `LLMChatter.MixedRoleplayChance`
 
 Modes:
 
 - `normal`: playerbots speak as people playing WoW
 - `roleplay`: in-character, race/class-influenced chat
+- `mixed`: `get_chatter_mode()` rolls per call, landing on roleplay with
+  probability `LLMChatter.MixedRoleplayChance` (default `0.5`) and on
+  normal otherwise, so the server is not locked to a single voice.
+  Everything downstream still sees only `normal` or `roleplay`.
 
 The Python prompt builders use `chatter_mode.py` as the canonical voice
 contract. Normal mode applies to playerbot speech in General, Party,
@@ -668,7 +674,8 @@ speaker using the existing `is_npc` payload field.
 Changing `LLMChatter.ChatterMode` requires a bridge restart. Because
 `llm_group_cached_responses` has no mode column, bridge startup removes
 only `ready` pre-cache rows and then refills them under the active mode;
-used and expired history is left to normal cache hygiene.
+used and expired history is left to normal cache hygiene. Under `mixed`
+the pre-cache fills with a blend of both voices, which is the intent.
 
 ---
 
@@ -1786,6 +1793,24 @@ builders replace zone/subzone lore with dungeon-specific flavor text.
 prompt builders. Each builder calls `get_dungeon_flavor(map_id)` — if a
 flavor entry exists for that map, it replaces the zone/subzone lore
 block with the dungeon's atmospheric description and tone.
+
+### Flavor gating
+
+`get_zone_flavor()`, `get_subzone_lore()` and `get_dungeon_flavor()` are
+RNG-gated at `chatter_shared.FLAVOR_CHANCE` (0.25). Every prompt builder
+pulls from them regardless of the message category it picked, so ungated
+they were the main reason bots narrated their surroundings in nearly
+every line.
+
+The gate is for prompt decoration only. Callers that use the lookup as
+fact rather than flavor pass `always=True`, because a gated miss there
+changes meaning rather than verbosity:
+
+| Caller | Why it is ungated |
+| --- | --- |
+| `chatter_instance_context.build_instance_context()` | Derives `is_instance` from the lookup — gated, an NPC in Shadowfang Keep is told it is outdoors 75% of the time |
+| `chatter_memory._resolve_location()` | Produces the memory's location label — gated, a Deadmines memory files under Westfall |
+| `chatter_group_handlers` player-message metadata | Names the zone in the request log — gated, in-instance conversations log an outdoor zone |
 
 Affected prompt builders:
 

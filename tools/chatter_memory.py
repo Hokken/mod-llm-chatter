@@ -372,8 +372,11 @@ def _resolve_location(db, config, group_id):
         z, a, m = get_group_location(db, group_id)
         if not z and not m:
             return ""
-        # Dungeons/raids: use flavour name
-        df = get_dungeon_flavor(m)
+        # Dungeons/raids: use flavour name. Ungated —
+        # this is the memory's location label, so a gated
+        # miss would file a Deadmines memory under
+        # Westfall instead.
+        df = get_dungeon_flavor(m, always=True)
         if df:
             return df.split(':')[0]
         # Open world: "Zone > Subzone" or "Zone"
