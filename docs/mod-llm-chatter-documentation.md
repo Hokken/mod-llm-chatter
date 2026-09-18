@@ -408,8 +408,8 @@ Owns emote reaction system:
 - `DelayedMirrorEmoteEvent`, `DelayedCreatureMirrorEmoteEvent`
 - emote static data: mirror map, denylist, combat callouts, contagious
   set
-- `HandleEmoteAtGroupBot()`, `HandleEmoteAtCreature()`,
-  `HandleEmoteObserver()`
+- `HandleEmoteAtGroupBot()`, `HandleEmoteAtUngroupedBot()`,
+  `HandleEmoteAtCreature()`, `HandleEmoteObserver()`
 - `EvictEmoteCooldowns()`
 
 ### `src/LLMChatterGroupQuest.cpp`
@@ -1559,17 +1559,20 @@ conversation paths (no wasted tokens).
 When a player performs a `/emote` (text emote), the
 `OnPlayerTextEmote` hook owned by `LLMChatterGroupCombat.cpp`
 classifies the target and routes it through the reaction paths below when
-eligible. Bot verbal reactions and observer chatter still require grouped
-bots. Direct creature verbal and mirror reactions do not.
+eligible. Grouped-bot verbal reactions and observer chatter require grouped
+bots. Direct creature and ungrouped-playerbot reactions do not.
 
 ### Reaction paths
 
 | Path | Trigger | Behavior |
 |------|---------|----------|
-| Silent mirror | Player emotes at a group bot | Bot mirrors back a matching emote (e.g. wave to wave, rude to chicken) via `DelayedMirrorEmoteEvent` with natural timing. Per-bot cooldown `_emoteReactCooldowns` |
-| Directed verbal reaction | Player emotes at a group bot (after mirror) | Targeted bot queues a `bot_group_emote_reaction` event. Python handler builds an LLM prompt and the bot responds verbally. Per-bot cooldown `_emoteVerbalCooldowns` |
-| Directed NPC verbal reaction | Player emotes at an eligible creature | Independently rolls an 80% default chance, then queues `proximity_player_emote`. The addressed NPC always responds first; zero to three compatible NPCs can join. Per-player/NPC cooldown `_directedEmoteCooldowns`; an actually scheduled mirror animation is included in the prompt so speech cannot contradict it |
-| Observer comment | Player emotes at a creature, external player, or nobody | A random group bot queues a `bot_group_emote_observer` event. Python handler has the bot make an offhand remark about the emote. Per-group cooldown `_emoteObserverCooldowns` |
+| Silent mirror | Player emotes at a group bot | Independently rolls an 80% default chance to mirror a matching emote (e.g. wave to wave, rude to chicken) via `DelayedMirrorEmoteEvent` with natural timing. Per-bot cooldown `_emoteReactCooldowns` |
+| Directed verbal reaction | Player emotes at a group bot | Independently rolls an 80% default chance to queue a `bot_group_emote_reaction` event. Mirror-map coverage, a failed mirror roll, or an active mirror cooldown does not suppress speech. When an animation is scheduled, its name grounds the verbal prompt so speech cannot contradict it. Per-bot cooldown `_emoteVerbalCooldowns` |
+| Ungrouped playerbot mirror | Player emotes at an eligible same-team playerbot outside their group | Independently rolls an 80% default chance for mapped emotes and schedules `DelayedMirrorEmoteEvent`. It shares the existing per-bot `_emoteReactCooldowns` map with grouped mirroring |
+| Ungrouped playerbot verbal reaction | Player emotes at an eligible same-team playerbot outside their group | Independently rolls an 80% default chance, then queues `proximity_player_emote` with the addressed bot first and zero to two compatible nearby NPC/ungrouped-bot joiners. One prompt receives the original action and complete roster. The bot answers in local `/say`; `_directedBotEmoteCooldowns` is keyed by player, map, instance, and bot for twice `MirrorCooldown` |
+| Ungrouped playerbot witness reaction | The addressed ungrouped playerbot's verbal roll fails | Independently rolls a 50% default chance, then selects one or two compatible nearby NPCs/ungrouped bots. The addressed bot remains silent and outside the speaking roster, but stays in the event as structured context so every witness comments on the same player emote |
+| Directed NPC verbal reaction | Player emotes at an eligible creature | Independently rolls an 80% default chance, then queues `proximity_player_emote`. The addressed NPC always responds first; zero to two compatible NPCs can join. Per-player/NPC cooldown `_directedEmoteCooldowns`; an actually scheduled mirror animation is included in the prompt so speech cannot contradict it |
+| Observer comment | Player emotes at a creature, external player, or nobody | Independently rolls a 50% default chance for a random group bot to queue a `bot_group_emote_observer` event. Python makes the bot offer an offhand remark. Per-group cooldown `_emoteObserverCooldowns` |
 
 Creatures also mirror emotes directed at them via
 `DelayedCreatureMirrorEmoteEvent`. Creature verbal and mirror reactions
@@ -1584,9 +1587,29 @@ a wildcard. The exclusion cache refreshes at startup and on module config
 reload. After `.reload smart_scripts`, also run `.reload config` before
 testing changed emote ownership.
 
+An ungrouped playerbot target must pass the proximity anchor, playerbot,
+same-team, range, line-of-sight, life, combat, flying, and loading checks
+before either direct outcome is attempted. Mounted targets remain eligible;
+automatic ambient selection still excludes them. Battlegrounds and arenas are
+excluded. The direct route also follows the dungeon and raid proximity-map
+settings; with global proximity chatter disabled, mapped mirroring can still
+run in the open world. Mirror, addressed-bot speech, and the conditional
+witness-scene chance are independent. The witness roll runs only when the
+addressed bot stays silent and requires at least one eligible witness. Losing
+a roll, hitting a cooldown, or configuring a chance to zero still counts as
+an accepted direct route and suppresses observer duplication.
+
+If eligibility fails, or the emote is unmapped while the verbal route is
+disabled, a grouped player retains the existing observer path. The fallback
+is deliberately passed as `EMOTE_TGT_EXT_PLAYER` so the observer prompt keeps
+the target bot's name and treats it like today's external-player target.
+
 Directed NPC conversations choose between player-inclusive dialogue and
-an NPC aside about the player's actual action. Prompts forbid fabricated
-player speech or actions and identify each line's addressee for facing.
+an NPC aside about the player's actual action. Bot-directed chains are always
+player-inclusive. Prompts forbid fabricated player speech or actions, apply
+NPC/playerbot voice rules per speaker, and identify each line's addressee for
+facing. Normal-mode playerbot actions are removed even when an NPC in the same
+response permits action narration.
 
 ### Ownership split for emote bugs
 
@@ -1596,7 +1619,8 @@ player speech or actions and identify each line's addressee for facing.
   mirror cooldowns, scripted-emote ownership, creature/bot facing, or
   delayed emote execution
 - edit `LLMChatterProximity.cpp` or `chatter_proximity.py` when the bug is
-  about directed NPC verbal reactions or multi-NPC emote conversations
+  about directed NPC/playerbot verbal reactions or multi-NPC emote
+  conversations
 
 ### Emote coverage
 
@@ -1623,17 +1647,20 @@ are excluded from observer comments only.
 |------|------------|---------|
 | `tools/chatter_emote_reaction.py` | `bot_group_emote_reaction` | Directed verbal reaction prompt and delivery |
 | `tools/chatter_emote_observer.py` | `bot_group_emote_observer` | Observer comment prompt and delivery |
-| `tools/chatter_proximity.py` | `proximity_player_emote` | Directed NPC response or multi-NPC exchange |
+| `tools/chatter_proximity.py` | `proximity_player_emote` | Directed NPC or ungrouped-playerbot response, including compatible mixed-speaker chains |
 
 ### Config keys
 
 | Key | Default | Purpose |
 |-----|---------|---------|
 | `LLMChatter.EmoteReactions.Enable` | 1 | Master toggle |
-| `LLMChatter.EmoteReactions.MirrorChance` | 90 | % chance bot or NPC mirrors back the emote |
+| `LLMChatter.EmoteReactions.MirrorChance` | 80 | Independent % chance a grouped bot or NPC mirrors back the emote |
 | `LLMChatter.EmoteReactions.MirrorCooldown` | 15 | Seconds per-entity cooldown for mirroring |
-| `LLMChatter.EmoteReactions.ReactionChance` | 60 | % chance of grouped-bot verbal reaction after mirror |
-| `LLMChatter.EmoteReactions.ObserverChance` | 40 | % chance of grouped-bot observer comment |
+| `LLMChatter.EmoteReactions.ReactionChance` | 80 | Independent % chance of a grouped-bot verbal reaction to a directed social emote |
+| `LLMChatter.EmoteReactions.UngroupedBotMirrorChance` | 80 | Independent % chance that an eligible ungrouped bot mirrors a mapped emote |
+| `LLMChatter.EmoteReactions.UngroupedBotVerbalReactionChance` | 80 | Independent % chance that an eligible ungrouped bot answers in `/say` |
+| `LLMChatter.EmoteReactions.UngroupedBotWitnessReactionChance` | 50 | Conditional % chance of a witness-only scene when the addressed bot stays silent |
+| `LLMChatter.EmoteReactions.ObserverChance` | 50 | % chance of grouped-bot observer comment |
 | `LLMChatter.EmoteReactions.ObserverCooldown` | 30 | Seconds per-group cooldown for observer |
 | `LLMChatter.EmoteReactions.MoodSpreadChance` | 50 | Reserved contagious-emote mood chance |
 | `LLMChatter.EmoteReactions.NPCMirrorEnable` | 1 | Enable delayed NPC mirror animations |
@@ -1643,10 +1670,11 @@ are excluded from observer comments only.
 
 ### Cooldown eviction
 
-`EvictEmoteCooldowns()` runs hourly to clean up stale entries from
-the four emote cooldown maps. These maps and the directed proximity-emote
-cooldown map are mutex-protected because text-emote hooks may run on map
-worker threads.
+`EvictEmoteCooldowns()` runs hourly to clean up stale entries from the four
+group-domain emote cooldown maps. Proximity scan cleanup separately evicts
+the NPC `_directedEmoteCooldowns` map using `NPCVerbalCooldown` and the bot
+`_directedBotEmoteCooldowns` map using twice `MirrorCooldown`. These maps are
+mutex-protected because text-emote hooks may run on map worker threads.
 
 ---
 
@@ -2088,17 +2116,20 @@ is restored.
 
 ### Player reply detection
 
-When a real player speaks in `/say`, a selected eligible NPC is the
-addressee. Another nearby NPC overrides that selection only when its name
-is explicitly marked as a vocative with an adjacent comma or colon. With no
-selection, an unambiguous full name or meaningful token that is unique
-among nearby candidates can direct the line anywhere it occurs. Subnames
-and configurable title/place stopwords are excluded; ambiguous matches fail
-closed. A differently named NPC is the preferred joiner rather than
-automatically replacing the selected addressee. A living selected player,
-party bot, boss, or runtime-ineligible speaking NPC suppresses random
-fallback with a diagnostic reason. Dead and non-speaking targets such as
-corpses and critters are ignored, allowing normal fallback. The
+When a real player speaks in `/say`, a selected eligible NPC or same-team
+ungrouped playerbot is the addressee. Another nearby candidate overrides that
+selection only when its name is explicitly marked as a vocative with an
+adjacent comma or colon. With no selection, an unambiguous full name or
+meaningful token that is unique among nearby candidates can direct the line
+anywhere it occurs. Subnames and configurable title/place stopwords are
+excluded; ambiguous matches fail closed. A differently named candidate is the
+preferred joiner rather than automatically replacing the selected addressee.
+An ineligible cross-faction named bot falls back only to an already selected
+eligible NPC or same-team ungrouped bot; otherwise the direct route is
+suppressed. A living selected player, party bot, boss, or runtime-ineligible
+speaking NPC suppresses random fallback with a diagnostic reason. Dead and
+non-speaking targets such as corpses and critters are ignored, allowing
+normal fallback. The
 `ProximityScene` struct tracks:
 
 - active conversation participants
@@ -2106,16 +2137,44 @@ corpses and critters are ignored, allowing normal fallback. The
 - the original topic context
 
 This enables natural player-to-NPC/bot exchanges while making direct
-targeting authoritative when the player uses it. Every direct `/say` and
-eligible NPC emote starts with the addressed NPC, then independently
-selects zero to three additional compatible NPCs. The default weights are
-60%, 25%, 10%, and 5% for zero through three joiners, respectively. A
-multi-NPC event is either player-inclusive or an NPC aside that discusses
-the player's real words/action without addressing or inventing speech for
-the player.
-Mounted players remain eligible for these directed interactions. Mounting
-continues to suppress automatic scenes, untargeted fallback selection, and
-active-scene continuation.
+targeting authoritative when the player uses it. Every NPC-directed `/say`
+or eligible NPC emote starts with the addressed NPC, then independently
+selects zero to two additional compatible NPCs. A bot-directed `/say` or
+target-speaking emote starts with the addressed bot and selects zero to two
+compatible nearby NPCs or same-team ungrouped bots. If the addressed bot's
+emote-speech roll fails, the conditional witness roll can instead require one
+or two compatible speakers while keeping the silent target only as structured
+context. Ordinary directed scenes use `60,30,10` probabilities for zero, one,
+or two joiners. Witness-only scenes use their own `70,30` split for one or
+two speakers after the independent witness gate succeeds. A multi-NPC event
+may be player-inclusive or
+an NPC aside. Bot-directed chains are always player-inclusive, and every line
+is generated from the same original player message or action.
+
+Mixed bot-directed selection excludes joiners whose ordinary entity cooldown
+is active in memory. It deliberately does not query persisted cooldown state:
+only the first speaker's cooldown key is stored with the event, so persisted
+lookups cannot represent joiner cooldowns. The addressed `/say` target remains
+unthrottled as before; targeted emote speech retains its dedicated pair
+cooldown.
+Mounted players and mounted playerbots remain eligible for directed
+interactions and active-scene replies. Mounting continues to suppress
+automatic scenes and untargeted fallback selection. Untargeted `/say` events
+share their event types with directed `/say`, so delivery uses the presence of
+`addressed_name` to preserve that distinction if a selected speaker mounts
+after queueing. The parser accepts both compact
+`{"addressed_name":"Bob"}` and MySQL-formatted
+`{"addressed_name": "Bob"}` JSON; missing and empty values remain
+untargeted. A mounted playerbot still sends the mirrored text-emote packet,
+although the client may suppress the corresponding character animation while
+the mount is displayed. Before the delayed packet is sent, the bot is
+rechecked for combat and the player is rechecked for presence, map, and range
+so a stale mirror cannot fire after the interaction has ended.
+The same delayed event serves grouped and ungrouped bots, so grouped mirrors
+now also require the player to remain on the same map and within
+`PlayerSayScanRadius`. The execution-time radius has a one-yard minimum;
+setting the proximity scan radius to zero therefore cannot disable every
+grouped mirror silently. Grouped verbal reactions remain unaffected.
 
 ### Instance and boss grounding
 
@@ -2193,9 +2252,9 @@ receive separate NPC and playerbot topic angles.
 | `proximity_say` | Single NPC or bot statement | One speaker, zone context + topic |
 | `proximity_conversation` | Multi-speaker conversation | 2-4 speakers with staggered delivery |
 | `proximity_reply` | Player reply response | NPC/bot replies to player `/say` |
-| `proximity_player_say` | Directed/nearby response | Addressed NPC replies |
-| `proximity_player_conversation` | Directed nearby exchange | Addressed NPC plus selected joiners |
-| `proximity_player_emote` | Directed social emote | Addressed NPC verbal response, optionally with joiners |
+| `proximity_player_say` | Directed/nearby response | One addressed NPC or ungrouped playerbot replies |
+| `proximity_player_conversation` | Directed nearby exchange | Addressed NPC or ungrouped playerbot plus selected compatible joiners |
+| `proximity_player_emote` | Directed social emote | Addressed NPC/playerbot response with optional joiners, or a witness-only scene that preserves a silent bot target as context |
 
 `chatter_boss_dialogue.py` owns `proximity_boss_approach` and
 `proximity_boss_player_say`. Both produce one message-only `myell` row
@@ -2206,7 +2265,8 @@ address each other without repeating identical names. One conversation
 also selects at most one speaker with a given display name because the
 response contract identifies speakers by name. Directed parsing accepts
 only exact names or unique tokens, validates an optional `addressee`, and
-falls back to the addressed NPC if the conversation output is invalid.
+falls back to the addressed speaker if the conversation output is invalid or
+inserts no usable lines.
 Roster entries identify each participant as `NPC` or
 `PLAYERBOT`; the prompt keeps NPCs in-world and applies ChatterMode only
 to playerbots. Uses global `EmoteChance` and `ActionChance` gates (not
@@ -2251,8 +2311,10 @@ All under `LLMChatter.ProximityChatter.*`:
 | `InstanceScanIntervalSeconds` | 30 | Ordinary dungeon/raid scan timer interval |
 | `ScanRadius` | 40 | Yards around player to scan |
 | `PlayerSayScanRadius` | 40 | New-scene `/say` response radius |
-| `DirectedMaxExtraReactors` | 3 | Maximum NPC joiners, clamped to 0-3 |
-| `DirectedExtraReactorWeights` | 60,25,10,5 | Strictly decreasing weights for 0-3 joiners; must total 100 |
+| `DirectedMaxExtraReactors` | 2 | Global maximum directed joiners, clamped to 0-2 |
+| `DirectedBotMaxParticipants` | 3 | Total involved AI entities in a bot-directed chain, including a speaking or silent addressed bot; clamped to 1-3 |
+| `DirectedExtraReactorWeights` | 60,30,10,0 | Weights for 0-3 joiner slots; the universal two-joiner cap keeps the final slot at zero; values must strictly descend and total 100 |
+| `DirectedWitnessReactorWeights` | 70,30 | Weights for one or two speakers in a witness-only emote scene; must strictly descend and total 100 |
 | `DirectedNPCAsideChance` | 35 | % chance a multi-NPC event is an NPC aside |
 | `DirectedMaxLines` | 5 | Maximum directed conversation lines |
 | `DirectedExpirySeconds` | 30 | Short expiry for directed say, active-scene reply, and emote work |

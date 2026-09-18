@@ -1,6 +1,4 @@
-"""Emote reaction handler -- THIS bot was targeted
-directly by a player emote. Personal verbal response
-after the C++ mirror emote."""
+"""Personal verbal response when a player directly emotes at this bot."""
 
 import random
 
@@ -39,8 +37,7 @@ def _pick_tone(category: str) -> str:
 
 
 def handle_emote_reaction(db, client, config, event):
-    """THIS bot was targeted directly -- personal
-    verbal response after the C++ mirror emote."""
+    """Generate this targeted bot's personal verbal response."""
     event_id = event['id']
     extra = parse_extra_data(
         event.get('extra_data'),
@@ -52,6 +49,7 @@ def handle_emote_reaction(db, client, config, event):
         return False
 
     emote = extra.get('emote_name', 'wave')
+    mirror_emote = str(extra.get('mirror_emote', '')).strip()
     p_name = extra.get('player_name', 'someone')
     bot_name = extra.get('bot_name', 'Bot')
     group_id = int(extra.get('group_id') or 0)
@@ -86,6 +84,7 @@ def handle_emote_reaction(db, client, config, event):
         bot_name, bot_race, bot_class,
         bot_gender,
         p_name, emote, category,
+        mirror_emote=mirror_emote,
         traits=traits,
         stored_tone=stored_tone,
         mode=get_chatter_mode(config),
@@ -123,6 +122,7 @@ def handle_emote_reaction(db, client, config, event):
 def _build_reaction_prompt(
     bot_name, bot_race, bot_class, bot_gender,
     p_name, emote, category,
+    mirror_emote='',
     traits=None,
     stored_tone=None,
     mode='roleplay',
@@ -146,4 +146,9 @@ def _build_reaction_prompt(
         "NEVER put /slash commands in your "
         "response."
     )
+    if mirror_emote:
+        prompt += (
+            f" You are also scheduled to perform /{mirror_emote}; "
+            "the spoken reaction must not contradict that animation."
+        )
     return append_json_instruction(prompt)

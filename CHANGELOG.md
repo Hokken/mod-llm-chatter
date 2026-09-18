@@ -1,5 +1,30 @@
 # Changelog
 
+### 2026-09-18 - Directed Playerbot Proximity Reactions
+
+* **Ungrouped playerbot responses**: Eligible same-team playerbots outside the
+  player's group can mirror directed emotes, answer them in local `/say`, and
+  participate with nearby NPCs or other ungrouped bots in one shared scene.
+  If the addressed bot stays silent, a separately gated witness scene may
+  still let one or two nearby entities comment on the same real player action.
+  Mounted playerbots remain eligible for these direct and responsive paths,
+  while automatic and untargeted selection continues to exclude them at
+  queue and delivery time. Delayed bot mirrors are revalidated for combat,
+  player presence, map, and range before the packet is sent. The shared
+  delayed event means grouped mirrors now use the same map/range safety rule,
+  with a one-yard minimum radius; grouped speech remains unchanged.
+* **Consistent reaction probabilities**: Distributed defaults are now 80% for
+  direct emote mirroring and speech, and 50% for observer or silent-target
+  witness scenes. Grouped-bot mirroring and speech are independent, including
+  speech for emotes without a mirror animation mapping.
+* **Bounded directed scenes**: Directed interactions now involve at most the
+  addressed entity plus two joiners. Ordinary joiner counts use 60/30/10 for
+  zero, one, or two joiners; witness-only scenes use 70/30 for one or two.
+  This changes the defaults of `MirrorChance`, `ReactionChance`,
+  `ObserverChance`, `DirectedMaxExtraReactors`, and
+  `DirectedExtraReactorWeights`; explicitly configured installations retain
+  their configured values.
+
 ### 2026-09-15 - Multidirectional NPC Interactions
 
 * **Reliable direct NPC replies**: Eligible ordinary NPCs now receive a
