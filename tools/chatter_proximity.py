@@ -219,6 +219,21 @@ def _speaker_is_roleplay(speaker: Dict, mode: str) -> bool:
     return bool(speaker.get('is_npc')) or is_roleplay(mode)
 
 
+def _apply_speaker_action_policy(
+    parsed: List[Dict],
+    speaker_by_name: Dict[str, Dict],
+    mode: str,
+    *,
+    label: str,
+) -> None:
+    """Apply shared action chance, then enforce each speaker's mode."""
+    strip_conversation_actions(parsed, label=label)
+    for line in parsed:
+        speaker = speaker_by_name.get(line.get('name', ''))
+        if speaker and not _speaker_is_roleplay(speaker, mode):
+            line['action'] = None
+
+
 def _playerbot_topic(config: Optional[Dict]) -> str:
     mode = get_chatter_mode(config or {})
     pool = (
@@ -407,7 +422,20 @@ def _set_line_addressee(
         )
         return
 
-    for participant in participants:
+    known_addressees = list(participants)
+    addressed_participant = extra.get('addressed_participant')
+    if isinstance(addressed_participant, dict):
+        addressed_name = str(
+            addressed_participant.get('name', '')
+        )
+        if addressed_name and all(
+            addressed_name
+            != str(participant.get('name', ''))
+            for participant in known_addressees
+        ):
+            known_addressees.append(addressed_participant)
+
+    for participant in known_addressees:
         if addressee != str(participant.get('name', '')):
             continue
         if participant.get('is_npc'):
@@ -419,6 +447,24 @@ def _set_line_addressee(
                 participant.get('bot_guid', 0) or 0
             )
         return
+
+
+def _emote_addressed_participant(
+    extra: Dict,
+    participants: List[Dict],
+) -> Dict:
+    addressed = extra.get('addressed_participant')
+    if isinstance(addressed, dict) and addressed.get('name'):
+        return addressed
+    addressed_name = str(extra.get('addressed_name', ''))
+    return next(
+        (
+            participant
+            for participant in participants
+            if str(participant.get('name', '')) == addressed_name
+        ),
+        {},
+    )
 
 
 def _single_prompt(
@@ -1326,39 +1372,83 @@ def _player_emote_single_prompt(
 ) -> PromptParts:
     mode = get_chatter_mode(config or {})
     player_name = extra.get('player_name', 'the player')
-    lines = [
-        build_npc_chat_guidance(),
-        "Write an extremely short /say reaction of 8-15 words.",
-        "Keep it natural and low-stakes. No AI talk or markdown.",
-        "",
-        f"Speaker: {_describe_speaker(db, speaker)}",
-    ]
+    addressed = str(
+        extra.get('addressed_name')
+        or speaker.get('name', 'the speaker')
+    )
+    addressed_speaks = bool(
+        extra.get('addressed_speaks', True)
+    )
+    speaker_is_npc = bool(speaker.get('is_npc'))
+    if speaker_is_npc:
+        lines = [
+            build_npc_chat_guidance(),
+            "Write an extremely short /say reaction of 8-15 words.",
+            "Keep it natural and low-stakes. No AI talk or markdown.",
+            "",
+            f"Speaker: {_describe_speaker(db, speaker)}",
+        ]
+    else:
+        identity = {}
+        if any(
+            not speaker.get(field)
+            for field in ('race', 'class', 'gender', 'level')
+        ):
+            identity = _query_bot_identity(
+                db, int(speaker.get('bot_guid', 0) or 0)
+            )
+        lines = [
+            build_player_prompt_header(
+                speaker.get('name', 'Bot'),
+                speaker.get('race') or identity.get('race', ''),
+                speaker.get('class') or identity.get('class', ''),
+                speaker.get('level') or identity.get('level'),
+                speaker.get('gender') or identity.get('gender', ''),
+                mode,
+                channel='say',
+            ),
+            "Write an extremely short /say reaction of 8-15 words.",
+            "Keep it natural and low-stakes. No AI talk or markdown.",
+        ]
     lines.extend(_location_lines(extra, mode, [speaker]))
-    disposition = _npc_disposition_guidance(speaker)
-    if disposition:
-        lines.append(disposition)
-    speech_guidance = _npc_speech_capability_guidance(speaker)
-    if speech_guidance:
-        lines.append(speech_guidance)
+    if speaker_is_npc:
+        disposition = _npc_disposition_guidance(speaker)
+        if disposition:
+            lines.append(disposition)
+        speech_guidance = _npc_speech_capability_guidance(speaker)
+        if speech_guidance:
+            lines.append(speech_guidance)
     lines.extend([
         f"The player ({player_name}) performed /{player_emote} "
-        f"directly at {speaker.get('name', 'the NPC')}.",
+        f"directly at {addressed}.",
         f"Social meaning: {extra.get('emote_category', 'social')}.",
         f"React {extra.get('reaction_tone', 'briefly')}.",
-        "React to that real action. Do not invent or quote player speech.",
+        "React to that real action. "
+        "Do not invent or quote player speech.",
     ])
+    if not addressed_speaks:
+        lines.extend([
+            f"{speaker.get('name', 'The speaker')} witnessed the gesture "
+            "nearby and may comment on it.",
+            f"{addressed} remains silent and is not the speaker. "
+            "Do not invent dialogue or actions for them.",
+        ])
     mirror_emote = str(extra.get('mirror_emote', '')).strip()
     if mirror_emote:
+        mirror_subject = (
+            "The speaker" if addressed_speaks else addressed
+        )
         lines.append(
-            f"The NPC is also scheduled to perform /{mirror_emote}; "
-            "the spoken reaction must not contradict that animation."
+            f"{mirror_subject} is also scheduled to perform "
+            f"/{mirror_emote}; the spoken reaction must not "
+            "contradict that animation."
         )
     history_block = _format_history_block(history or [])
     if history_block:
         lines.extend(["", history_block])
     return append_json_instruction(
         "\n".join(lines) + "\n",
-        allow_action=True,
+        allow_action=_speaker_is_roleplay(speaker, mode),
         skip_emote=False,
     )
 
@@ -1374,6 +1464,14 @@ def _player_emote_conversation_prompt(
     mode = get_chatter_mode(config or {})
     player_name = extra.get('player_name', 'the player')
     addressed = extra.get('addressed_name', '')
+    addressed_speaks = bool(
+        extra.get('addressed_speaks', True)
+    )
+    first_speaker = (
+        addressed
+        if addressed_speaks
+        else participants[0].get('name', '')
+    )
     max_lines = max(
         2,
         min(
@@ -1382,26 +1480,35 @@ def _player_emote_conversation_prompt(
         ),
     )
     roster = "\n".join(
-        f"- [NPC] {_describe_speaker(db, speaker)}"
+        f"- [{'NPC' if speaker.get('is_npc') else 'PLAYERBOT'}] "
+        f"{_describe_speaker(db, speaker)}"
         for speaker in participants
     )
     lines = [
         "You write short World of Warcraft overheard /say conversations.",
-        "Use only the provided NPC speaker names.",
+        "Use only the provided speaker names.",
         "Each message must be 6-14 words, natural, and relevant.",
-        "Every listed NPC must speak at least once.",
+        "Every listed speaker must speak at least once.",
         "Never invent dialogue, thoughts, or actions for the real player.",
         "",
     ]
     lines.extend(_location_lines(extra, mode, participants))
+    lines.extend(_mixed_voice_guidance(mode))
     lines.extend([
         f"The player ({player_name}) performed /{player_emote} "
         f"directly at {addressed}.",
         f"Social meaning: {extra.get('emote_category', 'social')}.",
         f"Overall reaction tone: "
         f"{extra.get('reaction_tone', 'briefly')}.",
-        f"The FIRST message MUST be spoken by {addressed}.",
+        f"The FIRST message MUST be spoken by {first_speaker}.",
     ])
+    if not addressed_speaks:
+        lines.extend([
+            f"{addressed} remains silent and is not in the speaker roster.",
+            f"Do not invent dialogue or actions for {addressed}.",
+            "The listed speakers witnessed the gesture and may comment "
+            "on that same action.",
+        ])
     mirror_emote = str(extra.get('mirror_emote', '')).strip()
     if mirror_emote:
         lines.append(
@@ -1413,13 +1520,13 @@ def _player_emote_conversation_prompt(
     )
     if interaction_mode == 'npc_aside':
         lines.extend([
-            "The NPCs discuss the player's real action with each other.",
+            "The speakers discuss the player's real action with each other.",
             "Do not address the player or invent speech for them.",
             "Speakers address only each other, never the player.",
         ])
     else:
         lines.append(
-            "The NPCs may react to the player and to each other."
+            "Speakers may react to the player and to each other."
         )
     history_block = _format_history_block(history or [])
     if history_block:
@@ -1433,7 +1540,10 @@ def _player_emote_conversation_prompt(
         "\n".join(lines) + "\n",
         [speaker.get('name', '') for speaker in participants],
         max_lines,
-        allow_action=True,
+        allow_action=(
+            is_roleplay(mode)
+            or any(s.get('is_npc') for s in participants)
+        ),
         addressee_names=(
             [
                 speaker.get('name', '')
@@ -1443,7 +1553,9 @@ def _player_emote_conversation_prompt(
             else [player_name] + [
                 speaker.get('name', '')
                 for speaker in participants
-            ]
+            ] + (
+                [addressed] if not addressed_speaks else []
+            )
         ),
     )
 
@@ -1652,7 +1764,7 @@ def handle_proximity_player_conversation(
     ) or not set(names).issubset(parsed_speakers):
         logger.warning(
             "proximity_player_conversation event %s "
-            "fell back to its addressed NPC",
+            "fell back to its addressed speaker",
             event_id,
         )
         fallback = _generate_player_say_single(
@@ -1675,8 +1787,10 @@ def handle_proximity_player_conversation(
         )
         return fallback
 
-    strip_conversation_actions(
+    _apply_speaker_action_policy(
         parsed,
+        speaker_by_name,
+        get_chatter_mode(config or {}),
         label='proximity_player_conversation',
     )
 
@@ -1823,11 +1937,17 @@ def handle_proximity_player_emote(
     instance_id = int(
         extra.get('instance_id', 0) or 0
     )
+    addressed_participant = _emote_addressed_participant(
+        extra, participants
+    )
     history = _fetch_proximity_history(
         db, player_guid, zone_id,
         map_id, instance_id,
         str(addressed),
-        int(participants[0].get('npc_spawn_id', 0) or 0),
+        int(
+            addressed_participant.get('npc_spawn_id', 0)
+            or 0
+        ),
     )
 
     if len(participants) == 1:
@@ -1867,17 +1987,25 @@ def handle_proximity_player_emote(
             'interaction_mode': extra.get(
                 'interaction_mode', 'player_inclusive'
             ),
+            'addressed_speaks': bool(
+                extra.get('addressed_speaks', True)
+            ),
         },
     )
     names = [
         speaker.get('name', '')
         for speaker in participants
     ]
+    addressed_speaks = bool(
+        extra.get('addressed_speaks', True)
+    )
     addressee_names = (
         names
         if extra.get('interaction_mode') == 'npc_aside'
         else [str(extra.get('player_name', '')), *names]
     )
+    if not addressed_speaks and str(addressed):
+        addressee_names.append(str(addressed))
     parsed = (
         parse_conversation_response(
             response,
@@ -1893,12 +2021,13 @@ def handle_proximity_player_emote(
     }
     if (
         not parsed
-        or parsed[0].get('name') != addressed
+        or parsed[0].get('name')
+        != (addressed if addressed_speaks else names[0])
         or not set(names).issubset(parsed_speakers)
     ):
         logger.warning(
             "proximity_player_emote event %s fell back "
-            "to its addressed NPC",
+            "to its first selected speaker",
             event_id,
         )
         fallback = _generate_player_emote_single(
@@ -1918,13 +2047,16 @@ def handle_proximity_player_emote(
         )
         return fallback
 
-    strip_conversation_actions(
-        parsed, label='proximity_player_emote'
-    )
     speaker_by_name = {
         speaker.get('name', ''): speaker
         for speaker in participants
     }
+    _apply_speaker_action_policy(
+        parsed,
+        speaker_by_name,
+        get_chatter_mode(config or {}),
+        label='proximity_player_emote',
+    )
     line_delay = max(
         0,
         int(extra.get('line_delay_seconds', 4) or 4),
@@ -1964,8 +2096,28 @@ def handle_proximity_player_emote(
         ):
             inserted += 1
 
-    _mark_event(
-        db, event_id,
-        'completed' if inserted else 'skipped',
-    )
-    return inserted > 0
+    if inserted == 0:
+        logger.warning(
+            "proximity_player_emote event %s fell back "
+            "to single-line output after zero inserts",
+            event_id,
+        )
+        fallback = _generate_player_emote_single(
+            db,
+            client,
+            config,
+            event_id,
+            extra,
+            participants[0],
+            player_emote,
+            history,
+            label='proximity_player_emote_fallback',
+        )
+        _mark_event(
+            db, event_id,
+            'completed' if fallback else 'skipped',
+        )
+        return fallback
+
+    _mark_event(db, event_id, 'completed')
+    return True

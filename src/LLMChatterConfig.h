@@ -304,7 +304,9 @@ public:
     uint32 _proxChatterMaxTokensPerLine;
     uint32 _proxChatterFacingResetDelay;
     uint32 _proxDirectedMaxExtraReactors;
+    uint32 _proxDirectedBotMaxParticipants;
     std::array<uint32, 4> _proxDirectedExtraReactorWeights;
+    std::array<uint32, 2> _proxDirectedWitnessReactorWeights;
     uint32 _proxDirectedNPCAsideChance;
     uint32 _proxDirectedMaxLines;
     uint32 _proxDirectedExpirySeconds;
@@ -338,6 +340,9 @@ public:
     uint32 _emoteMirrorChance;
     uint32 _emoteMirrorCooldown;
     uint32 _emoteReactionChance;
+    uint32 _emoteUngroupedBotMirrorChance;
+    uint32 _emoteUngroupedBotVerbalReactionChance;
+    uint32 _emoteUngroupedBotWitnessReactionChance;
     uint32 _emoteObserverChance;
     uint32 _emoteObserverCooldown;
     uint32 _emoteMoodSpreadChance;

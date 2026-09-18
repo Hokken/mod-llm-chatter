@@ -10,7 +10,11 @@ class Creature;
 
 bool IsProximityAnchorEligible(Player* player);
 bool IsProximityPlayerbotEligible(
+    Player* player, Player* bot, float radius,
+    bool allowMounted);
+bool IsProximityDirectedPlayerbotEligible(
     Player* player, Player* bot, float radius);
+bool IsProximityPlayerbotEmoteRouteEnabled();
 bool IsProximityNPCEligible(
     Player* player, Creature* creature, float radius);
 
@@ -20,6 +24,9 @@ void HandleProximityPlayerSay(
     std::string const& msg);
 void HandleProximityPlayerEmote(
     Player* player, Creature* creature,
+    uint32 textEmote, uint32 mirrorEmote);
+bool HandleProximityPlayerbotEmote(
+    Player* player, Player* bot,
     uint32 textEmote, uint32 mirrorEmote);
 void RecordDeliveredProximityLine(
     uint32 eventId, uint32 playerGuid,
