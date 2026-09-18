@@ -2141,6 +2141,7 @@ void HandleGroupPlayerTextEmoteImpl(
     Player* cachedTargetPlayer = nullptr;
     Creature* cachedTargetCreature = nullptr;
     bool creatureEmoteScripted = false;
+    bool ungroupedBotDirectAccepted = false;
 
     if (!guid.IsEmpty())
     {
@@ -2152,10 +2153,13 @@ void HandleGroupPlayerTextEmoteImpl(
             {
                 cachedTargetPlayer = tgt;
                 targetName = tgt->GetName();
-                if (group && tgt->GetGroup() == group)
-                    tgtType = IsPlayerBot(tgt)
+                if (IsPlayerBot(tgt))
+                    tgtType = group
+                        && tgt->GetGroup() == group
                         ? EMOTE_TGT_GROUP_BOT
-                        : EMOTE_TGT_GROUP_PLAYER;
+                        : EMOTE_TGT_UNGROUPED_BOT;
+                else if (group && tgt->GetGroup() == group)
+                    tgtType = EMOTE_TGT_GROUP_PLAYER;
                 else
                     tgtType =
                         EMOTE_TGT_EXT_PLAYER;
@@ -2210,6 +2214,29 @@ void HandleGroupPlayerTextEmoteImpl(
             textEmote, mirrorEmote);
     }
 
+    if (tgtType == EMOTE_TGT_UNGROUPED_BOT
+        && cachedTargetPlayer)
+    {
+        float radius = static_cast<float>(
+            sLLMChatterConfig
+                ->_proxChatterPlayerSayScanRadius);
+        ungroupedBotDirectAccepted =
+            IsProximityDirectedPlayerbotEligible(
+                player, cachedTargetPlayer, radius)
+            && (HasPlayerbotMirrorEmote(textEmote)
+                || IsProximityPlayerbotEmoteRouteEnabled());
+        if (ungroupedBotDirectAccepted)
+        {
+            uint32 mirrorEmote =
+                HandleEmoteAtUngroupedBot(
+                    player, cachedTargetPlayer,
+                    textEmote);
+            HandleProximityPlayerbotEmote(
+                player, cachedTargetPlayer,
+                textEmote, mirrorEmote);
+        }
+    }
+
     if (!group || !GroupHasRealPlayer(group))
         return;
 
@@ -2241,6 +2268,17 @@ void HandleGroupPlayerTextEmoteImpl(
                 HandleEmoteAtGroupBot(
                     player, cachedTargetPlayer,
                     textEmote, group);
+            break;
+        case EMOTE_TGT_UNGROUPED_BOT:
+            if (!ungroupedBotDirectAccepted
+                && !player->IsInCombat())
+            {
+                HandleEmoteObserver(
+                    player, textEmote, group,
+                    EMOTE_TGT_EXT_PLAYER,
+                    targetName, npcRank, npcType,
+                    0u, "", nearbyAliveBots);
+            }
             break;
         case EMOTE_TGT_CREATURE:
             if (!player->IsInCombat())

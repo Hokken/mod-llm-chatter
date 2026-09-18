@@ -1011,19 +1011,37 @@ LLMChatter.ProximityChatter.FacingResetDelay = 8
 
 #
 #   LLMChatter.ProximityChatter.DirectedMaxExtraReactors
-#       Maximum nearby NPCs that may join a directed player /say or
-#       emote interaction in addition to the addressed NPC. Range: 0-3.
+#       Maximum nearby reactors that may join a directed player /say or
+#       emote interaction in addition to the addressed speaker. Range: 0-2.
+#       Default: 2
+#
+LLMChatter.ProximityChatter.DirectedMaxExtraReactors = 2
+
+#
+#   LLMChatter.ProximityChatter.DirectedBotMaxParticipants
+#       Maximum total AI entities in a direct interaction with an ungrouped
+#       playerbot, including a speaking or silent addressed bot. Range: 1-3.
 #       Default: 3
 #
-LLMChatter.ProximityChatter.DirectedMaxExtraReactors = 3
+LLMChatter.ProximityChatter.DirectedBotMaxParticipants = 3
 
 #
 #   LLMChatter.ProximityChatter.DirectedExtraReactorWeights
 #       Comma-separated percentages for selecting 0, 1, 2, or 3 extra
-#       nearby NPC reactors. Values must strictly descend and total 100.
-#       Default: 60,25,10,5
+#       nearby reactors. The universal two-joiner cap keeps the final slot
+#       at zero. Values must strictly descend and total 100.
+#       Default: 60,30,10,0
 #
-LLMChatter.ProximityChatter.DirectedExtraReactorWeights = 60,25,10,5
+LLMChatter.ProximityChatter.DirectedExtraReactorWeights = 60,30,10,0
+
+#
+#   LLMChatter.ProximityChatter.DirectedWitnessReactorWeights
+#       Comma-separated percentages for selecting 1 or 2 witnesses when
+#       an addressed playerbot stays silent after a directed emote.
+#       Values must strictly descend and total 100.
+#       Default: 70,30
+#
+LLMChatter.ProximityChatter.DirectedWitnessReactorWeights = 70,30
 
 #
 #   LLMChatter.ProximityChatter.DirectedNPCAsideChance
@@ -1036,7 +1054,7 @@ LLMChatter.ProximityChatter.DirectedNPCAsideChance = 35
 
 #
 #   LLMChatter.ProximityChatter.DirectedMaxLines
-#       Maximum generated NPC lines in one directed interaction.
+#       Maximum generated speaker lines in one directed interaction.
 #       Range: 1-8.
 #       Default: 5
 #
@@ -2822,37 +2840,65 @@ LLMChatter.EmoteReactions.Enable = 1
 
 #
 #   LLMChatter.EmoteReactions.MirrorChance
-#       Percent chance (0-100) that a bot silently mirrors
+#       Percent chance (0-100) that a grouped bot silently mirrors
 #       an emote directed at it (e.g. /wave → bot waves back).
 #       Also used for NPC mirror chance.
-#       Default: 90
+#       Default: 80
 #
-LLMChatter.EmoteReactions.MirrorChance = 90
+LLMChatter.EmoteReactions.MirrorChance = 80
 
 #
 #   LLMChatter.EmoteReactions.MirrorCooldown
 #       Seconds before the same bot can mirror an emote again.
 #       Also controls the minimum interval for NPC mirror animations.
 #       NPC verbal reactions use NPCVerbalCooldown independently.
+#       Grouped and ungrouped bot verbal cooldowns use twice this value.
 #       Default: 15
 #
 LLMChatter.EmoteReactions.MirrorCooldown = 15
 
 #
 #   LLMChatter.EmoteReactions.ReactionChance
-#       Percent chance (0-100) that a bot adds a verbal LLM
-#       comment after mirroring an emote directed at it.
-#       Default: 60
+#       Independent percent chance (0-100) that a grouped bot adds a
+#       verbal LLM comment after a social emote is directed at it.
+#       Default: 80
 #
-LLMChatter.EmoteReactions.ReactionChance = 60
+LLMChatter.EmoteReactions.ReactionChance = 80
+
+#
+#   LLMChatter.EmoteReactions.UngroupedBotMirrorChance
+#       Independent chance (0-100) that an eligible playerbot outside the
+#       player's group mirrors a directed emote. Uses the shared per-bot
+#       MirrorCooldown.
+#       Default: 80
+#
+LLMChatter.EmoteReactions.UngroupedBotMirrorChance = 80
+
+#
+#   LLMChatter.EmoteReactions.UngroupedBotVerbalReactionChance
+#       Independent chance (0-100) that an eligible playerbot outside the
+#       player's group answers a directed emote in local /say. The per-player
+#       and bot cooldown is twice MirrorCooldown.
+#       Default: 80
+#
+LLMChatter.EmoteReactions.UngroupedBotVerbalReactionChance = 80
+
+#
+#   LLMChatter.EmoteReactions.UngroupedBotWitnessReactionChance
+#       Independent chance (0-100) to let one or two compatible nearby NPCs
+#       or ungrouped playerbots comment when the addressed playerbot does not
+#       verbally react. The witnesses share the original emote context.
+#       Default: 50
+#
+LLMChatter.EmoteReactions.UngroupedBotWitnessReactionChance = 50
 
 #
 #   LLMChatter.EmoteReactions.ObserverChance
 #       Percent chance (0-100) that a nearby bot comments when
 #       the player emotes at an NPC, stranger, or nobody.
-#       Default: 40
+#       Default: 50
 #
-LLMChatter.EmoteReactions.ObserverChance = 40
+LLMChatter.EmoteReactions.ObserverChance = 50
 
 #
 #   LLMChatter.EmoteReactions.ObserverCooldown

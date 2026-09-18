@@ -156,6 +156,30 @@ uint32 ExtractJsonUInt(
     return foundDigit ? static_cast<uint32>(value) : 0;
 }
 
+bool HasNonEmptyJsonString(
+    std::string const& json, char const* key)
+{
+    if (!key || !*key)
+        return false;
+
+    std::string marker = std::string("\"")
+        + key + "\":";
+    size_t pos = json.find(marker);
+    if (pos == std::string::npos)
+        return false;
+    pos += marker.size();
+    while (pos < json.size()
+        && std::isspace(
+            static_cast<unsigned char>(json[pos])))
+    {
+        ++pos;
+    }
+    if (pos >= json.size() || json[pos] != '"')
+        return false;
+    ++pos;
+    return pos < json.size() && json[pos] != '"';
+}
+
 bool IsDirectedProximityEvent(
     std::string const& eventType)
 {
@@ -492,6 +516,16 @@ void DeliverPendingMessagesImpl()
     bool proximityLocal =
         ownerSubsystem == "proximity"
         && (channel == "say" || channel == "msay");
+    bool addressedPlayerSay =
+        (eventType == "proximity_player_say"
+            || eventType
+                == "proximity_player_conversation")
+        && HasNonEmptyJsonString(
+            eventExtraData, "addressed_name");
+    bool allowMountedProximityBot =
+        addressedPlayerSay
+        || eventType == "proximity_player_emote"
+        || eventType == "proximity_reply";
     float proximityRadius = static_cast<float>(
         std::max(
             sLLMChatterConfig->_proxChatterScanRadius,
@@ -518,7 +552,8 @@ void DeliverPendingMessagesImpl()
         }
         else if (channel == "say"
             && !IsProximityPlayerbotEligible(
-                anchorPlayer, bot, proximityRadius))
+                anchorPlayer, bot, proximityRadius,
+                allowMountedProximityBot))
         {
             bot = nullptr;
             botUnavailable = true;

@@ -370,12 +370,13 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
     'bot_group_emote_reaction': EventSpec(
         handler_module='chatter_emote_reaction',
         handler_func='handle_emote_reaction',
-        producer='LLMChatterGroup.cpp',
+        producer='LLMChatterGroupEmote.cpp',
         description=(
             'Bot reacts to directed emote'
         ),
         payload_fields={
             'emote_name': (str, True),
+            'mirror_emote': (str, False),
             'player_name': (str, True),
             'directed': (int, True),
         },
@@ -636,7 +637,8 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         producer='LLMChatterProximity.cpp',
         priority='high',
         description=(
-            'Multi-speaker response to player /say'
+            'Directed NPC or ungrouped playerbot response chain '
+            'to player /say'
         ),
         payload_fields={
             'player_guid': (int, True),
@@ -660,7 +662,8 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         producer='LLMChatterProximity.cpp',
         priority='high',
         description=(
-            'Directed NPC response to a player emote'
+            'Directed NPC/playerbot response or nearby witness chain '
+            'to a player emote'
         ),
         payload_fields={
             'player_guid': (int, True),
@@ -669,6 +672,8 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'player_emote_id': (int, True),
             'mirror_emote': (str, False),
             'addressed_name': (str, True),
+            'addressed_participant': (dict, False),
+            'addressed_speaks': (bool, False),
             'interaction': (str, True),
             'interaction_mode': (str, True),
             'zone_name': (str, True),

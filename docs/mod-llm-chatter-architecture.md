@@ -1,6 +1,6 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-09-08 (instance proximity chatter)
+Last updated: 2026-09-18 (bot-directed proximity reaction chains)
 
 ## Purpose
 
@@ -103,8 +103,13 @@ NPCs, and real players as they move through the world:
    then reject.
 3. One or more speakers are selected from the candidate pool. If all
    candidates are party bots, the scan is skipped (idle chat handles
-   that case). Directed player interactions instead keep the addressed
-   NPC first and can add zero to three compatible nearby NPCs.
+   that case). Directed NPC interactions keep the addressed NPC first
+   and can add zero to two compatible nearby NPCs. A direct interaction
+   with an ungrouped playerbot keeps that bot first when it speaks and uses
+   the same weighted selector to add zero to two compatible NPCs or ungrouped
+   bots. A bot-directed emote can instead produce a witness-only scene with
+   one or two nearby speakers while retaining the silent bot as the addressed
+   subject outside the speaking roster.
 4. A `proximity_say` (single statement) or `proximity_conversation`
    (multi-speaker) event is queued to `llm_chatter_events` with
    NPC spawn GUIDs and nearby entity names in `extra_data`.
@@ -121,21 +126,43 @@ NPCs, and real players as they move through the world:
    the conversation sequence supplies the fallback. One facing lease is
    retained through the final line before the original orientation is
    restored. Scripted or controlled movement speaks without rotation.
-8. When a real player speaks in `/say`, a selected eligible NPC is the
-   addressee unless another nearby NPC name is explicitly marked with a
-   comma or colon as a vocative. Without a selection, an unambiguous full
-   name or unique meaningful token can direct the line anywhere it occurs.
-   Ambiguous title/place tokens are rejected. A different named NPC is
-   preferred as a joining speaker. A living selected player, party bot,
-   boss, or runtime-ineligible speaking NPC suppresses random fallback;
-   dead and non-speaking targets are ignored. With no direct addressee,
-   recent-scene and ordinary nearby fallback behavior remains available.
+8. When a real player speaks in `/say`, a selected eligible NPC or same-team
+   ungrouped playerbot is the addressee unless another nearby candidate's
+   name is explicitly marked with a comma or colon as a vocative. Without a
+   selection, an unambiguous full name or unique meaningful token can direct
+   the line anywhere it occurs. Ambiguous title/place tokens are rejected.
+   A different named candidate is preferred as a joining speaker. An
+   ineligible cross-faction named bot falls back only to an already selected
+   eligible NPC or bot; otherwise the direct route is suppressed. A living
+   selected player, party bot, boss, or runtime-ineligible speaking NPC
+   suppresses random fallback; dead and non-speaking targets are ignored.
+   With no direct addressee, recent-scene and ordinary nearby fallback
+   behavior remains available.
 9. A social emote directed at an eligible NPC has its own verbal-reaction
-   chance and cooldown, independent of animation mirroring. SmartAI and
+   chance and cooldown, independent of the separate 80% animation-mirroring
+   roll. SmartAI and
    configured C++ scripted-emote ownership suppresses generated NPC and
    mirror reactions so scripted behavior remains authoritative. When a
    mirror animation is actually scheduled, its emote name is passed to the
    verbal prompt so generated speech cannot contradict the visible action.
+10. A social emote directed at a same-team playerbot outside the player's
+    group uses the same proximity eligibility boundary. A mapped emote has
+    an independent 80% default mirror chance and the bot has an independent
+    80% default chance to answer in local `/say`. When the bot's verbal roll
+    fails, a separate 50% default witness-scene roll can select one or two
+    compatible nearby NPCs or ungrouped bots to comment while the addressed
+    bot remains silent. Target-speaking scenes may add zero to two joiners.
+    Witness-only scenes retain the addressed bot as structured context but
+    exclude it from the speaking roster, so no line is fabricated for it.
+    One prompt receives the original player action, addressed subject, and
+    full speaking roster, keeping the resulting chain coherent. An accepted
+    direct route suppresses the grouped observer path; rejected targets and
+    unmapped emotes with the verbal route disabled retain the existing
+    external-player observer fallback.
+11. Directed `/say` routing is deterministic after an eligible NPC or
+    same-team ungrouped playerbot is resolved. It does not use a response
+    chance: the addressee is always queued, while only the number of nearby
+    joiners is randomized.
 
 NPCs are identified by spawn GUID (`Creature::GetSpawnId()`) rather
 than entry ID. Cooldowns, scene matching, and history include map and
@@ -596,13 +623,13 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterGroupCombat.cpp` | ~2550 | Remaining group PlayerScript implementation bodies (kill/death/loot/combat/chat/level/quest/achievement/spell/resurrect/corpse-run/dungeon-entry/emote dispatch), text-emote target classification and group gating, zone transition handling, combat state callouts, `MBOT` debug-log suppression, file-local `QueueStateCallout()` |
 | `src/LLMChatterGroupInternal.h` | ~235 | Shared group internal structs, cooldown/batch/mutex declarations, helper declarations, domain entry points, and `EmoteTargetType` |
 | `src/LLMChatterGroupJoin.cpp` | 877 | Group join batching: `QueueBotGreetingEvent()`, `EnsureGroupJoinQueued()`, `FlushGroupJoinBatches()`, `LLMChatterGroupScript` (GroupScript: `OnAddMember`, `OnRemoveMember` with farewell, `OnDisband`) |
-| `src/LLMChatterGroupEmote.cpp` | 534 | Emote reaction system: `DelayedMirrorEmoteEvent`, `DelayedCreatureMirrorEmoteEvent`, emote static data (mirror map, denylist, combat callouts, contagious set), `HandleEmoteAtGroupBot()`, `HandleEmoteAtCreature()`, `HandleEmoteObserver()`, `EvictEmoteCooldowns()` |
+| `src/LLMChatterGroupEmote.cpp` | 780 | Emote reaction system: delayed bot/creature mirror events, emote static data, grouped and ungrouped playerbot mirroring, creature mirroring, observer reactions, and cooldown eviction |
 | `src/LLMChatterGroupQuest.cpp` | 530 | Quest accept batching: `FlushQuestAcceptBatches()`, `LLMChatterCreatureScript` (AllCreatureScript: `CanCreatureQuestAccept` with debounce/immediate paths) |
 | `src/LLMChatterGroup.h` | 18 | World-to-group cross-call surface plus group registration |
 | `src/LLMChatterPlayer.cpp` | 1105 | Player General-channel hooks, General cooldowns, subzone cooldowns, `EnsureBotInGeneralChannel()`, player registration |
 | `src/LLMChatterRaid.cpp` | 767 | Raid boss hooks (pull/kill/wipe), boss lookup table (80+ entries across Classic/TBC/WotLK), `IsDatabaseBound() override`, raid registration |
-| `src/LLMChatterProximity.cpp` | ~1700 | Ordinary outdoor/instance proximity scans, global curated NPC/playerbot eligibility and compatibility, authoritative selected/named `/say` routing, map/instance-aware scenes and cooldowns, and event payload construction |
-| `src/LLMChatterProximity.h` | ~20 | Proximity scan and player-say hook declarations consumed by `LLMChatterWorld.cpp` and `LLMChatterGroupCombat.cpp` |
+| `src/LLMChatterProximity.cpp` | 2674 | Ordinary outdoor/instance proximity scans, curated NPC/playerbot eligibility and compatibility, selected/named `/say` routing, mixed bot-directed reaction chains, map/instance-aware scenes and cooldowns, and event payload construction |
+| `src/LLMChatterProximity.h` | 39 | Proximity scan and player-say hook declarations consumed by `LLMChatterWorld.cpp` and `LLMChatterGroupCombat.cpp` |
 | `src/LLMChatterBossDialogue.cpp/.h` | ~850 | Separate boss-only pre-aggro scanning, safe-band eligibility, selected/named `/say` routing, denylist, and boss-instance presence scheduling |
 | `src/LLMChatterBG.cpp` | 1348 | Battleground hooks, BG state polling, BG queue helpers, BG registration |
 | `src/LLMChatterBG.h` | 14 | BG registration declaration |
@@ -799,20 +826,34 @@ system.
 - periodic ordinary proximity scans around alive real players
 - outdoor, dungeon, and raid map policy (BGs/arenas excluded)
 - humanoid NPC eligibility, disposition, rank, LOS, and delivery policy
-- bot eligibility filtering (party bots only, all-bot guard rail)
+- bot eligibility filtering (party bots for ordinary scans, explicitly
+  targeted same-team ungrouped bots for directed `/say` and emotes,
+  all-bot guard rail)
 - mutually compatible candidate selection and ordinary event queueing
 - map/instance-scoped `ProximityScene`, history, and cooldown state
 - selected/named player `/say` routing before scene fallback
-- directed social-emote verbal events and their synchronized
-  per-player/NPC cooldown
-- mounted real players remain eligible for directed `/say` and emotes;
-  mounting still suppresses automatic, untargeted, and continuation scans
-- weighted selection of zero to three extra directed-scene NPCs
+- directed social-emote verbal events and synchronized per-player/NPC or
+  per-player/ungrouped-bot cooldowns
+- mounted real players and mounted playerbots remain eligible for directed
+  `/say`, emotes, and active-scene replies; mounting still suppresses
+  automatic and untargeted new-scene selection, and an untargeted `/say`
+  speaker that mounts after queueing is rejected again at delivery
+- policy-scoped weighted selection with one universal two-joiner cap:
+  zero to two NPC joiners for NPC-directed scenes, or zero to two compatible
+  NPC/ungrouped-bot joiners when an ungrouped bot is addressed
+- in-memory-only ordinary cooldown filtering for mixed-scope joiners; the
+  addressed `/say` target is not throttled and no per-candidate persisted
+  cooldown query runs inside the hook
 - strict full-name/unique-token resolution and vocative detection
 
-`LLMChatterGroupEmote.cpp` owns animation mirroring and loads the
-SmartAI/configured C++ scripted-emote exclusions used by the direct
-creature mirror and verbal-reaction paths.
+`LLMChatterGroupEmote.cpp` owns animation mirroring for grouped bots,
+ungrouped bots, and creatures. It also owns the mirror-map availability
+check and loads the SmartAI/configured C++ scripted-emote exclusions used by
+the direct creature mirror and verbal-reaction paths. Delayed bot mirrors
+share one execution-time safety check: the bot must remain out of combat and
+the player must remain present, on the same map, and within the configured
+player-say radius (with a one-yard minimum). This applies to grouped and
+ungrouped bots; grouped verbal reactions are not range-gated by this check.
 
 `LLMChatterBossDialogue.cpp` owns the distinct hostile-boss path:
 
@@ -891,6 +932,8 @@ reaction probabilities.
   and emote dispatch
 - text-emote target classification and the decision of which paths still
   require group/bot context
+- direct acceptance for ungrouped playerbot targets and external-player
+  observer fallback when no direct route applies
 - `HandleGroupPlayerUpdateZone()`
 - `CheckGroupCombatState()`
 - file-local `QueueStateCallout()`
