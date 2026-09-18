@@ -502,6 +502,12 @@ docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20260725_guild_login_greeting.sql
 
 docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20260827_widen_group_bot_traits.sql
+
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20260830_message_action_emote.sql
+
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20260908_instance_proximity_boss_events.sql
 
 docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
@@ -552,6 +558,12 @@ mysql -uroot -ppassword acore_characters < \
 
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260725_guild_login_greeting.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20260827_widen_group_bot_traits.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20260830_message_action_emote.sql
 
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260908_instance_proximity_boss_events.sql

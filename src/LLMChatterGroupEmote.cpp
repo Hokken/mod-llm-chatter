@@ -288,10 +288,16 @@ static const std::unordered_set<uint32>
 
 void HandleEmoteAtGroupBot(
     Player* player, Player* targetBot,
-    uint32 textEmote, Group* group)
+    uint32 textEmote, Group* group,
+    const std::string& customText)
 {
-    if (urand(1, 100)
-        > sLLMChatterConfig->_emoteMirrorChance)
+    bool const isCustom = !customText.empty();
+
+    // The mirror roll only governs the animation, which a
+    // custom emote has no id to mirror.
+    if (!isCustom
+        && urand(1, 100)
+            > sLLMChatterConfig->_emoteMirrorChance)
         return;
 
     if (!targetBot->IsAlive()) return;
@@ -302,33 +308,36 @@ void HandleEmoteAtGroupBot(
         group->GetGUID().GetCounter();
     time_t now = time(nullptr);
 
-    // Only react if this emote has a mirror
-    auto mit = s_mirrorEmoteMap.find(textEmote);
-    if (mit == s_mirrorEmoteMap.end()) return;
-    uint32 mirrorEmote = mit->second;
-
-    // Per-bot mirror cooldown (checked and stamped
-    // after confirming a mirror exists so unsupported
-    // emotes don't consume the cooldown slot)
-    if (!TryStampEmoteCooldown(
-            _emoteReactCooldowns,
-            botGuid, now,
-            static_cast<time_t>(
-                sLLMChatterConfig
-                    ->_emoteMirrorCooldown)))
+    if (!isCustom)
     {
-        return;
-    }
+        // Only react if this emote has a mirror
+        auto mit = s_mirrorEmoteMap.find(textEmote);
+        if (mit == s_mirrorEmoteMap.end()) return;
+        uint32 mirrorEmote = mit->second;
 
-    uint32 delayMs = urand(800, 2500);
-    targetBot->m_Events.AddEvent(
-        new DelayedMirrorEmoteEvent(
-            targetBot->GetGUID(),
-            player->GetGUID(),
-            mirrorEmote,
-            player->GetName()),
-        targetBot->m_Events.CalculateTime(
-            delayMs));
+        // Per-bot mirror cooldown (checked and stamped
+        // after confirming a mirror exists so unsupported
+        // emotes don't consume the cooldown slot)
+        if (!TryStampEmoteCooldown(
+                _emoteReactCooldowns,
+                botGuid, now,
+                static_cast<time_t>(
+                    sLLMChatterConfig
+                        ->_emoteMirrorCooldown)))
+        {
+            return;
+        }
+
+        uint32 delayMs = urand(800, 2500);
+        targetBot->m_Events.AddEvent(
+            new DelayedMirrorEmoteEvent(
+                targetBot->GetGUID(),
+                player->GetGUID(),
+                mirrorEmote,
+                player->GetName()),
+            targetBot->m_Events.CalculateTime(
+                delayMs));
+    }
 
     // Phase 4 -- queue verbal reaction
     if (urand(1, 100)
@@ -344,7 +353,9 @@ void HandleEmoteAtGroupBot(
                     * 2)))
         {
             std::string emoteName =
-                GetTextEmoteName(textEmote);
+                isCustom
+                    ? customText
+                    : GetTextEmoteName(textEmote);
 
             std::string extraData =
                 "{\"bot_guid\":"
@@ -369,6 +380,8 @@ void HandleEmoteAtGroupBot(
                 + "\",\"player_name\":\""
                 + JsonEscape(player->GetName())
                 + "\",\"directed\":true"
+                + ",\"custom_emote\":"
+                + (isCustom ? "1" : "0")
                 + ",\"group_id\":"
                 + std::to_string(groupId)
                 + "}";
@@ -463,7 +476,9 @@ void HandleEmoteObserver(
     uint32 npcRank, uint32 npcType,
     uint32 npcEntry,
     const std::string& npcSubName,
-    const std::vector<Player*>& candidates)
+    const std::vector<Player*>& candidates,
+    const std::string& customText,
+    Player* targetPlayer)
 {
     if (candidates.empty()) return;
 
@@ -496,8 +511,11 @@ void HandleEmoteObserver(
         urand(0, (uint32)(candidates.size() - 1))];
     if (!reactor) return;
 
+    bool const isCustom = !customText.empty();
     std::string emoteName =
-        GetTextEmoteName(textEmote);
+        isCustom
+            ? customText
+            : GetTextEmoteName(textEmote);
 
     const char* tgtTypeStr =
         (tgtType == EMOTE_TGT_CREATURE)
@@ -534,9 +552,25 @@ void HandleEmoteObserver(
         + std::to_string(npcType)
         + ",\"npc_subname\":\""
         + JsonEscape(npcSubName)
-        + "\",\"group_id\":"
-        + std::to_string(groupId)
-        + "}";
+        + "\",\"custom_emote\":"
+        + (isCustom ? "1" : "0")
+        + ",\"group_id\":"
+        + std::to_string(groupId);
+
+    // Let the bridge describe a player target ("a level 24
+    // Orc Hunter") instead of naming a stranger blindly.
+    if (targetPlayer)
+        extraData +=
+            ",\"target_race\":"
+            + std::to_string(targetPlayer->getRace())
+            + ",\"target_class\":"
+            + std::to_string(targetPlayer->getClass())
+            + ",\"target_level\":"
+            + std::to_string(targetPlayer->GetLevel())
+            + ",\"target_gender\":"
+            + std::to_string(targetPlayer->getGender());
+
+    extraData += "}";
 
     // For creature targets pass npcEntry as both
     // target_guid (creature sentinel: non-zero)
