@@ -342,6 +342,12 @@ Two config-driven RNG checks control optional prompt sections:
     enforces ActionChance per-message post-parse. This avoids trusting
     the LLM to randomize naturally.
 
+An action that survives those gates is delivered as a real text emote,
+not inline asterisks: `split_action_prefix()` peels it back off the
+message at insert time into the `action` column, and C++ sends it
+through `Unit::TextEmote` just before the spoken line. Set
+`LLMChatter.ActionAsEmote.Enable = 0` for the old `*action* text` form.
+
 If the prompt/output parser yields `"emote": null`, Python insert paths
 must preserve that null value. Do not synthesize a fallback emote during
 DB insert. `LLMChatter.EmoteChance` is the source of truth for whether
@@ -643,7 +649,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_links.py` | WoW link parsing and prompt-side link enrichment for player messages |
 | `tools/chatter_prompts.py` | Ambient/event prompt builders |
 | `tools/chatter_general.py` | `player_general_msg` Python path |
-| `tools/chatter_memory.py` | Persistent memory system: session tracking, background memory generation via `queue_memory()`, flush/activate on farewell, orphan recovery. Key helpers: `_resolve_location()`, `_ensure_cap_and_insert()`, `_count_active_memories()`, `_evict_one_used()`. Memory prompts thread `player_name` so the LLM references the player by name (DB fallback from `player_guid` when caller doesn't supply it) |
+| `tools/chatter_memory.py` | Persistent memory system: session tracking, background memory generation via `queue_memory()`, flush/activate on farewell, orphan recovery. Key helpers: `_resolve_location()`, `_ensure_cap_and_insert()`, `_count_active_memories()`, `_evict_one_used()`. Memory prompts thread `player_name` so the LLM references the player by name (DB fallback from `player_guid` when caller doesn't supply it). Length is bounded at write time by `_clamp_memory_text()` (target 160 characters, hard cap 240, trimmed at a sentence or word boundary) so prompts inject the stored memory whole instead of truncating it to 200 characters on read |
 | `tools/chatter_cache.py` | Mode-aware pre-cache refill and startup removal of ready rows generated under a previous mode |
 | `tools/chatter_events.py` | Event context building and cleanup |
 | `tools/chatter_constants.py` | Static constants and lore data: zone names/levels/flavor, race/class speech profiles, personality traits (16 categories, 264 traits), BG lore, item/weapon/armor classification maps, item quality names/colors, raid map IDs, dungeon flavor, emote keywords |
