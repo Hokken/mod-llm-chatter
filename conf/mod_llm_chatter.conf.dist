@@ -441,10 +441,23 @@ LLMChatter.Database.Name = acore_characters
 #                    baseline
 #       "roleplay" - Fully in-character race/class personality with
 #                    lore-influenced speech
+#       "mixed"    - Rolls per message between the two, so the server
+#                    is not locked to one voice. See
+#                    LLMChatter.MixedRoleplayChance below
 #       Actual NPCs remain in character in either mode
 #       Default: normal
 #
 LLMChatter.ChatterMode = normal
+
+#
+#   LLMChatter.MixedRoleplayChance [BRIDGE]
+#       Only read when LLMChatter.ChatterMode = mixed. Probability
+#       (0.0 - 1.0) that any given message is built in roleplay mode
+#       rather than normal. 0.5 is an even split; 0.2 makes roleplay
+#       an occasional accent. Ignored in the other two modes.
+#       Default: 0.5
+#
+LLMChatter.MixedRoleplayChance = 0.5
 
 #
 #   LLMChatter.Language [BRIDGE]
@@ -2295,6 +2308,36 @@ LLMChatter.ConversationMaxTokens = 700
 #       Default: 0.8
 #
 LLMChatter.Temperature = 0.8
+
+#
+#   LLMChatter.FrequencyPenalty
+#       OpenAI-compatible sampling penalty that reduces the
+#       chance of the model reusing the same tokens/phrases
+#       within a single response. Raise this if bot chat
+#       feels repetitive in wording/structure across
+#       messages. Applies to DeepSeek and Ollama; DeepSeek
+#       ignores it while thinking mode is on, so it is
+#       dropped from that request alongside temperature.
+#       Range: -2.0 to 2.0, clamped. 0 = disabled (omitted
+#       from the request, matching prior behavior).
+#       Suggested starting value: 0.3-0.5
+#       Default: 0 (disabled)
+#
+LLMChatter.FrequencyPenalty = 0
+
+#
+#   LLMChatter.PresencePenalty
+#       OpenAI-compatible sampling penalty (same provider
+#       support and thinking-mode caveat as
+#       FrequencyPenalty) that nudges the model toward
+#       introducing new topics/words rather than sticking to
+#       ones already used in the response.
+#       Range: -2.0 to 2.0, clamped. 0 = disabled (omitted
+#       from the request, matching prior behavior).
+#       Suggested starting value: 0.2-0.3
+#       Default: 0 (disabled)
+#
+LLMChatter.PresencePenalty = 0
 
 #
 #   LLMChatter.MaxMessageLength

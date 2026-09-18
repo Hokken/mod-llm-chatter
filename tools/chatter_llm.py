@@ -77,8 +77,11 @@ def _apply_deepseek_options(kwargs, config):
             config
         )
         kwargs['extra_body'] = {'thinking': {'type': 'enabled'}}
-        # DeepSeek ignores temperature in thinking mode.
+        # DeepSeek ignores temperature and the sampling
+        # penalties in thinking mode.
         kwargs.pop('temperature', None)
+        kwargs.pop('frequency_penalty', None)
+        kwargs.pop('presence_penalty', None)
         return
     kwargs['reasoning_effort'] = 'none'
     kwargs['extra_body'] = {'thinking': {'type': 'disabled'}}
@@ -103,6 +106,32 @@ def _ollama_user_msg(user_msg, config):
     if disable_thinking:
         return "/no_think " + user_msg
     return user_msg
+
+
+def _sampling_penalties(config):
+    """Return frequency/presence penalty kwargs.
+
+    Provider-neutral config (matches LLMChatter.Temperature).
+    Both DeepSeek and Ollama accept these on the
+    OpenAI-compatible Chat Completions API. Defaults to 0
+    (omitted entirely, identical to prior behavior).
+    """
+    kwargs = {}
+    for option, param in (
+        ('LLMChatter.FrequencyPenalty', 'frequency_penalty'),
+        ('LLMChatter.PresencePenalty', 'presence_penalty'),
+    ):
+        try:
+            value = float(config.get(option, 0))
+        except (TypeError, ValueError):
+            logger.warning(
+                "Invalid %s=%r, ignoring",
+                option, config.get(option),
+            )
+            continue
+        if value:
+            kwargs[param] = max(-2.0, min(2.0, value))
+    return kwargs
 
 
 def _effective_max_tokens(
@@ -148,6 +177,7 @@ def build_compatible_chat_request(
         ),
         temperature=temperature,
     ))
+    kwargs.update(_sampling_penalties(config))
     if provider == 'deepseek':
         _apply_deepseek_options(kwargs, config)
     elif (

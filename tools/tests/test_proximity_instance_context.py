@@ -1063,6 +1063,42 @@ def test_config_fallbacks_match_distributed_values():
     assert 'NPCVerbalCooldown = 3' in distributed
 
 
+def test_instance_context_is_not_subject_to_the_flavor_rng_gate():
+    """Location grounding must never be a coin flip.
+
+    get_dungeon_flavor() is RNG-gated so bots stop narrating
+    their surroundings in every line, but build_instance_context
+    derives is_instance from it. Gated, an NPC standing in
+    Shadowfang Keep would be told it is outdoors ~75% of the
+    time, and the instance name would vanish from the prompt.
+    """
+    import chatter_shared
+
+    extra = {k: v for k, v in INSTANCE_EXTRA.items()}
+    # Strip the explicit flags so is_instance can only come
+    # from the dungeon flavor lookup.
+    extra.pop('is_dungeon', None)
+    extra.pop('is_raid', None)
+
+    for _ in range(60):
+        ctx = build_instance_context(extra)
+        assert ctx['is_instance'] is True
+        assert ctx['instance_name'] == 'Shadowfang Keep'
+        assert 'haunted fortress' in str(
+            ctx['instance_flavor']
+        ).lower()
+
+    # The gate itself still works for ordinary prompt flavor.
+    gated = [
+        chatter_shared.get_dungeon_flavor(33)
+        for _ in range(400)
+    ]
+    hits = sum(1 for value in gated if value)
+    assert 0 < hits < 400, (
+        f'expected a partial gate, got {hits}/400'
+    )
+
+
 def main():
     tests = [
         value for name, value in globals().items()

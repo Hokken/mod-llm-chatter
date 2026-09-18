@@ -446,10 +446,23 @@ def build_bot_identity_from_dict(
 
 
 def get_chatter_mode(config: dict) -> str:
-    """Return 'normal' or 'roleplay' from config."""
+    """Return 'normal' or 'roleplay' from config.
+
+    Supports 'mixed', which resolves to 'roleplay' or 'normal' per
+    call with a configurable weighting (LLMChatter.MixedRoleplayChance,
+    default 0.5), so different bots/messages land in different styles
+    instead of the whole server being locked to one voice.
+    """
     if not config:
         return 'normal'
     mode = config.get('LLMChatter.ChatterMode', 'normal').lower()
+    if mode == 'mixed':
+        try:
+            chance = float(config.get('LLMChatter.MixedRoleplayChance', 0.5))
+        except (TypeError, ValueError):
+            chance = 0.5
+        chance = min(1.0, max(0.0, chance))
+        return 'roleplay' if random.random() < chance else 'normal'
     return mode if mode in ('normal', 'roleplay') else 'normal'
 
 
@@ -918,13 +931,52 @@ def get_zone_level_range(
     return (max(1, bot_level - 5), bot_level + 5)
 
 
-def get_zone_flavor(zone_id: int) -> Optional[str]:
-    """Get rich zone flavor text for immersive context."""
+# Share of prompts that get environment flavor text.
+# Every prompt builder pulls zone/subzone/dungeon lore
+# regardless of the message category it picked, so
+# ungated this was the main driver of bots endlessly
+# narrating their surroundings.
+FLAVOR_CHANCE = 0.25
+
+
+def _flavor_gate() -> bool:
+    """Return whether flavor text should be injected now."""
+    return random.random() < FLAVOR_CHANCE
+
+
+def get_zone_flavor(
+    zone_id: int, always: bool = False
+) -> Optional[str]:
+    """Get rich zone flavor text for immersive context.
+
+    RNG-gated so it doesn't get injected into nearly
+    every prompt — bots were leaning on it to comment
+    on their surroundings far too often. Pass
+    always=True where the text is factual grounding
+    rather than conversational decoration.
+    """
+    if not always and not _flavor_gate():
+        return None
     return ZONE_FLAVOR.get(zone_id)
 
 
-def get_dungeon_flavor(map_id: int) -> Optional[str]:
-    """Get dungeon/raid flavor text by map ID."""
+def get_dungeon_flavor(
+    map_id: int, always: bool = False
+) -> Optional[str]:
+    """Get dungeon/raid flavor text by map ID.
+
+    RNG-gated for the same reason as get_zone_flavor/
+    get_subzone_lore — injected into nearly every group
+    reaction prompt via map_id, unlike those two this had
+    no gate at all, so bots leaned on it constantly.
+
+    Pass always=True where the caller needs the lookup to
+    be deterministic — build_instance_context() derives
+    is_instance from it, so a gated miss there would tell
+    an NPC standing in Shadowfang Keep that it is outdoors.
+    """
+    if not always and not _flavor_gate():
+        return None
     return DUNGEON_FLAVOR.get(map_id)
 
 
@@ -980,15 +1032,20 @@ def _load_subzone_lore() -> Dict:
 
 
 def get_subzone_lore(
-    zone_id: int, area_id: int
+    zone_id: int, area_id: int, always: bool = False
 ) -> Optional[str]:
     """Get rich subzone lore description.
 
     Returns None if area_id equals zone_id (no
     subzone — use zone_flavor instead), or if no
-    lore entry exists for this area.
+    lore entry exists for this area. RNG-gated for
+    the same reason as get_zone_flavor — bots were
+    commenting on their surroundings too often — with
+    the same always=True escape hatch.
     """
     if not area_id or area_id == zone_id:
+        return None
+    if not always and not _flavor_gate():
         return None
     lore = _load_subzone_lore()
     zones = lore.get("zones", {})

@@ -116,6 +116,14 @@ call_llm = make_feature_caller('group')
 
 logger = logging.getLogger(__name__)
 
+# Spell categories worth a party-chat reaction. Mirrors
+# the allowlist in HandleGroupPlayerSpellCastImpl
+# (src/LLMChatterGroupCombat.cpp) — heal/dispel/shield/
+# buff/support casts get no ability commentary.
+SPELL_CAST_REACTION_CATEGORIES = (
+    'cc', 'offensive', 'resurrect',
+)
+
 
 def _resolve_zone_name(
     db, group_id, extra_data_zone_name
@@ -225,6 +233,7 @@ def process_group_kill_event(
                 ctx['is_boss'], ctx['is_rare'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 extra_data=ctx['extra_data'],
                 allow_action=not ctx[
                     'extra_data'].get(
@@ -273,6 +282,7 @@ def process_group_loot_event(
                 ctx['item_quality'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 looter_name=(
                     None
                     if ctx['bot_name']
@@ -463,6 +473,7 @@ def process_group_combat_event(
                 ctx['creature_name'],
                 ctx['is_boss'], ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 is_elite=ctx['is_elite'],
                 extra_data=ctx['extra_data'],
                 speaker_talent_context=(
@@ -523,6 +534,7 @@ def process_group_death_event(
                 ctx['killer_name'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 is_player_death=(
                     ctx['is_player_death']),
                 extra_data=ctx['extra_data'],
@@ -636,6 +648,7 @@ def process_group_levelup_event(
                 ctx['is_bot'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 speaker_talent_context=(
                     ctx['speaker_talent']),
                 stored_tone=ctx['stored_tone'],
@@ -818,6 +831,7 @@ def process_group_quest_complete_event(
                 ctx['quest_name'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 turnin_npc=ctx['turnin_npc'],
                 quest_details=(
                     ctx['quest_details']
@@ -1302,7 +1316,30 @@ def process_group_spell_cast_event(
 
     A bot reacts to a notable spell cast (heal, cc,
     resurrect, shield) in party chat.
+
+    Bridge-side filter: only cc/offensive/resurrect
+    get a reaction here. Everything else (heal/dispel/
+    shield/buff/support) is dropped before it ever
+    reaches the LLM, because ability commentary on
+    support casts was flooding party chat.
+
+    The worldserver applies the same allowlist in
+    HandleGroupPlayerSpellCastImpl, so on a current
+    build these events never arrive. This stays as the
+    belt-and-suspenders half for a bridge running
+    against an older worldserver that still emits
+    every category. Keep the two lists in sync.
     """
+    peek = parse_extra_data(
+        event.get('extra_data'), event['id'],
+        'bot_group_spell_cast',
+    )
+    if peek:
+        category = peek.get('spell_category', 'heal')
+        if category not in SPELL_CAST_REACTION_CATEGORIES:
+            _mark_event(db, event['id'], 'skipped')
+            return False
+
     return run_group_handler(
         db, client, config, event,
         event_type_label='bot_group_spell_cast',
@@ -1716,6 +1753,7 @@ def process_group_quest_accept_event(
                 ctx['zone_name'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 quest_details=(
                     ctx['quest_details']
                 ),
@@ -1978,6 +2016,7 @@ def process_group_low_health_event(
                 ctx['target_name'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 extra_data=ctx['extra_data'],
                 speaker_talent_context=(
                     ctx['speaker_talent']),
@@ -2010,6 +2049,7 @@ def process_group_oom_event(
                 ctx['target_name'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 extra_data=ctx['extra_data'],
                 speaker_talent_context=(
                     ctx['speaker_talent']),
@@ -2044,6 +2084,7 @@ def process_group_aggro_loss_event(
                 ctx['aggro_target'],
                 ctx['mode'],
                 chat_history=ctx['chat_hist'],
+                recent_messages=ctx['recent_msgs'],
                 extra_data=ctx['extra_data'],
                 speaker_talent_context=(
                     ctx['speaker_talent']),
@@ -2583,7 +2624,10 @@ def execute_player_msg_conversation(
         max_tokens * (1 + num_bots), 1000
     )
 
-    _dflav_conv = get_dungeon_flavor(map_id)
+    # Ungated: this names the zone in the request log,
+    # which should not randomly report an outdoor zone
+    # for a conversation held inside an instance.
+    _dflav_conv = get_dungeon_flavor(map_id, always=True)
     pmsg_meta = build_zone_metadata(
         zone_name=get_zone_name(zone_id) or '',
         zone_flavor=get_zone_flavor(zone_id) or '',

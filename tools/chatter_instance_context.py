@@ -20,7 +20,10 @@ def build_instance_context(extra: Dict) -> Dict[str, object]:
     subzone_name = str(
         extra.get('subzone_name') or ''
     ).strip()
-    flavor = get_dungeon_flavor(map_id)
+    # Ungated: is_instance below is derived from this, so
+    # a gated miss would flip an NPC's whole location
+    # grounding from "in Shadowfang Keep" to "outdoors".
+    flavor = get_dungeon_flavor(map_id, always=True)
     is_raid = bool(extra.get('is_raid', False))
     is_dungeon = bool(
         extra.get('is_dungeon', False)

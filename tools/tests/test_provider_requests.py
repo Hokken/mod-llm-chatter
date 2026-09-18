@@ -276,6 +276,47 @@ def test_ollama_model_tags_are_not_rewritten():
     ) == 'llama3.2:3b'
 
 
+def test_sampling_penalties_default_to_absent():
+    request = _run_call(_ollama_config())
+    assert 'frequency_penalty' not in request
+    assert 'presence_penalty' not in request
+
+
+def test_sampling_penalties_are_sent_when_configured():
+    config = _ollama_config()
+    config['LLMChatter.FrequencyPenalty'] = '0.4'
+    config['LLMChatter.PresencePenalty'] = 0.25
+    request = _run_call(config)
+    assert request['frequency_penalty'] == 0.4
+    assert request['presence_penalty'] == 0.25
+
+
+def test_sampling_penalties_clamp_and_ignore_garbage():
+    assert chatter_llm._sampling_penalties({
+        'LLMChatter.FrequencyPenalty': 9,
+        'LLMChatter.PresencePenalty': -9,
+    }) == {
+        'frequency_penalty': 2.0,
+        'presence_penalty': -2.0,
+    }
+    assert chatter_llm._sampling_penalties({
+        'LLMChatter.FrequencyPenalty': 'abc',
+    }) == {}
+
+
+def test_deepseek_thinking_drops_sampling_penalties():
+    config = _base_config()
+    config['LLMChatter.DeepSeek.ReasoningEffort'] = 'medium'
+    config['LLMChatter.FrequencyPenalty'] = 0.4
+    config['LLMChatter.PresencePenalty'] = 0.25
+    request = _run_call(config)
+    # Dropped alongside temperature: DeepSeek ignores all
+    # three while thinking mode is on.
+    assert 'temperature' not in request
+    assert 'frequency_penalty' not in request
+    assert 'presence_penalty' not in request
+
+
 def main() -> int:
     test_call_llm_deepseek_thinking_options()
     test_quick_analyze_deepseek_thinking_options()
@@ -289,6 +330,10 @@ def main() -> int:
     test_quick_ollama_uses_compatible_request_layer()
     test_ollama_thinking_can_be_left_on()
     test_ollama_model_tags_are_not_rewritten()
+    test_sampling_penalties_default_to_absent()
+    test_sampling_penalties_are_sent_when_configured()
+    test_sampling_penalties_clamp_and_ignore_garbage()
+    test_deepseek_thinking_drops_sampling_penalties()
     print('OK')
     return 0
 
