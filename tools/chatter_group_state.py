@@ -25,13 +25,15 @@ from chatter_shared import (
 
 from chatter_mode import (
     build_player_prompt_header,
+    in_instanced_content,
     is_roleplay,
     normalize_chatter_mode,
+    resolve_chatter_mode,
     resolve_player_personality,
 )
-from chatter_constants import PERSONALITY_TRAITS
+from chatter_constants import PERSONALITY_TRAITS, RAID_MAP_IDS
 from chatter_llm import get_llm_client
-from chatter_db import mark_event
+from chatter_db import mark_event, get_group_location
 
 from chatter_llm import make_feature_caller
 
@@ -1100,6 +1102,47 @@ def assign_bot_traits(
         'tone': tone,
         'backstory': backstory,
     }
+
+
+def resolve_group_chatter_mode(
+    db,
+    config,
+    group_id,
+    channel=None,
+    map_id=None,
+    roll_seed='',
+):
+    """Resolve the chatter mode for one group message.
+
+    Party and raid chat inside a dungeon, raid, battleground, or arena is
+    a working channel, so roleplay is gated there even when the server
+    default is roleplay. ``map_id`` is looked up from the group's live
+    location when the caller does not already have it, and ``channel``
+    defaults to the one the group would actually speak on.
+    """
+    if map_id is None:
+        _zone, _area, map_id = get_group_location(db, group_id)
+    if channel is None:
+        channel = group_channel_for_map(map_id)
+    return resolve_chatter_mode(
+        config,
+        channel,
+        map_id=map_id,
+        roll_seed=roll_seed,
+    )
+
+
+def group_channel_for_map(map_id) -> str:
+    """Return the chat channel a group should speak on for a map."""
+    try:
+        return 'raid' if int(map_id or 0) in RAID_MAP_IDS else 'party'
+    except (TypeError, ValueError):
+        return 'party'
+
+
+def group_is_instanced(map_id) -> bool:
+    """Return whether a group's map is instanced group content."""
+    return in_instanced_content(map_id)
 
 
 def get_bot_traits(

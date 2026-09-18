@@ -20,7 +20,7 @@ _extended_max_messages = 3
 
 from chatter_shared import (
     cleanup_message, strip_speaker_prefix,
-    get_chatter_mode, get_class_name, get_race_name,
+    get_class_name, get_race_name,
     get_gender_label,
     build_race_class_context, parse_extra_data,
     calculate_dynamic_delay,
@@ -50,6 +50,7 @@ from chatter_prompts import (
 from chatter_mode import (
     build_player_chat_guidance,
     build_player_identity,
+    resolve_chatter_mode,
 )
 from chatter_constants import (
     PERSONALITY_TRAITS,
@@ -701,7 +702,7 @@ def process_general_player_msg_event(
         return False
 
     try:
-        mode = get_chatter_mode(config)
+        mode = resolve_chatter_mode(config, 'general')
 
         # Fetch recent messages for anti-repetition
         recent_msgs = get_recent_zone_messages(

@@ -19,7 +19,6 @@ from chatter_shared import (
     append_json_instruction,
     build_conversation_json_repair_prompt,
     calculate_dynamic_delay,
-    get_chatter_mode,
     get_class_name,
     get_gender_label,
     get_race_name,
@@ -116,6 +115,7 @@ from chatter_mode import (
     build_player_identity,
     build_player_prompt_header,
     is_roleplay,
+    resolve_chatter_mode,
     resolve_player_personality,
 )
 from chatter_prompts import (
@@ -252,7 +252,7 @@ def _build_guild_prompt(
     name_zone: bool = False,
     history_context: str = "",
 ) -> str:
-    mode = get_chatter_mode(config or {})
+    mode = resolve_chatter_mode(config or {}, 'guild')
     roleplay = is_roleplay(mode)
     if roleplay:
         lines = [_guild_identity(speaker_name, speaker)]
@@ -463,7 +463,7 @@ def _process_guild_statement_event(
     # Length control mirrors the General channel (which works well): reuse
     # its _pick_length_hint(mode) and let the prompt enforce length. No
     # post-parse truncation — the model's full sentence is delivered intact.
-    chatter_mode = get_chatter_mode(config)
+    chatter_mode = resolve_chatter_mode(config, 'guild')
     length_hint = _pick_length_hint(chatter_mode)
     topic = (
         topic_override
@@ -1406,7 +1406,7 @@ def _generate_guild_conversation(
         message_count,
         reference_plans,
         history_context,
-        get_chatter_mode(config),
+        resolve_chatter_mode(config, 'guild'),
     )
     metadata = _guild_request_metadata(
         extra,
@@ -1616,7 +1616,7 @@ def process_guild_idle_chatter_event(
 
     guild_name = extra.get('guild_name') or 'the guild'
     guildmates = extra.get('guildmates') or ''
-    chatter_mode = get_chatter_mode(config)
+    chatter_mode = resolve_chatter_mode(config, 'guild')
     topic = random.choice(
         GUILD_CHAT_TOPICS_RP
         if is_roleplay(chatter_mode)

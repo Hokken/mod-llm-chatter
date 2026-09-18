@@ -19,7 +19,11 @@ from chatter_guild import (
     _valid_guild_conversation,
 )
 
-from chatter_mode import build_player_chat_guidance, is_roleplay
+from chatter_mode import (
+    build_player_chat_guidance,
+    is_roleplay,
+    resolve_chatter_mode,
+)
 from chatter_prompts import (
     generate_conversation_length_sequence,
     generate_conversation_mood_sequence,
@@ -30,7 +34,6 @@ from chatter_shared import (
     build_conversation_json_repair_prompt,
     calculate_dynamic_delay,
     find_addressed_bot,
-    get_chatter_mode,
     parse_conversation_response,
     parse_extra_data,
     select_conversation_message_count,
@@ -523,7 +526,7 @@ def _build_multi_prompt(
     question_requested: bool,
     config: Dict,
 ) -> Tuple[str, List[Dict], int]:
-    mode = get_chatter_mode(config)
+    mode = resolve_chatter_mode(config, 'guild')
     names = [
         participant['name']
         for participant in participants
@@ -686,7 +689,7 @@ def _generate_single_reply(
         callback_requested,
         name_requested,
         question_requested,
-        get_chatter_mode(config),
+        resolve_chatter_mode(config, 'guild'),
     )
     response = call_llm(
         client,
@@ -1118,7 +1121,7 @@ def process_guild_player_message_event(
     )
     session_context = (
         _format_session_context(
-            summary, recent, get_chatter_mode(config)
+            summary, recent, resolve_chatter_mode(config, 'guild')
         )
         if memory_enabled
         else ""

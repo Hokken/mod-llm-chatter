@@ -83,6 +83,7 @@ from chatter_proximity import (  # noqa: E402
     _single_prompt,
 )
 from chatter_raid_prompts import _raid_base_context  # noqa: E402
+import chatter_shared  # noqa: E402
 from chatter_shared import set_action_chance  # noqa: E402
 
 
@@ -213,9 +214,13 @@ def test_party_low_health_uses_character_boundary():
 
 
 def test_normal_dungeon_greeting_keeps_gameplay_location_context():
-    prompt = build_bot_greeting_prompt(
-        BOT, ['patient'], 'normal', map_id=33,
-    )
+    # get_dungeon_flavor() is RNG-gated (FLAVOR_CHANCE), so force the gate
+    # open -- this test is about which text the gate produces, not whether
+    # it fired.
+    with patch.object(chatter_shared, 'FLAVOR_CHANCE', 1.0):
+        prompt = build_bot_greeting_prompt(
+            BOT, ['patient'], 'normal', map_id=33,
+        )
     assert 'Your character is currently in a dungeon' in prompt.user_prompt
     assert 'haunted fortress' not in prompt.user_prompt
 
@@ -391,23 +396,65 @@ def test_bg_and_raid_hide_lived_world_lore_in_normal_mode():
         'team': 'Alliance',
     }
     bg_normal = _bg_base_context(bg_extra, BOT)
-    bg_rp = _bg_base_context(
-        {**bg_extra, '_config': RP_CONFIG}, BOT
-    )
     assert 'CHAT MODE: NORMAL' in bg_normal
     assert 'Lore:' not in bg_normal
-    assert 'CHAT MODE: NORMAL' not in bg_rp
 
     raid_extra = {
         '_config': NORMAL_CONFIG,
         'raid_name': 'Icecrown Citadel',
     }
     raid_normal = _raid_base_context(raid_extra, BOT)
-    raid_rp = _raid_base_context(
-        {**raid_extra, '_config': RP_CONFIG}, BOT
-    )
     assert 'CHAT MODE: NORMAL' in raid_normal
     assert 'Lore:' not in raid_normal
+
+
+def test_instanced_content_gates_inherited_roleplay():
+    """A roleplay server still speaks plainly inside a raid or BG.
+
+    Raids and battlegrounds are instanced group content, so a global
+    ChatterMode of roleplay does not reach them -- that is what
+    LLMChatter.Roleplay.SuppressInInstances is for.
+    """
+    bg_extra = {
+        '_config': RP_CONFIG,
+        'bg_type_id': 2,
+        'team': 'Alliance',
+    }
+    raid_extra = {
+        '_config': RP_CONFIG,
+        'raid_name': 'Icecrown Citadel',
+    }
+    assert 'CHAT MODE: NORMAL' in _bg_base_context(bg_extra, BOT)
+    raid_rp = _raid_base_context(raid_extra, BOT)
+    assert 'CHAT MODE: NORMAL' in raid_rp
+    assert 'Lore:' not in raid_rp
+
+
+def test_instance_gate_can_be_turned_off():
+    """RP-PvE servers keep in-character raids by opting out."""
+    rp_everywhere = {
+        **RP_CONFIG,
+        'LLMChatter.Roleplay.SuppressInInstances': '0',
+    }
+    raid_rp = _raid_base_context(
+        {'_config': rp_everywhere, 'raid_name': 'Icecrown Citadel'},
+        BOT,
+    )
+    assert 'CHAT MODE: NORMAL' not in raid_rp
+    assert 'Lore:' in raid_rp
+
+
+def test_explicit_channel_mode_beats_the_instance_gate():
+    """An admin who names a channel's mode is taken at their word."""
+    explicit = {
+        'LLMChatter.ChatterMode': 'normal',
+        'LLMChatter.ChatterMode.Raid': 'roleplay',
+    }
+    raid_rp = _raid_base_context(
+        {'_config': explicit, 'raid_name': 'Icecrown Citadel'},
+        BOT,
+    )
+    assert 'CHAT MODE: NORMAL' not in raid_rp
     assert 'Lore:' in raid_rp
 
 
@@ -668,7 +715,14 @@ def test_shipped_config_defaults_to_normal_mode():
     text = config_path.read_text(encoding='utf-8')
     assert 'Default: normal' in text
     assert 'LLMChatter.ChatterMode = normal' in text
-    assert 'Actual NPCs remain in character in either mode' in text
+    assert 'Actual NPCs remain in character in every mode' in text
+    # Per-channel overrides ship empty so an existing config is unchanged
+    for channel in (
+        'General', 'Guild', 'Say', 'Party', 'Raid', 'Battleground',
+    ):
+        assert f'LLMChatter.ChatterMode.{channel} =\n' in text
+    assert 'LLMChatter.Roleplay.SuppressInInstances = 1' in text
+    assert 'LLMChatter.Instance.TacticalChat = 1' in text
 
 
 def test_startup_cache_cleanup_only_discards_ready_rows():

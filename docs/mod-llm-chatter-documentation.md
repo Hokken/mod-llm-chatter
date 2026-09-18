@@ -641,17 +641,68 @@ When a plain string is passed to `call_llm()` instead of
 
 Configured through:
 
-- `LLMChatter.ChatterMode`
+- `LLMChatter.ChatterMode` — the server default
+- `LLMChatter.ChatterMode.<Channel>` — per-channel override
 - `LLMChatter.MixedRoleplayChance`
+- `LLMChatter.Roleplay.SuppressInInstances`
+- `LLMChatter.Instance.TacticalChat`
 
-Modes:
+Configured modes:
 
 - `normal`: playerbots speak as people playing WoW
 - `roleplay`: in-character, race/class-influenced chat
-- `mixed`: `get_chatter_mode()` rolls per call, landing on roleplay with
-  probability `LLMChatter.MixedRoleplayChance` (default `0.5`) and on
-  normal otherwise, so the server is not locked to a single voice.
-  Everything downstream still sees only `normal` or `roleplay`.
+- `mixed`: rolls between the two, landing on roleplay with probability
+  `LLMChatter.MixedRoleplayChance` (default `0.5`), so the server is not
+  locked to a single voice. The roll is seeded by the speaker's name
+  wherever the caller knows it, so one bot keeps one voice across a
+  conversation instead of flipping between messages.
+
+### Resolution
+
+The configured mode is a default, not a verdict. In-character banter
+reads well in zone or guild chat and badly in the middle of a dungeon
+pull, so `chatter_mode.resolve_chatter_mode(config, channel, ...)`
+decides per message. Call it instead of reading `LLMChatter.ChatterMode`
+directly anywhere the channel is known. Group code has a thin wrapper,
+`chatter_group_state.resolve_group_chatter_mode(db, config, group_id)`,
+which looks the group's map up when the caller does not already have it.
+
+Resolution runs in three layers:
+
+1. `LLMChatter.ChatterMode.<Channel>` if set, otherwise the global
+   `LLMChatter.ChatterMode`. Channels are `General`, `Guild`, `Say`
+   (also used for `/yell`), `Party`, `Raid`, and `Battleground`. All
+   ship empty, so an existing config resolves exactly as it did before.
+2. `mixed` is rolled into a concrete mode.
+3. Inside instanced group content — a dungeon, raid, battleground, or
+   arena — on the group task channels (`party`, `raid`,
+   `battleground`), roleplay drops to the player voice and the player
+   voice tightens to a working register.
+
+Step 3 is skipped for a channel that names its own mode: an admin who
+writes `LLMChatter.ChatterMode.Raid = roleplay` means it. Zone, guild,
+and `/say` chat are never gated, so an RP server keeps its in-character
+world and still gets readable chat during a run.
+
+Instanced content is detected from the server flags an event carries
+(`is_raid`, `is_dungeon`, `is_battleground`) and otherwise from the map
+ID against `chatter_constants.INSTANCE_MAP_IDS`, which covers every
+dungeon, raid, battleground, and arena map in the supported expansions.
+
+### Resolved modes
+
+Resolution yields one of three values, which carry both halves of the
+voice contract — who is speaking, and how focused they are:
+
+| Value | Voice | Register |
+| --- | --- | --- |
+| `normal` | player | social |
+| `instanced` | player | working: practical, reactive, short idle chatter |
+| `roleplay` | in character | — |
+
+Everything downstream branches on `is_roleplay()`, so `instanced`
+behaves exactly like `normal` except where the register matters. Never
+compare a resolved mode against `'normal'` directly.
 
 The Python prompt builders use `chatter_mode.py` as the canonical voice
 contract. Normal mode applies to playerbot speech in General, Party,
@@ -676,6 +727,15 @@ Changing `LLMChatter.ChatterMode` requires a bridge restart. Because
 only `ready` pre-cache rows and then refills them under the active mode;
 used and expired history is left to normal cache hygiene. Under `mixed`
 the pre-cache fills with a blend of both voices, which is the intent.
+
+The pre-cache is also per group, not per server, because a group that
+zones into a dungeon changes mode without a restart. `chatter_cache.py`
+tracks the mode each group's pool was generated under and drops that
+group's `ready` rows when it changes, so lines written in one voice are
+not delivered in another. The C++ consumer
+(`TryConsumeCachedReaction`) is unchanged and has no mode filter, so a
+line already queued can still be delivered in the few seconds between
+the group zoning and the next refill pass.
 
 ---
 

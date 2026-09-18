@@ -22,11 +22,11 @@ from chatter_shared import (
     build_anti_repetition_context,
     get_recent_zone_messages,
     append_json_instruction,
-    get_chatter_mode,
 )
 from chatter_mode import (
     build_player_prompt_header,
     is_roleplay,
+    resolve_chatter_mode,
 )
 from chatter_prompts import (
     pick_personality_spices,
@@ -67,6 +67,22 @@ BG_EMOTE_GUIDANCE = (
 
 # ── Shared context builder ────────────────────────────
 
+
+def _bg_chatter_mode(config, bot_data=None) -> str:
+    """Resolve the chatter mode for battleground chat.
+
+    A battleground is instanced group content, so roleplay is gated the
+    same way it is in a dungeon unless the server opts out. The bot name
+    seeds the 'mixed' roll so every block of one bot's prompt agrees.
+    """
+    return resolve_chatter_mode(
+        config or {},
+        'battleground',
+        is_battleground=True,
+        roll_seed=(bot_data or {}).get('bot_name', ''),
+    )
+
+
 def _bg_base_context(
     extra_data, bot_data,
     db=None, config=None,
@@ -89,7 +105,7 @@ def _bg_base_context(
         db = extra_data.get('_db')
     if config is None:
         config = extra_data.get('_config')
-    mode = get_chatter_mode(config or {})
+    mode = _bg_chatter_mode(config, bot_data)
     roleplay = is_roleplay(mode)
     bg_type_id = int(extra_data.get('bg_type_id', 0))
     lore = BG_LORE.get(bg_type_id, {})
@@ -241,8 +257,8 @@ def build_bg_match_start_prompt(
 ):
     """Match start \u2014 battle cries, faction pride."""
     ctx = _bg_base_context(extra_data, bot_data)
-    roleplay = is_roleplay(get_chatter_mode(
-        extra_data.get('_config') or {}
+    roleplay = is_roleplay(_bg_chatter_mode(
+        extra_data.get('_config'), bot_data
     ))
     if roleplay:
         ctx += (
@@ -764,8 +780,8 @@ def build_bg_low_health_prompt(
     ctx = _bg_base_context(extra_data, bot_data)
     target = extra_data.get(
         'target_name', '')
-    roleplay = is_roleplay(get_chatter_mode(
-        extra_data.get('_config') or {}
+    roleplay = is_roleplay(_bg_chatter_mode(
+        extra_data.get('_config'), bot_data
     ))
     if target and roleplay:
         ctx += (
@@ -817,8 +833,8 @@ def build_bg_death_prompt(
     dead = extra_data.get(
         'dead_name', 'a teammate')
     killer = extra_data.get('killer_name', '')
-    roleplay = is_roleplay(get_chatter_mode(
-        extra_data.get('_config') or {}
+    roleplay = is_roleplay(_bg_chatter_mode(
+        extra_data.get('_config'), bot_data
     ))
     if killer and roleplay:
         ctx += (
@@ -956,8 +972,8 @@ def build_bg_idle_prompt(
 ):
     """Ambient idle chatter during a BG match."""
     ctx = _bg_base_context(extra_data, bot_data)
-    mode = get_chatter_mode(
-        extra_data.get('_config') or {}
+    mode = _bg_chatter_mode(
+        extra_data.get('_config'), bot_data
     )
     category = random.choice(
         BG_IDLE_CATEGORIES_RP

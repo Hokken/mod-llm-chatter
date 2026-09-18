@@ -1,5 +1,35 @@
 # Changelog
 
+### 2026-09-18 - Context-Aware Chatter Mode
+
+* **The mode follows the situation, not the server**: `ChatterMode` is now
+  a default rather than a verdict. Roleplay in zone or guild chat costs
+  nobody anything; roleplay in the middle of a dungeon pull buries the call
+  that mattered. `resolve_chatter_mode()` decides per message from the
+  channel and where the speaker is, and every prompt path routes through
+  it. `get_chatter_mode()` is gone.
+* **Roleplay yields inside instanced content**: in a dungeon, raid,
+  battleground, or arena, party/raid/BG chat drops to the plain player
+  voice. Zone, guild, and `/say` chat are untouched, so an RP server keeps
+  its in-character world and still gets readable chat during a run. Set
+  `LLMChatter.Roleplay.SuppressInInstances = 0` for in-character raids.
+* **Instanced party chat tightens**: practical, reactive, focused on the
+  run, with idle chatter kept short. Raid and battleground chat already
+  read this way. Set `LLMChatter.Instance.TacticalChat = 0` to keep the
+  open-world register everywhere.
+* **Per-channel overrides**: `LLMChatter.ChatterMode.General`, `.Guild`,
+  `.Say`, `.Party`, `.Raid`, and `.Battleground` each override the global
+  default, and a channel that names its own mode also skips the instance
+  gate — an admin who writes `ChatterMode.Raid = roleplay` means it. All
+  ship empty, so an existing config resolves exactly as it did before.
+* **`mixed` stops flipping mid-conversation**: the roll is seeded by the
+  speaker's name wherever the caller knows it, so one bot keeps one voice
+  across a conversation while different bots still land differently.
+* **Pre-cache follows the group**: a group's mode can now change without a
+  bridge restart, so `chatter_cache.py` tracks the mode each group's pool
+  was generated under and drops that group's `ready` rows when it changes,
+  instead of serving lines written in the other voice.
+
 ### 2026-09-18 - Latency Probe Routes
 
 * **Measure a feature's route**: `chatter_latency_probe.py --feature <name>`

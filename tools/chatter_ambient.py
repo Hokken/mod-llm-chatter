@@ -14,6 +14,7 @@ from chatter_constants import (
     AMBIENT_CHAT_TOPICS,
     AMBIENT_CHAT_TOPICS_RP,
 )
+from chatter_mode import resolve_chatter_mode
 from chatter_shared import (
     zone_cache,
     parse_single_response,
@@ -32,7 +33,6 @@ from chatter_shared import (
     is_too_similar,
     select_message_type,
     calculate_dynamic_delay,
-    get_chatter_mode,
     _reserve_zone_delivery_window,
     _zone_delivery_delay,
     get_zone_name,
@@ -266,7 +266,7 @@ def process_statement(
     zone_id = request.get('zone_id', 0)
     area_id = request.get('area_id', zone_id)
     current_weather = request.get('weather') or None
-    mode = get_chatter_mode(config)
+    mode = resolve_chatter_mode(config, 'general')
 
     # Zone metadata for request logging
     zone_meta = _build_zone_metadata(
@@ -573,7 +573,7 @@ def process_conversation(
     zone_id = request.get('zone_id', 0)
     area_id = request.get('area_id', zone_id)
     current_weather = request.get('weather') or None
-    mode = get_chatter_mode(config)
+    mode = resolve_chatter_mode(config, 'general')
 
     # Zone metadata for request logging
     zone_meta = _build_zone_metadata(

@@ -16,12 +16,12 @@ from chatter_shared import (
     parse_extra_data,
     run_single_reaction,
     append_json_instruction,
-    get_chatter_mode,
     get_gender_label,
     build_gear_context,
 )
 from chatter_mode import build_player_prompt_header
 from chatter_group_state import (
+    resolve_group_chatter_mode,
     _mark_event,
     _store_chat,
     build_party_context,
@@ -106,6 +106,9 @@ def handle_emote_observer(db, client, config, event):
     party_context = build_party_context(
         db, group_id, bot_name,
     )
+    emote_mode = resolve_group_chatter_mode(
+        db, config, group_id, roll_seed=bot_name,
+    )
 
     if tgt == 'creature':
         prompt = _build_creature_prompt(
@@ -116,7 +119,7 @@ def handle_emote_observer(db, client, config, event):
             npc_subname,
             traits=traits,
             stored_tone=stored_tone,
-            mode=get_chatter_mode(config),
+            mode=emote_mode,
             is_custom=is_custom,
             gear=gear,
             party_context=party_context,
@@ -128,7 +131,7 @@ def handle_emote_observer(db, client, config, event):
             p_name, emote, t_name, category,
             traits=traits,
             stored_tone=stored_tone,
-            mode=get_chatter_mode(config),
+            mode=emote_mode,
             is_custom=is_custom,
             gear=gear,
             party_context=party_context,
@@ -141,7 +144,7 @@ def handle_emote_observer(db, client, config, event):
             p_name, emote,
             traits=traits,
             stored_tone=stored_tone,
-            mode=get_chatter_mode(config),
+            mode=emote_mode,
             is_custom=is_custom,
             gear=gear,
             party_context=party_context,

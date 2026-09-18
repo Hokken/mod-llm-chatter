@@ -26,7 +26,6 @@ from chatter_shared import (
     parse_conversation_response,
     parse_extra_data,
     get_class_name,
-    get_chatter_mode,
     get_gender_label,
     get_race_name,
     strip_conversation_actions,
@@ -36,6 +35,7 @@ from chatter_mode import (
     build_player_chat_guidance,
     build_player_prompt_header,
     is_roleplay,
+    resolve_chatter_mode,
     resolve_player_personality,
 )
 from chatter_text import (
@@ -226,7 +226,7 @@ def _speaker_is_roleplay(speaker: Dict, mode: str) -> bool:
 
 
 def _playerbot_topic(config: Optional[Dict]) -> str:
-    mode = get_chatter_mode(config or {})
+    mode = resolve_chatter_mode(config or {}, 'say')
     pool = (
         PROXIMITY_CHAT_TOPICS
         if is_roleplay(mode)
@@ -436,7 +436,7 @@ def _single_prompt(
     last_message: Optional[str] = None,
     config: Optional[Dict] = None,
 ) -> PromptParts:
-    mode = get_chatter_mode(config or {})
+    mode = resolve_chatter_mode(config or {}, 'say')
     speaker_roleplay = _speaker_is_roleplay(speaker, mode)
     player_name = extra.get('player_name', 'the player')
     player_addressed = bool(
@@ -567,7 +567,7 @@ def _conversation_prompt(
     db, extra: Dict, participants: List[Dict],
     config: Optional[Dict] = None,
 ) -> PromptParts:
-    mode = get_chatter_mode(config or {})
+    mode = resolve_chatter_mode(config or {}, 'say')
     has_playerbot = any(
         not speaker.get('is_npc')
         for speaker in participants
@@ -1122,7 +1122,7 @@ def _player_say_single_prompt(
     history: List[Dict],
     config: Optional[Dict] = None,
 ) -> PromptParts:
-    mode = get_chatter_mode(config or {})
+    mode = resolve_chatter_mode(config or {}, 'say')
     speaker_roleplay = _speaker_is_roleplay(speaker, mode)
     player_name = extra.get(
         'player_name', 'the player'
@@ -1216,7 +1216,7 @@ def _player_say_conversation_prompt(
     history: List[Dict],
     config: Optional[Dict] = None,
 ) -> PromptParts:
-    mode = get_chatter_mode(config or {})
+    mode = resolve_chatter_mode(config or {}, 'say')
     player_name = extra.get(
         'player_name', 'the player'
     )
@@ -1330,7 +1330,7 @@ def _player_emote_single_prompt(
     config: Optional[Dict] = None,
     history: Optional[List[Dict]] = None,
 ) -> PromptParts:
-    mode = get_chatter_mode(config or {})
+    mode = resolve_chatter_mode(config or {}, 'say')
     player_name = extra.get('player_name', 'the player')
     lines = [
         build_npc_chat_guidance(),
@@ -1377,7 +1377,7 @@ def _player_emote_conversation_prompt(
     config: Optional[Dict] = None,
     history: Optional[List[Dict]] = None,
 ) -> PromptParts:
-    mode = get_chatter_mode(config or {})
+    mode = resolve_chatter_mode(config or {}, 'say')
     player_name = extra.get('player_name', 'the player')
     addressed = extra.get('addressed_name', '')
     max_lines = max(

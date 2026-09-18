@@ -16,7 +16,6 @@ from chatter_shared import (
     get_class_name,
     get_race_name,
     get_gender_label,
-    get_chatter_mode,
     get_dungeon_flavor,
     run_single_reaction,
     build_gear_context,
@@ -29,6 +28,7 @@ from chatter_db import (
 )
 from chatter_party_gate import policy_for_reason
 from chatter_group_state import (
+    resolve_group_chatter_mode,
     _mark_event,
     _store_chat,
     _get_recent_chat,
@@ -231,7 +231,9 @@ def run_group_handler(
 
     try:
         # 9. Build context
-        mode = get_chatter_mode(config)
+        mode = resolve_group_chatter_mode(
+            db, config, group_id, roll_seed=bot_name,
+        )
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
         # This bot's own recent lines, for an explicit

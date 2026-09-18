@@ -18,6 +18,8 @@ from chatter_db import (
 )
 from chatter_group_state import (
     _get_recent_chat,
+    group_is_instanced,
+    resolve_group_chatter_mode,
     _mark_event,
     _store_chat,
     format_chat_history,
@@ -34,7 +36,6 @@ from chatter_shared import (
     calculate_dynamic_delay,
     cleanup_message,
     format_travel_context,
-    get_chatter_mode,
     get_class_name,
     get_dungeon_flavor,
     get_gender_label,
@@ -761,11 +762,13 @@ def process_group_general_reaction_event(
         source_bot = {'name': source_bot_name}
     source_bot['name'] = source_bot_name
 
-    mode = get_chatter_mode(config)
+    loc = _location_context(db, group_id)
+    mode = resolve_group_chatter_mode(
+        db, config, group_id, map_id=loc['map_id'],
+    )
     chat_hist = format_chat_history(
         _get_recent_chat(db, group_id)
     )
-    loc = _location_context(db, group_id)
     first_delay = _first_delay(extra)
 
     use_conversation = False

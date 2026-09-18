@@ -445,27 +445,6 @@ def build_bot_identity_from_dict(
     )
 
 
-def get_chatter_mode(config: dict) -> str:
-    """Return 'normal' or 'roleplay' from config.
-
-    Supports 'mixed', which resolves to 'roleplay' or 'normal' per
-    call with a configurable weighting (LLMChatter.MixedRoleplayChance,
-    default 0.5), so different bots/messages land in different styles
-    instead of the whole server being locked to one voice.
-    """
-    if not config:
-        return 'normal'
-    mode = config.get('LLMChatter.ChatterMode', 'normal').lower()
-    if mode == 'mixed':
-        try:
-            chance = float(config.get('LLMChatter.MixedRoleplayChance', 0.5))
-        except (TypeError, ValueError):
-            chance = 0.5
-        chance = min(1.0, max(0.0, chance))
-        return 'roleplay' if random.random() < chance else 'normal'
-    return mode if mode in ('normal', 'roleplay') else 'normal'
-
-
 def get_distance_unit(config: dict) -> str:
     """Return 'yards' or 'meters' from config."""
     unit = config.get(

@@ -37,7 +37,7 @@ _spice_count = 2
 
 from chatter_shared import (
     cleanup_message, strip_speaker_prefix,
-    get_chatter_mode, get_class_name, get_race_name,
+    get_class_name, get_race_name,
     get_gender_label,
     get_db_connection, build_race_class_context,
     build_race_class_context_parts,
@@ -99,6 +99,8 @@ from chatter_prompts import (
 from chatter_group_state import (
     set_group_chat_history_limit,
     assign_bot_traits,
+    group_is_instanced,
+    resolve_group_chatter_mode,
     get_other_group_bot,
     _generate_farewell,
     _has_recent_event,
@@ -650,7 +652,10 @@ def process_group_event(db, client, config, event):
         )
         traits = trait_result['traits']
         stored_tone = trait_result.get('tone')
-        mode = get_chatter_mode(config)
+        mode = resolve_group_chatter_mode(
+            db, config, group_id,
+            map_id=bot_map, roll_seed=bot_name,
+        )
 
         # 1b. Memory: start session + fetch memories
         player_guid = 0
@@ -997,7 +1002,9 @@ def process_group_join_batch_event(
     )
     db.commit()
 
-    mode = get_chatter_mode(config)
+    mode = resolve_group_chatter_mode(
+        db, config, group_id
+    )
     max_tokens = int(config.get(
         'LLMChatter.MaxTokens', 200
     ))
@@ -1768,7 +1775,9 @@ def process_group_player_msg_event(
     db.commit()
 
     try:
-        mode = get_chatter_mode(config)
+        mode = resolve_group_chatter_mode(
+            db, config, group_id, map_id=map_id,
+        )
         # history/chat_hist fetched above for
         # bot selection — reuse here
         members = get_group_members(db, group_id)
@@ -3817,7 +3826,9 @@ def check_idle_group_chatter(
             'IdleHistoryLimit', 5
         ))
 
-        mode = get_chatter_mode(config)
+        mode = resolve_group_chatter_mode(
+            db, config, group_id
+        )
         history = _get_recent_chat(
             db, group_id,
             limit=idle_history_limit
@@ -4870,7 +4881,9 @@ def check_bot_questions(db, client, config):
         }
 
         # Gather context
-        mode = get_chatter_mode(config)
+        mode = resolve_group_chatter_mode(
+            db, config, group_id, roll_seed=bot_name,
+        )
         idle_history_limit = int(config.get(
             'LLMChatter.GroupChatter.'
             'IdleHistoryLimit', 5

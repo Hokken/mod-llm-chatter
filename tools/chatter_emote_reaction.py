@@ -15,12 +15,12 @@ from chatter_shared import (
     parse_extra_data,
     run_single_reaction,
     append_json_instruction,
-    get_chatter_mode,
     get_gender_label,
     build_gear_context,
 )
 from chatter_mode import build_player_prompt_header
 from chatter_group_state import (
+    resolve_group_chatter_mode,
     _mark_event,
     _store_chat,
     build_party_context,
@@ -97,7 +97,9 @@ def handle_emote_reaction(db, client, config, event):
         p_name, emote, category,
         traits=traits,
         stored_tone=stored_tone,
-        mode=get_chatter_mode(config),
+        mode=resolve_group_chatter_mode(
+            db, config, group_id, roll_seed=bot_name,
+        ),
         is_custom=is_custom,
         gear=build_gear_context(
             db, bot_guid, bot_class, config,

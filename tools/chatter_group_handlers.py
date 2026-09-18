@@ -8,7 +8,6 @@ from chatter_shared import (
     get_class_name,
     get_race_name,
     get_gender_label,
-    get_chatter_mode,
     get_zone_name,
     get_zone_flavor,
     get_subzone_lore,
@@ -49,6 +48,8 @@ from chatter_text import (
 
 from chatter_group_state import (
     _has_recent_event,
+    group_is_instanced,
+    resolve_group_chatter_mode,
     _mark_event,
     _store_chat,
     _get_recent_chat,
@@ -1533,7 +1534,9 @@ def process_group_zone_transition_event(
 
 
     try:
-        mode = get_chatter_mode(config)
+        mode = resolve_group_chatter_mode(
+            db, config, group_id, roll_seed=bot_name,
+        )
         history = _get_recent_chat(db, group_id)
         chat_hist = format_chat_history(history)
         speaker_talent = _maybe_talent_context(
@@ -2179,7 +2182,9 @@ def process_group_nearby_object_event(
         and random.randint(1, 100) <= conv_chance
     ):
         try:
-            mode = get_chatter_mode(config)
+            mode = resolve_group_chatter_mode(
+                db, config, group_id,
+            )
             history = _get_recent_chat(
                 db, group_id,
             )
@@ -2879,12 +2884,14 @@ def _quest_complete_conversation(
         return False
     bots, traits_map, bot_guids = result
 
-    mode = get_chatter_mode(config)
-    history = _get_recent_chat(db, group_id)
-    chat_hist = format_chat_history(history)
-    zone_id, _, _ = get_group_location(
+    zone_id, _, map_id = get_group_location(
         db, group_id
     )
+    mode = resolve_group_chatter_mode(
+        db, config, group_id, map_id=map_id,
+    )
+    history = _get_recent_chat(db, group_id)
+    chat_hist = format_chat_history(history)
 
     quest_id = int(
         extra_data.get('quest_id', 0)
@@ -2983,12 +2990,14 @@ def _quest_objectives_conversation(
         return False
     bots, traits_map, bot_guids = result
 
-    mode = get_chatter_mode(config)
-    history = _get_recent_chat(db, group_id)
-    chat_hist = format_chat_history(history)
-    zone_id, _, _ = get_group_location(
+    zone_id, _, map_id = get_group_location(
         db, group_id
     )
+    mode = resolve_group_chatter_mode(
+        db, config, group_id, map_id=map_id,
+    )
+    history = _get_recent_chat(db, group_id)
+    chat_hist = format_chat_history(history)
 
     quest_details = extra_data.get(
         'quest_details', ''
@@ -3079,7 +3088,9 @@ def _quest_accept_conversation(
         return False
     bots, traits_map, bot_guids = result
 
-    mode = get_chatter_mode(config)
+    mode = resolve_group_chatter_mode(
+        db, config, group_id,
+    )
     history = _get_recent_chat(db, group_id)
     chat_hist = format_chat_history(history)
 

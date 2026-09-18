@@ -1359,6 +1359,25 @@ RAID_MAP_IDS = {
     533, 603, 615, 616, 624, 631, 649, 724,
 }
 
+# Battleground instance map IDs (Classic, TBC, WotLK)
+BATTLEGROUND_MAP_IDS = {
+    30,   # Alterac Valley
+    489,  # Warsong Gulch
+    529,  # Arathi Basin
+    566,  # Eye of the Storm
+    607,  # Strand of the Ancients
+    628,  # Isle of Conquest
+}
+
+# Arena instance map IDs (TBC, WotLK)
+ARENA_MAP_IDS = {
+    559,  # Nagrand Arena
+    562,  # Blade's Edge Arena
+    572,  # Ruins of Lordaeron
+    617,  # Dalaran Sewers
+    618,  # The Ring of Valor
+}
+
 # DUNGEON FLAVOR - Rich context for immersive dungeon/raid chat generation
 # =============================================================================
 # Each dungeon/raid gets a description that gives the LLM world knowledge.
@@ -1530,6 +1549,16 @@ DUNGEON_FLAVOR = {
 
     724: """Ruby Sanctum: A chamber beneath Wyrmrest Temple where the twilight dragonflight has invaded the red dragons' sanctum. Halion, the twilight destroyer, phases between the physical realm and the shadow realm. The chamber shifts between warm ruby light and cold purple shadow. The last raid before the Cataclysm - a brief, ominous warning of the destruction to come.""",
 }
+
+# Every instanced map ID: dungeons, raids, battlegrounds, arenas.
+# Used to decide when group chat is inside instanced content, which
+# is a different social register from open-world play.
+INSTANCE_MAP_IDS = frozenset(
+    set(DUNGEON_FLAVOR)
+    | RAID_MAP_IDS
+    | BATTLEGROUND_MAP_IDS
+    | ARENA_MAP_IDS
+)
 
 # Item quality colors for WoW links (FF prefix for alpha channel)
 ITEM_QUALITY_COLORS = {

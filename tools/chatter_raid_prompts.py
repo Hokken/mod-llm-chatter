@@ -18,11 +18,11 @@ from chatter_shared import (
     build_anti_repetition_context,
     get_recent_zone_messages,
     append_json_instruction,
-    get_chatter_mode,
 )
 from chatter_mode import (
     build_player_prompt_header,
     is_roleplay,
+    resolve_chatter_mode,
 )
 from chatter_prompts import (
     pick_personality_spices,
@@ -361,6 +361,22 @@ BREVITY_INSTRUCTION = (
 
 # -- Shared context builder ------------------------------
 
+
+def _raid_chatter_mode(config, bot_data=None) -> str:
+    """Resolve the chatter mode for raid chat.
+
+    A raid is instanced group content, so roleplay is gated there unless
+    the server opts out. The bot name seeds the 'mixed' roll so every
+    block of one bot's prompt agrees.
+    """
+    return resolve_chatter_mode(
+        config or {},
+        'raid',
+        is_raid=True,
+        roll_seed=(bot_data or {}).get('bot_name', ''),
+    )
+
+
 def _raid_base_context(extra_data, bot_data):
     """Build shared PvE raid context block."""
     # Bot identity
@@ -371,7 +387,7 @@ def _raid_base_context(extra_data, bot_data):
     traits = bot_data.get('traits')
 
     config = extra_data.get('_config') or {}
-    mode = get_chatter_mode(config)
+    mode = _raid_chatter_mode(config, bot_data)
     roleplay = is_roleplay(mode)
 
     # Race/class context
@@ -569,8 +585,8 @@ def build_raid_boss_wipe_prompt(
             "individuals.\n"
         )
     else:
-        if is_roleplay(get_chatter_mode(
-            extra_data.get('_config') or {}
+        if is_roleplay(_raid_chatter_mode(
+            extra_data.get('_config'), bot_data
         )):
             ctx += (
                 "Talk to your SQUAD after dying. Frustration, dark humor, "
@@ -610,8 +626,8 @@ def build_raid_battle_cry_prompt(
 
     ctx = _raid_base_context(extra_data, bot_data)
 
-    roleplay = is_roleplay(get_chatter_mode(
-        extra_data.get('_config') or {}
+    roleplay = is_roleplay(_raid_chatter_mode(
+        extra_data.get('_config'), bot_data
     ))
     if roleplay:
         ctx += (

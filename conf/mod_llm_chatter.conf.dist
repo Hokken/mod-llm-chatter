@@ -436,28 +436,87 @@ LLMChatter.Database.Name = acore_characters
 
 #
 #   LLMChatter.ChatterMode
-#       Controls the personality style of bot chat messages
+#       Default personality style for bot chat messages. Individual
+#       channels can override it -- see PER-CHANNEL CHATTER MODE below.
 #       "normal"   - Natural WoW player chat with a friendly, respectful
 #                    baseline
 #       "roleplay" - Fully in-character race/class personality with
 #                    lore-influenced speech
-#       "mixed"    - Rolls per message between the two, so the server
-#                    is not locked to one voice. See
-#                    LLMChatter.MixedRoleplayChance below
-#       Actual NPCs remain in character in either mode
+#       "mixed"    - Rolls between the two, so the server is not locked
+#                    to one voice. See LLMChatter.MixedRoleplayChance
+#                    below
+#       Actual NPCs remain in character in every mode
 #       Default: normal
 #
 LLMChatter.ChatterMode = normal
 
 #
 #   LLMChatter.MixedRoleplayChance [BRIDGE]
-#       Only read when LLMChatter.ChatterMode = mixed. Probability
+#       Only read when a chatter mode resolves to "mixed". Probability
 #       (0.0 - 1.0) that any given message is built in roleplay mode
 #       rather than normal. 0.5 is an even split; 0.2 makes roleplay
 #       an occasional accent. Ignored in the other two modes.
+#       The roll is seeded per bot where the speaker is known, so one
+#       bot keeps one voice across a conversation instead of flipping
+#       between messages.
 #       Default: 0.5
 #
 LLMChatter.MixedRoleplayChance = 0.5
+
+#
+#   PER-CHANNEL CHATTER MODE [BRIDGE]
+#       ChatterMode above is the default, not a verdict. Each channel
+#       can override it, because the right voice is not the same in
+#       every place bots talk: in-character banter reads well in zone
+#       or guild chat and badly in the middle of a dungeon pull.
+#
+#       Accepted values: normal, roleplay, mixed, or empty to inherit
+#       LLMChatter.ChatterMode. All are empty by default, so an
+#       existing config behaves exactly as it did before.
+#
+#         LLMChatter.ChatterMode.General       - zone/General channel
+#         LLMChatter.ChatterMode.Guild         - guild chat
+#         LLMChatter.ChatterMode.Say           - /say and /yell
+#         LLMChatter.ChatterMode.Party         - party chat
+#         LLMChatter.ChatterMode.Raid          - raid chat
+#         LLMChatter.ChatterMode.Battleground  - battleground chat
+#
+#       Example -- in-character world, plain group play:
+#         LLMChatter.ChatterMode = roleplay
+#         LLMChatter.ChatterMode.Party = normal
+#         LLMChatter.ChatterMode.Raid = normal
+#
+LLMChatter.ChatterMode.General =
+LLMChatter.ChatterMode.Guild =
+LLMChatter.ChatterMode.Say =
+LLMChatter.ChatterMode.Party =
+LLMChatter.ChatterMode.Raid =
+LLMChatter.ChatterMode.Battleground =
+
+#
+#   LLMChatter.Roleplay.SuppressInInstances [BRIDGE]
+#       Drop roleplay to the plain player voice on party, raid, and
+#       battleground chat while the group is inside a dungeon, raid,
+#       battleground, or arena. Zone, guild, and /say chat are not
+#       affected, so a roleplay server keeps its in-character world
+#       and still gets readable chat during a run.
+#       Set to 0 if you want in-character raids (RP-PvE servers).
+#       Format: 1 (suppress) or 0 (roleplay everywhere)
+#       Default: 1
+#
+LLMChatter.Roleplay.SuppressInInstances = 1
+
+#
+#   LLMChatter.Instance.TacticalChat [BRIDGE]
+#       Tighten the register of party chat inside instanced content:
+#       practical, reactive, and focused on the run, with idle chatter
+#       kept short and infrequent. Applies in normal mode as well as
+#       to roleplay that was suppressed by the setting above. Raid and
+#       battleground chat already use a tactical voice.
+#       Format: 1 (tactical in instances) or 0 (same as open world)
+#       Default: 1
+#
+LLMChatter.Instance.TacticalChat = 1
 
 #
 #   LLMChatter.Language [BRIDGE]

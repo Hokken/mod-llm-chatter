@@ -24,13 +24,16 @@ from chatter_guild_player import (
     _session_is_current,
 )
 
-from chatter_mode import build_player_chat_guidance, is_roleplay
+from chatter_mode import (
+    build_player_chat_guidance,
+    is_roleplay,
+    resolve_chatter_mode,
+)
 from chatter_shared import (
     append_conversation_json_instruction,
     append_json_instruction,
     build_conversation_json_repair_prompt,
     calculate_dynamic_delay,
-    get_chatter_mode,
     parse_conversation_response,
     parse_extra_data,
 )
@@ -339,7 +342,7 @@ def _generate_single(
         player_name,
         name_requested,
         maximum,
-        get_chatter_mode(config),
+        resolve_chatter_mode(config, 'guild'),
     )
     token_budget = max(80, _safe_int(config.get(
         'LLMChatter.GuildChatter.MaxTokens',
@@ -419,7 +422,7 @@ def _generate_multi(
         player_name,
         name_requested,
         maximum,
-        get_chatter_mode(config),
+        resolve_chatter_mode(config, 'guild'),
     )
     base_tokens = max(100, _safe_int(config.get(
         'LLMChatter.GuildChatter.MaxTokens',

@@ -274,11 +274,20 @@ that playerbots are ready synchronously:
 `tools/chatter_mode.py` owns the canonical playerbot identity boundary
 and voice contract. In `normal` mode, playerbots speak as people playing
 World of Warcraft; in `roleplay` mode, they speak as their characters in
-Azeroth. General, Party, Guild, Battleground, Raid, emote,
-and playerbot `/say` prompt paths must use that shared contract rather
-than defining independent versions of normal-mode behavior.
+Azeroth; in `instanced` mode they keep the player voice but tighten to a
+working register. General, Party, Guild, Battleground, Raid, emote, and
+playerbot `/say` prompt paths must use that shared contract rather than
+defining independent versions of normal-mode behavior.
 
-Actual NPCs do not follow `LLMChatter.ChatterMode`. Proximity payloads
+`LLMChatter.ChatterMode` is the default, not the answer. The mode for a
+given message comes from `resolve_chatter_mode(config, channel, ...)`,
+which layers a per-channel override and an instanced-content gate on top
+of the configured value; group callers use the
+`resolve_group_chatter_mode()` wrapper in `chatter_group_state.py`. No
+other module may read `LLMChatter.ChatterMode` directly where a channel
+is known, or the gate is silently bypassed for that path.
+
+Actual NPCs do not follow the chatter mode at all. Proximity payloads
 already identify them with `is_npc`; `chatter_proximity.py` therefore
 keeps NPC speakers in-world while routing nearby playerbots through the
 configured player voice. A mixed scene applies the rule per speaker.
@@ -287,7 +296,8 @@ Persistent character backstories and race/class worldview context are
 RP-only prompt inputs. Normal-mode memory callbacks are presented as
 past gameplay events. Pre-cached group replies have no mode column, so
 the bridge deletes only `ready` cache rows at startup before refilling
-them under the current mode.
+them under the current mode, and `chatter_cache.py` drops a single
+group's pool when that group's resolved mode changes under it.
 
 ## System Prompt Architecture
 

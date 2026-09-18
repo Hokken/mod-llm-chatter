@@ -19,10 +19,12 @@ from chatter_group_prompts import (
     build_precache_spell_support_prompt,
     build_precache_spell_offensive_prompt,
 )
-from chatter_group_state import get_bot_mood_label
+from chatter_group_state import (
+    get_bot_mood_label,
+    resolve_group_chatter_mode,
+)
 from chatter_shared import (
     cleanup_message,
-    get_chatter_mode,
     strip_speaker_prefix,
     pick_emote_for_statement,
     parse_single_response,
@@ -142,6 +144,38 @@ _STATE_TYPE_MAP = {
     'state_oom': 'oom',
     'state_aggro_loss': 'aggro_loss',
 }
+
+
+
+# Chatter mode each group's ready pool was generated under. The pool has
+# no mode column and is consumed by C++ without one, so the refill loop
+# tracks the mode in memory and drops a group's pool when it changes --
+# a group that zones into a dungeon leaves roleplay behind, and the lines
+# already queued for it were written in the other voice.
+_precache_group_modes = {}
+
+
+def _sync_group_precache_mode(db, config, group_id):
+    """Return a group's current chatter mode, discarding a stale pool."""
+    mode = resolve_group_chatter_mode(db, config, group_id)
+    previous = _precache_group_modes.get(group_id)
+    if previous is not None and previous != mode:
+        cursor = db.cursor()
+        cursor.execute(
+            "DELETE FROM llm_group_cached_responses "
+            "WHERE group_id = %s AND status = 'ready'",
+            (int(group_id),),
+        )
+        removed = max(0, int(cursor.rowcount or 0))
+        db.commit()
+        if removed:
+            logger.info(
+                "Discarded %d pre-cached responses for group %s "
+                "(chatter mode %s -> %s)",
+                removed, group_id, previous, mode,
+            )
+    _precache_group_modes[group_id] = mode
+    return mode
 
 
 def _run_cache_hygiene(db):
@@ -340,8 +374,13 @@ def refill_precache_pool(db, client, config):
     if not bots:
         return
 
+    # Forget groups that no longer exist, so the mode map does not grow
+    # for the life of the bridge. Their rows are purged elsewhere.
+    active_groups = {int(row['group_id']) for row in bots}
+    for stale_group in set(_precache_group_modes) - active_groups:
+        _precache_group_modes.pop(stale_group, None)
+
     generated = 0
-    mode = get_chatter_mode(config)
 
     # Step 4: Iterate bots and categories
     for bot_row in bots:
@@ -351,6 +390,12 @@ def refill_precache_pool(db, client, config):
         group_id = int(bot_row['group_id'])
         bot_guid = int(bot_row['bot_guid'])
         bot_name = bot_row['bot_name']
+
+        # Mode is per group, not per server: a group inside a dungeon
+        # speaks plainly even when the server default is roleplay.
+        mode = _sync_group_precache_mode(
+            db, config, group_id
+        )
 
         # Build traits list
         traits = []

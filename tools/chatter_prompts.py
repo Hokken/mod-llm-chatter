@@ -21,7 +21,7 @@ from chatter_constants import (
     CLASS_NAMES, RACE_NAMES, CLASS_ROLE_MAP,
 )
 from chatter_shared import (
-    get_chatter_mode, build_race_class_context,
+    build_race_class_context,
     build_race_class_context_parts,
     build_bot_identity,
     get_zone_flavor, format_price,
@@ -35,6 +35,7 @@ from chatter_shared import (
 from chatter_mode import (
     build_player_chat_guidance,
     build_player_prompt_header,
+    resolve_chatter_mode,
 )
 
 logger = logging.getLogger(__name__)
@@ -433,7 +434,7 @@ def build_plain_statement_prompt(
     length_hint: str = "",
 ) -> str:
     """Build a dynamically varied prompt for a plain statement."""
-    mode = get_chatter_mode(config) if config else 'normal'
+    mode = resolve_chatter_mode(config, 'general')
     is_rp = (mode == 'roleplay')
     parts = []
 
@@ -572,7 +573,7 @@ def build_quest_statement_prompt(
     zone_id: int = 0,
 ) -> str:
     """Build a dynamically varied prompt for a quest statement."""
-    mode = get_chatter_mode(config) if config else 'normal'
+    mode = resolve_chatter_mode(config, 'general')
     is_rp = (mode == 'roleplay')
     parts = []
 
@@ -698,7 +699,7 @@ def build_loot_statement_prompt(
     zone_id: int = 0,
 ) -> str:
     """Build a dynamically varied prompt for a loot statement."""
-    mode = get_chatter_mode(config) if config else 'normal'
+    mode = resolve_chatter_mode(config, 'general')
     is_rp = (mode == 'roleplay')
     quality_names = {
         0: "gray", 1: "white", 2: "green",
@@ -830,7 +831,7 @@ def build_quest_reward_statement_prompt(
     zone_id: int = 0,
 ) -> str:
     """Build a prompt for quest completion with reward."""
-    mode = get_chatter_mode(config) if config else 'normal'
+    mode = resolve_chatter_mode(config, 'general')
     is_rp = (mode == 'roleplay')
 
     item_name = (
@@ -978,7 +979,7 @@ def build_plain_conversation_prompt(
     area_id: int = 0,
 ) -> str:
     """Build a prompt for a plain conversation with 2-4 bots."""
-    mode = get_chatter_mode(config) if config else 'normal'
+    mode = resolve_chatter_mode(config, 'general')
     is_rp = (mode == 'roleplay')
     parts = []
     bot_count = len(bots)
@@ -1288,7 +1289,7 @@ def build_gossip_statement_prompt(
     length_hint: str = "",
 ) -> str:
     """Build a General-channel gossip statement prompt."""
-    mode = get_chatter_mode(config) if config else 'normal'
+    mode = resolve_chatter_mode(config, 'general')
     is_rp = (mode == 'roleplay')
     parts = []
 
@@ -1376,7 +1377,7 @@ def build_gossip_conversation_prompt(
     area_id: int = 0,
 ) -> str:
     """Build a General-channel gossip conversation prompt."""
-    mode = get_chatter_mode(config) if config else 'normal'
+    mode = resolve_chatter_mode(config, 'general')
     is_rp = (mode == 'roleplay')
     parts = []
     bot_count = len(bots)
@@ -1500,7 +1501,7 @@ def build_quest_conversation_prompt(
     zone_id: int = 0,
 ) -> str:
     """Build a prompt for a quest conversation with 2-4 bots."""
-    mode = get_chatter_mode(config) if config else 'normal'
+    mode = resolve_chatter_mode(config, 'general')
     is_rp = (mode == 'roleplay')
     parts = []
     bot_count = len(bots)
@@ -1648,7 +1649,7 @@ def build_loot_conversation_prompt(
     zone_id: int = 0,
 ) -> str:
     """Build a prompt for a loot conversation with 2-4 bots."""
-    mode = get_chatter_mode(config) if config else 'normal'
+    mode = resolve_chatter_mode(config, 'general')
     is_rp = (mode == 'roleplay')
     parts = []
     bot_count = len(bots)
@@ -1804,7 +1805,7 @@ def build_event_conversation_prompt(
     area_id: int = 0,
 ) -> str:
     """Build a prompt for an event-triggered conversation."""
-    mode = get_chatter_mode(config) if config else 'normal'
+    mode = resolve_chatter_mode(config, 'general')
     is_rp = (mode == 'roleplay')
     parts = []
     bot_count = len(bots)
@@ -2050,7 +2051,7 @@ def build_event_statement_prompt(
     area_id: int = 0,
 ) -> str:
     """Build a prompt for an event-triggered statement."""
-    mode = get_chatter_mode(config) if config else 'normal'
+    mode = resolve_chatter_mode(config, 'general')
     is_rp = (mode == 'roleplay')
     tone = pick_random_tone(mode)
     extra_data = extra_data or {}
@@ -2204,7 +2205,7 @@ def build_spell_statement_prompt(
     zone_id: int = 0,
 ) -> str:
     """Build a prompt for a spell/ability statement."""
-    mode = get_chatter_mode(config) if config else 'normal'
+    mode = resolve_chatter_mode(config, 'general')
     is_rp = (mode == 'roleplay')
     parts = []
 
@@ -2337,7 +2338,7 @@ def build_spell_conversation_prompt(
     """Build a prompt for a spell conversation
     with 2-4 bots discussing an ability."""
     mode = (
-        get_chatter_mode(config)
+        resolve_chatter_mode(config, 'general')
         if config else 'normal'
     )
     is_rp = (mode == 'roleplay')
@@ -2569,7 +2570,7 @@ def build_trade_statement_prompt(
     zone_id: int = 0,
 ) -> str:
     """Build a prompt for a trade/sell statement."""
-    mode = get_chatter_mode(config) if config else 'normal'
+    mode = resolve_chatter_mode(config, 'general')
     is_rp = (mode == 'roleplay')
     quality_names = {
         0: "gray", 1: "white", 2: "green",
@@ -2714,7 +2715,7 @@ def build_trade_conversation_prompt(
     """Build a prompt for a trade conversation
     with 2-4 bots haggling over an item."""
     mode = (
-        get_chatter_mode(config)
+        resolve_chatter_mode(config, 'general')
         if config else 'normal'
     )
     is_rp = (mode == 'roleplay')
@@ -2917,7 +2918,7 @@ def build_zone_intrusion_prompt(
     about the enemy intruder, flavored by their
     race/class personality.
     """
-    mode = get_chatter_mode(config)
+    mode = resolve_chatter_mode(config, 'yell')
     is_rp = (mode == 'roleplay')
 
     # Defender identity

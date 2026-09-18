@@ -43,10 +43,14 @@ from chatter_db import (
     cleanup_stale_groups,
     cleanup_all_session_data,
 )
+from chatter_mode import (
+    CHANNEL_MODE_KEYS,
+    suppress_roleplay_in_instances,
+    tactical_chat_in_instances,
+)
 from chatter_shared import (
     format_location_label,
     get_class_name, get_race_name,
-    get_chatter_mode,
     set_race_lore_chance,
     set_race_vocab_chance,
     set_action_chance,
@@ -1332,12 +1336,34 @@ def main():
         'LLMChatter.Bridge.InterSystemStaggerMax', 6
     ))
 
-    chatter_mode = get_chatter_mode(config)
+    chatter_mode = config.get(
+        'LLMChatter.ChatterMode', 'normal'
+    )
 
     logger.info("=" * 60)
     logger.info("LLM Chatter Bridge v4.0")
     logger.info("=" * 60)
     logger.info(f"ChatterMode: {chatter_mode}")
+    for label, key in sorted(CHANNEL_MODE_KEYS.items()):
+        override = str(config.get(key, '') or '').strip()
+        if override:
+            logger.info(
+                f"  {label}: {override} (overrides ChatterMode)"
+            )
+    logger.info(
+        "  Roleplay in instances: "
+        + (
+            "suppressed"
+            if suppress_roleplay_in_instances(config)
+            else "allowed"
+        )
+        + ", instanced party chat: "
+        + (
+            "tactical"
+            if tactical_chat_in_instances(config)
+            else "same as open world"
+        )
+    )
     logger.info(f"Provider: {provider}")
     logger.info(
         f"Model: {model}"

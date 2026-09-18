@@ -270,6 +270,41 @@ All values are percentages (0-100) unless noted. Setting any
 chance to `0` disables that trigger entirely. See the config
 file comments for the full list of tunable keys.
 
+### Choosing the Voice Per Channel
+
+`LLMChatter.ChatterMode` sets the default voice — `normal` (people
+playing WoW), `roleplay` (characters living in Azeroth), or `mixed`.
+It is a default, not a verdict: the right voice is not the same in
+every place bots talk. In-character banter reads well in zone or guild
+chat and badly in the middle of a dungeon pull.
+
+Two things follow from that, and both are on by default:
+
+* **Roleplay yields inside instances.** In a dungeon, raid,
+  battleground, or arena, party/raid/BG chat drops to the plain player
+  voice. Zone, guild, and `/say` chat are untouched, so a roleplay
+  server keeps its in-character world and still gets readable chat
+  during a run. Turn it off with
+  `LLMChatter.Roleplay.SuppressInInstances = 0` if you want
+  in-character raids.
+* **Instanced party chat gets tighter.** Practical and reactive, with
+  idle chatter kept short. Turn it off with
+  `LLMChatter.Instance.TacticalChat = 0`.
+
+Any channel can also name its own mode, which overrides both the
+default and the instance rule:
+
+```ini
+LLMChatter.ChatterMode = roleplay          # in-character world
+LLMChatter.ChatterMode.Party = normal      # ...but plain party chat
+LLMChatter.ChatterMode.Raid = normal       # ...and plain raid chat
+```
+
+The channels are `General`, `Guild`, `Say` (also used for `/yell`),
+`Party`, `Raid`, and `Battleground`. All ship empty, meaning "inherit
+`LLMChatter.ChatterMode`", so an existing config behaves exactly as it
+did before. Actual NPCs stay in character in every mode.
+
 ### Known Limitations
 - **Ollama / open-source models**: Local inference needs fast hardware and
   strong instruction following. Small or reasoning-heavy models can be slow,
