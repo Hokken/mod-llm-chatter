@@ -1,5 +1,16 @@
 # Changelog
 
+### 2026-09-18 - Latency Probe Routes
+
+* **Measure a feature's route**: `chatter_latency_probe.py --feature <name>`
+  times one feature against the endpoint the bridge would really use for it,
+  and `--all-routes` covers the main provider plus every feature routed away
+  from it, collapsing features that share a target. The report is now grouped
+  by route and names the provider and model each one resolved to, which makes
+  it the quickest way to confirm a new route reaches the right endpoint at
+  all. With neither flag the probe measures the main provider exactly as
+  before.
+
 ### 2026-09-18 - Per-Feature Provider Routing
 
 * **Mix providers per feature**: `LLMChatter.<Feature>.Provider` and

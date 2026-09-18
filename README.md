@@ -208,6 +208,12 @@ out which bot a player is addressing. It defaults to the provider's
 fast model rather than `LLMChatter.Model`, because a player waits on
 that call before any bot answers.
 
+After editing routes, confirm them with
+`chatter_latency_probe.py --all-routes` (see
+[Chatter feels slow? Measure it](#chatter-feels-slow-measure-it)). It
+calls each route's real endpoint and prints the provider, model, and
+latency it got back.
+
 ### Tuning the Chattiness
 
 The default config ships on the **chatty side** so you can
@@ -647,6 +653,18 @@ the result like this:
   `LLMChatter.MaxTokens`, or move to a faster model.
 - **The `production` and `no-thinking-param` medians match** — the
   thinking flags are not changing anything on this model.
+
+If you route features to different providers, `--all-routes`
+measures each one against the endpoint the bridge would really use,
+and `--feature guild` measures just that one:
+
+```bash
+python tools/chatter_latency_probe.py --config <path/to/mod_llm_chatter.conf> --all-routes
+```
+
+This is also the quickest way to confirm a route works at all: a
+route that reaches the wrong endpoint fails here immediately, rather
+than during a raid.
 
 **Check logs:** `docker logs ac-llm-chatter-bridge --since 5m`
 
