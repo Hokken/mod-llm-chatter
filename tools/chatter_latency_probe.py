@@ -64,6 +64,34 @@ _USER_PROMPT = (
 _VARIANTS = ('production', 'no-thinking-param', 'thinking-enabled')
 
 
+def _require_openai():
+    """Exit with a usable hint when the SDK is missing.
+
+    The bridge installs its dependencies inside its container, so
+    the usual cause of this is running the probe from the host
+    shell instead of from the bridge.
+    """
+    try:
+        import openai  # noqa: F401
+    except ModuleNotFoundError:
+        print(
+            "ERROR: the 'openai' package is not installed for this "
+            "Python.\n\n"
+            "The bridge installs it inside its container, so run "
+            "the probe there -- the tools directory is already "
+            "mounted at /app and the conf at /config:\n\n"
+            "  docker exec ac-llm-chatter-bridge python \\\n"
+            "      /app/chatter_latency_probe.py \\\n"
+            "      --config /config/mod_llm_chatter.conf "
+            "--compare\n\n"
+            "To run it on the host instead, install the bridge's "
+            "dependencies first:\n\n"
+            "  pip install -r tools/requirements.txt",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+
+
 def _load_config(config_path):
     """Load the WoW-style conf, tolerating odd lines."""
     if not os.path.exists(config_path):
@@ -377,6 +405,7 @@ def main():
     )
     args = parser.parse_args()
 
+    _require_openai()
     config = _load_config(args.config)
 
     from chatter_healthcheck import format_llm_target
