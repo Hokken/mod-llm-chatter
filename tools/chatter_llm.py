@@ -449,10 +449,8 @@ def quick_llm_analyze(
     )
     if qa_client is not None:
         active_client = qa_client
-        using_quick_provider = True
     else:
         active_client = client
-        using_quick_provider = False
 
     # Resolve model
     qa_model = str(config.get(
@@ -461,10 +459,14 @@ def quick_llm_analyze(
 
     if qa_model:
         model = qa_model
-    elif provider == 'deepseek' and using_quick_provider:
+    elif provider == 'deepseek':
+        # Quick analyze classifies; it does not write chatter.
+        # Take the fast model even when the main model is Pro,
+        # because this runs on the directed-reply path and its
+        # cost would otherwise be paid before every reply.
         model = DEFAULT_DEEPSEEK_MODEL
     else:
-        # Main provider, or Ollama: use the configured model.
+        # Ollama: use the configured model.
         model = config.get(
             'LLMChatter.Model', DEFAULT_DEEPSEEK_MODEL
         )

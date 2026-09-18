@@ -1,5 +1,17 @@
 # Changelog
 
+### 2026-09-18 - Quick Analyze Model
+
+* **Fast model for classification**: `quick_llm_analyze()` fell back to
+  `LLMChatter.Model` when DeepSeek was the main provider, so a server on
+  `deepseek-v4-pro` paid Pro latency for `find_addressed_bot` -- a 60-token
+  JSON classification on the directed-reply path -- before the reply itself
+  was even requested. It now defaults to `deepseek-flash` whenever the
+  provider is DeepSeek, matching both the documented behaviour and the
+  previous Anthropic default, which always used the fast model regardless of
+  the main one. `LLMChatter.QuickAnalyze.Model` still overrides it, and
+  Ollama still uses the configured model.
+
 ### 2026-09-18 - Latency Probe
 
 * **Measuring slow chatter**: `tools/chatter_latency_probe.py` sends
