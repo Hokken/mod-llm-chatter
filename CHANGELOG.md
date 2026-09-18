@@ -1,5 +1,19 @@
 # Changelog
 
+### 2026-09-18 - Latency Probe
+
+* **Measuring slow chatter**: `tools/chatter_latency_probe.py` sends
+  chatter-sized prompts through the bridge's own
+  `build_compatible_chat_request()` and reports wall-clock latency next to
+  the reasoning tokens the provider spent. DeepSeek enables thinking by
+  default and the bridge disables it explicitly, but no code path reads
+  `reasoning_content` or `reasoning_tokens`, so a provider that ignores the
+  disable looked exactly like a provider that is merely slow. `--compare`
+  additionally times the provider default and a thinking-on request to show
+  what the setting is worth, and `--json` emits the raw numbers.
+* **Documentation**: the README troubleshooting section explains how to run
+  the probe and how to read the three outcomes it distinguishes.
+
 ### 2026-09-18 - DeepSeek and Ollama Only
 
 * **Providers removed**: Anthropic, OpenAI, Google Gemini, and OpenRouter are

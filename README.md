@@ -517,6 +517,7 @@ up-to-date database. Run them in date order after each
 | Raid chatter not working | Set `RaidChatter.Enable = 1`, raid group in supported instance |
 | Too much / too little chatter | Tune chance and cooldown settings in config |
 | Ollama slow responses | Try a smaller model or use a cloud provider |
+| Cloud replies feel slow | Run the latency probe below — a thinking model is the usual cause |
 
 ### Bots won't chat? Check the health report
 
@@ -556,6 +557,43 @@ talk, see the table above.
 > The check runs automatically by default. It can be turned off with
 > `LLMChatter.HealthCheck.Enable = 0`, and the live LLM test call can
 > be disabled with `LLMChatter.HealthCheck.LLMProbe = 0`.
+
+### Chatter feels slow? Measure it
+
+Slow replies are almost always the model thinking before it
+answers. DeepSeek enables thinking by default, so the bridge turns
+it off explicitly — but nothing in the normal request path checks
+whether the provider honoured that, and a model that thinks anyway
+looks exactly like a model that is merely slow.
+
+The latency probe tells them apart. It sends chatter-sized prompts
+through the same request builder the bridge uses and reports the
+wall-clock time plus the reasoning tokens spent:
+
+**Docker:**
+
+```bash
+docker exec ac-llm-chatter-bridge python /app/chatter_latency_probe.py --config /config/mod_llm_chatter.conf --compare
+```
+
+**Non-Docker:**
+
+```bash
+python tools/chatter_latency_probe.py --config <path/to/mod_llm_chatter.conf> --compare
+```
+
+`--compare` also times the provider's own default and a
+thinking-on request, so you can see what the setting is worth. Read
+the result like this:
+
+- **Reasoning tokens above zero on the `production` line** — the
+  model is thinking despite being told not to. Switch
+  `LLMChatter.Model` to a non-thinking model.
+- **Reasoning tokens at zero, but still slow** — that is the
+  provider's real speed for this model. Lower
+  `LLMChatter.MaxTokens`, or move to a faster model.
+- **The `production` and `no-thinking-param` medians match** — the
+  thinking flags are not changing anything on this model.
 
 **Check logs:** `docker logs ac-llm-chatter-bridge --since 5m`
 
