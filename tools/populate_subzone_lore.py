@@ -9,14 +9,13 @@ entries.
 
 Usage:
     python populate_subzone_lore.py \
-        --provider anthropic \
-        --api-key sk-ant-xxx \
-        --model claude-haiku-4-5-20251001
+        --provider deepseek \
+        --api-key sk-xxx \
+        --model deepseek-flash
 
     python populate_subzone_lore.py \
-        --provider openai \
-        --api-key sk-xxx \
-        --model gpt-4o-mini
+        --provider ollama \
+        --model qwen3:8b
 """
 
 import argparse
@@ -24,10 +23,11 @@ import json
 import os
 import time
 
+from chatter_constants import DEFAULT_DEEPSEEK_MODEL
+from chatter_llm import build_llm_client
 from llm_compat import (
     build_chat_options,
     create_chat_completion,
-    needs_reasoning_token_multiplier,
 )
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -87,22 +87,8 @@ def build_prompt(zone_name, subzone_name, is_parent):
         )
 
 
-def call_anthropic(client, model, prompt):
-    """Call Anthropic API."""
-    response = client.messages.create(
-        model=model,
-        max_tokens=150,
-        system=SYSTEM_PROMPT,
-        messages=[{"role": "user", "content": prompt}],
-    )
-    return response.content[0].text.strip()
-
-
-def call_openai(client, model, prompt):
-    """Call OpenAI API."""
-    max_tokens = 150
-    if needs_reasoning_token_multiplier("openai", model):
-        max_tokens *= 4
+def call_chat(client, provider, model, prompt):
+    """Call an OpenAI-compatible chat endpoint."""
     request_kwargs = {
         "model": model,
         "messages": [
@@ -110,15 +96,12 @@ def call_openai(client, model, prompt):
             {"role": "user", "content": prompt},
         ],
     }
-    request_kwargs.update(build_chat_options(
-        "openai", model, max_tokens
-    ))
+    request_kwargs.update(build_chat_options(150))
     response = create_chat_completion(
         client.chat.completions.create,
         request_kwargs,
-        "openai",
+        provider,
         model,
-        reasoning_token_multiplier=4,
     )
     return response.choices[0].message.content.strip()
 
@@ -129,12 +112,12 @@ def main():
     )
     parser.add_argument(
         "--provider", required=True,
-        choices=["anthropic", "openai"],
+        choices=["deepseek", "ollama"],
         help="LLM provider"
     )
     parser.add_argument(
-        "--api-key", required=True,
-        help="API key"
+        "--api-key", default="",
+        help="API key (required for deepseek)"
     )
     parser.add_argument(
         "--model", default=None,
@@ -160,10 +143,13 @@ def main():
 
     # Default models
     if not args.model:
-        if args.provider == "anthropic":
-            args.model = "claude-haiku-4-5-20251001"
+        if args.provider == "deepseek":
+            args.model = DEFAULT_DEEPSEEK_MODEL
         else:
-            args.model = "gpt-4o-mini"
+            args.model = "qwen3:8b"
+
+    if args.provider == "deepseek" and not args.api_key:
+        parser.error("--api-key is required for deepseek")
 
     # Load JSON
     with open(JSON_PATH, "r", encoding="utf-8") as f:
@@ -233,18 +219,15 @@ def main():
         return
 
     # Initialize client
-    call_fn = None
-    if args.provider == "anthropic":
-        import anthropic
-        client = anthropic.Anthropic(
-            api_key=args.api_key)
-        call_fn = lambda p: call_anthropic(
-            client, args.model, p)
-    else:
-        from openai import OpenAI
-        client = OpenAI(api_key=args.api_key)
-        call_fn = lambda p: call_openai(
-            client, args.model, p)
+    client = build_llm_client({
+        "LLMChatter.Provider": args.provider,
+        "LLMChatter.DeepSeek.ApiKey": args.api_key,
+    }, args.provider)
+    if client is None:
+        parser.error(
+            f"could not build a client for {args.provider}")
+    call_fn = lambda p: call_chat(
+        client, args.provider, args.model, p)
 
     # Process
     done = 0

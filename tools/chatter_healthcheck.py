@@ -29,7 +29,7 @@ after editing the conf, without restarting the bridge):
 
 Zero extra dependencies — uses only the stdlib plus the
 packages the bridge already needs (mysql.connector,
-anthropic, openai), imported lazily so a missing optional
+openai), imported lazily so a missing optional
 provider SDK never breaks the rest of the report.
 """
 
@@ -39,12 +39,9 @@ import os
 import sys
 
 from chatter_constants import (
-    DEFAULT_ANTHROPIC_MODEL,
-    DEFAULT_GOOGLE_MODEL,
-    DEFAULT_OPENAI_MODEL,
-    DEFAULT_OPENROUTER_MODEL,
-    GOOGLE_OPENAI_BASE_URL,
-    OPENROUTER_BASE_URL,
+    DEEPSEEK_BASE_URL,
+    DEFAULT_DEEPSEEK_MODEL,
+    DEFAULT_PROVIDER,
 )
 
 # Path to the base SQL that creates the required tables
@@ -65,18 +62,11 @@ _REQUIRED_TABLES = [
     'llm_guild_session_history',
 ]
 
-_VALID_PROVIDERS = (
-    'anthropic', 'openai', 'google', 'openrouter', 'ollama'
-)
+_VALID_PROVIDERS = ('deepseek', 'ollama')
 
 # provider -> (api_key_config_key, example_placeholder)
 _PROVIDER_KEYS = {
-    'anthropic': ('LLMChatter.Anthropic.ApiKey', 'sk-ant-xxxxx'),
-    'openai': ('LLMChatter.OpenAI.ApiKey', 'sk-xxxxx'),
-    'google': ('LLMChatter.Google.ApiKey', 'AIza-xxxxx'),
-    'openrouter': (
-        'LLMChatter.OpenRouter.ApiKey', 'sk-or-v1-xxxxx'
-    ),
+    'deepseek': ('LLMChatter.DeepSeek.ApiKey', 'sk-xxxxx'),
 }
 
 
@@ -111,17 +101,12 @@ def format_db_target(config):
 
 def format_llm_target(config):
     """Human string of the LLM endpoint/provider/model."""
-    provider = config.get(
-        'LLMChatter.Provider', 'anthropic'
-    ).strip().lower()
-    default_model = DEFAULT_ANTHROPIC_MODEL
-    if provider == 'openai':
-        default_model = DEFAULT_OPENAI_MODEL
-    elif provider == 'google':
-        default_model = DEFAULT_GOOGLE_MODEL
-    elif provider == 'openrouter':
-        default_model = DEFAULT_OPENROUTER_MODEL
-    model = config.get('LLMChatter.Model', default_model)
+    provider = str(config.get(
+        'LLMChatter.Provider', DEFAULT_PROVIDER
+    )).strip().lower()
+    model = config.get(
+        'LLMChatter.Model', DEFAULT_DEEPSEEK_MODEL
+    )
 
     if provider == 'ollama':
         base_url = config.get(
@@ -129,29 +114,19 @@ def format_llm_target(config):
             'http://host.docker.internal:11434',
         )
         return f"ollama {model} @ {base_url}"
-    if provider == 'google':
+    if provider == 'deepseek':
         base_url = config.get(
-            'LLMChatter.Google.BaseUrl', GOOGLE_OPENAI_BASE_URL
+            'LLMChatter.DeepSeek.BaseUrl', DEEPSEEK_BASE_URL
         )
-        return f"google {model} @ {base_url}"
-    if provider == 'openrouter':
-        base_url = config.get(
-            'LLMChatter.OpenRouter.BaseUrl', OPENROUTER_BASE_URL
-        )
-        return f"openrouter {model} @ {base_url}"
+        return f"deepseek {model} @ {base_url}"
     return f"{provider} {model}"
 
 
 def _resolved_model(config, provider):
     """Resolve the model id for a provider as main() does."""
-    default_model = DEFAULT_ANTHROPIC_MODEL
-    if provider == 'openai':
-        default_model = DEFAULT_OPENAI_MODEL
-    elif provider == 'google':
-        default_model = DEFAULT_GOOGLE_MODEL
-    elif provider == 'openrouter':
-        default_model = DEFAULT_OPENROUTER_MODEL
-    model = config.get('LLMChatter.Model', default_model)
+    model = config.get(
+        'LLMChatter.Model', DEFAULT_DEEPSEEK_MODEL
+    )
     try:
         from chatter_llm import resolve_model
         return resolve_model(model)
@@ -214,9 +189,9 @@ def _check_module_enabled(config):
 
 def _check_provider_config(config):
     """Validate provider name + API key (or Ollama URL)."""
-    provider = config.get(
-        'LLMChatter.Provider', 'anthropic'
-    ).strip().lower()
+    provider = str(config.get(
+        'LLMChatter.Provider', DEFAULT_PROVIDER
+    )).strip().lower()
 
     if provider not in _VALID_PROVIDERS:
         return _result(
@@ -478,29 +453,9 @@ def _is_model_error(exc):
     )
 
 
-def _probe_anthropic(config, model):
-    """Make a minimal Anthropic call; returns text or raises."""
-    import anthropic
-    client = anthropic.Anthropic(
-        api_key=config.get('LLMChatter.Anthropic.ApiKey', ''),
-    )
-    resp = client.messages.create(
-        model=model,
-        max_tokens=5,
-        messages=[{
-            'role': 'user',
-            'content': 'Reply with the single word: OK',
-        }],
-    )
-    return resp.content[0].text.strip()
-
-
 def _probe_openai_compatible(client, model, provider, config):
     """Make a minimal OpenAI-compatible call; text or raises."""
-    from chatter_llm import (
-        build_compatible_chat_request,
-        compatible_reasoning_token_multiplier,
-    )
+    from chatter_llm import build_compatible_chat_request
     from llm_compat import create_chat_completion
 
     messages = [{
@@ -528,9 +483,6 @@ def _probe_openai_compatible(client, model, provider, config):
         kwargs,
         provider,
         model,
-        reasoning_token_multiplier=(
-            compatible_reasoning_token_multiplier(provider, config)
-        ),
     )
     content = resp.choices[0].message.content
     if isinstance(content, str):
@@ -539,43 +491,24 @@ def _probe_openai_compatible(client, model, provider, config):
 
 
 def _build_openai_compatible_client(config, provider):
-    """Construct the OpenAI-style client exactly like main()."""
-    import openai
+    """Construct the client exactly like the bridge does."""
+    from chatter_llm import build_llm_client
     if provider == 'ollama':
-        base_url = config.get(
+        # The health check may run in the container, where the
+        # Docker-internal host is the working default.
+        config = dict(config)
+        config.setdefault(
             'LLMChatter.Ollama.BaseUrl',
             'http://host.docker.internal:11434',
         )
-        return openai.OpenAI(
-            base_url=f"{base_url.rstrip('/')}/v1",
-            api_key='ollama',
-        )
-    if provider == 'openai':
-        return openai.OpenAI(
-            api_key=config.get('LLMChatter.OpenAI.ApiKey', ''),
-        )
-    if provider == 'google':
-        return openai.OpenAI(
-            api_key=config.get('LLMChatter.Google.ApiKey', ''),
-            base_url=config.get(
-                'LLMChatter.Google.BaseUrl', GOOGLE_OPENAI_BASE_URL
-            ),
-        )
-    # openrouter
-    kwargs = {
-        'api_key': config.get('LLMChatter.OpenRouter.ApiKey', ''),
-        'base_url': config.get(
-            'LLMChatter.OpenRouter.BaseUrl', OPENROUTER_BASE_URL
-        ),
-    }
-    return openai.OpenAI(**kwargs)
+    return build_llm_client(config, provider)
 
 
 def _check_llm_probe(config):
     """Make a minimal real LLM call and classify failures."""
-    provider = config.get(
-        'LLMChatter.Provider', 'anthropic'
-    ).strip().lower()
+    provider = str(config.get(
+        'LLMChatter.Provider', DEFAULT_PROVIDER
+    )).strip().lower()
     target = format_llm_target(config)
     model = _resolved_model(config, provider)
 
@@ -585,27 +518,29 @@ def _check_llm_probe(config):
             'LLMChatter.Ollama.BaseUrl',
             'http://host.docker.internal:11434',
         )
-    elif provider == 'google':
+    elif provider == 'deepseek':
         endpoint = config.get(
-            'LLMChatter.Google.BaseUrl', GOOGLE_OPENAI_BASE_URL
-        )
-    elif provider == 'openrouter':
-        endpoint = config.get(
-            'LLMChatter.OpenRouter.BaseUrl', OPENROUTER_BASE_URL
+            'LLMChatter.DeepSeek.BaseUrl', DEEPSEEK_BASE_URL
         )
     else:
         endpoint = "the provider API"
 
     try:
-        if provider == 'anthropic':
-            text = _probe_anthropic(config, model)
-        else:
-            client = _build_openai_compatible_client(
-                config, provider
+        client = _build_openai_compatible_client(
+            config, provider
+        )
+        if client is None:
+            return _result(
+                'llm_probe',
+                'LLM connectivity (live test)', 'fail',
+                f"Could not build a client for '{provider}'.",
+                "Set LLMChatter.Provider to one of: "
+                + ", ".join(_VALID_PROVIDERS)
+                + ", and set its API key.",
             )
-            text = _probe_openai_compatible(
-                client, model, provider, config
-            )
+        text = _probe_openai_compatible(
+            client, model, provider, config
+        )
 
         if text:
             return _result(

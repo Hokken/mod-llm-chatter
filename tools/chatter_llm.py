@@ -6,17 +6,14 @@ import time
 from typing import Any, Optional
 
 from chatter_constants import (
-    DEFAULT_ANTHROPIC_MODEL,
-    DEFAULT_GOOGLE_MODEL,
-    DEFAULT_OPENAI_MODEL,
-    DEFAULT_OPENROUTER_MODEL,
-    GOOGLE_OPENAI_BASE_URL,
-    OPENROUTER_BASE_URL,
+    DEEPSEEK_BASE_URL,
+    DEFAULT_DEEPSEEK_MODEL,
+    DEFAULT_OLLAMA_BASE_URL,
+    DEFAULT_PROVIDER,
 )
 from llm_compat import (
     build_chat_options,
     create_chat_completion,
-    needs_reasoning_token_multiplier,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,98 +47,47 @@ def _build_chat_messages(sys_msg, user_content):
     return messages
 
 
-def _build_anthropic_request_kwargs(
-    model, max_tokens, temperature, sys_msg, user_msg
-):
-    """Build Anthropic SDK v1-compatible request arguments."""
-    kwargs = {
-        "model": model,
-        "max_tokens": max_tokens,
-        "messages": [{
-            "role": "user",
-            "content": user_msg,
-        }],
-        "extra_body": {
-            "temperature": temperature,
-        },
-    }
-    if sys_msg:
-        kwargs["system"] = sys_msg
-    return kwargs
+def _deepseek_reasoning_effort(config):
+    """Return the configured DeepSeek reasoning effort.
 
-
-def _openrouter_headers(config):
-    """Build optional OpenRouter app-attribution headers."""
-    headers = {}
-    referer = str(config.get(
-        'LLMChatter.OpenRouter.HttpReferer', ''
-    )).strip()
-    title = str(config.get(
-        'LLMChatter.OpenRouter.Title', ''
-    )).strip()
-    if referer:
-        headers['HTTP-Referer'] = referer
-    if title:
-        headers['X-OpenRouter-Title'] = title
-    return headers or None
-
-
-def _openrouter_reasoning_effort(config):
-    """Return the configured OpenRouter reasoning effort."""
+    DeepSeek enables thinking by default, which is slow and
+    expensive for short chatter, so an empty setting is read
+    as the explicit "none" rather than the provider default.
+    """
     effort = str(config.get(
-        'LLMChatter.OpenRouter.ReasoningEffort', ''
-    )).strip()
-    return effort or None
+        'LLMChatter.DeepSeek.ReasoningEffort', 'none'
+    )).strip().lower()
+    return effort or 'none'
 
 
-def _openrouter_reasoning_enabled(config):
-    """Return whether OpenRouter reasoning needs extra output budget."""
-    effort = _openrouter_reasoning_effort(config)
-    return bool(effort) and effort.lower() != 'none'
+def _deepseek_reasoning_enabled(config):
+    """Return whether DeepSeek thinking mode is requested."""
+    return _deepseek_reasoning_effort(config) != 'none'
+
+
+def _apply_deepseek_options(kwargs, config):
+    """Attach DeepSeek thinking-mode request options.
+
+    ``thinking`` is stated explicitly in both directions
+    because the API enables it by default.
+    """
+    if _deepseek_reasoning_enabled(config):
+        kwargs['reasoning_effort'] = _deepseek_reasoning_effort(
+            config
+        )
+        kwargs['extra_body'] = {'thinking': {'type': 'enabled'}}
+        # DeepSeek ignores temperature in thinking mode.
+        kwargs.pop('temperature', None)
+        return
+    kwargs['reasoning_effort'] = 'none'
+    kwargs['extra_body'] = {'thinking': {'type': 'disabled'}}
 
 
 def compatible_reasoning_effort(provider, config):
     """Return the effort that can affect parameter compatibility."""
-    if provider == 'openai':
-        return config.get(
-            'LLMChatter.OpenAI.ReasoningEffort', ''
-        )
-    if provider == 'openrouter':
-        return _openrouter_reasoning_effort(config)
+    if provider == 'deepseek':
+        return _deepseek_reasoning_effort(config)
     return None
-
-
-def compatible_reasoning_token_multiplier(provider, config):
-    """Return the retry budget multiplier for direct OpenAI."""
-    if provider != 'openai':
-        return 1.0
-    try:
-        multiplier = float(config.get(
-            'LLMChatter.OpenAI.MaxTokensMultiplier', 4
-        ))
-    except (TypeError, ValueError):
-        multiplier = 4.0
-    return max(1.0, min(multiplier, 8.0))
-
-
-def _apply_openrouter_options(kwargs, config):
-    """Attach opt-in OpenRouter reasoning request options."""
-    effort = _openrouter_reasoning_effort(config)
-    if not effort:
-        return
-
-    # Unlike Google, "none" is sent explicitly so hybrid models are
-    # forced into their non-reasoning mode instead of using defaults.
-    # Normalize only the "none" sentinel; other values keep their
-    # configured case since supported effort spellings vary by model.
-    if effort.lower() == 'none':
-        effort = 'none'
-    reasoning = {'effort': effort}
-    if str(config.get(
-        'LLMChatter.OpenRouter.ReasoningExclude', '0'
-    )).strip() == '1':
-        reasoning['exclude'] = True
-    kwargs['extra_body'] = {'reasoning': reasoning}
 
 
 def _ollama_user_msg(user_msg, config):
@@ -158,89 +104,26 @@ def _ollama_user_msg(user_msg, config):
     return user_msg
 
 
-def _google_reasoning_effort(config):
-    """Return Gemini OpenAI-compatible reasoning effort."""
-    if _google_thinking_config(config):
-        return None
-    effort = str(config.get(
-        'LLMChatter.Google.ReasoningEffort', 'minimal'
-    )).strip().lower()
-    if not effort or effort in ('0', 'none', 'off', 'disabled'):
-        return None
-    return effort
-
-
-def _google_thinking_config(config):
-    """Return Gemini thinking_config for OpenAI compatibility."""
-    raw_budget = str(config.get(
-        'LLMChatter.Google.ThinkingBudget', ''
-    )).strip()
-    if not raw_budget:
-        return None
-    try:
-        return {'thinking_budget': int(raw_budget)}
-    except (TypeError, ValueError):
-        logger.warning(
-            "Invalid LLMChatter.Google.ThinkingBudget=%r",
-            raw_budget,
-        )
-        return None
-
-
-def _apply_google_options(kwargs, config):
-    """Attach Gemini-specific OpenAI compatibility options."""
-    thinking_config = _google_thinking_config(config)
-    if thinking_config:
-        kwargs['extra_body'] = {
-            'extra_body': {
-                'google': {
-                    'thinking_config': thinking_config,
-                },
-            },
-        }
-        return
-
-    effort = _google_reasoning_effort(config)
-    if effort:
-        kwargs['reasoning_effort'] = effort
-
-
 def _effective_max_tokens(
     provider, model, config, max_tokens
 ):
-    """Adjust provider-specific output budget."""
-    if provider == 'google':
-        config_key = 'LLMChatter.Google.MaxTokensMultiplier'
-        default_multiplier = 2
-    elif (
-        provider == 'openai'
-        and needs_reasoning_token_multiplier(
-            provider,
-            model,
-            compatible_reasoning_effort(provider, config),
-        )
+    """Adjust provider-specific output budget.
+
+    DeepSeek thinking tokens share the output budget, so the
+    configured multiplier applies only while thinking is on.
+    """
+    if not (
+        provider == 'deepseek'
+        and _deepseek_reasoning_enabled(config)
     ):
-        return int(
-            max_tokens
-            * compatible_reasoning_token_multiplier(provider, config)
-        )
-    elif (
-        provider == 'openrouter'
-        and _openrouter_reasoning_enabled(config)
-    ):
-        config_key = (
-            'LLMChatter.OpenRouter.MaxTokensMultiplier'
-        )
-        default_multiplier = 1
-    else:
         return max_tokens
 
     try:
         multiplier = float(config.get(
-            config_key, default_multiplier
+            'LLMChatter.DeepSeek.MaxTokensMultiplier', 1
         ))
     except (TypeError, ValueError):
-        multiplier = float(default_multiplier)
+        multiplier = 1.0
     multiplier = max(1.0, min(multiplier, 8.0))
     return int(max_tokens * multiplier)
 
@@ -259,20 +142,13 @@ def build_compatible_chat_request(
         'messages': messages,
     }
     kwargs.update(build_chat_options(
-        provider,
-        model,
         _effective_max_tokens(
             provider, model, config, max_tokens
         ),
         temperature=temperature,
-        reasoning_effort=compatible_reasoning_effort(
-            provider, config
-        ),
     ))
-    if provider == 'google':
-        _apply_google_options(kwargs, config)
-    elif provider == 'openrouter':
-        _apply_openrouter_options(kwargs, config)
+    if provider == 'deepseek':
+        _apply_deepseek_options(kwargs, config)
     elif (
         provider == 'ollama'
         and str(config.get(
@@ -313,23 +189,18 @@ def _extract_chat_content(response, label=''):
 
 
 def resolve_model(model_name: str) -> str:
-    """Resolve friendly model aliases to provider model IDs."""
+    """Resolve friendly model aliases to provider model IDs.
+
+    Ollama tags are returned untouched; only the DeepSeek
+    aliases are rewritten.
+    """
     normalized = (model_name or '').strip()
     aliases = {
-        'haiku': DEFAULT_ANTHROPIC_MODEL,
-        'gpt4o-mini': DEFAULT_OPENAI_MODEL,
-        'gpt-4o-mini': DEFAULT_OPENAI_MODEL,
-        'openrouter-auto': 'openrouter/auto',
-        'google-2.5-flash': 'gemini-2.5-flash',
-        'google2.5-flash': 'gemini-2.5-flash',
-        'gemini-2.5-flash': 'gemini-2.5-flash',
-        'google-3.1-flash-lite': 'gemini-3.1-flash-lite',
-        'google3.1-flash-lite': 'gemini-3.1-flash-lite',
-        'gemini-3.1-flash-lite': 'gemini-3.1-flash-lite',
-        'google-3-flash': 'gemini-3-flash-preview',
-        'google3-flash': 'gemini-3-flash-preview',
-        'gemini-3-flash': 'gemini-3-flash-preview',
-        'gemini-3-flash-preview': 'gemini-3-flash-preview',
+        'deepseek': DEFAULT_DEEPSEEK_MODEL,
+        'deepseek-flash': DEFAULT_DEEPSEEK_MODEL,
+        'deepseek-v4-flash': DEFAULT_DEEPSEEK_MODEL,
+        'deepseek-pro': 'deepseek-v4-pro',
+        'deepseek-v4-pro': 'deepseek-v4-pro',
     }
     return aliases.get(normalized.lower(), normalized)
 
@@ -337,6 +208,60 @@ def resolve_model(model_name: str) -> str:
 _main_client = None
 _main_client_provider = None
 _main_client_lock = threading.Lock()
+
+
+def resolve_provider(config):
+    """Return the configured provider name, normalised."""
+    provider = str(config.get(
+        'LLMChatter.Provider', DEFAULT_PROVIDER
+    )).strip().lower()
+    return provider or DEFAULT_PROVIDER
+
+
+def build_llm_client(config, provider=None):
+    """Build an OpenAI-compatible client for a provider.
+
+    Both supported providers speak the Chat Completions
+    API, so this is the single client factory for the
+    bridge, the feature modules, and the health check.
+    Returns None when a cloud provider has no API key.
+    """
+    import openai
+
+    if provider is None:
+        provider = resolve_provider(config)
+
+    if provider == 'ollama':
+        # Ollama needs no key; its compatible API is at /v1.
+        base_url = config.get(
+            'LLMChatter.Ollama.BaseUrl',
+            DEFAULT_OLLAMA_BASE_URL,
+        )
+        return openai.OpenAI(
+            base_url=f"{str(base_url).rstrip('/')}/v1",
+            api_key='ollama',
+        )
+
+    if provider == 'deepseek':
+        api_key = config.get(
+            'LLMChatter.DeepSeek.ApiKey', ''
+        )
+        if not api_key:
+            return None
+        return openai.OpenAI(
+            api_key=api_key,
+            base_url=config.get(
+                'LLMChatter.DeepSeek.BaseUrl',
+                DEEPSEEK_BASE_URL,
+            ),
+        )
+
+    logger.error(
+        "Unknown LLMChatter.Provider %r; expected "
+        "deepseek or ollama.",
+        provider,
+    )
+    return None
 
 
 def get_llm_client(config):
@@ -348,9 +273,7 @@ def get_llm_client(config):
     """
     global _main_client, _main_client_provider
 
-    provider = config.get(
-        'LLMChatter.Provider', 'anthropic'
-    ).lower()
+    provider = resolve_provider(config)
 
     with _main_client_lock:
         if (
@@ -359,60 +282,11 @@ def get_llm_client(config):
         ):
             return _main_client
 
-        if provider == 'ollama':
-            import openai
-            base_url = config.get(
-                'LLMChatter.Ollama.BaseUrl',
-                'http://localhost:11434',
-            )
-            _main_client = openai.OpenAI(
-                base_url=(
-                    f"{base_url.rstrip('/')}/v1"
-                ),
-                api_key="ollama",
-            )
-        elif provider == 'openai':
-            import openai
-            _main_client = openai.OpenAI(
-                api_key=config.get(
-                    'LLMChatter.OpenAI.ApiKey', ''
-                ),
-            )
-        elif provider == 'google':
-            import openai
-            _main_client = openai.OpenAI(
-                api_key=config.get(
-                    'LLMChatter.Google.ApiKey', ''
-                ),
-                base_url=config.get(
-                    'LLMChatter.Google.BaseUrl',
-                    GOOGLE_OPENAI_BASE_URL,
-                ),
-            )
-        elif provider == 'openrouter':
-            import openai
-            kwargs = {
-                'api_key': config.get(
-                    'LLMChatter.OpenRouter.ApiKey', ''
-                ),
-                'base_url': config.get(
-                    'LLMChatter.OpenRouter.BaseUrl',
-                    OPENROUTER_BASE_URL,
-                ),
-            }
-            headers = _openrouter_headers(config)
-            if headers:
-                kwargs['default_headers'] = headers
-            _main_client = openai.OpenAI(**kwargs)
-        else:
-            import anthropic
-            _main_client = anthropic.Anthropic(
-                api_key=config.get(
-                    'LLMChatter.Anthropic.ApiKey',
-                    '',
-                ),
-            )
+        client = build_llm_client(config, provider)
+        if client is None:
+            return None
 
+        _main_client = client
         _main_client_provider = provider
         return _main_client
 
@@ -429,22 +303,13 @@ def call_llm(
 ) -> str:
     """Call LLM API.
 
-    Supports Anthropic, OpenAI, Google, OpenRouter, and Ollama.
+    Supports DeepSeek and Ollama, both through the
+    OpenAI-compatible Chat Completions API.
     """
-    provider = config.get(
-        'LLMChatter.Provider', 'anthropic'
-    ).lower()
-    default_model = DEFAULT_ANTHROPIC_MODEL
-    if provider == 'openai':
-        default_model = DEFAULT_OPENAI_MODEL
-    elif provider == 'google':
-        default_model = DEFAULT_GOOGLE_MODEL
-    elif provider == 'openrouter':
-        default_model = DEFAULT_OPENROUTER_MODEL
-    model = config.get(
-        'LLMChatter.Model', default_model
-    )
-    model = resolve_model(model)
+    provider = resolve_provider(config)
+    model = resolve_model(config.get(
+        'LLMChatter.Model', DEFAULT_DEEPSEEK_MODEL
+    ))
     if max_tokens_override is not None:
         max_tokens = max_tokens_override
     else:
@@ -464,47 +329,26 @@ def call_llm(
             sent_user_msg = _ollama_user_msg(
                 user_msg, config
             )
-        if provider in (
-            'openai', 'google', 'openrouter', 'ollama'
-        ):
-            kwargs = build_compatible_chat_request(
-                provider,
-                model,
-                _build_chat_messages(
-                    sys_msg, sent_user_msg
-                ),
-                config,
-                max_tokens,
-                temperature,
-            )
-            response = create_chat_completion(
-                client.chat.completions.create,
-                kwargs,
-                provider,
-                model,
-                logger,
-                reasoning_token_multiplier=(
-                    compatible_reasoning_token_multiplier(
-                        provider, config
-                    )
-                ),
-            )
-            result = _extract_chat_content(
-                response, label
-            )
-        else:
-            # Anthropic (default)
-            kwargs = _build_anthropic_request_kwargs(
-                model,
-                max_tokens,
-                temperature,
-                sys_msg,
-                user_msg,
-            )
-            response = client.messages.create(
-                **kwargs
-            )
-            result = response.content[0].text.strip()
+        kwargs = build_compatible_chat_request(
+            provider,
+            model,
+            _build_chat_messages(
+                sys_msg, sent_user_msg
+            ),
+            config,
+            max_tokens,
+            temperature,
+        )
+        response = create_chat_completion(
+            client.chat.completions.create,
+            kwargs,
+            provider,
+            model,
+            logger,
+        )
+        result = _extract_chat_content(
+            response, label
+        )
     except Exception as exc:
         logger.error(
             "LLM call failed (%s): %s", label, exc
@@ -549,12 +393,10 @@ def _get_quick_analyze_client(config):
     global _quick_analyze_client
     global _quick_analyze_provider
 
-    qa_provider = config.get(
+    qa_provider = str(config.get(
         'LLMChatter.QuickAnalyze.Provider', ''
-    ).strip().lower()
-    main_provider = config.get(
-        'LLMChatter.Provider', 'anthropic'
-    ).lower()
+    )).strip().lower()
+    main_provider = resolve_provider(config)
 
     # Empty = use main provider
     if not qa_provider or qa_provider == main_provider:
@@ -569,75 +411,12 @@ def _get_quick_analyze_client(config):
             return _quick_analyze_client, qa_provider
 
         # Create new client for the quick analyze
-        # provider
-        if qa_provider == 'ollama':
-            import openai
-            base_url = config.get(
-                'LLMChatter.Ollama.BaseUrl',
-                'http://localhost:11434'
-            )
-            ollama_api_url = (
-                f"{base_url.rstrip('/')}/v1"
-            )
-            _quick_analyze_client = openai.OpenAI(
-                base_url=ollama_api_url,
-                api_key="ollama"
-            )
-        elif qa_provider == 'openai':
-            import openai
-            api_key = config.get(
-                'LLMChatter.OpenAI.ApiKey', ''
-            )
-            if not api_key:
-                return None, main_provider
-            _quick_analyze_client = openai.OpenAI(
-                api_key=api_key
-            )
-        elif qa_provider == 'google':
-            import openai
-            api_key = config.get(
-                'LLMChatter.Google.ApiKey', ''
-            )
-            if not api_key:
-                return None, main_provider
-            _quick_analyze_client = openai.OpenAI(
-                api_key=api_key,
-                base_url=config.get(
-                    'LLMChatter.Google.BaseUrl',
-                    GOOGLE_OPENAI_BASE_URL,
-                ),
-            )
-        elif qa_provider == 'openrouter':
-            import openai
-            api_key = config.get(
-                'LLMChatter.OpenRouter.ApiKey', ''
-            )
-            if not api_key:
-                return None, main_provider
-            kwargs = {
-                'api_key': api_key,
-                'base_url': config.get(
-                    'LLMChatter.OpenRouter.BaseUrl',
-                    OPENROUTER_BASE_URL,
-                ),
-            }
-            headers = _openrouter_headers(config)
-            if headers:
-                kwargs['default_headers'] = headers
-            _quick_analyze_client = openai.OpenAI(**kwargs)
-        elif qa_provider == 'anthropic':
-            import anthropic
-            api_key = config.get(
-                'LLMChatter.Anthropic.ApiKey', ''
-            )
-            if not api_key:
-                return None, main_provider
-            _quick_analyze_client = anthropic.Anthropic(
-                api_key=api_key
-            )
-        else:
+        # provider; fall back when it is unusable.
+        client = build_llm_client(config, qa_provider)
+        if client is None:
             return None, main_provider
 
+        _quick_analyze_client = client
         _quick_analyze_provider = qa_provider
         return _quick_analyze_client, qa_provider
 
@@ -654,10 +433,8 @@ def quick_llm_analyze(
     """Fast LLM call for pre-processing analysis.
 
     Uses the configured QuickAnalyze provider/model,
-    or defaults to the fastest model on the main
-    provider (Haiku for Anthropic, gpt-4o-mini for
-    OpenAI, Gemini Flash for Google, OpenRouter's
-    configured model, main model for Ollama).
+    or defaults to DeepSeek Flash for DeepSeek and the
+    configured main model for Ollama.
 
     Useful for tasks like:
     - Determining which bot a player is addressing
@@ -678,37 +455,18 @@ def quick_llm_analyze(
         using_quick_provider = False
 
     # Resolve model
-    qa_model = config.get(
+    qa_model = str(config.get(
         'LLMChatter.QuickAnalyze.Model', ''
-    ).strip()
+    )).strip()
 
     if qa_model:
         model = qa_model
-    elif provider == 'anthropic':
-        model = DEFAULT_ANTHROPIC_MODEL
-    elif provider == 'openai':
-        model = DEFAULT_OPENAI_MODEL
-    elif provider == 'google':
-        if using_quick_provider:
-            model = DEFAULT_GOOGLE_MODEL
-        else:
-            model = config.get(
-                'LLMChatter.Model',
-                DEFAULT_GOOGLE_MODEL
-            )
-    elif provider == 'openrouter':
-        if using_quick_provider:
-            model = DEFAULT_OPENROUTER_MODEL
-        else:
-            model = config.get(
-                'LLMChatter.Model',
-                DEFAULT_OPENROUTER_MODEL
-            )
+    elif provider == 'deepseek' and using_quick_provider:
+        model = DEFAULT_DEEPSEEK_MODEL
     else:
-        # Ollama: use configured model
+        # Main provider, or Ollama: use the configured model.
         model = config.get(
-            'LLMChatter.Model',
-            DEFAULT_ANTHROPIC_MODEL
+            'LLMChatter.Model', DEFAULT_DEEPSEEK_MODEL
         )
     model = resolve_model(model)
 
@@ -721,48 +479,26 @@ def quick_llm_analyze(
             sent_user_msg = _ollama_user_msg(
                 user_msg, config
             )
-        if provider in (
-            'openai', 'google', 'openrouter', 'ollama'
-        ):
-            kwargs = build_compatible_chat_request(
-                provider,
-                model,
-                _build_chat_messages(
-                    sys_msg, sent_user_msg
-                ),
-                config,
-                max_tokens,
-                0.1,
-            )
-            response = create_chat_completion(
-                active_client.chat.completions.create,
-                kwargs,
-                provider,
-                model,
-                logger,
-                reasoning_token_multiplier=(
-                    compatible_reasoning_token_multiplier(
-                        provider, config
-                    )
-                ),
-            )
-            result = _extract_chat_content(
-                response, label
-            )
-        else:
-            kwargs = _build_anthropic_request_kwargs(
-                model,
-                max_tokens,
-                0.1,
-                sys_msg,
-                user_msg,
-            )
-            response = (
-                active_client.messages.create(
-                    **kwargs
-                )
-            )
-            result = response.content[0].text.strip()
+        kwargs = build_compatible_chat_request(
+            provider,
+            model,
+            _build_chat_messages(
+                sys_msg, sent_user_msg
+            ),
+            config,
+            max_tokens,
+            0.1,
+        )
+        response = create_chat_completion(
+            active_client.chat.completions.create,
+            kwargs,
+            provider,
+            model,
+            logger,
+        )
+        result = _extract_chat_content(
+            response, label
+        )
     except Exception as exc:
         logger.error(
             "LLM call failed (%s): %s", label, exc

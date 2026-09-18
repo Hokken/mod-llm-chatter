@@ -399,23 +399,6 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         },
     ),
 
-    'bot_group_screenshot_observation': EventSpec(
-        handler_module='chatter_screenshot_handler',
-        handler_func='handle_screenshot_observation',
-        producer='screenshot_agent.py',
-        description=(
-            'Bot comments on screenshot vision'
-        ),
-        payload_fields={
-            'landmark_type': (str, True),
-            'weather': (str, True),
-            'time_of_day': (str, True),
-            'atmosphere': (str, True),
-            'environment': (str, True),
-            'creatures': (str, False),
-        },
-    ),
-
     # -- Group events (chatter_group) ----------
 
     'bot_group_join': EventSpec(

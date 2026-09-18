@@ -30,15 +30,12 @@ def _install_non_strict_stubs() -> list[str]:
     """
     stubbed: list[str] = []
 
-    for mod_name in ("anthropic", "openai"):
+    for mod_name in ("openai",):
         try:
             importlib.import_module(mod_name)
         except ModuleNotFoundError:
             mod = _ensure_module(mod_name)
-            if mod_name == "anthropic":
-                setattr(mod, "Anthropic", type("Anthropic", (), {}))
-            elif mod_name == "openai":
-                setattr(mod, "OpenAI", type("OpenAI", (), {}))
+            setattr(mod, "OpenAI", type("OpenAI", (), {}))
             stubbed.append(mod_name)
 
     try:

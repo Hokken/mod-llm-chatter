@@ -32,8 +32,6 @@ High-level behavior:
   idle morale
 - real-time subzone lore tracking with ~3,000 subzone descriptions
   injected into prompts
-- screenshot vision: host-side agent captures the game window, sends
-  to a vision LLM, and bots react to what the player sees on screen
 - proximity chatter: ambient `/say` conversations between bots, NPCs,
   and the player as they move through the world, with NPC speech bubbles
   and natural player reply detection
@@ -57,14 +55,6 @@ The C++ module:
 - inserts queue rows into MySQL
 - runs the message delivery tick
 - plays party text emotes when appropriate
-
-### Host-side screenshot agent (optional)
-
-The screenshot agent runs on the host machine (outside Docker):
-
-- captures the WoW game window at configurable intervals
-- sends screenshots to a vision LLM for structured analysis
-- inserts `bot_group_screenshot_observation` events directly into MySQL
 
 ### Python side
 
@@ -204,7 +194,7 @@ The gate uses `llm_party_chat_pacing`:
 - Python inserts party messages with `group_id`, `delivery_policy`, and
   `delivery_reason`, then reserves the next visible slot for that group.
 - Filler work such as idle chatter, bot questions, nearby-object
-  comments, screenshot observations, and observer comments can defer
+  comments and observer comments can defer
   before the LLM call when the group's party chat is already busy.
 - Responsive and contextual messages are delayed only enough to avoid
   overlap. Urgent and bypass-style feedback can remain immediate.
@@ -503,11 +493,6 @@ handler map.
 
 - `tools/chatter_proximity.py`
 
-### Screenshot vision
-
-- `tools/screenshot_agent.py`
-- `tools/chatter_screenshot_handler.py`
-
 ### Development tools
 
 - `tools/chatter_request_logger.py`
@@ -553,18 +538,12 @@ Configured through:
 
 Supported providers:
 
-- Anthropic
-- OpenAI
-- Google Gemini
-- OpenRouter
+- DeepSeek
 - Ollama
 
-Changing models normally requires only the provider and model ID. The
-bridge resolves a conservative capability profile for OpenAI-compatible
-targets, including direct OpenAI, Google, OpenRouter, and Ollama. Known
-sampling models receive `temperature`; known reasoning models receive
-their supported token-limit shape and configured reasoning effort;
-unrecognized direct OpenAI models start without optional parameters.
+Both speak the OpenAI-compatible Chat Completions API, so the bridge has
+a single request path and a single client factory
+(`chatter_llm.build_llm_client()`).
 
 If a provider explicitly rejects `temperature`, `reasoning_effort`,
 `max_tokens`, or `max_completion_tokens`, the bridge adjusts that one
@@ -574,65 +553,31 @@ or 422 errors and prefers the provider's structured parameter/code fields;
 other failures are not hidden or retried by this compatibility path.
 
 Generic provider error types such as `invalid_request_error` are not treated
-as parameter rejection codes by themselves. When a dotted GPT-5 generation
-rejects `ReasoningEffort = none`, the retry also removes temperature and
-expands the completion budget before allowing the model's default reasoning.
+as parameter rejection codes by themselves.
 
-OpenAI reasoning tokens share the completion-token budget. The bridge applies
-`OpenAI.MaxTokensMultiplier` when reasoning is enabled, left at the model
-default, or cannot be disabled by the selected model. The multiplier is
-clamped to 1-8 and is skipped for models such as Luna when they accept
-`ReasoningEffort = none`.
-
-Examples:
+DeepSeek is the default provider. Thinking mode is enabled by default on
+the DeepSeek side, so the bridge always states the choice explicitly and
+reads an empty `DeepSeek.ReasoningEffort` as `none`:
 
 ```ini
-LLMChatter.Provider = anthropic
-LLMChatter.Model = haiku
+LLMChatter.Provider = deepseek
+LLMChatter.Model = deepseek-flash
+LLMChatter.DeepSeek.ApiKey = sk-xxxxx
+LLMChatter.DeepSeek.ReasoningEffort = none
 ```
+
+Any effort other than `none` turns thinking on. DeepSeek accepts `none`,
+`low`, `high`, and `max` (`minimal` maps to low; `medium` and `xhigh` map
+to high), ignores `temperature` while thinking, and spends thinking
+tokens from the output budget, so raise the multiplier if replies come
+back empty or truncated:
 
 ```ini
-LLMChatter.Provider = openai
-LLMChatter.Model = gpt-5.6-luna
-LLMChatter.OpenAI.ReasoningEffort = none
-LLMChatter.OpenAI.MaxTokensMultiplier = 4
+LLMChatter.Provider = deepseek
+LLMChatter.Model = deepseek-v4-pro
+LLMChatter.DeepSeek.ReasoningEffort = high
+LLMChatter.DeepSeek.MaxTokensMultiplier = 5
 ```
-
-```ini
-LLMChatter.Provider = google
-LLMChatter.Model = gemini-3.1-flash-lite
-```
-
-```ini
-LLMChatter.Provider = google
-LLMChatter.Model = gemini-2.5-flash
-LLMChatter.Google.ThinkingBudget = 0
-```
-
-```ini
-LLMChatter.Provider = openrouter
-LLMChatter.Model = openai/gpt-4o-mini
-LLMChatter.OpenRouter.ApiKey = sk-or-v1-xxxxx
-```
-
-Reasoning is opt-in for OpenRouter. An empty effort preserves the
-provider/model defaults; `none` explicitly disables reasoning on hybrid
-models. Higher efforts share the response token budget with visible
-output, so increase the multiplier when responses become empty or
-truncated:
-
-```ini
-LLMChatter.Provider = openrouter
-LLMChatter.Model = deepseek/deepseek-v4-flash
-LLMChatter.OpenRouter.ReasoningEffort = high
-LLMChatter.OpenRouter.ReasoningExclude = 1
-LLMChatter.OpenRouter.MaxTokensMultiplier = 5
-```
-
-`ReasoningExclude` hides reasoning text returned by OpenRouter but does
-not reduce reasoning-token usage or cost. The multiplier is ignored
-when the effort is empty or `none`. OpenRouter effort values are passed
-through without client-side validation because support varies by model.
 
 ```ini
 LLMChatter.Provider = ollama
@@ -657,22 +602,11 @@ system message and a user message.
 
 Provider behavior:
 
-- **Anthropic**: system content passed via the `system=` parameter
-  on the API call (native system prompt support); sampling temperature
-  is sent through `extra_body` for Anthropic SDK v1 compatibility
-- **OpenAI**: system content sent as a `{"role": "system", ...}`
-  message prepended to the messages array. Modern reasoning models use
-  `max_completion_tokens`; custom temperature is used only with a
-  compatible reasoning effort, and `OpenAI.ReasoningEffort` can select
-  an effort such as `none` for short-form chat. Stale reasoning settings
-  are ignored when switching back to a sampling model. Reasoning-capable
-  requests receive a configurable output-budget multiplier when hidden
-  reasoning can be active
-- **Google Gemini**: uses Google's OpenAI-compatible chat-completions
-  endpoint, so system content is sent as a system role message
-- **OpenRouter**: uses OpenRouter's OpenAI-compatible
-  chat-completions endpoint with optional attribution headers and an
-  opt-in `reasoning` object for normal and quick-analysis requests
+- **DeepSeek**: system content is sent as a `{"role": "system", ...}`
+  message prepended to the messages array. The `thinking` object is
+  always sent explicitly because DeepSeek enables it by default;
+  temperature is omitted while thinking is on, and the output budget
+  receives a configurable multiplier
 - **Ollama**: same system-role message shape; context is configured on the
   Ollama server, and thinking can be disabled through the compatibility
   parameter plus a `/no_think` fallback
@@ -693,11 +627,11 @@ When a plain string is passed to `call_llm()` instead of
 | `_split_prompt()` | Detects `PromptParts` and splits into system + user content |
 | `_build_chat_messages()` | Assembles the provider-specific messages array |
 | `_ollama_user_msg()` | Formats the user message for Ollama's chat API |
-| `_apply_google_options()` | Applies Gemini reasoning/thinking settings for OpenAI compatibility |
-| `_apply_openrouter_options()` | Applies opt-in OpenRouter reasoning settings |
-| `_openrouter_headers()` | Builds optional OpenRouter attribution headers |
+| `_apply_deepseek_options()` | Applies DeepSeek thinking mode and drops temperature while thinking |
+| `build_llm_client()` | Single OpenAI-compatible client factory for both providers |
+| `resolve_provider()` | Normalises `LLMChatter.Provider`, defaulting to DeepSeek |
 | `build_compatible_chat_request()` | Builds the shared production request used by normal calls, quick analysis, and the health probe |
-| `llm_compat.build_chat_options()` | Selects safe token, sampling, and reasoning parameters for a provider/model target |
+| `llm_compat.build_chat_options()` | Builds the token and sampling parameters, applying any learned overrides |
 | `llm_compat.create_chat_completion()` | Retries explicit parameter rejections and caches the learned correction |
 
 ---
@@ -715,7 +649,7 @@ Modes:
 
 The Python prompt builders use `chatter_mode.py` as the canonical voice
 contract. Normal mode applies to playerbot speech in General, Party,
-Guild, Battleground, Raid, screenshot reactions, emote reactions, and
+Guild, Battleground, Raid, emote reactions, and
 playerbot proximity `/say`. It has a friendly and respectful baseline,
 allows polite, quiet, dry, playful, blunt, or occasionally mildly salty
 players, and avoids making toxicity or forced gamer slang the default.
@@ -1537,7 +1471,7 @@ narrations appear in bot messages. Two strategies:
   decides before the LLM call whether to request an action (saves
   tokens when disabled).
 - **Conversations** (General, Proximity, Group idle, Group handlers,
-  Screenshot vision): prompts always request actions (in RP mode).
+  prompts always request actions (in RP mode).
   Python enforces ActionChance per-message post-parse via
   `strip_conversation_actions()` in `chatter_shared.py`. This avoids
   trusting the LLM to randomize naturally.
@@ -1681,8 +1615,8 @@ Each JSONL record contains:
 {
   "timestamp": "2026-03-18T12:34:56.789",
   "label": "group_join",
-  "model": "claude-haiku-4-5",
-  "provider": "anthropic",
+  "model": "deepseek-flash",
+  "provider": "deepseek",
   "duration_ms": 421,
   "zone_name": "Elwynn Forest",
   "zone_flavor": "A peaceful woodland...",
@@ -1934,93 +1868,6 @@ a group ends.
 The 30-second grace in `OnPlayerLogin` means other players' active entries
 (queued < 30 seconds ago) are safe. In normal operation `CleanupGroupSession`
 handles everything; `OnPlayerLogin` only matters after a server crash.
-
----
-
-## 13p. Screenshot Vision
-
-Bots can react to what the player actually sees on screen. A host-side
-Python agent captures the WoW game window, sends the screenshot to a
-vision-capable LLM, and the bridge generates in-character party chat
-from the resulting description.
-
-### Two-stage architecture
-
-**Stage 1 — Host agent** (`screenshot_agent.py`):
-
-1. Captures the WoW game window via Win32 API (`BitBlt`)
-2. Crops UI elements (bottom 20%, sides 12%) to isolate the 3D world
-3. Resizes to `MaxWidthPx` and encodes as JPEG (`JpegQuality`)
-4. Sends to vision LLM (OpenAI, Anthropic, Google, or OpenRouter)
-5. Receives structured JSON: environment description, atmosphere,
-   canonical tags (`landmark_type`, `biome`, `weather`, `time_of_day`,
-   `creature_presence`)
-6. Canonical tag dedup prevents repeated observations of the same scene
-7. Inserts `bot_group_screenshot_observation` event into
-   `llm_chatter_events` via direct MySQL connection. If available, the
-   selected bot's live travel state from `llm_group_bot_traits` is
-   embedded into event `extra_data`.
-
-**Stage 2 — Bridge handler** (`chatter_screenshot_handler.py`):
-
-1. Claims the event from `llm_chatter_events`
-2. Resolves zone/subzone context via existing `get_zone_name()`,
-   `get_zone_flavor()`, `get_subzone_name()`, `get_subzone_lore()`,
-   `get_dungeon_flavor()`, `get_time_of_day_context()`
-3. Builds the playerbot identity and voice via `chatter_mode.py`
-4. Adds live travel context when present. This lets the LLM use taxi
-   flight, flying mount, ground mount, swimming, or world-transport
-   context while avoiding impossible ground actions.
-5. Rolls for single statement (`run_single_reaction()`) or multi-bot
-   conversation (`append_conversation_json_instruction()` +
-   `parse_conversation_response()`)
-6. Writes messages to `llm_chatter_messages` for C++ delivery
-
-Roleplay mode treats the vision description as what the character sees
-in-world and excludes UI/game-mechanic commentary. Normal mode treats it
-as a description of the game screenshot, allows supplied world or UI
-details to be discussed without inventing them, and responds in player
-voice rather than claiming physical presence in the scene.
-
-### Config keys
-
-All under `LLMChatter.Screenshot.*`:
-
-| Key | Default | Purpose |
-|---|---|---|
-| `Enable` | 0 | Enable/disable the feature |
-| `IntervalMinSeconds` | 45 | Minimum seconds between captures |
-| `IntervalMaxSeconds` | 90 | Maximum seconds between captures |
-| `Chance` | 60 | % chance per interval tick |
-| `VisionProvider` | openai | Vision LLM provider (openai, anthropic, google, or openrouter) |
-| `VisionModel` | gpt-4o-mini | Vision model name |
-| `ConversationChance` | 30 | % chance of multi-bot conversation vs statement |
-| `MaxWidthPx` | 800 | Max image width for vision API |
-| `JpegQuality` | 70 | JPEG compression quality |
-| `BoundAccountId` | 0 | Account ID to find grouped bots |
-| `DBHost` | 127.0.0.1 | MySQL host (host machine, not Docker) |
-
-### Relevant files
-
-| File | Responsibility |
-|---|---|
-| `tools/screenshot_agent.py` | Host-side capture, vision API, event insertion |
-| `tools/chatter_screenshot_handler.py` | Bridge handler, prompt building, delivery |
-| `tools/llm_chatter_bridge.py` | Event routing via registry-built handler map |
-| `tools/chatter_event_registry.py` | Registry entry for `bot_group_screenshot_observation` |
-| `conf/mod_llm_chatter.conf.dist` | Config key definitions |
-
-### Notes
-
-- The agent runs on the host machine, not inside Docker
-- No C++ changes are required
-- The vision biome tag is excluded from bot prompts (unreliable);
-  zone/subzone names from the database are authoritative
-- Indoor scenes are explicitly supported in the vision prompt
-- A `skip_reason` field in the structured JSON aids debugging when
-  screenshots are rejected (e.g., loading screen, character select)
-- Cost: approximately $0.05-0.10/hour at default settings with
-  GPT-4o-mini
 
 ---
 
@@ -2536,7 +2383,7 @@ When older unsummarized interaction text reaches
 `SessionMemory.SummaryThresholdChars`, the bridge makes one additional
 summary call after reply rows have been queued. It uses the same client,
 provider, and model configured for all chatter; there is no dependency
-on Anthropic or any specific model. The compact prompt preserves exact
+on any specific model. The compact prompt preserves exact
 names, explicit player facts, established opinions, unresolved
 questions, and promises while rejecting invention.
 

@@ -17,12 +17,12 @@ def _ensure_module(name):
     return module
 
 
-for dependency in ('anthropic', 'openai'):
+for dependency in ('openai',):
     try:
         importlib.import_module(dependency)
     except ModuleNotFoundError:
         module = _ensure_module(dependency)
-        attribute = 'Anthropic' if dependency == 'anthropic' else 'OpenAI'
+        attribute = 'OpenAI'
         setattr(module, attribute, type(attribute, (), {}))
 
 try:
