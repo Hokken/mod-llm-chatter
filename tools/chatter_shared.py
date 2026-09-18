@@ -723,7 +723,7 @@ def format_travel_context(travel_state):
 
     The C++ side supplies this for event payloads and
     stores it in llm_group_bot_traits for Python-owned
-    events such as screenshot and idle chatter.
+    events such as idle chatter.
     """
     if not travel_state or not isinstance(travel_state, dict):
         return ""
@@ -1505,10 +1505,9 @@ def append_json_instruction(
 
     lang_rule = get_language_rule()
     # Also inject the language rule into the user
-    # prompt so split-system providers (Anthropic)
-    # see it close to generation — system prompts
-    # lose steering weight against English few-shot
-    # content that sits inside the user prompt.
+    # prompt so it sits close to generation — system
+    # prompts lose steering weight against English
+    # few-shot content inside the user prompt.
     if lang_rule:
         prompt = prompt + lang_rule
     block = (

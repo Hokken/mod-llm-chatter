@@ -22,15 +22,12 @@ def _ensure_module(name: str) -> types.ModuleType:
 
 def _install_non_strict_stubs() -> None:
     """Install minimal stubs for optional provider/database deps."""
-    for mod_name in ("anthropic", "openai"):
+    for mod_name in ("openai",):
         try:
             importlib.import_module(mod_name)
         except ModuleNotFoundError:
             mod = _ensure_module(mod_name)
-            if mod_name == "anthropic":
-                setattr(mod, "Anthropic", type("Anthropic", (), {}))
-            else:
-                setattr(mod, "OpenAI", type("OpenAI", (), {}))
+            setattr(mod, "OpenAI", type("OpenAI", (), {}))
 
     try:
         importlib.import_module("mysql.connector")

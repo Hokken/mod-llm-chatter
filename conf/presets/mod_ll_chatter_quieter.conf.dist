@@ -10,9 +10,9 @@
 #
 # Configure the database connection and one LLM provider/API key in the copied
 # file before starting the bridge. All credentials are intentionally blank in
-# this distributable preset. Debug logging, full request logging, and the
-# optional host-side screenshot agent are also disabled for normal production
-# use. Enable those only when deliberately needed.
+# this distributable preset. Debug logging and full request logging are also
+# disabled for normal production use. Enable those only when deliberately
+# needed.
 #
 # This preset keeps important combat, dungeon, raid, boss, and player-directed
 # reactions lively while reducing cumulative ambient chatter. Outdoor
@@ -26,17 +26,16 @@
 #
 # RECOMMENDED MODELS:
 #
-#   This module has been tested extensively with Claude Haiku 4.5 (Anthropic)
-#   and GPT-4o-mini (OpenAI) with excellent results. Gemini Flash models
-#   and OpenRouter-hosted OpenAI-compatible models can also work well
-#   when you prefer those APIs. These models are recommended for their
-#   speed and low cost, ideal for high-volume
-#   LLM calls (ambient chatter, group reactions,
-#   battleground events, pre-cache, state callouts).
+#   DeepSeek Flash is the recommended model: fast, very low cost, and
+#   strong enough at instruction following for the module's structured
+#   output. That combination suits high-volume LLM calls (ambient
+#   chatter, group reactions, battleground events, pre-cache, state
+#   callouts). DeepSeek V4 Pro is available when you want higher
+#   quality and accept the higher cost.
 #
 #   The module runs best with models that deliver sub-5 second response times.
 #   Any provider that meets this latency target will work well, including:
-#   - Anthropic / OpenAI / Google / OpenRouter cloud APIs
+#   - The DeepSeek cloud API
 #   - Ollama cloud-hosted models
 #   - Local inference with very fast hardware (high-end GPU + small model)
 #
@@ -53,10 +52,7 @@
 #   frequently fail to produce valid structured responses.
 #
 # SUPPORTED PROVIDERS:
-#   - anthropic : Claude models (Haiku 4.5 is recommended for speed and low cost) - cloud, requires API key
-#   - openai    : GPT models (GPT-4o-mini is recommended for speed and low cost) - cloud, requires API key
-#   - google    : Gemini models (Gemini 3.1 Flash-Lite / 2.5 Flash) - cloud, requires API key
-#   - openrouter: OpenRouter model routing - cloud, requires API key
+#   - deepseek  : DeepSeek models (deepseek-flash is recommended for speed and low cost) - cloud, requires API key
 #   - ollama    : Local running on very fast hardware or cloud models
 #
 # SETUP INSTRUCTIONS:
@@ -218,36 +214,21 @@ LLMChatter.RequestLog.MaxSizeMB = 50
 #   - Leave an optional setting empty as: Key =
 #   - Use 0 or 1 for switches, plain numbers for numeric values, and a dot for
 #     decimals (for example: 1.5). Do not add commas, units, or percent signs.
-#   - Copy model IDs exactly. OpenRouter uses vendor/model; Ollama uses the
-#     name and optional tag shown by `ollama list`.
+#   - Copy model IDs exactly. Ollama uses the name and optional tag shown
+#     by `ollama list`.
 #
 # QUICK SETUP EXAMPLES:
 #
-#   Cloud (Anthropic Claude Haiku - recommended for quality):
-#     LLMChatter.Provider = anthropic
-#     LLMChatter.Model = claude-haiku-4-5-20251001
-#     LLMChatter.Anthropic.ApiKey = sk-ant-xxxxx
+#   Cloud (DeepSeek Flash - recommended: fast and very low cost):
+#     LLMChatter.Provider = deepseek
+#     LLMChatter.Model = deepseek-flash
+#     LLMChatter.DeepSeek.ApiKey = sk-xxxxx
+#     LLMChatter.DeepSeek.ReasoningEffort = none
 #
-#   Cloud (OpenAI GPT-5.6 Luna - fast, low-cost reasoning model):
-#     LLMChatter.Provider = openai
-#     LLMChatter.Model = gpt-5.6-luna
-#     LLMChatter.OpenAI.ApiKey = sk-xxxxx
-#     LLMChatter.OpenAI.ReasoningEffort = none
-#
-#   Cloud (Google Gemini Flash):
-#     LLMChatter.Provider = google
-#     LLMChatter.Model = gemini-3.1-flash-lite
-#     LLMChatter.Google.ApiKey = AIza-xxxxx
-#
-#   Cloud (OpenRouter, OpenAI-compatible):
-#     LLMChatter.Provider = openrouter
-#     LLMChatter.Model = openai/gpt-4o-mini
-#     LLMChatter.OpenRouter.ApiKey = sk-or-v1-xxxxx
-#
-#   Ollama cloud (fast, pay-per-use via Ollama):
-#     LLMChatter.Provider = ollama
-#     LLMChatter.Model = deepseek-v3.1:671b-cloud
-#     (requires Ollama account with cloud access)
+#   Cloud (DeepSeek V4 Pro - higher quality, higher cost):
+#     LLMChatter.Provider = deepseek
+#     LLMChatter.Model = deepseek-v4-pro
+#     LLMChatter.DeepSeek.ApiKey = sk-xxxxx
 #
 #   Ollama local (NOT RECOMMENDED unless you have fast inference hardware):
 #     LLMChatter.Provider = ollama
@@ -263,205 +244,70 @@ LLMChatter.RequestLog.MaxSizeMB = 50
 #   LLMChatter.Provider
 #       Which LLM provider to use:
 #       Format: one lowercase name with no quotes.
-#       Values: anthropic, openai, google, openrouter, or ollama
-#       Default: anthropic
+#       Values: deepseek or ollama
+#       Default: deepseek
 #
-LLMChatter.Provider = anthropic
+LLMChatter.Provider = deepseek
 
 #
 #   LLMChatter.Model
 #       Exact model ID to use with the selected provider. Do not use a display
-#       name, add quotes, or add a provider prefix except for OpenRouter.
+#       name, add quotes, or add a provider prefix.
 #
-#       Anthropic models:
-#         claude-haiku-4-5-20251001 (fast, cheap)
-#         claude-sonnet-4-5-20250929 (balanced)
-#         claude-opus-4-6 (highest quality)
-#
-#       OpenAI models:
-#         gpt-5.6-luna (fast, low cost, reasoning configurable)
-#         gpt-4o-mini (fast, cheap)
-#         gpt-4o (balanced)
-#
-#       Google Gemini models:
-#         gemini-3.1-flash-lite (fastest, cheap, tested)
-#         gemini-2.5-flash (fast, cheap)
-#         gemini-3-flash-preview (frontier Flash preview)
-#         Alias accepted: gemini-3-flash
-#
-#       OpenRouter models:
-#         anthropic/claude-haiku-4.5
-#         openai/gpt-4o-mini
-#         openrouter/auto
+#       DeepSeek models:
+#         deepseek-flash (fast, cheap)
+#         deepseek-v4-pro (highest quality)
+#         Aliases accepted: deepseek, deepseek-pro
 #
 #       Ollama models (from 'ollama list'):
 #         qwen3:4b, qwen3:8b, llama3.2:3b
 #
-#       Default: claude-haiku-4-5-20251001
+#       Default: deepseek-flash
 #
-LLMChatter.Model = claude-haiku-4-5-20251001
+LLMChatter.Model = deepseek-flash
 
 ###############################################################################
-# ANTHROPIC SETTINGS [BRIDGE] (only needed if Provider = anthropic)
-###############################################################################
-
-#
-#   LLMChatter.Anthropic.ApiKey
-#       Format: the complete key as one unquoted value (starts with sk-ant-).
-#       Get one at: https://console.anthropic.com/
-#
-LLMChatter.Anthropic.ApiKey =
-
-###############################################################################
-# OPENAI SETTINGS [BRIDGE] (only needed if Provider = openai)
+# DEEPSEEK SETTINGS [BRIDGE] (only needed if Provider = deepseek)
 ###############################################################################
 
 #
-#   LLMChatter.OpenAI.ApiKey
+#   LLMChatter.DeepSeek.ApiKey
 #       Format: the complete key as one unquoted value (starts with sk-).
-#       Get one at: https://platform.openai.com/api-keys
+#       Get one at: https://platform.deepseek.com/api_keys
 #
-LLMChatter.OpenAI.ApiKey =
+LLMChatter.DeepSeek.ApiKey = sk-xxxxx
 
 #
-#   LLMChatter.OpenAI.ReasoningEffort
-#       Reasoning effort for modern OpenAI models.
-#       Format: none, low, medium, high, xhigh, or max; support varies by
-#       model. Leave empty for the model default.
-#       Use "none" for low-latency, short-form chatter.
-#       Ignored for non-reasoning models. If a reasoning model rejects the
-#       selected value, the bridge retries safely without it and remembers
-#       that correction for the rest of the process.
-#       Default: (empty)
-#
-LLMChatter.OpenAI.ReasoningEffort =
-
-#
-#   LLMChatter.OpenAI.MaxTokensMultiplier
-#       Multiplies per-call output budgets when an OpenAI reasoning model
-#       can spend tokens on hidden reasoning. It is not applied when the
-#       selected model supports and uses ReasoningEffort = none.
-#       Format: a number from 1 through 8, for example 4 or 1.5.
-#       Values outside that range are clamped by the bridge.
-#       Default: 4
-#
-LLMChatter.OpenAI.MaxTokensMultiplier = 4
-
-###############################################################################
-# GOOGLE SETTINGS [BRIDGE] (only needed if Provider = google)
-###############################################################################
-
-#
-#   LLMChatter.Google.ApiKey
-#       Format: the complete API key as one unquoted value.
-#       Get one at: https://aistudio.google.com/app/apikey
-#
-LLMChatter.Google.ApiKey =
-
-#
-#   LLMChatter.Google.BaseUrl
-#       Google Gemini OpenAI-compatible endpoint.
-#       Format: a complete http:// or https:// URL.
-#       Only change this if Google changes the compatibility endpoint.
-#
-LLMChatter.Google.BaseUrl = https://generativelanguage.googleapis.com/v1beta/openai/
-
-#
-#   LLMChatter.Google.ReasoningEffort
-#       Gemini reasoning effort for the OpenAI-compatible API.
-#       Used only when Google.ThinkingBudget is empty.
-#       Format: a lowercase effort name supported by the selected model.
-#       Recommended for Gemini 3.1 Flash-Lite: "minimal".
-#       Set empty or "off" to omit the parameter.
-#
-LLMChatter.Google.ReasoningEffort = minimal
-
-#
-#   LLMChatter.Google.ThinkingBudget
-#       Gemini thinking token budget for the OpenAI-compatible API.
-#       Format: a whole number with no commas or suffix, for example 0.
-#       For Gemini 2.5 Flash, set this to 0 to disable thinking for
-#       fast structured chatter and pre-cache calls.
-#       Set empty to use ReasoningEffort instead.
-#
-LLMChatter.Google.ThinkingBudget =
-
-#
-#   LLMChatter.Google.MaxTokensMultiplier
-#       Multiplies per-call output token budgets for Gemini.
-#       Format: a number from 1 through 8, for example 2 or 1.5.
-#       Values outside that range are clamped by the bridge.
-#       This protects short JSON paths such as pre-cache from
-#       returning empty/truncated content.
-#       Default: 2
-#
-LLMChatter.Google.MaxTokensMultiplier = 2
-
-###############################################################################
-# OPENROUTER SETTINGS [BRIDGE] (only needed if Provider = openrouter)
-###############################################################################
-
-#
-#   LLMChatter.OpenRouter.ApiKey
-#       Format: the complete key as one unquoted value (normally sk-or-v1-...).
-#       Get one at: https://openrouter.ai/keys
-#
-LLMChatter.OpenRouter.ApiKey =
-
-#
-#   LLMChatter.OpenRouter.BaseUrl
-#       OpenRouter OpenAI-compatible endpoint.
+#   LLMChatter.DeepSeek.BaseUrl
+#       DeepSeek OpenAI-compatible endpoint.
 #       Format: a complete http:// or https:// URL; normally leave unchanged.
-#       Only change this if OpenRouter changes the compatibility endpoint.
+#       Only change this if DeepSeek changes the compatibility endpoint.
 #
-LLMChatter.OpenRouter.BaseUrl = https://openrouter.ai/api/v1
+LLMChatter.DeepSeek.BaseUrl = https://api.deepseek.com
 
 #
-#   LLMChatter.OpenRouter.ReasoningEffort
-#       Optional OpenRouter reasoning effort. Leave empty to omit the
-#       reasoning object and preserve the model's default behavior.
-#       Set to "none" to explicitly disable reasoning on hybrid models.
-#       Other values are passed through without validation because
-#       supported efforts vary by model (for example: low, high, xhigh).
-#       Format: an unquoted effort name supported by the routed model.
+#   LLMChatter.DeepSeek.ReasoningEffort
+#       DeepSeek thinking mode. DeepSeek enables thinking by DEFAULT, which is
+#       slow and costly for short chatter, so the bridge sends the choice
+#       explicitly and treats an empty value as "none".
+#       Format: none, low, high, or max.
+#       ("minimal" maps to low; "medium" and "xhigh" map to high.)
+#       "none" disables thinking and is recommended for chatter.
+#       Anything else enables thinking. DeepSeek ignores temperature while
+#       thinking is on, so the bridge omits it then.
+#       Default: none
 #
-LLMChatter.OpenRouter.ReasoningEffort =
+LLMChatter.DeepSeek.ReasoningEffort = none
 
 #
-#   LLMChatter.OpenRouter.ReasoningExclude
-#       When 1 and ReasoningEffort is set, asks OpenRouter not to return
-#       reasoning text. This does not reduce reasoning-token usage or cost.
-#       Format: 0 (include/default) or 1 (exclude).
-#       Default: 0
-#
-LLMChatter.OpenRouter.ReasoningExclude = 0
-
-#
-#   LLMChatter.OpenRouter.MaxTokensMultiplier
-#       Multiplies per-call output budgets only while reasoning is enabled.
-#       Reasoning tokens share the output budget, so values above 1 can
-#       prevent empty or truncated chatter at higher reasoning efforts.
-#       A value of 5 is a useful starting point for effort "high".
+#   LLMChatter.DeepSeek.MaxTokensMultiplier
+#       Multiplies per-call output budgets only while thinking is enabled.
+#       Thinking tokens share the output budget, so values above 1 can
+#       prevent empty or truncated chatter at higher efforts.
 #       Format: a number such as 2 or 1.5; no suffix or units.
 #       Clamped to the range 1-8. Default: 1
 #
-LLMChatter.OpenRouter.MaxTokensMultiplier = 1
-
-#
-#   LLMChatter.OpenRouter.HttpReferer
-#       Optional site URL for OpenRouter attribution/rankings.
-#       Format: a complete http:// or https:// URL, or empty to omit it.
-#       Leave empty if you do not want to send this header.
-#
-LLMChatter.OpenRouter.HttpReferer =
-
-#
-#   LLMChatter.OpenRouter.Title
-#       Optional app/site title for OpenRouter attribution/rankings.
-#       Format: plain unquoted text, or empty to omit it.
-#       Leave empty if you do not want to send this header.
-#
-LLMChatter.OpenRouter.Title =
+LLMChatter.DeepSeek.MaxTokensMultiplier = 1
 
 ###############################################################################
 # OLLAMA SETTINGS [BRIDGE] (only needed if Provider = ollama)
@@ -2492,7 +2338,7 @@ LLMChatter.PartyGate.Enable = 1
 #
 #   LLMChatter.PartyGate.FillerMinGapSeconds
 #       Minimum visible gap after filler party chat such as idle chatter,
-#       bot questions, screenshot observations, and nearby flavor.
+#       bot questions and nearby flavor.
 #       Default: 12
 #
 LLMChatter.PartyGate.FillerMinGapSeconds = 12
@@ -2925,123 +2771,3 @@ LLMChatter.EmoteReactions.NPCVerbalCooldown = 3
 #       Default: 620,25305,33211,33224,6626,7233,3401
 #
 LLMChatter.EmoteReactions.CxxScriptExclusionEntries = 620,25305,33211,33224,6626,7233,3401
-
-###############################################
-# Screenshot Vision Feature (Experimental)
-# Requires screenshot_agent.py running on host
-# See README.md > Screenshot Vision for setup
-###############################################
-
-#
-#   LLMChatter.Screenshot.Enable
-#       Master switch for screenshot vision observations.
-#       The host-side screenshot_agent.py must also be
-#       running for this feature to function.
-#       Default: 0 (disabled)
-#
-LLMChatter.Screenshot.Enable = 0
-
-#
-#   LLMChatter.Screenshot.DBHost
-#       MySQL host for the screenshot agent, which runs
-#       on the host machine (not inside Docker). Use
-#       127.0.0.1 when MySQL is exposed on localhost.
-#       Default: 127.0.0.1
-#
-LLMChatter.Screenshot.DBHost = 127.0.0.1
-
-#
-#   LLMChatter.Screenshot.IntervalMinSeconds
-#   LLMChatter.Screenshot.IntervalMaxSeconds
-#       Random interval range (seconds) between capture
-#       attempts. With 90% chance, this produces roughly
-#       one observation every 1-3 minutes.
-#       Default: 45 / 120
-#
-LLMChatter.Screenshot.IntervalMinSeconds = 45
-LLMChatter.Screenshot.IntervalMaxSeconds = 120
-
-#
-#   LLMChatter.Screenshot.Chance
-#       Chance (1-100) to actually process a capture when
-#       the interval fires. Even if the timer triggers,
-#       the capture may be skipped based on this roll.
-#       Default: 90
-#
-LLMChatter.Screenshot.Chance = 40
-
-#
-#   LLMChatter.Screenshot.VisionProvider
-#       Which AI provider to use for screenshot analysis.
-#       Format: one lowercase name with no quotes.
-#       Values: openai (recommended), anthropic, google, or openrouter.
-#       Ollama is not supported by the screenshot agent.
-#       Requires the matching provider API key above.
-#       Default: openai
-#
-LLMChatter.Screenshot.VisionProvider = openai
-
-#
-#   LLMChatter.Screenshot.VisionModel
-#       Vision model used for screenshot analysis.
-#       Format: an exact vision-capable API model ID with no quotes. Use a
-#       vendor/model slug when VisionProvider is openrouter.
-#       Recommended: gpt-4o-mini (fast and inexpensive)
-#       Alternatives: claude-haiku-4-5-20251001,
-#       gemini-3.1-flash-lite, gemini-2.5-flash,
-#       anthropic/claude-haiku-4.5 (OpenRouter)
-#       Default: gpt-4o-mini
-#
-LLMChatter.Screenshot.VisionModel = gpt-4o-mini
-
-#
-#   LLMChatter.Screenshot.ConversationChance
-#       Chance (1-100) that a screenshot observation
-#       triggers a multi-bot conversation instead of a
-#       single comment. Requires at least 2 bots in the
-#       group.
-#       Default: 40
-#
-LLMChatter.Screenshot.ConversationChance = 25
-
-#
-#   LLMChatter.Screenshot.MaxWidthPx
-#       Maximum width in pixels for the screenshot before
-#       sending to the vision API. Lower values reduce
-#       upload time and cost, higher values improve detail.
-#       1280 is a good balance.
-#       Default: 1280
-#
-LLMChatter.Screenshot.MaxWidthPx = 1024
-
-#
-#   LLMChatter.Screenshot.JpegQuality
-#       JPEG compression quality (1-100) for the
-#       screenshot payload. Lower values reduce file size,
-#       higher values preserve detail.
-#       Default: 75
-#
-LLMChatter.Screenshot.JpegQuality = 75
-
-#
-#   LLMChatter.Screenshot.BoundAccountId
-#       Bind this screenshot agent to a specific player
-#       account so the observation is routed to the correct
-#       group. Required for multi-player servers.
-#       For single-player, leave at 0 to auto-detect.
-#       Find your ID: SELECT id FROM acore_auth.account
-#         WHERE username = 'YOURNAME'
-#       Default: 0 (auto-detect first active group)
-#
-LLMChatter.Screenshot.BoundAccountId = 0
-
-#
-#   LLMChatter.Screenshot.DBHost
-#       Database host override for the host-side agent.
-#       The bridge uses a Docker-internal hostname (e.g.
-#       ac-database) that the Windows host can't resolve.
-#       Set this to 127.0.0.1 for the host agent.
-#       If unset, falls back to LLMChatter.Database.Host.
-#       Default: (uses LLMChatter.Database.Host)
-#
-# LLMChatter.Screenshot.DBHost = 127.0.0.1

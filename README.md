@@ -82,76 +82,48 @@ This module requires a working AzerothCore server with mod-playerbots. If you do
 | AzerothCore | [Playerbot branch](https://github.com/mod-playerbots/azerothcore-wotlk/tree/Playerbot) (WotLK 3.3.5a) |
 | mod-playerbots | [liyunfan1223/mod-playerbots](https://github.com/mod-playerbots/mod-playerbots) |
 | Python | 3.10+ |
-| LLM Provider | Anthropic, OpenAI, Google Gemini, OpenRouter, or Ollama |
+| LLM Provider | DeepSeek or Ollama |
 
 Install the Python bridge dependencies from `tools/requirements.txt`.
-Anthropic deployments use the supported 1.x SDK; installing provider
-packages individually can bypass the module's compatibility constraints.
+Both providers are reached through the `openai` SDK's OpenAI-compatible
+client; installing packages individually can bypass the module's
+compatibility constraints.
 
 ### Recommended Models
 
-Tested extensively with excellent results:
-- **Claude Haiku 4.5** (Anthropic),  fast, affordable, excellent quality
-- **GPT-5.6 Luna** (OpenAI), fast and inexpensive; use
-  `LLMChatter.OpenAI.ReasoningEffort = none` for short-form chatter
-- **GPT-4o-mini** (OpenAI),  great alternative, similar cost
-- **Gemini 3.1 Flash-Lite** (Google),  fast, cheap, tested with
-  structured chatter and pre-cache JSON
-- **Gemini 2.5 Flash** (Google),  reliable with
-  `LLMChatter.Google.ThinkingBudget = 0`
-- **GPT-4.1-mini** (OpenAI),  a little more expensive, but tested with
-  fantastic quality and speed
-- **OpenRouter model slugs** such as `anthropic/claude-haiku-4.5`,
-  `openai/gpt-4o-mini`, and `openai/gpt-4.1-mini`, useful when users
-  want OpenRouter routing while keeping OpenAI-compatible calls
+- **DeepSeek Flash** (DeepSeek), the default: fast and very cheap. Keep
+  `LLMChatter.DeepSeek.ReasoningEffort = none`, because DeepSeek turns
+  thinking on by default
+- **DeepSeek V4 Pro** (DeepSeek), higher quality at a higher cost and
+  latency
 
 Ollama is supported for local/free inference, but the module's structured
 JSON, system/user messages, emotes, and actions demand strong instruction
 following. Smaller open-source models may not deliver it consistently. For
-the best experience, use Claude Haiku, GPT-5.6 Luna, GPT-4o-mini,
-GPT-4.1-mini, Gemini 3.1 Flash-Lite, or an equivalent fast model through
-OpenRouter. See the config header for more provider guidance.
+the best experience, use DeepSeek Flash. See the config header for more
+provider guidance.
 
 ### Provider and Model Setup
 
 Configuration uses unquoted `Key = value` lines. Copy model IDs exactly:
-direct-provider IDs look like `gpt-5.6-luna`, OpenRouter IDs use
-`vendor/model`, and Ollama IDs use the name and tag shown by `ollama list`.
+DeepSeek IDs look like `deepseek-flash`, and Ollama IDs use the name and
+tag shown by `ollama list`.
 Leave an optional value empty after `=`. Keep comments on separate lines;
 the chatter parser treats an inline comment as part of the value.
 
 | Provider | Provider value | Model setting | Credential |
 |----------|----------------|---------------|------------|
-| Anthropic | `anthropic` | Exact Anthropic model ID | `LLMChatter.Anthropic.ApiKey` |
-| OpenAI | `openai` | Exact OpenAI API model ID | `LLMChatter.OpenAI.ApiKey` |
-| Google | `google` | Exact Gemini API model ID | `LLMChatter.Google.ApiKey` |
-| OpenRouter | `openrouter` | A `vendor/model` slug | `LLMChatter.OpenRouter.ApiKey` |
+| DeepSeek | `deepseek` | Exact DeepSeek model ID | `LLMChatter.DeepSeek.ApiKey` |
 | Ollama | `ollama` | A name/tag from `ollama list` | None |
 
 Ready-to-copy examples (replace only the placeholder key):
 
 ```ini
-# Anthropic
-LLMChatter.Provider = anthropic
-LLMChatter.Model = claude-haiku-4-5-20251001
-LLMChatter.Anthropic.ApiKey = sk-ant-xxxxx
-
-# OpenAI Luna
-LLMChatter.Provider = openai
-LLMChatter.Model = gpt-5.6-luna
-LLMChatter.OpenAI.ApiKey = sk-xxxxx
-LLMChatter.OpenAI.ReasoningEffort = none
-LLMChatter.OpenAI.MaxTokensMultiplier = 4
-
-# Google Gemini
-LLMChatter.Provider = google
-LLMChatter.Model = gemini-3.1-flash-lite
-LLMChatter.Google.ApiKey = AIza-xxxxx
-
-# OpenRouter
-LLMChatter.Provider = openrouter
-LLMChatter.Model = anthropic/claude-haiku-4.5
-LLMChatter.OpenRouter.ApiKey = sk-or-v1-xxxxx
+# DeepSeek (default)
+LLMChatter.Provider = deepseek
+LLMChatter.Model = deepseek-flash
+LLMChatter.DeepSeek.ApiKey = sk-xxxxx
+LLMChatter.DeepSeek.ReasoningEffort = none
 
 # Local Ollama from a Docker bridge
 LLMChatter.Provider = ollama
@@ -159,17 +131,17 @@ LLMChatter.Model = qwen3:8b
 LLMChatter.Ollama.BaseUrl = http://host.docker.internal:11434
 ```
 
-Use only one provider recipe at a time. Existing credentials for inactive
-providers can remain in the file. Restart `ac-llm-chatter-bridge` after a
-provider or model change. The bridge chooses compatible token, temperature,
-and reasoning parameters automatically, then caches any explicit
-unsupported-parameter correction for the rest of that process.
+Use only one provider recipe at a time. Existing credentials for the
+inactive provider can remain in the file. Restart `ac-llm-chatter-bridge`
+after a provider or model change. The bridge chooses compatible token,
+temperature, and reasoning parameters automatically, then caches any
+explicit unsupported-parameter correction for the rest of that process.
 
-For OpenAI Luna, `none` gives the lowest-latency behavior and permits the
-configured temperature. Higher reasoning efforts can consume more of the
-output budget, so the bridge applies `OpenAI.MaxTokensMultiplier` whenever
-hidden reasoning may be active. It omits temperature where the model does
-not support it. See the [official Luna model page](https://developers.openai.com/api/docs/models/gpt-5.6-luna).
+DeepSeek enables thinking by default, so the bridge always states the
+choice and reads an empty `DeepSeek.ReasoningEffort` as `none`. Any other
+effort (`low`, `high`, `max`) turns thinking on, at which point DeepSeek
+ignores `temperature` and spends thinking tokens from the output budget —
+raise `DeepSeek.MaxTokensMultiplier` if replies come back truncated.
 
 For Ollama, run `ollama pull <model>` on the Ollama host first. A host-run
 bridge normally uses `http://localhost:11434`; a Docker bridge normally uses
@@ -245,7 +217,7 @@ file comments for the full list of tunable keys.
   return malformed JSON, or spend the output budget before producing visible
   chat. Prefer an instruct/tool-capable 8B-or-larger model and enable
   `LLMChatter.Ollama.DisableThinking` for compatible thinking models.
-- Ollama cloud models add routing overhead compared to direct Anthropic/OpenAI APIs
+- Ollama cloud models add routing overhead compared to the direct DeepSeek API
 
 ---
 
@@ -270,10 +242,10 @@ AiPlayerbot.RandomBotSayWithoutMaster = 0
 **1. Configure**
 
 Copy `modules/mod-llm-chatter/conf/mod_llm_chatter.conf.dist` to `env/dist/etc/modules/` and rename it to `mod_llm_chatter.conf`. Open it in a text editor and set at minimum:
-- `LLMChatter.Provider`,  choose `anthropic`, `openai`, `google`, `openrouter`, or `ollama`
+- `LLMChatter.Provider`,  choose `deepseek` or `ollama`
 - `LLMChatter.Model`, using the exact ID format shown in
   [Provider and Model Setup](#provider-and-model-setup)
-- the matching provider API key, for example `LLMChatter.OpenRouter.ApiKey` when using OpenRouter (not needed for Ollama)
+- the matching provider API key, `LLMChatter.DeepSeek.ApiKey` when using DeepSeek (not needed for Ollama)
 
 **2. Add bridge to docker-compose.override.yml**
 ```yaml
@@ -340,10 +312,10 @@ docker compose --profile dev up -d
 **2. Configure**
 
 Copy `conf/mod_llm_chatter.conf.dist` to your server's config directory (typically `etc/modules/`) and rename it to `mod_llm_chatter.conf`. Open it in a text editor and set at minimum:
-- `LLMChatter.Provider`,  choose `anthropic`, `openai`, `google`, `openrouter`, or `ollama`
+- `LLMChatter.Provider`,  choose `deepseek` or `ollama`
 - `LLMChatter.Model`, using the exact ID format shown in
   [Provider and Model Setup](#provider-and-model-setup)
-- the matching provider API key, for example `LLMChatter.OpenRouter.ApiKey` when using OpenRouter (not needed for Ollama)
+- the matching provider API key, `LLMChatter.DeepSeek.ApiKey` when using DeepSeek (not needed for Ollama)
 
 **3. Initialize character tables**
 
@@ -379,109 +351,6 @@ mysql -uroot -ppassword acore_world < \
 ```
 
 **6. Start or keep worldserver running.**
-
----
-
-## Screenshot Vision
-
-> This feature is **experimental** and **optional**. Everything else works without it.
-
-Screenshot Vision lets your bots react to what's actually on your screen. A small helper program runs alongside your game, takes a screenshot every now and then, and asks a cheap AI model to describe what it sees. The description is then fed to your bots so they can comment on the scenery in party chat.
-
-### What you need
-
-- **Windows** (the helper runs on the same machine as your WoW client)
-- **Python 3.10+** installed on your machine (not inside Docker)
-- **An OpenAI API key** (GPT-4o-mini is recommended — extremely cheap) or an Anthropic key
-
-### Step-by-step setup
-
-**1. Install the required Python packages**
-
-Open a terminal (PowerShell or Command Prompt) and run:
-
-```
-pip install mss Pillow openai mysql-connector-python pywin32
-```
-
-If you want to use Claude instead of GPT-4o-mini, also install `anthropic`:
-```
-pip install anthropic
-```
-
-**2. Run the database migration**
-
-If you're upgrading from a previous version (fresh installs can skip this):
-
-```bash
-# Docker
-docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
-  modules/mod-llm-chatter/data/sql/characters/updates/20260329_screenshot_event_type.sql
-```
-
-**3. Add the screenshot settings to your config**
-
-Open your `mod_llm_chatter.conf` and add these lines at the bottom (or copy them from `mod_llm_chatter.conf.dist`):
-
-```ini
-# Enable the feature
-LLMChatter.Screenshot.Enable = 1
-
-# How often to capture (seconds). Default: every 45-120 seconds
-LLMChatter.Screenshot.IntervalMinSeconds = 45
-LLMChatter.Screenshot.IntervalMaxSeconds = 120
-
-# Chance (1-100) to actually process each capture. Default: 90
-LLMChatter.Screenshot.Chance = 90
-
-# Which AI to use for analyzing screenshots
-# Options: "openai" (recommended), "anthropic", "google", or "openrouter"
-LLMChatter.Screenshot.VisionProvider = openai
-
-# Which model to use. GPT-4o-mini is fast and very cheap
-LLMChatter.Screenshot.VisionModel = gpt-4o-mini
-
-# Chance (1-100) that a screenshot triggers a multi-bot
-# conversation instead of a single comment. Default: 40
-LLMChatter.Screenshot.ConversationChance = 40
-
-# Database host override for the host-side agent.
-# Your bridge uses a Docker hostname (like ac-database) that
-# your Windows machine can't reach. Set this to 127.0.0.1
-LLMChatter.Screenshot.DBHost = 127.0.0.1
-```
-
-Make sure your config also has the matching API key set (`LLMChatter.OpenAI.ApiKey`, `LLMChatter.Anthropic.ApiKey`, `LLMChatter.Google.ApiKey`, or `LLMChatter.OpenRouter.ApiKey`).
-The screenshot agent uses the same model-aware token-field negotiation as the
-bridge, so direct OpenAI reasoning/vision model IDs do not require a separate
-`max_tokens` workaround.
-
-**4. Restart the chatter bridge**
-
-```bash
-docker restart ac-llm-chatter-bridge
-```
-
-**5. Start the screenshot agent**
-
-Open a new terminal window and run:
-
-```
-python modules/mod-llm-chatter/tools/screenshot_agent.py --config env/dist/etc/modules/mod_llm_chatter.conf
-```
-
-Keep this window open while you play. The agent will quietly capture screenshots in the background and your bots will start making observations about the scenery.
-
-**6. Play the game!**
-
-Make sure WoW is in the foreground (the agent only captures when WoW is the active window). Group up with some bots, and within a couple of minutes you should see them commenting on what they see around them.
-
-### Tips
-
-- The agent saves screenshots to `modules/mod-llm-chatter/logs/screenshots/` so you can see exactly what the AI is analyzing
-- If bots aren't saying anything, check that the agent terminal shows `Queued observation:` messages
-- Vision cost varies with the provider, model, image size, and current pricing
-- You can stop the agent at any time (Ctrl+C) — the rest of the module continues working normally
 
 ---
 
@@ -676,8 +545,8 @@ A failing check looks like this:
 
 ```
 [FAIL] LLM provider config
-      The anthropic API key is still the example placeholder.
-      -> Replace the placeholder in LLMChatter.Anthropic.ApiKey with your real key.
+      The deepseek API key is still the example placeholder.
+      -> Replace the placeholder in LLMChatter.DeepSeek.ApiKey with your real key.
 ```
 
 Fix the items marked `[FAIL]`, restart the bridge, and check that
@@ -706,4 +575,4 @@ GNU AGPL v3, same as AzerothCore.
 ## Credits
 
 - Uses [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots) for bot characters
-- Powered by [Anthropic Claude](https://anthropic.com), [OpenAI GPT](https://openai.com), [Google Gemini](https://ai.google.dev/gemini-api), [OpenRouter](https://openrouter.ai), or [Ollama](https://ollama.ai)
+- Powered by [DeepSeek](https://deepseek.com) or [Ollama](https://ollama.ai)

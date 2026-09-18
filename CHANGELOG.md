@@ -1,5 +1,51 @@
 # Changelog
 
+### 2026-09-18 - DeepSeek and Ollama Only
+
+* **Providers removed**: Anthropic, OpenAI, Google Gemini, and OpenRouter are
+  gone. `LLMChatter.Provider` now accepts only `deepseek` or `ollama` and
+  defaults to `deepseek`. Their config sections, API keys, model aliases,
+  and reasoning/multiplier settings were removed from the main template and
+  the quieter preset, and the `anthropic` SDK was dropped from
+  `tools/requirements.txt`. Existing installs must set a supported provider
+  before restarting the bridge; the health check fails a removed provider
+  name with the valid list.
+* **Screenshot vision removed**: the host-side capture agent, its bridge
+  handler, the `bot_group_screenshot_observation` registry entry and party
+  gate policy, the `LLMChatter.Screenshot.*` config block, and the feature's
+  documentation are deleted. The event type remains in the
+  `llm_chatter_events` enum so no destructive migration is needed; no SQL
+  change is required for this release.
+* **Single request path**: with both remaining providers speaking the
+  OpenAI-compatible Chat Completions API, the Anthropic message shape and the
+  duplicated per-provider client construction in the bridge, group state, and
+  health check collapse into one `chatter_llm.build_llm_client()` factory.
+  `llm_compat.py` keeps the narrowly scoped parameter-rejection recovery and
+  learned per-model overrides, minus the OpenAI-specific model profiling that
+  could no longer apply.
+* **Lore tool**: `tools/populate_subzone_lore.py` now takes
+  `--provider deepseek|ollama` and shares the bridge's client factory.
+
+### 2026-09-18 - DeepSeek Provider
+
+* **DeepSeek endpoint**: `LLMChatter.Provider = deepseek` routes chatter,
+  quick analysis, bot tone/backstory generation, and the startup health probe
+  through DeepSeek's OpenAI-compatible endpoint. `LLMChatter.DeepSeek.ApiKey`
+  and `LLMChatter.DeepSeek.BaseUrl` configure the connection, `deepseek-flash`
+  is the default model, and `deepseek`, `deepseek-pro`, and the retired
+  `deepseek-v4-flash` name resolve to current model IDs.
+* **Explicit thinking control**: DeepSeek enables thinking by default, which is
+  slow and costly for short chatter, so the bridge always states the choice.
+  `LLMChatter.DeepSeek.ReasoningEffort` defaults to `none` and reads an empty
+  value the same way; any other effort enables thinking, drops `temperature`
+  (which DeepSeek ignores in that mode), and applies
+  `LLMChatter.DeepSeek.MaxTokensMultiplier` to the shared output budget.
+* **Configuration and documentation**: The main template, quieter preset,
+  README, and architecture/documentation guides list DeepSeek alongside the
+  existing providers. The health check validates the provider name and API key
+  and reports the resolved DeepSeek endpoint. No SQL or C++ changes are needed;
+  restart the bridge after switching providers.
+
 ### 2026-09-15 - Multidirectional NPC Interactions
 
 * **Reliable direct NPC replies**: Eligible ordinary NPCs now receive a

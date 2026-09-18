@@ -1,9 +1,10 @@
-"""Model-aware OpenAI-compatible request construction and recovery.
+"""OpenAI-compatible request construction and recovery.
 
-Provider APIs expose a common Chat Completions shape, but individual
-models do not accept every optional parameter.  This module keeps those
-differences out of the feature call sites and learns narrowly-scoped
-fallbacks when a provider explicitly rejects a parameter.
+DeepSeek and Ollama both expose the common Chat Completions shape, but
+individual models do not accept every optional parameter.  This module
+keeps those differences out of the feature call sites and learns
+narrowly-scoped fallbacks when a provider explicitly rejects a
+parameter.
 """
 
 import logging
@@ -44,86 +45,6 @@ def _normalized_target(provider, model):
     )
 
 
-def _openai_model_name(provider, model):
-    """Return an OpenAI model ID, including OpenRouter-routed IDs."""
-    provider, model = _normalized_target(provider, model)
-    if provider == "openrouter" and model.startswith("openai/"):
-        model = model.split("/", 1)[1]
-    elif provider != "openai":
-        return ""
-    if model.startswith("ft:"):
-        model = model.split(":", 2)[1]
-    return model
-
-
-def _is_openai_reasoning_model(provider, model):
-    model_name = _openai_model_name(provider, model)
-    return model_name.startswith((
-        "gpt-5", "gpt-6", "o1", "o3", "o4",
-    ))
-
-
-def _is_openai_sampling_model(provider, model):
-    model_name = _openai_model_name(provider, model)
-    return model_name.startswith((
-        "gpt-3.5", "gpt-4", "chatgpt-4",
-    ))
-
-
-def _supports_reasoning_effort_none(provider, model):
-    """Return whether the model documents an explicit ``none`` effort."""
-    model_name = _openai_model_name(provider, model)
-    return bool(re.match(r"^gpt-5\.\d", model_name))
-
-
-def needs_reasoning_token_multiplier(
-    provider, model, reasoning_effort=None
-):
-    """Return whether hidden reasoning can consume the output budget."""
-    provider, _ = _normalized_target(provider, model)
-    if provider != "openai" or not _is_openai_reasoning_model(
-        provider, model
-    ):
-        return False
-    effort = str(reasoning_effort or "").strip().lower()
-    if effort == "none":
-        return (
-            not _supports_reasoning_effort_none(provider, model)
-            or _cached_overrides(provider, model).get(
-                "omit_reasoning_effort", False
-            )
-        )
-    return True
-
-
-def model_capabilities(provider, model):
-    """Resolve a conservative request profile for a model target."""
-    provider, _ = _normalized_target(provider, model)
-    reasoning = _is_openai_reasoning_model(provider, model)
-    sampling = _is_openai_sampling_model(provider, model)
-
-    if provider == "openai":
-        if reasoning:
-            profile = "reasoning"
-        elif sampling:
-            profile = "sampling"
-        else:
-            profile = "safe-default"
-        return {
-            "profile": profile,
-            "token_field": "max_completion_tokens",
-            "temperature": sampling,
-            "reasoning_effort": reasoning,
-        }
-
-    return {
-        "profile": "openai-compatible",
-        "token_field": "max_tokens",
-        "temperature": not reasoning,
-        "reasoning_effort": False,
-    }
-
-
 def _cached_overrides(provider, model):
     key = _normalized_target(provider, model)
     with _MODEL_OVERRIDES_LOCK:
@@ -150,74 +71,36 @@ def _apply_cached_overrides(kwargs, provider, model):
         kwargs["max_tokens"] = kwargs.pop("max_completion_tokens")
 
 
-def build_chat_options(
-    provider,
-    model,
-    max_tokens,
-    temperature=None,
-    reasoning_effort=None,
-):
-    """Build model-compatible optional Chat Completions parameters."""
-    capabilities = model_capabilities(provider, model)
-    kwargs = {
-        capabilities["token_field"]: max_tokens,
-    }
-    effort = str(reasoning_effort or "").strip().lower()
-    supports_temperature = (
-        capabilities["temperature"]
-        or (
-            effort == "none"
-            and _supports_reasoning_effort_none(
-                provider, model
-            )
-        )
-    )
-    if temperature is not None and supports_temperature:
+def build_chat_options(max_tokens, temperature=None):
+    """Build the optional Chat Completions parameters.
+
+    Both supported providers accept ``max_tokens`` and sampling
+    temperature; reasoning is applied per provider in
+    ``chatter_llm.py``.  Learned overrides still apply, so a model
+    that once rejected a parameter keeps the corrected shape.
+    """
+    kwargs = {"max_tokens": max_tokens}
+    if temperature is not None:
         kwargs["temperature"] = temperature
-
-    if (
-        capabilities["reasoning_effort"]
-        and effort
-        and effort not in ("off", "disabled")
-        and (
-            effort != "none"
-            or _supports_reasoning_effort_none(provider, model)
-        )
-    ):
-        kwargs["reasoning_effort"] = effort
-
-    _apply_cached_overrides(kwargs, provider, model)
     return kwargs
 
 
-def describe_model_compatibility(
-    provider, model, reasoning_effort=None
-):
+def describe_model_compatibility(provider, model):
     """Return a concise description suitable for startup logs."""
-    capabilities = model_capabilities(provider, model)
-    options = build_chat_options(
-        provider,
-        model,
-        1,
-        temperature=0.5,
-        reasoning_effort=reasoning_effort,
-    )
+    options = dict(build_chat_options(1, temperature=0.5))
+    _apply_cached_overrides(options, provider, model)
     temperature = (
         "custom" if "temperature" in options else "provider-default"
     )
-    if str(provider).strip().lower() == "openai":
-        effort = options.get("reasoning_effort", "omitted")
-    else:
-        effort = "provider-specific"
     token_field = (
         "max_completion_tokens"
         if "max_completion_tokens" in options
         else "max_tokens"
     )
     return (
-        f"profile={capabilities['profile']}, "
-        f"token_limit={token_field}, temperature={temperature}, "
-        f"reasoning_effort={effort}"
+        f"profile=openai-compatible, token_limit={token_field}, "
+        f"temperature={temperature}, "
+        f"reasoning_effort=provider-specific"
     )
 
 
@@ -278,7 +161,6 @@ def _adjust_rejected_parameters(
     model,
     error,
     changed_fields,
-    reasoning_token_multiplier,
 ):
     """Apply one safe correction for an explicit parameter rejection."""
     if (
@@ -298,35 +180,11 @@ def _adjust_rejected_parameters(
         and "reasoning_effort" not in changed_fields
         and _is_parameter_rejection(error, "reasoning_effort")
     ):
-        rejected_effort = str(
-            kwargs.pop("reasoning_effort", "")
-        ).strip().lower()
+        kwargs.pop("reasoning_effort", None)
         changed_fields.add("reasoning_effort")
         _remember_override(
             provider, model, "omit_reasoning_effort", True
         )
-        if rejected_effort == "none":
-            if "temperature" in kwargs:
-                kwargs.pop("temperature", None)
-                changed_fields.add("temperature")
-            _remember_override(
-                provider, model, "omit_temperature", True
-            )
-            token_field = (
-                "max_completion_tokens"
-                if "max_completion_tokens" in kwargs
-                else "max_tokens" if "max_tokens" in kwargs
-                else None
-            )
-            if token_field:
-                kwargs[token_field] = int(
-                    kwargs[token_field]
-                    * reasoning_token_multiplier
-                )
-            return (
-                "omitted unsupported reasoning_effort and expanded "
-                "the default-reasoning budget"
-            )
         return "omitted unsupported reasoning_effort"
 
     if (
@@ -365,7 +223,6 @@ def create_chat_completion(
     provider,
     model,
     request_logger=None,
-    reasoning_token_multiplier=1,
 ):
     """Call Chat Completions and learn explicit compatibility fixes.
 
@@ -376,15 +233,6 @@ def create_chat_completion(
     active_logger = request_logger or logger
     kwargs = dict(request_kwargs)
     _apply_cached_overrides(kwargs, provider, model)
-    try:
-        reasoning_token_multiplier = float(
-            reasoning_token_multiplier
-        )
-    except (TypeError, ValueError):
-        reasoning_token_multiplier = 1.0
-    reasoning_token_multiplier = max(
-        1.0, min(reasoning_token_multiplier, 8.0)
-    )
     changed_fields = set()
     last_error = None
 
@@ -399,7 +247,6 @@ def create_chat_completion(
                 model,
                 error,
                 changed_fields,
-                reasoning_token_multiplier,
             )
             if not adjustment:
                 raise

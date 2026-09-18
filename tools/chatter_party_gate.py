@@ -54,7 +54,6 @@ _FILLER_EVENTS = {
     'group_idle',
     'group_idle_conv',
     'group_bot_question',
-    'bot_group_screenshot_observation',
     'bot_group_nearby_object',
     'bg_idle_chatter',
     'raid_idle_morale',
@@ -111,8 +110,6 @@ def policy_for_reason(reason: Optional[str]) -> str:
     if key.startswith('bot_group_emote_reaction'):
         return POLICY_RESPONSIVE
     if key.startswith('group_idle'):
-        return POLICY_FILLER
-    if key.startswith('screenshot'):
         return POLICY_FILLER
     return POLICY_CONTEXTUAL
 

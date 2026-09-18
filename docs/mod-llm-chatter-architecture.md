@@ -62,29 +62,6 @@ not just `docker restart`.
 5. Party-channel delivery may play text emotes; General, Guild,
    Raid, and BG delivery does not.
 
-### Screenshot vision data flow
-
-The screenshot vision feature adds a second event source outside the
-C++ server:
-
-1. Host-side `screenshot_agent.py` captures the WoW game window.
-2. Agent sends the JPEG to a vision LLM (OpenAI, Anthropic, Google,
-   or OpenRouter).
-3. Vision LLM returns structured JSON (description, atmosphere,
-   canonical tags).
-4. Agent inserts a `bot_group_screenshot_observation` row into
-   `llm_chatter_events` via direct MySQL connection.
-5. Bridge claims the event and routes to
-   `chatter_screenshot_handler.py`.
-6. Handler generates in-character bot comments using existing
-   personality, zone context, and vision description.
-7. Messages are written to `llm_chatter_messages` for normal C++
-   delivery.
-
-The agent runs on the host machine (not in Docker) and connects to
-MySQL directly. It is configured via the same `.conf` file and is
-disabled by default.
-
 ### Proximity chatter data flow
 
 Proximity chatter creates ambient `/say` conversations between bots,
@@ -297,7 +274,7 @@ that playerbots are ready synchronously:
 `tools/chatter_mode.py` owns the canonical playerbot identity boundary
 and voice contract. In `normal` mode, playerbots speak as people playing
 World of Warcraft; in `roleplay` mode, they speak as their characters in
-Azeroth. General, Party, Guild, Battleground, Raid, screenshot, emote,
+Azeroth. General, Party, Guild, Battleground, Raid, emote,
 and playerbot `/say` prompt paths must use that shared contract rather
 than defining independent versions of normal-mode behavior.
 
@@ -328,25 +305,17 @@ It carries two extra attributes:
 2. `call_llm()` or `quick_llm_analyze()` in `chatter_llm.py`
    auto-detects `PromptParts` via `_split_prompt()`.
 3. Provider dispatch:
-   - **Anthropic**: native `system=` parameter + user message;
-     sampling temperature is sent through `extra_body` for Anthropic
-     SDK v1 compatibility
-   - **OpenAI / Google / OpenRouter / Ollama**: system role message +
-     user role message; `llm_compat.py` selects the token field and
-     optional parameters from a conservative model capability profile
-   - **Modern OpenAI reasoning models**: use
-     `max_completion_tokens`, coordinate temperature with reasoning
-     effort, and apply `LLMChatter.OpenAI.ReasoningEffort` only when
-     compatible; `_effective_max_tokens()` applies the OpenAI multiplier
-     whenever hidden reasoning may consume the output budget
+   - **DeepSeek / Ollama**: system role message + user role message;
+     `llm_compat.py` builds the token and sampling parameters and
+     applies any learned per-model overrides
    - **New or unrecognized models**: start with safe parameters; an
      explicit provider rejection can remove `temperature` or
      `reasoning_effort`, or switch the token-limit field, retry the
      rejected call, and cache that correction for the process lifetime
-   - **OpenRouter reasoning**: `_apply_openrouter_options()` adds the
-     opt-in `reasoning` object to normal and quick-analysis requests;
-     `_effective_max_tokens()` applies its multiplier only while an
-     effort other than `none` is enabled
+   - **DeepSeek thinking**: `_apply_deepseek_options()` always states the
+     `thinking` object because DeepSeek enables it by default; an empty
+     effort is read as `none`, temperature is dropped while thinking is
+     on, and `_effective_max_tokens()` applies its multiplier only then
    - **Ollama**: context size is owned by the Ollama server because its
      OpenAI-compatible endpoint has no per-request context parameter;
      disabling thinking sends `reasoning_effort = none` and retains the
@@ -367,8 +336,8 @@ Two config-driven RNG checks control optional prompt sections:
   - **Single statements**: pre-call RNG in `append_json_instruction()`
     decides before the LLM call whether to ask for an action (saves
     tokens when disabled).
-  - **Conversations** (General, Proximity, Group idle, Group handlers,
-    Screenshot vision): prompts always tell the LLM to include actions
+  - **Conversations** (General, Proximity, Group idle, Group
+    handlers): prompts always tell the LLM to include actions
     (in RP mode). `strip_conversation_actions()` in `chatter_shared.py`
     enforces ActionChance per-message post-parse. This avoids trusting
     the LLM to randomize naturally.
@@ -666,10 +635,10 @@ This asymmetry is known and acceptable in the shipped source state.
 | File | Primary ownership |
 |---|---|
 | `tools/chatter_shared.py` | Shared prompt, parse, count, and delay helpers |
-| `tools/llm_compat.py` | Declarative OpenAI-compatible model capability profiles plus narrowly scoped parameter-rejection recovery and process-local learned overrides |
+| `tools/llm_compat.py` | OpenAI-compatible request options plus narrowly scoped parameter-rejection recovery and process-local learned overrides |
 | `tools/chatter_mode.py` | Canonical normal/RP playerbot identity and channel voice rules, plus mode-invariant NPC guidance |
 | `tools/chatter_text.py` | Parsing, sanitization, anti-repetition, and chat length limiting. Never slice LLM chat output by hand; use `shorten_chat_message()` or `shorten_chat_question()` from this file. |
-| `tools/chatter_llm.py` | Provider/model calls for Anthropic, OpenAI, Google Gemini, OpenRouter, and Ollama; `get_llm_client()` shared client factory; `_split_prompt()`, `_build_chat_messages()`, `_ollama_user_msg()`, `_apply_google_options()`, `_apply_openrouter_options()`, `_openrouter_headers()` for system/user prompt separation and provider tuning; delegates cross-model parameter selection to `llm_compat.py`; `label=` param logs every call via `chatter_request_logger` |
+| `tools/chatter_llm.py` | Provider/model calls for DeepSeek and Ollama; `build_llm_client()` single client factory and `get_llm_client()` cached accessor; `resolve_provider()`, `_split_prompt()`, `_build_chat_messages()`, `_ollama_user_msg()`, `_apply_deepseek_options()` for system/user prompt separation and provider tuning; delegates parameter selection and rejection recovery to `llm_compat.py`; `label=` param logs every call via `chatter_request_logger` |
 | `tools/chatter_db.py` | DB access, inserts, zone/cache queries, `any_real_players_online()`, stale-group cleanup, and global group/Guild session cleanup |
 | `tools/chatter_links.py` | WoW link parsing and prompt-side link enrichment for player messages |
 | `tools/chatter_prompts.py` | Ambient/event prompt builders |
@@ -680,13 +649,6 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_constants.py` | Static constants and lore data: zone names/levels/flavor, race/class speech profiles, personality traits (16 categories, 264 traits), BG lore, item/weapon/armor classification maps, item quality names/colors, raid map IDs, dungeon flavor, emote keywords |
 | `tools/talent_catalog.py` | Talent description catalog used by prompt-side talent injection |
 | `tools/spell_names.py` | Spell name/description loader used by DB and link helpers |
-
-### Screenshot vision domain
-
-| File | Primary ownership |
-|---|---|
-| `tools/screenshot_agent.py` | Host-side capture agent (runs outside Docker). Captures WoW window via Win32 API, crops UI clutter (bottom 20%, sides 12%), sends JPEG to vision LLM (OpenAI, Anthropic, Google, or OpenRouter), receives structured JSON with environment description, atmosphere, and canonical tags. Queues `bot_group_screenshot_observation` events directly into `llm_chatter_events`. Configurable interval, chance, and vision provider/model |
-| `tools/chatter_screenshot_handler.py` | Bridge handler for `bot_group_screenshot_observation` events. Generates in-character bot comments using personality traits, zone/subzone context, and the vision description. Supports single statements via `run_single_reaction()` and multi-bot conversations via `append_conversation_json_instruction()` / `parse_conversation_response()`. Canonical tag dedup prevents repetitive observations |
 
 ### Development tools
 
@@ -1014,8 +976,6 @@ registry and `llm_chatter_bridge.py` uses the resulting map at runtime.
 - `bot_group_*` events route to group handlers
 - `bot_group_emote_reaction` routes to `chatter_emote_reaction.py`
 - `bot_group_emote_observer` routes to `chatter_emote_observer.py`
-- `bot_group_screenshot_observation` routes to
-  `chatter_screenshot_handler.py`
 - `bot_group_general_reaction` routes to
   `chatter_group_general_reaction.py`
 - ordinary `proximity_*` events route to `chatter_proximity.py`
@@ -1107,8 +1067,6 @@ source:
 | MultiBot-Chatless `MBOT` bridge coexistence and fallback | `src/LLMChatterGroup.cpp`; debug skip wording in `src/LLMChatterGroupCombat.cpp` |
 | C++ General-channel player logic | `src/LLMChatterPlayer.cpp` |
 | C++ BG logic | `src/LLMChatterBG.cpp`, `src/LLMChatterBG.h` |
-| Screenshot vision capture agent (host-side) | `tools/screenshot_agent.py` |
-| Screenshot vision bridge handler | `tools/chatter_screenshot_handler.py` |
 | C++ registration wiring | `src/LLMChatterScript.cpp`, `src/llm_chatter_loader.cpp` |
 
 ## Common Pitfalls
@@ -1176,7 +1134,7 @@ This reduces duplicate near-identical lines across party and raid.
 
 | Table | Producer | Consumer | Notes |
 |---|---|---|---|
-| `llm_chatter_events` | C++ / screenshot agent | Python | Event queue |
+| `llm_chatter_events` | C++ | Python | Event queue |
 | `llm_chatter_queue` | C++ | Python | Ambient statement/conversation queue |
 | `llm_chatter_messages` | Python | C++ | Outbound message delivery queue |
 | `llm_group_cached_responses` | Python | C++ | Instant reaction pre-cache |
