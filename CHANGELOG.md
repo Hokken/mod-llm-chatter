@@ -1,5 +1,31 @@
 # Changelog
 
+### 2026-09-18 - Per-Feature Provider Routing
+
+* **Mix providers per feature**: `LLMChatter.<Feature>.Provider` and
+  `.Model` let each feature choose its own backend, so the high-volume
+  background chatter can run locally on Ollama while the lines players read
+  come from DeepSeek, or the reverse. Routable features are `GroupChatter`,
+  `ProximityChatter`, `GuildChatter`, `GeneralChat`, `BGChatter`,
+  `RaidChatter`, `Memory`, `Backstory`, and `QuickAnalyze`; ambient zone
+  chatter always uses the main provider. Unset means unchanged, so an
+  existing config keeps its single-provider behaviour exactly.
+* **Overrides never send a doomed request**: a feature that names a provider
+  without a model only switches when that provider has a default model
+  (DeepSeek does, Ollama does not, since no model tag can be assumed).
+  Otherwise the feature stays on the main provider and says so once, rather
+  than sending the main provider's model id to a different endpoint. This
+  also closes the same hole in `QuickAnalyze.Provider`, which previously
+  handed an Ollama endpoint whatever `LLMChatter.Model` held.
+* **Visibility**: the health check gained a `Per-feature LLM routing` line
+  that lists the active routes, fails an unsupported provider name, and
+  warns about an override it had to ignore. The bridge logs each non-default
+  route at startup. `tools/routing_smoke_check.py` verifies the resolution
+  matrix and that every feature module is bound to its own feature.
+* **One client cache**: `chatter_llm` now caches a client per provider
+  instead of holding a main client and a quick-analyze client, so features
+  on the same provider share one connection.
+
 ### 2026-09-18 - Quick Analyze Model
 
 * **Fast model for classification**: `quick_llm_analyze()` fell back to

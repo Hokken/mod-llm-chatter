@@ -329,6 +329,66 @@ LLMChatter.Ollama.BaseUrl = http://host.docker.internal:11434
 LLMChatter.Ollama.DisableThinking = 1
 
 ###############################################################################
+# PER-FEATURE PROVIDER ROUTING [BRIDGE]
+###############################################################################
+#
+#   By default every feature uses LLMChatter.Provider and
+#   LLMChatter.Model above. Each feature below can override both, so
+#   you can keep the high-volume ambient chatter on a local model and
+#   send the parts players actually read to a cloud model -- or the
+#   reverse.
+#
+#   Set <Feature>.Provider, <Feature>.Model, or both:
+#     - Provider alone switches provider. This works only when the new
+#       provider has a default model (DeepSeek does, Ollama does not),
+#       because LLMChatter.Model holds an id that means nothing to a
+#       different provider. Set a Model too when routing to Ollama.
+#     - Model alone picks a different model on the same provider.
+#
+#   An override that cannot be satisfied is ignored and the feature
+#   stays on the main provider. The startup health check reports every
+#   active route and warns about an override it had to ignore.
+#
+#   Routable features and the settings they read:
+#     LLMChatter.GroupChatter.Provider      / .Model
+#     LLMChatter.ProximityChatter.Provider  / .Model
+#     LLMChatter.GuildChatter.Provider      / .Model
+#     LLMChatter.GeneralChat.Provider       / .Model
+#     LLMChatter.BGChatter.Provider         / .Model
+#     LLMChatter.RaidChatter.Provider       / .Model
+#     LLMChatter.Memory.Provider            / .Model
+#     LLMChatter.Backstory.Provider         / .Model
+#     LLMChatter.QuickAnalyze.Provider      / .Model
+#
+#   Ambient zone chatter always uses the main provider: it is the
+#   baseline, so route the other features away from it instead.
+#
+#   QuickAnalyze covers the short classification calls (such as
+#   working out which bot a player is addressing). It defaults to the
+#   provider's fast model rather than LLMChatter.Model, because its
+#   latency is paid before a bot replies.
+#
+#   Example -- local model for the bulk, cloud for what players read:
+#     LLMChatter.Provider = ollama
+#     LLMChatter.Model = qwen3:8b
+#     LLMChatter.GroupChatter.Provider = deepseek
+#     LLMChatter.GroupChatter.Model = deepseek-flash
+#     LLMChatter.GuildChatter.Provider = deepseek
+#     LLMChatter.GuildChatter.Model = deepseek-flash
+#
+#   Example -- cloud by default, local for background work:
+#     LLMChatter.Provider = deepseek
+#     LLMChatter.Model = deepseek-flash
+#     LLMChatter.Memory.Provider = ollama
+#     LLMChatter.Memory.Model = qwen3:8b
+#     LLMChatter.Backstory.Provider = ollama
+#     LLMChatter.Backstory.Model = qwen3:8b
+#
+#   All of these are commented out by default: no routing, one
+#   provider, exactly as before.
+#
+
+###############################################################################
 # DATABASE SETTINGS [BRIDGE]
 ###############################################################################
 

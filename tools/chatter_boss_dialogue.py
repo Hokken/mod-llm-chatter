@@ -9,7 +9,6 @@ from chatter_instance_context import (
     build_location_metadata,
     build_location_prompt_lines,
 )
-from chatter_llm import call_llm
 from chatter_mode import build_npc_chat_guidance
 from chatter_shared import (
     PromptParts,
@@ -21,6 +20,12 @@ from chatter_text import (
     parse_single_response,
     strip_speaker_prefix,
 )
+
+from chatter_llm import make_feature_caller
+
+# Every LLM call in this module routes through the
+# raid feature's provider settings.
+call_llm = make_feature_caller('raid')
 
 logger = logging.getLogger(__name__)
 

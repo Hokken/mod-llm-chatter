@@ -44,7 +44,7 @@ from chatter_text import (
     strip_speaker_prefix,
     cleanup_message,
 )
-from chatter_llm import call_llm
+
 from chatter_group_state import (
     _has_recent_event,
     _mark_event,
@@ -106,9 +106,13 @@ from chatter_bg_prompts import (
     build_bg_combat_prompt,
 )
 
+from chatter_llm import make_feature_caller
+
+# Every LLM call in this module routes through the
+# group feature's provider settings.
+call_llm = make_feature_caller('group')
+
 logger = logging.getLogger(__name__)
-
-
 
 
 def _resolve_zone_name(

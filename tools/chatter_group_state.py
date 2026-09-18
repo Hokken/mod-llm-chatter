@@ -14,7 +14,6 @@ import time
 from chatter_shared import (
     build_race_class_context,
     build_travel_state_from_row,
-    call_llm,
     cleanup_message,
     format_travel_context,
     get_class_name,
@@ -23,6 +22,7 @@ from chatter_shared import (
     shorten_chat_message,
     strip_speaker_prefix,
 )
+
 from chatter_mode import (
     build_player_prompt_header,
     is_roleplay,
@@ -33,8 +33,13 @@ from chatter_constants import PERSONALITY_TRAITS
 from chatter_llm import get_llm_client
 from chatter_db import mark_event
 
-logger = logging.getLogger(__name__)
+from chatter_llm import make_feature_caller
 
+# Every LLM call in this module routes through the
+# group feature's provider settings.
+call_llm = make_feature_caller('group')
+
+logger = logging.getLogger(__name__)
 
 
 # Keep in sync from chatter_group.init_group_config
@@ -208,7 +213,6 @@ def cleanup_group_moods(group_id: int):
         ]
         for k in keys_to_remove:
             del _bot_mood_scores[k]
-
 
 
 def check_or_create_bot_identity(
@@ -428,6 +432,7 @@ def _generate_bot_tone(
             max_tokens_override=30,
             context=f"tone:{bot_name}",
             label='bot_tone',
+            feature='backstory',
         )
         if not response:
             raise ValueError("empty response")
@@ -590,6 +595,7 @@ def _generate_bot_backstory(
             max_tokens_override=200,
             context=f"backstory:{bot_name}",
             label='bot_backstory',
+            feature='backstory',
         )
         if not response:
             raise ValueError("empty response")

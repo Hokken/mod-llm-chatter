@@ -504,6 +504,90 @@ def _build_openai_compatible_client(config, provider):
     return build_llm_client(config, provider)
 
 
+def _check_feature_routing(config):
+    """Validate any per-feature provider overrides.
+
+    Config-only: routing is resolved without calling a provider,
+    so a server with several routes still makes one live probe.
+    """
+    from chatter_llm import (
+        FEATURES,
+        resolve_feature_target,
+        resolve_main_model,
+        resolve_provider,
+    )
+
+    main_provider = resolve_provider(config)
+    main_model = resolve_main_model(config)
+
+    configured = []
+    for feature, spec in sorted(FEATURES.items()):
+        namespace = spec.namespace
+        provider = str(config.get(
+            f'LLMChatter.{namespace}.Provider', ''
+        )).strip().lower()
+        model = str(config.get(
+            f'LLMChatter.{namespace}.Model', ''
+        )).strip()
+        if provider or model:
+            configured.append(
+                (feature, namespace, provider, model)
+            )
+
+    if not configured:
+        return _result(
+            'feature_routing', 'Per-feature LLM routing', 'pass',
+            f"No overrides — everything runs on {main_provider} "
+            f"{main_model}.",
+        )
+
+    bad_provider = [
+        (namespace, provider)
+        for _, namespace, provider, _ in configured
+        if provider and provider not in _VALID_PROVIDERS
+    ]
+    if bad_provider:
+        namespace, provider = bad_provider[0]
+        return _result(
+            'feature_routing', 'Per-feature LLM routing', 'fail',
+            f"LLMChatter.{namespace}.Provider is '{provider}', "
+            f"which is not a supported provider.",
+            "Use one of: " + ", ".join(_VALID_PROVIDERS)
+            + ", or remove the setting to use the main provider.",
+        )
+
+    # A cross-provider route with no model of its own: the main
+    # model's id means nothing to the other provider, so the
+    # bridge refuses to send it and stays on the main provider.
+    ignored = []
+    routes = []
+    for feature, namespace, provider, _model in configured:
+        target = resolve_feature_target(config, feature)
+        routes.append(f"{namespace} -> {target[0]} {target[1]}")
+        if (
+            provider
+            and provider != main_provider
+            and target[0] == main_provider
+        ):
+            ignored.append(namespace)
+
+    if ignored:
+        namespace = ignored[0]
+        return _result(
+            'feature_routing', 'Per-feature LLM routing', 'warn',
+            f"LLMChatter.{namespace}.Provider is set but has no "
+            f"LLMChatter.{namespace}.Model, and that provider has "
+            f"no default model — the override is being ignored.",
+            f"Set LLMChatter.{namespace}.Model to a model that "
+            f"provider serves, or remove the Provider line.",
+        )
+
+    return _result(
+        'feature_routing', 'Per-feature LLM routing', 'pass',
+        "Active routes: " + "; ".join(routes) + ".",
+    )
+
+
 def _check_llm_probe(config):
     """Make a minimal real LLM call and classify failures."""
     provider = str(config.get(
@@ -599,6 +683,7 @@ def run_all_checks(config, *, do_llm_probe=True):
     results.append(_check_config_file(config, config_path))
     results.append(_check_module_enabled(config))
     results.append(_check_provider_config(config))
+    results.append(_check_feature_routing(config))
 
     db_result = _check_database(config)
     results.append(db_result)

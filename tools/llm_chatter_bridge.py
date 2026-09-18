@@ -85,7 +85,11 @@ from chatter_event_registry import (
     validate_registry,
 )
 from llm_compat import describe_model_compatibility
-from chatter_llm import build_llm_client, resolve_provider
+from chatter_llm import (
+    build_llm_client,
+    describe_feature_routing,
+    resolve_provider,
+)
 
 # Configure logging
 logging.basicConfig(
@@ -1358,6 +1362,8 @@ def main():
             f"Thinking mode: "
             f"{'disabled' if disable_thinking else 'enabled'}"
         )
+    for line in describe_feature_routing(config):
+        logger.info(f"Routing: {line}")
     logger.info(f"Poll interval: {poll_interval}s")
     logger.info(
         f"Max concurrent: {max_concurrent}"

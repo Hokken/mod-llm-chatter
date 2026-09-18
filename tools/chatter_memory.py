@@ -28,7 +28,11 @@ from chatter_shared import (
     format_location_label,
     build_bot_identity,
 )
-from chatter_llm import call_llm, get_llm_client
+from chatter_llm import get_llm_client, make_feature_caller
+
+# Every LLM call in this module routes through the
+# memory feature's provider settings.
+call_llm = make_feature_caller('memory')
 
 logger = logging.getLogger(__name__)
 

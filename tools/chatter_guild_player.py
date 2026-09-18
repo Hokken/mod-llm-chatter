@@ -18,7 +18,7 @@ from chatter_guild import (
     _strip_rp_artifacts,
     _valid_guild_conversation,
 )
-from chatter_llm import call_llm
+
 from chatter_mode import build_player_chat_guidance, is_roleplay
 from chatter_prompts import (
     generate_conversation_length_sequence,
@@ -40,6 +40,12 @@ from chatter_text import (
     parse_single_response,
     strip_speaker_prefix,
 )
+
+from chatter_llm import make_feature_caller
+
+# Every LLM call in this module routes through the
+# guild feature's provider settings.
+call_llm = make_feature_caller('guild')
 
 logger = logging.getLogger(__name__)
 

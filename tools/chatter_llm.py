@@ -1,9 +1,10 @@
 """LLM call-layer helpers extracted from chatter_shared (N14)."""
 
+import functools
 import logging
 import threading
 import time
-from typing import Any, Optional
+from typing import Any, NamedTuple, Optional
 
 from chatter_constants import (
     DEEPSEEK_BASE_URL,
@@ -205,9 +206,63 @@ def resolve_model(model_name: str) -> str:
     return aliases.get(normalized.lower(), normalized)
 
 
-_main_client = None
-_main_client_provider = None
-_main_client_lock = threading.Lock()
+# =====================================================================
+# Per-feature provider routing
+# =====================================================================
+class FeatureSpec(NamedTuple):
+    """How one routable feature finds its provider and model."""
+
+    # Config namespace: the feature reads
+    # LLMChatter.<namespace>.Provider and .Model.
+    namespace: str
+    # Prefer the provider's fast model over LLMChatter.Model when
+    # no model is named. Set for classification work, where the
+    # main model's quality is not worth its latency.
+    prefer_fast_model: bool = False
+
+
+# The routable features. Namespaces match the config sections the
+# same features already use, so LLMChatter.GuildChatter.Provider
+# sits beside the other GuildChatter settings.
+FEATURES = {
+    'group': FeatureSpec('GroupChatter'),
+    'proximity': FeatureSpec('ProximityChatter'),
+    'guild': FeatureSpec('GuildChatter'),
+    'general': FeatureSpec('GeneralChat'),
+    'battleground': FeatureSpec('BGChatter'),
+    'raid': FeatureSpec('RaidChatter'),
+    'memory': FeatureSpec('Memory'),
+    'backstory': FeatureSpec('Backstory'),
+    'quick_analyze': FeatureSpec(
+        'QuickAnalyze', prefer_fast_model=True
+    ),
+}
+
+# The fast model for each provider, used by prefer_fast_model and
+# when a feature names a provider but no model. Ollama has no
+# fixed model to assume, so it is absent on purpose.
+_FAST_MODELS = {
+    'deepseek': DEFAULT_DEEPSEEK_MODEL,
+}
+
+_clients = {}
+_clients_lock = threading.Lock()
+
+_warned = set()
+_warned_lock = threading.Lock()
+
+
+def _warn_once(key, message, *args):
+    """Log a routing warning once per process.
+
+    Routing is resolved on every call, so an unguarded warning
+    would repeat for the life of the bridge.
+    """
+    with _warned_lock:
+        if key in _warned:
+            return
+        _warned.add(key)
+    logger.warning(message, *args)
 
 
 def resolve_provider(config):
@@ -216,6 +271,13 @@ def resolve_provider(config):
         'LLMChatter.Provider', DEFAULT_PROVIDER
     )).strip().lower()
     return provider or DEFAULT_PROVIDER
+
+
+def resolve_main_model(config):
+    """Return the configured main model, alias-resolved."""
+    return resolve_model(config.get(
+        'LLMChatter.Model', DEFAULT_DEEPSEEK_MODEL
+    ))
 
 
 def build_llm_client(config, provider=None):
@@ -264,31 +326,160 @@ def build_llm_client(config, provider=None):
     return None
 
 
+def get_client_for_provider(config, provider):
+    """Get or create the cached client for one provider.
+
+    Thread-safe and lazy. Unusable providers cache as None so a
+    missing API key does not retry a doomed build on every call.
+    """
+    with _clients_lock:
+        if provider in _clients:
+            return _clients[provider]
+        client = build_llm_client(config, provider)
+        _clients[provider] = client
+        return client
+
+
 def get_llm_client(config):
     """Get or create the main LLM client.
 
-    Thread-safe, lazily initialised, cached by
-    provider. Returns the client object suitable
-    for passing to call_llm().
+    Returns the client object suitable for passing to call_llm().
     """
-    global _main_client, _main_client_provider
+    return get_client_for_provider(config, resolve_provider(config))
 
-    provider = resolve_provider(config)
 
-    with _main_client_lock:
-        if (
-            _main_client is not None
-            and _main_client_provider == provider
-        ):
-            return _main_client
+def reset_client_cache():
+    """Clear cached clients and routing warnings (used by tests)."""
+    with _clients_lock:
+        _clients.clear()
+    with _warned_lock:
+        _warned.clear()
 
-        client = build_llm_client(config, provider)
-        if client is None:
-            return None
 
-        _main_client = client
-        _main_client_provider = provider
-        return _main_client
+def resolve_feature_target(config, feature=None):
+    """Return the (provider, model) one feature should use.
+
+    A feature with no override runs on the main provider and
+    model. An override naming a different provider must also name
+    a model unless that provider has a known fast model, because
+    LLMChatter.Model holds an id for the main provider and sending
+    it to another endpoint fails at request time.
+    """
+    main_provider = resolve_provider(config)
+    spec = FEATURES.get(feature or '')
+    if spec is None:
+        return main_provider, resolve_main_model(config)
+
+    provider = str(config.get(
+        f'LLMChatter.{spec.namespace}.Provider', ''
+    )).strip().lower() or main_provider
+    model = str(config.get(
+        f'LLMChatter.{spec.namespace}.Model', ''
+    )).strip()
+
+    if model:
+        return provider, resolve_model(model)
+
+    fast_model = _FAST_MODELS.get(provider)
+    if spec.prefer_fast_model and fast_model:
+        return provider, resolve_model(fast_model)
+
+    if provider == main_provider:
+        return provider, resolve_main_model(config)
+
+    if fast_model:
+        return provider, resolve_model(fast_model)
+
+    # A different provider with no model and no default: the main
+    # model's id means nothing to it, so stay on the main provider
+    # rather than sending a request that is certain to fail.
+    _warn_once(
+        f'model:{feature}',
+        "LLMChatter.%s.Provider is %r but no "
+        "LLMChatter.%s.Model is set, and %r has no default "
+        "model; falling back to the main provider for %s.",
+        spec.namespace, provider, spec.namespace, provider,
+        feature,
+    )
+    return main_provider, resolve_main_model(config)
+
+
+def resolve_feature_call(config, feature, fallback_client):
+    """Return (client, provider, model) for one feature call.
+
+    ``fallback_client`` is the main client the caller already
+    holds; it is reused whenever routing lands on the main
+    provider, so the common path builds nothing.
+    """
+    provider, model = resolve_feature_target(config, feature)
+    main_provider = resolve_provider(config)
+
+    if provider == main_provider:
+        return fallback_client, provider, model
+
+    client = get_client_for_provider(config, provider)
+    if client is not None:
+        return client, provider, model
+
+    _warn_once(
+        f'client:{feature}',
+        "Cannot build a %r client for %s (missing API key or "
+        "unknown provider); falling back to the main provider.",
+        provider, feature,
+    )
+    return (
+        fallback_client,
+        main_provider,
+        resolve_main_model(config),
+    )
+
+
+def feature_for_namespace(namespace):
+    """Return the feature routed by a config namespace.
+
+    Shared pipelines are parameterised by config prefix rather
+    than by feature, so this maps one onto the other. Returns
+    None for a namespace no feature claims, which routes to the
+    main provider.
+    """
+    wanted = str(namespace or '').strip().lower()
+    for name, spec in FEATURES.items():
+        if spec.namespace.lower() == wanted:
+            return name
+    return None
+
+
+def make_feature_caller(feature):
+    """Bind call_llm to one feature's provider routing.
+
+    Feature modules import this instead of call_llm, so every call
+    site in the module routes through that feature's settings
+    without repeating the name. An explicit feature= at a call
+    site still wins.
+    """
+    if feature not in FEATURES:
+        raise KeyError(
+            f"unknown LLM feature {feature!r}; expected one of "
+            + ", ".join(sorted(FEATURES))
+        )
+    return functools.partial(call_llm, feature=feature)
+
+
+def describe_feature_routing(config):
+    """Return 'feature -> provider/model' lines for startup logs.
+
+    Only features that differ from the main provider and model are
+    listed; an all-default install prints nothing.
+    """
+    main_provider = resolve_provider(config)
+    main_model = resolve_main_model(config)
+    lines = []
+    for feature in sorted(FEATURES):
+        provider, model = resolve_feature_target(config, feature)
+        if (provider, model) == (main_provider, main_model):
+            continue
+        lines.append(f"{feature} -> {provider}/{model}")
+    return lines
 
 
 def call_llm(
@@ -299,26 +490,31 @@ def call_llm(
     context: str = '',
     *,
     label: str = '',
+    feature: str = None,
+    temperature_override: float = None,
     metadata: dict = None,
 ) -> str:
     """Call LLM API.
 
     Supports DeepSeek and Ollama, both through the
-    OpenAI-compatible Chat Completions API.
+    OpenAI-compatible Chat Completions API. ``feature`` selects a
+    per-feature provider override; None uses the main provider.
     """
-    provider = resolve_provider(config)
-    model = resolve_model(config.get(
-        'LLMChatter.Model', DEFAULT_DEEPSEEK_MODEL
-    ))
+    active_client, provider, model = resolve_feature_call(
+        config, feature, client
+    )
     if max_tokens_override is not None:
         max_tokens = max_tokens_override
     else:
         max_tokens = int(
             config.get('LLMChatter.MaxTokens', 350)
         )
-    temperature = float(
-        config.get('LLMChatter.Temperature', 0.85)
-    )
+    if temperature_override is not None:
+        temperature = temperature_override
+    else:
+        temperature = float(
+            config.get('LLMChatter.Temperature', 0.85)
+        )
 
     t0 = time.monotonic()
     result = None
@@ -338,158 +534,6 @@ def call_llm(
             config,
             max_tokens,
             temperature,
-        )
-        response = create_chat_completion(
-            client.chat.completions.create,
-            kwargs,
-            provider,
-            model,
-            logger,
-        )
-        result = _extract_chat_content(
-            response, label
-        )
-    except Exception as exc:
-        logger.error(
-            "LLM call failed (%s): %s", label, exc
-        )
-        result = None
-    finally:
-        duration_ms = int(
-            (time.monotonic() - t0) * 1000
-        )
-        try:
-            from chatter_request_logger import (
-                log_request,
-            )
-            log_request(
-                label, sent_user_msg, result,
-                model, provider, duration_ms,
-                metadata=metadata,
-                system_prompt=sys_msg,
-            )
-        except Exception:
-            pass
-    return result
-
-
-# Cached client for quick analyze when provider
-# differs from main provider
-_quick_analyze_client = None
-_quick_analyze_provider = None
-_quick_analyze_lock = threading.Lock()
-
-
-def _get_quick_analyze_client(config):
-    """Get or create the LLM client for quick
-    analyze calls. Returns (client, provider).
-
-    If QuickAnalyze.Provider matches the main
-    provider (or is empty), returns None so the
-    caller uses the main client.
-
-    Thread-safe: lazy init protected by lock.
-    """
-    global _quick_analyze_client
-    global _quick_analyze_provider
-
-    qa_provider = str(config.get(
-        'LLMChatter.QuickAnalyze.Provider', ''
-    )).strip().lower()
-    main_provider = resolve_provider(config)
-
-    # Empty = use main provider
-    if not qa_provider or qa_provider == main_provider:
-        return None, main_provider
-
-    with _quick_analyze_lock:
-        # Return cached client if already created
-        if (
-            _quick_analyze_client is not None
-            and _quick_analyze_provider == qa_provider
-        ):
-            return _quick_analyze_client, qa_provider
-
-        # Create new client for the quick analyze
-        # provider; fall back when it is unusable.
-        client = build_llm_client(config, qa_provider)
-        if client is None:
-            return None, main_provider
-
-        _quick_analyze_client = client
-        _quick_analyze_provider = qa_provider
-        return _quick_analyze_client, qa_provider
-
-
-def quick_llm_analyze(
-    client: Any,
-    config: dict,
-    prompt: str,
-    max_tokens: int = 50,
-    *,
-    label: str = '',
-    metadata: dict = None,
-) -> Optional[str]:
-    """Fast LLM call for pre-processing analysis.
-
-    Uses the configured QuickAnalyze provider/model,
-    or defaults to DeepSeek Flash for DeepSeek and the
-    configured main model for Ollama.
-
-    Useful for tasks like:
-    - Determining which bot a player is addressing
-    - Classifying message intent or sentiment
-    - Summarizing context before a full prompt
-
-    Returns raw text response, or None on error.
-    """
-    # Check for separate quick analyze provider
-    qa_client, provider = (
-        _get_quick_analyze_client(config)
-    )
-    if qa_client is not None:
-        active_client = qa_client
-    else:
-        active_client = client
-
-    # Resolve model
-    qa_model = str(config.get(
-        'LLMChatter.QuickAnalyze.Model', ''
-    )).strip()
-
-    if qa_model:
-        model = qa_model
-    elif provider == 'deepseek':
-        # Quick analyze classifies; it does not write chatter.
-        # Take the fast model even when the main model is Pro,
-        # because this runs on the directed-reply path and its
-        # cost would otherwise be paid before every reply.
-        model = DEFAULT_DEEPSEEK_MODEL
-    else:
-        # Ollama: use the configured model.
-        model = config.get(
-            'LLMChatter.Model', DEFAULT_DEEPSEEK_MODEL
-        )
-    model = resolve_model(model)
-
-    t0 = time.monotonic()
-    result = None
-    sys_msg, user_msg = _split_prompt(prompt)
-    sent_user_msg = user_msg
-    try:
-        if provider == 'ollama':
-            sent_user_msg = _ollama_user_msg(
-                user_msg, config
-            )
-        kwargs = build_compatible_chat_request(
-            provider,
-            model,
-            _build_chat_messages(
-                sys_msg, sent_user_msg
-            ),
-            config,
-            max_tokens,
-            0.1,
         )
         response = create_chat_completion(
             active_client.chat.completions.create,
@@ -523,3 +567,37 @@ def quick_llm_analyze(
         except Exception:
             pass
     return result
+
+
+def quick_llm_analyze(
+    client: Any,
+    config: dict,
+    prompt: str,
+    max_tokens: int = 50,
+    *,
+    label: str = '',
+    metadata: dict = None,
+) -> Optional[str]:
+    """Fast LLM call for pre-processing analysis.
+
+    Routes through the QuickAnalyze feature, which prefers the
+    provider's fast model over LLMChatter.Model because this is
+    classification rather than chatter.
+
+    Useful for tasks like:
+    - Determining which bot a player is addressing
+    - Classifying message intent or sentiment
+    - Summarizing context before a full prompt
+
+    Returns raw text response, or None on error.
+    """
+    return call_llm(
+        client,
+        prompt,
+        config,
+        max_tokens_override=max_tokens,
+        label=label,
+        feature='quick_analyze',
+        temperature_override=0.1,
+        metadata=metadata,
+    )

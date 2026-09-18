@@ -13,7 +13,7 @@ from chatter_constants import (
     REACTION_TONES,
 )
 from chatter_db import insert_chat_message
-from chatter_llm import call_llm
+
 from chatter_instance_context import (
     build_instance_context,
     build_location_metadata,
@@ -44,6 +44,12 @@ from chatter_text import (
     shorten_chat_message,
     strip_speaker_prefix,
 )
+
+from chatter_llm import make_feature_caller
+
+# Every LLM call in this module routes through the
+# proximity feature's provider settings.
+call_llm = make_feature_caller('proximity')
 
 logger = logging.getLogger(__name__)
 
