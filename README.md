@@ -463,9 +463,6 @@ docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20260328_emote_event_types.sql
 
 docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
-  modules/mod-llm-chatter/data/sql/characters/updates/20260329_screenshot_event_type.sql
-
-docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20260403_proximity_chatter.sql
 
 docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
@@ -485,9 +482,6 @@ docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
 
 docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20260511_general_to_party_reaction.sql
-
-docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
-  modules/mod-llm-chatter/data/sql/characters/updates/20260601_guild_chat.sql
 
 docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20260619_owner_subsystem.sql
@@ -521,9 +515,6 @@ mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260328_emote_event_types.sql
 
 mysql -uroot -ppassword acore_characters < \
-  data/sql/characters/updates/20260329_screenshot_event_type.sql
-
-mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260403_proximity_chatter.sql
 
 mysql -uroot -ppassword acore_characters < \
@@ -543,9 +534,6 @@ mysql -uroot -ppassword acore_characters < \
 
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260511_general_to_party_reaction.sql
-
-mysql -uroot -ppassword acore_characters < \
-  data/sql/characters/updates/20260601_guild_chat.sql
 
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260619_owner_subsystem.sql
