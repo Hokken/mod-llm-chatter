@@ -122,6 +122,8 @@ CREATE TABLE IF NOT EXISTS `llm_chatter_queue` (
     `zone_id` INT UNSIGNED DEFAULT NULL,
     `weather` VARCHAR(32) DEFAULT NULL,
     `bot_count` TINYINT UNSIGNED NOT NULL DEFAULT 1,
+    `message_type` VARCHAR(16) DEFAULT NULL,
+    `item_context` JSON DEFAULT NULL,
     `bot2_guid` INT UNSIGNED DEFAULT NULL,
     `bot2_name` VARCHAR(64) DEFAULT NULL,
     `bot2_class` VARCHAR(32) DEFAULT NULL,

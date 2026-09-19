@@ -150,11 +150,19 @@ def build_event_context(event: dict) -> str:
         item_name = extra_data.get(
             'item_name', 'something valuable'
         )
-        quality = extra_data.get('quality', 0)
-        quality_name = [
-            'poor', 'common', 'uncommon',
-            'rare', 'epic', 'legendary'
-        ][min(quality, 5)]
+        try:
+            quality = int(extra_data.get(
+                'item_quality', extra_data.get('quality', 0)
+            ) or 0)
+        except (TypeError, ValueError):
+            quality = 0
+        quality_names = [
+            'poor', 'common', 'uncommon', 'rare',
+            'epic', 'legendary', 'artifact', 'heirloom',
+        ]
+        quality_name = quality_names[
+            max(0, min(quality, len(quality_names) - 1))
+        ]
         context_parts.append(
             f"{subject} found a {quality_name} item: "
             f"{item_name}!"

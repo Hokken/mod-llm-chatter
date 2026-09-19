@@ -1,5 +1,24 @@
 # Changelog
 
+### 2026-09-19 - Real General Loot and Trade Items
+
+* **Real loot announcements**: General-channel loot chatter now comes from
+  successful playerbot loot events instead of database-simulated drops. The
+  bounded collector samples one item per loot source, limits announcements to
+  zones with a same-team real-player audience, and defaults to uncommon or
+  better items.
+* **Real trade offers**: Ambient trade chatter now snapshots a tradable item
+  from the selected bot's live backpack and equipped bags only when trade is
+  chosen. Messages therefore reflect the item's current stack count, while a
+  configurable quality bonus makes rarer eligible items more likely without
+  excluding common items.
+* **Safe queue contract**: C++ now selects the ambient message type and sends
+  value-only item context through the chatter queue. The worker-thread loot
+  path avoids database, session, channel, and random-bot-manager access; the
+  world-thread flush performs authoritative eligibility and cooldown checks.
+  The character-database migration adds the queue fields required by this
+  contract, and the obsolete simulated-loot path has been removed.
+
 ### 2026-09-18 - Directed Playerbot Proximity Reactions
 
 * **Ungrouped playerbot responses**: Eligible same-team playerbots outside the
