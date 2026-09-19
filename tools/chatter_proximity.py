@@ -23,6 +23,11 @@ from chatter_shared import (
     PromptParts,
     append_json_instruction,
     append_conversation_json_instruction,
+    build_conversational_scale_guidance,
+    find_addressed_bot,
+    should_reply_to_optional_casual,
+    brief_casual_response_fits,
+    build_brief_casual_repair_prompt,
     parse_conversation_response,
     parse_extra_data,
     get_class_name,
@@ -340,6 +345,8 @@ def _insert_proximity_line(
     sequence: int,
     delay_seconds: int,
     parsed: Dict,
+    *,
+    allow_emote_only: bool = False,
 ) -> bool:
     raw_message = parsed.get('message', '')
     message = strip_speaker_prefix(
@@ -348,9 +355,13 @@ def _insert_proximity_line(
     message = cleanup_message(
         message, action=parsed.get('action')
     )
-    if not message:
+    emote = parsed.get('emote')
+    if not message and (
+        not emote or not allow_emote_only
+    ):
         return False
-    message = shorten_chat_message(message)
+    if message:
+        message = shorten_chat_message(message)
 
     bot_guid = int(speaker.get('bot_guid', 0) or 0)
     npc_spawn_id = int(
@@ -366,7 +377,7 @@ def _insert_proximity_line(
         delay_seconds=delay_seconds,
         event_id=event_id,
         sequence=sequence,
-        emote=parsed.get('emote'),
+        emote=emote,
         npc_spawn_id=npc_spawn_id or None,
         player_guid=player_guid or None,
         addressee_player_guid=(
@@ -383,6 +394,66 @@ def _insert_proximity_line(
         ),
     )
     return True
+
+
+def _parse_brief_single_with_retry(
+    client,
+    config: Dict,
+    prompt: PromptParts,
+    response: str,
+    *,
+    brief_casual: bool,
+    max_tokens: int,
+    label: str,
+    metadata: Dict,
+) -> Dict:
+    """Parse a single response and repair one oversized brief turn."""
+    parsed = parse_single_response(response or '')
+    if not brief_casual:
+        return parsed
+
+    rendered = cleanup_message(
+        str(parsed.get('message') or ''),
+        action=parsed.get('action'),
+    )
+    if brief_casual_response_fits(
+        rendered, parsed.get('emote')
+    ):
+        return parsed
+
+    repair_metadata = dict(metadata)
+    repair_metadata['brief_casual_repair'] = True
+    repaired = call_llm(
+        client,
+        build_brief_casual_repair_prompt(prompt),
+        config,
+        max_tokens_override=max_tokens,
+        label=label,
+        metadata=repair_metadata,
+    )
+    parsed = parse_single_response(repaired or '')
+    rendered = cleanup_message(
+        str(parsed.get('message') or ''),
+        action=parsed.get('action'),
+    )
+    if not brief_casual_response_fits(
+        rendered, parsed.get('emote')
+    ):
+        return {}
+    return parsed
+
+
+def _brief_conversation_fits(messages: List[Dict]) -> bool:
+    return bool(messages) and all(
+        brief_casual_response_fits(
+            cleanup_message(
+                str(message.get('message') or ''),
+                action=message.get('action'),
+            ),
+            message.get('emote'),
+        )
+        for message in messages
+    )
 
 
 def _set_line_addressee(
@@ -535,8 +606,15 @@ def _single_prompt(
             mode,
             channel='say',
         )]
+    brief_casual = bool(extra.get('brief_casual'))
     lines.extend([
-        "Message must be 8-15 words, natural, local, and low-stakes.",
+        (
+            "Message must use 2-8 words and no more than 50 "
+            "characters."
+            if brief_casual
+            else "Message must be 8-15 words, natural, local, "
+            "and low-stakes."
+        ),
         "No AI talk, markdown, or forced slang.",
         "",
         f"Speaker: {speaker_desc}",
@@ -581,6 +659,11 @@ def _single_prompt(
         lines.append(
             f"Player message to answer: {player_message}"
         )
+        lines.append(
+            build_conversational_scale_guidance(
+                force_brief=bool(extra.get('brief_casual')),
+            )
+        )
     if last_message:
         lines.append(
             f"Most recent nearby line: {last_message}"
@@ -600,6 +683,9 @@ def _single_prompt(
         "\n".join(lines) + "\n",
         allow_action=speaker_roleplay,
         skip_emote=False,
+        allow_emote_only=(
+            bool(player_message) and brief_casual
+        ),
     )
 
 
@@ -758,23 +844,35 @@ def _generate_single_line(
         last_message=last_message,
         config=config,
     )
+    max_tokens = _get_proximity_int(
+        config, 'MaxTokensPerLine', 120
+    )
+    metadata = {
+        **build_location_metadata(extra),
+        'speaker_name': speaker.get('name', ''),
+        'brief_casual': bool(extra.get('brief_casual')),
+    }
     response = call_llm(
         client,
         prompt,
         config,
-        max_tokens_override=_get_proximity_int(
-            config, 'MaxTokensPerLine', 120
-        ),
+        max_tokens_override=max_tokens,
         label=label,
-        metadata={
-            **build_location_metadata(extra),
-            'speaker_name': speaker.get('name', ''),
-        },
+        metadata=metadata,
     )
     if not response:
         return False
 
-    parsed = parse_single_response(response)
+    parsed = _parse_brief_single_with_retry(
+        client,
+        config,
+        prompt,
+        response,
+        brief_casual=bool(extra.get('brief_casual')),
+        max_tokens=max_tokens,
+        label=label,
+        metadata=metadata,
+    )
     return _insert_proximity_line(
         db,
         message_event_id or event_id,
@@ -783,6 +881,9 @@ def _generate_single_line(
         sequence,
         delay_seconds,
         parsed,
+        allow_emote_only=bool(
+            extra.get('brief_casual')
+        ),
     )
 
 
@@ -837,16 +938,18 @@ def handle_proximity_conversation(
     # The per-line config controls message brevity in the
     # prompt, but the token budget must cover full JSON.
     max_tokens = 80 * max_lines
+    metadata = {
+        **build_location_metadata(extra),
+        'speaker_count': len(participants),
+        'brief_casual': bool(extra.get('brief_casual')),
+    }
     response = call_llm(
         client,
         prompt,
         config,
         max_tokens_override=max_tokens,
         label='proximity_conversation',
-        metadata={
-            **build_location_metadata(extra),
-            'speaker_count': len(participants),
-        },
+        metadata=metadata,
     )
     if not response:
         _mark_event(db, event_id, 'skipped')
@@ -976,6 +1079,24 @@ def handle_proximity_reply(db, client, config, event):
     ):
         topic = "brief reply with a graceful exit"
 
+    player_message = str(extra.get('player_message', ''))
+    scale = find_addressed_bot(
+        player_message,
+        [str(responder.get('name', ''))],
+        client=client,
+        config=config,
+        chat_history=str(extra.get('last_message', '')),
+    )
+    extra['brief_casual'] = bool(scale.get('brief_casual'))
+    if not should_reply_to_optional_casual(config, scale):
+        logger.info(
+            "proximity_reply event=%s left unanswered "
+            "after optional-casual RNG",
+            event_id,
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+
     ok = _generate_single_line(
         db,
         client,
@@ -986,9 +1107,7 @@ def handle_proximity_reply(db, client, config, event):
         message_event_id=int(extra.get('scene_id', 0) or 0)
         or event_id,
         topic=topic,
-        player_message=extra.get(
-            'player_message', ''
-        ),
+        player_message=player_message,
         last_message=extra.get(
             'last_message', ''
         ),
@@ -1195,8 +1314,14 @@ def _player_say_single_prompt(
             mode,
             channel='say',
         )]
+    brief_casual = bool(extra.get('brief_casual'))
     lines.extend([
-        "Write an extremely short /say reply of 8-15 words.",
+        (
+            "Write an extremely short /say reply using 2-8 words "
+            "and no more than 50 characters."
+            if brief_casual
+            else "Write an extremely short /say reply of 8-15 words."
+        ),
         "Keep it natural and low-stakes. No AI talk or markdown.",
         "",
         f"Speaker: {speaker_desc}",
@@ -1228,6 +1353,9 @@ def _player_say_single_prompt(
     lines.append(
         "Respond naturally to the player's words."
     )
+    lines.append(build_conversational_scale_guidance(
+        force_brief=bool(extra.get('brief_casual')),
+    ))
 
     history_block = _format_history_block(history)
     if history_block:
@@ -1245,6 +1373,7 @@ def _player_say_single_prompt(
         "\n".join(lines) + "\n",
         allow_action=speaker_roleplay,
         skip_emote=False,
+        allow_emote_only=brief_casual,
     )
 
 
@@ -1273,12 +1402,18 @@ def _player_say_conversation_prompt(
     )
     nearby_names = extra.get('nearby_names') or []
 
+    brief_casual = bool(extra.get('brief_casual'))
     lines = [
         "You write short World of Warcraft "
         "overheard /say conversations.",
         "Use only the provided speaker names.",
-        "Each message must be 6-14 words, natural, and relevant to the "
-        "nearby exchange.",
+        (
+            "Each message must use 2-8 words and no more than 50 "
+            "characters."
+            if brief_casual
+            else "Each message must be 6-14 words, natural, and "
+            "relevant to the nearby exchange."
+        ),
         "Keep the exchange brief.",
         "",
     ]
@@ -1302,6 +1437,9 @@ def _player_say_conversation_prompt(
         f"A nearby player ({player_name}) said: "
         f"{player_message}"
     )
+    lines.append(build_conversational_scale_guidance(
+        force_brief=bool(extra.get('brief_casual')),
+    ))
     interaction_mode = extra.get(
         'interaction_mode', 'player_inclusive'
     )
@@ -1359,6 +1497,7 @@ def _player_say_conversation_prompt(
             if interaction_mode == 'npc_aside'
             else [player_name] + speaker_names
         ),
+        allow_emote_only=brief_casual,
     )
 
 
@@ -1383,7 +1522,7 @@ def _player_emote_single_prompt(
     if speaker_is_npc:
         lines = [
             build_npc_chat_guidance(),
-            "Write an extremely short /say reaction of 8-15 words.",
+            "Write an extremely short /say reaction of 2-8 words.",
             "Keep it natural and low-stakes. No AI talk or markdown.",
             "",
             f"Speaker: {_describe_speaker(db, speaker)}",
@@ -1407,7 +1546,7 @@ def _player_emote_single_prompt(
                 mode,
                 channel='say',
             ),
-            "Write an extremely short /say reaction of 8-15 words.",
+            "Write an extremely short /say reaction of 2-8 words.",
             "Keep it natural and low-stakes. No AI talk or markdown.",
         ]
     lines.extend(_location_lines(extra, mode, [speaker]))
@@ -1425,6 +1564,10 @@ def _player_emote_single_prompt(
         f"React {extra.get('reaction_tone', 'briefly')}.",
         "React to that real action. "
         "Do not invent or quote player speech.",
+        build_conversational_scale_guidance(
+            subject="emote",
+            force_brief=True,
+        ),
     ])
     if not addressed_speaks:
         lines.extend([
@@ -1450,6 +1593,7 @@ def _player_emote_single_prompt(
         "\n".join(lines) + "\n",
         allow_action=_speaker_is_roleplay(speaker, mode),
         skip_emote=False,
+        allow_emote_only=True,
     )
 
 
@@ -1487,7 +1631,7 @@ def _player_emote_conversation_prompt(
     lines = [
         "You write short World of Warcraft overheard /say conversations.",
         "Use only the provided speaker names.",
-        "Each message must be 6-14 words, natural, and relevant.",
+        "Each message must be 2-8 words, natural, and relevant.",
         "Every listed speaker must speak at least once.",
         "Never invent dialogue, thoughts, or actions for the real player.",
         "",
@@ -1501,6 +1645,10 @@ def _player_emote_conversation_prompt(
         f"Overall reaction tone: "
         f"{extra.get('reaction_tone', 'briefly')}.",
         f"The FIRST message MUST be spoken by {first_speaker}.",
+        build_conversational_scale_guidance(
+            subject="emote",
+            force_brief=True,
+        ),
     ])
     if not addressed_speaks:
         lines.extend([
@@ -1557,6 +1705,7 @@ def _player_emote_conversation_prompt(
                 [addressed] if not addressed_speaks else []
             )
         ),
+        allow_emote_only=True,
     )
 
 
@@ -1576,22 +1725,34 @@ def _generate_player_say_single(
         db, extra, speaker, player_message, history,
         config,
     )
+    max_tokens = _get_proximity_int(
+        config, 'MaxTokensPerLine', 120
+    )
+    metadata = {
+        **build_location_metadata(extra),
+        'speaker_name': speaker.get('name', ''),
+        'brief_casual': bool(extra.get('brief_casual')),
+    }
     response = call_llm(
         client,
         prompt,
         config,
-        max_tokens_override=_get_proximity_int(
-            config, 'MaxTokensPerLine', 120
-        ),
+        max_tokens_override=max_tokens,
         label=label,
-        metadata={
-            **build_location_metadata(extra),
-            'speaker_name': speaker.get('name', ''),
-        },
+        metadata=metadata,
     )
     if not response:
         return False
-    parsed = parse_single_response(response)
+    parsed = _parse_brief_single_with_retry(
+        client,
+        config,
+        prompt,
+        response,
+        brief_casual=bool(extra.get('brief_casual')),
+        max_tokens=max_tokens,
+        label=label,
+        metadata=metadata,
+    )
     _set_line_addressee(
         parsed,
         extra,
@@ -1606,6 +1767,9 @@ def _generate_player_say_single(
         0,
         0,
         parsed,
+        allow_emote_only=bool(
+            extra.get('brief_casual')
+        ),
     )
 
 
@@ -1650,6 +1814,22 @@ def handle_proximity_player_say(
         history_addressed_name,
         int(participants[0].get('npc_spawn_id', 0) or 0),
     )
+    scale = find_addressed_bot(
+        player_message,
+        [str(participant.get('name', '')) for participant in participants],
+        client=client,
+        config=config,
+        chat_history=_format_history_block(history),
+    )
+    extra['brief_casual'] = bool(scale.get('brief_casual'))
+    if not should_reply_to_optional_casual(config, scale):
+        logger.info(
+            "proximity_player_say event=%s left unanswered "
+            "after optional-casual RNG",
+            event_id,
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
 
     ok = _generate_player_say_single(
         db,
@@ -1709,6 +1889,45 @@ def handle_proximity_player_conversation(
         history_addressed_name,
         int(participants[0].get('npc_spawn_id', 0) or 0),
     )
+    scale = find_addressed_bot(
+        player_message,
+        [str(participant.get('name', '')) for participant in participants],
+        client=client,
+        config=config,
+        chat_history=_format_history_block(history),
+    )
+    extra['brief_casual'] = bool(scale.get('brief_casual'))
+    if not should_reply_to_optional_casual(config, scale):
+        logger.info(
+            "proximity_player_conversation event=%s left "
+            "unanswered after optional-casual RNG",
+            event_id,
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
+    if (
+        bool(scale.get('reply_optional'))
+        or (
+            extra['brief_casual']
+            and not bool(scale.get('multi_addressed'))
+        )
+    ):
+        ok = _generate_player_say_single(
+            db,
+            client,
+            config,
+            event_id,
+            extra,
+            participants[0],
+            player_message,
+            history,
+            label='proximity_player_conversation_brief',
+        )
+        _mark_event(
+            db, event_id,
+            'completed' if ok else 'skipped',
+        )
+        return ok
 
     prompt = _player_say_conversation_prompt(
         db, extra, participants,
@@ -1718,16 +1937,18 @@ def handle_proximity_player_conversation(
         extra.get('max_lines', 3) or 3
     )
     max_tokens = 80 * max_lines
+    metadata = {
+        **build_location_metadata(extra),
+        'speaker_count': len(participants),
+        'brief_casual': bool(extra.get('brief_casual')),
+    }
     response = call_llm(
         client,
         prompt,
         config,
         max_tokens_override=max_tokens,
         label='proximity_player_conversation',
-        metadata={
-            **build_location_metadata(extra),
-            'speaker_count': len(participants),
-        },
+        metadata=metadata,
     )
     if not response:
         _mark_event(db, event_id, 'skipped')
@@ -1746,7 +1967,33 @@ def handle_proximity_player_conversation(
         response, names,
         unique_tokens_only=True,
         addressee_names=addressee_names,
+        allow_emote_only=bool(
+            extra.get('brief_casual')
+        ),
     )
+    if (
+        extra.get('brief_casual')
+        and not _brief_conversation_fits(parsed)
+    ):
+        repair_metadata = dict(metadata)
+        repair_metadata['brief_casual_repair'] = True
+        response = call_llm(
+            client,
+            build_brief_casual_repair_prompt(prompt),
+            config,
+            max_tokens_override=max_tokens,
+            label='proximity_player_conversation',
+            metadata=repair_metadata,
+        )
+        parsed = parse_conversation_response(
+            response or '',
+            names,
+            unique_tokens_only=True,
+            addressee_names=addressee_names,
+            allow_emote_only=True,
+        )
+        if not _brief_conversation_fits(parsed):
+            parsed = []
     line_delay = max(0, int(
         extra.get('line_delay_seconds', 4) or 4
     ))
@@ -1828,6 +2075,9 @@ def handle_proximity_player_conversation(
             index,
             cumulative_delay,
             line,
+            allow_emote_only=bool(
+                extra.get('brief_casual')
+            ),
         )
         if ok:
             inserted += 1
@@ -1878,19 +2128,22 @@ def _generate_player_emote_single(
         db, extra, speaker, player_emote,
         config, history,
     )
+    max_tokens = _get_proximity_int(
+        config, 'MaxTokensPerLine', 120
+    )
+    metadata = {
+        **build_location_metadata(extra),
+        'speaker_name': speaker.get('name', ''),
+        'player_emote': player_emote,
+        'brief_emote': True,
+    }
     response = call_llm(
         client,
         prompt,
         config,
-        max_tokens_override=_get_proximity_int(
-            config, 'MaxTokensPerLine', 120
-        ),
+        max_tokens_override=max_tokens,
         label=label,
-        metadata={
-            **build_location_metadata(extra),
-            'speaker_name': speaker.get('name', ''),
-            'player_emote': player_emote,
-        },
+        metadata=metadata,
     )
     if not response:
         return False
@@ -1909,6 +2162,7 @@ def _generate_player_emote_single(
         0,
         0,
         parsed,
+        allow_emote_only=True,
     )
 
 
@@ -1974,23 +2228,26 @@ def handle_proximity_player_emote(
     max_lines = max(
         2, int(extra.get('max_lines', 3) or 3)
     )
+    max_tokens = 80 * max_lines
+    metadata = {
+        **build_location_metadata(extra),
+        'speaker_count': len(participants),
+        'player_emote': player_emote,
+        'interaction_mode': extra.get(
+            'interaction_mode', 'player_inclusive'
+        ),
+        'addressed_speaks': bool(
+            extra.get('addressed_speaks', True)
+        ),
+        'brief_emote': True,
+    }
     response = call_llm(
         client,
         prompt,
         config,
-        max_tokens_override=80 * max_lines,
+        max_tokens_override=max_tokens,
         label='proximity_player_emote',
-        metadata={
-            **build_location_metadata(extra),
-            'speaker_count': len(participants),
-            'player_emote': player_emote,
-            'interaction_mode': extra.get(
-                'interaction_mode', 'player_inclusive'
-            ),
-            'addressed_speaks': bool(
-                extra.get('addressed_speaks', True)
-            ),
-        },
+        metadata=metadata,
     )
     names = [
         speaker.get('name', '')
@@ -2012,6 +2269,7 @@ def handle_proximity_player_emote(
             names,
             unique_tokens_only=True,
             addressee_names=addressee_names,
+            allow_emote_only=True,
         )
         if response else []
     )
@@ -2093,6 +2351,7 @@ def handle_proximity_player_emote(
             index,
             cumulative_delay,
             line,
+            allow_emote_only=True,
         ):
             inserted += 1
 
