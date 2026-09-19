@@ -132,6 +132,8 @@ struct ProximityScene
 static std::map<std::string, time_t> _entityCooldowns;
 static std::map<std::string, time_t>
     _directedEmoteCooldowns;
+static std::map<std::string, time_t>
+    _directedBotEmoteCooldowns;
 static std::mutex _proximityCooldownMutex;
 static std::map<std::string, std::pair<time_t, uint32>>
     _zoneFatigue;
@@ -145,6 +147,21 @@ enum class DirectedSayResult
     Queued,
     Suppressed
 };
+
+enum class DirectedReactorScope
+{
+    NPCOnly,
+    NPCsAndUngroupedBots
+};
+
+bool IsProximityCooldownActive(
+    std::map<std::string, time_t> const& cooldowns,
+    std::string const& key, uint32 cooldownSeconds,
+    bool checkPersisted);
+
+std::string GetEntityCooldownKey(
+    Player const* player,
+    ProximityCandidate const& candidate);
 
 bool IsProximityMapAllowed(Map const* map)
 {
@@ -345,7 +362,8 @@ bool IsSameGroup(Player* left, Group* group)
 }
 
 bool IsEligibleProximityBot(
-    Player* player, Player* bot, float radius)
+    Player* player, Player* bot, float radius,
+    bool allowMounted)
 {
     if (!player || !bot)
         return false;
@@ -353,7 +371,8 @@ bool IsEligibleProximityBot(
         return false;
     if (!bot->IsInWorld() || !bot->IsAlive())
         return false;
-    if (bot->IsInCombat() || bot->IsMounted()
+    if (bot->IsInCombat()
+        || (!allowMounted && bot->IsMounted())
         || bot->IsFlying())
         return false;
     if (bot->GetMap() != player->GetMap())
@@ -497,25 +516,61 @@ bool IsSameCandidate(
 }
 
 uint32 RollDirectedExtraReactorCount(
-    size_t available)
+    size_t available, uint32 callerMaxExtras,
+    bool requireAtLeastOne)
 {
-    auto const& weights =
-        sLLMChatterConfig
-            ->_proxDirectedExtraReactorWeights;
     uint32 maxCount = std::min<uint32>(
         static_cast<uint32>(available),
         std::min<uint32>(
+            callerMaxExtras,
+            std::min<uint32>(
+                sLLMChatterConfig
+                    ->_proxDirectedMaxExtraReactors,
+                sLLMChatterConfig
+                    ->_proxDirectedMaxLines - 1)));
+    uint32 minimumCount = requireAtLeastOne ? 1 : 0;
+    if (maxCount < minimumCount)
+        return 0;
+
+    if (requireAtLeastOne)
+    {
+        auto const& witnessWeights =
             sLLMChatterConfig
-                ->_proxDirectedMaxExtraReactors,
-            sLLMChatterConfig
-                ->_proxDirectedMaxLines - 1));
+                ->_proxDirectedWitnessReactorWeights;
+        uint32 witnessMax = std::min<uint32>(maxCount, 2u);
+        uint32 totalWeight = 0;
+        for (uint32 count = 1;
+             count <= witnessMax; ++count)
+        {
+            totalWeight += witnessWeights[count - 1];
+        }
+        uint32 roll = urand(1, totalWeight);
+        uint32 cumulative = 0;
+        for (uint32 count = 1;
+             count <= witnessMax; ++count)
+        {
+            cumulative += witnessWeights[count - 1];
+            if (roll <= cumulative)
+                return count;
+        }
+        return 1;
+    }
+
+    auto const& weights =
+        sLLMChatterConfig
+            ->_proxDirectedExtraReactorWeights;
+
     uint32 totalWeight = 0;
-    for (uint32 count = 0; count <= maxCount; ++count)
+    for (uint32 count = minimumCount;
+         count <= maxCount; ++count)
         totalWeight += weights[count];
+    if (totalWeight == 0)
+        return minimumCount;
 
     uint32 roll = urand(1, totalWeight);
     uint32 cumulative = 0;
-    for (uint32 count = 0; count <= maxCount; ++count)
+    for (uint32 count = minimumCount;
+         count <= maxCount; ++count)
     {
         cumulative += weights[count];
         if (roll <= cumulative)
@@ -525,20 +580,58 @@ uint32 RollDirectedExtraReactorCount(
     return 0;
 }
 
-std::vector<ProximityCandidate> SelectDirectedNPCReactors(
+std::vector<ProximityCandidate> SelectDirectedReactors(
+    Player* player,
     std::vector<ProximityCandidate> const& candidates,
     ProximityCandidate const& addressed,
-    ProximityCandidate const* preferred)
+    ProximityCandidate const* preferred,
+    DirectedReactorScope scope,
+    uint32 callerMaxExtras,
+    bool requireAtLeastOne)
 {
     std::vector<ProximityCandidate> eligible;
+    if (scope == DirectedReactorScope::NPCsAndUngroupedBots
+        && !player)
+    {
+        return eligible;
+    }
+
     for (ProximityCandidate const& candidate : candidates)
     {
-        if (!candidate.isNPC
-            || IsSameCandidate(candidate, addressed)
+        if (IsSameCandidate(candidate, addressed)
             || StringEqualI(candidate.name, addressed.name)
             || !CanShareProximityScene(candidate, addressed))
         {
             continue;
+        }
+
+        if (scope == DirectedReactorScope::NPCOnly
+            && !candidate.isNPC)
+        {
+            continue;
+        }
+
+        if (scope
+                == DirectedReactorScope::NPCsAndUngroupedBots)
+        {
+            if (!candidate.isNPC
+                && (!candidate.bot
+                    || IsSameGroup(
+                        candidate.bot, player->GetGroup())
+                    || player->GetTeamId()
+                        != candidate.bot->GetTeamId()))
+            {
+                continue;
+            }
+            if (IsProximityCooldownActive(
+                    _entityCooldowns,
+                    GetEntityCooldownKey(player, candidate),
+                    sLLMChatterConfig
+                        ->_proxChatterEntityCooldown,
+                    false))
+            {
+                continue;
+            }
         }
         eligible.push_back(candidate);
     }
@@ -552,12 +645,18 @@ std::vector<ProximityCandidate> SelectDirectedNPCReactors(
     }
 
     uint32 count =
-        RollDirectedExtraReactorCount(eligible.size());
+        RollDirectedExtraReactorCount(
+            eligible.size(), callerMaxExtras,
+            requireAtLeastOne);
     std::vector<ProximityCandidate> selected;
     if (count == 0)
         return selected;
 
-    if (preferred && preferred->isNPC
+    bool preferredTypeAllowed = preferred
+        && (scope
+                == DirectedReactorScope::NPCsAndUngroupedBots
+            || preferred->isNPC);
+    if (preferredTypeAllowed
         && !IsSameCandidate(*preferred, addressed))
     {
         auto it = std::find_if(
@@ -1235,6 +1334,18 @@ void EvictExpiredProximityCooldowns()
             else
                 ++it;
         }
+
+        time_t botEmoteCutoff = static_cast<time_t>(
+            sLLMChatterConfig
+                ->_emoteMirrorCooldown) * 2;
+        for (auto it = _directedBotEmoteCooldowns.begin();
+             it != _directedBotEmoteCooldowns.end();)
+        {
+            if (now - it->second > botEmoteCutoff)
+                it = _directedBotEmoteCooldowns.erase(it);
+            else
+                ++it;
+        }
     }
 
     for (auto it = _zoneFatigue.begin();
@@ -1259,9 +1370,24 @@ std::string GetEntityCooldownKey(
         + ":" + std::to_string(candidate.id);
 }
 
+ProximityCandidate BuildBotCandidate(Player* bot)
+{
+    ProximityCandidate candidate;
+    candidate.bot = bot;
+    candidate.id = bot->GetGUID().GetCounter();
+    candidate.entry = 0;
+    candidate.name = bot->GetName();
+    candidate.className =
+        GetChatterClassName(bot->getClass());
+    candidate.raceName =
+        GetRaceName(bot->getRace());
+    return candidate;
+}
+
 void CollectNearbyBots(
     Player* player, float radius,
-    std::vector<ProximityCandidate>& out)
+    std::vector<ProximityCandidate>& out,
+    bool allowMounted)
 {
     std::list<Player*> nearbyPlayers;
     NearbyBotCheck check(player, radius);
@@ -1272,20 +1398,10 @@ void CollectNearbyBots(
     for (Player* bot : nearbyPlayers)
     {
         if (!IsEligibleProximityBot(
-                player, bot, radius))
+                player, bot, radius, allowMounted))
             continue;
 
-        ProximityCandidate candidate;
-        candidate.bot = bot;
-        candidate.id =
-            bot->GetGUID().GetCounter();
-        candidate.entry = 0;
-        candidate.name = bot->GetName();
-        candidate.className =
-            GetChatterClassName(bot->getClass());
-        candidate.raceName =
-            GetRaceName(bot->getRace());
-        out.push_back(candidate);
+        out.push_back(BuildBotCandidate(bot));
     }
 }
 
@@ -1342,11 +1458,18 @@ void DeduplicateCandidates(
 
 std::string BuildNearbyNamesJson(
     std::vector<ProximityCandidate> const& allCandidates,
-    std::vector<ProximityCandidate> const& speakers)
+    std::vector<ProximityCandidate> const& speakers,
+    ProximityCandidate const* additionallyExcluded = nullptr)
 {
     std::set<std::pair<bool, uint32>> speakerIds;
     for (auto const& s : speakers)
         speakerIds.emplace(s.isNPC, s.id);
+    if (additionallyExcluded)
+    {
+        speakerIds.emplace(
+            additionallyExcluded->isNPC,
+            additionallyExcluded->id);
+    }
 
     std::string json = "[";
     size_t count = 0;
@@ -1374,7 +1497,8 @@ std::string BuildBaseEventJson(
     std::vector<ProximityCandidate> const& speakers,
     std::vector<ProximityCandidate> const& allCandidates,
     bool playerAddressed,
-    uint32 maxLines)
+    uint32 maxLines,
+    ProximityCandidate const* additionallyExcluded = nullptr)
 {
     Map* map = player->GetMap();
     uint32 instanceId = map ? map->GetInstanceId() : 0;
@@ -1415,7 +1539,8 @@ std::string BuildBaseEventJson(
             playerAddressed ? "true" : "false")
         + ",\"nearby_names\":"
         + BuildNearbyNamesJson(
-            allCandidates, speakers)
+            allCandidates, speakers,
+            additionallyExcluded)
         + ",\"line_delay_seconds\":"
         + std::to_string(
             sLLMChatterConfig
@@ -1537,25 +1662,26 @@ void QueuePlayerSayProximityEvent(
             GetEntityCooldownKey(player, s));
 }
 
-void QueuePlayerEmoteProximityEvent(
+bool QueuePlayerEmoteProximityEvent(
     Player* player,
+    ProximityCandidate const& addressed,
     std::vector<ProximityCandidate> const& speakers,
     std::vector<ProximityCandidate> const& allCandidates,
     std::string const& emoteName,
     uint32 textEmote,
     uint32 mirrorEmote,
-    std::string const& interactionMode)
+    std::string const& interactionMode,
+    bool addressedSpeaks)
 {
     if (!player || speakers.empty())
-        return;
+        return false;
 
-    ProximityCandidate const& addressed = speakers[0];
     uint32 maxLines = speakers.size() > 1
         ? sLLMChatterConfig->_proxDirectedMaxLines
         : 1;
     std::string json = BuildBaseEventJson(
         player, speakers, allCandidates,
-        true, maxLines);
+        true, maxLines, &addressed);
     std::string extra =
         ",\"interaction\":\"emote\""
         ",\"player_emote\":\""
@@ -1570,7 +1696,12 @@ void QueuePlayerEmoteProximityEvent(
         + "\""
         + ",\"addressed_name\":\""
         + JsonEscape(addressed.name)
-        + "\",\"interaction_mode\":\""
+        + "\",\"addressed_participant\":"
+        + BuildParticipantJson(addressed, player)
+        + ",\"addressed_speaks\":"
+        + std::string(
+            addressedSpeaks ? "true" : "false")
+        + ",\"interaction_mode\":\""
         + JsonEscape(interactionMode) + "\"";
     if (!json.empty() && json.back() == '}')
         json.insert(json.size() - 1, extra);
@@ -1583,7 +1714,7 @@ void QueuePlayerEmoteProximityEvent(
         GetChatterEventPriority(
             "proximity_player_emote"),
         GetEntityCooldownKey(player, addressed),
-        0,
+        addressed.isNPC ? 0 : addressed.id,
         addressed.name,
         player->GetGUID().GetCounter(),
         player->GetName(),
@@ -1601,6 +1732,7 @@ void QueuePlayerEmoteProximityEvent(
             _entityCooldowns,
             GetEntityCooldownKey(player, speaker));
     }
+    return true;
 }
 
 DirectedSayResult QueueDirectedPlayerSayProximityEvent(
@@ -1614,7 +1746,7 @@ DirectedSayResult QueueDirectedPlayerSayProximityEvent(
         sLLMChatterConfig
             ->_proxChatterPlayerSayScanRadius);
     std::vector<ProximityCandidate> candidates;
-    CollectNearbyBots(player, radius, candidates);
+    CollectNearbyBots(player, radius, candidates, true);
     CollectNearbyNPCs(player, radius, candidates);
     DeduplicateCandidates(candidates);
 
@@ -1654,6 +1786,25 @@ DirectedSayResult QueueDirectedPlayerSayProximityEvent(
         selected && (!named.candidate || !named.vocative)
             ? selected : named.candidate;
 
+    auto isEligibleDirectedTarget =
+        [player, radius](
+            ProximityCandidate const* candidate)
+        {
+            return candidate
+                && (candidate->isNPC
+                    || IsProximityDirectedPlayerbotEligible(
+                        player, candidate->bot, radius));
+        };
+
+    if (explicitNamedOverride
+        && !isEligibleDirectedTarget(named.candidate))
+    {
+        if (isEligibleDirectedTarget(selected))
+            directed = selected;
+        else
+            return DirectedSayResult::Suppressed;
+    }
+
     if (!directed)
     {
         if (sLLMChatterConfig->IsDebugLog())
@@ -1667,6 +1818,8 @@ DirectedSayResult QueueDirectedPlayerSayProximityEvent(
         }
         return DirectedSayResult::NotDirected;
     }
+    if (!isEligibleDirectedTarget(directed))
+        return DirectedSayResult::Suppressed;
 
     std::vector<ProximityCandidate> speakers = {
         *directed,
@@ -1674,17 +1827,37 @@ DirectedSayResult QueueDirectedPlayerSayProximityEvent(
     if (directed->isNPC)
     {
         std::vector<ProximityCandidate> extras =
-            SelectDirectedNPCReactors(
-                candidates, *directed,
+            SelectDirectedReactors(
+                player, candidates, *directed,
                 directed == selected
-                    ? named.candidate : selected);
+                    ? named.candidate : selected,
+                DirectedReactorScope::NPCOnly,
+                sLLMChatterConfig
+                    ->_proxDirectedMaxExtraReactors,
+                false);
+        speakers.insert(
+            speakers.end(),
+            extras.begin(), extras.end());
+    }
+    else
+    {
+        std::vector<ProximityCandidate> extras =
+            SelectDirectedReactors(
+                player, candidates, *directed,
+                directed == selected
+                    ? named.candidate : selected,
+                DirectedReactorScope::NPCsAndUngroupedBots,
+                sLLMChatterConfig
+                    ->_proxDirectedBotMaxParticipants - 1,
+                false);
         speakers.insert(
             speakers.end(),
             extras.begin(), extras.end());
     }
 
     bool conversation = speakers.size() > 1;
-    std::string interactionMode = conversation
+    std::string interactionMode = directed->isNPC
+        && conversation
         && urand(1, 100)
             <= sLLMChatterConfig
                    ->_proxDirectedNPCAsideChance
@@ -1718,7 +1891,7 @@ void HandleProximityPlayerSayNewScene(
         sLLMChatterConfig
             ->_proxChatterPlayerSayScanRadius);
     std::vector<ProximityCandidate> candidates;
-    CollectNearbyBots(player, radius, candidates);
+    CollectNearbyBots(player, radius, candidates, false);
     CollectNearbyNPCs(player, radius, candidates);
     DeduplicateCandidates(candidates);
 
@@ -1825,7 +1998,7 @@ void MaybeQueueProximityScene(Player* player)
         sLLMChatterConfig
             ->_proxChatterScanRadius);
     std::vector<ProximityCandidate> candidates;
-    CollectNearbyBots(player, radius, candidates);
+    CollectNearbyBots(player, radius, candidates, false);
     CollectNearbyNPCs(player, radius, candidates);
     DeduplicateCandidates(candidates);
 
@@ -1944,7 +2117,7 @@ ProximityScene* FindBestScene(Player* player)
             ? IsEligibleProximityNPC(
                 player, target->ToCreature(), replyRadius)
             : IsEligibleProximityBot(
-                player, target->ToPlayer(), replyRadius);
+                player, target->ToPlayer(), replyRadius, true);
         if (!eligible)
             continue;
 
@@ -1981,10 +2154,34 @@ bool IsProximityAnchorEligible(Player* player)
 }
 
 bool IsProximityPlayerbotEligible(
-    Player* player, Player* bot, float radius)
+    Player* player, Player* bot, float radius,
+    bool allowMounted)
 {
     return IsEligibleProximityBot(
-        player, bot, radius);
+        player, bot, radius, allowMounted);
+}
+
+bool IsProximityDirectedPlayerbotEligible(
+    Player* player, Player* bot, float radius)
+{
+    if (!IsEligibleProximityAnchor(player)
+        || !IsEligibleProximityBot(
+            player, bot, radius, true))
+    {
+        return false;
+    }
+    if (IsSameGroup(bot, player->GetGroup()))
+        return false;
+    return player->GetTeamId() == bot->GetTeamId();
+}
+
+bool IsProximityPlayerbotEmoteRouteEnabled()
+{
+    return sLLMChatterConfig
+        && sLLMChatterConfig->IsEnabled()
+        && sLLMChatterConfig->_proxChatterEnable
+        && sLLMChatterConfig->_useEventSystem
+        && sLLMChatterConfig->_emoteReactionsEnable;
 }
 
 bool IsProximityNPCEligible(
@@ -2283,8 +2480,12 @@ void HandleProximityPlayerEmote(
         *addressedIt,
     };
     std::vector<ProximityCandidate> extras =
-        SelectDirectedNPCReactors(
-            candidates, *addressedIt, nullptr);
+        SelectDirectedReactors(
+            player, candidates, *addressedIt, nullptr,
+            DirectedReactorScope::NPCOnly,
+            sLLMChatterConfig
+                ->_proxDirectedMaxExtraReactors,
+            false);
     speakers.insert(
         speakers.end(), extras.begin(), extras.end());
 
@@ -2303,10 +2504,125 @@ void HandleProximityPlayerEmote(
         return;
     }
     QueuePlayerEmoteProximityEvent(
-        player, speakers, candidates,
+        player, *addressedIt, speakers, candidates,
         GetTextEmoteName(textEmote),
         textEmote, mirrorEmote,
-        interactionMode);
+        interactionMode, true);
+}
+
+bool HandleProximityPlayerbotEmote(
+    Player* player, Player* bot,
+    uint32 textEmote, uint32 mirrorEmote)
+{
+    if (!IsProximityPlayerbotEmoteRouteEnabled()
+        || !player || IsPlayerBot(player) || !bot)
+    {
+        return false;
+    }
+
+    float radius = static_cast<float>(
+        sLLMChatterConfig
+            ->_proxChatterPlayerSayScanRadius);
+    if (!IsProximityDirectedPlayerbotEligible(
+            player, bot, radius))
+    {
+        return false;
+    }
+
+    Map* map = player->GetMap();
+    std::string pairKey = "bot:"
+        + std::to_string(
+            player->GetGUID().GetCounter())
+        + ":" + std::to_string(player->GetMapId())
+        + ":" + std::to_string(
+            map ? map->GetInstanceId() : 0)
+        + ":" + std::to_string(
+            bot->GetGUID().GetCounter());
+    uint32 cooldownSeconds =
+        sLLMChatterConfig->_emoteMirrorCooldown * 2;
+    if (IsProximityCooldownActive(
+            _directedBotEmoteCooldowns,
+            pairKey, cooldownSeconds, false))
+    {
+        return false;
+    }
+    uint32 verbalRoll = urand(1, 100);
+    bool addressedSpeaks = verbalRoll
+        <= sLLMChatterConfig
+               ->_emoteUngroupedBotVerbalReactionChance;
+    uint32 witnessRoll = addressedSpeaks
+        ? 0 : urand(1, 100);
+    bool witnessSceneAccepted = !addressedSpeaks
+        && witnessRoll
+            <= sLLMChatterConfig
+                   ->_emoteUngroupedBotWitnessReactionChance;
+    if (sLLMChatterConfig->IsDebugLog())
+    {
+        LOG_DEBUG(
+            "module",
+            "LLMChatter: directed playerbot emote target={} "
+            "verbal_roll={} addressed_speaks={} witness_roll={} "
+            "witness_scene={}",
+            bot->GetName(), verbalRoll, addressedSpeaks,
+            witnessRoll, witnessSceneAccepted);
+    }
+    if (!addressedSpeaks && !witnessSceneAccepted)
+    {
+        return false;
+    }
+
+    std::vector<ProximityCandidate> candidates;
+    CollectNearbyBots(player, radius, candidates, true);
+    CollectNearbyNPCs(player, radius, candidates);
+    DeduplicateCandidates(candidates);
+    auto addressedIt = std::find_if(
+        candidates.begin(), candidates.end(),
+        [bot](ProximityCandidate const& candidate)
+        {
+            return !candidate.isNPC && candidate.bot
+                && candidate.bot->GetGUID() == bot->GetGUID();
+        });
+    if (addressedIt == candidates.end())
+        return false;
+
+    std::vector<ProximityCandidate> speakers;
+    if (addressedSpeaks)
+        speakers.push_back(*addressedIt);
+
+    std::vector<ProximityCandidate> extras =
+        SelectDirectedReactors(
+            player, candidates, *addressedIt, nullptr,
+            DirectedReactorScope::NPCsAndUngroupedBots,
+            sLLMChatterConfig
+                ->_proxDirectedBotMaxParticipants - 1,
+            !addressedSpeaks);
+    speakers.insert(
+        speakers.end(), extras.begin(), extras.end());
+    if (speakers.empty())
+    {
+        if (sLLMChatterConfig->IsDebugLog())
+        {
+            LOG_DEBUG(
+                "module",
+                "LLMChatter: directed playerbot emote target={} "
+                "has no eligible witness speakers",
+                bot->GetName());
+        }
+        return false;
+    }
+
+    if (!TryReserveProximityCooldown(
+            _directedBotEmoteCooldowns,
+            pairKey, cooldownSeconds))
+    {
+        return false;
+    }
+
+    return QueuePlayerEmoteProximityEvent(
+        player, *addressedIt, speakers, candidates,
+        GetTextEmoteName(textEmote),
+        textEmote, mirrorEmote,
+        "player_inclusive", addressedSpeaks);
 }
 
 void RecordDeliveredProximityLine(

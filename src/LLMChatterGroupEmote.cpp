@@ -25,6 +25,7 @@
 #include "Player.h"
 #include "ScriptMgr.h"
 
+#include <algorithm>
 #include <ctime>
 #include <memory>
 #include <mutex>
@@ -146,20 +147,29 @@ public:
             ObjectAccessor::FindConnectedPlayer(
                 _botGuid);
         if (!bot || !bot->IsInWorld()
-            || !bot->IsAlive())
+            || !bot->IsAlive()
+            || bot->IsInCombat())
             return true;
+
+        Player* target =
+            ObjectAccessor::FindConnectedPlayer(
+                _playerGuid);
+        float radius = static_cast<float>(
+            std::max<uint32>(
+                1u,
+                sLLMChatterConfig
+                    ->_proxChatterPlayerSayScanRadius));
+        if (!target || !target->IsInWorld()
+            || bot->GetMap() != target->GetMap()
+            || !bot->IsWithinDistInMap(target, radius))
+        {
+            return true;
+        }
 
         // Face player just before the animation
         // so the bot hasn't drifted since hook time
-        if (sLLMChatterConfig->_facingEnable
-            && !bot->IsInCombat())
-        {
-            Player* target =
-                ObjectAccessor::FindConnectedPlayer(
-                    _playerGuid);
-            if (target)
-                bot->SetFacingToObject(target);
-        }
+        if (sLLMChatterConfig->_facingEnable)
+            bot->SetFacingToObject(target);
 
         SendBotTextEmote(bot, _emoteId, _playerName);
         return true;
@@ -282,6 +292,42 @@ static const std::unordered_set<uint32>
     TEXT_EMOTE_ROFL, TEXT_EMOTE_VICTORY,
 };
 
+namespace
+{
+bool ScheduleBotMirrorEmote(
+    Player* player, Player* targetBot,
+    uint32 mirrorEmote, time_t now)
+{
+    uint32 botGuid =
+        targetBot->GetGUID().GetCounter();
+    if (!TryStampEmoteCooldown(
+            _emoteReactCooldowns,
+            botGuid, now,
+            static_cast<time_t>(
+                sLLMChatterConfig
+                    ->_emoteMirrorCooldown)))
+    {
+        return false;
+    }
+
+    uint32 delayMs = urand(800, 2500);
+    targetBot->m_Events.AddEvent(
+        new DelayedMirrorEmoteEvent(
+            targetBot->GetGUID(),
+            player->GetGUID(),
+            mirrorEmote,
+            player->GetName()),
+        targetBot->m_Events.CalculateTime(
+            delayMs));
+    return true;
+}
+} // namespace
+
+bool HasPlayerbotMirrorEmote(uint32 textEmote)
+{
+    return s_mirrorEmoteMap.count(textEmote) > 0;
+}
+
 // ============================================================================
 // HandleEmoteAtGroupBot
 // ============================================================================
@@ -293,13 +339,6 @@ void HandleEmoteAtGroupBot(
 {
     bool const isCustom = !customText.empty();
 
-    // The mirror roll only governs the animation, which a
-    // custom emote has no id to mirror.
-    if (!isCustom
-        && urand(1, 100)
-            > sLLMChatterConfig->_emoteMirrorChance)
-        return;
-
     if (!targetBot->IsAlive()) return;
 
     uint32 botGuid =
@@ -308,38 +347,27 @@ void HandleEmoteAtGroupBot(
         group->GetGUID().GetCounter();
     time_t now = time(nullptr);
 
+    // Only mapped emotes can animate. Unsupported emotes do not consume the
+    // mirror cooldown, but remain eligible for the independent speech roll.
+    // A custom emote has no id to mirror, so this stays named-emote only.
+    uint32 scheduledMirrorEmote = 0;
     if (!isCustom)
     {
-        // Only react if this emote has a mirror
         auto mit = s_mirrorEmoteMap.find(textEmote);
-        if (mit == s_mirrorEmoteMap.end()) return;
-        uint32 mirrorEmote = mit->second;
-
-        // Per-bot mirror cooldown (checked and stamped
-        // after confirming a mirror exists so unsupported
-        // emotes don't consume the cooldown slot)
-        if (!TryStampEmoteCooldown(
-                _emoteReactCooldowns,
-                botGuid, now,
-                static_cast<time_t>(
-                    sLLMChatterConfig
-                        ->_emoteMirrorCooldown)))
+        if (mit != s_mirrorEmoteMap.end()
+            && urand(1, 100)
+                <= sLLMChatterConfig->_emoteMirrorChance)
         {
-            return;
+            if (ScheduleBotMirrorEmote(
+                    player, targetBot, mit->second, now))
+            {
+                scheduledMirrorEmote = mit->second;
+            }
         }
-
-        uint32 delayMs = urand(800, 2500);
-        targetBot->m_Events.AddEvent(
-            new DelayedMirrorEmoteEvent(
-                targetBot->GetGUID(),
-                player->GetGUID(),
-                mirrorEmote,
-                player->GetName()),
-            targetBot->m_Events.CalculateTime(
-                delayMs));
     }
 
-    // Phase 4 -- queue verbal reaction
+    // Mirror and speech are independent reactions. A failed mirror roll or
+    // active mirror cooldown must not suppress an otherwise valid reply.
     if (urand(1, 100)
         <= sLLMChatterConfig
                ->_emoteReactionChance)
@@ -356,6 +384,10 @@ void HandleEmoteAtGroupBot(
                 isCustom
                     ? customText
                     : GetTextEmoteName(textEmote);
+            std::string mirrorEmoteName =
+                scheduledMirrorEmote != 0
+                ? GetTextEmoteName(scheduledMirrorEmote)
+                : "";
 
             std::string extraData =
                 "{\"bot_guid\":"
@@ -377,6 +409,8 @@ void HandleEmoteAtGroupBot(
                       targetBot->GetLevel())
                 + ",\"emote_name\":\""
                 + JsonEscape(emoteName)
+                + "\",\"mirror_emote\":\""
+                + JsonEscape(mirrorEmoteName)
                 + "\",\"player_name\":\""
                 + JsonEscape(player->GetName())
                 + "\",\"directed\":true"
@@ -406,6 +440,33 @@ void HandleEmoteAtGroupBot(
     }
     // Mood spread (Phase 6 -- deferred):
     // s_contagiousEmotes check goes here
+}
+
+uint32 HandleEmoteAtUngroupedBot(
+    Player* player, Player* targetBot,
+    uint32 textEmote)
+{
+    if (!player || !targetBot || !targetBot->IsAlive())
+        return 0;
+
+    auto mit = s_mirrorEmoteMap.find(textEmote);
+    if (mit == s_mirrorEmoteMap.end())
+        return 0;
+    if (urand(1, 100)
+        > sLLMChatterConfig
+              ->_emoteUngroupedBotMirrorChance)
+    {
+        return 0;
+    }
+
+    uint32 mirrorEmote = mit->second;
+    if (!ScheduleBotMirrorEmote(
+            player, targetBot, mirrorEmote,
+            time(nullptr)))
+    {
+        return 0;
+    }
+    return mirrorEmote;
 }
 
 // ============================================================================

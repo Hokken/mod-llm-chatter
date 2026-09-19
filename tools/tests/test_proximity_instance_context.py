@@ -45,6 +45,9 @@ from chatter_instance_context import (  # noqa: E402
 )
 import chatter_boss_dialogue  # noqa: E402
 import chatter_proximity  # noqa: E402
+from chatter_emote_reaction import (  # noqa: E402
+    _build_reaction_prompt as build_grouped_emote_prompt,
+)
 from chatter_db import insert_chat_message  # noqa: E402
 from chatter_boss_dialogue import (  # noqa: E402
     _build_prompt as build_boss_prompt,
@@ -237,6 +240,9 @@ def test_directed_emote_registry_and_player_agency_contract():
     assert spec.payload_fields['player_emote'] == (str, True)
     assert spec.payload_fields['mirror_emote'] == (str, False)
     assert spec.payload_fields['participants'] == (list, True)
+    assert spec.payload_fields['addressed_participant'] == (dict, False)
+    assert spec.payload_fields['addressed_speaks'] == (bool, False)
+    assert 'witness chain' in spec.description
 
     participants = [NPC, {**NPC, 'name': 'Thar'}]
     aside = _player_emote_conversation_prompt(
@@ -269,6 +275,122 @@ def test_directed_emote_registry_and_player_agency_contract():
     ).user_prompt
     assert 'also scheduled to perform /wave' in mirrored
     assert 'must not contradict that animation' in mirrored
+
+
+def test_playerbot_emote_prompt_uses_configured_voice():
+    normal = _player_emote_single_prompt(
+        _DB(), INSTANCE_EXTRA, BOT, 'wave', NORMAL_CONFIG,
+    ).user_prompt
+    assert 'CHAT MODE: NORMAL' in normal
+    assert 'person playing a level 30 female Human Mage' in normal
+    assert 'Use casual player /say' in normal
+    assert 'SPEAKER TYPE: NPC' not in normal
+
+    mirrored = _player_emote_single_prompt(
+        _DB(), {**INSTANCE_EXTRA, 'mirror_emote': 'wave'},
+        BOT, 'wave', NORMAL_CONFIG,
+    ).user_prompt
+    assert 'The speaker is also scheduled to perform /wave' in mirrored
+
+    roleplay = _player_emote_single_prompt(
+        _DB(), INSTANCE_EXTRA, BOT, 'wave',
+        {'LLMChatter.ChatterMode': 'roleplay'},
+    ).user_prompt
+    assert 'CHAT MODE: ROLEPLAY' in roleplay
+    assert 'living in Azeroth' in roleplay
+
+
+def test_playerbot_emote_prompt_queries_missing_identity():
+    db = _DB([{
+        'class': 8,
+        'race': 1,
+        'gender': 1,
+        'level': 30,
+    }])
+    speaker = {
+        'name': 'Aliss',
+        'is_npc': False,
+        'bot_guid': 77,
+    }
+    prompt = _player_emote_single_prompt(
+        db, INSTANCE_EXTRA, speaker, 'wave',
+        {'LLMChatter.ChatterMode': 'roleplay'},
+    ).user_prompt
+    assert 'level 30 female Human Mage' in prompt
+    query, params = db.cursor_value.queries[0]
+    assert 'FROM characters' in query
+    assert params == (77,)
+
+
+def test_mixed_playerbot_emote_prompt_uses_distinct_voices():
+    participants = [BOT, NPC]
+    prompt = _player_emote_conversation_prompt(
+        _DB(),
+        {
+            **INSTANCE_EXTRA,
+            'participants': participants,
+            'addressed_name': BOT['name'],
+            'interaction_mode': 'player_inclusive',
+        },
+        participants,
+        'wave',
+        NORMAL_CONFIG,
+    ).user_prompt
+    assert '[PLAYERBOT] Aliss' in prompt
+    assert '[NPC] Deathstalker Adamant' in prompt
+    assert 'Use casual player /say' in prompt
+    assert 'Speakers may react to the player and to each other' in prompt
+    assert 'Every listed speaker must speak at least once' in prompt
+
+
+def test_silent_addressed_bot_emote_prompt_uses_witnesses():
+    second_bot = {
+        **BOT,
+        'name': 'Meriel',
+        'bot_guid': 78,
+    }
+    participants = [NPC, second_bot]
+    extra = {
+        **INSTANCE_EXTRA,
+        'participants': participants,
+        'addressed_name': BOT['name'],
+        'addressed_participant': BOT,
+        'addressed_speaks': False,
+        'mirror_emote': 'blush',
+        'interaction_mode': 'player_inclusive',
+    }
+    prompt = _player_emote_conversation_prompt(
+        _DB(), extra, participants, 'kiss', NORMAL_CONFIG,
+    ).user_prompt
+    assert 'performed /kiss directly at Aliss' in prompt
+    assert 'FIRST message MUST be spoken by Deathstalker Adamant' in prompt
+    assert 'Aliss remains silent and is not in the speaker roster' in prompt
+    assert 'listed speakers witnessed the gesture' in prompt
+    assert 'Aliss is also scheduled to perform /blush' in prompt
+
+
+def test_grouped_emote_prompt_tracks_only_scheduled_mirror():
+    spec = EVENT_REGISTRY['bot_group_emote_reaction']
+    assert spec.producer == 'LLMChatterGroupEmote.cpp'
+    assert spec.payload_fields['mirror_emote'] == (str, False)
+
+    mirrored = build_grouped_emote_prompt(
+        'Aliss', 'Human', 'Mage', 'female',
+        'Calwen', 'cheer', 'positive',
+        mirror_emote='cheer',
+        stored_tone='warmly',
+        mode='normal',
+    )
+    assert 'scheduled to perform /cheer' in mirrored
+    assert 'must not contradict that animation' in mirrored
+
+    speech_only = build_grouped_emote_prompt(
+        'Aliss', 'Human', 'Mage', 'female',
+        'Calwen', 'ponder', 'neutral',
+        stored_tone='thoughtfully',
+        mode='normal',
+    )
+    assert 'scheduled to perform' not in speech_only
 
 
 def test_all_player_proximity_replies_use_responsive_timing():
@@ -453,6 +575,281 @@ def test_directed_emote_handler_persists_addressee_ids():
     assert captured[0]['addressee_npc_spawn_id'] == 102
     assert captured[1]['npc_spawn_id'] == 102
     assert captured[1]['addressee_npc_spawn_id'] == 101
+
+
+def test_directed_playerbot_emote_uses_say_and_player_addressee():
+    extra = {
+        **INSTANCE_EXTRA,
+        'participants': [BOT],
+        'addressed_name': BOT['name'],
+        'player_emote': 'wave',
+        'mirror_emote': 'wave',
+        'interaction_mode': 'player_inclusive',
+        'max_lines': 1,
+    }
+    event = {'id': 79, 'extra_data': json.dumps(extra)}
+    captured = []
+    original_call = chatter_proximity.call_llm
+    original_insert = chatter_proximity.insert_chat_message
+    try:
+        chatter_proximity.call_llm = lambda *args, **kwargs: json.dumps({
+            'message': 'Hello there!',
+            'addressee': 'Calwen',
+        })
+        chatter_proximity.insert_chat_message = (
+            lambda db, **kwargs: captured.append(kwargs)
+        )
+        assert chatter_proximity.handle_proximity_player_emote(
+            _DB(), None, NORMAL_CONFIG, event
+        )
+    finally:
+        chatter_proximity.call_llm = original_call
+        chatter_proximity.insert_chat_message = original_insert
+
+    assert len(captured) == 1
+    assert captured[0]['channel'] == 'say'
+    assert captured[0]['bot_guid'] == 77
+    assert captured[0]['npc_spawn_id'] is None
+    assert captured[0]['player_guid'] == 42
+    assert captured[0]['addressee_player_guid'] == 42
+
+
+def test_silent_addressed_bot_can_queue_single_npc_witness():
+    extra = {
+        **INSTANCE_EXTRA,
+        'participants': [NPC],
+        'addressed_name': BOT['name'],
+        'addressed_participant': BOT,
+        'addressed_speaks': False,
+        'player_emote': 'kiss',
+        'mirror_emote': 'blush',
+        'interaction_mode': 'player_inclusive',
+        'max_lines': 1,
+    }
+    captured = []
+    prompts = []
+    original_call = chatter_proximity.call_llm
+    original_insert = chatter_proximity.insert_chat_message
+    try:
+        def fake_call(*args, **kwargs):
+            prompts.append(args[1].user_prompt)
+            return json.dumps({
+                'message': 'Well, that was unexpectedly affectionate.',
+                'addressee': BOT['name'],
+            })
+
+        chatter_proximity.call_llm = fake_call
+        chatter_proximity.insert_chat_message = (
+            lambda db, **kwargs: captured.append(kwargs)
+        )
+        assert chatter_proximity.handle_proximity_player_emote(
+            _DB(), None, NORMAL_CONFIG,
+            {'id': 83, 'extra_data': json.dumps(extra)},
+        )
+    finally:
+        chatter_proximity.call_llm = original_call
+        chatter_proximity.insert_chat_message = original_insert
+
+    assert len(prompts) == 1
+    assert 'performed /kiss directly at Aliss' in prompts[0]
+    assert 'Do not invent or quote player speech.' in prompts[0]
+    assert 'Deathstalker Adamant witnessed the gesture' in prompts[0]
+    assert 'Aliss remains silent and is not the speaker' in prompts[0]
+    assert len(captured) == 1
+    assert captured[0]['channel'] == 'msay'
+    assert captured[0]['npc_spawn_id'] == 9001
+    assert captured[0]['addressee_player_guid'] == 42
+
+
+def test_silent_addressed_bot_witness_chain_keeps_target_addressee():
+    second_bot = {
+        **BOT,
+        'name': 'Meriel',
+        'bot_guid': 78,
+    }
+    participants = [NPC, second_bot]
+    extra = {
+        **INSTANCE_EXTRA,
+        'participants': participants,
+        'addressed_name': BOT['name'],
+        'addressed_participant': BOT,
+        'addressed_speaks': False,
+        'player_emote': 'kiss',
+        'interaction_mode': 'player_inclusive',
+        'max_lines': 2,
+    }
+    captured = []
+    original_call = chatter_proximity.call_llm
+    original_insert = chatter_proximity.insert_chat_message
+    try:
+        chatter_proximity.call_llm = lambda *args, **kwargs: json.dumps([
+            {
+                'speaker': NPC['name'],
+                'message': 'That certainly caught her attention.',
+                'addressee': BOT['name'],
+            },
+            {
+                'speaker': second_bot['name'],
+                'message': 'Subtlety has left Astranaar entirely.',
+                'addressee': NPC['name'],
+            },
+        ])
+        chatter_proximity.insert_chat_message = (
+            lambda db, **kwargs: captured.append(kwargs)
+        )
+        assert chatter_proximity.handle_proximity_player_emote(
+            _DB(), None, NORMAL_CONFIG,
+            {'id': 84, 'extra_data': json.dumps(extra)},
+        )
+    finally:
+        chatter_proximity.call_llm = original_call
+        chatter_proximity.insert_chat_message = original_insert
+
+    assert len(captured) == 2
+    assert captured[0]['addressee_bot_guid'] == 77
+    assert captured[1]['addressee_npc_spawn_id'] == 9001
+
+
+def test_mixed_emote_chain_filters_normal_playerbot_actions():
+    participants = [BOT, NPC]
+    extra = {
+        **INSTANCE_EXTRA,
+        'participants': participants,
+        'addressed_name': BOT['name'],
+        'player_emote': 'wave',
+        'interaction_mode': 'player_inclusive',
+        'max_lines': 2,
+    }
+    captured = []
+    calls = []
+    original_call = chatter_proximity.call_llm
+    original_insert = chatter_proximity.insert_chat_message
+    original_strip = chatter_proximity.strip_conversation_actions
+    try:
+        def fake_call(*args, **kwargs):
+            calls.append(kwargs.get('label'))
+            return json.dumps([
+                {
+                    'speaker': BOT['name'],
+                    'message': 'Hello there!',
+                    'action': 'waves dramatically',
+                },
+                {
+                    'speaker': NPC['name'],
+                    'message': 'A friendly traveler, then.',
+                    'action': 'nods slowly',
+                },
+            ])
+
+        chatter_proximity.call_llm = fake_call
+        chatter_proximity.insert_chat_message = (
+            lambda db, **kwargs: captured.append(kwargs)
+        )
+        chatter_proximity.strip_conversation_actions = (
+            lambda *args, **kwargs: None
+        )
+        assert chatter_proximity.handle_proximity_player_emote(
+            _DB(), None, NORMAL_CONFIG,
+            {'id': 80, 'extra_data': json.dumps(extra)},
+        )
+    finally:
+        chatter_proximity.call_llm = original_call
+        chatter_proximity.insert_chat_message = original_insert
+        chatter_proximity.strip_conversation_actions = original_strip
+
+    assert calls == ['proximity_player_emote']
+    assert len(captured) == 2
+    assert captured[0]['channel'] == 'say'
+    assert captured[0]['message'] == 'Hello there!'
+    assert captured[1]['channel'] == 'msay'
+    assert captured[1]['message'].startswith('*nods slowly*')
+
+
+def test_emote_chain_zero_insert_uses_one_bounded_fallback():
+    participants = [BOT, NPC]
+    extra = {
+        **INSTANCE_EXTRA,
+        'participants': participants,
+        'addressed_name': BOT['name'],
+        'player_emote': 'wave',
+        'interaction_mode': 'player_inclusive',
+        'max_lines': 2,
+    }
+    responses = iter([
+        json.dumps([
+            {'speaker': BOT['name'], 'message': 'Hello there!'},
+            {'speaker': NPC['name'], 'message': 'Well met.'},
+        ]),
+        json.dumps({'message': 'Hello there!'}),
+    ])
+    calls = []
+    insert_attempts = []
+    original_call = chatter_proximity.call_llm
+    original_insert_line = chatter_proximity._insert_proximity_line
+    try:
+        def fake_call(*args, **kwargs):
+            calls.append(kwargs.get('label'))
+            return next(responses)
+
+        def fake_insert(*args, **kwargs):
+            insert_attempts.append(args[4])
+            return len(insert_attempts) > 2
+
+        chatter_proximity.call_llm = fake_call
+        chatter_proximity._insert_proximity_line = fake_insert
+        assert chatter_proximity.handle_proximity_player_emote(
+            _DB(), None, NORMAL_CONFIG,
+            {'id': 81, 'extra_data': json.dumps(extra)},
+        )
+    finally:
+        chatter_proximity.call_llm = original_call
+        chatter_proximity._insert_proximity_line = original_insert_line
+
+    assert calls == [
+        'proximity_player_emote',
+        'proximity_player_emote_fallback',
+    ]
+    assert len(insert_attempts) == 3
+
+
+def test_emote_chain_partial_insert_does_not_duplicate_with_fallback():
+    participants = [BOT, NPC]
+    extra = {
+        **INSTANCE_EXTRA,
+        'participants': participants,
+        'addressed_name': BOT['name'],
+        'player_emote': 'wave',
+        'interaction_mode': 'player_inclusive',
+        'max_lines': 2,
+    }
+    calls = []
+    insert_attempts = []
+    original_call = chatter_proximity.call_llm
+    original_insert_line = chatter_proximity._insert_proximity_line
+    try:
+        def fake_call(*args, **kwargs):
+            calls.append(kwargs.get('label'))
+            return json.dumps([
+                {'speaker': BOT['name'], 'message': 'Hello there!'},
+                {'speaker': NPC['name'], 'message': 'Well met.'},
+            ])
+
+        def fake_insert(*args, **kwargs):
+            insert_attempts.append(args[4])
+            return len(insert_attempts) == 2
+
+        chatter_proximity.call_llm = fake_call
+        chatter_proximity._insert_proximity_line = fake_insert
+        assert chatter_proximity.handle_proximity_player_emote(
+            _DB(), None, NORMAL_CONFIG,
+            {'id': 82, 'extra_data': json.dumps(extra)},
+        )
+    finally:
+        chatter_proximity.call_llm = original_call
+        chatter_proximity._insert_proximity_line = original_insert_line
+
+    assert calls == ['proximity_player_emote']
+    assert len(insert_attempts) == 2
 
 
 def test_message_insert_addressee_parameters_match_placeholders():
@@ -961,9 +1358,12 @@ def test_cpp_source_contracts_cover_instance_safety():
     assert directed < active_scene
 
 
-def test_mounted_players_remain_eligible_for_direct_interactions():
+def test_mounted_actors_remain_eligible_for_direct_interactions():
     source = (
         MODULE_DIR / 'src' / 'LLMChatterProximity.cpp'
+    ).read_text(encoding='utf-8')
+    delivery = (
+        MODULE_DIR / 'src' / 'LLMChatterDelivery.cpp'
     ).read_text(encoding='utf-8')
     anchor = source.split(
         'bool IsEligibleProximityAnchor(Player* player)', 1
@@ -979,11 +1379,53 @@ def test_mounted_players_remain_eligible_for_direct_interactions():
     directed_emote = source.split(
         'void HandleProximityPlayerEmote(', 1
     )[1].split('void RecordDeliveredProximityLine(', 1)[0]
+    bot_eligibility = source.split(
+        'bool IsEligibleProximityBot(', 1
+    )[1].split('bool IsEligibleProximityNPC(', 1)[0]
+    directed_bot = source.split(
+        'bool IsProximityDirectedPlayerbotEligible(', 1
+    )[1].split(
+        'bool IsProximityPlayerbotEmoteRouteEnabled()', 1
+    )[0]
+    ambient_scene = source.split(
+        'void MaybeQueueProximityScene(Player* player)', 1
+    )[1].split('ProximityScene* FindBestScene(', 1)[0]
 
     assert '!player->IsMounted()' not in anchor
     assert '!player->IsMounted()' in ambient
+    assert '!allowMounted && bot->IsMounted()' in bot_eligibility
     assert 'IsEligibleProximityAnchor(player)' in directed_say
     assert 'IsEligibleProximityAnchor(player)' in directed_emote
+    assert 'CollectNearbyBots(player, radius, candidates, true)' in (
+        directed_say
+    )
+    assert 'CollectNearbyBots(player, radius, candidates, true)' in (
+        directed_emote
+    )
+    assert 'IsEligibleProximityBot(' in directed_bot
+    assert 'player, bot, radius, true' in directed_bot
+    assert 'CollectNearbyBots(player, radius, candidates, false)' in (
+        ambient_scene
+    )
+    assert 'allowMountedProximityBot' in delivery
+    assert 'eventType == "proximity_player_emote"' in delivery
+    assert 'eventType == "proximity_player_say"' in delivery
+    assert 'HasNonEmptyJsonString(' in delivery
+    assert 'eventExtraData, "addressed_name"' in delivery
+    json_string_helper = delivery.split(
+        'bool HasNonEmptyJsonString(', 1
+    )[1].split('bool IsDirectedProximityEvent(', 1)[0]
+    assert r'+ key + "\":";' in json_string_helper
+    assert 'std::isspace(' in json_string_helper
+    assert "json[pos] != '\"'" in json_string_helper
+    mounted_policy = delivery.split(
+        'bool addressedPlayerSay =', 1
+    )[1].split('float proximityRadius', 1)[0]
+    assert 'proximity_player_say' in mounted_policy
+    assert 'proximity_player_conversation' in mounted_policy
+    assert '&& HasNonEmptyJsonString(' in mounted_policy
+    assert 'proximity_player_emote' in mounted_policy
+    assert 'proximity_reply' in mounted_policy
     assert source.count(
         'IsEligibleAmbientProximityAnchor(player)'
     ) == 3
@@ -1026,6 +1468,10 @@ def test_config_fallbacks_match_distributed_values():
     distributed = (
         MODULE_DIR / 'conf' / 'mod_llm_chatter.conf.dist'
     ).read_text(encoding='utf-8')
+    quieter = (
+        MODULE_DIR / 'conf' / 'presets'
+        / 'mod_ll_chatter_quieter.conf.dist'
+    ).read_text(encoding='utf-8')
     assert '"ScanRadius", 40)' in source
     assert '"Chance", 30)' in source
     assert '"OutdoorScanIntervalSeconds",' in source
@@ -1064,6 +1510,192 @@ def test_config_fallbacks_match_distributed_values():
     assert source.count('            3u);') >= 3
     assert 'BossDirectedReplyCooldownSeconds = 3' in distributed
     assert 'NPCVerbalCooldown = 3' in distributed
+    assert '"MirrorChance", 80)' in source
+    assert '"ReactionChance", 80)' in source
+    assert '"ObserverChance", 50)' in source
+    assert '"UngroupedBotMirrorChance", 80)' in source
+    assert (
+        '"UngroupedBotVerbalReactionChance", 80)'
+        in source
+    )
+    assert (
+        '"UngroupedBotWitnessReactionChance", 50)'
+        in source
+    )
+    assert 'UngroupedBotMirrorChance = 80' in distributed
+    assert (
+        'UngroupedBotVerbalReactionChance = 80'
+        in distributed
+    )
+    assert (
+        'UngroupedBotWitnessReactionChance = 50'
+        in distributed
+    )
+    assert 'UngroupedBotVerbalReactionChance = 80' in quieter
+    assert 'UngroupedBotWitnessReactionChance = 50' in quieter
+    for config in (distributed, quieter):
+        assert 'MirrorChance = 80' in config
+        assert 'ReactionChance = 80' in config
+        assert 'ObserverChance = 50' in config
+        assert 'DirectedMaxExtraReactors = 2' in config
+        assert 'DirectedExtraReactorWeights = 60,30,10,0' in config
+        assert 'DirectedWitnessReactorWeights = 70,30' in config
+    assert '"DirectedMaxExtraReactors", 2)' in source
+    assert '"DirectedWitnessReactorWeights"' in source
+    assert 'std::array<uint32, 2>{70, 30}' in source
+    assert '"DirectedBotMaxParticipants", 3)' in source
+    assert 'DirectedBotMaxParticipants = 3' in distributed
+    assert 'DirectedBotMaxParticipants = 3' in quieter
+    directed_cap = source.split(
+        '_proxDirectedBotMaxParticipants =', 1
+    )[1].split('_proxDirectedExtraReactorWeights =', 1)[0]
+    assert 'std::clamp(' in directed_cap
+    assert '1u, 3u' in directed_cap
+
+
+def test_ungrouped_playerbot_emote_source_contract():
+    combat = (
+        MODULE_DIR / 'src' / 'LLMChatterGroupCombat.cpp'
+    ).read_text(encoding='utf-8')
+    internal = (
+        MODULE_DIR / 'src' / 'LLMChatterGroupInternal.h'
+    ).read_text(encoding='utf-8')
+    emote = (
+        MODULE_DIR / 'src' / 'LLMChatterGroupEmote.cpp'
+    ).read_text(encoding='utf-8')
+    proximity = (
+        MODULE_DIR / 'src' / 'LLMChatterProximity.cpp'
+    ).read_text(encoding='utf-8')
+
+    assert 'EMOTE_TGT_UNGROUPED_BOT' in internal
+    classification = combat.split(
+        'if (!guid.IsEmpty())', 1
+    )[1].split('if (sLLMChatterConfig->IsDebugLog())', 1)[0]
+    assert classification.index('IsPlayerBot(tgt)') < (
+        classification.index('EMOTE_TGT_EXT_PLAYER')
+    )
+    direct = combat.split(
+        'if (tgtType == EMOTE_TGT_UNGROUPED_BOT', 1
+    )[1].split(
+        'if (!group || !GroupHasRealPlayer(group))', 1
+    )[0]
+    assert 'IsProximityDirectedPlayerbotEligible(' in direct
+    assert 'HasPlayerbotMirrorEmote(textEmote)' in direct
+    assert 'IsProximityPlayerbotEmoteRouteEnabled()' in direct
+    assert 'HandleEmoteAtUngroupedBot(' in direct
+    assert 'HandleProximityPlayerbotEmote(' in direct
+
+    fallback = combat.split(
+        'case EMOTE_TGT_UNGROUPED_BOT:', 1
+    )[1].split('case EMOTE_TGT_CREATURE:', 1)[0]
+    assert '!ungroupedBotDirectAccepted' in fallback
+    assert '!player->IsInCombat()' in fallback
+    assert 'EMOTE_TGT_EXT_PLAYER' in fallback
+    assert 'targetName' in fallback
+
+    assert 'bool HasPlayerbotMirrorEmote(' in emote
+    assert '_emoteUngroupedBotMirrorChance' in emote
+    assert 'ScheduleBotMirrorEmote(' in emote
+    delayed_mirror = emote.split(
+        'class DelayedMirrorEmoteEvent', 1
+    )[1].split('// Emotes that should NOT trigger', 1)[0]
+    assert 'bot->IsInCombat()' in delayed_mirror
+    assert 'FindConnectedPlayer(' in delayed_mirror
+    assert '_playerGuid' in delayed_mirror
+    assert 'bot->GetMap() != target->GetMap()' in delayed_mirror
+    assert 'bot->IsWithinDistInMap(target, radius)' in delayed_mirror
+    assert '_proxChatterPlayerSayScanRadius' in delayed_mirror
+    assert 'std::max<uint32>(' in delayed_mirror
+    assert '1u,' in delayed_mirror
+    grouped_handler = emote.split(
+        'void HandleEmoteAtGroupBot(', 1
+    )[1].split('uint32 HandleEmoteAtUngroupedBot(', 1)[0]
+    assert '_emoteMirrorChance' in grouped_handler
+    assert '_emoteReactionChance' in grouped_handler
+    assert 'if (!ScheduleBotMirrorEmote(' not in grouped_handler
+    assert 'if (mit == s_mirrorEmoteMap.end()) return;' not in grouped_handler
+    assert 'mit != s_mirrorEmoteMap.end()' in grouped_handler
+    assert 'Mirror and speech are independent reactions' in grouped_handler
+    assert 'scheduledMirrorEmote' in grouped_handler
+    assert 'mirror_emote' in grouped_handler
+    assert 'IsEligibleProximityAnchor(player)' in proximity
+    assert 'player->GetTeamId() == bot->GetTeamId()' in proximity
+    assert '_proxChatterPlayerSayScanRadius' in proximity
+    assert '_directedBotEmoteCooldowns' in proximity
+    cleanup = proximity.split(
+        'time_t botEmoteCutoff', 1
+    )[1].split('}', 1)[0]
+    assert '_emoteMirrorCooldown' in cleanup
+    assert '* 2' in cleanup
+    playerbot_handler = proximity.split(
+        'bool HandleProximityPlayerbotEmote(', 1
+    )[1].split('void RecordDeliveredProximityLine(', 1)[0]
+    assert '_emoteUngroupedBotVerbalReactionChance' in playerbot_handler
+    assert '_emoteUngroupedBotWitnessReactionChance' in playerbot_handler
+    assert 'bool addressedSpeaks' in playerbot_handler
+    assert '!addressedSpeaks' in playerbot_handler
+    assert (
+        'CollectNearbyBots(player, radius, candidates, true)'
+        in playerbot_handler
+    )
+    assert 'CollectNearbyNPCs(player, radius, candidates)' in playerbot_handler
+    assert 'SelectDirectedReactors(' in playerbot_handler
+    assert 'player, *addressedIt, speakers, candidates' in playerbot_handler
+    queue = proximity.split(
+        'bool QueuePlayerEmoteProximityEvent(', 1
+    )[1].split('DirectedSayResult ', 1)[0]
+    assert 'addressed.isNPC ? 0 : addressed.id' in queue
+    assert 'addressed_participant' in queue
+    assert 'addressed_speaks' in queue
+
+
+def test_bot_directed_reactor_source_contract():
+    proximity = (
+        MODULE_DIR / 'src' / 'LLMChatterProximity.cpp'
+    ).read_text(encoding='utf-8')
+    python_source = (
+        MODULE_DIR / 'tools' / 'chatter_proximity.py'
+    ).read_text(encoding='utf-8')
+
+    assert 'enum class DirectedReactorScope' in proximity
+    assert 'NPCOnly' in proximity
+    assert 'NPCsAndUngroupedBots' in proximity
+    selector = proximity.split(
+        'std::vector<ProximityCandidate> SelectDirectedReactors(', 1
+    )[1].split('std::string ToLowerAscii(', 1)[0]
+    assert 'GetEntityCooldownKey(player, candidate)' in selector
+    cooldown_call = selector.split(
+        'if (IsProximityCooldownActive(', 1
+    )[1].split('{', 1)[0]
+    assert 'false' in cooldown_call
+    assert 'true' not in cooldown_call
+    assert 'preferredTypeAllowed' in selector
+    assert 'requireAtLeastOne' in selector
+    count_roll = proximity.split(
+        'uint32 RollDirectedExtraReactorCount(', 1
+    )[1].split(
+        'std::vector<ProximityCandidate> SelectDirectedReactors(', 1
+    )[0]
+    assert '_proxDirectedWitnessReactorWeights' in count_roll
+    assert '_proxDirectedExtraReactorWeights' in count_roll
+
+    directed_say = proximity.split(
+        'DirectedSayResult QueueDirectedPlayerSayProximityEvent(', 1
+    )[1].split('void HandleProximityPlayerSayNewScene(', 1)[0]
+    assert 'IsProximityDirectedPlayerbotEligible(' in directed_say
+    assert 'if (explicitNamedOverride' in directed_say
+    assert 'directed = selected' in directed_say
+    assert 'DirectedReactorScope::NPCOnly' in directed_say
+    assert 'DirectedReactorScope::NPCsAndUngroupedBots' in directed_say
+    assert '_proxDirectedBotMaxParticipants - 1' in directed_say
+    assert proximity.count('DirectedReactorScope::NPCOnly') >= 2
+    assert proximity.count(
+        'DirectedReactorScope::NPCsAndUngroupedBots'
+    ) >= 2
+
+    assert 'def _apply_speaker_action_policy(' in python_source
+    assert python_source.count('_apply_speaker_action_policy(') == 3
+    assert 'to single-line output after zero inserts' in python_source
 
 
 def main():
