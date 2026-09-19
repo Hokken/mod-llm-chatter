@@ -698,11 +698,12 @@ def build_loot_statement_prompt(
     mode = get_chatter_mode(config) if config else 'normal'
     is_rp = (mode == 'roleplay')
     quality_names = {
-        0: "gray", 1: "white", 2: "green",
-        3: "blue", 4: "purple",
+        0: "poor", 1: "common", 2: "uncommon",
+        3: "rare", 4: "epic", 5: "legendary",
+        6: "artifact", 7: "heirloom",
     }
     quality = quality_names.get(
-        item.get('item_quality', 2), "green"
+        item.get('item_quality', 2), "uncommon"
     )
 
     parts = []
@@ -742,6 +743,12 @@ def build_loot_statement_prompt(
     parts.append(
         f"Item: {item['item_name']} ({quality} quality)"
     )
+    item_count = max(1, int(item.get('item_count', 1)))
+    if item_count > 1:
+        parts.append(
+            f"Quantity actually looted: {item_count}. "
+            "If quantity is mentioned, it must be exact"
+        )
     parts.append(
         f"REQUIRED: Include exactly "
         f"{item_placeholder} in the \"message\" "
@@ -1628,161 +1635,6 @@ def build_quest_conversation_prompt(
     )
 
 
-def build_loot_conversation_prompt(
-    bots: List[dict],
-    item: dict,
-    config: dict = None,
-    current_weather: str = None,
-    recent_messages: list = None,
-    allow_action: bool = True,
-    speaker_talent_context=None,
-    zone_id: int = 0,
-) -> str:
-    """Build a prompt for a loot conversation with 2-4 bots."""
-    mode = get_chatter_mode(config) if config else 'normal'
-    is_rp = (mode == 'roleplay')
-    parts = []
-    bot_count = len(bots)
-    bot_names = [b['name'] for b in bots]
-
-    quality_names = {
-        0: "gray", 1: "white", 2: "green",
-        3: "blue", 4: "purple",
-    }
-    quality = quality_names.get(
-        item.get('item_quality', 2), "green"
-    )
-    item_placeholder = f"{{{{item:{item['item_name']}}}}}"
-
-    if is_rp:
-        parts.append(
-            f"Generate an in-character General chat exchange "
-            f"about a loot find in {bots[0]['zone']}."
-        )
-    else:
-        parts.append(
-            f"Generate a casual General chat exchange about "
-            f"a loot drop in {bots[0]['zone']}."
-        )
-    parts.append(f"Speakers: {', '.join(bot_names)}")
-    parts.append(
-        "Names: Sometimes use their name when addressing "
-        "directly (maybe once), but not every message."
-    )
-
-    if is_rp:
-        for bot in bots:
-            parts.append(
-                f"{bot['name']} is a "
-                f"{bot['race']} {bot['class']}"
-            )
-
-    zone_flavor = get_zone_flavor(zone_id)
-    if is_rp and zone_flavor:
-        parts.append(f"Zone context: {zone_flavor}")
-
-    if speaker_talent_context:
-        parts.append(speaker_talent_context)
-
-    if is_rp:
-        append_environmental_context(parts, current_weather)
-
-    parts.append(
-        f"Item: {item['item_name']} ({quality} quality)"
-    )
-    parts.append(
-        f"REQUIRED: Use {item_placeholder} in the "
-        f"\"message\" field (NOT in the action). "
-        f"This becomes a clickable link"
-    )
-
-    tone = pick_random_tone(mode)
-    parts.append(f"Overall tone: {tone}")
-
-    twist = maybe_get_creative_twist(chance=0.4, mode=mode)
-    if twist:
-        parts.append(
-            f"Creative twist for this conversation: {twist}"
-        )
-
-    min_msgs = bot_count
-    max_msgs = bot_count + 2
-    msg_count = select_conversation_message_count(
-        bot_count, min_msgs, max_msgs
-    )
-    mood_sequence = generate_conversation_mood_sequence(
-        msg_count, mode
-    )
-    length_sequence = generate_conversation_length_sequence(
-        msg_count
-    )
-
-    parts.append(
-        "\nMOOD AND LENGTH SEQUENCE "
-        "(follow this for each message):"
-    )
-    for i, mood in enumerate(mood_sequence):
-        speaker = bot_names[i % bot_count]
-        parts.append(
-            f"  Message {i+1} ({speaker}): "
-            f"mood={mood}, "
-            f"length={length_sequence[i]}"
-        )
-
-    if is_rp:
-        angles = [
-            "one examines the find while others "
-            "judge its worth",
-            "debating who is most suited to wield it",
-            "one offers the spoils to the group",
-            "appraising the craftsmanship with "
-            "lore knowledge",
-        ]
-    else:
-        angles = [
-            "one player got the drop and others are "
-            "jealous/congratulating",
-            "discussing if the item is good for "
-            "their class",
-            "debating whether to vendor or auction it",
-            "one asking if others need the drop",
-            "comparing drops they've gotten today",
-        ]
-    parts.append(f"Angle: {random.choice(angles)}")
-
-    guidelines = build_dynamic_guidelines(
-        config=config, mode=mode
-    )
-    guidelines.append("Use item placeholder at least once")
-    guidelines.append("Follow the mood and length sequence above")
-    if bot_count > 2:
-        guidelines.append(
-            f"EVERY speaker MUST have at least one "
-            f"message â€” do NOT skip any participant"
-        )
-    guidelines.append(
-        "STRICT: Each message MUST be under 120 "
-        "characters. Short is better"
-    )
-    if is_rp:
-        guidelines.append(
-            "Each speaker stays in character for their "
-            "race and class"
-        )
-    parts.append("Guidelines: " + "; ".join(guidelines))
-
-    anti_rep = build_anti_repetition_context(
-        recent_messages
-    )
-    if anti_rep:
-        parts.append(anti_rep)
-
-    prompt = "\n".join(parts)
-    return append_conversation_json_instruction(
-        prompt, bot_names, msg_count, allow_action
-    )
-
-
 def build_event_conversation_prompt(
     bots: List[dict],
     event_context: str,
@@ -2559,11 +2411,12 @@ def build_trade_statement_prompt(
     mode = get_chatter_mode(config) if config else 'normal'
     is_rp = (mode == 'roleplay')
     quality_names = {
-        0: "gray", 1: "white", 2: "green",
-        3: "blue", 4: "purple",
+        0: "poor", 1: "common", 2: "uncommon",
+        3: "rare", 4: "epic", 5: "legendary",
+        6: "artifact", 7: "heirloom",
     }
     quality = quality_names.get(
-        item.get('item_quality', 2), "green"
+        item.get('item_quality', 2), "uncommon"
     )
 
     parts = []
@@ -2604,6 +2457,12 @@ def build_trade_statement_prompt(
     parts.append(
         f"Item: {item['item_name']} ({quality} "
         f"quality)"
+    )
+    item_count = max(1, int(item.get('item_count', 1)))
+    parts.append(
+        f"Inventory truth: {bot['name']} currently owns "
+        f"{item_count} of this item and must not offer "
+        "more than that quantity"
     )
     vendor_price = format_price(
         item.get('sell_price', 0)
@@ -2709,11 +2568,12 @@ def build_trade_conversation_prompt(
     bot_names = [b['name'] for b in bots]
 
     quality_names = {
-        0: "gray", 1: "white", 2: "green",
-        3: "blue", 4: "purple",
+        0: "poor", 1: "common", 2: "uncommon",
+        3: "rare", 4: "epic", 5: "legendary",
+        6: "artifact", 7: "heirloom",
     }
     quality = quality_names.get(
-        item.get('item_quality', 2), "green"
+        item.get('item_quality', 2), "uncommon"
     )
     item_placeholder = (
         f"{{{{item:{item['item_name']}}}}}"
@@ -2743,7 +2603,7 @@ def build_trade_conversation_prompt(
     )
     parts.append(
         f"The first speaker ({bot_names[0]}) is "
-        f"the seller."
+        f"the seller and currently owns the item."
     )
 
     if is_rp:
@@ -2762,6 +2622,12 @@ def build_trade_conversation_prompt(
     parts.append(
         f"Item for sale: {item['item_name']} "
         f"({quality} quality)"
+    )
+    item_count = max(1, int(item.get('item_count', 1)))
+    parts.append(
+        f"Inventory truth: {bot_names[0]} owns "
+        f"{item_count} of this item and nobody may "
+        "offer more than that quantity"
     )
     vendor_price = format_price(
         item.get('sell_price', 0)
