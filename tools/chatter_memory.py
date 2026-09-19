@@ -375,6 +375,13 @@ def _count_active_memories(cursor, bot_guid, player_guid):
 def _evict_one_used(cursor, conn, bot_guid, player_guid):
     """Evict one random used memory.
 
+    first_meeting rows are never evicted: they are documented as immune to
+    prune (they are the templated "Met X in Zone" anchor of the whole
+    remembers-you premise) and they become used=1 the first time the bot
+    greets a returning player, which would otherwise make them eviction-
+    eligible. When only first_meeting rows remain, this deletes nothing and
+    returns False, i.e. it fails closed rather than dropping the anchor.
+
     Returns True if a row was deleted.
     """
     cursor.execute(
@@ -383,6 +390,7 @@ def _evict_one_used(cursor, conn, bot_guid, player_guid):
         "   AND player_guid = %s"
         "   AND active = 1"
         "   AND used = 1"
+        "   AND memory_type != 'first_meeting'"
         " ORDER BY RAND() LIMIT 1",
         (bot_guid, player_guid),
     )
