@@ -268,11 +268,16 @@ Player-driven Guild exchanges use a separate, session-owned path:
    lines for that player session. One high-priority
    `guild_player_message` event is queued after a short debounce with
    the live eligible Guild-bot candidates.
-4. `chatter_guild_player.py` selects an addressed bot first when
-   applicable, applies a soft penalty to recent speakers, and rolls
-   between one reply, multiple independent replies, or a genuine
-   multi-bot conversation. A group-directed message raises the
-   independent multi-reply chance without forcing multiple bots.
+4. The shared LLM intent analysis may resolve either an explicit name or
+   an implicit reply to the immediately prior speaker from recent history.
+   It also classifies the conversational scale semantically rather than
+   matching a fixed phrase list. `chatter_guild_player.py` selects that
+   addressed bot first, applies a soft penalty only to other recent-speaker
+   selection, and rolls between one reply, multiple independent replies,
+   or a genuine multi-bot conversation. A brief single-addressee
+   continuation stays with one responder when a reply is warranted; a
+   group-directed message raises the independent multi-reply chance without
+   forcing multiple bots.
 5. Player-reply prompts combine a compact rolling summary with the
    latest 15 visible Guild lines: player messages, player-driven
    replies, ambient statements, and ambient conversation lines.
@@ -283,7 +288,8 @@ Player-driven Guild exchanges use a separate, session-owned path:
 6. Callback, player-name, follow-up-question, and participant-reference
    decisions are bridge-side RNG choices. Prompt validation and
    deterministic name insertion keep those choices enforceable across
-   different configured models.
+   different configured models. Brief casual continuations suppress the
+   callback, name, and follow-up-question rolls.
 7. Summary compaction calls the same `call_llm()` path with the user's
    configured provider and model. It runs only after the unsummarized
    interaction text crosses a configurable threshold.
@@ -327,6 +333,38 @@ World of Warcraft; in `roleplay` mode, they speak as their characters in
 Azeroth. General, Party, Guild, Battleground, Raid, screenshot, emote,
 and playerbot `/say` prompt paths must use that shared contract rather
 than defining independent versions of normal-mode behavior.
+
+Player-responsive Guild, General, party, proximity-speech, and
+proximity-emote prompts share one conversational-scale instruction from
+`chatter_shared.py`. The model must answer brief casual input in kind and
+must not inflate a lightweight message or action into a speech,
+explanation, story, or new topic. This is prompt-level semantic guidance,
+not a language-specific keyword list. For player speech, the shared semantic
+analysis marks a turn as `brief_casual`; that hard mode suppresses incidental
+multi-responder RNG, questions, callbacks, and creative expansion, limits
+generated text to 2-8 words and 50 characters, and permits one
+format-preserving rewrite when the first result exceeds the contract. Guild
+can render a short third-person narrator action because guildmates may be
+remote. General remains textual. Party and proximity speech can instead
+deliver a valid structured emote with an empty message only while
+`brief_casual` is true; C++ skips the blank chat packet and plays only the
+emote. Directed player-emote events request the same short scale and may also
+use emote-only output, but they retain their existing server reaction chance
+and do not receive the semantic optional-reply roll or hard repair gate.
+
+The analysis separately marks `reply_optional` only when silence would be a
+socially natural response to a `brief_casual` turn. Before generation, Guild,
+General, party, and proximity-speech handlers make one shared configurable
+RNG roll. A failed roll marks the event skipped without calling the generation
+model; a successful optional turn stays single-responder. Questions, requests,
+instructions, warnings, important information, and other turns that clearly
+expect engagement are not optional. This remains semantic and contextual,
+with no phrase or keyword list.
+
+Emote-only delivery resolves the emote name before consuming the row. Invalid
+names receive a terminal `invalid_emote` drop instead of a retry, and party
+rows delivered inside battlegrounds reuse `IsBGAllowedEmote()` before playing
+the animation.
 
 Actual NPCs do not follow `LLMChatter.ChatterMode`. Proximity payloads
 already identify them with `is_npc`; `chatter_proximity.py` therefore

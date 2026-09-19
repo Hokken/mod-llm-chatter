@@ -12,6 +12,7 @@ from chatter_shared import (
     build_race_class_context,
     build_race_class_context_parts,
     build_bot_state_context,
+    build_conversational_scale_guidance,
     append_json_instruction,
     append_conversation_json_instruction,
     build_anti_repetition_context,
@@ -2096,6 +2097,7 @@ def build_player_response_prompt(
     stored_tone=None,
     memories=None,
     travel_context="",
+    brief_casual=False,
 ):
     """Build prompt for a bot responding to a real
     player's party chat message. The bot should
@@ -2106,7 +2108,7 @@ def build_player_response_prompt(
     tone = stored_tone or pick_random_tone(mode)
     twist = maybe_get_creative_twist(
         chance=1.0, mode=mode
-    )
+    ) if not brief_casual else None
 
 
     rp_context = ""
@@ -2277,7 +2279,13 @@ def build_player_response_prompt(
         f"\"{player_message}\"\n\n"
         f"{style}\n\n"
         f"Reply in party chat.\n"
-        f"{_pick_length_hint(mode)}\n"
+        + (
+            "Length: 2-8 words, no more than 50 characters.\n"
+            if brief_casual
+            else f"{_pick_length_hint(mode)}\n"
+        )
+        + f"{build_conversational_scale_guidance(force_brief=brief_casual)}\n"
+        +
         f"Rules:\n"
         f"- No quotes, no emojis\n"
         f"- Respond to what {player_name} said\n"
@@ -2306,7 +2314,9 @@ def build_player_response_prompt(
             + "; ".join(spices)
         )
     return append_json_instruction(
-        prompt, allow_action
+        prompt,
+        allow_action,
+        allow_emote_only=brief_casual,
     )
 
 def build_resurrect_reaction_prompt(
@@ -4024,6 +4034,7 @@ def build_player_msg_conversation_prompt(
     speaker_talent_context=None,
     target_talent_context=None,
     zone_id=0, area_id=0, map_id=0,
+    brief_casual=False,
 ):
     """Build prompt for a multi-bot conversation
     responding to a player's party chat message.
@@ -4141,7 +4152,9 @@ def build_player_msg_conversation_prompt(
         msg_count, mode
     )
     length_seq = (
-        generate_conversation_length_sequence(
+        ["2-8 words, max 50 chars"] * msg_count
+        if brief_casual
+        else generate_conversation_length_sequence(
             msg_count
         )
     )
@@ -4176,7 +4189,11 @@ def build_player_msg_conversation_prompt(
             )
 
     # Style guidance
-    length_hint = _pick_length_hint(mode)
+    length_hint = (
+        "2-8 words, no more than 50 characters"
+        if brief_casual
+        else _pick_length_hint(mode)
+    )
     if is_rp:
         parts.append(
             "\nGuidelines: Stay in-character for "
@@ -4189,6 +4206,9 @@ def build_player_msg_conversation_prompt(
             "people chatting in a game; casual "
             f"and relaxed; {length_hint}; "
         )
+    parts.append(build_conversational_scale_guidance(
+        force_brief=brief_casual,
+    ))
 
     parts.append(
         "Rules:\n"
@@ -4255,12 +4275,18 @@ def build_player_msg_conversation_prompt(
             "field in this response."
         )
 
+    message_example = "" if brief_casual else "..."
+    action_example = (
+        '"action": "..."'
+        if allow_action
+        else '"action": null'
+    )
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", '
-            f'"message": "...", '
+            f'"message": "{message_example}", '
             f'"emote": "nod", '
-            f'"action": "..."}}'
+            f'{action_example}}}'
             for name in bot_names
         ]
     )
@@ -4270,6 +4296,13 @@ def build_player_msg_conversation_prompt(
         f"an optional \"emote\" field (one of: "
         f"{EMOTE_LIST_STR}). Pick an emote that "
         f"fits the message mood, or omit it.\n"
+        + (
+            "For a brief casual reaction, an empty message with one "
+            "non-null emote is valid. Never leave both empty.\n"
+            if brief_casual
+            else ""
+        )
+        +
         f"{action_text}\n"
         f"JSON rules: Use double quotes, escape "
         f"quotes/newlines, no trailing commas, "

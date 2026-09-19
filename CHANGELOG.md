@@ -1,5 +1,31 @@
 # Changelog
 
+### 2026-09-20 - Contextual Short Player Replies
+
+* **Conversational scale matching**: Guild, General, party,
+  proximity-speech, and proximity-emote prompts now answer brief casual
+  player input in kind instead of expanding it into prose or a new topic.
+  Semantically classified player-speech turns use one responder by default, a
+  hard 2-8-word / 50-character contract, and one strict rewrite attempt if
+  generation exceeds it. Directed player-emote prompts request the same short
+  scale without adding a second semantic/RNG gate. Guild may use a tiny
+  narrator action; nearby party/proximity reactions may use a real emote
+  without an empty chat line.
+* **Implicit reply routing**: Shared semantic intent analysis can resolve an
+  unnamed reply to the immediately prior bot from recent chat context. Brief
+  single-addressee Guild continuations stay with that speaker and suppress
+  multi-bot, callback, name, and follow-up-question embellishments without a
+  hardcoded phrase list.
+* **Natural conversational silence**: The same semantic analysis can mark a
+  brief casual turn as safe to leave unanswered. Guild, General, party, and
+  proximity speech then make one configurable RNG roll, replying only 20% of
+  the time by default and skipping generation otherwise. Questions, requests,
+  warnings, and other turns that clearly expect a response bypass this gate.
+* **Safe emote-only delivery**: Empty-text reactions are accepted only for
+  semantically brief player speech or explicit player-emote events. Unknown
+  emotes are dropped instead of retrying forever, `rofl` has a matching C++
+  mapping, and party emotes retain battleground combat-emote restrictions.
+
 ### 2026-09-19 - Real General Loot and Trade Items
 
 * **Real loot announcements**: General-channel loot chatter now comes from

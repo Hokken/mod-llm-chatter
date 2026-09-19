@@ -56,6 +56,7 @@ from chatter_group_prompts import (  # noqa: E402
     build_bot_greeting_prompt,
     build_low_health_callout_prompt,
     build_nearby_object_reaction_prompt,
+    build_player_response_prompt,
     build_precache_state_prompt,
 )
 import chatter_group as group_chat  # noqa: E402
@@ -88,6 +89,21 @@ from chatter_shared import set_action_chance  # noqa: E402
 
 NORMAL_CONFIG = {'LLMChatter.ChatterMode': 'normal'}
 RP_CONFIG = {'LLMChatter.ChatterMode': 'roleplay'}
+
+
+def test_brief_party_reply_uses_hard_scale_contract():
+    prompt = build_player_response_prompt(
+        BOT,
+        ['patient'],
+        'Karaez',
+        'nice :)',
+        'normal',
+        brief_casual=True,
+        allow_action=False,
+    )
+    assert '2-8 words' in prompt
+    assert 'no more than 50 characters' in prompt
+    assert 'Creative twist:' not in prompt
 BOT = {
     'name': 'Aliss',
     'bot_name': 'Aliss',

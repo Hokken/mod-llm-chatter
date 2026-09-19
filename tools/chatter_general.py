@@ -25,6 +25,10 @@ from chatter_shared import (
     build_race_class_context, parse_extra_data,
     calculate_dynamic_delay,
     find_addressed_bot,
+    should_reply_to_optional_casual,
+    build_conversational_scale_guidance,
+    brief_casual_response_fits,
+    build_brief_casual_repair_prompt,
     insert_chat_message,
     build_anti_repetition_context,
     get_recent_zone_messages,
@@ -307,6 +311,17 @@ def _select_primary_bot(
         chat_history=chat_hist,
     )
     addressed = addr_result.get('bot')
+    multi_addressed = bool(
+        addr_result.get('multi_addressed')
+    )
+    brief_casual = bool(
+        addr_result.get('brief_casual')
+    )
+    reply_optional = bool(
+        addr_result.get('reply_optional')
+    )
+    if reply_optional or (brief_casual and not multi_addressed):
+        is_conversation = False
 
     bot1_idx = None
     if addressed:
@@ -339,6 +354,8 @@ def _select_primary_bot(
         'bot1_gender': get_gender_label(bot1_info['gender']),
         'bot1_traits': _pick_random_traits(),
         'is_conversation': is_conversation,
+        'brief_casual': brief_casual,
+        'reply_optional': reply_optional,
     }
 
 
@@ -354,6 +371,7 @@ def _build_general_response_prompt(
     zone_flavor="",
     subzone_name="",
     subzone_lore="",
+    brief_casual=False,
 ):
     """Build prompt for a bot responding to a
     player's General channel message.
@@ -364,7 +382,7 @@ def _build_general_response_prompt(
     mood = pick_random_mood(mode)
     twist = maybe_get_creative_twist(
         chance=1.0, mode=mode
-    )
+    ) if not brief_casual else None
 
     rp_context = ""
     if is_rp:
@@ -424,11 +442,13 @@ def _build_general_response_prompt(
     if twist:
         prompt += f"Creative twist: {twist}\n"
 
-    address_hint = (
-        f"- Address {player_name} by name "
-        f"somewhere in your reply (not always "
-        f"at the start)\n"
-    )
+    address_hint = ""
+    if not brief_casual:
+        address_hint = (
+            f"- Address {player_name} by name "
+            f"somewhere in your reply (not always "
+            f"at the start)\n"
+        )
 
     prompt += (
         f"{'You are' if is_rp else 'Your character is'} in {zone_name}."
@@ -455,7 +475,13 @@ def _build_general_response_prompt(
         f"\"{player_message}\"\n\n"
         f"{style}\n\n"
         f"Reply in General channel.\n"
-        f"{_pick_length_hint(mode)}\n"
+        + (
+            "Length: 2-8 words, no more than 50 characters.\n"
+            if brief_casual
+            else f"{_pick_length_hint(mode)}\n"
+        )
+        +
+        f"{build_conversational_scale_guidance(force_brief=brief_casual)}\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
         f"- Prefer full words over internet slang — "
@@ -509,6 +535,7 @@ def _build_general_followup_prompt(
     zone_flavor="",
     subzone_name="",
     subzone_lore="",
+    brief_casual=False,
 ):
     """Build prompt for a 2nd bot following up
     on the 1st bot's reaction in General channel.
@@ -550,7 +577,7 @@ def _build_general_followup_prompt(
 
     # 40% chance to address someone by name
     address_hint = ""
-    if random.random() < 0.4:
+    if not brief_casual and random.random() < 0.4:
         target = random.choice(
             [player_name, first_bot_name]
         )
@@ -603,7 +630,13 @@ def _build_general_followup_prompt(
         f"Add to the conversation - react to "
         f"{first_bot_name}'s response or add your "
         f"own take on what {player_name} said.\n"
-        f"{_pick_length_hint(mode)}\n"
+        + (
+            "Length: 2-8 words, no more than 50 characters.\n"
+            if brief_casual
+            else f"{_pick_length_hint(mode)}\n"
+        )
+        +
+        f"{build_conversational_scale_guidance(force_brief=brief_casual)}\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
         f"- Prefer full words over internet slang — "
@@ -730,6 +763,22 @@ def process_general_player_msg_event(
         bot1_gender = primary['bot1_gender']
         bot1_traits = primary['bot1_traits']
         is_conversation = primary['is_conversation']
+        brief_casual = primary['brief_casual']
+        reply_optional = primary['reply_optional']
+        if not should_reply_to_optional_casual(
+            config,
+            {
+                'brief_casual': brief_casual,
+                'reply_optional': reply_optional,
+            },
+        ):
+            logger.info(
+                "[GEN-FLOW] player-react left unanswered "
+                "after optional-casual RNG | player=%s",
+                player_name,
+            )
+            mark_event(db, event_id, 'skipped')
+            return False
 
         # Talent context injection
         speaker_talent = None
@@ -768,7 +817,10 @@ def process_general_player_msg_event(
                 )
 
         # Build and send first bot prompt
-        allow_action = (mode == 'roleplay')
+        allow_action = (
+            mode == 'roleplay'
+            and not brief_casual
+        )
         prompt1 = _build_general_response_prompt(
             bot1_name, bot1_race, bot1_class,
             bot1_level, bot1_gender, bot1_traits,
@@ -782,6 +834,7 @@ def process_general_player_msg_event(
             zone_flavor=zone_flavor,
             subzone_name=subzone_name,
             subzone_lore=subzone_lore,
+            brief_casual=brief_casual,
         )
 
         max_tokens = int(config.get(
@@ -820,7 +873,33 @@ def process_general_player_msg_event(
         msg1 = cleanup_message(
             msg1, action=parsed1.get('action')
         )
+        if (
+            brief_casual
+            and not brief_casual_response_fits(msg1)
+        ):
+            repair_meta = dict(zone_meta)
+            repair_meta['brief_casual_repair'] = True
+            response1 = call_llm(
+                client,
+                build_brief_casual_repair_prompt(prompt1),
+                config,
+                max_tokens_override=max_tokens,
+                context=f"gen-msg-brief-repair:{bot1_name}",
+                label='general_player_msg',
+                metadata=repair_meta,
+            )
+            parsed1 = parse_single_response(response1 or '')
+            msg1 = strip_speaker_prefix(
+                parsed1.get('message', ''), bot1_name
+            )
+            msg1 = cleanup_message(msg1)
         if not msg1:
+            mark_event(db, event_id, 'skipped')
+            return False
+        if (
+            brief_casual
+            and not brief_casual_response_fits(msg1)
+        ):
             mark_event(db, event_id, 'skipped')
             return False
         msg1 = shorten_chat_message(msg1)
@@ -889,6 +968,7 @@ def process_general_player_msg_event(
                     zone_flavor=zone_flavor,
                     subzone_name=subzone_name,
                     subzone_lore=subzone_lore,
+                    brief_casual=brief_casual,
                     zone_meta=zone_meta,
                 )
                 # Extended conversation chance
@@ -971,6 +1051,7 @@ def _general_followup(
     subzone_name="",
     subzone_lore="",
     zone_meta=None,
+    brief_casual=False,
 ):
     """Generate a second bot's followup response
     in General channel conversation mode.
@@ -1035,6 +1116,7 @@ def _general_followup(
         zone_flavor=zone_flavor,
         subzone_name=subzone_name,
         subzone_lore=subzone_lore,
+        brief_casual=brief_casual,
     )
 
     max_tokens = int(config.get(
@@ -1070,7 +1152,32 @@ def _general_followup(
     msg2 = cleanup_message(
         msg2, action=parsed2.get('action')
     )
+    if (
+        brief_casual
+        and not brief_casual_response_fits(msg2)
+    ):
+        repair_meta = dict(zone_meta)
+        repair_meta['brief_casual_repair'] = True
+        response2 = call_llm(
+            client,
+            build_brief_casual_repair_prompt(prompt2),
+            config,
+            max_tokens_override=max_tokens,
+            context=f"gen-followup-brief-repair:{bot2_name}",
+            label='general_followup',
+            metadata=repair_meta,
+        )
+        parsed2 = parse_single_response(response2 or '')
+        msg2 = strip_speaker_prefix(
+            parsed2.get('message', ''), bot2_name
+        )
+        msg2 = cleanup_message(msg2)
     if not msg2:
+        return
+    if (
+        brief_casual
+        and not brief_casual_response_fits(msg2)
+    ):
         return
     msg2 = shorten_chat_message(msg2)
 
@@ -1240,6 +1347,7 @@ def _build_general_continuation_prompt(
         f"React to what was just said or add "
         f"your own perspective.\n"
         f"{_pick_length_hint(mode)}\n"
+        f"{build_conversational_scale_guidance()}\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
         f"- Prefer full words over internet slang — "
