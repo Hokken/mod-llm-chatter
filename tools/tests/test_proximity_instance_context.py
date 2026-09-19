@@ -866,7 +866,10 @@ def test_message_insert_addressee_parameters_match_placeholders():
         addressee_npc_spawn_id=102,
     )
     query, params = db.cursor_value.queries[0]
-    assert query.count('%s') == len(params) == 18
+    # 19, not 18: insert_chat_message also binds the `action`
+    # column (added on this branch for Actions Are Real
+    # Emotes) ahead of the three addressee_* columns below.
+    assert query.count('%s') == len(params) == 19
     assert params[-3:] == (None, None, 102)
 
 

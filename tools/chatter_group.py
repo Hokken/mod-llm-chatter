@@ -59,6 +59,9 @@ from chatter_shared import (
     append_json_instruction,
     parse_single_response,
     build_talent_context,
+    build_gear_context,
+    attach_speaker_gear,
+    append_speaker_gear,
     get_zone_name,
     get_subzone_name,
     format_travel_context,
@@ -600,6 +603,9 @@ def process_group_event(db, client, config, event):
         'gender': get_gender_label(
             int(extra_data.get('bot_gender', 0))
         ),
+        'gear': build_gear_context(
+            db, bot_guid, bot_class, config,
+        ),
     }
 
 
@@ -1065,6 +1071,9 @@ def process_group_join_batch_event(
                 'level': bot_level,
                 'gender': get_gender_label(
                     int(bot_raw.get('bot_gender', 0))
+                ),
+                'gear': build_gear_context(
+                    db, bot_guid, bot_class, config,
                 ),
             }
 
@@ -1540,6 +1549,10 @@ def _batch_welcome(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'gear': build_gear_context(
+            db, wb_guid,
+            get_class_name(char_row['class']), config,
+        ),
     }
 
     history = _get_recent_chat(db, group_id)
@@ -1729,6 +1742,10 @@ def process_group_player_msg_event(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'gear': build_gear_context(
+            db, bot_guid,
+            get_class_name(char_row['class']), config,
+        ),
         'travel_mode': travel_state.get('mode') or '',
         'travel_context': travel_context,
         'travel_state': travel_state,
@@ -2248,6 +2265,10 @@ def _try_second_bot_response(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'gear': build_gear_context(
+            db, bot2_guid,
+            get_class_name(char_row['class']), config,
+        ),
         'travel_mode': bot2_travel_state.get('mode') or '',
         'travel_context': bot2_travel_context,
         'travel_state': bot2_travel_state,
@@ -2392,6 +2413,10 @@ def _welcome_from_existing_bot(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'gear': build_gear_context(
+            db, wb_guid,
+            get_class_name(char_row['class']), config,
+        ),
     }
 
     # Build context
@@ -3278,6 +3303,7 @@ def build_idle_conversation_prompt(
                     f"(personality: {trait_str})"
                     f"{dead_tag}"
                 )
+                append_speaker_gear(parts, bot, indent='')
                 if bot.get('travel_context'):
                     travel_label = (
                         "travel state"
@@ -3483,6 +3509,7 @@ def build_idle_conversation_prompt(
             f"(personality: {trait_str})"
             f"{dead_tag}"
         )
+        append_speaker_gear(parts, bot)
         if bot.get('travel_context'):
             travel_label = (
                 "travel state"
@@ -4070,6 +4097,10 @@ def _idle_single_statement(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'gear': build_gear_context(
+            db, bot_guid,
+            get_class_name(char_row['class']), config,
+        ),
         'role': bot_row.get('role'),
         'is_dead': int(bot_row.get('health', 1)) == 0,
     }
@@ -4364,6 +4395,10 @@ def _idle_conversation(
             'race': get_race_name(char['race']),
             'level': char['level'],
             'gender': get_gender_label(char['gender']),
+            'gear': build_gear_context(
+                db, br['bot_guid'],
+                get_class_name(char['class']), config,
+            ),
             'role': br.get('role'),
             'is_dead': int(
                 br.get('health', 1)) == 0,
@@ -4376,6 +4411,8 @@ def _idle_conversation(
             br['trait1'], br['trait2'],
             br['trait3'],
         ]
+
+    attach_speaker_gear(db, bots, config)
 
     bot_names = [b['name'] for b in bots]
     # Skip AMBIENT topics inside dungeons and BGs —
@@ -4873,6 +4910,11 @@ def check_bot_questions(db, client, config):
             ),
             'level': char_row['level'],
             'gender': get_gender_label(char_row['gender']),
+            'gear': build_gear_context(
+                db, bot_guid,
+                get_class_name(char_row['class']),
+                config,
+            ),
             'role': bot_row.get('role'),
         }
 
