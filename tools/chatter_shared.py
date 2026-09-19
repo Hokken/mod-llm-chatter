@@ -1424,11 +1424,62 @@ def strip_conversation_actions(
             pass
 
 
+def build_conversational_scale_guidance(
+    subject: str = "message",
+    force_brief: bool = False,
+) -> str:
+    """Keep player-responsive dialogue proportional to its input."""
+    guidance = (
+        f"Match the player's conversational scale. If the player's "
+        f"{subject} is brief and casual, respond in kind with a few "
+        "casual words or one short sentence. Do not expand it into a "
+        "speech, explanation, story, or new topic. This instruction "
+        "overrides generic mood, creativity, and length suggestions."
+    )
+    if force_brief:
+        guidance += (
+            " This interaction has been classified as brief and casual. "
+            "Use 2-8 words and no more than 50 characters. Use plain "
+            "conversational wording rather than a metaphor, blessing, "
+            "proverb, explanation, question, or ceremonial flourish. "
+            "Keep character voice through light word choice only."
+        )
+    return guidance
+
+
+def brief_casual_response_fits(
+    message: str,
+    emote: Optional[str] = None,
+) -> bool:
+    """Validate the hard output contract for a brief casual turn."""
+    text = str(message or '').strip()
+    if not text:
+        return bool(emote)
+    return (
+        len(text) <= 50
+        and len(text.split()) <= 8
+    )
+
+
+def build_brief_casual_repair_prompt(
+    prompt: PromptParts,
+) -> PromptParts:
+    """Request one format-preserving rewrite of an oversized reply."""
+    return prompt + (
+        "\n\nYour previous response violated the brief-casual hard "
+        "limit. Rewrite it using 2-8 words and no more than 50 "
+        "characters. Keep it plain and conversational. Return the same "
+        "JSON shape requested above."
+    )
+
+
 def append_json_instruction(
     prompt: str, allow_action: bool = True,
     skip_emote: bool = False,
     skip_action_rng: bool = False,
     message_only: bool = False,
+    allow_emote_only: bool = False,
+    allow_narrator_message: bool = False,
 ) -> str:
     """Append structured JSON response instruction
     to a prompt.
@@ -1448,14 +1499,26 @@ def append_json_instruction(
         lang_rule = get_language_rule()
         if lang_rule:
             prompt = prompt + lang_rule
+        message_example = (
+            '  "message": "brief dialogue or narrator action"\n'
+            if allow_narrator_message
+            else '  "message": "your spoken words here"\n'
+        )
+        narrator_rule = (
+            " For this response, the message may instead be one short "
+            "third-person narrator action featuring the speaker."
+            if allow_narrator_message
+            else ""
+        )
         block = (
             "\n\nRESPONSE FORMAT: You MUST respond with "
             "ONLY valid JSON. No other text.\n"
             "{\n"
-            '  "message": "your spoken words here"\n'
+            f"{message_example}"
             "}\n"
             "Rules: double quotes only, no trailing "
             "commas, no code fences, no markdown.\n"
+            f"{narrator_rule}"
             "CRITICAL: Follow the Length instruction "
             "in the prompt exactly — never exceed the "
             "stated character limit."
@@ -1491,7 +1554,11 @@ def append_json_instruction(
 
     # Skip emote list if explicitly requested OR
     # if EmoteChance RNG says no
-    if skip_emote or random.random() >= _emote_chance:
+    emote_available = (
+        not skip_emote
+        and random.random() < _emote_chance
+    )
+    if not emote_available:
         emote_line = '  "emote": null,\n'
     else:
         emote_line = (
@@ -1507,14 +1574,26 @@ def append_json_instruction(
     # content that sits inside the user prompt.
     if lang_rule:
         prompt = prompt + lang_rule
+    message_line = '  "message": "your spoken words here",\n'
+    emote_only_rule = ""
+    if allow_emote_only and emote_available:
+        message_line = (
+            '  "message": "spoken words, or empty only when emote is '
+            'non-null",\n'
+        )
+        emote_only_rule = (
+            "A brief local reaction may use an empty message with one "
+            "non-null emote. Never leave both message and emote empty.\n"
+        )
     block = (
         "\n\nRESPONSE FORMAT: You MUST respond with "
         "ONLY valid JSON. No other text.\n"
         "{\n"
-        '  "message": "your spoken words here",\n'
+        f"{message_line}"
         f"{emote_line}"
         f"  {action_desc}"
         "}\n"
+        f"{emote_only_rule}"
         "Rules: double quotes only, no trailing "
         "commas, no code fences, no markdown.\n"
         "CRITICAL: Follow the Length instruction "
@@ -1532,6 +1611,8 @@ def append_conversation_json_instruction(
     allow_action: bool = True,
     message_only: bool = False,
     addressee_names: Optional[List[str]] = None,
+    allow_emote_only: bool = False,
+    allow_narrator_messages: bool = False,
 ) -> str:
     """Append conversation JSON array instruction.
 
@@ -1544,14 +1625,25 @@ def append_conversation_json_instruction(
         prompt = prompt + lang_rule
 
     if message_only:
+        message_example = (
+            "brief dialogue or narrator action"
+            if allow_narrator_messages
+            else "..."
+        )
         example_msgs = ',\n  '.join(
             [
                 (
                     f'{{"speaker": "{name}", '
-                    f'"message": "..."}}'
+                    f'"message": "{message_example}"}}'
                 )
                 for name in bot_names
             ]
+        )
+        narrator_rule = (
+            "Each message may instead be one short third-person "
+            "narrator action featuring its speaker.\n"
+            if allow_narrator_messages
+            else ""
         )
         block = (
             "\n\nJSON rules: Use double quotes, escape "
@@ -1564,6 +1656,7 @@ def append_conversation_json_instruction(
             "]\n"
             "Each object must contain only \"speaker\" "
             "and \"message\".\n"
+            f"{narrator_rule}"
             "ONLY the JSON array, nothing else.\n"
             "CRITICAL: Follow the Length instruction "
             "in the prompt exactly â€” never exceed the "
@@ -1608,7 +1701,8 @@ def append_conversation_json_instruction(
         )
 
     # EmoteChance RNG for conversations
-    if random.random() < _emote_chance:
+    emote_available = random.random() < _emote_chance
+    if emote_available:
         emote_rule = (
             "Emotes: Each message may include an "
             f"optional \"emote\" field (one of: "
@@ -1642,19 +1736,31 @@ def append_conversation_json_instruction(
                 return f', "addressee": "{candidate}"'
         return ''
 
+    message_example = (
+        "spoken words, or empty with non-null emote"
+        if allow_emote_only and emote_available
+        else "..."
+    )
     example_msgs = ',\n  '.join(
         [
-            f'{{"speaker": "{name}", "message": "...", '
+            f'{{"speaker": "{name}", "message": "{message_example}", '
             f'{emote_ex}, '
             f'{action_ex}{addressee_example(name)}}}'
             for name in bot_names
         ]
+    )
+    emote_only_rule = (
+        "A brief local reaction may use an empty message with one "
+        "non-null emote. Never leave both message and emote empty.\n"
+        if allow_emote_only and emote_available
+        else ""
     )
 
     block = (
         f"\n\n{emote_rule}"
         f"{action_text}\n"
         f"{addressee_rule}"
+        f"{emote_only_rule}"
         "JSON rules: Use double quotes, escape "
         "quotes/newlines, no trailing commas, no code fences.\n"
         f"\nRespond with EXACTLY {msg_count} messages in JSON:\n"
@@ -1995,16 +2101,22 @@ def find_addressed_bot(
       - 'bot': matched bot name or None
       - 'multi_addressed': True if the message is
         directed at multiple bots
+      - 'brief_casual': True when a similarly brief,
+        casual response fits the conversational context
+      - 'reply_optional': True when silence is a natural
+        response to that brief casual turn
 
     Three-pass approach for name hint:
     1. Exact whole-word match (case-insensitive)
     2. Fuzzy fallback for names >= 4 chars
-    Then LLM analysis confirms the hint and assesses
-    whether multiple bots are addressed.
+    Then LLM analysis confirms the hint, resolves implicit
+    context, and assesses audience and conversational scale.
     """
     no_match = {
         'bot': None,
         'multi_addressed': False,
+        'brief_casual': False,
+        'reply_optional': False,
     }
     if not message or not bot_names:
         return no_match
@@ -2055,6 +2167,8 @@ def find_addressed_bot(
         return {
             'bot': name_hint,
             'multi_addressed': False,
+            'brief_casual': False,
+            'reply_optional': False,
         }
 
     # LLM analysis for bot identification and
@@ -2084,11 +2198,19 @@ def find_addressed_bot(
         f"Respond with ONLY a JSON object "
         f"(no markdown, no explanation):\n"
         f'{{"bot": "BotName", '
-        f'"multi_addressed": true}}\n\n'
+        f'"multi_addressed": true, '
+        f'"brief_casual": false, '
+        f'"reply_optional": false}}\n\n'
         f"Rules:\n"
         f'- "bot": the single bot most likely '
-        f"being addressed, or null if the "
-        f"message is general/undirected.\n"
+        f"being addressed explicitly or implicitly, or "
+        f"null if the message is general/undirected. "
+        f"Use the recent chat to recognize a natural "
+        f"continuation directed at the immediately prior "
+        f"speaker even when the player does not repeat "
+        f"that speaker's name. The latest player line may "
+        f"already appear at the end of recent chat; treat "
+        f"it as the same message, not a separate turn.\n"
         f'- "multi_addressed": true if the '
         f"player is addressing or expecting "
         f"responses from multiple bots. "
@@ -2103,12 +2225,25 @@ def find_addressed_bot(
         f"  * General observations that could "
         f"prompt group discussion\n"
         f'- If only one bot is addressed, '
-        f'"multi_addressed" must be false.'
+        f'"multi_addressed" must be false.\n'
+        f'- "brief_casual": true when the message and '
+        f"conversation context call for a similarly brief, "
+        f"casual response rather than a developed answer. "
+        f"Judge meaning and conversational function, not "
+        f"keywords or message length alone. A concise but "
+        f"substantive question is not brief casual talk.\n"
+        f'- "reply_optional": true only when '
+        f'"brief_casual" is true and leaving the message '
+        f"unanswered would feel socially natural. Judge the "
+        f"turn in context, not with phrase matching. Keep it "
+        f"false for questions, requests, instructions, warnings, "
+        f"important information, greetings that invite engagement, "
+        f"or any turn that clearly expects acknowledgment."
     )
 
     try:
         result = quick_llm_analyze(
-            client, config, prompt, max_tokens=60,
+            client, config, prompt, max_tokens=80,
             label='find_addressed_bot',
         )
     except Exception:
@@ -2119,12 +2254,16 @@ def find_addressed_bot(
         return {
             'bot': name_hint,
             'multi_addressed': False,
+            'brief_casual': False,
+            'reply_optional': False,
         }
 
     if not result:
         return {
             'bot': name_hint,
             'multi_addressed': False,
+            'brief_casual': False,
+            'reply_optional': False,
         }
 
     # Parse JSON response
@@ -2141,6 +2280,8 @@ def find_addressed_bot(
         return {
             'bot': name_hint,
             'multi_addressed': False,
+            'brief_casual': False,
+            'reply_optional': False,
         }
 
     # Extract bot name
@@ -2184,10 +2325,52 @@ def find_addressed_bot(
     else:
         multi = bool(raw_multi)
 
+    raw_brief = parsed.get('brief_casual', False)
+    if isinstance(raw_brief, str):
+        brief_casual = raw_brief.lower() not in (
+            'false', '0', 'no', ''
+        )
+    else:
+        brief_casual = bool(raw_brief)
+
+    raw_optional = parsed.get('reply_optional', False)
+    if isinstance(raw_optional, str):
+        reply_optional = raw_optional.lower() not in (
+            'false', '0', 'no', ''
+        )
+    else:
+        reply_optional = bool(raw_optional)
+    reply_optional = brief_casual and reply_optional
+
     return {
         'bot': matched_bot,
         'multi_addressed': multi,
+        'brief_casual': brief_casual,
+        'reply_optional': reply_optional,
     }
+
+
+def should_reply_to_optional_casual(
+    config: Dict,
+    analysis: Dict,
+) -> bool:
+    """Roll once for semantically optional casual turns."""
+    if not (
+        analysis.get('brief_casual')
+        and analysis.get('reply_optional')
+    ):
+        return True
+
+    try:
+        chance = int(config.get(
+            'LLMChatter.PlayerChat.'
+            'OptionalCasualReplyChance',
+            20,
+        ))
+    except (AttributeError, TypeError, ValueError):
+        chance = 20
+    chance = max(0, min(100, chance))
+    return random.randint(1, 100) <= chance
 
 
 # =============================================================================
@@ -2262,6 +2445,7 @@ def parse_conversation_response(
     *,
     unique_tokens_only: bool = False,
     addressee_names: Optional[List[str]] = None,
+    allow_emote_only: bool = False,
 ) -> list:
     """Parse conversation JSON response into message list."""
     try:
@@ -2287,7 +2471,12 @@ def parse_conversation_response(
             for msg in messages:
                 speaker = msg.get('speaker', '').strip()
                 message = msg.get('message', '').strip()
-                if speaker and message:
+                raw_emote = msg.get('emote')
+                emote = validate_emote(raw_emote)
+                if speaker and (
+                    message
+                    or (allow_emote_only and emote)
+                ):
                     matched_name = _resolve_conversation_speaker(
                         speaker,
                         bot_names,
@@ -2299,11 +2488,8 @@ def parse_conversation_response(
                             'message': message,
                         }
                         # Extract optional emote
-                        raw_emote = msg.get('emote')
-                        if raw_emote:
-                            entry['emote'] = (
-                                validate_emote(raw_emote)
-                            )
+                        if emote:
+                            entry['emote'] = emote
                         # Extract optional action
                         raw_action = msg.get('action')
                         action = _sanitize_action(

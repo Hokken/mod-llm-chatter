@@ -39,6 +39,7 @@ if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
 import chatter_shared  # noqa: E402
+import chatter_general  # noqa: E402
 import chatter_world_events  # noqa: E402
 
 
@@ -227,6 +228,53 @@ def test_single_reaction_resolves_delay_after_generation():
     assert insert.call_args.kwargs['delay_seconds'] == 42
 
 
+def test_brief_single_addressee_suppresses_conversation():
+    with (
+        patch.object(
+            chatter_general,
+            'find_addressed_bot',
+            return_value={
+                'bot': 'Karguhr',
+                'multi_addressed': False,
+                'brief_casual': True,
+                'reply_optional': True,
+            },
+        ),
+        patch.object(
+            chatter_general,
+            '_get_bot_info',
+            return_value={
+                'name': 'Karguhr',
+                'race': 1,
+                'class': 1,
+                'level': 30,
+                'gender': 0,
+            },
+        ),
+        patch.object(
+            chatter_general.random,
+            'randint',
+            return_value=1,
+        ),
+    ):
+        result = chatter_general._select_primary_bot(
+            object(),
+            object(),
+            {'LLMChatter.GeneralChat.ConversationChance': 100},
+            [101, 102],
+            ['Karguhr', 'Oscario'],
+            'Calwen',
+            'That means a lot.',
+            'roleplay',
+            chat_hist='Karguhr: Welcome back.',
+        )
+
+    assert result['bot1_name'] == 'Karguhr'
+    assert result['brief_casual'] is True
+    assert result['reply_optional'] is True
+    assert result['is_conversation'] is False
+
+
 if __name__ == '__main__':
     tests = [
         test_full_windows_are_serialized,
@@ -234,6 +282,7 @@ if __name__ == '__main__':
         test_automated_conversations_reserve_full_windows,
         test_world_event_conversation_uses_reserved_window,
         test_single_reaction_resolves_delay_after_generation,
+        test_brief_single_addressee_suppresses_conversation,
     ]
     for test in tests:
         test()

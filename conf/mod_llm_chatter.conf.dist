@@ -610,6 +610,18 @@ LLMChatter.GeneralChannel.Enable = 1
 LLMChatter.GeneralChat.PlayerReplyEnable = 1
 
 #
+#   LLMChatter.PlayerChat.OptionalCasualReplyChance [BRIDGE]
+#       Reply chance (0-100) after semantic analysis decides that a
+#       brief casual player turn can naturally be left unanswered.
+#       Applies to Guild, General, party, and proximity speech. It does
+#       not suppress questions, requests, warnings, or other turns that
+#       clearly expect a response. Set to 100 to preserve guaranteed
+#       replies for these optional turns.
+#       Default: 20
+#
+LLMChatter.PlayerChat.OptionalCasualReplyChance = 20
+
+#
 #   LLMChatter.BGChatter.Enable
 #       Enable BG-specific chatter (flag events, node captures, match
 #       start/end, PvP kills, score milestones).
