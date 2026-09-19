@@ -43,6 +43,9 @@ public:
     uint32 _triggerIntervalSeconds;
     uint32 _conversationChance;
     uint32 _triggerChance;
+    uint32 _ambientNpcGossipChance;
+    uint32 _ambientBotGossipChance;
+    uint32 _ambientTradeQualityWeightBonus;
     uint32 _cityChatterMultiplier;
     uint32 _maxPendingRequests;
     uint32 _maxBotsPerZone;
@@ -232,6 +235,12 @@ public:
     uint32 _generalChatCooldown;
     uint32 _generalChatConversationChance;
     uint32 _generalChatHistoryLimit;
+
+    // Real bot loot announcements in General
+    bool _generalLootEnable;
+    uint32 _generalLootAggregationDelayMs;
+    uint32 _generalLootZoneCooldownSeconds;
+    uint32 _generalLootMinQuality;
 
     // RP enrichment
     uint32 _raceLoreChance;

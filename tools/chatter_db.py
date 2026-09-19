@@ -53,7 +53,7 @@ def _cache_put(cache: dict, key, value, max_size: int = 500):
 
 
 class ZoneDataCache:
-    """Cache for zone-specific quest, loot, and mob data.
+    """Cache for zone-specific quest and mob data.
 
     Thread-safe: all methods are protected by a lock
     for concurrent access from worker threads.
@@ -63,9 +63,7 @@ class ZoneDataCache:
         self.ttl = ttl_seconds
         self._lock = threading.Lock()
         self.quest_cache: Dict[int, Tuple[List[dict], float]] = {}
-        self.loot_cache: Dict[Tuple[int, int], Tuple[List[dict], float]] = {}
         self.mob_cache: Dict[Tuple[int, int], Tuple[List[str], float]] = {}
-        self.recent_loot: Dict[int, Dict[int, float]] = {}
 
     def get_quests(self, zone_id: int) -> Optional[List[dict]]:
         with self._lock:
@@ -78,25 +76,6 @@ class ZoneDataCache:
     def set_quests(self, zone_id: int, quests: List[dict]):
         with self._lock:
             self.quest_cache[zone_id] = (quests, time.time())
-
-    def get_loot(
-        self, min_level: int, max_level: int
-    ) -> Optional[List[dict]]:
-        with self._lock:
-            key = (min_level, max_level)
-            if key in self.loot_cache:
-                data, timestamp = self.loot_cache[key]
-                if time.time() - timestamp < self.ttl:
-                    return data
-            return None
-
-    def set_loot(
-        self, min_level: int, max_level: int, loot: List[dict]
-    ):
-        with self._lock:
-            self.loot_cache[(min_level, max_level)] = (
-                loot, time.time()
-            )
 
     def get_mobs(
         self, zone_id: int, bot_level: int
@@ -116,28 +95,6 @@ class ZoneDataCache:
             self.mob_cache[(zone_id, bot_level)] = (
                 mobs, time.time()
             )
-
-    def get_recent_loot_ids(
-        self, zone_id: int, cooldown_seconds: int
-    ) -> set:
-        with self._lock:
-            now = time.time()
-            if zone_id not in self.recent_loot:
-                return set()
-            recent = {
-                item_id: ts
-                for item_id, ts
-                in self.recent_loot[zone_id].items()
-                if now - ts < cooldown_seconds
-            }
-            self.recent_loot[zone_id] = recent
-            return set(recent.keys())
-
-    def mark_loot_seen(self, zone_id: int, item_id: int):
-        with self._lock:
-            if zone_id not in self.recent_loot:
-                self.recent_loot[zone_id] = {}
-            self.recent_loot[zone_id][item_id] = time.time()
 
 
 # Global cache instance
@@ -270,123 +227,6 @@ def query_zone_quests(
 
         zone_cache.set_quests(zone_id, quests)
         return quests
-
-    except Exception:
-        return []
-
-
-def query_zone_loot(
-    config: dict, zone_id: int, bot_level: int
-) -> List[dict]:
-    """Query loot appropriate for the zone."""
-    # No loot drops in capital cities
-    if zone_id in CAPITAL_CITY_ZONES:
-        return []
-
-    min_level, max_level = _get_zone_level_range(zone_id, bot_level)
-
-    cached = zone_cache.get_loot(zone_id, 0)
-    if cached is not None:
-        return cached
-
-    try:
-        db = get_db_connection(config, 'acore_world')
-        cursor = db.cursor(dictionary=True)
-
-        loot = []
-
-        if zone_id in ZONE_COORDINATES:
-            map_id, min_x, max_x, min_y, max_y = (
-                ZONE_COORDINATES[zone_id]
-            )
-            entry_col = get_creature_entry_column(db)
-            cursor.execute(f"""
-                SELECT DISTINCT
-                    i.entry as item_id,
-                    i.name as item_name,
-                    i.Quality as item_quality,
-                    i.AllowableClass as allowable_class,
-                    i.SellPrice as sell_price,
-                    ct.name as drops_from
-                FROM creature c
-                JOIN creature_template ct ON c.{entry_col} = ct.entry
-                JOIN creature_loot_template clt
-                    ON ct.lootid = clt.Entry
-                JOIN item_template i ON clt.Item = i.entry
-                WHERE c.map = %s
-                  AND c.position_x BETWEEN %s AND %s
-                  AND c.position_y BETWEEN %s AND %s
-                  AND ct.minlevel >= %s
-                  AND ct.maxlevel <= %s
-                  AND i.Quality IN (0, 1)
-                  AND i.class IN (2, 4, 7)
-                  AND clt.Chance >= 5
-                ORDER BY RAND()
-                LIMIT 15
-            """, (
-                map_id, min_x, max_x, min_y, max_y,
-                max(1, min_level - 3), max_level + 5
-            ))
-            loot.extend(cursor.fetchall())
-        else:
-            cursor.execute("""
-                SELECT DISTINCT
-                    i.entry as item_id,
-                    i.name as item_name,
-                    i.Quality as item_quality,
-                    i.AllowableClass as allowable_class,
-                    i.SellPrice as sell_price,
-                    ct.name as drops_from
-                FROM creature_template ct
-                JOIN creature_loot_template clt
-                    ON ct.lootid = clt.Entry
-                JOIN item_template i ON clt.Item = i.entry
-                WHERE ct.minlevel >= %s
-                  AND ct.maxlevel <= %s
-                  AND i.Quality IN (0, 1)
-                  AND i.class IN (2, 4, 7)
-                  AND clt.Chance >= 5
-                ORDER BY RAND()
-                LIMIT 15
-            """, (max(1, min_level - 3), max_level + 5))
-            loot.extend(cursor.fetchall())
-
-        # Green/Blue/Epic from reference loot tables
-        green_ref_min = 1020000 + (min_level * 100) + min_level
-        green_ref_max = 1020000 + (max_level * 100) + max_level
-        blue_ref_min = 1030000 + (min_level * 100) + min_level
-        blue_ref_max = 1030000 + (max_level * 100) + max_level
-        epic_ref_min = 1040000 + (min_level * 100) + min_level
-        epic_ref_max = 1040000 + (max_level * 100) + max_level
-
-        ref_filter = f"""
-            (rlt.Entry BETWEEN {green_ref_min} AND {green_ref_max}
-             OR rlt.Entry BETWEEN {blue_ref_min} AND {blue_ref_max}
-             OR rlt.Entry BETWEEN {epic_ref_min} AND {epic_ref_max})
-        """
-
-        cursor.execute(f"""
-            SELECT DISTINCT
-                i.entry as item_id,
-                i.name as item_name,
-                i.Quality as item_quality,
-                i.AllowableClass as allowable_class,
-                i.SellPrice as sell_price,
-                'world drop' as drops_from
-            FROM reference_loot_template rlt
-            JOIN item_template i ON rlt.Item = i.entry
-            WHERE {ref_filter}
-              AND i.class IN (2, 4)
-              AND i.RequiredLevel BETWEEN %s AND %s
-            ORDER BY RAND()
-            LIMIT 15
-        """, (max(1, min_level - 5), max_level + 5))
-        loot.extend(cursor.fetchall())
-
-        db.close()
-
-        zone_cache.set_loot(zone_id, 0, loot)
-        return loot
 
     except Exception:
         return []

@@ -727,12 +727,58 @@ LLMChatter.AmbientBotGossipChance = 5
 LLMChatter.AmbientGossipTargetCooldownSeconds = 1800
 
 #
+#   LLMChatter.AmbientTrade.QualityWeightBonus
+#       Additional selection weight per item-quality tier above common
+#       when choosing a real item from an ambient seller's inventory.
+#       Common items always have weight 1. With the default value,
+#       uncommon/rare/epic items have weights 5/9/13. Set to 0 for
+#       uniform selection across eligible inventory slots.
+#       Default: 4
+#
+LLMChatter.AmbientTrade.QualityWeightBonus = 4
+
+#
+#   LLMChatter.GeneralLoot.Enable
+#       Enable occasional General-channel messages grounded in items
+#       that ungrouped playerbots actually loot in a real player's
+#       outdoor zone.
+#       Default: 1
+#
+LLMChatter.GeneralLoot.Enable = 1
+
+#
+#   LLMChatter.GeneralLoot.AggregationDelayMilliseconds
+#       Quiet period used to combine several item callbacks from one
+#       loot source before one actual item is selected uniformly.
+#       Default: 2500
+#
+LLMChatter.GeneralLoot.AggregationDelayMilliseconds = 2500
+
+#
+#   LLMChatter.GeneralLoot.ZoneCooldownSeconds
+#       Minimum time between real bot-loot announcements in one zone.
+#       Set to 0 to disable this throttle for testing.
+#       Default: 180
+#
+LLMChatter.GeneralLoot.ZoneCooldownSeconds = 180
+
+#
+#   LLMChatter.GeneralLoot.MinQuality
+#       Minimum item quality eligible for General loot messages.
+#       0=poor, 1=common, 2=uncommon, 3=rare, 4=epic,
+#       5=legendary, 6=artifact, 7=heirloom.
+#       Default: 2
+#
+LLMChatter.GeneralLoot.MinQuality = 2
+
+#
 #   LLMChatter.EventReactionChance
 #       Base chance (0-100) that a world event triggers a General
-#       channel reaction. Used for transport arrivals and weather
-#       ambient remarks. Holidays, day/night transitions, and
-#       weather changes always fire (bypass this roll). Transport
-#       and weather ambient have optional per-event overrides below.
+#       channel reaction. Real playerbot loot sources use one roll per
+#       source. Transport arrivals and weather ambient remarks also use
+#       this value. Holidays, day/night transitions, and weather changes
+#       always fire (bypass this roll). Transport and weather ambient
+#       have optional per-event overrides below.
 #       Default: 25
 #
 LLMChatter.EventReactionChance = 25
@@ -2568,14 +2614,6 @@ LLMChatter.BotSpeakerCooldownSeconds = 900
 #       Default: 600 (10 minutes)
 #
 LLMChatter.EventExpirationSeconds = 600
-
-#
-#   LLMChatter.LootRecentCooldownSeconds
-#       Prevents ambient chatter from mentioning the same
-#       loot item repeatedly in a zone.
-#       Default: 1200 (20 minutes)
-#
-LLMChatter.LootRecentCooldownSeconds = 1200
 
 #
 #   LLMChatter.BGChatter.MaxTokens

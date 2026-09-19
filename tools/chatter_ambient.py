@@ -4,23 +4,20 @@ N9/N10 moved statement and conversation
 processing from the bridge.
 """
 
+import json
 import logging
 import random
 import time
 from typing import List
 
 from chatter_constants import (
-    CAPITAL_CITY_ZONES,
     AMBIENT_CHAT_TOPICS,
     AMBIENT_CHAT_TOPICS_RP,
 )
 from chatter_shared import (
-    zone_cache,
     parse_single_response,
     parse_conversation_response,
-    can_class_use_item,
     query_zone_quests,
-    query_zone_loot,
     query_zone_mobs,
     query_bot_spells,
     replace_placeholders,
@@ -30,7 +27,6 @@ from chatter_shared import (
     insert_chat_message,
     get_recent_zone_messages,
     is_too_similar,
-    select_message_type,
     calculate_dynamic_delay,
     get_chatter_mode,
     _reserve_zone_delivery_window,
@@ -57,13 +53,11 @@ from chatter_text import pick_statement_length
 from chatter_prompts import (
     build_plain_statement_prompt,
     build_quest_statement_prompt,
-    build_loot_statement_prompt,
     build_quest_reward_statement_prompt,
     build_spell_statement_prompt,
     build_trade_statement_prompt,
     build_plain_conversation_prompt,
     build_quest_conversation_prompt,
-    build_loot_conversation_prompt,
     build_trade_conversation_prompt,
     build_spell_conversation_prompt,
     build_gossip_statement_prompt,
@@ -73,6 +67,10 @@ from chatter_prompts import (
 logger = logging.getLogger(__name__)
 
 _gossip_target_cooldowns = {}
+_VALID_MESSAGE_TYPES = {
+    'plain', 'quest', 'quest_reward',
+    'trade', 'spell', 'npc', 'bot',
+}
 
 
 def _build_zone_metadata(zone_id, area_id=0):
@@ -93,79 +91,52 @@ def _build_zone_metadata(zone_id, area_id=0):
     )
 
 
-def _fetch_loot_data(config, zone_id, level):
-    """Fetch and select a loot item for the zone.
+def _request_message_type(request):
+    """Return the C++-selected ambient type.
 
-    Handles: query_zone_loot, cooldown filter,
-    quality weights, random.choices, mark_loot_seen.
-
-    Returns item_data dict or None if no loot found.
+    Legacy or diagnostic rows without a type become plain. Python must
+    never reroll because trade requires the matching live snapshot.
     """
-    loot = query_zone_loot(config, zone_id, level)
-    if not loot:
-        return None
-    cooldown = int(config.get(
-        'LLMChatter.LootRecentCooldownSeconds', 0
-    ))
-    if cooldown > 0:
-        recent_ids = (
-            zone_cache.get_recent_loot_ids(
-                zone_id, cooldown
-            )
+    msg_type = request.get('message_type') or 'plain'
+    if msg_type not in _VALID_MESSAGE_TYPES:
+        logger.warning(
+            "Ambient queue %s has invalid message_type=%r; using plain",
+            request.get('id'), msg_type,
         )
-        filtered = [
-            item for item in loot
-            if item.get('item_id')
-            not in recent_ids
-        ]
-        if filtered:
-            loot = filtered
-    quality_weights = {
-        0: 35, 1: 30, 2: 22, 3: 10, 4: 3
-    }
-    weights = [
-        quality_weights.get(
-            item.get('item_quality', 2), 10
-        )
-        for item in loot
-    ]
-    item_data = random.choices(
-        loot, weights=weights, k=1
-    )[0]
-    if cooldown > 0 and item_data.get('item_id'):
-        zone_cache.mark_loot_seen(
-            zone_id, item_data['item_id']
-        )
-    return item_data
-
-
-def _select_gossip_or_existing_type(config, conversation=False):
-    """Select ambient type with optional NPC/bot gossip gates."""
-    npc_chance = max(0, int(config.get(
-        'LLMChatter.AmbientNpcGossipChance', 5
-    )))
-    bot_chance = max(0, int(config.get(
-        'LLMChatter.AmbientBotGossipChance', 5
-    )))
-    roll = random.randint(1, 100)
-    if roll <= npc_chance:
-        return 'npc'
-    if roll <= npc_chance + bot_chance:
-        return 'bot'
-
-    if not conversation:
-        return select_message_type()
-
-    roll = random.randint(1, 100)
-    if roll <= 45:
         return 'plain'
-    if roll <= 65:
-        return 'quest'
-    if roll <= 80:
-        return 'loot'
-    if roll <= 90:
-        return 'trade'
-    return 'spell'
+    return msg_type
+
+
+def _parse_trade_item_context(raw_context):
+    """Validate a server-captured seller inventory snapshot."""
+    if isinstance(raw_context, (str, bytes, bytearray)):
+        try:
+            raw_context = json.loads(raw_context)
+        except (TypeError, ValueError, json.JSONDecodeError,
+                UnicodeDecodeError):
+            return None
+    if not isinstance(raw_context, dict):
+        return None
+
+    required_ints = (
+        'item_id', 'item_quality', 'item_count', 'sell_price',
+    )
+    for key in required_ints:
+        value = raw_context.get(key)
+        if isinstance(value, bool) or not isinstance(value, int):
+            return None
+
+    item_name = raw_context.get('item_name')
+    if not isinstance(item_name, str) or not item_name.strip():
+        return None
+    if (
+        raw_context['item_id'] <= 0
+        or not 0 <= raw_context['item_quality'] <= 7
+        or raw_context['item_count'] <= 0
+        or raw_context['sell_price'] < 0
+    ):
+        return None
+    return dict(raw_context)
 
 
 def _get_gossip_target_cooldown(config):
@@ -270,21 +241,12 @@ def process_statement(
     zone_meta = _build_zone_metadata(
         zone_id, area_id
     )
-    msg_type = _select_gossip_or_existing_type(config)
-
-    # Skip loot/trade in capital cities (no zone
-    # creatures to reference, causes empty queries)
-    if (
-        msg_type in ("loot", "trade")
-        and zone_id in CAPITAL_CITY_ZONES
-    ):
-        msg_type = "plain"
+    msg_type = _request_message_type(request)
 
 
     # Get zone data if needed
     quest_data = None
     item_data = None
-    item_can_use = False
     spell_data = None
     gossip_target = None
     gossip_target_type = None
@@ -298,28 +260,16 @@ def process_statement(
         else:
             msg_type = "plain"  # Fallback
 
-    if msg_type == "loot":
-        item_data = _fetch_loot_data(
-            config, zone_id, bot['level']
-        )
-        if item_data:
-            # Check if bot's class can use the item
-            item_can_use = can_class_use_item(
-                bot['class'],
-                item_data.get('allowable_class', -1)
-            )
-            quality_names = {
-                0: "gray", 1: "white", 2: "green",
-                3: "blue", 4: "epic"
-            }
-        else:
-            msg_type = "plain"  # Fallback
-
     if msg_type == "trade":
-        item_data = _fetch_loot_data(
-            config, zone_id, bot['level']
+        item_data = _parse_trade_item_context(
+            request.get('item_context')
         )
         if not item_data:
+            logger.warning(
+                "Ambient trade queue %s has no valid inventory snapshot; "
+                "using plain",
+                request.get('id'),
+            )
             msg_type = "plain"  # Fallback
 
     if msg_type == "spell":
@@ -406,14 +356,6 @@ def process_statement(
         prompt = build_quest_statement_prompt(
             bot, quest_data, config,
             current_weather,
-            recent_messages=recent_msgs,
-            speaker_talent_context=speaker_talent,
-            zone_id=zone_id,
-        )
-    elif msg_type == "loot":
-        prompt = build_loot_statement_prompt(
-            bot, item_data, item_can_use,
-            config, current_weather,
             recent_messages=recent_msgs,
             speaker_talent_context=speaker_talent,
             zone_id=zone_id,
@@ -597,13 +539,9 @@ def process_conversation(
             perspective='speaker',
         )
 
-    # Select message type. Existing conversation mix is preserved
-    # unless an additive gossip gate wins first.
-    msg_type = _select_gossip_or_existing_type(
-        config, conversation=True
-    )
+    msg_type = _request_message_type(request)
 
-    # Get quest/loot/spell data if needed
+    # Get quest/trade/spell data if needed
     quest_data = None
     item_data = None
     spell_data = None
@@ -621,18 +559,16 @@ def process_conversation(
         else:
             msg_type = "plain"
 
-    if msg_type == "loot":
-        item_data = _fetch_loot_data(
-            config, zone_id, bots[0]['level']
-        )
-        if not item_data:
-            msg_type = "plain"
-
     if msg_type == "trade":
-        item_data = _fetch_loot_data(
-            config, zone_id, bots[0]['level']
+        item_data = _parse_trade_item_context(
+            request.get('item_context')
         )
         if not item_data:
+            logger.warning(
+                "Ambient trade queue %s has no valid inventory snapshot; "
+                "using plain",
+                request.get('id'),
+            )
             msg_type = "plain"
 
     if msg_type == "spell":
@@ -726,13 +662,9 @@ def process_conversation(
             speaker_talent_context=speaker_talent,
             area_id=area_id,
         )
-    else:  # loot
-        prompt = build_loot_conversation_prompt(
-            bots, item_data, config,
-            current_weather,
-            recent_messages=recent_msgs,
-            speaker_talent_context=speaker_talent,
-            zone_id=zone_id,
+    else:
+        raise ValueError(
+            f"Unsupported ambient conversation type: {msg_type}"
         )
 
     # Call LLM

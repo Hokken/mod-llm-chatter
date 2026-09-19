@@ -25,8 +25,6 @@ from chatter_constants import (
     ITEM_QUALITY_COLORS, ITEM_QUALITY_NAMES,
     ITEM_CLASS_NAMES, WEAPON_SUBCLASS_NAMES,
     ARMOR_SUBCLASS_NAMES, CLASS_BITMASK,
-    MSG_TYPE_PLAIN, MSG_TYPE_QUEST, MSG_TYPE_LOOT,
-    MSG_TYPE_QUEST_REWARD, MSG_TYPE_TRADE,
     EMOTE_KEYWORDS,
     EMOTE_LIST_STR,
 )
@@ -49,13 +47,11 @@ from chatter_llm import (
     quick_llm_analyze,
 )
 from chatter_db import (
-    zone_cache,
     get_db_connection,
     wait_for_database,
     validate_emote,
     insert_chat_message,
     query_zone_quests,
-    query_zone_loot,
     query_zone_mobs,
     query_bot_spells,
     query_item_details,
@@ -1716,26 +1712,6 @@ def build_conversation_json_repair_prompt(
     if lang_rule:
         repair_prompt += lang_rule
     return repair_prompt
-
-
-# =============================================================================
-# MESSAGE TYPE SELECTION
-# =============================================================================
-def select_message_type() -> str:
-    """Randomly select a message type based on distribution."""
-    roll = random.randint(1, 100)
-    if roll <= MSG_TYPE_PLAIN:
-        return "plain"
-    elif roll <= MSG_TYPE_QUEST:
-        return "quest"
-    elif roll <= MSG_TYPE_LOOT:
-        return "loot"
-    elif roll <= MSG_TYPE_QUEST_REWARD:
-        return "quest_reward"
-    elif roll <= MSG_TYPE_TRADE:
-        return "trade"
-    else:
-        return "spell"
 
 
 # =============================================================================
