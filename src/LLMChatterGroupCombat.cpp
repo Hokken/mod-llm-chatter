@@ -908,6 +908,10 @@ void HandleGroupPlayerBeforeSendChatMessageImpl(
     if (safeMsg.empty())
         return;
 
+    if (sLLMChatterConfig
+            ->IsPlayerChatPrefixIgnored(safeMsg))
+        return;
+
     if (IsLikelyPlayerbotControlCommand(
             safeMsg))
     {

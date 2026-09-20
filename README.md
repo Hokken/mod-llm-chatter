@@ -165,6 +165,24 @@ provider or model change. The bridge chooses compatible token, temperature,
 and reasoning parameters automatically, then caches any explicit
 unsupported-parameter correction for the rest of that process.
 
+### Ignoring Visible Protocol Chat
+
+If a server-specific addon or command sends machine-readable data through
+visible player chat, Chatter can ignore it without blocking the message from
+the game's normal chat system:
+
+```ini
+LLMChatter.PlayerChat.IgnoredPrefixes = !addon:,.custom:
+```
+
+The comma-separated list applies to real-player Party, General, Guild, and
+`/say` input. Matching ignores leading whitespace and ASCII letter case and
+runs before Chatter stores history or queues LLM work. Use distinctive
+punctuation-bearing prefixes: configured entries are trimmed, and matching is
+literal rather than word-aware. Normal `SendAddonMessage` traffic already
+arrives as `LANG_ADDON` and does not need an entry. After the supporting C++
+version is installed, apply list changes with `.reload config`.
+
 For OpenAI Luna, `none` gives the lowest-latency behavior and permits the
 configured temperature. Higher reasoning efforts can consume more of the
 output budget, so the bridge applies `OpenAI.MaxTokensMultiplier` whenever

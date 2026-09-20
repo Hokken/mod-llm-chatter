@@ -36,6 +36,7 @@ public:
     bool IsProximityBossSpeakerDenied(uint32 creatureEntry) const;
     bool IsDirectedNameStopword(std::string const& word) const;
     bool IsCxxScriptedEmoteEntry(uint32 creatureEntry) const;
+    bool IsPlayerChatPrefixIgnored(std::string const& message) const;
 
     // General settings
     bool _enabled;
@@ -50,6 +51,8 @@ public:
     uint32 _maxPendingRequests;
     uint32 _maxBotsPerZone;
     uint32 _maxMessageLength;
+    std::shared_ptr<std::unordered_set<std::string> const>
+        _playerChatIgnoredPrefixes;
 
     // Delivery settings
     uint32 _deliveryPollMs;

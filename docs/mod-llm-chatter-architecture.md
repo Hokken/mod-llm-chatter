@@ -1,6 +1,6 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-09-18 (bot-directed proximity reaction chains)
+Last updated: 2026-09-20 (configurable player-chat prefix filtering)
 
 ## Purpose
 
@@ -324,6 +324,21 @@ that playerbots are ready synchronously:
    obsolete greeting even if the event was already claimed.
 9. Native Guild delivery records successful greetings as `reply`
    history, making them visible to later player-session continuity.
+
+### Player-chat input filtering
+
+`LLMChatterConfig` owns the reload-safe, server-side
+`LLMChatter.PlayerChat.IgnoredPrefixes` denylist. Matching is literal,
+case-insensitive for ASCII letters, and ignores leading whitespace. The
+default is empty so existing installations retain their current behavior.
+
+Party, General, Guild, and `/say` capture paths apply this shared filter
+before any history write, cooldown/session mutation, or event queue
+insertion. A matching Guild line also does not cancel a pending login
+greeting. Existing `LANG_ADDON`, hidden-payload, and Playerbot-command
+protections remain separate and continue to run. In particular,
+`SendAddonMessage` protocol prefixes do not belong in this denylist because
+their `LANG_ADDON` traffic is already rejected globally.
 
 ## Chatter Mode Ownership
 
