@@ -419,6 +419,10 @@ void HandleGuildPlayerMessage(
         return;
     }
 
+    if (sLLMChatterConfig
+            ->IsPlayerChatPrefixIgnored(rawMessage))
+        return;
+
     // A real Guild message is more current than a
     // scheduled login acknowledgement. Cancel both
     // in-memory and already queued greeting work.

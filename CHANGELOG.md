@@ -1,5 +1,22 @@
 # Changelog
 
+### 2026-09-20 - Configurable Player-Chat Prefix Filtering
+
+* **Early visible-chat filtering**: Server owners can configure a
+  comma-separated `LLMChatter.PlayerChat.IgnoredPrefixes` denylist for real
+  player messages in Party, General, Guild, and `/say`. Matching ignores
+  leading whitespace and ASCII letter case, and matched messages are skipped
+  before Chatter writes history, changes conversation state or cooldowns,
+  cancels Guild login greetings, or queues LLM work. The player's normal game
+  chat remains unaffected.
+* **Reload-safe and compatibility-preserving**: The default-empty list is
+  published through the module's reload-safe configuration pattern and can be
+  changed with `.reload config`. Existing `LANG_ADDON`, hidden-payload, and
+  Playerbot-command protections remain independent. Documentation clarifies
+  that normal `SendAddonMessage` prefixes do not belong in this list and that
+  configured entries are trimmed, so distinctive punctuation-bearing
+  prefixes are recommended.
+
 ### 2026-09-20 - Contextual Short Player Replies
 
 * **Conversational scale matching**: Guild, General, party,

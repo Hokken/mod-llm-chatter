@@ -2254,6 +2254,9 @@ void HandleProximityPlayerSay(
     std::string safeMsg = TrimChatMessage(msg);
     if (safeMsg.empty())
         return;
+    if (sLLMChatterConfig
+            ->IsPlayerChatPrefixIgnored(safeMsg))
+        return;
 
     if (HandleBossProximityPlayerSay(player, safeMsg))
         return;

@@ -562,6 +562,28 @@ Some narrow server-side compatibility switches may be read directly
 through `sConfigMgr` instead of being stored on `LLMChatterConfig`.
 `LLMChatter.MultiBotCompat.Enable` follows that shape.
 
+### Server-side player-chat prefix filtering
+
+`LLMChatter.PlayerChat.IgnoredPrefixes` is a comma-separated, default-empty
+denylist for server-specific protocols sent through visible player chat or
+for admin-command prefixes. It is not needed for normal `SendAddonMessage`
+protocol prefixes, which arrive as `LANG_ADDON` and are already ignored. C++
+parses the setting on startup and `.reload config`, publishes an immutable
+snapshot, and applies it to real-player Party, General, Guild, and `/say`
+input. Matching ignores leading whitespace and ASCII letter case.
+Configured entries are trimmed at both ends, so a trailing space cannot be
+used to require a separator; use an unambiguous punctuation-bearing prefix.
+
+The check runs before chat-history writes, cooldowns, Guild-session changes,
+login-greeting cancellation, or event queueing. Existing addon-payload and
+Playerbot-command filters remain in place. Because matching is literal prefix
+matching, configure punctuation or otherwise unambiguous server-specific
+values rather than ordinary words.
+
+| Key | Default | Owner | Purpose |
+|---|---|---|---|
+| `PlayerChat.IgnoredPrefixes` | empty | Server | Drop configured player-chat prefixes before persistence or generation |
+
 ---
 
 ## 5. Supported Providers
