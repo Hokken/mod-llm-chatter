@@ -369,12 +369,17 @@ and do not receive the semantic optional-reply roll or hard repair gate.
 
 The analysis separately marks `reply_optional` only when silence would be a
 socially natural response to a `brief_casual` turn. Before generation, Guild,
-General, party, and proximity-speech handlers make one shared configurable
-RNG roll. A failed roll marks the event skipped without calling the generation
-model; a successful optional turn stays single-responder. Questions, requests,
-instructions, warnings, important information, and other turns that clearly
-expect engagement are not optional. This remains semantic and contextual,
-with no phrase or keyword list.
+General, proximity-speech, and directed boss-speech handlers make one shared
+configurable RNG roll. A failed roll marks the event skipped without calling
+the generation model; a successful optional turn stays single-responder. Party
+player messages do not use this silence gate: once queued, they continue to a
+concise response even when classified as `reply_optional`. If the strict repair
+still overruns, Party uses the shared deterministic bound for each selected
+speaker instead of dropping the statement or conversation. A casual
+multi-addressee classification therefore retains the forced conversation path
+and every selected responder. Questions, requests, instructions, warnings,
+important information, and other turns that clearly expect engagement are not
+optional. This remains semantic and contextual, with no phrase or keyword list.
 
 Emote-only delivery resolves the emote name before consuming the row. Invalid
 names receive a terminal `invalid_emote` drop instead of a retry, and party

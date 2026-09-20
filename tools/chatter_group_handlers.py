@@ -29,6 +29,7 @@ from chatter_shared import (
     strip_conversation_actions,
     shorten_chat_message,
     brief_casual_response_fits,
+    bound_brief_casual_response,
     build_brief_casual_repair_prompt,
 )
 from chatter_db import (
@@ -2415,6 +2416,32 @@ def _nearby_object_conversation(
     return True
 
 
+def _bound_brief_player_conversation(
+    messages, fallback_messages,
+):
+    """Bound every selected speaker without losing the conversation."""
+    repaired_by_name = {
+        message.get('name'): message
+        for message in messages
+    }
+    bounded = []
+    for fallback in fallback_messages:
+        message = repaired_by_name.get(
+            fallback.get('name'), fallback
+        )
+        text, emote = bound_brief_casual_response(
+            str(message.get('message') or ''),
+            message.get('emote'),
+            str(fallback.get('message') or ''),
+            fallback.get('emote'),
+        )
+        updated = dict(message)
+        updated['message'] = text
+        updated['emote'] = emote
+        bounded.append(updated)
+    return bounded
+
+
 def execute_player_msg_conversation(
     db, client, config, event_id,
     group_id, addressed_bot, all_bots,
@@ -2620,6 +2647,7 @@ def execute_player_msg_conversation(
     )
     if not messages:
         return False
+    brief_fallback_messages = messages
     if brief_casual and not all(
         brief_casual_response_fits(
             str(message.get('message') or ''),
@@ -2643,7 +2671,11 @@ def execute_player_msg_conversation(
             bot_names,
             allow_emote_only=True,
         )
-        if not messages or not all(
+    if brief_casual:
+        messages = _bound_brief_player_conversation(
+            messages, brief_fallback_messages
+        )
+        if not all(
             brief_casual_response_fits(
                 str(message.get('message') or ''),
                 message.get('emote'),

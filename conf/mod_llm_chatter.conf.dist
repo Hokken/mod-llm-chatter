@@ -613,10 +613,13 @@ LLMChatter.GeneralChat.PlayerReplyEnable = 1
 #   LLMChatter.PlayerChat.OptionalCasualReplyChance [BRIDGE]
 #       Reply chance (0-100) after semantic analysis decides that a
 #       brief casual player turn can naturally be left unanswered.
-#       Applies to Guild, General, party, and proximity speech. It does
-#       not suppress questions, requests, warnings, or other turns that
-#       clearly expect a response. Set to 100 to preserve guaranteed
-#       replies for these optional turns.
+#       Applies to Guild, General, proximity speech, and directed boss
+#       speech. Party messages always continue to response generation
+#       once queued, while still using brief-casual classification to
+#       keep lightweight replies concise. This setting does not suppress
+#       questions, requests, warnings, or other turns that clearly expect
+#       a response. Set to 100 to preserve guaranteed replies for the
+#       channels governed by this setting.
 #       Default: 20
 #
 LLMChatter.PlayerChat.OptionalCasualReplyChance = 20
