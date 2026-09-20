@@ -622,6 +622,26 @@ LLMChatter.GeneralChat.PlayerReplyEnable = 1
 LLMChatter.PlayerChat.OptionalCasualReplyChance = 20
 
 #
+#   LLMChatter.PlayerChat.IgnoredPrefixes [SERVER]
+#       Comma-separated literal prefixes for player-authored Party,
+#       General, Guild, and /say messages that Chatter must ignore.
+#       Matching ignores leading whitespace and ASCII letter case. A
+#       matching message is ignored by Chatter before chat history,
+#       cooldown, session, or LLM event processing. Existing addon and
+#       Playerbot command filters remain active independently.
+#       This is only for protocols sent through visible player chat. Normal
+#       SendAddonMessage prefixes already arrive as LANG_ADDON and are
+#       ignored separately. Leave empty unless your server has a known
+#       visible-chat or admin-command prefix. Avoid ordinary words because
+#       every message starting with a configured value is suppressed.
+#       Entries are trimmed, so trailing spaces cannot be used to require a
+#       word boundary or separator; include punctuation instead.
+#       Changes take effect after `.reload config`.
+#       Default: empty (disabled)
+#
+LLMChatter.PlayerChat.IgnoredPrefixes =
+
+#
 #   LLMChatter.BGChatter.Enable
 #       Enable BG-specific chatter (flag events, node captures, match
 #       start/end, PvP kills, score milestones).
