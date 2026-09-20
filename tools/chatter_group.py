@@ -49,7 +49,6 @@ from chatter_shared import (
     parse_conversation_response,
     calculate_dynamic_delay,
     find_addressed_bot,
-    should_reply_to_optional_casual,
     insert_chat_message,
     pick_emote_for_statement,
     detect_item_links,
@@ -75,6 +74,7 @@ from chatter_shared import (
     shorten_chat_message,
     shorten_chat_question,
     brief_casual_response_fits,
+    bound_brief_casual_response,
     build_brief_casual_repair_prompt,
 )
 from chatter_db import (
@@ -1605,12 +1605,6 @@ def _batch_welcome(
     )
 
 
-
-
-
-
-
-
 def process_group_player_msg_event(
     db, client, config, event
 ):
@@ -1697,16 +1691,6 @@ def process_group_player_msg_event(
     brief_casual = bool(
         addr_result.get('brief_casual', False)
     )
-    if not should_reply_to_optional_casual(
-        config, addr_result
-    ):
-        logger.info(
-            "bot_group_player_msg event=%s left unanswered "
-            "after optional-casual RNG",
-            event_id,
-        )
-        _mark_event(db, event_id, 'skipped')
-        return False
     if addressed:
         for b in all_bots:
             if b['bot_name'] == addressed:
@@ -1825,7 +1809,6 @@ def process_group_player_msg_event(
 
         force_conv = (
             multi_addressed
-            and not bool(addr_result.get('reply_optional'))
             and num_bots >= 2
         )
         rng_conv = (
@@ -2021,6 +2004,7 @@ def process_group_player_msg_event(
             message, action=parsed.get('action')
         )
         emote = parsed.get('emote')
+        brief_fallback = (message, emote)
         if (
             brief_casual
             and not brief_casual_response_fits(
@@ -2044,16 +2028,16 @@ def process_group_player_msg_event(
             )
             message = cleanup_message(message)
             emote = parsed.get('emote')
+        if brief_casual:
+            fallback_message, fallback_emote = brief_fallback
+            message, emote = bound_brief_casual_response(
+                message,
+                emote,
+                fallback_message,
+                fallback_emote,
+            )
         if not message and not (
             brief_casual and emote
-        ):
-            _mark_event(db, event_id, 'skipped')
-            return False
-        if (
-            brief_casual
-            and not brief_casual_response_fits(
-                message, emote
-            )
         ):
             _mark_event(db, event_id, 'skipped')
             return False

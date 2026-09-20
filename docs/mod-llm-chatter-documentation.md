@@ -1923,6 +1923,7 @@ delivery code:
 | `calculate_dynamic_delay(responsive=False)` | Delivery timing — skips distraction sim and uses a 2s floor when `responsive=True` |
 | `find_addressed_bot(...)` | Explicit/implicit addressee, multi-addressed intent, brief-casual scale, and optional-reply classification via LLM context analysis |
 | `should_reply_to_optional_casual(...)` | One bounded RNG roll for semantically optional brief turns; non-optional turns always pass |
+| `bound_brief_casual_response(...)` | Deterministically enforce the 8-word/50-character brief contract while preserving a usable original response and emote |
 | `build_conversational_scale_guidance(...)` | Shared instruction that keeps Guild, General, party, proximity-speech, and proximity-emote responses proportional to the player's conversational scale |
 | `should_include_action()` | Single RNG roll gating narrator action inclusion (`random.random() < get_action_chance()`). Use at conversation delivery sites instead of calling `get_action_chance()` directly to avoid double-rolling the probability |
 | `PromptParts(str)` | System/user prompt split wrapper; auto-detected by `call_llm()` |
@@ -2689,13 +2690,18 @@ sentence instead of developed prose. General, party, and proximity player
 responses use the same scale-matching guidance.
 
 The intent pass also marks `reply_optional` only when leaving a brief casual
-turn unanswered would feel natural in context. Guild, General, party, and
-proximity-speech handlers then roll
+turn unanswered would feel natural in context. Guild, General,
+proximity-speech, and directed boss-speech handlers then roll
 `LLMChatter.PlayerChat.OptionalCasualReplyChance` once before generation.
 The default 20% reply chance makes silence the common result without suppressing
 questions, requests, warnings, important information, or other turns that
 clearly expect engagement. A failed roll skips the event without a generation
-call; a successful optional turn uses one responder.
+call; a successful optional turn uses one responder. Party player messages
+bypass this silence roll and always continue to a concise response once queued.
+If the strict rewrite still exceeds the brief contract, Party deterministically
+bounds each selected speaker's usable result rather than dropping the statement
+or conversation. Casual multi-addressee messages therefore retain the forced
+conversation path and every selected responder.
 
 The conversation roll remains independent and runs first. If it fails,
 the bridge rolls the independent multi-reply chance. A message clearly

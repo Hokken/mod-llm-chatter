@@ -1,5 +1,16 @@
 # Changelog
 
+### 2026-09-20 - Party Player Replies
+
+* **Party replies no longer use optional silence**: Player-authored Party
+  messages always continue to response generation once queued. Brief casual
+  classification still keeps lightweight replies concise, while the optional
+  silence chance remains available for Guild, General, proximity speech, and
+  directed boss speech. If two generated brief replies exceed the output
+  contract, Party uses a deterministic per-speaker bounded fallback instead
+  of dropping the statement or conversation. Casual multi-addressee messages
+  therefore retain every selected responder.
+
 ### 2026-09-20 - Configurable Player-Chat Prefix Filtering
 
 * **Early visible-chat filtering**: Server owners can configure a

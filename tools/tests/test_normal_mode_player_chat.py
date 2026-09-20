@@ -60,6 +60,7 @@ from chatter_group_prompts import (  # noqa: E402
     build_precache_state_prompt,
 )
 import chatter_group as group_chat  # noqa: E402
+import chatter_group_handlers as group_handlers  # noqa: E402
 from chatter_group import build_idle_chatter_prompt  # noqa: E402
 from chatter_group_general_reaction import (  # noqa: E402
     _build_conversation_prompt as _general_relay_conversation_prompt,
@@ -84,7 +85,11 @@ from chatter_proximity import (  # noqa: E402
     _single_prompt,
 )
 from chatter_raid_prompts import _raid_base_context  # noqa: E402
-from chatter_shared import set_action_chance  # noqa: E402
+from chatter_shared import (  # noqa: E402
+    bound_brief_casual_response,
+    brief_casual_response_fits,
+    set_action_chance,
+)
 
 
 NORMAL_CONFIG = {'LLMChatter.ChatterMode': 'normal'}
@@ -104,6 +109,76 @@ def test_brief_party_reply_uses_hard_scale_contract():
     assert '2-8 words' in prompt
     assert 'no more than 50 characters' in prompt
     assert 'Creative twist:' not in prompt
+
+
+def test_brief_party_fallback_is_deterministically_bounded():
+    original = (
+        'Certainly friend I can explain this complicated matter '
+        'with all the detail it deserves'
+    )
+    repaired = (
+        'Certainly friend I would be delighted to explain this '
+        'surprisingly complicated matter in exhaustive detail'
+    )
+    shortened, emote = bound_brief_casual_response(
+        repaired, None, original, None
+    )
+    assert len(shortened) <= 50
+    assert len(shortened.split()) <= 8
+    assert emote is None
+
+    recovered, emote = bound_brief_casual_response(
+        '   ', None, original, 'nod'
+    )
+    assert recovered
+    assert len(recovered) <= 50
+    assert len(recovered.split()) <= 8
+    assert emote == 'nod'
+
+    assert brief_casual_response_fits(recovered, emote)
+
+
+def test_brief_party_conversation_bounds_every_speaker():
+    fallback = [
+        {
+            'name': 'Aliss',
+            'message': 'Aliss original answer ' * 8,
+            'emote': None,
+        },
+        {
+            'name': 'Rytsen',
+            'message': 'Rytsen original reply ' * 8,
+            'emote': 'nod',
+        },
+    ]
+    partial_repair = [{
+        'name': 'Aliss',
+        'message': 'Aliss repaired answer ' * 8,
+        'emote': None,
+    }]
+    bounded = group_handlers._bound_brief_player_conversation(
+        partial_repair, fallback
+    )
+    assert [message['name'] for message in bounded] == [
+        'Aliss', 'Rytsen'
+    ]
+    assert bounded[0]['message'].startswith('Aliss repaired')
+    assert bounded[1]['message'].startswith('Rytsen original')
+    assert all(
+        brief_casual_response_fits(
+            message['message'], message.get('emote')
+        )
+        for message in bounded
+    )
+
+    empty_repair = group_handlers._bound_brief_player_conversation(
+        [], fallback
+    )
+    assert [message['name'] for message in empty_repair] == [
+        'Aliss', 'Rytsen'
+    ]
+
+
 BOT = {
     'name': 'Aliss',
     'bot_name': 'Aliss',

@@ -419,16 +419,15 @@ def test_player_speech_emote_only_requires_brief_classification():
     )[0]
 
 
-def test_optional_party_turn_cannot_force_conversation():
+def test_optional_party_turn_retains_multi_addressee_conversation():
     source = (
         MODULE_DIR / 'tools' / 'chatter_group.py'
     ).read_text(encoding='utf-8')
     conversation_gate = source.split(
         'force_conv = (', 1
     )[1].split('rng_conv = (', 1)[0]
-    assert "not bool(addr_result.get('reply_optional'))" in (
-        conversation_gate
-    )
+    assert 'multi_addressed' in conversation_gate
+    assert "addr_result.get('reply_optional')" not in conversation_gate
 
 
 def test_proximity_conversation_passes_built_metadata():

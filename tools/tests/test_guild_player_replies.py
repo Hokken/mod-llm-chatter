@@ -376,12 +376,11 @@ def test_optional_guild_turn_can_end_before_generation():
     assert statuses[-1] == (77, 'skipped')
 
 
-def test_optional_casual_silence_covers_player_text_channels():
+def test_optional_casual_silence_excludes_party_chat():
     module_root = TOOLS_DIR.parent
     expected_calls = {
         'tools/chatter_guild_player.py': 1,
         'tools/chatter_general.py': 1,
-        'tools/chatter_group.py': 1,
         'tools/chatter_proximity.py': 3,
         'tools/chatter_boss_dialogue.py': 1,
     }
@@ -392,6 +391,12 @@ def test_optional_casual_silence_covers_player_text_channels():
         assert source.count(
             'should_reply_to_optional_casual('
         ) >= minimum
+
+    party_source = (
+        module_root / 'tools/chatter_group.py'
+    ).read_text(encoding='utf-8')
+    assert 'should_reply_to_optional_casual(' not in party_source
+    assert "addr_result.get('brief_casual', False)" in party_source
 
     for relative in (
         'conf/mod_llm_chatter.conf.dist',

@@ -1461,6 +1461,26 @@ def brief_casual_response_fits(
     )
 
 
+def bound_brief_casual_response(
+    message: str,
+    emote: Optional[str] = None,
+    fallback_message: str = '',
+    fallback_emote: Optional[str] = None,
+) -> Tuple[str, Optional[str]]:
+    """Bound a usable brief response instead of discarding it."""
+    if brief_casual_response_fits(message, emote):
+        return message, emote
+    source = (
+        str(message or '').strip()
+        or str(fallback_message or '').strip()
+    )
+    first_eight_words = ' '.join(source.split()[:8])
+    return (
+        shorten_chat_message(first_eight_words, 50),
+        emote or fallback_emote,
+    )
+
+
 def build_brief_casual_repair_prompt(
     prompt: PromptParts,
 ) -> PromptParts:
