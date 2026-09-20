@@ -268,11 +268,16 @@ Player-driven Guild exchanges use a separate, session-owned path:
    lines for that player session. One high-priority
    `guild_player_message` event is queued after a short debounce with
    the live eligible Guild-bot candidates.
-4. `chatter_guild_player.py` selects an addressed bot first when
-   applicable, applies a soft penalty to recent speakers, and rolls
-   between one reply, multiple independent replies, or a genuine
-   multi-bot conversation. A group-directed message raises the
-   independent multi-reply chance without forcing multiple bots.
+4. The shared LLM intent analysis may resolve either an explicit name or
+   an implicit reply to the immediately prior speaker from recent history.
+   It also classifies the conversational scale semantically rather than
+   matching a fixed phrase list. `chatter_guild_player.py` selects that
+   addressed bot first, applies a soft penalty only to other recent-speaker
+   selection, and rolls between one reply, multiple independent replies,
+   or a genuine multi-bot conversation. A brief single-addressee
+   continuation stays with one responder when a reply is warranted; a
+   group-directed message raises the independent multi-reply chance without
+   forcing multiple bots.
 5. Player-reply prompts combine a compact rolling summary with the
    latest 15 visible Guild lines: player messages, player-driven
    replies, ambient statements, and ambient conversation lines.
@@ -283,7 +288,8 @@ Player-driven Guild exchanges use a separate, session-owned path:
 6. Callback, player-name, follow-up-question, and participant-reference
    decisions are bridge-side RNG choices. Prompt validation and
    deterministic name insertion keep those choices enforceable across
-   different configured models.
+   different configured models. Brief casual continuations suppress the
+   callback, name, and follow-up-question rolls.
 7. Summary compaction calls the same `call_llm()` path with the user's
    configured provider and model. It runs only after the unsummarized
    interaction text crosses a configurable threshold.
@@ -327,6 +333,38 @@ World of Warcraft; in `roleplay` mode, they speak as their characters in
 Azeroth. General, Party, Guild, Battleground, Raid, screenshot, emote,
 and playerbot `/say` prompt paths must use that shared contract rather
 than defining independent versions of normal-mode behavior.
+
+Player-responsive Guild, General, party, proximity-speech, and
+proximity-emote prompts share one conversational-scale instruction from
+`chatter_shared.py`. The model must answer brief casual input in kind and
+must not inflate a lightweight message or action into a speech,
+explanation, story, or new topic. This is prompt-level semantic guidance,
+not a language-specific keyword list. For player speech, the shared semantic
+analysis marks a turn as `brief_casual`; that hard mode suppresses incidental
+multi-responder RNG, questions, callbacks, and creative expansion, limits
+generated text to 2-8 words and 50 characters, and permits one
+format-preserving rewrite when the first result exceeds the contract. Guild
+can render a short third-person narrator action because guildmates may be
+remote. General remains textual. Party and proximity speech can instead
+deliver a valid structured emote with an empty message only while
+`brief_casual` is true; C++ skips the blank chat packet and plays only the
+emote. Directed player-emote events request the same short scale and may also
+use emote-only output, but they retain their existing server reaction chance
+and do not receive the semantic optional-reply roll or hard repair gate.
+
+The analysis separately marks `reply_optional` only when silence would be a
+socially natural response to a `brief_casual` turn. Before generation, Guild,
+General, party, and proximity-speech handlers make one shared configurable
+RNG roll. A failed roll marks the event skipped without calling the generation
+model; a successful optional turn stays single-responder. Questions, requests,
+instructions, warnings, important information, and other turns that clearly
+expect engagement are not optional. This remains semantic and contextual,
+with no phrase or keyword list.
+
+Emote-only delivery resolves the emote name before consuming the row. Invalid
+names receive a terminal `invalid_emote` drop instead of a retry, and party
+rows delivered inside battlegrounds reuse `IsBGAllowedEmote()` before playing
+the animation.
 
 Actual NPCs do not follow `LLMChatter.ChatterMode`. Proximity payloads
 already identify them with `is_npc`; `chatter_proximity.py` therefore
@@ -410,20 +448,25 @@ the LLM is even asked for an emote.
 The module currently uses three separate DB-backed queues. They do not
 share one global scheduler.
 
-### 1) `llm_chatter_queue` - legacy ambient request queue
+### 1) `llm_chatter_queue` - ambient request queue
 
-- used for legacy ambient General chatter requests
-- inserted by C++ in `LLMChatterWorld.cpp`
+- used for ambient General chatter requests
+- inserted by C++ in `LLMChatterAmbient.cpp`
 - consumed by `process_pending_requests()` in
   `llm_chatter_bridge.py`
 - fetched FIFO: `ORDER BY created_at ASC`
 - gated by `LLMChatter.MaxPendingRequests`, which currently limits only
   this queue, not the event queue
+- C++ stores the selected `message_type`; Python does not reroll it
+- `item_context` is populated only for trade requests and contains a
+  value-only snapshot of an eligible item in the first speaker's live
+  inventory
 
 ### 2) `llm_chatter_events` - reactive/event queue
 
-- used for `bot_group_*`, `bg_*`, `player_general_msg`, weather,
-  transport, holiday, and related event-driven work
+- used for `bot_group_*`, `bg_*`, `player_general_msg`, real
+  `bot_loot_item`, weather, transport, holiday, and related event-driven
+  work
 - rows carry `priority`, `react_after`, and `expires_at`
 - fetched by the bridge only when:
   - `status = 'pending'`
@@ -614,6 +657,8 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterDelivery.h` | 4 | Narrow delivery extraction declaration used by `LLMChatterWorld.cpp` |
 | `src/LLMChatterAmbient.cpp` | 963 | Ambient world/event ownership: day/night transitions, holiday start/stop routing, weather state tracking, weather reactions, zone-level ambient chatter selection, ambient request queue writes |
 | `src/LLMChatterAmbient.h` | 24 | Narrow ambient declarations consumed by `LLMChatterWorld.cpp` |
+| `src/LLMChatterLoot.cpp/.h` | Real ungrouped-playerbot loot capture, per-source reservoir sampling, bounded aggregation, audience/cooldown revalidation, and event queueing |
+| `src/LLMChatterTrade.cpp/.h` | Demand-driven quality-weighted selection and value snapshots of tradeable items from the selected ambient seller's live inventory |
 | `src/LLMChatterNearby.cpp` | 691 | Nearby-object and nearby-creature scanning, POI scoring, nearby direct event queueing, nearby-local cooldowns |
 | `src/LLMChatterNearby.h` | 6 | Narrow nearby scan declaration consumed by `LLMChatterWorld.cpp` |
 | `src/LLMChatterWorld.cpp` | ~1000 | WorldScript ownership, thin ambient/nearby/delivery/proximity/boss delegation, transport polling and route announcements, transport-private state, retained world-private `QueueEvent()` helper |
@@ -649,6 +694,7 @@ Session 69 added two scheduling controls around that model:
 - `AddLLMChatterGuildScripts()`
 - `AddLLMChatterGroupScripts()`
 - `AddLLMChatterPlayerScripts()`
+- `AddLLMChatterLootScripts()`
 - `AddLLMChatterBGScripts()`
 - `AddLLMChatterRaidScripts()`
 - `AddLLMChatterCommandScripts()`
@@ -673,6 +719,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/llm_chatter_bridge.py` | Main loops, event claiming, registry-driven routing, worker orchestration |
 | `tools/chatter_event_registry.py` | Central Python event registry: handler module/function resolution, producer notes, payload field docs, dead-event tracking |
 | `tools/chatter_ambient.py` | Ambient statement/conversation generation |
+| `tools/chatter_loot.py` | Real `bot_loot_item` validation, exact-looter resolution, prompt generation, and General delivery |
 | `tools/chatter_guild.py` | Guild prompts and insert orchestration |
 | `tools/chatter_guild_player.py` | Player-driven Guild replies, reply topology, session-context prompts, and rolling summary compaction |
 | `tools/chatter_guild_login.py` | Real-player login greetings, responder selection, short-message prompts, and greeting pacing |
@@ -808,7 +855,35 @@ system.
 - day/night processing
 - weather state and transitions
 - ambient zone discovery and faction selection
+- ambient message-family selection
+- demand-driven live inventory snapshots when the selected family is
+  trade
 - ambient chatter request queue writes
+
+### Real General loot ownership
+
+`LLMChatterLoot.cpp` owns `OnPlayerLootItem` capture for ungrouped
+playerbots. The map-thread hook performs player-local checks, consults a
+read-only `(map, zone) -> faction mask` audience snapshot and the in-memory
+cooldown cache, rolls once per loot source, and keeps only an active source
+plus one completed source per bot. It never queries the database or reads
+`RandomPlayerbotMgr` state. A reservoir sample chooses one item uniformly
+when a source yields multiple callbacks. Because a stacked item can already
+have been freed by the callback, `Item::IsInWorld()` is checked before any
+template or entry access. The world-thread flush restricts delivery to
+random bots and revalidates the bot, audience, General membership, and
+persisted zone cooldown before queueing `bot_loot_item`.
+
+The main world script rebuilds the audience snapshot independently of the
+General-channel toggle and publishes it through a `shared_mutex`-protected
+immutable `shared_ptr`; map workers never walk the live session map or
+mutate channel membership. Python handling belongs to
+`tools/chatter_loot.py` and resolves only the event's `subject_guid`.
+There is no persistent loot listener queue beyond the bounded aggregation
+slots and no inventory cache: trade ownership is sampled only after an
+ambient request has selected trade. Trade selection uses a weighted
+reservoir over eligible live bag slots. Common items remain eligible while
+each quality tier above common receives the configured additional weight.
 
 ### Nearby ownership
 
@@ -1118,6 +1193,7 @@ source:
 | Main polling loops, event claim logic, worker behavior | `tools/llm_chatter_bridge.py` |
 | Python event registry / handler resolution metadata | `tools/chatter_event_registry.py` |
 | Ambient statement/conversation runtime logic | `tools/chatter_ambient.py` |
+| Real General loot event handling | `tools/chatter_loot.py` |
 | Group join/player-msg/idle behavior | `tools/chatter_group.py` |
 | Group reaction runtime behavior | `tools/chatter_group_handlers.py` |
 | Shared group-handler pipeline behavior | `tools/chatter_handler_pipeline.py` |
@@ -1144,6 +1220,8 @@ source:
 | C++ shared helper contracts | `src/LLMChatterShared.cpp`, `src/LLMChatterShared.h` |
 | C++ delivery logic | `src/LLMChatterDelivery.cpp`, `src/LLMChatterDelivery.h` |
 | C++ ambient world/event logic | `src/LLMChatterAmbient.cpp`, `src/LLMChatterAmbient.h` |
+| C++ real General loot capture | `src/LLMChatterLoot.cpp`, `src/LLMChatterLoot.h` |
+| C++ ambient trade inventory snapshots | `src/LLMChatterTrade.cpp`, `src/LLMChatterTrade.h` |
 | C++ nearby scan logic | `src/LLMChatterNearby.cpp`, `src/LLMChatterNearby.h` |
 | C++ world transport/dispatcher logic | `src/LLMChatterWorld.cpp` |
 | C++ group batching/combat/state logic | `src/LLMChatterGroup.cpp`, `src/LLMChatterGroupCombat.cpp`, `src/LLMChatterGroupJoin.cpp`, `src/LLMChatterGroupEmote.cpp`, `src/LLMChatterGroupQuest.cpp`, `src/LLMChatterGroup.h`, `src/LLMChatterGroupInternal.h` |
@@ -1219,8 +1297,8 @@ This reduces duplicate near-identical lines across party and raid.
 
 | Table | Producer | Consumer | Notes |
 |---|---|---|---|
-| `llm_chatter_events` | C++ / screenshot agent | Python | Event queue |
-| `llm_chatter_queue` | C++ | Python | Ambient statement/conversation queue |
+| `llm_chatter_events` | C++ / screenshot agent | Python | Event queue, including value-only real-loot payloads |
+| `llm_chatter_queue` | C++ | Python | Ambient statement/conversation queue; C++-selected type and optional trade item snapshot |
 | `llm_chatter_messages` | Python | C++ | Outbound message delivery queue |
 | `llm_group_cached_responses` | Python | C++ | Instant reaction pre-cache |
 | `llm_group_bot_traits` | Python + C++ travel refresh | Python | Group traits/state, location, and live travel context |

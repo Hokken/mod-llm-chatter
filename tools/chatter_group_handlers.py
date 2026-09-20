@@ -30,6 +30,8 @@ from chatter_shared import (
     format_travel_context,
     strip_conversation_actions,
     shorten_chat_message,
+    brief_casual_response_fits,
+    build_brief_casual_repair_prompt,
 )
 from chatter_db import (
     fail_event,
@@ -2430,6 +2432,7 @@ def execute_player_msg_conversation(
     item_context="", link_context="",
     items_info=None,
     zone_id=0, area_id=0, map_id=0,
+    brief_casual=False,
 ):
     """Run a multi-bot conversation responding to
     a player's party chat message.
@@ -2565,9 +2568,11 @@ def execute_player_msg_conversation(
         link_context=link_context,
         speaker_talent_context=speaker_talent,
         target_talent_context=target_talent,
+        allow_action=not brief_casual,
         zone_id=zone_id,
         area_id=area_id,
         map_id=map_id,
+        brief_casual=brief_casual,
     )
 
     # Token budget: max_tokens * (1 + num_bots),
@@ -2621,10 +2626,42 @@ def execute_player_msg_conversation(
         return False
 
     messages = parse_conversation_response(
-        response, bot_names
+        response, bot_names,
+        allow_emote_only=brief_casual,
     )
     if not messages:
         return False
+    if brief_casual and not all(
+        brief_casual_response_fits(
+            str(message.get('message') or ''),
+            message.get('emote'),
+        )
+        for message in messages
+    ):
+        repair_meta = dict(pmsg_meta)
+        repair_meta['brief_casual_repair'] = True
+        response = call_llm(
+            client,
+            build_brief_casual_repair_prompt(prompt),
+            config,
+            max_tokens_override=conv_tokens,
+            context=f"pmsg-conv-brief-repair:{names_ctx}",
+            label='group_player_msg_conv',
+            metadata=repair_meta,
+        )
+        messages = parse_conversation_response(
+            response or '',
+            bot_names,
+            allow_emote_only=True,
+        )
+        if not messages or not all(
+            brief_casual_response_fits(
+                str(message.get('message') or ''),
+                message.get('emote'),
+            )
+            for message in messages
+        ):
+            return False
 
 
     # Insert messages with staggered delivery.
@@ -2643,9 +2680,11 @@ def execute_player_msg_conversation(
         text = cleanup_message(
             text, action=msg.get('action')
         )
-        if not text:
+        emote = msg.get('emote')
+        if not text and not emote:
             continue
-        text = shorten_chat_message(text)
+        if text:
+            text = shorten_chat_message(text)
 
         speaker_guid = bot_guids.get(
             msg['name']
@@ -2663,7 +2702,6 @@ def execute_player_msg_conversation(
             )
             cumulative_delay += delay
 
-        emote = msg.get('emote')
         insert_chat_message(
             db, speaker_guid, msg['name'],
             text, channel='party',
@@ -2677,7 +2715,8 @@ def execute_player_msg_conversation(
         )
         _store_chat(
             db, group_id, speaker_guid,
-            msg['name'], True, text,
+            msg['name'], True,
+            text or f"[performed /{emote}]",
         )
         prev_len = len(text)
 

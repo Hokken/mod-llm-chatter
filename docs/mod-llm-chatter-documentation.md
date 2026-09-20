@@ -165,13 +165,16 @@ urgent work.
 
 So event priority matters at claim time.
 
-### Legacy ambient queue ordering
+### Ambient queue ordering
 
-`llm_chatter_queue` is the older ambient queue. It is processed FIFO:
+`llm_chatter_queue` is processed FIFO:
 
 - `ORDER BY created_at ASC`
 
 `LLMChatter.MaxPendingRequests` currently gates this queue only.
+Each row carries the message family selected by C++. Trade rows also
+carry a value-only live inventory snapshot; Python never rerolls the
+family or queries saved inventory state.
 
 ### Final message delivery ordering
 
@@ -337,7 +340,23 @@ Owns ambient world/event behavior:
 - holiday start/stop routing
 - weather state and transition handling
 - ambient zone selection and faction choice
+- message-family selection
+- trade-item snapshot requests after trade is selected
 - ambient chatter queue writes
+
+### `src/LLMChatterLoot.cpp` and `src/LLMChatterLoot.h`
+
+Own real ungrouped-playerbot loot announcements: `OnPlayerLootItem`
+capture, one RNG decision per loot source, uniform item reservoir
+sampling, bounded per-bot aggregation, audience/cooldown checks, and
+`bot_loot_item` queueing.
+
+### `src/LLMChatterTrade.cpp` and `src/LLMChatterTrade.h`
+
+Own demand-driven scans of the selected ambient seller's backpack and
+equipped bags. Only tradeable, non-conjured, non-quest, non-expiring
+items are eligible. A configurable quality-weighted reservoir chooses one
+slot, and the result is copied into a value-only snapshot.
 
 ### `src/LLMChatterNearby.cpp`
 
@@ -443,6 +462,7 @@ Owns battleground-specific hooks and BG queue helpers.
 - `tools/llm_chatter_bridge.py`
 - `tools/chatter_event_registry.py`
 - `tools/chatter_ambient.py`
+- `tools/chatter_loot.py`
 
 ### Group domain
 
@@ -768,17 +788,25 @@ Ambient requests can become:
 
 - plain statements
 - quest statements
-- loot statements
 - quest + reward statements
-- trade-style statements
+- trade-style statements grounded in an item currently owned by the
+  first speaker
 - NPC gossip statements/conversations
 - bot gossip statements/conversations
 - multi-bot conversations
 
-NPC and bot gossip are selected by additive Python-side RNG gates
-(`AmbientNpcGossipChance`, `AmbientBotGossipChance`) before the
-regular plain/quest/loot/trade/spell mix. If a target cannot be
-resolved, the request falls back to plain ambient chatter.
+C++ selects the family once, using the additive gossip gates
+(`AmbientNpcGossipChance`, `AmbientBotGossipChance`) before the regular
+plain/quest/quest-reward/trade/spell mix. Python consumes that decision
+without another RNG roll. Only when trade wins does C++ scan the first
+speaker's live inventory and attach an item snapshot. If there is no
+eligible item, C++ changes the family to plain before inserting the row;
+malformed or missing snapshots also fall back to plain in Python. Eligible
+bag slots are selected with a weighted reservoir: common items keep weight
+one and each quality tier above common adds
+`AmbientTrade.QualityWeightBonus`. This favors unusual real items without
+excluding ordinary consumables, materials, or ammunition. Set the bonus to
+zero to restore uniform selection.
 
 NPC gossip targets are service/social NPCs spawned in the current zone,
 with the prompt receiving the NPC name, title/subname, function, creature
@@ -795,6 +823,47 @@ Prompt generation and runtime logic live mainly in:
 - `tools/chatter_ambient.py`
 - `tools/chatter_prompts.py`
 - `tools/chatter_shared.py`
+
+| Key | Default | Purpose |
+|---|---:|---|
+| `LLMChatter.AmbientTrade.QualityWeightBonus` | 4 | Added trade-selection weight per quality tier above common |
+
+### Real loot announcements
+
+Real loot is not an ambient message family. `LLMChatterLoot.cpp` listens
+to successful `OnPlayerLootItem` callbacks from eligible ungrouped bots
+only while a same-faction real player is present in the same outdoor map
+and zone. It rejects empty source GUIDs and items below
+`GeneralLoot.MinQuality`, rolls `EventReactionChance` once per source,
+then chooses one item uniformly if that source produces several item
+callbacks.
+
+The hot hook reads a world-thread-published audience snapshot, performs
+only a cache-only cooldown check, and never walks all sessions, touches
+General channel membership, queries the database, or reads the random-bot
+manager's shared containers. Per-bot state is bounded to one active source
+and one completed source awaiting the next world tick. It also checks
+`Item::IsInWorld()` before reading the item entry or template because a
+stacked callback item may already have been freed. The world-thread flush
+restricts delivery to random bots and revalidates location, audience,
+channel eligibility, and the persisted zone cooldown before queueing the
+event. Python resolves exactly the recorded online random-bot GUID. It
+trusts the live zone captured and revalidated by C++ rather than the
+save-time `characters.zone` value.
+Ambient loot is no longer invented from zone loot-table queries, and no
+inventory or loot-event history is retained outside these bounded
+short-lived values.
+
+| Key | Default | Purpose |
+|---|---:|---|
+| `LLMChatter.GeneralLoot.Enable` | 1 | Enable real bot-loot announcements |
+| `LLMChatter.GeneralLoot.AggregationDelayMilliseconds` | 2500 | Quiet period for grouping callbacks from one source |
+| `LLMChatter.GeneralLoot.ZoneCooldownSeconds` | 180 | Minimum interval between announcements in one zone |
+| `LLMChatter.GeneralLoot.MinQuality` | 2 | Minimum eligible item quality |
+
+Existing installations must apply
+`data/sql/characters/updates/20260919_real_general_items.sql` before
+starting a server built with this queue contract.
 
 ---
 
@@ -1830,7 +1899,9 @@ delivery code:
 | Helper | Purpose |
 |--------|---------|
 | `calculate_dynamic_delay(responsive=False)` | Delivery timing — skips distraction sim and uses a 2s floor when `responsive=True` |
-| `find_addressed_bot(...)` | Named-bot detection + multi-addressed intent classification via LLM |
+| `find_addressed_bot(...)` | Explicit/implicit addressee, multi-addressed intent, brief-casual scale, and optional-reply classification via LLM context analysis |
+| `should_reply_to_optional_casual(...)` | One bounded RNG roll for semantically optional brief turns; non-optional turns always pass |
+| `build_conversational_scale_guidance(...)` | Shared instruction that keeps Guild, General, party, proximity-speech, and proximity-emote responses proportional to the player's conversational scale |
 | `should_include_action()` | Single RNG roll gating narrator action inclusion (`random.random() < get_action_chance()`). Use at conversation delivery sites instead of calling `get_action_chance()` directly to avoid double-rolling the probability |
 | `PromptParts(str)` | System/user prompt split wrapper; auto-detected by `call_llm()` |
 | `build_talent_context(...)` | Talent-aware personality context builder |
@@ -2260,6 +2331,22 @@ receive separate NPC and playerbot topic angles.
 `proximity_boss_player_say`. Both produce one message-only `myell` row
 tagged with `owner_subsystem='boss_dialogue'`.
 
+Player-responsive proximity prompts use the shared conversational-scale
+guidance. Short casual speech receives a short casual answer, and a simple
+social emote receives a lightweight reaction rather than a monologue or a
+new topic. The generation model judges player speech semantically; the bridge
+does not maintain a phrase list. Semantically brief speech uses the shared
+2-8-word / 50-character hard limit and one strict rewrite attempt. A valid
+structured emote may be the entire local party/proximity speech reaction only
+when that turn is classified `brief_casual`. Explicit player-emote events may
+also produce emote-only output, but keep their existing server reaction chance
+and are not put through the optional-reply RNG or hard repair gate. Python
+stores an empty message plus the emote, and C++ plays the emote without sending
+an empty chat packet. Invalid emote names are dropped terminally, and party
+emotes in battlegrounds retain the combat-emote allowlist. Guild uses a short
+visible third-person narrator action for the equivalent remote reaction;
+General continues to use short textual replies.
+
 Prompts include up to four distinct nearby entity names so speakers can
 address each other without repeating identical names. One conversation
 also selects at most one speaker with a given display name because the
@@ -2568,6 +2655,26 @@ An explicitly addressed bot is the primary responder. Otherwise,
 recent speakers receive a soft configurable weight penalty so the same
 Guild member does not dominate every exchange.
 
+The same LLM intent pass can resolve an implicit addressee from the recent
+transcript, such as a player naturally answering the immediately prior
+speaker without repeating their name. It also marks brief casual
+continuations semantically. A brief continuation directed to one bot stays
+with that responder when a reply is warranted, bypasses the recent-speaker
+penalty, and suppresses callback, player-name, and follow-up-question
+embellishments.
+The shared prompt guidance then requires a few casual words or one short
+sentence instead of developed prose. General, party, and proximity player
+responses use the same scale-matching guidance.
+
+The intent pass also marks `reply_optional` only when leaving a brief casual
+turn unanswered would feel natural in context. Guild, General, party, and
+proximity-speech handlers then roll
+`LLMChatter.PlayerChat.OptionalCasualReplyChance` once before generation.
+The default 20% reply chance makes silence the common result without suppressing
+questions, requests, warnings, important information, or other turns that
+clearly expect engagement. A failed roll skips the event without a generation
+call; a successful optional turn uses one responder.
+
 The conversation roll remains independent and runs first. If it fails,
 the bridge rolls the independent multi-reply chance. A message clearly
 addressed to several guildmates receives a configurable bonus to that
@@ -2627,6 +2734,7 @@ response path used by other chatter.
 | `PlayerReplies.RecentSpeakerPenalty` | 60 | Bridge | Recent-speaker weight reduction |
 | `PlayerReplies.FirstDelayMin` | 8 | Bridge | Minimum first reply delay |
 | `PlayerReplies.FirstDelayMax` | 20 | Bridge | Maximum first reply delay |
+| `PlayerChat.OptionalCasualReplyChance` | 20 | Bridge | Shared reply chance for semantically optional brief turns |
 | `SessionMemory.Enable` | 1 | Bridge | Include and compact session memory |
 | `SessionMemory.SummaryThresholdChars` | 3500 | Bridge | Compaction threshold |
 | `SessionMemory.SummaryMaxInputChars` | 8000 | Bridge | Per-call transcript input cap |
@@ -2799,8 +2907,8 @@ Typical multi-message JSON shape:
 
 | Table | Producer | Consumer | Purpose |
 |---|---|---|---|
-| `llm_chatter_events` | C++ | Python | Event queue |
-| `llm_chatter_queue` | C++ | Python | Ambient request queue |
+| `llm_chatter_events` | C++ | Python | Event queue, including actual bot-loot snapshots |
+| `llm_chatter_queue` | C++ | Python | Ambient request queue with server-selected `message_type` and optional `item_context` |
 | `llm_chatter_messages` | Python | C++ | Outbound delivery queue with speaker/player IDs, explicit directed-line addressees, and drop diagnostics |
 | `llm_group_cached_responses` | Python | C++ | Pre-cached instant reactions |
 | `llm_group_bot_traits` | Python + C++ travel refresh | Python | Group personality, location, and live travel state |
@@ -2830,6 +2938,8 @@ constructor's `enabledHooks` vector or it will silently never fire.
 
 - `LLMChatterDelivery.cpp` for outbound delivery logic
 - `LLMChatterAmbient.cpp` for ambient world/event logic
+- `LLMChatterLoot.cpp` for real General loot capture and aggregation
+- `LLMChatterTrade.cpp` for live ambient seller inventory snapshots
 - `LLMChatterNearby.cpp` for nearby scan logic
 - `LLMChatterProximity.cpp` for proximity chatter scan and scene logic
 - `LLMChatterWorld.cpp` for world transport/dispatcher logic

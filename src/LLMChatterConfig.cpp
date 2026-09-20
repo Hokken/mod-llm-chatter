@@ -6,6 +6,7 @@
 #include "LLMChatterConfig.h"
 #include "Config.h"
 #include "Log.h"
+#include "SharedDefines.h"
 
 #include <algorithm>
 #include <array>
@@ -256,6 +257,14 @@ void LLMChatterConfig::LoadConfig()
     _conversationChance = GetChatterOption<uint32>(
         "LLMChatter.ConversationChance", 40);
     _triggerChance = GetChatterOption<uint32>("LLMChatter.TriggerChance", 15);
+    _ambientNpcGossipChance = GetChatterOption<uint32>(
+        "LLMChatter.AmbientNpcGossipChance", 5);
+    _ambientBotGossipChance = GetChatterOption<uint32>(
+        "LLMChatter.AmbientBotGossipChance", 5);
+    _ambientTradeQualityWeightBonus = std::min<uint32>(
+        GetChatterOption<uint32>(
+            "LLMChatter.AmbientTrade.QualityWeightBonus", 4),
+        100);
     _cityChatterMultiplier = GetChatterOption<uint32>("LLMChatter.CityChatterMultiplier", 2);
     _maxPendingRequests = GetChatterOption<uint32>("LLMChatter.MaxPendingRequests", 5);
     _maxBotsPerZone = GetChatterOption<uint32>(
@@ -741,6 +750,23 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<uint32>(
             "LLMChatter.GeneralChat.HistoryLimit",
             15);
+
+    _generalLootEnable = GetChatterOption<bool>(
+        "LLMChatter.GeneralLoot.Enable", true);
+    _generalLootAggregationDelayMs = std::max<uint32>(
+        100,
+        GetChatterOption<uint32>(
+            "LLMChatter.GeneralLoot."
+            "AggregationDelayMilliseconds",
+            2500));
+    _generalLootZoneCooldownSeconds =
+        GetChatterOption<uint32>(
+            "LLMChatter.GeneralLoot.ZoneCooldownSeconds",
+            180);
+    _generalLootMinQuality = std::min<uint32>(
+        GetChatterOption<uint32>(
+            "LLMChatter.GeneralLoot.MinQuality", 2),
+        MAX_ITEM_QUALITY - 1);
 
     // RP enrichment
     _raceLoreChance = GetChatterOption<uint32>("LLMChatter.RaceLoreChance", 20);

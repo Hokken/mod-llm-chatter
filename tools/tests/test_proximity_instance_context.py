@@ -3,6 +3,7 @@
 
 import importlib
 import json
+import re
 import sys
 import types
 from pathlib import Path
@@ -45,6 +46,8 @@ from chatter_instance_context import (  # noqa: E402
 )
 import chatter_boss_dialogue  # noqa: E402
 import chatter_proximity  # noqa: E402
+import chatter_shared  # noqa: E402
+from chatter_constants import EMOTE_LIST  # noqa: E402
 from chatter_emote_reaction import (  # noqa: E402
     _build_reaction_prompt as build_grouped_emote_prompt,
 )
@@ -230,6 +233,212 @@ def test_all_proximity_prompt_shapes_receive_instance_context():
     for prompt in prompts:
         assert 'Instance: Shadowfang Keep' in prompt
         assert 'haunted fortress' in prompt.lower()
+
+
+def test_player_responsive_proximity_prompts_match_input_scale():
+    scale_rule = "Match the player's conversational scale."
+    participants = [NPC, {**NPC, 'name': 'Thar'}]
+    prompts = [
+        _single_prompt(
+            _DB(), INSTANCE_EXTRA, NPC, 'brief local reply',
+            player_message='thanks :)',
+            config=NORMAL_CONFIG,
+        ).user_prompt,
+        _player_say_single_prompt(
+            _DB(), INSTANCE_EXTRA, NPC, 'thanks :)', [],
+            NORMAL_CONFIG,
+        ).user_prompt,
+        _player_say_conversation_prompt(
+            _DB(),
+            {**INSTANCE_EXTRA, 'participants': participants},
+            participants, 'thanks :)', [], NORMAL_CONFIG,
+        ).user_prompt,
+        _player_emote_single_prompt(
+            _DB(), INSTANCE_EXTRA, NPC, 'wave', NORMAL_CONFIG,
+        ).user_prompt,
+        _player_emote_conversation_prompt(
+            _DB(),
+            {
+                **INSTANCE_EXTRA,
+                'participants': participants,
+                'addressed_name': NPC['name'],
+                'interaction_mode': 'player_inclusive',
+            },
+            participants, 'wave', NORMAL_CONFIG,
+        ).user_prompt,
+        build_boss_prompt({
+            **BOSS_EXTRA,
+            'player_message': 'thanks :)',
+        }).user_prompt,
+    ]
+    for prompt in prompts:
+        assert scale_rule in prompt
+
+
+def test_emote_only_proximity_contract_is_safe():
+    inserted = []
+    original_insert = chatter_proximity.insert_chat_message
+    try:
+        chatter_proximity.insert_chat_message = (
+            lambda db, **kwargs: inserted.append(kwargs)
+        )
+        assert not chatter_proximity._insert_proximity_line(
+            _DB(),
+            91,
+            NPC,
+            42,
+            0,
+            0,
+            {'message': '', 'emote': 'nod', 'action': None},
+        )
+        assert chatter_proximity._insert_proximity_line(
+            _DB(),
+            91,
+            NPC,
+            42,
+            0,
+            0,
+            {'message': '', 'emote': 'nod', 'action': None},
+            allow_emote_only=True,
+        )
+    finally:
+        chatter_proximity.insert_chat_message = original_insert
+
+    assert inserted[0]['message'] == ''
+    assert inserted[0]['emote'] == 'nod'
+
+    parsed = parse_conversation_response(
+        '[{"speaker":"Aliss","message":"","emote":"nod"}]',
+        ['Aliss'],
+        allow_emote_only=True,
+    )
+    assert parsed == [{
+        'name': 'Aliss',
+        'message': '',
+        'emote': 'nod',
+    }]
+
+    delivery = (
+        MODULE_DIR / 'src' / 'LLMChatterDelivery.cpp'
+    ).read_text(encoding='utf-8')
+    assert 'bool emoteOnly = processedMessage.empty()' in delivery
+    assert 'channel == "say"' in delivery
+    assert 'channel == "party"' in delivery
+    assert 'if (!msayMessage.empty())' in delivery
+    assert 'dropReason = "invalid_emote"' in delivery
+    assert 'dropReason = "bg_emote_blocked"' in delivery
+    assert 'IsBGAllowedEmote(emoteName)' in delivery
+    assert 'bool msayEmoteOnly =' in delivery
+
+    shared = (
+        MODULE_DIR / 'src' / 'LLMChatterShared.cpp'
+    ).read_text(encoding='utf-8')
+    lookup = shared.split(
+        'uint32 LookupTextEmoteId', 1
+    )[1].split('\n}', 1)[0]
+    mapped_emotes = set(re.findall(
+        r'\{"([^"]+)",\s*TEXT_EMOTE_', lookup,
+    ))
+    missing_emotes = set(EMOTE_LIST) - {'none'} - mapped_emotes
+    assert not missing_emotes, sorted(missing_emotes)
+
+    reverse_map = shared.split(
+        'std::string GetTextEmoteName', 1
+    )[1].split('\n}', 1)[0]
+    assert re.search(
+        r'\{TEXT_EMOTE_ROFL,\s*"rofl"\}', reverse_map,
+    )
+
+
+def test_brief_proximity_prompts_have_one_length_contract():
+    participants = [NPC, {**NPC, 'name': 'Thar'}]
+    brief = {
+        **INSTANCE_EXTRA,
+        'brief_casual': True,
+        'participants': participants,
+    }
+    prompts = [
+        chatter_proximity._single_prompt(
+            _DB(), brief, NPC, 'brief reply',
+            player_message='thanks',
+            config=NORMAL_CONFIG,
+        ),
+        _player_say_single_prompt(
+            _DB(), brief, NPC, 'thanks', [],
+            NORMAL_CONFIG,
+        ),
+        _player_say_conversation_prompt(
+            _DB(), brief, participants, 'thanks', [],
+            NORMAL_CONFIG,
+        ),
+        build_boss_prompt({
+            **BOSS_EXTRA,
+            'player_message': 'thanks',
+            'brief_casual': True,
+        }),
+    ]
+    for prompt in prompts:
+        combined = prompt.user_prompt + prompt.system_prompt
+        assert '2-8 words' in combined
+        assert '8-15 words' not in combined
+        assert '6-14 words' not in combined
+        assert '5-22 words' not in combined
+
+
+def test_player_speech_emote_only_requires_brief_classification():
+    original_chance = chatter_shared._emote_chance
+    chatter_shared.set_emote_chance(100)
+    try:
+        normal = _player_say_single_prompt(
+            _DB(), INSTANCE_EXTRA, NPC,
+            'Where is the flight master?', [], NORMAL_CONFIG,
+        )
+        brief = _player_say_single_prompt(
+            _DB(), {**INSTANCE_EXTRA, 'brief_casual': True},
+            NPC, 'thanks', [], NORMAL_CONFIG,
+        )
+    finally:
+        chatter_shared._emote_chance = original_chance
+    assert 'empty message' not in normal.system_prompt
+    assert 'empty message' in brief.system_prompt
+
+    source = (
+        MODULE_DIR / 'tools' / 'chatter_proximity.py'
+    ).read_text(encoding='utf-8')
+    assert 'allow_emote_only=brief_casual' in source
+    assert 'allow_emote_only=bool(' in source
+    assert "extra.get('brief_casual')" in source
+    player_emote_handler = source.split(
+        'def handle_proximity_player_emote(', 1
+    )[1]
+    assert '_brief_conversation_fits(parsed)' not in player_emote_handler
+    assert "brief_casual=True" not in source.split(
+        'def _generate_player_emote_single(', 1
+    )[1].split(
+        'def handle_proximity_player_emote(', 1
+    )[0]
+
+
+def test_optional_party_turn_cannot_force_conversation():
+    source = (
+        MODULE_DIR / 'tools' / 'chatter_group.py'
+    ).read_text(encoding='utf-8')
+    conversation_gate = source.split(
+        'force_conv = (', 1
+    )[1].split('rng_conv = (', 1)[0]
+    assert "not bool(addr_result.get('reply_optional'))" in (
+        conversation_gate
+    )
+
+
+def test_proximity_conversation_passes_built_metadata():
+    source = (
+        MODULE_DIR / 'tools' / 'chatter_proximity.py'
+    ).read_text(encoding='utf-8')
+    handler = source.split(
+        'def handle_proximity_conversation(', 1
+    )[1].split('def _format_history_block(', 1)[0]
+    assert 'metadata=metadata' in handler
 
 
 def test_directed_emote_registry_and_player_agency_contract():

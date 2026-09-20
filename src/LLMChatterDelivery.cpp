@@ -882,7 +882,61 @@ void DeliverPendingMessagesImpl()
                 actionEmitted = true;
             };
 
-            if (channel == "party")
+            // An action never rides along with an empty
+            // spoken line (split_action_prefix leaves a
+            // pure-action message intact), so the emote-only
+            // path below has nothing to act out.
+            bool emoteOnly = processedMessage.empty()
+                && !emoteName.empty()
+                && (channel == "say"
+                    || (channel == "party"
+                        && bot->GetGroup()));
+            if (emoteOnly)
+            {
+                bool bgEmoteBlocked =
+                    (channel == "battleground"
+                        || (channel == "party"
+                            && bot->GetBattleground()))
+                    && !IsBGAllowedEmote(emoteName);
+                if (bgEmoteBlocked)
+                {
+                    botUnavailable = true;
+                    dropReason = "bg_emote_blocked";
+                }
+                else
+                {
+                    uint32 textEmoteId =
+                        GetTextEmoteId(emoteName);
+                    if (textEmoteId)
+                    {
+                        std::string emoteTargetName =
+                            explicitAddressee
+                                ? explicitAddressee->GetName()
+                                : (emoteTarget
+                                    ? emoteTarget->GetName()
+                                    : "");
+                        if (emoteName == "talk"
+                            && emoteTargetName.empty())
+                        {
+                            PlayUnitTextEmoteAnimation(
+                                bot, textEmoteId);
+                        }
+                        else
+                        {
+                            SendBotTextEmote(
+                                bot, textEmoteId,
+                                emoteTargetName);
+                        }
+                        sent = true;
+                    }
+                    else
+                    {
+                        botUnavailable = true;
+                        dropReason = "invalid_emote";
+                    }
+                }
+            }
+            else if (channel == "party")
             {
                 Group* grp = bot->GetGroup();
                 emitAction();
@@ -1067,6 +1121,7 @@ void DeliverPendingMessagesImpl()
             }
 
             if (sent
+                && !emoteOnly
                 && !emoteName.empty()
                 && channel != "general"
                 && channel != "yell")
@@ -1236,9 +1291,15 @@ void DeliverPendingMessagesImpl()
                 actionEmitted = true;
             }
 
-            speaker->Say(
-                msayMessage, LANG_UNIVERSAL);
-            sent = true;
+            bool msayEmoteOnly =
+                msayMessage.empty()
+                && !emoteName.empty();
+            if (!msayMessage.empty())
+            {
+                speaker->Say(
+                    msayMessage, LANG_UNIVERSAL);
+                sent = true;
+            }
 
             if (!emoteName.empty())
             {
@@ -1253,6 +1314,12 @@ void DeliverPendingMessagesImpl()
                     SendUnitTextEmote(
                         speaker, textEmoteId,
                         targetName);
+                    sent = true;
+                }
+                else if (msayEmoteOnly)
+                {
+                    botUnavailable = true;
+                    dropReason = "invalid_emote";
                 }
             }
 
@@ -1347,6 +1414,13 @@ void DeliverPendingMessagesImpl()
         if (pendingRes)
             replyEligible = false;
 
+        std::string deliveredContext = message;
+        if (deliveredContext.empty()
+            && !emoteName.empty())
+        {
+            deliveredContext = std::string(
+                "[performed /") + emoteName + "]";
+        }
         RecordDeliveredProximityLine(
             eventId,
             playerGuid,
@@ -1357,7 +1431,7 @@ void DeliverPendingMessagesImpl()
             channel == "msay" ? npcSpawnId : 0,
             replyEligible,
             botName,
-            message);
+            deliveredContext);
     }
 
     if (sent && channel == "party")

@@ -333,6 +333,7 @@ public:
 
         _lastTriggerTime = 0;
         _lastDeliveryTime = 0;
+        _lastGeneralAudienceRefreshTime = 0;
         _lastEnvironmentCheckTime = 0;
         _lastTransportCheckTime = 0;
         _lastGoScanTime = 0;
@@ -354,6 +355,12 @@ public:
             return;
 
         uint32 now = getMSTime();
+
+        if (now - _lastGeneralAudienceRefreshTime >= 1000)
+        {
+            _lastGeneralAudienceRefreshTime = now;
+            RefreshGeneralAudienceSnapshot();
+        }
 
         if (now - _lastDeliveryTime
             >= sLLMChatterConfig->_deliveryPollMs)
@@ -510,6 +517,7 @@ public:
 private:
     uint32 _lastTriggerTime = 0;
     uint32 _lastDeliveryTime = 0;
+    uint32 _lastGeneralAudienceRefreshTime = 0;
     uint32 _lastEnvironmentCheckTime = 0;
     uint32 _lastTransportCheckTime = 0;
     uint32 _lastGoScanTime = 0;

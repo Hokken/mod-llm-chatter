@@ -5,6 +5,7 @@
 #include "LLMChatterBG.h"
 #include "LLMChatterGuild.h"
 #include "LLMChatterGroup.h"
+#include "LLMChatterLoot.h"
 #include "LLMChatterRaid.h"
 #include "LLMChatterShared.h"
 
@@ -16,6 +17,7 @@ void AddLLMChatterScripts()
     AddLLMChatterGuildScripts();
     AddLLMChatterGroupScripts();
     AddLLMChatterPlayerScripts();
+    AddLLMChatterLootScripts();
     AddLLMChatterBGScripts();
     AddLLMChatterRaidScripts();
     AddLLMChatterCommandScripts();

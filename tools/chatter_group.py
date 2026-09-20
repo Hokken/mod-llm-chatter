@@ -49,6 +49,7 @@ from chatter_shared import (
     parse_conversation_response,
     calculate_dynamic_delay,
     find_addressed_bot,
+    should_reply_to_optional_casual,
     insert_chat_message,
     pick_emote_for_statement,
     detect_item_links,
@@ -76,6 +77,8 @@ from chatter_shared import (
     select_conversation_message_count,
     shorten_chat_message,
     shorten_chat_question,
+    brief_casual_response_fits,
+    build_brief_casual_repair_prompt,
 )
 from chatter_db import (
     get_character_info_by_name,
@@ -1704,6 +1707,19 @@ def process_group_player_msg_event(
     multi_addressed = addr_result.get(
         'multi_addressed', False
     )
+    brief_casual = bool(
+        addr_result.get('brief_casual', False)
+    )
+    if not should_reply_to_optional_casual(
+        config, addr_result
+    ):
+        logger.info(
+            "bot_group_player_msg event=%s left unanswered "
+            "after optional-casual RNG",
+            event_id,
+        )
+        _mark_event(db, event_id, 'skipped')
+        return False
     if addressed:
         for b in all_bots:
             if b['bot_name'] == addressed:
@@ -1825,10 +1841,13 @@ def process_group_player_msg_event(
         )
 
         force_conv = (
-            multi_addressed and num_bots >= 2
+            multi_addressed
+            and not bool(addr_result.get('reply_optional'))
+            and num_bots >= 2
         )
         rng_conv = (
             not force_conv
+            and not brief_casual
             and num_bots >= 2
             and eff_conv_chance > 0
             and random.randint(1, 100)
@@ -1871,6 +1890,7 @@ def process_group_player_msg_event(
                         zone_id=zone_id,
                         area_id=area_id,
                         map_id=map_id,
+                        brief_casual=brief_casual,
                     )
                 )
                 if conv_ok:
@@ -1915,7 +1935,11 @@ def process_group_player_msg_event(
         memory_enabled = int(config.get(
             'LLMChatter.Memory.Enable', 1
         ))
-        if memory_enabled and player_info:
+        if (
+            not brief_casual
+            and memory_enabled
+            and player_info
+        ):
             recall_chance = int(config.get(
                 'LLMChatter.Memory'
                 '.IdleRecallChance', 30,
@@ -1951,6 +1975,8 @@ def process_group_player_msg_event(
             stored_tone=stored_tone,
             memories=msg_memories,
             travel_context=travel_context,
+            brief_casual=brief_casual,
+            allow_action=not brief_casual,
         )
 
         max_tokens = pick_random_max_tokens(config)
@@ -2011,13 +2037,45 @@ def process_group_player_msg_event(
         message = cleanup_message(
             message, action=parsed.get('action')
         )
-        if not message:
+        emote = parsed.get('emote')
+        if (
+            brief_casual
+            and not brief_casual_response_fits(
+                message, emote
+            )
+        ):
+            repair_meta = dict(pmsg_meta)
+            repair_meta['brief_casual_repair'] = True
+            response = call_llm(
+                client,
+                build_brief_casual_repair_prompt(prompt),
+                config,
+                max_tokens_override=max_tokens,
+                context=f"grp-msg-brief-repair:{bot_name}",
+                label=_pmsg_label,
+                metadata=repair_meta,
+            )
+            parsed = parse_single_response(response or '')
+            message = strip_speaker_prefix(
+                parsed.get('message', ''), bot_name
+            )
+            message = cleanup_message(message)
+            emote = parsed.get('emote')
+        if not message and not (
+            brief_casual and emote
+        ):
             _mark_event(db, event_id, 'skipped')
             return False
-        message = shorten_chat_message(message)
-
-
-        emote = parsed.get('emote')
+        if (
+            brief_casual
+            and not brief_casual_response_fits(
+                message, emote
+            )
+        ):
+            _mark_event(db, event_id, 'skipped')
+            return False
+        if message:
+            message = shorten_chat_message(message)
         reply_delay = calculate_dynamic_delay(
             len(message), config,
             prev_message_length=len(
@@ -2038,12 +2096,13 @@ def process_group_player_msg_event(
 
         _store_chat(
             db, group_id, bot_guid,
-            bot_name, True, message
+            bot_name, True,
+            message or f"[performed /{emote}]",
         )
 
         # Second bot chance — MUTUAL EXCLUSION:
         # skip if conversation path was used
-        if not used_conversation:
+        if not used_conversation and not brief_casual:
             second_chance = int(config.get(
                 'LLMChatter.GroupChatter'
                 '.PlayerMsgSecondBotChance',

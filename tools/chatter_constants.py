@@ -1589,15 +1589,6 @@ CLASS_BITMASK = {
     "Druid": 512,
 }
 
-# Message type distribution (cumulative percentages)
-# 50% plain, 15% quest, 12% loot, 8% quest+reward, 10% trade, 5% spell
-MSG_TYPE_PLAIN = 50
-MSG_TYPE_QUEST = 65        # 15% chance (51-65)
-MSG_TYPE_LOOT = 77         # 12% chance (66-77)
-MSG_TYPE_QUEST_REWARD = 85   # 8% chance (78-85)
-MSG_TYPE_TRADE = 95          # 10% chance (86-95)
-MSG_TYPE_SPELL = 100         # 5% chance (96-100)
-
 # =============================================================================
 # AMBIENT CHAT TOPICS
 # =============================================================================

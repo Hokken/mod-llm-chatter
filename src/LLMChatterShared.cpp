@@ -23,6 +23,7 @@
 #include "Util.h"
 #include "World.h"
 #include "WorldSession.h"
+#include "WorldSessionMgr.h"
 
 #include <utf8.h>
 
@@ -31,7 +32,11 @@
 #include <cctype>
 #include <ctime>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <random>
+#include <set>
+#include <shared_mutex>
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
@@ -72,6 +77,32 @@ constexpr uint8 PRIORITY_HIGH_LOCAL = PRIORITY_HIGH + 1;
 constexpr uint8 PRIORITY_CRITICAL =
     static_cast<uint8>(LLMChatterPriorityBand::Critical);
 std::unordered_set<uint32> _namedBossEntries;
+
+using GeneralAudienceSnapshot =
+    std::unordered_map<uint64, uint8>;
+
+std::shared_mutex _generalAudienceSnapshotMutex;
+std::shared_ptr<GeneralAudienceSnapshot const>
+    _generalAudienceSnapshot;
+
+constexpr uint8 GENERAL_AUDIENCE_ALLIANCE = 0x01;
+constexpr uint8 GENERAL_AUDIENCE_HORDE = 0x02;
+
+uint64 MakeGeneralAudienceKey(
+    uint32 mapId, uint32 zoneId)
+{
+    return (static_cast<uint64>(mapId) << 32)
+        | static_cast<uint64>(zoneId);
+}
+
+uint8 GetGeneralAudienceTeamMask(TeamId teamId)
+{
+    if (teamId == TEAM_ALLIANCE)
+        return GENERAL_AUDIENCE_ALLIANCE;
+    if (teamId == TEAM_HORDE)
+        return GENERAL_AUDIENCE_HORDE;
+    return 0;
+}
 
 std::string EscapeLogPreview(
     std::string const& text, size_t maxBytes)
@@ -918,6 +949,7 @@ uint32 LookupTextEmoteId(const std::string& emoteName)
         {"lost", TEXT_EMOTE_LOST},
         {"mock", TEXT_EMOTE_MOCK},
         {"ponder", TEXT_EMOTE_PONDER},
+        {"rofl", TEXT_EMOTE_ROFL},
         {"pounce", TEXT_EMOTE_POUNCE},
         {"praise", TEXT_EMOTE_PRAISE},
         {"purr", TEXT_EMOTE_PURR},
@@ -1078,6 +1110,124 @@ bool IsPlayerBot(Player* player)
     // master == bot, so IsSelfBot() keeps it in
     // the real-player side of chatter ownership.
     return !IsSelfBot(player);
+}
+
+bool IsInOverworld(Player* player)
+{
+    if (!player)
+        return false;
+
+    WorldSession* session = player->GetSession();
+    if (!session || session->PlayerLoading())
+        return false;
+
+    Map* map = player->GetMap();
+    if (!map)
+        return false;
+
+    return !map->Instanceable();
+}
+
+bool IsGroupedWithRealPlayer(Player* player)
+{
+    if (!player)
+        return false;
+
+    Group* group = player->GetGroup();
+    if (!group)
+        return false;
+
+    for (GroupReference* itr = group->GetFirstMember();
+         itr != nullptr; itr = itr->next())
+    {
+        Player* member = itr->GetSource();
+        if (member && member != player
+            && !IsPlayerBot(member))
+            return true;
+    }
+
+    return false;
+}
+
+void RefreshGeneralAudienceSnapshot()
+{
+    auto snapshot =
+        std::make_shared<GeneralAudienceSnapshot>();
+    WorldSessionMgr::SessionMap const& sessions =
+        sWorldSessionMgr->GetAllSessions();
+
+    for (auto const& pair : sessions)
+    {
+        WorldSession* session = pair.second;
+        if (!session || session->PlayerLoading())
+            continue;
+
+        Player* player = session->GetPlayer();
+        if (!player || !player->IsInWorld()
+            || IsPlayerBot(player)
+            || !IsInOverworld(player))
+            continue;
+
+        uint32 zoneId = player->GetZoneId();
+        uint8 teamMask = GetGeneralAudienceTeamMask(
+            player->GetTeamId());
+        if (!zoneId || !teamMask)
+            continue;
+
+        (*snapshot)[MakeGeneralAudienceKey(
+            player->GetMapId(), zoneId)] |= teamMask;
+    }
+
+    std::shared_ptr<GeneralAudienceSnapshot const>
+        published = snapshot;
+    std::unique_lock<std::shared_mutex> lock(
+        _generalAudienceSnapshotMutex);
+    _generalAudienceSnapshot.swap(published);
+}
+
+bool HasCachedGeneralAudience(
+    uint32 mapId, uint32 zoneId, TeamId teamId)
+{
+    std::shared_ptr<GeneralAudienceSnapshot const> snapshot;
+    {
+        std::shared_lock<std::shared_mutex> lock(
+            _generalAudienceSnapshotMutex);
+        snapshot = _generalAudienceSnapshot;
+    }
+
+    if (!snapshot)
+        return false;
+
+    auto itr = snapshot->find(
+        MakeGeneralAudienceKey(mapId, zoneId));
+    if (itr == snapshot->end())
+        return false;
+
+    uint8 teamMask = GetGeneralAudienceTeamMask(teamId);
+    return teamMask && (itr->second & teamMask) != 0;
+}
+
+std::vector<uint32> GetCachedGeneralAudienceZones()
+{
+    std::shared_ptr<GeneralAudienceSnapshot const> snapshot;
+    {
+        std::shared_lock<std::shared_mutex> lock(
+            _generalAudienceSnapshotMutex);
+        snapshot = _generalAudienceSnapshot;
+    }
+
+    std::set<uint32> uniqueZones;
+    if (snapshot)
+    {
+        for (auto const& [key, teamMask] : *snapshot)
+        {
+            if (teamMask)
+                uniqueZones.insert(static_cast<uint32>(key));
+        }
+    }
+
+    return std::vector<uint32>(
+        uniqueZones.begin(), uniqueZones.end());
 }
 
 Creature* FindCreatureBySpawnId(
@@ -1659,6 +1809,7 @@ std::string GetTextEmoteName(uint32 emoteId)
         {TEXT_EMOTE_PRAY,          "pray"},
         {TEXT_EMOTE_READY,         "ready"},
         {TEXT_EMOTE_ROAR,          "roar"},
+        {TEXT_EMOTE_ROFL,          "rofl"},
         {TEXT_EMOTE_RUDE,          "rude"},
         {TEXT_EMOTE_SALUTE,        "salute"},
         {TEXT_EMOTE_SCRATCH,       "scratch"},
