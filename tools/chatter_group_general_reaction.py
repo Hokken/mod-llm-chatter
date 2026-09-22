@@ -39,6 +39,7 @@ from chatter_shared import (
     get_class_name,
     get_dungeon_flavor,
     get_gender_label,
+    get_race_faction,
     get_race_name,
     get_subzone_lore,
     get_subzone_name,
@@ -80,6 +81,21 @@ def _relay_enabled(config: dict) -> bool:
     )).strip() == '1'
 
 
+def _character_faction(db, guid: int) -> str:
+    if not guid:
+        return ''
+    cursor = db.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT race FROM characters WHERE guid = %s",
+        (guid,),
+    )
+    row = cursor.fetchone()
+    cursor.close()
+    return get_race_faction(
+        row.get('race') if row else None
+    )
+
+
 def _fetch_group_candidates(
     db,
     zone_id: int,
@@ -87,6 +103,12 @@ def _fetch_group_candidates(
     source_bot_guid: int,
 ) -> List[Dict]:
     """Return active group candidates in the source zone."""
+    source_faction = _character_faction(
+        db, source_bot_guid
+    )
+    if not source_faction:
+        return []
+
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
         SELECT t.group_id, t.bot_guid, t.bot_name,
@@ -115,9 +137,19 @@ def _fetch_group_candidates(
 
     candidates = []
     for group_id, bots in grouped.items():
+        player_guid = get_real_player_guid_for_group(
+            db, group_id
+        )
+        player_faction = _character_faction(
+            db, player_guid
+        )
+        if player_faction != source_faction:
+            continue
         responders = [
             b for b in bots
             if int(b.get('bot_guid') or 0) != source_bot_guid
+            and get_race_faction(b.get('race'))
+            == player_faction
         ]
         if responders:
             candidates.append({
@@ -321,6 +353,15 @@ def _row_to_bot(row: Dict) -> Dict:
 
 
 def _fetch_group_bots(db, group_id: int, source_bot_guid: int) -> List[Dict]:
+    source_faction = _character_faction(
+        db, source_bot_guid
+    )
+    player_faction = _character_faction(
+        db, get_real_player_guid_for_group(db, group_id)
+    )
+    if not source_faction or player_faction != source_faction:
+        return []
+
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
         SELECT t.bot_guid, t.bot_name,
@@ -337,7 +378,11 @@ def _fetch_group_bots(db, group_id: int, source_bot_guid: int) -> List[Dict]:
     """, (group_id, source_bot_guid))
     rows = cursor.fetchall()
     cursor.close()
-    return [_row_to_bot(r) for r in rows]
+    return [
+        _row_to_bot(row) for row in rows
+        if get_race_faction(row.get('race'))
+        == player_faction
+    ]
 
 
 def _fetch_source_bot_info(db, source_bot_guid: int) -> Dict:

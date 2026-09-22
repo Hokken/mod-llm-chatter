@@ -762,7 +762,8 @@ def query_quest_turnin_npc(
 def get_recent_zone_messages(
     db, zone_id: int,
     limit: int = 15,
-    minutes: int = 30
+    minutes: int = 30,
+    faction: str = '',
 ) -> list:
     """Fetch recent delivered messages for a zone.
 
@@ -773,14 +774,31 @@ def get_recent_zone_messages(
     if not zone_id:
         return []
     try:
+        if faction == 'Alliance':
+            faction_filter = (
+                'AND c.race IN (1, 3, 4, 7, 11)'
+            )
+        elif faction == 'Horde':
+            faction_filter = (
+                'AND c.race IN (2, 5, 6, 8, 10)'
+            )
+        else:
+            faction_filter = ''
+        # Faction-scoped anti-repetition context fails closed when
+        # the speaking character can no longer be identified.
+        character_join = (
+            'JOIN characters c ON c.guid = m.bot_guid'
+            if faction_filter else ''
+        )
         cursor = db.cursor(dictionary=True)
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT m.message
             FROM llm_chatter_messages m
             LEFT JOIN llm_chatter_queue q
                 ON m.queue_id = q.id
             LEFT JOIN llm_chatter_events e
                 ON m.event_id = e.id
+            {character_join}
             WHERE m.delivered = 1
               AND m.channel IN (
                   'general', 'say', 'party',
@@ -791,6 +809,7 @@ def get_recent_zone_messages(
               )
               AND (q.zone_id = %s
                    OR e.zone_id = %s)
+              {faction_filter}
             ORDER BY m.delivered_at DESC
             LIMIT %s
         """, (minutes, zone_id, zone_id, limit))

@@ -66,6 +66,7 @@ from chatter_group_general_reaction import (  # noqa: E402
     _build_conversation_prompt as _general_relay_conversation_prompt,
     _build_statement_prompt as _general_relay_prompt,
 )
+import chatter_group_general_reaction as group_relay  # noqa: E402
 import chatter_group_state as group_state  # noqa: E402
 from chatter_guild import (  # noqa: E402
     _build_guild_conversation_prompt,
@@ -109,6 +110,54 @@ def test_brief_party_reply_uses_hard_scale_contract():
     assert '2-8 words' in prompt
     assert 'no more than 50 characters' in prompt
     assert 'Creative twist:' not in prompt
+
+
+def test_party_player_candidates_match_player_faction():
+    bots = [
+        {'bot_guid': 1, 'faction_race': 2},
+        {'bot_guid': 2, 'faction_race': 7},
+        {'bot_guid': 3, 'faction_race': 1},
+    ]
+    selected = group_chat._filter_group_bots_by_player_faction(
+        bots, 4,
+    )
+    assert [bot['bot_guid'] for bot in selected] == [2, 3]
+
+
+def test_general_party_relay_rechecks_faction_when_processed():
+    db = _DB(rows=[
+        {
+            'bot_guid': 2,
+            'bot_name': 'GnomeBot',
+            'race': 7,
+            'class': 8,
+            'level': 30,
+            'gender': 0,
+        },
+        {
+            'bot_guid': 3,
+            'bot_name': 'OrcBot',
+            'race': 2,
+            'class': 1,
+            'level': 30,
+            'gender': 0,
+        },
+    ])
+    with patch.object(
+        group_relay,
+        '_character_faction',
+        side_effect=lambda _db, guid: (
+            'Alliance' if guid in (100, 200) else ''
+        ),
+    ), patch.object(
+        group_relay,
+        'get_real_player_guid_for_group',
+        return_value=200,
+    ):
+        selected = group_relay._fetch_group_bots(
+            db, 42, 100,
+        )
+    assert [bot['guid'] for bot in selected] == [2]
 
 
 def test_brief_party_fallback_is_deterministically_bounded():
@@ -205,6 +254,9 @@ class _Cursor:
         rows = list(self.rows)
         self.rows.clear()
         return rows
+
+    def close(self):
+        pass
 
 
 class _DB:

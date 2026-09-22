@@ -39,6 +39,7 @@ if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 
 import chatter_shared  # noqa: E402
+import chatter_db  # noqa: E402
 import chatter_general  # noqa: E402
 import chatter_world_events  # noqa: E402
 
@@ -275,6 +276,113 @@ def test_brief_single_addressee_suppresses_conversation():
     assert result['is_conversation'] is False
 
 
+def test_player_general_candidates_match_player_faction():
+    class Cursor:
+        query_count = 0
+
+        def execute(self, _query, _params):
+            self.query_count += 1
+
+        def fetchall(self):
+            return [
+                {'guid': 101, 'race': 2},
+                {'guid': 102, 'race': 7},
+                {'guid': 103, 'race': 8},
+                {'guid': 104, 'race': 1},
+            ]
+
+        def close(self):
+            pass
+
+    class DB:
+        cursor_value = Cursor()
+
+        def cursor(self, **_kwargs):
+            return self.cursor_value
+
+    db = DB()
+    guids, names = (
+        chatter_general._filter_player_general_candidates(
+            db,
+            'Alliance',
+            [101, 102, 103, 104],
+            ['OrcBot', 'GnomeBot', 'TrollBot', 'HumanBot'],
+        )
+    )
+
+    assert guids == [102, 104]
+    assert names == ['GnomeBot', 'HumanBot']
+    assert db.cursor_value.query_count == 1
+
+
+def test_player_general_recent_context_matches_faction():
+    class Cursor:
+        query = ''
+
+        def execute(self, query, _params):
+            self.query = query
+
+        def fetchall(self):
+            return []
+
+    class DB:
+        cursor_value = Cursor()
+
+        def cursor(self, **_kwargs):
+            return self.cursor_value
+
+    db = DB()
+    chatter_db.get_recent_zone_messages(
+        db, 12, faction='Alliance'
+    )
+    assert 'c.race IN (1, 3, 4, 7, 11)' in (
+        db.cursor_value.query
+    )
+
+
+def test_cpp_general_roster_matches_player_team():
+    source = (
+        TOOLS_DIR.parent / 'src' / 'LLMChatterPlayer.cpp'
+    ).read_text(encoding='utf-8')
+    assert source.count(
+        '!= player->GetTeamId()'
+    ) >= 2
+
+
+def test_cpp_player_reply_delivery_rechecks_faction():
+    source = (
+        TOOLS_DIR.parent / 'src' / 'LLMChatterDelivery.cpp'
+    ).read_text(encoding='utf-8')
+    for event_type in (
+        'player_general_msg',
+        'bot_group_player_msg',
+        'guild_player_message',
+        'guild_login_greeting',
+    ):
+        assert f'eventType == "{event_type}"' in source
+    assert 'eventType == "bot_group_general_reaction"' not in source
+    assert 'e.subject_guid' in source
+    assert 'subject->GetTeamId()' in source
+    assert '!= bot->GetTeamId()' in source
+    assert '"faction_mismatch"' in source
+    assert 'if (subject' in source
+    assert '!subject ||' not in source
+
+
+def test_cpp_party_player_route_requires_same_team_bot():
+    source = (
+        TOOLS_DIR.parent / 'src' /
+        'LLMChatterGroupCombat.cpp'
+    ).read_text(encoding='utf-8')
+    handler = source.split(
+        'void HandleGroupPlayerBeforeSendChatMessageImpl(', 1
+    )[1].split(
+        'void HandleGroupPlayerLevelChangedImpl(', 1
+    )[0]
+    assert 'member->GetTeamId()' in handler
+    assert '== player->GetTeamId()' in handler
+
+
 if __name__ == '__main__':
     tests = [
         test_full_windows_are_serialized,
@@ -283,6 +391,11 @@ if __name__ == '__main__':
         test_world_event_conversation_uses_reserved_window,
         test_single_reaction_resolves_delay_after_generation,
         test_brief_single_addressee_suppresses_conversation,
+        test_player_general_candidates_match_player_faction,
+        test_player_general_recent_context_matches_faction,
+        test_cpp_general_roster_matches_player_team,
+        test_cpp_player_reply_delivery_rechecks_faction,
+        test_cpp_party_player_route_requires_same_team_bot,
     ]
     for test in tests:
         test()

@@ -999,9 +999,9 @@ LLMChatter.ProximityChatter.InstanceChance = 100
 #       Seconds before the same bot or NPC can be used
 #       again as the lead speaker.
 #       Clamped to 0-3 seconds for fluid local interaction.
-#       Default: 3
+#       Default: 1
 #
-LLMChatter.ProximityChatter.EntityCooldown = 3
+LLMChatter.ProximityChatter.EntityCooldown = 1
 
 #
 #   LLMChatter.ProximityChatter.ZoneFatigueThreshold
@@ -1311,9 +1311,9 @@ LLMChatter.ProximityChatter.BossPresenceResetSeconds = 90
 #       explicitly names or targets a boss and speaks in /say.
 #       This is separate from the longer automatic approach cooldown.
 #       Clamped to 0-3 seconds so directed interaction stays responsive.
-#       Default: 3
+#       Default: 1
 #
-LLMChatter.ProximityChatter.BossDirectedReplyCooldownSeconds = 3
+LLMChatter.ProximityChatter.BossDirectedReplyCooldownSeconds = 1
 
 #
 #   LLMChatter.ProximityChatter.BossDirectedScanCooldownSeconds
@@ -1760,10 +1760,11 @@ LLMChatter.GroupChatter.PlayerMsgSecondBotChance = 25
 #
 #   LLMChatter.GroupChatter.PlayerMsgCooldown
 #       Minimum seconds between group reactions to player
-#       chat messages.
-#       Default: 15
+#       chat messages. The default keeps player-authored
+#       turns responsive without suppressing later messages.
+#       Default: 0
 #
-LLMChatter.GroupChatter.PlayerMsgCooldown = 15
+LLMChatter.GroupChatter.PlayerMsgCooldown = 0
 
 #
 #   LLMChatter.GroupChatter.GeneralRelayEnable
@@ -1838,10 +1839,12 @@ LLMChatter.GroupChatter.GeneralRelayMaxGroups = 1
 #   LLMChatter.GeneralChat.ReactionChance
 #       Chance (0-100) that a bot reacts when a player types
 #       a non-question message in General chat. Questions
-#       (ending with ?) use QuestionChance instead.
-#       Default: 40
+#       (ending with ?) use QuestionChance instead. The shared
+#       semantic optional-reply gate can still leave naturally
+#       optional casual turns unanswered.
+#       Default: 100
 #
-LLMChatter.GeneralChat.ReactionChance = 40
+LLMChatter.GeneralChat.ReactionChance = 100
 
 #
 #   LLMChatter.GeneralChat.QuestionChance
@@ -1850,18 +1853,19 @@ LLMChatter.GeneralChat.ReactionChance = 40
 #       "?" use ReactionChance instead. This simple detection
 #       gives direct questions a higher response rate, but
 #       statements and remarks also trigger at ReactionChance.
-#       Default: 80
+#       Default: 100
 #
-LLMChatter.GeneralChat.QuestionChance = 80
+LLMChatter.GeneralChat.QuestionChance = 100
 
 #
 #   LLMChatter.GeneralChat.Cooldown
 #       Per-zone cooldown (seconds) between bot reactions to
-#       player messages in General chat. Prevents bots from
-#       responding to every single message in a busy zone.
-#       Default: 30
+#       player messages in General chat. The default leaves
+#       player-authored turns unsuppressed; set a positive value
+#       only when a busy server deliberately needs throttling.
+#       Default: 0
 #
-LLMChatter.GeneralChat.Cooldown = 30
+LLMChatter.GeneralChat.Cooldown = 0
 
 #
 #   LLMChatter.GeneralChat.ReactDelay
@@ -2049,9 +2053,9 @@ LLMChatter.GuildChatter.PlayerReplies.Enable = 1
 #       Short collection window for rapid consecutive
 #       player messages. New turns supersede undelivered
 #       continuation lines from the previous turn.
-#       Default: 2
+#       Default: 1
 #
-LLMChatter.GuildChatter.PlayerReplies.DebounceSeconds = 2
+LLMChatter.GuildChatter.PlayerReplies.DebounceSeconds = 1
 
 #
 #   LLMChatter.GuildChatter.PlayerReplies.IdleSuppressionSeconds

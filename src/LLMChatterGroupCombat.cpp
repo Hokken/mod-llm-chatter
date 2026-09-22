@@ -873,7 +873,9 @@ void HandleGroupPlayerBeforeSendChatMessageImpl(
     {
         if (Player* member = itr->GetSource())
         {
-            if (IsPlayerBot(member))
+            if (IsPlayerBot(member)
+                && member->GetTeamId()
+                    == player->GetTeamId())
             {
                 hasBotInGroup = true;
                 break;

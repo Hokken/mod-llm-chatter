@@ -38,6 +38,7 @@ _spice_count = 2
 from chatter_shared import (
     call_llm, cleanup_message, strip_speaker_prefix,
     get_chatter_mode, get_class_name, get_race_name,
+    get_race_faction,
     get_gender_label,
     get_db_connection, build_race_class_context,
     build_race_class_context_parts,
@@ -164,6 +165,20 @@ from chatter_constants import (
     BG_MAP_NAMES,
     RAID_MAP_IDS,
 )
+
+
+def _filter_group_bots_by_player_faction(
+    bots, player_race,
+):
+    player_faction = get_race_faction(player_race)
+    if not player_faction:
+        return []
+    return [
+        bot for bot in bots
+        if get_race_faction(bot.get('faction_race'))
+        == player_faction
+    ]
+
 
 logger = logging.getLogger(__name__)
 
@@ -1657,16 +1672,28 @@ def process_group_player_msg_event(
     # Get all bots in group for name matching
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
-        SELECT bot_guid, bot_name,
-               trait1, trait2, trait3, tone,
-               travel_mode, travel_context,
-               is_mounted, is_flying,
-               is_taxi_flying, is_on_transport,
-               mount_display_id, transport_name
-        FROM llm_group_bot_traits
-        WHERE group_id = %s
+        SELECT t.bot_guid, t.bot_name,
+               t.trait1, t.trait2, t.trait3, t.tone,
+               t.travel_mode, t.travel_context,
+               t.is_mounted, t.is_flying,
+               t.is_taxi_flying, t.is_on_transport,
+               t.mount_display_id, t.transport_name,
+               c.race AS faction_race
+        FROM llm_group_bot_traits t
+        JOIN characters c ON c.guid = t.bot_guid
+        WHERE t.group_id = %s
     """, (group_id,))
     all_bots = cursor.fetchall()
+
+    cursor.execute(
+        "SELECT race FROM characters WHERE guid = %s",
+        (int(event.get('subject_guid') or 0),),
+    )
+    player_row = cursor.fetchone()
+    all_bots = _filter_group_bots_by_player_faction(
+        all_bots,
+        player_row.get('race') if player_row else None,
+    )
 
     if not all_bots:
         _mark_event(db, event_id, 'skipped')
