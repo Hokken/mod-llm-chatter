@@ -1,6 +1,6 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-09-18 (bot-directed proximity reaction chains)
+Last updated: 2026-09-20 (configurable player-chat prefix filtering)
 
 ## Purpose
 
@@ -270,6 +270,9 @@ Player-driven Guild exchanges use a separate, session-owned path:
    the live eligible Guild-bot candidates.
 4. The shared LLM intent analysis may resolve either an explicit name or
    an implicit reply to the immediately prior speaker from recent history.
+   If it returns no single target for a non-group turn, the bridge preserves
+   visible turn-taking by selecting the eligible bot directly before the
+   current player line in the stored transcript.
    It also classifies the conversational scale semantically rather than
    matching a fixed phrase list. `chatter_guild_player.py` selects that
    addressed bot first, applies a soft penalty only to other recent-speaker
@@ -325,6 +328,37 @@ that playerbots are ready synchronously:
 9. Native Guild delivery records successful greetings as `reply`
    history, making them visible to later player-session continuity.
 
+### Player-chat input filtering
+
+`LLMChatterConfig` owns the reload-safe, server-side
+`LLMChatter.PlayerChat.IgnoredPrefixes` denylist. Matching is literal,
+case-insensitive for ASCII letters, and ignores leading whitespace. The
+default is empty so existing installations retain their current behavior.
+
+Party, General, Guild, and `/say` capture paths apply this shared filter
+before any history write, cooldown/session mutation, or event queue
+insertion. A matching Guild line also does not cancel a pending login
+greeting. Existing `LANG_ADDON`, hidden-payload, and Playerbot-command
+protections remain separate and continue to run. In particular,
+`SendAddonMessage` protocol prefixes do not belong in this denylist because
+their `LANG_ADDON` traffic is already rejected globally.
+
+### Player-response faction boundary
+
+Playerbot responders to real-player General, Party, Guild, and proximity
+messages must match the initiating player's Alliance/Horde team. Candidate
+collection enforces this in C++, and the bridge rechecks database-backed
+candidate rosters before generation. Delivery performs a final team check for
+General, Party, Guild, and login-greeting events so a stale or malformed queued
+row cannot speak through the wrong faction channel. An unavailable subject is
+not treated as a faction mismatch; only a resolved, differing team is rejected.
+General player cooldown keys and history reads are faction-scoped within the
+zone. Proximity NPC eligibility remains a separate disposition-aware policy;
+the team boundary here applies to playerbots.
+
+General-to-Party relays require the General speaker, the group's real player,
+and every responding party bot to share one faction.
+
 ## Chatter Mode Ownership
 
 `tools/chatter_mode.py` owns the canonical playerbot identity boundary
@@ -352,14 +386,22 @@ emote. Directed player-emote events request the same short scale and may also
 use emote-only output, but they retain their existing server reaction chance
 and do not receive the semantic optional-reply roll or hard repair gate.
 
-The analysis separately marks `reply_optional` only when silence would be a
-socially natural response to a `brief_casual` turn. Before generation, Guild,
-General, party, and proximity-speech handlers make one shared configurable
-RNG roll. A failed roll marks the event skipped without calling the generation
-model; a successful optional turn stays single-responder. Questions, requests,
-instructions, warnings, important information, and other turns that clearly
-expect engagement are not optional. This remains semantic and contextual,
-with no phrase or keyword list.
+The analysis separately marks `requires_reply`: every question must be true,
+while statements are judged semantically in conversational context. The bridge
+derives `reply_optional` only when the model says a `brief_casual` statement
+does not require a reply. Before generation, Guild, General, proximity-speech,
+and directed boss-speech handlers make one shared configurable RNG roll. A
+failed roll marks the event skipped without calling the generation model; a
+successful optional turn stays single-responder. Party player messages do not
+use this silence gate: once queued, they continue to a concise response even
+when classified as `reply_optional`. If the strict repair
+still overruns, Party uses the shared deterministic bound for each selected
+speaker instead of dropping the statement or conversation. A casual
+multi-addressee classification therefore retains the forced conversation path
+and every selected responder. Questions, requests, instructions, warnings,
+important information, and other turns that clearly expect engagement are not
+optional. This remains semantic and contextual, with no phrase, punctuation,
+or keyword list.
 
 Emote-only delivery resolves the emote name before consuming the row. Invalid
 names receive a terminal `invalid_emote` drop instead of a retry, and party

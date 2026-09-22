@@ -14,6 +14,7 @@ from chatter_guild import (
     _insert_reference_names,
     _participant_identity_lines,
     _query_speaker,
+    _speaker_faction,
     _select_participant_references,
     _strip_rp_artifacts,
     _valid_guild_conversation,
@@ -209,6 +210,17 @@ def _load_candidates(db, candidates: List[Dict]) -> List[Dict]:
     return loaded
 
 
+def _filter_candidates_by_faction(
+    candidates: List[Dict], faction: str,
+) -> List[Dict]:
+    if faction not in ('Alliance', 'Horde'):
+        return []
+    return [
+        candidate for candidate in candidates
+        if _speaker_faction(candidate['speaker']) == faction
+    ]
+
+
 def _recent_bot_names(recent: List[Dict]) -> List[str]:
     return [
         str(row.get('speaker_name') or '')
@@ -216,6 +228,38 @@ def _recent_bot_names(recent: List[Dict]) -> List[str]:
         if row.get('is_bot')
         and row.get('speaker_name')
     ]
+
+
+def _immediately_prior_bot(
+    recent: List[Dict],
+    candidates: List[Dict],
+    player_name: str,
+    player_message: str,
+) -> str:
+    """Resolve the bot directly before the current player turn."""
+    if len(recent) < 2:
+        return ''
+
+    current = recent[-1]
+    previous = recent[-2]
+    if (
+        current.get('is_bot')
+        or str(current.get('speaker_name') or '').casefold()
+        != player_name.casefold()
+        or str(current.get('message') or '').strip()
+        != player_message.strip()
+        or not previous.get('is_bot')
+    ):
+        return ''
+
+    previous_name = str(
+        previous.get('speaker_name') or ''
+    ).casefold()
+    for candidate in candidates:
+        name = str(candidate.get('name') or '')
+        if name.casefold() == previous_name:
+            return name
+    return ''
 
 
 def _weighted_pick(
@@ -1174,9 +1218,12 @@ def process_guild_player_message_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
-    candidates = _load_candidates(
-        db,
-        _normalize_candidates(extra),
+    candidates = _filter_candidates_by_faction(
+        _load_candidates(
+            db,
+            _normalize_candidates(extra),
+        ),
+        str(extra.get('team') or ''),
     )
     if not candidates:
         _mark_event(db, event_id, 'skipped')
@@ -1218,6 +1265,26 @@ def process_guild_player_message_event(
     multi_addressed = bool(
         addressed.get('multi_addressed')
     )
+    if (
+        memory_enabled
+        and not addressed.get('bot')
+        and not multi_addressed
+    ):
+        continuity_target = _immediately_prior_bot(
+            recent,
+            candidates,
+            player_name,
+            player_message,
+        )
+        if continuity_target:
+            addressed = dict(addressed)
+            addressed['bot'] = continuity_target
+            logger.info(
+                "guild_player_message player=%s "
+                "continuity_target=%s",
+                player_name,
+                continuity_target,
+            )
     brief_casual = bool(addressed.get('brief_casual'))
     reply_optional = bool(addressed.get('reply_optional'))
     if not should_reply_to_optional_casual(config, addressed):

@@ -883,7 +883,9 @@ void HandleGroupPlayerBeforeSendChatMessageImpl(
     {
         if (Player* member = itr->GetSource())
         {
-            if (IsPlayerBot(member))
+            if (IsPlayerBot(member)
+                && member->GetTeamId()
+                    == player->GetTeamId())
             {
                 hasBotInGroup = true;
                 break;
@@ -916,6 +918,10 @@ void HandleGroupPlayerBeforeSendChatMessageImpl(
     // Normalization can strip an all-invalid payload
     // (e.g. \xFF\xFF...) down to empty — drop it.
     if (safeMsg.empty())
+        return;
+
+    if (sLLMChatterConfig
+            ->IsPlayerChatPrefixIgnored(safeMsg))
         return;
 
     if (IsLikelyPlayerbotControlCommand(

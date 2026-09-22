@@ -369,6 +369,8 @@ bool IsEligibleProximityBot(
         return false;
     if (!IsPlayerBot(bot))
         return false;
+    if (player->GetTeamId() != bot->GetTeamId())
+        return false;
     if (!bot->IsInWorld() || !bot->IsAlive())
         return false;
     if (bot->IsInCombat()
@@ -2253,6 +2255,9 @@ void HandleProximityPlayerSay(
 
     std::string safeMsg = TrimChatMessage(msg);
     if (safeMsg.empty())
+        return;
+    if (sLLMChatterConfig
+            ->IsPlayerChatPrefixIgnored(safeMsg))
         return;
 
     if (HandleBossProximityPlayerSay(player, safeMsg))

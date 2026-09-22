@@ -1603,11 +1603,11 @@ def main():
     logger.info("General chat:")
     logger.info(
         f"  ReactionChance: "
-        f"{config.get('LLMChatter.GeneralChat.ReactionChance', 40)}%"
+        f"{config.get('LLMChatter.GeneralChat.ReactionChance', 100)}%"
         f"  QuestionChance: "
-        f"{config.get('LLMChatter.GeneralChat.QuestionChance', 80)}%"
+        f"{config.get('LLMChatter.GeneralChat.QuestionChance', 100)}%"
         f"  Cooldown: "
-        f"{config.get('LLMChatter.GeneralChat.Cooldown', 30)}s"
+        f"{config.get('LLMChatter.GeneralChat.Cooldown', 0)}s"
     )
     logger.info("-" * 60)
     logger.info("Guild chatter:")

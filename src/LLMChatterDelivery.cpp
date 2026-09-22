@@ -213,6 +213,15 @@ bool IsDirectedProximityEvent(
         || eventType == "proximity_player_emote";
 }
 
+bool IsFactionBoundReplyEvent(
+    std::string const& eventType)
+{
+    return eventType == "player_general_msg"
+        || eventType == "bot_group_player_msg"
+        || eventType == "guild_player_message"
+        || eventType == "guild_login_greeting";
+}
+
 void FinalizeDroppedMessage(
     uint32 messageId,
     uint32 eventId,
@@ -295,7 +304,8 @@ void DeliverPendingMessagesImpl()
             "m.addressee_player_guid, "
             "m.addressee_bot_guid, "
             "m.addressee_npc_spawn_id, "
-            "e.map_id, e.extra_data, e.event_type "
+            "e.map_id, e.extra_data, e.event_type, "
+            "e.subject_guid "
             "FROM llm_chatter_messages m "
             "LEFT JOIN llm_chatter_events e "
             "ON m.event_id = e.id "
@@ -328,7 +338,8 @@ void DeliverPendingMessagesImpl()
             "m.addressee_player_guid, "
             "m.addressee_bot_guid, "
             "m.addressee_npc_spawn_id, "
-            "e.map_id, e.extra_data, e.event_type "
+            "e.map_id, e.extra_data, e.event_type, "
+            "e.subject_guid "
             "FROM llm_chatter_messages m "
             "LEFT JOIN llm_chatter_events e "
             "ON m.event_id = e.id "
@@ -444,6 +455,10 @@ void DeliverPendingMessagesImpl()
         fields[21].IsNull()
             ? ""
             : fields[21].Get<std::string>();
+    uint32 eventSubjectGuid =
+        fields[22].IsNull()
+            ? 0
+            : fields[22].Get<uint32>();
 
     // ActionAsEmote disabled: fall back to the historical
     // inline "*action* text" rendering so the action is not
@@ -535,6 +550,23 @@ void DeliverPendingMessagesImpl()
             bot->GetSession();
         if (session && session->PlayerLoading())
             bot = nullptr;
+    }
+
+    if (bot && eventSubjectGuid
+        && IsFactionBoundReplyEvent(eventType))
+    {
+        Player* subject = ObjectAccessor::FindPlayer(
+            ObjectGuid::Create<HighGuid::Player>(
+                eventSubjectGuid));
+        if (subject
+            && subject->GetTeamId()
+                != bot->GetTeamId())
+        {
+            FinalizeDroppedMessage(
+                messageId, eventId, sequence,
+                eventType, "faction_mismatch");
+            return;
+        }
     }
 
     // Only mark delivered after a successful

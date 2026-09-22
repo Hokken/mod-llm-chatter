@@ -38,6 +38,7 @@ _spice_count = 2
 from chatter_shared import (
     call_llm, cleanup_message, strip_speaker_prefix,
     get_chatter_mode, get_class_name, get_race_name,
+    get_race_faction,
     get_gender_label,
     get_db_connection, build_race_class_context,
     build_race_class_context_parts,
@@ -49,7 +50,6 @@ from chatter_shared import (
     parse_conversation_response,
     calculate_dynamic_delay,
     find_addressed_bot,
-    should_reply_to_optional_casual,
     insert_chat_message,
     pick_emote_for_statement,
     detect_item_links,
@@ -78,6 +78,7 @@ from chatter_shared import (
     shorten_chat_message,
     shorten_chat_question,
     brief_casual_response_fits,
+    bound_brief_casual_response,
     build_brief_casual_repair_prompt,
 )
 from chatter_db import (
@@ -167,6 +168,20 @@ from chatter_constants import (
     BG_MAP_NAMES,
     RAID_MAP_IDS,
 )
+
+
+def _filter_group_bots_by_player_faction(
+    bots, player_race,
+):
+    player_faction = get_race_faction(player_race)
+    if not player_faction:
+        return []
+    return [
+        bot for bot in bots
+        if get_race_faction(bot.get('faction_race'))
+        == player_faction
+    ]
+
 
 logger = logging.getLogger(__name__)
 
@@ -1618,12 +1633,6 @@ def _batch_welcome(
     )
 
 
-
-
-
-
-
-
 def process_group_player_msg_event(
     db, client, config, event
 ):
@@ -1676,16 +1685,28 @@ def process_group_player_msg_event(
     # Get all bots in group for name matching
     cursor = db.cursor(dictionary=True)
     cursor.execute("""
-        SELECT bot_guid, bot_name,
-               trait1, trait2, trait3, tone,
-               travel_mode, travel_context,
-               is_mounted, is_flying,
-               is_taxi_flying, is_on_transport,
-               mount_display_id, transport_name
-        FROM llm_group_bot_traits
-        WHERE group_id = %s
+        SELECT t.bot_guid, t.bot_name,
+               t.trait1, t.trait2, t.trait3, t.tone,
+               t.travel_mode, t.travel_context,
+               t.is_mounted, t.is_flying,
+               t.is_taxi_flying, t.is_on_transport,
+               t.mount_display_id, t.transport_name,
+               c.race AS faction_race
+        FROM llm_group_bot_traits t
+        JOIN characters c ON c.guid = t.bot_guid
+        WHERE t.group_id = %s
     """, (group_id,))
     all_bots = cursor.fetchall()
+
+    cursor.execute(
+        "SELECT race FROM characters WHERE guid = %s",
+        (int(event.get('subject_guid') or 0),),
+    )
+    player_row = cursor.fetchone()
+    all_bots = _filter_group_bots_by_player_faction(
+        all_bots,
+        player_row.get('race') if player_row else None,
+    )
 
     if not all_bots:
         _mark_event(db, event_id, 'skipped')
@@ -1710,16 +1731,6 @@ def process_group_player_msg_event(
     brief_casual = bool(
         addr_result.get('brief_casual', False)
     )
-    if not should_reply_to_optional_casual(
-        config, addr_result
-    ):
-        logger.info(
-            "bot_group_player_msg event=%s left unanswered "
-            "after optional-casual RNG",
-            event_id,
-        )
-        _mark_event(db, event_id, 'skipped')
-        return False
     if addressed:
         for b in all_bots:
             if b['bot_name'] == addressed:
@@ -1842,7 +1853,6 @@ def process_group_player_msg_event(
 
         force_conv = (
             multi_addressed
-            and not bool(addr_result.get('reply_optional'))
             and num_bots >= 2
         )
         rng_conv = (
@@ -2038,6 +2048,7 @@ def process_group_player_msg_event(
             message, action=parsed.get('action')
         )
         emote = parsed.get('emote')
+        brief_fallback = (message, emote)
         if (
             brief_casual
             and not brief_casual_response_fits(
@@ -2061,16 +2072,16 @@ def process_group_player_msg_event(
             )
             message = cleanup_message(message)
             emote = parsed.get('emote')
+        if brief_casual:
+            fallback_message, fallback_emote = brief_fallback
+            message, emote = bound_brief_casual_response(
+                message,
+                emote,
+                fallback_message,
+                fallback_emote,
+            )
         if not message and not (
             brief_casual and emote
-        ):
-            _mark_event(db, event_id, 'skipped')
-            return False
-        if (
-            brief_casual
-            and not brief_casual_response_fits(
-                message, emote
-            )
         ):
             _mark_event(db, event_id, 'skipped')
             return False

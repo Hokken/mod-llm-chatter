@@ -249,6 +249,31 @@ def test_addressed_bot_is_primary_responder():
     ] == ['Rytsen', 'Aliss']
 
 
+def test_guild_candidates_match_player_faction():
+    candidates = [
+        {
+            'name': 'AllianceBot',
+            'speaker': {'race': 'Night Elf'},
+        },
+        {
+            'name': 'HordeBot',
+            'speaker': {'race': 'Orc'},
+        },
+        {
+            'name': 'AllianceBotId',
+            'speaker': {'race': 7},
+        },
+    ]
+    filtered = (
+        chatter_guild_player._filter_candidates_by_faction(
+            candidates, 'Alliance'
+        )
+    )
+    assert [candidate['name'] for candidate in filtered] == [
+        'AllianceBot', 'AllianceBotId'
+    ]
+
+
 def test_semantic_analysis_resolves_implicit_brief_reply():
     prompts = []
 
@@ -258,7 +283,7 @@ def test_semantic_analysis_resolves_implicit_brief_reply():
             'bot': 'Karguhr',
             'multi_addressed': False,
             'brief_casual': True,
-            'reply_optional': True,
+            'requires_reply': False,
         })
 
     with patch.object(
@@ -285,7 +310,37 @@ def test_semantic_analysis_resolves_implicit_brief_reply():
     }
     assert 'immediately prior speaker' in prompts[0]
     assert 'not keywords or message length alone' in prompts[0]
-    assert 'leaving the message unanswered' in prompts[0]
+    assert 'Questions always require a reply' in prompts[0]
+    assert 'leaving the statement' in prompts[0]
+
+
+def test_llm_required_question_cannot_be_optional():
+    def analyze(client, config, prompt, **kwargs):
+        return json.dumps({
+            'bot': None,
+            'multi_addressed': True,
+            'brief_casual': True,
+            'requires_reply': True,
+        })
+
+    with patch.object(
+        chatter_shared,
+        'quick_llm_analyze',
+        side_effect=analyze,
+    ):
+        result = chatter_shared.find_addressed_bot(
+            'How is everyone this morning ?',
+            ['Karguhr', 'Oscario'],
+            client=object(),
+            config={'LLMChatter.Provider': 'openai'},
+        )
+
+    assert result == {
+        'bot': None,
+        'multi_addressed': True,
+        'brief_casual': True,
+        'reply_optional': False,
+    }
 
 
 def test_optional_casual_reply_uses_one_bounded_rng_roll():
@@ -376,12 +431,11 @@ def test_optional_guild_turn_can_end_before_generation():
     assert statuses[-1] == (77, 'skipped')
 
 
-def test_optional_casual_silence_covers_player_text_channels():
+def test_optional_casual_silence_excludes_party_chat():
     module_root = TOOLS_DIR.parent
     expected_calls = {
         'tools/chatter_guild_player.py': 1,
         'tools/chatter_general.py': 1,
-        'tools/chatter_group.py': 1,
         'tools/chatter_proximity.py': 3,
         'tools/chatter_boss_dialogue.py': 1,
     }
@@ -392,6 +446,12 @@ def test_optional_casual_silence_covers_player_text_channels():
         assert source.count(
             'should_reply_to_optional_casual('
         ) >= minimum
+
+    party_source = (
+        module_root / 'tools/chatter_group.py'
+    ).read_text(encoding='utf-8')
+    assert 'should_reply_to_optional_casual(' not in party_source
+    assert "addr_result.get('brief_casual', False)" in party_source
 
     for relative in (
         'conf/mod_llm_chatter.conf.dist',
@@ -406,7 +466,7 @@ def test_optional_casual_silence_covers_player_text_channels():
         ) in config_text
 
 
-def test_brief_contextual_reply_forces_one_prior_speaker():
+def test_brief_contextual_reply_falls_back_to_prior_speaker():
     event = _event()
     extra = json.loads(event['extra_data'])
     extra['player_message'] = 'That means a lot.'
@@ -446,7 +506,7 @@ def test_brief_contextual_reply_forces_one_prior_speaker():
             chatter_guild_player,
             'find_addressed_bot',
             return_value={
-                'bot': 'Karguhr',
+                'bot': None,
                 'multi_addressed': False,
                 'brief_casual': True,
             },

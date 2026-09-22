@@ -24,6 +24,13 @@ T GetChatterOption(std::string const& name, T const& def)
     return sConfigMgr->GetOption<T>(name, def, false);
 }
 
+char ToLowerAscii(unsigned char value)
+{
+    if (value >= 'A' && value <= 'Z')
+        return static_cast<char>(value + ('a' - 'A'));
+    return static_cast<char>(value);
+}
+
 std::unordered_set<uint32> ParseCreatureEntrySet(
     std::string const& configured,
     std::string const& optionName)
@@ -247,6 +254,44 @@ bool LLMChatterConfig::IsCxxScriptedEmoteEntry(
         creatureEntry);
 }
 
+bool LLMChatterConfig::IsPlayerChatPrefixIgnored(
+    std::string const& message) const
+{
+    auto prefixes = std::atomic_load(
+        &_playerChatIgnoredPrefixes);
+    if (!prefixes || prefixes->empty())
+        return false;
+
+    size_t start = message.find_first_not_of(
+        " \t\n\r\f\v");
+    if (start == std::string::npos)
+        return false;
+
+    for (std::string const& prefix : *prefixes)
+    {
+        if (message.size() - start < prefix.size())
+            continue;
+
+        bool matches = true;
+        for (size_t index = 0;
+             index < prefix.size(); ++index)
+        {
+            unsigned char value = static_cast<unsigned char>(
+                message[start + index]);
+            if (ToLowerAscii(value) != prefix[index])
+            {
+                matches = false;
+                break;
+            }
+        }
+
+        if (matches)
+            return true;
+    }
+
+    return false;
+}
+
 void LLMChatterConfig::LoadConfig()
 {
     _enabled = GetChatterOption<bool>("LLMChatter.Enable", false);
@@ -271,6 +316,15 @@ void LLMChatterConfig::LoadConfig()
         "LLMChatter.MaxBotsPerZone", 8);
     _maxMessageLength = GetChatterOption<uint32>(
         "LLMChatter.MaxMessageLength", 250);
+    std::string playerChatIgnoredPrefixes =
+        GetChatterOption<std::string>(
+            "LLMChatter.PlayerChat.IgnoredPrefixes", "");
+    auto parsedPlayerChatIgnoredPrefixes =
+        std::make_shared<std::unordered_set<std::string> const>(
+            ParseLowerWordSet(playerChatIgnoredPrefixes));
+    std::atomic_store(
+        &_playerChatIgnoredPrefixes,
+        std::move(parsedPlayerChatIgnoredPrefixes));
 
     // Delivery settings
     _deliveryPollMs = GetChatterOption<uint32>("LLMChatter.DeliveryPollMs", 1000);
@@ -441,7 +495,7 @@ void LLMChatterConfig::LoadConfig()
     _groupKillCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.KillCooldown", 120);
     _groupDeathCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.DeathCooldown", 30);
     _groupLootCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.LootCooldown", 60);
-    _groupPlayerMsgCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.PlayerMsgCooldown", 15);
+    _groupPlayerMsgCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.PlayerMsgCooldown", 0);
 
     // Group chatter - new event settings
     _groupResurrectChance = GetChatterOption<uint32>("LLMChatter.GroupChatter.ResurrectChance", 100);
@@ -739,11 +793,11 @@ void LLMChatterConfig::LoadConfig()
     _useGeneralChatReact = GetChatterOption<bool>(
         "LLMChatter.GeneralChat.PlayerReplyEnable", true);
     _generalChatChance = GetChatterOption<uint32>(
-        "LLMChatter.GeneralChat.ReactionChance", 40);
+        "LLMChatter.GeneralChat.ReactionChance", 100);
     _generalChatQuestionChance = GetChatterOption<uint32>(
-        "LLMChatter.GeneralChat.QuestionChance", 80);
+        "LLMChatter.GeneralChat.QuestionChance", 100);
     _generalChatCooldown = GetChatterOption<uint32>(
-        "LLMChatter.GeneralChat.Cooldown", 30);
+        "LLMChatter.GeneralChat.Cooldown", 0);
     _generalChatConversationChance = GetChatterOption<uint32>(
         "LLMChatter.GeneralChat.ConversationChance", 30);
     _generalChatHistoryLimit =
@@ -870,7 +924,7 @@ void LLMChatterConfig::LoadConfig()
         std::min(
             GetChatterOption<uint32>(
                 "LLMChatter.GuildChatter."
-                "PlayerReplies.DebounceSeconds", 2),
+                "PlayerReplies.DebounceSeconds", 1),
             10u);
     _guildPlayerIdleSuppressionSeconds =
         GetChatterOption<uint32>(
@@ -992,7 +1046,7 @@ void LLMChatterConfig::LoadConfig()
         std::min(
             GetChatterOption<uint32>(
                 "LLMChatter.ProximityChatter."
-                "EntityCooldown", 3),
+                "EntityCooldown", 1),
             3u);
     _proxChatterZoneFatigueThreshold =
         GetChatterOption<uint32>(
@@ -1180,7 +1234,7 @@ void LLMChatterConfig::LoadConfig()
         std::min(
             GetChatterOption<uint32>(
                 "LLMChatter.ProximityChatter."
-                "BossDirectedReplyCooldownSeconds", 3),
+                "BossDirectedReplyCooldownSeconds", 1),
             3u);
     _proxBossDirectedScanCooldown =
         GetChatterOption<uint32>(

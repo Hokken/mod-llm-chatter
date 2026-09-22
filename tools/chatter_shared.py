@@ -369,6 +369,19 @@ def get_race_name(race_id: int) -> str:
     return RACE_NAMES.get(race_id, "Unknown")
 
 
+def get_race_faction(race_id) -> str:
+    """Return the playable faction for a WotLK race ID."""
+    try:
+        race_id = int(race_id)
+    except (TypeError, ValueError):
+        return ""
+    if race_id in (1, 3, 4, 7, 11):
+        return "Alliance"
+    if race_id in (2, 5, 6, 8, 10):
+        return "Horde"
+    return ""
+
+
 def get_gender_label(gender_id: int) -> str:
     """Get human-readable gender label from gender ID."""
     return 'female' if gender_id == 1 else 'male'
@@ -1468,6 +1481,26 @@ def brief_casual_response_fits(
     )
 
 
+def bound_brief_casual_response(
+    message: str,
+    emote: Optional[str] = None,
+    fallback_message: str = '',
+    fallback_emote: Optional[str] = None,
+) -> Tuple[str, Optional[str]]:
+    """Bound a usable brief response instead of discarding it."""
+    if brief_casual_response_fits(message, emote):
+        return message, emote
+    source = (
+        str(message or '').strip()
+        or str(fallback_message or '').strip()
+    )
+    first_eight_words = ' '.join(source.split()[:8])
+    return (
+        shorten_chat_message(first_eight_words, 50),
+        emote or fallback_emote,
+    )
+
+
 def build_brief_casual_repair_prompt(
     prompt: PromptParts,
 ) -> PromptParts:
@@ -2207,7 +2240,7 @@ def find_addressed_bot(
         f'{{"bot": "BotName", '
         f'"multi_addressed": true, '
         f'"brief_casual": false, '
-        f'"reply_optional": false}}\n\n'
+        f'"requires_reply": true}}\n\n'
         f"Rules:\n"
         f'- "bot": the single bot most likely '
         f"being addressed explicitly or implicitly, or "
@@ -2239,13 +2272,14 @@ def find_addressed_bot(
         f"Judge meaning and conversational function, not "
         f"keywords or message length alone. A concise but "
         f"substantive question is not brief casual talk.\n"
-        f'- "reply_optional": true only when '
-        f'"brief_casual" is true and leaving the message '
-        f"unanswered would feel socially natural. Judge the "
-        f"turn in context, not with phrase matching. Keep it "
-        f"false for questions, requests, instructions, warnings, "
-        f"important information, greetings that invite engagement, "
-        f"or any turn that clearly expects acknowledgment."
+        f'- "requires_reply": true for every question, request, '
+        f"instruction, warning, important piece of information, "
+        f"greeting that invites engagement, or any turn that "
+        f"expects acknowledgment. Questions always require a reply. "
+        f"For statements, judge their meaning and conversational "
+        f"context: use false only when leaving the statement "
+        f"unanswered would feel socially natural. Do not decide "
+        f"from keywords, punctuation, or message length alone."
     )
 
     try:
@@ -2340,14 +2374,14 @@ def find_addressed_bot(
     else:
         brief_casual = bool(raw_brief)
 
-    raw_optional = parsed.get('reply_optional', False)
-    if isinstance(raw_optional, str):
-        reply_optional = raw_optional.lower() not in (
+    raw_required = parsed.get('requires_reply', True)
+    if isinstance(raw_required, str):
+        requires_reply = raw_required.lower() not in (
             'false', '0', 'no', ''
         )
     else:
-        reply_optional = bool(raw_optional)
-    reply_optional = brief_casual and reply_optional
+        requires_reply = bool(raw_required)
+    reply_optional = brief_casual and not requires_reply
 
     return {
         'bot': matched_bot,

@@ -21,6 +21,7 @@ _extended_max_messages = 3
 from chatter_shared import (
     call_llm, cleanup_message, strip_speaker_prefix,
     get_chatter_mode, get_class_name, get_race_name,
+    get_race_faction,
     get_gender_label,
     build_race_class_context, parse_extra_data,
     calculate_dynamic_delay,
@@ -159,7 +160,7 @@ def _pick_length_hint(mode):
 
 
 def _get_general_chat_history(
-    db, zone_id, limit=None
+    db, zone_id, limit=None, faction=""
 ):
     """Get recent General channel messages for a zone.
     Returns oldest-first for natural prompt reading.
@@ -167,11 +168,25 @@ def _get_general_chat_history(
     if limit is None:
         limit = _chat_history_limit
     cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT speaker_name, is_bot, message
-        FROM llm_general_chat_history
-        WHERE zone_id = %s
-        ORDER BY id DESC
+    if faction == 'Alliance':
+        race_filter = 'AND c.race IN (1, 3, 4, 7, 11)'
+    elif faction == 'Horde':
+        race_filter = 'AND c.race IN (2, 5, 6, 8, 10)'
+    else:
+        race_filter = ''
+    # Faction-scoped history fails closed: a speaker whose
+    # character row cannot establish a faction is not prompt context.
+    character_join = (
+        'JOIN characters c ON c.name = h.speaker_name'
+        if race_filter else ''
+    )
+    cursor.execute(f"""
+        SELECT h.speaker_name, h.is_bot, h.message
+        FROM llm_general_chat_history h
+        {character_join}
+        WHERE h.zone_id = %s
+          {race_filter}
+        ORDER BY h.id DESC
         LIMIT %s
     """, (zone_id, limit))
     rows = cursor.fetchall()
@@ -240,6 +255,50 @@ def _get_bot_info(db, bot_guid):
         WHERE guid = %s
     """, (bot_guid,))
     return cursor.fetchone()
+
+
+def _filter_player_general_candidates(
+    db, player_faction, bot_guids, bot_names,
+):
+    """Keep speakers visible in the player's General channel."""
+    if not player_faction:
+        logger.warning(
+            "[GEN-FLOW] cannot resolve player faction"
+        )
+        return [], []
+
+    candidates = []
+    for bot_guid, bot_name in zip(bot_guids, bot_names):
+        try:
+            candidates.append((int(bot_guid), bot_name))
+        except (TypeError, ValueError):
+            continue
+    if not candidates:
+        return [], []
+
+    cursor = db.cursor(dictionary=True)
+    placeholders = ', '.join(['%s'] * len(candidates))
+    cursor.execute(f"""
+        SELECT guid, race
+        FROM characters
+        WHERE guid IN ({placeholders})
+    """, tuple(guid for guid, _name in candidates))
+    rows = cursor.fetchall()
+    cursor.close()
+    factions = {
+        int(row['guid']): get_race_faction(row.get('race'))
+        for row in rows
+    }
+
+    visible_guids = []
+    visible_names = []
+    for bot_guid, bot_name in candidates:
+        if factions.get(bot_guid) != player_faction:
+            continue
+        visible_guids.append(bot_guid)
+        visible_names.append(bot_name)
+
+    return visible_guids, visible_names
 
 
 def _resolve_zone_context(db, player_name, extra_data):
@@ -700,6 +759,29 @@ def process_general_player_msg_event(
     )
     bot_guids = extra_data.get('bot_guids', [])
     bot_names = extra_data.get('bot_names', [])
+    player_info = _get_bot_info(
+        db, int(event.get('subject_guid') or 0)
+    )
+    player_faction = get_race_faction(
+        player_info.get('race') if player_info else None
+    )
+    original_count = len(bot_guids)
+    bot_guids, bot_names = (
+        _filter_player_general_candidates(
+            db,
+            player_faction,
+            bot_guids,
+            bot_names,
+        )
+    )
+    if len(bot_guids) != original_count:
+        logger.info(
+            "[GEN-FLOW] player-react faction filter | "
+            "player=%s kept=%d/%d",
+            player_name,
+            len(bot_guids),
+            original_count,
+        )
 
     # Resolve zone from player's location
     zctx = _resolve_zone_context(
@@ -733,12 +815,12 @@ def process_general_player_msg_event(
 
         # Fetch recent messages for anti-repetition
         recent_msgs = get_recent_zone_messages(
-            db, zone_id
+            db, zone_id, faction=player_faction
         )
 
         # Fetch chat history for this zone
         history = _get_general_chat_history(
-            db, zone_id
+            db, zone_id, faction=player_faction
         )
         chat_hist = _format_general_history(history)
 
@@ -970,6 +1052,7 @@ def process_general_player_msg_event(
                     subzone_lore=subzone_lore,
                     brief_casual=brief_casual,
                     zone_meta=zone_meta,
+                    faction=player_faction,
                 )
                 # Extended conversation chance
                 if (
@@ -1008,6 +1091,7 @@ def process_general_player_msg_event(
                             subzone_name=subzone_name,
                             subzone_lore=subzone_lore,
                             zone_meta=zone_meta,
+                            faction=player_faction,
                         )
                     except Exception as e3:
                         logger.error(
@@ -1052,6 +1136,7 @@ def _general_followup(
     subzone_lore="",
     zone_meta=None,
     brief_casual=False,
+    faction="",
 ):
     """Generate a second bot's followup response
     in General channel conversation mode.
@@ -1095,7 +1180,9 @@ def _general_followup(
         )
 
     # Get updated history (includes first response)
-    history = _get_general_chat_history(db, zone_id)
+    history = _get_general_chat_history(
+        db, zone_id, faction=faction
+    )
     chat_hist = _format_general_history(history)
 
     prompt2 = _build_general_followup_prompt(
@@ -1408,6 +1495,7 @@ def _general_extended_conversation(
     subzone_name="",
     subzone_lore="",
     zone_meta=None,
+    faction="",
 ):
     """Generate additional messages beyond the
     initial 2-message conversation in General
@@ -1542,7 +1630,7 @@ def _general_extended_conversation(
 
         # Get updated history
         history = _get_general_chat_history(
-            db, zone_id
+            db, zone_id, faction=faction
         )
         chat_hist = _format_general_history(history)
 

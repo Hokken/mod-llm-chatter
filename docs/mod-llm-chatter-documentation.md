@@ -562,6 +562,28 @@ Some narrow server-side compatibility switches may be read directly
 through `sConfigMgr` instead of being stored on `LLMChatterConfig`.
 `LLMChatter.MultiBotCompat.Enable` follows that shape.
 
+### Server-side player-chat prefix filtering
+
+`LLMChatter.PlayerChat.IgnoredPrefixes` is a comma-separated, default-empty
+denylist for server-specific protocols sent through visible player chat or
+for admin-command prefixes. It is not needed for normal `SendAddonMessage`
+protocol prefixes, which arrive as `LANG_ADDON` and are already ignored. C++
+parses the setting on startup and `.reload config`, publishes an immutable
+snapshot, and applies it to real-player Party, General, Guild, and `/say`
+input. Matching ignores leading whitespace and ASCII letter case.
+Configured entries are trimmed at both ends, so a trailing space cannot be
+used to require a separator; use an unambiguous punctuation-bearing prefix.
+
+The check runs before chat-history writes, cooldowns, Guild-session changes,
+login-greeting cancellation, or event queueing. Existing addon-payload and
+Playerbot-command filters remain in place. Because matching is literal prefix
+matching, configure punctuation or otherwise unambiguous server-specific
+values rather than ordinary words.
+
+| Key | Default | Owner | Purpose |
+|---|---|---|---|
+| `PlayerChat.IgnoredPrefixes` | empty | Server | Drop configured player-chat prefixes before persistence or generation |
+
 ---
 
 ## 5. Supported Providers
@@ -882,7 +904,7 @@ Relevant responsibilities:
 
 - `OnPlayerCanUseChat(..., Channel*)`
 - bot membership enforcement for General
-- per-zone General cooldown handling
+- per-zone-and-faction General cooldown handling
 - writing/retaining `llm_general_chat_history`
 
 Shared note:
@@ -900,8 +922,16 @@ Python handling lives in:
 That path:
 
 - selects responding bot(s)
+- rechecks that every responder matches the player's faction
+- reads same-faction General history and anti-repetition context for the
+  player response
 - builds the player-reaction prompt
 - dispatches the reaction through the bridge path
+
+The C++ producer also builds the candidate roster from same-team bots only.
+Delivery revalidates the event subject against the speaking bot as a final
+safeguard, preventing a Horde response from being marked successful in Horde
+General when the initiating player is Alliance, or vice versa.
 
 ### Shared zone pacing
 
@@ -931,6 +961,10 @@ active group in the same zone. The bridge queues
 `bot_group_general_reaction` from General-producing Python paths, then
 `tools/chatter_group_general_reaction.py` generates either one party
 statement or a short 2-3 bot party conversation.
+
+The relay is eligible only when its General speaker, the group's real player,
+and all party responders share the same faction. This is checked both when the
+relay is queued and again when it is processed.
 
 The relay chance is controlled by
 `LLMChatter.GroupChatter.GeneralRelayChance` and defaults to 10%. When a
@@ -1901,6 +1935,7 @@ delivery code:
 | `calculate_dynamic_delay(responsive=False)` | Delivery timing — skips distraction sim and uses a 2s floor when `responsive=True` |
 | `find_addressed_bot(...)` | Explicit/implicit addressee, multi-addressed intent, brief-casual scale, and optional-reply classification via LLM context analysis |
 | `should_reply_to_optional_casual(...)` | One bounded RNG roll for semantically optional brief turns; non-optional turns always pass |
+| `bound_brief_casual_response(...)` | Deterministically enforce the 8-word/50-character brief contract while preserving a usable original response and emote |
 | `build_conversational_scale_guidance(...)` | Shared instruction that keeps Guild, General, party, proximity-speech, and proximity-emote responses proportional to the player's conversational scale |
 | `should_include_action()` | Single RNG roll gating narrator action inclusion (`random.random() < get_action_chance()`). Use at conversation delivery sites instead of calling `get_action_chance()` directly to avoid double-rolling the probability |
 | `PromptParts(str)` | System/user prompt split wrapper; auto-detected by `call_llm()` |
@@ -2657,8 +2692,11 @@ Guild member does not dominate every exchange.
 
 The same LLM intent pass can resolve an implicit addressee from the recent
 transcript, such as a player naturally answering the immediately prior
-speaker without repeating their name. It also marks brief casual
-continuations semantically. A brief continuation directed to one bot stays
+speaker without repeating their name. If the model returns no addressee for
+a non-group turn, the bridge falls back to the eligible bot immediately
+before the current player line in the visible session transcript. It also
+marks brief casual continuations semantically. A brief continuation directed
+to one bot stays
 with that responder when a reply is warranted, bypasses the recent-speaker
 penalty, and suppresses callback, player-name, and follow-up-question
 embellishments.
@@ -2666,14 +2704,22 @@ The shared prompt guidance then requires a few casual words or one short
 sentence instead of developed prose. General, party, and proximity player
 responses use the same scale-matching guidance.
 
-The intent pass also marks `reply_optional` only when leaving a brief casual
-turn unanswered would feel natural in context. Guild, General, party, and
-proximity-speech handlers then roll
+The intent pass also marks `requires_reply`: every question requires a reply,
+while statements are judged semantically in conversational context. The bridge
+derives `reply_optional` only for a brief casual statement that the model says
+does not require a reply. Guild, General, proximity-speech, and directed
+boss-speech handlers then roll
 `LLMChatter.PlayerChat.OptionalCasualReplyChance` once before generation.
 The default 20% reply chance makes silence the common result without suppressing
 questions, requests, warnings, important information, or other turns that
-clearly expect engagement. A failed roll skips the event without a generation
-call; a successful optional turn uses one responder.
+clearly expect engagement. No phrase, punctuation, or keyword list is used.
+A failed roll skips the event without a generation call; a successful optional
+turn uses one responder. Party player messages
+bypass this silence roll and always continue to a concise response once queued.
+If the strict rewrite still exceeds the brief contract, Party deterministically
+bounds each selected speaker's usable result rather than dropping the statement
+or conversation. Casual multi-addressee messages therefore retain the forced
+conversation path and every selected responder.
 
 The conversation roll remains independent and runs first. If it fails,
 the bridge rolls the independent multi-reply chance. A message clearly

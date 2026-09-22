@@ -613,13 +613,36 @@ LLMChatter.GeneralChat.PlayerReplyEnable = 1
 #   LLMChatter.PlayerChat.OptionalCasualReplyChance [BRIDGE]
 #       Reply chance (0-100) after semantic analysis decides that a
 #       brief casual player turn can naturally be left unanswered.
-#       Applies to Guild, General, party, and proximity speech. It does
-#       not suppress questions, requests, warnings, or other turns that
-#       clearly expect a response. Set to 100 to preserve guaranteed
-#       replies for these optional turns.
+#       Applies to Guild, General, proximity speech, and directed boss
+#       speech. Party messages always continue to response generation
+#       once queued, while still using brief-casual classification to
+#       keep lightweight replies concise. This setting does not suppress
+#       questions, requests, warnings, or other turns that clearly expect
+#       a response. Set to 100 to preserve guaranteed replies for the
+#       channels governed by this setting.
 #       Default: 20
 #
 LLMChatter.PlayerChat.OptionalCasualReplyChance = 20
+
+#
+#   LLMChatter.PlayerChat.IgnoredPrefixes [SERVER]
+#       Comma-separated literal prefixes for player-authored Party,
+#       General, Guild, and /say messages that Chatter must ignore.
+#       Matching ignores leading whitespace and ASCII letter case. A
+#       matching message is ignored by Chatter before chat history,
+#       cooldown, session, or LLM event processing. Existing addon and
+#       Playerbot command filters remain active independently.
+#       This is only for protocols sent through visible player chat. Normal
+#       SendAddonMessage prefixes already arrive as LANG_ADDON and are
+#       ignored separately. Leave empty unless your server has a known
+#       visible-chat or admin-command prefix. Avoid ordinary words because
+#       every message starting with a configured value is suppressed.
+#       Entries are trimmed, so trailing spaces cannot be used to require a
+#       word boundary or separator; include punctuation instead.
+#       Changes take effect after `.reload config`.
+#       Default: empty (disabled)
+#
+LLMChatter.PlayerChat.IgnoredPrefixes =
 
 #
 #   LLMChatter.BGChatter.Enable
@@ -976,9 +999,9 @@ LLMChatter.ProximityChatter.InstanceChance = 100
 #       Seconds before the same bot or NPC can be used
 #       again as the lead speaker.
 #       Clamped to 0-3 seconds for fluid local interaction.
-#       Default: 3
+#       Default: 1
 #
-LLMChatter.ProximityChatter.EntityCooldown = 3
+LLMChatter.ProximityChatter.EntityCooldown = 1
 
 #
 #   LLMChatter.ProximityChatter.ZoneFatigueThreshold
@@ -1288,9 +1311,9 @@ LLMChatter.ProximityChatter.BossPresenceResetSeconds = 90
 #       explicitly names or targets a boss and speaks in /say.
 #       This is separate from the longer automatic approach cooldown.
 #       Clamped to 0-3 seconds so directed interaction stays responsive.
-#       Default: 3
+#       Default: 1
 #
-LLMChatter.ProximityChatter.BossDirectedReplyCooldownSeconds = 3
+LLMChatter.ProximityChatter.BossDirectedReplyCooldownSeconds = 1
 
 #
 #   LLMChatter.ProximityChatter.BossDirectedScanCooldownSeconds
@@ -1737,10 +1760,11 @@ LLMChatter.GroupChatter.PlayerMsgSecondBotChance = 25
 #
 #   LLMChatter.GroupChatter.PlayerMsgCooldown
 #       Minimum seconds between group reactions to player
-#       chat messages.
-#       Default: 15
+#       chat messages. The default keeps player-authored
+#       turns responsive without suppressing later messages.
+#       Default: 0
 #
-LLMChatter.GroupChatter.PlayerMsgCooldown = 15
+LLMChatter.GroupChatter.PlayerMsgCooldown = 0
 
 #
 #   LLMChatter.GroupChatter.GeneralRelayEnable
@@ -1815,10 +1839,12 @@ LLMChatter.GroupChatter.GeneralRelayMaxGroups = 1
 #   LLMChatter.GeneralChat.ReactionChance
 #       Chance (0-100) that a bot reacts when a player types
 #       a non-question message in General chat. Questions
-#       (ending with ?) use QuestionChance instead.
-#       Default: 40
+#       (ending with ?) use QuestionChance instead. The shared
+#       semantic optional-reply gate can still leave naturally
+#       optional casual turns unanswered.
+#       Default: 100
 #
-LLMChatter.GeneralChat.ReactionChance = 40
+LLMChatter.GeneralChat.ReactionChance = 100
 
 #
 #   LLMChatter.GeneralChat.QuestionChance
@@ -1827,18 +1853,19 @@ LLMChatter.GeneralChat.ReactionChance = 40
 #       "?" use ReactionChance instead. This simple detection
 #       gives direct questions a higher response rate, but
 #       statements and remarks also trigger at ReactionChance.
-#       Default: 80
+#       Default: 100
 #
-LLMChatter.GeneralChat.QuestionChance = 80
+LLMChatter.GeneralChat.QuestionChance = 100
 
 #
 #   LLMChatter.GeneralChat.Cooldown
 #       Per-zone cooldown (seconds) between bot reactions to
-#       player messages in General chat. Prevents bots from
-#       responding to every single message in a busy zone.
-#       Default: 30
+#       player messages in General chat. The default leaves
+#       player-authored turns unsuppressed; set a positive value
+#       only when a busy server deliberately needs throttling.
+#       Default: 0
 #
-LLMChatter.GeneralChat.Cooldown = 30
+LLMChatter.GeneralChat.Cooldown = 0
 
 #
 #   LLMChatter.GeneralChat.ReactDelay
@@ -2026,9 +2053,9 @@ LLMChatter.GuildChatter.PlayerReplies.Enable = 1
 #       Short collection window for rapid consecutive
 #       player messages. New turns supersede undelivered
 #       continuation lines from the previous turn.
-#       Default: 2
+#       Default: 1
 #
-LLMChatter.GuildChatter.PlayerReplies.DebounceSeconds = 2
+LLMChatter.GuildChatter.PlayerReplies.DebounceSeconds = 1
 
 #
 #   LLMChatter.GuildChatter.PlayerReplies.IdleSuppressionSeconds

@@ -108,7 +108,7 @@ void EnsureBotInGeneralChannel(
         joinChan->JoinChannel(bot, "");
 }
 
-static std::map<uint32, time_t> _generalChatCooldowns;
+static std::map<uint64, time_t> _generalChatCooldowns;
 static std::mutex _generalChatCooldownsMutex;
 
 // Per-group subzone cooldown keyed by group counter.
@@ -954,8 +954,14 @@ public:
         // (e.g. \xFF\xFF...) down to empty — drop it.
         if (safeMsg.empty())
             return true;
+        if (sLLMChatterConfig
+                ->IsPlayerChatPrefixIgnored(safeMsg))
+            return true;
 
         uint32 zoneId = player->GetZoneId();
+        uint64 generalContextKey =
+            (static_cast<uint64>(zoneId) << 1)
+            | (player->GetTeamId() == TEAM_HORDE ? 1u : 0u);
         std::string playerName = player->GetName();
 
         CharacterDatabase.Execute(
@@ -984,7 +990,8 @@ public:
             std::lock_guard<std::mutex> guard(
                 _generalChatCooldownsMutex);
             auto it =
-                _generalChatCooldowns.find(zoneId);
+                _generalChatCooldowns.find(
+                    generalContextKey);
             if (it != _generalChatCooldowns.end()
                 && (now - it->second)
                    < (time_t)sLLMChatterConfig
@@ -1007,13 +1014,14 @@ public:
             std::lock_guard<std::mutex> guard(
                 _generalChatCooldownsMutex);
             auto it =
-                _generalChatCooldowns.find(zoneId);
+                _generalChatCooldowns.find(
+                    generalContextKey);
             if (it != _generalChatCooldowns.end()
                 && (now - it->second)
                    < (time_t)sLLMChatterConfig
                        ->_generalChatCooldown)
                 return true;
-            _generalChatCooldowns[zoneId] = now;
+            _generalChatCooldowns[generalContextKey] = now;
         }
 
         std::string zoneName = GetZoneName(zoneId);
@@ -1038,6 +1046,9 @@ public:
                     continue;
                 if (p->GetZoneId() != zoneId)
                     continue;
+                if (p->GetTeamId()
+                    != player->GetTeamId())
+                    continue;
                 zoneBots.push_back(p);
                 if (zoneBots.size()
                     >= sLLMChatterConfig
@@ -1057,6 +1068,9 @@ public:
                 if (!bot || !bot->IsInWorld())
                     continue;
                 if (bot->GetZoneId() != zoneId)
+                    continue;
+                if (bot->GetTeamId()
+                    != player->GetTeamId())
                     continue;
 
                 bool found = false;
@@ -1138,7 +1152,10 @@ public:
             GetChatterEventPriority(
                 "player_general_msg"),
             "general_chat:" +
-                std::to_string(zoneId),
+                std::to_string(zoneId) + ":" +
+                std::to_string(
+                    player->GetTeamId()
+                        == TEAM_HORDE ? 1 : 0),
             player->GetGUID().GetCounter(),
             playerName,
             0,

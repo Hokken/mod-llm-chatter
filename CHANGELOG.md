@@ -1,5 +1,51 @@
 # Changelog
 
+### 2026-09-22 - Player-Initiated Chat Responsiveness
+
+* **Required conversational replies**: Shared semantic intent analysis now
+  reports whether player speech requires an answer. Questions and other
+  answer-seeking messages always continue to response generation, while the
+  LLM may still identify brief casual statements that need no reply without
+  relying on phrase lists or punctuation matching.
+* **Faster player-facing pacing**: Player-authored General messages now use
+  full reply and reaction chances with no channel cooldown. Party, Guild, and
+  directed proximity cooldowns are substantially shorter, while natural
+  response delays remain so replies feel conversational rather than
+  instantaneous.
+* **Same-faction response routing**: General, Party, Guild, Guild login, and
+  proximity reply paths now constrain eligible Playerbots to the player's
+  faction. General history and relay context are faction-scoped as well, and
+  final delivery rejects confirmed team mismatches without discarding valid
+  replies when a player is briefly unavailable during a map transition.
+
+### 2026-09-20 - Party Player Replies
+
+* **Party replies no longer use optional silence**: Player-authored Party
+  messages always continue to response generation once queued. Brief casual
+  classification still keeps lightweight replies concise, while the optional
+  silence chance remains available for Guild, General, proximity speech, and
+  directed boss speech. If two generated brief replies exceed the output
+  contract, Party uses a deterministic per-speaker bounded fallback instead
+  of dropping the statement or conversation. Casual multi-addressee messages
+  therefore retain every selected responder.
+
+### 2026-09-20 - Configurable Player-Chat Prefix Filtering
+
+* **Early visible-chat filtering**: Server owners can configure a
+  comma-separated `LLMChatter.PlayerChat.IgnoredPrefixes` denylist for real
+  player messages in Party, General, Guild, and `/say`. Matching ignores
+  leading whitespace and ASCII letter case, and matched messages are skipped
+  before Chatter writes history, changes conversation state or cooldowns,
+  cancels Guild login greetings, or queues LLM work. The player's normal game
+  chat remains unaffected.
+* **Reload-safe and compatibility-preserving**: The default-empty list is
+  published through the module's reload-safe configuration pattern and can be
+  changed with `.reload config`. Existing `LANG_ADDON`, hidden-payload, and
+  Playerbot-command protections remain independent. Documentation clarifies
+  that normal `SendAddonMessage` prefixes do not belong in this list and that
+  configured entries are trimmed, so distinctive punctuation-bearing
+  prefixes are recommended.
+
 ### 2026-09-20 - Contextual Short Player Replies
 
 * **Conversational scale matching**: Guild, General, party,
