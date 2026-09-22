@@ -904,7 +904,7 @@ Relevant responsibilities:
 
 - `OnPlayerCanUseChat(..., Channel*)`
 - bot membership enforcement for General
-- per-zone General cooldown handling
+- per-zone-and-faction General cooldown handling
 - writing/retaining `llm_general_chat_history`
 
 Shared note:
@@ -922,8 +922,16 @@ Python handling lives in:
 That path:
 
 - selects responding bot(s)
+- rechecks that every responder matches the player's faction
+- reads same-faction General history and anti-repetition context for the
+  player response
 - builds the player-reaction prompt
 - dispatches the reaction through the bridge path
+
+The C++ producer also builds the candidate roster from same-team bots only.
+Delivery revalidates the event subject against the speaking bot as a final
+safeguard, preventing a Horde response from being marked successful in Horde
+General when the initiating player is Alliance, or vice versa.
 
 ### Shared zone pacing
 
@@ -953,6 +961,10 @@ active group in the same zone. The bridge queues
 `bot_group_general_reaction` from General-producing Python paths, then
 `tools/chatter_group_general_reaction.py` generates either one party
 statement or a short 2-3 bot party conversation.
+
+The relay is eligible only when its General speaker, the group's real player,
+and all party responders share the same faction. This is checked both when the
+relay is queued and again when it is processed.
 
 The relay chance is controlled by
 `LLMChatter.GroupChatter.GeneralRelayChance` and defaults to 10%. When a
@@ -2689,14 +2701,17 @@ The shared prompt guidance then requires a few casual words or one short
 sentence instead of developed prose. General, party, and proximity player
 responses use the same scale-matching guidance.
 
-The intent pass also marks `reply_optional` only when leaving a brief casual
-turn unanswered would feel natural in context. Guild, General,
-proximity-speech, and directed boss-speech handlers then roll
+The intent pass also marks `requires_reply`: every question requires a reply,
+while statements are judged semantically in conversational context. The bridge
+derives `reply_optional` only for a brief casual statement that the model says
+does not require a reply. Guild, General, proximity-speech, and directed
+boss-speech handlers then roll
 `LLMChatter.PlayerChat.OptionalCasualReplyChance` once before generation.
 The default 20% reply chance makes silence the common result without suppressing
 questions, requests, warnings, important information, or other turns that
-clearly expect engagement. A failed roll skips the event without a generation
-call; a successful optional turn uses one responder. Party player messages
+clearly expect engagement. No phrase, punctuation, or keyword list is used.
+A failed roll skips the event without a generation call; a successful optional
+turn uses one responder. Party player messages
 bypass this silence roll and always continue to a concise response once queued.
 If the strict rewrite still exceeds the brief contract, Party deterministically
 bounds each selected speaker's usable result rather than dropping the statement

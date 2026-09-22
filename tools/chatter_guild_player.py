@@ -14,6 +14,7 @@ from chatter_guild import (
     _insert_reference_names,
     _participant_identity_lines,
     _query_speaker,
+    _speaker_faction,
     _select_participant_references,
     _strip_rp_artifacts,
     _valid_guild_conversation,
@@ -207,6 +208,17 @@ def _load_candidates(db, candidates: List[Dict]) -> List[Dict]:
         item['speaker'] = speaker
         loaded.append(item)
     return loaded
+
+
+def _filter_candidates_by_faction(
+    candidates: List[Dict], faction: str,
+) -> List[Dict]:
+    if faction not in ('Alliance', 'Horde'):
+        return []
+    return [
+        candidate for candidate in candidates
+        if _speaker_faction(candidate['speaker']) == faction
+    ]
 
 
 def _recent_bot_names(recent: List[Dict]) -> List[str]:
@@ -1174,9 +1186,12 @@ def process_guild_player_message_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
-    candidates = _load_candidates(
-        db,
-        _normalize_candidates(extra),
+    candidates = _filter_candidates_by_faction(
+        _load_candidates(
+            db,
+            _normalize_candidates(extra),
+        ),
+        str(extra.get('team') or ''),
     )
     if not candidates:
         _mark_event(db, event_id, 'skipped')

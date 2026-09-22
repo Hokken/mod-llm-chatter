@@ -301,6 +301,7 @@ bool ContainsNameWithBoundary(
 
 std::vector<Player*> GetEligibleGuildBots(
     uint32 guildId,
+    TeamId playerTeam,
     std::string const& playerMessage,
     uint32 maxCandidates)
 {
@@ -313,7 +314,8 @@ std::vector<Player*> GetEligibleGuildBots(
         if (!bot || !bot->IsInWorld()
             || !bot->IsAlive()
             || bot->IsInCombat()
-            || bot->GetGuildId() != guildId)
+            || bot->GetGuildId() != guildId
+            || bot->GetTeamId() != playerTeam)
         {
             continue;
         }
@@ -461,6 +463,7 @@ void HandleGuildPlayerMessage(
     std::vector<Player*> bots =
         GetEligibleGuildBots(
             guildId,
+            player->GetTeamId(),
             message,
             sLLMChatterConfig
                 ->_guildPlayerReplyMaxCandidates);
@@ -625,6 +628,7 @@ bool QueueGuildLoginGreeting(
     std::vector<Player*> bots =
         GetEligibleGuildBots(
             pending.guildId,
+            player->GetTeamId(),
             "",
             sLLMChatterConfig
                 ->_guildLoginGreetingMaxCandidates);

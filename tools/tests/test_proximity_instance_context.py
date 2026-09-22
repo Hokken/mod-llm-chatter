@@ -1687,8 +1687,8 @@ def test_config_fallbacks_match_distributed_values():
     assert 'InstanceScanIntervalSeconds = 30' in distributed
     assert 'OutdoorChance = 30' in distributed
     assert 'InstanceChance = 100' in distributed
-    assert '"EntityCooldown", 3)' in source
-    assert 'EntityCooldown = 3' in distributed
+    assert '"EntityCooldown", 1)' in source
+    assert 'EntityCooldown = 1' in distributed
     assert '"ConversationLineDelay", 2)' in source
     assert '"MaxTokensPerLine", 120)' in source
     assert '"EnableBossDialogue", false)' in source
@@ -1710,10 +1710,10 @@ def test_config_fallbacks_match_distributed_values():
     assert '"BossPresenceResetSeconds", 90)' in source
     assert 'BossDialogueCooldownSeconds' not in source
     assert '"BossDirectedScanCooldownSeconds", 1)' in source
-    assert '"BossDirectedReplyCooldownSeconds", 3)' in source
+    assert '"BossDirectedReplyCooldownSeconds", 1)' in source
     assert '"NPCVerbalCooldown", 3)' in source
     assert source.count('            3u);') >= 3
-    assert 'BossDirectedReplyCooldownSeconds = 3' in distributed
+    assert 'BossDirectedReplyCooldownSeconds = 1' in distributed
     assert 'NPCVerbalCooldown = 3' in distributed
     assert '"MirrorChance", 80)' in source
     assert '"ReactionChance", 80)' in source
