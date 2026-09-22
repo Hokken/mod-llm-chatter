@@ -230,6 +230,38 @@ def _recent_bot_names(recent: List[Dict]) -> List[str]:
     ]
 
 
+def _immediately_prior_bot(
+    recent: List[Dict],
+    candidates: List[Dict],
+    player_name: str,
+    player_message: str,
+) -> str:
+    """Resolve the bot directly before the current player turn."""
+    if len(recent) < 2:
+        return ''
+
+    current = recent[-1]
+    previous = recent[-2]
+    if (
+        current.get('is_bot')
+        or str(current.get('speaker_name') or '').casefold()
+        != player_name.casefold()
+        or str(current.get('message') or '').strip()
+        != player_message.strip()
+        or not previous.get('is_bot')
+    ):
+        return ''
+
+    previous_name = str(
+        previous.get('speaker_name') or ''
+    ).casefold()
+    for candidate in candidates:
+        name = str(candidate.get('name') or '')
+        if name.casefold() == previous_name:
+            return name
+    return ''
+
+
 def _weighted_pick(
     candidates: List[Dict],
     recent_names: List[str],
@@ -1233,6 +1265,26 @@ def process_guild_player_message_event(
     multi_addressed = bool(
         addressed.get('multi_addressed')
     )
+    if (
+        memory_enabled
+        and not addressed.get('bot')
+        and not multi_addressed
+    ):
+        continuity_target = _immediately_prior_bot(
+            recent,
+            candidates,
+            player_name,
+            player_message,
+        )
+        if continuity_target:
+            addressed = dict(addressed)
+            addressed['bot'] = continuity_target
+            logger.info(
+                "guild_player_message player=%s "
+                "continuity_target=%s",
+                player_name,
+                continuity_target,
+            )
     brief_casual = bool(addressed.get('brief_casual'))
     reply_optional = bool(addressed.get('reply_optional'))
     if not should_reply_to_optional_casual(config, addressed):

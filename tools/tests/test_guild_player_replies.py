@@ -466,7 +466,7 @@ def test_optional_casual_silence_excludes_party_chat():
         ) in config_text
 
 
-def test_brief_contextual_reply_forces_one_prior_speaker():
+def test_brief_contextual_reply_falls_back_to_prior_speaker():
     event = _event()
     extra = json.loads(event['extra_data'])
     extra['player_message'] = 'That means a lot.'
@@ -506,7 +506,7 @@ def test_brief_contextual_reply_forces_one_prior_speaker():
             chatter_guild_player,
             'find_addressed_bot',
             return_value={
-                'bot': 'Karguhr',
+                'bot': None,
                 'multi_addressed': False,
                 'brief_casual': True,
             },

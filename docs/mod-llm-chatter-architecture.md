@@ -270,6 +270,9 @@ Player-driven Guild exchanges use a separate, session-owned path:
    the live eligible Guild-bot candidates.
 4. The shared LLM intent analysis may resolve either an explicit name or
    an implicit reply to the immediately prior speaker from recent history.
+   If it returns no single target for a non-group turn, the bridge preserves
+   visible turn-taking by selecting the eligible bot directly before the
+   current player line in the stored transcript.
    It also classifies the conversational scale semantically rather than
    matching a fixed phrase list. `chatter_guild_player.py` selects that
    addressed bot first, applies a soft penalty only to other recent-speaker

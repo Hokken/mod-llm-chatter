@@ -2692,8 +2692,11 @@ Guild member does not dominate every exchange.
 
 The same LLM intent pass can resolve an implicit addressee from the recent
 transcript, such as a player naturally answering the immediately prior
-speaker without repeating their name. It also marks brief casual
-continuations semantically. A brief continuation directed to one bot stays
+speaker without repeating their name. If the model returns no addressee for
+a non-group turn, the bridge falls back to the eligible bot immediately
+before the current player line in the visible session transcript. It also
+marks brief casual continuations semantically. A brief continuation directed
+to one bot stays
 with that responder when a reply is warranted, bypasses the recent-speaker
 penalty, and suppresses callback, player-name, and follow-up-question
 embellishments.
