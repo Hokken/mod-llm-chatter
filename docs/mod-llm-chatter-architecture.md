@@ -1,6 +1,6 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-09-20 (configurable player-chat prefix filtering)
+Last updated: 2026-09-22 (transactional addon profile edits, custom emotes, action delivery, gear/pet context)
 
 ## Purpose
 
@@ -720,7 +720,7 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterBossDialogue.cpp/.h` | ~850 | Separate boss-only pre-aggro scanning, safe-band eligibility, selected/named `/say` routing, denylist, and boss-instance presence scheduling |
 | `src/LLMChatterBG.cpp` | 1348 | Battleground hooks, BG state polling, BG queue helpers, BG registration |
 | `src/LLMChatterBG.h` | 14 | BG registration declaration |
-| `src/LLMChatterCommand.cpp` | ~594 | Player command bridge for the Chatter Companion addon. `.llmc` command with `roster`, `get`, `set` subcommands. Percent-encoding protocol, SQL-escaped writes to `llm_bot_identities` and `llm_group_bot_traits`, config guard via `sLLMChatterConfig->IsEnabled()`, cache invalidation on trait update |
+| `src/LLMChatterCommand.cpp` | ~1620 | Player command bridge for the Chatter Companion addon. `.llmc` subcommands `roster`, `get`, `set`, `setbackstory`, `regenbackstory`, `forget`, plus the chunked upload `put` / `commit` / `cancel` (per-player staging, 200-character chunks, up to 64 per field). Percent-encoding protocol and UTF-8 character limits (64 per trait, 1,000 per backstory). Every profile edit is validated as a whole and written as one `CharacterDatabaseTransaction` (identity, session traits, cache invalidation, optional backstory); responses and tone/backstory regeneration run only in the commit callback. See [`chatter-addon-reference.md`](chatter-addon-reference.md) |
 | `src/LLMChatterConfig.h/.cpp` | ~900 | Config loading, reload-safe creature-entry sets, and config struct |
 | `src/llm_chatter_loader.cpp` | 11 | Module entry point, calls `AddLLMChatterScripts()` |
 
@@ -781,7 +781,7 @@ This asymmetry is known and acceptable in the shipped source state.
 
 | File | Primary ownership |
 |---|---|
-| `tools/chatter_shared.py` | Shared prompt, parse, count, and delay helpers |
+| `tools/chatter_shared.py` | Shared prompt, parse, count, and delay helpers. Also owns gear/pet context: `build_gear_context()` describes a bot's equipped weapons and, for Hunters and Warlocks, its active pet (a stabled pet is ignored), second person for solo prompts; `attach_speaker_gear()` / `append_speaker_gear()` give multi-speaker prompts the third-person form. Gated by `LLMChatter.GearContext.Enable` |
 | `tools/llm_compat.py` | Declarative OpenAI-compatible model capability profiles plus narrowly scoped parameter-rejection recovery and process-local learned overrides |
 | `tools/chatter_mode.py` | Canonical normal/RP playerbot identity and channel voice rules, plus mode-invariant NPC guidance |
 | `tools/chatter_text.py` | Parsing, sanitization, anti-repetition, and chat length limiting. Never slice LLM chat output by hand; use `shorten_chat_message()` or `shorten_chat_question()` from this file. |
@@ -790,7 +790,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_links.py` | WoW link parsing and prompt-side link enrichment for player messages |
 | `tools/chatter_prompts.py` | Ambient/event prompt builders |
 | `tools/chatter_general.py` | `player_general_msg` Python path |
-| `tools/chatter_memory.py` | Persistent memory system: session tracking, background memory generation via `queue_memory()`, flush/activate on farewell, orphan recovery. Key helpers: `_resolve_location()`, `_ensure_cap_and_insert()`, `_count_active_memories()`, `_evict_one_used()`. Memory prompts thread `player_name` so the LLM references the player by name (DB fallback from `player_guid` when caller doesn't supply it) |
+| `tools/chatter_memory.py` | Persistent memory system: session tracking, background memory generation via `queue_memory()`, flush/activate on farewell, orphan recovery. Key helpers: `_resolve_location()`, `_ensure_cap_and_insert()`, `_count_active_memories()`, `_evict_one_used()`. Memory prompts thread `player_name` so the LLM references the player by name (DB fallback from `player_guid` when caller doesn't supply it). Memories are one plain, factual sentence (target 160 characters); `_clamp_memory_text()` bounds them at write time (hard cap 240, cut at a sentence or word boundary), so prompts carry the stored memory whole instead of cutting it at 200 characters |
 | `tools/chatter_cache.py` | Mode-aware pre-cache refill and startup removal of ready rows generated under a previous mode |
 | `tools/chatter_events.py` | Event context building and cleanup |
 | `tools/chatter_constants.py` | Static constants and lore data: zone names/levels/flavor, race/class speech profiles, personality traits (16 categories, 264 traits), BG lore, item/weapon/armor classification maps, item quality names/colors, raid map IDs, dungeon flavor, emote keywords |
@@ -817,6 +817,17 @@ This asymmetry is known and acceptable in the shipped source state.
 |---|---|
 | `tools/chatter_emote_reaction.py` | Directed verbal reaction handler (`bot_group_emote_reaction` event) — bot responds verbally when player emotes at them |
 | `tools/chatter_emote_observer.py` | Observer comment handler (`bot_group_emote_observer` event) — random group bot remarks when player emotes at a creature or nobody |
+
+Free-text emotes (`/e`, `/me`) arrive through the chat hook, not
+`OnPlayerTextEmote`. `HandleGroupPlayerCustomEmoteImpl()` sanitizes the text
+(clamped to `EmoteReactions.CustomMaxChars` UTF-8 characters), resolves the
+target from the player's selection, and feeds the same dispatcher as named
+emotes with `textEmote = 0`. A custom emote has no animation, so it never
+mirrors; it only produces verbal reactions. Every payload carries the typed
+text in the emote-name field plus `custom_emote: 1`: `bot_group_emote_reaction`
+and `bot_group_emote_observer` for grouped bots, and `proximity_player_emote`
+for an ungrouped playerbot. The Python handlers quote the text as an action
+instead of rendering it as a `/slash` command.
 
 ### Proximity chatter domain
 
@@ -888,6 +899,15 @@ system.
   `FindCreatureBySpawnId()`
 - NPC orientation reset after speech via `BasicEvent`
 - delivery success/retry marking
+- action delivery: with `LLMChatter.ActionAsEmote.Enable = 1` a row's
+  `action` column (split from a leading `*action*` by
+  `split_action_prefix()`) goes out as a `CHAT_MSG_MONSTER_EMOTE`
+  (`Unit::TextEmote`, which carries the sender name) right before the speech.
+  Each send site calls `emitAction()` only once the send is known to be
+  valid — for party, after the group has been confirmed — so an action never
+  plays ahead of speech that fails. If speech is retried after the action has
+  gone out, the `action` column is cleared so the retry does not replay it.
+  With the option off, the action is rendered inline as `*action* text`
 
 ### Ambient ownership
 

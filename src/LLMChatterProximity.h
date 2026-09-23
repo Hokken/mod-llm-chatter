@@ -25,9 +25,12 @@ void HandleProximityPlayerSay(
 void HandleProximityPlayerEmote(
     Player* player, Creature* creature,
     uint32 textEmote, uint32 mirrorEmote);
+// customText carries a free-text /e or /me, in which case
+// textEmote is 0 and the typed action is what gets reacted to.
 bool HandleProximityPlayerbotEmote(
     Player* player, Player* bot,
-    uint32 textEmote, uint32 mirrorEmote);
+    uint32 textEmote, uint32 mirrorEmote,
+    std::string const& customText = "");
 void RecordDeliveredProximityLine(
     uint32 eventId, uint32 playerGuid,
     uint32 zoneId, uint32 mapId,

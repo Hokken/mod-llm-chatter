@@ -2159,23 +2159,28 @@ static std::string SanitizeCustomEmote(
         out.push_back(static_cast<char>(c));
     }
 
-    if (out.size() > maxChars)
+    out = SanitizeUtf8(out);
+
+    // maxChars counts characters, not bytes, so non-ASCII text
+    // gets the full configured length. A character starts at
+    // every byte that is not a 10xxxxxx continuation byte, so
+    // cutting at the start of character maxChars + 1 never
+    // severs a multi-byte sequence.
+    size_t chars = 0;
+    for (size_t i = 0; i < out.size(); ++i)
     {
-        // Back off to a codepoint boundary so the cut never
-        // severs a multi-byte character. out[cut] is the
-        // first byte to drop; while it is a continuation byte
-        // the character starting before it is incomplete.
-        size_t cut = maxChars;
-        while (cut > 0
-            && (static_cast<unsigned char>(out[cut])
-                & 0xC0) == 0x80)
+        if ((static_cast<unsigned char>(out[i]) & 0xC0)
+            == 0x80)
+            continue;
+        if (chars == maxChars)
         {
-            --cut;
+            out.resize(i);
+            break;
         }
-        out.resize(cut);
+        ++chars;
     }
 
-    if (out.size() < 2)
+    if (chars < 2)
         return "";
 
     return out;
@@ -2307,20 +2312,24 @@ static void DispatchPlayerEmote(
         float radius = static_cast<float>(
             sLLMChatterConfig
                 ->_proxChatterPlayerSayScanRadius);
+        // A custom emote has no animation to mirror, so only
+        // the verbal proximity route can accept it.
         ungroupedBotDirectAccepted =
             IsProximityDirectedPlayerbotEligible(
                 player, cachedTargetPlayer, radius)
-            && (HasPlayerbotMirrorEmote(textEmote)
+            && ((!isCustom
+                    && HasPlayerbotMirrorEmote(textEmote))
                 || IsProximityPlayerbotEmoteRouteEnabled());
         if (ungroupedBotDirectAccepted)
         {
-            uint32 mirrorEmote =
-                HandleEmoteAtUngroupedBot(
-                    player, cachedTargetPlayer,
-                    textEmote);
+            uint32 mirrorEmote = isCustom
+                ? 0
+                : HandleEmoteAtUngroupedBot(
+                      player, cachedTargetPlayer,
+                      textEmote);
             HandleProximityPlayerbotEmote(
                 player, cachedTargetPlayer,
-                textEmote, mirrorEmote);
+                textEmote, mirrorEmote, customText);
         }
     }
 

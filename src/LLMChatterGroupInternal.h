@@ -230,7 +230,7 @@ void HandleGroupPlayerCustomEmoteImpl(
 void HandleEmoteAtGroupBot(
     Player* player, Player* targetBot,
     uint32 textEmote, Group* group,
-    const std::string& customText = "");
+    std::string const& customText = "");
 bool HasPlayerbotMirrorEmote(uint32 textEmote);
 uint32 HandleEmoteAtUngroupedBot(
     Player* player, Player* targetBot,
@@ -249,8 +249,8 @@ void HandleEmoteObserver(
     uint32 npcRank, uint32 npcType,
     uint32 npcEntry,
     const std::string& npcSubName,
-    const std::vector<Player*>& candidates,
-    const std::string& customText = "",
+    std::vector<Player*> const& candidates,
+    std::string const& customText = "",
     Player* targetPlayer = nullptr);
 
 // Emote statics (used by PlayerScript dispatch)

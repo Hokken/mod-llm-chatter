@@ -335,7 +335,7 @@ bool HasPlayerbotMirrorEmote(uint32 textEmote)
 void HandleEmoteAtGroupBot(
     Player* player, Player* targetBot,
     uint32 textEmote, Group* group,
-    const std::string& customText)
+    std::string const& customText)
 {
     bool const isCustom = !customText.empty();
 
@@ -537,8 +537,8 @@ void HandleEmoteObserver(
     uint32 npcRank, uint32 npcType,
     uint32 npcEntry,
     const std::string& npcSubName,
-    const std::vector<Player*>& candidates,
-    const std::string& customText,
+    std::vector<Player*> const& candidates,
+    std::string const& customText,
     Player* targetPlayer)
 {
     if (candidates.empty()) return;

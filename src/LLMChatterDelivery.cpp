@@ -970,17 +970,22 @@ void DeliverPendingMessagesImpl()
             }
             else if (channel == "party")
             {
+                // No group leaves the row unsent for a retry,
+                // and the action must not play ahead of speech
+                // that never goes out. With a group, SayToParty
+                // cannot fail.
                 Group* grp = bot->GetGroup();
-                emitAction();
                 if (grp && grp->isRaidGroup())
                 {
+                    emitAction();
                     SendPartyMessageInstant(
                         bot, grp, processedMessage,
                         "");
                     sent = true;
                 }
-                else
+                else if (grp)
                 {
+                    emitAction();
                     sent = ai->SayToParty(
                         processedMessage);
                 }

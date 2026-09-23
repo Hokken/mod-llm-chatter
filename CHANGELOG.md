@@ -1,5 +1,27 @@
 # Changelog
 
+### 2026-09-22 - Addon Profile Edits, Custom Emotes, and Action Delivery Fixes
+
+* **Profile edits are atomic**: `.llmc set`, `setbackstory` and chunked
+  `commit` write every part of an edit (identity, session traits, cache
+  invalidation, optional backstory) in one database transaction. `UPDATED` /
+  `PROFILE` responses and tone/backstory regeneration are sent only after the
+  commit succeeds; a failed write answers `ERROR save` and leaves the bot
+  untouched.
+* **Larger upload capacity**: Chunked uploads accept up to 64 chunks per
+  field, enough for any valid 1,000-character Unicode backstory.
+* **Custom emotes at ungrouped playerbots**: The typed action (for example
+  "slowly sheathes her sword") now reaches the proximity reaction instead of
+  falling back to `/wave`.
+* **Party action ordering**: The action emote is shown only after the bot's
+  group is confirmed, so it can no longer appear ahead of speech that failed
+  to send.
+* **`CustomMaxChars` counts characters**: Non-ASCII emotes are no longer cut
+  below the configured length.
+* **Log Viewer stays responsive**: `chatter_log_viewer.py` now serves
+  requests on threads, so one idle browser connection can no longer hang the
+  viewer on port 5555.
+
 ### 2026-09-22 - Player-Initiated Chat Responsiveness
 
 * **Required conversational replies**: Shared semantic intent analysis now

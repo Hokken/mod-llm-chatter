@@ -9,6 +9,7 @@
 #include "DatabaseEnv.h"
 #include "LLMChatterConfig.h"
 #include "LLMChatterShared.h"
+#include "Log.h"
 #include "WorldSession.h"
 #include "Player.h"
 #include "PlayerScript.h"
@@ -40,7 +41,15 @@ constexpr size_t kMaxBackstoryChars = 1000;
 // chat at 255 characters, and `put <guid> t1 12 12 ` eats
 // about 30 of those, so 200 leaves comfortable headroom.
 constexpr size_t kMaxChunkLength = 200;
-constexpr uint32 kMaxChunksPerField = 24;
+constexpr uint32 kMaxChunksPerField = 64;
+
+// A UTF-8 character is at most 4 bytes and each byte
+// percent-encodes to 3 characters, so the longest valid
+// backstory must fit even when every character is 4 bytes.
+static_assert(
+    kMaxBackstoryChars * 4 * 3
+        <= kMaxChunkLength * kMaxChunksPerField,
+    "chunk capacity cannot carry a maximum-length backstory");
 constexpr time_t kPendingEditTtlSeconds = 60;
 
 struct BotProfile
@@ -523,28 +532,36 @@ bool HandleGetCommand(
     return true;
 }
 
-// Writes a trait set and returns whether it was applied.
-// `backstoryFollows` says the caller saves an explicit
-// backstory immediately after this, which means neither
-// scheduling a regeneration that would overwrite it nor
-// reporting the story this call is about to supersede.
-bool ApplyTraitUpdate(
+// One profile edit — traits, a backstory, or both — checked
+// as a whole and written as a single transaction. Nothing is
+// reported to the addon and no regeneration is queued until
+// that transaction has committed, so a failed or racing write
+// can never leave half an edit applied or announce one that
+// did not happen.
+struct ProfileEdit
+{
+    uint32 playerGuid = 0;
+    // The stored profile, as loaded before the edit.
+    BotProfile profile;
+
+    bool hasTraits = false;
+    bool traitsChanged = false;
+    std::string trait1;
+    std::string trait2;
+    std::string trait3;
+
+    bool hasBackstory = false;
+    std::string backstory;
+};
+
+bool BeginProfileEdit(
     ChatHandler* handler,
     uint32 playerGuid,
     uint32 botGuid,
-    std::string const& trait1,
-    std::string const& trait2,
-    std::string const& trait3,
-    bool backstoryFollows = false)
+    ProfileEdit& edit)
 {
-    if (!ValidateTraitValues(
-            handler, trait1, trait2, trait3))
-    {
-        return false;
-    }
-
-    BotProfile profile;
-    if (!LoadBotProfile(botGuid, profile))
+    edit.playerGuid = playerGuid;
+    if (!LoadBotProfile(botGuid, edit.profile))
     {
         SendAddonLine(
             handler,
@@ -554,16 +571,69 @@ bool ApplyTraitUpdate(
         return false;
     }
 
-    bool traitsChanged =
-        (trait1 != profile.trait1
-         || trait2 != profile.trait2
-         || trait3 != profile.trait3);
+    edit.trait1 = edit.profile.trait1;
+    edit.trait2 = edit.profile.trait2;
+    edit.trait3 = edit.profile.trait3;
+    return true;
+}
 
-    if (traitsChanged)
+bool StageTraitEdit(
+    ChatHandler* handler,
+    ProfileEdit& edit,
+    std::string const& trait1,
+    std::string const& trait2,
+    std::string const& trait3)
+{
+    if (!ValidateTraitValues(
+            handler, trait1, trait2, trait3))
+    {
+        return false;
+    }
+
+    edit.hasTraits = true;
+    edit.trait1 = trait1;
+    edit.trait2 = trait2;
+    edit.trait3 = trait3;
+    edit.traitsChanged =
+        (trait1 != edit.profile.trait1
+         || trait2 != edit.profile.trait2
+         || trait3 != edit.profile.trait3);
+    return true;
+}
+
+// Stage traits first in a combined edit: the story is checked
+// against the traits the bot will end up with.
+bool StageBackstoryEdit(
+    ChatHandler* handler,
+    ProfileEdit& edit,
+    std::string const& backstory)
+{
+    if (!ValidateBackstoryValue(
+            handler, edit.trait1, edit.trait2,
+            edit.trait3, backstory))
+    {
+        return false;
+    }
+
+    edit.hasBackstory = true;
+    edit.backstory = backstory;
+    return true;
+}
+
+void AppendTraitWrites(
+    CharacterDatabaseTransaction trans,
+    ProfileEdit const& edit)
+{
+    uint32 botGuid = edit.profile.guid;
+    std::string const& trait1 = edit.trait1;
+    std::string const& trait2 = edit.trait2;
+    std::string const& trait3 = edit.trait3;
+
+    if (edit.traitsChanged)
     {
         // Traits changed — clear tone/backstory
         // so they regenerate for the new traits
-        CharacterDatabase.Execute(
+        trans->Append(
             "INSERT INTO llm_bot_identities "
             "(bot_guid, bot_name, trait1, trait2, "
             " trait3, tone, farewell_msg, backstory,"
@@ -579,7 +649,7 @@ bool ApplyTraitUpdate(
             " farewell_msg = NULL, "
             " backstory = NULL",
             botGuid,
-            EscapeString(profile.name),
+            EscapeString(edit.profile.name),
             EscapeString(trait1),
             EscapeString(trait2),
             EscapeString(trait3),
@@ -587,7 +657,7 @@ bool ApplyTraitUpdate(
                 "LLMChatter.Memory.IdentityVersion",
                 1));
 
-        CharacterDatabase.Execute(
+        trans->Append(
             "UPDATE llm_group_bot_traits "
             "SET bot_name = '{}', "
             "    trait1 = '{}', "
@@ -597,23 +667,108 @@ bool ApplyTraitUpdate(
             "    farewell_msg = NULL, "
             "    backstory = NULL "
             "WHERE bot_guid = {}",
-            EscapeString(profile.name),
+            EscapeString(edit.profile.name),
             EscapeString(trait1),
             EscapeString(trait2),
             EscapeString(trait3),
             botGuid);
 
-        CharacterDatabase.Execute(
+        trans->Append(
             "DELETE FROM llm_group_cached_responses "
             "WHERE bot_guid = {}",
             botGuid);
+    }
+    else
+    {
+        // Traits unchanged — just save name,
+        // preserve tone/backstory/farewell as-is
+        trans->Append(
+            "INSERT INTO llm_bot_identities "
+            "(bot_guid, bot_name, trait1, trait2, "
+            " trait3, identity_version) "
+            "VALUES ({}, '{}', '{}', '{}', '{}', {})"
+            " ON DUPLICATE KEY UPDATE "
+            " bot_name = VALUES(bot_name), "
+            " trait1 = VALUES(trait1), "
+            " trait2 = VALUES(trait2), "
+            " trait3 = VALUES(trait3)",
+            botGuid,
+            EscapeString(edit.profile.name),
+            EscapeString(trait1),
+            EscapeString(trait2),
+            EscapeString(trait3),
+            sConfigMgr->GetOption<uint32>(
+                "LLMChatter.Memory.IdentityVersion",
+                1));
 
+        trans->Append(
+            "UPDATE llm_group_bot_traits "
+            "SET bot_name = '{}', "
+            "    trait1 = '{}', "
+            "    trait2 = '{}', "
+            "    trait3 = '{}' "
+            "WHERE bot_guid = {}",
+            EscapeString(edit.profile.name),
+            EscapeString(trait1),
+            EscapeString(trait2),
+            EscapeString(trait3),
+            botGuid);
+    }
+}
+
+void AppendBackstoryWrites(
+    CharacterDatabaseTransaction trans,
+    ProfileEdit const& edit)
+{
+    uint32 botGuid = edit.profile.guid;
+
+    // Upsert identity row — creates it if the
+    // bot only exists via memories/session traits
+    trans->Append(
+        "INSERT INTO llm_bot_identities "
+        "(bot_guid, bot_name, trait1, trait2, "
+        " trait3, backstory, identity_version) "
+        "VALUES ({}, '{}', '{}', '{}', '{}', "
+        "        '{}', {}) "
+        "ON DUPLICATE KEY UPDATE "
+        " backstory = VALUES(backstory)",
+        botGuid,
+        EscapeString(edit.profile.name),
+        EscapeString(edit.trait1),
+        EscapeString(edit.trait2),
+        EscapeString(edit.trait3),
+        EscapeString(edit.backstory),
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.Memory.IdentityVersion",
+            1));
+
+    trans->Append(
+        "UPDATE llm_group_bot_traits "
+        "SET backstory = '{}' "
+        "WHERE bot_guid = {}",
+        EscapeString(edit.backstory),
+        botGuid);
+}
+
+// Runs only after the edit has committed. `handler` is null
+// when the player logged out in the meantime; the regeneration
+// is still queued, there is just nobody left to tell.
+void ReportProfileEdit(
+    ChatHandler* handler, ProfileEdit const& edit)
+{
+    BotProfile const& profile = edit.profile;
+    uint32 botGuid = profile.guid;
+    std::string toneToSend =
+        edit.traitsChanged ? "" : profile.tone;
+
+    if (edit.traitsChanged)
+    {
         // Queue tone regen first (faster than backstory)
         std::string regenExtra =
             "{\"bot_guid\": "
             + std::to_string(botGuid)
             + ", \"player_guid\": "
-            + std::to_string(playerGuid)
+            + std::to_string(edit.playerGuid)
             + "}";
         QueueChatterEvent(
             "bot_tone_regen",
@@ -628,7 +783,7 @@ bool ApplyTraitUpdate(
         // edit brought a story of its own. The worker starts
         // by clearing whatever is stored, so scheduling it
         // here would discard the supplied text minutes later.
-        if (!backstoryFollows)
+        if (!edit.hasBackstory)
         {
             QueueChatterEvent(
                 "bot_backstory_regen",
@@ -640,74 +795,105 @@ bool ApplyTraitUpdate(
                 5, 120, true);
         }
     }
-    else
-    {
-        // Traits unchanged — just save name,
-        // preserve tone/backstory/farewell as-is
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_bot_identities "
-            "(bot_guid, bot_name, trait1, trait2, "
-            " trait3, identity_version) "
-            "VALUES ({}, '{}', '{}', '{}', '{}', {})"
-            " ON DUPLICATE KEY UPDATE "
-            " bot_name = VALUES(bot_name), "
-            " trait1 = VALUES(trait1), "
-            " trait2 = VALUES(trait2), "
-            " trait3 = VALUES(trait3)",
-            botGuid,
-            EscapeString(profile.name),
-            EscapeString(trait1),
-            EscapeString(trait2),
-            EscapeString(trait3),
-            sConfigMgr->GetOption<uint32>(
-                "LLMChatter.Memory.IdentityVersion",
-                1));
 
-        CharacterDatabase.Execute(
-            "UPDATE llm_group_bot_traits "
-            "SET bot_name = '{}', "
-            "    trait1 = '{}', "
-            "    trait2 = '{}', "
-            "    trait3 = '{}' "
-            "WHERE bot_guid = {}",
-            EscapeString(profile.name),
-            EscapeString(trait1),
-            EscapeString(trait2),
-            EscapeString(trait3),
-            botGuid);
+    if (edit.hasTraits)
+    {
+        SendAddonLine(
+            handler,
+            "UPDATED "
+            + std::to_string(botGuid)
+            + " "
+            + PercentEncode(profile.name)
+            + " "
+            + (edit.traitsChanged
+                ? "changed" : "unchanged"));
+        SendAddonLine(
+            handler,
+            "PROFILE "
+            + std::to_string(botGuid)
+            + " " + PercentEncode(profile.name)
+            + " " + PercentEncode(edit.trait1)
+            + " " + PercentEncode(edit.trait2)
+            + " " + PercentEncode(edit.trait3)
+            + " " + PercentEncode(toneToSend));
+        if (!edit.traitsChanged && !edit.hasBackstory)
+        {
+            SendAddonLine(
+                handler,
+                "BACKSTORY "
+                + std::to_string(botGuid)
+                + " "
+                + PercentEncode(profile.backstory));
+        }
     }
 
-    std::string changedFlag =
-        traitsChanged ? "changed" : "unchanged";
-    SendAddonLine(
-        handler,
-        "UPDATED "
-        + std::to_string(botGuid)
-        + " "
-        + PercentEncode(profile.name)
-        + " "
-        + changedFlag);
-    std::string toneToSend =
-        traitsChanged ? "" : profile.tone;
-    SendAddonLine(
-        handler,
-        "PROFILE "
-        + std::to_string(botGuid)
-        + " " + PercentEncode(profile.name)
-        + " " + PercentEncode(trait1)
-        + " " + PercentEncode(trait2)
-        + " " + PercentEncode(trait3)
-        + " " + PercentEncode(toneToSend));
-    if (!traitsChanged && !backstoryFollows)
+    if (edit.hasBackstory)
     {
+        SendAddonLine(
+            handler,
+            "BACKSTORY_SAVED "
+            + std::to_string(botGuid)
+            + " "
+            + PercentEncode(profile.name));
+        SendAddonLine(
+            handler,
+            "PROFILE "
+            + std::to_string(botGuid)
+            + " " + PercentEncode(profile.name)
+            + " " + PercentEncode(edit.trait1)
+            + " " + PercentEncode(edit.trait2)
+            + " " + PercentEncode(edit.trait3)
+            + " " + PercentEncode(toneToSend));
         SendAddonLine(
             handler,
             "BACKSTORY "
             + std::to_string(botGuid)
-            + " "
-            + PercentEncode(profile.backstory));
+            + " " + PercentEncode(edit.backstory));
     }
-    return true;
+}
+
+void CommitProfileEdit(
+    ChatHandler* handler, ProfileEdit edit)
+{
+    WorldSession* session = handler->GetSession();
+
+    CharacterDatabaseTransaction trans =
+        CharacterDatabase.BeginTransaction();
+    if (edit.hasTraits)
+        AppendTraitWrites(trans, edit);
+    if (edit.hasBackstory)
+        AppendBackstoryWrites(trans, edit);
+
+    // The callback is owned by the session and only ever runs
+    // from its update, so the captured pointer outlives it.
+    session->AddTransactionCallback(
+        CharacterDatabase.AsyncCommitTransaction(trans))
+        .AfterComplete(
+            [session, edit = std::move(edit)](bool success)
+            {
+                ChatHandler sessionHandler(session);
+                ChatHandler* replyTo =
+                    session->GetPlayer()
+                        ? &sessionHandler : nullptr;
+
+                if (!success)
+                {
+                    LOG_ERROR(
+                        "module",
+                        "LLMChatter: profile edit for bot {} "
+                        "failed to commit; nothing was applied",
+                        edit.profile.guid);
+                    SendAddonLine(
+                        replyTo,
+                        "ERROR save "
+                        + PercentEncode(
+                            "Could not save the profile, "
+                            "please try again"));
+                    return;
+                }
+
+                ReportProfileEdit(replyTo, edit);
+            });
 }
 
 bool HandleSetCommand(
@@ -751,85 +937,13 @@ bool HandleSetCommand(
     // line. The command itself understood its input either
     // way, and returning false here would make the core
     // print its own usage text over that answer.
-    ApplyTraitUpdate(
-        handler, playerGuid, botGuid, trait1, trait2,
-        trait3);
-    return true;
-}
-
-// Writes a backstory and returns whether it was applied.
-bool ApplyBackstoryUpdate(
-    ChatHandler* handler,
-    uint32 botGuid,
-    std::string const& backstory)
-{
-    BotProfile profile;
-    if (!LoadBotProfile(botGuid, profile))
+    ProfileEdit edit;
+    if (BeginProfileEdit(handler, playerGuid, botGuid, edit)
+        && StageTraitEdit(
+            handler, edit, trait1, trait2, trait3))
     {
-        SendAddonLine(
-            handler,
-            "ERROR missing "
-            + PercentEncode(
-                "Could not load that bot "
-                "profile"));
-        return false;
+        CommitProfileEdit(handler, std::move(edit));
     }
-
-    if (!ValidateBackstoryValue(
-            handler,
-            profile.trait1, profile.trait2,
-            profile.trait3, backstory))
-    {
-        return false;
-    }
-
-    // Upsert identity row — creates it if the
-    // bot only exists via memories/session traits
-    CharacterDatabase.Execute(
-        "INSERT INTO llm_bot_identities "
-        "(bot_guid, bot_name, trait1, trait2, "
-        " trait3, backstory, identity_version) "
-        "VALUES ({}, '{}', '{}', '{}', '{}', "
-        "        '{}', {}) "
-        "ON DUPLICATE KEY UPDATE "
-        " backstory = VALUES(backstory)",
-        botGuid,
-        EscapeString(profile.name),
-        EscapeString(profile.trait1),
-        EscapeString(profile.trait2),
-        EscapeString(profile.trait3),
-        EscapeString(backstory),
-        sConfigMgr->GetOption<uint32>(
-            "LLMChatter.Memory.IdentityVersion",
-            1));
-
-    CharacterDatabase.Execute(
-        "UPDATE llm_group_bot_traits "
-        "SET backstory = '{}' "
-        "WHERE bot_guid = {}",
-        EscapeString(backstory),
-        botGuid);
-
-    SendAddonLine(
-        handler,
-        "BACKSTORY_SAVED "
-        + std::to_string(botGuid)
-        + " "
-        + PercentEncode(profile.name));
-    SendAddonLine(
-        handler,
-        "PROFILE "
-        + std::to_string(profile.guid)
-        + " " + PercentEncode(profile.name)
-        + " " + PercentEncode(profile.trait1)
-        + " " + PercentEncode(profile.trait2)
-        + " " + PercentEncode(profile.trait3)
-        + " " + PercentEncode(profile.tone));
-    SendAddonLine(
-        handler,
-        "BACKSTORY "
-        + std::to_string(profile.guid)
-        + " " + PercentEncode(backstory));
     return true;
 }
 
@@ -884,9 +998,13 @@ bool HandleSetBackstoryCommand(
         return true;
     }
 
-    ApplyBackstoryUpdate(
-        handler, botGuid,
-        Trim(PercentDecode(bsToken)));
+    ProfileEdit edit;
+    if (BeginProfileEdit(handler, playerGuid, botGuid, edit)
+        && StageBackstoryEdit(
+            handler, edit, Trim(PercentDecode(bsToken))))
+    {
+        CommitProfileEdit(handler, std::move(edit));
+    }
     return true;
 }
 
@@ -1319,33 +1437,28 @@ bool HandleCommitCommand(
         return true;
     }
 
-    BotProfile profile;
-    if (!LoadBotProfile(botGuid, profile))
-    {
-        SendAddonLine(
-            handler,
-            "ERROR missing "
-            + PercentEncode(
-                "Could not load that bot profile"));
+    ProfileEdit profileEdit;
+    if (!BeginProfileEdit(
+            handler, playerGuid, botGuid, profileEdit))
         return true;
-    }
 
     // Fields the addon did not send keep the values already
     // stored for the bot.
+    BotProfile const& stored = profileEdit.profile;
     if (!staged[PROFILE_FIELD_TRAIT1])
-        values[PROFILE_FIELD_TRAIT1] = profile.trait1;
+        values[PROFILE_FIELD_TRAIT1] = stored.trait1;
     if (!staged[PROFILE_FIELD_TRAIT2])
-        values[PROFILE_FIELD_TRAIT2] = profile.trait2;
+        values[PROFILE_FIELD_TRAIT2] = stored.trait2;
     if (!staged[PROFILE_FIELD_TRAIT3])
-        values[PROFILE_FIELD_TRAIT3] = profile.trait3;
+        values[PROFILE_FIELD_TRAIT3] = stored.trait3;
 
-    // One edit, one verdict. Traits and backstory arrive
-    // together and are checked together, so a bad value in
-    // either cannot leave the other half written: the player
-    // gets one error and the bot is untouched.
+    // One edit, one verdict, one transaction. Traits and
+    // backstory are checked together before anything is
+    // written, then committed together, so neither a bad value
+    // nor a failed write can leave half of the edit applied.
     if (traitsStaged
-        && !ValidateTraitValues(
-            handler,
+        && !StageTraitEdit(
+            handler, profileEdit,
             values[PROFILE_FIELD_TRAIT1],
             values[PROFILE_FIELD_TRAIT2],
             values[PROFILE_FIELD_TRAIT3]))
@@ -1354,34 +1467,14 @@ bool HandleCommitCommand(
     }
 
     if (staged[PROFILE_FIELD_BACKSTORY]
-        && !ValidateBackstoryValue(
-            handler,
-            values[PROFILE_FIELD_TRAIT1],
-            values[PROFILE_FIELD_TRAIT2],
-            values[PROFILE_FIELD_TRAIT3],
+        && !StageBackstoryEdit(
+            handler, profileEdit,
             values[PROFILE_FIELD_BACKSTORY]))
     {
         return true;
     }
 
-    if (traitsStaged
-        && !ApplyTraitUpdate(
-            handler, playerGuid, botGuid,
-            values[PROFILE_FIELD_TRAIT1],
-            values[PROFILE_FIELD_TRAIT2],
-            values[PROFILE_FIELD_TRAIT3],
-            staged[PROFILE_FIELD_BACKSTORY]))
-    {
-        return true;
-    }
-
-    if (staged[PROFILE_FIELD_BACKSTORY])
-    {
-        ApplyBackstoryUpdate(
-            handler, botGuid,
-            values[PROFILE_FIELD_BACKSTORY]);
-    }
-
+    CommitProfileEdit(handler, std::move(profileEdit));
     return true;
 }
 

@@ -682,6 +682,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'player_name': (str, True),
             'player_emote': (str, True),
             'player_emote_id': (int, True),
+            'custom_emote': (int, False),
             'mirror_emote': (str, False),
             'addressed_name': (str, True),
             'addressed_participant': (dict, False),

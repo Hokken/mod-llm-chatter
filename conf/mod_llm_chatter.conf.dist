@@ -3038,7 +3038,9 @@ LLMChatter.EmoteReactions.CustomEnable = 1
 #
 #   LLMChatter.EmoteReactions.CustomMaxChars
 #       Clamp for the typed emote text before it reaches the
-#       prompt. Longer emotes are cut at a UTF-8 boundary.
+#       prompt, counted in characters (not bytes), so non-ASCII
+#       text gets the same length. Longer emotes are cut at a
+#       character boundary.
 #       Default: 120
 #
 LLMChatter.EmoteReactions.CustomMaxChars = 120

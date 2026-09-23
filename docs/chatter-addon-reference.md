@@ -56,7 +56,7 @@ up, calls the LLM, writes results to MySQL. The addon polls for results.
 | `.llmc set <guid> <t1> <t2> <t3>` — traits **changed** | `UPDATED <guid> <name> changed`, then `PROFILE` with empty tone (regen queued); **no BACKSTORY** |
 | `.llmc set <guid> <t1> <t2> <t3>` — traits **unchanged** | `UPDATED <guid> <name> unchanged`, then `PROFILE` with existing tone, then `BACKSTORY` |
 | `.llmc put <guid> <field> <seq> <total> <chunk>` | nothing on success; `ERROR chunk <text>` on a protocol fault |
-| `.llmc commit <guid>` | same responses as the matching `set` / `setbackstory` |
+| `.llmc commit <guid>` | same responses as the matching `set` / `setbackstory`, sent only after the edit has been persisted; `ERROR save <text>` if the write failed |
 | `.llmc cancel <guid>` | nothing; drops the staged edit |
 | `.llmc regenbackstory <guid>` | `BACKSTORY_REGEN <guid> <name>` (immediate ack); result arrives later via `get` polling |
 | `.llmc forget <guid>` | `FORGOTTEN <guid> <name>` |
@@ -76,15 +76,34 @@ save silently. `put` streams the same payload in pieces instead.
 - `<field>` is `t1`, `t2`, `t3` or `bs` (backstory); `<seq>` is 1-based and
   must be `<= <total>`.
 - `<chunk>` is percent-encoded text, at most 200 characters, and never cuts
-  a `%XX` escape in half. At most 24 chunks per field.
+  a `%XX` escape in half. At most 64 chunks per field: enough for a
+  1,000-character backstory even if every character is 4-byte UTF-8
+  (12,000 encoded characters, 60 chunks). A `static_assert` in
+  `LLMChatterCommand.cpp` ties the two limits together.
 - Chunks are staged per player, addressed by `seq`, so a resend overwrites
   in place. A `put` for a different bot discards the whole staged edit; so
   does a logout or 60 seconds of inactivity.
-- `commit` reassembles the fields in `seq` order, rejects gaps, decodes,
-  validates, and applies through the very same write path as `set` (and
-  `setbackstory` for `bs`), so responses and tone/backstory regeneration are
-  identical. Fields that were not staged keep their stored values. The
-  staged edit is dropped whether the commit succeeded or failed.
+- `commit` reassembles the fields in `seq` order, rejects gaps, decodes, and
+  validates traits and backstory together. Fields that were not staged keep
+  their stored values. The staged edit is dropped whether the commit
+  succeeded or failed.
+
+### Persistence
+
+`set`, `setbackstory` and `commit` share one write path. After validation,
+every write of the edit — identity upsert, session-trait update, cache
+invalidation and, when present, the backstory — goes into a single
+`CharacterDatabaseTransaction` committed with `AsyncCommitTransaction`.
+Only its completion callback reports to the addon and queues tone/backstory
+regeneration:
+
+- success: the usual `UPDATED` / `PROFILE` / `BACKSTORY_SAVED` / `BACKSTORY`
+  lines, and the regeneration events;
+- failure: `ERROR save <text>` and nothing else. The transaction rolled
+  back, so the bot is untouched, and the addon hands the edit back to the
+  player as it does for any `ERROR`.
+
+A combined edit is therefore either applied whole or not at all.
 
 The addon builds the single-shot `set` line first and only falls back to
 chunks when that line would exceed 255 characters, so short ASCII traits
@@ -92,8 +111,8 @@ still take exactly one message. Chunks are drained from a FIFO at one
 message per 0.3 s, and the Save button stays disabled until the server
 answers.
 
-`chunked-upload-verification.md` in this folder is the in-game test plan for
-this path.
+[`chunked-upload-verification.md`](chunked-upload-verification.md) in this
+folder is the in-game test plan for this path.
 
 ---
 
