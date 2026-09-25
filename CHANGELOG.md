@@ -4,10 +4,20 @@
 
 * **Profile edits are atomic**: `.llmc set`, `setbackstory` and chunked
   `commit` write every part of an edit (identity, session traits, cache
-  invalidation, optional backstory) in one database transaction. `UPDATED` /
-  `PROFILE` responses and tone/backstory regeneration are sent only after the
-  commit succeeds; a failed write answers `ERROR save` and leaves the bot
-  untouched.
+  invalidation, optional backstory) in one database transaction, together
+  with the tone/backstory regeneration jobs, so a player disconnecting
+  mid-save can no longer leave a cleared profile with nothing queued to
+  refill it. `UPDATED` / `PROFILE` responses are sent only after the commit
+  succeeds; a failed write answers `ERROR save` and leaves the bot untouched.
+* **Addon contract**: The docs now state that Chatter Companion uploads
+  traits only; `setbackstory` and `bs` chunks remain a server-side path.
+* **Observer fallback keeps custom emote text**: When a custom emote is
+  aimed at an ungrouped playerbot and the direct route is unavailable,
+  grouped observers now react to the typed action instead of `/wave`.
+* **Emoji survive the chat line**: The 3.3.5 client replaces `%f` in
+  outgoing chat with the focus name, which mangled the `%F0` lead byte of
+  every 4-byte UTF-8 character. Chatter Companion now sends bytes
+  `0xF0`–`0xFF` as `~FX`, and `PercentDecode()` accepts that form.
 * **Larger upload capacity**: Chunked uploads accept up to 64 chunks per
   field, enough for any valid 1,000-character Unicode backstory.
 * **Custom emotes at ungrouped playerbots**: The typed action (for example

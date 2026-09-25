@@ -2373,7 +2373,8 @@ static void DispatchPlayerEmote(
                     player, textEmote, group,
                     EMOTE_TGT_EXT_PLAYER,
                     targetName, npcRank, npcType,
-                    0u, "", nearbyAliveBots);
+                    0u, "", nearbyAliveBots, customText,
+                    cachedTargetPlayer);
             }
             break;
         case EMOTE_TGT_CREATURE:

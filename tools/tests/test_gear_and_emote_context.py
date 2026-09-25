@@ -437,6 +437,42 @@ def test_observer_falls_back_when_target_unknown():
     assert 'Thrall, a stranger outside the group' in prompt
 
 
+def test_custom_emote_at_ungrouped_bot_falls_back_to_observers():
+    # When the direct proximity route is off or rejects the target,
+    # grouped observers react instead. A custom emote has
+    # textEmote = 0, so without its text the payload would name
+    # GetTextEmoteName(0), which is "wave".
+    combat = (
+        TOOLS_DIR.parent / 'src' / 'LLMChatterGroupCombat.cpp'
+    ).read_text(encoding='utf-8')
+    fallback = combat.split(
+        'case EMOTE_TGT_UNGROUPED_BOT:', 1
+    )[1].split('break;', 1)[0]
+    assert 'if (!ungroupedBotDirectAccepted' in fallback
+    assert 'HandleEmoteObserver(' in fallback
+    assert 'nearbyAliveBots, customText,' in fallback
+    assert 'cachedTargetPlayer);' in fallback
+
+    action = 'slowly sheathes her sword'
+    prompt = _build_player_prompt(
+        'Miranda', 'Human', 'Paladin', 'female',
+        'Vladimir', action, 'Aliss', 'custom',
+        is_custom=True,
+        target_desc=_describe_target_player({
+            'target_level': 30,
+            'target_race': 1,
+            'target_class': 8,
+            'target_gender': 1,
+        }),
+    )
+    assert (
+        'Aliss, a level 30 female Human Mage from outside the '
+        f'group: "{action}"' in prompt
+    )
+    assert '/wave' not in prompt
+    assert f'/{action}' not in prompt
+
+
 def test_named_subject_switches_gear_to_third_person():
     db = FakeDb(
         weapons=[{
@@ -561,6 +597,7 @@ def main() -> int:
     test_observer_target_gender_omitted_from_older_payloads()
     test_observer_gender_alone_describes_nothing()
     test_observer_falls_back_when_target_unknown()
+    test_custom_emote_at_ungrouped_bot_falls_back_to_observers()
     test_named_subject_switches_gear_to_third_person()
     test_attach_speaker_gear_fills_every_speaker()
     test_attach_speaker_gear_skips_incomplete_speakers()

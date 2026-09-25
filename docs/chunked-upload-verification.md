@@ -20,8 +20,9 @@ upload from a previous row cannot mask the one under test.
 | Three short English traits (well under 64 chars each) | Single-line `set` | One `.llmc set` line in the chat log; save completes immediately; no `put`/`commit` traffic |
 | Three traits at exactly 64 characters | Chunked (`put` × N, `commit`) | Save button disables, `put` lines stream at one every 0.3 s, `commit` follows, then tone/backstory regenerate |
 | One trait at 64 chars, two short | Chunked | Only the long trait's field produces `put` chunks; the short fields still ride in the same `commit` |
-| A 1,000-character backstory of 4-byte UTF-8 characters sent as `bs` chunks by hand | Chunked, 60 chunks | Every chunk is accepted (the cap is 64); `commit` saves the whole story and `get` returns it intact |
-| The same backstory split into 65 chunks | Rejected | `ERROR chunk Malformed chunk header`; nothing is staged past the cap |
+| A 1,000-character backstory of 4-byte UTF-8 characters, typed as `.llmc put <guid> bs <seq> 61 <chunk>` lines and a `.llmc commit <guid>` | Chunked, 61 chunks of at most 198 characters, since no chunk splits a `%XX` or `~FX` escape (server-side only: the addon never sends `bs`) | Every chunk is accepted (the cap is 64); `commit` saves the whole story and `get` returns it intact |
+| A 1,100-character 4-byte backstory (67 chunks) | Rejected | `ERROR chunk Malformed chunk header`; nothing is staged past the cap |
+| In the addon, open the story box and try to type in it | Addon contract | The box takes no input; the only ways to change a story are Save Traits with changed traits or Regenerate Story |
 
 The boundary for traits is the assembled `.llmc set <guid> <t1> <t2> <t3>`
 line against the client's 255-character chat limit, not the 64-character
@@ -34,7 +35,7 @@ chunked will drift if the trait content changes. Re-check the boundary case
 | Payload | Why it stresses `SplitEncoded()` | Pass looks like |
 |---|---|---|
 | Cyrillic text at 64 characters | Every character costs 6 characters once percent-encoded (`%D0%A1...`), so a naive split at a fixed offset will land inside a `%XX` escape roughly 2 times out of 3 | Saved trait round-trips through `get` with every Cyrillic character intact — no `%` literal, no replacement character |
-| Emoji or other 4-byte UTF-8 at 64 characters | Same escape-boundary risk, plus the multi-byte source character itself can straddle a chunk if the split lands between two encoded triplets that belong to the same codepoint | Round-trips intact through `get`; the server reassembles all chunks before decoding, so a split codepoint is harmless — the only requirement is to *not corrupt the escape* |
+| Emoji or other 4-byte UTF-8 at 64 characters | The lead byte is sent as `~F0`–`~F4`, not `%F0`, because the client replaces `%f` (focus name) in outgoing chat; `SplitEncoded()` must treat `~` as an escape start too. Same escape-boundary risk, plus the multi-byte source character itself can straddle a chunk if the split lands between two encoded triplets that belong to the same codepoint | Round-trips intact through `get`; the server reassembles all chunks before decoding, so a split codepoint is harmless — the only requirement is to *not corrupt the escape* |
 | A trait whose encoded length is an exact multiple of `CHUNK_BUDGET` (200) | Boundary sits exactly on a chunk edge — the off-by-one case for the `stop >= total` check in `SplitEncoded()` | Splits into the expected number of chunks with no empty trailing chunk and no dropped last character |
 
 ## 3. Interruption — what happens to state mid-upload
@@ -52,7 +53,8 @@ chunked will drift if the trait content changes. Re-check the boundary case
 | Action | What it exercises | Pass looks like |
 |---|---|---|
 | Commit traits and a backstory together, then inspect `llm_bot_identities`, `llm_group_bot_traits` and `llm_group_cached_responses` | All writes share one transaction | Traits, backstory and cache invalidation are all present; `UPDATED` and `BACKSTORY_SAVED` arrive only after that |
-| Make the write fail (e.g. temporarily `REVOKE UPDATE` on `llm_group_bot_traits` for the worldserver user) and commit traits plus a backstory | The rollback path | `ERROR save ...` arrives, no `UPDATED`/`PROFILE` lines, no `bot_tone_regen`/`bot_backstory_regen` rows in `llm_chatter_events`, and none of the tables changed. Restore the grant afterwards |
+| Save changed traits and disconnect immediately (for example `/script ForceQuit()` right after confirming) | Regeneration does not depend on the session | After logging back in, `get` shows the new traits with tone and story regenerated. While the jobs are pending, `llm_chatter_events` has one `bot_tone_regen` and one `bot_backstory_regen` row for the bot |
+| Make the last statement of the transaction fail with a temporary trigger (`BEFORE INSERT ON llm_chatter_events` that `SIGNAL`s for `bot_tone_regen` on the test bot), then save changed traits | The rollback path, including writes that already ran | `ERROR save ...` arrives, no `UPDATED`/`PROFILE` lines, no regeneration rows in `llm_chatter_events`, and `llm_bot_identities` still holds the old traits even though its upsert ran first. Drop the trigger afterwards. Revoking privileges is not a safe alternative on installs where the worldserver connects as `root` |
 
 ## Notes for future changes
 

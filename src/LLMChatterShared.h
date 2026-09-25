@@ -1,6 +1,7 @@
 #ifndef MOD_LLM_CHATTER_SHARED_H
 #define MOD_LLM_CHATTER_SHARED_H
 
+#include "DatabaseEnvFwd.h"
 #include "Define.h"
 #include "SharedDefines.h"
 #include <ctime>
@@ -110,6 +111,20 @@ void QueueChatterEvent(
     uint32 subjectGuid, const std::string& subjectName,
     uint32 targetGuid, const std::string& targetName,
     uint32 targetEntry, const std::string& extraData,
+    uint32 reactAfterSeconds,
+    uint32 expiresAfterSeconds,
+    bool nullZeroNumeric);
+// Same row as QueueChatterEvent(), appended to `trans` so the event
+// exists only if the rest of that transaction commits.
+void AppendChatterEvent(
+    CharacterDatabaseTransaction trans,
+    std::string const& eventType,
+    std::string const& eventScope,
+    uint32 zoneId, uint32 mapId, uint8 priority,
+    std::string const& cooldownKey,
+    uint32 subjectGuid, std::string const& subjectName,
+    uint32 targetGuid, std::string const& targetName,
+    uint32 targetEntry, std::string const& extraData,
     uint32 reactAfterSeconds,
     uint32 expiresAfterSeconds,
     bool nullZeroNumeric);

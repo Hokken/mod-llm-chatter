@@ -46,9 +46,11 @@ constexpr uint32 kMaxChunksPerField = 64;
 // A UTF-8 character is at most 4 bytes and each byte
 // percent-encodes to 3 characters, so the longest valid
 // backstory must fit even when every character is 4 bytes.
+// A chunk never splits a %XX escape, so on fully escaped
+// text it can end up to 2 characters short of the cap.
 static_assert(
     kMaxBackstoryChars * 4 * 3
-        <= kMaxChunkLength * kMaxChunksPerField,
+        <= (kMaxChunkLength - 2) * kMaxChunksPerField,
     "chunk capacity cannot carry a maximum-length backstory");
 constexpr time_t kPendingEditTtlSeconds = 60;
 
@@ -152,6 +154,9 @@ std::string PercentEncode(std::string const& input)
     return out;
 }
 
+// Also accepts ~FX for bytes 0xF0-0xFF. The 3.3.5 client
+// replaces %f (focus name) in outgoing chat, upper case
+// included, so the addon cannot send those bytes as %FX.
 std::string PercentDecode(std::string const& input)
 {
     if (input == "-")
@@ -162,7 +167,13 @@ std::string PercentDecode(std::string const& input)
 
     for (size_t i = 0; i < input.size(); ++i)
     {
-        if (input[i] == '%'
+        bool const isEscape =
+            input[i] == '%'
+            || (input[i] == '~'
+                && i + 1 < input.size()
+                && (input[i + 1] == 'F'
+                    || input[i + 1] == 'f'));
+        if (isEscape
             && i + 2 < input.size()
             && IsHexChar(input[i + 1])
             && IsHexChar(input[i + 2]))
@@ -533,11 +544,11 @@ bool HandleGetCommand(
 }
 
 // One profile edit — traits, a backstory, or both — checked
-// as a whole and written as a single transaction. Nothing is
-// reported to the addon and no regeneration is queued until
-// that transaction has committed, so a failed or racing write
-// can never leave half an edit applied or announce one that
-// did not happen.
+// as a whole and written as a single transaction, together with
+// any regeneration jobs it needs. Nothing is reported to the
+// addon until that transaction has committed, so a failed or
+// racing write can never leave half an edit applied or announce
+// one that did not happen.
 struct ProfileEdit
 {
     uint32 playerGuid = 0;
@@ -750,9 +761,57 @@ void AppendBackstoryWrites(
         botGuid);
 }
 
-// Runs only after the edit has committed. `handler` is null
-// when the player logged out in the meantime; the regeneration
-// is still queued, there is just nobody left to tell.
+// Changed traits clear tone and backstory, so the jobs that
+// regenerate them belong to the same transaction: they exist
+// exactly when the cleared profile does, whatever happens to
+// the player's session afterwards.
+void AppendRegenerationEvents(
+    CharacterDatabaseTransaction trans,
+    ProfileEdit const& edit)
+{
+    if (!edit.traitsChanged)
+        return;
+
+    uint32 botGuid = edit.profile.guid;
+    std::string regenExtra =
+        "{\"bot_guid\": "
+        + std::to_string(botGuid)
+        + ", \"player_guid\": "
+        + std::to_string(edit.playerGuid)
+        + "}";
+
+    // Queue tone regen first (faster than backstory)
+    AppendChatterEvent(
+        trans,
+        "bot_tone_regen",
+        "player",
+        0, 0, 5, "",
+        botGuid, "",
+        0, "", 0,
+        regenExtra,
+        5, 120, true);
+
+    // Queue backstory regen for new traits, unless this
+    // edit brought a story of its own. The worker starts
+    // by clearing whatever is stored, so scheduling it
+    // here would discard the supplied text minutes later.
+    if (!edit.hasBackstory)
+    {
+        AppendChatterEvent(
+            trans,
+            "bot_backstory_regen",
+            "player",
+            0, 0, 5, "",
+            botGuid, "",
+            0, "", 0,
+            regenExtra,
+            5, 120, true);
+    }
+}
+
+// The addon's answer to a committed edit. Purely a
+// notification: the edit and its regeneration jobs are already
+// persisted by the time this runs, if it runs at all.
 void ReportProfileEdit(
     ChatHandler* handler, ProfileEdit const& edit)
 {
@@ -760,41 +819,6 @@ void ReportProfileEdit(
     uint32 botGuid = profile.guid;
     std::string toneToSend =
         edit.traitsChanged ? "" : profile.tone;
-
-    if (edit.traitsChanged)
-    {
-        // Queue tone regen first (faster than backstory)
-        std::string regenExtra =
-            "{\"bot_guid\": "
-            + std::to_string(botGuid)
-            + ", \"player_guid\": "
-            + std::to_string(edit.playerGuid)
-            + "}";
-        QueueChatterEvent(
-            "bot_tone_regen",
-            "player",
-            0, 0, 5, "",
-            botGuid, "",
-            0, "", 0,
-            regenExtra,
-            5, 120, true);
-
-        // Queue backstory regen for new traits, unless this
-        // edit brought a story of its own. The worker starts
-        // by clearing whatever is stored, so scheduling it
-        // here would discard the supplied text minutes later.
-        if (!edit.hasBackstory)
-        {
-            QueueChatterEvent(
-                "bot_backstory_regen",
-                "player",
-                0, 0, 5, "",
-                botGuid, "",
-                0, "", 0,
-                regenExtra,
-                5, 120, true);
-        }
-    }
 
     if (edit.hasTraits)
     {
@@ -863,9 +887,14 @@ void CommitProfileEdit(
         AppendTraitWrites(trans, edit);
     if (edit.hasBackstory)
         AppendBackstoryWrites(trans, edit);
+    AppendRegenerationEvents(trans, edit);
 
     // The callback is owned by the session and only ever runs
-    // from its update, so the captured pointer outlives it.
+    // from its update, so the captured pointer outlives it. A
+    // session that goes offline first drops the callback
+    // unrun; that only loses the addon reply, because
+    // everything the edit persists, regeneration jobs
+    // included, is already in the transaction.
     session->AddTransactionCallback(
         CharacterDatabase.AsyncCommitTransaction(trans))
         .AfterComplete(

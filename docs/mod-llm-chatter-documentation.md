@@ -38,10 +38,13 @@ High-level behavior:
   and the player as they move through the world, with NPC speech bubbles
   and natural player reply detection
 - in-game addon bridge: `.llmc` command lets the Chatter Companion addon
-  read and write bot personality traits, tone, and background story from
-  the game UI. Edits too long for one 255-character chat line are uploaded
-  in chunks (`put` / `commit` / `cancel`); every edit is written as one
-  database transaction and only reported after it has committed. See
+  edit bot personality traits from the game UI and view (or regenerate)
+  their tone and background story. Trait edits too long for one
+  255-character chat line are uploaded in chunks (`put` / `commit` /
+  `cancel`). Every edit is written as one database transaction together
+  with its regeneration jobs, and only reported after it has committed.
+  The server also accepts typed backstories (`setbackstory`, `bs` chunks)
+  for manual use, but the addon never sends them. See
   [`chatter-addon-reference.md`](chatter-addon-reference.md)
 - MultiBot-Chatless bridge coexistence: hidden `MBOT` addon traffic is
   ignored by chatter logging and left for `mod-multibot-bridge` by
