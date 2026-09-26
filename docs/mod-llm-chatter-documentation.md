@@ -952,6 +952,17 @@ Delivery revalidates the event subject against the speaking bot as a final
 safeguard, preventing a Horde response from being marked successful in Horde
 General when the initiating player is Alliance, or vice versa.
 
+General keeps a bounded recent transcript per zone across both factions.
+`LLMChatter.GeneralChat.HistoryLimit` controls server-side and bridge-side
+pruning and the bridge's prompt read, ships as 15, and is clamped to 1-50.
+Prompt reads are filtered to the reader's faction, so a faction can receive
+fewer than the configured number of lines when both factions are active in a
+zone. When the key is absent, it falls back to
+`LLMChatter.ChatHistoryLimit`. Apply changes by reloading the server config and
+restarting the bridge together, because both processes prune the same table.
+Higher values preserve more short-term context but increase prompt size and
+token use.
+
 ### Shared zone pacing
 
 Automated ambient and world-event General producers share one per-zone
@@ -1410,6 +1421,11 @@ a third bot participates beyond the guaranteed two.
 |---|---|---|
 | `PlayerMsgConversationChance` | 30 | % chance of multi-bot reply to player message |
 | `PlayerMsgSecondBotChance` | 25 | % chance a 3rd bot joins the conversation |
+| `ChatHistoryLimit` | 10 | Recent Party transcript lines used for prompts and analysis, clamped to 1-50 |
+
+`ChatHistoryLimit` is a recent verbatim window, not a rolling summary or
+long-term bot memory. Raising it can improve short-term continuity at the cost
+of larger prompts and higher token use. Changes require a bridge restart.
 
 ---
 

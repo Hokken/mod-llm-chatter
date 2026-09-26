@@ -800,10 +800,15 @@ void LLMChatterConfig::LoadConfig()
         "LLMChatter.GeneralChat.Cooldown", 0);
     _generalChatConversationChance = GetChatterOption<uint32>(
         "LLMChatter.GeneralChat.ConversationChance", 30);
-    _generalChatHistoryLimit =
+    uint32 chatHistoryLimit = std::clamp(
+        GetChatterOption<uint32>(
+            "LLMChatter.ChatHistoryLimit", 10),
+        1u, 50u);
+    _generalChatHistoryLimit = std::clamp(
         GetChatterOption<uint32>(
             "LLMChatter.GeneralChat.HistoryLimit",
-            15);
+            chatHistoryLimit),
+        1u, 50u);
 
     _generalLootEnable = GetChatterOption<bool>(
         "LLMChatter.GeneralLoot.Enable", true);

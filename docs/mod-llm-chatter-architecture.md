@@ -343,6 +343,24 @@ protections remain separate and continue to run. In particular,
 `SendAddonMessage` protocol prefixes do not belong in this denylist because
 their `LANG_ADDON` traffic is already rejected globally.
 
+### Player-chat history windows
+
+Party and General retain separate recent-line windows for prompt context.
+`LLMChatter.ChatHistoryLimit` controls Party reads and defaults to 10 lines.
+`LLMChatter.GeneralChat.HistoryLimit` controls General retention per zone
+across both factions and ships with a 15-line default. Prompt reads are then
+filtered to the reader's faction, so a faction can receive fewer than the
+configured number of lines when both factions are active in the zone. Both
+values are clamped to 1-50. If the General-specific key is absent, both the
+server and bridge fall back to `ChatHistoryLimit`.
+
+These settings are bridge-startup configuration for prompt reads and pruning.
+General's server-side retention owner also reloads its value through
+`LLMChatterConfig`. Apply a General limit change by reloading the server config
+and restarting the bridge together, because both processes prune the same
+table. Increasing either window raises prompt size and token use; neither
+window is a rolling summary or persistent episodic memory.
+
 ### Player-response faction boundary
 
 Playerbot responders to real-player General, Party, Guild, and proximity

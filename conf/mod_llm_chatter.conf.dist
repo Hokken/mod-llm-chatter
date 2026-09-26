@@ -586,6 +586,18 @@ LLMChatter.Language = GB
 LLMChatter.GroupChatter.Enable = 1
 
 #
+#   LLMChatter.ChatHistoryLimit [BRIDGE]
+#       Maximum number of recent Party transcript lines included in
+#       prompts and player-message analysis. Valid range: 1-50.
+#       Higher values preserve more short-term context but consume more
+#       prompt tokens. General chat uses this value only as a fallback
+#       when GeneralChat.HistoryLimit is absent.
+#       Changes require a bridge restart.
+#       Default: 10
+#
+LLMChatter.ChatHistoryLimit = 10
+
+#
 #   LLMChatter.GeneralChannel.Enable
 #       Master switch for ALL General-channel chatter. When 0, bots
 #       produce nothing in the General channel: no ambient chatter
@@ -608,6 +620,19 @@ LLMChatter.GeneralChannel.Enable = 1
 #       Default: 1
 #
 LLMChatter.GeneralChat.PlayerReplyEnable = 1
+
+#
+#   LLMChatter.GeneralChat.HistoryLimit [BOTH]
+#       Maximum number of recent General lines retained per zone across
+#       both factions. Prompt reads are filtered to the reader's faction.
+#       Valid range: 1-50.
+#       Higher values preserve more short-term context but consume more
+#       prompt tokens. If this key is absent, ChatHistoryLimit is used.
+#       Changes require a bridge restart. The bridge also prunes this
+#       table, so reload the server config and restart the bridge together.
+#       Default: 15
+#
+LLMChatter.GeneralChat.HistoryLimit = 15
 
 #
 #   LLMChatter.PlayerChat.OptionalCasualReplyChance [BRIDGE]
