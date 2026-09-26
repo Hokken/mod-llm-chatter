@@ -46,6 +46,13 @@ Built from the ground up for **fantasy roleplay immersion**. Every system, perso
   and holidays.
 * **Interactive parties**: Companions banter with one another, ask the player
   questions, and react to combat, loot, quests, achievements, and travel.
+* **Open-world PvP and duels**: Companions size up enemies of the opposing
+  faction by name, race, class, and level, react to ambushes, kills, deaths,
+  and ganks in character, and cheer or tease during duels. Nearby bots
+  outside the fight and party can react before, during, or after duels,
+  or after a PvP kill. Same-faction onlookers comment in `/say`;
+  opposite-faction ones emote. Low chances and shared cooldowns keep
+  these reactions restrained, and hidden enemy identities are omitted.
 * **Living public channels**: Ambient General chat, proximity `/say`, player
   replies, battleground callouts, and encounter-aware raid dialogue make the
   wider world feel populated.
@@ -248,6 +255,10 @@ LLMChatter.GroupChatter.QuestCompleteChance = 30  # default 50
 # Combat reactions
 LLMChatter.GroupChatter.KillChanceNormal = 5    # default 20
 LLMChatter.GroupChatter.SpellCastChance = 10    # default 30
+
+# Open-world PvP and duel reactions
+LLMChatter.GroupChatter.PvP.KillChance = 40     # default 80
+LLMChatter.GroupChatter.Duel.StartChance = 30   # default 60
 
 # Nearby object/creature comments
 LLMChatter.GroupChatter.NearbyObjectChance = 5  # default 20
@@ -621,6 +632,9 @@ docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
 docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20260919_real_general_items.sql
 
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20260926_duel_events.sql
+
 # Non-Docker
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260320_bot_memory_system.sql
@@ -681,6 +695,9 @@ mysql -uroot -ppassword acore_characters < \
 
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260919_real_general_items.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20260926_duel_events.sql
 ```
 
 Migrations are idempotent — safe to run on an already

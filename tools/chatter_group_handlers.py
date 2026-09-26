@@ -33,6 +33,8 @@ from chatter_shared import (
     brief_casual_response_fits,
     bound_brief_casual_response,
     build_brief_casual_repair_prompt,
+    is_pvp_enemy,
+    is_pvp_identity_known,
 )
 from chatter_db import (
     fail_event,
@@ -141,8 +143,61 @@ def _resolve_zone_name(
     return extra_data_zone_name or 'somewhere'
 
 
+def _pvp_kill_memory(db, ctx):
+    """Memory: the reacting bot remembers defeating a
+    named opposing-faction enemy in the open world.
+
+    Uses the same chance setting as battleground
+    PvP kill memories. Anonymous enemies are not
+    remembered because nobody saw who they were.
+    """
+    extra_data = ctx['extra_data']
+    if not is_pvp_identity_known(extra_data):
+        return
+    config = ctx['config']
+    mem_chance = int(config.get(
+        'LLMChatter.Memory'
+        '.PvPKillGenerationChance', 10
+    ))
+    if random.random() * 100 >= mem_chance:
+        return
+    enemy_name = extra_data.get('enemy_name') or ''
+    if not enemy_name:
+        return
+    try:
+        enemy_desc = ' '.join(p for p in (
+            get_race_name(
+                int(extra_data.get('enemy_race', 0))),
+            get_class_name(
+                int(extra_data.get('enemy_class', 0))),
+        ) if p)
+    except (TypeError, ValueError):
+        enemy_desc = ''
+    context = f"Defeated {enemy_name}"
+    if enemy_desc:
+        context += f", a {enemy_desc}"
+    faction = extra_data.get('enemy_faction') or ''
+    if faction:
+        context += f" of the {faction}"
+    context += ", in the open world"
+    queue_memory(
+        config, ctx['group_id'],
+        ctx['bot_guid'], 0,
+        memory_type='pvp_kill',
+        event_context=context,
+        bot_name=ctx['bot_name'],
+        bot_class=ctx['bot']['class'],
+        bot_race=ctx['bot']['race'],
+        bot_gender=ctx['bot'].get('gender', ''),
+    )
+
+
 def _kill_post_success(db, ctx, message):
-    """Memory: bots remember boss/rare kills."""
+    """Memory: bots remember boss/rare kills and
+    named overworld PvP kills."""
+    if is_pvp_enemy(ctx['extra_data']):
+        _pvp_kill_memory(db, ctx)
+        return
     is_boss = ctx['is_boss']
     is_rare = ctx['is_rare']
     if not (is_boss or is_rare):

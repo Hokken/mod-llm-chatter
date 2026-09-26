@@ -84,7 +84,9 @@ CREATE TABLE IF NOT EXISTS `llm_chatter_events` (
         'bot_tone_regen',
         'guild_idle_chatter',
         'guild_player_message',
-        'guild_login_greeting'
+        'guild_login_greeting',
+        'bot_group_duel_start',
+        'bot_group_duel_end'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,

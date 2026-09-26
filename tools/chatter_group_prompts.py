@@ -12,6 +12,8 @@ from chatter_shared import (
     build_race_class_context,
     build_race_class_context_parts,
     build_bot_state_context,
+    is_pvp_enemy,
+    is_pvp_identity_known,
     build_conversational_scale_guidance,
     append_json_instruction,
     append_conversation_json_instruction,
@@ -52,6 +54,17 @@ def set_prompt_spice_count(value: int):
     """Set spice count used by moved prompt builders."""
     global _spice_count
     _spice_count = max(0, min(int(value), 5))
+
+
+def _enemy_name_rule(pvp, pvp_named, creature_word):
+    """Rules line about naming the enemy. A PvP enemy
+    the reactor could not perceive must stay unnamed.
+    """
+    if pvp and not pvp_named:
+        return "- Do not name or describe the enemy\n"
+    if pvp:
+        return "- Can mention the enemy by name\n"
+    return f"- Can mention the {creature_word} by name\n"
 
 
 def _pick_length_hint(mode):
@@ -812,7 +825,19 @@ def build_kill_reaction_prompt(
         if extra_data else ''
     )
 
-    if is_boss:
+    pvp = is_pvp_enemy(extra_data)
+    pvp_named = pvp and is_pvp_identity_known(extra_data)
+    if pvp:
+        foe = (
+            creature_name
+            if pvp_named and creature_name
+            else "an enemy adventurer"
+        )
+        kill_context = (
+            f"Your party just defeated {foe} of the "
+            f"opposing faction in an open-world clash."
+        )
+    elif is_boss:
         kill_context = (
             f"Your party just killed the boss "
             f"{creature_name}! This was a big fight."
@@ -873,7 +898,7 @@ def build_kill_reaction_prompt(
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
-        f"- Can mention the creature by name\n"
+        f"{_enemy_name_rule(pvp, pvp_named, 'creature')}"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
@@ -1067,7 +1092,14 @@ def build_combat_reaction_prompt(
     if chat_history:
         rp_context += f"{chat_history}\n"
 
-    if is_boss:
+    pvp = is_pvp_enemy(extra_data)
+    if pvp:
+        combat_context = (
+            f"Your group just clashed with "
+            f"{creature_name}, an adventurer of the "
+            f"opposing faction, out in the open world."
+        )
+    elif is_boss:
         combat_context = (
             f"Your group just engaged "
             f"{creature_name}, a powerful boss! "
@@ -1090,6 +1122,11 @@ def build_combat_reaction_prompt(
         style = (
             "Shout a brief battle cry or combat "
             "remark in-character."
+        )
+    elif pvp:
+        style = (
+            "Say something quick in party chat "
+            "as the fight starts. Casual and natural."
         )
     else:
         style = (
@@ -3316,10 +3353,45 @@ def build_aggro_loss_callout_prompt(
     if chat_history:
         rp_context += f"{chat_history}\n"
 
-    situation = (
-        f"You are the tank but {target_name} "
-        f"is now attacking {aggro_target}."
+    # Players have no threat table: in PvP this is an
+    # enemy switching targets, not a lost-aggro mob.
+    pvp_switch = (
+        is_pvp_enemy(extra_data)
+        and (extra_data or {}).get('callout_kind')
+            == 'pvp_target_switch'
     )
+    if pvp_switch:
+        foe = target_name or "An unseen enemy"
+        situation = (
+            f"{foe} just switched targets and is now "
+            f"going after {aggro_target}."
+        )
+        reaction = (
+            "React with urgency — warn the group, "
+            "help protect them, or call out the "
+            "switch.\n"
+        )
+        names = (
+            f"- Can mention {target_name} or "
+            f"{aggro_target} by name\n"
+            if target_name
+            else f"- Can mention {aggro_target} by "
+            f"name; do not name the enemy\n"
+        )
+    else:
+        situation = (
+            f"You are the tank but {target_name} "
+            f"is now attacking {aggro_target}."
+        )
+        reaction = (
+            "React with urgency — warn the group, "
+            "try to get the mob's attention back, "
+            "or call out the danger.\n"
+        )
+        names = (
+            f"- Can mention {target_name} or "
+            f"{aggro_target} by name\n"
+        )
 
     prompt = (
         f"{build_player_prompt_header_from_dict(bot, mode)}\n"
@@ -3334,15 +3406,12 @@ def build_aggro_loss_callout_prompt(
     prompt += (
         f"{rp_context}\n\n"
         f"{situation}\n\n"
-        f"React with urgency — warn the group, "
-        f"try to get the mob's attention back, "
-        f"or call out the danger.\n"
+        f"{reaction}"
         f"Say ONE short sentence in party chat.\n"
         f"Rules:\n"
         f"- Extremely brief, 3-10 words\n"
         f"- No quotes, no emojis\n"
-        f"- Can mention {target_name} or "
-        f"{aggro_target} by name\n"
+        f"{names}"
         f"- Reflect your personality traits"
     )
     return append_json_instruction(

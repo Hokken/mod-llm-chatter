@@ -650,14 +650,164 @@ def build_race_class_context_parts(
     )
 
 
+def _payload_bool(value):
+    """C++ payloads send JSON booleans, but tolerate
+    ints and strings ("true", "1")."""
+    if isinstance(value, str):
+        return value.strip().lower() in ('1', 'true')
+    return bool(value)
+
+
+def is_pvp_enemy(extra_data):
+    """True when the event's enemy is an
+    opposing-faction player (real player or bot)."""
+    return bool(extra_data) and (
+        extra_data.get('enemy_kind') == 'player'
+    )
+
+
+def is_pvp_identity_known(extra_data):
+    """True when the reactor could perceive the
+    PvP enemy, so its identity may be used."""
+    return is_pvp_enemy(extra_data) and _payload_bool(
+        extra_data.get('enemy_identity_known')
+    )
+
+
+def _pvp_level_gap_line(extra_data):
+    """Describe the level gap between the enemy and
+    the group member involved."""
+    if _payload_bool(extra_data.get('is_gray_kill')):
+        return (
+            "They are far lower level than your "
+            "side, a lopsided fight that earns no "
+            "honour."
+        )
+    try:
+        gap = int(extra_data.get('level_gap', 0))
+    except (TypeError, ValueError):
+        gap = 0
+    if gap >= 10:
+        return (
+            "They are far higher level than your "
+            "side and very dangerous."
+        )
+    if gap >= 4:
+        return "They are higher level than your side."
+    if gap <= -4:
+        return "They are lower level than your side."
+    return "They are roughly an even match."
+
+
+def build_pvp_enemy_context(extra_data, mode='roleplay'):
+    """Describe an opposing-faction enemy for combat
+    prompts. Returns "" for creature enemies.
+
+    Identity (name, race, class, level) is used only
+    when C++ marked it perceivable. An enemy is
+    never described as a bot, NPC, or monster.
+    """
+    if not is_pvp_enemy(extra_data):
+        return ""
+
+    from chatter_mode import is_roleplay
+    roleplay = is_roleplay(mode)
+    lines = []
+
+    via_pet = _payload_bool(extra_data.get('via_pet'))
+    pet_name = str(
+        extra_data.get('enemy_pet_name') or ''
+    ).strip()
+
+    if is_pvp_identity_known(extra_data):
+        name = str(
+            extra_data.get('enemy_name') or ''
+        ).strip() or 'an enemy'
+        try:
+            race = get_race_name(
+                int(extra_data.get('enemy_race', 0)))
+            cls = get_class_name(
+                int(extra_data.get('enemy_class', 0)))
+            level = int(extra_data.get('enemy_level', 0))
+        except (TypeError, ValueError):
+            race, cls, level = '', '', 0
+        faction = str(
+            extra_data.get('enemy_faction') or ''
+        ).strip() or 'opposing faction'
+        desc = ' '.join(
+            p for p in (
+                f"level {level}" if level else '',
+                race, cls,
+            ) if p
+        )
+        who = f"{name}, a {desc}" if desc else name
+        lines.append(
+            f"This fight is against another "
+            f"adventurer: {who} of the {faction}."
+        )
+        if via_pet and pet_name:
+            lines.append(
+                f"Their pet {pet_name} is part of it."
+            )
+        lines.append(_pvp_level_gap_line(extra_data))
+    elif via_pet and pet_name:
+        lines.append(
+            f"An enemy adventurer's pet, {pet_name}, is "
+            f"involved, but its master stayed out of "
+            f"sight. Do not name or describe the master."
+        )
+    else:
+        lines.append(
+            "An unseen adventurer of the opposing "
+            "faction is involved. Nobody saw who it "
+            "was, so do not name or describe them."
+        )
+
+    initiator = extra_data.get('initiator')
+    if initiator == 'enemy':
+        lines.append("They attacked your group first.")
+    elif initiator == 'group':
+        lines.append("Your group started this fight.")
+
+    lines.append(
+        "Treat them as a living character of the "
+        "opposing faction. Never call them a bot, "
+        "NPC, mob, or monster."
+    )
+    lines.append(
+        "Let your class, race, and personality shape "
+        "how you feel about this fight; an "
+        "honour-bound character may dislike beating a "
+        "much weaker foe, a ruthless one may not care."
+    )
+    if roleplay:
+        lines.append(
+            "Rivalry and taunts are fine, but no slurs, "
+            "abuse, or hateful language."
+        )
+    else:
+        lines.append(
+            "Use natural WoW PvP language. Playful "
+            "trash talk is fine, but no slurs, abuse, "
+            "or hateful language."
+        )
+    return ' '.join(lines)
+
+
 def build_bot_state_context(extra_data, mode='roleplay'):
     """Build natural-language state description
-    from C++ bot_state data in extra_data."""
+    from C++ bot_state data in extra_data.
+
+    Opposing-faction PvP enemy context, when present,
+    is appended so every combat prompt that already
+    includes bot state picks it up.
+    """
     if not extra_data:
         return ""
+    pvp_ctx = build_pvp_enemy_context(extra_data, mode)
     state = extra_data.get('bot_state')
     if not state or not isinstance(state, dict):
-        return ""
+        return pvp_ctx
 
     from chatter_mode import is_roleplay
     roleplay = is_roleplay(mode)
@@ -715,7 +865,8 @@ def build_bot_state_context(extra_data, mode='roleplay'):
                     f"({mp}%)."
                 )
 
-    # Current target
+    # Current target. C++ (BuildBotStateJson) only fills it
+    # when the bot can perceive its own victim.
     target = state.get('target', '')
     if target:
         subject = "You are" if roleplay else "Your character is"
@@ -731,6 +882,9 @@ def build_bot_state_context(extra_data, mode='roleplay'):
             parts.append(
                 f"Character gameplay travel state: {travel_ctx}"
             )
+
+    if pvp_ctx:
+        parts.append(pvp_ctx)
 
     return ' '.join(parts)
 

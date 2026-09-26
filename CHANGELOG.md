@@ -1,5 +1,33 @@
 # Changelog
 
+### 2026-09-26 - Open-World PvP, Duels, and Nearby Onlookers
+
+* **Party PvP reactions**: Companions react to opposing-faction players
+  and their pets during open-world combat, kills, deaths, wipes, spells,
+  and state callouts. Enemy context includes visible identity, level
+  differences, and who started the fight; hidden enemies stay anonymous.
+  PvP reactions use their own chances and cooldowns and bypass
+  creature-oriented cached lines. Battlegrounds and arenas keep their
+  existing chatter paths.
+* **Group duel reactions**: Bot duellists and group spectators react to
+  duel starts and results, including wins, fleeing, and interruptions.
+  Declined challenges and cancelled countdowns do not produce group
+  result reactions.
+* **Nearby onlookers**: Bots outside the fight and the player's group can
+  react before, during, or after a duel, or after an open-world PvP kill.
+  Each selected moment uses one statement or a 2–3-bot conversation.
+  Same-faction onlookers speak in `/say`; opposite-faction onlookers use
+  emotes. Visibility checks, shared proximity cooldowns, zone fatigue,
+  and delivery-time scene checks limit repetition and stale reactions.
+* **Configuration**: Added `GroupChatter.PvP.*`, `GroupChatter.Duel.*`,
+  and `ProximityChatter.FightReactions.*` settings, including conservative
+  onlooker chances and quieter-preset values.
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20260926_duel_events.sql` to the character
+  database for the two new group-duel event types. Proximity onlookers
+  reuse existing events and require no additional migration. Rebuild the
+  server and restart the chatter bridge to load the new handlers.
+
 ### 2026-09-22 - Addon Profile Edits, Custom Emotes, and Action Delivery Fixes
 
 * **Profile edits are atomic**: `.llmc set`, `setbackstory` and chunked
