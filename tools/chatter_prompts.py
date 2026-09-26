@@ -30,6 +30,7 @@ from chatter_shared import (
     append_conversation_json_instruction,
     select_conversation_message_count,
     get_subzone_name, get_subzone_lore,
+    append_speaker_gear,
 )
 from chatter_mode import (
     build_player_chat_guidance,
@@ -442,6 +443,7 @@ def build_plain_statement_prompt(
             bot.get('race', ''),
             bot.get('class', ''),
             bot.get('gender', ''),
+            gear=bot.get('gear', ''),
         )
         parts.append(
             f"{identity} "
@@ -580,6 +582,7 @@ def build_quest_statement_prompt(
             bot.get('race', ''),
             bot.get('class', ''),
             bot.get('gender', ''),
+            gear=bot.get('gear', ''),
         )
         parts.append(
             f"{identity} Speak in-character about "
@@ -715,6 +718,7 @@ def build_loot_statement_prompt(
             bot.get('race', ''),
             bot.get('class', ''),
             bot.get('gender', ''),
+            gear=bot.get('gear', ''),
         )
         parts.append(
             f"{identity} Speak in-character about "
@@ -869,6 +873,7 @@ def build_quest_reward_statement_prompt(
             bot.get('race', ''),
             bot.get('class', ''),
             bot.get('gender', ''),
+            gear=bot.get('gear', ''),
         )
         parts.append(
             f"{identity} Speak in-character about "
@@ -1063,6 +1068,7 @@ def build_plain_conversation_prompt(
             parts.append(
                 f"{bot['name']} is a {race} {cls}"
             )
+            append_speaker_gear(parts, bot)
             if is_rp:
                 per_bot, _, shared_class = (
                     build_race_class_context_parts(
@@ -1297,6 +1303,7 @@ def build_gossip_statement_prompt(
         identity = build_bot_identity(
             bot['name'], bot.get('race', ''),
             bot.get('class', ''), bot.get('gender', ''),
+            gear=bot.get('gear', ''),
         )
         parts.append(
             f"{identity} Speak in-character in General "
@@ -1408,6 +1415,7 @@ def build_gossip_conversation_prompt(
             race = bot.get('race', '')
             cls = bot.get('class', '')
             parts.append(f"{bot['name']} is a {race} {cls}")
+            append_speaker_gear(parts, bot)
             if is_rp:
                 per_bot, shared_race, shared_class = (
                     build_race_class_context_parts(race, cls)
@@ -1528,6 +1536,7 @@ def build_quest_conversation_prompt(
                 f"{bot['name']} is a "
                 f"{bot['race']} {bot['class']}"
             )
+            append_speaker_gear(parts, bot)
 
     zone_flavor = get_zone_flavor(zone_id)
     if is_rp and zone_flavor:
@@ -1784,6 +1793,7 @@ def build_event_conversation_prompt(
             parts.append(
                 f"{bot['name']} is a {race} {cls}"
             )
+            append_speaker_gear(parts, bot)
             if is_rp:
                 per_bot, _, shared_class = (
                     build_race_class_context_parts(
@@ -2059,6 +2069,7 @@ def build_spell_statement_prompt(
             bot.get('race', ''),
             bot.get('class', ''),
             bot.get('gender', ''),
+            gear=bot.get('gear', ''),
         )
         parts.append(
             f"{identity} "
@@ -2239,6 +2250,7 @@ def build_spell_conversation_prompt(
             f"{bot['name']} is a "
             f"{bot['race']} {bot['class']}"
         )
+        append_speaker_gear(parts, bot)
         if is_rp:
             race = bot.get('race', '')
             cls = bot.get('class', '')
@@ -2430,6 +2442,7 @@ def build_trade_statement_prompt(
             bot.get('race', ''),
             bot.get('class', ''),
             bot.get('gender', ''),
+            gear=bot.get('gear', ''),
         )
         parts.append(
             f"{identity} You want to "
@@ -2612,6 +2625,7 @@ def build_trade_conversation_prompt(
                 f"{bot['name']} is a "
                 f"{bot['race']} {bot['class']}"
             )
+            append_speaker_gear(parts, bot)
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)

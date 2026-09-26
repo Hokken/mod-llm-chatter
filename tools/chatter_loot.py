@@ -19,6 +19,7 @@ from chatter_group_general_reaction import (
 from chatter_prompts import build_loot_statement_prompt
 from chatter_shared import (
     _zone_delivery_delay,
+    build_gear_context,
     call_llm,
     can_class_use_item,
     cleanup_message,
@@ -137,6 +138,9 @@ def process_general_loot_event(db, client, config, event):
         bot['class'], item['allowable_class']
     )
     recent_messages = get_recent_zone_messages(db, zone_id)
+    bot['gear'] = build_gear_context(
+        db, bot['guid'], bot['class'], config,
+    )
     prompt = build_loot_statement_prompt(
         bot,
         item,

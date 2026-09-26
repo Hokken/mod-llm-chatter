@@ -38,7 +38,14 @@ High-level behavior:
   and the player as they move through the world, with NPC speech bubbles
   and natural player reply detection
 - in-game addon bridge: `.llmc` command lets the Chatter Companion addon
-  read and write bot personality traits and tone from the game UI
+  edit bot personality traits from the game UI and view (or regenerate)
+  their tone and background story. Trait edits too long for one
+  255-character chat line are uploaded in chunks (`put` / `commit` /
+  `cancel`). Every edit is written as one database transaction together
+  with its regeneration jobs, and only reported after it has committed.
+  The server also accepts typed backstories (`setbackstory`, `bs` chunks)
+  for manual use, but the addon never sends them. See
+  [`chatter-addon-reference.md`](chatter-addon-reference.md)
 - MultiBot-Chatless bridge coexistence: hidden `MBOT` addon traffic is
   ignored by chatter logging and left for `mod-multibot-bridge` by
   default, so chatter does not block the addon's chatless
@@ -84,6 +91,18 @@ world tick.
 Party channel may play text emotes.
 General, Guild, raid, and battleground delivery do not play text
 emotes.
+
+**Actions as emotes.** A leading `*action*` in a generated line is split
+off by `split_action_prefix()` and stored in the row's `action` column (a
+line that is nothing but an action stays intact). With
+`LLMChatter.ActionAsEmote.Enable = 1` (default), delivery sends it as a
+`/e`-style emote (`CHAT_MSG_MONSTER_EMOTE`, so the bot's name shows) just
+before the speech, on every channel. The action goes out only once the send
+is known to be valid — for party, after the bot's group has been confirmed —
+so it never plays ahead of speech that fails. If the speech is retried after
+the action has been shown, the action is dropped from the row so it is not
+replayed. With the option off, the action is rendered inline as
+`*action* text`.
 
 ---
 
@@ -1588,6 +1607,18 @@ Talent context is invoked from:
 | `chatter_raid_base.py` | Shared BG/raid talent injection path |
 | `talent_catalog.py` | Static talent descriptions |
 
+### Gear and pet context
+
+So bots stop inventing equipment or treating their own pet as a stranger,
+prompts can carry a short line naming the speaker's equipped weapons and,
+for Hunters and Warlocks, the pet actually summoned (`character_pet`
+slot 0; stabled and dismissed pets are ignored). `build_gear_context()` in
+`chatter_shared.py` builds it in second person for solo prompts;
+`attach_speaker_gear()` / `append_speaker_gear()` add the third-person form
+per speaker in multi-speaker prompts. Emote observers also receive the
+targeted player's race, class, level and gender. Controlled by
+`LLMChatter.GearContext.Enable` (default 1).
+
 ---
 
 ## 13h. Humor Hints and Conversation Pacing
@@ -1654,6 +1685,7 @@ conversation paths (no wasted tokens).
 |---|---|---|
 | `LLMChatter.EmoteChance` | 50 | % chance emote list is included in prompt (not applied to General channel — emotes are proximity-based) |
 | `LLMChatter.ActionChance` | 10 | % chance eligible responses retain/include an action after action gating |
+| `LLMChatter.ActionAsEmote.Enable` | 1 | Deliver a line's action as a separate emote before the speech instead of inline `*action*` text (see Delivery in section 2) |
 
 ---
 
@@ -1770,6 +1802,23 @@ are excluded from observer comments only.
 | `LLMChatter.EmoteReactions.NPCVerbalReactionChance` | 80 | Independent chance that a directed eligible NPC speaks |
 | `LLMChatter.EmoteReactions.NPCVerbalCooldown` | 3 | Seconds per player/NPC verbal-emote cooldown; clamped to 0-3 |
 | `LLMChatter.EmoteReactions.CxxScriptExclusionEntries` | seven known entries | C++ `ReceiveEmote()` owners suppress direct NPC reactions |
+| `LLMChatter.EmoteReactions.CustomEnable` | 1 | React to free-text `/e` and `/me` emotes |
+| `LLMChatter.EmoteReactions.CustomMaxChars` | 120 | Maximum length of a custom emote in UTF-8 characters (not bytes); longer text is cut at a character boundary |
+
+### Custom emotes
+
+Free-text emotes (`/e slowly sheathes her sword`) reach the module through
+the chat hook. The text is sanitized, clamped to `CustomMaxChars`
+characters, and aimed at the player's current target. It then follows the
+same routes as a named emote, with two differences: it never mirrors (there
+is no animation), and every payload carries the typed text plus
+`custom_emote: 1` instead of an emote id. That covers a grouped bot
+(`bot_group_emote_reaction`), group observers (`bot_group_emote_observer`),
+and an ungrouped playerbot (`proximity_player_emote`, accepted when the
+directed playerbot route is enabled). Prompts quote the text as something
+the player did (`did this directly at Aliss: "slowly sheathes her sword"`)
+rather than rendering it as a `/slash` command, and use the generic tone
+pool because free text has no emote category.
 
 ### Cooldown eviction
 
@@ -2006,7 +2055,11 @@ experiences rather than treating the player as a stranger.
 
 2. **During the session** — event handlers may call `_generate_and_store_memory()`
    to produce LLM-generated memories (boss kills, notable events). These are
-   inserted with `active=0` until flush.
+   inserted with `active=0` until flush. Each memory is one plain, factual
+   first-person sentence (target 160 characters, no flowery wording).
+   `_clamp_memory_text()` enforces a 240-character hard cap at write time,
+   cutting at a sentence or word boundary, so prompts include stored
+   memories whole rather than truncating them at 200 characters.
 
 3. **Group farewell** (`process_group_farewell_event` → `flush_session_memories()`)
    - C++ sends the prepared `llm_group_bot_traits.farewell_msg` synchronously

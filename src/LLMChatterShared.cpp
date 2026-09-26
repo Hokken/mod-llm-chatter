@@ -19,6 +19,7 @@
 #include "Player.h"
 #include "Playerbots.h"
 #include "RandomPlayerbotMgr.h"
+#include "StringFormat.h"
 #include "Transport.h"
 #include "Util.h"
 #include "World.h"
@@ -2346,14 +2347,16 @@ void UpdateGroupBotTravelState(Player* player, uint32 groupId)
         player->GetGUID().GetCounter());
 }
 
-void QueueChatterEvent(
-    const std::string& eventType,
-    const std::string& eventScope,
+namespace
+{
+std::string BuildChatterEventInsert(
+    std::string const& eventType,
+    std::string const& eventScope,
     uint32 zoneId, uint32 mapId, uint8 priority,
-    const std::string& cooldownKey,
-    uint32 subjectGuid, const std::string& subjectName,
-    uint32 targetGuid, const std::string& targetName,
-    uint32 targetEntry, const std::string& extraData,
+    std::string const& cooldownKey,
+    uint32 subjectGuid, std::string const& subjectName,
+    uint32 targetGuid, std::string const& targetName,
+    uint32 targetEntry, std::string const& extraData,
     uint32 reactAfterSeconds,
     uint32 expiresAfterSeconds,
     bool nullZeroNumeric)
@@ -2367,7 +2370,7 @@ void QueueChatterEvent(
 
     // NOTE: extraData is written directly into a single-quoted SQL
     // string literal. Callers must pre-escape it for SQL.
-    CharacterDatabase.Execute(
+    return Acore::StringFormat(
         "INSERT INTO llm_chatter_events "
         "(event_type, event_scope, zone_id, map_id, "
         "priority, cooldown_key, subject_guid, "
@@ -2396,6 +2399,48 @@ void QueueChatterEvent(
         SanitizeUtf8(extraData),
         reactAfterSeconds,
         expiresAfterSeconds);
+}
+} // namespace
+
+void QueueChatterEvent(
+    const std::string& eventType,
+    const std::string& eventScope,
+    uint32 zoneId, uint32 mapId, uint8 priority,
+    const std::string& cooldownKey,
+    uint32 subjectGuid, const std::string& subjectName,
+    uint32 targetGuid, const std::string& targetName,
+    uint32 targetEntry, const std::string& extraData,
+    uint32 reactAfterSeconds,
+    uint32 expiresAfterSeconds,
+    bool nullZeroNumeric)
+{
+    CharacterDatabase.Execute(BuildChatterEventInsert(
+        eventType, eventScope, zoneId, mapId, priority,
+        cooldownKey, subjectGuid, subjectName,
+        targetGuid, targetName, targetEntry, extraData,
+        reactAfterSeconds, expiresAfterSeconds,
+        nullZeroNumeric));
+}
+
+void AppendChatterEvent(
+    CharacterDatabaseTransaction trans,
+    std::string const& eventType,
+    std::string const& eventScope,
+    uint32 zoneId, uint32 mapId, uint8 priority,
+    std::string const& cooldownKey,
+    uint32 subjectGuid, std::string const& subjectName,
+    uint32 targetGuid, std::string const& targetName,
+    uint32 targetEntry, std::string const& extraData,
+    uint32 reactAfterSeconds,
+    uint32 expiresAfterSeconds,
+    bool nullZeroNumeric)
+{
+    trans->Append(BuildChatterEventInsert(
+        eventType, eventScope, zoneId, mapId, priority,
+        cooldownKey, subjectGuid, subjectName,
+        targetGuid, targetName, targetEntry, extraData,
+        reactAfterSeconds, expiresAfterSeconds,
+        nullZeroNumeric));
 }
 
 void AppendRaidContext(

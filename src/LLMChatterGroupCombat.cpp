@@ -789,6 +789,16 @@ void HandleGroupPlayerBeforeSendChatMessageImpl(
 {
     HandleProximityPlayerSay(player, type, lang, msg);
 
+    // /e and /me arrive here as CHAT_MSG_EMOTE rather than
+    // through the OnPlayerTextEmote hook, which only fires
+    // for the ~244 named emotes.
+    if (type == CHAT_MSG_EMOTE)
+    {
+        if (lang != LANG_ADDON)
+            HandleGroupPlayerCustomEmoteImpl(player, msg);
+        return;
+    }
+
     if (type != CHAT_MSG_PARTY
         && type != CHAT_MSG_PARTY_LEADER)
         return;
@@ -2118,24 +2128,97 @@ void HandleGroupPlayerMapChangedImpl(
         return;
 }
 
-void HandleGroupPlayerTextEmoteImpl(
-    Player* player, uint32 textEmote,
-    ObjectGuid guid)
+/// Normalise a player-typed /e or /me before it is handed to
+/// the LLM: strip control characters, collapse runs of
+/// whitespace and clamp the length. Returns an empty string
+/// for anything too short to be a real action.
+static std::string SanitizeCustomEmote(
+    std::string const& raw, uint32 maxChars)
 {
+    std::string out;
+    out.reserve(raw.size());
+
+    bool pendingSpace = false;
+    for (unsigned char c : raw)
+    {
+        if (c < 0x20 || c == 0x7F)
+        {
+            pendingSpace = !out.empty();
+            continue;
+        }
+        if (c == ' ')
+        {
+            pendingSpace = !out.empty();
+            continue;
+        }
+        if (pendingSpace)
+        {
+            out.push_back(' ');
+            pendingSpace = false;
+        }
+        out.push_back(static_cast<char>(c));
+    }
+
+    out = SanitizeUtf8(out);
+
+    // maxChars counts characters, not bytes, so non-ASCII text
+    // gets the full configured length. A character starts at
+    // every byte that is not a 10xxxxxx continuation byte, so
+    // cutting at the start of character maxChars + 1 never
+    // severs a multi-byte sequence.
+    size_t chars = 0;
+    for (size_t i = 0; i < out.size(); ++i)
+    {
+        if ((static_cast<unsigned char>(out[i]) & 0xC0)
+            == 0x80)
+            continue;
+        if (chars == maxChars)
+        {
+            out.resize(i);
+            break;
+        }
+        ++chars;
+    }
+
+    if (chars < 2)
+        return "";
+
+    return out;
+}
+
+/// Shared body for named (/point) and free-text (/e) emotes.
+///
+/// customText is empty for a named emote, in which case
+/// textEmote identifies it. For a free-text emote there is no
+/// id, so textEmote is 0 and only verbal reactions are
+/// possible — nothing can be mirrored.
+static void DispatchPlayerEmote(
+    Player* player, uint32 textEmote,
+    ObjectGuid guid,
+    std::string const& customText)
+{
+    bool const isCustom = !customText.empty();
+
     if (!player)
         return;
 
     if (IsPlayerBot(player))
         return;
 
-    if (s_ignoredEmotes.count(textEmote))
-        return;
-    if (s_combatCalloutEmotes.count(textEmote))
-        return;
+    if (!isCustom)
+    {
+        if (s_ignoredEmotes.count(textEmote))
+            return;
+        if (s_combatCalloutEmotes.count(textEmote))
+            return;
+    }
     if (!sLLMChatterConfig
         || !sLLMChatterConfig->IsEnabled())
         return;
     if (!sLLMChatterConfig->_emoteReactionsEnable)
+        return;
+    if (isCustom
+        && !sLLMChatterConfig->_emoteCustomEnable)
         return;
 
     Group* group = player->GetGroup();
@@ -2196,9 +2279,10 @@ void HandleGroupPlayerTextEmoteImpl(
 
     if (sLLMChatterConfig->IsDebugLog())
         LOG_DEBUG("module",
-            "LLMChatter: TextEmote {} "
+            "LLMChatter: TextEmote {} custom='{}' "
             "tgtType={} target='{}'",
             textEmote,
+            customText,
             static_cast<int>(tgtType),
             targetName);
 
@@ -2207,8 +2291,10 @@ void HandleGroupPlayerTextEmoteImpl(
     // the player is solo or has no nearby bot audience.
     // They are governed by EmoteReactions.Enable only —
     // NOT GroupChatter.Enable — because no party/raid
-    // output is involved.
-    if (tgtType == EMOTE_TGT_CREATURE
+    // output is involved. A custom emote has no animation
+    // to mirror, so this stays named-emote only.
+    if (!isCustom
+        && tgtType == EMOTE_TGT_CREATURE
         && cachedTargetCreature
         && !creatureEmoteScripted)
     {
@@ -2226,20 +2312,24 @@ void HandleGroupPlayerTextEmoteImpl(
         float radius = static_cast<float>(
             sLLMChatterConfig
                 ->_proxChatterPlayerSayScanRadius);
+        // A custom emote has no animation to mirror, so only
+        // the verbal proximity route can accept it.
         ungroupedBotDirectAccepted =
             IsProximityDirectedPlayerbotEligible(
                 player, cachedTargetPlayer, radius)
-            && (HasPlayerbotMirrorEmote(textEmote)
+            && ((!isCustom
+                    && HasPlayerbotMirrorEmote(textEmote))
                 || IsProximityPlayerbotEmoteRouteEnabled());
         if (ungroupedBotDirectAccepted)
         {
-            uint32 mirrorEmote =
-                HandleEmoteAtUngroupedBot(
-                    player, cachedTargetPlayer,
-                    textEmote);
+            uint32 mirrorEmote = isCustom
+                ? 0
+                : HandleEmoteAtUngroupedBot(
+                      player, cachedTargetPlayer,
+                      textEmote);
             HandleProximityPlayerbotEmote(
                 player, cachedTargetPlayer,
-                textEmote, mirrorEmote);
+                textEmote, mirrorEmote, customText);
         }
     }
 
@@ -2273,7 +2363,7 @@ void HandleGroupPlayerTextEmoteImpl(
             if (cachedTargetPlayer)
                 HandleEmoteAtGroupBot(
                     player, cachedTargetPlayer,
-                    textEmote, group);
+                    textEmote, group, customText);
             break;
         case EMOTE_TGT_UNGROUPED_BOT:
             if (!ungroupedBotDirectAccepted
@@ -2283,7 +2373,8 @@ void HandleGroupPlayerTextEmoteImpl(
                     player, textEmote, group,
                     EMOTE_TGT_EXT_PLAYER,
                     targetName, npcRank, npcType,
-                    0u, "", nearbyAliveBots);
+                    0u, "", nearbyAliveBots, customText,
+                    cachedTargetPlayer);
             }
             break;
         case EMOTE_TGT_CREATURE:
@@ -2301,7 +2392,7 @@ void HandleGroupPlayerTextEmoteImpl(
                               ->GetCreatureTemplate()
                               ->SubName
                         : "",
-                    nearbyAliveBots);
+                    nearbyAliveBots, customText);
             break;
         case EMOTE_TGT_EXT_PLAYER:
         case EMOTE_TGT_NONE:
@@ -2311,11 +2402,38 @@ void HandleGroupPlayerTextEmoteImpl(
                     tgtType, targetName,
                     npcRank, npcType,
                     0u, "",
-                    nearbyAliveBots);
+                    nearbyAliveBots, customText,
+                    cachedTargetPlayer);
             break;
         case EMOTE_TGT_GROUP_PLAYER:
             break;
     }
+}
+
+void HandleGroupPlayerTextEmoteImpl(
+    Player* player, uint32 textEmote,
+    ObjectGuid guid)
+{
+    DispatchPlayerEmote(player, textEmote, guid, "");
+}
+
+void HandleGroupPlayerCustomEmoteImpl(
+    Player* player, std::string const& text)
+{
+    if (!player || !sLLMChatterConfig)
+        return;
+
+    std::string action = SanitizeCustomEmote(
+        text, sLLMChatterConfig->_emoteCustomMaxChars);
+    if (action.empty())
+        return;
+
+    // A free-text emote carries no target in the packet the
+    // way /point does, so fall back to what the player has
+    // selected. That matches how a person reads the emote:
+    // "/e grabs hand" while targeting a bot is aimed at it.
+    DispatchPlayerEmote(
+        player, 0, player->GetTarget(), action);
 }
 
 void HandleGroupPlayerUpdateZoneImpl(
