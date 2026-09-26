@@ -1053,6 +1053,110 @@ LLMChatter.ProximityChatter.ZoneFatigueDecay = 20
 LLMChatter.ProximityChatter.ConversationChance = 40
 
 #
+#   LLMChatter.ProximityChatter.FightReactions.Enable [SERVER]
+#       Let bots outside the player's group react to a nearby duel or
+#       open-world PvP kill. Bots the player can read (same faction)
+#       use short proximity /say lines; opposite-faction bots only
+#       emote. Exactly one reaction per moment: a statement or a 2-3
+#       bot conversation. Immersion is a subtle balance: less is more.
+#       Fighters the reacting bots cannot see are never named.
+#       Default: 1
+#
+LLMChatter.ProximityChatter.FightReactions.Enable = 1
+
+#
+#   LLMChatter.ProximityChatter.FightReactions.DuelChance [SERVER]
+#       Chance (0-100) that a selected duel moment gets a reaction.
+#       Scaled down by proximity zone fatigue.
+#       Default: 35
+#
+LLMChatter.ProximityChatter.FightReactions.DuelChance = 35
+
+#
+#   LLMChatter.ProximityChatter.FightReactions.PvPChance [SERVER]
+#       Chance (0-100) that a nearby open-world PvP kill gets a
+#       reaction. Scaled down by proximity zone fatigue.
+#       Default: 25
+#
+LLMChatter.ProximityChatter.FightReactions.PvPChance = 25
+
+#
+#   LLMChatter.ProximityChatter.FightReactions.ConversationChance [SERVER]
+#       Chance (0-100) that a reaction is a 2-3 bot conversation (or
+#       emote exchange) instead of a single statement.
+#       Default: 35
+#
+LLMChatter.ProximityChatter.FightReactions.ConversationChance = 35
+
+#
+#   LLMChatter.ProximityChatter.FightReactions.SecondMomentChance [SERVER]
+#   LLMChatter.ProximityChatter.FightReactions.ThirdMomentChance [SERVER]
+#       Each duel gets one moment (before, during, or after). A second
+#       moment is added with SecondMomentChance, and a third with
+#       ThirdMomentChance only after a second. Defaults give 80% one,
+#       16% two, and 4% three moments.
+#       Default: 20 / 20
+#
+LLMChatter.ProximityChatter.FightReactions.SecondMomentChance = 20
+LLMChatter.ProximityChatter.FightReactions.ThirdMomentChance = 20
+
+#
+#   LLMChatter.ProximityChatter.FightReactions.ChallengeDelaySeconds [SERVER]
+#       Seconds after a duel challenge before the "before" moment.
+#       Default: 2
+#
+LLMChatter.ProximityChatter.FightReactions.ChallengeDelaySeconds = 2
+
+#
+#   LLMChatter.ProximityChatter.FightReactions.MidDelayMinSeconds [SERVER]
+#   LLMChatter.ProximityChatter.FightReactions.MidDelayMaxSeconds [SERVER]
+#       Random delay after a duel starts before the "during" moment.
+#       Default: 8 / 15
+#
+LLMChatter.ProximityChatter.FightReactions.MidDelayMinSeconds = 8
+LLMChatter.ProximityChatter.FightReactions.MidDelayMaxSeconds = 15
+
+#
+#   LLMChatter.ProximityChatter.FightReactions.PendingExpirySeconds [SERVER]
+#       A due moment, kill scene, or emote step older than this is
+#       dropped instead of fired late.
+#       Default: 30
+#
+LLMChatter.ProximityChatter.FightReactions.PendingExpirySeconds = 30
+
+#
+#   LLMChatter.ProximityChatter.FightReactions.CompletedRetentionSeconds [SERVER]
+#       How long a finished duel stays valid for delivering its
+#       "after" lines (covers LLM and delivery latency).
+#       Default: 60
+#
+LLMChatter.ProximityChatter.FightReactions.CompletedRetentionSeconds = 60
+
+#
+#   LLMChatter.ProximityChatter.FightReactions.LineMaxAgeSeconds [SERVER]
+#       Maximum age of a PvP kill reaction line at delivery.
+#       Default: 20
+#
+LLMChatter.ProximityChatter.FightReactions.LineMaxAgeSeconds = 20
+
+#
+#   LLMChatter.ProximityChatter.FightReactions.SceneCooldownSeconds [SERVER]
+#       Minimum seconds between duel scenes for the same player in the
+#       same area, and between reactions to the same PvP kill scene.
+#       Later moments of the same duel are not affected.
+#       Default: 120
+#
+LLMChatter.ProximityChatter.FightReactions.SceneCooldownSeconds = 120
+
+#
+#   LLMChatter.ProximityChatter.FightReactions.SceneCellYards [SERVER]
+#       Size of the area cell used by SceneCooldownSeconds: repeated
+#       duels near the same player inside one cell count as one scene.
+#       Default: 100
+#
+LLMChatter.ProximityChatter.FightReactions.SceneCellYards = 100
+
+#
 #   LLMChatter.ProximityChatter.PlayerAddressChance
 #       Chance (0-100) for a single nearby line to be
 #       framed as if it might address the player.
@@ -1671,6 +1775,104 @@ LLMChatter.GroupChatter.WipeChance = 100
 #       Default: 120
 #
 LLMChatter.GroupChatter.WipeCooldown = 120
+
+#
+#   LLMChatter.GroupChatter.PvP.Enable [SERVER]
+#       Enable group reactions to open-world fights against the
+#       opposing faction: engaging an enemy, defeating one, being
+#       killed by one, offensive spells, and low health or mana
+#       during the fight. Enemies may be real players or
+#       playerbots; prompts treat both as characters of the
+#       opposing faction. Battlegrounds and arenas are not affected.
+#       Stealthed or unseen enemies are never named.
+#       When 0, reactions during PvP fights are silent; they do not
+#       fall back to creature-style reactions.
+#       Default: 1
+#
+LLMChatter.GroupChatter.PvP.Enable = 1
+
+#
+#   LLMChatter.GroupChatter.PvP.CombatChance [SERVER]
+#       Percent chance (0-100) that engaging an opposing-faction
+#       enemy triggers a battle cry.
+#       Default: 60
+#
+LLMChatter.GroupChatter.PvP.CombatChance = 60
+
+#
+#   LLMChatter.GroupChatter.PvP.KillChance [SERVER]
+#       Percent chance (0-100) that defeating an opposing-faction
+#       enemy triggers a reaction.
+#       Default: 80
+#
+LLMChatter.GroupChatter.PvP.KillChance = 80
+
+#
+#   LLMChatter.GroupChatter.PvP.DeathChance [SERVER]
+#       Percent chance (0-100) that a group member killed by an
+#       opposing-faction enemy triggers a reaction. Shares the
+#       DeathCooldown with creature deaths; full wipes use
+#       WipeChance and WipeCooldown.
+#       Default: 60
+#
+LLMChatter.GroupChatter.PvP.DeathChance = 60
+
+#
+#   LLMChatter.GroupChatter.PvP.Cooldown [SERVER]
+#       Minimum seconds between PvP reactions of the same kind
+#       (engage, kill, death) for the same group.
+#       Default: 30
+#
+LLMChatter.GroupChatter.PvP.Cooldown = 30
+
+#
+#   LLMChatter.GroupChatter.PvP.EnemyCooldown [SERVER]
+#       Minimum seconds between PvP reactions of the same kind
+#       about the same enemy for the same group. Keeps repeated
+#       ganks and corpse camping from flooding chat.
+#       Default: 120
+#
+LLMChatter.GroupChatter.PvP.EnemyCooldown = 120
+
+#
+#   LLMChatter.GroupChatter.PvP.TargetSwitchCallout [SERVER]
+#       Players have no threat table, so the tank aggro-loss
+#       callout becomes an "enemy switched targets" callout in
+#       PvP. Set to 0 to suppress it during PvP fights.
+#       Default: 1
+#
+LLMChatter.GroupChatter.PvP.TargetSwitchCallout = 1
+
+#
+#   LLMChatter.GroupChatter.Duel.Enable [SERVER]
+#       Enable group reactions to duels involving a member of a
+#       group with a real player and bots. Bot duellists and group
+#       bots watching the duel can react.
+#       Default: 1
+#
+LLMChatter.GroupChatter.Duel.Enable = 1
+
+#
+#   LLMChatter.GroupChatter.Duel.StartChance [SERVER]
+#       Percent chance (0-100) of a reaction when a duel starts.
+#       Default: 60
+#
+LLMChatter.GroupChatter.Duel.StartChance = 60
+
+#
+#   LLMChatter.GroupChatter.Duel.EndChance [SERVER]
+#       Percent chance (0-100) of a reaction when a duel ends.
+#       Default: 100
+#
+LLMChatter.GroupChatter.Duel.EndChance = 100
+
+#
+#   LLMChatter.GroupChatter.Duel.Cooldown [SERVER]
+#       Minimum seconds between duel start reactions, and between
+#       duel end reactions, for the same group.
+#       Default: 60
+#
+LLMChatter.GroupChatter.Duel.Cooldown = 60
 
 #
 #   LLMChatter.GroupChatter.BotQuestionEnable

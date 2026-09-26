@@ -736,7 +736,8 @@ bool GroupHasRealPlayer(Group* group)
 // Pick a random bot from the group, optionally
 // excluding a specific player (e.g. the killer)
 Player* GetRandomBotInGroup(
-    Group* group, Player* exclude)
+    Group* group, Player* exclude,
+    bool requireAlive)
 {
     if (!group)
         return nullptr;
@@ -749,7 +750,7 @@ Player* GetRandomBotInGroup(
         Player* member = itr->GetSource();
         if (member && IsPlayerBot(member)
             && member != exclude
-            && member->IsAlive())
+            && (!requireAlive || member->IsAlive()))
             bots.push_back(member);
     }
 
@@ -1195,6 +1196,7 @@ void CleanupGroupSession(uint32 groupId)
     _groupDungeonCooldowns.erase(groupId);
     _groupWipeCooldowns.erase(groupId);
     _groupCorpseRunCooldowns.erase(groupId);
+    ClearPvPCooldownsForGroup(groupId);
     {
         std::lock_guard<std::mutex> lock(
             _emoteCooldownMutex);
@@ -1302,6 +1304,7 @@ public:
               {PLAYERHOOK_CAN_PLAYER_USE_GROUP_CHAT,
                PLAYERHOOK_ON_CREATURE_KILL,
                PLAYERHOOK_ON_PLAYER_KILLED_BY_CREATURE,
+               PLAYERHOOK_ON_PVP_KILL,
                PLAYERHOOK_ON_LOOT_ITEM,
                PLAYERHOOK_ON_GROUP_ROLL_REWARD_ITEM,
                PLAYERHOOK_ON_PLAYER_ENTER_COMBAT,
@@ -1342,6 +1345,14 @@ public:
     {
         HandleGroupPlayerKilledByCreatureImpl(
             killer, killed);
+    }
+
+    // Overworld PvP kills and deaths. Battleground kills
+    // stay with LLMChatterPlayerScript::OnPlayerPVPKill.
+    void OnPlayerPVPKill(
+        Player* killer, Player* killed) override
+    {
+        HandleGroupPvPKillImpl(killer, killed);
     }
 
     // Shared loot handler for both direct loot
@@ -1473,12 +1484,14 @@ void CheckGroupCombatState()
 // Forward declarations for sub-domain registration
 void AddLLMChatterGroupJoinScripts();
 void AddLLMChatterGroupQuestScripts();
+void AddLLMChatterDuelScripts();
 
 void AddLLMChatterGroupScripts()
 {
     AddLLMChatterGroupJoinScripts();
     new LLMChatterGroupPlayerScript();
     AddLLMChatterGroupQuestScripts();
+    AddLLMChatterDuelScripts();
 }
 
 

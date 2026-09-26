@@ -8,6 +8,7 @@
 #include "LLMChatterDelivery.h"
 #include "LLMChatterGuild.h"
 #include "LLMChatterProximity.h"
+#include "LLMChatterProximityFight.h"
 #include "LLMChatterShared.h"
 
 #include "Channel.h"
@@ -524,6 +525,33 @@ void DeliverPendingMessagesImpl()
         return;
     }
 
+    // Duel/PvP onlooker lines (LLMChatterProximityFight.cpp).
+    // They are only ever bot proximity `say` rows; anything
+    // else carrying fight_kind is dropped. Each row is
+    // revalidated against the live duel instance, so a line
+    // queued before a cancelled challenge, a finished duel,
+    // or a rematch is never spoken late.
+    bool fightRow =
+        HasNonEmptyJsonString(eventExtraData, "fight_kind");
+    if (fightRow)
+    {
+        if (ownerSubsystem != "proximity"
+            || channel != "say")
+        {
+            FinalizeDroppedMessage(
+                messageId, eventId, sequence,
+                eventType, "fight_scene_channel");
+            return;
+        }
+        if (!IsProximityFightLineStillValid(eventExtraData))
+        {
+            FinalizeDroppedMessage(
+                messageId, eventId, sequence,
+                eventType, "fight_scene_stale");
+            return;
+        }
+    }
+
     // Master GuildChatter toggle. Consume already-queued
     // guild rows when guild chatter is disabled, so flipping
     // LLMChatter.GuildChatter.Enable = 0 takes effect
@@ -610,8 +638,18 @@ void DeliverPendingMessagesImpl()
                 ->_proxChatterPlayerSayScanRadius));
     if (proximityLocal)
     {
+        // A duellist anchor may still be in duel combat; the
+        // fight-anchor rule allows only that combat.
+        uint32 fightOpponentGuid = fightRow
+            ? ExtractJsonUInt(
+                eventExtraData, "fight_opponent_guid")
+            : 0;
+        bool anchorEligible = fightOpponentGuid
+            ? IsProximityFightAnchorEligible(
+                anchorPlayer, fightOpponentGuid)
+            : IsProximityAnchorEligible(anchorPlayer);
         bool anchorValid =
-            IsProximityAnchorEligible(anchorPlayer)
+            anchorEligible
             && (!hasEventMapId
                 || anchorPlayer->GetMapId()
                     == eventMapId)

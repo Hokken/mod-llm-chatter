@@ -730,11 +730,14 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterGroupJoin.cpp` | 877 | Group join batching: `QueueBotGreetingEvent()`, `EnsureGroupJoinQueued()`, `FlushGroupJoinBatches()`, `LLMChatterGroupScript` (GroupScript: `OnAddMember`, `OnRemoveMember` with farewell, `OnDisband`) |
 | `src/LLMChatterGroupEmote.cpp` | 780 | Emote reaction system: delayed bot/creature mirror events, emote static data, grouped and ungrouped playerbot mirroring, creature mirroring, observer reactions, and cooldown eviction |
 | `src/LLMChatterGroupQuest.cpp` | 530 | Quest accept batching: `FlushQuestAcceptBatches()`, `LLMChatterCreatureScript` (AllCreatureScript: `CanCreatureQuestAccept` with debounce/immediate paths) |
+| `src/LLMChatterGroupPvP.cpp` | ~630 | Overworld PvP: opposing-faction enemy resolution (players and their pets), the identity visibility gate, PvP reactor selection, enemy JSON fields, per-group and per-enemy PvP cooldowns, PvP pull, player-kill, and pet-kill entry points |
+| `src/LLMChatterDuel.cpp` | ~300 | Duel start/end `PlayerScript`, duel reactor selection, duel cooldowns, and `bot_group_duel_start` / `bot_group_duel_end` queueing |
 | `src/LLMChatterGroup.h` | 18 | World-to-group cross-call surface plus group registration |
 | `src/LLMChatterPlayer.cpp` | 1105 | Player General-channel hooks, General cooldowns, subzone cooldowns, `EnsureBotInGeneralChannel()`, player registration |
 | `src/LLMChatterRaid.cpp` | 767 | Raid boss hooks (pull/kill/wipe), boss lookup table (80+ entries across Classic/TBC/WotLK), `IsDatabaseBound() override`, raid registration |
 | `src/LLMChatterProximity.cpp` | 2674 | Ordinary outdoor/instance proximity scans, curated NPC/playerbot eligibility and compatibility, selected/named `/say` routing, mixed bot-directed reaction chains, map/instance-aware scenes and cooldowns, and event payload construction |
-| `src/LLMChatterProximity.h` | 39 | Proximity scan and player-say hook declarations consumed by `LLMChatterWorld.cpp` and `LLMChatterGroupCombat.cpp` |
+| `src/LLMChatterProximity.h` | ~75 | Proximity scan and player-say hook declarations consumed by `LLMChatterWorld.cpp` and `LLMChatterGroupCombat.cpp`, plus the narrow fight onlooker helpers used by `LLMChatterProximityFight.cpp` |
+| `src/LLMChatterProximityFight.cpp/.h` | ~1090 | Duel and overworld PvP onlooker reactions: own `PlayerScript` (duel request/start/end, PvP kill), duel-instance lifecycle and moment selection, one reaction per moment (proximity speech for same-faction bots, emotes for opposite-faction bots), staggered emote steps, and delivery-time revalidation |
 | `src/LLMChatterBossDialogue.cpp/.h` | ~850 | Separate boss-only pre-aggro scanning, safe-band eligibility, selected/named `/say` routing, denylist, and boss-instance presence scheduling |
 | `src/LLMChatterBG.cpp` | 1348 | Battleground hooks, BG state polling, BG queue helpers, BG registration |
 | `src/LLMChatterBG.h` | 14 | BG registration declaration |
@@ -793,6 +796,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_handler_pipeline.py` | Shared `run_group_handler()` pipeline: extra_data parsing, guard checks, traits lookup, context assembly, prompt dispatch, chat storage, mood update, event completion/failure handling |
 | `tools/chatter_group_prompts.py` | Group prompt builders, nearby-object prompts, pre-cache prompt builders, `build_player_msg_conversation_prompt()`. All major party chatter builders accept `map_id=0` and inject `get_dungeon_flavor(map_id)` as location context when inside a dungeon instance, replacing zone/subzone lore. Excluded: OOM, low-health, level-up. |
 | `tools/chatter_group_state.py` | Group mood/traits/history state |
+| `tools/chatter_duel.py` | Duel start/end handlers and prompt builders for `bot_group_duel_start` and `bot_group_duel_end` |
 | `tools/chatter_group_general_reaction.py` | General-to-party relay: queues and handles `bot_group_general_reaction` events when grouped bots react in party chat to bot-authored General lines |
 
 ### Shared and support layers
@@ -974,6 +978,40 @@ each quality tier above common receives the configured additional weight.
 - nearby-local cooldown state
 - direct nearby event queue insertion path
 
+### Proximity fight onlooker ownership
+
+`LLMChatterProximityFight.cpp` owns reactions of bots outside the
+player's group to a nearby duel or overworld PvP kill. Group duel and
+PvP reactions stay in `LLMChatterDuel.cpp` and `LLMChatterGroupPvP.cpp`.
+
+- Hooks (`PLAYERHOOK_ON_DUEL_REQUEST`, `_START`, `_END`, `_ON_PVP_KILL`)
+  run on map worker threads and only record state under a mutex.
+  `ProcessPendingFightMoments()` runs on the world thread from the
+  existing delivery poll in `WorldScript::OnUpdate` and does all scene
+  work.
+- `LLMChatterJsonFields.h` holds the whitespace-tolerant readers used to
+  revalidate fight rows read back from the MySQL JSON column; it is
+  standard-library only and has a standalone test
+  (`tools/tests/cpp/test_json_fields.cpp`).
+- Each duel request creates a duel instance with a unique id, keyed by
+  the duellist pair; a rematch replaces it. Phases are `Challenged`,
+  `InProgress`, and `Completed`. Live duels never expire by age;
+  completed instances are retired after `CompletedRetentionSeconds` once
+  no pending work refers to them.
+- The moment set (before/during/after) is rolled once per duel, with
+  repeat throttling between duels keyed by anchor and location cell.
+- Each moment produces exactly one reaction: a statement or a 2-3 bot
+  conversation. Same-faction onlookers speak through `proximity_say` /
+  `proximity_conversation` with `fight_kind` and a `fight_scene` object;
+  opposite-faction onlookers only emote, without an LLM call.
+- A real-player duellist can anchor the scene through
+  `IsProximityFightAnchorEligible()`, which allows combat only with the
+  recorded duel opponent.
+- `LLMChatterDelivery.cpp` drops fight rows outside bot proximity `say`
+  (`fight_scene_channel`) and revalidates each row with
+  `IsProximityFightLineStillValid()` (`fight_scene_stale`), so lines for
+  a cancelled challenge, a finished duel, or a rematch are never spoken.
+
 ### Proximity ownership
 
 `LLMChatterProximity.cpp` owns:
@@ -1050,7 +1088,7 @@ reaction probabilities.
 `QueueEvent()` SQL-escapes its `extraData` before forwarding to
 `QueueChatterEvent()`.
 
-### Group ownership (five TUs)
+### Group ownership (seven TUs)
 
 `LLMChatterGroupInternal.h` declares shared state across the group TUs:
 
@@ -1129,6 +1167,42 @@ Ownership boundary:
 
 Important: the creature quest-accept hook is group-owned, not in a
 separate creature file.
+
+`LLMChatterGroupPvP.cpp` owns overworld PvP against the opposing
+faction. An enemy may be a real player or a playerbot; both are
+`Player` objects and share every path. Battlegrounds and arenas stay
+with `LLMChatterBG.cpp`.
+
+- `ResolveOpposingFactionPlayer()` maps a unit (the player or its pet)
+  to the opposing-faction player and excludes same-team players, duel
+  opponents, and battleground/arena participants
+- `IsPvPEnemyPerceivable()` is the single identity gate. It delegates to
+  the shared `IsUnitPerceivableBy()`: same map and instance, within
+  visibility range, and distance-aware `CanSeeOrDetect()`. The same
+  helper gates `bot_state.target` in `BuildBotStateJson()`. Enemy
+  identity reaches extra data, and the legacy `creature_name`,
+  `killer_name`, and `target_name` fields, only after this gate. A pet
+  and its owner are gated separately
+- `SelectPvPReactor()` limits reactors to bots on the enemy's map and
+  prefers bots that can perceive it
+- `BuildPvPEnemyFields()` adds `enemy_kind: "player"` and, when
+  perceivable, the enemy's name, race, class, gender, level, faction,
+  `enemy_is_bot`, `level_gap`, and `is_gray_kill`; otherwise
+  `enemy_identity_known: false`
+- PvP reuses the existing `bot_group_combat`, `bot_group_kill`,
+  `bot_group_death`, `bot_group_wipe`, `bot_group_spell_cast`, and state
+  callout event types. PvP events never use the creature-oriented
+  pre-cache, and the tank aggro-loss callout carries
+  `callout_kind: "pvp_target_switch"`
+- `LLMChatterGroupCombat.cpp` hands opposing-faction enemies to this
+  file from the pull, creature-death (pet owner), spell, and state
+  callout paths, and owns the shared `QueueGroupDeathOrWipe()` used by
+  both creature and PvP deaths
+
+`LLMChatterDuel.cpp` owns duel reactions. It queues
+`bot_group_duel_start` and `bot_group_duel_end` for each distinct group
+with a real player that contains a duellist. The reactor is a bot
+duellist or a group bot that can see the duel.
 
 ### Player ownership
 
@@ -1290,6 +1364,7 @@ source:
 | Emote observer comments | `tools/chatter_emote_observer.py` |
 | Proximity chatter Python handlers/prompts | `tools/chatter_proximity.py` |
 | Proximity chatter C++ scan/scene logic | `src/LLMChatterProximity.cpp`, `src/LLMChatterProximity.h` |
+| Duel/PvP onlooker reactions | `src/LLMChatterProximityFight.cpp`, `src/LLMChatterProximityFight.h`; fight topic in `tools/chatter_proximity.py` (`_fight_topic`) |
 | C++ text-emote target classification / solo-vs-group pathing | `src/LLMChatterGroupCombat.cpp` |
 | Emote C++ hooks, mirror maps, cooldowns | `src/LLMChatterGroupEmote.cpp` |
 | BG event handling | `tools/chatter_battlegrounds.py` |

@@ -1520,9 +1520,13 @@ def test_cpp_source_contracts_cover_instance_safety():
         'void CheckProximityChatter(bool instanceMaps)', 1
     )[1].split('void HandleProximityPlayerSay(', 1)[0]
     assert 'playerInInstance != instanceMaps' in scoped_scan
+    # ComputeEffectiveChance() picks the instance/outdoor
+    # chance and delegates the scan-interval fatigue window to
+    # ComputeFatiguedChance(), defined just above it.
     effective_chance = source.split(
-        'uint32 ComputeEffectiveChance(', 1
+        'uint32 ComputeFatiguedChance(', 1
     )[1].split('void NoteZoneTrigger(', 1)[0]
+    assert 'ComputeFatiguedChance(player, chance)' in effective_chance
     assert '_proxChatterInstanceChance' in effective_chance
     assert '_proxChatterOutdoorChance' in effective_chance
     assert '_proxChatterInstanceScanInterval' in effective_chance
@@ -1647,9 +1651,14 @@ def test_mounted_actors_remain_eligible_for_direct_interactions():
     directed_emote = source.split(
         'void HandleProximityPlayerEmote(', 1
     )[1].split('void RecordDeliveredProximityLine(', 1)[0]
+    # IsEligibleProximityBot() adds the team check on top of
+    # IsEligibleProximityBotAnyTeam(), defined just above it.
     bot_eligibility = source.split(
-        'bool IsEligibleProximityBot(', 1
+        'bool IsEligibleProximityBotAnyTeam(', 1
     )[1].split('bool IsEligibleProximityNPC(', 1)[0]
+    assert 'player->GetTeamId() != bot->GetTeamId()' in (
+        bot_eligibility
+    )
     directed_bot = source.split(
         'bool IsProximityDirectedPlayerbotEligible(', 1
     )[1].split(

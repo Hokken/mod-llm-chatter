@@ -67,7 +67,7 @@ void QueueStateCallout(
 
     std::string targetName = "";
     Unit* victim = bot->GetVictim();
-    if (victim)
+    if (victim && IsUnitPerceivableBy(bot, victim))
         targetName = victim->GetName();
 
     std::string aggroTarget = "";
@@ -78,7 +78,28 @@ void QueueStateCallout(
             victim->GetVictim()->GetName();
     }
 
-    if (sLLMChatterConfig->_preCacheEnable
+    // Fighting an opposing-faction player (or its pet).
+    // Classification does not depend on PvP.Enable: a
+    // PvP fight never falls back to creature framing or
+    // creature caches, it is suppressed instead.
+    PvPEnemyRef pvpEnemy;
+    if (victim)
+    {
+        pvpEnemy.enemy =
+            ResolveOpposingFactionPlayer(bot, victim);
+        pvpEnemy.unit = victim;
+        pvpEnemy.viaPet = pvpEnemy.enemy
+            && victim != pvpEnemy.enemy;
+    }
+    bool isPvP = (pvpEnemy.enemy != nullptr);
+    if (isPvP && !sLLMChatterConfig->_pvpChatterEnable)
+        return;
+    if (isPvP
+        && !IsPvPEnemyPerceivable(bot, victim))
+        targetName = "";
+
+    if (!isPvP
+        && sLLMChatterConfig->_preCacheEnable
         && sLLMChatterConfig
                ->_preCacheStateEnable
         && group)
@@ -132,6 +153,17 @@ void QueueStateCallout(
             JsonEscape(targetName) + "\","
         "\"aggro_target\":\"" +
             JsonEscape(aggroTarget) + "\","
+        + (isPvP
+            ? BuildPvPEnemyFields(
+                bot, bot, pvpEnemy,
+                DetectPvPInitiator(
+                    bot, pvpEnemy.enemy))
+                + (std::string(eventType)
+                        == "bot_group_aggro_loss"
+                    ? ",\"callout_kind\":"
+                      "\"pvp_target_switch\","
+                    : ",")
+            : std::string())
         + BuildBotStateJson(bot) + "}";
 
     if (bot->InBattleground())
@@ -285,6 +317,11 @@ void HandleGroupPlayerKilledByCreatureImpl(
     if (!killed)
         return;
 
+    // A pet owned by an opposing-faction player is
+    // overworld PvP, not a creature kill.
+    if (HandleGroupPetPvPKill(killer, killed))
+        return;
+
     Group* group = killed->GetGroup();
     if (!group)
         return;
@@ -292,9 +329,47 @@ void HandleGroupPlayerKilledByCreatureImpl(
     if (!GroupHasRealPlayer(group))
         return;
 
+    QueueGroupDeathOrWipe(
+        killed, group,
+        killer ? killer->GetName() : "",
+        killer ? killer->GetEntry() : 0,
+        nullptr);
+}
+
+void QueueGroupDeathOrWipe(
+    Player* killed, Group* group,
+    std::string const& creatureKillerName,
+    uint32 killerEntry,
+    PvPEnemyRef const* pvpEnemy)
+{
+    if (!killed || !group)
+        return;
+
     uint32 groupId =
         group->GetGUID().GetCounter();
     time_t now = time(nullptr);
+
+    // Killer name as the reactor may know it. PvP names
+    // pass the identity visibility gate first.
+    auto killerNameFor =
+        [&](Player* reactor) -> std::string
+    {
+        if (pvpEnemy)
+            return GetPerceivedPvPEnemyName(
+                reactor, *pvpEnemy);
+        return creatureKillerName;
+    };
+    auto pvpFieldsFor =
+        [&](Player* reactor) -> std::string
+    {
+        if (!pvpEnemy)
+            return "";
+        return BuildPvPEnemyFields(
+            reactor, killed, *pvpEnemy,
+            DetectPvPInitiator(
+                killed, pvpEnemy->enemy))
+            + ",";
+    };
 
     {
         bool allDead = true;
@@ -342,8 +417,15 @@ void HandleGroupPlayerKilledByCreatureImpl(
             _groupWipeCooldowns[groupId] =
                 now;
 
-            Player* wipeReactor =
-                GetRandomBotInGroup(group);
+            // Everyone is dead, so the reactor must
+            // not be required to be alive. Party
+            // delivery accepts a dead speaker.
+            Player* wipeReactor = pvpEnemy
+                ? SelectPvPReactor(
+                    group, nullptr,
+                    pvpEnemy->unit, false)
+                : GetRandomBotInGroup(
+                    group, nullptr, false);
             if (!wipeReactor)
                 return;
 
@@ -353,13 +435,7 @@ void HandleGroupPlayerKilledByCreatureImpl(
             std::string wrName =
                 wipeReactor->GetName();
             std::string kName =
-                killer
-                    ? killer->GetName()
-                    : "";
-            uint32 kEntry =
-                killer
-                    ? killer->GetEntry()
-                    : 0;
+                killerNameFor(wipeReactor);
 
             std::string wipeData = "{"
                 + BuildBotIdentityFields(
@@ -372,7 +448,8 @@ void HandleGroupPlayerKilledByCreatureImpl(
                         kName) + "\","
                 "\"killer_entry\":" +
                     std::to_string(
-                        kEntry) + ","
+                        killerEntry) + ","
+                + pvpFieldsFor(wipeReactor)
                 + BuildBotStateJson(wipeReactor)
                 + "}";
 
@@ -391,7 +468,7 @@ void HandleGroupPlayerKilledByCreatureImpl(
                 wrName,
                 0,
                 kName,
-                kEntry,
+                killerEntry,
                 wipeData,
                 GetReactionDelaySeconds(
                     "bot_group_wipe"),
@@ -410,16 +487,30 @@ void HandleGroupPlayerKilledByCreatureImpl(
                ->_groupDeathCooldown)
         return;
 
-    if (urand(1, 100)
-        > sLLMChatterConfig->_groupDeathChance)
+    uint32 deathChance = pvpEnemy
+        ? sLLMChatterConfig->_pvpDeathChance
+        : sLLMChatterConfig->_groupDeathChance;
+    if (urand(1, 100) > deathChance)
+        return;
+
+    Player* reactor = pvpEnemy
+        ? SelectPvPReactor(
+            group, killed, pvpEnemy->unit, true)
+        : GetRandomBotInGroup(group, killed);
+    if (!reactor)
+        return;
+
+    if (pvpEnemy
+        && !TryConsumePvPCooldown(
+            groupId,
+            pvpEnemy->enemy
+                ? pvpEnemy->enemy->GetGUID()
+                      .GetCounter()
+                : 0,
+            PvPEventKind::Death, now))
         return;
 
     _groupDeathCooldowns[groupId] = now;
-
-    Player* reactor = GetRandomBotInGroup(
-        group, killed);
-    if (!reactor)
-        return;
 
     uint32 reactorGuid =
         reactor->GetGUID().GetCounter();
@@ -433,9 +524,7 @@ void HandleGroupPlayerKilledByCreatureImpl(
     std::string deadName =
         killed->GetName();
     std::string killerName =
-        killer ? killer->GetName() : "";
-    uint32 killerEntry =
-        killer ? killer->GetEntry() : 0;
+        killerNameFor(reactor);
 
     std::string extraData = "{"
         + BuildBotIdentityFields(reactor) + ","
@@ -453,6 +542,7 @@ void HandleGroupPlayerKilledByCreatureImpl(
             std::string(
                 isPlayerDeath
                     ? "true" : "false") + ","
+        + pvpFieldsFor(reactor)
         + BuildBotStateJson(reactor) + "}";
 
     if (reactor->InBattleground())
@@ -640,6 +730,11 @@ void HandleGroupPlayerEnterCombatImpl(
         return;
 
     if (!player || !enemy)
+        return;
+
+    // Opposing-faction players (and their pets) take the
+    // PvP path, including when the real player engages.
+    if (HandleGroupPvPEnterCombat(player, enemy))
         return;
 
     if (!IsPlayerBot(player))
@@ -1705,6 +1800,10 @@ void HandleGroupPlayerSpellCastImpl(
         (spellCategory == "offensive"
          || spellCategory == "cc");
 
+    // The unit whose name becomes target_name. PvP
+    // identity is resolved from this same unit so the
+    // name and the enemy fields can never disagree.
+    Unit* targetUnit = nullptr;
     if (isAreaBuff)
     {
         targetName = "the group";
@@ -1715,18 +1814,59 @@ void HandleGroupPlayerSpellCastImpl(
                         != player->GetGUID()))
     {
         targetName = spellTarget->GetName();
+        targetUnit = spellTarget;
     }
     if (targetName.empty()
         && preferVictimTarget)
     {
         Unit* victim = player->GetVictim();
         if (victim)
+        {
             targetName = victim->GetName();
+            targetUnit = victim;
+        }
     }
 
     if (preferVictimTarget
         && targetName.empty())
         return;
+
+    PvPEnemyRef pvpEnemy;
+    if (preferVictimTarget && targetUnit)
+    {
+        pvpEnemy.enemy =
+            ResolveOpposingFactionPlayer(
+                player, targetUnit);
+        pvpEnemy.unit = targetUnit;
+        pvpEnemy.viaPet = pvpEnemy.enemy
+            && targetUnit != pvpEnemy.enemy;
+    }
+    bool isPvPTarget = (pvpEnemy.enemy != nullptr);
+    if (isPvPTarget)
+    {
+        if (!sLLMChatterConfig->_pvpChatterEnable)
+            return;
+
+        // A bot caster reacts to its own spell; for the
+        // real player, pick a bot in the same scene.
+        if (!casterIsBot)
+        {
+            reactor = SelectPvPReactor(
+                group, nullptr, targetUnit, true);
+            if (!reactor)
+                return;
+            botGuid =
+                reactor->GetGUID().GetCounter();
+            botName = reactor->GetName();
+        }
+
+        // target_name stays the unit that was hit: the
+        // pet itself for a pet target, else the player.
+        if (IsPvPEnemyPerceivable(reactor, targetUnit))
+            targetName = targetUnit->GetName();
+        else
+            targetName = "an unseen enemy";
+    }
 
     bool isSelfCast = (!preferVictimTarget
         && !isAreaBuff
@@ -1750,6 +1890,9 @@ void HandleGroupPlayerSpellCastImpl(
         if (!casterIsBot)
             canUseCache = false;
     }
+    // Cached lines are written for creature enemies.
+    if (isPvPTarget)
+        canUseCache = false;
 
     if (spellCategory != "resurrect"
         && canUseCache
@@ -1794,6 +1937,13 @@ void HandleGroupPlayerSpellCastImpl(
             JsonEscape(targetName) + "\","
         "\"group_id\":" +
             std::to_string(groupId) + ","
+        + (isPvPTarget
+            ? BuildPvPEnemyFields(
+                reactor, player, pvpEnemy,
+                DetectPvPInitiator(
+                    player, pvpEnemy.enemy))
+                + ","
+            : std::string())
         + BuildBotStateJson(reactor) + "}";
 
     if (reactor->InBattleground())
@@ -2717,7 +2867,18 @@ void CheckGroupCombatStateImpl()
                         Player* threatened =
                             victim->GetVictim()
                                 ->ToPlayer();
+                        // Players have no threat: an
+                        // enemy player switching targets
+                        // is its own optional callout.
+                        bool pvpSwitchMuted =
+                            ResolveOpposingFactionPlayer(
+                                bot, victim)
+                            && (!sLLMChatterConfig
+                                    ->_pvpChatterEnable
+                                || !sLLMChatterConfig
+                                    ->_pvpTargetSwitchCallout);
                         if (threatened
+                            && !pvpSwitchMuted
                             && group->IsMember(
                                 threatened
                                     ->GetGUID()))

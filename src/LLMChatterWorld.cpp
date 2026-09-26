@@ -11,6 +11,7 @@
 #include "LLMChatterGroupInternal.h"
 #include "LLMChatterNearby.h"
 #include "LLMChatterProximity.h"
+#include "LLMChatterProximityFight.h"
 #include "LLMChatterShared.h"
 
 #include "DatabaseEnv.h"
@@ -367,6 +368,11 @@ public:
         {
             _lastDeliveryTime = now;
             DeliverPendingMessages();
+            // Duel and PvP onlooker moments run on the delivery
+            // poll: emote steps are delivery-like output. The
+            // driver is cheap when nothing is pending.
+            if (sLLMChatterConfig->_proxChatterEnable)
+                ProcessPendingFightMoments();
         }
 
         if (now - _lastTriggerTime

@@ -26,6 +26,11 @@ enum class LLMChatterPriorityBand : uint8
 };
 
 bool IsPlayerBot(Player* player);
+// True when `viewer` can currently perceive `unit`: both in
+// the world, same map and instance, within the viewer's
+// visibility range, and passing stealth/invisibility
+// detection. Use before naming a unit in any prompt.
+bool IsUnitPerceivableBy(Player* viewer, Unit* unit);
 bool IsInOverworld(Player* player);
 bool IsGroupedWithRealPlayer(Player* player);
 void RefreshGeneralAudienceSnapshot();
