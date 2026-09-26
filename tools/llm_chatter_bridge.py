@@ -1304,6 +1304,10 @@ def main():
             'LLMChatter.OpenAI.ApiKey', ''
         )
         if not api_key:
+            logger.error(
+                "FATAL: provider 'openai' selected but "
+                "LLMChatter.OpenAI.ApiKey is empty."
+            )
             sys.exit(1)
         client = openai.OpenAI(api_key=api_key)
     elif provider == 'google':
@@ -1311,6 +1315,10 @@ def main():
             'LLMChatter.Google.ApiKey', ''
         )
         if not api_key:
+            logger.error(
+                "FATAL: provider 'google' selected but "
+                "LLMChatter.Google.ApiKey is empty."
+            )
             sys.exit(1)
         client = openai.OpenAI(
             api_key=api_key,
@@ -1324,6 +1332,10 @@ def main():
             'LLMChatter.OpenRouter.ApiKey', ''
         )
         if not api_key:
+            logger.error(
+                "FATAL: provider 'openrouter' selected but "
+                "LLMChatter.OpenRouter.ApiKey is empty."
+            )
             sys.exit(1)
         headers = {}
         referer = config.get(
@@ -1347,11 +1359,24 @@ def main():
             kwargs['default_headers'] = headers
         client = openai.OpenAI(**kwargs)
     else:
-        # Anthropic (default)
+        # Anthropic is the documented default when Provider is unset.
+        # A *typo* in LLMChatter.Provider also lands here; fail loudly
+        # rather than silently pretending Anthropic was intended.
+        if provider != 'anthropic':
+            logger.error(
+                "FATAL: unknown LLMChatter.Provider '%s'. Valid values: "
+                "anthropic, openai, google, openrouter, ollama.",
+                provider,
+            )
+            sys.exit(1)
         api_key = config.get(
             'LLMChatter.Anthropic.ApiKey', ''
         )
         if not api_key:
+            logger.error(
+                "FATAL: provider 'anthropic' selected but "
+                "LLMChatter.Anthropic.ApiKey is empty."
+            )
             sys.exit(1)
         client = anthropic.Anthropic(api_key=api_key)
 
