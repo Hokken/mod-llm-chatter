@@ -257,6 +257,21 @@ All values are percentages (0-100) unless noted. Setting any
 chance to `0` disables that trigger entirely. See the config
 file comments for the full list of tunable keys.
 
+**Tuning recent conversation context**:
+
+```ini
+# Recent Party transcript lines included in prompts (1-50)
+LLMChatter.ChatHistoryLimit = 10
+
+# Recent General lines per zone, both factions (1-50)
+LLMChatter.GeneralChat.HistoryLimit = 15
+```
+
+Increasing these limits can improve short-term continuity, but it also
+increases prompt size and token use. The General-specific value falls back
+to `ChatHistoryLimit` when omitted. These windows contain recent verbatim
+lines; they are not long-term memory or rolling summaries.
+
 ### Known Limitations
 - **Ollama / open-source models**: Local inference needs fast hardware and
   strong instruction following. Small or reasoning-heavy models can be slow,
