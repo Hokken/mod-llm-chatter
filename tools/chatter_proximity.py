@@ -60,16 +60,40 @@ _DEFAULT_EMOTE_TONES = [
 ]
 
 
+def _is_custom_emote(extra: Dict) -> bool:
+    return bool(int(extra.get('custom_emote') or 0))
+
+
+def _describe_player_emote(
+    extra: Dict, player_emote: str, target: str
+) -> str:
+    """Phrase what the player did, for prompts and history.
+
+    A free-text /e is already phrased as an action ("slowly
+    sheathes her sword"), so it is quoted rather than
+    rendered as a /slash command.
+    """
+    if _is_custom_emote(extra):
+        return f'did this directly at {target}: "{player_emote}"'
+    return f"performed /{player_emote} directly at {target}"
+
+
 def _prepare_emote_context(
     extra: Dict, player_emote: str
 ) -> None:
-    emote_id = int(
-        extra.get('player_emote_id', 0)
-        or EMOTE_NAME_TO_ID.get(player_emote, 0)
-    )
-    category = EMOTE_CATEGORIES.get(
-        emote_id, 'social'
-    )
+    if _is_custom_emote(extra):
+        # Free text has no id and so no category; 'custom' is
+        # not a REACTION_TONES key, which selects the generic
+        # tone pool.
+        category = 'custom'
+    else:
+        emote_id = int(
+            extra.get('player_emote_id', 0)
+            or EMOTE_NAME_TO_ID.get(player_emote, 0)
+        )
+        category = EMOTE_CATEGORIES.get(
+            emote_id, 'social'
+        )
     extra['emote_category'] = category
     extra['reaction_tone'] = random.choice(
         REACTION_TONES.get(
@@ -1237,12 +1261,19 @@ def _fetch_proximity_history(
                             previous_addressed
                             or addressed_name
                         )
+                        if _is_custom_emote(event_extra):
+                            did = (
+                                f'emoted at {target_name}: '
+                                f'"{player_emote}"'
+                            )
+                        else:
+                            did = (
+                                f"performed /{player_emote}"
+                                f" at {target_name}"
+                            )
                         history.append({
                             'name': player_name,
-                            'message': (
-                                f"[performed /{player_emote}"
-                                f" at {target_name}]"
-                            ),
+                            'message': f"[{did}]",
                         })
                 seen_events.add(event_id)
             history.append({
@@ -1558,8 +1589,8 @@ def _player_emote_single_prompt(
         if speech_guidance:
             lines.append(speech_guidance)
     lines.extend([
-        f"The player ({player_name}) performed /{player_emote} "
-        f"directly at {addressed}.",
+        f"The player ({player_name}) "
+        f"{_describe_player_emote(extra, player_emote, addressed)}.",
         f"Social meaning: {extra.get('emote_category', 'social')}.",
         f"React {extra.get('reaction_tone', 'briefly')}.",
         "React to that real action. "
@@ -1639,8 +1670,8 @@ def _player_emote_conversation_prompt(
     lines.extend(_location_lines(extra, mode, participants))
     lines.extend(_mixed_voice_guidance(mode))
     lines.extend([
-        f"The player ({player_name}) performed /{player_emote} "
-        f"directly at {addressed}.",
+        f"The player ({player_name}) "
+        f"{_describe_player_emote(extra, player_emote, addressed)}.",
         f"Social meaning: {extra.get('emote_category', 'social')}.",
         f"Overall reaction tone: "
         f"{extra.get('reaction_tone', 'briefly')}.",

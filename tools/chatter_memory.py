@@ -97,9 +97,36 @@ MEMORY_MOODS = {
 }
 
 MEMORY_EXPRESSION_STYLES = [
-    'poetic', 'understated', 'vivid',
-    'wry', 'sincere',
+    'plain', 'understated', 'matter_of_fact',
+    'wry', 'observational',
 ]
+
+MEMORY_TARGET_CHARS = 160
+MEMORY_HARD_CHARS = 240
+
+
+def _clamp_memory_text(text: str) -> str:
+    """Trim an over-long memory at a sentence boundary.
+
+    Bounding length here rather than at prompt build
+    time lets prompts carry the stored memory whole.
+    """
+    if len(text) <= MEMORY_HARD_CHARS:
+        return text
+    head = text[:MEMORY_HARD_CHARS]
+    cut = max(
+        head.rfind('. '), head.rfind('! '),
+        head.rfind('? '),
+    )
+    if cut > 60:
+        return head[:cut + 1]
+    # No usable sentence break — fall back to the last
+    # word boundary so the memory never ends mid-word.
+    word = head.rfind(' ')
+    if word > 60:
+        head = head[:word]
+    return head.rstrip(' ,;:-') + '.'
+
 
 # ============================================================
 # BACKGROUND EXECUTOR
@@ -631,10 +658,11 @@ def _call_llm_for_memory(
         ),
     }.get(memory_type, "a shared moment")
 
-    prompt = (
-        f"{build_bot_identity(bot_name, bot_race, bot_class, bot_gender)} "
-        f"in World of Warcraft.\n"
+    identity = build_bot_identity(
+        bot_name, bot_race, bot_class, bot_gender,
+        suffix=' in World of Warcraft.',
     )
+    prompt = f"{identity}\n"
     if player_name:
         prompt += (
             f"Player companion: {player_name}\n"
@@ -647,18 +675,23 @@ def _call_llm_for_memory(
     if event_context:
         prompt += f"What happened: {event_context}\n"
     prompt += (
-        f"Mood: {mood}\n"
-        f"Expression style: {style}\n\n"
-        f"Write a 1-2 sentence first-person memory "
-        f"from your perspective about this moment. "
-        f"This is a private journal entry, not "
-        f"spoken aloud. Be specific about what "
-        f"happened.\n\n"
+        f"Underlying feeling, keep it subtle: {mood}\n"
+        f"Register: {style}\n\n"
+        f"Write a one-sentence first-person note "
+        f"recording this moment. This is a terse "
+        f"private log entry — not spoken aloud, not "
+        f"a story. Record what actually happened: "
+        f"who was involved, what was done, where.\n\n"
         f"Respond in JSON:\n"
         f'{{"memory": "your memory text", '
         f'"emote": "one_word_emote"}}\n\n'
         f"Rules:\n"
-        f"- Memory must be 1-2 sentences\n"
+        f"- One sentence, at most "
+        f"{MEMORY_TARGET_CHARS} characters\n"
+        f"- Plain concrete language — state the facts\n"
+        f"- No metaphors, no dramatic or flowery "
+        f"wording\n"
+        f"- At most a short clause about how you felt\n"
         f"- First person perspective\n"
         f"- No quotes inside the memory text\n"
         f"- Only reference the location given above"
@@ -716,6 +749,8 @@ def _call_llm_for_memory(
 
         if not memory or len(memory) > 500:
             return None, None
+
+        memory = _clamp_memory_text(memory)
 
         emote = data.get('emote')
         if isinstance(emote, str):
@@ -1138,16 +1173,13 @@ def sanitize_memory_for_prompt(memory: str) -> str:
     """Sanitize a memory string for safe inclusion
     in an LLM prompt.
 
-    Strips control characters, normalizes whitespace,
-    caps at 200 characters.
+    Strips control characters and normalizes
+    whitespace. Length is bounded at write time by
+    _clamp_memory_text, so the full memory is sent.
     """
     if not memory or not isinstance(memory, str):
         return ""
     # Strip control characters
     text = re.sub(r'[\x00-\x1f\x7f-\x9f]', '', memory)
     # Normalize whitespace
-    text = ' '.join(text.split())
-    # Cap length
-    if len(text) > 200:
-        text = text[:197] + "..."
-    return text
+    return ' '.join(text.split())

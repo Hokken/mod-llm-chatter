@@ -63,6 +63,7 @@ from chatter_proximity import (  # noqa: E402
     _fetch_proximity_history,
     _player_emote_conversation_prompt,
     _player_emote_single_prompt,
+    _prepare_emote_context,
     _player_say_conversation_prompt,
     _player_say_single_prompt,
     _single_prompt,
@@ -577,6 +578,65 @@ def test_silent_addressed_bot_emote_prompt_uses_witnesses():
     assert 'Aliss is also scheduled to perform /blush' in prompt
 
 
+def test_custom_emote_at_ungrouped_bot_keeps_typed_action():
+    action = 'slowly sheathes her sword'
+    extra = {
+        **INSTANCE_EXTRA,
+        'custom_emote': 1,
+        'player_emote_id': 0,
+    }
+    _prepare_emote_context(extra, action)
+    assert extra['emote_category'] == 'custom'
+
+    single = _player_emote_single_prompt(
+        _DB(), extra, BOT, action, NORMAL_CONFIG,
+    ).user_prompt
+    assert f'did this directly at Aliss: "{action}"' in single
+    assert '/wave' not in single
+    assert f'/{action}' not in single
+
+    participants = [BOT, NPC]
+    conversation = _player_emote_conversation_prompt(
+        _DB(),
+        {
+            **extra,
+            'participants': participants,
+            'addressed_name': BOT['name'],
+            'interaction_mode': 'player_inclusive',
+        },
+        participants, action, NORMAL_CONFIG,
+    ).user_prompt
+    assert f'did this directly at Aliss: "{action}"' in conversation
+    assert '/wave' not in conversation
+
+    spec = EVENT_REGISTRY['proximity_player_emote']
+    assert spec.payload_fields['custom_emote'] == (int, False)
+
+    proximity = (
+        MODULE_DIR / 'src' / 'LLMChatterProximity.cpp'
+    ).read_text(encoding='utf-8')
+    assert (
+        'isCustom ? customText : GetTextEmoteName(textEmote)'
+        in proximity
+    )
+    assert '",\\"custom_emote\\":"' in proximity
+
+    combat = (
+        MODULE_DIR / 'src' / 'LLMChatterGroupCombat.cpp'
+    ).read_text(encoding='utf-8')
+    assert 'textEmote, mirrorEmote, customText);' in combat
+
+
+def test_named_emote_prompt_wording_is_unchanged():
+    extra = {**INSTANCE_EXTRA, 'player_emote_id': 0}
+    _prepare_emote_context(extra, 'wave')
+    assert extra['emote_category'] != 'custom'
+    prompt = _player_emote_single_prompt(
+        _DB(), extra, BOT, 'wave', NORMAL_CONFIG,
+    ).user_prompt
+    assert 'performed /wave directly at Aliss' in prompt
+
+
 def test_grouped_emote_prompt_tracks_only_scheduled_mirror():
     spec = EVENT_REGISTRY['bot_group_emote_reaction']
     assert spec.producer == 'LLMChatterGroupEmote.cpp'
@@ -1074,7 +1134,10 @@ def test_message_insert_addressee_parameters_match_placeholders():
         addressee_npc_spawn_id=102,
     )
     query, params = db.cursor_value.queries[0]
-    assert query.count('%s') == len(params) == 18
+    # 19, not 18: insert_chat_message also binds the `action`
+    # column (added on this branch for Actions Are Real
+    # Emotes) ahead of the three addressee_* columns below.
+    assert query.count('%s') == len(params) == 19
     assert params[-3:] == (None, None, 102)
 
 

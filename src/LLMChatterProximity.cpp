@@ -1673,7 +1673,8 @@ bool QueuePlayerEmoteProximityEvent(
     uint32 textEmote,
     uint32 mirrorEmote,
     std::string const& interactionMode,
-    bool addressedSpeaks)
+    bool addressedSpeaks,
+    bool isCustom = false)
 {
     if (!player || speakers.empty())
         return false;
@@ -1704,7 +1705,9 @@ bool QueuePlayerEmoteProximityEvent(
         + std::string(
             addressedSpeaks ? "true" : "false")
         + ",\"interaction_mode\":\""
-        + JsonEscape(interactionMode) + "\"";
+        + JsonEscape(interactionMode) + "\""
+        + ",\"custom_emote\":"
+        + (isCustom ? "1" : "0");
     if (!json.empty() && json.back() == '}')
         json.insert(json.size() - 1, extra);
 
@@ -2517,8 +2520,10 @@ void HandleProximityPlayerEmote(
 
 bool HandleProximityPlayerbotEmote(
     Player* player, Player* bot,
-    uint32 textEmote, uint32 mirrorEmote)
+    uint32 textEmote, uint32 mirrorEmote,
+    std::string const& customText)
 {
+    bool const isCustom = !customText.empty();
     if (!IsProximityPlayerbotEmoteRouteEnabled()
         || !player || IsPlayerBot(player) || !bot)
     {
@@ -2623,11 +2628,13 @@ bool HandleProximityPlayerbotEmote(
         return false;
     }
 
+    // GetTextEmoteName(0) falls back to "wave", so a custom
+    // emote must carry its typed text instead of an id lookup.
     return QueuePlayerEmoteProximityEvent(
         player, *addressedIt, speakers, candidates,
-        GetTextEmoteName(textEmote),
+        isCustom ? customText : GetTextEmoteName(textEmote),
         textEmote, mirrorEmote,
-        "player_inclusive", addressedSpeaks);
+        "player_inclusive", addressedSpeaks, isCustom);
 }
 
 void RecordDeliveredProximityLine(
