@@ -17,18 +17,16 @@ import threading
 import time
 from typing import Optional, Dict, List, Tuple, Any
 
+from locales import dataset as locale_dataset
 from chatter_constants import (
-    ZONE_LEVELS, ZONE_NAMES, ZONE_NAMES_RU, ZONE_NAMES_FR, ZONE_NAMES_DE,
-    ZONE_NAMES_ES, ZONE_NAMES_KO,
+    ZONE_LEVELS, ZONE_NAMES,
     CLASS_NAMES, RACE_NAMES,
-    RACE_SPEECH_PROFILES, RACE_SPEECH_PROFILES_RU, RACE_SPEECH_PROFILES_FR,
-    RACE_SPEECH_PROFILES_DE, RACE_SPEECH_PROFILES_ES,
+    RACE_SPEECH_PROFILES,
     CLASS_SPEECH_MODIFIERS,
     CLASS_ROLE_MAP, ROLE_COMBAT_PERSPECTIVES,
-    ZONE_FLAVOR, ZONE_FLAVOR_RU, ZONE_FLAVOR_FR, ZONE_FLAVOR_DE, ZONE_FLAVOR_ES,
-    DUNGEON_FLAVOR, DUNGEON_FLAVOR_RU, DUNGEON_FLAVOR_FR, DUNGEON_FLAVOR_DE,
-    DUNGEON_FLAVOR_ES,
-    BG_LORE, BG_LORE_RU, BG_LORE_FR, BG_LORE_DE, BG_LORE_ES,
+    ZONE_FLAVOR,
+    DUNGEON_FLAVOR,
+    BG_LORE,
     ITEM_QUALITY_COLORS, ITEM_QUALITY_NAMES,
     ITEM_CLASS_NAMES, WEAPON_SUBCLASS_NAMES,
     ARMOR_SUBCLASS_NAMES, CLASS_BITMASK,
@@ -347,13 +345,7 @@ def pick_random_max_tokens(config: dict) -> int:
 #     this is the first koKR zone-name data. Every zone
 #     outside those 8 falls back to English via
 #     get_zone_name(), same as the other locales.
-_ZONE_NAME_LOCALE_MAPS: Dict[str, Dict[int, str]] = {
-    "ruRU": ZONE_NAMES_RU,
-    "frFR": ZONE_NAMES_FR,
-    "deDE": ZONE_NAMES_DE,
-    "esES": ZONE_NAMES_ES,
-    "koKR": ZONE_NAMES_KO,
-}
+_ZONE_NAME_LOCALE_MAPS: Dict[str, Dict[int, str]] = locale_dataset("ZONE_NAMES")
 
 
 def _load_subzone_names_ru() -> Dict[int, str]:
@@ -1224,12 +1216,7 @@ def get_zone_level_range(
 # ZONE_FLAVOR_RU dict so far; any other locale (or zone_id
 # missing from the localized map) falls back to the English
 # ZONE_FLAVOR via get_zone_flavor() below.
-_ZONE_FLAVOR_LOCALE_MAPS: Dict[str, Dict[int, str]] = {
-    "ruRU": ZONE_FLAVOR_RU,
-    "frFR": ZONE_FLAVOR_FR,
-    "deDE": ZONE_FLAVOR_DE,
-    "esES": ZONE_FLAVOR_ES,
-}
+_ZONE_FLAVOR_LOCALE_MAPS: Dict[str, Dict[int, str]] = locale_dataset("ZONE_FLAVOR")
 
 
 # Locale-keyed race speech profile maps, mirroring
@@ -1238,12 +1225,7 @@ _ZONE_FLAVOR_LOCALE_MAPS: Dict[str, Dict[int, str]] = {
 # race missing from the localized map) falls back to the
 # static English RACE_SPEECH_PROFILES via
 # get_race_speech_profile() below.
-_RACE_SPEECH_LOCALE_MAPS: Dict[str, Dict[str, Dict]] = {
-    "ruRU": RACE_SPEECH_PROFILES_RU,
-    "frFR": RACE_SPEECH_PROFILES_FR,
-    "deDE": RACE_SPEECH_PROFILES_DE,
-    "esES": RACE_SPEECH_PROFILES_ES,
-}
+_RACE_SPEECH_LOCALE_MAPS: Dict[str, Dict[str, Dict]] = locale_dataset("RACE_SPEECH_PROFILES")
 
 
 def get_race_speech_profile(race: str) -> Optional[Dict]:
@@ -1287,12 +1269,7 @@ def get_zone_flavor(zone_id: int) -> Optional[str]:
 # DUNGEON_FLAVOR_RU dict so far; any other locale (or map_id
 # missing from the localized map) falls back to the static
 # English DUNGEON_FLAVOR via get_dungeon_flavor() below.
-_DUNGEON_FLAVOR_LOCALE_MAPS: Dict[str, Dict[int, str]] = {
-    "ruRU": DUNGEON_FLAVOR_RU,
-    "frFR": DUNGEON_FLAVOR_FR,
-    "deDE": DUNGEON_FLAVOR_DE,
-    "esES": DUNGEON_FLAVOR_ES,
-}
+_DUNGEON_FLAVOR_LOCALE_MAPS: Dict[str, Dict[int, str]] = locale_dataset("DUNGEON_FLAVOR")
 
 
 def get_dungeon_flavor(map_id: int) -> Optional[str]:
@@ -1317,12 +1294,7 @@ def get_dungeon_flavor(map_id: int) -> Optional[str]:
 # BG_LORE_RU dict so far; any other locale (or bg_type_id missing
 # from the localized map) falls back to the static English BG_LORE
 # entry via get_bg_lore() below.
-_BG_LORE_LOCALE_MAPS: Dict[str, Dict[int, Dict]] = {
-    "ruRU": BG_LORE_RU,
-    "frFR": BG_LORE_FR,
-    "deDE": BG_LORE_DE,
-    "esES": BG_LORE_ES,
-}
+_BG_LORE_LOCALE_MAPS: Dict[str, Dict[int, Dict]] = locale_dataset("BG_LORE")
 
 
 def get_bg_lore(bg_type_id: int) -> Dict:

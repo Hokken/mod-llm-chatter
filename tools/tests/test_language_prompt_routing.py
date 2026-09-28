@@ -47,6 +47,7 @@ _install_non_strict_stubs()
 
 import chatter_group_state  # noqa: E402
 import chatter_constants
+import locales
 import chatter_shared  # noqa: E402
 
 
@@ -302,7 +303,8 @@ def test_localized_race_profile_is_returned_for_configured_language():
     try:
         profile = chatter_shared.get_race_speech_profile("Orc")
         assert profile is not None
-        russian = chatter_constants.RACE_SPEECH_PROFILES_RU.get("Orc")
+        russian = locales.dataset(
+            "RACE_SPEECH_PROFILES")["ruRU"].get("Orc")
         assert russian is not None
         assert profile == russian, (
             "expected the ruRU profile, got the English one"
