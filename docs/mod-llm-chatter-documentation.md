@@ -136,7 +136,20 @@ does not process all of them inline in one thread.
   - idle group chatter checks
   - bot-question checks
   - pre-cache refills
-- sleeps for `LLMChatter.Bridge.PollIntervalSeconds` between iterations
+- sleeps between iterations, at a cadence that depends on whether
+  anything is happening:
+  - **`LLMChatter.Bridge.ActivePollIntervalSeconds`** (default `0.2`)
+    while players are online or background work is still in flight —
+    direct player chat is picked up on this interval, so it stays well
+    under a second
+  - **`LLMChatter.Bridge.PollIntervalSeconds`** once the server is
+    genuinely idle
+
+  Both halves matter. A fixed fast poll keeps the bridge busy on an
+  empty server; the slower interval applied unconditionally adds itself
+  to every direct player reply. `_poll_delay()` makes that choice, and
+  the timer-style jobs above self-rate-limit on their own intervals
+  regardless of which one applies.
 
 So the bridge is:
 
@@ -279,6 +292,36 @@ This separation is important if you plan to redesign priorities, because
 priority currently influences claim order more than final speak order.
 
 ---
+
+## 2c. Language and Localization
+
+`LLMChatter.Language` decides what language bots speak and what language
+names appear in. It is the module's own setting and is **not** the
+worldserver's DBC locale — an English worldserver can serve Russian
+chatter, and the two then disagree.
+
+Everything that reaches a prompt resolves through the module setting:
+the bridge does it from stable ids where the payload carries one
+(creature, item, quest, zone, subzone), and C++ does it at event-build
+time for names carried as text. Spell and achievement names have no id
+in the payload, so the C++ resolution is the only one that happens for
+those.
+
+What the model receives is therefore consistent regardless of the
+server's own locale. Where a translation is missing the English text is
+used for that lookup alone, so partial coverage degrades entry by entry
+rather than dropping a whole language.
+
+Prompt flavor text is localized too, not just the output language. Zone,
+dungeon and battleground flavor, and race speech profiles, are written
+per language rather than fed to the model in English with an
+instruction to reply in another — that produces stilted translation
+instead of native phrasing.
+
+The per-language tables live in `tools/locales/`, one module per locale,
+with a registry in that package. `chatter_constants.py` keeps the
+English defaults. Coverage is not uniform: ask the registry
+(`locales.available("BG_LORE")`) rather than assuming.
 
 ## 3. C++ File Ownership
 
