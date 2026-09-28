@@ -51,7 +51,7 @@ void EnsureBotInGeneralChannel(
     if (!area)
         return;
 
-    uint8 locale = sWorld->GetDefaultDbcLocale();
+    uint8 locale = sLLMChatterConfig->GetModuleLocale();
     char const* n = area->area_name[locale];
     std::string zoneName = n ? n : "";
     if (zoneName.empty())
@@ -1312,7 +1312,7 @@ public:
         if (areaEntry)
         {
             uint8 loc =
-                sWorld->GetDefaultDbcLocale();
+                sLLMChatterConfig->GetModuleLocale();
             char const* n =
                 areaEntry->area_name[loc];
             areaName = n ? n : "";
@@ -1350,7 +1350,7 @@ public:
         if (zoneEntry)
         {
             uint8 loc =
-                sWorld->GetDefaultDbcLocale();
+                sLLMChatterConfig->GetModuleLocale();
             char const* n =
                 zoneEntry->area_name[loc];
             zoneName = n ? n : "";

@@ -18,6 +18,7 @@ from chatter_shared import (
     append_json_instruction,
     get_chatter_mode,
     get_gender_label,
+    localize_creature_title,
     build_gear_context,
 )
 from chatter_mode import build_player_prompt_header
@@ -108,6 +109,13 @@ def handle_emote_observer(db, client, config, event):
     )
 
     if tgt == 'creature':
+        # npc_subname arrives raw/English from C++
+        # (Creature::GetSubName()) -- localize it via the
+        # creature entry passed as the event's target_entry
+        # column (only populated for creature targets).
+        npc_subname = localize_creature_title(
+            db, npc_subname, event.get('target_entry'),
+        )
         prompt = _build_creature_prompt(
             bot_name, bot_race, bot_class,
             bot_gender,

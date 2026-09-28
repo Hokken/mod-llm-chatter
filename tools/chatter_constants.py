@@ -173,6 +173,136 @@ ZONE_NAMES = {
     406: "Stonetalon Mountains",
 }
 
+# Russian (ruRU) zone names -- extracted directly from
+# Blizzard's own AreaTable.dbc (ruRU client data), field
+# index 19 (the ruRU slot of the AreaName localized-string
+# block: 11 scalar fields, then ruRU is locale slot 8 of
+# 16, byte offset 76 into each 144-byte record). Verified
+# against known translations (e.g. zone 14 Durotar ->
+# "Дуротар") before extracting the full set. Keyed
+# identically to ZONE_NAMES above (same zone IDs) so
+# get_zone_name() can do a straight locale-map lookup
+# with an English fallback.
+
+# French (frFR) and German (deDE) zone names -- unlike
+# ZONE_NAMES_RU above (extracted directly from Blizzard's
+# own ruRU AreaTable.dbc, 100% authoritative), this data was
+# sourced from warcraft.wiki.gg's community-maintained
+# "LocalizedMapZones" addon-localization table, not from an
+# official Blizzard client data extraction. Treat it as
+# likely-accurate but NOT independently verified against
+# official client data. Zone IDs were cross-checked against
+# ZONE_NAMES above so every key here is a real, valid zone;
+# entries with no translation available on the wiki page are
+# simply omitted (get_zone_name() falls back to English for
+# those) rather than guessed. Coverage is known to be
+# incomplete, especially for French, which is missing most/
+# all of Northrend and a handful of other zones (e.g. Mount
+# Hyjal, Alterac Mountains, Hrothgar's Landing have no entry
+# in either language because they aren't present in
+# ZONE_NAMES at all).
+#
+# Update: 8 Northrend zone names were added to ZONE_NAMES_FR
+# below (Borean Tundra, Howling Fjord, Dragonblight, Grizzly
+# Hills, Zul'Drak, Sholazar Basin, The Storm Peaks,
+# Icecrown), closing most of the French Northrend gap noted
+# above. Unlike the wiki-sourced rest of this dict, these 8
+# come from an official Blizzard press source
+# (news.blizzard.com/fr-fr "Guide des zones de Wrath of the
+# Lich King Classic" article series) and are genuinely
+# higher-confidence -- same tier as the flagged es-es
+# entries in ZONE_NAMES_ES below. Flagged inline on each
+# entry.
+#
+# Update: 10 more zone names were added to ZONE_NAMES_FR
+# below (Bloodmyst Isle, Isle of Quel'Danas, Eversong Woods,
+# Azuremyst Isle, Ghostlands, Wintergrasp, Crystalsong
+# Forest, Silvermoon City, The Exodar, The Oculus), covering
+# most of the remaining Burning Crusade/Northrend gap.
+# Sourced from Wowhead's French-locale zone database
+# (cross-referenced across multiple expansion versions/URLs
+# for consistency), with Wowpedia/WikiWoW's French wiki used
+# for cross-confirmation on a couple of entries -- same
+# confidence tier as the wiki-sourced rest of this dict
+# above (likely accurate, not independently verified against
+# DBC), NOT the official-press tier of the 8 entries flagged
+# inline just above. "The Barrens" was deliberately not
+# added: the only French source found for it ("Tarides du
+# Nord") reflects the modern post-Cataclysm Northern/
+# Southern Barrens split and doesn't reliably correspond to
+# this server's single pre-split "The Barrens" zone_id 17,
+# the same ambiguity already noted for the German dict.
+# "Dalaran" was also skipped -- confirmed via Wowhead FR that
+# it keeps the same name in French, not a real translation.
+
+
+# Spanish (esES) zone names -- mixed provenance, unlike
+# ZONE_NAMES_RU above (DBC-extracted, 100% authoritative)
+# and closer in spirit to ZONE_NAMES_FR / ZONE_NAMES_DE
+# (community-sourced, not verified against official client
+# data). Most entries below come from an old (2007) Spanish
+# WoW fan blog (worldofwarcraftesp.blogspot.com) covering
+# classic-era zones only -- community-sourced, similar
+# confidence tier to the wiki-sourced FR/DE data above, NOT
+# independently verified against official client data.
+# Nine entries -- Borean Tundra, Howling Fjord, Hellfire
+# Peninsula, Dragonblight, Grizzly Hills, Zul'Drak, Sholazar
+# Basin, The Storm Peaks, Icecrown (flagged inline below) --
+# come from an actual official Blizzard press source
+# (news.blizzard.com/es-es) instead, and are genuinely
+# higher-confidence than the rest. A handful of source
+# entries had typos or missing
+# accents (e.g. "Dun Mor ogh" -> "Dun Morogh", "Paramos de
+# Poniente" -> "Páramos de Poniente"); corrected to standard
+# Spanish orthography where the intended word was
+# unambiguous. Zone IDs were cross-referenced against
+# ZONE_NAMES above and every source entry matched a real
+# zone_id: "Stormwind" from the source (predating the
+# "City" suffix) maps to zone_id 1519 ("Stormwind City"
+# here); "The Barrens" was not present in the source at all,
+# and ZONE_NAMES above has no Northern/Southern Barrens
+# split to disambiguate against anyway, so there was nothing
+# to add or guess at. Keyed identically to ZONE_NAMES above
+# so get_zone_name() can do a straight locale-map lookup
+# with an English fallback.
+#
+# Update: 17 more zone names were added to ZONE_NAMES_ES
+# below (Blade's Edge Mountains, Netherstorm, Shadowmoon
+# Valley, Terokkar Forest, Zangarmarsh, Crystalsong Forest,
+# Wintergrasp, Azuremyst Isle, Bloodmyst Isle, Eversong
+# Woods, Ghostlands, Silvermoon City, The Barrens, Shattrath
+# City, The Exodar, The Oculus, Isle of Quel'Danas), mostly
+# closing the Outland/Northrend gap. Sourced from
+# wowictionary.blogspot.com's "zonas del mundo" page (a
+# fan-maintained but broad/consistent Spanish translation
+# reference) plus Wowhead's Spanish-locale zone database for
+# a few entries (cross-referenced across expansion versions
+# for consistency) -- same confidence tier as the rest of
+# the fan-sourced entries above, NOT the official-press tier
+# of the nine entries flagged inline above. "The Barrens" ->
+# "Los Baldíos" was safe to add here (unlike the equivalent
+# skip in ZONE_NAMES_FR above): this source is classic-era-
+# only with no Northern/Southern Barrens split/version
+# ambiguity, and ZONE_NAMES above likewise has no such split
+# for this server, so it's a clean 1:1 match to zone_id 17.
+# "Dalaran" and "Nagrand" were both skipped -- confirmed via
+# Wowhead ES that they keep their English/original names in
+# Spanish, not real translations.
+
+# Korean (koKR) zone names -- a brand-new locale, not
+# present before this addition. Unlike the wiki-sourced
+# FR/DE data or the mixed-provenance ES data above, all 8
+# entries here come directly from an official Blizzard press
+# source (news.blizzard.com/ko-kr, the "리치 왕의 분노 클래식
+# 지역 가이드" Wrath Classic zone guide article series) --
+# same official-source confidence tier as the flagged es-es
+# entries in ZONE_NAMES_ES above. Coverage is intentionally
+# partial: only the 8 Northrend zones covered by that
+# article series are included; every other zone falls back
+# to English via get_zone_name(), the same fallback-safe
+# pattern used for the other locales. Keyed identically to
+# ZONE_NAMES above.
+
 # Capital cities - no hostile creatures to list
 CAPITAL_CITY_ZONES = {
     1519,  # Stormwind City
@@ -609,6 +739,94 @@ RACE_SPEECH_PROFILES = {
         ),
     },
 }
+
+# Russian (ruRU) race speech profiles -- translated from the
+# RACE_SPEECH_PROFILES entries above (same race keys, same
+# traits/flavor_words/vocabulary/lore/worldview structure), not
+# injected verbatim since the English text was leaking untranslated
+# into Russian bot chat, and this dict is used to explicitly
+# instruct bots to use specific words/phrases in their replies.
+# `vocabulary` entries keep the conlang phrase (Orcish, Common,
+# Darnassian, Thalassian, Draenei, etc. -- fictional in-world
+# languages) UNCHANGED, exactly as in English, since these are
+# proper in-universe language phrases, not English text; only the
+# parenthetical English gloss is translated. `flavor_words`/`lore`/
+# `traits`/`worldview` proper nouns reuse the official
+# DBC-extracted terms from ZONE_NAMES_RU where covered there
+# (Stormwind -> Штормград, Ironforge -> Стальгорн, etc.), mirroring
+# ZONE_FLAVOR_RU's convention. Falls back to English
+# RACE_SPEECH_PROFILES via get_race_speech_profile() for any locale
+# other than ruRU.
+
+# French (frFR) race speech profiles -- translated from the
+# RACE_SPEECH_PROFILES entries above (same race keys, same
+# traits/flavor_words/vocabulary/lore/worldview structure), not
+# injected verbatim since the English text was leaking untranslated
+# into French bot chat, and this dict is used to explicitly instruct
+# bots to use specific words/phrases in their replies. `vocabulary`
+# entries keep the conlang phrase (Orcish, Common, Darnassian,
+# Thalassian, Draenei, etc. -- fictional in-world languages)
+# UNCHANGED, exactly as in English, since these are proper
+# in-universe language phrases, not English text; only the
+# parenthetical English gloss is translated. `flavor_words`/`lore`/
+# `traits`/`worldview` proper nouns reuse the community-sourced terms
+# from ZONE_NAMES_FR where covered there (Stormwind -> Hurlevent,
+# Ironforge -> Forgefer, etc.), mirroring ZONE_FLAVOR_FR's
+# convention. Falls back to English RACE_SPEECH_PROFILES via
+# get_race_speech_profile() for any locale other than frFR/ruRU.
+
+# German (deDE) race speech profiles -- translated from the
+# RACE_SPEECH_PROFILES entries above (same race keys, same
+# traits/flavor_words/vocabulary/lore/worldview structure), not
+# injected verbatim since the English text was leaking untranslated
+# into German bot chat, and this dict is used to explicitly
+# instruct bots to use specific words/phrases in their replies.
+# `vocabulary` entries keep the conlang phrase (Orcish, Common,
+# Darnassian, Thalassian, Draenei, Zandali, etc. -- fictional
+# in-world languages) UNCHANGED, exactly as in English, since these
+# are proper in-universe language phrases, not English text; only
+# the parenthetical English gloss is translated. `flavor_words`/
+# `lore`/`traits`/`worldview` proper nouns reuse the community-
+# sourced terms from ZONE_NAMES_DE where covered there (Stormwind
+# -> Sturmwind, Ironforge -> Eisenschmiede, etc.), mirroring
+# ZONE_FLAVOR_DE's convention -- same confidence tier as
+# ZONE_NAMES_DE/ZONE_FLAVOR_DE (community/wiki-sourced, not
+# independently verified against official client DBC data, unlike
+# RACE_SPEECH_PROFILES_RU's DBC-extracted base), with a handful of
+# faction/organization names (Defias Brotherhood, Scourge,
+# Forsaken, Scarlet Crusade, Cenarion Circle, Burning Legion, Sons
+# of Hodir, Sundering) cross-checked against community WoW-DE
+# databases for higher confidence, same tier as ZONE_FLAVOR_FR's
+# approach. Falls back to English RACE_SPEECH_PROFILES via
+# get_race_speech_profile() for any locale other than deDE/frFR/
+# ruRU.
+
+# Spanish (esES) race speech profiles -- translated from the
+# RACE_SPEECH_PROFILES entries above (same race keys, same
+# traits/flavor_words/vocabulary/lore/worldview structure), not
+# injected verbatim since the English text was leaking untranslated
+# into Spanish bot chat, and this dict is used to explicitly
+# instruct bots to use specific words/phrases in their replies.
+# `vocabulary` entries keep the conlang phrase (Orcish, Common,
+# Darnassian, Thalassian, Draenei, Zandali, etc. -- fictional
+# in-world languages) UNCHANGED, exactly as in English, since these
+# are proper in-universe language phrases, not English text; only
+# the parenthetical English gloss is translated. `flavor_words`/
+# `lore`/`traits`/`worldview` proper nouns reuse the mixed-provenance
+# terms from ZONE_NAMES_ES where covered there (Stormwind -> Ciudad
+# de Ventormenta, Ironforge -> Forjaz, etc.), mirroring
+# ZONE_FLAVOR_ES's convention -- same confidence tier as
+# ZONE_NAMES_ES/ZONE_FLAVOR_ES (mixed community/official-press
+# sourced, not independently verified against official client DBC
+# data for the community-sourced portion), with a handful of
+# faction/organization names (Defias Brotherhood, Scourge, Forsaken,
+# Scarlet Crusade, Cenarion Circle, Burning Legion, Sons of Hodir,
+# Sundering) cross-checked against community WoW-ES databases for
+# higher confidence, same tier as RACE_SPEECH_PROFILES_FR/_DE's
+# approach. Falls back to English RACE_SPEECH_PROFILES via
+# get_race_speech_profile() for any locale other than esES/deDE/
+# frFR/ruRU.
+
 
 CLASS_SPEECH_MODIFIERS = {
     "Warrior": [
@@ -1248,6 +1466,90 @@ or oblivion.""",
     4395: """Dalaran: The floating mage city hovering above Crystalsong Forest in Northrend. Violet spires pierce the clouds, arcane wards shimmer at every corner, and the Kirin Tor governs from the Violet Citadel. Both factions maintain sanctuaries here for the war against the Lich King. Portals connect to every major city. A city of scholars, secrets, and barely contained magical power suspended impossibly in the sky.""",
 }
 
+# Russian (ruRU) zone flavor text -- translated from the
+# ZONE_FLAVOR entries above (same 64 zone-ID keys, same
+# short atmospheric-lore paragraphs), not injected verbatim
+# since the English text was leaking untranslated into
+# Russian bot chat. Proper nouns reuse the official
+# DBC-extracted terms from ZONE_NAMES_RU where the zone/city
+# is covered there (Ironforge -> Стальгорн, Stormwind ->
+# Штормград, etc.); faction/place names outside that dict
+# use the standard Russian WoW-community/official terms
+# (e.g. Syndicate -> Синдикат, Defias Brotherhood -> Братство
+# Справедливости, Scourge -> Плеть). Falls back to English
+# ZONE_FLAVOR via get_zone_flavor() for any locale other than
+# ruRU, or for the 8 zones ZONE_FLAVOR itself doesn't cover.
+
+# French (frFR) zone flavor text -- translated from the
+# ZONE_FLAVOR entries above, covering only the zone_ids present
+# in ZONE_NAMES_FR (62 of ZONE_FLAVOR's 64 zone-ID keys; The
+# Barrens/17 and Dalaran/4395 have no French zone name in
+# ZONE_NAMES_FR and are intentionally left uncovered here, same
+# as ZONE_FLAVOR_RU's scoping principle), not injected verbatim
+# since the English text was leaking untranslated into French
+# bot chat. Proper nouns reuse the community-sourced terms from
+# ZONE_NAMES_FR where the zone/city is covered there (Ironforge
+# -> Forgefer, Stormwind -> Hurlevent, etc.) -- same confidence
+# tier as ZONE_NAMES_FR itself (community/wiki-sourced, not
+# independently verified against official client DBC data,
+# unlike ZONE_FLAVOR_RU's DBC-extracted ZONE_NAMES_RU base).
+# Faction/creature-race names outside that dict use the
+# standard French WoW-community terms (e.g. Defias Brotherhood
+# -> Confrérie Defias, Scourge -> le Fléau, Forsaken ->
+# Réprouvés); minor creature-race names with no well-established
+# French term (troggs, kobolds, gnolls, furbolgs, murlocs, naga,
+# quilboars, etc.) are left as commonly used in French WoW
+# community discourse rather than invented ad hoc. Falls back to
+# English ZONE_FLAVOR via get_zone_flavor() for any locale other
+# than frFR/ruRU, or for the zones this dict doesn't cover.
+
+# German (deDE) zone flavor text -- translated from the
+# ZONE_FLAVOR entries above, covering only the zone_ids present
+# in ZONE_NAMES_DE (62 of ZONE_FLAVOR's 64 zone-ID keys; The
+# Barrens/17 and The Exodar/3557 have no German zone name in
+# ZONE_NAMES_DE and are intentionally left uncovered here, same
+# as ZONE_FLAVOR_RU/ZONE_FLAVOR_FR's scoping principle), not
+# injected verbatim since the English text was leaking
+# untranslated into German bot chat. Proper nouns reuse the
+# community-sourced terms from ZONE_NAMES_DE where the zone/city
+# is covered there (Ironforge -> Eisenschmiede, Stormwind ->
+# Sturmwind, etc.) -- same confidence tier as ZONE_NAMES_DE
+# itself (community/wiki-sourced, not independently verified
+# against official client DBC data, unlike ZONE_FLAVOR_RU's
+# DBC-extracted ZONE_NAMES_RU base). Faction/creature-race names
+# outside that dict use the standard official German WoW terms
+# where one exists (e.g. Defias Brotherhood -> Bruderschaft der
+# Defias, Scourge -> Geißel, Forsaken -> Verlassene, Scarlet
+# Crusade -> Scharlachroter Kreuzzug, Cenarion Circle -> Zirkel
+# des Cenarius, Burning Legion -> Brennende Legion); minor
+# creature-race names with no well-established German term
+# (troggs, kobolds, gnolls, furbolgs, murlocs, naga, quilboars,
+# etc.) are left as commonly used in German WoW community
+# discourse rather than invented ad hoc, same as ZONE_FLAVOR_FR's
+# approach. Falls back to English ZONE_FLAVOR via
+# get_zone_flavor() for any locale other than deDE/frFR/ruRU, or
+# for the zones this dict doesn't cover.
+
+# Spanish (esES) zone flavor text -- translated from the
+# ZONE_FLAVOR entries above, scoped to the intersection of
+# ZONE_FLAVOR's 64 zone-ID keys and ZONE_NAMES_ES's ~70 zone-ID
+# keys (62 zones), not injected verbatim since the English text
+# was leaking untranslated into Spanish bot chat. Two zones covered
+# by ZONE_FLAVOR (Nagrand, Dalaran) have no Spanish name in
+# ZONE_NAMES_ES to draw on (both are confirmed by ZONE_NAMES_ES's
+# own comment to keep their English/original names in Spanish) and
+# are intentionally omitted here, exactly mirroring
+# ZONE_FLAVOR_FR/ZONE_FLAVOR_DE's 62/64 scoping. Proper nouns reuse
+# the mixed-provenance terms from ZONE_NAMES_ES where the zone/city
+# is covered there; faction/place names outside that dict use
+# community-sourced Spanish WoW terminology (e.g. Defias Brotherhood
+# -> Hermandad Defias, Scourge -> Flagelo, Scarlet Crusade ->
+# Cruzada Escarlata, Syndicate -> Sindicato), same confidence tier
+# as ZONE_FLAVOR_FR/ZONE_FLAVOR_DE's community-sourced approach, NOT
+# independently verified against official client data. Falls back
+# to English ZONE_FLAVOR via get_zone_flavor() for any locale other
+# than esES/ruRU/frFR/deDE, or for zones this dict doesn't cover.
+
 # =============================================================================
 # BATTLEGROUND MAP NAMES
 # =============================================================================
@@ -1348,6 +1650,51 @@ BG_LORE = {
         ),
     },
 }
+
+# Russian (ruRU) battleground lore text -- translated from the
+# BG_LORE entries above (same bg_type_id keys). 'name',
+# 'alliance_faction', and 'horde_faction' are left as English proper
+# nouns (out of scope here; only 'lore'/'tone'/'objectives'/
+# 'landmarks' -- the genuine English prose fields that were leaking
+# into Russian bot chat -- are translated), mirroring how
+# ZONE_FLAVOR_RU/DUNGEON_FLAVOR_RU only translate the prose lore
+# text and reuse the official/community Russian place names inline.
+# Falls back to English BG_LORE via get_bg_lore() for any locale
+# other than ruRU.
+
+# French (frFR) battleground lore text -- translated from the
+# BG_LORE entries above (same bg_type_id keys). 'name',
+# 'alliance_faction', and 'horde_faction' are left as English proper
+# nouns (out of scope here; only 'lore'/'tone'/'objectives'/
+# 'landmarks' -- the genuine English prose fields that were leaking
+# into French bot chat -- are translated), mirroring how
+# ZONE_FLAVOR_FR/DUNGEON_FLAVOR_FR only translate the prose lore
+# text and reuse the community-sourced French place names inline.
+# Falls back to English BG_LORE via get_bg_lore() for any locale
+# other than frFR/ruRU.
+
+# German (deDE) battleground lore text -- translated from the
+# BG_LORE entries above (same bg_type_id keys). 'name',
+# 'alliance_faction', and 'horde_faction' are left as English proper
+# nouns (out of scope here; only 'lore'/'tone'/'objectives'/
+# 'landmarks' -- the genuine English prose fields that were leaking
+# into German bot chat -- are translated), mirroring how
+# ZONE_FLAVOR_DE/DUNGEON_FLAVOR_DE only translate the prose lore
+# text and reuse the community-sourced German place names inline.
+# Falls back to English BG_LORE via get_bg_lore() for any locale
+# other than deDE/frFR/ruRU.
+
+# Spanish (esES) battleground lore text -- translated from the
+# BG_LORE entries above (same bg_type_id keys). 'name',
+# 'alliance_faction', and 'horde_faction' are left as English proper
+# nouns (out of scope here; only 'lore'/'tone'/'objectives'/
+# 'landmarks' -- the genuine English prose fields that were leaking
+# into Spanish bot chat -- are translated), mirroring how
+# ZONE_FLAVOR_ES/DUNGEON_FLAVOR_ES only translate the prose lore text
+# and reuse the community/official-press-sourced Spanish place names
+# inline. Falls back to English BG_LORE via get_bg_lore() for any
+# locale other than esES/deDE/frFR/ruRU.
+
 
 # Raid instance map IDs (Classic, TBC, WotLK)
 RAID_MAP_IDS = {
@@ -1530,6 +1877,54 @@ DUNGEON_FLAVOR = {
 
     724: """Ruby Sanctum: A chamber beneath Wyrmrest Temple where the twilight dragonflight has invaded the red dragons' sanctum. Halion, the twilight destroyer, phases between the physical realm and the shadow realm. The chamber shifts between warm ruby light and cold purple shadow. The last raid before the Cataclysm - a brief, ominous warning of the destruction to come.""",
 }
+
+# Russian (ruRU) dungeon/raid flavor text -- translated from the
+# DUNGEON_FLAVOR entries above (same map-ID keys, same
+# paragraph-length atmospheric lore), not injected verbatim since
+# the English text was leaking untranslated into Russian bot chat.
+# Falls back to English DUNGEON_FLAVOR via get_dungeon_flavor() for
+# any locale other than ruRU, mirroring ZONE_FLAVOR_RU/
+# get_zone_flavor()'s convention.
+
+# French (frFR) dungeon/raid flavor text -- translated from the
+# DUNGEON_FLAVOR entries above (same map-ID keys, same
+# paragraph-length atmospheric lore), not injected verbatim since
+# the English text was leaking untranslated into French bot chat.
+# Proper nouns reuse the community-sourced terms from ZONE_NAMES_FR
+# where covered there; dungeon/raid names themselves and most NPC
+# names use well-known French WoW-community terms (community/wiki-
+# sourced confidence, same tier as ZONE_NAMES_FR, not independently
+# re-verified against official client DBC data). Falls back to
+# English DUNGEON_FLAVOR via get_dungeon_flavor() for any locale
+# other than frFR/ruRU, mirroring ZONE_FLAVOR_FR/get_zone_flavor()'s
+# convention.
+
+# German (deDE) dungeon/raid flavor text -- translated from the
+# DUNGEON_FLAVOR entries above (same map-ID keys, same
+# paragraph-length atmospheric lore), not injected verbatim since
+# the English text was leaking untranslated into German bot chat.
+# Falls back to English DUNGEON_FLAVOR via get_dungeon_flavor() for
+# any locale other than deDE/frFR/ruRU, mirroring ZONE_FLAVOR_DE/
+# get_zone_flavor()'s convention. Proper nouns reuse community-
+# sourced German WoW terms (Shadowfang Keep -> Schattenfangfeste,
+# Ironforge -> Eisenschmiede, etc.), same confidence tier as
+# ZONE_FLAVOR_DE/RACE_SPEECH_PROFILES_DE above (community/
+# wiki-sourced, not independently verified against official client
+# DBC data).
+
+# Spanish (esES) dungeon/raid flavor text -- translated from the
+# DUNGEON_FLAVOR entries above (same map-ID keys, same
+# paragraph-length atmospheric lore), not injected verbatim since
+# the English text was leaking untranslated into Spanish bot chat.
+# Falls back to English DUNGEON_FLAVOR via get_dungeon_flavor() for
+# any locale other than esES/deDE/frFR/ruRU, mirroring
+# ZONE_FLAVOR_ES/get_zone_flavor()'s convention. Proper nouns reuse
+# ZONE_NAMES_ES/ZONE_FLAVOR_ES's mixed-provenance terms where
+# covered there; faction/place names outside those dicts use
+# community-sourced Spanish WoW terminology, same confidence tier
+# as ZONE_FLAVOR_ES's community-sourced portion, NOT independently
+# verified against official client data.
+
 
 # Item quality colors for WoW links (FF prefix for alpha channel)
 ITEM_QUALITY_COLORS = {
@@ -2669,6 +3064,7 @@ RP_MOODS = [
     "gallows humor",
     "playfully smug",
 ]
+
 
 RP_CREATIVE_TWISTS = [
     "Use a casual saying from your culture",
@@ -4038,3 +4434,10 @@ GUILD_CHAT_TOPICS_RP = [
     "a debt of honor still unpaid",
     "the names of those you've lost",
 ]
+
+# Per-language tables (ZONE_NAMES, ZONE_FLAVOR, BG_LORE,
+# DUNGEON_FLAVOR and RACE_SPEECH_PROFILES for ruRU, frFR,
+# deDE, esES and koKR) live in the locales package rather
+# than here. They are bulk translation data, and keeping
+# them out of this module keeps it about game constants.
+# See tools/locales/__init__.py for the registry.

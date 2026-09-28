@@ -486,7 +486,7 @@ def _probe_anthropic(config, model):
     )
     resp = client.messages.create(
         model=model,
-        max_tokens=5,
+        max_tokens=32,
         messages=[{
             'role': 'user',
             'content': 'Reply with the single word: OK',

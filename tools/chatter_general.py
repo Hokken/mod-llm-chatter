@@ -20,6 +20,7 @@ _extended_max_messages = 3
 
 from chatter_shared import (
     call_llm, cleanup_message, strip_speaker_prefix,
+    get_race_speech_profile,
     get_chatter_mode, get_class_name, get_race_name,
     get_race_faction,
     get_gender_label,
@@ -57,7 +58,6 @@ from chatter_mode import (
 )
 from chatter_constants import (
     PERSONALITY_TRAITS,
-    RACE_SPEECH_PROFILES,
     LENGTH_HINTS, RP_LENGTH_HINTS,
 )
 from chatter_links import resolve_and_format_links
@@ -451,7 +451,7 @@ def _build_general_response_prompt(
         if ctx:
             rp_context = f"\n{ctx}"
 
-        profile = RACE_SPEECH_PROFILES.get(bot_race)
+        profile = get_race_speech_profile(bot_race)
         if profile:
             fw = profile.get('flavor_words', [])
             flavor = ', '.join(
@@ -612,7 +612,7 @@ def _build_general_followup_prompt(
         if ctx:
             rp_context = f"\n{ctx}"
 
-        profile = RACE_SPEECH_PROFILES.get(bot_race)
+        profile = get_race_speech_profile(bot_race)
         if profile:
             fw = profile.get('flavor_words', [])
             flavor = ', '.join(
@@ -1345,7 +1345,7 @@ def _build_general_continuation_prompt(
         if ctx:
             rp_context = f"\n{ctx}"
 
-        profile = RACE_SPEECH_PROFILES.get(bot_race)
+        profile = get_race_speech_profile(bot_race)
         if profile:
             fw = profile.get('flavor_words', [])
             flavor = ', '.join(

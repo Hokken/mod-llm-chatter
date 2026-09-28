@@ -22,8 +22,115 @@ Shared utilities belong in the dedicated shared layer
 `chatter_constants.py` for Python). Each file should have one clear
 ownership domain.
 
+Bulk data follows the same rule. Per-language tables are not logic and
+do not belong in `chatter_constants.py`: they live in `tools/locales/`,
+one module per locale, behind the registry described under *Locale
+ownership* below. `chatter_constants.py` keeps the English defaults and
+the game constants.
+
 Keeping files focused allows AI agents to work on a single file without
 loading the entire module into context.
+
+## Locale Ownership
+
+Two different settings decide language, and they are not the same thing:
+
+- **`LLMChatter.Language`** — the module's own setting, read by both the
+  bridge and (since the locale work) the C++ side via
+  `sLLMChatterConfig->GetModuleLocale()`. This is what decides the
+  language bots speak and the language names appear in.
+- **`sWorld->GetDefaultDbcLocale()`** — the worldserver's client locale.
+  It reflects the server's clients, not this module, and the two can
+  disagree: an English worldserver may be configured for Russian
+  chatter.
+
+**Rule: anything that reaches a prompt resolves through
+`LLMChatter.Language`.** Names resolved against the worldserver locale
+would contradict the configured chatter language on any server where the
+two differ.
+
+There is exactly one deliberate exception.
+`CanSpeakInGeneralChannel()` compares a zone name against live channel
+names, and the core creates those in the worldserver's locale, so that
+lookup keeps `GetDefaultDbcLocale()`. Resolving it in the module
+language would match no channel at all.
+
+### Where a name is resolved
+
+Two layers can localize, and they are ordered deliberately:
+
+1. **Bridge, from a stable id.** Where the event payload carries an id
+   (creature, item, quest, zone, subzone), the bridge resolves the name
+   itself from `*_locale` tables using `LLMChatter.Language`. This is
+   authoritative.
+2. **C++, at event-build time.** Names the payload carries as text are
+   resolved in C++ using the module locale. For spell and achievement
+   names there is no id in the payload, so this is the only resolution
+   that happens and it has to be right.
+
+Where both apply, the bridge value wins and the C++ text is the
+fallback — which is why the C++ side resolves in the module locale too,
+so the fallback agrees with the primary path rather than contradicting
+it.
+
+### Fallback chain
+
+Each step applies only when the previous one produced nothing:
+
+1. the table for the configured locale, when that locale has one;
+2. the English default (`chatter_constants.py`, or the base DBC/template
+   row);
+3. the text already in hand.
+
+Falling back is per lookup, not per language: a locale with partial
+coverage uses its own entries where they exist and English elsewhere. A
+missing locale row is never an error.
+
+### Supported languages
+
+`LLMChatter.Language` takes the two-letter codes in
+`_LANGUAGE_LABELS` (`chatter_shared.py`): `DE`, `ES`, `FR`, `GB`, `KO`,
+`PT`, `RU`, `US`. `GB` and `US` are both English.
+
+Coverage differs by dataset, and the registry is the source of truth —
+`locales.available("ZONE_FLAVOR")` answers it directly. At present
+`ruRU`, `frFR`, `deDE` and `esES` carry the flavor datasets, `koKR`
+carries zone names only, and `PT` has no DBC locale in 3.3.5a, so it
+resolves as English rather than being rejected.
+
+Adding a language means adding a module under `tools/locales/`, listing
+it in that package's registry, and adding its code to
+`_LANGUAGE_LABELS` and to `ResolveModuleLocale()` in
+`LLMChatterConfig.cpp`. No accessor changes.
+
+## Bridge Single-Instance Lock
+
+Two bridges against one database would double every reply, so the bridge
+takes an advisory whole-file lock at startup and exits if another holds
+it.
+
+- **Where.** A writable runtime directory, chosen in order:
+  `LLMChatter.RuntimeDir`, `$LLM_CHATTER_RUNTIME_DIR`,
+  `$XDG_RUNTIME_DIR`, `$TMPDIR`, then the system temp directory. It is
+  deliberately **not** next to the script: the documented Docker setup
+  mounts the tools directory read-only (`…/tools:/app:ro`), so a lock
+  written there would stop the bridge starting at all.
+- **Naming.** Keyed by a hash of the resolved config path, so two
+  bridges on different configs run side by side while two launches of
+  the same config collide.
+- **Mechanism.** An OS file lock (`fcntl` on Unix, `msvcrt` on Windows)
+  behind `_lock_file_exclusive()` / `_unlock_file()`. Never import
+  either module directly — `fcntl` is Unix-only and importing it
+  unconditionally breaks a native Windows launch during import.
+  Acquisition is atomic, so a race between two starting bridges cannot
+  let both through, and the kernel drops the lock when the holder dies,
+  so a crash cannot strand one.
+- **Release keeps the file.** `_release_lock()` unlocks and closes the
+  handle and leaves the pathname in place. Unlinking it reopens a
+  handoff race: another bridge locks the still-open file, and once the
+  name is gone a third creates a fresh file at the same path and locks
+  that, so two run believing they hold the only lock. The cost of
+  keeping it is one small file per configured bridge.
 
 ## Repository Boundaries
 

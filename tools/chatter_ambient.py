@@ -17,6 +17,7 @@ from chatter_constants import (
 from chatter_shared import (
     parse_single_response,
     parse_conversation_response,
+    localize_quest_name,
     query_zone_quests,
     query_zone_mobs,
     query_bot_spells,
@@ -258,7 +259,11 @@ def process_statement(
             config, zone_id, bot['level']
         )
         if quests:
-            quest_data = random.choice(quests)
+            quest_data = dict(random.choice(quests))
+            quest_data['quest_name'] = localize_quest_name(
+                db, quest_data.get('quest_name', 'a quest'),
+                quest_data.get('quest_id'),
+            )
         else:
             msg_type = "plain"  # Fallback
 
@@ -563,7 +568,11 @@ def process_conversation(
             bots[0]['level']
         )
         if quests:
-            quest_data = random.choice(quests)
+            quest_data = dict(random.choice(quests))
+            quest_data['quest_name'] = localize_quest_name(
+                db, quest_data.get('quest_name', 'a quest'),
+                quest_data.get('quest_id'),
+            )
         else:
             msg_type = "plain"
 

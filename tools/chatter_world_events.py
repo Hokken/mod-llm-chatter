@@ -201,7 +201,7 @@ def _deliver_conversation(
     recent_msgs = get_recent_zone_messages(
         db, zone_id
     )
-    event_context = build_event_context(event)
+    event_context = build_event_context(event, db)
 
     prompt = build_event_conversation_prompt(
         formatted,
@@ -319,7 +319,7 @@ def _deliver_statement(
         get_zone_name(use_zone_id) or "the world"
     )
 
-    event_context = build_event_context(event)
+    event_context = build_event_context(event, db)
     event_prompt = build_event_statement_prompt(
         bot,
         event_context,

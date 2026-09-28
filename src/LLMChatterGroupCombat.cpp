@@ -68,14 +68,14 @@ void QueueStateCallout(
     std::string targetName = "";
     Unit* victim = bot->GetVictim();
     if (victim && IsUnitPerceivableBy(bot, victim))
-        targetName = victim->GetName();
+        targetName = GetLocalizedUnitName(victim);
 
     std::string aggroTarget = "";
     if (victim && victim->GetVictim()
         && victim->GetVictim() != bot)
     {
         aggroTarget =
-            victim->GetVictim()->GetName();
+            GetLocalizedUnitName(victim->GetVictim());
     }
 
     // Fighting an opposing-faction player (or its pet).
@@ -263,7 +263,7 @@ void HandleGroupCreatureKillImpl(
     uint32 botGuid =
         reactor->GetGUID().GetCounter();
     std::string botName = reactor->GetName();
-    std::string creatureName = killed->GetName();
+    std::string creatureName = GetLocalizedCreatureName(killed);
     uint32 creatureEntry = killed->GetEntry();
 
     std::string extraData = "{"
@@ -331,7 +331,7 @@ void HandleGroupPlayerKilledByCreatureImpl(
 
     QueueGroupDeathOrWipe(
         killed, group,
-        killer ? killer->GetName() : "",
+        killer ? GetLocalizedCreatureName(killer) : "",
         killer ? killer->GetEntry() : 0,
         nullptr);
 }
@@ -619,7 +619,7 @@ void HandleGroupLootEventImpl(
 
     if (quality < 2)
         return;
-    std::string itemName = tmpl->Name1;
+    std::string itemName = GetLocalizedItemName(tmpl);
     uint32 itemEntry = item->GetEntry();
 
     uint32 chance;
@@ -800,7 +800,7 @@ void HandleGroupPlayerEnterCombatImpl(
         player->GetGUID().GetCounter();
     std::string botName = player->GetName();
     std::string creatureName =
-        creature->GetName();
+        GetLocalizedCreatureName(creature);
 
     if (sLLMChatterConfig->_preCacheEnable
         && sLLMChatterConfig
@@ -1262,7 +1262,7 @@ bool HandleGroupPlayerBeforeQuestCompleteImpl(
         reactor->GetGUID().GetCounter();
     std::string botName = reactor->GetName();
     std::string playerName = player->GetName();
-    std::string questName = quest->GetTitle();
+    std::string questName = GetLocalizedQuestTitle(quest);
 
     std::string extraData = "{"
         + BuildBotIdentityFields(reactor) + ","
@@ -1275,11 +1275,11 @@ bool HandleGroupPlayerBeforeQuestCompleteImpl(
         "\"quest_details\":\"" +
             JsonEscape(
                 NormalizeChatTextForDb(
-                    quest->GetDetails(), 200)) + "\","
+                    GetLocalizedQuestDetails(quest), 200)) + "\","
         "\"quest_objectives\":\"" +
             JsonEscape(
                 NormalizeChatTextForDb(
-                    quest->GetObjectives(), 150)) + "\","
+                    GetLocalizedQuestObjectives(quest), 150)) + "\","
         "\"group_id\":" +
             std::to_string(groupId) +
         "}";
@@ -1381,7 +1381,7 @@ void HandleGroupPlayerCompleteQuestImpl(
     std::string botName = reactor->GetName();
     std::string playerName = player->GetName();
     std::string questName =
-        quest->GetTitle();
+        GetLocalizedQuestTitle(quest);
 
     std::string extraData = "{"
         + BuildBotIdentityFields(reactor) + ","
@@ -1394,11 +1394,11 @@ void HandleGroupPlayerCompleteQuestImpl(
         "\"quest_details\":\"" +
             JsonEscape(
                 NormalizeChatTextForDb(
-                    quest->GetDetails(), 200)) + "\","
+                    GetLocalizedQuestDetails(quest), 200)) + "\","
         "\"quest_objectives\":\"" +
             JsonEscape(
                 NormalizeChatTextForDb(
-                    quest->GetObjectives(), 150)) + "\","
+                    GetLocalizedQuestObjectives(quest), 150)) + "\","
         "\"group_id\":" +
             std::to_string(groupId) +
         "}";
@@ -1481,8 +1481,7 @@ void HandleGroupPlayerAchievementCompleteImpl(
     std::string playerName = player->GetName();
 
     std::string achName =
-        achievement->name[0]
-            ? achievement->name[0] : "";
+        GetLocalizedAchievementName(achievement);
     uint32 achId = achievement->ID;
 
     std::string extraData = "{"
@@ -1578,8 +1577,7 @@ void HandleGroupPlayerSpellCastImpl(
     if (spell->IsTriggered())
         return;
 
-    if (!spellInfo->SpellName[0]
-        || spellInfo->SpellName[0][0] == '\0')
+    if (GetLocalizedSpellName(spellInfo).empty())
         return;
 
     if (!IsPlayerBot(player)
@@ -1787,8 +1785,7 @@ void HandleGroupPlayerSpellCastImpl(
     std::string botName = reactor->GetName();
     std::string casterName = player->GetName();
     std::string spellName =
-        spellInfo->SpellName[0]
-            ? spellInfo->SpellName[0] : "";
+        GetLocalizedSpellName(spellInfo);
 
     std::string targetName;
     bool isAreaBuff =
@@ -1813,7 +1810,7 @@ void HandleGroupPlayerSpellCastImpl(
                  || spellTarget->GetGUID()
                         != player->GetGUID()))
     {
-        targetName = spellTarget->GetName();
+        targetName = GetLocalizedUnitName(spellTarget);
         targetUnit = spellTarget;
     }
     if (targetName.empty()
@@ -1822,7 +1819,7 @@ void HandleGroupPlayerSpellCastImpl(
         Unit* victim = player->GetVictim();
         if (victim)
         {
-            targetName = victim->GetName();
+            targetName = GetLocalizedUnitName(victim);
             targetUnit = victim;
         }
     }
@@ -2413,7 +2410,7 @@ static void DispatchPlayerEmote(
             {
                 tgtType = EMOTE_TGT_CREATURE;
                 cachedTargetCreature = npc;
-                targetName = npc->GetName();
+                targetName = GetLocalizedCreatureName(npc);
                 npcRank =
                     npc->GetCreatureTemplate()
                         ->rank;
@@ -2537,11 +2534,8 @@ static void DispatchPlayerEmote(
                         ? cachedTargetCreature
                               ->GetEntry()
                         : 0u,
-                    cachedTargetCreature
-                        ? cachedTargetCreature
-                              ->GetCreatureTemplate()
-                              ->SubName
-                        : "",
+                    GetLocalizedCreatureSubName(
+                        cachedTargetCreature),
                     nearbyAliveBots, customText);
             break;
         case EMOTE_TGT_EXT_PLAYER:
@@ -2663,7 +2657,7 @@ void HandleGroupPlayerUpdateZoneImpl(
         if (areaEntry)
         {
             uint8 loc =
-                sWorld->GetDefaultDbcLocale();
+                sLLMChatterConfig->GetModuleLocale();
             char const* n =
                 areaEntry->area_name[loc];
             areaName = n ? n : "";

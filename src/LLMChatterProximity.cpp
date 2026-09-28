@@ -1169,7 +1169,7 @@ std::string BuildNPCParticipantJson(
         gender = "female";
     return std::string("{")
         + "\"name\":\""
-        + JsonEscape(cr->GetName()) + "\","
+        + JsonEscape(GetLocalizedCreatureName(cr)) + "\","
         + "\"is_npc\":true,"
         + "\"npc_entry\":"
         + std::to_string(cr->GetEntry())
@@ -1179,7 +1179,7 @@ std::string BuildNPCParticipantJson(
         + JsonEscape(GetCreatureRoleName(cr))
         + "\",\"sub_name\":\""
         + JsonEscape(
-            creatureTemplate->SubName)
+            GetLocalizedCreatureSubName(cr))
         + "\",\"gender\":\""
         + gender
         + "\",\"disposition\":\""
@@ -1236,7 +1236,7 @@ std::string GetAreaNameForLocale(uint32 areaId)
     if (!area)
         return "";
 
-    uint8 locale = sWorld->GetDefaultDbcLocale();
+    uint8 locale = sLLMChatterConfig->GetModuleLocale();
     char const* name = area->area_name[locale];
     if (!name || !*name)
         name = area->area_name[LOCALE_enUS];
@@ -1451,11 +1451,11 @@ void CollectNearbyNPCs(
         candidate.npc = creature;
         candidate.id = creature->GetSpawnId();
         candidate.entry = creature->GetEntry();
-        candidate.name = creature->GetName();
+        candidate.name = GetLocalizedCreatureName(creature);
         candidate.role =
             GetCreatureRoleName(creature);
         candidate.subName =
-            creature->GetCreatureTemplate()->SubName;
+            GetLocalizedCreatureSubName(creature);
         out.push_back(candidate);
     }
 }
