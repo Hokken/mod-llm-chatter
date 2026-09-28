@@ -2657,7 +2657,7 @@ void HandleGroupPlayerUpdateZoneImpl(
         if (areaEntry)
         {
             uint8 loc =
-                sWorld->GetDefaultDbcLocale();
+                sLLMChatterConfig->GetModuleLocale();
             char const* n =
                 areaEntry->area_name[loc];
             areaName = n ? n : "";

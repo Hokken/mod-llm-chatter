@@ -1236,7 +1236,7 @@ std::string GetAreaNameForLocale(uint32 areaId)
     if (!area)
         return "";
 
-    uint8 locale = sWorld->GetDefaultDbcLocale();
+    uint8 locale = sLLMChatterConfig->GetModuleLocale();
     char const* name = area->area_name[locale];
     if (!name || !*name)
         name = area->area_name[LOCALE_enUS];

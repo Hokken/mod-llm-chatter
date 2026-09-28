@@ -1140,8 +1140,7 @@ void DeliverPendingMessagesImpl()
                             .LookupEntry(zId);
                     if (ar)
                     {
-                        uint8 loc = sWorld
-                            ->GetDefaultDbcLocale();
+                        uint8 loc = sLLMChatterConfig->GetModuleLocale();
                         char const* zn =
                             ar->area_name[loc];
                         std::string zName =

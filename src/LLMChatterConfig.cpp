@@ -4,6 +4,7 @@
  */
 
 #include "LLMChatterConfig.h"
+#include "World.h"
 #include "Config.h"
 #include "Log.h"
 #include "SharedDefines.h"
@@ -292,8 +293,40 @@ bool LLMChatterConfig::IsPlayerChatPrefixIgnored(
     return false;
 }
 
+namespace
+{
+// LLMChatter.Language uses the two-letter codes the bridge understands.
+// Map them onto the 3.3.5a DBC locales; anything unset or without a
+// locale of its own (Portuguese) keeps the worldserver's, which is the
+// behaviour that applied before the module had its own.
+LocaleConstant ResolveModuleLocale(std::string code)
+{
+    for (char& c : code)
+        c = static_cast<char>(std::toupper(
+            static_cast<unsigned char>(c)));
+
+    if (code == "RU")
+        return LOCALE_ruRU;
+    if (code == "DE")
+        return LOCALE_deDE;
+    if (code == "FR")
+        return LOCALE_frFR;
+    if (code == "ES")
+        return LOCALE_esES;
+    if (code == "KO")
+        return LOCALE_koKR;
+    if (code == "US" || code == "GB" || code == "EN")
+        return LOCALE_enUS;
+
+    return sWorld->GetDefaultDbcLocale();
+}
+}  // namespace
+
 void LLMChatterConfig::LoadConfig()
 {
+    _moduleLocale = ResolveModuleLocale(
+        GetChatterOption<std::string>(
+            "LLMChatter.Language", ""));
     _enabled = GetChatterOption<bool>("LLMChatter.Enable", false);
     _debugLog = GetChatterOption<bool>("LLMChatter.DebugLog", false);
 

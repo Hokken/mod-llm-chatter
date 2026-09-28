@@ -581,12 +581,12 @@ void CheckNearbyGameObjects()
             sAreaTableStore.LookupEntry(areaId);
         char const* zp = zone
             ? zone->area_name[
-                sWorld->GetDefaultDbcLocale()]
+                sLLMChatterConfig->GetModuleLocale()]
             : nullptr;
         std::string zoneName = zp ? zp : "";
         char const* sp = area
             ? area->area_name[
-                sWorld->GetDefaultDbcLocale()]
+                sLLMChatterConfig->GetModuleLocale()]
             : nullptr;
         std::string subzoneName = sp ? sp : "";
         bool inCity =

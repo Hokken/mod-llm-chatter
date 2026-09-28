@@ -1541,7 +1541,7 @@ std::string GetZoneName(uint32 zoneId)
     if (AreaTableEntry const* area =
             sAreaTableStore.LookupEntry(zoneId))
     {
-        uint8 locale = sWorld->GetDefaultDbcLocale();
+        uint8 locale = sLLMChatterConfig->GetModuleLocale();
         char const* n = area->area_name[locale];
         std::string zoneName = n ? n : "";
         if (zoneName.empty())
@@ -1559,9 +1559,9 @@ std::string GetZoneName(uint32 zoneId)
 // ---------------------------------------------------------------------
 // Locale-aware name/text lookups.
 //
-// All of these key off sWorld->GetDefaultDbcLocale() -- the same
-// server-wide "DBC locale" mechanism GetZoneName() above already uses
-// -- and gracefully fall back to the English-default value (the field
+// All of these key off the module's own locale
+// (sLLMChatterConfig->GetModuleLocale(), i.e. LLMChatter.Language)
+// rather than the server-wide DBC locale, and gracefully fall back to the English-default value (the field
 // already baked into the in-memory template/DBC row) whenever no
 // locale-specific row exists. None of them can throw or crash on a
 // missing locale entry; a missing/null lookup simply falls through to
@@ -1573,7 +1573,7 @@ std::string GetLocalizedCreatureName(Creature* creature)
     if (!creature)
         return "";
 
-    LocaleConstant locale = sWorld->GetDefaultDbcLocale();
+    LocaleConstant locale = sLLMChatterConfig->GetModuleLocale();
     return creature->GetNameForLocaleIdx(locale);
 }
 
@@ -1587,7 +1587,7 @@ std::string GetLocalizedCreatureSubName(Creature* creature)
     if (!tmpl)
         return "";
 
-    LocaleConstant locale = sWorld->GetDefaultDbcLocale();
+    LocaleConstant locale = sLLMChatterConfig->GetModuleLocale();
     if (locale != LOCALE_enUS)
     {
         if (CreatureLocale const* cl =
@@ -1608,7 +1608,7 @@ std::string GetLocalizedGameObjectName(GameObject* go)
     if (!go)
         return "";
 
-    LocaleConstant locale = sWorld->GetDefaultDbcLocale();
+    LocaleConstant locale = sLLMChatterConfig->GetModuleLocale();
     return go->GetNameForLocaleIdx(locale);
 }
 
@@ -1628,7 +1628,7 @@ std::string GetLocalizedItemName(ItemTemplate const* tmpl)
     if (!tmpl)
         return "";
 
-    LocaleConstant locale = sWorld->GetDefaultDbcLocale();
+    LocaleConstant locale = sLLMChatterConfig->GetModuleLocale();
     if (locale != LOCALE_enUS)
     {
         if (ItemLocale const* il =
@@ -1648,7 +1648,7 @@ std::string GetLocalizedQuestTitle(Quest const* quest)
     if (!quest)
         return "";
 
-    LocaleConstant locale = sWorld->GetDefaultDbcLocale();
+    LocaleConstant locale = sLLMChatterConfig->GetModuleLocale();
     if (locale != LOCALE_enUS)
     {
         if (QuestLocale const* ql =
@@ -1669,7 +1669,7 @@ std::string GetLocalizedQuestDetails(Quest const* quest)
     if (!quest)
         return "";
 
-    LocaleConstant locale = sWorld->GetDefaultDbcLocale();
+    LocaleConstant locale = sLLMChatterConfig->GetModuleLocale();
     if (locale != LOCALE_enUS)
     {
         if (QuestLocale const* ql =
@@ -1690,7 +1690,7 @@ std::string GetLocalizedQuestObjectives(Quest const* quest)
     if (!quest)
         return "";
 
-    LocaleConstant locale = sWorld->GetDefaultDbcLocale();
+    LocaleConstant locale = sLLMChatterConfig->GetModuleLocale();
     if (locale != LOCALE_enUS)
     {
         if (QuestLocale const* ql =
@@ -1711,7 +1711,7 @@ std::string GetLocalizedSpellName(SpellInfo const* spellInfo)
     if (!spellInfo)
         return "";
 
-    uint8 locale = sWorld->GetDefaultDbcLocale();
+    uint8 locale = sLLMChatterConfig->GetModuleLocale();
     char const* name = spellInfo->SpellName[locale];
     if (name && name[0] != '\0')
         return name;
@@ -1725,7 +1725,7 @@ std::string GetLocalizedAchievementName(AchievementEntry const* achievement)
     if (!achievement)
         return "";
 
-    uint8 locale = sWorld->GetDefaultDbcLocale();
+    uint8 locale = sLLMChatterConfig->GetModuleLocale();
     char const* name = achievement->name[locale];
     if (name && name[0] != '\0')
         return name;
@@ -1740,7 +1740,7 @@ std::string GetLocalizedTitleName(
     if (!title)
         return "";
 
-    uint8 locale = sWorld->GetDefaultDbcLocale();
+    uint8 locale = sLLMChatterConfig->GetModuleLocale();
     char const* const* names =
         (gender == GENDER_FEMALE)
             ? title->nameFemale
