@@ -6,12 +6,12 @@
 
 #include "LLMChatterConfig.h"
 #include "LLMChatterShared.h"
+#include "LLMChatterTrade.h"
 
 #include "DatabaseEnv.h"
 #include "DBCStores.h"
 #include "GameTime.h"
 #include "GameEventMgr.h"
-#include "Group.h"
 #include "Player.h"
 #include "Playerbots.h"
 #include "RandomPlayerbotMgr.h"
@@ -25,6 +25,7 @@
 #include <ctime>
 #include <map>
 #include <mutex>
+#include <optional>
 #include <random>
 #include <set>
 #include <string>
@@ -216,51 +217,9 @@ static bool IsCapitalCity(uint32 zoneId)
     return false;
 }
 
-static bool IsInOverworld(Player* player)
-{
-    if (!player)
-        return false;
-
-    WorldSession* session = player->GetSession();
-    if (!session || session->PlayerLoading())
-        return false;
-
-    Map* map = player->GetMap();
-    if (!map)
-        return false;
-
-    return !map->Instanceable();
-}
-
 std::vector<uint32> GetZonesWithRealPlayers()
 {
-    std::map<uint32, bool> zoneMap;
-    WorldSessionMgr::SessionMap const& sessions =
-        sWorldSessionMgr->GetAllSessions();
-
-    for (auto const& pair : sessions)
-    {
-        WorldSession* session = pair.second;
-        if (!session || session->PlayerLoading())
-            continue;
-
-        Player* player = session->GetPlayer();
-        if (!player || !player->IsInWorld())
-            continue;
-
-        if (!IsPlayerBot(player)
-            && IsInOverworld(player))
-        {
-            uint32 zoneId = player->GetZoneId();
-            if (zoneId > 0)
-                zoneMap[zoneId] = true;
-        }
-    }
-
-    std::vector<uint32> zones;
-    for (auto const& pair : zoneMap)
-        zones.push_back(pair.first);
-    return zones;
+    return GetCachedGeneralAudienceZones();
 }
 
 static void QueueHolidayForZones(
@@ -794,30 +753,6 @@ static uint32 GetFaction(Player* player)
     return player->GetTeamId();
 }
 
-static bool IsGroupedWithRealPlayer(Player* bot)
-{
-    if (!bot)
-        return false;
-
-    Group* group = bot->GetGroup();
-    if (!group)
-        return false;
-
-    for (GroupReference* itr =
-             group->GetFirstMember();
-         itr != nullptr; itr = itr->next())
-    {
-        if (Player* member = itr->GetSource())
-        {
-            if (member != bot
-                && !IsPlayerBot(member))
-                return true;
-        }
-    }
-
-    return false;
-}
-
 static std::vector<Player*> GetBotsInZone(
     uint32 zoneId, uint32 faction)
 {
@@ -884,13 +819,77 @@ static uint32 GetDominantFactionInZone(uint32 zoneId)
     return urand(0, 1);
 }
 
+static std::string SelectAmbientMessageType(
+    bool isConversation,
+    uint32 gossipRoll,
+    uint32 contentRoll)
+{
+    uint32 npcChance = std::min(
+        sLLMChatterConfig->_ambientNpcGossipChance,
+        100u);
+    uint32 botChance = std::min(
+        sLLMChatterConfig->_ambientBotGossipChance,
+        100u - npcChance);
+
+    if (gossipRoll <= npcChance)
+        return "npc";
+    if (gossipRoll <= npcChance + botChance)
+        return "bot";
+
+    if (isConversation)
+    {
+        if (contentRoll <= 60)
+            return "plain";
+        if (contentRoll <= 80)
+            return "quest";
+        if (contentRoll <= 90)
+            return "trade";
+        return "spell";
+    }
+
+    if (contentRoll <= 62)
+        return "plain";
+    if (contentRoll <= 77)
+        return "quest";
+    if (contentRoll <= 85)
+        return "quest_reward";
+    if (contentRoll <= 95)
+        return "trade";
+    return "spell";
+}
+
+static std::string BuildTradeItemContext(
+    ChatterTradeItemSnapshot const& item)
+{
+    return fmt::format(
+        "{{\"item_instance_guid\":{},"
+        "\"item_id\":{},\"item_name\":\"{}\","
+        "\"item_quality\":{},\"item_count\":{},"
+        "\"sell_price\":{},\"allowable_class\":{},"
+        "\"required_level\":{},"
+        "\"random_property_id\":{},"
+        "\"suffix_factor\":{}}}",
+        item.itemInstanceGuid,
+        item.itemEntry,
+        JsonEscape(item.itemName),
+        item.quality,
+        item.count,
+        item.sellPrice,
+        item.allowableClass,
+        item.requiredLevel,
+        item.randomPropertyId,
+        item.suffixFactor);
+}
+
 static void QueueChatterRequest(
     Player* bot1, Player* bot2,
     Player* bot3, Player* bot4,
     uint32 botCount,
     bool isConversation,
     const std::string& zoneName,
-    uint32 zoneId)
+    uint32 zoneId,
+    const std::string& messageType,
+    std::optional<ChatterTradeItemSnapshot> const& tradeItem)
 {
     std::string requestType =
         isConversation
@@ -907,6 +906,13 @@ static void QueueChatterRequest(
         EscapeString(zoneName);
     std::string currentWeather =
         GetCachedWeatherName(zoneId);
+    std::string itemContextSql = "NULL";
+    if (tradeItem)
+    {
+        itemContextSql = "'"
+            + EscapeString(BuildTradeItemContext(*tradeItem))
+            + "'";
+    }
 
     if (isConversation && bot2)
     {
@@ -983,8 +989,11 @@ static void QueueChatterRequest(
                 bot4Level);
         }
 
-        columns += ", status";
-        values += ", 'pending'";
+        columns += ", message_type, item_context, status";
+        values += fmt::format(
+            ", '{}', {}, 'pending'",
+            EscapeString(messageType),
+            itemContextSql);
 
         CharacterDatabase.Execute(
             "INSERT INTO llm_chatter_queue ({}) "
@@ -998,9 +1007,10 @@ static void QueueChatterRequest(
             "(request_type, bot1_guid, bot1_name, "
             "bot1_class, bot1_race, bot1_level, "
             "bot1_zone, zone_id, weather, "
-            "bot_count, status) VALUES "
+            "bot_count, message_type, item_context, "
+            "status) VALUES "
             "('{}', {}, '{}', '{}', '{}', {}, "
-            "'{}', {}, '{}', 1, 'pending')",
+            "'{}', {}, '{}', 1, '{}', {}, 'pending')",
             requestType,
             bot1->GetGUID().GetCounter(),
             EscapeString(bot1Name),
@@ -1009,7 +1019,9 @@ static void QueueChatterRequest(
             bot1Level,
             escapedZoneName,
             zoneId,
-            currentWeather);
+            currentWeather,
+            EscapeString(messageType),
+            itemContextSql);
     }
 }
 
@@ -1102,9 +1114,23 @@ void TryTriggerChatter()
         Player* bot4 =
             (botCount >= 4) ? bots[3] : nullptr;
 
+        std::string messageType =
+            SelectAmbientMessageType(
+                isConversation,
+                urand(1, 100),
+                urand(1, 100));
+        std::optional<ChatterTradeItemSnapshot> tradeItem;
+        if (messageType == "trade")
+        {
+            tradeItem = SelectChatterTradeItem(bot1);
+            if (!tradeItem)
+                messageType = "plain";
+        }
+
         QueueChatterRequest(
             bot1, bot2, bot3, bot4,
             botCount, isConversation,
-            zoneName, selectedZone);
+            zoneName, selectedZone,
+            messageType, tradeItem);
     }
 }

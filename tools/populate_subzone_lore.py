@@ -24,6 +24,12 @@ import json
 import os
 import time
 
+from llm_compat import (
+    build_chat_options,
+    create_chat_completion,
+    needs_reasoning_token_multiplier,
+)
+
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 JSON_PATH = os.path.join(SCRIPT_DIR, "subzone_lore.json")
 # In Docker, /app is read-only. Write to /tmp and
@@ -94,13 +100,25 @@ def call_anthropic(client, model, prompt):
 
 def call_openai(client, model, prompt):
     """Call OpenAI API."""
-    response = client.chat.completions.create(
-        model=model,
-        max_tokens=150,
-        messages=[
+    max_tokens = 150
+    if needs_reasoning_token_multiplier("openai", model):
+        max_tokens *= 4
+    request_kwargs = {
+        "model": model,
+        "messages": [
             {"role": "system", "content": SYSTEM_PROMPT},
             {"role": "user", "content": prompt},
         ],
+    }
+    request_kwargs.update(build_chat_options(
+        "openai", model, max_tokens
+    ))
+    response = create_chat_completion(
+        client.chat.completions.create,
+        request_kwargs,
+        "openai",
+        model,
+        reasoning_token_multiplier=4,
     )
     return response.choices[0].message.content.strip()
 

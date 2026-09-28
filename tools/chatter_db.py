@@ -14,9 +14,11 @@ from chatter_constants import (
     CLASS_NAMES,
     EMOTE_LIST,
     RACE_NAMES,
+    WEAPON_SUBCLASS_NAMES,
     ZONE_COORDINATES,
     ZONE_LEVELS,
 )
+from chatter_text import split_action_prefix
 from spell_names import SPELL_DESCRIPTIONS, SPELL_NAMES
 
 logger = logging.getLogger(__name__)
@@ -27,6 +29,13 @@ logger = logging.getLogger(__name__)
 _char_info_cache: dict = {}
 _talent_cache: dict = {}
 _online_cache: dict = {}
+_weapon_cache: dict = {}
+_pet_cache: dict = {}
+# Shorter than the other caches because this one answers
+# "is a pet out right now", which a hunter changes mid-play
+# by dismissing or calling one, rather than the far more
+# stable "does this character own a pet".
+_PET_CACHE_TTL = 60
 _cache_lock = threading.Lock()
 
 
@@ -53,7 +62,7 @@ def _cache_put(cache: dict, key, value, max_size: int = 500):
 
 
 class ZoneDataCache:
-    """Cache for zone-specific quest, loot, and mob data.
+    """Cache for zone-specific quest and mob data.
 
     Thread-safe: all methods are protected by a lock
     for concurrent access from worker threads.
@@ -63,9 +72,7 @@ class ZoneDataCache:
         self.ttl = ttl_seconds
         self._lock = threading.Lock()
         self.quest_cache: Dict[int, Tuple[List[dict], float]] = {}
-        self.loot_cache: Dict[Tuple[int, int], Tuple[List[dict], float]] = {}
         self.mob_cache: Dict[Tuple[int, int], Tuple[List[str], float]] = {}
-        self.recent_loot: Dict[int, Dict[int, float]] = {}
 
     def get_quests(self, zone_id: int) -> Optional[List[dict]]:
         with self._lock:
@@ -78,25 +85,6 @@ class ZoneDataCache:
     def set_quests(self, zone_id: int, quests: List[dict]):
         with self._lock:
             self.quest_cache[zone_id] = (quests, time.time())
-
-    def get_loot(
-        self, min_level: int, max_level: int
-    ) -> Optional[List[dict]]:
-        with self._lock:
-            key = (min_level, max_level)
-            if key in self.loot_cache:
-                data, timestamp = self.loot_cache[key]
-                if time.time() - timestamp < self.ttl:
-                    return data
-            return None
-
-    def set_loot(
-        self, min_level: int, max_level: int, loot: List[dict]
-    ):
-        with self._lock:
-            self.loot_cache[(min_level, max_level)] = (
-                loot, time.time()
-            )
 
     def get_mobs(
         self, zone_id: int, bot_level: int
@@ -116,28 +104,6 @@ class ZoneDataCache:
             self.mob_cache[(zone_id, bot_level)] = (
                 mobs, time.time()
             )
-
-    def get_recent_loot_ids(
-        self, zone_id: int, cooldown_seconds: int
-    ) -> set:
-        with self._lock:
-            now = time.time()
-            if zone_id not in self.recent_loot:
-                return set()
-            recent = {
-                item_id: ts
-                for item_id, ts
-                in self.recent_loot[zone_id].items()
-                if now - ts < cooldown_seconds
-            }
-            self.recent_loot[zone_id] = recent
-            return set(recent.keys())
-
-    def mark_loot_seen(self, zone_id: int, item_id: int):
-        with self._lock:
-            if zone_id not in self.recent_loot:
-                self.recent_loot[zone_id] = {}
-            self.recent_loot[zone_id][item_id] = time.time()
 
 
 # Global cache instance
@@ -270,123 +236,6 @@ def query_zone_quests(
 
         zone_cache.set_quests(zone_id, quests)
         return quests
-
-    except Exception:
-        return []
-
-
-def query_zone_loot(
-    config: dict, zone_id: int, bot_level: int
-) -> List[dict]:
-    """Query loot appropriate for the zone."""
-    # No loot drops in capital cities
-    if zone_id in CAPITAL_CITY_ZONES:
-        return []
-
-    min_level, max_level = _get_zone_level_range(zone_id, bot_level)
-
-    cached = zone_cache.get_loot(zone_id, 0)
-    if cached is not None:
-        return cached
-
-    try:
-        db = get_db_connection(config, 'acore_world')
-        cursor = db.cursor(dictionary=True)
-
-        loot = []
-
-        if zone_id in ZONE_COORDINATES:
-            map_id, min_x, max_x, min_y, max_y = (
-                ZONE_COORDINATES[zone_id]
-            )
-            entry_col = get_creature_entry_column(db)
-            cursor.execute(f"""
-                SELECT DISTINCT
-                    i.entry as item_id,
-                    i.name as item_name,
-                    i.Quality as item_quality,
-                    i.AllowableClass as allowable_class,
-                    i.SellPrice as sell_price,
-                    ct.name as drops_from
-                FROM creature c
-                JOIN creature_template ct ON c.{entry_col} = ct.entry
-                JOIN creature_loot_template clt
-                    ON ct.lootid = clt.Entry
-                JOIN item_template i ON clt.Item = i.entry
-                WHERE c.map = %s
-                  AND c.position_x BETWEEN %s AND %s
-                  AND c.position_y BETWEEN %s AND %s
-                  AND ct.minlevel >= %s
-                  AND ct.maxlevel <= %s
-                  AND i.Quality IN (0, 1)
-                  AND i.class IN (2, 4, 7)
-                  AND clt.Chance >= 5
-                ORDER BY RAND()
-                LIMIT 15
-            """, (
-                map_id, min_x, max_x, min_y, max_y,
-                max(1, min_level - 3), max_level + 5
-            ))
-            loot.extend(cursor.fetchall())
-        else:
-            cursor.execute("""
-                SELECT DISTINCT
-                    i.entry as item_id,
-                    i.name as item_name,
-                    i.Quality as item_quality,
-                    i.AllowableClass as allowable_class,
-                    i.SellPrice as sell_price,
-                    ct.name as drops_from
-                FROM creature_template ct
-                JOIN creature_loot_template clt
-                    ON ct.lootid = clt.Entry
-                JOIN item_template i ON clt.Item = i.entry
-                WHERE ct.minlevel >= %s
-                  AND ct.maxlevel <= %s
-                  AND i.Quality IN (0, 1)
-                  AND i.class IN (2, 4, 7)
-                  AND clt.Chance >= 5
-                ORDER BY RAND()
-                LIMIT 15
-            """, (max(1, min_level - 3), max_level + 5))
-            loot.extend(cursor.fetchall())
-
-        # Green/Blue/Epic from reference loot tables
-        green_ref_min = 1020000 + (min_level * 100) + min_level
-        green_ref_max = 1020000 + (max_level * 100) + max_level
-        blue_ref_min = 1030000 + (min_level * 100) + min_level
-        blue_ref_max = 1030000 + (max_level * 100) + max_level
-        epic_ref_min = 1040000 + (min_level * 100) + min_level
-        epic_ref_max = 1040000 + (max_level * 100) + max_level
-
-        ref_filter = f"""
-            (rlt.Entry BETWEEN {green_ref_min} AND {green_ref_max}
-             OR rlt.Entry BETWEEN {blue_ref_min} AND {blue_ref_max}
-             OR rlt.Entry BETWEEN {epic_ref_min} AND {epic_ref_max})
-        """
-
-        cursor.execute(f"""
-            SELECT DISTINCT
-                i.entry as item_id,
-                i.name as item_name,
-                i.Quality as item_quality,
-                i.AllowableClass as allowable_class,
-                i.SellPrice as sell_price,
-                'world drop' as drops_from
-            FROM reference_loot_template rlt
-            JOIN item_template i ON rlt.Item = i.entry
-            WHERE {ref_filter}
-              AND i.class IN (2, 4)
-              AND i.RequiredLevel BETWEEN %s AND %s
-            ORDER BY RAND()
-            LIMIT 15
-        """, (max(1, min_level - 5), max_level + 5))
-        loot.extend(cursor.fetchall())
-
-        db.close()
-
-        zone_cache.set_loot(zone_id, 0, loot)
-        return loot
 
     except Exception:
         return []
@@ -796,6 +645,9 @@ def insert_chat_message(
     delivery_policy: str = None,
     delivery_reason: str = None,
     owner_subsystem: str = None,
+    addressee_player_guid: int = None,
+    addressee_bot_guid: int = None,
+    addressee_npc_spawn_id: int = None,
 ):
     """Insert a message into llm_chatter_messages.
 
@@ -850,26 +702,37 @@ def insert_chat_message(
             delivery_reason,
         )
 
+    # cleanup_message() inlines the LLM's action field as a
+    # leading *asterisk* prefix. Pull it back out here so C++
+    # delivery can send it as a /e text emote ahead of the
+    # spoken line. Doing it at the single insert chokepoint
+    # covers every producer without touching each call site.
+    message, action = split_action_prefix(message)
+
     cursor = db.cursor()
     cursor.execute("""
         INSERT INTO llm_chatter_messages
         (event_id, queue_id, sequence, bot_guid,
-         bot_name, message, emote, npc_spawn_id,
+         bot_name, message, emote, action, npc_spawn_id,
          player_guid, channel, owner_subsystem,
          delivered, deliver_at,
-         group_id, delivery_policy, delivery_reason)
+         group_id, delivery_policy, delivery_reason,
+         addressee_player_guid, addressee_bot_guid,
+         addressee_npc_spawn_id)
         VALUES (
-            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0,
+            %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0,
             DATE_ADD(NOW(), INTERVAL %s SECOND),
-            %s, %s, %s
+            %s, %s, %s, %s, %s, %s
         )
     """, (
         event_id, queue_id, sequence,
         bot_guid, bot_name, message,
-        validate_emote(emote), npc_spawn_id,
+        validate_emote(emote), action, npc_spawn_id,
         player_guid, channel, owner_subsystem,
         int(final_delay),
         group_id, delivery_policy, delivery_reason,
+        addressee_player_guid, addressee_bot_guid,
+        addressee_npc_spawn_id,
     ))
     db.commit()
 
@@ -934,7 +797,8 @@ def query_quest_turnin_npc(
 def get_recent_zone_messages(
     db, zone_id: int,
     limit: int = 15,
-    minutes: int = 30
+    minutes: int = 30,
+    faction: str = '',
 ) -> list:
     """Fetch recent delivered messages for a zone.
 
@@ -945,14 +809,31 @@ def get_recent_zone_messages(
     if not zone_id:
         return []
     try:
+        if faction == 'Alliance':
+            faction_filter = (
+                'AND c.race IN (1, 3, 4, 7, 11)'
+            )
+        elif faction == 'Horde':
+            faction_filter = (
+                'AND c.race IN (2, 5, 6, 8, 10)'
+            )
+        else:
+            faction_filter = ''
+        # Faction-scoped anti-repetition context fails closed when
+        # the speaking character can no longer be identified.
+        character_join = (
+            'JOIN characters c ON c.guid = m.bot_guid'
+            if faction_filter else ''
+        )
         cursor = db.cursor(dictionary=True)
-        cursor.execute("""
+        cursor.execute(f"""
             SELECT m.message
             FROM llm_chatter_messages m
             LEFT JOIN llm_chatter_queue q
                 ON m.queue_id = q.id
             LEFT JOIN llm_chatter_events e
                 ON m.event_id = e.id
+            {character_join}
             WHERE m.delivered = 1
               AND m.channel IN (
                   'general', 'say', 'party',
@@ -963,6 +844,7 @@ def get_recent_zone_messages(
               )
               AND (q.zone_id = %s
                    OR e.zone_id = %s)
+              {faction_filter}
             ORDER BY m.delivered_at DESC
             LIMIT %s
         """, (minutes, zone_id, zone_id, limit))
@@ -1259,6 +1141,143 @@ def get_character_talents(
 
     except Exception:
         return empty
+
+
+# Equipment slots holding what a character fights with.
+_MAIN_HAND_SLOT = 15
+_OFF_HAND_SLOT = 16
+_RANGED_SLOT = 17
+
+# The off hand and ranged slots also accept armor-class
+# items: shields, held items, and the class relics.
+_ARMOR_ITEM_KINDS = {
+    0: "held item",
+    6: "shield",
+    7: "libram",
+    8: "idol",
+    9: "totem",
+    10: "sigil",
+}
+
+_ITEM_CLASS_WEAPON = 2
+_ITEM_CLASS_ARMOR = 4
+
+
+def _describe_item_kind(item_class: int, subclass: int):
+    """Return a readable weapon/off-hand type, or None."""
+    if item_class == _ITEM_CLASS_WEAPON:
+        name = WEAPON_SUBCLASS_NAMES.get(subclass)
+        return name.lower() if name else None
+    if item_class == _ITEM_CLASS_ARMOR:
+        return _ARMOR_ITEM_KINDS.get(subclass)
+    return None
+
+
+def get_character_weapons(db, char_guid: int) -> List[dict]:
+    """Return what a character is currently wielding.
+
+    Each entry has 'name', 'kind' (readable type such as
+    "two-handed sword" or "shield") and 'slot'. Ordered
+    main hand, off hand, ranged.
+    """
+    cached = _cache_get(_weapon_cache, char_guid, 300)
+    if cached is not None:
+        return cached
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT ci.slot,
+                   it.name AS item_name,
+                   it.class AS item_class,
+                   it.subclass AS item_subclass
+            FROM acore_characters.character_inventory ci
+            JOIN acore_characters.item_instance ii
+                ON ii.guid = ci.item
+            JOIN acore_world.item_template it
+                ON it.entry = ii.itemEntry
+            WHERE ci.guid = %s
+              AND ci.bag = 0
+              AND ci.slot IN (%s, %s, %s)
+            ORDER BY ci.slot
+        """, (
+            char_guid,
+            _MAIN_HAND_SLOT,
+            _OFF_HAND_SLOT,
+            _RANGED_SLOT,
+        ))
+        rows = cursor.fetchall()
+        cursor.close()
+    except Exception:
+        return []
+
+    weapons = []
+    for row in rows:
+        name = (row.get('item_name') or '').strip()
+        if not name:
+            continue
+        kind = _describe_item_kind(
+            int(row.get('item_class') or 0),
+            int(row.get('item_subclass') or 0),
+        )
+        if not kind:
+            continue
+        weapons.append({
+            'name': name,
+            'kind': kind,
+            'slot': int(row.get('slot') or 0),
+        })
+
+    _cache_put(_weapon_cache, char_guid, weapons, 500)
+    return weapons
+
+
+def get_character_pet(db, char_guid: int) -> Optional[dict]:
+    """Return the pet at a character's side as
+    {'name', 'species'}, or None when none is out.
+
+    Only slot 0 counts. AzerothCore stores that as
+    PET_SAVE_AS_CURRENT, the pet actually summoned; slots 1-4
+    are the stable and slot 100 is owned but dismissed. Those
+    are pets the character has, not pets standing next to
+    them, and a bot told about one would talk to a companion
+    that is not there.
+    """
+    cached = _cache_get(_pet_cache, char_guid, _PET_CACHE_TTL)
+    if cached is not None:
+        # Absence is cached as an empty dict so that
+        # petless characters skip the query too.
+        return cached or None
+
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT cp.name AS pet_name,
+                   ct.name AS species
+            FROM acore_characters.character_pet cp
+            JOIN acore_world.creature_template ct
+                ON ct.entry = cp.entry
+            WHERE cp.owner = %s
+              AND cp.slot = 0
+            LIMIT 1
+        """, (char_guid,))
+        row = cursor.fetchone()
+        cursor.close()
+    except Exception:
+        return None
+
+    pet = {}
+    if row:
+        name = (row.get('pet_name') or '').strip()
+        species = (row.get('species') or '').strip()
+        if name or species:
+            pet = {
+                'name': name or species,
+                'species': species,
+            }
+
+    _cache_put(_pet_cache, char_guid, pet, 500)
+    return pet or None
 
 
 def any_real_players_online(db) -> bool:

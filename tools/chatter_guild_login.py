@@ -17,6 +17,7 @@ from chatter_guild_player import (
     _bounded_percent,
     _clean_single,
     _config_enabled,
+    _filter_candidates_by_faction,
     _load_candidates,
     _mark_event,
     _normalize_candidates,
@@ -531,9 +532,12 @@ def process_guild_login_greeting_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
-    candidates = _load_candidates(
-        db,
-        _normalize_candidates(extra),
+    candidates = _filter_candidates_by_faction(
+        _load_candidates(
+            db,
+            _normalize_candidates(extra),
+        ),
+        str(extra.get('team') or ''),
     )
     if not candidates:
         _mark_event(db, event_id, 'skipped')

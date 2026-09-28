@@ -15,10 +15,14 @@ from chatter_shared import (
     build_race_class_context,
     build_race_class_context_parts,
     build_bot_state_context,
+    is_pvp_enemy,
+    is_pvp_identity_known,
+    build_conversational_scale_guidance,
     append_json_instruction,
     append_conversation_json_instruction,
     build_anti_repetition_context,
     format_distance,
+    append_speaker_gear,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -51,6 +55,17 @@ def set_prompt_spice_count(value: int):
     """Set spice count used by moved prompt builders."""
     global _spice_count
     _spice_count = max(0, min(int(value), 5))
+
+
+def _enemy_name_rule(pvp, pvp_named, creature_word):
+    """Rules line about naming the enemy. A PvP enemy
+    the reactor could not perceive must stay unnamed.
+    """
+    if pvp and not pvp_named:
+        return "- Do not name or describe the enemy\n"
+    if pvp:
+        return "- Can mention the enemy by name\n"
+    return f"- Can mention the {creature_word} by name\n"
 
 
 def _pick_length_hint(mode):
@@ -124,6 +139,7 @@ def _append_bots_with_rp(parts, bots, traits_map, is_rp):
             f"{bot['class']} "
             f"(personality: {trait_str})"
         )
+        append_speaker_gear(parts, bot)
         if bot.get('travel_context'):
             travel_label = (
                 "travel state"
@@ -810,7 +826,19 @@ def build_kill_reaction_prompt(
         if extra_data else ''
     )
 
-    if is_boss:
+    pvp = is_pvp_enemy(extra_data)
+    pvp_named = pvp and is_pvp_identity_known(extra_data)
+    if pvp:
+        foe = (
+            creature_name
+            if pvp_named and creature_name
+            else "an enemy adventurer"
+        )
+        kill_context = (
+            f"Your party just defeated {foe} of the "
+            f"opposing faction in an open-world clash."
+        )
+    elif is_boss:
         kill_context = (
             f"Your party just killed the boss "
             f"{creature_name}! This was a big fight."
@@ -871,7 +899,7 @@ def build_kill_reaction_prompt(
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
-        f"- Can mention the creature by name\n"
+        f"{_enemy_name_rule(pvp, pvp_named, 'creature')}"
         f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
@@ -1073,7 +1101,14 @@ def build_combat_reaction_prompt(
     if chat_history:
         rp_context += f"{chat_history}\n"
 
-    if is_boss:
+    pvp = is_pvp_enemy(extra_data)
+    if pvp:
+        combat_context = (
+            f"Your group just clashed with "
+            f"{creature_name}, an adventurer of the "
+            f"opposing faction, out in the open world."
+        )
+    elif is_boss:
         combat_context = (
             f"Your group just engaged "
             f"{creature_name}, a powerful boss! "
@@ -1096,6 +1131,11 @@ def build_combat_reaction_prompt(
         style = (
             "Shout a brief battle cry or combat "
             "remark in-character."
+        )
+    elif pvp:
+        style = (
+            "Say something quick in party chat "
+            "as the fight starts. Casual and natural."
         )
     else:
         style = (
@@ -2105,6 +2145,7 @@ def build_player_response_prompt(
     stored_tone=None,
     memories=None,
     travel_context="",
+    brief_casual=False,
 ):
     """Build prompt for a bot responding to a real
     player's party chat message. The bot should
@@ -2115,7 +2156,7 @@ def build_player_response_prompt(
     tone = stored_tone or pick_random_tone(mode)
     twist = maybe_get_creative_twist(
         chance=1.0, mode=mode
-    )
+    ) if not brief_casual else None
 
 
     rp_context = ""
@@ -2286,7 +2327,13 @@ def build_player_response_prompt(
         f"\"{player_message}\"\n\n"
         f"{style}\n\n"
         f"Reply in party chat.\n"
-        f"{_pick_length_hint(mode)}\n"
+        + (
+            "Length: 2-8 words, no more than 50 characters.\n"
+            if brief_casual
+            else f"{_pick_length_hint(mode)}\n"
+        )
+        + f"{build_conversational_scale_guidance(force_brief=brief_casual)}\n"
+        +
         f"Rules:\n"
         f"- No quotes, no emojis\n"
         f"- Respond to what {player_name} said\n"
@@ -2315,7 +2362,9 @@ def build_player_response_prompt(
             + "; ".join(spices)
         )
     return append_json_instruction(
-        prompt, allow_action
+        prompt,
+        allow_action,
+        allow_emote_only=brief_casual,
     )
 
 def build_resurrect_reaction_prompt(
@@ -3320,10 +3369,45 @@ def build_aggro_loss_callout_prompt(
     if chat_history:
         rp_context += f"{chat_history}\n"
 
-    situation = (
-        f"You are the tank but {target_name} "
-        f"is now attacking {aggro_target}."
+    # Players have no threat table: in PvP this is an
+    # enemy switching targets, not a lost-aggro mob.
+    pvp_switch = (
+        is_pvp_enemy(extra_data)
+        and (extra_data or {}).get('callout_kind')
+            == 'pvp_target_switch'
     )
+    if pvp_switch:
+        foe = target_name or "An unseen enemy"
+        situation = (
+            f"{foe} just switched targets and is now "
+            f"going after {aggro_target}."
+        )
+        reaction = (
+            "React with urgency — warn the group, "
+            "help protect them, or call out the "
+            "switch.\n"
+        )
+        names = (
+            f"- Can mention {target_name} or "
+            f"{aggro_target} by name\n"
+            if target_name
+            else f"- Can mention {aggro_target} by "
+            f"name; do not name the enemy\n"
+        )
+    else:
+        situation = (
+            f"You are the tank but {target_name} "
+            f"is now attacking {aggro_target}."
+        )
+        reaction = (
+            "React with urgency — warn the group, "
+            "try to get the mob's attention back, "
+            "or call out the danger.\n"
+        )
+        names = (
+            f"- Can mention {target_name} or "
+            f"{aggro_target} by name\n"
+        )
 
     prompt = (
         f"{build_player_prompt_header_from_dict(bot, mode)}\n"
@@ -3338,15 +3422,12 @@ def build_aggro_loss_callout_prompt(
     prompt += (
         f"{rp_context}\n\n"
         f"{situation}\n\n"
-        f"React with urgency — warn the group, "
-        f"try to get the mob's attention back, "
-        f"or call out the danger.\n"
+        f"{reaction}"
         f"Say ONE short sentence in party chat.\n"
         f"Rules:\n"
         f"- Extremely brief, 3-10 words\n"
         f"- No quotes, no emojis\n"
-        f"- Can mention {target_name} or "
-        f"{aggro_target} by name\n"
+        f"{names}"
         f"- Reflect your personality traits"
     )
     return append_json_instruction(
@@ -4040,6 +4121,7 @@ def build_player_msg_conversation_prompt(
     speaker_talent_context=None,
     target_talent_context=None,
     zone_id=0, area_id=0, map_id=0,
+    brief_casual=False,
 ):
     """Build prompt for a multi-bot conversation
     responding to a player's party chat message.
@@ -4157,7 +4239,9 @@ def build_player_msg_conversation_prompt(
         msg_count, mode
     )
     length_seq = (
-        generate_conversation_length_sequence(
+        ["2-8 words, max 50 chars"] * msg_count
+        if brief_casual
+        else generate_conversation_length_sequence(
             msg_count
         )
     )
@@ -4192,7 +4276,11 @@ def build_player_msg_conversation_prompt(
             )
 
     # Style guidance
-    length_hint = _pick_length_hint(mode)
+    length_hint = (
+        "2-8 words, no more than 50 characters"
+        if brief_casual
+        else _pick_length_hint(mode)
+    )
     if is_rp:
         parts.append(
             "\nGuidelines: Stay in-character for "
@@ -4205,6 +4293,9 @@ def build_player_msg_conversation_prompt(
             "people chatting in a game; casual "
             f"and relaxed; {length_hint}; "
         )
+    parts.append(build_conversational_scale_guidance(
+        force_brief=brief_casual,
+    ))
 
     parts.append(
         "Rules:\n"
@@ -4272,12 +4363,18 @@ def build_player_msg_conversation_prompt(
             "field in this response."
         )
 
+    message_example = "" if brief_casual else "..."
+    action_example = (
+        '"action": "..."'
+        if allow_action
+        else '"action": null'
+    )
     example_msgs = ',\n  '.join(
         [
             f'{{"speaker": "{name}", '
-            f'"message": "...", '
+            f'"message": "{message_example}", '
             f'"emote": "nod", '
-            f'"action": "..."}}'
+            f'{action_example}}}'
             for name in bot_names
         ]
     )
@@ -4289,6 +4386,13 @@ def build_player_msg_conversation_prompt(
         f"an optional \"emote\" field (one of: "
         f"{EMOTE_LIST_STR}). Pick an emote that "
         f"fits the message mood, or omit it.\n"
+        + (
+            "For a brief casual reaction, an empty message with one "
+            "non-null emote is valid. Never leave both empty.\n"
+            if brief_casual
+            else ""
+        )
+        +
         f"{action_text}\n"
         "IMPORTANT: do NOT put *narrator text* "
         "or *physical actions* inside any "

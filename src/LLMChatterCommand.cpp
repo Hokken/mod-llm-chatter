@@ -9,14 +9,21 @@
 #include "DatabaseEnv.h"
 #include "LLMChatterConfig.h"
 #include "LLMChatterShared.h"
+#include "Log.h"
+#include "WorldSession.h"
 #include "Player.h"
+#include "PlayerScript.h"
 #include "ScriptMgr.h"
 
 #include <algorithm>
+#include <array>
 #include <cctype>
+#include <ctime>
 #include <limits>
+#include <mutex>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 using namespace Acore::ChatCommands;
@@ -24,6 +31,28 @@ using namespace Acore::ChatCommands;
 namespace
 {
 std::string const kAddonPrefix = "CHATTER_ADDON";
+
+// Trait columns are VARCHAR(64), which MySQL counts in
+// characters, so the server limit is counted the same way.
+constexpr size_t kMaxTraitChars = 64;
+constexpr size_t kMaxBackstoryChars = 1000;
+
+// Chunked upload caps. The 3.3.5 client truncates outgoing
+// chat at 255 characters, and `put <guid> t1 12 12 ` eats
+// about 30 of those, so 200 leaves comfortable headroom.
+constexpr size_t kMaxChunkLength = 200;
+constexpr uint32 kMaxChunksPerField = 64;
+
+// A UTF-8 character is at most 4 bytes and each byte
+// percent-encodes to 3 characters, so the longest valid
+// backstory must fit even when every character is 4 bytes.
+// A chunk never splits a %XX escape, so on fully escaped
+// text it can end up to 2 characters short of the cap.
+static_assert(
+    kMaxBackstoryChars * 4 * 3
+        <= (kMaxChunkLength - 2) * kMaxChunksPerField,
+    "chunk capacity cannot carry a maximum-length backstory");
+constexpr time_t kPendingEditTtlSeconds = 60;
 
 struct BotProfile
 {
@@ -63,6 +92,20 @@ std::string Trim(std::string value)
             .base(),
         value.end());
     return value;
+}
+
+// Counts UTF-8 codepoints, not bytes, so that a limit
+// expressed in characters matches what MySQL enforces on a
+// VARCHAR column. Continuation bytes are 10xxxxxx.
+size_t Utf8CharCount(std::string const& value)
+{
+    size_t count = 0;
+    for (unsigned char ch : value)
+    {
+        if ((ch & 0xC0) != 0x80)
+            ++count;
+    }
+    return count;
 }
 
 bool IsHexChar(char ch)
@@ -111,6 +154,9 @@ std::string PercentEncode(std::string const& input)
     return out;
 }
 
+// Also accepts ~FX for bytes 0xF0-0xFF. The 3.3.5 client
+// replaces %f (focus name) in outgoing chat, upper case
+// included, so the addon cannot send those bytes as %FX.
 std::string PercentDecode(std::string const& input)
 {
     if (input == "-")
@@ -121,7 +167,13 @@ std::string PercentDecode(std::string const& input)
 
     for (size_t i = 0; i < input.size(); ++i)
     {
-        if (input[i] == '%'
+        bool const isEscape =
+            input[i] == '%'
+            || (input[i] == '~'
+                && i + 1 < input.size()
+                && (input[i + 1] == 'F'
+                    || input[i + 1] == 'f'));
+        if (isEscape
             && i + 2 < input.size()
             && IsHexChar(input[i + 1])
             && IsHexChar(input[i + 2]))
@@ -307,13 +359,78 @@ bool ValidateField(
         return false;
     }
 
-    if (value.size() > maxLen)
+    if (Utf8CharCount(value) > maxLen)
     {
         SendAddonLine(
             handler,
             "ERROR validation "
             + PercentEncode(
                 label + " is too long"));
+        return false;
+    }
+
+    return true;
+}
+
+// Checks a whole trait set without touching the database, so
+// an edit can be rejected as a unit before any of it is
+// written.
+bool ValidateTraitValues(
+    ChatHandler* handler,
+    std::string const& trait1,
+    std::string const& trait2,
+    std::string const& trait3)
+{
+    return ValidateField(
+               handler, "Trait 1", trait1, kMaxTraitChars)
+        && ValidateField(
+               handler, "Trait 2", trait2, kMaxTraitChars)
+        && ValidateField(
+               handler, "Trait 3", trait3, kMaxTraitChars);
+}
+
+// The backstory half of the same check. The traits passed in
+// are the ones the bot will end up with, which for a combined
+// edit are the incoming values rather than the stored ones:
+// a story may not be saved onto a bot with no traits, because
+// the upsert behind it would write blanks over them.
+bool ValidateBackstoryValue(
+    ChatHandler* handler,
+    std::string const& trait1,
+    std::string const& trait2,
+    std::string const& trait3,
+    std::string const& backstory)
+{
+    if (backstory.empty())
+    {
+        SendAddonLine(
+            handler,
+            "ERROR validation "
+            + PercentEncode(
+                "Backstory cannot be empty"));
+        return false;
+    }
+
+    if (Utf8CharCount(backstory) > kMaxBackstoryChars)
+    {
+        SendAddonLine(
+            handler,
+            "ERROR validation "
+            + PercentEncode(
+                "Backstory is too long "
+                "(max 1000 chars)"));
+        return false;
+    }
+
+    if (trait1.empty() || trait2.empty() || trait3.empty())
+    {
+        SendAddonLine(
+            handler,
+            "ERROR validation "
+            + PercentEncode(
+                "Bot has no traits yet. "
+                "Invite them to a group "
+                "first."));
         return false;
     }
 
@@ -426,6 +543,388 @@ bool HandleGetCommand(
     return true;
 }
 
+// One profile edit — traits, a backstory, or both — checked
+// as a whole and written as a single transaction, together with
+// any regeneration jobs it needs. Nothing is reported to the
+// addon until that transaction has committed, so a failed or
+// racing write can never leave half an edit applied or announce
+// one that did not happen.
+struct ProfileEdit
+{
+    uint32 playerGuid = 0;
+    // The stored profile, as loaded before the edit.
+    BotProfile profile;
+
+    bool hasTraits = false;
+    bool traitsChanged = false;
+    std::string trait1;
+    std::string trait2;
+    std::string trait3;
+
+    bool hasBackstory = false;
+    std::string backstory;
+};
+
+bool BeginProfileEdit(
+    ChatHandler* handler,
+    uint32 playerGuid,
+    uint32 botGuid,
+    ProfileEdit& edit)
+{
+    edit.playerGuid = playerGuid;
+    if (!LoadBotProfile(botGuid, edit.profile))
+    {
+        SendAddonLine(
+            handler,
+            "ERROR missing "
+            + PercentEncode(
+                "Could not load that bot profile"));
+        return false;
+    }
+
+    edit.trait1 = edit.profile.trait1;
+    edit.trait2 = edit.profile.trait2;
+    edit.trait3 = edit.profile.trait3;
+    return true;
+}
+
+bool StageTraitEdit(
+    ChatHandler* handler,
+    ProfileEdit& edit,
+    std::string const& trait1,
+    std::string const& trait2,
+    std::string const& trait3)
+{
+    if (!ValidateTraitValues(
+            handler, trait1, trait2, trait3))
+    {
+        return false;
+    }
+
+    edit.hasTraits = true;
+    edit.trait1 = trait1;
+    edit.trait2 = trait2;
+    edit.trait3 = trait3;
+    edit.traitsChanged =
+        (trait1 != edit.profile.trait1
+         || trait2 != edit.profile.trait2
+         || trait3 != edit.profile.trait3);
+    return true;
+}
+
+// Stage traits first in a combined edit: the story is checked
+// against the traits the bot will end up with.
+bool StageBackstoryEdit(
+    ChatHandler* handler,
+    ProfileEdit& edit,
+    std::string const& backstory)
+{
+    if (!ValidateBackstoryValue(
+            handler, edit.trait1, edit.trait2,
+            edit.trait3, backstory))
+    {
+        return false;
+    }
+
+    edit.hasBackstory = true;
+    edit.backstory = backstory;
+    return true;
+}
+
+void AppendTraitWrites(
+    CharacterDatabaseTransaction trans,
+    ProfileEdit const& edit)
+{
+    uint32 botGuid = edit.profile.guid;
+    std::string const& trait1 = edit.trait1;
+    std::string const& trait2 = edit.trait2;
+    std::string const& trait3 = edit.trait3;
+
+    if (edit.traitsChanged)
+    {
+        // Traits changed — clear tone/backstory
+        // so they regenerate for the new traits
+        trans->Append(
+            "INSERT INTO llm_bot_identities "
+            "(bot_guid, bot_name, trait1, trait2, "
+            " trait3, tone, farewell_msg, backstory,"
+            " identity_version) "
+            "VALUES ({}, '{}', '{}', '{}', '{}', "
+            "        NULL, NULL, NULL, {}) "
+            "ON DUPLICATE KEY UPDATE "
+            " bot_name = VALUES(bot_name), "
+            " trait1 = VALUES(trait1), "
+            " trait2 = VALUES(trait2), "
+            " trait3 = VALUES(trait3), "
+            " tone = NULL, "
+            " farewell_msg = NULL, "
+            " backstory = NULL",
+            botGuid,
+            EscapeString(edit.profile.name),
+            EscapeString(trait1),
+            EscapeString(trait2),
+            EscapeString(trait3),
+            sConfigMgr->GetOption<uint32>(
+                "LLMChatter.Memory.IdentityVersion",
+                1));
+
+        trans->Append(
+            "UPDATE llm_group_bot_traits "
+            "SET bot_name = '{}', "
+            "    trait1 = '{}', "
+            "    trait2 = '{}', "
+            "    trait3 = '{}', "
+            "    tone = NULL, "
+            "    farewell_msg = NULL, "
+            "    backstory = NULL "
+            "WHERE bot_guid = {}",
+            EscapeString(edit.profile.name),
+            EscapeString(trait1),
+            EscapeString(trait2),
+            EscapeString(trait3),
+            botGuid);
+
+        trans->Append(
+            "DELETE FROM llm_group_cached_responses "
+            "WHERE bot_guid = {}",
+            botGuid);
+    }
+    else
+    {
+        // Traits unchanged — just save name,
+        // preserve tone/backstory/farewell as-is
+        trans->Append(
+            "INSERT INTO llm_bot_identities "
+            "(bot_guid, bot_name, trait1, trait2, "
+            " trait3, identity_version) "
+            "VALUES ({}, '{}', '{}', '{}', '{}', {})"
+            " ON DUPLICATE KEY UPDATE "
+            " bot_name = VALUES(bot_name), "
+            " trait1 = VALUES(trait1), "
+            " trait2 = VALUES(trait2), "
+            " trait3 = VALUES(trait3)",
+            botGuid,
+            EscapeString(edit.profile.name),
+            EscapeString(trait1),
+            EscapeString(trait2),
+            EscapeString(trait3),
+            sConfigMgr->GetOption<uint32>(
+                "LLMChatter.Memory.IdentityVersion",
+                1));
+
+        trans->Append(
+            "UPDATE llm_group_bot_traits "
+            "SET bot_name = '{}', "
+            "    trait1 = '{}', "
+            "    trait2 = '{}', "
+            "    trait3 = '{}' "
+            "WHERE bot_guid = {}",
+            EscapeString(edit.profile.name),
+            EscapeString(trait1),
+            EscapeString(trait2),
+            EscapeString(trait3),
+            botGuid);
+    }
+}
+
+void AppendBackstoryWrites(
+    CharacterDatabaseTransaction trans,
+    ProfileEdit const& edit)
+{
+    uint32 botGuid = edit.profile.guid;
+
+    // Upsert identity row — creates it if the
+    // bot only exists via memories/session traits
+    trans->Append(
+        "INSERT INTO llm_bot_identities "
+        "(bot_guid, bot_name, trait1, trait2, "
+        " trait3, backstory, identity_version) "
+        "VALUES ({}, '{}', '{}', '{}', '{}', "
+        "        '{}', {}) "
+        "ON DUPLICATE KEY UPDATE "
+        " backstory = VALUES(backstory)",
+        botGuid,
+        EscapeString(edit.profile.name),
+        EscapeString(edit.trait1),
+        EscapeString(edit.trait2),
+        EscapeString(edit.trait3),
+        EscapeString(edit.backstory),
+        sConfigMgr->GetOption<uint32>(
+            "LLMChatter.Memory.IdentityVersion",
+            1));
+
+    trans->Append(
+        "UPDATE llm_group_bot_traits "
+        "SET backstory = '{}' "
+        "WHERE bot_guid = {}",
+        EscapeString(edit.backstory),
+        botGuid);
+}
+
+// Changed traits clear tone and backstory, so the jobs that
+// regenerate them belong to the same transaction: they exist
+// exactly when the cleared profile does, whatever happens to
+// the player's session afterwards.
+void AppendRegenerationEvents(
+    CharacterDatabaseTransaction trans,
+    ProfileEdit const& edit)
+{
+    if (!edit.traitsChanged)
+        return;
+
+    uint32 botGuid = edit.profile.guid;
+    std::string regenExtra =
+        "{\"bot_guid\": "
+        + std::to_string(botGuid)
+        + ", \"player_guid\": "
+        + std::to_string(edit.playerGuid)
+        + "}";
+
+    // Queue tone regen first (faster than backstory)
+    AppendChatterEvent(
+        trans,
+        "bot_tone_regen",
+        "player",
+        0, 0, 5, "",
+        botGuid, "",
+        0, "", 0,
+        regenExtra,
+        5, 120, true);
+
+    // Queue backstory regen for new traits, unless this
+    // edit brought a story of its own. The worker starts
+    // by clearing whatever is stored, so scheduling it
+    // here would discard the supplied text minutes later.
+    if (!edit.hasBackstory)
+    {
+        AppendChatterEvent(
+            trans,
+            "bot_backstory_regen",
+            "player",
+            0, 0, 5, "",
+            botGuid, "",
+            0, "", 0,
+            regenExtra,
+            5, 120, true);
+    }
+}
+
+// The addon's answer to a committed edit. Purely a
+// notification: the edit and its regeneration jobs are already
+// persisted by the time this runs, if it runs at all.
+void ReportProfileEdit(
+    ChatHandler* handler, ProfileEdit const& edit)
+{
+    BotProfile const& profile = edit.profile;
+    uint32 botGuid = profile.guid;
+    std::string toneToSend =
+        edit.traitsChanged ? "" : profile.tone;
+
+    if (edit.hasTraits)
+    {
+        SendAddonLine(
+            handler,
+            "UPDATED "
+            + std::to_string(botGuid)
+            + " "
+            + PercentEncode(profile.name)
+            + " "
+            + (edit.traitsChanged
+                ? "changed" : "unchanged"));
+        SendAddonLine(
+            handler,
+            "PROFILE "
+            + std::to_string(botGuid)
+            + " " + PercentEncode(profile.name)
+            + " " + PercentEncode(edit.trait1)
+            + " " + PercentEncode(edit.trait2)
+            + " " + PercentEncode(edit.trait3)
+            + " " + PercentEncode(toneToSend));
+        if (!edit.traitsChanged && !edit.hasBackstory)
+        {
+            SendAddonLine(
+                handler,
+                "BACKSTORY "
+                + std::to_string(botGuid)
+                + " "
+                + PercentEncode(profile.backstory));
+        }
+    }
+
+    if (edit.hasBackstory)
+    {
+        SendAddonLine(
+            handler,
+            "BACKSTORY_SAVED "
+            + std::to_string(botGuid)
+            + " "
+            + PercentEncode(profile.name));
+        SendAddonLine(
+            handler,
+            "PROFILE "
+            + std::to_string(botGuid)
+            + " " + PercentEncode(profile.name)
+            + " " + PercentEncode(edit.trait1)
+            + " " + PercentEncode(edit.trait2)
+            + " " + PercentEncode(edit.trait3)
+            + " " + PercentEncode(toneToSend));
+        SendAddonLine(
+            handler,
+            "BACKSTORY "
+            + std::to_string(botGuid)
+            + " " + PercentEncode(edit.backstory));
+    }
+}
+
+void CommitProfileEdit(
+    ChatHandler* handler, ProfileEdit edit)
+{
+    WorldSession* session = handler->GetSession();
+
+    CharacterDatabaseTransaction trans =
+        CharacterDatabase.BeginTransaction();
+    if (edit.hasTraits)
+        AppendTraitWrites(trans, edit);
+    if (edit.hasBackstory)
+        AppendBackstoryWrites(trans, edit);
+    AppendRegenerationEvents(trans, edit);
+
+    // The callback is owned by the session and only ever runs
+    // from its update, so the captured pointer outlives it. A
+    // session that goes offline first drops the callback
+    // unrun; that only loses the addon reply, because
+    // everything the edit persists, regeneration jobs
+    // included, is already in the transaction.
+    session->AddTransactionCallback(
+        CharacterDatabase.AsyncCommitTransaction(trans))
+        .AfterComplete(
+            [session, edit = std::move(edit)](bool success)
+            {
+                ChatHandler sessionHandler(session);
+                ChatHandler* replyTo =
+                    session->GetPlayer()
+                        ? &sessionHandler : nullptr;
+
+                if (!success)
+                {
+                    LOG_ERROR(
+                        "module",
+                        "LLMChatter: profile edit for bot {} "
+                        "failed to commit; nothing was applied",
+                        edit.profile.guid);
+                    SendAddonLine(
+                        replyTo,
+                        "ERROR save "
+                        + PercentEncode(
+                            "Could not save the profile, "
+                            "please try again"));
+                    return;
+                }
+
+                ReportProfileEdit(replyTo, edit);
+            });
+}
+
 bool HandleSetCommand(
     ChatHandler* handler, std::string const& args)
 {
@@ -463,173 +962,20 @@ bool HandleSetCommand(
         return true;
     }
 
-    if (!ValidateField(handler, "Trait 1", trait1, 64)
-        || !ValidateField(handler, "Trait 2", trait2, 64)
-        || !ValidateField(handler, "Trait 3", trait3, 64))
+    // The addon hears the outcome on the UPDATED or ERROR
+    // line. The command itself understood its input either
+    // way, and returning false here would make the core
+    // print its own usage text over that answer.
+    ProfileEdit edit;
+    if (BeginProfileEdit(handler, playerGuid, botGuid, edit)
+        && StageTraitEdit(
+            handler, edit, trait1, trait2, trait3))
     {
-        return true;
-    }
-
-    BotProfile profile;
-    if (!LoadBotProfile(botGuid, profile))
-    {
-        SendAddonLine(
-            handler,
-            "ERROR missing "
-            + PercentEncode(
-                "Could not load that bot profile"));
-        return true;
-    }
-
-    bool traitsChanged =
-        (trait1 != profile.trait1
-         || trait2 != profile.trait2
-         || trait3 != profile.trait3);
-
-    if (traitsChanged)
-    {
-        // Traits changed — clear tone/backstory
-        // so they regenerate for the new traits
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_bot_identities "
-            "(bot_guid, bot_name, trait1, trait2, "
-            " trait3, tone, farewell_msg, backstory,"
-            " identity_version) "
-            "VALUES ({}, '{}', '{}', '{}', '{}', "
-            "        NULL, NULL, NULL, {}) "
-            "ON DUPLICATE KEY UPDATE "
-            " bot_name = VALUES(bot_name), "
-            " trait1 = VALUES(trait1), "
-            " trait2 = VALUES(trait2), "
-            " trait3 = VALUES(trait3), "
-            " tone = NULL, "
-            " farewell_msg = NULL, "
-            " backstory = NULL",
-            botGuid,
-            EscapeString(profile.name),
-            EscapeString(trait1),
-            EscapeString(trait2),
-            EscapeString(trait3),
-            sConfigMgr->GetOption<uint32>(
-                "LLMChatter.Memory.IdentityVersion",
-                1));
-
-        CharacterDatabase.Execute(
-            "UPDATE llm_group_bot_traits "
-            "SET bot_name = '{}', "
-            "    trait1 = '{}', "
-            "    trait2 = '{}', "
-            "    trait3 = '{}', "
-            "    tone = NULL, "
-            "    farewell_msg = NULL, "
-            "    backstory = NULL "
-            "WHERE bot_guid = {}",
-            EscapeString(profile.name),
-            EscapeString(trait1),
-            EscapeString(trait2),
-            EscapeString(trait3),
-            botGuid);
-
-        CharacterDatabase.Execute(
-            "DELETE FROM llm_group_cached_responses "
-            "WHERE bot_guid = {}",
-            botGuid);
-
-        // Queue tone regen first (faster than backstory)
-        std::string regenExtra =
-            "{\"bot_guid\": "
-            + std::to_string(botGuid)
-            + ", \"player_guid\": "
-            + std::to_string(playerGuid)
-            + "}";
-        QueueChatterEvent(
-            "bot_tone_regen",
-            "player",
-            0, 0, 5, "",
-            botGuid, "",
-            0, "", 0,
-            regenExtra,
-            5, 120, true);
-
-        // Queue backstory regen for new traits
-        QueueChatterEvent(
-            "bot_backstory_regen",
-            "player",
-            0, 0, 5, "",
-            botGuid, "",
-            0, "", 0,
-            regenExtra,
-            5, 120, true);
-    }
-    else
-    {
-        // Traits unchanged — just save name,
-        // preserve tone/backstory/farewell as-is
-        CharacterDatabase.Execute(
-            "INSERT INTO llm_bot_identities "
-            "(bot_guid, bot_name, trait1, trait2, "
-            " trait3, identity_version) "
-            "VALUES ({}, '{}', '{}', '{}', '{}', {})"
-            " ON DUPLICATE KEY UPDATE "
-            " bot_name = VALUES(bot_name), "
-            " trait1 = VALUES(trait1), "
-            " trait2 = VALUES(trait2), "
-            " trait3 = VALUES(trait3)",
-            botGuid,
-            EscapeString(profile.name),
-            EscapeString(trait1),
-            EscapeString(trait2),
-            EscapeString(trait3),
-            sConfigMgr->GetOption<uint32>(
-                "LLMChatter.Memory.IdentityVersion",
-                1));
-
-        CharacterDatabase.Execute(
-            "UPDATE llm_group_bot_traits "
-            "SET bot_name = '{}', "
-            "    trait1 = '{}', "
-            "    trait2 = '{}', "
-            "    trait3 = '{}' "
-            "WHERE bot_guid = {}",
-            EscapeString(profile.name),
-            EscapeString(trait1),
-            EscapeString(trait2),
-            EscapeString(trait3),
-            botGuid);
-    }
-
-    std::string changedFlag =
-        traitsChanged ? "changed" : "unchanged";
-    SendAddonLine(
-        handler,
-        "UPDATED "
-        + std::to_string(botGuid)
-        + " "
-        + PercentEncode(profile.name)
-        + " "
-        + changedFlag);
-    std::string toneToSend =
-        traitsChanged ? "" : profile.tone;
-    SendAddonLine(
-        handler,
-        "PROFILE "
-        + std::to_string(botGuid)
-        + " " + PercentEncode(profile.name)
-        + " " + PercentEncode(trait1)
-        + " " + PercentEncode(trait2)
-        + " " + PercentEncode(trait3)
-        + " " + PercentEncode(toneToSend));
-    if (!traitsChanged)
-    {
-        SendAddonLine(
-            handler,
-            "BACKSTORY "
-            + std::to_string(botGuid)
-            + " "
-            + PercentEncode(profile.backstory));
+        CommitProfileEdit(handler, std::move(edit));
     }
     return true;
 }
+
 bool HandleSetBackstoryCommand(
     ChatHandler* handler, std::string const& args)
 {
@@ -681,105 +1027,13 @@ bool HandleSetBackstoryCommand(
         return true;
     }
 
-    std::string backstory =
-        Trim(PercentDecode(bsToken));
-    if (backstory.empty())
+    ProfileEdit edit;
+    if (BeginProfileEdit(handler, playerGuid, botGuid, edit)
+        && StageBackstoryEdit(
+            handler, edit, Trim(PercentDecode(bsToken))))
     {
-        SendAddonLine(
-            handler,
-            "ERROR validation "
-            + PercentEncode(
-                "Backstory cannot be empty"));
-        return true;
+        CommitProfileEdit(handler, std::move(edit));
     }
-
-    if (backstory.size() > 1000)
-    {
-        SendAddonLine(
-            handler,
-            "ERROR validation "
-            + PercentEncode(
-                "Backstory is too long "
-                "(max 1000 chars)"));
-        return true;
-    }
-
-    BotProfile profile;
-    if (!LoadBotProfile(botGuid, profile))
-    {
-        SendAddonLine(
-            handler,
-            "ERROR missing "
-            + PercentEncode(
-                "Could not load that bot "
-                "profile"));
-        return true;
-    }
-
-    // Reject if bot has no traits — upserting an
-    // identity with blank traits would poison
-    // future trait assignment
-    if (profile.trait1.empty()
-        || profile.trait2.empty()
-        || profile.trait3.empty())
-    {
-        SendAddonLine(
-            handler,
-            "ERROR validation "
-            + PercentEncode(
-                "Bot has no traits yet. "
-                "Invite them to a group "
-                "first."));
-        return true;
-    }
-
-    // Upsert identity row — creates it if the
-    // bot only exists via memories/session traits
-    CharacterDatabase.Execute(
-        "INSERT INTO llm_bot_identities "
-        "(bot_guid, bot_name, trait1, trait2, "
-        " trait3, backstory, identity_version) "
-        "VALUES ({}, '{}', '{}', '{}', '{}', "
-        "        '{}', {}) "
-        "ON DUPLICATE KEY UPDATE "
-        " backstory = VALUES(backstory)",
-        botGuid,
-        EscapeString(profile.name),
-        EscapeString(profile.trait1),
-        EscapeString(profile.trait2),
-        EscapeString(profile.trait3),
-        EscapeString(backstory),
-        sConfigMgr->GetOption<uint32>(
-            "LLMChatter.Memory.IdentityVersion",
-            1));
-
-    CharacterDatabase.Execute(
-        "UPDATE llm_group_bot_traits "
-        "SET backstory = '{}' "
-        "WHERE bot_guid = {}",
-        EscapeString(backstory),
-        botGuid);
-
-    SendAddonLine(
-        handler,
-        "BACKSTORY_SAVED "
-        + std::to_string(botGuid)
-        + " "
-        + PercentEncode(profile.name));
-    SendAddonLine(
-        handler,
-        "PROFILE "
-        + std::to_string(profile.guid)
-        + " " + PercentEncode(profile.name)
-        + " " + PercentEncode(profile.trait1)
-        + " " + PercentEncode(profile.trait2)
-        + " " + PercentEncode(profile.trait3)
-        + " " + PercentEncode(profile.tone));
-    SendAddonLine(
-        handler,
-        "BACKSTORY "
-        + std::to_string(profile.guid)
-        + " " + PercentEncode(backstory));
     return true;
 }
 
@@ -918,6 +1172,371 @@ bool HandleForgetCommand(
         + PercentEncode(botName));
     return true;
 }
+
+// --- Chunked profile upload -------------------------------
+// The 3.3.5 client cuts outgoing chat at 255 characters, so
+// a percent-encoded profile does not always fit in a single
+// `.llmc set` line. Oversized edits arrive one `put` at a
+// time, are staged per player, and are applied by `commit`
+// through the very same write paths the single-shot
+// commands use.
+
+enum ProfileField : uint8
+{
+    PROFILE_FIELD_TRAIT1 = 0,
+    PROFILE_FIELD_TRAIT2 = 1,
+    PROFILE_FIELD_TRAIT3 = 2,
+    PROFILE_FIELD_BACKSTORY = 3,
+    PROFILE_FIELD_COUNT = 4
+};
+
+struct PendingProfileEdit
+{
+    uint32 botGuid = 0;
+    std::array<std::vector<std::string>,
+        PROFILE_FIELD_COUNT> chunks;
+    std::array<uint32, PROFILE_FIELD_COUNT> expected{};
+    time_t lastActivity = 0;
+};
+
+// `.llmc` runs on the world thread (CMSG_MESSAGECHAT is
+// PROCESS_THREADUNSAFE), so the mutex is defensive.
+std::mutex g_pendingEditsMutex;
+std::unordered_map<uint32, PendingProfileEdit>
+    g_pendingEdits;
+
+void ResetPendingEdit(
+    PendingProfileEdit& edit, uint32 botGuid)
+{
+    edit.botGuid = botGuid;
+    for (uint8 field = 0; field < PROFILE_FIELD_COUNT;
+         ++field)
+    {
+        edit.chunks[field].clear();
+        edit.expected[field] = 0;
+    }
+}
+
+// Caller must hold g_pendingEditsMutex.
+void PrunePendingEdits(time_t now)
+{
+    for (auto it = g_pendingEdits.begin();
+         it != g_pendingEdits.end();)
+    {
+        if (now - it->second.lastActivity
+            > kPendingEditTtlSeconds)
+            it = g_pendingEdits.erase(it);
+        else
+            ++it;
+    }
+}
+
+bool ParseFieldToken(
+    std::string const& token, uint8& outField)
+{
+    if (token == "t1")
+        outField = PROFILE_FIELD_TRAIT1;
+    else if (token == "t2")
+        outField = PROFILE_FIELD_TRAIT2;
+    else if (token == "t3")
+        outField = PROFILE_FIELD_TRAIT3;
+    else if (token == "bs")
+        outField = PROFILE_FIELD_BACKSTORY;
+    else
+        return false;
+
+    return true;
+}
+
+bool ParseChunkIndex(
+    std::string const& token, uint32& outValue)
+{
+    if (token.empty() || token.size() > 2)
+        return false;
+
+    for (char ch : token)
+    {
+        if (!std::isdigit(
+                static_cast<unsigned char>(ch)))
+            return false;
+    }
+
+    outValue = static_cast<uint32>(std::stoul(token));
+    return outValue >= 1
+        && outValue <= kMaxChunksPerField;
+}
+
+bool HandlePutCommand(
+    ChatHandler* handler, std::string const& args)
+{
+    Player* player = handler->GetSession()->GetPlayer();
+    if (!player)
+        return true;
+
+    std::istringstream iss(args);
+    std::string guidToken;
+    std::string fieldToken;
+    std::string seqToken;
+    std::string totalToken;
+    std::string chunk;
+    std::string trailing;
+
+    if (!(iss >> guidToken >> fieldToken >> seqToken
+          >> totalToken >> chunk))
+    {
+        SendAddonLine(
+            handler,
+            "ERROR usage "
+            + PercentEncode(
+                "Usage: .llmc put <botGuid> <field> "
+                "<seq> <total> <chunk>"));
+        return true;
+    }
+
+    if (iss >> trailing)
+    {
+        SendAddonLine(
+            handler,
+            "ERROR chunk "
+            + PercentEncode(
+                "Chunk payload must not contain "
+                "spaces"));
+        return true;
+    }
+
+    uint32 botGuid = 0;
+    uint8 field = 0;
+    uint32 seq = 0;
+    uint32 total = 0;
+    if (!ParseGuidArg(guidToken, botGuid)
+        || !ParseFieldToken(fieldToken, field)
+        || !ParseChunkIndex(seqToken, seq)
+        || !ParseChunkIndex(totalToken, total)
+        || seq > total)
+    {
+        SendAddonLine(
+            handler,
+            "ERROR chunk "
+            + PercentEncode("Malformed chunk header"));
+        return true;
+    }
+
+    if (chunk.size() > kMaxChunkLength)
+    {
+        SendAddonLine(
+            handler,
+            "ERROR chunk "
+            + PercentEncode("Chunk is too long"));
+        return true;
+    }
+
+    uint32 playerGuid =
+        player->GetGUID().GetCounter();
+    if (!IsKnownBotForPlayer(playerGuid, botGuid))
+    {
+        SendAddonLine(
+            handler,
+            "ERROR access "
+            + PercentEncode(
+                "That bot is not in your Chatter roster"));
+        return true;
+    }
+
+    time_t now = time(nullptr);
+    std::lock_guard<std::mutex> guard(
+        g_pendingEditsMutex);
+    PrunePendingEdits(now);
+
+    PendingProfileEdit& edit = g_pendingEdits[playerGuid];
+
+    // A chunk for another bot means the previous upload was
+    // abandoned. Fields are never merged across bots.
+    if (edit.botGuid != botGuid)
+        ResetPendingEdit(edit, botGuid);
+
+    // Slots are addressed by seq, so a resend overwrites in
+    // place instead of corrupting the sequence.
+    if (edit.expected[field] != total)
+    {
+        edit.expected[field] = total;
+        edit.chunks[field].assign(total, "");
+    }
+
+    edit.chunks[field][seq - 1] = chunk;
+    edit.lastActivity = now;
+    return true;
+}
+
+bool HandleCommitCommand(
+    ChatHandler* handler, std::string const& args)
+{
+    Player* player = handler->GetSession()->GetPlayer();
+    if (!player)
+        return true;
+
+    uint32 botGuid = 0;
+    if (!ParseGuidArg(Trim(args), botGuid))
+    {
+        SendAddonLine(
+            handler,
+            "ERROR usage "
+            + PercentEncode(
+                "Usage: .llmc commit <botGuid>"));
+        return true;
+    }
+
+    uint32 playerGuid =
+        player->GetGUID().GetCounter();
+    if (!IsKnownBotForPlayer(playerGuid, botGuid))
+    {
+        SendAddonLine(
+            handler,
+            "ERROR access "
+            + PercentEncode(
+                "That bot is not in your Chatter roster"));
+        return true;
+    }
+
+    PendingProfileEdit edit;
+    {
+        std::lock_guard<std::mutex> guard(
+            g_pendingEditsMutex);
+        PrunePendingEdits(time(nullptr));
+
+        auto it = g_pendingEdits.find(playerGuid);
+        if (it == g_pendingEdits.end()
+            || it->second.botGuid != botGuid)
+        {
+            SendAddonLine(
+                handler,
+                "ERROR chunk "
+                + PercentEncode(
+                    "No staged profile edit for that "
+                    "bot"));
+            return true;
+        }
+
+        // Staging is dropped whether or not the apply below
+        // succeeds, so a rejected upload cannot leak into
+        // the next one.
+        edit = std::move(it->second);
+        g_pendingEdits.erase(it);
+    }
+
+    std::array<std::string, PROFILE_FIELD_COUNT> values;
+    std::array<bool, PROFILE_FIELD_COUNT> staged{};
+
+    for (uint8 field = 0; field < PROFILE_FIELD_COUNT;
+         ++field)
+    {
+        if (!edit.expected[field])
+            continue;
+
+        std::string joined;
+        for (std::string const& part : edit.chunks[field])
+        {
+            if (part.empty())
+            {
+                SendAddonLine(
+                    handler,
+                    "ERROR chunk "
+                    + PercentEncode(
+                        "Upload is incomplete, please "
+                        "save again"));
+                return true;
+            }
+
+            joined += part;
+        }
+
+        values[field] = Trim(PercentDecode(joined));
+        staged[field] = true;
+    }
+
+    bool traitsStaged = staged[PROFILE_FIELD_TRAIT1]
+        || staged[PROFILE_FIELD_TRAIT2]
+        || staged[PROFILE_FIELD_TRAIT3];
+
+    if (!traitsStaged && !staged[PROFILE_FIELD_BACKSTORY])
+    {
+        SendAddonLine(
+            handler,
+            "ERROR chunk "
+            + PercentEncode("Nothing staged to commit"));
+        return true;
+    }
+
+    ProfileEdit profileEdit;
+    if (!BeginProfileEdit(
+            handler, playerGuid, botGuid, profileEdit))
+        return true;
+
+    // Fields the addon did not send keep the values already
+    // stored for the bot.
+    BotProfile const& stored = profileEdit.profile;
+    if (!staged[PROFILE_FIELD_TRAIT1])
+        values[PROFILE_FIELD_TRAIT1] = stored.trait1;
+    if (!staged[PROFILE_FIELD_TRAIT2])
+        values[PROFILE_FIELD_TRAIT2] = stored.trait2;
+    if (!staged[PROFILE_FIELD_TRAIT3])
+        values[PROFILE_FIELD_TRAIT3] = stored.trait3;
+
+    // One edit, one verdict, one transaction. Traits and
+    // backstory are checked together before anything is
+    // written, then committed together, so neither a bad value
+    // nor a failed write can leave half of the edit applied.
+    if (traitsStaged
+        && !StageTraitEdit(
+            handler, profileEdit,
+            values[PROFILE_FIELD_TRAIT1],
+            values[PROFILE_FIELD_TRAIT2],
+            values[PROFILE_FIELD_TRAIT3]))
+    {
+        return true;
+    }
+
+    if (staged[PROFILE_FIELD_BACKSTORY]
+        && !StageBackstoryEdit(
+            handler, profileEdit,
+            values[PROFILE_FIELD_BACKSTORY]))
+    {
+        return true;
+    }
+
+    CommitProfileEdit(handler, std::move(profileEdit));
+    return true;
+}
+
+bool HandleCancelCommand(
+    ChatHandler* handler, std::string const& args)
+{
+    Player* player = handler->GetSession()->GetPlayer();
+    if (!player)
+        return true;
+
+    uint32 botGuid = 0;
+    if (!ParseGuidArg(Trim(args), botGuid))
+    {
+        SendAddonLine(
+            handler,
+            "ERROR usage "
+            + PercentEncode(
+                "Usage: .llmc cancel <botGuid>"));
+        return true;
+    }
+
+    uint32 playerGuid =
+        player->GetGUID().GetCounter();
+
+    std::lock_guard<std::mutex> guard(
+        g_pendingEditsMutex);
+    auto it = g_pendingEdits.find(playerGuid);
+    if (it != g_pendingEdits.end()
+        && it->second.botGuid == botGuid)
+        g_pendingEdits.erase(it);
+
+    return true;
+}
 }  // namespace
 
 class LLMChatterCommandScript : public CommandScript
@@ -970,6 +1589,15 @@ public:
         if (command == "set")
             return HandleSetCommand(handler, rest);
 
+        if (command == "put")
+            return HandlePutCommand(handler, rest);
+
+        if (command == "commit")
+            return HandleCommitCommand(handler, rest);
+
+        if (command == "cancel")
+            return HandleCancelCommand(handler, rest);
+
         if (command == "setbackstory")
             return HandleSetBackstoryCommand(
                 handler, rest);
@@ -987,13 +1615,38 @@ public:
             "ERROR usage "
             + PercentEncode(
                 "Supported commands: roster, "
-                "get, set, setbackstory, "
-                "regenbackstory, forget"));
+                "get, set, put, commit, cancel, "
+                "setbackstory, regenbackstory, "
+                "forget"));
         return true;
+    }
+};
+
+// Staged uploads belong to a session; a logout ends it.
+class LLMChatterCommandPlayerScript : public PlayerScript
+{
+public:
+    LLMChatterCommandPlayerScript()
+        : PlayerScript(
+              "LLMChatterCommandPlayerScript",
+              {PLAYERHOOK_ON_LOGOUT})
+    {
+    }
+
+    void OnPlayerLogout(Player* player) override
+    {
+        if (!player)
+            return;
+
+        std::lock_guard<std::mutex> guard(
+            g_pendingEditsMutex);
+        g_pendingEdits.erase(
+            player->GetGUID().GetCounter());
     }
 };
 
 void AddLLMChatterCommandScripts()
 {
     new LLMChatterCommandScript();
+    new LLMChatterCommandPlayerScript();
 }

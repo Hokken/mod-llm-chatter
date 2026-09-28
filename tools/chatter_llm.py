@@ -13,6 +13,11 @@ from chatter_constants import (
     GOOGLE_OPENAI_BASE_URL,
     OPENROUTER_BASE_URL,
 )
+from llm_compat import (
+    build_chat_options,
+    create_chat_completion,
+    needs_reasoning_token_multiplier,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -93,6 +98,30 @@ def _openrouter_reasoning_enabled(config):
     """Return whether OpenRouter reasoning needs extra output budget."""
     effort = _openrouter_reasoning_effort(config)
     return bool(effort) and effort.lower() != 'none'
+
+
+def compatible_reasoning_effort(provider, config):
+    """Return the effort that can affect parameter compatibility."""
+    if provider == 'openai':
+        return config.get(
+            'LLMChatter.OpenAI.ReasoningEffort', ''
+        )
+    if provider == 'openrouter':
+        return _openrouter_reasoning_effort(config)
+    return None
+
+
+def compatible_reasoning_token_multiplier(provider, config):
+    """Return the retry budget multiplier for direct OpenAI."""
+    if provider != 'openai':
+        return 1.0
+    try:
+        multiplier = float(config.get(
+            'LLMChatter.OpenAI.MaxTokensMultiplier', 4
+        ))
+    except (TypeError, ValueError):
+        multiplier = 4.0
+    return max(1.0, min(multiplier, 8.0))
 
 
 def _apply_openrouter_options(kwargs, config):
@@ -176,11 +205,25 @@ def _apply_google_options(kwargs, config):
         kwargs['reasoning_effort'] = effort
 
 
-def _effective_max_tokens(provider, config, max_tokens):
+def _effective_max_tokens(
+    provider, model, config, max_tokens
+):
     """Adjust provider-specific output budget."""
     if provider == 'google':
         config_key = 'LLMChatter.Google.MaxTokensMultiplier'
         default_multiplier = 2
+    elif (
+        provider == 'openai'
+        and needs_reasoning_token_multiplier(
+            provider,
+            model,
+            compatible_reasoning_effort(provider, config),
+        )
+    ):
+        return int(
+            max_tokens
+            * compatible_reasoning_token_multiplier(provider, config)
+        )
     elif (
         provider == 'openrouter'
         and _openrouter_reasoning_enabled(config)
@@ -200,6 +243,44 @@ def _effective_max_tokens(provider, config, max_tokens):
         multiplier = float(default_multiplier)
     multiplier = max(1.0, min(multiplier, 8.0))
     return int(max_tokens * multiplier)
+
+
+def build_compatible_chat_request(
+    provider,
+    model,
+    messages,
+    config,
+    max_tokens,
+    temperature=None,
+):
+    """Build the production request shape for a compatible provider."""
+    kwargs = {
+        'model': model,
+        'messages': messages,
+    }
+    kwargs.update(build_chat_options(
+        provider,
+        model,
+        _effective_max_tokens(
+            provider, model, config, max_tokens
+        ),
+        temperature=temperature,
+        reasoning_effort=compatible_reasoning_effort(
+            provider, config
+        ),
+    ))
+    if provider == 'google':
+        _apply_google_options(kwargs, config)
+    elif provider == 'openrouter':
+        _apply_openrouter_options(kwargs, config)
+    elif (
+        provider == 'ollama'
+        and str(config.get(
+            'LLMChatter.Ollama.DisableThinking', '1'
+        )).strip() == '1'
+    ):
+        kwargs['reasoning_effort'] = 'none'
+    return kwargs
 
 
 def _extract_chat_content(response, label=''):
@@ -368,11 +449,8 @@ def call_llm(
         max_tokens = max_tokens_override
     else:
         max_tokens = int(
-            config.get('LLMChatter.MaxTokens', 200)
+            config.get('LLMChatter.MaxTokens', 350)
         )
-    request_max_tokens = _effective_max_tokens(
-        provider, config, max_tokens
-    )
     temperature = float(
         config.get('LLMChatter.Temperature', 0.85)
     )
@@ -386,43 +464,30 @@ def call_llm(
             sent_user_msg = _ollama_user_msg(
                 user_msg, config
             )
-            context_size = int(
-                config.get(
-                    'LLMChatter.Ollama'
-                    '.ContextSize', 2048
-                )
-            )
-            response = client.chat.completions.create(
-                model=model,
-                max_tokens=request_max_tokens,
-                temperature=temperature,
-                messages=_build_chat_messages(
+        if provider in (
+            'openai', 'google', 'openrouter', 'ollama'
+        ):
+            kwargs = build_compatible_chat_request(
+                provider,
+                model,
+                _build_chat_messages(
                     sys_msg, sent_user_msg
                 ),
-                extra_body={
-                    "options": {
-                        "num_ctx": context_size
-                    }
-                }
+                config,
+                max_tokens,
+                temperature,
             )
-            result = _extract_chat_content(
-                response, label
-            )
-        elif provider in ('openai', 'google', 'openrouter'):
-            kwargs = {
-                'model': model,
-                'max_tokens': request_max_tokens,
-                'temperature': temperature,
-                'messages': _build_chat_messages(
-                    sys_msg, user_msg
+            response = create_chat_completion(
+                client.chat.completions.create,
+                kwargs,
+                provider,
+                model,
+                logger,
+                reasoning_token_multiplier=(
+                    compatible_reasoning_token_multiplier(
+                        provider, config
+                    )
                 ),
-            }
-            if provider == 'google':
-                _apply_google_options(kwargs, config)
-            elif provider == 'openrouter':
-                _apply_openrouter_options(kwargs, config)
-            response = client.chat.completions.create(
-                **kwargs
             )
             result = _extract_chat_content(
                 response, label
@@ -431,7 +496,7 @@ def call_llm(
             # Anthropic (default)
             kwargs = _build_anthropic_request_kwargs(
                 model,
-                request_max_tokens,
+                max_tokens,
                 temperature,
                 sys_msg,
                 user_msg,
@@ -656,51 +721,30 @@ def quick_llm_analyze(
             sent_user_msg = _ollama_user_msg(
                 user_msg, config
             )
-            context_size = int(config.get(
-                'LLMChatter.Ollama.ContextSize',
-                2048
-            ))
-            response = (
-                active_client
-                .chat.completions.create(
-                model=model,
-                max_tokens=_effective_max_tokens(
-                    provider, config, max_tokens
+        if provider in (
+            'openai', 'google', 'openrouter', 'ollama'
+        ):
+            kwargs = build_compatible_chat_request(
+                provider,
+                model,
+                _build_chat_messages(
+                    sys_msg, sent_user_msg
                 ),
-                temperature=0.1,
-                    messages=_build_chat_messages(
-                        sys_msg, sent_user_msg
-                    ),
-                    extra_body={
-                        "options": {
-                            "num_ctx": context_size
-                        }
-                    }
-                )
+                config,
+                max_tokens,
+                0.1,
             )
-            result = _extract_chat_content(
-                response, label
-            )
-        elif provider in ('openai', 'google', 'openrouter'):
-            kwargs = {
-                'model': model,
-                'max_tokens': _effective_max_tokens(
-                    provider, config, max_tokens
+            response = create_chat_completion(
+                active_client.chat.completions.create,
+                kwargs,
+                provider,
+                model,
+                logger,
+                reasoning_token_multiplier=(
+                    compatible_reasoning_token_multiplier(
+                        provider, config
+                    )
                 ),
-                'temperature': 0.1,
-                'messages': _build_chat_messages(
-                    sys_msg, user_msg
-                ),
-            }
-            if provider == 'google':
-                _apply_google_options(kwargs, config)
-            elif provider == 'openrouter':
-                _apply_openrouter_options(kwargs, config)
-            response = (
-                active_client
-                .chat.completions.create(
-                    **kwargs
-                )
             )
             result = _extract_chat_content(
                 response, label

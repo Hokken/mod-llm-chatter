@@ -58,6 +58,7 @@ if str(TOOLS_DIR) not in sys.path:
 _install_non_strict_stubs()
 
 import chatter_guild_player  # noqa: E402
+import chatter_shared  # noqa: E402
 
 
 def _candidate(guid: int, name: str) -> dict:
@@ -246,6 +247,362 @@ def test_addressed_bot_is_primary_responder():
     assert [
         responder['name'] for responder in selected
     ] == ['Rytsen', 'Aliss']
+
+
+def test_guild_candidates_match_player_faction():
+    candidates = [
+        {
+            'name': 'AllianceBot',
+            'speaker': {'race': 'Night Elf'},
+        },
+        {
+            'name': 'HordeBot',
+            'speaker': {'race': 'Orc'},
+        },
+        {
+            'name': 'AllianceBotId',
+            'speaker': {'race': 7},
+        },
+    ]
+    filtered = (
+        chatter_guild_player._filter_candidates_by_faction(
+            candidates, 'Alliance'
+        )
+    )
+    assert [candidate['name'] for candidate in filtered] == [
+        'AllianceBot', 'AllianceBotId'
+    ]
+
+
+def test_semantic_analysis_resolves_implicit_brief_reply():
+    prompts = []
+
+    def analyze(client, config, prompt, **kwargs):
+        prompts.append(prompt)
+        return json.dumps({
+            'bot': 'Karguhr',
+            'multi_addressed': False,
+            'brief_casual': True,
+            'requires_reply': False,
+        })
+
+    with patch.object(
+        chatter_shared,
+        'quick_llm_analyze',
+        side_effect=analyze,
+    ):
+        result = chatter_shared.find_addressed_bot(
+            'That means a lot.',
+            ['Karguhr', 'Oscario'],
+            client=object(),
+            config={'LLMChatter.Provider': 'openai'},
+            chat_history=(
+                'Karguhr: Welcome back.\n'
+                'Calwen: That means a lot.'
+            ),
+        )
+
+    assert result == {
+        'bot': 'Karguhr',
+        'multi_addressed': False,
+        'brief_casual': True,
+        'reply_optional': True,
+    }
+    assert 'immediately prior speaker' in prompts[0]
+    assert 'not keywords or message length alone' in prompts[0]
+    assert 'Questions always require a reply' in prompts[0]
+    assert 'leaving the statement' in prompts[0]
+
+
+def test_llm_required_question_cannot_be_optional():
+    def analyze(client, config, prompt, **kwargs):
+        return json.dumps({
+            'bot': None,
+            'multi_addressed': True,
+            'brief_casual': True,
+            'requires_reply': True,
+        })
+
+    with patch.object(
+        chatter_shared,
+        'quick_llm_analyze',
+        side_effect=analyze,
+    ):
+        result = chatter_shared.find_addressed_bot(
+            'How is everyone this morning ?',
+            ['Karguhr', 'Oscario'],
+            client=object(),
+            config={'LLMChatter.Provider': 'openai'},
+        )
+
+    assert result == {
+        'bot': None,
+        'multi_addressed': True,
+        'brief_casual': True,
+        'reply_optional': False,
+    }
+
+
+def test_optional_casual_reply_uses_one_bounded_rng_roll():
+    analysis = {
+        'brief_casual': True,
+        'reply_optional': True,
+    }
+    config = {
+        'LLMChatter.PlayerChat.'
+        'OptionalCasualReplyChance': 20,
+    }
+    with patch.object(
+        chatter_shared.random,
+        'randint',
+        side_effect=(20, 21),
+    ) as roll:
+        assert chatter_shared.should_reply_to_optional_casual(
+            config, analysis
+        ) is True
+        assert chatter_shared.should_reply_to_optional_casual(
+            config, analysis
+        ) is False
+    assert roll.call_count == 2
+
+    with patch.object(
+        chatter_shared.random,
+        'randint',
+    ) as roll:
+        assert chatter_shared.should_reply_to_optional_casual(
+            config,
+            {
+                'brief_casual': True,
+                'reply_optional': False,
+            },
+        ) is True
+        roll.assert_not_called()
+
+
+def test_optional_guild_turn_can_end_before_generation():
+    event = _event()
+    statuses = []
+    with (
+        patch.object(
+            chatter_guild_player,
+            '_session_is_current',
+            return_value=True,
+        ),
+        patch.object(
+            chatter_guild_player,
+            '_fetch_session_context',
+            return_value=('', []),
+        ),
+        patch.object(
+            chatter_guild_player,
+            'find_addressed_bot',
+            return_value={
+                'bot': 'Aliss',
+                'multi_addressed': False,
+                'brief_casual': True,
+                'reply_optional': True,
+            },
+        ),
+        patch.object(
+            chatter_guild_player,
+            'should_reply_to_optional_casual',
+            return_value=False,
+        ),
+        patch.object(
+            chatter_guild_player,
+            '_generate_single_reply',
+        ) as generate,
+        patch.object(
+            chatter_guild_player,
+            '_mark_event',
+            side_effect=lambda db, event_id, status:
+                statuses.append((event_id, status)),
+        ),
+    ):
+        result = (
+            chatter_guild_player
+            .process_guild_player_message_event(
+                object(), object(), {}, event
+            )
+        )
+
+    assert result is False
+    generate.assert_not_called()
+    assert statuses[-1] == (77, 'skipped')
+
+
+def test_optional_casual_silence_excludes_party_chat():
+    module_root = TOOLS_DIR.parent
+    expected_calls = {
+        'tools/chatter_guild_player.py': 1,
+        'tools/chatter_general.py': 1,
+        'tools/chatter_proximity.py': 3,
+        'tools/chatter_boss_dialogue.py': 1,
+    }
+    for relative, minimum in expected_calls.items():
+        source = (module_root / relative).read_text(
+            encoding='utf-8'
+        )
+        assert source.count(
+            'should_reply_to_optional_casual('
+        ) >= minimum
+
+    party_source = (
+        module_root / 'tools/chatter_group.py'
+    ).read_text(encoding='utf-8')
+    assert 'should_reply_to_optional_casual(' not in party_source
+    assert "addr_result.get('brief_casual', False)" in party_source
+
+    for relative in (
+        'conf/mod_llm_chatter.conf.dist',
+        'conf/presets/mod_ll_chatter_quieter.conf.dist',
+    ):
+        config_text = (module_root / relative).read_text(
+            encoding='utf-8'
+        )
+        assert (
+            'LLMChatter.PlayerChat.'
+            'OptionalCasualReplyChance = 20'
+        ) in config_text
+
+
+def test_brief_contextual_reply_falls_back_to_prior_speaker():
+    event = _event()
+    extra = json.loads(event['extra_data'])
+    extra['player_message'] = 'That means a lot.'
+    extra['candidates'] = [
+        _candidate(101, 'Karguhr'),
+        _candidate(102, 'Oscario'),
+    ]
+    event['extra_data'] = json.dumps(extra)
+    inserted = []
+    statuses = []
+
+    with (
+        patch.object(
+            chatter_guild_player,
+            '_session_is_current',
+            return_value=True,
+        ),
+        patch.object(
+            chatter_guild_player,
+            '_fetch_session_context',
+            return_value=(
+                '',
+                [{
+                    'speaker_name': 'Karguhr',
+                    'is_bot': 1,
+                    'source_kind': 'reply',
+                    'message': 'Welcome back.',
+                }, {
+                    'speaker_name': 'Calwen',
+                    'is_bot': 0,
+                    'source_kind': 'player',
+                    'message': 'That means a lot.',
+                }],
+            ),
+        ),
+        patch.object(
+            chatter_guild_player,
+            'find_addressed_bot',
+            return_value={
+                'bot': None,
+                'multi_addressed': False,
+                'brief_casual': True,
+            },
+        ),
+        patch.object(
+            chatter_guild_player,
+            '_choose_topology',
+        ) as choose_topology,
+        patch.object(
+            chatter_guild_player,
+            '_generate_single_reply',
+            return_value=[{
+                'name': 'Karguhr',
+                'message': 'Anytime.',
+            }],
+        ) as generate,
+        patch.object(
+            chatter_guild_player,
+            '_reply_delays',
+            return_value=[0.0],
+        ),
+        patch.object(
+            chatter_guild_player,
+            'insert_chat_message',
+            side_effect=lambda db, **kwargs:
+                inserted.append(kwargs),
+        ),
+        patch.object(
+            chatter_guild_player,
+            '_mark_event',
+            side_effect=lambda db, event_id, status:
+                statuses.append((event_id, status)),
+        ),
+        patch.object(
+            chatter_guild_player,
+            '_maybe_summarize_session',
+            return_value=False,
+        ),
+    ):
+        result = (
+            chatter_guild_player
+            .process_guild_player_message_event(
+                object(), object(), {}, event
+            )
+        )
+
+    assert result is True
+    choose_topology.assert_not_called()
+    assert generate.call_args.args[4]['name'] == 'Karguhr'
+    assert generate.call_args.args[10:13] == (
+        False, False, False
+    )
+    assert generate.call_args.args[13][
+        'guild_brief_casual'
+    ] is True
+    assert inserted[0]['bot_name'] == 'Karguhr'
+    assert statuses[-1] == (77, 'completed')
+
+
+def test_scale_guidance_covers_player_response_prompts():
+    module_root = TOOLS_DIR.parent
+    for relative in (
+        'tools/chatter_guild_player.py',
+        'tools/chatter_general.py',
+        'tools/chatter_group_prompts.py',
+        'tools/chatter_proximity.py',
+        'tools/chatter_boss_dialogue.py',
+    ):
+        source = (module_root / relative).read_text(
+            encoding='utf-8'
+        )
+        assert 'build_conversational_scale_guidance' in source
+
+
+def test_brief_guild_prompt_has_hard_limit_and_narrator_option():
+    prompt = chatter_guild_player._build_single_prompt(
+        _candidate(11, 'Grourrel'),
+        'Dreamkeepers',
+        'Alliance',
+        'Karaez',
+        'no problem :)',
+        '',
+        False,
+        False,
+        False,
+        'roleplay',
+        brief_casual=True,
+    )
+    assert 'Use 2-8 words and no more than 50 characters' in prompt
+    assert 'third-person narrator action' in prompt
+    assert 'Length: medium' not in prompt
+    assert 'Length: long' not in prompt
+    assert chatter_shared.brief_casual_response_fits('Aye, cheers!')
+    assert not chatter_shared.brief_casual_response_fits(
+        'Your good word strengthens me, and lights every road ahead.'
+    )
 
 
 def test_context_separates_memory_and_visible_lines():

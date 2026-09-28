@@ -26,6 +26,14 @@ UPDATE_SQL = (
     / "updates"
     / "20260816_fix_pet_talent_masks.sql"
 )
+SPELL_DBC_REPAIR_SQL = (
+    MODULE_DIR
+    / "data"
+    / "sql"
+    / "world"
+    / "updates"
+    / "20260913_remove_legacy_spell_dbc_placeholders.sql"
+)
 
 PET_TABS = {
     409: ("Tenacity", 0, 0, 2, 0),
@@ -69,9 +77,34 @@ def test_existing_install_update_repairs_all_pet_tabs():
         assert f"`OrderIndex` = {order}" in block.group(0)
 
 
+def test_base_never_inserts_partial_spell_dbc_rows():
+    sql = BASE_SQL.read_text(encoding="utf-8")
+    assert "INSERT INTO `spell_dbc`" not in sql
+    assert sql.count("UPDATE `spell_dbc`") == 869
+
+
+def test_existing_install_update_removes_only_blank_talent_overrides():
+    sql = SPELL_DBC_REPAIR_SQL.read_text(encoding="utf-8")
+    assert "INNER JOIN `talent_dbc`" in sql
+    assert "`td`.`SpellRank_1` = `sd`.`ID`" in sql
+    for column in (
+        "Attributes",
+        "Effect_1",
+        "Effect_2",
+        "Effect_3",
+        "EffectAura_1",
+        "EffectAura_2",
+        "EffectAura_3",
+        "SpellClassSet",
+    ):
+        assert f"`sd`.`{column}` = 0" in sql
+
+
 def main() -> int:
     test_base_pet_tabs_match_client_dbc()
     test_existing_install_update_repairs_all_pet_tabs()
+    test_base_never_inserts_partial_spell_dbc_rows()
+    test_existing_install_update_removes_only_blank_talent_overrides()
     print("OK")
     return 0
 

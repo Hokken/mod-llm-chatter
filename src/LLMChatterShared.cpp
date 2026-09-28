@@ -24,11 +24,13 @@
 #include "QuestDef.h"
 #include "RandomPlayerbotMgr.h"
 #include "SpellInfo.h"
+#include "StringFormat.h"
 #include "Transport.h"
 #include "Unit.h"
 #include "Util.h"
 #include "World.h"
 #include "WorldSession.h"
+#include "WorldSessionMgr.h"
 
 #include <utf8.h>
 
@@ -37,11 +39,38 @@
 #include <cctype>
 #include <ctime>
 #include <map>
+#include <memory>
+#include <mutex>
 #include <random>
+#include <set>
+#include <shared_mutex>
 #include <sstream>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
+
+std::string const& GetCreatureEntryColumn()
+{
+    // Upstream AzerothCore renamed creature.id1 to
+    // creature.id. Resolve the live schema once so all
+    // module world-DB queries support both layouts.
+    static std::string const column = []() -> std::string
+    {
+        if (QueryResult result = WorldDatabase.Query(
+                "SELECT COLUMN_NAME FROM "
+                "information_schema.COLUMNS "
+                "WHERE TABLE_SCHEMA = DATABASE() "
+                "AND TABLE_NAME = 'creature' "
+                "AND COLUMN_NAME IN ('id', 'id1') "
+                "ORDER BY (COLUMN_NAME = 'id') DESC "
+                "LIMIT 1"))
+        {
+            return (*result)[0].Get<std::string>();
+        }
+        return "id";
+    }();
+    return column;
+}
 
 namespace
 {
@@ -56,27 +85,30 @@ constexpr uint8 PRIORITY_CRITICAL =
     static_cast<uint8>(LLMChatterPriorityBand::Critical);
 std::unordered_set<uint32> _namedBossEntries;
 
-std::string const& GetCreatureEntryColumn()
+using GeneralAudienceSnapshot =
+    std::unordered_map<uint64, uint8>;
+
+std::shared_mutex _generalAudienceSnapshotMutex;
+std::shared_ptr<GeneralAudienceSnapshot const>
+    _generalAudienceSnapshot;
+
+constexpr uint8 GENERAL_AUDIENCE_ALLIANCE = 0x01;
+constexpr uint8 GENERAL_AUDIENCE_HORDE = 0x02;
+
+uint64 MakeGeneralAudienceKey(
+    uint32 mapId, uint32 zoneId)
 {
-    // Upstream AzerothCore renamed creature.id1 to
-    // creature.id. Resolve the live schema once so the
-    // boss cache works on both layouts.
-    static std::string const column = []() -> std::string
-    {
-        if (QueryResult result = WorldDatabase.Query(
-                "SELECT COLUMN_NAME FROM "
-                "information_schema.COLUMNS "
-                "WHERE TABLE_SCHEMA = 'acore_world' "
-                "AND TABLE_NAME = 'creature' "
-                "AND COLUMN_NAME IN ('id', 'id1') "
-                "ORDER BY (COLUMN_NAME = 'id') DESC "
-                "LIMIT 1"))
-        {
-            return (*result)[0].Get<std::string>();
-        }
-        return "id";
-    }();
-    return column;
+    return (static_cast<uint64>(mapId) << 32)
+        | static_cast<uint64>(zoneId);
+}
+
+uint8 GetGeneralAudienceTeamMask(TeamId teamId)
+{
+    if (teamId == TEAM_ALLIANCE)
+        return GENERAL_AUDIENCE_ALLIANCE;
+    if (teamId == TEAM_HORDE)
+        return GENERAL_AUDIENCE_HORDE;
+    return 0;
 }
 
 std::string EscapeLogPreview(
@@ -261,7 +293,7 @@ uint32 RollConfiguredDelay(
         sLLMChatterConfig->*maxMember);
 }
 
-constexpr std::array<EventPriorityRule, 38>
+constexpr std::array<EventPriorityRule, 41>
     kTierPriorityRules = {{
         {"bot_group_combat",        PRIORITY_CRITICAL},
         {"bot_group_spell_cast",    PRIORITY_CRITICAL},
@@ -283,6 +315,8 @@ constexpr std::array<EventPriorityRule, 38>
         {"guild_login_greeting",    PRIORITY_HIGH},
         {"bot_group_death",         PRIORITY_HIGH},
         {"bot_group_wipe",          PRIORITY_HIGH},
+        {"bot_group_duel_start",    PRIORITY_HIGH},
+        {"bot_group_duel_end",      PRIORITY_HIGH},
         {"bot_group_join",          PRIORITY_HIGH},
         {"bot_group_join_batch",    PRIORITY_HIGH},
         {"bg_match_start",          PRIORITY_HIGH},
@@ -296,13 +330,14 @@ constexpr std::array<EventPriorityRule, 38>
         {"day_night_transition",    PRIORITY_FILLER},
         {"proximity_say",           PRIORITY_FILLER},
         {"proximity_conversation",  PRIORITY_FILLER},
-        {"proximity_reply",         PRIORITY_NORMAL},
+        {"proximity_reply",         PRIORITY_HIGH},
         {"proximity_boss_approach", PRIORITY_NORMAL},
         {"proximity_boss_player_say", PRIORITY_HIGH},
         {"proximity_player_say",
-            PRIORITY_NORMAL},
+            PRIORITY_HIGH},
         {"proximity_player_conversation",
-            PRIORITY_NORMAL},
+            PRIORITY_HIGH},
+        {"proximity_player_emote", PRIORITY_HIGH},
     }};
 
 constexpr std::array<PredicatePriorityRule, 1>
@@ -310,7 +345,7 @@ constexpr std::array<PredicatePriorityRule, 1>
         {IsStateCalloutEventType, PRIORITY_CRITICAL},
     }};
 
-constexpr std::array<EventPriorityRule, 26>
+constexpr std::array<EventPriorityRule, 27>
     kLegacyPriorityRules = {{
         {"player_general_msg",       8},
         {"guild_player_message",     8},
@@ -333,11 +368,12 @@ constexpr std::array<EventPriorityRule, 26>
         {"guild_idle_chatter",       0},
         {"proximity_say",           0},
         {"proximity_conversation",  0},
-        {"proximity_reply",         1},
+        {"proximity_reply",         2},
         {"proximity_boss_approach", 1},
         {"proximity_boss_player_say", 2},
-        {"proximity_player_say",          1},
-        {"proximity_player_conversation", 1},
+        {"proximity_player_say",          2},
+        {"proximity_player_conversation", 2},
+        {"proximity_player_emote",        2},
     }};
 
 constexpr std::array<PredicatePriorityRule, 1>
@@ -497,11 +533,13 @@ constexpr std::array<PredicateFixedDelayRule, 5>
         },
     }};
 
-constexpr std::array<ExactLiteralDelayRule, 3>
+constexpr std::array<ExactLiteralDelayRule, 5>
     kLegacyExactLiteralDelayRules = {{
         {"player_enters_zone", 2},
+        {"proximity_reply", 1},
         {"proximity_player_say", 1},
         {"proximity_player_conversation", 1},
+        {"proximity_player_emote", 1},
     }};
 
 std::string GetBotRoleName(Player* player)
@@ -920,6 +958,7 @@ uint32 LookupTextEmoteId(const std::string& emoteName)
         {"lost", TEXT_EMOTE_LOST},
         {"mock", TEXT_EMOTE_MOCK},
         {"ponder", TEXT_EMOTE_PONDER},
+        {"rofl", TEXT_EMOTE_ROFL},
         {"pounce", TEXT_EMOTE_POUNCE},
         {"praise", TEXT_EMOTE_PRAISE},
         {"purr", TEXT_EMOTE_PURR},
@@ -1059,6 +1098,21 @@ uint32 LookupTextEmoteId(const std::string& emoteName)
 }
 }
 
+bool IsUnitPerceivableBy(Player* viewer, Unit* unit)
+{
+    if (!viewer || !unit)
+        return false;
+    if (!viewer->IsInWorld() || !unit->IsInWorld())
+        return false;
+    if (!viewer->IsInMap(unit))
+        return false;
+    if (!viewer->IsWithinDistInMap(
+            unit, viewer->GetVisibilityRange()))
+        return false;
+    // distanceCheck=true: also apply the core sight range.
+    return viewer->CanSeeOrDetect(unit, false, true);
+}
+
 bool IsPlayerBot(Player* player)
 {
     if (!player)
@@ -1080,6 +1134,124 @@ bool IsPlayerBot(Player* player)
     // master == bot, so IsSelfBot() keeps it in
     // the real-player side of chatter ownership.
     return !IsSelfBot(player);
+}
+
+bool IsInOverworld(Player* player)
+{
+    if (!player)
+        return false;
+
+    WorldSession* session = player->GetSession();
+    if (!session || session->PlayerLoading())
+        return false;
+
+    Map* map = player->GetMap();
+    if (!map)
+        return false;
+
+    return !map->Instanceable();
+}
+
+bool IsGroupedWithRealPlayer(Player* player)
+{
+    if (!player)
+        return false;
+
+    Group* group = player->GetGroup();
+    if (!group)
+        return false;
+
+    for (GroupReference* itr = group->GetFirstMember();
+         itr != nullptr; itr = itr->next())
+    {
+        Player* member = itr->GetSource();
+        if (member && member != player
+            && !IsPlayerBot(member))
+            return true;
+    }
+
+    return false;
+}
+
+void RefreshGeneralAudienceSnapshot()
+{
+    auto snapshot =
+        std::make_shared<GeneralAudienceSnapshot>();
+    WorldSessionMgr::SessionMap const& sessions =
+        sWorldSessionMgr->GetAllSessions();
+
+    for (auto const& pair : sessions)
+    {
+        WorldSession* session = pair.second;
+        if (!session || session->PlayerLoading())
+            continue;
+
+        Player* player = session->GetPlayer();
+        if (!player || !player->IsInWorld()
+            || IsPlayerBot(player)
+            || !IsInOverworld(player))
+            continue;
+
+        uint32 zoneId = player->GetZoneId();
+        uint8 teamMask = GetGeneralAudienceTeamMask(
+            player->GetTeamId());
+        if (!zoneId || !teamMask)
+            continue;
+
+        (*snapshot)[MakeGeneralAudienceKey(
+            player->GetMapId(), zoneId)] |= teamMask;
+    }
+
+    std::shared_ptr<GeneralAudienceSnapshot const>
+        published = snapshot;
+    std::unique_lock<std::shared_mutex> lock(
+        _generalAudienceSnapshotMutex);
+    _generalAudienceSnapshot.swap(published);
+}
+
+bool HasCachedGeneralAudience(
+    uint32 mapId, uint32 zoneId, TeamId teamId)
+{
+    std::shared_ptr<GeneralAudienceSnapshot const> snapshot;
+    {
+        std::shared_lock<std::shared_mutex> lock(
+            _generalAudienceSnapshotMutex);
+        snapshot = _generalAudienceSnapshot;
+    }
+
+    if (!snapshot)
+        return false;
+
+    auto itr = snapshot->find(
+        MakeGeneralAudienceKey(mapId, zoneId));
+    if (itr == snapshot->end())
+        return false;
+
+    uint8 teamMask = GetGeneralAudienceTeamMask(teamId);
+    return teamMask && (itr->second & teamMask) != 0;
+}
+
+std::vector<uint32> GetCachedGeneralAudienceZones()
+{
+    std::shared_ptr<GeneralAudienceSnapshot const> snapshot;
+    {
+        std::shared_lock<std::shared_mutex> lock(
+            _generalAudienceSnapshotMutex);
+        snapshot = _generalAudienceSnapshot;
+    }
+
+    std::set<uint32> uniqueZones;
+    if (snapshot)
+    {
+        for (auto const& [key, teamMask] : *snapshot)
+        {
+            if (teamMask)
+                uniqueZones.insert(static_cast<uint32>(key));
+        }
+    }
+
+    return std::vector<uint32>(
+        uniqueZones.begin(), uniqueZones.end());
 }
 
 Creature* FindCreatureBySpawnId(
@@ -1859,6 +2031,7 @@ std::string GetTextEmoteName(uint32 emoteId)
         {TEXT_EMOTE_PRAY,          "pray"},
         {TEXT_EMOTE_READY,         "ready"},
         {TEXT_EMOTE_ROAR,          "roar"},
+        {TEXT_EMOTE_ROFL,          "rofl"},
         {TEXT_EMOTE_RUDE,          "rude"},
         {TEXT_EMOTE_SALUTE,        "salute"},
         {TEXT_EMOTE_SCRATCH,       "scratch"},
@@ -2044,9 +2217,12 @@ std::string BuildBotStateJson(Player* player)
 
     PlayerbotAI* ai = GET_PLAYERBOT_AI(player);
 
+    // Only name a victim the bot can actually perceive, so
+    // a stealthed or invisible target never leaks into a
+    // prompt through bot state.
     std::string targetName;
     Unit* victim = player->GetVictim();
-    if (victim)
+    if (victim && IsUnitPerceivableBy(player, victim))
         targetName = GetLocalizedUnitName(victim);
 
     std::string botState = "non_combat";
@@ -2213,15 +2389,14 @@ std::string GetBotTravelContext(Player* player)
 
 namespace
 {
-bool IsUnsafeChatterFacingMotionType(
+bool IsSafeChatterFacingMotionType(
     MovementGeneratorType type)
 {
     switch (type)
     {
-        case WAYPOINT_MOTION_TYPE:
-        case FLIGHT_MOTION_TYPE:
-        case POINT_MOTION_TYPE:
-        case ESCORT_MOTION_TYPE:
+        case IDLE_MOTION_TYPE:
+        case RANDOM_MOTION_TYPE:
+        case ANIMAL_RANDOM_MOTION_TYPE:
             return true;
         default:
             return false;
@@ -2256,10 +2431,14 @@ bool HasUnsafeChatterFacingMotion(Unit* unit)
         != NULL_MOTION_TYPE)
         return true;
 
-    if (IsUnsafeChatterFacingMotionType(
-            motion->GetCurrentMovementGeneratorType())
-        || IsUnsafeChatterFacingMotionType(
-            motion->GetMotionSlotType(MOTION_SLOT_ACTIVE)))
+    if (!IsSafeChatterFacingMotionType(
+            motion->GetCurrentMovementGeneratorType()))
+        return true;
+
+    MovementGeneratorType activeType =
+        motion->GetMotionSlotType(MOTION_SLOT_ACTIVE);
+    if (activeType != NULL_MOTION_TYPE
+        && !IsSafeChatterFacingMotionType(activeType))
         return true;
 
     if (Creature* creature = unit->ToCreature())
@@ -2392,14 +2571,16 @@ void UpdateGroupBotTravelState(Player* player, uint32 groupId)
         player->GetGUID().GetCounter());
 }
 
-void QueueChatterEvent(
-    const std::string& eventType,
-    const std::string& eventScope,
+namespace
+{
+std::string BuildChatterEventInsert(
+    std::string const& eventType,
+    std::string const& eventScope,
     uint32 zoneId, uint32 mapId, uint8 priority,
-    const std::string& cooldownKey,
-    uint32 subjectGuid, const std::string& subjectName,
-    uint32 targetGuid, const std::string& targetName,
-    uint32 targetEntry, const std::string& extraData,
+    std::string const& cooldownKey,
+    uint32 subjectGuid, std::string const& subjectName,
+    uint32 targetGuid, std::string const& targetName,
+    uint32 targetEntry, std::string const& extraData,
     uint32 reactAfterSeconds,
     uint32 expiresAfterSeconds,
     bool nullZeroNumeric)
@@ -2413,7 +2594,7 @@ void QueueChatterEvent(
 
     // NOTE: extraData is written directly into a single-quoted SQL
     // string literal. Callers must pre-escape it for SQL.
-    CharacterDatabase.Execute(
+    return Acore::StringFormat(
         "INSERT INTO llm_chatter_events "
         "(event_type, event_scope, zone_id, map_id, "
         "priority, cooldown_key, subject_guid, "
@@ -2442,6 +2623,48 @@ void QueueChatterEvent(
         SanitizeUtf8(extraData),
         reactAfterSeconds,
         expiresAfterSeconds);
+}
+} // namespace
+
+void QueueChatterEvent(
+    const std::string& eventType,
+    const std::string& eventScope,
+    uint32 zoneId, uint32 mapId, uint8 priority,
+    const std::string& cooldownKey,
+    uint32 subjectGuid, const std::string& subjectName,
+    uint32 targetGuid, const std::string& targetName,
+    uint32 targetEntry, const std::string& extraData,
+    uint32 reactAfterSeconds,
+    uint32 expiresAfterSeconds,
+    bool nullZeroNumeric)
+{
+    CharacterDatabase.Execute(BuildChatterEventInsert(
+        eventType, eventScope, zoneId, mapId, priority,
+        cooldownKey, subjectGuid, subjectName,
+        targetGuid, targetName, targetEntry, extraData,
+        reactAfterSeconds, expiresAfterSeconds,
+        nullZeroNumeric));
+}
+
+void AppendChatterEvent(
+    CharacterDatabaseTransaction trans,
+    std::string const& eventType,
+    std::string const& eventScope,
+    uint32 zoneId, uint32 mapId, uint8 priority,
+    std::string const& cooldownKey,
+    uint32 subjectGuid, std::string const& subjectName,
+    uint32 targetGuid, std::string const& targetName,
+    uint32 targetEntry, std::string const& extraData,
+    uint32 reactAfterSeconds,
+    uint32 expiresAfterSeconds,
+    bool nullZeroNumeric)
+{
+    trans->Append(BuildChatterEventInsert(
+        eventType, eventScope, zoneId, mapId, priority,
+        cooldownKey, subjectGuid, subjectName,
+        targetGuid, targetName, targetEntry, extraData,
+        reactAfterSeconds, expiresAfterSeconds,
+        nullZeroNumeric));
 }
 
 void AppendRaidContext(
@@ -2737,10 +2960,11 @@ void SendPartyMessageInstant(
     ChatHandler::BuildChatPacket(
         data,
         CHAT_MSG_PARTY,
-        message,
         LANG_UNIVERSAL,
-        CHAT_TAG_NONE,
         bot->GetGUID(),
+        ObjectGuid::Empty,
+        message,
+        CHAT_TAG_NONE,
         bot->GetName());
 
     int subGroup = -1;

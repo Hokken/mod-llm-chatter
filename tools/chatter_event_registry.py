@@ -275,6 +275,35 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         },
     ),
 
+    # -- Duel events (chatter_duel) ---------------
+
+    'bot_group_duel_start': EventSpec(
+        handler_module='chatter_duel',
+        handler_func='process_duel_start_event',
+        producer='LLMChatterDuel.cpp',
+        priority='high',
+        description='Bot reacts to a duel starting',
+        payload_fields={
+            'duellist_a_name': (str, True),
+            'duellist_b_name': (str, True),
+            'reactor_role': (str, True),
+        },
+    ),
+
+    'bot_group_duel_end': EventSpec(
+        handler_module='chatter_duel',
+        handler_func='process_duel_end_event',
+        producer='LLMChatterDuel.cpp',
+        priority='high',
+        description='Bot reacts to a duel result',
+        payload_fields={
+            'winner_name': (str, True),
+            'loser_name': (str, True),
+            'outcome': (str, True),
+            'reactor_role': (str, True),
+        },
+    ),
+
     'bot_group_corpse_run': EventSpec(
         handler_module='chatter_group_handlers',
         handler_func=(
@@ -370,14 +399,18 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
     'bot_group_emote_reaction': EventSpec(
         handler_module='chatter_emote_reaction',
         handler_func='handle_emote_reaction',
-        producer='LLMChatterGroup.cpp',
+        producer='LLMChatterGroupEmote.cpp',
         description=(
             'Bot reacts to directed emote'
         ),
         payload_fields={
             'emote_name': (str, True),
+            'mirror_emote': (str, False),
             'player_name': (str, True),
             'directed': (int, True),
+            # 1 when emote_name is free text from /e or /me
+            # rather than one of the named emotes.
+            'custom_emote': (int, False),
         },
     ),
 
@@ -396,6 +429,15 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'npc_rank': (int, False),
             'npc_type': (int, False),
             'npc_subname': (str, False),
+            # 1 when emote_name is free text from /e or /me
+            # rather than one of the named emotes.
+            'custom_emote': (int, False),
+            # Only sent when the target is a player, so the
+            # observer can describe who was pointed at.
+            'target_race': (int, False),
+            'target_class': (int, False),
+            'target_level': (int, False),
+            'target_gender': (int, False),
         },
     ),
 
@@ -581,7 +623,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         handler_module='chatter_proximity',
         handler_func='handle_proximity_reply',
         producer='LLMChatterProximity.cpp',
-        priority='normal',
+        priority='high',
         description='Reply to player /say near active scene',
         payload_fields={
             'player_guid': (int, True),
@@ -608,7 +650,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         handler_module='chatter_proximity',
         handler_func='handle_proximity_player_say',
         producer='LLMChatterProximity.cpp',
-        priority='normal',
+        priority='high',
         description=(
             'Response to player /say with no '
             'active scene'
@@ -634,14 +676,48 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'handle_proximity_player_conversation'
         ),
         producer='LLMChatterProximity.cpp',
-        priority='normal',
+        priority='high',
         description=(
-            'Multi-speaker response to player /say'
+            'Directed NPC or ungrouped playerbot response chain '
+            'to player /say'
         ),
         payload_fields={
             'player_guid': (int, True),
             'player_name': (str, True),
             'player_message': (str, True),
+            'zone_name': (str, True),
+            'subzone_name': (str, False),
+            'map_id': (int, False),
+            'instance_id': (int, False),
+            'map_name': (str, False),
+            'is_dungeon': (bool, False),
+            'is_raid': (bool, False),
+            'participants': (list, True),
+            'max_lines': (int, True),
+        },
+    ),
+
+    'proximity_player_emote': EventSpec(
+        handler_module='chatter_proximity',
+        handler_func='handle_proximity_player_emote',
+        producer='LLMChatterProximity.cpp',
+        priority='high',
+        description=(
+            'Directed NPC/playerbot response or nearby witness chain '
+            'to a player emote'
+        ),
+        payload_fields={
+            'player_guid': (int, True),
+            'player_name': (str, True),
+            'player_emote': (str, True),
+            'player_emote_id': (int, True),
+            'custom_emote': (int, False),
+            'mirror_emote': (str, False),
+            'addressed_name': (str, True),
+            'addressed_participant': (dict, False),
+            'addressed_speaks': (bool, False),
+            'interaction': (str, True),
+            'interaction_mode': (str, True),
             'zone_name': (str, True),
             'subzone_name': (str, False),
             'map_id': (int, False),
@@ -997,6 +1073,28 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         },
     ),
 
+    # -- Real General loot (chatter_loot) ---------
+
+    'bot_loot_item': EventSpec(
+        handler_module='chatter_loot',
+        handler_func='process_general_loot_event',
+        producer='LLMChatterLoot.cpp',
+        description=(
+            'Bot announces an item it actually looted'
+        ),
+        payload_fields={
+            'item_id': (int, True),
+            'item_name': (str, True),
+            'item_quality': (int, True),
+            'item_count': (int, True),
+            'allowable_class': (int, True),
+            'required_level': (int, True),
+            'loot_source_guid': (str, False),
+            'zone_id': (int, False),
+            'area_id': (int, False),
+        },
+    ),
+
     # -- World events (chatter_world_events) ------
 
     'transport_arrives': EventSpec(
@@ -1147,7 +1245,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
 
 
 # --------------------------------------------------
-# Dead (removed) event types — 13 entries
+# Dead (removed) event types — 12 entries
 # --------------------------------------------------
 
 DEAD_EVENTS: frozenset = frozenset({
@@ -1161,7 +1259,6 @@ DEAD_EVENTS: frozenset = frozenset({
     'world_boss_spawn',
     'rare_spawn',
     'enemy_player_near',
-    'bot_loot_item',
     'bot_group_discovery',
     'bg_player_arrival',
 })

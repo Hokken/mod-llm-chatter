@@ -7,6 +7,7 @@ No circular dependencies.
 """
 
 import json
+import locale
 import logging
 import os
 import random
@@ -31,8 +32,6 @@ from chatter_constants import (
     ITEM_QUALITY_COLORS, ITEM_QUALITY_NAMES,
     ITEM_CLASS_NAMES, WEAPON_SUBCLASS_NAMES,
     ARMOR_SUBCLASS_NAMES, CLASS_BITMASK,
-    MSG_TYPE_PLAIN, MSG_TYPE_QUEST, MSG_TYPE_LOOT,
-    MSG_TYPE_QUEST_REWARD, MSG_TYPE_TRADE,
     EMOTE_KEYWORDS,
     EMOTE_LIST_STR,
 )
@@ -41,6 +40,8 @@ from chatter_text import (
     parse_single_response,
     _sanitize_action,
     cleanup_message,
+    shorten_chat_message,
+    shorten_chat_question,
     extract_conversation_msg_count,
     repair_json_string,
     _extract_ngrams,
@@ -53,13 +54,11 @@ from chatter_llm import (
     quick_llm_analyze,
 )
 from chatter_db import (
-    zone_cache,
     get_db_connection,
     wait_for_database,
     validate_emote,
     insert_chat_message,
     query_zone_quests,
-    query_zone_loot,
     query_zone_mobs,
     query_bot_spells,
     query_item_details,
@@ -479,6 +478,19 @@ def get_race_name(race_id: int) -> str:
     return RACE_NAMES.get(race_id, "Unknown")
 
 
+def get_race_faction(race_id) -> str:
+    """Return the playable faction for a WotLK race ID."""
+    try:
+        race_id = int(race_id)
+    except (TypeError, ValueError):
+        return ""
+    if race_id in (1, 3, 4, 7, 11):
+        return "Alliance"
+    if race_id in (2, 5, 6, 8, 10):
+        return "Horde"
+    return ""
+
+
 def get_gender_label(gender_id: int) -> str:
     """Get human-readable gender label from gender ID."""
     return 'female' if gender_id == 1 else 'male'
@@ -489,6 +501,8 @@ def build_bot_identity(
     bot_race: str,
     bot_class: str,
     gender: str = '',
+    suffix: str = '.',
+    gear: str = '',
 ) -> str:
     """Return an identity prefix for bot prompts.
 
@@ -497,11 +511,16 @@ def build_bot_identity(
     """
     if bot_race and bot_class:
         gender_prefix = f"{gender} " if gender else ""
-        return (
+        identity = (
             f"You are {bot_name}, "
-            f"a {gender_prefix}{bot_race} {bot_class}."
+            f"a {gender_prefix}{bot_race} "
+            f"{bot_class}{suffix}"
         )
-    return f"You are {bot_name}."
+    else:
+        identity = f"You are {bot_name}{suffix}"
+
+    gear = (gear or '').strip()
+    return f"{identity} {gear}" if gear else identity
 
 
 def build_bot_identity_with_level(
@@ -739,14 +758,164 @@ def build_race_class_context_parts(
     )
 
 
+def _payload_bool(value):
+    """C++ payloads send JSON booleans, but tolerate
+    ints and strings ("true", "1")."""
+    if isinstance(value, str):
+        return value.strip().lower() in ('1', 'true')
+    return bool(value)
+
+
+def is_pvp_enemy(extra_data):
+    """True when the event's enemy is an
+    opposing-faction player (real player or bot)."""
+    return bool(extra_data) and (
+        extra_data.get('enemy_kind') == 'player'
+    )
+
+
+def is_pvp_identity_known(extra_data):
+    """True when the reactor could perceive the
+    PvP enemy, so its identity may be used."""
+    return is_pvp_enemy(extra_data) and _payload_bool(
+        extra_data.get('enemy_identity_known')
+    )
+
+
+def _pvp_level_gap_line(extra_data):
+    """Describe the level gap between the enemy and
+    the group member involved."""
+    if _payload_bool(extra_data.get('is_gray_kill')):
+        return (
+            "They are far lower level than your "
+            "side, a lopsided fight that earns no "
+            "honour."
+        )
+    try:
+        gap = int(extra_data.get('level_gap', 0))
+    except (TypeError, ValueError):
+        gap = 0
+    if gap >= 10:
+        return (
+            "They are far higher level than your "
+            "side and very dangerous."
+        )
+    if gap >= 4:
+        return "They are higher level than your side."
+    if gap <= -4:
+        return "They are lower level than your side."
+    return "They are roughly an even match."
+
+
+def build_pvp_enemy_context(extra_data, mode='roleplay'):
+    """Describe an opposing-faction enemy for combat
+    prompts. Returns "" for creature enemies.
+
+    Identity (name, race, class, level) is used only
+    when C++ marked it perceivable. An enemy is
+    never described as a bot, NPC, or monster.
+    """
+    if not is_pvp_enemy(extra_data):
+        return ""
+
+    from chatter_mode import is_roleplay
+    roleplay = is_roleplay(mode)
+    lines = []
+
+    via_pet = _payload_bool(extra_data.get('via_pet'))
+    pet_name = str(
+        extra_data.get('enemy_pet_name') or ''
+    ).strip()
+
+    if is_pvp_identity_known(extra_data):
+        name = str(
+            extra_data.get('enemy_name') or ''
+        ).strip() or 'an enemy'
+        try:
+            race = get_race_name(
+                int(extra_data.get('enemy_race', 0)))
+            cls = get_class_name(
+                int(extra_data.get('enemy_class', 0)))
+            level = int(extra_data.get('enemy_level', 0))
+        except (TypeError, ValueError):
+            race, cls, level = '', '', 0
+        faction = str(
+            extra_data.get('enemy_faction') or ''
+        ).strip() or 'opposing faction'
+        desc = ' '.join(
+            p for p in (
+                f"level {level}" if level else '',
+                race, cls,
+            ) if p
+        )
+        who = f"{name}, a {desc}" if desc else name
+        lines.append(
+            f"This fight is against another "
+            f"adventurer: {who} of the {faction}."
+        )
+        if via_pet and pet_name:
+            lines.append(
+                f"Their pet {pet_name} is part of it."
+            )
+        lines.append(_pvp_level_gap_line(extra_data))
+    elif via_pet and pet_name:
+        lines.append(
+            f"An enemy adventurer's pet, {pet_name}, is "
+            f"involved, but its master stayed out of "
+            f"sight. Do not name or describe the master."
+        )
+    else:
+        lines.append(
+            "An unseen adventurer of the opposing "
+            "faction is involved. Nobody saw who it "
+            "was, so do not name or describe them."
+        )
+
+    initiator = extra_data.get('initiator')
+    if initiator == 'enemy':
+        lines.append("They attacked your group first.")
+    elif initiator == 'group':
+        lines.append("Your group started this fight.")
+
+    lines.append(
+        "Treat them as a living character of the "
+        "opposing faction. Never call them a bot, "
+        "NPC, mob, or monster."
+    )
+    lines.append(
+        "Let your class, race, and personality shape "
+        "how you feel about this fight; an "
+        "honour-bound character may dislike beating a "
+        "much weaker foe, a ruthless one may not care."
+    )
+    if roleplay:
+        lines.append(
+            "Rivalry and taunts are fine, but no slurs, "
+            "abuse, or hateful language."
+        )
+    else:
+        lines.append(
+            "Use natural WoW PvP language. Playful "
+            "trash talk is fine, but no slurs, abuse, "
+            "or hateful language."
+        )
+    return ' '.join(lines)
+
+
 def build_bot_state_context(extra_data, mode='roleplay'):
     """Build natural-language state description
-    from C++ bot_state data in extra_data."""
+    from C++ bot_state data in extra_data.
+
+    Opposing-faction PvP enemy context, when present,
+    is appended so every combat prompt that already
+    includes bot state picks it up.
+    """
     if not extra_data:
         return ""
+    pvp_ctx = build_pvp_enemy_context(extra_data, mode)
     state = extra_data.get('bot_state')
     if not state or not isinstance(state, dict):
-        return ""
+        return pvp_ctx
 
     from chatter_mode import is_roleplay
     roleplay = is_roleplay(mode)
@@ -804,7 +973,8 @@ def build_bot_state_context(extra_data, mode='roleplay'):
                     f"({mp}%)."
                 )
 
-    # Current target
+    # Current target. C++ (BuildBotStateJson) only fills it
+    # when the bot can perceive its own victim.
     target = state.get('target', '')
     if target:
         subject = "You are" if roleplay else "Your character is"
@@ -820,6 +990,9 @@ def build_bot_state_context(extra_data, mode='roleplay'):
             parts.append(
                 f"Character gameplay travel state: {travel_ctx}"
             )
+
+    if pvp_ctx:
+        parts.append(pvp_ctx)
 
     return ' '.join(parts)
 
@@ -992,17 +1165,45 @@ def build_group_travel_metadata(bots):
 def parse_config(config_path: str) -> dict:
     """Parse the WoW-style config file."""
     config = {}
+    # Read raw bytes so we can decode explicitly. A genuine file-access
+    # error (missing/unreadable) is fatal and logged; encoding is handled
+    # separately below so a decodable-but-non-UTF-8 file is never treated
+    # as a read failure.
     try:
-        with open(config_path, 'r') as f:
-            for line in f:
-                line = line.strip()
-                if not line or line.startswith('#'):
-                    continue
-                if '=' in line:
-                    key, value = line.split('=', 1)
-                    config[key.strip()] = value.strip()
+        with open(config_path, 'rb') as f:
+            raw = f.read()
     except Exception as e:
+        logger.error(
+            "FATAL: could not read config file %s: %s: %s",
+            config_path,
+            type(e).__name__,
+            e,
+        )
         sys.exit(1)
+
+    # Decode preference:
+    #   1. utf-8-sig - handles UTF-8 with or without a BOM, and pure ASCII.
+    #      Without an explicit encoding, open() used the OS locale (cp1252
+    #      on Windows), which cannot decode common UTF-8 bytes and killed
+    #      the bridge silently.
+    #   2. On UnicodeDecodeError, fall back to the OS locale encoding so
+    #      pre-existing Windows ANSI/cp1252 configs (e.g. a raw 0xE9 'e')
+    #      keep parsing the way plain open() used to read them. Use
+    #      errors='replace' so this fallback can never itself raise.
+    try:
+        text = raw.decode('utf-8-sig')
+    except UnicodeDecodeError:
+        text = raw.decode(
+            locale.getpreferredencoding(False), errors='replace'
+        )
+
+    for line in text.splitlines():
+        line = line.strip()
+        if not line or line.startswith('#'):
+            continue
+        if '=' in line:
+            key, value = line.split('=', 1)
+            config[key.strip()] = value.strip()
     return config
 
 
@@ -2111,11 +2312,82 @@ def strip_conversation_actions(
             pass
 
 
+def build_conversational_scale_guidance(
+    subject: str = "message",
+    force_brief: bool = False,
+) -> str:
+    """Keep player-responsive dialogue proportional to its input."""
+    guidance = (
+        f"Match the player's conversational scale. If the player's "
+        f"{subject} is brief and casual, respond in kind with a few "
+        "casual words or one short sentence. Do not expand it into a "
+        "speech, explanation, story, or new topic. This instruction "
+        "overrides generic mood, creativity, and length suggestions."
+    )
+    if force_brief:
+        guidance += (
+            " This interaction has been classified as brief and casual. "
+            "Use 2-8 words and no more than 50 characters. Use plain "
+            "conversational wording rather than a metaphor, blessing, "
+            "proverb, explanation, question, or ceremonial flourish. "
+            "Keep character voice through light word choice only."
+        )
+    return guidance
+
+
+def brief_casual_response_fits(
+    message: str,
+    emote: Optional[str] = None,
+) -> bool:
+    """Validate the hard output contract for a brief casual turn."""
+    text = str(message or '').strip()
+    if not text:
+        return bool(emote)
+    return (
+        len(text) <= 50
+        and len(text.split()) <= 8
+    )
+
+
+def bound_brief_casual_response(
+    message: str,
+    emote: Optional[str] = None,
+    fallback_message: str = '',
+    fallback_emote: Optional[str] = None,
+) -> Tuple[str, Optional[str]]:
+    """Bound a usable brief response instead of discarding it."""
+    if brief_casual_response_fits(message, emote):
+        return message, emote
+    source = (
+        str(message or '').strip()
+        or str(fallback_message or '').strip()
+    )
+    first_eight_words = ' '.join(source.split()[:8])
+    return (
+        shorten_chat_message(first_eight_words, 50),
+        emote or fallback_emote,
+    )
+
+
+def build_brief_casual_repair_prompt(
+    prompt: PromptParts,
+) -> PromptParts:
+    """Request one format-preserving rewrite of an oversized reply."""
+    return prompt + (
+        "\n\nYour previous response violated the brief-casual hard "
+        "limit. Rewrite it using 2-8 words and no more than 50 "
+        "characters. Keep it plain and conversational. Return the same "
+        "JSON shape requested above."
+    )
+
+
 def append_json_instruction(
     prompt: str, allow_action: bool = True,
     skip_emote: bool = False,
     skip_action_rng: bool = False,
     message_only: bool = False,
+    allow_emote_only: bool = False,
+    allow_narrator_message: bool = False,
 ) -> str:
     """Append structured JSON response instruction
     to a prompt.
@@ -2135,14 +2407,26 @@ def append_json_instruction(
         lang_rule = get_language_rule()
         if lang_rule:
             prompt = prompt + lang_rule
+        message_example = (
+            '  "message": "brief dialogue or narrator action"\n'
+            if allow_narrator_message
+            else '  "message": "your spoken words here"\n'
+        )
+        narrator_rule = (
+            " For this response, the message may instead be one short "
+            "third-person narrator action featuring the speaker."
+            if allow_narrator_message
+            else ""
+        )
         block = (
             "\n\nRESPONSE FORMAT: You MUST respond with "
             "ONLY valid JSON. No other text.\n"
             "{\n"
-            '  "message": "your spoken words here"\n'
+            f"{message_example}"
             "}\n"
             "Rules: double quotes only, no trailing "
             "commas, no code fences, no markdown.\n"
+            f"{narrator_rule}"
             "CRITICAL: Follow the Length instruction "
             "in the prompt exactly — never exceed the "
             "stated character limit."
@@ -2178,7 +2462,11 @@ def append_json_instruction(
 
     # Skip emote list if explicitly requested OR
     # if EmoteChance RNG says no
-    if skip_emote or random.random() >= _emote_chance:
+    emote_available = (
+        not skip_emote
+        and random.random() < _emote_chance
+    )
+    if not emote_available:
         emote_line = '  "emote": null,\n'
     else:
         emote_line = (
@@ -2194,14 +2482,26 @@ def append_json_instruction(
     # content that sits inside the user prompt.
     if lang_rule:
         prompt = prompt + lang_rule
+    message_line = '  "message": "your spoken words here",\n'
+    emote_only_rule = ""
+    if allow_emote_only and emote_available:
+        message_line = (
+            '  "message": "spoken words, or empty only when emote is '
+            'non-null",\n'
+        )
+        emote_only_rule = (
+            "A brief local reaction may use an empty message with one "
+            "non-null emote. Never leave both message and emote empty.\n"
+        )
     block = (
         "\n\nRESPONSE FORMAT: You MUST respond with "
         "ONLY valid JSON. No other text.\n"
         "{\n"
-        '  "message": "your spoken words here",\n'
+        f"{message_line}"
         f"{emote_line}"
         f"  {action_desc}"
         "}\n"
+        f"{emote_only_rule}"
         "Rules: double quotes only, no trailing "
         "commas, no code fences, no markdown.\n"
         "CRITICAL: Follow the Length instruction "
@@ -2218,6 +2518,9 @@ def append_conversation_json_instruction(
     msg_count: int,
     allow_action: bool = True,
     message_only: bool = False,
+    addressee_names: Optional[List[str]] = None,
+    allow_emote_only: bool = False,
+    allow_narrator_messages: bool = False,
 ) -> str:
     """Append conversation JSON array instruction.
 
@@ -2230,14 +2533,25 @@ def append_conversation_json_instruction(
         prompt = prompt + lang_rule
 
     if message_only:
+        message_example = (
+            "brief dialogue or narrator action"
+            if allow_narrator_messages
+            else "..."
+        )
         example_msgs = ',\n  '.join(
             [
                 (
                     f'{{"speaker": "{name}", '
-                    f'"message": "..."}}'
+                    f'"message": "{message_example}"}}'
                 )
                 for name in bot_names
             ]
+        )
+        narrator_rule = (
+            "Each message may instead be one short third-person "
+            "narrator action featuring its speaker.\n"
+            if allow_narrator_messages
+            else ""
         )
         block = (
             "\n\nJSON rules: Use double quotes, escape "
@@ -2250,6 +2564,7 @@ def append_conversation_json_instruction(
             "]\n"
             "Each object must contain only \"speaker\" "
             "and \"message\".\n"
+            f"{narrator_rule}"
             "ONLY the JSON array, nothing else.\n"
             "CRITICAL: Follow the Length instruction "
             "in the prompt exactly â€” never exceed the "
@@ -2294,7 +2609,8 @@ def append_conversation_json_instruction(
         )
 
     # EmoteChance RNG for conversations
-    if random.random() < _emote_chance:
+    emote_available = random.random() < _emote_chance
+    if emote_available:
         emote_rule = (
             "Emotes: Each message may include an "
             f"optional \"emote\" field (one of: "
@@ -2313,18 +2629,46 @@ def append_conversation_json_instruction(
         '"action": "..."' if action_speakers
         else '"action": null'
     )
+    addressee_rule = ''
+    if addressee_names:
+        addressee_rule = (
+            "Addressee: EVERY message MUST include an exact "
+            '"addressee" chosen from: '
+            + ", ".join(addressee_names)
+            + ". It must not be the speaker.\n"
+        )
+
+    def addressee_example(speaker_name: str) -> str:
+        for candidate in addressee_names or []:
+            if candidate.casefold() != speaker_name.casefold():
+                return f', "addressee": "{candidate}"'
+        return ''
+
+    message_example = (
+        "spoken words, or empty with non-null emote"
+        if allow_emote_only and emote_available
+        else "..."
+    )
     example_msgs = ',\n  '.join(
         [
-            f'{{"speaker": "{name}", "message": "...", '
+            f'{{"speaker": "{name}", "message": "{message_example}", '
             f'{emote_ex}, '
-            f'{action_ex}}}'
+            f'{action_ex}{addressee_example(name)}}}'
             for name in bot_names
         ]
+    )
+    emote_only_rule = (
+        "A brief local reaction may use an empty message with one "
+        "non-null emote. Never leave both message and emote empty.\n"
+        if allow_emote_only and emote_available
+        else ""
     )
 
     block = (
         f"\n\n{emote_rule}"
         f"{action_text}\n"
+        f"{addressee_rule}"
+        f"{emote_only_rule}"
         "JSON rules: Use double quotes, escape "
         "quotes/newlines, no trailing commas, no code fences.\n"
         f"\nRespond with EXACTLY {msg_count} messages in JSON:\n"
@@ -2382,26 +2726,6 @@ def build_conversation_json_repair_prompt(
     if lang_rule:
         repair_prompt += lang_rule
     return repair_prompt
-
-
-# =============================================================================
-# MESSAGE TYPE SELECTION
-# =============================================================================
-def select_message_type() -> str:
-    """Randomly select a message type based on distribution."""
-    roll = random.randint(1, 100)
-    if roll <= MSG_TYPE_PLAIN:
-        return "plain"
-    elif roll <= MSG_TYPE_QUEST:
-        return "quest"
-    elif roll <= MSG_TYPE_LOOT:
-        return "loot"
-    elif roll <= MSG_TYPE_QUEST_REWARD:
-        return "quest_reward"
-    elif roll <= MSG_TYPE_TRADE:
-        return "trade"
-    else:
-        return "spell"
 
 
 # =============================================================================
@@ -2619,8 +2943,7 @@ def run_single_reaction(
                 'error_reason': 'transform_error',
             }
 
-    if len(message) > 255:
-        message = message[:252] + "..."
+    message = shorten_chat_message(message)
 
     resolved_delay = delay_seconds
     if callable(delay_resolver):
@@ -2686,16 +3009,22 @@ def find_addressed_bot(
       - 'bot': matched bot name or None
       - 'multi_addressed': True if the message is
         directed at multiple bots
+      - 'brief_casual': True when a similarly brief,
+        casual response fits the conversational context
+      - 'reply_optional': True when silence is a natural
+        response to that brief casual turn
 
     Three-pass approach for name hint:
     1. Exact whole-word match (case-insensitive)
     2. Fuzzy fallback for names >= 4 chars
-    Then LLM analysis confirms the hint and assesses
-    whether multiple bots are addressed.
+    Then LLM analysis confirms the hint, resolves implicit
+    context, and assesses audience and conversational scale.
     """
     no_match = {
         'bot': None,
         'multi_addressed': False,
+        'brief_casual': False,
+        'reply_optional': False,
     }
     if not message or not bot_names:
         return no_match
@@ -2746,6 +3075,8 @@ def find_addressed_bot(
         return {
             'bot': name_hint,
             'multi_addressed': False,
+            'brief_casual': False,
+            'reply_optional': False,
         }
 
     # LLM analysis for bot identification and
@@ -2775,11 +3106,19 @@ def find_addressed_bot(
         f"Respond with ONLY a JSON object "
         f"(no markdown, no explanation):\n"
         f'{{"bot": "BotName", '
-        f'"multi_addressed": true}}\n\n'
+        f'"multi_addressed": true, '
+        f'"brief_casual": false, '
+        f'"requires_reply": true}}\n\n'
         f"Rules:\n"
         f'- "bot": the single bot most likely '
-        f"being addressed, or null if the "
-        f"message is general/undirected.\n"
+        f"being addressed explicitly or implicitly, or "
+        f"null if the message is general/undirected. "
+        f"Use the recent chat to recognize a natural "
+        f"continuation directed at the immediately prior "
+        f"speaker even when the player does not repeat "
+        f"that speaker's name. The latest player line may "
+        f"already appear at the end of recent chat; treat "
+        f"it as the same message, not a separate turn.\n"
         f'- "multi_addressed": true if the '
         f"player is addressing or expecting "
         f"responses from multiple bots. "
@@ -2794,12 +3133,26 @@ def find_addressed_bot(
         f"  * General observations that could "
         f"prompt group discussion\n"
         f'- If only one bot is addressed, '
-        f'"multi_addressed" must be false.'
+        f'"multi_addressed" must be false.\n'
+        f'- "brief_casual": true when the message and '
+        f"conversation context call for a similarly brief, "
+        f"casual response rather than a developed answer. "
+        f"Judge meaning and conversational function, not "
+        f"keywords or message length alone. A concise but "
+        f"substantive question is not brief casual talk.\n"
+        f'- "requires_reply": true for every question, request, '
+        f"instruction, warning, important piece of information, "
+        f"greeting that invites engagement, or any turn that "
+        f"expects acknowledgment. Questions always require a reply. "
+        f"For statements, judge their meaning and conversational "
+        f"context: use false only when leaving the statement "
+        f"unanswered would feel socially natural. Do not decide "
+        f"from keywords, punctuation, or message length alone."
     )
 
     try:
         result = quick_llm_analyze(
-            client, config, prompt, max_tokens=60,
+            client, config, prompt, max_tokens=80,
             label='find_addressed_bot',
         )
     except Exception:
@@ -2810,12 +3163,16 @@ def find_addressed_bot(
         return {
             'bot': name_hint,
             'multi_addressed': False,
+            'brief_casual': False,
+            'reply_optional': False,
         }
 
     if not result:
         return {
             'bot': name_hint,
             'multi_addressed': False,
+            'brief_casual': False,
+            'reply_optional': False,
         }
 
     # Parse JSON response
@@ -2832,6 +3189,8 @@ def find_addressed_bot(
         return {
             'bot': name_hint,
             'multi_addressed': False,
+            'brief_casual': False,
+            'reply_optional': False,
         }
 
     # Extract bot name
@@ -2875,10 +3234,52 @@ def find_addressed_bot(
     else:
         multi = bool(raw_multi)
 
+    raw_brief = parsed.get('brief_casual', False)
+    if isinstance(raw_brief, str):
+        brief_casual = raw_brief.lower() not in (
+            'false', '0', 'no', ''
+        )
+    else:
+        brief_casual = bool(raw_brief)
+
+    raw_required = parsed.get('requires_reply', True)
+    if isinstance(raw_required, str):
+        requires_reply = raw_required.lower() not in (
+            'false', '0', 'no', ''
+        )
+    else:
+        requires_reply = bool(raw_required)
+    reply_optional = brief_casual and not requires_reply
+
     return {
         'bot': matched_bot,
         'multi_addressed': multi,
+        'brief_casual': brief_casual,
+        'reply_optional': reply_optional,
     }
+
+
+def should_reply_to_optional_casual(
+    config: Dict,
+    analysis: Dict,
+) -> bool:
+    """Roll once for semantically optional casual turns."""
+    if not (
+        analysis.get('brief_casual')
+        and analysis.get('reply_optional')
+    ):
+        return True
+
+    try:
+        chance = int(config.get(
+            'LLMChatter.PlayerChat.'
+            'OptionalCasualReplyChance',
+            20,
+        ))
+    except (AttributeError, TypeError, ValueError):
+        chance = 20
+    chance = max(0, min(100, chance))
+    return random.randint(1, 100) <= chance
 
 
 # =============================================================================
@@ -2917,8 +3318,43 @@ def fuzzy_name_match(
     return differences <= max_distance
 
 
+def _resolve_conversation_speaker(
+    speaker: str,
+    bot_names: List[str],
+    unique_tokens_only: bool,
+) -> Optional[str]:
+    exact = [
+        name for name in bot_names
+        if speaker.casefold() == name.casefold()
+    ]
+    if len(exact) == 1:
+        return exact[0]
+
+    if unique_tokens_only:
+        label_tokens = re.findall(r'[\w]+', speaker.casefold())
+        if len(label_tokens) != 1:
+            return None
+        label = label_tokens[0]
+        matches = []
+        for name in bot_names:
+            name_tokens = re.findall(r'[\w]+', name.casefold())
+            if label in name_tokens:
+                matches.append(name)
+        return matches[0] if len(matches) == 1 else None
+
+    for bot_name in bot_names:
+        if fuzzy_name_match(speaker, bot_name):
+            return bot_name
+    return None
+
+
 def parse_conversation_response(
-    response: str, bot_names: List[str]
+    response: str,
+    bot_names: List[str],
+    *,
+    unique_tokens_only: bool = False,
+    addressee_names: Optional[List[str]] = None,
+    allow_emote_only: bool = False,
 ) -> list:
     """Parse conversation JSON response into message list."""
     try:
@@ -2944,23 +3380,25 @@ def parse_conversation_response(
             for msg in messages:
                 speaker = msg.get('speaker', '').strip()
                 message = msg.get('message', '').strip()
-                if speaker and message:
-                    matched_name = None
-                    for bot_name in bot_names:
-                        if fuzzy_name_match(speaker, bot_name):
-                            matched_name = bot_name
-                            break
+                raw_emote = msg.get('emote')
+                emote = validate_emote(raw_emote)
+                if speaker and (
+                    message
+                    or (allow_emote_only and emote)
+                ):
+                    matched_name = _resolve_conversation_speaker(
+                        speaker,
+                        bot_names,
+                        unique_tokens_only,
+                    )
                     if matched_name:
                         entry = {
                             'name': matched_name,
                             'message': message,
                         }
                         # Extract optional emote
-                        raw_emote = msg.get('emote')
-                        if raw_emote:
-                            entry['emote'] = (
-                                validate_emote(raw_emote)
-                            )
+                        if emote:
+                            entry['emote'] = emote
                         # Extract optional action
                         raw_action = msg.get('action')
                         action = _sanitize_action(
@@ -2968,6 +3406,17 @@ def parse_conversation_response(
                         )
                         if action:
                             entry['action'] = action
+                        if addressee_names:
+                            raw_addressee = str(
+                                msg.get('addressee', '')
+                            ).strip()
+                            addressee = _resolve_conversation_speaker(
+                                raw_addressee,
+                                addressee_names,
+                                True,
+                            )
+                            if addressee:
+                                entry['addressee'] = addressee
                         result.append(entry)
             return result
     except json.JSONDecodeError:
@@ -3567,6 +4016,127 @@ def build_talent_context(
                 f"{spec_personality}")
 
     return result
+
+
+def format_weapon_list(weapons) -> str:
+    """Render equipped weapons as "Name (type)" phrases."""
+    parts = []
+    for weapon in weapons or []:
+        name = (weapon.get('name') or '').strip()
+        kind = (weapon.get('kind') or '').strip()
+        if not name:
+            continue
+        parts.append(f"{name} ({kind})" if kind else name)
+    return ', '.join(parts)
+
+
+def format_pet_phrase(pet) -> str:
+    """Render a pet as "Name, a Species" (or just one)."""
+    if not pet:
+        return ''
+    name = (pet.get('name') or '').strip()
+    species = (pet.get('species') or '').strip()
+    if name and species and name.lower() != species.lower():
+        article = (
+            'an' if species[:1].lower() in 'aeiou' else 'a'
+        )
+        return f"{name}, {article} {species}"
+    return name or species
+
+
+def build_gear_context(
+    db, char_guid, char_class=None, config=None,
+    subject=None,
+) -> str:
+    """Describe what a bot carries and who follows it.
+
+    Returns a short line naming equipped weapons and, for
+    pet classes, the pet by name and species — so bots stop
+    inventing gear or treating their own pet as a stranger.
+    Empty string when there is nothing worth stating.
+
+    Pass `subject` (a bot name) for multi-speaker prompts,
+    which describe bots from the outside. Without it the
+    line is second person, for prompts the bot itself
+    speaks through.
+    """
+    from chatter_db import (
+        get_character_pet,
+        get_character_weapons,
+    )
+
+    if config is not None and str(
+        config.get('LLMChatter.GearContext.Enable', '1')
+    ).strip() not in ('1', 'true', 'True'):
+        return ''
+
+    try:
+        guid = int(char_guid or 0)
+    except (TypeError, ValueError):
+        return ''
+    if guid <= 0:
+        return ''
+
+    parts = []
+    subject = (subject or '').strip()
+
+    weapons = format_weapon_list(
+        get_character_weapons(db, guid)
+    )
+    if weapons:
+        parts.append(
+            f"{subject} wields {weapons}."
+            if subject
+            else f"You are wielding {weapons}."
+        )
+
+    # Only hunters and warlocks keep a permanent companion,
+    # so other classes never pay for the pet lookup.
+    class_name = char_class
+    if isinstance(class_name, int):
+        class_name = CLASS_NAMES.get(class_name, '')
+    if str(class_name or '').lower() in ('hunter', 'warlock'):
+        pet = format_pet_phrase(
+            get_character_pet(db, guid)
+        )
+        if pet:
+            parts.append(
+                f"{subject}'s pet is {pet} — a familiar "
+                "companion, not a stranger."
+                if subject
+                else f"Your pet is {pet} — a companion you "
+                "know well, not a stranger."
+            )
+
+    return ' '.join(parts)
+
+
+def attach_speaker_gear(db, bots, config=None) -> None:
+    """Give every speaker in a list a third-person gear line.
+
+    Multi-speaker prompts introduce bots from the outside
+    ("Veliana is a level 26 Blood Elf Priest"), so the
+    second-person string built for solo prompts cannot be
+    reused there. Stores the result as 'gear_third'.
+    """
+    for bot in bots or []:
+        if bot.get('gear_third') is not None:
+            continue
+        guid = bot.get('guid')
+        name = (bot.get('name') or '').strip()
+        if not guid or not name:
+            continue
+        bot['gear_third'] = build_gear_context(
+            db, guid, bot.get('class'), config,
+            subject=name,
+        )
+
+
+def append_speaker_gear(parts, bot, indent='  ') -> None:
+    """Append a speaker's gear line to a prompt part list."""
+    line = (bot.get('gear_third') or '').strip()
+    if line:
+        parts.append(f"{indent}{line}")
 
 
 # =============================================================================

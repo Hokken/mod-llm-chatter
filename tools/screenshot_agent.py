@@ -27,6 +27,12 @@ import time
 import mysql.connector
 from PIL import Image
 
+from llm_compat import (
+    build_chat_options,
+    create_chat_completion,
+    needs_reasoning_token_multiplier,
+)
+
 log = logging.getLogger("screenshot_agent")
 
 GOOGLE_OPENAI_BASE_URL = (
@@ -151,6 +157,10 @@ def load_screenshot_config(raw: dict) -> dict:
             'LLMChatter.Anthropic.ApiKey', ''),
         'openai_api_key': raw.get(
             'LLMChatter.OpenAI.ApiKey', ''),
+        'openai_reasoning_effort': raw.get(
+            'LLMChatter.OpenAI.ReasoningEffort', ''),
+        'openai_max_tokens_multiplier': float(raw.get(
+            'LLMChatter.OpenAI.MaxTokensMultiplier', '4')),
         'google_api_key': raw.get(
             'LLMChatter.Google.ApiKey', ''),
         'google_base_url': raw.get(
@@ -301,12 +311,24 @@ def _call_anthropic(
 
 
 def _call_openai(
-    jpeg_b64: str, client, model: str,
+    jpeg_b64: str,
+    client,
+    model: str,
+    provider: str = 'openai',
+    reasoning_effort: str = '',
+    max_tokens_multiplier: float = 4,
 ) -> 'str | None':
-    resp = client.chat.completions.create(
-        model=model,
-        max_tokens=300,
-        messages=[{
+    if provider != 'openai':
+        reasoning_effort = ''
+    max_tokens = 300
+    if needs_reasoning_token_multiplier(
+        provider, model, reasoning_effort
+    ):
+        multiplier = max(1.0, min(max_tokens_multiplier, 8.0))
+        max_tokens = int(max_tokens * multiplier)
+    request_kwargs = {
+        'model': model,
+        'messages': [{
             "role": "system",
             "content": VISION_SYSTEM,
         }, {
@@ -324,6 +346,20 @@ def _call_openai(
                 "text": "What do you see in this scene?",
             }],
         }],
+    }
+    request_kwargs.update(build_chat_options(
+        provider,
+        model,
+        max_tokens,
+        reasoning_effort=reasoning_effort,
+    ))
+    resp = create_chat_completion(
+        client.chat.completions.create,
+        request_kwargs,
+        provider,
+        model,
+        log,
+        reasoning_token_multiplier=max_tokens_multiplier,
     )
     content = resp.choices[0].message.content
     if not content:
@@ -343,6 +379,8 @@ def analyze_screenshot(
     client,
     model: str,
     provider: str = 'openai',
+    reasoning_effort: str = '',
+    max_tokens_multiplier: float = 4,
 ) -> 'dict | None':
     """Send screenshot to vision LLM, return structured
     description or None if uninteresting / error."""
@@ -352,7 +390,14 @@ def analyze_screenshot(
         if provider == 'anthropic':
             raw = _call_anthropic(b64, client, model)
         else:
-            raw = _call_openai(b64, client, model)
+            raw = _call_openai(
+                b64,
+                client,
+                model,
+                provider,
+                reasoning_effort,
+                max_tokens_multiplier,
+            )
     except Exception as e:
         log.error("Vision API call failed: %s", e)
         return None
@@ -672,6 +717,10 @@ def _do_capture_cycle(
         vision_client,
         config['vision_model'],
         provider=config['vision_provider'],
+        reasoning_effort=config['openai_reasoning_effort'],
+        max_tokens_multiplier=(
+            config['openai_max_tokens_multiplier']
+        ),
     )
     if description is None:
         return

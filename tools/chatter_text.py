@@ -10,6 +10,78 @@ from chatter_constants import EMOTE_LIST
 
 logger = logging.getLogger(__name__)
 
+_SENTENCE_END = re.compile(
+    r'[.!?]["\']?(?=\s)|'
+    r'[\u3002\uff01\uff1f]["\'\u300d\u300f]?'
+)
+
+
+def _shorten_at_word_boundary(
+    message: str,
+    max_length: int,
+    suffix: str,
+) -> str:
+    cutoff = max_length - len(suffix)
+    if cutoff <= 0:
+        return message[:max_length]
+
+    if message[cutoff].isspace():
+        shortened = message[:cutoff]
+    else:
+        word_end = message.rfind(' ', 0, cutoff)
+        shortened = (
+            message[:word_end]
+            if word_end >= cutoff // 2
+            else message[:cutoff]
+        )
+    return shortened.rstrip(' ,;:-') + suffix
+
+
+def shorten_chat_message(
+    message: str, max_length: int = 255,
+) -> str:
+    """Shorten chat text without cutting through a sentence or word.
+
+    LLMs occasionally ignore prompt length guidance. Prefer the last
+    complete sentence that fits. If none is available late enough in the
+    message, fall back to a word-boundary ellipsis.
+    """
+    if len(message) <= max_length:
+        return message
+    if max_length <= 0:
+        return ""
+
+    window = message[:max_length + 1]
+    sentence_end = -1
+    for match in _SENTENCE_END.finditer(window):
+        if match.end() <= max_length:
+            sentence_end = match.end()
+
+    if sentence_end >= max_length // 2:
+        return message[:sentence_end].rstrip()
+
+    ellipsis = "..."
+    if max_length <= len(ellipsis):
+        return message[:max_length]
+
+    return _shorten_at_word_boundary(
+        message, max_length, ellipsis,
+    )
+
+
+def shorten_chat_question(
+    message: str, max_length: int = 255,
+) -> str:
+    """Shorten a question at a safe word boundary and preserve its '?'."""
+    if len(message) <= max_length:
+        return message
+    if max_length <= 0:
+        return ""
+    shortened = _shorten_at_word_boundary(
+        message, max_length, "?",
+    )
+    return shortened.rstrip(' ,;:-.!?') + "?"
+
 
 def strip_speaker_prefix(message: str, bot_name: str) -> str:
     """Strip 'BotName:' prefix that LLMs sometimes add."""
@@ -178,6 +250,40 @@ def _sanitize_action(raw_action) -> Optional[str]:
     if len(action) < 2 or len(action) > 80:
         return None
     return action
+
+
+def split_action_prefix(
+    message: str,
+) -> Tuple[str, Optional[str]]:
+    """Split a leading *action* off a cleaned message.
+
+    Inverts the prefix cleanup_message() adds, so the
+    action can be delivered as a /e text emote ahead of
+    the spoken line instead of riding inside it.
+    Returns (message, action), with action None when
+    there is nothing to split.
+
+    A message that is nothing but an action is left
+    alone: emitting the emote would leave an empty chat
+    line behind it.
+    """
+    if not message or not isinstance(message, str):
+        return message, None
+
+    # _sanitize_action strips '*' from the action, so the
+    # closing delimiter is unambiguous.
+    match = re.match(
+        r'^\*([^*]{2,80})\*\s*(.*)$', message
+    )
+    if not match:
+        return message, None
+
+    action = match.group(1).strip()
+    spoken = match.group(2).strip()
+    if not action or not spoken:
+        return message, None
+
+    return spoken, action
 
 
 def cleanup_message(
