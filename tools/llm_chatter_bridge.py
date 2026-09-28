@@ -1193,6 +1193,23 @@ def _has_urgent_event_backlog(db, urgent_floor):
     )
 
 
+def _poll_delay(
+    players_online, work_in_flight,
+    active_interval, idle_interval,
+):
+    """Seconds to wait before the next main-loop pass.
+
+    A fixed fast poll burns CPU on an empty server, and the
+    configured interval applied unconditionally adds itself to
+    every direct player reply. Stay fast while anyone is online
+    or work is still in flight; fall back to the configured
+    interval only when the server is genuinely idle.
+    """
+    if players_online or work_in_flight:
+        return active_interval
+    return idle_interval
+
+
 def _has_pending_legacy_requests(db):
     """Check whether the legacy ambient queue has pending work."""
     cursor = db.cursor()
@@ -1579,6 +1596,21 @@ def main():
     poll_interval = int(config.get(
         'LLMChatter.Bridge.PollIntervalSeconds', 3
     ))
+    # Cadence used while the server is busy. Direct player
+    # chat is picked up on this interval, so it stays well
+    # below a second; the configured interval above applies
+    # only once nothing is happening.
+    try:
+        active_poll_interval = float(config.get(
+            'LLMChatter.Bridge.ActivePollIntervalSeconds', 0.2
+        ))
+    except (TypeError, ValueError):
+        active_poll_interval = 0.2
+    if active_poll_interval <= 0:
+        active_poll_interval = 0.2
+    active_poll_interval = min(
+        active_poll_interval, float(poll_interval)
+    )
 
     # Max concurrent event workers
     try:
@@ -2175,6 +2207,10 @@ def main():
     tone_regen_future = None
     # Track online→offline transition for full wipe
     was_players_online = True
+    # Assume company until proven otherwise: if the first
+    # database check fails we would rather poll quickly than
+    # leave a player waiting on a stale idle interval.
+    players_online = True
 
     def _harvest_future(f, name):
         """Consume any unexpected worker failure."""
@@ -2492,13 +2528,28 @@ def main():
                     except Exception:
                         pass
 
-            # Poll cadence honors the configured
-            # Bridge.PollIntervalSeconds instead of a
-            # hardcoded value (previously ignored the
-            # setting, causing excessive DB reconnects and
-            # CPU use). Background tasks self-rate-limit via
-            # their own last_X / interval checks.
-            time.sleep(poll_interval)
+            # Poll cadence adapts rather than being fixed.
+            # A hardcoded fast poll burns CPU on an empty
+            # server; the configured interval applied
+            # unconditionally adds itself to every direct
+            # player reply. So: stay fast while anyone is
+            # online or work is still in flight, and fall
+            # back to Bridge.PollIntervalSeconds only when
+            # the server is genuinely idle. Background tasks
+            # self-rate-limit via their own last_X / interval
+            # checks either way.
+            work_in_flight = bool(
+                active_futures
+                or precache_future
+                or idle_chatter_future
+                or bot_question_future
+                or legacy_future
+                or tone_regen_future
+            )
+            time.sleep(_poll_delay(
+                players_online, work_in_flight,
+                active_poll_interval, poll_interval,
+            ))
 
         except KeyboardInterrupt:
             executor.shutdown(wait=False)

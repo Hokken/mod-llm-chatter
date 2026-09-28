@@ -2775,6 +2775,17 @@ LLMChatter.MaxBotsPerZone = 8
 LLMChatter.Bridge.PollIntervalSeconds = 1
 
 #
+#   LLMChatter.Bridge.ActivePollIntervalSeconds
+#       How often the bridge checks for work while players are
+#       online or background work is still running. Direct player
+#       chat is picked up on this interval, so keep it small; the
+#       slower PollIntervalSeconds above applies only once the
+#       server is idle. Capped at PollIntervalSeconds.
+#       Default: 0.2
+#
+LLMChatter.Bridge.ActivePollIntervalSeconds = 0.2
+
+#
 #   LLMChatter.GroupChatter.ReactDelay.Join
 #       Seconds C++ waits before the bot join event becomes
 #       eligible for Python processing. Shorter = faster
