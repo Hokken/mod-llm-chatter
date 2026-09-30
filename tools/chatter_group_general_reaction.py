@@ -23,6 +23,7 @@ from chatter_group_state import (
     format_chat_history,
     get_group_player_name,
 )
+from chatter_guild_profile import get_character_guild_name
 from chatter_mode import (
     build_player_chat_guidance,
     build_player_prompt_header_from_dict,
@@ -378,11 +379,14 @@ def _fetch_group_bots(db, group_id: int, source_bot_guid: int) -> List[Dict]:
     """, (group_id, source_bot_guid))
     rows = cursor.fetchall()
     cursor.close()
-    return [
+    bots = [
         _row_to_bot(row) for row in rows
         if get_race_faction(row.get('race'))
         == player_faction
     ]
+    for bot in bots:
+        bot['guild_name'] = get_character_guild_name(db, bot['guid'])
+    return bots
 
 
 def _fetch_source_bot_info(db, source_bot_guid: int) -> Dict:
@@ -402,6 +406,7 @@ def _fetch_source_bot_info(db, source_bot_guid: int) -> Dict:
         'race': get_race_name(row.get('race')),
         'level': int(row.get('level') or 0),
         'gender': get_gender_label(row.get('gender')),
+        'guild_name': get_character_guild_name(db, source_bot_guid),
     }
 
 
@@ -496,6 +501,11 @@ def _build_statement_prompt(
         source_bot.get('class', ''),
     ]
     source_detail = ' '.join(b for b in source_bits if b)
+    if source_bot.get('guild_name'):
+        source_detail = (
+            f"{source_detail} of the guild "
+            f"\"{source_bot['guild_name']}\""
+        ).strip()
     if source_detail:
         source_desc += f" ({source_detail})"
 

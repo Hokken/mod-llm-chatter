@@ -7,6 +7,7 @@
 #include "LLMChatterBG.h"
 #include "LLMChatterGroup.h"
 #include "LLMChatterGroupInternal.h"
+#include "LLMChatterGuild.h"
 #include "LLMChatterShared.h"
 
 #include "Battleground.h"
@@ -1185,20 +1186,30 @@ public:
         Player* killer, Player* killed) override
     {
         if (!sLLMChatterConfig
-            || !sLLMChatterConfig->IsEnabled()
-            || !sLLMChatterConfig->_bgChatterEnable)
+            || !sLLMChatterConfig->IsEnabled())
             return;
         if (!killer || !killed)
             return;
 
         if (!killer->InBattleground())
+        {
+            HandleOpenWorldPvpKill(killer, killed);
+            return;
+        }
+        if (!sLLMChatterConfig->_bgChatterEnable)
             return;
         Battleground* bg = killer->GetBattleground();
         if (!bg || !bg->isBattleground())
             return;
 
+        bool massiveBattle =
+            sLLMChatterConfig->_useGroupChatter
+            && sLLMChatterConfig->_groupPvpKillEnable;
         if (urand(1, 100)
-            > sLLMChatterConfig->_eventReactionChance)
+            > (massiveBattle
+                ? sLLMChatterConfig
+                    ->_groupPvpKillBattlegroundChance
+                : sLLMChatterConfig->_eventReactionChance))
             return;
 
         std::string extraBase = "{"
@@ -1208,6 +1219,17 @@ public:
             "\"victim_class\":" +
                 std::to_string(
                     killed->getClass()) +
+            ",\"victim_race\":\"" +
+                GetRaceName(killed->getRace()) +
+                "\",\"victim_gender\":\"" +
+                std::string(
+                    killed->getGender() == GENDER_FEMALE
+                    ? "female" : "male") +
+                "\",\"victim_level\":" +
+                std::to_string(killed->GetLevel()) +
+            ",\"massive_battle\":" +
+                std::string(
+                    massiveBattle ? "true" : "false") +
             ",\"killer_name\":\"" +
                 JsonEscape(killer->GetName()) +
                 "\","

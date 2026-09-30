@@ -5,7 +5,13 @@
 
 #include <string>
 
+class Player;
+
 void AddLLMChatterGuildScripts();
+
+void NoteGuildJoinForZoneAnnounce(uint32 guildId, uint32 memberGuid);
+void HandleOpenWorldPvpKill(Player* killer, Player* killed);
+void UpdateGuildWorldEvents();
 
 void NoteGuildPlayerInteraction(uint32 guildId);
 

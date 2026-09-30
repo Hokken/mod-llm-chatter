@@ -81,6 +81,10 @@ from chatter_shared import (
     bound_brief_casual_response,
     build_brief_casual_repair_prompt,
 )
+from chatter_guild_profile import (
+    get_character_guild_name,
+    same_guild_note,
+)
 from chatter_db import (
     get_character_info_by_name,
     get_group_location,
@@ -160,6 +164,7 @@ from chatter_group_prompts import (
     build_nearby_object_conversation_prompt,
     build_bot_question_prompt,
 )
+from chatter_themed_topics import pick_themed_topic
 from chatter_constants import (
     RACE_SPEECH_PROFILES,
     CLASS_ROLE_MAP,
@@ -620,6 +625,9 @@ def process_group_event(db, client, config, event):
         'level': bot_level,
         'gender': get_gender_label(
             int(extra_data.get('bot_gender', 0))
+        ),
+        'guild_name': get_character_guild_name(
+            db, bot_guid
         ),
         'gear': build_gear_context(
             db, bot_guid, bot_class, config,
@@ -1089,6 +1097,9 @@ def process_group_join_batch_event(
                 'level': bot_level,
                 'gender': get_gender_label(
                     int(bot_raw.get('bot_gender', 0))
+                ),
+                'guild_name': get_character_guild_name(
+                    db, bot_guid
                 ),
                 'gear': build_gear_context(
                     db, bot_guid, bot_class, config,
@@ -1567,6 +1578,9 @@ def _batch_welcome(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, wb_guid
+        ),
         'gear': build_gear_context(
             db, wb_guid,
             get_class_name(char_row['class']), config,
@@ -1769,6 +1783,9 @@ def process_group_player_msg_event(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, bot_guid
+        ),
         'gear': build_gear_context(
             db, bot_guid,
             get_class_name(char_row['class']), config,
@@ -1987,6 +2004,11 @@ def process_group_player_msg_event(
             travel_context=travel_context,
             brief_casual=brief_casual,
             allow_action=not brief_casual,
+            guild_note=same_guild_note(
+                db, bot_guid,
+                player_info['guid'] if player_info else 0,
+                player_name,
+            ),
         )
 
         max_tokens = pick_random_max_tokens(config)
@@ -2335,6 +2357,9 @@ def _try_second_bot_response(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, bot2_guid
+        ),
         'gear': build_gear_context(
             db, bot2_guid,
             get_class_name(char_row['class']), config,
@@ -2388,6 +2413,11 @@ def _try_second_bot_response(
         map_id=map_id,
         stored_tone=bot2_tone,
         travel_context=bot2_travel_context,
+        guild_note=same_guild_note(
+            db, bot2_guid,
+            player_info['guid'] if player_info else 0,
+            player_name,
+        ),
     )
 
     max_tokens = int(config.get(
@@ -2483,6 +2513,9 @@ def _welcome_from_existing_bot(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, wb_guid
+        ),
         'gear': build_gear_context(
             db, wb_guid,
             get_class_name(char_row['class']), config,
@@ -2898,6 +2931,7 @@ def build_idle_chatter_prompt(
     memories=None,
     backstory=None,
     travel_context='',
+    themed_topic='',
 ):
     """Build prompt for idle party chat.
 
@@ -3212,11 +3246,15 @@ def build_idle_chatter_prompt(
     if twist:
         prompt += f"Creative twist: {twist}\n"
 
-    party_ctx = (
-        f"You're in a party, currently {topic}."
-        if topic else
-        "You're in a party."
-    )
+    if themed_topic and topic:
+        party_ctx = (
+            "You're in a party and bring up something of your "
+            f"own: {themed_topic}"
+        )
+    elif topic:
+        party_ctx = f"You're in a party, currently {topic}."
+    else:
+        party_ctx = "You're in a party."
     prompt += (
         f"{rp_context}\n\n"
         f"{party_ctx}\n"
@@ -4167,6 +4205,9 @@ def _idle_single_statement(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, bot_guid
+        ),
         'gear': build_gear_context(
             db, bot_guid,
             get_class_name(char_row['class']), config,
@@ -4277,6 +4318,16 @@ def _idle_single_statement(
         if random.random() < idle_chance:
             idle_backstory = bot_row.get('backstory')
 
+    idle_themed = None
+    if (
+        not idle_memories
+        and get_dungeon_flavor(map_id) is None
+        and map_id not in BG_MAP_NAMES
+    ):
+        idle_themed = pick_themed_topic(
+            db, config, 'party', bot, mode=mode,
+        )
+
     try:
         speaker_talent = _maybe_talent_context(
             config, db, bot_guid,
@@ -4299,6 +4350,7 @@ def _idle_single_statement(
             memories=idle_memories,
             backstory=idle_backstory,
             travel_context=travel_context,
+            themed_topic=idle_themed.render() if idle_themed else '',
         )
 
         _dflav = get_dungeon_flavor(map_id)
@@ -4465,6 +4517,9 @@ def _idle_conversation(
             'race': get_race_name(char['race']),
             'level': char['level'],
             'gender': get_gender_label(char['gender']),
+            'guild_name': get_character_guild_name(
+                db, br['bot_guid']
+            ),
             'gear': build_gear_context(
                 db, br['bot_guid'],
                 get_class_name(char['class']), config,
@@ -4500,6 +4555,15 @@ def _idle_conversation(
             else AMBIENT_CHAT_TOPICS
         )
         topic = random.choice(topic_pool)
+        themed = pick_themed_topic(
+            db, config, 'party', bots[0], mode=mode,
+        )
+        if themed:
+            topic = (
+                f"{bots[0]['name']} brings this up and the others "
+                f"react from their own race and class: "
+                f"{themed.render()}"
+            )
 
     boss_str = (
         f", bosses={len(dungeon_bosses or [])}"
@@ -4980,6 +5044,9 @@ def check_bot_questions(db, client, config):
             ),
             'level': char_row['level'],
             'gender': get_gender_label(char_row['gender']),
+            'guild_name': get_character_guild_name(
+                db, bot_guid
+            ),
             'gear': build_gear_context(
                 db, bot_guid,
                 get_class_name(char_row['class']),

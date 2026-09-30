@@ -647,6 +647,20 @@ def build_bg_pvp_kill_prompt(
             f"React with a quick, sharp comment."
             f"{kill_variety}"
         )
+    victim_race = extra_data.get('victim_race') or ''
+    if victim_race:
+        ctx += (
+            f"\nThe fallen enemy was a "
+            f"{extra_data.get('victim_gender') or ''} "
+            f"{victim_race}."
+        ).replace('  ', ' ')
+    if extra_data.get('massive_battle'):
+        ctx += (
+            "\nThis kill was not a lone skirmish: it happened "
+            "in the middle of a massive battle, one enemy among "
+            "many falling around you. Let the scale of the "
+            "fighting show; speak as 'we' and 'our side'."
+        )
     return append_json_instruction(
         ctx, allow_action=False)
 

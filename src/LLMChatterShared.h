@@ -139,6 +139,14 @@ Player* FindNearbyDefenderBot(
 uint8 GetChatterEventPriority(
     const std::string& eventType);
 uint32 GetReactionDelaySeconds(const std::string& eventType);
+
+// The real player a themed topic or rumor is aimed at: level, faction,
+// race and mod-individual-progression tier (ip_active=false when that
+// module is absent or disabled).
+std::string BuildAudienceJson(Player* player);
+Player* PickRealPlayerInZone(uint32 zoneId, TeamId team);
+Player* PickRealGuildMember(uint32 guildId);
+
 void AddLLMChatterPlayerScripts();
 void AddLLMChatterWorldScripts();
 

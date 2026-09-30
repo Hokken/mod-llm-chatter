@@ -47,6 +47,11 @@ _recent_spices = collections.deque(maxlen=30)
 # =============================================================================
 # PERSONALITY SPICE PICKER
 # =============================================================================
+
+def _guild_suffix(bot: dict) -> str:
+    guild_name = bot.get('guild_name', '')
+    return f' of the guild "{guild_name}"' if guild_name else ''
+
 def pick_personality_spices(
     config=None, mode='normal',
     spice_count_override=None,
@@ -444,6 +449,7 @@ def build_plain_statement_prompt(
             bot.get('class', ''),
             bot.get('gender', ''),
             gear=bot.get('gear', ''),
+            guild_name=bot.get('guild_name', ''),
         )
         parts.append(
             f"{identity} "
@@ -583,6 +589,7 @@ def build_quest_statement_prompt(
             bot.get('class', ''),
             bot.get('gender', ''),
             gear=bot.get('gear', ''),
+            guild_name=bot.get('guild_name', ''),
         )
         parts.append(
             f"{identity} Speak in-character about "
@@ -719,6 +726,7 @@ def build_loot_statement_prompt(
             bot.get('class', ''),
             bot.get('gender', ''),
             gear=bot.get('gear', ''),
+            guild_name=bot.get('guild_name', ''),
         )
         parts.append(
             f"{identity} Speak in-character about "
@@ -874,6 +882,7 @@ def build_quest_reward_statement_prompt(
             bot.get('class', ''),
             bot.get('gender', ''),
             gear=bot.get('gear', ''),
+            guild_name=bot.get('guild_name', ''),
         )
         parts.append(
             f"{identity} Speak in-character about "
@@ -1067,6 +1076,7 @@ def build_plain_conversation_prompt(
             cls = bot.get('class', '')
             parts.append(
                 f"{bot['name']} is a {race} {cls}"
+                f"{_guild_suffix(bot)}"
             )
             append_speaker_gear(parts, bot)
             if is_rp:
@@ -1304,6 +1314,7 @@ def build_gossip_statement_prompt(
             bot['name'], bot.get('race', ''),
             bot.get('class', ''), bot.get('gender', ''),
             gear=bot.get('gear', ''),
+            guild_name=bot.get('guild_name', ''),
         )
         parts.append(
             f"{identity} Speak in-character in General "
@@ -1535,6 +1546,7 @@ def build_quest_conversation_prompt(
             parts.append(
                 f"{bot['name']} is a "
                 f"{bot['race']} {bot['class']}"
+                f"{_guild_suffix(bot)}"
             )
             append_speaker_gear(parts, bot)
 
@@ -1792,6 +1804,7 @@ def build_event_conversation_prompt(
             cls = bot.get('class', '')
             parts.append(
                 f"{bot['name']} is a {race} {cls}"
+                f"{_guild_suffix(bot)}"
             )
             append_speaker_gear(parts, bot)
             if is_rp:
@@ -2070,6 +2083,7 @@ def build_spell_statement_prompt(
             bot.get('class', ''),
             bot.get('gender', ''),
             gear=bot.get('gear', ''),
+            guild_name=bot.get('guild_name', ''),
         )
         parts.append(
             f"{identity} "
@@ -2249,6 +2263,7 @@ def build_spell_conversation_prompt(
         parts.append(
             f"{bot['name']} is a "
             f"{bot['race']} {bot['class']}"
+            f"{_guild_suffix(bot)}"
         )
         append_speaker_gear(parts, bot)
         if is_rp:
@@ -2443,6 +2458,7 @@ def build_trade_statement_prompt(
             bot.get('class', ''),
             bot.get('gender', ''),
             gear=bot.get('gear', ''),
+            guild_name=bot.get('guild_name', ''),
         )
         parts.append(
             f"{identity} You want to "
@@ -2624,6 +2640,7 @@ def build_trade_conversation_prompt(
             parts.append(
                 f"{bot['name']} is a "
                 f"{bot['race']} {bot['class']}"
+                f"{_guild_suffix(bot)}"
             )
             append_speaker_gear(parts, bot)
 

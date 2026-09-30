@@ -17,6 +17,7 @@ import threading
 import time
 from typing import Optional, Dict, List, Tuple, Any
 
+from chatter_lore_data import RACE_CLASS_NOTES
 from chatter_constants import (
     ZONE_LEVELS, ZONE_NAMES,
     CLASS_NAMES, RACE_NAMES,
@@ -395,6 +396,7 @@ def build_bot_identity(
     gender: str = '',
     suffix: str = '.',
     gear: str = '',
+    guild_name: str = '',
 ) -> str:
     """Return an identity prefix for bot prompts.
 
@@ -410,9 +412,17 @@ def build_bot_identity(
         )
     else:
         identity = f"You are {bot_name}{suffix}"
+    identity += _guild_membership_sentence(guild_name)
 
     gear = (gear or '').strip()
     return f"{identity} {gear}" if gear else identity
+
+
+def _guild_membership_sentence(guild_name: str) -> str:
+    guild_name = (guild_name or '').strip()
+    if not guild_name:
+        return ''
+    return f" You are a member of the guild \"{guild_name}\"."
 
 
 def build_bot_identity_with_level(
@@ -422,6 +432,7 @@ def build_bot_identity_with_level(
     bot_level,
     gender: str = '',
     suffix: str = ' in World of Warcraft.',
+    guild_name: str = '',
 ) -> str:
     """Return a leveled identity prefix for bot prompts."""
     gender_prefix = f"{gender} " if gender else ""
@@ -429,6 +440,7 @@ def build_bot_identity_with_level(
         f"You are {bot_name}, a level "
         f"{bot_level} {gender_prefix}{bot_race} "
         f"{bot_class}{suffix}"
+        + _guild_membership_sentence(guild_name)
     )
 
 
@@ -439,6 +451,7 @@ def build_bot_identity_from_dict(
 ) -> str:
     """Build a standard identity line from a bot dict."""
     gender = bot.get('gender', '')
+    guild_name = bot.get('guild_name', '')
     if include_level:
         return build_bot_identity_with_level(
             bot['name'],
@@ -447,12 +460,14 @@ def build_bot_identity_from_dict(
             bot['level'],
             gender=gender,
             suffix=suffix,
+            guild_name=guild_name,
         )
     return build_bot_identity(
         bot['name'],
         bot['race'],
         bot['class'],
         gender=gender,
+        guild_name=guild_name,
     )
 
 
@@ -487,6 +502,8 @@ _race_lore_chance = 0.15
 # Module-level race vocabulary chance (set from config)
 _race_vocab_chance = 0.15
 
+_race_class_notes_enabled = True
+
 
 def set_race_lore_chance(chance_pct: int):
     """Set from config: LLMChatter.RaceLoreChance (0-100)."""
@@ -500,9 +517,37 @@ def set_race_vocab_chance(chance_pct: int):
     _race_vocab_chance = chance_pct / 100.0
 
 
+def set_race_class_notes_enabled(enabled: bool):
+    """Set from config: LLMChatter.RaceClassNotes.Enable."""
+    global _race_class_notes_enabled
+    _race_class_notes_enabled = bool(enabled)
+
+
+def race_class_note(
+    race: str, class_name: str,
+    class_style: str = None, actual_role: str = None,
+    subject: str = "Your",
+) -> str:
+    """Lore note for this race+class; priests split into Light/Shadow."""
+    if not _race_class_notes_enabled:
+        return ""
+    style = class_style or class_name
+    if style == 'Priest':
+        style = (
+            'Shadow Priest'
+            if actual_role and actual_role.endswith('dps')
+            else 'Light Priest'
+        )
+    note = RACE_CLASS_NOTES.get((race, style))
+    if not note:
+        return ""
+    return f"{subject} people and calling ({race} {style}): {note}"
+
+
 def build_race_class_context(
     race: str, class_name: str,
-    actual_role: str = None
+    actual_role: str = None,
+    class_style: str = None,
 ) -> str:
     """Build an RP personality fragment for prompts."""
     parts = []
@@ -548,6 +593,9 @@ def build_race_class_context(
         if isinstance(modifier, list):
             modifier = random.choice(modifier)
         parts.append(f"As a {class_name}, you are {modifier}.")
+    note = race_class_note(race, class_name, class_style, actual_role)
+    if note:
+        parts.append(note)
     role = actual_role or CLASS_ROLE_MAP.get(class_name)
     if role:
         perspective = ROLE_COMBAT_PERSPECTIVES.get(role)
@@ -560,6 +608,7 @@ def build_race_class_context_parts(
     race: str, class_name: str,
     actual_role: str = None,
     race_count: int = 1,
+    class_style: str = None,
 ):
     """Return (per_bot, shared_race, shared_class) strings.
 
@@ -635,6 +684,9 @@ def build_race_class_context_parts(
         per_bot_parts.append(
             f"As a {class_name}, you are {modifier}."
         )
+    note = race_class_note(race, class_name, class_style, actual_role)
+    if note:
+        per_bot_parts.append(note)
 
     # Shared class: role perspective only (fixed per role)
     role = actual_role or CLASS_ROLE_MAP.get(class_name)

@@ -328,6 +328,102 @@ that playerbots are ready synchronously:
 9. Native Guild delivery records successful greetings as `reply`
    history, making them visible to later player-session continuity.
 
+Themed topics and rumors are chosen on the bridge but need facts only the
+worldserver has:
+
+1. `BuildAudienceJson()` in `LLMChatterShared.cpp` describes one real
+   player: level, faction, race, GM flag and, when
+   mod-individual-progression is loaded and enabled, its tier, limit and
+   Zul'Gurub/Zul'Aman settings. The module is detected through the
+   enabled-module list, so nothing links against it.
+2. `CheckGuildIdleChatter()` adds `audience` (a random online real guild
+   member) and `weather` to the `guild_idle_chatter` payload.
+   `QueueChatterRequest()` stores `audience_context` (a real player of
+   the speaker's faction in the zone) on General queue rows.
+3. `chatter_guild.py` picks MOTD, zone opinion, zone at this hour and
+   weather, a themed topic, or a generic topic in that order. A themed
+   topic becomes a required topic with extra prompt lines, and the same
+   choice survives the statement fallback. `chatter_ambient.py` and the
+   party idle paths in `chatter_group.py` call the same picker.
+4. `chatter_themed_topics.py` builds the topic from the lore and rumor
+   data. `chatter_progression.py` gates rumors by audience level,
+   faction, `character_achievement` rows and progression tier. Trainer
+   rumors (`chatter_trainer_rumor_data.py`) use only the audience's
+   faction, race, class and level band.
+
+Guild world events come from `LLMChatterGuildWorld.cpp`:
+
+1. `UpdateGuildWorldEvents()` runs from the guild update tick. Every
+   `WorldScanInterval` seconds, one session pass collects guild bots and
+   real guild players. It then scans around each real player for guild
+   bots to greet, and tries one NPC encounter per guild.
+2. The guild `OnEvent` join hook queues a delayed join announcement,
+   independent of join greetings.
+3. `OnPlayerPVPKill` sends open-world kills to
+   `HandleOpenWorldPvpKill()`. The group branch runs first and never
+   checks guilds; the guild branch only runs for ungrouped bot killers.
+   `QueuePvpDeathComplaint()` then handles bot-on-bot deaths of an
+   ungrouped victim: `guild_pvp_death` if a real guildmate is online,
+   otherwise `zone_pvp_death` if a real same-faction player is in the
+   zone. All PvP cooldown maps (victim, guild, zone and team, kill) sit
+   under `sPvpCooldownMutex` because kill hooks run on map threads.
+   Battleground kills stay on `bg_pvp_kill`.
+4. `chatter_guild_world_events.py` reuses the guild event prompt helpers
+   for Guild lines and `run_group_handler()` for the party reaction.
+   Greetings go to `/say` with a `hello` emote aimed at the player, and
+   join announcements go to General, all with `owner_subsystem='guild'`.
+   `zone_pvp_death` goes to General with the default `general` owner, so
+   the General toggle silences it.
+
+Guild news (joins, rank changes, a new MOTD) comes from a `GuildScript`
+in `LLMChatterGuild.cpp`:
+
+1. `OnEvent` receives AzerothCore's guild event-log entries. Type 2 (join)
+   records the join time and queues the newcomer; types 3 and 4 (promote,
+   demote) record the actor, the target and the new rank. The old rank is
+   derived: rank 0 is the Guild Master, so a promotion lowers the id by
+   one. `OnMOTDChanged` stores the latest MOTD.
+2. Hooks can fire from map threads because playerbots manage their own
+   guilds, so they only append to mutex-protected per-guild buffers. The
+   world update drains them once per second.
+3. Joins wait `JoinGreeting.BatchSeconds` so close joins share one event.
+   Rank changes wait until the guild has been quiet for
+   `RankChange.DebounceSeconds`; each member is reduced to a net change,
+   and a member whose rank ends where it started is dropped. Members who
+   joined within `RankChange.NewMemberGraceMinutes` are left out. Join
+   times come from memory, or from `guild_eventlog` for joins before the
+   last server start. A MOTD waits `MotdComment.DelaySeconds`, and only
+   the MOTD still current at that time is used.
+4. A flushed batch needs an online real player of that guild (the anchor
+   for zone, map and faction) and at least one eligible guild bot other
+   than the newcomers or changed members. One `guild_member_join`,
+   `guild_rank_change` or `guild_motd_comment` event carries the guild,
+   the members, rank ids, direction, actor name or MOTD, and the live
+   candidates.
+5. A real player who joins while online gets a Guild session at once
+   instead of at next login.
+6. `chatter_guild_events.py` picks one to three commenters and generates
+   independent short lines. A newcomer or changed member who is an online
+   bot may answer once. Rank names come from `guild_rank`.
+7. Delivery records these lines as `reply` history.
+
+GM rank commands (`.guild rank`) call `ChangeMemberRank` directly and log
+no guild event, so they are not noticed.
+
+Guild identity outside Guild Chat is resolved in Python by
+`chatter_guild_profile.py` from `guild`, `guild_member`, `guild_rank` and
+the leader's `characters` row, cached for 60 seconds:
+
+- Guild prompts quote the Guild Information as background, and idle
+  chatter sometimes uses the MOTD as its topic.
+- Speaker identities and rosters in party, General, proximity, emote
+  and screenshot prompts name the speaker's guild. Raid, battleground
+  and cached combat-callout prompts do not.
+- Party replies, `/say` replies and emote reactions add a note when the
+  bot and the real player share a guild.
+- Plain General statements may praise the speaker's guild (and Guild
+  Master); plain General conversations may turn to the speakers' guilds.
+
 ### Player-chat input filtering
 
 `LLMChatterConfig` owns the reload-safe, server-side
@@ -704,7 +800,7 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterNearby.cpp` | 691 | Nearby-object and nearby-creature scanning, POI scoring, nearby direct event queueing, nearby-local cooldowns |
 | `src/LLMChatterNearby.h` | 6 | Narrow nearby scan declaration consumed by `LLMChatterWorld.cpp` |
 | `src/LLMChatterWorld.cpp` | ~1000 | WorldScript ownership, thin ambient/nearby/delivery/proximity/boss delegation, transport polling and route announcements, transport-private state, retained world-private `QueueEvent()` helper |
-| `src/LLMChatterGuild.cpp` | ~750 | Player-driven Guild Chat capture, per-login session lifecycle, deferred login greetings, eligible-bot selection, stale-turn cancellation, recent-interaction suppression, and delivered-line history writes |
+| `src/LLMChatterGuild.cpp` | ~1500 | Player-driven Guild Chat capture, per-login session lifecycle, deferred login greetings, guild news hooks (join, rank change, MOTD) with batching and grace, eligible-bot selection, stale-turn cancellation, recent-interaction suppression, and delivered-line history writes |
 | `src/LLMChatterGuild.h` | ~20 | Guild registration and delivery/world cross-call declarations |
 | `src/LLMChatterGroup.cpp` | ~1350 | Shared group state definitions, shared helpers (`GroupHasRealPlayer`, `GetRandomBotInGroup`, `CountBotsInGroup`, pre-cache helpers), disabled-by-default MultiBot-Chatless `MBOT` fallback handler, `CleanupGroupSession()` coordinator, thin `LLMChatterGroupPlayerScript` shell wrappers, registration |
 | `src/LLMChatterGroupCombat.cpp` | ~2550 | Remaining group PlayerScript implementation bodies (kill/death/loot/combat/chat/level/quest/achievement/spell/resurrect/corpse-run/dungeon-entry/emote dispatch), text-emote target classification and group gating, zone transition handling, combat state callouts, `MBOT` debug-log suppression, file-local `QueueStateCallout()` |
@@ -765,6 +861,8 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_guild.py` | Guild prompts and insert orchestration |
 | `tools/chatter_guild_player.py` | Player-driven Guild replies, reply topology, session-context prompts, and rolling summary compaction |
 | `tools/chatter_guild_login.py` | Real-player login greetings, responder selection, short-message prompts, and greeting pacing |
+| `tools/chatter_guild_events.py` | Join greetings, rank-change comments, MOTD comments and the subject's reply |
+| `tools/chatter_guild_profile.py` | Cached guild lookups: name, Info, MOTD, rank names, leader, membership and same-guild notes |
 
 ### Group domain
 

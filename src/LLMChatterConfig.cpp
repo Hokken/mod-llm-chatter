@@ -984,6 +984,154 @@ void LLMChatterConfig::LoadConfig()
                     "LLMChatter.GuildChatter."
                     "LoginGreeting.MaxCandidates", 12),
                 30u));
+    _guildJoinGreetingEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter."
+            "JoinGreeting.Enable", true);
+    _guildJoinGreetingChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "JoinGreeting.Chance", 100),
+            100u);
+    _guildJoinGreetingBatchSeconds =
+        std::max(
+            2u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "JoinGreeting.BatchSeconds", 10),
+                120u));
+    _guildRankChangeEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter."
+            "RankChange.Enable", true);
+    _guildRankChangeChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "RankChange.Chance", 100),
+            100u);
+    _guildRankChangeDebounceSeconds =
+        std::max(
+            5u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "RankChange.DebounceSeconds", 30),
+                600u));
+    _guildRankChangeNewMemberGraceMinutes =
+        GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter."
+            "RankChange.NewMemberGraceMinutes", 30);
+    _guildMotdCommentEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter."
+            "MotdComment.Enable", true);
+    _guildMotdCommentChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "MotdComment.Chance", 100),
+            100u);
+    _guildMotdCommentDelaySeconds =
+        std::max(
+            2u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "MotdComment.DelaySeconds", 20),
+                600u));
+    _guildMemberEventMaxCandidates =
+        std::max(
+            1u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "MemberEvents.MaxCandidates", 12),
+                30u));
+    _guildMeetGreetingEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter.MeetGreeting.Enable", true);
+    _guildMeetGreetingRadius =
+        std::max(5u, std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter.MeetGreeting.Radius", 25),
+            60u));
+    _guildMeetGreetingCooldownHours =
+        std::max(1u, GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter.MeetGreeting.CooldownHours", 5));
+    _guildWorldScanInterval =
+        std::max(5u, std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter.WorldScanInterval", 10),
+            300u));
+    _guildJoinZoneAnnounceEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter.JoinZoneAnnounce.Enable", true);
+    _guildJoinZoneAnnounceChance =
+        std::min(GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter.JoinZoneAnnounce.Chance", 35),
+            100u);
+    _guildPvpKillEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter.PvpKill.Enable", true);
+    _guildPvpKillChance =
+        std::min(GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter.PvpKill.Chance", 25),
+            100u);
+    _guildPvpKillCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter.PvpKill.Cooldown", 300);
+    _guildNpcEncounterEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter.NpcEncounter.Enable", true);
+    _guildNpcEncounterChance =
+        std::min(GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter.NpcEncounter.Chance", 4),
+            100u);
+    _guildNpcEncounterRadius =
+        std::max(5u, std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter.NpcEncounter.Radius", 30),
+            80u));
+    _guildNpcEncounterCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter.NpcEncounter.Cooldown", 1200);
+    _groupPvpKillEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GroupChatter.PvpKill.Enable", true);
+    _groupPvpKillChance =
+        std::min(GetChatterOption<uint32>(
+            "LLMChatter.GroupChatter.PvpKill.Chance", 60),
+            100u);
+    _groupPvpKillBattlegroundChance =
+        std::min(GetChatterOption<uint32>(
+            "LLMChatter.GroupChatter.PvpKill.BattlegroundChance", 8),
+            100u);
+    _guildPvpDeathEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter.PvpDeath.Enable", true);
+    _guildPvpDeathChance =
+        std::min(GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter.PvpDeath.Chance", 30),
+            100u);
+    _guildPvpDeathGuildCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter.PvpDeath.GuildCooldown", 600);
+    _generalPvpDeathEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GeneralChat.PvpDeath.Enable", true);
+    _generalPvpDeathChance =
+        std::min(GetChatterOption<uint32>(
+            "LLMChatter.GeneralChat.PvpDeath.Chance", 15),
+            100u);
+    _generalPvpDeathZoneCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.GeneralChat.PvpDeath.ZoneCooldown", 600);
+    _pvpDeathVictimCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.PvpDeath.VictimCooldown", 1800);
 
     // Zone intrusion alerts
     _zoneIntrusionEnable =

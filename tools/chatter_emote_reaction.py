@@ -18,6 +18,10 @@ from chatter_shared import (
     build_gear_context,
 )
 from chatter_mode import build_player_prompt_header
+from chatter_guild_profile import (
+    get_character_guild_name,
+    same_guild_note,
+)
 from chatter_group_state import (
     _mark_event,
     _store_chat,
@@ -104,6 +108,10 @@ def handle_emote_reaction(db, client, config, event):
         party_context=build_party_context(
             db, group_id, bot_name,
         ),
+        guild_name=get_character_guild_name(db, bot_guid),
+        guild_note=same_guild_note(
+            db, bot_guid, extra.get('player_guid'), p_name,
+        ),
     )
 
     result = run_single_reaction(
@@ -145,12 +153,14 @@ def _build_reaction_prompt(
     is_custom=False,
     gear='',
     party_context='',
+    guild_name='',
+    guild_note='',
 ):
     tone = stored_tone or _pick_tone(category)
     identity = build_player_prompt_header(
         bot_name, bot_race, bot_class,
         gender=bot_gender, mode=mode, channel='party',
-        gear=gear,
+        gear=gear, guild_name=guild_name,
     )
     prompt = identity
     if traits:
@@ -160,6 +170,8 @@ def _build_reaction_prompt(
         )
     if party_context:
         prompt += f"\n{party_context}"
+    if guild_note:
+        prompt += f"\n{guild_note}"
     if is_custom:
         # Free text is already phrased as an action
         # ("grabs your hand"), so quote it rather than

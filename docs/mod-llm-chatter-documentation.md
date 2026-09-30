@@ -2960,6 +2960,208 @@ Existing installations must also apply
 `data/sql/characters/updates/20260725_guild_login_greeting.sql` because
 `llm_chatter_events.event_type` is an SQL enum.
 
+## 13u. Guild News and Guild Identity
+
+### Guild Information and MOTD
+
+Every Guild prompt (idle statements and conversations, player replies,
+login greetings and the guild news comments below) quotes the guild's
+Guild Information text when it is set, as background about the guild and
+never as instructions. `GuildChatter.MotdChance` makes an idle statement or
+conversation use the current MOTD as its topic.
+
+### Join greetings, rank changes and MOTD comments
+
+When a guild with an online real player gains a member, one to three
+Guild bots welcome the newcomer. Joins within `JoinGreeting.BatchSeconds`
+share one welcome. A newcomer who is an online bot may thank them
+(`JoinGreeting.SubjectReplyChance`). A real player who joins while online
+gets a Guild conversation session at once.
+
+In-game promotions and demotions are held until the guild has had no
+change for `RankChange.DebounceSeconds` (default 30), then one to three
+bots comment. The prompt carries the old and new rank names and the
+direction. Several changes become one event, and a member whose rank ends
+where it started is left out. Members who joined within
+`RankChange.NewMemberGraceMinutes` (default 30) are not commented on. The
+changed member may answer if it is an online bot. GM commands such as
+`.guild rank` do not raise a guild event and are not noticed.
+
+A new MOTD gets one or two reactions after `MotdComment.DelaySeconds`.
+
+### Guild in other chat
+
+- Bot and player descriptions (race, class, level, gender) name the
+  character's guild in party, General, proximity `/say`, emote and
+  screenshot prompts.
+- When a bot and the real player share a guild, party replies, proximity
+  `/say` replies and emote reactions (party, observer and ungrouped) tell
+  the bot they are guildmates.
+- A plain General conversation may become a talk about the speakers'
+  guilds (`GeneralDiscussionChance`, needs two guilded speakers).
+- A plain General statement from a guilded bot may praise its guild
+  (`GeneralPraiseChance`), and sometimes the Guild Master by race and class
+  (`GeneralPraiseMasterChance`, never when the speaker is the Guild
+  Master).
+
+### Guild news configuration
+
+| Key | Default | Owner | Purpose |
+|-----|---------|-------|---------|
+| `MotdChance` | 15 | Bridge | Idle topic taken from the MOTD |
+| `JoinGreeting.Enable` | 1 | Server/Bridge | Join greeting toggle |
+| `JoinGreeting.Chance` | 100 | Server | Chance per join batch |
+| `JoinGreeting.BatchSeconds` | 10 | Server | Join batching window |
+| `JoinGreeting.MaxResponders` | 3 | Bridge | Welcoming bots (1-3) |
+| `JoinGreeting.SubjectReplyChance` | 70 | Bridge | Bot newcomer answers |
+| `RankChange.Enable` | 1 | Server/Bridge | Rank-change toggle |
+| `RankChange.Chance` | 100 | Server | Chance per batch |
+| `RankChange.DebounceSeconds` | 30 | Server | Quiet time before commenting |
+| `RankChange.NewMemberGraceMinutes` | 30 | Server | No comments for new members |
+| `RankChange.MaxResponders` | 3 | Bridge | Commenting bots (1-3) |
+| `RankChange.SubjectReplyChance` | 70 | Bridge | Changed bot answers |
+| `MotdComment.Enable` | 1 | Server/Bridge | MOTD comment toggle |
+| `MotdComment.Chance` | 100 | Server | Chance per MOTD change |
+| `MotdComment.DelaySeconds` | 20 | Server | Wait after the change |
+| `MotdComment.MaxResponders` | 2 | Bridge | Commenting bots (1-3) |
+| `MemberEvents.MaxCandidates` | 12 | Server | Live candidate cap |
+| `MemberEvents.MaxCharacters` | 120 | Bridge | Per-line hard cap |
+| `GeneralDiscussionChance` | 10 | Bridge | General talk about guilds |
+| `GeneralPraiseChance` | 8 | Bridge | General guild praise |
+| `GeneralPraiseMasterChance` | 50 | Bridge | Praise names the Guild Master |
+
+All keys are under `LLMChatter.GuildChatter.`. Existing installations must
+apply `data/sql/characters/updates/20260925_guild_member_events.sql`.
+
+---
+
+## 13v. Themed Topics, Rumors and Guild World Events
+
+### Themed topics
+
+`chatter_themed_topics.py` replaces a share of the generic idle topics
+with curated lore from `chatter_lore_data.py`, `chatter_rumor_data.py`
+and `chatter_trainer_rumor_data.py`:
+
+- Guild idle statements and conversations (`ThemedTopics.GuildChance`,
+  60) and plain General statements and conversations
+  (`ThemedTopics.GeneralChance`, 60) use every kind below.
+- Party idle chat outside instances and battlegrounds
+  (`ThemedTopics.PartyChance`, 5) uses class and race+class topics only.
+
+| Kind | Keyed to | Notes |
+|------|----------|-------|
+| Faction | Speaker | War fronts, criticism of the enemy faction or one of its races, local clashes |
+| Race / class / race+class | Speaker | Priests are Light or Shadow by talents (Shadow only when it has strictly the most points) |
+| Expansion rumor | Audience | Outland 57-61, Northrend 67-71; first-hand when the bot outlevels the audience |
+| Dungeon / raid rumor | Audience | Level range, not completed on any difficulty, IP tier |
+| Location / region rumor | Audience | Level range, audience faction, IP tier |
+| Profession trainer rumor | Audience | Audience faction; full weight at 1-20, `TrainerRumorReducedPercent` (33) at 21-30, none above; half the time a trainer listed for the audience's race; ignores IP |
+| Class trainer rumor | Audience | Audience faction; full weight at 1-15, reduced at 16-25, none above; half the time a trainer of the audience's class; ignores IP |
+
+The picker walks the kinds in weighted order (`ThemedTopics.*Weight`) and
+falls back to the generic lists when nothing fits. Every themed prompt
+states the speaker's faction and race and class; in roleplay mode raid
+rumors avoid the word "raid" and dungeon rumors describe the place as
+what it is. Normal mode frames the same material as players talking about
+their characters and the game world.
+
+### Audience and progression
+
+Rumors are aimed at the real player who will read them:
+
+- Guild idle payloads carry `audience` for a random online real guild
+  member.
+- General queue rows carry `llm_chatter_queue.audience_context` for a
+  random real player of the speaker's faction in the zone.
+
+`BuildAudienceJson()` sends level, faction, race, GM flag and, when
+mod-individual-progression is loaded and `IndividualProgression.Enable`
+is on, the progression tier (highest rewarded quest 66001-66018),
+`ProgressionLimit` and the Zul'Gurub and Zul'Aman tiers. Without the
+module, `ip_active` is false and every tier check passes.
+`chatter_progression.py` applies the gates: GMs pass, tiers above the
+limit are hidden, and classic Onyxia and Naxxramas stop at tier 12. The
+Burning Crusade race zones (Azuremyst, Bloodmyst, Eversong, Ghostlands,
+the Exodar, Silvermoon) are never gated: mod-individual-progression
+only closes them when `TbcRacesUnlockProgression` is set above the
+account's progression, and it is 0 by default. Achievements are read
+from `character_achievement` with a 60-second cache.
+
+### Race+class notes
+
+`build_race_class_context()` and its conversation variant add one lore
+note for the speaker's race and class. Guild prompts get the same note
+through `_guild_identity()`. Priests use the Light note unless their
+talents (guild prompts) or a DPS role (party prompts) point to Shadow.
+Disable with `RaceClassNotes.Enable = 0`.
+
+### Guild zone topics
+
+Before the themed roll, an idle Guild line may be the speaker's opinion of
+its zone (`GuildChatter.ZoneTopicChance`, 10) or of the zone at this hour
+and in its current weather (`GuildChatter.ZoneWeatherTopicChance`, 8).
+Both force the zone to be named. Other speakers agree or argue.
+
+### Guild world events
+
+`LLMChatterGuildWorld.cpp` produces seven event types, handled by
+`chatter_guild_world_events.py`:
+
+| Event | Trigger | Output |
+|-------|---------|--------|
+| `guild_meet_greeting` | World scan: a guild bot within `MeetGreeting.Radius` of a real guildmate, not in their group, both calm in the open world | `/hello` emote at the player plus a `/say` greeting; five-hour cooldown per pair |
+| `guild_join_zone_announce` | A bot joins a guild and a real player of its faction is in its zone | General boast plus up to `JoinZoneAnnounce.MaxResponders` reactions from zone bots |
+| `guild_pvp_kill` | An ungrouped guild bot kills an opposing-faction bot outside battlegrounds and arenas | One first-person Guild line |
+| `bot_group_pvp_kill` | A member of the player's group kills an opposing-faction player in the open world | Party reaction ("we killed"); no guild checks |
+| `guild_npc_encounter` | World scan: a guild bot near a friendly service NPC | One Guild line with the bot's opinion of the NPC |
+| `guild_pvp_death` | An ungrouped guild bot is killed by an opposing-faction bot in the open world and a real guildmate is online | One Guild line of contempt, resentment or anger at the killer |
+| `zone_pvp_death` | Same death when the guild line did not fire, and a real player of the bot's faction is in the zone | One General line; may warn others the killer is still around |
+
+#### PvP death complaints
+
+Only bot-on-bot kills outside battlegrounds and arenas count, and the
+victim must not be grouped with a real player. The Guild path is tried
+first (enable flag, a real guildmate online, per-guild cooldown, chance);
+if it does not fire, the zone path is tried (General enabled, a real
+player of the victim's faction in the zone, per zone-and-faction cooldown,
+chance). A per-victim cooldown is shared by both paths, so one bot never
+complains twice within `PvpDeath.VictimCooldown`.
+
+The prompt describes the killer in full (name, gender, race, class,
+level) and how the fight compared in strength. The tone follows the chat
+mode: in Roleplay the bot speaks as a denizen of Azeroth who was just
+struck down, with no respawns, corpse runs, spirit healers, ganking or
+levels; in Normal it may sound like a player grumbling about being
+killed.
+
+On battlegrounds, `GroupChatter.PvpKill.BattlegroundChance` (8) replaces
+`EventReactionChance` for `bg_pvp_kill`, and the prompt frames the kill as
+part of a massive battle and names the victim's race and gender.
+
+### Configuration
+
+| Key | Default | Owner |
+|-----|---------|-------|
+| `GuildChatter.MeetGreeting.Enable` / `.Radius` / `.CooldownHours` | 1 / 25 / 5 | Server |
+| `GuildChatter.WorldScanInterval` | 10 | Server |
+| `GuildChatter.JoinZoneAnnounce.Enable` / `.Chance` | 1 / 35 | Server |
+| `GuildChatter.JoinZoneAnnounce.MaxResponders` | 2 | Bridge |
+| `GuildChatter.PvpKill.Enable` / `.Chance` / `.Cooldown` | 1 / 25 / 300 | Server |
+| `GuildChatter.NpcEncounter.Enable` / `.Chance` / `.Radius` / `.Cooldown` | 1 / 4 / 30 / 1200 | Server |
+| `GroupChatter.PvpKill.Enable` / `.Chance` / `.BattlegroundChance` | 1 / 60 / 8 | Server |
+| `GuildChatter.PvpDeath.Enable` / `.Chance` / `.GuildCooldown` | 1 / 30 / 600 | Server |
+| `GeneralChat.PvpDeath.Enable` / `.Chance` / `.ZoneCooldown` | 1 / 15 / 600 | Server |
+| `PvpDeath.VictimCooldown` | 1800 | Server |
+| `GuildChatter.ZoneTopicChance` / `.ZoneWeatherTopicChance` | 10 / 8 | Bridge |
+| `ThemedTopics.Enable` | 1 | Bridge |
+| `ThemedTopics.GuildChance` / `.GeneralChance` / `.PartyChance` | 60 / 60 / 5 | Bridge |
+| `ThemedTopics.*Weight` | see conf | Bridge |
+| `RaceClassNotes.Enable` | 1 | Bridge |
+
+All keys are under `LLMChatter.`. Existing installations must apply
+`data/sql/characters/updates/20260927_guild_world_events.sql`.
+
 ---
 
 ## 14. JSON and Queue Contracts
@@ -3007,7 +3209,7 @@ Typical multi-message JSON shape:
 | Table | Producer | Consumer | Purpose |
 |---|---|---|---|
 | `llm_chatter_events` | C++ | Python | Event queue, including actual bot-loot snapshots |
-| `llm_chatter_queue` | C++ | Python | Ambient request queue with server-selected `message_type` and optional `item_context` |
+| `llm_chatter_queue` | C++ | Python | Ambient request queue with server-selected `message_type`, optional `item_context` and optional `audience_context` |
 | `llm_chatter_messages` | Python | C++ | Outbound delivery queue with speaker/player IDs, explicit directed-line addressees, and drop diagnostics |
 | `llm_group_cached_responses` | Python | C++ | Pre-cached instant reactions |
 | `llm_group_bot_traits` | Python + C++ travel refresh | Python | Group personality, location, and live travel state |
@@ -3050,6 +3252,8 @@ constructor's `enabledHooks` vector or it will silently never fire.
 - `LLMChatterGroupQuest.cpp` for quest accept batching and CreatureScript
 - `LLMChatterProximity.cpp` for proximity chatter scan and scene logic
 - `LLMChatterPlayer.cpp` for General-channel player logic
+- `LLMChatterGuildWorld.cpp` for open-world guild events (meet
+  greetings, join announcements, PvP kills, NPC encounters)
 - `LLMChatterShared.cpp` for shared helper contracts
 - `LLMChatterScript.cpp` is registration only — do not add features here
 

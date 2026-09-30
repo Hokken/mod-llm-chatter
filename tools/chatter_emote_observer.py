@@ -21,6 +21,10 @@ from chatter_shared import (
     build_gear_context,
 )
 from chatter_mode import build_player_prompt_header
+from chatter_guild_profile import (
+    get_character_guild_name,
+    same_guild_note,
+)
 from chatter_group_state import (
     _mark_event,
     _store_chat,
@@ -106,6 +110,10 @@ def handle_emote_observer(db, client, config, event):
     party_context = build_party_context(
         db, group_id, bot_name,
     )
+    guild_name = get_character_guild_name(db, bot_guid)
+    guild_note = same_guild_note(
+        db, bot_guid, extra.get('player_guid'), p_name,
+    )
 
     if tgt == 'creature':
         prompt = _build_creature_prompt(
@@ -120,6 +128,8 @@ def handle_emote_observer(db, client, config, event):
             is_custom=is_custom,
             gear=gear,
             party_context=party_context,
+            guild_name=guild_name,
+            guild_note=guild_note,
         )
     elif tgt == 'player_external':
         prompt = _build_player_prompt(
@@ -132,7 +142,9 @@ def handle_emote_observer(db, client, config, event):
             is_custom=is_custom,
             gear=gear,
             party_context=party_context,
-            target_desc=_describe_target_player(extra),
+            guild_name=guild_name,
+            guild_note=guild_note,
+            target_desc=_describe_target_player(extra, db),
         )
     else:
         prompt = _build_undirected_prompt(
@@ -145,6 +157,8 @@ def handle_emote_observer(db, client, config, event):
             is_custom=is_custom,
             gear=gear,
             party_context=party_context,
+            guild_name=guild_name,
+            guild_note=guild_note,
         )
 
     result = run_single_reaction(
@@ -189,7 +203,7 @@ def _pick_tone(category: str) -> str:
     return random.choice(pool)
 
 
-def _describe_target_player(extra) -> str:
+def _describe_target_player(extra, db=None) -> str:
     """Describe an emote's player target, e.g.
     "a level 24 female Orc Hunter". Empty when C++
     sent no details for the target."""
@@ -217,6 +231,11 @@ def _describe_target_player(extra) -> str:
         parts.append(race)
     if class_name:
         parts.append(class_name)
+    target_guid = int(extra.get('target_guid') or 0)
+    if parts and db is not None and target_guid:
+        guild_name = get_character_guild_name(db, target_guid)
+        if guild_name:
+            parts.append(f'of the guild "{guild_name}"')
     return ' '.join(parts)
 
 
@@ -231,6 +250,8 @@ def _build_creature_prompt(
     is_custom=False,
     gear='',
     party_context='',
+    guild_name='',
+    guild_note='',
 ):
     rank_str = NPC_RANK_NAMES.get(npc_rank, "")
     type_str = NPC_TYPE_NAMES.get(
@@ -253,7 +274,7 @@ def _build_creature_prompt(
     identity = build_player_prompt_header(
         bot_name, bot_race, bot_class,
         gender=bot_gender, mode=mode, channel='party',
-        gear=gear,
+        gear=gear, guild_name=guild_name,
     )
     prompt = identity
     if traits:
@@ -263,6 +284,8 @@ def _build_creature_prompt(
         )
     if party_context:
         prompt += f"\n{party_context}"
+    if guild_note:
+        prompt += f"\n{guild_note}"
     if is_custom:
         seen = (
             f"You witness {p_name} do this at "
@@ -295,13 +318,15 @@ def _build_player_prompt(
     is_custom=False,
     gear='',
     party_context='',
+    guild_name='',
+    guild_note='',
     target_desc='',
 ):
     tone = stored_tone or _pick_tone(category)
     identity = build_player_prompt_header(
         bot_name, bot_race, bot_class,
         gender=bot_gender, mode=mode, channel='party',
-        gear=gear,
+        gear=gear, guild_name=guild_name,
     )
     prompt = identity
     if traits:
@@ -311,6 +336,8 @@ def _build_player_prompt(
         )
     if party_context:
         prompt += f"\n{party_context}"
+    if guild_note:
+        prompt += f"\n{guild_note}"
     stranger = (
         f"{t_name}, a {target_desc} from outside the group"
         if target_desc
@@ -346,6 +373,8 @@ def _build_undirected_prompt(
     is_custom=False,
     gear='',
     party_context='',
+    guild_name='',
+    guild_note='',
 ):
     if is_custom:
         category = 'custom'
@@ -357,7 +386,7 @@ def _build_undirected_prompt(
     identity = build_player_prompt_header(
         bot_name, bot_race, bot_class,
         gender=bot_gender, mode=mode, channel='party',
-        gear=gear,
+        gear=gear, guild_name=guild_name,
     )
     prompt = identity
     if traits:
@@ -367,6 +396,8 @@ def _build_undirected_prompt(
         )
     if party_context:
         prompt += f"\n{party_context}"
+    if guild_note:
+        prompt += f"\n{guild_note}"
     if is_custom:
         seen = f"You notice {p_name} do this: \"{emote}\""
     else:

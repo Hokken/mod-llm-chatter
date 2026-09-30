@@ -835,6 +835,10 @@ private:
             }
             participantsJson += "]";
 
+            Player* audience = PickRealGuildMember(guildId);
+            std::string audienceJson =
+                audience ? BuildAudienceJson(audience) : "null";
+
             std::string json = fmt::format(
                 R"({{"guild_id":{},)"
                 R"("guild_name":"{}",)"
@@ -843,7 +847,9 @@ private:
                 R"("participants":{},)"
                 R"("guildmates":"{}",)"
                 R"("team":"{}",)"
-                R"("zone_id":{}}})",
+                R"("zone_id":{},)"
+                R"("weather":"{}",)"
+                R"("audience":{}}})",
                 guildId,
                 JsonEscape(guildName),
                 JsonEscape(speaker->GetName()),
@@ -853,7 +859,10 @@ private:
                 participantsJson,
                 JsonEscape(mates),
                 teamName,
-                speaker->GetZoneId());
+                speaker->GetZoneId(),
+                JsonEscape(GetZoneWeatherName(
+                    speaker->GetZoneId())),
+                audienceJson);
 
             std::string cooldownKey =
                 "guild_idle_"

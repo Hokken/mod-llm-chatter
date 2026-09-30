@@ -8,6 +8,7 @@
 #include "Channel.h"
 #include "ChannelMgr.h"
 #include "Chat.h"
+#include "Config.h"
 #include "Creature.h"
 #include "CreatureAI.h"
 #include "DatabaseEnv.h"
@@ -15,6 +16,7 @@
 #include "Group.h"
 #include "Log.h"
 #include "Map.h"
+#include "ModuleMgr.h"
 #include "MotionMaster.h"
 #include "Player.h"
 #include "Playerbots.h"
@@ -287,7 +289,7 @@ uint32 RollConfiguredDelay(
         sLLMChatterConfig->*maxMember);
 }
 
-constexpr std::array<EventPriorityRule, 39>
+constexpr std::array<EventPriorityRule, 47>
     kTierPriorityRules = {{
         {"bot_group_combat",        PRIORITY_CRITICAL},
         {"bot_group_spell_cast",    PRIORITY_CRITICAL},
@@ -307,6 +309,7 @@ constexpr std::array<EventPriorityRule, 39>
         {"player_general_msg",      PRIORITY_HIGH},
         {"guild_player_message",    PRIORITY_HIGH},
         {"guild_login_greeting",    PRIORITY_HIGH},
+        {"guild_member_join",       PRIORITY_HIGH},
         {"bot_group_death",         PRIORITY_HIGH},
         {"bot_group_wipe",          PRIORITY_HIGH},
         {"bot_group_join",          PRIORITY_HIGH},
@@ -330,6 +333,13 @@ constexpr std::array<EventPriorityRule, 39>
         {"proximity_player_conversation",
             PRIORITY_HIGH},
         {"proximity_player_emote", PRIORITY_HIGH},
+        {"guild_meet_greeting",     PRIORITY_HIGH},
+        {"bot_group_pvp_kill",      PRIORITY_HIGH},
+        {"guild_pvp_kill",          PRIORITY_NORMAL},
+        {"guild_join_zone_announce", PRIORITY_NORMAL},
+        {"guild_npc_encounter",     PRIORITY_FILLER},
+        {"guild_pvp_death",         PRIORITY_NORMAL},
+        {"zone_pvp_death",          PRIORITY_NORMAL},
     }};
 
 constexpr std::array<PredicatePriorityRule, 1>
@@ -2831,4 +2841,115 @@ void RecordPartyChatGateActivity(
             deliveryReason,
             gap);
     }
+}
+
+namespace
+{
+constexpr uint32 kProgressionQuestBase = 66000;
+constexpr uint8 kProgressionMaxTier = 18;
+
+bool IsIndividualProgressionActive()
+{
+    static bool const compiledIn = []
+    {
+        for (std::string_view name :
+             Acore::Module::GetEnableModulesList())
+        {
+            if (name == "mod-individual-progression")
+                return true;
+        }
+        return false;
+    }();
+    return compiledIn
+        && sConfigMgr->GetOption<bool>(
+            "IndividualProgression.Enable", false, false);
+}
+
+uint8 GetIndividualProgressionTier(Player* player)
+{
+    uint8 tier = 0;
+    for (uint8 i = 1; i <= kProgressionMaxTier; ++i)
+    {
+        if (player->GetQuestRewardStatus(
+                kProgressionQuestBase + i))
+            tier = i;
+    }
+    return tier;
+}
+} // namespace
+
+std::string BuildAudienceJson(Player* player)
+{
+    if (!player)
+        return "";
+
+    bool ipActive = IsIndividualProgressionActive();
+    return fmt::format(
+        R"({{"guid":{},"name":"{}","level":{},"team":"{}",)"
+        R"("race":"{}","class":"{}","is_gm":{},)"
+        R"("ip_active":{},"progression_tier":{},)"
+        R"("progression_limit":{},"ip_zg_tier":{},)"
+        R"("ip_za_tier":{}}})",
+        player->GetGUID().GetCounter(),
+        JsonEscape(player->GetName()),
+        player->GetLevel(),
+        player->GetTeamId() == TEAM_ALLIANCE ? "Alliance" : "Horde",
+        GetRaceName(player->getRace()),
+        GetChatterClassName(player->getClass()),
+        player->IsGameMaster() ? "true" : "false",
+        ipActive ? "true" : "false",
+        ipActive ? GetIndividualProgressionTier(player) : 0,
+        ipActive
+            ? sConfigMgr->GetOption<uint32>(
+                "IndividualProgression.ProgressionLimit", 0, false)
+            : 0,
+        ipActive
+            ? sConfigMgr->GetOption<uint32>(
+                "IndividualProgression.RequiredZulGurubProgression",
+                3, false)
+            : 3,
+        ipActive
+            ? sConfigMgr->GetOption<uint32>(
+                "IndividualProgression.RequiredZulAmanProgression",
+                12, false)
+            : 12);
+}
+
+namespace
+{
+template <typename Pred>
+Player* PickRealPlayer(Pred pred)
+{
+    std::vector<Player*> candidates;
+    for (auto const& pair : sWorldSessionMgr->GetAllSessions())
+    {
+        WorldSession* session = pair.second;
+        if (!session || session->PlayerLoading())
+            continue;
+        Player* player = session->GetPlayer();
+        if (!player || !player->IsInWorld() || IsPlayerBot(player))
+            continue;
+        if (pred(player))
+            candidates.push_back(player);
+    }
+    if (candidates.empty())
+        return nullptr;
+    return candidates[urand(0, candidates.size() - 1)];
+}
+} // namespace
+
+Player* PickRealPlayerInZone(uint32 zoneId, TeamId team)
+{
+    return PickRealPlayer([&](Player* p)
+    {
+        return p->GetZoneId() == zoneId && p->GetTeamId() == team;
+    });
+}
+
+Player* PickRealGuildMember(uint32 guildId)
+{
+    return PickRealPlayer([&](Player* p)
+    {
+        return guildId && p->GetGuildId() == guildId;
+    });
 }

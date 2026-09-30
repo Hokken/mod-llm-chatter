@@ -51,6 +51,7 @@ from chatter_prompts import (
     build_environmental_context_lines,
     pick_personality_spices,
 )
+from chatter_guild_profile import get_character_guild_name
 from chatter_mode import (
     build_player_chat_guidance,
     build_player_identity,
@@ -431,6 +432,7 @@ def _build_general_response_prompt(
     subzone_name="",
     subzone_lore="",
     brief_casual=False,
+    guild_name="",
 ):
     """Build prompt for a bot responding to a
     player's General channel message.
@@ -485,6 +487,7 @@ def _build_general_response_prompt(
         bot_level,
         bot_gender,
         mode,
+        guild_name=guild_name,
     )
     prompt = (
         f"{identity}\n"
@@ -595,6 +598,7 @@ def _build_general_followup_prompt(
     subzone_name="",
     subzone_lore="",
     brief_casual=False,
+    guild_name="",
 ):
     """Build prompt for a 2nd bot following up
     on the 1st bot's reaction in General channel.
@@ -652,6 +656,7 @@ def _build_general_followup_prompt(
         bot_level,
         bot_gender,
         mode,
+        guild_name=guild_name,
     )
     prompt = (
         f"{identity}\n"
@@ -917,6 +922,9 @@ def process_general_player_msg_event(
             subzone_name=subzone_name,
             subzone_lore=subzone_lore,
             brief_casual=brief_casual,
+            guild_name=get_character_guild_name(
+                db, bot1_guid
+            ),
         )
 
         max_tokens = int(config.get(
@@ -1204,6 +1212,9 @@ def _general_followup(
         subzone_name=subzone_name,
         subzone_lore=subzone_lore,
         brief_casual=brief_casual,
+        guild_name=get_character_guild_name(
+            db, bot2_guid
+        ),
     )
 
     max_tokens = int(config.get(
@@ -1325,6 +1336,7 @@ def _build_general_continuation_prompt(
     zone_flavor="",
     subzone_name="",
     subzone_lore="",
+    guild_name="",
 ):
     """Build prompt for a continuation message in
     an extended General channel conversation.
@@ -1397,6 +1409,7 @@ def _build_general_continuation_prompt(
         bot_level,
         bot_gender,
         mode,
+        guild_name=guild_name,
     )
     prompt = (
         f"{identity}\n"
@@ -1653,6 +1666,9 @@ def _general_extended_conversation(
             zone_flavor=zone_flavor,
             subzone_name=subzone_name,
             subzone_lore=subzone_lore,
+            guild_name=get_character_guild_name(
+                db, speaker['guid']
+            ),
         )
 
         if zone_meta is None:

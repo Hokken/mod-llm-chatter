@@ -50,6 +50,7 @@ from chatter_shared import (
     get_chatter_mode,
     set_race_lore_chance,
     set_race_vocab_chance,
+    set_race_class_notes_enabled,
     set_action_chance,
     set_emote_chance,
     set_language,
@@ -60,6 +61,7 @@ from chatter_shared import (
     wait_for_database,
     stagger_if_needed,
 )
+from chatter_guild_profile import get_character_guild_name
 from chatter_events import (
     cleanup_expired_events,
     reset_stuck_processing_events,
@@ -221,7 +223,10 @@ def process_pending_requests(
                     else raw_race
                 ),
                 'level': request['bot1_level'],
-                'zone': request['bot1_zone']
+                'zone': request['bot1_zone'],
+                'guild_name': get_character_guild_name(
+                    db, request['bot1_guid']
+                ),
             }
             success = process_statement(
                 db, cursor, client,
@@ -266,6 +271,9 @@ def process_pending_requests(
                         f'{prefix}_level'
                     ],
                     'zone': zone,
+                    'guild_name': get_character_guild_name(
+                        db, request[f'{prefix}_guid']
+                    ),
                 }
 
             # Bot 1 (always present)
@@ -498,6 +506,16 @@ EVENT_LOG_OVERRIDES = {
     'player_general_msg': 'General chat event',
     'guild_player_message': 'Guild player turn',
     'guild_login_greeting': 'Guild login greeting',
+    'guild_member_join': 'Guild join greeting',
+    'guild_rank_change': 'Guild rank change',
+    'guild_motd_comment': 'Guild MOTD comment',
+    'guild_meet_greeting': 'Guild meet greeting',
+    'guild_join_zone_announce': 'Guild join announcement',
+    'guild_pvp_kill': 'Guild PvP kill',
+    'bot_group_pvp_kill': 'Group PvP kill',
+    'guild_npc_encounter': 'Guild NPC encounter',
+    'guild_pvp_death': 'Guild PvP death',
+    'zone_pvp_death': 'Zone PvP death',
     'player_enters_zone': 'Zone intrusion',
     'bot_group_low_health': 'State callout',
     'bot_group_oom': 'State callout',
@@ -1225,6 +1243,9 @@ def main():
     set_race_vocab_chance(int(config.get(
         'LLMChatter.RaceVocabChance', 15
     )))
+    set_race_class_notes_enabled(str(config.get(
+        'LLMChatter.RaceClassNotes.Enable', '1'
+    )) == '1')
     set_action_chance(int(config.get(
         'LLMChatter.ActionChance', 10
     )), mode=config.get(

@@ -34,6 +34,10 @@ from chatter_shared import (
     bound_brief_casual_response,
     build_brief_casual_repair_prompt,
 )
+from chatter_guild_profile import (
+    get_character_guild_name,
+    same_guild_note,
+)
 from chatter_db import (
     fail_event,
     get_group_location,
@@ -1487,6 +1491,9 @@ def process_group_zone_transition_event(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, bot_guid
+        ),
         'gear': build_gear_context(
             db, bot_guid,
             get_class_name(char_row['class']), config,
@@ -2301,6 +2308,9 @@ def _nearby_object_conversation(
             'race': get_race_name(char['race']),
             'level': char['level'],
             'gender': get_gender_label(char['gender']),
+            'guild_name': get_character_guild_name(
+                db, guid
+            ),
         })
 
     if len(bots) < 2:
@@ -2546,6 +2556,9 @@ def execute_player_msg_conversation(
             'race': get_race_name(char['race']),
             'level': char['level'],
             'gender': get_gender_label(char['gender']),
+            'guild_name': get_character_guild_name(
+                db, guid
+            ),
             'travel_mode': travel_state.get('mode') or '',
             'travel_context': travel_context,
             'travel_state': travel_state,
@@ -2600,6 +2613,16 @@ def execute_player_msg_conversation(
         area_id=area_id,
         map_id=map_id,
         brief_casual=brief_casual,
+        guild_notes=[
+            note for note in (
+                same_guild_note(
+                    db, b['guid'],
+                    player_info['guid'] if player_info else 0,
+                    player_name, bot_name=b['name'],
+                )
+                for b in bots
+            ) if note
+        ],
     )
 
     # Token budget: max_tokens * (1 + num_bots),
@@ -2816,6 +2839,9 @@ def _quest_conversation_pick_bots(
             'race': get_race_name(char['race']),
             'level': char['level'],
             'gender': get_gender_label(char['gender']),
+            'guild_name': get_character_guild_name(
+                db, guid
+            ),
         })
 
     if len(bots) < 2:

@@ -2118,6 +2118,279 @@ LLMChatter.GuildChatter.LoginGreeting.ReadinessTimeout = 90
 LLMChatter.GuildChatter.LoginGreeting.MaxCandidates = 12
 
 #
+#   LLMChatter.GuildChatter.JoinGreeting.Enable
+#       When someone joins a Guild that has a real player
+#       online, one to three Guild bots welcome the
+#       newcomer in Guild Chat. A newcomer who is a bot may
+#       answer. A real player who joins while online also
+#       gets a Guild conversation session immediately.
+#       Default: 1
+#
+LLMChatter.GuildChatter.JoinGreeting.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.JoinGreeting.Chance
+#       Chance (0-100) that a batch of joins is greeted.
+#       Default: 100
+#
+LLMChatter.GuildChatter.JoinGreeting.Chance = 100
+
+#
+#   LLMChatter.GuildChatter.JoinGreeting.BatchSeconds
+#       Seconds to wait after the first join so that
+#       several joins close together get one welcome.
+#       Supported range is 2-120.
+#       Default: 10
+#
+LLMChatter.GuildChatter.JoinGreeting.BatchSeconds = 10
+
+#
+#   LLMChatter.GuildChatter.RankChange.Enable
+#       When a member is promoted or demoted in game, one
+#       to three Guild bots comment. The changed member may
+#       answer if it is a bot. GM commands such as
+#       .guild rank do not raise a guild event and are not
+#       noticed.
+#       Default: 1
+#
+LLMChatter.GuildChatter.RankChange.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.RankChange.Chance
+#       Chance (0-100) that a batch of rank changes is
+#       commented on.
+#       Default: 100
+#
+LLMChatter.GuildChatter.RankChange.Chance = 100
+
+#
+#   LLMChatter.GuildChatter.RankChange.DebounceSeconds
+#       Rank changes are held until the Guild has had no
+#       further change for this many seconds. Changes made
+#       in the meantime become one event, and a member
+#       whose rank ends where it started is left out.
+#       Supported range is 5-600.
+#       Default: 30
+#
+LLMChatter.GuildChatter.RankChange.DebounceSeconds = 30
+
+#
+#   LLMChatter.GuildChatter.RankChange.NewMemberGraceMinutes
+#       Rank changes of members who joined within this many
+#       minutes are not commented on (recruits are often
+#       promoted right after joining). 0 disables the grace.
+#       Default: 30
+#
+LLMChatter.GuildChatter.RankChange.NewMemberGraceMinutes = 30
+
+#
+#   LLMChatter.GuildChatter.MotdComment.Enable
+#       When the Guild Message of the Day changes, one or
+#       two Guild bots react to it shortly afterwards.
+#       Default: 1
+#
+LLMChatter.GuildChatter.MotdComment.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.MotdComment.Chance
+#       Chance (0-100) that a new MOTD gets a comment.
+#       Default: 100
+#
+LLMChatter.GuildChatter.MotdComment.Chance = 100
+
+#
+#   LLMChatter.GuildChatter.MotdComment.DelaySeconds
+#       Seconds to wait after the MOTD changes. Only the
+#       latest MOTD is commented on when it is edited
+#       several times. Supported range is 2-600.
+#       Default: 20
+#
+LLMChatter.GuildChatter.MotdComment.DelaySeconds = 20
+
+#
+#   LLMChatter.GuildChatter.MemberEvents.MaxCandidates
+#       Maximum live Guild bots passed to the bridge for
+#       join, rank-change and MOTD comments.
+#       Default: 12
+#
+LLMChatter.GuildChatter.MemberEvents.MaxCandidates = 12
+
+#
+#   LLMChatter.GuildChatter.MeetGreeting.Enable
+#       A guild bot that meets a real guildmate in the open
+#       world (not in the same group) waves (/hello) and greets
+#       them in /say.
+#       Default: 1
+#
+LLMChatter.GuildChatter.MeetGreeting.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.MeetGreeting.Radius
+#       Yards around the player searched for guild bots.
+#       Supported range is 5-60.
+#       Default: 25
+#
+LLMChatter.GuildChatter.MeetGreeting.Radius = 25
+
+#
+#   LLMChatter.GuildChatter.MeetGreeting.CooldownHours
+#       Hours before the same bot greets the same player again.
+#       Default: 5
+#
+LLMChatter.GuildChatter.MeetGreeting.CooldownHours = 5
+
+#
+#   LLMChatter.GuildChatter.WorldScanInterval
+#       Seconds between open-world scans for meet greetings
+#       and NPC encounters. Supported range is 5-300.
+#       Default: 10
+#
+LLMChatter.GuildChatter.WorldScanInterval = 10
+
+#
+#   LLMChatter.GuildChatter.JoinZoneAnnounce.Enable
+#       A bot that joins a guild may boast about it in its
+#       zone's General channel; other bots there react. Needs a
+#       real player of that faction in the zone.
+#       Default: 1
+#
+LLMChatter.GuildChatter.JoinZoneAnnounce.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.JoinZoneAnnounce.Chance
+#       Percent chance (0-100) per joining bot.
+#       Default: 35
+#
+LLMChatter.GuildChatter.JoinZoneAnnounce.Chance = 20
+
+#
+#   LLMChatter.GuildChatter.PvpKill.Enable
+#       A bot outside the player's group that kills an
+#       opposing-faction bot may tell its guild ("I killed").
+#       Never on battlegrounds or arenas.
+#       Default: 1
+#
+LLMChatter.GuildChatter.PvpKill.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.PvpKill.Chance
+#       Percent chance (0-100) per qualifying kill.
+#       Default: 25
+#
+LLMChatter.GuildChatter.PvpKill.Chance = 15
+
+#
+#   LLMChatter.GuildChatter.PvpKill.Cooldown
+#       Seconds before the same bot reports another kill.
+#       Default: 300
+#
+LLMChatter.GuildChatter.PvpKill.Cooldown = 300
+
+#
+#   LLMChatter.GuildChatter.NpcEncounter.Enable
+#       A guild bot outside the player's group tells the guild
+#       about a friendly service NPC near it (vendor, trainer,
+#       innkeeper, flight master and so on).
+#       Default: 1
+#
+LLMChatter.GuildChatter.NpcEncounter.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.NpcEncounter.Chance
+#       Percent chance (0-100) per guild per world scan.
+#       Default: 4
+#
+LLMChatter.GuildChatter.NpcEncounter.Chance = 2
+
+#
+#   LLMChatter.GuildChatter.NpcEncounter.Radius
+#       Yards around the bot searched for NPCs. Range 5-80.
+#       Default: 30
+#
+LLMChatter.GuildChatter.NpcEncounter.Radius = 30
+
+#
+#   LLMChatter.GuildChatter.NpcEncounter.Cooldown
+#       Minimum seconds between NPC encounters per guild.
+#       Default: 1200
+#
+LLMChatter.GuildChatter.NpcEncounter.Cooldown = 1200
+
+#
+#   LLMChatter.GroupChatter.PvpKill.Enable
+#       A bot in the player's group reacts in party chat when
+#       the group kills an opposing-faction player ("we
+#       killed"). Works regardless of guild membership. On
+#       battlegrounds it replaces the generic kill reaction
+#       with a rarer "massive battle" comment.
+#       Default: 1
+#
+LLMChatter.GroupChatter.PvpKill.Enable = 1
+
+#
+#   LLMChatter.GroupChatter.PvpKill.Chance
+#       Percent chance (0-100) per open-world kill.
+#       Default: 60
+#
+LLMChatter.GroupChatter.PvpKill.Chance = 40
+
+#
+#   LLMChatter.GroupChatter.PvpKill.BattlegroundChance
+#       Percent chance (0-100) per battleground kill (about one
+#       comment per 12 kills at the default).
+#       Default: 8
+#
+LLMChatter.GroupChatter.PvpKill.BattlegroundChance = 6
+
+#
+#   LLMChatter.GuildChatter.PvpDeath.Enable
+#       A bot killed by an opposing-faction bot in the open world
+#       complains in Guild chat (contempt, resentment or anger
+#       at the killer) when a real guildmate is online. Never on
+#       battlegrounds, never for bots grouped with a real player.
+#       Default: 1
+#
+LLMChatter.GuildChatter.PvpDeath.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.PvpDeath.Chance
+#   LLMChatter.GuildChatter.PvpDeath.GuildCooldown
+#       Percent chance (0-100) per eligible death, and seconds
+#       between two complaints in the same guild.
+#       Defaults: 30, 600 (quieter preset: 20, 1200)
+#
+LLMChatter.GuildChatter.PvpDeath.Chance = 20
+LLMChatter.GuildChatter.PvpDeath.GuildCooldown = 1200
+
+#
+#   LLMChatter.GeneralChat.PvpDeath.Enable
+#       When the Guild chat complaint does not happen, a bot
+#       killed by an opposing-faction bot may complain in its
+#       zone's General channel, but only if a real player of its
+#       faction is in that zone. Guild membership does not matter.
+#       Default: 1
+#
+LLMChatter.GeneralChat.PvpDeath.Enable = 1
+
+#
+#   LLMChatter.GeneralChat.PvpDeath.Chance
+#   LLMChatter.GeneralChat.PvpDeath.ZoneCooldown
+#       Percent chance (0-100) per eligible death, and seconds
+#       between two complaints in the same zone per faction.
+#       Defaults: 15, 600 (quieter preset: 10, 1200)
+#
+LLMChatter.GeneralChat.PvpDeath.Chance = 10
+LLMChatter.GeneralChat.PvpDeath.ZoneCooldown = 1200
+
+#
+#   LLMChatter.PvpDeath.VictimCooldown
+#       Seconds before the same bot may complain about another
+#       death, shared by Guild and General chat.
+#       Default: 1800 (quieter preset: 2700)
+#
+LLMChatter.PvpDeath.VictimCooldown = 2700
+
+#
 ###############################################################################
 # GUILD CHATTER PROMPT TUNING [BRIDGE] - read by the Python chatter bridge, NOT the
 # worldserver. `.reload config` does NOT affect this key; restart the
@@ -2223,6 +2496,74 @@ LLMChatter.GuildChatter.LoginGreeting.PlayerNameChance = 60
 #       Default: 100
 #
 LLMChatter.GuildChatter.LoginGreeting.MaxCharacters = 100
+
+#
+#   LLMChatter.GuildChatter.MotdChance
+#       Chance (0-100) that an autonomous Guild statement
+#       or conversation uses the Guild's current Message of
+#       the Day as its topic instead of a random one. The
+#       Guild Information text, when set, is always part of
+#       Guild prompts.
+#       Default: 15
+#
+LLMChatter.GuildChatter.MotdChance = 15
+
+#
+#   LLMChatter.GuildChatter.JoinGreeting.MaxResponders
+#   LLMChatter.GuildChatter.RankChange.MaxResponders
+#   LLMChatter.GuildChatter.MotdComment.MaxResponders
+#       Maximum bots that comment on a join, a rank change
+#       or a new MOTD. Supported range is 1-3.
+#       Defaults: JoinGreeting = 3, RankChange = 3,
+#                 MotdComment = 2
+#
+LLMChatter.GuildChatter.JoinGreeting.MaxResponders = 3
+LLMChatter.GuildChatter.RankChange.MaxResponders = 3
+LLMChatter.GuildChatter.MotdComment.MaxResponders = 2
+
+#
+#   LLMChatter.GuildChatter.JoinGreeting.SubjectReplyChance
+#   LLMChatter.GuildChatter.RankChange.SubjectReplyChance
+#       Chance (0-100) that a newcomer or changed member
+#       who is an online bot answers the comments once.
+#       Defaults: 70
+#
+LLMChatter.GuildChatter.JoinGreeting.SubjectReplyChance = 70
+LLMChatter.GuildChatter.RankChange.SubjectReplyChance = 70
+
+#
+#   LLMChatter.GuildChatter.MemberEvents.MaxCharacters
+#       Hard character cap for each join, rank-change and
+#       MOTD comment. Supported range is 40-150.
+#       Default: 120
+#
+LLMChatter.GuildChatter.MemberEvents.MaxCharacters = 120
+
+#
+#   LLMChatter.GuildChatter.GeneralDiscussionChance
+#       Chance (0-100) that a plain General-channel
+#       conversation becomes a talk about the speakers'
+#       guilds. Needs at least two speakers in a guild.
+#       Default: 10
+#
+LLMChatter.GuildChatter.GeneralDiscussionChance = 5
+
+#
+#   LLMChatter.GuildChatter.GeneralPraiseChance
+#       Chance (0-100) that a plain General-channel
+#       statement from a guilded bot praises its guild.
+#       Default: 8
+#
+LLMChatter.GuildChatter.GeneralPraiseChance = 4
+
+#
+#   LLMChatter.GuildChatter.GeneralPraiseMasterChance
+#       Chance (0-100) that such praise also names the
+#       Guild Master, with race and class. Never used when
+#       the speaker is the Guild Master.
+#       Default: 50
+#
+LLMChatter.GuildChatter.GeneralPraiseMasterChance = 50
 
 #
 #   LLMChatter.GuildChatter.PlayerReplies.MultiReplyChance
@@ -2368,6 +2709,91 @@ LLMChatter.GuildChatter.SessionMemory.SummaryMaxChars = 1200
 #       Default: 20
 #
 LLMChatter.GuildChatter.ZoneNameChance = 20
+
+#
+#   LLMChatter.GuildChatter.ZoneTopicChance
+#       Percent chance (0-100) that an idle Guild line is the
+#       speaker's opinion of its current zone; others agree or
+#       argue.
+#       Default: 10
+#
+LLMChatter.GuildChatter.ZoneTopicChance = 10
+
+#
+#   LLMChatter.GuildChatter.ZoneWeatherTopicChance
+#       Percent chance (0-100) that an idle Guild line is about
+#       the current zone at this hour and in this weather.
+#       Default: 8
+#
+LLMChatter.GuildChatter.ZoneWeatherTopicChance = 8
+
+#
+#   LLMChatter.GuildChatter.JoinZoneAnnounce.MaxResponders
+#       Maximum zone bots (0-3) reacting to a join boast.
+#       Default: 2
+#
+LLMChatter.GuildChatter.JoinZoneAnnounce.MaxResponders = 2
+
+#
+#   LLMChatter.ThemedTopics.Enable
+#       Faction, race, class and race+class topics plus rumors
+#       (expansions, dungeons, raids, locations, regions,
+#       profession and class trainers). Rumors follow the real
+#       player's level, faction, achievements and
+#       mod-individual-progression tier; trainer rumors ignore
+#       the tier.
+#       Default: 1
+#
+LLMChatter.ThemedTopics.Enable = 1
+
+#
+#   LLMChatter.ThemedTopics.GuildChance
+#   LLMChatter.ThemedTopics.GeneralChance
+#   LLMChatter.ThemedTopics.PartyChance
+#       Percent chance (0-100) that an idle topic is themed
+#       instead of generic. Party only uses class and
+#       race+class topics.
+#       Defaults: 60, 60, 5
+#
+LLMChatter.ThemedTopics.GuildChance = 50
+LLMChatter.ThemedTopics.GeneralChance = 50
+LLMChatter.ThemedTopics.PartyChance = 3
+
+#
+#   LLMChatter.ThemedTopics.*Weight
+#       Relative weights of the themed topic kinds. 0 disables
+#       a kind. Rumors need a real player audience.
+#
+LLMChatter.ThemedTopics.FactionWeight = 12
+LLMChatter.ThemedTopics.RaceWeight = 18
+LLMChatter.ThemedTopics.ClassWeight = 18
+LLMChatter.ThemedTopics.RaceClassWeight = 7
+LLMChatter.ThemedTopics.ExpansionRumorWeight = 8
+LLMChatter.ThemedTopics.DungeonRumorWeight = 12
+LLMChatter.ThemedTopics.RaidRumorWeight = 6
+LLMChatter.ThemedTopics.LocationRumorWeight = 10
+LLMChatter.ThemedTopics.RegionRumorWeight = 9
+LLMChatter.ThemedTopics.ProfessionRumorWeight = 12
+LLMChatter.ThemedTopics.ClassTrainerRumorWeight = 12
+
+#
+#   LLMChatter.ThemedTopics.TrainerRumorReducedPercent
+#       Profession trainer rumors use their full weight for
+#       players up to level 20, this percent of it at 21-30,
+#       and never above 30. Class trainer rumors: full up to
+#       15, reduced at 16-25, never above 25.
+#       Default: 33
+#
+LLMChatter.ThemedTopics.TrainerRumorReducedPercent = 33
+
+#
+#   LLMChatter.RaceClassNotes.Enable
+#       Add a short lore note for the speaker's race and class
+#       (priests split into Light and Shadow) to roleplay
+#       prompts.
+#       Default: 1
+#
+LLMChatter.RaceClassNotes.Enable = 1
 
 #
 #   LLMChatter.RaidChatter.BattleCryChance

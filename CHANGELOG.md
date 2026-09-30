@@ -1,5 +1,84 @@
 # Changelog
 
+### 2026-09-27 - Themed Topics, Rumors and Guild World Events
+
+* **Themed topics**: About 60% of idle Guild and General topics (5% of
+  party idle topics) now come from curated lore: faction war fronts and
+  rivalries, race, class and race+class topics. Priests are Light or
+  Shadow by their talents, defaulting to Light. Prompts name the
+  speaker's faction and, when the topic depends on it, race and class.
+* **Rumors**: Expansion, dungeon, raid, location and region rumors are
+  chosen for the real player who will read them: their level, faction,
+  achievements (a dungeon or raid stops being gossip once completed on
+  any difficulty) and mod-individual-progression tier. Everything works
+  with or without that module. Expansion rumors turn into first-hand
+  accounts when the bot outlevels the player. The Burning Crusade race
+  zones are never hidden, matching mod-individual-progression, which
+  keeps them open in Classic tiers.
+* **Trainer rumors**: Low-level players hear about profession trainers
+  (levels 1-20, rarer at 21-30) and class trainers (levels 1-15, rarer at
+  16-25) of their own faction, with a skill the trainer is said to have
+  mastered. Half point to the player's own race or class. These ignore
+  mod-individual-progression (`ThemedTopics.ProfessionRumorWeight`,
+  `ClassTrainerRumorWeight`, `TrainerRumorReducedPercent`).
+* **Race+class notes**: Roleplay prompts carry a short lore note for the
+  speaker's race and class (`RaceClassNotes.Enable`).
+* **Guild zone topics**: Idle Guild chatter may give an opinion of the
+  current zone (`GuildChatter.ZoneTopicChance`, 10) or of the zone at this
+  hour and in this weather (`GuildChatter.ZoneWeatherTopicChance`, 8).
+* **Meet greetings**: A guild bot that meets a guildmate outside its group
+  waves (`/hello`) and greets them in `/say`, at most once per five hours
+  per pair.
+* **Join announcements**: A bot that joins a guild may boast in its zone's
+  General channel; zone bots congratulate it or scoff.
+* **PvP kill comments**: A lone guild bot that kills an opposing-faction
+  bot may tell its guild. Bots grouped with the player react in party chat
+  to any enemy kill by the group, whatever their guilds. On battlegrounds
+  the group reaction becomes a rarer "massive battle" comment (8%) that
+  replaces the generic kill reaction.
+* **PvP death complaints**: A bot killed by an enemy bot in the open world
+  vents contempt, resentment or anger at its killer (named with race,
+  class and gender) in Guild chat when a real guildmate is online, or
+  else in its zone's General channel when a real player of its faction is
+  there. Per-bot, per-guild and per-zone cooldowns keep it rare
+  (`GuildChatter.PvpDeath.*`, `GeneralChat.PvpDeath.*`,
+  `PvpDeath.VictimCooldown`).
+* **NPC encounters**: A guild bot may tell the guild about a friendly
+  vendor, trainer or innkeeper it just met.
+* **Database**: Apply
+  `data/sql/characters/updates/20260927_guild_world_events.sql` to add the
+  new event types and the `llm_chatter_queue.audience_context` column,
+  then `20260930_pvp_death_complaints.sql` for the two PvP death events.
+
+### 2026-09-25 - Guild News and Guild Identity
+
+* **Guild Information in Guild prompts**: Idle statements and
+  conversations, player replies, login greetings and the new guild news
+  comments quote the guild's Guild Information text as background.
+* **MOTD as an idle topic**: `GuildChatter.MotdChance` (default 15) lets
+  idle Guild chatter talk about the current Message of the Day.
+* **Join greetings**: One to three Guild bots welcome new members. Close
+  joins share one welcome, a bot newcomer may answer, and a real player
+  who joins while online gets a Guild session at once.
+* **Rank-change comments**: In-game promotions and demotions are held for
+  30 seconds of quiet, merged into one event with old rank, new rank and
+  direction, and commented on by one to three bots. Members who joined
+  within 30 minutes are skipped; a changed bot may answer. GM `.guild
+  rank` changes are not noticed because they log no guild event.
+* **MOTD comments**: One or two bots react shortly after the MOTD changes.
+* **Guild in descriptions**: Bot and player descriptions in party,
+  General, proximity, emote and screenshot prompts name the guild.
+* **Guildmate awareness**: Party replies, proximity `/say` replies and
+  emote reactions note when the bot and the real player share a guild.
+  Emote reaction and observer payloads now carry `player_guid`.
+* **General channel**: Plain conversations may turn to the speakers'
+  guilds, and plain statements may praise the speaker's guild and
+  sometimes its Guild Master.
+* **Database**: Apply
+  `data/sql/characters/updates/20260925_guild_member_events.sql` to add
+  the `guild_member_join`, `guild_rank_change` and `guild_motd_comment`
+  event types.
+
 ### 2026-09-22 - Addon Profile Edits, Custom Emotes, and Action Delivery Fixes
 
 * **Profile edits are atomic**: `.llmc set`, `setbackstory` and chunked

@@ -119,10 +119,14 @@ def _append_bots_with_rp(parts, bots, traits_map, is_rp):
     for bot in bots:
         t = traits_map.get(bot['name'], [])
         trait_str = ', '.join(t) if t else 'average'
+        guild_part = (
+            f" of the guild \"{bot['guild_name']}\""
+            if bot.get('guild_name') else ""
+        )
         parts.append(
             f"{bot['name']} is a level "
             f"{bot['level']} {bot['race']} "
-            f"{bot['class']} "
+            f"{bot['class']}{guild_part} "
             f"(personality: {trait_str})"
         )
         append_speaker_gear(parts, bot)
@@ -2100,6 +2104,7 @@ def build_player_response_prompt(
     memories=None,
     travel_context="",
     brief_casual=False,
+    guild_note="",
 ):
     """Build prompt for a bot responding to a real
     player's party chat message. The bot should
@@ -2177,6 +2182,8 @@ def build_player_response_prompt(
     prompt += (
         f"Your tone: {tone}\n"
     )
+    if guild_note:
+        prompt += f"{guild_note}\n"
     if twist:
         prompt += f"Creative twist: {twist}\n"
     if members:
@@ -4037,6 +4044,7 @@ def build_player_msg_conversation_prompt(
     target_talent_context=None,
     zone_id=0, area_id=0, map_id=0,
     brief_casual=False,
+    guild_notes=None,
 ):
     """Build prompt for a multi-bot conversation
     responding to a player's party chat message.
@@ -4121,6 +4129,7 @@ def build_player_msg_conversation_prompt(
     _append_bots_with_rp(
         parts, bots, traits_map, is_rp
     )
+    parts.extend(guild_notes or [])
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)

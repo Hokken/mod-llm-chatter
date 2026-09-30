@@ -14,6 +14,10 @@ from chatter_constants import (
 )
 from chatter_db import insert_chat_message
 from chatter_llm import call_llm
+from chatter_guild_profile import (
+    get_character_guild_name,
+    same_guild_note,
+)
 from chatter_instance_context import (
     build_instance_context,
     build_location_metadata,
@@ -148,6 +152,7 @@ def _query_bot_identity(
                 int(row.get('gender', 0) or 0)
             ),
             'level': int(row.get('level', 0) or 0),
+            'guild_name': get_character_guild_name(db, bot_guid),
         }
     except Exception:
         logger.error(
@@ -233,9 +238,14 @@ def _describe_speaker(
         'gender', ''
     )
     gender_prefix = f"{gender} " if gender else ""
+    guild_name = info.get('guild_name', '')
+    guild_part = (
+        f" | guild: {guild_name}" if guild_name else ""
+    )
     return (
         f"{speaker.get('name', 'Bot')} | "
         f"{gender_prefix}{race_name} {class_name}"
+        f"{guild_part}"
     )
 
 
@@ -246,6 +256,36 @@ def _speaker_channel(speaker: Dict) -> str:
 def _speaker_is_roleplay(speaker: Dict, mode: str) -> bool:
     """NPCs are always in-world; only playerbots follow the mode."""
     return bool(speaker.get('is_npc')) or is_roleplay(mode)
+
+
+def _speaker_guild_name(db, speaker: Dict) -> str:
+    if speaker.get('is_npc'):
+        return ''
+    return get_character_guild_name(
+        db, int(speaker.get('bot_guid', 0) or 0)
+    )
+
+
+def _same_guild_lines(
+    db, extra: Dict, speakers: List[Dict], third_person: bool = False,
+) -> List[str]:
+    """Note which playerbot speakers share the player's guild."""
+    lines = []
+    for speaker in speakers:
+        if speaker.get('is_npc'):
+            continue
+        note = same_guild_note(
+            db,
+            speaker.get('bot_guid'),
+            extra.get('player_guid'),
+            extra.get('player_name', ''),
+            bot_name=(
+                speaker.get('name', '') if third_person else ''
+            ),
+        )
+        if note:
+            lines.append(note)
+    return lines
 
 
 def _apply_speaker_action_policy(
@@ -615,6 +655,7 @@ def _single_prompt(
                 speaker.get('gender') or '',
                 mode,
                 channel='say',
+                guild_name=_speaker_guild_name(db, speaker),
             ),
         ]
     else:
@@ -629,7 +670,10 @@ def _single_prompt(
             speaker.get('gender') or info.get('gender', ''),
             mode,
             channel='say',
+            guild_name=info.get('guild_name', ''),
         )]
+    if player_message:
+        lines.extend(_same_guild_lines(db, extra, [speaker]))
     brief_casual = bool(extra.get('brief_casual'))
     lines.extend([
         (
@@ -1331,6 +1375,7 @@ def _player_say_single_prompt(
             speaker.get('gender', ''),
             mode,
             channel='say',
+            guild_name=_speaker_guild_name(db, speaker),
         )]
     else:
         info = _query_bot_identity(
@@ -1344,7 +1389,9 @@ def _player_say_single_prompt(
             speaker.get('gender') or info.get('gender', ''),
             mode,
             channel='say',
+            guild_name=info.get('guild_name', ''),
         )]
+    lines.extend(_same_guild_lines(db, extra, [speaker]))
     brief_casual = bool(extra.get('brief_casual'))
     lines.extend([
         (
@@ -1448,6 +1495,9 @@ def _player_say_conversation_prompt(
         "Keep the exchange brief.",
         "",
     ]
+    lines.extend(_same_guild_lines(
+        db, extra, participants, third_person=True
+    ))
     lines.extend(_location_lines(
         extra, mode, participants
     ))
@@ -1576,10 +1626,12 @@ def _player_emote_single_prompt(
                 speaker.get('gender') or identity.get('gender', ''),
                 mode,
                 channel='say',
+                guild_name=_speaker_guild_name(db, speaker),
             ),
             "Write an extremely short /say reaction of 2-8 words.",
             "Keep it natural and low-stakes. No AI talk or markdown.",
         ]
+        lines.extend(_same_guild_lines(db, extra, [speaker]))
     lines.extend(_location_lines(extra, mode, [speaker]))
     if speaker_is_npc:
         disposition = _npc_disposition_guidance(speaker)
@@ -1667,6 +1719,9 @@ def _player_emote_conversation_prompt(
         "Never invent dialogue, thoughts, or actions for the real player.",
         "",
     ]
+    lines.extend(_same_guild_lines(
+        db, extra, participants, third_person=True
+    ))
     lines.extend(_location_lines(extra, mode, participants))
     lines.extend(_mixed_voice_guidance(mode))
     lines.extend([
