@@ -83,6 +83,12 @@ class _Capture:
         self.inserted = []
         self.marked = []
         self.prompts = []
+        self.prepared = []
+
+    def prepare(self, db, client, config, participants, prepared=None,
+                channel='guild'):
+        self.prepared.append((channel, [p['name'] for p in participants]))
+        return [dict(p, speaker=dict(p['speaker'])) for p in participants]
 
     def insert(self, db, **kwargs):
         self.inserted.append(kwargs)
@@ -102,6 +108,8 @@ def _patches(capture, messages):
 
     return [
         patch.object(world, '_query_speaker', return_value=dict(SPEAKER)),
+        patch.object(world, 'prepare_guild_speakers',
+                     side_effect=capture.prepare),
         patch.object(world, 'insert_chat_message', side_effect=capture.insert),
         patch.object(world, '_mark_event', side_effect=capture.mark),
         patch.object(world, 'run_single_prompt', side_effect=single),
@@ -174,6 +182,33 @@ def test_meet_greeting_may_tell_the_guild_where_they_met():
          config=dict(RP, **{
              'LLMChatter.GuildChatter.MeetGreeting.GuildPostChance': '0'}))
     assert [row['channel'] for row in capture.inserted] == ['say']
+
+
+def test_speakers_get_shared_profile_preparation_per_channel():
+    cases = [
+        (world.process_guild_meet_greeting_event, 'guild_meet_greeting',
+         _guild_extra(player_guid=77, player_name='Vlad'), 'guild'),
+        (world.process_guild_npc_encounter_event, 'guild_npc_encounter',
+         _guild_extra(npc_name='Thrall', npc_role='Warchief'), 'guild'),
+        (world.process_zone_pvp_death_event, 'zone_pvp_death',
+         _death_extra(), 'general'),
+        (world.process_guild_join_zone_announce_event,
+         'guild_join_zone_announce',
+         _guild_extra(candidates=[{'guid': 11, 'name': 'Zul'}]), 'general'),
+    ]
+    for handler, event_type, extra, channel in cases:
+        capture = _Capture()
+        with patch('chatter_guild_events.insert_chat_message',
+                   side_effect=capture.insert), \
+                patch('chatter_guild_events.run_single_prompt',
+                      side_effect=lambda c, cfg, p, name, *a, **k: [
+                          {'name': name, 'message': 'Well met.'}]):
+            ok = _run(handler, _event(event_type, extra), capture,
+                      ['Well met.', 'Aye.'])
+        assert ok, event_type
+        calls = capture.prepared
+        assert calls and calls[0][0] == channel, (event_type, calls)
+        assert 'Grom' in calls[0][1]
 
 
 def test_meet_greeting_can_be_disabled():

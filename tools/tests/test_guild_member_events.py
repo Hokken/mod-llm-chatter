@@ -417,10 +417,21 @@ def test_join_greeting_welcomes_then_newcomer_replies():
             return [{'name': 'Aliss', 'message': 'Welcome aboard!'}]
         return [{'name': 'Bran', 'message': 'Thanks, glad to be here.'}]
 
+    prepared = []
+
+    def fake_prepare(db, client, config, participants, prepared_cache=None,
+                     channel='guild'):
+        prepared.extend((channel, p['name']) for p in participants)
+        return [dict(p, speaker=dict(p['speaker'])) for p in participants]
+
     with (
         patch.object(
             chatter_guild_events, '_query_speaker',
             side_effect=_speaker_for,
+        ),
+        patch.object(
+            chatter_guild_events, 'prepare_guild_speakers',
+            side_effect=fake_prepare,
         ),
         patch.object(
             chatter_guild_events, '_load_candidates',
@@ -460,6 +471,7 @@ def test_join_greeting_welcomes_then_newcomer_replies():
 
     assert result is True
     assert statuses == [(55, 'completed')]
+    assert prepared == [('guild', 'Aliss'), ('guild', 'Bran')]
     assert [row['bot_name'] for row in inserted] == ['Aliss', 'Bran']
     assert inserted[0]['message'].count('Bran') == 1
     assert inserted[1]['delay_seconds'] == 6.0

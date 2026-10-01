@@ -236,8 +236,8 @@ def test_all_proximity_prompt_shapes_receive_instance_context():
         assert 'haunted fortress' in prompt.lower()
 
 
-def test_player_responsive_proximity_prompts_match_input_scale():
-    scale_rule = "Match the player's conversational scale."
+def test_player_responsive_proximity_prompts_carry_purpose_scale_guidance():
+    scale_rule = "not how many words it contains"
     participants = [NPC, {**NPC, 'name': 'Thar'}]
     prompts = [
         _single_prompt(
@@ -274,6 +274,7 @@ def test_player_responsive_proximity_prompts_match_input_scale():
     ]
     for prompt in prompts:
         assert scale_rule in prompt
+        assert "exchange, or closure usually needs only a few natural words" in prompt
 
 
 def test_emote_only_proximity_contract_is_safe():

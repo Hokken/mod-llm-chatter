@@ -505,6 +505,18 @@ emote. Directed player-emote events request the same short scale and may also
 use emote-only output, but they retain their existing server reaction chance
 and do not receive the semantic optional-reply roll or hard repair gate.
 
+Player-message analysis judges what the turn invites using its meaning and
+recent history, never an input-length threshold or phrase list. A terse
+invitation for news, advice, an experience, or an explanation can deserve a
+concrete answer. Acknowledgments and conversational closure remain brief.
+The existing `brief_casual` and `requires_reply` decisions stay separate.
+Channel length guidance and hard limits still apply; useful detail is
+permitted, never mandatory, and replies should not be padded.
+
+General reuses its configurable nonbrief length weights after classification.
+Brief turns retain their existing limits and optional-silence policy; Party
+continues to bypass optional silence. No additional LLM call is introduced.
+
 The analysis separately marks `requires_reply`: every question must be true,
 while statements are judged semantically in conversational context. The bridge
 derives `reply_optional` only when the model says a `brief_casual` statement
@@ -555,6 +567,37 @@ tone, traits or mood.
   Normal mode always uses `chatter_mode.resolve_player_personality()`
   and never a stored backstory. Personas are resolved on every call
   (no cache), so group joins and leaves apply immediately.
+- **Profile creation**: `chatter_identity.py` owns persistent trait,
+  tone and backstory creation and explicit regeneration. Party's
+  `chatter_group_state.py` keeps session/role/location assignment and
+  re-exports the previous identity entry points. General and Guild call
+  `prepare_channel_persona()` only for selected speakers; candidate
+  lookup stays read-only. Per-bot locks serialize bridge work; short
+  conditional persistence transactions reject LLM output made obsolete
+  by profile edits. Provider calls never hold database write locks.
+  Failed work has a bounded retry cache (`Profile.RetrySeconds`).
+- **Guild preparation**: `chatter_identity_jobs.py` discovers missing
+  profiles in guilds with a current online real-player Guild session.
+  Membership and online state are rechecked before each ensure. The
+  bridge schedules one bounded batch per configured interval, yielding
+  to urgent events. Keyset paging prevents failed profiles from starving
+  later members. This includes newly accepted invitations and existing
+  members, without generating profiles for bot-only startup guilds.
+  Selected Guild speakers also receive an ensure before their prompt,
+  including the guild event handlers (`chatter_guild_events.py`,
+  `chatter_guild_world_events.py`); their General-channel events pass
+  `channel='general'` to `prepare_guild_speakers()`.
+  Discovery depends on the existing player-reply/login session lifecycle;
+  with both session-producing features disabled, selected-speaker
+  preparation still works but there is no membership prewarming.
+- **General/Guild sampling**: `sample_channel_backstory()` copies the
+  persona with or without backstory using independent per-speaker rolls
+  (`Backstory.GeneralChance` / `GuildChance`, both 25 by default).
+  The prepared cast, including omitted backstories, survives prompt
+  repairs and continuation turns. Traits and tone are always retained;
+  no roll changes the saved profile. All missing fields are prepared
+  before sampling, so first-use speech may require two extra LLM calls.
+  Normal mode never creates or injects roleplay backstories.
 - **Mood**: `resolve_mood()` reads the real event mood from
   `chatter_group_state.get_bot_mood_label_by_guid()`, which uses the
   bot's most recent live entry in the existing group mood store. A bot
@@ -1084,6 +1127,9 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_db.py` | DB access, inserts, zone/cache queries, `any_real_players_online()`, stale-group cleanup, and global group/Guild session cleanup |
 | `tools/chatter_links.py` | WoW link parsing and prompt-side link enrichment for player messages |
 | `tools/chatter_prompts.py` | Ambient/event prompt builders; twist and spice gating (`configure_prompt_flavor()`) |
+| `tools/chatter_general_length.py` | Configurable player-driven General reply length bands and adjacent-turn avoidance; no other channel length policy |
+| `tools/chatter_identity.py` | Shared persistent profile creation, guarded generation, explicit regeneration and selected-speaker preparation |
+| `tools/chatter_identity_jobs.py` | Bounded Guild membership discovery and profile prewarming |
 | `tools/chatter_persona.py` | Bot persona resolution (identity + real event mood) and the shared persona/cast renderers for Party, Guild and General |
 | `tools/chatter_threads.py` | Party conversation threads: in-memory thread store, soft nudges for idle exchanges, thread prompt rendering, thread report parsing |
 | `tools/chatter_general.py` | `player_general_msg` Python path |

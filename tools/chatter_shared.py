@@ -1864,18 +1864,25 @@ def build_conversational_scale_guidance(
     force_brief: bool = False,
     brief_tier: Optional[str] = None,
 ) -> str:
-    """Keep player-responsive dialogue proportional to its input."""
+    """Match response scope to conversational purpose, not input size."""
     guidance = (
-        f"Match the player's conversational scale. If the player's "
-        f"{subject} is brief and casual, respond in kind with a few "
-        "casual words or one short sentence. Do not expand it into a "
-        "speech, explanation, story, or new topic. This instruction "
-        "overrides generic mood, creativity, and length suggestions."
+        f"Judge what the player's {subject} invites in this conversation, "
+        "not how many words it contains. Within this channel's length "
+        "guidance and hard limits, a short open question may deserve a "
+        "concrete answer, useful detail, or explanation. Use recent context "
+        "to understand terse follow-ups. An acknowledgment, routine social "
+        "exchange, or closure usually needs only a few natural words; "
+        "do not turn it into a speech or introduce a new topic. When the "
+        "player invites information or discussion, contribute something "
+        "relevant rather than a stock dismissal. Use the supplied context; "
+        "do not invent factual updates to fill space. Never pad a reply."
     )
     if force_brief:
         lo, hi, chars = _brief_casual_limits(brief_tier)
         guidance += (
             " This interaction has been classified as brief and casual. "
+            "This brief contract overrides generic mood, creativity, and "
+            "length suggestions. "
             f"Use {lo}-{hi} words and no more than {chars} characters. "
         )
         if brief_tier == 'relaxed':
@@ -2727,12 +2734,19 @@ def find_addressed_bot(
         f"prompt group discussion\n"
         f'- If only one bot is addressed, '
         f'"multi_addressed" must be false.\n'
-        f'- "brief_casual": true when the message and '
-        f"conversation context call for a similarly brief, "
-        f"casual response rather than a developed answer. "
-        f"Judge meaning and conversational function, not "
-        f"keywords or message length alone. A concise but "
-        f"substantive question is not brief casual talk.\n"
+        f'- "brief_casual": true only when a minimal social response '
+        f"would satisfy the player's conversational purpose. Judge meaning "
+        f"and conversational function, not keywords or message length alone. "
+        f"An open invitation to share information, news, experiences, advice, "
+        f"an explanation or a story is false, even if terse or informal: "
+        f"a concrete or developed contribution may be welcome. This permits "
+        f"detail without requiring a long answer. Acknowledgments, routine "
+        f"social exchanges and closures are true when elaboration would "
+        f"feel disproportionate. Use recent history to decide what a short "
+        f"follow-up invites; do not classify it from its size in isolation. "
+        f"If a turn also contains a substantive request, do not let its "
+        f"social framing hide that request. Decide whether a reply is "
+        f"required separately from how much it should say.\n"
         f'- "requires_reply": false ONLY for throwaway filler '
         f"that friends would naturally leave unanswered: bare "
         f"laughter or reactions, stepping-away or status notes, "

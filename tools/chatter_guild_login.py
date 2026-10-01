@@ -5,6 +5,7 @@ import random
 from typing import Dict, List, Optional, Tuple
 
 from chatter_db import insert_chat_message
+from chatter_identity import prepare_guild_speakers
 from chatter_guild import (
     _clean_guild_conversation,
     _contains_speaker_name,
@@ -624,6 +625,8 @@ def process_guild_login_greeting_event(
     if not responders:
         _mark_event(db, event_id, 'skipped')
         return False
+
+    responders = prepare_guild_speakers(db, client, config, responders)
 
     name_requested = (
         random.randint(1, 100)

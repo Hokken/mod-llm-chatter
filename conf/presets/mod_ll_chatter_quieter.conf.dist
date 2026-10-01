@@ -2213,6 +2213,30 @@ LLMChatter.GeneralChat.ExtendedConversationChance = 40
 #
 LLMChatter.GeneralChat.ExtendedMaxMessages = 3
 
+#
+#   LLMChatter.GeneralChat.PlayerReplyLengthWeights [BRIDGE]
+#       Relative weights for short, medium and developed player replies.
+#       Three nonnegative integers with a positive total. Invalid values use
+#       the default. Followups avoid the previous band if another is enabled.
+#       Both normal and roleplay modes use this policy. Brief casual replies
+#       keep PlayerChat.BriefCasualLengthWeights instead.
+#       Requires bridge restart to take effect.
+#       Default: 35,45,20
+#
+LLMChatter.GeneralChat.PlayerReplyLengthWeights = 35,45,20
+
+#
+#   LLMChatter.GeneralChat.PlayerReplyLengthMaxima [BRIDGE]
+#       Approximate short, medium and developed character ceilings.
+#       Three strictly increasing integers in 1-255. Invalid values use the
+#       default. Targets guide wording; never pad a reply to reach a minimum.
+#       Player conversational scale takes priority. Delivery caps at 255.
+#       Does not change Party, Guild or autonomous General length policies.
+#       Requires bridge restart to take effect.
+#       Default: 75,150,240
+#
+LLMChatter.GeneralChat.PlayerReplyLengthMaxima = 75,150,240
+
 ###############################################################################
 # RAID CHATTER TUNING [SERVER]
 ###############################################################################
@@ -3735,6 +3759,53 @@ LLMChatter.Backstory.PartyReactionChance = 50
 #       Default: 15
 #
 LLMChatter.Backstory.ProximityChance = 15
+
+#
+#   LLMChatter.Backstory.GeneralChance [BRIDGE]
+#       Independent chance per General speaker to include their backstory.
+#       Traits and tone are always included. Roleplay only. Range: 0-100.
+#       Does not affect profile creation or storage.
+#       Requires bridge restart to take effect.
+#       Default: 25
+#
+LLMChatter.Backstory.GeneralChance = 25
+
+#
+#   LLMChatter.Backstory.GuildChance [BRIDGE]
+#       Independent chance per Guild speaker to include their backstory.
+#       Traits and tone are always included. Roleplay only. Range: 0-100.
+#       Does not affect profile creation or storage.
+#       Requires bridge restart to take effect.
+#       Default: 25
+#
+LLMChatter.Backstory.GuildChance = 25
+
+#
+#   LLMChatter.Profile.GuildScanIntervalSeconds [BRIDGE]
+#       Poll for missing profiles in guilds with an online real-player session.
+#       One background batch at a time; bot-only guilds are excluded.
+#       Requires bridge restart to take effect.
+#       Default: 15
+#
+LLMChatter.Profile.GuildScanIntervalSeconds = 15
+
+#
+#   LLMChatter.Profile.GuildBatchSize [BRIDGE]
+#       Maximum profiles prepared per scan (1-100). Existing guild members
+#       are backfilled at this rate; selected speakers are also ensured.
+#       Requires bridge restart to take effect.
+#       Default: 2
+#
+LLMChatter.Profile.GuildBatchSize = 2
+
+#
+#   LLMChatter.Profile.RetrySeconds [BRIDGE]
+#       Retry delay after failed profile persistence or LLM generation.
+#       Successful fields are retained. Minimum: 1 second.
+#       Requires bridge restart to take effect.
+#       Default: 300
+#
+LLMChatter.Profile.RetrySeconds = 300
 
 #
 #   LLMChatter.Persona.TwistChance [BRIDGE]

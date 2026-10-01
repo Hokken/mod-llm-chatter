@@ -5,6 +5,7 @@ import random
 from typing import Dict, List, Optional, Tuple
 
 from chatter_db import insert_chat_message
+from chatter_identity import prepare_guild_speakers
 from chatter_general import _pick_length_hint
 from chatter_guild import (
     _apply_participant_references,
@@ -1348,6 +1349,8 @@ def process_guild_player_message_event(
     if not responders:
         _mark_event(db, event_id, 'skipped')
         return False
+
+    responders = prepare_guild_speakers(db, client, config, responders)
 
     callback_requested = (
         not brief_casual

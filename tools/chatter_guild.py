@@ -13,6 +13,7 @@ import re
 from typing import Dict, List, Optional
 
 from chatter_db import insert_chat_message
+from chatter_identity import prepare_guild_speakers
 from chatter_llm import call_llm
 from chatter_shared import (
     append_conversation_json_instruction,
@@ -100,6 +101,7 @@ def _query_speaker(db, bot_guid: int) -> Dict[str, object]:
             exc_info=True,
         )
         return {}
+
 
 
 from chatter_constants import (
@@ -598,6 +600,12 @@ def _process_guild_statement_event(
     if not speaker or not speaker_name:
         _mark_event(db, event_id, 'skipped')
         return False
+
+    speaker = prepare_guild_speakers(
+        db, client, config,
+        [{'guid': speaker_guid, 'name': speaker_name, 'speaker': speaker}],
+        event.setdefault('_prepared_personas', {}),
+    )[0]['speaker']
 
     zone_id = int(extra.get('zone_id', 0) or 0)
     # Length control mirrors the General channel (which works well): reuse
@@ -1850,6 +1858,11 @@ def process_guild_idle_chatter_event(
             event,
             fallback=requested_conversation,
         )
+
+    loaded_participants = prepare_guild_speakers(
+        db, client, config, loaded_participants,
+        event.setdefault('_prepared_personas', {}),
+    )
 
     guild_name = extra.get('guild_name') or 'the guild'
     guildmates = extra.get('guildmates') or ''

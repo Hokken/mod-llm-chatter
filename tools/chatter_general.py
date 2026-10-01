@@ -57,11 +57,14 @@ from chatter_threads import (
     note_player_message,
     render_for_player_reply,
 )
+from chatter_general_length import (
+    general_reply_length_line, pick_general_reply_tier,
+)
+from chatter_identity import prepare_channel_persona
 from chatter_persona import (
     Persona,
     build_persona_block,
     persona_from_fields,
-    resolve_persona,
 )
 from chatter_guild_profile import get_character_guild_name
 from chatter_mode import (
@@ -393,7 +396,7 @@ def _select_primary_bot(
 
     Returns dict with bot1_guid, bot1_idx, bot1_name,
     bot1_race, bot1_class, bot1_class_id, bot1_level,
-    bot1_traits, is_conversation.
+    is_conversation. Profile preparation follows the silence decision.
     Returns None if no valid bot found.
     """
     conv_chance = int(config.get(
@@ -452,9 +455,6 @@ def _select_primary_bot(
         'bot1_class_id': bot1_info['class'],
         'bot1_level': bot1_info['level'],
         'bot1_gender': get_gender_label(bot1_info['gender']),
-        'bot1_traits': resolve_persona(
-            db, bot1_guid, bot1_info['name'], mode,
-        ),
         'is_conversation': is_conversation,
         'brief_casual': brief_casual,
         'reply_optional': reply_optional,
@@ -477,6 +477,7 @@ def _build_general_response_prompt(
     guild_name="",
     thread_context="",
     brief_tier=None,
+    reply_length_hint=None,
 ):
     """Build prompt for a bot responding to a
     player's General channel message.
@@ -584,7 +585,7 @@ def _build_general_response_prompt(
         + (
             f"{brief_casual_length_line(brief_tier)}\n"
             if brief_casual
-            else f"{_pick_length_hint(mode)}\n"
+            else f"{reply_length_hint or general_reply_length_line()}\n"
         )
         + build_conversational_scale_guidance(
             force_brief=brief_casual, brief_tier=brief_tier,
@@ -607,8 +608,7 @@ def _build_general_response_prompt(
         f"- Don't repeat what they said\n"
         f"- If there's chat history, stay "
         f"consistent with the conversation\n"
-        f"- Keep it brief - this is General chat, "
-        f"not a private conversation\n"
+        "- Give a specific, natural response; avoid filler and stock remarks\n"
     )
     spice_line = format_spices_line(
         maybe_pick_personality_spices(mode)
@@ -643,6 +643,7 @@ def _build_general_followup_prompt(
     brief_casual=False,
     guild_name="",
     brief_tier=None,
+    reply_length_hint=None,
 ):
     """Build prompt for a 2nd bot following up
     on the 1st bot's reaction in General channel.
@@ -737,7 +738,7 @@ def _build_general_followup_prompt(
         + (
             f"{brief_casual_length_line(brief_tier)}\n"
             if brief_casual
-            else f"{_pick_length_hint(mode)}\n"
+            else f"{reply_length_hint or general_reply_length_line()}\n"
         )
         + build_conversational_scale_guidance(
             force_brief=brief_casual, brief_tier=brief_tier,
@@ -755,7 +756,7 @@ def _build_general_followup_prompt(
         f"as plain text\n"
         f"- Don't repeat what others said\n"
         f"{address_hint}"
-        f"- Keep it brief - General channel\n"
+        "- Add a specific reaction or perspective, without filler\n"
         "- Let your personality show in how you say it, "
         f"without naming your traits"
     )
@@ -898,7 +899,6 @@ def process_general_player_msg_event(
         bot1_class_id = primary['bot1_class_id']
         bot1_level = primary['bot1_level']
         bot1_gender = primary['bot1_gender']
-        bot1_traits = primary['bot1_traits']
         is_conversation = primary['is_conversation']
         brief_casual = primary['brief_casual']
         reply_optional = primary['reply_optional']
@@ -916,6 +916,10 @@ def process_general_player_msg_event(
             )
             mark_event(db, event_id, 'skipped')
             return False
+
+        bot1_traits = prepare_channel_persona(
+            db, client, config, bot1_guid, bot1_name, 'general',
+        )
 
         # Talent context injection
         speaker_talent = None
@@ -961,6 +965,11 @@ def process_general_player_msg_event(
         brief_tier1 = (
             pick_brief_casual_tier(config) if brief_casual else None
         )
+        reply_tier1 = (
+            None if brief_casual else pick_general_reply_tier(config)
+        )
+        if reply_tier1:
+            zone_meta['general_reply_length_tier'] = reply_tier1
         if brief_tier1:
             zone_meta['brief_casual_tier'] = brief_tier1
         prompt1 = _build_general_response_prompt(
@@ -982,6 +991,7 @@ def process_general_player_msg_event(
             ),
             thread_context=thread_context,
             brief_tier=brief_tier1,
+            reply_length_hint=general_reply_length_line(config, reply_tier1),
         )
 
         max_tokens = int(config.get(
@@ -1123,12 +1133,14 @@ def process_general_player_msg_event(
                     subzone_lore=subzone_lore,
                     brief_casual=brief_casual,
                     brief_tier_avoid=brief_tier1,
+                    reply_tier_avoid=reply_tier1,
                     zone_meta=zone_meta,
                     faction=player_faction,
                 )
                 # Extended conversation chance
                 if (
                     followup
+                    and not brief_casual
                     and _extended_conv_chance > 0
                     and random.randint(1, 100)
                     <= _extended_conv_chance
@@ -1150,6 +1162,7 @@ def process_general_player_msg_event(
                             player_message,
                             mode,
                             followup['delay2'],
+                            previous_reply_tier=followup.get('reply_tier'),
                             recent_msgs=recent_msgs,
                             allow_action=allow_action,
                             link_context=link_context,
@@ -1210,6 +1223,7 @@ def _general_followup(
     brief_casual=False,
     faction="",
     brief_tier_avoid=None,
+    reply_tier_avoid=None,
 ):
     """Generate a second bot's followup response
     in General channel conversation mode.
@@ -1232,8 +1246,8 @@ def _general_followup(
     bot2_class = get_class_name(bot2_info['class'])
     bot2_level = bot2_info['level']
     bot2_gender = get_gender_label(bot2_info['gender'])
-    bot2_traits = resolve_persona(
-        db, bot2_guid, bot2_name, mode,
+    bot2_traits = prepare_channel_persona(
+        db, client, config, bot2_guid, bot2_name, 'general',
     )
 
     # Recompute speaker talent for bot2
@@ -1264,6 +1278,10 @@ def _general_followup(
         pick_brief_casual_tier(config, avoid=brief_tier_avoid)
         if brief_casual else None
     )
+    reply_tier2 = (
+        None if brief_casual
+        else pick_general_reply_tier(config, avoid=reply_tier_avoid)
+    )
     prompt2 = _build_general_followup_prompt(
         bot2_name, bot2_race, bot2_class,
         bot2_level, bot2_gender, bot2_traits,
@@ -1287,6 +1305,7 @@ def _general_followup(
             db, bot2_guid
         ),
         brief_tier=brief_tier2,
+        reply_length_hint=general_reply_length_line(config, reply_tier2),
     )
 
     max_tokens = int(config.get(
@@ -1294,6 +1313,8 @@ def _general_followup(
     ))
     if zone_meta is None:
         zone_meta = {}
+    if reply_tier2:
+        zone_meta['general_reply_length_tier'] = reply_tier2
     if brief_tier2:
         zone_meta['brief_casual_tier'] = brief_tier2
     if bot2_speaker_talent:
@@ -1401,6 +1422,7 @@ def _general_followup(
         'bot2_traits': bot2_traits,
         'bot2_response': msg2,
         'delay2': delay2,
+        'reply_tier': reply_tier2,
     }
 
 
@@ -1417,6 +1439,7 @@ def _build_general_continuation_prompt(
     subzone_name="",
     subzone_lore="",
     guild_name="",
+    reply_length_hint=None,
 ):
     """Build prompt for a continuation message in
     an extended General channel conversation.
@@ -1522,7 +1545,7 @@ def _build_general_continuation_prompt(
         f"Continue the conversation naturally. "
         f"React to what was just said or add "
         f"your own perspective.\n"
-        f"{_pick_length_hint(mode)}\n"
+        f"{reply_length_hint or general_reply_length_line()}\n"
         f"{build_conversational_scale_guidance()}\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
@@ -1536,7 +1559,7 @@ def _build_general_continuation_prompt(
         f"as plain text\n"
         f"- Don't repeat what others said\n"
         f"{address_hint}"
-        f"- Keep it brief - General channel\n"
+        "- Add a specific reaction or perspective, without filler\n"
         "- Let your personality show in how you say it, "
         f"without naming your traits"
     )
@@ -1582,6 +1605,7 @@ def _general_extended_conversation(
     subzone_lore="",
     zone_meta=None,
     faction="",
+    previous_reply_tier=None,
 ):
     """Generate additional messages beyond the
     initial 2-message conversation in General
@@ -1637,10 +1661,7 @@ def _general_extended_conversation(
             participants.append({
                 'guid': bot3_guid,
                 'name': bot3_info['name'],
-                'traits': resolve_persona(
-                    db, bot3_guid, bot3_info['name'],
-                    mode,
-                ),
+                'traits': None,
             })
 
     # Track who spoke last to avoid repeats
@@ -1692,6 +1713,12 @@ def _general_extended_conversation(
             # Don't consume a turn — retry
             continue
 
+        if speaker['traits'] is None:
+            speaker['traits'] = prepare_channel_persona(
+                db, client, config, speaker['guid'], speaker['name'],
+                'general',
+            )
+
         sp_race = get_race_name(sp_info['race'])
         sp_class = get_class_name(sp_info['class'])
         sp_level = sp_info['level']
@@ -1725,10 +1752,12 @@ def _general_extended_conversation(
 
         # remaining after this message is sent
         remaining = max_msgs - (msg_count + 1)
+        reply_tier = pick_general_reply_tier(config, avoid=previous_reply_tier)
         prompt = _build_general_continuation_prompt(
             speaker['name'], sp_race, sp_class,
             sp_level, sp_gender, speaker['traits'],
             thread, zone_name, chat_hist, mode,
+            reply_length_hint=general_reply_length_line(config, reply_tier),
             recent_messages=recent_msgs,
             allow_action=allow_action,
             remaining_messages=remaining,
@@ -1749,6 +1778,7 @@ def _general_extended_conversation(
 
         if zone_meta is None:
             zone_meta = {}
+        zone_meta['general_reply_length_tier'] = reply_tier
         if sp_speaker_talent:
             zone_meta['speaker_talent'] = (
                 sp_speaker_talent
@@ -1831,5 +1861,6 @@ def _general_extended_conversation(
             'is_bot': True,
         })
         last_speaker_guid = speaker['guid']
+        previous_reply_tier = reply_tier
         cont_turn += 1
 

@@ -300,6 +300,24 @@ def without_backstory(persona: Persona) -> Persona:
     return dataclasses.replace(persona, backstory='')
 
 
+def sample_channel_backstory(config, persona, channel):
+    """Sample prompt context without modifying the saved profile."""
+    from chatter_identity import config_int
+    from chatter_shared import get_chatter_mode
+    mode = get_chatter_mode(config)
+    chance = config_int(
+        config, f'LLMChatter.Backstory.{channel.title()}Chance',
+        25, 0, 100,
+    )
+    enabled = config_int(config, 'LLMChatter.Backstory.Enable', 1)
+    if (not is_roleplay(mode) or not enabled or not persona.backstory
+            or chance == 0):
+        return without_backstory(persona)
+    if chance < 100 and random.randint(1, 100) > chance:
+        return without_backstory(persona)
+    return persona
+
+
 # ------------------------------------------------------------------
 # Rendering
 # ------------------------------------------------------------------

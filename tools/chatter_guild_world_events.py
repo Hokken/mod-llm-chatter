@@ -47,6 +47,7 @@ from chatter_guild_profile import (
     guild_identity_lines,
 )
 from chatter_handler_pipeline import run_group_handler
+from chatter_identity import prepare_guild_speakers
 from chatter_mode import (
     build_player_chat_guidance,
     build_player_prompt_header_from_dict,
@@ -80,6 +81,13 @@ def _participant(db, extra: Dict, prefix: str = 'bot') -> Dict:
         'map_id': 0,
         'speaker': speaker,
     }
+
+
+def _prepared(db, client, config, participant: Dict,
+              channel: str = 'guild') -> Dict:
+    return prepare_guild_speakers(
+        db, client, config, [participant], channel=channel,
+    )[0]
 
 
 def _describe(extra: Dict, prefix: str, mode: str) -> str:
@@ -120,6 +128,7 @@ def _single_guild_line(
     if not speaker['guid'] or not speaker['name'] or not speaker['speaker']:
         _mark_event(db, event_id, 'skipped')
         return False
+    speaker = _prepared(db, client, config, speaker)
 
     mode = get_chatter_mode(config)
     profile = get_guild_profile(db, extra.get('guild_id'))
@@ -299,6 +308,7 @@ def process_zone_pvp_death_event(db, client, config, event):
     if not bot['guid'] or not bot['name'] or not bot['speaker']:
         _mark_event(db, event_id, 'skipped')
         return False
+    bot = _prepared(db, client, config, bot, channel='general')
 
     mode = get_chatter_mode(config)
     prompt = build_zone_pvp_death_prompt(bot, extra, mode)
@@ -470,6 +480,7 @@ def process_guild_meet_greeting_event(db, client, config, event):
     if not bot['guid'] or not bot['speaker']:
         _mark_event(db, event_id, 'skipped')
         return False
+    bot = _prepared(db, client, config, bot)
 
     mode = get_chatter_mode(config)
     player_name = str(extra.get('player_name') or '')
@@ -589,7 +600,9 @@ def process_guild_join_zone_announce_event(db, client, config, event):
             })
     random.shuffle(candidates)
     responders = candidates[:_responder_count(config, len(candidates))]
-    participants = [announcer] + responders
+    participants = prepare_guild_speakers(
+        db, client, config, [announcer] + responders, channel='general',
+    )
 
     mode = get_chatter_mode(config)
     guild_name = str(extra.get('guild_name') or 'a guild')

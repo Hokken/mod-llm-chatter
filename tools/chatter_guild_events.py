@@ -13,6 +13,7 @@ import random
 from typing import Dict, List, Optional
 
 from chatter_db import insert_chat_message
+from chatter_identity import prepare_guild_speakers
 from chatter_guild import (
     _contains_speaker_name,
     _guild_location_lines,
@@ -316,6 +317,7 @@ def _subject_reply(
         config, _PREFIX + chance_key, 70,
     ):
         return []
+    subject = prepare_guild_speakers(db, client, config, [subject])[0]
 
     mode = get_chatter_mode(config)
     maximum = _max_characters(config)
@@ -444,6 +446,7 @@ def _run_event(
     if not responders:
         _mark_event(db, event_id, 'skipped')
         return False
+    responders = prepare_guild_speakers(db, client, config, responders)
 
     guild_name = str(extra.get('guild_name') or 'the guild')
     faction = str(extra.get('team') or '')
