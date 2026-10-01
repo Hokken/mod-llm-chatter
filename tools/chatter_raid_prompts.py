@@ -13,6 +13,7 @@ import logging
 import random
 
 from chatter_shared import (
+    instance_has_sky,
     build_race_class_context,
     build_bot_identity,
     build_anti_repetition_context,
@@ -397,7 +398,8 @@ def _raid_base_context(extra_data, bot_data):
 
     env_lines = (
         build_environmental_context_lines()
-        if roleplay else []
+        if roleplay and instance_has_sky(map_name=raid_name)
+        else []
     )
 
     # Talent context

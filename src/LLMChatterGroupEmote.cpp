@@ -9,6 +9,7 @@
  *   - HandleEmoteAtGroupBot()
  *   - HandleEmoteAtCreature()
  *   - HandleEmoteObserver()
+ *   - HandleEmoteMoodSpread()
  *   - EvictEmoteCooldowns()
  */
 
@@ -453,8 +454,41 @@ void HandleEmoteAtGroupBot(
             );
         }
     }
-    // Mood spread (Phase 6 -- deferred):
-    // s_contagiousEmotes check goes here
+    // Mood spread to the rest of the party is handled by
+    // HandleEmoteMoodSpread() from the emote router, which
+    // knows the nearby party bots.
+}
+
+// ============================================================================
+// HandleEmoteMoodSpread
+// ============================================================================
+
+void HandleEmoteMoodSpread(
+    Player* player, uint32 textEmote,
+    std::vector<Player*> const& candidates)
+{
+    if (!player || candidates.empty())
+        return;
+    if (!s_contagiousEmotes.count(textEmote))
+        return;
+    uint32 const chance =
+        sLLMChatterConfig->_emoteMoodSpreadChance;
+    if (!chance)
+        return;
+    auto mit = s_mirrorEmoteMap.find(textEmote);
+    if (mit == s_mirrorEmoteMap.end())
+        return;
+
+    time_t now = time(nullptr);
+    for (Player* bot : candidates)
+    {
+        if (!bot || !bot->IsAlive() || bot->IsInCombat())
+            continue;
+        if (urand(1, 100) > chance)
+            continue;
+        ScheduleBotMirrorEmote(
+            player, bot, mit->second, now);
+    }
 }
 
 uint32 HandleEmoteAtUngroupedBot(
@@ -599,6 +633,8 @@ void HandleEmoteObserver(
             ? "creature"
         : (tgtType == EMOTE_TGT_EXT_PLAYER)
             ? "player_external"
+        : (tgtType == EMOTE_TGT_GROUP_BOT)
+            ? "party_bot"
         : "none";
 
     std::string extraData =
@@ -640,7 +676,10 @@ void HandleEmoteObserver(
     // Orc Hunter") instead of naming a stranger blindly.
     if (targetPlayer)
         extraData +=
-            ",\"target_race\":"
+            ",\"target_guid\":"
+            + std::to_string(
+                targetPlayer->GetGUID().GetCounter())
+            + ",\"target_race\":"
             + std::to_string(targetPlayer->getRace())
             + ",\"target_class\":"
             + std::to_string(targetPlayer->getClass())

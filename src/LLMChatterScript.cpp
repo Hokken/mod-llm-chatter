@@ -6,6 +6,7 @@
 #include "LLMChatterGuild.h"
 #include "LLMChatterGroup.h"
 #include "LLMChatterLoot.h"
+#include "LLMChatterProximityFight.h"
 #include "LLMChatterRaid.h"
 #include "LLMChatterShared.h"
 
@@ -20,5 +21,6 @@ void AddLLMChatterScripts()
     AddLLMChatterLootScripts();
     AddLLMChatterBGScripts();
     AddLLMChatterRaidScripts();
+    AddLLMChatterProximityFightScripts();
     AddLLMChatterCommandScripts();
 }

@@ -10,6 +10,7 @@
 #include "LLMChatterShared.h"
 
 #include "CellImpl.h"
+#include "CombatManager.h"
 #include "Creature.h"
 #include "DBCStores.h"
 #include "GridNotifiers.h"
@@ -361,15 +362,15 @@ bool IsSameGroup(Player* left, Group* group)
     return botGroup->GetGUID() == group->GetGUID();
 }
 
-bool IsEligibleProximityBot(
+// Everything IsEligibleProximityBot() checks except the
+// team. Opposite-faction onlookers (fight emotes) reuse it.
+bool IsEligibleProximityBotAnyTeam(
     Player* player, Player* bot, float radius,
     bool allowMounted)
 {
     if (!player || !bot)
         return false;
     if (!IsPlayerBot(bot))
-        return false;
-    if (player->GetTeamId() != bot->GetTeamId())
         return false;
     if (!bot->IsInWorld() || !bot->IsAlive())
         return false;
@@ -389,6 +390,18 @@ bool IsEligibleProximityBot(
         return false;
 
     return true;
+}
+
+bool IsEligibleProximityBot(
+    Player* player, Player* bot, float radius,
+    bool allowMounted)
+{
+    if (!player || !bot)
+        return false;
+    if (player->GetTeamId() != bot->GetTeamId())
+        return false;
+    return IsEligibleProximityBotAnyTeam(
+        player, bot, radius, allowMounted);
 }
 
 bool IsEligibleProximityNPC(
@@ -1144,6 +1157,53 @@ std::string BuildBotParticipantJson(Player* bot)
         + "\",\"role\":\"bot\"}";
 }
 
+// A creature has no race of its own; humanoid NPCs take one
+// from their display model's extended info. Empty for beasts
+// and other models without it.
+static std::string GetNPCRaceName(Creature const* cr)
+{
+    CreatureDisplayInfoEntry const* display =
+        sCreatureDisplayInfoStore.LookupEntry(
+            cr->GetDisplayId());
+    if (!display || !display->ExtendedDisplayInfoID)
+        return "";
+    CreatureDisplayInfoExtraEntry const* extra =
+        sCreatureDisplayInfoExtraStore.LookupEntry(
+            display->ExtendedDisplayInfoID);
+    if (!extra || !extra->DisplayRaceID)
+        return "";
+    // ChrRaces also names non-playable races (goblins,
+    // ogres...) that GetRaceName() does not know.
+    ChrRacesEntry const* race =
+        sChrRacesStore.LookupEntry(extra->DisplayRaceID);
+    if (!race)
+        return "";
+    uint8 locale = sWorld->GetDefaultDbcLocale();
+    char const* name = race->name[locale];
+    if (!name || !*name)
+        name = race->name[LOCALE_enUS];
+    return name ? name : "";
+}
+
+// The faction the NPC belongs to (e.g. "Darnassus",
+// "Defias Brotherhood"), from its faction template.
+static std::string GetNPCFactionName(Creature const* cr)
+{
+    FactionTemplateEntry const* factionTemplate =
+        cr->GetFactionTemplateEntry();
+    if (!factionTemplate)
+        return "";
+    FactionEntry const* faction =
+        sFactionStore.LookupEntry(factionTemplate->faction);
+    if (!faction)
+        return "";
+    uint8 locale = sWorld->GetDefaultDbcLocale();
+    char const* name = faction->name[locale];
+    if (!name || !*name)
+        name = faction->name[LOCALE_enUS];
+    return name ? name : "";
+}
+
 std::string BuildNPCParticipantJson(
     Creature* cr, Player* player)
 {
@@ -1169,6 +1229,10 @@ std::string BuildNPCParticipantJson(
             creatureTemplate->SubName)
         + "\",\"gender\":\""
         + gender
+        + "\",\"race\":\""
+        + JsonEscape(GetNPCRaceName(cr))
+        + "\",\"faction\":\""
+        + JsonEscape(GetNPCFactionName(cr))
         + "\",\"disposition\":\""
         + JsonEscape(
             GetNPCDisposition(cr, player))
@@ -1230,13 +1294,13 @@ std::string GetAreaNameForLocale(uint32 areaId)
     return name ? name : "";
 }
 
-uint32 ComputeEffectiveChance(Player* player)
+// Scale `chance` down by the anchor's recent proximity
+// trigger count (zone fatigue). Shared by ambient scenes
+// and fight onlooker reactions.
+uint32 ComputeFatiguedChance(Player* player, uint32 chance)
 {
     Map* map = player ? player->GetMap() : nullptr;
     bool instanceMap = IsInstanceProximityMap(map);
-    uint32 chance = instanceMap
-        ? sLLMChatterConfig->_proxChatterInstanceChance
-        : sLLMChatterConfig->_proxChatterOutdoorChance;
     if (!player)
         return chance;
 
@@ -1277,6 +1341,15 @@ uint32 ComputeEffectiveChance(Player* player)
         * sLLMChatterConfig
               ->_proxChatterZoneFatigueDecay;
     return decay >= chance ? 0 : chance - decay;
+}
+
+uint32 ComputeEffectiveChance(Player* player)
+{
+    Map* map = player ? player->GetMap() : nullptr;
+    uint32 chance = IsInstanceProximityMap(map)
+        ? sLLMChatterConfig->_proxChatterInstanceChance
+        : sLLMChatterConfig->_proxChatterOutdoorChance;
+    return ComputeFatiguedChance(player, chance);
 }
 
 void NoteZoneTrigger(Player* player)
@@ -2153,6 +2226,292 @@ std::string TrimChatMessage(
 }
 } // namespace
 
+// ============================================================
+// Fight onlooker helpers (orchestrated by
+// LLMChatterProximityFight.cpp). All run on the world thread.
+// ============================================================
+
+bool IsProximityFightAnchorEligible(
+    Player* player, uint32 opponentGuid)
+{
+    if (!player || !player->IsInWorld()
+        || !player->IsAlive()
+        || player->IsFlying()
+        || !IsProximityMapAllowed(player->GetMap()))
+        return false;
+    if (!player->IsInCombat())
+        return true;
+
+    // Combat is allowed only when it is the duel itself,
+    // including combat lingering after DuelComplete(), which
+    // does not stop combat. Any other fight disqualifies.
+    if (!opponentGuid)
+        return false;
+    CombatManager const& combat =
+        player->GetCombatManager();
+    if (!combat.GetPvECombatRefs().empty())
+        return false;
+    for (auto const& [guid, ref] :
+         combat.GetPvPCombatRefs())
+    {
+        Unit* other = ref ? ref->GetOther(player) : nullptr;
+        Player* owner = other
+            ? other->GetCharmerOrOwnerPlayerOrPlayerItself()
+            : nullptr;
+        if (!owner
+            || owner->GetGUID().GetCounter()
+                != opponentGuid)
+            return false;
+    }
+    return true;
+}
+
+Player* FindProximityFightAnchor(
+    WorldObject* center,
+    std::vector<Unit*> const& fighters)
+{
+    if (!center || !center->IsInWorld())
+        return nullptr;
+
+    float radius = static_cast<float>(
+        sLLMChatterConfig->_proxChatterScanRadius);
+    std::list<Player*> nearbyPlayers;
+    NearbyBotCheck check(center, radius);
+    Acore::PlayerListSearcher<NearbyBotCheck>
+        searcher(center, nearbyPlayers, check);
+    Cell::VisitObjects(center, searcher, radius);
+
+    Player* best = nullptr;
+    float bestDist = 0.0f;
+    for (Player* player : nearbyPlayers)
+    {
+        if (IsPlayerBot(player)
+            || !IsEligibleProximityAnchor(player))
+            continue;
+        bool isFighter = std::any_of(
+            fighters.begin(), fighters.end(),
+            [player](Unit* fighter)
+            {
+                return fighter == player;
+            });
+        if (isFighter)
+            continue;
+        bool seesFight = std::any_of(
+            fighters.begin(), fighters.end(),
+            [player](Unit* fighter)
+            {
+                return IsUnitPerceivableBy(
+                    player, fighter);
+            });
+        if (!seesFight)
+            continue;
+        float dist = center->GetDistance(player);
+        if (!best || dist < bestDist)
+        {
+            best = player;
+            bestDist = dist;
+        }
+    }
+    return best;
+}
+
+namespace
+{
+
+bool IsProximityFightFighter(
+    Player* bot, std::vector<Unit*> const& fighters)
+{
+    return std::any_of(
+        fighters.begin(), fighters.end(),
+        [bot](Unit* fighter)
+        {
+            return fighter == bot
+                || (fighter
+                    && fighter
+                        ->GetCharmerOrOwnerPlayerOrPlayerItself()
+                        == bot);
+        });
+}
+
+std::string GetBotEntityCooldownKey(
+    Player const* anchor, Player* bot)
+{
+    ProximityCandidate candidate = BuildBotCandidate(bot);
+    return GetEntityCooldownKey(anchor, candidate);
+}
+
+} // namespace
+
+bool IsProximityFightOnlookerEligible(
+    Player* anchor, Player* bot,
+    std::vector<Unit*> const& fighters, bool speech)
+{
+    if (!anchor || !bot)
+        return false;
+    float radius = static_cast<float>(
+        sLLMChatterConfig->_proxChatterScanRadius);
+    // Range, LOS, alive, not in combat, not mounted or
+    // flying, same map, session ready.
+    if (!IsEligibleProximityBotAnyTeam(
+            anchor, bot, radius, false))
+        return false;
+    // Speech only from bots the player can read; emotes only
+    // from the other faction.
+    bool sameTeam = bot->GetTeamId() == anchor->GetTeamId();
+    if (sameTeam != speech)
+        return false;
+    if (IsProximityFightFighter(bot, fighters)
+        || IsSameGroup(bot, anchor->GetGroup())
+        || !IsUnitPerceivableBy(anchor, bot))
+        return false;
+
+    // Speakers may name every fighter, so they must perceive
+    // them all; emoting onlookers must see the fight.
+    auto sees = [bot](Unit* fighter)
+    {
+        return IsUnitPerceivableBy(bot, fighter);
+    };
+    return speech
+        ? std::all_of(fighters.begin(), fighters.end(), sees)
+        : std::any_of(fighters.begin(), fighters.end(), sees);
+}
+
+bool IsProximityFightBotOnCooldown(
+    Player* anchor, Player* bot)
+{
+    return IsProximityCooldownActive(
+        _entityCooldowns,
+        GetBotEntityCooldownKey(anchor, bot),
+        sLLMChatterConfig->_proxChatterEntityCooldown,
+        true);
+}
+
+void MarkProximityFightBotCooldowns(
+    Player* anchor, std::vector<Player*> const& roster)
+{
+    for (Player* bot : roster)
+    {
+        SetProximityCooldown(
+            _entityCooldowns,
+            GetBotEntityCooldownKey(anchor, bot));
+    }
+}
+
+void CollectProximityFightOnlookers(
+    Player* anchor,
+    std::vector<Unit*> const& fighters,
+    std::vector<Player*>& sameFaction,
+    std::vector<Player*>& opposite)
+{
+    if (!anchor)
+        return;
+
+    float radius = static_cast<float>(
+        sLLMChatterConfig->_proxChatterScanRadius);
+    std::list<Player*> nearbyPlayers;
+    NearbyBotCheck check(anchor, radius);
+    Acore::PlayerListSearcher<NearbyBotCheck>
+        searcher(anchor, nearbyPlayers, check);
+    Cell::VisitObjects(anchor, searcher, radius);
+
+    // Bots on their proximity entity cooldown are filtered out
+    // before the reaction shape is chosen, so a conversation
+    // is only picked when enough bots are really available.
+    for (Player* bot : nearbyPlayers)
+    {
+        if (IsProximityFightBotOnCooldown(anchor, bot))
+            continue;
+        if (IsProximityFightOnlookerEligible(
+                anchor, bot, fighters, true))
+            sameFaction.push_back(bot);
+        else if (IsProximityFightOnlookerEligible(
+                anchor, bot, fighters, false))
+            opposite.push_back(bot);
+    }
+}
+
+bool QueueProximityFightSpeech(
+    Player* anchor,
+    std::vector<Player*> const& roster,
+    std::string const& fightFields)
+{
+    if (!anchor || roster.empty())
+        return false;
+
+    std::vector<ProximityCandidate> candidates;
+    for (Player* bot : roster)
+        candidates.push_back(BuildBotCandidate(bot));
+    std::vector<ProximityCandidate> speakers =
+        SelectCompatibleSpeakers(
+            candidates, &candidates.front(), 3);
+
+    // Every roster member respects its own entity cooldown.
+    for (ProximityCandidate const& speaker : speakers)
+    {
+        if (IsProximityCooldownActive(
+                _entityCooldowns,
+                GetEntityCooldownKey(anchor, speaker),
+                sLLMChatterConfig
+                    ->_proxChatterEntityCooldown,
+                true))
+            return false;
+    }
+
+    bool conversation = speakers.size() >= 2;
+    char const* eventType = conversation
+        ? "proximity_conversation" : "proximity_say";
+    uint32 maxLines = conversation
+        ? std::min<uint32>(
+            3, static_cast<uint32>(speakers.size()) + 1)
+        : 1;
+
+    std::string json = BuildBaseEventJson(
+        anchor, speakers, speakers, false, maxLines);
+    if (json.empty() || json.back() != '}')
+        return false;
+    json.insert(json.size() - 1, "," + fightFields);
+
+    ProximityCandidate const& first = speakers[0];
+    std::string cooldownKey =
+        GetEntityCooldownKey(anchor, first);
+    QueueChatterEvent(
+        eventType,
+        "player",
+        anchor->GetZoneId(),
+        anchor->GetMapId(),
+        GetChatterEventPriority(eventType),
+        cooldownKey,
+        first.id,
+        first.name,
+        anchor->GetGUID().GetCounter(),
+        anchor->GetName(),
+        0,
+        EscapeString(json),
+        GetReactionDelaySeconds(eventType),
+        sLLMChatterConfig->_eventExpirationSeconds,
+        false);
+
+    for (ProximityCandidate const& speaker : speakers)
+    {
+        SetProximityCooldown(
+            _entityCooldowns,
+            GetEntityCooldownKey(anchor, speaker));
+    }
+    NoteZoneTrigger(anchor);
+    return true;
+}
+
+uint32 ComputeProximityFightChance(
+    Player* anchor, uint32 baseChance)
+{
+    return ComputeFatiguedChance(anchor, baseChance);
+}
+
+void NoteProximityFightTrigger(Player* anchor)
+{
+    NoteZoneTrigger(anchor);
+}
+
 bool IsProximityAnchorEligible(Player* player)
 {
     return IsEligibleProximityAnchor(player);
@@ -2638,6 +2997,106 @@ bool HandleProximityPlayerbotEmote(
     if (queued && addressedSpeaks)
         HoldBotForReply(bot, player, 10000);
     return queued;
+}
+
+bool HandleProximityPartyBotEmoteWitness(
+    Player* player, Player* partyBot,
+    uint32 textEmote,
+    std::string const& customText)
+{
+    bool const isCustom = !customText.empty();
+    if (!IsProximityPlayerbotEmoteRouteEnabled()
+        || !player || IsPlayerBot(player) || !partyBot)
+    {
+        return false;
+    }
+    uint32 const chance = sLLMChatterConfig
+        ->_emotePartyBotWitnessChance;
+    if (!chance || !IsEligibleProximityAnchor(player))
+        return false;
+
+    float radius = static_cast<float>(
+        sLLMChatterConfig
+            ->_proxChatterPlayerSayScanRadius);
+    // The target must be the player's own party member and a
+    // valid scene anchor (in range, in sight, not in combat).
+    if (!IsSameGroup(partyBot, player->GetGroup())
+        || !IsEligibleProximityBot(
+            player, partyBot, radius, true))
+    {
+        return false;
+    }
+
+    Map* map = player->GetMap();
+    std::string pairKey = "partybot:"
+        + std::to_string(
+            player->GetGUID().GetCounter())
+        + ":" + std::to_string(player->GetMapId())
+        + ":" + std::to_string(
+            map ? map->GetInstanceId() : 0)
+        + ":" + std::to_string(
+            partyBot->GetGUID().GetCounter());
+    uint32 cooldownSeconds =
+        sLLMChatterConfig->_emoteMirrorCooldown * 2;
+    if (IsProximityCooldownActive(
+            _directedBotEmoteCooldowns,
+            pairKey, cooldownSeconds, false))
+    {
+        return false;
+    }
+    if (urand(1, 100) > chance)
+        return false;
+
+    std::vector<ProximityCandidate> candidates;
+    CollectNearbyBots(player, radius, candidates, true);
+    CollectNearbyNPCs(player, radius, candidates);
+    DeduplicateCandidates(candidates);
+    auto addressedIt = std::find_if(
+        candidates.begin(), candidates.end(),
+        [partyBot](ProximityCandidate const& candidate)
+        {
+            return !candidate.isNPC && candidate.bot
+                && candidate.bot->GetGUID()
+                    == partyBot->GetGUID();
+        });
+    if (addressedIt == candidates.end())
+        return false;
+
+    // Only outsiders witness in /say; the party bot itself
+    // answers in party chat through the group emote path.
+    std::vector<ProximityCandidate> speakers =
+        SelectDirectedReactors(
+            player, candidates, *addressedIt, nullptr,
+            DirectedReactorScope::NPCsAndUngroupedBots,
+            sLLMChatterConfig
+                ->_proxDirectedBotMaxParticipants - 1,
+            true);
+    if (speakers.empty())
+        return false;
+
+    if (!TryReserveProximityCooldown(
+            _directedBotEmoteCooldowns,
+            pairKey, cooldownSeconds))
+    {
+        return false;
+    }
+
+    if (sLLMChatterConfig->IsDebugLog())
+    {
+        LOG_DEBUG(
+            "module",
+            "LLMChatter: party-bot emote witnesses target={} "
+            "speakers={}",
+            partyBot->GetName(), speakers.size());
+    }
+
+    // No mirror is passed: the party bot's own mirror and
+    // reply are owned by the group emote path.
+    return QueuePlayerEmoteProximityEvent(
+        player, *addressedIt, speakers, candidates,
+        isCustom ? customText : GetTextEmoteName(textEmote),
+        textEmote, 0,
+        "player_inclusive", false, isCustom);
 }
 
 void RecordDeliveredProximityLine(

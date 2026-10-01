@@ -31,7 +31,9 @@ from chatter_prompts import (
     build_event_conversation_prompt,
     build_event_statement_prompt,
 )
+from chatter_persona import resolve_persona
 from chatter_shared import (
+    get_chatter_mode,
     get_zone_name,
     get_class_name,
     get_race_name,
@@ -189,14 +191,24 @@ def _deliver_conversation(
         })
 
     attach_speaker_gear(db, formatted, config)
+    mode = get_chatter_mode(config)
+    for b in formatted:
+        b['persona'] = resolve_persona(
+            db, b['guid'], b['name'], mode,
+        )
 
     bot_names = [b['name'] for b in formatted]
     bot_guids = {
         b['name']: b['guid'] for b in formatted
     }
 
-    current_weather = extra_data.get(
-        'current_weather', 'clear'
+    # A weather event describes the new weather itself; the
+    # stored value is the weather it replaced. Never assume
+    # "clear" when nothing is known.
+    current_weather = (
+        None
+        if str(event.get('event_type', '')).startswith('weather')
+        else extra_data.get('current_weather') or None
     )
     recent_msgs = get_recent_zone_messages(
         db, zone_id
@@ -317,6 +329,11 @@ def _deliver_statement(
     )
     zone_name = (
         get_zone_name(use_zone_id) or "the world"
+    )
+
+    bot['persona'] = resolve_persona(
+        db, int(bot['bot1_guid']), bot['bot1_name'],
+        get_chatter_mode(config),
     )
 
     event_context = build_event_context(event)

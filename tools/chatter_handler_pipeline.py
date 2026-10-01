@@ -35,10 +35,19 @@ from chatter_group_state import (
     _get_recent_chat,
     format_chat_history,
     get_bot_traits,
-    get_bot_mood_label,
     update_bot_mood,
 )
-from chatter_raid_base import dual_worker_dispatch
+from chatter_persona import (
+    format_backstory_block,
+    format_mood_line,
+    party_reaction_backstory,
+    resolve_mood,
+)
+from chatter_threads import capture_session, note_event
+from chatter_raid_base import (
+    dual_worker_dispatch,
+    fire_subgroup_worker,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -184,18 +193,35 @@ def run_group_handler(
     trait_data = get_bot_traits(
         db, group_id, bot_guid,
     )
+    # Thread session before the slow LLM call, so a
+    # cleanup during the wait cannot be undone later.
+    thread_session = capture_session(group_id)
 
-    # 7. BG fallback if no traits
-    if not trait_data and bg_fallback_prompt:
+    # 7. BG path: inside a battleground always use the
+    # BG prompt (score, flags, faction) — the generic
+    # party prompts carry no BG context. The event's
+    # own bot speaks, and only if the player can hear
+    # it (same sub-group).
+    in_bg = bool(extra_data.get('is_battleground'))
+    if bg_fallback_prompt and (in_bg or not trait_data):
         try:
-            ok = dual_worker_dispatch(
-                db, client, config, event,
-                extra_data,
-                subgroup_prompt_fn=(
-                    bg_fallback_prompt
-                ),
-                label=label,
-            )
+            if in_bg:
+                ok = bool(fire_subgroup_worker(
+                    db, client, config, event,
+                    extra_data,
+                    prompt_fn=bg_fallback_prompt,
+                    label=label,
+                    speaker_guid=bot_guid,
+                ))
+            else:
+                ok = dual_worker_dispatch(
+                    db, client, config, event,
+                    extra_data,
+                    subgroup_prompt_fn=(
+                        bg_fallback_prompt
+                    ),
+                    label=label,
+                )
             _mark_event(
                 db, event_id,
                 'completed' if ok else 'skipped',
@@ -298,15 +324,24 @@ def run_group_handler(
         # 10. Build prompt
         prompt = build_prompt(ctx)
 
-        # 11. Mood injection
-        if inject_mood:
-            mood_label = get_bot_mood_label(
-                group_id, bot_guid,
+        # 10b. Backstory (roleplay only, config-gated),
+        # same wording as the persona block.
+        backstory = party_reaction_backstory(
+            config, trait_data.get('backstory'), mode,
+        )
+        if backstory:
+            prompt += (
+                f"\n{format_backstory_block(backstory, mode)}"
             )
-            if mood_label != 'neutral':
-                prompt += (
-                    f"\nCurrent mood: {mood_label}"
-                )
+
+        # 11. Mood injection: the bot's real event
+        # mood, shared with guild and General.
+        if inject_mood:
+            mood_line = format_mood_line(
+                resolve_mood(bot_guid)
+            )
+            if mood_line:
+                prompt += f"\n{mood_line}"
 
         # 12. Compute delay
         actual_delay = (
@@ -350,6 +385,13 @@ def run_group_handler(
         _store_chat(
             db, group_id, bot_guid,
             bot_name, True, message,
+        )
+        # The reaction interrupts (or, for a wipe or
+        # death, takes over) the conversation thread.
+        note_event(
+            group_id, event_type_label, bot_name, message,
+            message_id=result.get('message_id'),
+            session=thread_session,
         )
 
         # 15. Update mood

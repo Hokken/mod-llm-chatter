@@ -51,15 +51,21 @@ def _mark_event(db, event_id: int, status: str) -> None:
 
 def _query_speaker(db, bot_guid: int) -> Dict[str, object]:
     """Load a speaker's class/race/level/gender plus their
-    stored personality (traits/tone/backstory) from the
-    bot-identity table. Returns {} if the bot is unknown."""
+    persona: stored identity (traits/tone/backstory) or the
+    deterministic fallback, and the bot's real event mood.
+    Returns {} if the bot is unknown.
+
+    The persona is resolved with roleplay semantics so the
+    raw identity survives here; prompt builders apply the
+    normal-mode boundary via resolve_player_personality.
+    """
     if not bot_guid:
         return {}
 
     try:
         cursor = db.cursor(dictionary=True)
         cursor.execute(
-            "SELECT class, race, gender, level "
+            "SELECT name, class, race, gender, level "
             "FROM characters WHERE guid = %s",
             (bot_guid,),
         )
@@ -67,25 +73,13 @@ def _query_speaker(db, bot_guid: int) -> Dict[str, object]:
         if not base:
             return {}
 
-        cursor.execute(
-            "SELECT trait1, trait2, trait3, tone, "
-            "       backstory "
-            "FROM llm_bot_identities "
-            "WHERE bot_guid = %s LIMIT 1",
-            (bot_guid,),
+        persona = resolve_persona(
+            db, bot_guid, base.get('name') or '',
+            'roleplay',
         )
-        ident = cursor.fetchone() or {}
-
-        traits = [
-            trait for trait in (
-                ident.get('trait1'),
-                ident.get('trait2'),
-                ident.get('trait3'),
-            )
-            if trait
-        ]
         class_name = get_class_name(int(base.get('class', 0) or 0))
         return {
+            'guid': int(bot_guid),
             'class': class_name,
             'class_style': class_style(db, bot_guid, class_name),
             'race': get_race_name(
@@ -95,9 +89,10 @@ def _query_speaker(db, bot_guid: int) -> Dict[str, object]:
                 int(base.get('gender', 0) or 0)
             ),
             'level': int(base.get('level', 0) or 0),
-            'traits': traits,
-            'tone': ident.get('tone') or '',
-            'backstory': ident.get('backstory') or '',
+            'traits': list(persona.traits),
+            'tone': persona.tone,
+            'backstory': persona.backstory,
+            'mood': persona.mood,
         }
     except Exception:
         logger.error(
@@ -127,7 +122,6 @@ from chatter_mode import (
 from chatter_progression import class_style, parse_audience
 from chatter_prompts import (
     generate_conversation_length_sequence,
-    generate_conversation_mood_sequence,
 )
 from chatter_themed_topics import (
     chance_hit,
@@ -135,6 +129,22 @@ from chatter_themed_topics import (
     guild_zone_weather_topic,
     pick_themed_topic,
 )
+from chatter_persona import (
+    CONVERSATION_EMOTION_RULE,
+    PERSONA_PRIORITY_RULE,
+    format_mood_line,
+    resolve_persona,
+)
+from chatter_threads import (
+    THREAD_REPORT_FIELD,
+    THREAD_REPORT_OBJECT,
+    THREAD_REPORT_RULE,
+    guild_key,
+    plan_idle_turn,
+    record_idle_exchange,
+    report_tokens,
+)
+from chatter_shared import count_conversation_items
 
 
 # Length control mirrors the General channel, which works well: we do NOT
@@ -265,6 +275,7 @@ def _build_guild_prompt(
     history_context: str = "",
     guild_context: Optional[List[str]] = None,
     topic_lines: Optional[List[str]] = None,
+    thread_turn=None,
 ) -> str:
     mode = get_chatter_mode(config or {})
     roleplay = is_roleplay(mode)
@@ -308,6 +319,10 @@ def _build_guild_prompt(
         lines.append(
             f"Background: {speaker['backstory']}"
         )
+    mood_line = format_mood_line(speaker.get('mood', ''))
+    if mood_line:
+        lines.append(mood_line + ".")
+    lines.append(PERSONA_PRIORITY_RULE.format(who='you'))
     if guildmates:
         lines.append(
             f"Guildmates currently online: "
@@ -383,19 +398,28 @@ def _build_guild_prompt(
                         "Do not mention your character's current location or "
                         "nearby game-world details this time."
                     )
-    if not topic:
-        topic = random.choice(
-            GUILD_CHAT_TOPICS_RP
-            if roleplay else GUILD_CHAT_TOPICS
-        )
-    if topic_lines is not None:
-        lines.append(f"Topic (build the line around it): {topic}.")
-        lines.extend(topic_lines)
+    if thread_turn is not None:
+        # The guild's conversation thread replaces the random
+        # topic idea.
+        lines.append(thread_turn.prompt_block)
+        if topic_lines:
+            lines.extend(topic_lines)
     else:
-        lines.append(
-            "Topic idea (optional - only use it if it fits "
-            f"naturally, do not force it): {topic}."
-        )
+        if not topic:
+            topic = random.choice(
+                GUILD_CHAT_TOPICS_RP
+                if roleplay else GUILD_CHAT_TOPICS
+            )
+        if topic_lines is not None:
+            lines.append(
+                f"Topic (build the line around it): {topic}."
+            )
+            lines.extend(topic_lines)
+        else:
+            lines.append(
+                "Topic idea (optional - only use it if it fits "
+                f"naturally, do not force it): {topic}."
+            )
     lines.extend(
         _guild_history_prompt_lines(history_context, mode)
     )
@@ -432,6 +456,15 @@ def _build_guild_prompt(
 
     # Review #2: message-only JSON. Do not request emote/action
     # fields so they cannot leak into the displayed line.
+    if thread_turn is not None:
+        return append_json_instruction(
+            "\n".join(lines) + "\n",
+            allow_action=False,
+            skip_emote=True,
+            message_only=True,
+            extra_field=THREAD_REPORT_FIELD,
+            extra_rule=THREAD_REPORT_RULE,
+        )
     return append_json_instruction(
         "\n".join(lines) + "\n",
         allow_action=False,
@@ -476,12 +509,14 @@ def _pick_guild_topic(config: Dict, mode: str, profile) -> tuple:
 def _select_guild_topic(
     db, config: Dict, mode: str, profile, extra: Dict,
     speaker: Dict, speaker_guid: int, speaker_name: str,
-    zone_id: int, faction: str,
+    zone_id: int, faction: str, generic: bool = True,
 ) -> tuple:
     """Return (topic, used_motd, themed) for an idle guild line.
 
     Order: MOTD, zone opinion, zone at this hour and weather, themed
-    topic (lore or rumor), generic topic.
+    topic (lore or rumor), generic topic. With ``generic=False`` the
+    last step returns an empty topic, so a conversation thread can pick
+    its own fresh subject instead.
     """
     motd = _motd_topic(config, profile, mode)
     if motd:
@@ -510,7 +545,7 @@ def _select_guild_topic(
         )
     if themed:
         return themed.subject, False, themed
-    return _generic_guild_topic(mode), False, None
+    return (_generic_guild_topic(mode) if generic else ''), False, None
 
 
 def _themed_metadata(themed) -> Dict:
@@ -531,9 +566,14 @@ def _process_guild_statement_event(
     themed_override=None,
     history_context_override: Optional[str] = None,
     history_metadata_override: Optional[Dict] = None,
+    thread_turn_override=None,
 ):
     """Handle guild_idle_chatter — one online guild member
-    posts a short in-character line to guild chat."""
+    posts a short in-character line to guild chat.
+
+    thread_turn_override: the turn a failed conversation
+    already planned, reused so the fallback line stays on
+    the same thread."""
     event_id = event['id']
     extra = parse_extra_data(
         event.get('extra_data'),
@@ -566,17 +606,44 @@ def _process_guild_statement_event(
     chatter_mode = get_chatter_mode(config)
     length_hint = _pick_length_hint(chatter_mode)
     profile = get_guild_profile(db, extra.get('guild_id'))
+    topic_pool = (
+        GUILD_CHAT_TOPICS_RP
+        if is_roleplay(chatter_mode)
+        else GUILD_CHAT_TOPICS
+    )
+    thread_turn = thread_turn_override
     # PR #30 follow-up #1: prefer the C++ GetTeamId() faction (extra_data
     # "team"); fall back to the Python race-derived faction.
     faction = extra.get('team') or _speaker_faction(speaker)
     themed = themed_override
+    motd_topic = False
     if topic_override:
-        topic, motd_topic = topic_override, False
+        topic = topic_override
     else:
-        topic, motd_topic, themed = _select_guild_topic(
-            db, config, chatter_mode, profile, extra, speaker,
-            speaker_guid, speaker_name, zone_id, faction,
+        picked = {}
+
+        def _fresh_topic(generic=False):
+            subject, used_motd, chosen = _select_guild_topic(
+                db, config, chatter_mode, profile, extra, speaker,
+                speaker_guid, speaker_name, zone_id, faction,
+                generic=generic,
+            )
+            picked.update(motd=used_motd, themed=chosen)
+            return subject
+
+        if thread_turn is None:
+            thread_turn = plan_idle_turn(
+                guild_key(extra.get('guild_id')),
+                [speaker_name], topic_pool=topic_pool, db=db,
+                fresh_topic=_fresh_topic,
+            )
+        topic = (
+            '' if thread_turn is not None
+            else _fresh_topic(generic=True)
         )
+        if picked:
+            motd_topic = picked['motd']
+            themed = picked['themed']
     if themed and themed.name_zone:
         name_zone_override = True
     # Zone-naming is decided here by RNG, not left to the model (it cannot
@@ -611,11 +678,14 @@ def _process_guild_statement_event(
         history_context=history_context,
         guild_context=guild_identity_lines(profile),
         topic_lines=themed.lines if themed else None,
+        thread_turn=thread_turn,
     )
 
     max_tokens = int(config.get(
         'LLMChatter.GuildChatter.MaxTokens', 200
     ))
+    if thread_turn is not None:
+        max_tokens += report_tokens()
     # PR #30 follow-up #2: pass the generation controls as structured
     # metadata so they land as top-level fields in llm_requests.jsonl
     # (the monitoring pass can read them without parsing prompt text).
@@ -631,6 +701,9 @@ def _process_guild_statement_event(
         "guild_topic": topic,
         "guild_motd_topic": motd_topic,
         "guild_info_included": bool(guild_identity_lines(profile)),
+        "thread_move": (
+            thread_turn.kind if thread_turn is not None else ''
+        ),
         "guild_named_zone": name_zone,
         "guild_faction": faction,
         "guild_zone_id": zone_id,
@@ -675,7 +748,7 @@ def _process_guild_statement_event(
         fallback,
     )
 
-    insert_chat_message(
+    message_id = insert_chat_message(
         db,
         bot_guid=speaker_guid,
         bot_name=speaker_name,
@@ -683,6 +756,10 @@ def _process_guild_statement_event(
         channel='guild',
         owner_subsystem='guild',
         event_id=event_id,
+    )
+    # Adopted into the guild thread only once actually sent.
+    record_idle_exchange(
+        thread_turn, response, [speaker_name], [message_id],
     )
 
     _mark_event(db, event_id, 'completed')
@@ -1010,6 +1087,11 @@ def _participant_identity_lines(
         lines.append(
             f"{name} background: {background[:400]}"
         )
+    mood_line = format_mood_line(
+        speaker.get('mood', ''), subject='them'
+    )
+    if mood_line:
+        lines.append(f"{name} {mood_line}.")
     return lines
 
 
@@ -1098,6 +1180,7 @@ def _build_guild_conversation_prompt(
     mode: str = 'roleplay',
     guild_context: Optional[List[str]] = None,
     topic_lines: Optional[List[str]] = None,
+    thread_turn=None,
 ) -> str:
     bot_names = [
         participant['name']
@@ -1129,9 +1212,12 @@ def _build_guild_conversation_prompt(
     lines.extend(
         _guild_location_lines(participants, name_zone, mode)
     )
-    lines.append(
-        f"Shared subject for the whole exchange: {topic}.",
-    )
+    if thread_turn is not None:
+        lines.append(thread_turn.prompt_block)
+    else:
+        lines.append(
+            f"Shared subject for the whole exchange: {topic}.",
+        )
     if topic_lines:
         lines.append(
             f"{bot_names[0]} raises the subject; the others react "
@@ -1152,6 +1238,8 @@ def _build_guild_conversation_prompt(
     else:
         lines.append(build_player_chat_guidance(mode, 'guild'))
     lines.extend([
+        "Keep every line part of the same conversation."
+        if thread_turn is not None else
         "Use that subject naturally and keep every line "
         "part of the same conversation.",
         "Every selected speaker MUST speak at least once.",
@@ -1160,12 +1248,11 @@ def _build_guild_conversation_prompt(
         "asterisks, slash commands, or stage directions.",
         "HARD LIMIT: Never exceed 150 characters in any "
         "individual message.",
-        "\nMOOD AND LENGTH SEQUENCE:",
+        PERSONA_PRIORITY_RULE.format(who='the speakers'),
+        CONVERSATION_EMOTION_RULE,
+        "\nLENGTH SEQUENCE:",
     ])
 
-    moods = generate_conversation_mood_sequence(
-        message_count, mode
-    )
     lengths = generate_conversation_length_sequence(
         message_count
     )
@@ -1177,7 +1264,6 @@ def _build_guild_conversation_prompt(
         speaker = bot_names[index % len(bot_names)]
         instruction = (
             f"  Message {index + 1} ({speaker}): "
-            f"mood={moods[index]}, "
             f"length={lengths[index]}"
         )
         reference_plan = reference_by_index.get(index)
@@ -1204,6 +1290,16 @@ def _build_guild_conversation_prompt(
                 )
         lines.append(instruction)
 
+    if thread_turn is not None:
+        return append_conversation_json_instruction(
+            "\n".join(lines),
+            bot_names,
+            message_count,
+            allow_action=False,
+            message_only=True,
+            trailing_object=THREAD_REPORT_OBJECT,
+            extra_rule=THREAD_REPORT_RULE,
+        )
     return append_conversation_json_instruction(
         "\n".join(lines),
         bot_names,
@@ -1477,6 +1573,7 @@ def _generate_guild_conversation(
     history_metadata: Dict,
     guild_context: Optional[List[str]] = None,
     themed=None,
+    thread_turn=None,
 ) -> bool:
     participant_count = len(participants)
     max_lines = int(config.get(
@@ -1528,6 +1625,7 @@ def _generate_guild_conversation(
         get_chatter_mode(config),
         guild_context=guild_context,
         topic_lines=themed.lines if themed else None,
+        thread_turn=thread_turn,
     )
     metadata = _guild_request_metadata(
         extra,
@@ -1575,6 +1673,9 @@ def _generate_guild_conversation(
         base_tokens * (1 + participant_count),
         1000,
     )
+    if thread_turn is not None:
+        conversation_tokens += report_tokens()
+        metadata['thread_move'] = thread_turn.kind
     response = call_llm(
         client,
         prompt,
@@ -1649,6 +1750,7 @@ def _generate_guild_conversation(
     }
     cumulative_delay = 2.0
     previous_length = 0
+    queued_ids = []
     for sequence, message in enumerate(messages):
         text = message['message']
         if sequence:
@@ -1657,7 +1759,7 @@ def _generate_guild_conversation(
                 config,
                 prev_message_length=previous_length,
             )
-        insert_chat_message(
+        queued_ids.append(insert_chat_message(
             db,
             bot_guid=guid_by_name[message['name']],
             bot_name=message['name'],
@@ -1667,8 +1769,20 @@ def _generate_guild_conversation(
             event_id=event_id,
             sequence=sequence,
             owner_subsystem='guild',
-        )
+        ))
         previous_length = len(text)
+    # Adopted into the guild thread only once every line was
+    # sent, and only if nothing the model wrote was dropped
+    # (a repaired response carries no usable report anyway).
+    record_idle_exchange(
+        thread_turn, response,
+        sorted({m['name'] for m in messages}), queued_ids,
+        complete=(
+            not repair_used
+            and len(queued_ids)
+            == count_conversation_items(response or '')
+        ),
+    )
 
     logger.info(
         "guild_idle_chatter mode=conversation "
@@ -1741,16 +1855,40 @@ def process_guild_idle_chatter_event(
     guildmates = extra.get('guildmates') or ''
     chatter_mode = get_chatter_mode(config)
     profile = get_guild_profile(db, extra.get('guild_id'))
+    topic_pool = (
+        GUILD_CHAT_TOPICS_RP
+        if is_roleplay(chatter_mode)
+        else GUILD_CHAT_TOPICS
+    )
     primary = loaded_participants[0]
     faction = (
         extra.get('team')
         or _speaker_faction(primary['speaker'])
     )
-    topic, motd_topic, themed = _select_guild_topic(
-        db, config, chatter_mode, profile, extra,
-        primary['speaker'], primary['guid'], primary['name'],
-        _safe_int(primary.get('zone_id')), faction,
+    picked = {}
+
+    def _fresh_topic(generic=False):
+        subject, used_motd, chosen = _select_guild_topic(
+            db, config, chatter_mode, profile, extra,
+            primary['speaker'], primary['guid'], primary['name'],
+            _safe_int(primary.get('zone_id')), faction,
+            generic=generic,
+        )
+        picked.update(motd=used_motd, themed=chosen)
+        return subject
+
+    thread_turn = plan_idle_turn(
+        guild_key(extra.get('guild_id')),
+        [p['name'] for p in loaded_participants],
+        topic_pool=topic_pool, db=db,
+        fresh_topic=_fresh_topic,
     )
+    topic = (
+        '' if thread_turn is not None
+        else _fresh_topic(generic=True)
+    )
+    motd_topic = picked.get('motd', False)
+    themed = picked.get('themed')
     history_metadata_topic = {'guild_motd_topic': motd_topic}
     zone_name_chance = max(
         0,
@@ -1793,6 +1931,7 @@ def process_guild_idle_chatter_event(
         history_metadata,
         guild_context=guild_identity_lines(profile),
         themed=themed,
+        thread_turn=thread_turn,
     )
     if completed:
         _mark_event(db, event_id, 'completed')
@@ -1809,4 +1948,5 @@ def process_guild_idle_chatter_event(
         themed_override=themed,
         history_context_override=history_context,
         history_metadata_override=history_metadata,
+        thread_turn_override=thread_turn,
     )

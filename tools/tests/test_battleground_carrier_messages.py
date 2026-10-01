@@ -69,6 +69,8 @@ def test_carrier_messages_use_event_type_as_delivery_reason():
                 f'{actor}_guid': 101,
                 f'{actor}_is_real_player': False,
                 'team': 'Alliance',
+                # Carrier is in the player's sub-group.
+                'party_bot_guids': [101, 102],
             }
             chatter_battlegrounds._try_carrier_self_message(
                 None, None, {}, 123,
@@ -84,6 +86,41 @@ def test_carrier_messages_use_event_type_as_delivery_reason():
             )
 
 
+def test_carrier_outside_player_subgroup_stays_silent():
+    """Party chat only reaches the carrier's own BG
+    sub-group, so a carrier the player can't hear must not
+    speak."""
+    with patch.multiple(
+        chatter_battlegrounds,
+        get_lightweight_bot_data=DEFAULT,
+        _maybe_talent_context=DEFAULT,
+        build_bg_flag_carrier_prompt=DEFAULT,
+        run_single_reaction=DEFAULT,
+    ) as mocks:
+        mocks['get_lightweight_bot_data'].return_value = {
+            'class': 'Mage',
+            'race': 'Human',
+        }
+        for event_type, actor in (
+            ('bg_flag_picked_up', 'carrier'),
+            ('bg_flag_dropped', 'dropper'),
+        ):
+            extra_data = {
+                f'{actor}_name': 'Aliss',
+                f'{actor}_guid': 101,
+                f'{actor}_is_real_player': False,
+                'team': 'Alliance',
+                'party_bot_guids': [201, 202],
+            }
+            chatter_battlegrounds._try_carrier_self_message(
+                None, None, {}, 123,
+                event_type, extra_data,
+            )
+        assert mocks['run_single_reaction'].call_count == 0
+        assert mocks['get_lightweight_bot_data'].call_count == 0
+
+
 if __name__ == '__main__':
     test_carrier_messages_use_event_type_as_delivery_reason()
+    test_carrier_outside_player_subgroup_stays_silent()
     print('Battleground carrier message checks passed.')

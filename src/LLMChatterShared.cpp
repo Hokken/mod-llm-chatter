@@ -289,7 +289,7 @@ uint32 RollConfiguredDelay(
         sLLMChatterConfig->*maxMember);
 }
 
-constexpr std::array<EventPriorityRule, 47>
+constexpr std::array<EventPriorityRule, 49>
     kTierPriorityRules = {{
         {"bot_group_combat",        PRIORITY_CRITICAL},
         {"bot_group_spell_cast",    PRIORITY_CRITICAL},
@@ -312,6 +312,8 @@ constexpr std::array<EventPriorityRule, 47>
         {"guild_member_join",       PRIORITY_HIGH},
         {"bot_group_death",         PRIORITY_HIGH},
         {"bot_group_wipe",          PRIORITY_HIGH},
+        {"bot_group_duel_start",    PRIORITY_HIGH},
+        {"bot_group_duel_end",      PRIORITY_HIGH},
         {"bot_group_join",          PRIORITY_HIGH},
         {"bot_group_join_batch",    PRIORITY_HIGH},
         {"bg_match_start",          PRIORITY_HIGH},
@@ -1098,6 +1100,21 @@ uint32 LookupTextEmoteId(const std::string& emoteName)
 
     return 0;
 }
+}
+
+bool IsUnitPerceivableBy(Player* viewer, Unit* unit)
+{
+    if (!viewer || !unit)
+        return false;
+    if (!viewer->IsInWorld() || !unit->IsInWorld())
+        return false;
+    if (!viewer->IsInMap(unit))
+        return false;
+    if (!viewer->IsWithinDistInMap(
+            unit, viewer->GetVisibilityRange()))
+        return false;
+    // distanceCheck=true: also apply the core sight range.
+    return viewer->CanSeeOrDetect(unit, false, true);
 }
 
 bool IsPlayerBot(Player* player)
@@ -2020,9 +2037,12 @@ std::string BuildBotStateJson(Player* player)
 
     PlayerbotAI* ai = GET_PLAYERBOT_AI(player);
 
+    // Only name a victim the bot can actually perceive, so
+    // a stealthed or invisible target never leaks into a
+    // prompt through bot state.
     std::string targetName;
     Unit* victim = player->GetVictim();
-    if (victim)
+    if (victim && IsUnitPerceivableBy(player, victim))
         targetName = victim->GetName();
 
     std::string botState = "non_combat";
@@ -2481,6 +2501,25 @@ void AppendRaidContext(
 
     uint8 playerSubGroup =
         group->GetMemberGroup(player->GetGUID());
+
+    // Bot-triggered events pass the bot here. Anchor
+    // the party list on the real player's subgroup so
+    // Python targets bots the player can actually hear.
+    if (IsPlayerBot(player))
+    {
+        for (GroupReference* itr =
+                 group->GetFirstMember();
+             itr; itr = itr->next())
+        {
+            Player* member = itr->GetSource();
+            if (member && !IsPlayerBot(member))
+            {
+                playerSubGroup = group->GetMemberGroup(
+                    member->GetGUID());
+                break;
+            }
+        }
+    }
 
     std::string partyGuids = "[";
     std::string raidGuids = "[";

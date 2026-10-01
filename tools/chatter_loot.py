@@ -16,6 +16,7 @@ from chatter_db import (
 from chatter_group_general_reaction import (
     maybe_queue_group_general_reaction,
 )
+from chatter_persona import resolve_persona
 from chatter_prompts import build_loot_statement_prompt
 from chatter_shared import (
     _zone_delivery_delay,
@@ -23,6 +24,7 @@ from chatter_shared import (
     call_llm,
     can_class_use_item,
     cleanup_message,
+    get_chatter_mode,
     get_class_name,
     get_race_name,
     get_zone_name,
@@ -140,6 +142,10 @@ def process_general_loot_event(db, client, config, event):
     recent_messages = get_recent_zone_messages(db, zone_id)
     bot['gear'] = build_gear_context(
         db, bot['guid'], bot['class'], config,
+    )
+    bot['persona'] = resolve_persona(
+        db, bot['guid'], bot['name'],
+        get_chatter_mode(config),
     )
     prompt = build_loot_statement_prompt(
         bot,

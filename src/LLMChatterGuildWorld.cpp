@@ -484,8 +484,11 @@ void ProcessJoinAnnounces(time_t now)
 
 bool QueueGroupPvpKill(Player* killer, Player* killed)
 {
+    // Fallback for when the GroupChatter.PvP system (LLMChatterGroupPvP.cpp)
+    // is off; otherwise it already queues the party's kill reaction.
     if (!sLLMChatterConfig->_useGroupChatter
-        || !sLLMChatterConfig->_groupPvpKillEnable)
+        || !sLLMChatterConfig->_groupPvpKillEnable
+        || sLLMChatterConfig->_pvpChatterEnable)
         return false;
     Group* group = killer->GetGroup();
     if (!group || !GroupHasRealMember(group))

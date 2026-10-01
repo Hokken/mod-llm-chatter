@@ -3,6 +3,8 @@
 import logging
 import random
 import re
+import threading
+import time
 from chatter_shared import (
     parse_extra_data,
     get_class_name,
@@ -33,6 +35,8 @@ from chatter_shared import (
     brief_casual_response_fits,
     bound_brief_casual_response,
     build_brief_casual_repair_prompt,
+    is_pvp_enemy,
+    is_pvp_identity_known,
 )
 from chatter_guild_profile import (
     get_character_guild_name,
@@ -67,6 +71,11 @@ from chatter_group_state import (
     get_bot_mood_label,
     update_bot_mood,
 )
+from chatter_threads import render_for_player_reply
+from chatter_persona import (
+    format_backstory_block,
+    party_reaction_backstory,
+)
 from chatter_group_prompts import (
     build_kill_reaction_prompt,
     build_loot_reaction_prompt,
@@ -96,13 +105,14 @@ from chatter_group_prompts import (
     build_quest_accept_conversation_prompt,
 )
 from chatter_raid_base import (
-    dual_worker_dispatch,
+    fire_subgroup_worker,
 )
 from chatter_raid_prompts import (
     build_raid_battle_cry_prompt,
 )
 from chatter_handler_pipeline import (
     run_group_handler,
+    _build_bot_from_db,
     _maybe_talent_context,
 )
 from chatter_memory import queue_memory
@@ -147,8 +157,61 @@ def _resolve_zone_name(
     return extra_data_zone_name or 'somewhere'
 
 
+def _pvp_kill_memory(db, ctx):
+    """Memory: the reacting bot remembers defeating a
+    named opposing-faction enemy in the open world.
+
+    Uses the same chance setting as battleground
+    PvP kill memories. Anonymous enemies are not
+    remembered because nobody saw who they were.
+    """
+    extra_data = ctx['extra_data']
+    if not is_pvp_identity_known(extra_data):
+        return
+    config = ctx['config']
+    mem_chance = int(config.get(
+        'LLMChatter.Memory'
+        '.PvPKillGenerationChance', 10
+    ))
+    if random.random() * 100 >= mem_chance:
+        return
+    enemy_name = extra_data.get('enemy_name') or ''
+    if not enemy_name:
+        return
+    try:
+        enemy_desc = ' '.join(p for p in (
+            get_race_name(
+                int(extra_data.get('enemy_race', 0))),
+            get_class_name(
+                int(extra_data.get('enemy_class', 0))),
+        ) if p)
+    except (TypeError, ValueError):
+        enemy_desc = ''
+    context = f"Defeated {enemy_name}"
+    if enemy_desc:
+        context += f", a {enemy_desc}"
+    faction = extra_data.get('enemy_faction') or ''
+    if faction:
+        context += f" of the {faction}"
+    context += ", in the open world"
+    queue_memory(
+        config, ctx['group_id'],
+        ctx['bot_guid'], 0,
+        memory_type='pvp_kill',
+        event_context=context,
+        bot_name=ctx['bot_name'],
+        bot_class=ctx['bot']['class'],
+        bot_race=ctx['bot']['race'],
+        bot_gender=ctx['bot'].get('gender', ''),
+    )
+
+
 def _kill_post_success(db, ctx, message):
-    """Memory: bots remember boss/rare kills."""
+    """Memory: bots remember boss/rare kills and
+    named overworld PvP kills."""
+    if is_pvp_enemy(ctx['extra_data']):
+        _pvp_kill_memory(db, ctx)
+        return
     is_boss = ctx['is_boss']
     is_rare = ctx['is_rare']
     if not (is_boss or is_rare):
@@ -204,6 +267,73 @@ def _kill_post_success(db, ctx, message):
             )
 
 
+_burst_lock = threading.Lock()
+# (kind, group_id) -> time of the last reaction that was voiced.
+_burst_voiced_at = {}
+# (kind, group_id) -> tokens of reactions currently being generated.
+_burst_inflight = {}
+
+
+def _burst_reserve(kind, config, extra_data, window_key,
+                   default_window, boss_passes):
+    """Reserve a slot for a group `kind` reaction, or return None when
+    it should stay silent.
+
+    One fight often raises the same event several times at once: a
+    boss dies with rare-flagged escorts, or every bot enters combat on
+    the same pull. Without a group-level guard each produces its own
+    near-identical line and the moment gets buried.
+
+    A reaction is suppressed while another one for the group is being
+    generated, or when one was voiced less than the window ago. With
+    `boss_passes`, boss events always get a slot. _burst_finish()
+    starts the window only for a voiced reaction; a failed one just
+    gives its slot back, so it never silences the next.
+
+    Returns None when suppressed, () when no guard applies (no group,
+    or window <= 0), else a reservation for commit/release.
+    """
+    group_id = int(extra_data.get('group_id', 0) or 0)
+    try:
+        window = int(config.get(window_key, default_window))
+    except (TypeError, ValueError):
+        window = default_window
+    if not group_id or window <= 0:
+        return ()
+    is_boss = bool(int(extra_data.get('is_boss', 0) or 0))
+    key = (kind, group_id)
+    token = object()
+    now = time.time()
+    with _burst_lock:
+        if not (boss_passes and is_boss):
+            if _burst_inflight.get(key):
+                return None
+            if now - _burst_voiced_at.get(key, 0) < window:
+                return None
+        _burst_inflight.setdefault(key, set()).add(token)
+        if len(_burst_voiced_at) > 1000:
+            cutoff = now - 600
+            for k in [k for k, at in _burst_voiced_at.items()
+                      if at < cutoff]:
+                del _burst_voiced_at[k]
+    return (key, token)
+
+
+def _burst_finish(reservation, voiced):
+    """End a reservation; start the group window only if it voiced."""
+    if not reservation:
+        return
+    key, token = reservation
+    with _burst_lock:
+        tokens = _burst_inflight.get(key)
+        if tokens is not None:
+            tokens.discard(token)
+            if not tokens:
+                del _burst_inflight[key]
+        if voiced:
+            _burst_voiced_at[key] = time.time()
+
+
 def process_group_kill_event(
     db, client, config, event
 ):
@@ -212,8 +342,32 @@ def process_group_kill_event(
     The killing bot reacts to a boss/rare kill
     in party chat.
     """
+    extra_data = parse_extra_data(
+        event.get('extra_data'), event['id'],
+        'bot_group_kill',
+    )
+    reservation = ()
+    if extra_data:
+        reservation = _burst_reserve(
+            'kill', config, extra_data,
+            'LLMChatter.GroupChatter.KillBurstWindow', 30,
+            boss_passes=True,
+        )
+        if reservation is None:
+            _mark_event(db, event['id'], 'skipped')
+            return False
+    ok = False
+    try:
+        ok = _run_kill_reaction(db, client, config, event, extra_data)
+        return ok
+    finally:
+        _burst_finish(reservation, bool(ok))
+
+
+def _run_kill_reaction(db, client, config, event, extra_data):
     return run_group_handler(
         db, client, config, event,
+        pre_parsed_extra=extra_data,
         event_type_label='bot_group_kill',
         extract_fields=lambda ed: {
             'creature_name': ed.get(
@@ -450,37 +604,53 @@ def process_group_combat_event(
         ):
             _mark_event(db, event_id, 'skipped')
             return False
+        # Every bot entering combat on one pull raises its own
+        # event; only the first speaks for the group.
+        reservation = _burst_reserve(
+            'pull', config, ed,
+            'LLMChatter.GroupChatter.PullBurstWindow', 15,
+            boss_passes=False,
+        )
+        if reservation is None:
+            _mark_event(db, event_id, 'skipped')
+            return False
+    else:
+        reservation = ()
 
-    result = run_group_handler(
-        db, client, config, event,
-        event_type_label='bot_group_combat',
-        extract_fields=lambda ed: {
-            'creature_name': ed.get(
-                'creature_name', 'something'),
-            'is_boss': bool(int(
-                ed.get('is_boss', 0))),
-            'is_elite': bool(int(
-                ed.get('is_elite', 0))),
-        },
-        build_prompt=lambda ctx: (
-            build_combat_reaction_prompt(
-                ctx['bot'], ctx['traits'],
-                ctx['creature_name'],
-                ctx['is_boss'], ctx['mode'],
-                chat_history=ctx['chat_hist'],
-                is_elite=ctx['is_elite'],
-                extra_data=ctx['extra_data'],
-                speaker_talent_context=(
-                    ctx['speaker_talent']),
-                stored_tone=ctx['stored_tone'],
-            )
-        ),
-        delay_seconds=1,
-        max_tokens_override=60,
-        inject_mood=False,
-        label='reaction_combat',
-        bg_fallback_prompt=build_bg_combat_prompt,
-    )
+    result = False
+    try:
+        result = run_group_handler(
+            db, client, config, event,
+            event_type_label='bot_group_combat',
+            extract_fields=lambda ed: {
+                'creature_name': ed.get(
+                    'creature_name', 'something'),
+                'is_boss': bool(int(
+                    ed.get('is_boss', 0))),
+                'is_elite': bool(int(
+                    ed.get('is_elite', 0))),
+            },
+            build_prompt=lambda ctx: (
+                build_combat_reaction_prompt(
+                    ctx['bot'], ctx['traits'],
+                    ctx['creature_name'],
+                    ctx['is_boss'], ctx['mode'],
+                    chat_history=ctx['chat_hist'],
+                    is_elite=ctx['is_elite'],
+                    extra_data=ctx['extra_data'],
+                    speaker_talent_context=(
+                        ctx['speaker_talent']),
+                    stored_tone=ctx['stored_tone'],
+                )
+            ),
+            delay_seconds=1,
+            max_tokens_override=60,
+            inject_mood=False,
+            label='reaction_combat',
+            bg_fallback_prompt=build_bg_combat_prompt,
+        )
+    finally:
+        _burst_finish(reservation, bool(result))
 
     # Attempt raid battle cry regardless of whether
     # the party reaction succeeded — the reactor bot
@@ -649,6 +819,9 @@ def process_group_levelup_event(
                 ctx['new_level'],
                 ctx['is_bot'],
                 ctx['mode'],
+                leveler_desc=_race_class_of(
+                    ctx['db'], ctx['leveler_guid'],
+                    ctx['leveler_name']),
                 chat_history=ctx['chat_hist'],
                 speaker_talent_context=(
                     ctx['speaker_talent']),
@@ -1211,6 +1384,55 @@ def process_group_achievement_event(
         return True
     batched_names = batch_result
 
+    # BG: always use the BG prompt (the generic one has
+    # no score/flag/faction context), spoken by a bot
+    # in the player's sub-group.
+    if extra_data.get('is_battleground'):
+        # The same BG achievement ("Know Thy Enemy") is
+        # earned by bot after bot; comment on it again
+        # only after the repeat window.
+        repeat = _burst_reserve(
+            'bg_achievement:' + str(achievement_name),
+            config, extra_data,
+            'LLMChatter.BGChatter.AchievementRepeatWindowSec',
+            300, boss_passes=False,
+        )
+        if repeat is None:
+            _mark_event(db, event_id, 'skipped')
+            return False
+        # Early in a BG everyone earns HK achievements
+        # at once; voice at most one per window.
+        reservation = _burst_reserve(
+            'bg_achievement', config, extra_data,
+            'LLMChatter.BGChatter.AchievementCooldownSec',
+            45, boss_passes=False,
+        )
+        if reservation is None:
+            _burst_finish(repeat, False)
+            _mark_event(db, event_id, 'skipped')
+            return False
+        if batched_names:
+            extra_data['achiever_name'] = ', '.join(
+                batched_names)
+        extra_data['event_type'] = (
+            'bot_group_achievement')
+        result = False
+        try:
+            result = bool(fire_subgroup_worker(
+                db, client, config,
+                event, extra_data,
+                prompt_fn=build_bg_achievement_prompt,
+                label='reaction_achievement',
+            ))
+        finally:
+            _burst_finish(reservation, result)
+            _burst_finish(repeat, result)
+        _mark_event(
+            db, event_id,
+            'completed' if result else 'skipped',
+        )
+        return result
+
     # Pick a different bot to react
     reactor_data = get_other_group_bot(
         db, group_id, achiever_guid,
@@ -1224,22 +1446,6 @@ def process_group_achievement_event(
             db, group_id, achiever_guid,
         )
         if not trait_data:
-            if extra_data.get('is_battleground'):
-                extra_data['event_type'] = (
-                    'bot_group_achievement')
-                result = dual_worker_dispatch(
-                    db, client, config,
-                    event, extra_data,
-                    subgroup_prompt_fn=(
-                        build_bg_achievement_prompt),
-                    raid_prompt_fn=None,
-                )
-                _mark_event(
-                    db, event_id,
-                    'completed' if result
-                    else 'skipped',
-                )
-                return result
             _mark_event(db, event_id, 'skipped')
             return False
         reactor_guid = achiever_guid
@@ -1548,6 +1754,15 @@ def process_group_zone_transition_event(
             player_name=player_name,
             solo_bot=solo_bot,
         )
+        # Backstory (roleplay only, config-gated), as in
+        # the shared reaction pipeline.
+        zt_backstory = party_reaction_backstory(
+            config, trait_data.get('backstory'), mode,
+        )
+        if zt_backstory:
+            prompt += (
+                f"\n{format_backstory_block(zt_backstory, mode)}"
+            )
 
         # Use raid chat in raid instances so all
         # sub-groups see the message
@@ -1829,16 +2044,62 @@ def process_group_quest_accept_batch_event(
     )
 
 
+def _race_class_of(db, guid, name):
+    """'Dwarf Priest' for a character, or ''.
+
+    Level-up events name the leveler but carry no guid for it, so
+    the name is the fallback key.
+    """
+    if not guid and name:
+        found = get_character_info_by_name(db, name)
+        guid = found['guid'] if found else 0
+    if not guid:
+        return ''
+    info = _build_bot_from_db(db, guid, name)
+    if not info:
+        return ''
+    return f"{info['race']} {info['class']}"
+
+
+def _pick_group_speaker(db, group_id):
+    """A random bot (bot_guid, bot_name) of the group, or None."""
+    if not group_id:
+        return None
+    cursor = db.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT bot_guid, bot_name FROM llm_group_bot_traits "
+        "WHERE group_id = %s",
+        (group_id,),
+    )
+    rows = cursor.fetchall()
+    cursor.close()
+    return random.choice(rows) if rows else None
+
+
 def process_group_dungeon_entry_event(
     db, client, config, event
 ):
     """Handle a bot_group_dungeon_entry event.
 
-    The bot that entered a dungeon or raid instance
-    reacts in party chat.
+    A bot in the group reacts in party chat when the
+    real player enters a dungeon or raid instance.
     """
+    extra_data = parse_extra_data(
+        event.get('extra_data'), event['id'],
+        'bot_group_dungeon_entry',
+    )
+    # C++ queues this on the player's entry and names no
+    # speaker, so pick one of the group's bots.
+    if extra_data and not extra_data.get('bot_guid'):
+        speaker = _pick_group_speaker(
+            db, int(extra_data.get('group_id', 0) or 0),
+        )
+        if speaker:
+            extra_data['bot_guid'] = speaker['bot_guid']
+            extra_data['bot_name'] = speaker['bot_name']
     return run_group_handler(
         db, client, config, event,
+        pre_parsed_extra=extra_data,
         event_type_label='bot_group_dungeon_entry',
         extract_fields=lambda ed: {
             'dungeon_map_id': int(
@@ -2293,7 +2554,8 @@ def _nearby_object_conversation(
         # Look up guid + traits from the traits table
         cursor = db.cursor(dictionary=True)
         cursor.execute("""
-            SELECT bot_guid, trait1, trait2, trait3
+            SELECT bot_guid, trait1, trait2, trait3,
+                   tone, backstory
             FROM llm_group_bot_traits
             WHERE group_id = %s
                 AND bot_name = %s
@@ -2319,6 +2581,8 @@ def _nearby_object_conversation(
         bots.append({
             'name': name,
             'guid': guid,
+            'tone': row.get('tone'),
+            'backstory': row.get('backstory'),
             'class': get_class_name(
                 char['class']
             ),
@@ -2335,6 +2599,7 @@ def _nearby_object_conversation(
         _mark_event(db, event_id, 'skipped')
         return False
 
+    _gate_conversation_backstories(bots, config, mode)
     attach_speaker_gear(db, bots, config)
 
     bot_names = [b['name'] for b in bots]
@@ -2567,6 +2832,8 @@ def execute_player_msg_conversation(
         bots.append({
             'name': name,
             'guid': guid,
+            'tone': row.get('tone'),
+            'backstory': row.get('backstory'),
             'class': get_class_name(
                 char['class']
             ),
@@ -2584,6 +2851,9 @@ def execute_player_msg_conversation(
     if len(bots) < 2:
         return False
 
+    _gate_conversation_backstories(
+        bots, config, mode, skip=brief_casual,
+    )
     attach_speaker_gear(db, bots, config)
 
     bot_names = [b['name'] for b in bots]
@@ -2644,6 +2914,7 @@ def execute_player_msg_conversation(
             db, player_info['guid'] if player_info else 0,
             player_name, mode,
         ),
+        thread_context=render_for_player_reply(group_id, db),
     )
 
     # Token budget: max_tokens * (1 + num_bots),
@@ -2803,6 +3074,17 @@ def execute_player_msg_conversation(
 # QUEST CONVERSATION HELPERS
 # ============================================================
 
+def _gate_conversation_backstories(bots, config, mode, skip=False):
+    """Keep each speaker's backstory only when the roleplay-only
+    Backstory.PartyReactionChance gate passes for that speaker."""
+    for bot in bots:
+        bot['backstory'] = (
+            '' if skip else party_reaction_backstory(
+                config, bot.get('backstory'), mode,
+            )
+        )
+
+
 def _quest_conversation_pick_bots(
     db, group_id, reactor_name, members, config=None,
 ):
@@ -2829,7 +3111,8 @@ def _quest_conversation_pick_bots(
     for name in picked:
         cursor = db.cursor(dictionary=True)
         cursor.execute("""
-            SELECT bot_guid, trait1, trait2, trait3
+            SELECT bot_guid, trait1, trait2, trait3,
+                   tone, backstory
             FROM llm_group_bot_traits
             WHERE group_id = %s
                 AND bot_name = %s
@@ -2854,6 +3137,8 @@ def _quest_conversation_pick_bots(
         bots.append({
             'name': name,
             'guid': guid,
+            'tone': row.get('tone'),
+            'backstory': row.get('backstory'),
             'class': get_class_name(
                 char['class']
             ),
@@ -2868,6 +3153,9 @@ def _quest_conversation_pick_bots(
     if len(bots) < 2:
         return None
 
+    _gate_conversation_backstories(
+        bots, config, get_chatter_mode(config or {}),
+    )
     attach_speaker_gear(db, bots, config)
 
     return bots, traits_map, bot_guids

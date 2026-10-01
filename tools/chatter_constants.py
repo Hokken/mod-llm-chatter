@@ -1359,6 +1359,35 @@ RAID_MAP_IDS = {
     533, 603, 615, 616, 624, 631, 649, 724,
 }
 
+# =============================================================================
+# OPEN-AIR INSTANCES - dungeons and raids fought under the open sky
+# =============================================================================
+# Only these get time of day, season and weather in prompts; every
+# other instance is indoors (prisons, caves, crypts, keeps), where the
+# sky is not visible. Keyed by map ID; the value is the DBC map name,
+# which raid events carry instead of a map ID. Mixed instances that are
+# mostly indoors (Deadmines, Scarlet Monastery, Ulduar, ICC...) are left
+# out on purpose.
+OPEN_AIR_INSTANCES = {
+    47: "Razorfen Kraul",
+    129: "Razorfen Downs",
+    209: "Zul'Farrak",
+    329: "Stratholme",
+    543: "Hellfire Ramparts",
+    560: "Old Hillsbrad Foothills",
+    269: "The Black Morass",
+    578: "The Oculus",
+    595: "The Culling of Stratholme",
+    650: "Trial of the Champion",
+    658: "Pit of Saron",
+    309: "Zul'Gurub",
+    509: "Ruins of Ahn'Qiraj",
+    534: "Battle for Mount Hyjal",
+    568: "Zul'Aman",
+    649: "Trial of the Crusader",
+}
+
+# =============================================================================
 # DUNGEON FLAVOR - Rich context for immersive dungeon/raid chat generation
 # =============================================================================
 # Each dungeon/raid gets a description that gives the LLM world knowledge.
@@ -1836,8 +1865,10 @@ AMBIENT_CHAT_TOPICS_RP = _AMBIENT_CHAT_TOPICS_SHARED + [
 # fragments as the player walks through the world.  Distinct from
 # AMBIENT_CHAT_TOPICS which are party/group-focused.
 # Keep entries short and concrete so the LLM produces brief replies.
-PROXIMITY_CHAT_TOPICS = [
-    # ── Weather & Nature ────────────────────────────────────────────
+# Sky and weather topics only make sense outdoors; proximity
+# chatter drops them inside instances, where no weather context
+# exists and speakers would each invent their own.
+PROXIMITY_WEATHER_TOPICS = [
     'complaining about the rain',
     'enjoying the sunshine',
     'wondering if a storm is coming',
@@ -1852,6 +1883,16 @@ PROXIMITY_CHAT_TOPICS = [
     'remarking on the autumn leaves',
     'talking about the river rising after rain',
     'mentioning the harvest moon',
+]
+
+# Normal-mode (player voice) counterpart of the weather topics.
+PROXIMITY_PLAYER_WEATHER_TOPICS = [
+    'reacting to the in-game weather or lighting',
+]
+
+PROXIMITY_CHAT_TOPICS = [
+    # ── Weather & Nature ────────────────────────────────────────────
+    *PROXIMITY_WEATHER_TOPICS,
 
     # ── Local News & Rumors ─────────────────────────────────────────
     'sharing a rumor about trouble on the roads',
@@ -2282,7 +2323,7 @@ PROXIMITY_PLAYER_CHAT_TOPICS = [
 
     # Interface, performance, and controls
     'mentioning bags, bank space, or profession errands',
-    'reacting to the in-game weather or lighting',
+    *PROXIMITY_PLAYER_WEATHER_TOPICS,
     'commenting on the music changing in this area',
     'mentioning a brief lag spike without making a scene',
     'asking whether anyone else saw an NPC behave strangely',

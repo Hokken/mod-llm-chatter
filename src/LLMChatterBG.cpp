@@ -18,6 +18,7 @@
 #include "Log.h"
 #include "Playerbots.h"
 
+#include <algorithm>
 #include <map>
 #include <unordered_map>
 #include <vector>
@@ -44,6 +45,12 @@ struct BGStateTracker
     uint32 firstArrivalMs{0};
 
     uint32 lastIdleChatterMs{0};
+
+    /* WSG: when each flag was picked up (NO_CAPTURE =
+       not carried) and the last carry-status chatter. */
+    uint32 carryStartAllianceFlagMs{NO_CAPTURE};
+    uint32 carryStartHordeFlagMs{NO_CAPTURE};
+    uint32 lastCarryChatterMs{0};
 
     static constexpr uint32 NO_BIG_EVENT = UINT32_MAX;
     uint32 lastBigEventMs = NO_BIG_EVENT;
@@ -94,6 +101,8 @@ void AppendBGContext(
 
     json += ","
         "\"is_battleground\":true,"
+        "\"bg_instance_id\":"
+        + std::to_string(bg->GetInstanceID()) + ","
         "\"zone_id\":"
         + std::to_string(
             player->GetZoneId()) + ","
@@ -157,6 +166,29 @@ void AppendBGContext(
             bg->ToBattlegroundWS())
     {
         TeamId pTeam = player->GetBgTeamId();
+        TeamId eTeam = pTeam == TEAM_ALLIANCE
+            ? TEAM_HORDE : TEAM_ALLIANCE;
+        /* Flag states let prompts tell "at base" from
+           "on the ground" (a capture only counts while
+           your own flag is at base). */
+        auto flagStateName = [&](TeamId t) -> char const*
+        {
+            switch (wsg->GetFlagState(t))
+            {
+                case BG_WS_FLAG_STATE_ON_BASE:
+                    return "base";
+                case BG_WS_FLAG_STATE_ON_PLAYER:
+                    return "carried";
+                case BG_WS_FLAG_STATE_ON_GROUND:
+                    return "ground";
+                default:
+                    return "respawning";
+            }
+        };
+        json += ",\"own_flag_state\":\""
+            + std::string(flagStateName(pTeam)) + "\","
+            "\"enemy_flag_state\":\""
+            + std::string(flagStateName(eTeam)) + "\"";
         /* Enemy flag carrier = our team carrying
            their flag (offense) */
         ObjectGuid offGuid =
@@ -409,6 +441,11 @@ static void PollWSGState(
 
     constexpr uint32 CAPTURE_SUPPRESS_MS = 10000;
 
+    /* A carrier losing the flag without a capture is a
+       drop. Do not require the flag to still be on the
+       ground: bots often return it before the next
+       poll, which used to swallow the drop entirely. */
+
     /* Flag events always fire — no RNG gate,
        no big-event cooldown.  These are the most
        important BG events and must never be
@@ -457,8 +494,6 @@ static void PollWSGState(
                  && !tracker
                          .lastFlagPickerAlliance
                          .IsEmpty()
-                 && aState
-                     == BG_WS_FLAG_STATE_ON_GROUND
                  && !tracker
                          .WasFlagRecentlyCaptured(
                              tracker
@@ -544,8 +579,6 @@ static void PollWSGState(
                  && !tracker
                          .lastFlagPickerHorde
                          .IsEmpty()
-                 && hState
-                     == BG_WS_FLAG_STATE_ON_GROUND
                  && !tracker
                          .WasFlagRecentlyCaptured(
                              tracker
@@ -590,6 +623,70 @@ static void PollWSGState(
 
     tracker.lastFlagStateAlliance = aState;
     tracker.lastFlagStateHorde = hState;
+
+    /* Carry timers: start when a flag is first held,
+       clear when nobody holds it. */
+    if (allianceCarrier.IsEmpty())
+        tracker.carryStartAllianceFlagMs =
+            BGStateTracker::NO_CAPTURE;
+    else if (tracker.carryStartAllianceFlagMs
+             == BGStateTracker::NO_CAPTURE)
+        tracker.carryStartAllianceFlagMs =
+            tracker.totalElapsedMs;
+    if (hordeCarrier.IsEmpty())
+        tracker.carryStartHordeFlagMs =
+            BGStateTracker::NO_CAPTURE;
+    else if (tracker.carryStartHordeFlagMs
+             == BGStateTracker::NO_CAPTURE)
+        tracker.carryStartHordeFlagMs =
+            tracker.totalElapsedMs;
+}
+
+/* While a WSG flag is carried, periodically let the team
+   talk about the ongoing carry (encourage our carrier,
+   hunt theirs, standoff). Rides the bg_idle_chatter event
+   with a flag_carry_status marker. */
+static void MaybeQueueFlagCarryChatter(
+    Battleground* bg, BGStateTracker& tracker)
+{
+    uint32 intervalMs = sLLMChatterConfig
+        ->_bgFlagCarryChatterIntervalSec * 1000;
+    if (!intervalMs)
+        return;
+    bool aHeld = tracker.carryStartAllianceFlagMs
+        != BGStateTracker::NO_CAPTURE;
+    bool hHeld = tracker.carryStartHordeFlagMs
+        != BGStateTracker::NO_CAPTURE;
+    if (!aHeld && !hHeld)
+        return;
+
+    uint32 now = tracker.totalElapsedMs;
+    /* Let the pickup callout breathe before the first
+       carry-status line. */
+    uint32 aSec = aHeld
+        ? (now - tracker.carryStartAllianceFlagMs) / 1000
+        : 0;
+    uint32 hSec = hHeld
+        ? (now - tracker.carryStartHordeFlagMs) / 1000
+        : 0;
+    uint32 longest = std::max(aSec, hSec);
+    if (longest * 1000 < intervalMs)
+        return;
+    if (now - tracker.lastCarryChatterMs < intervalMs)
+        return;
+    tracker.lastCarryChatterMs = now;
+
+    if (urand(1, 100)
+        > sLLMChatterConfig->_bgFlagCarryChatterChance)
+        return;
+
+    QueueBGEventForAllPlayers(
+        bg, "bg_idle_chatter",
+        "{\"flag_carry_status\":true,"
+        "\"alliance_flag_carry_sec\":"
+            + std::to_string(aSec) + ","
+        "\"horde_flag_carry_sec\":"
+            + std::to_string(hSec) + "}");
 }
 
 static void PollABState(
@@ -1006,7 +1103,13 @@ public:
                     || !GroupHasBots(arrGroup))
                     continue;
 
-                // Build bots array from group
+                // Build bots array from group. Party
+                // chat in a BG raid only reaches the
+                // speaker's sub-group, so greeters are
+                // limited to the player's sub-group.
+                uint8 arrSubGroup =
+                    arrGroup->GetMemberGroup(
+                        arrPlayer->GetGUID());
                 std::string botsJson = "[";
                 bool hasBot = false;
                 for (GroupReference* ref =
@@ -1015,6 +1118,10 @@ public:
                 {
                     Player* m = ref->GetSource();
                     if (!m || !IsPlayerBot(m))
+                        continue;
+                    if (arrGroup->GetMemberGroup(
+                            m->GetGUID())
+                        != arrSubGroup)
                         continue;
 
                     if (hasBot)
@@ -1086,6 +1193,20 @@ public:
                     ","
                     "\"team\":\"" + teamStr +
                     "\","
+                    "\"match_in_progress\":" +
+                        std::string(
+                            bg->GetStatus()
+                                == STATUS_IN_PROGRESS
+                                ? "true" : "false") +
+                    ","
+                    "\"score_alliance\":" +
+                        std::to_string(bg->GetTeamScore(
+                            TEAM_ALLIANCE)) +
+                    ","
+                    "\"score_horde\":" +
+                        std::to_string(bg->GetTeamScore(
+                            TEAM_HORDE)) +
+                    ","
                     "\"bots\":" + botsJson +
                     "}";
                 extraData =
@@ -1166,6 +1287,8 @@ public:
         {
             case BATTLEGROUND_WS:
                 PollWSGState(bg, tracker);
+                MaybeQueueFlagCarryChatter(
+                    bg, tracker);
                 break;
             case BATTLEGROUND_AB:
                 PollABState(bg, tracker);

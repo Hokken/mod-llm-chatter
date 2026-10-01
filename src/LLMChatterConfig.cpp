@@ -746,6 +746,47 @@ void LLMChatterConfig::LoadConfig()
             "LLMChatter.GroupChatter."
             "StateCalloutCooldown", 60);
 
+    // Group chatter - overworld PvP encounters
+    _pvpChatterEnable = GetChatterOption<bool>(
+        "LLMChatter.GroupChatter.PvP.Enable", true);
+    _pvpCombatChance = std::min<uint32>(100,
+        GetChatterOption<uint32>(
+            "LLMChatter.GroupChatter.PvP.CombatChance",
+            60));
+    _pvpKillChance = std::min<uint32>(100,
+        GetChatterOption<uint32>(
+            "LLMChatter.GroupChatter.PvP.KillChance",
+            80));
+    _pvpDeathChance = std::min<uint32>(100,
+        GetChatterOption<uint32>(
+            "LLMChatter.GroupChatter.PvP.DeathChance",
+            60));
+    _pvpCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.GroupChatter.PvP.Cooldown", 30);
+    _pvpEnemyCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.GroupChatter.PvP.EnemyCooldown",
+            120);
+    _pvpTargetSwitchCallout = GetChatterOption<bool>(
+        "LLMChatter.GroupChatter.PvP."
+        "TargetSwitchCallout", true);
+
+    // Group chatter - duels
+    _duelChatterEnable = GetChatterOption<bool>(
+        "LLMChatter.GroupChatter.Duel.Enable", true);
+    _duelStartChance = std::min<uint32>(100,
+        GetChatterOption<uint32>(
+            "LLMChatter.GroupChatter.Duel.StartChance",
+            60));
+    _duelEndChance = std::min<uint32>(100,
+        GetChatterOption<uint32>(
+            "LLMChatter.GroupChatter.Duel.EndChance",
+            100));
+    _duelCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.GroupChatter.Duel.Cooldown", 60);
+
     // Pre-cached instant reactions
     _preCacheEnable = GetChatterOption<bool>(
         "LLMChatter.GroupChatter.PreCacheEnable",
@@ -800,10 +841,15 @@ void LLMChatterConfig::LoadConfig()
         "LLMChatter.GeneralChat.Cooldown", 0);
     _generalChatConversationChance = GetChatterOption<uint32>(
         "LLMChatter.GeneralChat.ConversationChance", 30);
-    _generalChatHistoryLimit =
+    uint32 chatHistoryLimit = std::clamp(
+        GetChatterOption<uint32>(
+            "LLMChatter.ChatHistoryLimit", 10),
+        1u, 50u);
+    _generalChatHistoryLimit = std::clamp(
         GetChatterOption<uint32>(
             "LLMChatter.GeneralChat.HistoryLimit",
-            15);
+            chatHistoryLimit),
+        1u, 50u);
 
     _generalLootEnable = GetChatterOption<bool>(
         "LLMChatter.GeneralLoot.Enable", true);
@@ -854,6 +900,14 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<uint32>(
             "LLMChatter.BGChatter."
             "IdleChatterCooldownSec", 30);
+    _bgFlagCarryChatterIntervalSec =
+        GetChatterOption<uint32>(
+            "LLMChatter.BGChatter."
+            "FlagCarryChatterIntervalSec", 45);
+    _bgFlagCarryChatterChance =
+        GetChatterOption<uint32>(
+            "LLMChatter.BGChatter."
+            "FlagCarryChatterChance", 50);
     _bgRezChance =
         GetChatterOption<uint32>(
             "LLMChatter.BGChatter."
@@ -1218,6 +1272,51 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
             "ConversationChance", 40);
+
+    // Proximity chatter - duel and PvP onlookers
+    {
+        auto pct = [](char const* key, uint32 def)
+        {
+            return std::min<uint32>(100,
+                GetChatterOption<uint32>(
+                    std::string("LLMChatter.ProximityChatter."
+                        "FightReactions.") + key, def));
+        };
+        auto secs = [](char const* key, uint32 def)
+        {
+            return GetChatterOption<uint32>(
+                std::string("LLMChatter.ProximityChatter."
+                    "FightReactions.") + key, def);
+        };
+        _proxFightEnable = GetChatterOption<bool>(
+            "LLMChatter.ProximityChatter."
+            "FightReactions.Enable", true);
+        _proxFightDuelChance = pct("DuelChance", 35);
+        _proxFightPvPChance = pct("PvPChance", 25);
+        _proxFightConversationChance =
+            pct("ConversationChance", 35);
+        _proxFightSecondMomentChance =
+            pct("SecondMomentChance", 20);
+        _proxFightThirdMomentChance =
+            pct("ThirdMomentChance", 20);
+        _proxFightChallengeDelaySeconds =
+            secs("ChallengeDelaySeconds", 2);
+        _proxFightMidDelayMinSeconds =
+            secs("MidDelayMinSeconds", 8);
+        _proxFightMidDelayMaxSeconds = std::max(
+            _proxFightMidDelayMinSeconds,
+            secs("MidDelayMaxSeconds", 15));
+        _proxFightPendingExpirySeconds =
+            std::max(1u, secs("PendingExpirySeconds", 30));
+        _proxFightCompletedRetentionSeconds =
+            secs("CompletedRetentionSeconds", 60);
+        _proxFightLineMaxAgeSeconds =
+            secs("LineMaxAgeSeconds", 20);
+        _proxFightSceneCooldownSeconds =
+            secs("SceneCooldownSeconds", 120);
+        _proxFightSceneCellYards = std::max(
+            1u, secs("SceneCellYards", 100));
+    }
     _proxChatterPlayerAddressChance =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
@@ -1449,6 +1548,12 @@ void LLMChatterConfig::LoadConfig()
                 "LLMChatter.EmoteReactions."
                 "UngroupedBotWitnessReactionChance", 50),
             100u);
+    _emotePartyBotWitnessChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.EmoteReactions."
+                "PartyBotWitnessChance", 30),
+            100u);
     _emoteObserverChance =
         std::min(
             GetChatterOption<uint32>(
@@ -1460,9 +1565,11 @@ void LLMChatterConfig::LoadConfig()
             "LLMChatter.EmoteReactions."
             "ObserverCooldown", 30);
     _emoteMoodSpreadChance =
-        GetChatterOption<uint32>(
-            "LLMChatter.EmoteReactions."
-            "MoodSpreadChance", 50);
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.EmoteReactions."
+                "MoodSpreadChance", 50),
+            100u);
     _emoteNPCMirrorEnable =
         GetChatterOption<bool>(
             "LLMChatter.EmoteReactions."

@@ -185,6 +185,14 @@ def update_bot_mood(
         )
 
 
+def _label_for_score(score: float) -> str:
+    """Map a mood score onto its MOOD_LABELS bucket."""
+    for low, high, label in MOOD_LABELS:
+        if low <= score < high:
+            return label
+    return 'neutral'
+
+
 def get_bot_mood_label(
     group_id: int, bot_guid: int,
 ) -> str:
@@ -194,10 +202,28 @@ def get_bot_mood_label(
             (group_id, bot_guid)
         )
         score = entry[0] if entry else 0.0
-        for low, high, label in MOOD_LABELS:
-            if low <= score < high:
-                return label
-        return 'neutral'
+        return _label_for_score(score)
+
+
+def get_bot_mood_label_by_guid(bot_guid: int) -> str:
+    """Get a bot's mood label regardless of channel.
+
+    Uses the most recently updated live entry for this bot across
+    groups, so guild and General prompts see the same event mood as
+    party chat. Entries past the stale window count as neutral,
+    matching the lifetime enforced by _evict_stale_moods.
+    """
+    with _bot_mood_scores_lock:
+        now = time.time()
+        latest = None
+        for (_, guid), (score, ts) in _bot_mood_scores.items():
+            if guid != bot_guid:
+                continue
+            if now - ts > _MOOD_STALE_SECONDS:
+                continue
+            if latest is None or ts > latest[1]:
+                latest = (score, ts)
+        return _label_for_score(latest[0] if latest else 0.0)
 
 
 def cleanup_group_moods(group_id: int):
@@ -804,6 +830,15 @@ def regenerate_missing_identity_tones(
           AND i.trait2 != ''
           AND i.trait3 IS NOT NULL
           AND i.trait3 != ''
+          -- A group join clears the tone and generates a new
+          -- one itself; skip bots it assigned moments ago so
+          -- the two do not generate in parallel.
+          AND NOT EXISTS (
+              SELECT 1 FROM llm_group_bot_traits g
+              WHERE g.bot_guid = i.bot_guid
+                AND g.assigned_at
+                    > NOW() - INTERVAL 2 MINUTE
+          )
         ORDER BY i.created_at DESC, i.bot_guid DESC
         LIMIT %s
     """, (limit,))
@@ -1308,6 +1343,7 @@ def get_other_group_bot(db, group_id, exclude_guid):
     cursor.execute("""
         SELECT bot_guid, bot_name,
                trait1, trait2, trait3, role, tone,
+               backstory,
                travel_mode, travel_context,
                is_mounted, is_flying,
                is_taxi_flying, is_on_transport,
@@ -1329,6 +1365,7 @@ def get_other_group_bot(db, group_id, exclude_guid):
             ],
             'role': row.get('role'),
             'tone': row.get('tone'),
+            'backstory': row.get('backstory'),
             'travel_mode': travel_state.get('mode') or '',
             'travel_context': format_travel_context(
                 travel_state),

@@ -779,6 +779,13 @@ def test_failed_repair_falls_back_to_statement():
 
 
 def main() -> int:
+    # These checks cover guild statement/conversation mechanics with
+    # the random-topic behaviour; guild conversation threads are
+    # covered by test_guild_general_threads.py.
+    import chatter_threads
+    chatter_threads.configure_threads(
+        {'LLMChatter.Threads.GuildEnable': 0}
+    )
     tests = [
         test_legacy_payload_normalizes_to_statement,
         test_legacy_payload_processes_statement,

@@ -34,6 +34,7 @@ from chatter_prompts import (
     build_environmental_context_lines,
 )
 from chatter_constants import BG_LORE
+from chatter_db import get_character_info_by_name
 
 LOG = logging.getLogger("chatter_bg_prompts")
 
@@ -140,15 +141,23 @@ def _bg_base_context(
             f"{lore.get('name', 'a battleground')} "
             f"for the {faction_name} ({team}).\n"
         )
-    ctx += (
-        f"Score: Alliance {score_a} \u2014 "
-        f"Horde {score_h}.\n"
-        f"Alive on your team: "
-        f"{extra_data.get('players_alive_team', '?')}. "
-        f"Alive on enemy team: "
-        f"{extra_data.get('players_alive_enemy', '?')}.\n"
-        + "\n".join(env_lines) + "\n"
-    )
+    # Only state a score that was actually supplied.
+    if ('score_alliance' in extra_data
+            or 'score_horde' in extra_data):
+        ctx += (
+            f"Score: Alliance {score_a} \u2014 "
+            f"Horde {score_h}.\n"
+        )
+    # Arrival events carry no live counts; omit the
+    # line rather than printing "?" into the prompt.
+    alive_team = extra_data.get('players_alive_team')
+    alive_enemy = extra_data.get('players_alive_enemy')
+    if alive_team is not None and alive_enemy is not None:
+        ctx += (
+            f"Alive on your team: {alive_team}. "
+            f"Alive on enemy team: {alive_enemy}.\n"
+        )
+    ctx += "\n".join(env_lines) + "\n"
 
     # Flag carrier status (WSG)
     friendly_fc = extra_data.get(
@@ -283,8 +292,16 @@ def build_bg_match_end_prompt(
     dmg = extra_data.get('player_damage_done')
     heal = extra_data.get('player_healing_done')
     if kb is not None:
+        # C++ sends the real player's own scoreboard
+        # row, not a team total.
+        rps = extra_data.get('real_players') or []
+        who = (
+            rps[0].get('name')
+            if len(rps) == 1 and isinstance(rps[0], dict)
+            else None
+        ) or 'Your real-player teammate'
         ctx += (
-            f"Team performance glimpse: "
+            f"{who}'s performance this match: "
             f"{kb} killing blows, "
             f"{dmg} damage, {heal} healing.\n"
         )
@@ -341,10 +358,22 @@ def build_bg_flag_prompt(
     dropper_real = extra_data.get(
         'dropper_is_real_player', False)
 
+    # The crowd worker can pick the carrier/scorer as
+    # speaker; don't let them praise themselves by name.
+    me = bot_data.get('bot_name')
+    if me and me in (carrier, scorer):
+        ctx += (
+            f"\n{me} is YOU: speak in first person "
+            "about your own play, never praise "
+            "yourself by name.")
+
     if 'picked_up' in event_type:
         if flag_team == team:
             ctx += (
-                "\nThe enemy picked up YOUR flag!")
+                "\nThe enemy picked up YOUR flag and "
+                "is running it toward their base! "
+                "This is bad news for your team: "
+                "sound the alarm.")
         else:
             if carrier and carrier_real:
                 ctx += (
@@ -454,6 +483,15 @@ def build_bg_flag_carrier_prompt(
             "\"I've got it, keep them off me!\" "
             "or \"Their banner is mine, don't let "
             "them touch me!\""
+        )
+    elif extra_data.get('already_returned'):
+        ctx += (
+            "\nYOU just lost the enemy flag after "
+            "being overwhelmed, and the enemy has "
+            "already returned it to their base. Say "
+            "something in first person: a brief "
+            "apology or frustration. One sentence. "
+            "Do NOT ask anyone to grab the flag."
         )
     else:
         ctx += (
@@ -618,6 +656,16 @@ def build_bg_pvp_kill_prompt(
     killer = extra_data.get('killer_name', '')
     killer_real = extra_data.get(
         'killer_is_real_player', False)
+    # C++ sends no killer class; without it the model
+    # guesses weapons ("Guncin's blade" for a mage).
+    db = extra_data.get('_db')
+    if killer and db:
+        info = get_character_info_by_name(db, killer)
+        if info and info.get('class'):
+            killer = (
+                f"{killer} "
+                f"({get_class_name(int(info['class']))})"
+            )
 
     kill_variety = (
         " Vary your style: try trash talk, "
@@ -748,7 +796,7 @@ def build_bg_achievement_prompt(
         'achievement_name', 'an achievement')
     ctx += (
         f"\n{achiever} just earned "
-        f"[{achievement}] mid-battle! "
+        f"\"{achievement}\" mid-battle! "
         "Quick, impressed reaction -- keep "
         "it short and battlefield-appropriate."
     )
@@ -769,11 +817,28 @@ def build_bg_spell_cast_prompt(
         'target_name', 'someone')
     category = extra_data.get(
         'spell_category', 'spell')
-    ctx += (
-        f"\n{caster} cast {spell} on {target} "
-        f"({category}). Brief tactical comment -- "
-        "acknowledge the play, keep it snappy."
+    # Make the side explicit so the model never mixes
+    # up an enemy target with a teammate.
+    if category == 'offensive' and target:
+        target = f"the enemy {target}"
+    no_outcome = (
+        " Only the cast happened -- do NOT claim "
+        "anyone died, fled, or was defeated."
     )
+    if caster == bot_data.get('bot_name'):
+        ctx += (
+            f"\nYou just cast {spell} on {target} "
+            f"({category}). Brief tactical callout "
+            f"about your own play, keep it snappy."
+            f"{no_outcome}"
+        )
+    else:
+        ctx += (
+            f"\n{caster} cast {spell} on {target} "
+            f"({category}). Brief tactical comment "
+            f"-- acknowledge the play, keep it "
+            f"snappy.{no_outcome}"
+        )
     return append_json_instruction(
         ctx, allow_action=False)
 
@@ -783,22 +848,32 @@ def build_bg_low_health_prompt(
 ):
     """Low health callout in BG context."""
     ctx = _bg_base_context(extra_data, bot_data)
+    # target_name is the wounded bot's own combat
+    # target (usually an enemy), NOT the wounded
+    # person — the speaker is always the one hurt.
     target = extra_data.get(
         'target_name', '')
     roleplay = is_roleplay(get_chatter_mode(
         extra_data.get('_config') or {}
     ))
-    if target and roleplay:
+    fighting = (
+        f" You are fighting {target}." if target
+        else ""
+    )
+    if roleplay and fighting:
         ctx += (
-            f"\n{target} is badly wounded in "
-            "combat! Brief urgent callout -- "
-            "panic, plea for healing, or "
-            "defiant last stand."
+            "\nYou're badly wounded in combat!"
+            f"{fighting} Brief urgent callout -- "
+            "panic, plea for healing, or defiant "
+            "last stand. Do NOT say anyone else "
+            "is wounded."
         )
-    elif target:
+    elif fighting:
         ctx += (
-            f"\n{target}'s character is critically low on health. Give a "
-            "brief urgent callout or ask for healing."
+            "\nYour character is critically low on "
+            f"health.{fighting} Give a brief urgent "
+            "player callout or ask for healing. Do "
+            "NOT say anyone else is wounded."
         )
     elif roleplay:
         ctx += (
@@ -972,6 +1047,17 @@ BG_IDLE_CATEGORIES = [
 ]
 
 
+# Categories that only make sense for one side of the
+# score; filtered against the live score at pick time.
+BG_IDLE_LOSING_ONLY = {
+    "gallows humor when losing badly",
+    "a reminder that the match is still recoverable",
+}
+BG_IDLE_WINNING_ONLY = {
+    "swagger or overconfidence when winning",
+}
+
+
 def build_bg_idle_prompt(
     extra_data, bot_data, is_raid_worker=False
 ):
@@ -980,16 +1066,122 @@ def build_bg_idle_prompt(
     mode = get_chatter_mode(
         extra_data.get('_config') or {}
     )
-    category = random.choice(
+    pool = (
         BG_IDLE_CATEGORIES_RP
         if is_roleplay(mode) else BG_IDLE_CATEGORIES
     )
+    # Drop categories that contradict the live score
+    # (e.g. "gallows humor when losing" while ahead).
+    team = extra_data.get('team', '')
+    score_a = int(extra_data.get('score_alliance', 0))
+    score_h = int(extra_data.get('score_horde', 0))
+    mine, theirs = (
+        (score_a, score_h) if team == 'Alliance'
+        else (score_h, score_a)
+    )
+    excluded = set()
+    if mine >= theirs:
+        excluded |= BG_IDLE_LOSING_ONLY
+    if mine <= theirs:
+        excluded |= BG_IDLE_WINNING_ONLY
+    pool = [c for c in pool if c not in excluded] or pool
+    category = random.choice(pool)
     ctx += (
         f"\nThere's a lull in the action. Say "
         f"something to your team about: "
         f"{category}. "
         "Keep it natural for the configured chat mode. "
         "One sentence only."
+    )
+    return append_json_instruction(
+        ctx, allow_action=False)
+
+
+def _carry_duration(sec):
+    """Human phrasing for how long a flag has been held."""
+    sec = int(sec or 0)
+    if sec >= 90:
+        return f"about {round(sec / 60)} minutes"
+    if sec >= 50:
+        return "about a minute"
+    return f"{sec} seconds"
+
+
+def build_bg_flag_carry_prompt(
+    extra_data, bot_data, is_raid_worker=False
+):
+    """Ongoing WSG flag carry: encourage our carrier,
+    hunt theirs, or react to a standoff."""
+    ctx = _bg_base_context(extra_data, bot_data)
+    team = extra_data.get('team', '')
+    # A team's flag is carried by the OTHER team.
+    if team == 'Alliance':
+        ours_sec = extra_data.get('horde_flag_carry_sec', 0)
+        theirs_sec = extra_data.get(
+            'alliance_flag_carry_sec', 0)
+    else:
+        ours_sec = extra_data.get(
+            'alliance_flag_carry_sec', 0)
+        theirs_sec = extra_data.get('horde_flag_carry_sec', 0)
+    fc = extra_data.get('friendly_flag_carrier')
+    efc = extra_data.get('enemy_flag_carrier')
+    real_names = {
+        rp.get('name') for rp in
+        (extra_data.get('real_players') or [])
+        if isinstance(rp, dict)
+    }
+    me = bot_data.get('bot_name')
+
+    if fc == me:
+        fc_ref = "YOU"
+    elif fc in real_names:
+        fc_ref = f"{fc} (a real player on your team)"
+    else:
+        fc_ref = fc
+
+    if fc and efc:
+        ctx += (
+            f"\nSTANDOFF: {fc_ref} has held the enemy flag "
+            f"for {_carry_duration(ours_sec)}, but the enemy "
+            f"{efc} has held YOUR flag for "
+            f"{_carry_duration(theirs_sec)}. Your team cannot "
+            f"score until {efc} is killed and your flag is "
+            "returned."
+        )
+    elif fc:
+        ctx += (
+            f"\n{fc_ref} has been carrying the enemy flag for "
+            f"{_carry_duration(ours_sec)}."
+        )
+        # A capture only counts while our own flag is at
+        # base; only claim it when C++ says so.
+        own_state = extra_data.get('own_flag_state')
+        if own_state == 'base':
+            ctx += (
+                " Your own flag is safe at base, so bringing "
+                "it home scores."
+            )
+        elif own_state == 'ground':
+            ctx += (
+                " Your own flag is lying on the ground and "
+                "must be returned to base before a capture "
+                "counts."
+            )
+    elif efc:
+        ctx += (
+            f"\nThe enemy {efc} has been carrying YOUR flag "
+            f"for {_carry_duration(theirs_sec)}. It must be "
+            "recovered before they score."
+        )
+    else:
+        return None
+    if fc == me:
+        ctx += " Speak in first person about your own carry."
+    elif fc in real_names:
+        ctx += f" You may speak to {fc} directly by name."
+    ctx += (
+        "\nSay one short line about this ongoing flag "
+        "situation to your team."
     )
     return append_json_instruction(
         ctx, allow_action=False)
@@ -1002,11 +1194,22 @@ def build_bg_arrival_prompt(
 ):
     """Greeting when player first enters a BG."""
     ctx = _bg_base_context(extra_data, bot_data)
-    player_name = extra_data.get(
-        'player_name', 'an ally')
+    in_progress = extra_data.get('match_in_progress')
+    if in_progress is True:
+        phase = (
+            "You just joined a battle that is already in "
+            "progress (see the score above). "
+        )
+    elif in_progress is False:
+        phase = (
+            "You just joined a battleground and the team "
+            "is gathering before the fight. "
+        )
+    else:
+        # Unknown phase: assert neither.
+        phase = "You just arrived at the battleground. "
     ctx += (
-        "\nYou just joined a battleground and "
-        "the team is gathering before the fight. "
+        "\n" + phase +
         "Say something team-oriented: a battle "
         "cry, faction pride, rallying your side, "
         "trash-talking the enemy, or hyping up "

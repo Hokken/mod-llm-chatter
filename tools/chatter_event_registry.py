@@ -275,6 +275,35 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         },
     ),
 
+    # -- Duel events (chatter_duel) ---------------
+
+    'bot_group_duel_start': EventSpec(
+        handler_module='chatter_duel',
+        handler_func='process_duel_start_event',
+        producer='LLMChatterDuel.cpp',
+        priority='high',
+        description='Bot reacts to a duel starting',
+        payload_fields={
+            'duellist_a_name': (str, True),
+            'duellist_b_name': (str, True),
+            'reactor_role': (str, True),
+        },
+    ),
+
+    'bot_group_duel_end': EventSpec(
+        handler_module='chatter_duel',
+        handler_func='process_duel_end_event',
+        producer='LLMChatterDuel.cpp',
+        priority='high',
+        description='Bot reacts to a duel result',
+        payload_fields={
+            'winner_name': (str, True),
+            'loser_name': (str, True),
+            'outcome': (str, True),
+            'reactor_role': (str, True),
+        },
+    ),
+
     'bot_group_corpse_run': EventSpec(
         handler_module='chatter_group_handlers',
         handler_func=(

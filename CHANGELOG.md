@@ -1,5 +1,27 @@
 # Changelog
 
+### 2026-10-01 - Upstream Merge (Personas, Threads, PvP, Duels)
+
+* **Threads and themed topics**: Conversation threads decide each idle
+  turn in General, Guild and party chat. When a thread starts a fresh
+  subject, the subject comes from the guild and themed topic pickers
+  (`plan_idle_turn(..., fresh_topic=...)`); continue, drift and callback
+  turns follow the thread. With threads off, topics are picked as before.
+* **Open-world PvP kills**: With `GroupChatter.PvP.Enable` on, the party's
+  kill reaction comes from the PvP system (`bot_group_kill`), and
+  `bot_group_pvp_kill` no longer fires as a second reaction. It still
+  covers open-world kills when `GroupChatter.PvP.Enable` is 0. Guild kill
+  comments, PvP death complaints and the battleground "massive battle"
+  line are unchanged.
+* **Event type migrations**: `20260925_guild_member_events.sql`,
+  `20260926_duel_events.sql`, `20260927_guild_world_events.sql` and
+  `20260930_pvp_death_complaints.sql` each rewrite the whole `event_type`
+  ENUM, so each script now lists every value (guild, duel and PvP death
+  events). Running them in any order no longer drops values added by the
+  others. The README migration list now includes all four.
+* **Level-up**: Roleplay keeps the class-calling description of the
+  leveler; normal mode uses the leveler's race and class description.
+
 ### 2026-10-01 - Player Description and Casual MOTD
 
 * **Bots know who you are**: Guild meet and login greetings, guild
@@ -55,6 +77,65 @@
   to 67/67/4). The conf's `GroupChatter.SpellCastChance` now matches the
   code default of 10 (it shipped as 30).
 
+### 2026-09-30 - Coherent Personas, Conversation Threads, and Battleground Chatter
+
+* **Coherent personas**: Bots speak from one persona in party, Guild and
+  General chat: stored traits and tone (plus backstory in roleplay mode),
+  or a stable fallback seeded from the bot. Random tones, re-rolled
+  traits and per-message mood sequences are gone; mood only changes from
+  real events and is shared across channels. Twists and spices are gated
+  by `Persona.TwistChance` / `Persona.SpiceChance` and never override the
+  personality. Backstories can colour party reactions and player replies.
+* **Conversation threads**: Party idle chatter, Guild and General follow
+  a conversation thread instead of a random topic per exchange. Subjects
+  develop, drift and get called back, feelings linger, and new subjects
+  are mostly persona-driven, with a small allowance for surprises. Player
+  messages and event reactions blend into the thread; wipes and deaths
+  take over. Tunable with `Threads.*`.
+* **Emote ripples**: Emoting at a party bot can ripple to other party
+  bots and nearby witnesses, with contagious mood.
+* **Battleground chatter**: Party chat in a battleground only reaches the
+  speaker's sub-group, so reactions now come from bots in the player's
+  sub-group and always use battleground context (score, flags, faction).
+  Arrival greetings no longer crash, vary in number and split between
+  battleground and party chat, and tell a pre-start entry from a late
+  join. In Warsong Gulch, drops are no longer missed when the flag is
+  returned before the next state check, re-grabs and stale lines are
+  filtered per match, and bots talk about ongoing flag carries (escort,
+  hunt or standoff) in party and battleground chat. Achievement
+  reactions are throttled.
+* **Prompt context fixes**: Low-health callouts name the attacker, not an
+  imaginary casualty; spell lines no longer invent kills; speakers who
+  scored or carried the flag speak in first person; kill reactions know
+  the killer's class; pets and totems are named with their owner.
+  Hostile NPCs treat a nearby party as intruders, pull reactions and
+  cached lines never announce the kill, and open-air instances keep time
+  and season while indoor ones drop them.
+* **Playtest fixes**: Pet and totem kills reach the kill reaction path,
+  dungeon encounter bosses count as bosses on the pull, dungeon entry
+  reactions pick a speaker, level-up reactions name the leveler's race
+  and class, General replies keep the addressed bot, a new bot gets one
+  tone instead of two, and quest/item/spell placeholders no longer leave
+  stray braces around links. Kill and pull reactions use burst guards
+  (`GroupChatter.KillBurstWindow`, `GroupChatter.PullBurstWindow`).
+* **Brief replies in General vary in length**: Replies to brief casual
+  player messages no longer all land at 2-8 words. Each reply picks a
+  tiny, short or relaxed size, a second bot answering the same message
+  picks a different one, and a relaxed reply may toss a light question
+  back. Tunable with `PlayerChat.BriefCasualLengthWeights`.
+* **Configuration**: Added `Persona.*`, `Threads.*`, burst windows and new
+  `BGChatter.*` keys (arrival greetings, flag re-grab window, achievement
+  throttles, flag-carry chatter). The quieter preset now carries every
+  key of the default config, and like the default it always answers
+  player messages in General (`GeneralChat.ReactionChance` and
+  `GeneralChat.QuestionChance` at 100) and party
+  (`GroupChatter.PlayerMsgCooldown` at 0). Brief casual turns keep
+  `PlayerChat.OptionalCasualReplyChance`. Removed the unused
+  `Memory.DiscoveryGenerationChance`.
+* **Upgrade**: No database migration. Rebuild the server and restart the
+  chatter bridge. Copy the new keys from `mod_llm_chatter.conf.dist` into
+  your config, or keep the built-in defaults.
+
 ### 2026-09-27 - Themed Topics, Rumors and Guild World Events
 
 * **Themed topics**: About 80% of idle Guild and General topics (7% of
@@ -104,6 +185,34 @@
   `data/sql/characters/updates/20260927_guild_world_events.sql` to add the
   new event types and the `llm_chatter_queue.audience_context` column,
   then `20260930_pvp_death_complaints.sql` for the two PvP death events.
+
+### 2026-09-26 - Open-World PvP, Duels, and Nearby Onlookers
+
+* **Party PvP reactions**: Companions react to opposing-faction players
+  and their pets during open-world combat, kills, deaths, wipes, spells,
+  and state callouts. Enemy context includes visible identity, level
+  differences, and who started the fight; hidden enemies stay anonymous.
+  PvP reactions use their own chances and cooldowns and bypass
+  creature-oriented cached lines. Battlegrounds and arenas keep their
+  existing chatter paths.
+* **Group duel reactions**: Bot duellists and group spectators react to
+  duel starts and results, including wins, fleeing, and interruptions.
+  Declined challenges and cancelled countdowns do not produce group
+  result reactions.
+* **Nearby onlookers**: Bots outside the fight and the player's group can
+  react before, during, or after a duel, or after an open-world PvP kill.
+  Each selected moment uses one statement or a 2–3-bot conversation.
+  Same-faction onlookers speak in `/say`; opposite-faction onlookers use
+  emotes. Visibility checks, shared proximity cooldowns, zone fatigue,
+  and delivery-time scene checks limit repetition and stale reactions.
+* **Configuration**: Added `GroupChatter.PvP.*`, `GroupChatter.Duel.*`,
+  and `ProximityChatter.FightReactions.*` settings, including conservative
+  onlooker chances and quieter-preset values.
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20260926_duel_events.sql` to the character
+  database for the two new group-duel event types. Proximity onlookers
+  reuse existing events and require no additional migration. Rebuild the
+  server and restart the chatter bridge to load the new handlers.
 
 ### 2026-09-25 - Guild News and Guild Identity
 

@@ -46,6 +46,13 @@ Built from the ground up for **fantasy roleplay immersion**. Every system, perso
   and holidays.
 * **Interactive parties**: Companions banter with one another, ask the player
   questions, and react to combat, loot, quests, achievements, and travel.
+* **Open-world PvP and duels**: Companions size up enemies of the opposing
+  faction by name, race, class, and level, react to ambushes, kills, deaths,
+  and ganks in character, and cheer or tease during duels. Nearby bots
+  outside the fight and party can react before, during, or after duels,
+  or after a PvP kill. Same-faction onlookers comment in `/say`;
+  opposite-faction ones emote. Low chances and shared cooldowns keep
+  these reactions restrained, and hidden enemy identities are omitted.
 * **Living public channels**: Ambient General chat, proximity `/say`, player
   replies, battleground callouts, and encounter-aware raid dialogue make the
   wider world feel populated.
@@ -249,6 +256,10 @@ LLMChatter.GroupChatter.QuestCompleteChance = 30  # default 50
 LLMChatter.GroupChatter.KillChanceNormal = 5    # default 13
 LLMChatter.GroupChatter.SpellCastChance = 5     # default 10
 
+# Open-world PvP and duel reactions
+LLMChatter.GroupChatter.PvP.KillChance = 40     # default 80
+LLMChatter.GroupChatter.Duel.StartChance = 30   # default 60
+
 # Nearby object/creature comments
 LLMChatter.GroupChatter.NearbyObjectChance = 5  # default 20
 ```
@@ -256,6 +267,21 @@ LLMChatter.GroupChatter.NearbyObjectChance = 5  # default 20
 All values are percentages (0-100) unless noted. Setting any
 chance to `0` disables that trigger entirely. See the config
 file comments for the full list of tunable keys.
+
+**Tuning recent conversation context**:
+
+```ini
+# Recent Party transcript lines included in prompts (1-50)
+LLMChatter.ChatHistoryLimit = 10
+
+# Recent General lines per zone, both factions (1-50)
+LLMChatter.GeneralChat.HistoryLimit = 15
+```
+
+Increasing these limits can improve short-term continuity, but it also
+increases prompt size and token use. The General-specific value falls back
+to `ChatHistoryLimit` when omitted. These windows contain recent verbatim
+lines; they are not long-term memory or rolling summaries.
 
 ### Known Limitations
 - **Ollama / open-source models**: Local inference needs fast hardware and
@@ -612,6 +638,18 @@ docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
 docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20260919_real_general_items.sql
 
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20260925_guild_member_events.sql
+
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20260926_duel_events.sql
+
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20260927_guild_world_events.sql
+
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20260930_pvp_death_complaints.sql
+
 # Non-Docker
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260320_bot_memory_system.sql
@@ -672,6 +710,18 @@ mysql -uroot -ppassword acore_characters < \
 
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260919_real_general_items.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20260925_guild_member_events.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20260926_duel_events.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20260927_guild_world_events.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20260930_pvp_death_complaints.sql
 ```
 
 Migrations are idempotent — safe to run on an already

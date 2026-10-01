@@ -311,7 +311,8 @@ def test_semantic_analysis_resolves_implicit_brief_reply():
     assert 'immediately prior speaker' in prompts[0]
     assert 'not keywords or message length alone' in prompts[0]
     assert 'Questions always require a reply' in prompts[0]
-    assert 'leaving the statement' in prompts[0]
+    assert 'false ONLY for throwaway filler' in prompts[0]
+    assert 'shares an opinion, feeling' in prompts[0]
 
 
 def test_llm_required_question_cannot_be_optional():

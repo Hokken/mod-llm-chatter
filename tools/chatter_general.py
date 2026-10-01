@@ -14,7 +14,6 @@ import random
 
 # Module-level config defaults (set by init_general_config)
 _chat_history_limit = 10
-_spice_count = 2
 _extended_conv_chance = 40
 _extended_max_messages = 3
 
@@ -28,8 +27,10 @@ from chatter_shared import (
     find_addressed_bot,
     should_reply_to_optional_casual,
     build_conversational_scale_guidance,
+    brief_casual_length_line,
     brief_casual_response_fits,
     build_brief_casual_repair_prompt,
+    pick_brief_casual_tier,
     insert_chat_message,
     build_anti_repetition_context,
     get_recent_zone_messages,
@@ -45,11 +46,22 @@ from chatter_shared import (
     shorten_chat_message,
 )
 from chatter_prompts import (
-    pick_random_tone,
-    pick_random_mood,
     maybe_get_creative_twist,
     build_environmental_context_lines,
-    pick_personality_spices,
+    maybe_pick_personality_spices,
+    format_spices_line,
+    TWIST_LABEL,
+)
+from chatter_threads import (
+    general_key,
+    note_player_message,
+    render_for_player_reply,
+)
+from chatter_persona import (
+    Persona,
+    build_persona_block,
+    persona_from_fields,
+    resolve_persona,
 )
 from chatter_guild_profile import get_character_guild_name
 from chatter_mode import (
@@ -57,7 +69,6 @@ from chatter_mode import (
     build_player_identity,
 )
 from chatter_constants import (
-    PERSONALITY_TRAITS,
     RACE_SPEECH_PROFILES,
     LENGTH_HINTS, RP_LENGTH_HINTS,
 )
@@ -76,7 +87,7 @@ logger = logging.getLogger(__name__)
 
 def init_general_config(config):
     """Initialize module-level config values."""
-    global _chat_history_limit, _spice_count
+    global _chat_history_limit
     try:
         raw = config.get(
             'LLMChatter.GeneralChat.HistoryLimit',
@@ -88,17 +99,6 @@ def init_general_config(config):
     except (ValueError, TypeError):
         val = 10
     _chat_history_limit = max(1, min(val, 50))
-    try:
-        _spice_count = int(config.get(
-            'LLMChatter.PersonalitySpiceCount', 2
-        ))
-        _spice_count = max(0, min(_spice_count, 5))
-    except Exception:
-        logger.error(
-            "Failed to parse PersonalitySpiceCount",
-            exc_info=True,
-        )
-        _spice_count = 2
 
     global _extended_conv_chance, _extended_max_messages
     try:
@@ -124,15 +124,13 @@ def init_general_config(config):
 
 
 
-def _pick_random_traits():
-    """Pick 3 random traits for a bot."""
-    categories = random.sample(
-        list(PERSONALITY_TRAITS.keys()), 3
+def _as_persona(persona, bot_name, mode):
+    """Accept a Persona or a plain trait list."""
+    if isinstance(persona, Persona):
+        return persona
+    return persona_from_fields(
+        bot_name, mode, traits=persona,
     )
-    return [
-        random.choice(PERSONALITY_TRAITS[cat])
-        for cat in categories
-    ]
 
 
 def _pick_length_hint(mode):
@@ -341,6 +339,48 @@ def _resolve_zone_context(db, player_name, extra_data):
     }
 
 
+def _add_recent_general_speakers(
+    db, history, bot_guids, bot_names, zone_id, player_faction,
+):
+    """Add recent General speakers missing from the capped zone sample.
+
+    C++ sends at most MaxBotsPerZone candidates, so the bot the player
+    is talking to can be left out, and find_addressed_bot can only
+    resolve names it is given. Every bot speaker in this zone's history
+    (already bounded by ChatHistoryLimit) is checked, and added when it
+    is a playerbot (is_bot history rows; real players never are),
+    online, recorded in this zone, and of the player's faction.
+    Extends the lists in place.
+    """
+    if not player_faction or not zone_id:
+        return
+    known = set(bot_names)
+    wanted = []
+    for row in reversed(history or []):
+        name = row.get('speaker_name') or ''
+        if (row.get('is_bot') and name and name not in known
+                and name not in wanted):
+            wanted.append(name)
+    if not wanted:
+        return
+    placeholders = ', '.join(['%s'] * len(wanted))
+    cursor = db.cursor(dictionary=True)
+    cursor.execute(f"""
+        SELECT guid, name, race
+        FROM characters
+        WHERE name IN ({placeholders})
+          AND online = 1
+          AND zone = %s
+    """, (*wanted, zone_id))
+    rows = cursor.fetchall()
+    cursor.close()
+    for row in rows:
+        if get_race_faction(row.get('race')) != player_faction:
+            continue
+        bot_guids.append(int(row['guid']))
+        bot_names.append(row['name'])
+
+
 def _select_primary_bot(
     db, client, config, bot_guids, bot_names,
     player_name, player_message, mode,
@@ -412,7 +452,9 @@ def _select_primary_bot(
         'bot1_class_id': bot1_info['class'],
         'bot1_level': bot1_info['level'],
         'bot1_gender': get_gender_label(bot1_info['gender']),
-        'bot1_traits': _pick_random_traits(),
+        'bot1_traits': resolve_persona(
+            db, bot1_guid, bot1_info['name'], mode,
+        ),
         'is_conversation': is_conversation,
         'brief_casual': brief_casual,
         'reply_optional': reply_optional,
@@ -422,7 +464,7 @@ def _select_primary_bot(
 def _build_general_response_prompt(
     bot_name, bot_race, bot_class, bot_level,
     bot_gender,
-    traits, player_name, player_message,
+    persona, player_name, player_message,
     zone_name, chat_history, mode,
     recent_messages=None, allow_action=True,
     link_context="",
@@ -433,17 +475,19 @@ def _build_general_response_prompt(
     subzone_lore="",
     brief_casual=False,
     guild_name="",
+    thread_context="",
+    brief_tier=None,
 ):
     """Build prompt for a bot responding to a
     player's General channel message.
+
+    thread_context: read-only zone-channel thread note
+    (chatter_threads.render_for_player_reply); skipped
+    for brief casual replies.
     """
     is_rp = (mode == 'roleplay')
-    trait_str = ', '.join(traits)
-    tone = pick_random_tone(mode)
-    mood = pick_random_mood(mode)
-    twist = maybe_get_creative_twist(
-        chance=1.0, mode=mode
-    ) if not brief_casual else None
+    persona = _as_persona(persona, bot_name, mode)
+    twist = maybe_get_creative_twist(mode=mode) if not brief_casual else None
 
     rp_context = ""
     if is_rp:
@@ -491,18 +535,14 @@ def _build_general_response_prompt(
     )
     prompt = (
         f"{identity}\n"
-        f"Your personality: {trait_str}\n"
+        f"{build_persona_block(persona, mode)}\n"
     )
     if speaker_talent_context:
         prompt += f"{speaker_talent_context}\n"
     if target_talent_context:
         prompt += f"{target_talent_context}\n"
-    prompt += (
-        f"Your tone: {tone}\n"
-        f"Your mood: {mood}\n"
-    )
     if twist:
-        prompt += f"Creative twist: {twist}\n"
+        prompt += f"{TWIST_LABEL}: {twist}\n"
 
     address_hint = ""
     if not brief_casual:
@@ -535,15 +575,21 @@ def _build_general_response_prompt(
         f"{player_name} just said in General "
         f"channel:\n"
         f"\"{player_message}\"\n\n"
-        f"{style}\n\n"
+        + (
+            f"{thread_context}\n\n"
+            if thread_context and not brief_casual else ""
+        )
+        + f"{style}\n\n"
         f"Reply in General channel.\n"
         + (
-            "Length: 2-8 words, no more than 50 characters.\n"
+            f"{brief_casual_length_line(brief_tier)}\n"
             if brief_casual
             else f"{_pick_length_hint(mode)}\n"
         )
-        +
-        f"{build_conversational_scale_guidance(force_brief=brief_casual)}\n"
+        + build_conversational_scale_guidance(
+            force_brief=brief_casual, brief_tier=brief_tier,
+        )
+        + "\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
         f"- Prefer full words over internet slang — "
@@ -556,22 +602,19 @@ def _build_general_response_prompt(
         f"as plain text\n"
         f"- Respond to what {player_name} said\n"
         f"{address_hint}"
-        f"- Reflect your personality traits\n"
+        "- Let your personality show in how you say it, "
+        f"without naming your traits\n"
         f"- Don't repeat what they said\n"
         f"- If there's chat history, stay "
         f"consistent with the conversation\n"
         f"- Keep it brief - this is General chat, "
         f"not a private conversation\n"
     )
-    spices = pick_personality_spices(
-        mode=mode, spice_count_override=_spice_count
+    spice_line = format_spices_line(
+        maybe_pick_personality_spices(mode)
     )
-    if spices:
-        prompt += (
-            "\nBackground feelings (texture, "
-            "not the topic): "
-            + "; ".join(spices)
-        )
+    if spice_line:
+        prompt += f"\n{spice_line}"
     anti_rep = build_anti_repetition_context(
         recent_messages
     )
@@ -587,7 +630,7 @@ def _build_general_response_prompt(
 def _build_general_followup_prompt(
     bot_name, bot_race, bot_class, bot_level,
     bot_gender,
-    traits, first_bot_name, first_bot_response,
+    persona, first_bot_name, first_bot_response,
     player_name, player_message,
     zone_name, chat_history, mode,
     recent_messages=None, allow_action=True,
@@ -599,14 +642,13 @@ def _build_general_followup_prompt(
     subzone_lore="",
     brief_casual=False,
     guild_name="",
+    brief_tier=None,
 ):
     """Build prompt for a 2nd bot following up
     on the 1st bot's reaction in General channel.
     """
     is_rp = (mode == 'roleplay')
-    trait_str = ', '.join(traits)
-    tone = pick_random_tone(mode)
-    mood = pick_random_mood(mode)
+    persona = _as_persona(persona, bot_name, mode)
 
     rp_context = ""
     if is_rp:
@@ -660,15 +702,13 @@ def _build_general_followup_prompt(
     )
     prompt = (
         f"{identity}\n"
-        f"Your personality: {trait_str}\n"
+        f"{build_persona_block(persona, mode)}\n"
     )
     if speaker_talent_context:
         prompt += f"{speaker_talent_context}\n"
     if target_talent_context:
         prompt += f"{target_talent_context}\n"
     prompt += (
-        f"Your tone: {tone}\n"
-        f"Your mood: {mood}\n"
         f"{'You are' if is_rp else 'Your character is'} in {zone_name}."
     )
     if is_rp and zone_flavor:
@@ -695,12 +735,14 @@ def _build_general_followup_prompt(
         f"{first_bot_name}'s response or add your "
         f"own take on what {player_name} said.\n"
         + (
-            "Length: 2-8 words, no more than 50 characters.\n"
+            f"{brief_casual_length_line(brief_tier)}\n"
             if brief_casual
             else f"{_pick_length_hint(mode)}\n"
         )
-        +
-        f"{build_conversational_scale_guidance(force_brief=brief_casual)}\n"
+        + build_conversational_scale_guidance(
+            force_brief=brief_casual, brief_tier=brief_tier,
+        )
+        + "\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
         f"- Prefer full words over internet slang — "
@@ -714,17 +756,14 @@ def _build_general_followup_prompt(
         f"- Don't repeat what others said\n"
         f"{address_hint}"
         f"- Keep it brief - General channel\n"
-        f"- Reflect your personality traits"
+        "- Let your personality show in how you say it, "
+        f"without naming your traits"
     )
-    spices = pick_personality_spices(
-        mode=mode, spice_count_override=_spice_count
+    spice_line = format_spices_line(
+        maybe_pick_personality_spices(mode)
     )
-    if spices:
-        prompt += (
-            "\nBackground feelings (texture, "
-            "not the topic): "
-            + "; ".join(spices)
-        )
+    if spice_line:
+        prompt += f"\n{spice_line}"
     anti_rep = build_anti_repetition_context(
         recent_messages
     )
@@ -815,6 +854,13 @@ def process_general_player_msg_event(
         mark_event(db, event_id, 'skipped')
         return False
 
+    # The zone channel's conversation thread: replies see what
+    # the channel was talking about, and the player's line
+    # joins it for the next ambient exchange.
+    thread_key = general_key(zone_id, player_faction)
+    thread_context = render_for_player_reply(thread_key, db)
+    note_player_message(thread_key, player_name, player_message)
+
     try:
         mode = get_chatter_mode(config)
 
@@ -828,6 +874,10 @@ def process_general_player_msg_event(
             db, zone_id, faction=player_faction
         )
         chat_hist = _format_general_history(history)
+        _add_recent_general_speakers(
+            db, history, bot_guids, bot_names,
+            zone_id, player_faction,
+        )
 
         # Pick primary bot and decide conv vs stmt
         primary = _select_primary_bot(
@@ -908,6 +958,11 @@ def process_general_player_msg_event(
             mode == 'roleplay'
             and not brief_casual
         )
+        brief_tier1 = (
+            pick_brief_casual_tier(config) if brief_casual else None
+        )
+        if brief_tier1:
+            zone_meta['brief_casual_tier'] = brief_tier1
         prompt1 = _build_general_response_prompt(
             bot1_name, bot1_race, bot1_class,
             bot1_level, bot1_gender, bot1_traits,
@@ -925,6 +980,8 @@ def process_general_player_msg_event(
             guild_name=get_character_guild_name(
                 db, bot1_guid
             ),
+            thread_context=thread_context,
+            brief_tier=brief_tier1,
         )
 
         max_tokens = int(config.get(
@@ -965,13 +1022,17 @@ def process_general_player_msg_event(
         )
         if (
             brief_casual
-            and not brief_casual_response_fits(msg1)
+            and not brief_casual_response_fits(
+                msg1, tier=brief_tier1
+            )
         ):
             repair_meta = dict(zone_meta)
             repair_meta['brief_casual_repair'] = True
             response1 = call_llm(
                 client,
-                build_brief_casual_repair_prompt(prompt1),
+                build_brief_casual_repair_prompt(
+                    prompt1, tier=brief_tier1
+                ),
                 config,
                 max_tokens_override=max_tokens,
                 context=f"gen-msg-brief-repair:{bot1_name}",
@@ -988,7 +1049,9 @@ def process_general_player_msg_event(
             return False
         if (
             brief_casual
-            and not brief_casual_response_fits(msg1)
+            and not brief_casual_response_fits(
+                msg1, tier=brief_tier1
+            )
         ):
             mark_event(db, event_id, 'skipped')
             return False
@@ -1059,6 +1122,7 @@ def process_general_player_msg_event(
                     subzone_name=subzone_name,
                     subzone_lore=subzone_lore,
                     brief_casual=brief_casual,
+                    brief_tier_avoid=brief_tier1,
                     zone_meta=zone_meta,
                     faction=player_faction,
                 )
@@ -1145,6 +1209,7 @@ def _general_followup(
     zone_meta=None,
     brief_casual=False,
     faction="",
+    brief_tier_avoid=None,
 ):
     """Generate a second bot's followup response
     in General channel conversation mode.
@@ -1167,7 +1232,9 @@ def _general_followup(
     bot2_class = get_class_name(bot2_info['class'])
     bot2_level = bot2_info['level']
     bot2_gender = get_gender_label(bot2_info['gender'])
-    bot2_traits = _pick_random_traits()
+    bot2_traits = resolve_persona(
+        db, bot2_guid, bot2_name, mode,
+    )
 
     # Recompute speaker talent for bot2
     bot2_speaker_talent = None
@@ -1193,6 +1260,10 @@ def _general_followup(
     )
     chat_hist = _format_general_history(history)
 
+    brief_tier2 = (
+        pick_brief_casual_tier(config, avoid=brief_tier_avoid)
+        if brief_casual else None
+    )
     prompt2 = _build_general_followup_prompt(
         bot2_name, bot2_race, bot2_class,
         bot2_level, bot2_gender, bot2_traits,
@@ -1215,6 +1286,7 @@ def _general_followup(
         guild_name=get_character_guild_name(
             db, bot2_guid
         ),
+        brief_tier=brief_tier2,
     )
 
     max_tokens = int(config.get(
@@ -1222,6 +1294,8 @@ def _general_followup(
     ))
     if zone_meta is None:
         zone_meta = {}
+    if brief_tier2:
+        zone_meta['brief_casual_tier'] = brief_tier2
     if bot2_speaker_talent:
         zone_meta['speaker_talent'] = (
             bot2_speaker_talent
@@ -1252,13 +1326,17 @@ def _general_followup(
     )
     if (
         brief_casual
-        and not brief_casual_response_fits(msg2)
+        and not brief_casual_response_fits(
+            msg2, tier=brief_tier2
+        )
     ):
         repair_meta = dict(zone_meta)
         repair_meta['brief_casual_repair'] = True
         response2 = call_llm(
             client,
-            build_brief_casual_repair_prompt(prompt2),
+            build_brief_casual_repair_prompt(
+                prompt2, tier=brief_tier2
+            ),
             config,
             max_tokens_override=max_tokens,
             context=f"gen-followup-brief-repair:{bot2_name}",
@@ -1274,7 +1352,9 @@ def _general_followup(
         return
     if (
         brief_casual
-        and not brief_casual_response_fits(msg2)
+        and not brief_casual_response_fits(
+            msg2, tier=brief_tier2
+        )
     ):
         return
     msg2 = shorten_chat_message(msg2)
@@ -1327,7 +1407,7 @@ def _general_followup(
 def _build_general_continuation_prompt(
     bot_name, bot_race, bot_class, bot_level,
     bot_gender,
-    traits, conversation_thread,
+    persona, conversation_thread,
     zone_name, chat_history, mode,
     recent_messages=None, allow_action=True,
     remaining_messages=3, link_context="",
@@ -1345,9 +1425,7 @@ def _build_general_continuation_prompt(
       [{'name': str, 'message': str, 'is_bot': bool}]
     """
     is_rp = (mode == 'roleplay')
-    trait_str = ', '.join(traits)
-    tone = pick_random_tone(mode)
-    mood = pick_random_mood(mode)
+    persona = _as_persona(persona, bot_name, mode)
 
     rp_context = ""
     if is_rp:
@@ -1413,15 +1491,13 @@ def _build_general_continuation_prompt(
     )
     prompt = (
         f"{identity}\n"
-        f"Your personality: {trait_str}\n"
+        f"{build_persona_block(persona, mode)}\n"
     )
     if speaker_talent_context:
         prompt += f"{speaker_talent_context}\n"
     if target_talent_context:
         prompt += f"{target_talent_context}\n"
     prompt += (
-        f"Your tone: {tone}\n"
-        f"Your mood: {mood}\n"
         f"{'You are' if is_rp else 'Your character is'} in {zone_name}."
     )
     if is_rp and zone_flavor:
@@ -1461,22 +1537,19 @@ def _build_general_continuation_prompt(
         f"- Don't repeat what others said\n"
         f"{address_hint}"
         f"- Keep it brief - General channel\n"
-        f"- Reflect your personality traits"
+        "- Let your personality show in how you say it, "
+        f"without naming your traits"
     )
     if remaining_messages <= 2:
         prompt += (
             f"\n- The conversation should feel "
             f"like it's winding down naturally"
         )
-    spices = pick_personality_spices(
-        mode=mode, spice_count_override=_spice_count
+    spice_line = format_spices_line(
+        maybe_pick_personality_spices(mode)
     )
-    if spices:
-        prompt += (
-            "\nBackground feelings (texture, "
-            "not the topic): "
-            + "; ".join(spices)
-        )
+    if spice_line:
+        prompt += f"\n{spice_line}"
     anti_rep = build_anti_repetition_context(
         recent_messages
     )
@@ -1564,7 +1637,10 @@ def _general_extended_conversation(
             participants.append({
                 'guid': bot3_guid,
                 'name': bot3_info['name'],
-                'traits': _pick_random_traits(),
+                'traits': resolve_persona(
+                    db, bot3_guid, bot3_info['name'],
+                    mode,
+                ),
             })
 
     # Track who spoke last to avoid repeats
