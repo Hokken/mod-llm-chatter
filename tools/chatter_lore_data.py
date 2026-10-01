@@ -2386,3 +2386,36 @@ LOCAL_CONFLICTS = {'Alliance': ['Orcs raided a night elf camp in Ashenvale and k
            'raided the Sepulcher - a major Forsaken settlement. Not only do the humans illegally '
            'live in a region that does not belong to them, but they also attack the local '
            'inhabitants.']}
+
+# Neutral, in-world descriptions of each calling, used to describe the
+# real player (never temperament: that belongs to the speaker). Priests
+# use "Light Priest" or "Shadow Priest".
+CLASS_CALLINGS = {
+    'Warrior': 'Warriors are trained fighters of arms and armour who hold '
+               'the front line and turn battle into a matter of steel and '
+               'nerve.',
+    'Paladin': 'Paladins are holy warriors who carry the Light into '
+               'battle, shielding allies, mending wounds and smiting the '
+               'wicked in heavy armour.',
+    'Hunter': 'Hunters are trackers and marksmen of the wild, fighting at '
+              'range beside a loyal beast companion.',
+    'Rogue': 'Rogues work from the shadows with blades, poisons and '
+             'cunning, striking where a guard is weakest.',
+    'Light Priest': 'Light Priests serve the Holy Light, mending the '
+                    'wounded, shielding the faithful and tending the '
+                    'spirits of those around them.',
+    'Shadow Priest': 'Shadow Priests have turned from the Light to the '
+                     'shadow and the Void, bending darkness and the '
+                     'mind itself against their foes.',
+    'Death Knight': 'Death Knights are warriors raised by the Scourge and '
+                    'freed from the Lich King, wielding runeblades and '
+                    'the cold magic of death.',
+    'Shaman': 'Shamans commune with the spirits and elements, calling on '
+              'earth, fire, water and air to heal allies and strike foes.',
+    'Mage': 'Mages are scholars of the arcane who shape fire, frost and '
+            'raw arcane power through study and discipline.',
+    'Warlock': 'Warlocks draw on fel and shadow magic, binding demons to '
+               'their will and laying curses on their enemies.',
+    'Druid': 'Druids are guardians of nature who take the shapes of '
+             'beasts and wield the power of the wild and the moon.',
+}

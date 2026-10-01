@@ -1,8 +1,63 @@
 # Changelog
 
+### 2026-10-01 - Player Description and Casual MOTD
+
+* **Bots know who you are**: Guild meet and login greetings, guild
+  replies, join and rank comments about you, proximity `/say` and emote
+  replies, emote reactions, and party greetings, replies, conversations
+  and questions now describe the real player. Roleplay adds the race's
+  outlook, the class calling (Shadow and Light Priests split by talents)
+  and the race+class note; normal mode gets one short line. New
+  `chatter_player_context.py` and `CLASS_CALLINGS`.
+* **Casual MOTD**: MOTD reactions and MOTD idle topics treat it as a
+  passing thought, motto or bit of news. Roleplay calls it a note from
+  the officers and forbids "Message of the Day", capital letters and
+  ceremony; normal mode calls it the guild motd.
+* **Talents**: `get_character_talents()` joined `acore_world.talent_dbc`,
+  which the core leaves empty, so every character had no talents and
+  every priest was a Light Priest. It now maps `character_talent` spells
+  through the bundled `tools/talent_data.json` (generated from
+  `Talent.dbc` and `TalentTab.dbc` by `tools/generate_talent_data.py`,
+  loaded by `tools/talent_data.py`). Talent-aware prompts get talent
+  details and Shadow Priests are recognised.
+* **Emoji stripping**: `strip_emojis()` covers every emoji block plus
+  the invisible variation selectors, joiners, keycaps and flag tags that
+  used to survive as stray characters in game chat. It runs in
+  `cleanup_message()` and again when a line or cached reaction is
+  written; a line that was only emojis is not sent.
+
+### 2026-09-30 - Roleplay and Chat Fixes
+
+* **Playerbot broadcasts in roleplay**: mod-playerbots' canned loot,
+  quest, kill, level-up and suggestion lines ("money money money
+  [item]", "[item] is hunter bis") are switched off while
+  `ChatterMode = roleplay` and restored in normal mode
+  (`Roleplay.SuppressPlayerbotBroadcasts`, default 1). Roleplay prompts
+  also forbid player and trade slang.
+* **Roleplay trade**: Sellers speak as people in the world, not trade
+  posts: no WTS/OBO shorthand, prices in gold, silver and copper coins,
+  every number written as words.
+* **Roleplay level-up**: No level numbers; companions praise how the
+  leveler grew stronger in their class, using their race and class.
+  Shadow Priests are said to merge deeper with the Void and gather
+  shadows; other priests are praised for the Light.
+* **Links**: Item and spell links whose names contain a colon (such as
+  "Power Word: Fortitude") are no longer cut off in the game chat, and
+  long messages are never shortened through a link.
+* **PvP factions**: PvP kill and death prompts name both factions and
+  state that the Horde and the Alliance are at a long war for survival.
+* **Guild bots**: Meet greetings, NPC encounters and join-announce
+  responders now see playerbots (they were skipped entirely). A greeting
+  bot stops and faces the player until its line is delivered, and the
+  greeting is framed as a warm, unexpected meeting with a guildmate.
+* **Frequencies**: `GroupChatter.KillChanceNormal` 20 to 13, themed
+  topics and rumors 60/60/5 to 80/80/7 (quieter preset: 8 to 5, 50/50/3
+  to 67/67/4). The conf's `GroupChatter.SpellCastChance` now matches the
+  code default of 10 (it shipped as 30).
+
 ### 2026-09-27 - Themed Topics, Rumors and Guild World Events
 
-* **Themed topics**: About 60% of idle Guild and General topics (5% of
+* **Themed topics**: About 80% of idle Guild and General topics (7% of
   party idle topics) now come from curated lore: faction war fronts and
   rivalries, race, class and race+class topics. Priests are Light or
   Shadow by their talents, defaulting to Light. Prompts name the

@@ -239,6 +239,11 @@ void FinalizeDroppedMessage(
     if (!eventId || !IsDirectedProximityEvent(eventType))
         return;
 
+    LOG_INFO("module",
+        "LLMChatter: directed {} message {} (event {}) dropped: {}",
+        eventType, messageId, eventId,
+        reason ? reason : "delivery_failed");
+
     CharacterDatabase.DirectExecute(
         "UPDATE llm_chatter_messages "
         "SET delivered = 1, delivered_at = NOW(), "

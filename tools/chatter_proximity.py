@@ -40,6 +40,7 @@ from chatter_shared import (
     get_race_name,
     strip_conversation_actions,
 )
+from chatter_player_context import player_character_lines
 from chatter_mode import (
     build_npc_chat_guidance,
     build_player_chat_guidance,
@@ -1348,6 +1349,12 @@ def _format_history_block(
     )
 
 
+def _player_lines(db, extra: Dict, mode: str) -> List[str]:
+    return player_character_lines(
+        db, extra.get('player_guid'), extra.get('player_name', ''), mode,
+    )
+
+
 def _player_say_single_prompt(
     db,
     extra: Dict,
@@ -1418,6 +1425,7 @@ def _player_say_single_prompt(
     if speech_guidance:
         lines.append(speech_guidance)
 
+    lines.extend(_player_lines(db, extra, mode))
     addressed = extra.get('addressed_name', '')
     if addressed:
         lines.append(
@@ -1503,6 +1511,7 @@ def _player_say_conversation_prompt(
     ))
     lines.extend(_mixed_voice_guidance(mode))
 
+    lines.extend(_player_lines(db, extra, mode))
     addressed = extra.get('addressed_name', '')
     if addressed:
         lines.append(
@@ -1640,6 +1649,7 @@ def _player_emote_single_prompt(
         speech_guidance = _npc_speech_capability_guidance(speaker)
         if speech_guidance:
             lines.append(speech_guidance)
+    lines.extend(_player_lines(db, extra, mode))
     lines.extend([
         f"The player ({player_name}) "
         f"{_describe_player_emote(extra, player_emote, addressed)}.",
@@ -1724,6 +1734,7 @@ def _player_emote_conversation_prompt(
     ))
     lines.extend(_location_lines(extra, mode, participants))
     lines.extend(_mixed_voice_guidance(mode))
+    lines.extend(_player_lines(db, extra, mode))
     lines.extend([
         f"The player ({player_name}) "
         f"{_describe_player_emote(extra, player_emote, addressed)}.",

@@ -2968,7 +2968,8 @@ Every Guild prompt (idle statements and conversations, player replies,
 login greetings and the guild news comments below) quotes the guild's
 Guild Information text when it is set, as background about the guild and
 never as instructions. `GuildChatter.MotdChance` makes an idle statement or
-conversation use the current MOTD as its topic.
+conversation use the current MOTD as its topic, framed as a casual note
+rather than a formal decree (see "MOTD tone" in section 13w).
 
 ### Join greetings, rank changes and MOTD comments
 
@@ -3044,10 +3045,10 @@ with curated lore from `chatter_lore_data.py`, `chatter_rumor_data.py`
 and `chatter_trainer_rumor_data.py`:
 
 - Guild idle statements and conversations (`ThemedTopics.GuildChance`,
-  60) and plain General statements and conversations
-  (`ThemedTopics.GeneralChance`, 60) use every kind below.
+  80) and plain General statements and conversations
+  (`ThemedTopics.GeneralChance`, 80) use every kind below.
 - Party idle chat outside instances and battlegrounds
-  (`ThemedTopics.PartyChance`, 5) uses class and race+class topics only.
+  (`ThemedTopics.PartyChance`, 7) uses class and race+class topics only.
 
 | Kind | Keyed to | Notes |
 |------|----------|-------|
@@ -3135,6 +3136,15 @@ struck down, with no respawns, corpse runs, spirit healers, ganking or
 levels; in Normal it may sound like a player grumbling about being
 killed.
 
+Every PvP kill and death prompt (guild kill, group kill, guild and zone
+death, battleground kill) names the faction of both sides and states that
+the Horde and the Alliance are hostile, locked in a long war for
+survival. `PlayerJson()` sends `<prefix>_team` for each participant; the
+group kill payload adds `killer_team` and `bot_team`, and `bg_pvp_kill`
+adds `killer_team` and `victim_team` from the battleground team.
+`faction_war_line()` in `chatter_shared.py` builds the sentence and stays
+silent when a faction is unknown.
+
 On battlegrounds, `GroupChatter.PvpKill.BattlegroundChance` (8) replaces
 `EventReactionChance` for `bg_pvp_kill`, and the prompt frames the kill as
 part of a massive battle and names the victim's race and gender.
@@ -3155,12 +3165,128 @@ part of a massive battle and names the victim's race and gender.
 | `PvpDeath.VictimCooldown` | 1800 | Server |
 | `GuildChatter.ZoneTopicChance` / `.ZoneWeatherTopicChance` | 10 / 8 | Bridge |
 | `ThemedTopics.Enable` | 1 | Bridge |
-| `ThemedTopics.GuildChance` / `.GeneralChance` / `.PartyChance` | 60 / 60 / 5 | Bridge |
+| `ThemedTopics.GuildChance` / `.GeneralChance` / `.PartyChance` | 80 / 80 / 7 | Bridge |
 | `ThemedTopics.*Weight` | see conf | Bridge |
 | `RaceClassNotes.Enable` | 1 | Bridge |
 
 All keys are under `LLMChatter.`. Existing installations must apply
 `data/sql/characters/updates/20260927_guild_world_events.sql`.
+
+The world scans (meet greetings, NPC encounters) and the join-announce
+responder search walk `ObjectAccessor::GetPlayers()`: playerbot sessions
+are not registered with `WorldSessionMgr`, so a session-based loop never
+sees bots. The meet greeting prompt frames the moment as an unexpected
+encounter with a fellow guild member and asks for a warm greeting.
+`HoldBotForReply()` stops a greeting or emoted-at bot, turns it to the
+player and pauses its AI (`SetNextCheckDelay`) until the reply is
+delivered. Directed messages dropped by delivery re-checks, and dropped
+mirror emotes, are logged at INFO. When no players are online, the queue
+wipe keeps finished `guild_meet_greeting` rows because they are the
+persisted meet cooldown.
+
+## 13w. Roleplay Polish and Chat Fixes
+
+### Playerbot broadcasts
+
+The canned mod-playerbots lines in General and Guild ("money money money
+[item]", "[item] is hunter bis", quest, kill and level-up broadcasts)
+come from `BroadcastHelper` and the `ai_playerbot_texts` table, not from
+this module. In roleplay mode, `LLMChatterWorld::OnUpdate` clears
+`sPlayerbotAIConfig.enableBroadcasts` every five seconds and restores the
+saved value when the mode is normal, the module is disabled, or
+`Roleplay.SuppressPlayerbotBroadcasts` is 0. Roleplay guidelines also ban
+player, trade and group slang (`RP_NO_PLAYER_SLANG` in `chatter_mode.py`).
+
+### Trade in roleplay
+
+Roleplay trade statements and conversations speak as a traveller or
+merchant offering goods aloud. The vendor price is given in words
+(`format_price_words()`, e.g. "one gold and twenty silver coins"), the
+rules ask for a conversational price with every number written as words,
+and trade shorthand is forbidden. `spell_out_numbers()` then rewrites any
+leftover "1g20s", "50 silver" or digits in the delivered text, leaving
+link markup untouched. Normal mode keeps WTS-style posts.
+
+### Level-up in roleplay
+
+`bot_group_levelup` now carries `leveler_guid`, `leveler_class`,
+`leveler_race` and `leveler_gender`. In roleplay the prompt never names a
+level: it describes how the leveler grew stronger in their calling
+(`CLASS_GROWTH` in `chatter_group_prompts.py`) and adds the leveler's
+race+class note. Priests are split by talents (`class_style()`): a Shadow
+Priest has merged deeper with the Void and the shadows gather to them,
+everyone else is praised as a Light Priest. Level-up memories say
+"grew noticeably stronger" in roleplay. Normal mode keeps the level
+number.
+
+### Links
+
+Prompts ask for single-brace placeholders (`{item:Name}`),
+`replace_placeholders()` also accepts double braces, and both the
+second-speaker cut in `cleanup_message()` and `shorten_chat_message()`
+mask links and placeholders so a name like "Power Word: Fortitude" or
+"Formula: Enchant Bracer" is never split.
+
+### Talents
+
+`acore_world.talent_dbc` is empty by design (the core loads `Talent.dbc`
+from the client data), so `get_character_talents()` no longer joins it.
+It reads the active spec's `character_talent` spells and maps them with
+`TALENT_SPELLS` and `TALENT_TABS` from `talent_data.py`, which loads
+`talent_data.json`: 33 trees and every talent rank spell with its talent,
+tree, rank, tier, column and name. The return shape is unchanged, so
+`priest_style()` and every talent-aware prompt work as written. To
+regenerate the JSON, copy `Talent.dbc` and `TalentTab.dbc` out of the
+worldserver container and run `tools/generate_talent_data.py` (see its
+docstring). Names come from `spell_names.json` and match `TALENT_CATALOG`.
+
+### Emojis
+
+`strip_emojis()` in `chatter_text.py` removes all emoji blocks, the
+BMP symbol ranges models use as emojis, and the invisible variation
+selectors (U+FE0E/FE0F), zero-width joiner, keycap and tag characters,
+then tidies the leftover spaces. `cleanup_message()` calls it, and
+`insert_chat_message()` and the party reaction cache call it again as a
+final guard; an emoji-only line is not inserted.
+
+### Real player description
+
+`chatter_player_context.py` describes the real player for prompts that
+address them: `player_character_lines(db, guid, name, mode, race=,
+class_name=, gender=)` returns a list and `player_context_text()` the same
+block as one string. Race, class and gender come from the payload when
+present, otherwise from `characters` by guid (cached for five minutes).
+In roleplay it adds the race's `worldview` from `RACE_SPEECH_PROFILES`,
+the class calling from `CLASS_CALLINGS` (`chatter_lore_data.py`) and the
+race+class note, with priests split by `class_style()`, and tells the bot
+to let it colour its words without reciting it. Normal mode gets one line
+("Lyn (the real player) plays a female Orc Hunter."). An unknown race or
+class returns nothing, so prompts fall back to their old text. It is used
+by the guild meet greeting, login greetings, guild player replies, join
+and rank-change comments about a real player, proximity `/say` and emote
+replies, emote reactions, and the party greeting, reply, conversation and
+question prompts. No payload changes were needed: all of them already
+carry the player's guid or name.
+
+### MOTD tone
+
+`motd_intro()`, `motd_guidance()` and `MOTD_NOT_INSTRUCTIONS` in
+`chatter_guild_profile.py` word the MOTD for the change reaction
+(`_motd_scenario`), the idle topic (`_motd_topic`) and
+`guild_motd_lines()`. Roleplay calls it a short note the officers left for
+everyone, to be treated as a passing thought, motto or bit of news, and
+forbids the words "Message of the Day"/"MOTD", capital letters, ceremony
+and treating it as an order or creed. Normal mode calls it the guild motd
+and asks for casual player talk. Both keep the rule that it is never
+instructions and that bots must not invent details beyond it.
+
+### Frequencies
+
+| Key | Default | Quieter preset |
+|-----|---------|----------------|
+| `GroupChatter.KillChanceNormal` | 13 | 5 |
+| `ThemedTopics.GuildChance` / `.GeneralChance` / `.PartyChance` | 80 / 80 / 7 | 67 / 67 / 4 |
+| `Roleplay.SuppressPlayerbotBroadcasts` | 1 | 1 |
 
 ---
 

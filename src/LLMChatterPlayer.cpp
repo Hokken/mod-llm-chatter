@@ -1233,6 +1233,16 @@ public:
             ",\"killer_name\":\"" +
                 JsonEscape(killer->GetName()) +
                 "\","
+            "\"killer_team\":\"" +
+                std::string(
+                    killer->GetBgTeamId() == TEAM_ALLIANCE
+                    ? "Alliance" : "Horde") +
+                "\","
+            "\"victim_team\":\"" +
+                std::string(
+                    killed->GetBgTeamId() == TEAM_ALLIANCE
+                    ? "Alliance" : "Horde") +
+                "\","
             "\"killer_is_real_player\":"
                 + std::string(
                     IsPlayerBot(killer)

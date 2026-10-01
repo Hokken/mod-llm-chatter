@@ -67,9 +67,9 @@ CHANNEL_KINDS = {
     'party': ('class', 'race_class'),
 }
 CHANNEL_CHANCE = {
-    'guild': ('LLMChatter.ThemedTopics.GuildChance', 60),
-    'general': ('LLMChatter.ThemedTopics.GeneralChance', 60),
-    'party': ('LLMChatter.ThemedTopics.PartyChance', 5),
+    'guild': ('LLMChatter.ThemedTopics.GuildChance', 80),
+    'general': ('LLMChatter.ThemedTopics.GeneralChance', 80),
+    'party': ('LLMChatter.ThemedTopics.PartyChance', 7),
 }
 KIND_WEIGHT = {
     'faction': ('LLMChatter.ThemedTopics.FactionWeight', 12),

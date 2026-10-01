@@ -862,7 +862,8 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_guild_player.py` | Player-driven Guild replies, reply topology, session-context prompts, and rolling summary compaction |
 | `tools/chatter_guild_login.py` | Real-player login greetings, responder selection, short-message prompts, and greeting pacing |
 | `tools/chatter_guild_events.py` | Join greetings, rank-change comments, MOTD comments and the subject's reply |
-| `tools/chatter_guild_profile.py` | Cached guild lookups: name, Info, MOTD, rank names, leader, membership and same-guild notes |
+| `tools/chatter_guild_profile.py` | Cached guild lookups: name, Info, MOTD, rank names, leader, membership and same-guild notes; casual MOTD wording |
+| `tools/chatter_player_context.py` | Description of the real player (race, class, outlook, calling) for prompts that address them |
 
 ### Group domain
 
@@ -894,6 +895,8 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_constants.py` | Static constants and lore data: zone names/levels/flavor, race/class speech profiles, personality traits (16 categories, 264 traits), BG lore, item/weapon/armor classification maps, item quality names/colors, raid map IDs, dungeon flavor, emote keywords |
 | `tools/talent_catalog.py` | Talent description catalog used by prompt-side talent injection |
 | `tools/spell_names.py` | Spell name/description loader used by DB and link helpers |
+| `tools/talent_data.py` | Loader for `talent_data.json`: talent spell to tree, rank and name, used by `get_character_talents()` |
+| `tools/generate_talent_data.py` | Regenerates `talent_data.json` from the client `Talent.dbc` and `TalentTab.dbc` |
 
 ### Screenshot vision domain
 

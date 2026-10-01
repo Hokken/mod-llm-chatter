@@ -1605,7 +1605,7 @@ def main():
     )
     logger.info(
         f"  KillChanceNormal: "
-        f"{config.get('LLMChatter.GroupChatter.KillChanceNormal', 20)}%"
+        f"{config.get('LLMChatter.GroupChatter.KillChanceNormal', 13)}%"
         f"  DeathChance: "
         f"{config.get('LLMChatter.GroupChatter.DeathChance', 40)}%"
     )

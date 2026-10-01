@@ -29,6 +29,7 @@ from chatter_shared import (
     shorten_chat_message,
 )
 from chatter_constants import CLASS_NAMES, RACE_NAMES
+from chatter_text import strip_emojis
 
 logger = logging.getLogger(__name__)
 
@@ -293,6 +294,9 @@ def _insert_cached_response(
     message, emote, ttl_seconds,
 ):
     """Insert a generated response into the cache."""
+    message = strip_emojis(message)
+    if not message:
+        return
     cursor = db.cursor()
     cursor.execute(
         "INSERT INTO llm_group_cached_responses "

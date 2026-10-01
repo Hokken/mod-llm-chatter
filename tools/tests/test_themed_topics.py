@@ -290,9 +290,12 @@ def test_rumors_need_an_audience():
 
 
 def test_channel_chance_and_enable_switch():
-    with patch.object(themed.random, 'randint', return_value=61):
+    with patch.object(themed.random, 'randint', return_value=81):
         assert themed.pick_themed_topic(
             _NoDb(), {}, 'guild', BOT, _audience()) is None
+    with patch.object(themed.random, 'randint', return_value=80):
+        assert themed.pick_themed_topic(
+            _NoDb(), {}, 'guild', BOT, _audience()) is not None
     assert themed.pick_themed_topic(
         _NoDb(), {'LLMChatter.ThemedTopics.Enable': '0'}, 'guild', BOT,
         _audience(), roll=False) is None

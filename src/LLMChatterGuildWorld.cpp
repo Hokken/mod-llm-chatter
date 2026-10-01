@@ -25,7 +25,6 @@
 #include "Player.h"
 #include "Random.h"
 #include "WorldSession.h"
-#include "WorldSessionMgr.h"
 
 #include <algorithm>
 #include <ctime>
@@ -157,7 +156,7 @@ std::string PlayerJson(Player* player, char const* prefix)
     return fmt::format(
         R"("{0}_guid":{1},"{0}_name":"{2}","{0}_race":"{3}",)"
         R"("{0}_class":"{4}","{0}_gender":"{5}","{0}_level":{6},)"
-        R"("{0}_is_bot":{7})",
+        R"("{0}_is_bot":{7},"{0}_team":"{8}")",
         prefix,
         player->GetGUID().GetCounter(),
         JsonEscape(player->GetName()),
@@ -165,7 +164,8 @@ std::string PlayerJson(Player* player, char const* prefix)
         GetChatterClassName(player->getClass()),
         player->getGender() == GENDER_FEMALE ? "female" : "male",
         player->GetLevel(),
-        IsPlayerBot(player) ? "true" : "false");
+        IsPlayerBot(player) ? "true" : "false",
+        TeamName(player->GetTeamId()));
 }
 
 std::string GuildFields(Guild* guild, TeamId team)
@@ -296,6 +296,7 @@ void ScanMeetGreetings(Player* player, time_t now)
             "guild_meet_greeting", bot,
             player->GetGUID().GetCounter(), player->GetName(), 0,
             key, json);
+        HoldBotForReply(bot, player, 10000);
         LOG_DEBUG("module",
             "LLMChatter: guild_meet_greeting bot={} player={}",
             bot->GetName(), player->GetName());
@@ -418,12 +419,9 @@ void FlushJoinAnnounce(PendingJoinAnnounce const& pending)
         return;
 
     std::vector<Player*> responders;
-    for (auto const& pair : sWorldSessionMgr->GetAllSessions())
+    // Playerbot sessions are not registered with WorldSessionMgr.
+    for (auto const& [guid, other] : ObjectAccessor::GetPlayers())
     {
-        WorldSession* session = pair.second;
-        if (!session || session->PlayerLoading())
-            continue;
-        Player* other = session->GetPlayer();
         if (other && other != bot && IsPlayerBot(other)
             && other->IsInWorld() && other->GetZoneId() == zoneId
             && other->GetTeamId() == team
@@ -503,11 +501,14 @@ bool QueueGroupPvpKill(Player* killer, Player* killed)
     std::string json = "{" + BuildBotIdentityFields(reactor, true)
         + fmt::format(
             R"(,"group_id":{},{},"killer_name":"{}",)"
+            R"("killer_team":"{}","bot_team":"{}",)"
             R"("killer_is_reactor":{},"killer_is_real_player":{},)"
             R"("zone_id":{},"area_id":{},)",
             groupId,
             PlayerJson(killed, "victim"),
             JsonEscape(killer->GetName()),
+            TeamName(killer->GetTeamId()),
+            TeamName(reactor->GetTeamId()),
             killer == reactor ? "true" : "false",
             IsPlayerBot(killer) ? "false" : "true",
             reactor->GetZoneId(),
@@ -683,13 +684,11 @@ void UpdateGuildWorldEvents()
 
     std::vector<Player*> realPlayers;
     std::unordered_map<uint32, std::vector<Player*>> guildBots;
-    for (auto const& pair : sWorldSessionMgr->GetAllSessions())
+    // Playerbot sessions are not registered with WorldSessionMgr.
+    for (auto const& [guid, player] : ObjectAccessor::GetPlayers())
     {
-        WorldSession* session = pair.second;
-        if (!session || session->PlayerLoading())
-            continue;
-        Player* player = session->GetPlayer();
-        if (!player || !player->IsInWorld() || !player->GetGuildId())
+        if (!player || !player->IsInWorld() || !player->GetGuildId()
+            || !player->GetSession() || player->GetSession()->PlayerLoading())
             continue;
         if (IsPlayerBot(player))
             guildBots[player->GetGuildId()].push_back(player);

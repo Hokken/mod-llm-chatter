@@ -21,6 +21,7 @@
 #include "MapMgr.h"
 #include "ObjectAccessor.h"
 #include "Player.h"
+#include "PlayerbotAIConfig.h"
 #include "RandomPlayerbotMgr.h"
 #include "ScriptMgr.h"
 #include "Transport.h"
@@ -281,6 +282,42 @@ static void LoadTransportCache()
     } while (result->NextRow());
 }
 
+// Playerbots' canned broadcasts ("money money money", "is hunter bis",
+// toxic suggestions) are player-style chatter that breaks roleplay.
+// Runs from OnUpdate, before map threads update bots, and keeps
+// re-applying because playerbots rewrites the flag on config reload.
+static bool _broadcastsSuppressed = false;
+static bool _savedEnableBroadcasts = true;
+
+static void ApplyPlayerbotBroadcastPolicy()
+{
+    bool suppress = sLLMChatterConfig->IsEnabled()
+        && sLLMChatterConfig->_roleplayMode
+        && sLLMChatterConfig->_roleplaySuppressPlayerbotBroadcasts;
+    bool& live = sPlayerbotAIConfig.enableBroadcasts;
+    if (suppress)
+    {
+        if (!_broadcastsSuppressed)
+        {
+            _savedEnableBroadcasts = live;
+            _broadcastsSuppressed = true;
+            LOG_INFO("module",
+                "LLMChatter: roleplay mode, playerbot broadcasts "
+                "suppressed");
+        }
+        else if (live)
+            _savedEnableBroadcasts = true;
+        live = false;
+    }
+    else if (_broadcastsSuppressed)
+    {
+        live = _savedEnableBroadcasts;
+        _broadcastsSuppressed = false;
+        LOG_INFO("module",
+            "LLMChatter: playerbot broadcasts restored");
+    }
+}
+
 class LLMChatterWorldScript : public WorldScript
 {
 public:
@@ -351,10 +388,15 @@ public:
     {
         UpdatePendingGuildLoginGreetings();
 
+        uint32 now = getMSTime();
+        if (now - _lastBroadcastPolicyTime >= 5000)
+        {
+            _lastBroadcastPolicyTime = now;
+            ApplyPlayerbotBroadcastPolicy();
+        }
+
         if (!sLLMChatterConfig->IsEnabled())
             return;
-
-        uint32 now = getMSTime();
 
         if (now - _lastGeneralAudienceRefreshTime >= 1000)
         {
@@ -518,6 +560,7 @@ private:
     uint32 _lastTriggerTime = 0;
     uint32 _lastDeliveryTime = 0;
     uint32 _lastGeneralAudienceRefreshTime = 0;
+    uint32 _lastBroadcastPolicyTime = 0;
     uint32 _lastEnvironmentCheckTime = 0;
     uint32 _lastTransportCheckTime = 0;
     uint32 _lastGoScanTime = 0;

@@ -2630,11 +2630,14 @@ bool HandleProximityPlayerbotEmote(
 
     // GetTextEmoteName(0) falls back to "wave", so a custom
     // emote must carry its typed text instead of an id lookup.
-    return QueuePlayerEmoteProximityEvent(
+    bool queued = QueuePlayerEmoteProximityEvent(
         player, *addressedIt, speakers, candidates,
         isCustom ? customText : GetTextEmoteName(textEmote),
         textEmote, mirrorEmote,
         "player_inclusive", addressedSpeaks, isCustom);
+    if (queued && addressedSpeaks)
+        HoldBotForReply(bot, player, 10000);
+    return queued;
 }
 
 void RecordDeliveredProximityLine(

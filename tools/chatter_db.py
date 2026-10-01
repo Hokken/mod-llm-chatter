@@ -18,8 +18,9 @@ from chatter_constants import (
     ZONE_COORDINATES,
     ZONE_LEVELS,
 )
-from chatter_text import split_action_prefix
+from chatter_text import split_action_prefix, strip_emojis
 from spell_names import SPELL_DESCRIPTIONS, SPELL_NAMES
+from talent_data import TALENT_SPELLS, TALENT_TABS
 
 logger = logging.getLogger(__name__)
 
@@ -689,6 +690,14 @@ def insert_chat_message(
     # spoken line. Doing it at the single insert chokepoint
     # covers every producer without touching each call site.
     message, action = split_action_prefix(message)
+    had_text = bool(message)
+    message = strip_emojis(message)
+    action = strip_emojis(action) or None
+    if had_text and not message:
+        logger.info(
+            "skipping emoji-only message from %s (%s)", bot_name, channel,
+        )
+        return
 
     cursor = db.cursor()
     cursor.execute("""
@@ -1058,53 +1067,46 @@ def get_character_talents(
     if cached is not None:
         return cached
 
+    # acore_world.talent_dbc is empty by design (the core loads
+    # Talent.dbc from the client data), so talent spells are mapped
+    # through talent_data.json instead of a SQL join.
     try:
         cursor = db.cursor(dictionary=True)
         cursor.execute("""
-            SELECT
-                tt.Name_Lang_enUS AS tree_name,
-                s.Name_Lang_enUS AS talent_name,
-                CASE
-                    WHEN ct.spell = t.SpellRank_1 THEN 1
-                    WHEN ct.spell = t.SpellRank_2 THEN 2
-                    WHEN ct.spell = t.SpellRank_3 THEN 3
-                    WHEN ct.spell = t.SpellRank_4 THEN 4
-                    WHEN ct.spell = t.SpellRank_5 THEN 5
-                    ELSE 0
-                END AS points
-            FROM acore_characters.character_talent ct
-            JOIN acore_world.talent_dbc t
-                ON ct.spell IN (
-                    t.SpellRank_1, t.SpellRank_2,
-                    t.SpellRank_3, t.SpellRank_4,
-                    t.SpellRank_5
-                )
-            JOIN acore_world.talenttab_dbc tt
-                ON tt.ID = t.TabID
-            JOIN acore_world.spell_dbc s
-                ON s.ID = t.SpellRank_1
-            WHERE ct.guid = %s
-              AND (ct.specMask & (1 << %s)) <> 0
-            ORDER BY tt.OrderIndex, t.TierID,
-                     t.ColumnIndex
+            SELECT spell
+            FROM acore_characters.character_talent
+            WHERE guid = %s
+              AND (specMask & (1 << %s)) <> 0
         """, (char_guid, active_spec))
 
-        rows = cursor.fetchall()
-        if not rows:
+        learned: Dict[int, dict] = {}
+        for row in cursor.fetchall():
+            info = TALENT_SPELLS.get(int(row['spell'] or 0))
+            if not info:
+                continue
+            known = learned.get(info['talent_id'])
+            if not known or info['rank'] > known['rank']:
+                learned[info['talent_id']] = info
+        if not learned:
             _cache_put(
                 _talent_cache, cache_key, empty, 500
             )
             return empty
 
+        def _order(info):
+            tab = TALENT_TABS.get(info['tab_id']) or {}
+            return (tab.get('order', 99), info['tier'],
+                    info['column'])
+
         talents = []
         tree_totals: Dict[str, int] = {}
-        for row in rows:
-            tree = row['tree_name'] or 'Unknown'
-            name = row['talent_name'] or 'Unknown'
-            pts = int(row['points'] or 0)
+        for info in sorted(learned.values(), key=_order):
+            tree = (TALENT_TABS.get(info['tab_id']) or {}).get(
+                'name') or 'Unknown'
+            pts = info['rank']
             talents.append({
                 'tree_name': tree,
-                'talent_name': name,
+                'talent_name': info['name'] or 'Unknown',
                 'points': pts,
             })
             tree_totals[tree] = (
@@ -1660,8 +1662,12 @@ def cleanup_all_session_data(db):
         cursor.execute(
             "DELETE FROM llm_chatter_messages"
         )
+        # Finished meet greetings are the persisted cooldown for
+        # guild_meet_greeting (IsPersistedEventOnCooldown).
         cursor.execute(
-            "DELETE FROM llm_chatter_events"
+            "DELETE FROM llm_chatter_events "
+            "WHERE event_type <> 'guild_meet_greeting' "
+            "OR status IN ('pending', 'processing')"
         )
         db.commit()
         logger.info(

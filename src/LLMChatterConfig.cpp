@@ -466,7 +466,7 @@ void LLMChatterConfig::LoadConfig()
             "OOMThreshold", 30);
 
     // Group chatter - reaction chances (0-100)
-    _groupKillChanceNormal = GetChatterOption<uint32>("LLMChatter.GroupChatter.KillChanceNormal", 20);
+    _groupKillChanceNormal = GetChatterOption<uint32>("LLMChatter.GroupChatter.KillChanceNormal", 13);
     _groupDeathChance = GetChatterOption<uint32>("LLMChatter.GroupChatter.DeathChance", 40);
     _groupLootChanceGreen = GetChatterOption<uint32>("LLMChatter.GroupChatter.LootChanceGreen", 20);
     _groupLootChanceBlue = GetChatterOption<uint32>("LLMChatter.GroupChatter.LootChanceBlue", 60);
@@ -1132,6 +1132,16 @@ void LLMChatterConfig::LoadConfig()
     _pvpDeathVictimCooldown =
         GetChatterOption<uint32>(
             "LLMChatter.PvpDeath.VictimCooldown", 1800);
+
+    std::string chatterMode = GetChatterOption<std::string>(
+        "LLMChatter.ChatterMode", "normal");
+    std::transform(chatterMode.begin(), chatterMode.end(),
+        chatterMode.begin(),
+        [](unsigned char c) { return std::tolower(c); });
+    _roleplayMode = chatterMode == "roleplay";
+    _roleplaySuppressPlayerbotBroadcasts =
+        GetChatterOption<bool>(
+            "LLMChatter.Roleplay.SuppressPlayerbotBroadcasts", true);
 
     // Zone intrusion alerts
     _zoneIntrusionEnable =

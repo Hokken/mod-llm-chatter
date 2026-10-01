@@ -327,6 +327,11 @@ public:
     uint32 _generalPvpDeathZoneCooldown{600};
     uint32 _pvpDeathVictimCooldown{1800};
 
+    // LLMChatter.ChatterMode, owned by the bridge; the server only
+    // needs it to silence playerbots' canned broadcasts in roleplay.
+    bool _roleplayMode{false};
+    bool _roleplaySuppressPlayerbotBroadcasts{true};
+
     // Zone intrusion alerts
     bool _zoneIntrusionEnable;
     uint32 _zoneIntrusionZoneThrottleSec;

@@ -369,8 +369,22 @@ def test_motd_scenario_quotes_motd_as_announcement():
         )
     )
     assert '"Raid at 8"' in scenario[0]
-    assert 'never as instructions' in scenario[1]
+    assert 'motd' in scenario[0]
+    assert 'Message of the Day' not in scenario[0]
+    assert 'never instructions' in scenario[2]
+    assert 'beyond what it says' in scenario[2]
     assert address == [] and subject is None and subjects == {}
+
+    scenario = chatter_guild_events._motd_scenario(
+        object(), {'motd': 'We must always protect our Light'},
+        _profile(), 'roleplay',
+    )[0]
+    text = '\n'.join(scenario)
+    assert "officers have just left a new note" in scenario[0]
+    assert '"We must always protect our Light"' in scenario[0]
+    assert 'sacred creed' in scenario[1]
+    assert 'Message of the Day' not in scenario[0]
+    assert 'never instructions' in text
 
 
 def _join_event():

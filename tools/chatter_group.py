@@ -91,6 +91,7 @@ from chatter_db import (
     is_player_online,
 )
 from chatter_party_gate import should_defer_party_generation
+from chatter_player_context import player_context_text
 from chatter_mode import (
     build_player_chat_guidance,
     build_player_prompt_header_from_dict,
@@ -875,6 +876,9 @@ def process_group_event(db, client, config, event):
             stored_tone=stored_tone,
             map_id=greet_map_id,
             zone_id=greet_zone_id,
+            player_context=player_context_text(
+                db, extra_data.get('player_guid'), player_name, mode,
+            ),
         )
 
         # 3. Call LLM
@@ -1306,6 +1310,9 @@ def process_group_join_batch_event(
                 map_id=pm or 0,
                 zone_id=pz or 0,
                 bg_context=_bg_ctx,
+                player_context=player_context_text(
+                    db, extra_data.get('player_guid'), player_name, mode,
+                ),
             )
 
             # 3. Call LLM
@@ -2009,6 +2016,10 @@ def process_group_player_msg_event(
                 player_info['guid'] if player_info else 0,
                 player_name,
             ),
+            player_context=player_context_text(
+                db, player_info['guid'] if player_info else 0,
+                player_name, mode,
+            ),
         )
 
         max_tokens = pick_random_max_tokens(config)
@@ -2417,6 +2428,10 @@ def _try_second_bot_response(
             db, bot2_guid,
             player_info['guid'] if player_info else 0,
             player_name,
+        ),
+        player_context=player_context_text(
+            db, player_info['guid'] if player_info else 0,
+            player_name, mode,
         ),
     )
 
@@ -5148,6 +5163,14 @@ def check_bot_questions(db, client, config):
             area_id=area_id,
             stored_tone=stored_tone,
             memories=question_memories or None,
+            player_context=player_context_text(
+                db,
+                (get_character_info_by_name(db, player_name) or {}).get(
+                    'guid', 0),
+                player_name, mode,
+                race=player_race, class_name=player_class,
+                gender=player_gender,
+            ),
         )
 
         max_tokens = int(config.get(

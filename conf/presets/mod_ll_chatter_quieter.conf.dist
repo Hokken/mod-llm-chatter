@@ -561,6 +561,16 @@ LLMChatter.Database.Name = acore_characters
 LLMChatter.ChatterMode = roleplay
 
 #
+#   LLMChatter.Roleplay.SuppressPlayerbotBroadcasts [SERVER]
+#       In roleplay mode, turn off mod-playerbots' canned broadcast lines
+#       (loot, quest, kill, level-up and suggestion messages such as
+#       "money money money" or "[item] is hunter bis"). The playerbots
+#       setting is restored when the mode is normal or this is 0.
+#       Default: 1
+#
+LLMChatter.Roleplay.SuppressPlayerbotBroadcasts = 1
+
+#
 #   LLMChatter.Language [BRIDGE]
 #       Language the LLM should use when generating bot chat.
 #       WoW proper nouns (zone, creature, item, spell, quest,
@@ -1378,9 +1388,9 @@ LLMChatter.GroupChatter.IdleCooldown = 40
 #       Percent chance (0-100) that a normal mob kill
 #       triggers a group reaction.
 #       Boss and rare kills always trigger (100%).
-#       Default: 20
+#       Default: 13
 #
-LLMChatter.GroupChatter.KillChanceNormal = 8
+LLMChatter.GroupChatter.KillChanceNormal = 5
 
 #
 #   LLMChatter.GroupChatter.KillCooldown
@@ -1484,7 +1494,7 @@ LLMChatter.GroupChatter.ResurrectCooldown = 30
 #   LLMChatter.GroupChatter.SpellCastChance
 #       Percent chance (0-100) that any spell cast
 #       triggers a group reaction.
-#       Default: 20
+#       Default: 10
 #
 LLMChatter.GroupChatter.SpellCastChance = 5
 
@@ -2753,11 +2763,11 @@ LLMChatter.ThemedTopics.Enable = 1
 #       Percent chance (0-100) that an idle topic is themed
 #       instead of generic. Party only uses class and
 #       race+class topics.
-#       Defaults: 60, 60, 5
+#       Defaults: 80, 80, 7
 #
-LLMChatter.ThemedTopics.GuildChance = 50
-LLMChatter.ThemedTopics.GeneralChance = 50
-LLMChatter.ThemedTopics.PartyChance = 3
+LLMChatter.ThemedTopics.GuildChance = 67
+LLMChatter.ThemedTopics.GeneralChance = 67
+LLMChatter.ThemedTopics.PartyChance = 4
 
 #
 #   LLMChatter.ThemedTopics.*Weight

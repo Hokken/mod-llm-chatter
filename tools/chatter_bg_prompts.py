@@ -23,6 +23,7 @@ from chatter_shared import (
     get_recent_zone_messages,
     append_json_instruction,
     get_chatter_mode,
+    faction_war_line,
 )
 from chatter_mode import (
     build_player_prompt_header,
@@ -654,6 +655,12 @@ def build_bg_pvp_kill_prompt(
             f"{extra_data.get('victim_gender') or ''} "
             f"{victim_race}."
         ).replace('  ', ' ')
+    war = faction_war_line(
+        "You and your side", extra_data.get('killer_team'),
+        victim, extra_data.get('victim_team'), own_verb="fight",
+    )
+    if war:
+        ctx += f"\n{war}"
     if extra_data.get('massive_battle'):
         ctx += (
             "\nThis kill was not a lone skirmish: it happened "

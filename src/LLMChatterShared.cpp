@@ -1123,6 +1123,20 @@ bool IsPlayerBot(Player* player)
     return !IsSelfBot(player);
 }
 
+void HoldBotForReply(Player* bot, Player* player, uint32 holdMs)
+{
+    if (!bot || !player || !bot->IsInWorld() || bot->IsInCombat()
+        || bot->IsInFlight() || !IsPlayerBot(bot))
+        return;
+    PlayerbotAI* ai = GET_PLAYERBOT_AI(bot);
+    if (!ai)
+        return;
+    bot->StopMoving();
+    bot->GetMotionMaster()->Clear();
+    bot->SetFacingToObject(player);
+    ai->SetNextCheckDelay(holdMs);
+}
+
 bool IsInOverworld(Player* player)
 {
     if (!player)

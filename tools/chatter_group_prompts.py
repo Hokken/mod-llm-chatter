@@ -11,6 +11,7 @@ from chatter_shared import (
     get_dungeon_bosses,
     build_race_class_context,
     build_race_class_context_parts,
+    race_class_note,
     build_bot_state_context,
     build_conversational_scale_guidance,
     append_json_instruction,
@@ -177,6 +178,7 @@ def build_bot_greeting_prompt(
     map_id=0,
     zone_id=0,
     bg_context=None,
+    player_context="",
 ):
     """Build the LLM prompt for a group greeting.
 
@@ -401,6 +403,8 @@ def build_bot_greeting_prompt(
             "a short sentence (10-16 words)"
         )
 
+    if player_context:
+        prompt += f"\n{player_context}\n"
     if is_reunion:
         prompt += (
             f"\nYou are rejoining a party with "
@@ -1255,16 +1259,70 @@ def build_death_reaction_prompt(
     )
 
 
+CLASS_GROWTH = {
+    'Warrior': (
+        "their arm is stronger, their blade bites deeper and they "
+        "stand firmer in the thick of battle"
+    ),
+    'Paladin': (
+        "the Light burns brighter in them; their weapon falls "
+        "heavier and their faith shields their allies more surely"
+    ),
+    'Hunter': (
+        "their aim is truer, their senses keener and the bond with "
+        "their beast runs deeper"
+    ),
+    'Rogue': (
+        "they move quicker and quieter, and their blades find the "
+        "gaps in any guard more surely"
+    ),
+    'Light Priest': (
+        "the Holy Light flows through them more freely; their "
+        "prayers mend deeper wounds and their faith shines brighter"
+    ),
+    'Shadow Priest': (
+        "they have merged deeper with the Void; the shadows gather "
+        "to them more willingly and the darkness answers their will"
+    ),
+    'Death Knight': (
+        "the runes answer them more readily; their runeblade hungers "
+        "more and the cold of death obeys them"
+    ),
+    'Shaman': (
+        "the elements heed their call more readily; earth, fire, "
+        "water and air answer them with greater force"
+    ),
+    'Mage': (
+        "the arcane bends more easily to their will; their spells "
+        "burn hotter and their mind is sharper"
+    ),
+    'Warlock': (
+        "their grip on fel power tightens; demons obey them more "
+        "readily and their curses bite deeper"
+    ),
+    'Druid': (
+        "nature's power runs deeper in them; their forms grow "
+        "stronger and the wild answers their call"
+    ),
+}
+
+
 def build_levelup_reaction_prompt(
     bot, traits, leveler_name, new_level, is_bot,
     mode, chat_history="", allow_action=True,
     speaker_talent_context=None,
     stored_tone=None,
+    leveler_race="", leveler_class="",
+    leveler_style="",
 ):
     """Build prompt for a bot reacting to someone
     leveling up. Always congratulatory/excited.
     If is_bot=True, reacting to another bot.
     If is_bot=False, reacting to the real player.
+    Roleplay never names a level; it praises how the
+    leveler grew stronger in their class.
+    leveler_style overrides the class key (e.g.
+    'Shadow Priest' / 'Light Priest').
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
@@ -1289,19 +1347,44 @@ def build_levelup_reaction_prompt(
     if not is_bot:
         who = f"{leveler_name} (the real player)"
 
-    levelup_context = (
-        f"{who} just reached level {new_level}! "
-        f"Leveling up is always exciting. "
-        f"Congratulate or react to this milestone."
-    )
-
     if is_rp:
+        style_key = leveler_style or leveler_class
+        if style_key == 'Priest':
+            style_key = 'Light Priest'
+        growth = CLASS_GROWTH.get(
+            style_key,
+            "they have grown stronger and more capable",
+        )
+        calling = " ".join(
+            p for p in (leveler_race, style_key) if p
+        )
+        levelup_context = (
+            f"{who}"
+            + (f", a {calling}," if calling else "")
+            + f" has just grown noticeably stronger: "
+            f"{growth}. Praise or react to how much "
+            f"stronger they have become."
+        )
+        note = race_class_note(
+            leveler_race, leveler_class,
+            class_style=style_key or None,
+            subject=f"{leveler_name}'s",
+        ) if leveler_race and leveler_class else ""
+        if note:
+            levelup_context += f"\n{note}"
         style = (
             "React in-character with genuine "
-            "excitement or congratulations. "
+            "admiration or congratulations, the way "
+            "a companion in the world would notice "
+            "someone's growing power. "
             "Keep it natural and grounded."
         )
     else:
+        levelup_context = (
+            f"{who} just reached level {new_level}! "
+            f"Leveling up is always exciting. "
+            f"Congratulate or react to this milestone."
+        )
         style = (
             "React naturally in party chat. "
             "Congratulate or comment on "
@@ -1327,8 +1410,14 @@ def build_levelup_reaction_prompt(
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
-        f"- Can mention level {new_level}\n"
-        f"- Reflect your personality traits\n"
+        + (
+            "- Never mention levels, numbers or the "
+            "word 'level'; people in the world do not "
+            "count levels\n"
+            if is_rp else
+            f"- Can mention level {new_level}\n"
+        )
+        + f"- Reflect your personality traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )
@@ -2105,6 +2194,7 @@ def build_player_response_prompt(
     travel_context="",
     brief_casual=False,
     guild_note="",
+    player_context="",
 ):
     """Build prompt for a bot responding to a real
     player's party chat message. The bot should
@@ -2280,6 +2370,8 @@ def build_player_response_prompt(
                 )
 
     prompt += f"{rp_context}\n\n"
+    if player_context:
+        prompt += f"{player_context}\n\n"
     if link_context:
         prompt += f"{link_context}\n\n"
     prompt += (
@@ -4045,6 +4137,7 @@ def build_player_msg_conversation_prompt(
     zone_id=0, area_id=0, map_id=0,
     brief_casual=False,
     guild_notes=None,
+    player_context="",
 ):
     """Build prompt for a multi-bot conversation
     responding to a player's party chat message.
@@ -4092,6 +4185,8 @@ def build_player_msg_conversation_prompt(
             f"player just said."
         )
 
+    if player_context:
+        parts.append(player_context)
     parts.append(
         f"\n{player_name} just said in party "
         f"chat:\n\"{player_message}\""
@@ -4532,6 +4627,7 @@ def build_bot_question_prompt(
     area_id=0,
     stored_tone=None,
     memories=None,
+    player_context="",
 ):
     """Build prompt for a bot asking the player a
     creative, contextual question in party chat.
@@ -4556,6 +4652,17 @@ def build_bot_question_prompt(
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
+    if is_rp and player_context:
+        grouped_with = (
+            f"You are grouped with {player_name}.\n{player_context}\n"
+        )
+    else:
+        grouped_with = (
+            f"You are grouped with {player_name}, a level "
+            f"{player_level} "
+            f"{player_gender + ' ' if player_gender else ''}"
+            f"{player_race} {player_class} (real player).\n"
+        )
 
     # --------------------------------------------------
     # LEAN MEMORY PATH — when memories are present,
@@ -4614,12 +4721,7 @@ def build_bot_question_prompt(
                 f"moment by name so {player_name} "
                 f"would recognise it.\n"
                 f"</past_memories>\n\n"
-                f"You are grouped with "
-                f"{player_name}, a level "
-                f"{player_level} "
-                f"{player_gender + ' ' if player_gender else ''}"
-                f"{player_race} "
-                f"{player_class} (real player).\n\n"
+                f"{grouped_with}\n"
             )
             if solo_bot:
                 prompt += (
@@ -4790,11 +4892,7 @@ def build_bot_question_prompt(
 
     prompt += (
         f"{rp_context}\n\n"
-        f"You are grouped with {player_name}, "
-        f"a level {player_level} "
-        f"{player_gender + ' ' if player_gender else ''}"
-        f"{player_race} "
-        f"{player_class} (real player).\n"
+        f"{grouped_with}"
         f"You want to ask {player_name} about "
         f"{topic}.\n\n"
         f"Ask {player_name} ONE short, creative "

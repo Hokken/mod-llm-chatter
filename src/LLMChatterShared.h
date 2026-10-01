@@ -26,6 +26,9 @@ enum class LLMChatterPriorityBand : uint8
 };
 
 bool IsPlayerBot(Player* player);
+// Stops a bot, turns it to the player and pauses its AI so it is
+// still in range when a delayed emote or reply is delivered.
+void HoldBotForReply(Player* bot, Player* player, uint32 holdMs);
 bool IsInOverworld(Player* player);
 bool IsGroupedWithRealPlayer(Player* player);
 void RefreshGeneralAudienceSnapshot();

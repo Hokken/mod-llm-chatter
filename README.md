@@ -246,8 +246,8 @@ LLMChatter.GroupChatter.QuestObjectiveChance = 30 # default 50
 LLMChatter.GroupChatter.QuestCompleteChance = 30  # default 50
 
 # Combat reactions
-LLMChatter.GroupChatter.KillChanceNormal = 5    # default 20
-LLMChatter.GroupChatter.SpellCastChance = 10    # default 30
+LLMChatter.GroupChatter.KillChanceNormal = 5    # default 13
+LLMChatter.GroupChatter.SpellCastChance = 5     # default 10
 
 # Nearby object/creature comments
 LLMChatter.GroupChatter.NearbyObjectChance = 5  # default 20
@@ -336,10 +336,13 @@ docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
 
 **4. Load talent data (optional)**
 
-Populates talent and spell lookup tables that give the LLM richer context
-about each bot's specialization. Worldserver treats `talenttab_dbc` rows as
-runtime DBC overrides, so the included masks and ordering match the WotLK
-3.3.5a client DBC.
+Populates the `talenttab_dbc` and talent `spell_dbc` rows. Worldserver
+treats `talenttab_dbc` rows as runtime DBC overrides, so the included masks
+and ordering match the WotLK 3.3.5a client DBC. The bridge does not need this
+step for talent-aware prompts: it maps each character's talents to trees with
+the bundled `tools/talent_data.json` (regenerate it with
+`tools/generate_talent_data.py` from the client `Talent.dbc` and
+`TalentTab.dbc`).
 
 ```bash
 docker exec -i ac-database mysql -uroot -ppassword acore_world < \
@@ -386,10 +389,13 @@ python llm_chatter_bridge.py --config /path/to/mod_llm_chatter.conf
 
 **5. Load talent data (optional)**
 
-Populates talent and spell lookup tables that give the LLM richer context
-about each bot's specialization. Worldserver treats `talenttab_dbc` rows as
-runtime DBC overrides, so the included masks and ordering match the WotLK
-3.3.5a client DBC.
+Populates the `talenttab_dbc` and talent `spell_dbc` rows. Worldserver
+treats `talenttab_dbc` rows as runtime DBC overrides, so the included masks
+and ordering match the WotLK 3.3.5a client DBC. The bridge does not need this
+step for talent-aware prompts: it maps each character's talents to trees with
+the bundled `tools/talent_data.json` (regenerate it with
+`tools/generate_talent_data.py` from the client `Talent.dbc` and
+`TalentTab.dbc`).
 
 ```bash
 mysql -uroot -ppassword acore_world < \

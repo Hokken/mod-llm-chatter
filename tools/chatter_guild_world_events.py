@@ -52,11 +52,13 @@ from chatter_mode import (
     build_player_prompt_header_from_dict,
     is_roleplay,
 )
+from chatter_player_context import player_character_lines
 from chatter_prompts import pick_random_tone
 from chatter_shared import (
     append_conversation_json_instruction,
     append_json_instruction,
     build_race_class_context,
+    faction_war_line,
     get_chatter_mode,
     get_zone_name,
     parse_extra_data,
@@ -164,9 +166,17 @@ def _single_guild_line(
 def _pvp_kill_scenario(extra: Dict, mode: str) -> List[str]:
     zone = get_zone_name(_safe_int(extra.get('zone_id'))) or ''
     victim = _describe(extra, 'victim', mode)
-    return [
+    lines = [
         f"{extra.get('bot_name')} has just killed an enemy of the "
         f"opposing faction{' in ' + zone if zone else ''}: {victim}.",
+    ]
+    war = faction_war_line(
+        extra.get('bot_name'), extra.get('bot_team'),
+        extra.get('victim_name') or 'the victim', extra.get('victim_team'),
+    )
+    if war:
+        lines.append(war)
+    return lines + [
         _strength_note(extra.get('bot_level'), extra.get('victim_level')),
         f"{extra.get('bot_name')} tells the guild about it in the first "
         "person (\"I\"): a taunt at the fallen foe, contempt for the "
@@ -206,6 +216,13 @@ def _pvp_death_scenario(extra: Dict, mode: str, audience: str) -> List[str]:
         f"{name} has just been killed{' in ' + zone if zone else ''} by "
         f"an enemy of the opposing faction: "
         f"{_describe(extra, 'killer', mode)}.",
+    ]
+    war = faction_war_line(
+        name, extra.get('bot_team'), killer_name, extra.get('killer_team'),
+    )
+    if war:
+        lines.append(war)
+    lines += [
         _death_strength_note(name, extra.get('bot_level'),
                              extra.get('killer_level')),
         f"{name} tells {audience} about it in the first person, full of "
@@ -379,15 +396,24 @@ def process_guild_meet_greeting_event(db, client, config, event):
         else [build_player_chat_guidance(mode, 'say')]
     )
     lines.extend(_participant_identity_lines(bot, mode))
+    lines.extend(player_character_lines(
+        db, player_guid, player_name, mode,
+        race=str(extra.get('player_race') or ''),
+        class_name=str(extra.get('player_class') or ''),
+        gender=str(extra.get('player_gender') or ''),
+    ))
     lines.extend([
         f"{bot['name']} and {player_name} are both members of the "
         f"guild \"{guild_name}\" but are not travelling together.",
         f"{bot['name']} has just run into "
         f"{_describe(extra, 'player', mode)}"
         f"{' in ' + zone if zone else ''} and waves hello.",
-        f"{bot['name']} greets {player_name} warmly as a guildmate met "
-        "by chance on the road, addressing them by name once. A short "
-        "wish of luck, a friendly question or a light joke may follow.",
+        f"This is an unexpected, chance encounter with a fellow member of "
+        f"their own guild, and {bot['name']} is genuinely glad to see "
+        f"{player_name}.",
+        f"{bot['name']} gives {player_name} a warm, friendly greeting, "
+        "addressing them by name once. A short wish of luck, a friendly "
+        "question or a light joke may follow.",
         "Spoken text only: no narrator text, emotes or name prefix.",
         "Aim for 4 to 14 words.",
     ])
@@ -606,9 +632,18 @@ def build_group_pvp_kill_prompt(ctx: Dict) -> str:
         who = f"{killer} struck the killing blow"
     else:
         who = "Your party brought them down"
-    parts.extend([
+    parts.append(
         f"Your party has just killed an enemy of the opposing faction"
-        f"{' in ' + zone if zone else ''}: {victim}. {who}.",
+        f"{' in ' + zone if zone else ''}: {victim}. {who}."
+    )
+    war = faction_war_line(
+        "You and your party", extra.get('bot_team') or extra.get('killer_team'),
+        extra.get('victim_name') or 'the victim', extra.get('victim_team'),
+        own_verb="fight",
+    )
+    if war:
+        parts.append(war)
+    parts.extend([
         _strength_note(bot.get('level'), extra.get('victim_level')),
         "React in party chat from the group's point of view (\"we\", "
         "\"us\"): taunt the fallen foe, scorn the enemy faction, or "
