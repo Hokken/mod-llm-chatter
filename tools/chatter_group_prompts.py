@@ -16,6 +16,9 @@ from chatter_shared import (
     build_bot_state_context,
     is_pvp_enemy,
     is_pvp_identity_known,
+    faction_war_line,
+    get_class_name,
+    get_race_name,
     build_conversational_scale_guidance,
     append_json_instruction,
     append_conversation_json_instruction,
@@ -53,6 +56,8 @@ from chatter_mode import (
     build_player_prompt_header,
     build_player_prompt_header_from_dict,
 )
+from chatter_player_context import character_lore_lines
+from chatter_themed_topics import race_faction
 
 logger = logging.getLogger(__name__)
 
@@ -65,6 +70,46 @@ def _enemy_name_rule(pvp, pvp_named, creature_word):
     if pvp:
         return "- Can mention the enemy by name\n"
     return f"- Can mention the {creature_word} by name\n"
+
+
+def _pvp_foe_context(bot, extra_data, mode, db=None):
+    """Faction framing for an open-world PvP fight and, in roleplay, the
+    enemy's race outlook, class calling and race+class note. Identity
+    details only when the reactor could see the enemy."""
+    if not is_pvp_enemy(extra_data):
+        return ""
+    enemy_team = str(extra_data.get('enemy_faction') or '').strip()
+    own_team = race_faction(str(bot.get('race') or ''))
+    if not enemy_team and own_team:
+        enemy_team = 'Horde' if own_team == 'Alliance' else 'Alliance'
+    if not own_team and enemy_team:
+        own_team = 'Horde' if enemy_team == 'Alliance' else 'Alliance'
+    known = is_pvp_identity_known(extra_data)
+    name = str(extra_data.get('enemy_name') or '').strip() if known else ''
+    lines = []
+    war = faction_war_line(
+        "You and your party", own_team, name or "the enemy", enemy_team,
+        own_verb="fight",
+    )
+    if war:
+        lines.append(war)
+    if known and mode == 'roleplay':
+        try:
+            race = get_race_name(int(extra_data.get('enemy_race', 0)))
+            cls = get_class_name(int(extra_data.get('enemy_class', 0)))
+        except (TypeError, ValueError):
+            race, cls = '', ''
+        lore = character_lore_lines(
+            db, extra_data.get('enemy_guid'), name or 'The enemy', race, cls,
+        )
+        if lore:
+            lines.append(f"What you know of {name or 'the enemy'}'s kind:")
+            lines.extend(lore)
+            lines.append(
+                "Let this sharpen your words (a jab at their people or "
+                "calling); never recite it."
+            )
+    return "\n".join(lines)
 
 
 def _pick_length_hint(mode):
@@ -832,6 +877,7 @@ def build_kill_reaction_prompt(
     speaker_talent_context=None,
     stored_tone=None,
     map_id=0,
+    db=None,
 ):
     """Build prompt for a bot reacting to a kill.
 
@@ -950,6 +996,9 @@ def build_kill_reaction_prompt(
         prompt += f"{TWIST_LABEL}: {twist}\n"
     if state_ctx:
         prompt += f"{state_ctx}\n"
+    foe_ctx = _pvp_foe_context(bot, extra_data, mode, db)
+    if foe_ctx:
+        prompt += f"{foe_ctx}\n"
     prompt += (
         f"{rp_context}\n\n"
         f"{kill_context}\n\n"
@@ -1116,6 +1165,7 @@ def build_combat_reaction_prompt(
     extra_data=None, allow_action=False,
     speaker_talent_context=None,
     stored_tone=None,
+    db=None,
 ):
     """Build prompt for a bot's battle cry when
     engaging a creature. Very short — must feel
@@ -1206,6 +1256,9 @@ def build_combat_reaction_prompt(
         prompt += f"{TWIST_LABEL}: {twist}\n"
     if state_ctx:
         prompt += f"{state_ctx}\n"
+    foe_ctx = _pvp_foe_context(bot, extra_data, mode, db)
+    if foe_ctx:
+        prompt += f"{foe_ctx}\n"
     prompt += (
         f"{rp_context}\n\n"
         f"{combat_context}\n\n"

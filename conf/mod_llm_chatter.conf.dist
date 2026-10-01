@@ -2515,6 +2515,15 @@ LLMChatter.GuildChatter.MeetGreeting.Radius = 25
 LLMChatter.GuildChatter.MeetGreeting.CooldownHours = 5
 
 #
+#   LLMChatter.GuildChatter.MeetGreeting.GuildPostChance
+#       Percent chance (0-100) that after a meet greeting the bot
+#       also posts in Guild chat, glad to have met the player, and
+#       names the place (subzone and zone).
+#       Default: 50
+#
+LLMChatter.GuildChatter.MeetGreeting.GuildPostChance = 50
+
+#
 #   LLMChatter.GuildChatter.WorldScanInterval
 #       Seconds between open-world scans for meet greetings
 #       and NPC encounters. Supported range is 5-300.

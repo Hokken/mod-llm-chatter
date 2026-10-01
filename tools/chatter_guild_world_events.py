@@ -60,6 +60,7 @@ from chatter_shared import (
     build_race_class_context,
     faction_war_line,
     get_chatter_mode,
+    get_subzone_name,
     get_zone_name,
     parse_extra_data,
 )
@@ -368,6 +369,90 @@ def process_guild_npc_encounter_event(db, client, config, event):
 # Meet greeting (/hello + /say)
 # --------------------------------------------------------------------------
 
+def _meet_place(extra: Dict) -> str:
+    zone_id = _safe_int(extra.get('zone_id'))
+    zone = get_zone_name(zone_id) or ''
+    subzone = get_subzone_name(zone_id, _safe_int(extra.get('area_id'))) or ''
+    if subzone and zone:
+        return f"{subzone} in {zone}"
+    return subzone or zone
+
+
+def _meet_guild_scenario(extra: Dict, mode: str, greeting: str) -> List[str]:
+    bot_name = str(extra.get('bot_name') or 'The speaker')
+    player = str(extra.get('player_name') or 'a guildmate')
+    place = _meet_place(extra)
+    where = f" in {place}" if place else ""
+    return [
+        f"{bot_name} has just run into their guildmate {player}{where} by "
+        f"chance and greeted them in person: \"{greeting}\".",
+        f"Now {bot_name} happily tells the whole guild about meeting "
+        f"{player}{where}: glad, cheerful, maybe a friendly remark about "
+        "the place or what they might be up to there.",
+        f"Name {player}" + (f" and {place}" if place else "")
+        + " so the guild knows who and where. Do not repeat the greeting "
+        "and do not invent a long story.",
+    ]
+
+
+def _maybe_post_meet_to_guild(
+    db, client, config, event_id: int, extra: Dict, bot: Dict, mode: str,
+    greeting: str,
+) -> bool:
+    """After a meet greeting, sometimes tell the guild about the meeting."""
+    chance = max(0, min(100, _safe_int(config.get(
+        _PREFIX + 'MeetGreeting.GuildPostChance', 50,
+    ))))
+    if not chance or random.randint(1, 100) > chance:
+        return False
+    try:
+        profile = get_guild_profile(db, extra.get('guild_id'))
+        guild_context = guild_identity_lines(profile)
+        maximum = _max_characters(config)
+        prompt, names = _build_prompt(
+            [bot],
+            str(extra.get('guild_name') or 'the guild'),
+            str(extra.get('team') or ''),
+            mode,
+            guild_context,
+            _meet_guild_scenario(extra, mode, greeting),
+            maximum,
+        )
+        metadata = {
+            'guild_id': _safe_int(extra.get('guild_id')),
+            'guild_event': 'guild_meet_post',
+            'guild_responders': bot['name'],
+            'guild_responder_count': 1,
+            'guild_info_included': bool(guild_context),
+            'guild_repair': False,
+            'guild_meet_place': _meet_place(extra),
+        }
+        messages = run_single_prompt(
+            client, config, prompt, names[0], maximum, metadata,
+            'guild_meet_post',
+            f"guild_meet_post:{event_id}:{names[0]}",
+            f"guild_meet_post-repair:{event_id}",
+        )
+        text = messages[0]['message'] if messages else ''
+        if not text:
+            return False
+        insert_chat_message(
+            db,
+            bot_guid=bot['guid'],
+            bot_name=bot['name'],
+            message=text,
+            channel='guild',
+            delay_seconds=random.uniform(8.0, 15.0),
+            event_id=event_id,
+            sequence=1,
+            owner_subsystem='guild',
+        )
+        return True
+    except Exception:
+        logger.exception("guild_meet_post failed event=%s", event_id)
+        return False
+
+
 def process_guild_meet_greeting_event(db, client, config, event):
     """A guild bot greets a guildmate it meets in the open world."""
     event_id = _safe_int(event.get('id'))
@@ -450,9 +535,13 @@ def process_guild_meet_greeting_event(db, client, config, event):
         addressee_player_guid=player_guid,
         owner_subsystem='guild',
     )
+    posted = _maybe_post_meet_to_guild(
+        db, client, config, event_id, extra, bot, mode, text,
+    )
     _mark_event(db, event_id, 'completed')
     logger.info(
-        "guild_meet_greeting bot=%s player=%s", bot['name'], player_name,
+        "guild_meet_greeting bot=%s player=%s guild_post=%s", bot['name'],
+        player_name, posted,
     )
     return True
 

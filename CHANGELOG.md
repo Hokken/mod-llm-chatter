@@ -1,5 +1,21 @@
 # Changelog
 
+### 2026-10-01 - PvP Enemy Lore and Guild Meet Posts
+
+* **PvP kill and combat reactions**: Party reactions to an open-world
+  PvP kill or clash name both factions and the war between the Horde and
+  the Alliance, as guild PvP kills do. In roleplay they also describe the
+  enemy's race outlook, class calling and race+class note. An enemy the
+  bot could not see stays unnamed and gets no description.
+* **Guild meet posts**: After greeting a guildmate it ran into, a bot may
+  also tell the guild it met them, naming the subzone and zone
+  (`GuildChatter.MeetGreeting.GuildPostChance`, default 50, quieter 30).
+* **Late-loading party bots**: A bot that logs into a group with a real
+  player online after that player's 120-second rejoin window is now
+  registered (traits restored silently, no greeting). Before, such bots,
+  for example alt characters loading minutes later, stayed silent for the
+  whole session.
+
 ### 2026-10-01 - Upstream Merge (Personas, Threads, PvP, Duels)
 
 * **Threads and themed topics**: Conversation threads decide each idle
@@ -7,6 +23,9 @@
   subject, the subject comes from the guild and themed topic pickers
   (`plan_idle_turn(..., fresh_topic=...)`); continue, drift and callback
   turns follow the thread. With threads off, topics are picked as before.
+  On a fresh-subject turn the old subject is shown as finished (no open
+  point) and a picked topic is stated as the exchange's subject, not a
+  soft nudge, so the talk no longer slides back to the old subject.
 * **Open-world PvP kills**: With `GroupChatter.PvP.Enable` on, the party's
   kill reaction comes from the PvP system (`bot_group_kill`), and
   `bot_group_pvp_kill` no longer fires as a second reaction. It still
@@ -31,9 +50,9 @@
   outlook, the class calling (Shadow and Light Priests split by talents)
   and the race+class note; normal mode gets one short line. New
   `chatter_player_context.py` and `CLASS_CALLINGS`.
-* **Casual MOTD**: MOTD reactions and MOTD idle topics treat it as a
-  passing thought, motto or bit of news. Roleplay calls it a note from
-  the officers and forbids "Message of the Day", capital letters and
+* **Casual MOTD**: MOTD reactions and MOTD idle topics treat it as an
+  announcement or bit of news. Roleplay calls it a note from
+  the officers and forbids "Message of the Day", "motto", capital letters and
   ceremony; normal mode calls it the guild motd.
 * **Talents**: `get_character_talents()` joined `acore_world.talent_dbc`,
   which the core leaves empty, so every character had no talents and

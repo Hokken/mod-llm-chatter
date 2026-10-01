@@ -59,6 +59,43 @@ def _load_character(db, guid: int) -> Dict[str, str]:
     return info
 
 
+def _calling_style(db, guid: int, class_name: str) -> str:
+    if class_name != 'Priest':
+        return class_name
+    return (class_style(db, guid, class_name)
+            if db is not None and guid else 'Light Priest')
+
+
+def _lore_lines(db, guid: int, name: str, race: str, class_name: str,
+                style: str) -> List[str]:
+    lines = []
+    worldview = (RACE_SPEECH_PROFILES.get(race) or {}).get('worldview')
+    if worldview:
+        lines.append(f"{race} outlook: {worldview}")
+    calling = CLASS_CALLINGS.get(style)
+    if calling:
+        lines.append(f"{style} calling: {calling}")
+    note = race_class_note(race, class_name, style, subject=f"{name}'s")
+    if note:
+        lines.append(note)
+    return lines
+
+
+def character_lore_lines(
+    db, guid, name: str, race: str, class_name: str,
+) -> List[str]:
+    """Race outlook, class calling and race+class note for any character;
+    empty when the race or class is unknown."""
+    name = str(name or '').strip() or 'They'
+    race = '' if race == 'Unknown' else str(race or '')
+    class_name = '' if class_name == 'Adventurer' else str(class_name or '')
+    if not race or not class_name:
+        return []
+    guid = _safe_int(guid)
+    return _lore_lines(db, guid, name, race, class_name,
+                       _calling_style(db, guid, class_name))
+
+
 def player_character_lines(
     db, guid, name: str, mode: str,
     race: str = '', class_name: str = '', gender: str = '',
@@ -83,23 +120,12 @@ def player_character_lines(
     if not is_roleplay(mode):
         return [f"{name} (the real player) plays {a} {who} {class_name}."]
 
-    style = class_name
-    if class_name == 'Priest':
-        style = (class_style(db, guid, class_name)
-                 if db is not None and guid else 'Light Priest')
+    style = _calling_style(db, guid, class_name)
     lines = [
         f"About {name}, the real player you are talking to: {a} {who} "
         f"{style}."
     ]
-    worldview = (RACE_SPEECH_PROFILES.get(race) or {}).get('worldview')
-    if worldview:
-        lines.append(f"{race} outlook: {worldview}")
-    calling = CLASS_CALLINGS.get(style)
-    if calling:
-        lines.append(f"{style} calling: {calling}")
-    note = race_class_note(race, class_name, style, subject=f"{name}'s")
-    if note:
-        lines.append(note)
+    lines.extend(_lore_lines(db, guid, name, race, class_name, style))
     lines.append(
         "Let this colour your words (a fitting greeting, a nod to their "
         "people or calling); never recite it or explain it back to them."

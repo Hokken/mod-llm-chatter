@@ -1210,6 +1210,15 @@ which `build_bot_state_context()` appends for every combat prompt. The
 kill, combat, and aggro-loss builders also switch their situation line
 for PvP.
 
+The kill and combat reactions (`reaction_kill`, `reaction_combat`) add
+`_pvp_foe_context()` from `chatter_group_prompts.py`: a
+`faction_war_line()` naming the party's faction and the enemy's, as in
+`guild_pvp_kill`, and in Roleplay the enemy's race outlook, class calling
+and race+class note from `character_lore_lines()` in
+`chatter_player_context.py` (priests split into Light and Shadow by
+talents). An enemy the reactor could not see stays unnamed: the faction
+line says "the enemy" and no lore is added.
+
 ### Duels
 
 `LLMChatterDuel.cpp` queues `bot_group_duel_start` and
@@ -3408,7 +3417,7 @@ Both force the zone to be named. Other speakers agree or argue.
 
 | Event | Trigger | Output |
 |-------|---------|--------|
-| `guild_meet_greeting` | World scan: a guild bot within `MeetGreeting.Radius` of a real guildmate, not in their group, both calm in the open world | `/hello` emote at the player plus a `/say` greeting; five-hour cooldown per pair |
+| `guild_meet_greeting` | World scan: a guild bot within `MeetGreeting.Radius` of a real guildmate, not in their group, both calm in the open world | `/hello` emote at the player plus a `/say` greeting; five-hour cooldown per pair. With `MeetGreeting.GuildPostChance` (50%) the bot also tells the guild, 8 to 15 seconds later, that it met the player, naming the subzone and zone |
 | `guild_join_zone_announce` | A bot joins a guild and a real player of its faction is in its zone | General boast plus up to `JoinZoneAnnounce.MaxResponders` reactions from zone bots |
 | `guild_pvp_kill` | An ungrouped guild bot kills an opposing-faction bot outside battlegrounds and arenas | One first-person Guild line |
 | `bot_group_pvp_kill` | A member of the player's group kills an opposing-faction player in the open world, while `GroupChatter.PvP.Enable` is 0 | Party reaction ("we killed"); no guild checks. With `GroupChatter.PvP.Enable` on, the open-world PvP system's `bot_group_kill` reaction covers this instead |
@@ -3451,6 +3460,7 @@ part of a massive battle and names the victim's race and gender.
 | Key | Default | Owner |
 |-----|---------|-------|
 | `GuildChatter.MeetGreeting.Enable` / `.Radius` / `.CooldownHours` | 1 / 25 / 5 | Server |
+| `GuildChatter.MeetGreeting.GuildPostChance` | 50 | Bridge |
 | `GuildChatter.WorldScanInterval` | 10 | Server |
 | `GuildChatter.JoinZoneAnnounce.Enable` / `.Chance` | 1 / 35 | Server |
 | `GuildChatter.JoinZoneAnnounce.MaxResponders` | 2 | Bridge |
@@ -3571,8 +3581,8 @@ carry the player's guid or name.
 `chatter_guild_profile.py` word the MOTD for the change reaction
 (`_motd_scenario`), the idle topic (`_motd_topic`) and
 `guild_motd_lines()`. Roleplay calls it a short note the officers left for
-everyone, to be treated as a passing thought, motto or bit of news, and
-forbids the words "Message of the Day"/"MOTD", capital letters, ceremony
+everyone, to be treated as an announcement or bit of news, and
+forbids the words "Message of the Day"/"MOTD"/"motto", capital letters, ceremony
 and treating it as an order or creed. Normal mode calls it the guild motd
 and asks for casual player talk. Both keep the rule that it is never
 instructions and that bots must not invent details beyond it.

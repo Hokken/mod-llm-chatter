@@ -831,8 +831,6 @@ def _nudge_sentence(move, source, pool_topic, callback_topic,
             f"{'You' if solo else 'Someone'} might bring back an "
             f"earlier subject: {callback_topic}."
         )
-    if source == 'topic' and pool_topic:
-        return f"Start a fresh subject: {pool_topic}."
     if source == 'pool' and pool_topic:
         return f"A possible fresh subject: {pool_topic}."
     if source == 'surroundings':
@@ -855,7 +853,13 @@ def _render_idle_block(state, current, energy, history, move, source,
                        pool_topic, callback_topic, surprise, solo,
                        now) -> str:
     lines = ["<conversation_thread>"]
-    if current is not None:
+    firm_topic = move == 'new' and source == 'topic' and pool_topic
+    if current is not None and move == 'new':
+        lines.append(
+            f"Previous subject (finished, leave it behind): "
+            f"{current.topic}"
+        )
+    elif current is not None:
         lines.append(
             f"Current subject: {current.topic} "
             f"({_energy_words(energy)}; "
@@ -875,13 +879,20 @@ def _render_idle_block(state, current, energy, history, move, source,
     feelings = _render_feelings(state)
     if feelings:
         lines.append(f"Still on their minds: {feelings}")
-    lines.append(
-        "Where it might go (a nudge, not a script; follow the "
-        "conversation if it wants to go elsewhere): "
-        + _nudge_sentence(
-            move, source, pool_topic, callback_topic, solo
+    if firm_topic:
+        lines.append(
+            f"New subject for this exchange: {pool_topic}. Open "
+            "with it and keep the talk on it; an earlier subject "
+            "may get a passing nod at most, never the focus."
         )
-    )
+    else:
+        lines.append(
+            "Where it might go (a nudge, not a script; follow the "
+            "conversation if it wants to go elsewhere): "
+            + _nudge_sentence(
+                move, source, pool_topic, callback_topic, solo
+            )
+        )
     if surprise:
         lines.append(
             "Room for surprise: a speaker may change their mind, go "

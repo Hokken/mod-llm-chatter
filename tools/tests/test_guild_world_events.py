@@ -147,6 +147,35 @@ def test_meet_greeting_says_hello_to_the_player():
     assert 'Vlad' in capture.prompts[0]
 
 
+def test_meet_greeting_may_tell_the_guild_where_they_met():
+    extra = _guild_extra(player_guid=77, player_name='Vlad',
+                         player_race='Troll', player_class='Mage',
+                         area_id=380)
+    capture = _Capture()
+    ok = _run(world.process_guild_meet_greeting_event,
+              _event('guild_meet_greeting', extra), capture,
+              ['Vlad! Good hunting, brother.'],
+              config=dict(RP, **{
+                  'LLMChatter.GuildChatter.MeetGreeting.GuildPostChance':
+                  '100'}))
+    assert ok and capture.marked == ['completed']
+    say, post = capture.inserted
+    assert say['channel'] == 'say'
+    assert post['channel'] == 'guild' and post['sequence'] == 1
+    assert post['owner_subsystem'] == 'guild'
+    assert post['delay_seconds'] > say['delay_seconds']
+    guild_prompt = capture.prompts[1]
+    assert 'The Crossroads in The Barrens' in guild_prompt
+    assert 'Vlad' in guild_prompt and 'Iron Wolves' in guild_prompt
+
+    capture = _Capture()
+    _run(world.process_guild_meet_greeting_event,
+         _event('guild_meet_greeting', extra), capture, ['Vlad!'],
+         config=dict(RP, **{
+             'LLMChatter.GuildChatter.MeetGreeting.GuildPostChance': '0'}))
+    assert [row['channel'] for row in capture.inserted] == ['say']
+
+
 def test_meet_greeting_can_be_disabled():
     capture = _Capture()
     ok = _run(world.process_guild_meet_greeting_event,

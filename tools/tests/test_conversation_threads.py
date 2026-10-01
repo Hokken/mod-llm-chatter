@@ -1193,8 +1193,9 @@ def test_fresh_topic_supplies_only_new_subjects():
         turn = th.plan_idle_turn(GID, NAMES, db=db, fresh_topic=fresh)
     assert (turn.source, turn.pool_topic) == (
         'topic', 'the price of Thorium')
-    assert 'Start a fresh subject: the price of Thorium.' in (
+    assert 'New subject for this exchange: the price of Thorium.' in (
         turn.prompt_block)
+    assert 'a nudge, not a script' not in turn.prompt_block
 
     with patch.object(th, '_pick_move', return_value='new'):
         turn = th.plan_idle_turn(
@@ -1206,6 +1207,27 @@ def test_fresh_topic_supplies_only_new_subjects():
     with patch.object(th, '_pick_move', return_value='continue'):
         turn = th.plan_idle_turn(GID, NAMES, db=db, fresh_topic=fresh)
     assert turn.kind == 'continue' and not calls
+
+
+def test_fresh_subject_leaves_the_old_one_behind():
+    _reset()
+    db = _DB()
+    _exchange(db, _report(topic='Guild Motto Reflection',
+                          point='What makes it resonate?'))
+    with patch.object(th, '_pick_move', return_value='new'):
+        turn = th.plan_idle_turn(
+            GID, NAMES, db=db, fresh_topic=lambda: 'orcs never bathe')
+    block = turn.prompt_block
+    assert 'Current subject' not in block
+    assert 'Open point' not in block
+    assert 'Previous subject (finished, leave it behind): ' \
+        'Guild Motto Reflection' in block
+    assert 'New subject for this exchange: orcs never bathe.' in block
+
+    with patch.object(th, '_pick_move', return_value='continue'):
+        turn = th.plan_idle_turn(GID, NAMES, db=db)
+    assert 'Current subject: Guild Motto Reflection' in turn.prompt_block
+    assert 'Open point: What makes it resonate?' in turn.prompt_block
 
 
 def main() -> int:

@@ -237,10 +237,10 @@ def motd_guidance(mode: str) -> str:
     """How bots should treat the MOTD: a casual note, never a creed."""
     if is_roleplay(mode):
         return (
-            "Treat it as a passing thought, a motto or a bit of news "
-            "to mull over: agree, riff on it, joke, grumble or ask "
-            "about it, in your own words. Never call it the 'Message "
-            "of the Day' or 'MOTD', never give it capital letters or "
+            "Treat it as an announcement or a bit of news to mull "
+            "over: agree, riff on it, joke, grumble or ask about it, "
+            "in your own words. Never call it the 'Message of the "
+            "Day', 'MOTD' or a 'motto', never give it capital letters or "
             "ceremony, and don't treat it as an order or a sacred creed."
         )
     return (
