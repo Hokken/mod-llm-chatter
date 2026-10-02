@@ -2191,6 +2191,7 @@ def build_player_response_prompt(
     brief_casual=False,
     thread_context="",
     backstory="",
+    bg_context=None,
 ):
     """Build prompt for a bot responding to a real
     player's party chat message. The bot should
@@ -4164,6 +4165,7 @@ def build_player_msg_conversation_prompt(
     zone_id=0, area_id=0, map_id=0,
     brief_casual=False,
     thread_context="",
+    bg_context=None,
 ):
     """Build prompt for a multi-bot conversation
     responding to a player's party chat message.

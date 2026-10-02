@@ -2,6 +2,7 @@
  * mod-llm-chatter - registration coordinator
  */
 
+#include "LLMChatterAB.h"
 #include "LLMChatterBG.h"
 #include "LLMChatterGuild.h"
 #include "LLMChatterGuildWorld.h"
@@ -23,6 +24,7 @@ void AddLLMChatterScripts()
     AddLLMChatterGuildWorldScripts();
     AddLLMChatterLootScripts();
     AddLLMChatterBGScripts();
+    AddLLMChatterABScripts();
     AddLLMChatterRaidScripts();
     AddLLMChatterProximityFightScripts();
     AddLLMChatterCommandScripts();

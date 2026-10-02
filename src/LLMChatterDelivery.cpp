@@ -6,6 +6,7 @@
 #include "Guild.h"
 #include "LLMChatterBossDialogue.h"
 #include "LLMChatterDelivery.h"
+#include "LLMChatterBGDelivery.h"
 #include "LLMChatterGuild.h"
 #include "LLMChatterGuildWorld.h"
 #include "LLMChatterProximity.h"
@@ -580,6 +581,17 @@ void DeliverPendingMessagesImpl()
             bot->GetSession();
         if (session && session->PlayerLoading())
             bot = nullptr;
+    }
+
+    // Gate before facing, action, emote-only and every speech branch. The
+    // event JSON is the original producer snapshot, never refreshed prose.
+    std::string bgDrop = ValidateBGDelivery(bot, channel, ownerSubsystem,
+        eventType, eventMapId, groupId, eventExtraData);
+    if (!bgDrop.empty())
+    {
+        FinalizeDroppedMessage(messageId, eventId, sequence,
+            eventType, bgDrop.c_str());
+        return;
     }
 
     if (bot && eventSubjectGuid
