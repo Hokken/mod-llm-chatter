@@ -3658,9 +3658,13 @@ instructions and that bots must not invent details beyond it.
   character's guild in party, General, proximity `/say`, emote and
   screenshot prompts (`get_character_guild_name()`, cached).
 - When a bot and the real player share a guild, party replies, proximity
-  `/say` replies and emote reactions (party and observer) tell the bot
-  they are guildmates (`same_guild_note()`). The emote payloads now carry
-  `player_guid`, and the observer payload `target_guid`.
+  `/say` lines and conversations (unprompted ones as well as replies) and
+  emote reactions (party and observer) tell the bot they are guildmates
+  (`same_guild_note()`). The emote payloads now carry `player_guid`, and
+  the observer payload `target_guid`.
+- Unprompted proximity `/say` lines and conversations that may address
+  the real player describe them like the replies do: race and class, and
+  in roleplay the race outlook and class calling.
 - A plain General conversation may become a talk about the speakers'
   guilds (`GuildChatter.GeneralDiscussionChance`, needs two guilded
   speakers).

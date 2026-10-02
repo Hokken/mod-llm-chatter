@@ -267,6 +267,56 @@ def test_proximity_same_guild_lines_skip_npcs():
     assert lines == ['Aliss and Calwen share a guild.']
 
 
+def _ambient_prompt_text(build):
+    import chatter_proximity as prox
+
+    def note(db, bot, player, name, bot_name=''):
+        return f"{bot_name or 'You'} and {name} share a guild."
+
+    with patch.object(prox, 'same_guild_note', side_effect=note), \
+            patch.object(prox, '_query_bot_traits', return_value={}), \
+            patch.object(prox, '_query_bot_identity', return_value={}), \
+            patch.object(prox, '_environment_lines', return_value=[]), \
+            patch.object(prox, '_player_context_line',
+                         return_value='The player Calwen is a level 30 '
+                                      'female Orc Hunter.'), \
+            patch.object(prox, '_player_lines',
+                         return_value=['About Calwen: a female Orc '
+                                       'Hunter.']):
+        prompt = build(prox)
+    return getattr(prompt, 'user_prompt', prompt)
+
+
+SPEAKER = {'bot_guid': 101, 'name': 'Aliss', 'race': 'Orc',
+           'class': 'Warrior', 'level': 30, 'gender': 'male'}
+
+
+def test_ambient_proximity_say_notes_guildmate_and_player():
+    extra = {'player_guid': 7, 'player_name': 'Calwen', 'zone_id': 0}
+    quiet = _ambient_prompt_text(lambda prox: prox._single_prompt(
+        object(), dict(extra), SPEAKER, 'the weather', config=RP))
+    assert 'You and Calwen share a guild.' in quiet
+    assert 'female Orc Hunter' in quiet
+    assert 'About Calwen' not in quiet
+
+    addressed = _ambient_prompt_text(lambda prox: prox._single_prompt(
+        object(), dict(extra, player_addressed=True), SPEAKER,
+        'the weather', config=RP))
+    assert 'You and Calwen share a guild.' in addressed
+    assert 'About Calwen: a female Orc Hunter.' in addressed
+
+
+def test_ambient_proximity_conversation_notes_guildmate():
+    extra = {'player_guid': 7, 'player_name': 'Calwen', 'zone_id': 0,
+             'player_addressed': True}
+    other = dict(SPEAKER, bot_guid=102, name='Brakk')
+    text = _ambient_prompt_text(lambda prox: prox._conversation_prompt(
+        object(), extra, [SPEAKER, other], config=RP))
+    assert 'Aliss and Calwen share a guild.' in text
+    assert 'Brakk and Calwen share a guild.' in text
+    assert 'About Calwen: a female Orc Hunter.' in text
+
+
 # -- The real player's description -------------------------------------
 
 def test_player_description_roleplay_and_normal():

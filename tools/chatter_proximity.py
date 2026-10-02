@@ -866,8 +866,7 @@ def _single_prompt(
             channel='say',
             guild_name=info.get('guild_name', ''),
         )]
-    if player_message:
-        lines.extend(_same_guild_lines(db, extra, [speaker]))
+    lines.extend(_same_guild_lines(db, extra, [speaker]))
     brief_casual = bool(extra.get('brief_casual'))
     lines.extend([
         (
@@ -884,6 +883,8 @@ def _single_prompt(
     lines.extend(_location_lines(
         extra, mode, [speaker], db=db,
     ))
+    if player_message or player_addressed:
+        lines.extend(_player_lines(db, extra, mode))
     disposition_guidance = _npc_disposition_guidance(
         speaker
     )
@@ -1066,9 +1067,14 @@ def _conversation_prompt(
         f"Write EXACTLY {max_lines} messages.",
         "Speakers may address each other by name.",
     ]
+    lines.extend(_same_guild_lines(
+        db, extra, participants, third_person=True
+    ))
     lines.extend(_location_lines(
         extra, mode, participants, db=db,
     ))
+    if player_addressed and player_name:
+        lines.extend(_player_lines(db, extra, mode))
     lines.extend(_mixed_voice_guidance(mode))
 
     addressable = list(nearby_names)

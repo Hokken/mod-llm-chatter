@@ -11,7 +11,8 @@
   topic, so the thread weights still apply.
 * **Guild names everywhere**: Bot and player descriptions name the
   character's guild in party, General, proximity, emote and screenshot
-  prompts. Bots that share the real player's guild are told so.
+  prompts. Bots that share the real player's guild are told so, in
+  unprompted proximity `/say` lines as well as replies.
 * **Real player description**: Prompts that address the real player
   describe their race and class; roleplay adds the race outlook and class
   calling, with priests split into Light and Shadow by the active spec.
