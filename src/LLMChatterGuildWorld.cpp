@@ -35,6 +35,7 @@
 #include <list>
 #include <mutex>
 #include <string>
+#include <string_view>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -49,6 +50,8 @@ constexpr uint32 kMeetFollowUpMinDelay = 8;
 constexpr uint32 kMeetFollowUpMaxDelay = 15;
 constexpr uint32 kHeldFollowUpTimeoutSeconds = 600;
 constexpr uint32 kHeldFollowUpSweepSeconds = 300;
+constexpr uint32 kMeetDeliveryRetrySeconds = 2;
+constexpr time_t kMeetDeliveryGraceSeconds = 8;
 
 constexpr NPCFlags kServiceNpcFlags = NPCFlags(
     UNIT_NPC_FLAG_VENDOR | UNIT_NPC_FLAG_TRAINER
@@ -70,6 +73,8 @@ std::vector<PendingJoinAnnounce> sPendingJoinAnnounces;
 std::unordered_map<std::string, time_t> sMeetCooldowns;
 std::unordered_map<std::string, time_t> sNpcPairCooldowns;
 std::unordered_map<uint32, time_t> sGuildNpcCooldowns;
+// Meet greeting message id -> time its delivery check first failed.
+std::unordered_map<uint32, time_t> sMeetDeliveryRetries;
 time_t sLastWorldScan = 0;
 time_t sLastHeldFollowUpSweep = 0;
 
@@ -563,6 +568,42 @@ char const* CheckMeetGreetingDelivery(Player* bot, uint32 playerGuid)
     if (!player->IsWithinLOSInMap(bot))
         return "meet_no_line_of_sight";
     return nullptr;
+}
+
+bool DeferMeetGreeting(uint32 messageId, char const* reason)
+{
+    time_t now = time(nullptr);
+    for (auto it = sMeetDeliveryRetries.begin();
+         it != sMeetDeliveryRetries.end();)
+    {
+        if (now - it->second > 2 * kMeetDeliveryGraceSeconds)
+            it = sMeetDeliveryRetries.erase(it);
+        else
+            ++it;
+    }
+
+    std::string_view why = reason ? reason : "";
+    bool transient = why == "meet_out_of_range"
+        || why == "meet_not_visible"
+        || why == "meet_no_line_of_sight";
+    auto [entry, first] = sMeetDeliveryRetries.try_emplace(messageId, now);
+    if (!transient
+        || (!first && now - entry->second >= kMeetDeliveryGraceSeconds))
+    {
+        sMeetDeliveryRetries.erase(entry);
+        return false;
+    }
+
+    LOG_DEBUG("module",
+        "LLMChatter: guild_meet_greeting message {} deferred: {}",
+        messageId, why);
+    CharacterDatabase.DirectExecute(
+        "UPDATE llm_chatter_messages "
+        "SET delivered = 0, drop_reason = NULL, "
+        "deliver_at = DATE_ADD(NOW(), INTERVAL {} SECOND) "
+        "WHERE id = {}",
+        kMeetDeliveryRetrySeconds, messageId);
+    return true;
 }
 
 void SettleMeetGreetingFollowUp(uint32 eventId, bool greeted)

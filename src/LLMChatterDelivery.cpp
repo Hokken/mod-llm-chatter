@@ -648,6 +648,8 @@ void DeliverPendingMessagesImpl()
         if (char const* meetDrop =
                 CheckMeetGreetingDelivery(bot, playerGuid))
         {
+            if (DeferMeetGreeting(messageId, meetDrop))
+                return;
             LOG_INFO("module",
                 "LLMChatter: guild_meet_greeting message {} "
                 "(event {}) dropped: {}",

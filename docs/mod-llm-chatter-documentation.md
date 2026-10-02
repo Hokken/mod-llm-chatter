@@ -3642,7 +3642,11 @@ only sees real players.
   of sight, and the bot must be alive and out of combat. Otherwise the
   line is dropped with the reason (`meet_player_gone`, `meet_other_map`,
   `meet_out_of_range`, `meet_not_visible`, `meet_no_line_of_sight`,
-  `meet_bot_unavailable`) and an INFO log line.
+  `meet_bot_unavailable`) and an INFO log line. Range, visibility and
+  line of sight can fail for a moment (a tent pole, a step back), so
+  those three are retried every 2 seconds (`DeferMeetGreeting()`) and the
+  line is dropped only if the check still fails 8 seconds after the first
+  miss.
 - The Guild follow-up is generated after the greeting and stored on hold:
   its `deliver_at` is NULL, so delivery never picks it up. When the
   greeting row is final, delivery releases the follow-up 8 to 15 seconds

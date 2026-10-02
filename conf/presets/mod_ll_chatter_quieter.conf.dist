@@ -2434,7 +2434,9 @@ LLMChatter.GuildChatter.PlayerReplies.MaxCandidates = 12
 #       world (not in the same group) waves (/hello) and greets
 #       them in /say. The line is only spoken if the player is
 #       still on the same map, within Radius, visible and in
-#       line of sight when it is delivered.
+#       line of sight when it is delivered. A range, visibility
+#       or line-of-sight miss is retried every 2 seconds for up
+#       to 8 seconds before the line is dropped.
 #       Default: 1
 #
 LLMChatter.GuildChatter.MeetGreeting.Enable = 1

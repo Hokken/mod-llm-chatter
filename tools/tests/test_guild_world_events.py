@@ -325,13 +325,31 @@ def test_cpp_meet_greeting_is_rechecked_at_delivery():
     body = _function_body(delivery, 'void DeliverPendingMessagesImpl(')
     gate = body.index('CheckMeetGreetingDelivery(bot, playerGuid)')
     assert gate < body.index('ai->Say(processedMessage)')
-    drop = body[gate:gate + 600]
+    drop = body[gate:gate + 700]
+    defer = drop.index('if (DeferMeetGreeting(messageId, meetDrop))')
+    assert defer < drop.index('FinalizeDroppedMessage(')
     assert 'FinalizeDroppedMessage(' in drop
     assert 'SettleMeetGreetingFollowUp(eventId, false);' in drop
     assert 'ReleaseBotReplyHold(botGuid);' in drop
     settle = body.rindex('SettleMeetGreetingFollowUp(eventId, sent);')
     assert settle > body.rindex('"SET delivered = 0, "')
     assert settle > body.rindex('FinalizeDroppedMessage(')
+
+
+def test_cpp_meet_greeting_retries_passing_failures():
+    source = _src('LLMChatterGuildWorld.cpp')
+    defer = _function_body(source, 'bool DeferMeetGreeting(')
+    for reason in ('"meet_out_of_range"', '"meet_not_visible"',
+                   '"meet_no_line_of_sight"'):
+        assert reason in defer, reason
+    for reason in ('meet_player_gone', 'meet_other_map',
+                   'meet_bot_unavailable'):
+        assert reason not in defer, reason
+    assert 'kMeetDeliveryGraceSeconds' in defer
+    assert 'SET delivered = 0' in defer
+    assert 'INTERVAL {} SECOND' in defer
+    assert 'kMeetDeliveryRetrySeconds' in defer
+    assert 'constexpr time_t kMeetDeliveryGraceSeconds = 8;' in source
 
 
 def test_cpp_follow_up_release_and_cancel():

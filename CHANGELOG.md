@@ -5,9 +5,10 @@
 * **Meet greetings**: A guild bot that runs into a real guildmate in the
   open world waves and greets them in `/say`, and may mention the meeting
   in Guild chat afterwards. The greeting is checked again at delivery
-  (same map, range, visibility, line of sight) and dropped with a reason
-  if the player has moved on. The Guild post waits until the greeting was
-  spoken and is cancelled if it was dropped.
+  (same map, range, visibility, line of sight); a brief range or sight
+  miss is retried for up to 8 seconds, and the line is dropped with a
+  reason if the player has moved on. The Guild post waits until the
+  greeting was spoken and is cancelled if it was dropped.
 * **Join announcements**: A bot that joins a guild may tell its zone's
   General channel, and zone bots react. The announcer always speaks first,
   and the lines follow the General zone pacing.
