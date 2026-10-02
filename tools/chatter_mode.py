@@ -95,6 +95,7 @@ def build_player_identity(
     gender: str = '',
     mode: str = 'normal',
     gear: str = '',
+    guild_name: str = '',
 ) -> str:
     """Build an identity with an explicit player/character boundary."""
     details = []
@@ -118,6 +119,11 @@ def build_player_identity(
             "character in World of Warcraft."
         )
 
+    guild_name = (guild_name or '').strip()
+    if guild_name:
+        owner = "You are" if is_roleplay(mode) else "Your character is"
+        identity += f" {owner} a member of the guild \"{guild_name}\"."
+
     gear = (gear or '').strip()
     return f"{identity} {gear}" if gear else identity
 
@@ -136,6 +142,7 @@ def build_player_identity_from_dict(
         bot.get('gender', ''),
         mode,
         bot.get('gear', ''),
+        bot.get('guild_name', ''),
     )
 
 
@@ -148,12 +155,13 @@ def build_player_prompt_header(
     mode: str = 'normal',
     channel: str = 'party',
     gear: str = '',
+    guild_name: str = '',
 ) -> str:
     """Build a playerbot identity followed by its channel voice contract."""
     return (
         build_player_identity(
             name, race, class_name, level, gender, mode,
-            gear,
+            gear, guild_name,
         )
         + "\n"
         + build_player_chat_guidance(mode, channel)
@@ -175,6 +183,7 @@ def build_player_prompt_header_from_dict(
         mode,
         channel,
         bot.get('gear', ''),
+        bot.get('guild_name', ''),
     )
 
 

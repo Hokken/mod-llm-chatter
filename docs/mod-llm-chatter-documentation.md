@@ -3329,6 +3329,103 @@ Existing installations must also apply
 
 ---
 
+## 13v. Guild Identity and Context
+
+### Guild Information and MOTD
+
+`chatter_guild_profile.py` reads the guild's name, Guild Information text,
+MOTD, rank names and Guild Master (cached for 60 seconds). Every Guild
+prompt (idle statements and conversations, player replies and login
+greetings) quotes the Guild Information text when it is set, as background
+about the guild and never as instructions.
+
+### MOTD and zone topics in Guild chat
+
+An idle Guild statement or conversation can take a guild-specific subject
+instead of a generic one:
+
+| Subject | Key | Default | Notes |
+|---------|-----|---------|-------|
+| Current MOTD | `GuildChatter.MotdChance` | 15 | Framed as a casual note, never instructions |
+| Speaker's opinion of its zone | `GuildChatter.ZoneTopicChance` | 10 | Names the zone; others agree or argue |
+| Zone at this hour and in this weather | `GuildChatter.ZoneWeatherTopicChance` | 8 | Uses the cached zone weather sent by the server |
+
+The rolls are made in that order and at most one subject is picked. With
+conversation threads off, the subject replaces the random topic. With
+threads on for Guild chat, the subject is only offered to the thread as its
+pool topic: the thread still picks persona, surroundings or pool by its
+weights, so `Threads.PoolTopicWeight` decides how often the subject is
+used. The zone weather comes from `GetZoneWeatherName()`, added to the
+`guild_idle_chatter` payload as `weather`.
+
+#### MOTD tone
+
+`motd_intro()`, `motd_guidance()` and `MOTD_NOT_INSTRUCTIONS` in
+`chatter_guild_profile.py` word the MOTD for the idle topic and
+`guild_motd_lines()`. Roleplay calls it a short note the officers left for
+everyone, to be treated as an announcement or bit of news, and forbids the
+words "Message of the Day"/"MOTD"/"motto", capital letters, ceremony and
+treating it as an order or creed. Normal mode calls it the guild motd and
+asks for casual player talk. Both keep the rule that it is never
+instructions and that bots must not invent details beyond it.
+
+### Guild in other chat
+
+- Bot and player descriptions (race, class, level, gender) name the
+  character's guild in party, General, proximity `/say`, emote and
+  screenshot prompts (`get_character_guild_name()`, cached).
+- When a bot and the real player share a guild, party replies, proximity
+  `/say` replies and emote reactions (party and observer) tell the bot
+  they are guildmates (`same_guild_note()`). The emote payloads now carry
+  `player_guid`, and the observer payload `target_guid`.
+- A plain General conversation may become a talk about the speakers'
+  guilds (`GuildChatter.GeneralDiscussionChance`, needs two guilded
+  speakers).
+- A plain General statement from a guilded bot may praise its guild
+  (`GuildChatter.GeneralPraiseChance`), and sometimes the Guild Master by
+  race and class (`GuildChatter.GeneralPraiseMasterChance`, never when
+  the speaker is the Guild Master).
+- Like the Guild subjects above, the General guild topics only enter
+  through the thread's pool topic when threads are on for General chat.
+
+### Real player description
+
+`chatter_player_context.py` describes the real player for prompts that
+address them: `player_character_lines(db, guid, name, mode, race=,
+class_name=, gender=)` returns a list and `player_context_text()` the same
+block as one string. Race, class and gender come from the payload when
+present, otherwise from `characters` by guid (cached for five minutes). In
+roleplay it adds the race's `worldview` from `RACE_SPEECH_PROFILES` and the
+class calling from `CLASS_CALLINGS`, with priests split by `class_style()`,
+and tells the bot to let it colour its words without reciting it. Normal
+mode gets one line ("Lyn (the real player) plays a female Orc Hunter."). An
+unknown race or class returns nothing, so prompts fall back to their old
+text. It is used by login greetings, guild player replies, proximity `/say`
+and emote replies, emote reactions, and the party greeting, reply,
+conversation and question prompts.
+
+`chatter_class_style.py` splits priests: `class_style()` returns
+"Shadow Priest" only when the Shadow tree has strictly the most points in
+the active spec, otherwise "Light Priest". It has no cache of its own;
+`get_character_talents()` reads the active spec on every call and caches
+per (guid, spec), so a dual-spec switch changes the description on the
+next prompt.
+
+### Configuration
+
+| Key | Default | Quieter preset | Owner |
+|-----|---------|----------------|-------|
+| `GuildChatter.MotdChance` | 15 | 15 | Bridge |
+| `GuildChatter.ZoneTopicChance` | 10 | 10 | Bridge |
+| `GuildChatter.ZoneWeatherTopicChance` | 8 | 8 | Bridge |
+| `GuildChatter.GeneralDiscussionChance` | 10 | 5 | Bridge |
+| `GuildChatter.GeneralPraiseChance` | 8 | 4 | Bridge |
+| `GuildChatter.GeneralPraiseMasterChance` | 50 | 50 | Bridge |
+
+All keys are under `LLMChatter.`. No database migration is needed.
+
+---
+
 ## 14. JSON and Queue Contracts
 
 ### `QueueChatterEvent()`

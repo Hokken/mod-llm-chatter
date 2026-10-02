@@ -197,10 +197,14 @@ def _append_bots_with_rp(
     seen_races = set()
     seen_classes = set()
     for bot in bots:
+        guild_part = (
+            f" of the guild \"{bot['guild_name']}\""
+            if bot.get('guild_name') else ""
+        )
         parts.append(
             f"{bot['name']} is a level "
             f"{bot['level']} {bot['race']} "
-            f"{bot['class']}"
+            f"{bot['class']}{guild_part}"
         )
         append_speaker_gear(parts, bot)
         if bot.get('travel_context'):
@@ -255,6 +259,7 @@ def build_bot_greeting_prompt(
     map_id=0,
     zone_id=0,
     bg_context=None,
+    player_context="",
 ):
     """Build the LLM prompt for a group greeting.
 
@@ -480,6 +485,8 @@ def build_bot_greeting_prompt(
             "a short sentence (10-16 words)"
         )
 
+    if player_context:
+        prompt += f"\n{player_context}\n"
     if is_reunion:
         prompt += (
             f"\nYou are rejoining a party with "
@@ -2189,6 +2196,8 @@ def build_player_response_prompt(
     memories=None,
     travel_context="",
     brief_casual=False,
+    guild_note="",
+    player_context="",
     thread_context="",
     backstory="",
 ):
@@ -2280,6 +2289,8 @@ def build_player_response_prompt(
     prompt += (
         f"Your tone: {tone}\n"
     )
+    if guild_note:
+        prompt += f"{guild_note}\n"
     if twist:
         prompt += f"{TWIST_LABEL}: {twist}\n"
     if members:
@@ -2376,6 +2387,8 @@ def build_player_response_prompt(
                 )
 
     prompt += f"{rp_context}\n\n"
+    if player_context:
+        prompt += f"{player_context}\n\n"
     if link_context:
         prompt += f"{link_context}\n\n"
     thread_note = (
@@ -4163,6 +4176,8 @@ def build_player_msg_conversation_prompt(
     target_talent_context=None,
     zone_id=0, area_id=0, map_id=0,
     brief_casual=False,
+    guild_notes=None,
+    player_context="",
     thread_context="",
 ):
     """Build prompt for a multi-bot conversation
@@ -4215,6 +4230,8 @@ def build_player_msg_conversation_prompt(
             f"player just said."
         )
 
+    if player_context:
+        parts.append(player_context)
     parts.append(
         f"\n{player_name} just said in party "
         f"chat:\n\"{player_message}\""
@@ -4254,6 +4271,7 @@ def build_player_msg_conversation_prompt(
     _append_bots_with_rp(
         parts, bots, traits_map, is_rp
     )
+    parts.extend(guild_notes or [])
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -4641,6 +4659,7 @@ def build_bot_question_prompt(
     area_id=0,
     stored_tone=None,
     memories=None,
+    player_context="",
 ):
     """Build prompt for a bot asking the player a
     creative, contextual question in party chat.
@@ -4665,6 +4684,17 @@ def build_bot_question_prompt(
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
+    if is_rp and player_context:
+        grouped_with = (
+            f"You are grouped with {player_name}.\n{player_context}\n"
+        )
+    else:
+        grouped_with = (
+            f"You are grouped with {player_name}, a level "
+            f"{player_level} "
+            f"{player_gender + ' ' if player_gender else ''}"
+            f"{player_race} {player_class} (real player).\n"
+        )
 
     # --------------------------------------------------
     # LEAN MEMORY PATH — when memories are present,
@@ -4723,12 +4753,7 @@ def build_bot_question_prompt(
                 f"moment by name so {player_name} "
                 f"would recognise it.\n"
                 f"</past_memories>\n\n"
-                f"You are grouped with "
-                f"{player_name}, a level "
-                f"{player_level} "
-                f"{player_gender + ' ' if player_gender else ''}"
-                f"{player_race} "
-                f"{player_class} (real player).\n\n"
+                f"{grouped_with}\n"
             )
             if solo_bot:
                 prompt += (
@@ -4898,11 +4923,7 @@ def build_bot_question_prompt(
 
     prompt += (
         f"{rp_context}\n\n"
-        f"You are grouped with {player_name}, "
-        f"a level {player_level} "
-        f"{player_gender + ' ' if player_gender else ''}"
-        f"{player_race} "
-        f"{player_class} (real player).\n"
+        f"{grouped_with}"
         f"You want to ask {player_name} about "
         f"{topic}.\n\n"
         f"Ask {player_name} ONE short, creative "
