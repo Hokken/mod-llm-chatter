@@ -1,5 +1,26 @@
 # Changelog
 
+### 2026-10-02 - Themed Topics and Rumors
+
+* **Themed subjects**: Idle guild, General and party chatter can pick a
+  subject from the speaking bot's faction, race or class (priests split
+  into Light and Shadow by spec), always told from the bot's own side.
+* **Rumors**: Guild and General can share rumors about expansions,
+  dungeons, raids, locations, regions and trainers. A rumor must suit
+  every real listener: level, faction, completed content and
+  mod-individual-progression tier.
+* **Conversation threads**: While threads are on, a themed subject is one
+  more fresh-subject source (`Threads.ThemedTopicWeight`) offered with the
+  usual soft nudge. The per-channel chances only apply while threads are
+  off. Candidates are prepared before the thread lock is taken.
+* **Race and class notes**: Guild prompts get a short lore note for the
+  speaker's race and calling (`RaceClassNotes.Enable`).
+* **Configuration**: `ThemedTopics.*`, `Threads.ThemedTopicWeight` and
+  `RaceClassNotes.Enable`.
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20261002_themed_topic_audience.sql`,
+  rebuild the worldserver and restart the bridge.
+
 ### 2026-10-01 - Shared Chat Profiles and More Natural Player Replies
 
 * **Shared bot profiles**: General speakers create missing traits, tone and

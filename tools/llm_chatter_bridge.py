@@ -52,6 +52,7 @@ from chatter_shared import (
     get_chatter_mode,
     set_race_lore_chance,
     set_race_vocab_chance,
+    set_race_class_notes_enabled,
     set_action_chance,
     set_emote_chance,
     set_language,
@@ -1227,6 +1228,9 @@ def main():
     set_race_vocab_chance(int(config.get(
         'LLMChatter.RaceVocabChance', 15
     )))
+    set_race_class_notes_enabled(str(config.get(
+        'LLMChatter.RaceClassNotes.Enable', '1'
+    )) == '1')
     set_action_chance(int(config.get(
         'LLMChatter.ActionChance', 10
     )), mode=config.get(
