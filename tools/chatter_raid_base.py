@@ -497,6 +497,7 @@ def fire_raid_worker(
             f":{bot_name}"),
         metadata=rw_meta or None,
         label=label,
+        group_id=(int(extra_data.get('group_id', 0) or 0) if in_bg else 0),
     )
 
     if not result.get('ok'):

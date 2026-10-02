@@ -710,6 +710,60 @@ LLMChatter.PlayerChat.IgnoredPrefixes =
 #
 LLMChatter.BGChatter.Enable = 1
 
+# Chance (0-100) per AB batch attempt; legacy per-node chance for EY.
+# AB observes every BG update; failed rolls retain pending facts until expiry.
+# 0 disables node reactions.
+LLMChatter.BGChatter.NodeEventChance = 80
+
+# Chance (0-100) for score milestone reactions; 0 disables these reactions.
+LLMChatter.BGChatter.ScoreMilestoneChance = 80
+
+# Milliseconds between legacy BG polls and AB pending-node speech attempts.
+# AB node observation runs every update regardless of this setting.
+# 0 evaluates speech every update; it does not provide stronger evidence.
+LLMChatter.BGChatter.StatePollingIntervalMs = 3000
+
+# Legacy shared big-event cooldown; AB node/score attempts are independent.
+# 0 disables this legacy cooldown.
+LLMChatter.BGChatter.BigEventCooldownSec = 15
+
+# Maximum actual gap (ms) for sampled AB transition labels. BG updates run
+# about once per second; 2000 tolerates ordinary scheduling jitter.
+# Larger gaps or multiple pending changes use state-only wording.
+# 0 disables transition labels. This does not change speech frequency.
+LLMChatter.BGChatter.AB.TransitionMaxGapMs = 2000
+
+# Enable AB node/resource observation, reactions and objective snapshots.
+# Disabling clears AB state; re-enable seeds silently. Other BGs are unchanged.
+LLMChatter.BGChatter.AB.Enable = 1
+
+# Maximum uncertainty of internal contest estimates, in seconds (0-60).
+# 0 omits estimates. These use the BG timer clock, not a wall-clock ETA.
+# Numerical timer wording remains disabled.
+LLMChatter.BGChatter.AB.TimerEstimateMaxUncertaintySec = 3
+
+# Maximum age in seconds at final BG delivery (clamped to 1-300).
+# These cannot disable match/audience validation. 0 is clamped to 1.
+# Match-end has its own limit and is allowed only during WAIT_LEAVE.
+LLMChatter.BGChatter.FactualMaxAgeSec = 30
+LLMChatter.BGChatter.AB.FactualMaxAgeSec = 15
+## AB node batches: attempt spacing and pending expiry clamp to 1-300 sec.
+## Chance failures consume the interval but retain current pending facts.
+LLMChatter.BGChatter.AB.NodeBatchCooldownSec = 15
+LLMChatter.BGChatter.AB.PendingMaxAgeSec = 30
+## Maximum referenced nodes in one reaction, clamped to 1-5.
+LLMChatter.BGChatter.AB.MaxNodesPerBatch = 3
+## Percentages 1-99; sorted/deduplicated. Any invalid list uses 30,60,90.
+## Rounded up against the verified target; core warning wins collisions.
+LLMChatter.BGChatter.AB.ScoreMilestonePercents = "30,60,90"
+## Score attempt interval, clamped 1-300 sec. Uses ScoreMilestoneChance.
+LLMChatter.BGChatter.AB.ScoreCooldownSec = 30
+## Replace an idle opportunity with objective status. Zero disables status;
+## positive intervals clamp to 1-3600 sec; chance clamps to 0-100.
+LLMChatter.BGChatter.AB.ObjectiveStatusIntervalSec = 60
+LLMChatter.BGChatter.AB.ObjectiveStatusChance = 50
+LLMChatter.BGChatter.MatchEndMaxAgeSec = 45
+
 #
 #   LLMChatter.RaidChatter.Enable
 #       Enable PvE raid boss chatter (pull, kill, wipe reactions).
@@ -3048,33 +3102,17 @@ LLMChatter.EventExpirationSeconds = 600
 LLMChatter.BGChatter.MaxTokens = 300
 
 #
-#   LLMChatter.BGChatter.ArrivalGreetingMax
-#       [BRIDGE] Maximum number of bots that greet when you
-#       enter a battleground. Greeters come from your BG
-#       sub-group. 0 disables BG arrival greetings.
-#       Default: 4
+#   BG arrival greetings [BRIDGE]
+#       Always select one BG-wide greeting when enabled and bots exist.
+#       A second BG-wide greeting has ArrivalRaidSecondChance percent chance.
+#       Independently roll a uniform Party count from ArrivalPartyMin to Max.
+#       Counts are capped by subgroup bots. A bot may speak once per channel.
+#       Generation and delivery guards still apply.
 #
-LLMChatter.BGChatter.ArrivalGreetingMax = 4
-
-#
-#   LLMChatter.BGChatter.ArrivalGreetingMin
-#       [BRIDGE] Minimum number of bots that greet when you
-#       enter a battleground. Each entry rolls a random count
-#       between ArrivalGreetingMin and ArrivalGreetingMax
-#       (capped by the bots in your sub-group).
-#       Default: 1
-#
-LLMChatter.BGChatter.ArrivalGreetingMin = 1
-
-#
-#   LLMChatter.BGChatter.ArrivalBGChannelGreetings
-#       [BRIDGE] Maximum BG arrival greetings sent to battleground
-#       chat (heard by the whole team); the rest go to party chat.
-#       The split is random, and with two or more greetings each
-#       channel gets at least one line. 0 = party chat only.
-#       Default: 2
-#
-LLMChatter.BGChatter.ArrivalBGChannelGreetings = 2
+LLMChatter.BGChatter.ArrivalGreetings.Enable = 1
+LLMChatter.BGChatter.ArrivalRaidSecondChance = 50
+LLMChatter.BGChatter.ArrivalPartyMin = 0
+LLMChatter.BGChatter.ArrivalPartyMax = 3
 
 #
 #   LLMChatter.BGChatter.FlagRegrabWindowSec
