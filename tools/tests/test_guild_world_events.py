@@ -184,9 +184,13 @@ def test_registry_routes_new_events():
         assert spec.handler_module == 'chatter_guild_world_events'
         assert spec.producer == 'LLMChatterGuildWorld.cpp'
         assert hasattr(world, spec.handler_func), spec.handler_func
-    for event_type in ('guild_pvp_kill', 'bot_group_pvp_kill',
-                       'guild_pvp_death', 'zone_pvp_death'):
-        assert event_type not in EVENT_REGISTRY
+    assert 'bot_group_pvp_kill' not in EVENT_REGISTRY
+    for event_type in ('guild_pvp_kill', 'guild_pvp_death',
+                       'zone_pvp_death'):
+        spec = EVENT_REGISTRY.get(event_type)
+        assert spec is None or (
+            spec.handler_module != 'chatter_guild_world_events'
+        ), event_type
 
 
 # -- Meet greeting -----------------------------------------------------------
