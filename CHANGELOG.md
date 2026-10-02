@@ -21,6 +21,40 @@
   `data/sql/characters/updates/20261002_guild_pvp_events.sql`, rebuild
   the worldserver and restart the bridge.
 
+### 2026-10-02 - Arathi Basin Objectives and Battleground Arrival Variety
+
+* **Arathi Basin objectives**: Observe claims, assaults, counter-claims,
+  defences and completed captures separately. Batch recent base changes
+  into one reaction, retain pending observations across failed chance
+  rolls, and credit banner interactions only when the actor is verified.
+* **Raid-wide base announcements**: All AB node transitions, including
+  state-only updates, use battleground chat without a Party copy. Humans
+  in different subgroups of the same raid no longer create duplicate
+  announcements for the same node revision.
+* **Grounded objective context**: Score milestones and objective-status
+  chatter use observed ownership, income and verified score targets.
+  Combat and social messages do not inherit unrelated base snapshots.
+  Team-relative prompts distinguish contested bases from held bases.
+* **Delivery freshness**: Match identity, team, group, event age and AB
+  objective revisions are checked before delivery. Random battleground
+  queues retain their actual map identity. BG history excludes dropped
+  messages and is scoped to the appropriate match and audience.
+* **Independent arrival greetings**: Select one battleground-wide greeting,
+  with a 50% chance of a second, independently of a uniform 0–3 Party
+  greetings. Available subgroup bots cap each count; a bot may speak once
+  in each channel. Generation and delivery checks still apply.
+* **Conversational replies**: General and Guild replies judge whether the
+  exchange is still open from its context. Brief or declarative messages
+  no longer imply that the player wants silence; uncertain cases favor a
+  short acknowledgment while keeping reply length a separate decision.
+* **Configuration**: Added AB observation, batching, milestone, status and
+  freshness controls. Arrival controls are now `ArrivalGreetings.Enable`,
+  `ArrivalRaidSecondChance`, `ArrivalPartyMin` and `ArrivalPartyMax` under
+  `BGChatter`. They replace `ArrivalGreetingMin`, `ArrivalGreetingMax` and
+  `ArrivalBGChannelGreetings`; migrate old overrides, including disables.
+* **Upgrade**: Rebuild worldserver for the AB changes and restart the
+  chatter bridge. No database migration is required.
+
 ### 2026-10-01 - Shared Chat Profiles and More Natural Player Replies
 
 * **Shared bot profiles**: General speakers create missing traits, tone and

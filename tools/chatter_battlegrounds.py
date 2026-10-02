@@ -12,6 +12,8 @@ via dual_worker_dispatch, and mark event status.
 import logging
 import random
 
+from chatter_ab import normalize_ab_node_changes
+
 logger = logging.getLogger(__name__)
 
 from chatter_shared import (
@@ -407,14 +409,26 @@ def process_bg_node_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
+    if (extra_data.get('bg_type_id') in (3, '3')
+            and 'node_changes' in extra_data):
+        changes = normalize_ab_node_changes(extra_data['node_changes'])
+        if changes is None:
+            _mark_event(db, event_id, 'skipped')
+            return False
+        extra_data['node_changes'] = changes
+
     # Inject event_type for prompt builder
     extra_data['event_type'] = event_type
 
+    # AB base transitions are team announcements, including state-only
+    # fallbacks. EY retains its existing subgroup routing.
+    ab_node = extra_data.get('bg_type_id') in (3, '3')
     result = dual_worker_dispatch(
         db, client, config, event, extra_data,
         subgroup_prompt_fn=build_bg_node_prompt,
-        raid_prompt_fn=None,
-        dispatch_mode=DISPATCH_SUBGROUP_ONLY,
+        raid_prompt_fn=build_bg_node_prompt if ab_node else None,
+        dispatch_mode=(DISPATCH_RAID_ONLY if ab_node
+                       else DISPATCH_SUBGROUP_ONLY),
         label='reaction_bg_node')
 
     status = (

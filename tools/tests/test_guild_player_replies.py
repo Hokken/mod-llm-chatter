@@ -311,8 +311,10 @@ def test_semantic_analysis_resolves_implicit_brief_reply():
     assert 'immediately prior speaker' in prompts[0]
     assert 'not keywords or message length alone' in prompts[0]
     assert 'Questions always require a reply' in prompts[0]
-    assert 'false ONLY for throwaway filler' in prompts[0]
-    assert 'shares an opinion, feeling' in prompts[0]
+    assert 'would it feel like ignoring the player?' in prompts[0]
+    assert 'When uncertain, favor a reply' in prompts[0]
+    assert 'prefer a short acknowledgment (brief_casual=true)' in prompts[0]
+    assert 'unless the conversational purpose clearly calls for detail' in prompts[0]
 
 
 def test_llm_required_question_cannot_be_optional():
