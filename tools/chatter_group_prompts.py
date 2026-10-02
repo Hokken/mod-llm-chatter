@@ -1343,8 +1343,7 @@ def build_death_reaction_prompt(
 
 CLASS_GROWTH = {
     'Warrior': (
-        "their arm is stronger, their blade bites deeper and they "
-        "stand firmer in the thick of battle"
+        "their arm is stronger, their blade bites deeper, and their body grows tougher; they stand firmer in the thick of battle, weathering blows that would have felled them before"
     ),
     'Paladin': (
         "the Light burns brighter in them; their weapon falls "
@@ -1355,36 +1354,29 @@ CLASS_GROWTH = {
         "their beast runs deeper"
     ),
     'Rogue': (
-        "they move quicker and quieter, and their blades find the "
-        "gaps in any guard more surely"
+        "they move quicker and quieter, and their blades find the gaps in any guard more surely; they have also learned to brew deadlier, more terrifying poisons"
     ),
     'Light Priest': (
-        "the Holy Light flows through them more freely; their "
-        "prayers mend deeper wounds and their faith shines brighter"
+        "the Holy Light shines brighter within them; their prayers ring louder and carry deeper, reaching farther into the hearts of those who hear them"
     ),
     'Shadow Priest': (
-        "they have merged deeper with the Void; the shadows gather "
-        "to them more willingly and the darkness answers their will"
+        "they have merged deeper with the Void; darker shadows gather around them, and the strange whispers that follow in their wake grow louder"
     ),
     'Death Knight': (
-        "the runes answer them more readily; their runeblade hungers "
-        "more and the cold of death obeys them"
+        "the runes answer them more readily; their runeblade hungers more, and the cold of death obeys them, gathering more terrible diseases along its edge"
     ),
     'Shaman': (
-        "the elements heed their call more readily; earth, fire, "
-        "water and air answer them with greater force"
+        "the elements heed their call more readily; earth, fire, water and air answer them with greater force, while the spirits of their ancestors gather ever closer around them"
     ),
     'Mage': (
-        "the arcane bends more easily to their will; their spells "
-        "burn hotter and their mind is sharper"
+        "the arcane bends more easily to their will; their fire burns hotter, their frost bites colder, and their mind grows sharper"
     ),
     'Warlock': (
         "their grip on fel power tightens; demons obey them more "
         "readily and their curses bite deeper"
     ),
     'Druid': (
-        "nature's power runs deeper in them; their forms grow "
-        "stronger and the wild answers their call"
+        "nature's power runs deeper in them; their forms grow stronger and the wild answers their call, while more and more creatures come willingly to guard and protect them"
     ),
 }
 
