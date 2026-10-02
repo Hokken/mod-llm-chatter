@@ -98,6 +98,31 @@ int main()
             && kind == "duel",
         "key text inside a value is skipped");
 
+    // Structured delivery contracts must only read exact root members.
+    using namespace LLMChatterJson;
+    Members fields;
+    Check(ReadObject(R"({"nested":{"id":12},"id":7})", fields)
+        && UInt(fields, "id", value) && value == 7,
+        "nested key cannot shadow root identity");
+    Check(ReadObject(R"({"nested":{"id":12}})", fields)
+        && !UInt(fields, "id", value), "nested-only identity rejected");
+    for (auto input : {R"({"id":1,"id":2})", R"({"id":1,})",
+        R"({"id":01})", R"({"id":1} trailing)", R"({"id":1oops})"})
+        Check(!ReadObject(input, fields), "malformed contract rejected");
+    for (auto input : {R"({"id":-1})", R"({"id":1.5})",
+        R"({"id":1e3})", R"({"id":"1"})", R"({"id":true})",
+        R"({"id":18446744073709551616})"})
+        Check(ReadObject(input, fields) && !UInt(fields, "id", value),
+            "identity requires whole unsigned integer in range");
+    Check(ReadObject(R"({"token":"x\"y","text":"\u00e9"})", fields)
+        && String(fields, "token", kind) && kind == "x\"y",
+        "escaped token and opaque unicode payload");
+    std::vector<std::string_view> nodes;
+    Check(ReadArray(R"([{"id":0},{"id":1}])", nodes)
+        && nodes.size() == 2 && ReadObject(nodes[1], fields)
+        && UInt(fields, "id", value) && value == 1, "node array views");
+    Check(!ReadArray("[1,]", nodes), "trailing array comma rejected");
+
     if (failures == 0)
         std::printf("OK\n");
     return failures == 0 ? 0 : 1;
