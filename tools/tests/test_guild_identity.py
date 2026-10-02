@@ -401,7 +401,7 @@ def _run_statement(thread_turn, config):
         captured['metadata'] = kwargs.get('metadata')
         return None
 
-    def fake_plan(key, names, topic_pool=None, db=None):
+    def fake_plan(key, names, topic_pool=None, db=None, **kwargs):
         captured['pool'] = list(topic_pool)
         return thread_turn
 
