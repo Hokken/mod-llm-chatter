@@ -155,7 +155,7 @@ def test_levelup_splits_shadow_and_light_priests():
     light = build_levelup_reaction_prompt(
         REACTOR, ['kind'], 'Lyn', 30, True, 'roleplay',
         leveler_race='Blood Elf', leveler_class='Priest')
-    assert 'Holy Light flows' in light
+    assert 'Holy Light shines' in light
     assert 'Void' not in light.split('Lyn, a')[1].split('\n')[0]
 
 
