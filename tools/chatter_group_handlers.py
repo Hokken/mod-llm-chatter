@@ -20,6 +20,7 @@ from chatter_shared import (
     get_dungeon_bosses,
     format_item_link,
     format_item_context,
+    format_name_list,
     run_single_reaction,
     parse_conversation_response,
     calculate_dynamic_delay,
@@ -1396,8 +1397,9 @@ def process_group_achievement_event(
             _mark_event(db, event_id, 'skipped')
             return False
         if batched_names:
-            extra_data['achiever_name'] = ', '.join(
+            extra_data['achiever_name'] = format_name_list(
                 batched_names)
+            extra_data['achiever_count'] = len(batched_names)
         extra_data['event_type'] = (
             'bot_group_achievement')
         result = False
@@ -2736,6 +2738,7 @@ def execute_player_msg_conversation(
     items_info=None,
     zone_id=0, area_id=0, map_id=0,
     brief_casual=False,
+    bg_context=None,
 ):
     """Run a multi-bot conversation responding to
     a player's party chat message.
@@ -2898,6 +2901,7 @@ def execute_player_msg_conversation(
             db, player_info['guid'] if player_info else 0,
             player_name, mode,
         ),
+        bg_context=bg_context,
         thread_context=render_for_player_reply(group_id, db),
     )
 
