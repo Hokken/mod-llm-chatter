@@ -3327,6 +3327,90 @@ Existing installations must also apply
 `data/sql/characters/updates/20260725_guild_login_greeting.sql` because
 `llm_chatter_events.event_type` is an SQL enum.
 
+## 13x. Guild World Events
+
+`LLMChatterGuildWorld.cpp` produces three event types, handled by
+`chatter_guild_world_events.py`. It registers its own `GuildScript` (a bot
+joining a guild) and `WorldScript` (the world scan) through
+`AddLLMChatterGuildWorldScripts()`.
+
+| Event | Trigger | Output |
+|-------|---------|--------|
+| `guild_meet_greeting` | World scan: a guild bot within `MeetGreeting.Radius` of a real guildmate, not in their group, both calm in the open world, the bot visible and in line of sight | `/hello` emote at the player plus a `/say` greeting; five-hour cooldown per pair. With `MeetGreeting.GuildPostChance` the bot also mentions the meeting in Guild chat, naming the subzone and zone |
+| `guild_join_zone_announce` | A bot joins a guild and a real player of its faction is in its zone | General line from the new member plus up to `JoinZoneAnnounce.MaxResponders` reactions from zone bots |
+| `guild_npc_encounter` | World scan: a guild bot near a friendly service NPC it can see and has line of sight to | One Guild line with the bot's opinion of the NPC |
+
+The world scans and the join-announce responder search walk
+`ObjectAccessor::GetPlayers()`: playerbot sessions are not registered with
+`WorldSessionMgr`, so a session-based loop never sees bots. Real listeners
+come from `LLMChatterAudience.cpp`, which walks `WorldSessionMgr` and so
+only sees real players.
+
+### Meet greeting delivery
+
+- The scan holds the bot for a reply with `HoldBotForReply()`
+  (`LLMChatterReplyHold.cpp`): it stops, turns to the player and pauses
+  for at most four seconds, and is released early when it enters combat
+  or its line is delivered or dropped.
+- The `/say` line is owned by the Guild subsystem, so the proximity
+  checks do not apply to it. Delivery checks it again instead
+  (`CheckMeetGreetingDelivery()`): the player must still be online, on the
+  same map, within `MeetGreeting.Radius`, able to see the bot and in line
+  of sight, and the bot must be alive and out of combat. Otherwise the
+  line is dropped with the reason (`meet_player_gone`, `meet_other_map`,
+  `meet_out_of_range`, `meet_not_visible`, `meet_no_line_of_sight`,
+  `meet_bot_unavailable`) and an INFO log line.
+- The Guild follow-up is generated after the greeting and stored on hold:
+  its `deliver_at` is NULL, so delivery never picks it up. When the
+  greeting row is final, delivery releases the follow-up 8 to 15 seconds
+  later, or cancels it with `meet_greeting_not_delivered` when the
+  greeting was dropped (`SettleMeetGreetingFollowUp()`). If the greeting
+  was already final when the bridge stored the follow-up, the bridge
+  settles it itself (`hold_follow_up()`). Follow-ups still on hold ten
+  minutes after their event are cancelled by the world scan.
+- When no players are online, the session cleanup keeps finished
+  `guild_meet_greeting` events because they are the persisted meet
+  cooldown.
+
+### Message flow
+
+- The NPC encounter and the meet follow-up are Guild filler lines
+  (`delivery_policy='filler'`). They are not queued while the guild is in
+  a conversation with a real player
+  (`GuildChatter.PlayerReplies.IdleSuppressionSeconds`), and delivery
+  drops filler Guild rows with `guild_conversation_active` when a
+  conversation started after they were queued.
+- The General join announcement reserves a zone window with
+  `_reserve_zone_delivery_window()`, like the other General producers, so
+  it keeps `GeneralChat.MinZoneGap` from other automated General lines.
+- The announcer must speak first. A reply where every chosen speaker has
+  exactly one line but the announcer is not first is reordered; a reply
+  with a missing, repeated or unexpected speaker gets one repair attempt
+  and then falls back to a single announcement.
+
+### Personality
+
+The prompts describe what happened and let each bot's personality and
+tone decide how it reacts. Typical reactions are offered as options (a
+greeting, a nod, a dry remark, a question; congratulations, teasing,
+indifference or disdain for the guild), never as the required mood. The
+NPC encounter does not claim the bot has never met the NPC before.
+
+### Configuration
+
+| Key | Default | Quieter preset | Owner |
+|-----|---------|----------------|-------|
+| `MeetGreeting.Enable` / `.Radius` / `.CooldownHours` | 1 / 25 / 5 | 1 / 25 / 5 | Server |
+| `MeetGreeting.GuildPostChance` | 50 | 30 | Bridge |
+| `WorldScanInterval` | 10 | 10 | Server |
+| `JoinZoneAnnounce.Enable` / `.Chance` | 1 / 35 | 1 / 20 | Server |
+| `JoinZoneAnnounce.MaxResponders` | 2 | 2 | Bridge |
+| `NpcEncounter.Enable` / `.Chance` / `.Radius` / `.Cooldown` | 1 / 4 / 30 / 1200 | 1 / 2 / 30 / 1200 | Server |
+
+All keys are under `LLMChatter.GuildChatter.`. Existing installations must
+apply `data/sql/characters/updates/20261002_guild_world_events.sql`
+because `llm_chatter_events.event_type` is an SQL enum.
+
 ---
 
 ## 14. JSON and Queue Contracts

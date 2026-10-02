@@ -970,6 +970,64 @@ void LLMChatterConfig::LoadConfig()
                     "LLMChatter.GuildChatter."
                     "MaxParticipants", 3),
                 3u));
+    _guildMeetGreetingEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter."
+            "MeetGreeting.Enable", true);
+    _guildMeetGreetingRadius =
+        std::max(
+            5u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "MeetGreeting.Radius", 25),
+                60u));
+    _guildMeetGreetingCooldownHours =
+        std::max(
+            1u,
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "MeetGreeting.CooldownHours", 5));
+    _guildWorldScanInterval =
+        std::max(
+            5u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "WorldScanInterval", 10),
+                300u));
+    _guildJoinZoneAnnounceEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter."
+            "JoinZoneAnnounce.Enable", true);
+    _guildJoinZoneAnnounceChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "JoinZoneAnnounce.Chance", 35),
+            100u);
+    _guildNpcEncounterEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter."
+            "NpcEncounter.Enable", true);
+    _guildNpcEncounterChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "NpcEncounter.Chance", 4),
+            100u);
+    _guildNpcEncounterRadius =
+        std::max(
+            5u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "NpcEncounter.Radius", 30),
+                80u));
+    _guildNpcEncounterCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter."
+            "NpcEncounter.Cooldown", 1200);
     _guildPlayerRepliesEnable =
         GetChatterOption<bool>(
             "LLMChatter.GuildChatter."

@@ -7,8 +7,10 @@
 #include "LLMChatterBossDialogue.h"
 #include "LLMChatterDelivery.h"
 #include "LLMChatterGuild.h"
+#include "LLMChatterGuildWorld.h"
 #include "LLMChatterProximity.h"
 #include "LLMChatterProximityFight.h"
+#include "LLMChatterReplyHold.h"
 #include "LLMChatterShared.h"
 
 #include "Channel.h"
@@ -597,6 +599,21 @@ void DeliverPendingMessagesImpl()
         }
     }
 
+    // Guild filler rows give way to a live player conversation in
+    // that guild, as idle Guild chatter does.
+    if (bot && ownerSubsystem == "guild"
+        && deliveryPolicy == "filler"
+        && WasGuildPlayerInteractionRecent(
+            bot->GetGuildId(),
+            sLLMChatterConfig
+                ->_guildPlayerIdleSuppressionSeconds))
+    {
+        FinalizeDroppedMessage(
+            messageId, eventId, sequence,
+            eventType, "guild_conversation_active");
+        return;
+    }
+
     // Only mark delivered after a successful
     // send (or if the bot is unavailable and
     // retrying would not help).
@@ -611,6 +628,26 @@ void DeliverPendingMessagesImpl()
             : !bot || !bot->IsInWorld();
     std::string dropReason = botUnavailable
         ? "speaker_unavailable" : "";
+
+    // A meet greeting is only spoken while the guildmate is still
+    // close, visible and in line of sight.
+    if (eventType == "guild_meet_greeting" && channel == "say")
+    {
+        if (char const* meetDrop =
+                CheckMeetGreetingDelivery(bot, playerGuid))
+        {
+            LOG_INFO("module",
+                "LLMChatter: guild_meet_greeting message {} "
+                "(event {}) dropped: {}",
+                messageId, eventId, meetDrop);
+            FinalizeDroppedMessage(
+                messageId, eventId, sequence,
+                eventType, meetDrop);
+            SettleMeetGreetingFollowUp(eventId, false);
+            ReleaseBotReplyHold(botGuid);
+            return;
+        }
+    }
 
     ObjectGuid playerObjGuid =
         ObjectGuid::Create<HighGuid::Player>(
@@ -1536,6 +1573,9 @@ void DeliverPendingMessagesImpl()
             message);
     }
 
+    if (sent || botUnavailable)
+        ReleaseBotReplyHold(botGuid);
+
     if (sent)
     {
         CharacterDatabase.DirectExecute(
@@ -1579,4 +1619,10 @@ void DeliverPendingMessagesImpl()
             "WHERE id = {}",
             messageId);
     }
+
+    // After the greeting row is final, so the bridge can tell whether
+    // a follow-up it holds still needs settling.
+    if (eventType == "guild_meet_greeting" && channel == "say"
+        && (sent || botUnavailable))
+        SettleMeetGreetingFollowUp(eventId, sent);
 }
