@@ -3329,6 +3329,91 @@ Existing installations must also apply
 
 ---
 
+## 13u. Standalone Chat Fixes
+
+### Talents
+
+`acore_world.talent_dbc` is empty by design (the core loads `Talent.dbc`
+from the client data), so `get_character_talents()` no longer joins it.
+It reads the active spec's `character_talent` spells and maps them with
+`TALENT_SPELLS` and `TALENT_TABS` from `talent_data.py`, which loads
+`talent_data.json`: 33 trees and every talent rank spell with its talent,
+tree, rank, tier, column and name. The return shape is unchanged, so every
+talent-aware prompt works as written. To regenerate the JSON, copy
+`Talent.dbc` and `TalentTab.dbc` out of the worldserver container and run
+`tools/generate_talent_data.py` (see its docstring). Names come from
+`spell_names.json` and match `TALENT_CATALOG`.
+
+`class_style()` in `chatter_class_style.py` turns a priest into
+"Shadow Priest" when Shadow has strictly the most points in the active
+spec, otherwise "Light Priest". It keeps no cache of its own: the talent
+helper reads the active spec on every call and caches per guid and spec,
+so the style follows a dual-spec switch.
+
+### Emojis
+
+`strip_emojis()` in `chatter_text.py` removes all emoji blocks, the
+BMP symbol ranges models use as emojis, and the invisible variation
+selectors (U+FE0E/FE0F), zero-width joiner, keycap and tag characters,
+then tidies the leftover spaces. `cleanup_message()` calls it, and
+`insert_chat_message()` and the party reaction cache call it again as a
+final guard; an emoji-only line is not inserted.
+
+### Links
+
+Both the second-speaker cut in `cleanup_message()` and
+`shorten_chat_message()` mask links and `{item:...}` placeholders, so a
+name like "Power Word: Fortitude" or "Formula: Enchant Bracer" is never
+taken for a speaker and a long message is never shortened through a link.
+
+### Late party bots
+
+The server waits up to 120 seconds after a real player logs in for the
+bots of a saved group to appear. A bot that logs into a group with a real
+player online after that window (for example an alt character loading
+minutes later) now queues a rejoin for the group: its traits are restored
+silently, without a greeting, and bots already registered in this session
+are skipped.
+
+### Reply hold
+
+`HoldBotForReply()` (`LLMChatterReplyHold.cpp`) is used when a player
+emotes at an ungrouped bot or addresses it with a `/say` emote. It stops
+the bot, turns it toward the player and delays its next AI check for at
+most `LLM_CHATTER_MAX_REPLY_HOLD_MS` (4 seconds). The motion master is
+not cleared, so following, travelling and questing resume afterwards. A
+bot already in combat is never held, and the hold is released at once
+(`SetNextCheckDelay(0)`) when the bot enters combat or when one of its
+lines is delivered or dropped. Directed messages dropped by delivery
+re-checks, and dropped mirror emotes, are logged at INFO.
+
+### Roleplay wording
+
+- Trade: roleplay trade statements and conversations speak as a traveller
+  or merchant offering goods aloud. The vendor price is given in words
+  (`format_price_words()`, e.g. "one gold and twenty silver coins"), the
+  rules ask for a conversational price with every number written as words,
+  and trade shorthand is forbidden. `spell_out_numbers()` then rewrites any
+  leftover "1g20s", "50 silver" or digits in the delivered text, leaving
+  link markup untouched. Normal mode keeps WTS-style posts.
+- Level-up: `bot_group_levelup` carries `leveler_guid`, `leveler_class`,
+  `leveler_race` and `leveler_gender`. In roleplay the prompt never names a
+  level: it describes how the leveler grew stronger in their calling
+  (`CLASS_GROWTH` in `chatter_group_prompts.py`). A Shadow Priest has
+  merged deeper with the Void and the shadows gather to them; every other
+  priest is praised for the Light. Level-up memories say "grew noticeably
+  stronger" in roleplay. Normal mode keeps the level number.
+- Slang: roleplay guidelines ban player, trade and group slang
+  (`RP_NO_PLAYER_SLANG` in `chatter_mode.py`).
+
+The canned mod-playerbots lines in General and Guild ("money money money
+[item]", "[item] is hunter bis") come from mod-playerbots' own broadcasts,
+not from this module. Turn them off in `playerbots.conf` as described in
+the README section "Important: Disable Default Bot Chat"
+(`AiPlayerbot.EnableBroadcasts = 0`).
+
+---
+
 ## 14. JSON and Queue Contracts
 
 ### `QueueChatterEvent()`

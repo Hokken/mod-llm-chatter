@@ -9,6 +9,7 @@
 #include "LLMChatterGuild.h"
 #include "LLMChatterProximity.h"
 #include "LLMChatterProximityFight.h"
+#include "LLMChatterReplyHold.h"
 #include "LLMChatterShared.h"
 
 #include "Channel.h"
@@ -239,6 +240,11 @@ void FinalizeDroppedMessage(
 
     if (!eventId || !IsDirectedProximityEvent(eventType))
         return;
+
+    LOG_INFO("module",
+        "LLMChatter: directed {} message {} (event {}) dropped: {}",
+        eventType, messageId, eventId,
+        reason ? reason : "delivery_failed");
 
     CharacterDatabase.DirectExecute(
         "UPDATE llm_chatter_messages "
@@ -1535,6 +1541,9 @@ void DeliverPendingMessagesImpl()
             botName,
             message);
     }
+
+    if (sent || botUnavailable)
+        ReleaseBotReplyHold(botGuid);
 
     if (sent)
     {

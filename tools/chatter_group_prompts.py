@@ -1341,11 +1341,65 @@ def build_death_reaction_prompt(
     )
 
 
+CLASS_GROWTH = {
+    'Warrior': (
+        "their arm is stronger, their blade bites deeper and they "
+        "stand firmer in the thick of battle"
+    ),
+    'Paladin': (
+        "the Light burns brighter in them; their weapon falls "
+        "heavier and their faith shields their allies more surely"
+    ),
+    'Hunter': (
+        "their aim is truer, their senses keener and the bond with "
+        "their beast runs deeper"
+    ),
+    'Rogue': (
+        "they move quicker and quieter, and their blades find the "
+        "gaps in any guard more surely"
+    ),
+    'Light Priest': (
+        "the Holy Light flows through them more freely; their "
+        "prayers mend deeper wounds and their faith shines brighter"
+    ),
+    'Shadow Priest': (
+        "they have merged deeper with the Void; the shadows gather "
+        "to them more willingly and the darkness answers their will"
+    ),
+    'Death Knight': (
+        "the runes answer them more readily; their runeblade hungers "
+        "more and the cold of death obeys them"
+    ),
+    'Shaman': (
+        "the elements heed their call more readily; earth, fire, "
+        "water and air answer them with greater force"
+    ),
+    'Mage': (
+        "the arcane bends more easily to their will; their spells "
+        "burn hotter and their mind is sharper"
+    ),
+    'Warlock': (
+        "their grip on fel power tightens; demons obey them more "
+        "readily and their curses bite deeper"
+    ),
+    'Druid': (
+        "nature's power runs deeper in them; their forms grow "
+        "stronger and the wild answers their call"
+    ),
+}
+
+
+def _article(phrase: str) -> str:
+    return "an" if phrase[:1].lower() in "aeiou" else "a"
+
+
 def build_levelup_reaction_prompt(
     bot, traits, leveler_name, new_level, is_bot,
     mode, chat_history="", allow_action=True,
     speaker_talent_context=None,
     stored_tone=None,
+    leveler_race="", leveler_class="",
+    leveler_style="",
     leveler_desc="",
 ):
     """Build prompt for a bot reacting to someone
@@ -1354,6 +1408,10 @@ def build_levelup_reaction_prompt(
     guessing the leveler's race or class.
     If is_bot=True, reacting to another bot.
     If is_bot=False, reacting to the real player.
+    Roleplay never names a level; it praises how the
+    leveler grew stronger in their class.
+    leveler_style overrides the class key (e.g.
+    'Shadow Priest' / 'Light Priest').
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
@@ -1375,22 +1433,42 @@ def build_levelup_reaction_prompt(
     who = leveler_name
     if not is_bot:
         who = f"{leveler_name} (the real player)"
-    if leveler_desc:
-        who = f"{who}, a {leveler_desc},"
-
-    levelup_context = (
-        f"{who} just reached level {new_level}! "
-        f"Leveling up is always exciting. "
-        f"Congratulate or react to this milestone."
-    )
-
     if is_rp:
+        style_key = leveler_style or leveler_class
+        if style_key == 'Priest':
+            style_key = 'Light Priest'
+        growth = CLASS_GROWTH.get(
+            style_key,
+            "they have grown stronger and more capable",
+        )
+        calling = " ".join(
+            p for p in (leveler_race, style_key) if p
+        )
+        levelup_context = (
+            f"{who}"
+            + (f", {_article(calling)} {calling}," if calling else "")
+            + f" has just grown noticeably stronger: "
+            f"{growth}. Praise or react to how much "
+            f"stronger they have become."
+        )
         style = (
             "React in-character with genuine "
-            "excitement or congratulations. "
+            "admiration or congratulations, the way "
+            "a companion in the world would notice "
+            "someone's growing power. "
             "Keep it natural and grounded."
         )
     else:
+        desc = leveler_desc or " ".join(
+            p for p in (leveler_race, leveler_class) if p
+        )
+        if desc:
+            who = f"{who}, {_article(desc)} {desc},"
+        levelup_context = (
+            f"{who} just reached level {new_level}! "
+            f"Leveling up is always exciting. "
+            f"Congratulate or react to this milestone."
+        )
         style = (
             "React naturally in party chat. "
             "Congratulate or comment on "
@@ -1416,8 +1494,14 @@ def build_levelup_reaction_prompt(
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
-        f"- Can mention level {new_level}\n"
-        "- Let your personality show in how you say it, "
+        + (
+            "- Never mention levels, numbers or the "
+            "word 'level'; people in the world do not "
+            "count levels\n"
+            if is_rp else
+            f"- Can mention level {new_level}\n"
+        )
+        + "- Let your personality show in how you say it, "
         f"without naming your traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"

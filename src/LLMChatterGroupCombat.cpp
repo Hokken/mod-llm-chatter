@@ -1175,6 +1175,18 @@ void HandleGroupPlayerLevelChangedImpl(
                 isBot ? "1" : "0") + ","
         "\"leveler_name\":\"" +
             JsonEscape(playerName) + "\","
+        "\"leveler_guid\":" +
+            std::to_string(
+                player->GetGUID().GetCounter()) + ","
+        "\"leveler_class\":" +
+            std::to_string(
+                player->getClass()) + ","
+        "\"leveler_race\":" +
+            std::to_string(
+                player->getRace()) + ","
+        "\"leveler_gender\":" +
+            std::to_string(
+                player->getGender()) + ","
         "\"group_id\":" +
             std::to_string(groupId) +
         "}";

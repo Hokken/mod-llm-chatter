@@ -7,6 +7,7 @@
 #include "LLMChatterBossDialogue.h"
 #include "LLMChatterConfig.h"
 #include "LLMChatterGroup.h"
+#include "LLMChatterReplyHold.h"
 #include "LLMChatterShared.h"
 
 #include "CellImpl.h"
@@ -2989,11 +2990,15 @@ bool HandleProximityPlayerbotEmote(
 
     // GetTextEmoteName(0) falls back to "wave", so a custom
     // emote must carry its typed text instead of an id lookup.
-    return QueuePlayerEmoteProximityEvent(
+    bool queued = QueuePlayerEmoteProximityEvent(
         player, *addressedIt, speakers, candidates,
         isCustom ? customText : GetTextEmoteName(textEmote),
         textEmote, mirrorEmote,
         "player_inclusive", addressedSpeaks, isCustom);
+    if (queued && addressedSpeaks)
+        HoldBotForReply(
+            bot, player, LLM_CHATTER_MAX_REPLY_HOLD_MS);
+    return queued;
 }
 
 bool HandleProximityPartyBotEmoteWitness(

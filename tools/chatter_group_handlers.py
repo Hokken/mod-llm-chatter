@@ -111,6 +111,7 @@ from chatter_handler_pipeline import (
     _build_bot_from_db,
     _maybe_talent_context,
 )
+from chatter_class_style import class_style
 from chatter_memory import queue_memory
 from chatter_bg_prompts import (
     build_bg_achievement_prompt,
@@ -721,6 +722,15 @@ def _levelup_post_success(db, ctx, message):
     new_level = ctx['new_level']
     is_bot = ctx['is_bot']
     leveler_guid = ctx['leveler_guid']
+    is_rp = ctx['mode'] == 'roleplay'
+    other_context = (
+        f"{leveler_name} grew noticeably stronger"
+        if is_rp else f"{leveler_name} reached level {new_level}"
+    )
+    self_context = (
+        "I felt myself grow noticeably stronger"
+        if is_rp else f"I reached level {new_level}"
+    )
 
     mem_chance = int(config.get(
         'LLMChatter.Memory'
@@ -731,10 +741,7 @@ def _levelup_post_success(db, ctx, message):
             config, group_id,
             reactor_guid, 0,
             memory_type='level_up',
-            event_context=(
-                f"{leveler_name} reached"
-                f" level {new_level}"
-            ),
+            event_context=other_context,
             bot_name=reactor_name,
             bot_class=ctx['bot']['class'],
             bot_race=ctx['bot']['race'],
@@ -757,10 +764,7 @@ def _levelup_post_success(db, ctx, message):
                 config, group_id,
                 leveler_guid, 0,
                 memory_type='level_up',
-                event_context=(
-                    f"I reached level"
-                    f" {new_level}"
-                ),
+                event_context=self_context,
                 bot_name=leveler_name,
                 bot_class=get_class_name(
                     lv_row['class']
@@ -796,6 +800,12 @@ def process_group_levelup_event(
                 ed.get('bot_level', 1)),
             'is_bot': bool(int(
                 ed.get('is_bot', 1))),
+            'leveler_class': get_class_name(
+                int(ed.get('leveler_class', 0))
+            ) if ed.get('leveler_class') else '',
+            'leveler_race': get_race_name(
+                int(ed.get('leveler_race', 0))
+            ) if ed.get('leveler_race') else '',
         },
         build_prompt=lambda ctx: (
             build_levelup_reaction_prompt(
@@ -811,6 +821,12 @@ def process_group_levelup_event(
                 speaker_talent_context=(
                     ctx['speaker_talent']),
                 stored_tone=ctx['stored_tone'],
+                leveler_race=ctx['leveler_race'],
+                leveler_class=ctx['leveler_class'],
+                leveler_style=class_style(
+                    ctx['db'], ctx['leveler_guid'],
+                    ctx['leveler_class'],
+                ) if ctx['mode'] == 'roleplay' else '',
             )
         ),
         needs_reactor_from_db=True,

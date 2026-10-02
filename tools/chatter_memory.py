@@ -650,7 +650,7 @@ def _call_llm_for_memory(
             "earning an achievement"
         ),
         'level_up': (
-            "reaching a new level"
+            "growing noticeably stronger"
         ),
         'bg_win': (
             "winning a battleground"
