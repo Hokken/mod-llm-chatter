@@ -1038,6 +1038,72 @@ void LLMChatterConfig::LoadConfig()
                     "LLMChatter.GuildChatter."
                     "LoginGreeting.MaxCandidates", 12),
                 30u));
+    _guildJoinGreetingEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter."
+            "JoinGreeting.Enable", true);
+    _guildJoinGreetingChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "JoinGreeting.Chance", 100),
+            100u);
+    _guildJoinGreetingBatchSeconds =
+        std::max(
+            2u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "JoinGreeting.BatchSeconds", 10),
+                120u));
+    _guildRankChangeEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter."
+            "RankChange.Enable", true);
+    _guildRankChangeChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "RankChange.Chance", 100),
+            100u);
+    _guildRankChangeDebounceSeconds =
+        std::max(
+            5u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "RankChange.DebounceSeconds", 30),
+                600u));
+    _guildRankChangeNewMemberGraceMinutes =
+        GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter."
+            "RankChange.NewMemberGraceMinutes", 30);
+    _guildMotdCommentEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter."
+            "MotdComment.Enable", true);
+    _guildMotdCommentChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "MotdComment.Chance", 100),
+            100u);
+    _guildMotdCommentDelaySeconds =
+        std::max(
+            2u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "MotdComment.DelaySeconds", 20),
+                600u));
+    _guildMemberEventMaxCandidates =
+        std::max(
+            1u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "MemberEvents.MaxCandidates", 12),
+                30u));
 
     // Zone intrusion alerts
     _zoneIntrusionEnable =

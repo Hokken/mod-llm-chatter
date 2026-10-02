@@ -931,3 +931,23 @@ void AddLLMChatterGuildScripts()
 {
     new LLMChatterGuildPlayerScript();
 }
+
+std::vector<Player*> GetGuildEventBots(
+    uint32 guildId, Player* anchor, uint32 maxCandidates)
+{
+    if (!anchor)
+        return {};
+    return GetEligibleGuildBots(
+        guildId, anchor->GetTeamId(), "", maxCandidates);
+}
+
+std::string BuildGuildEventCandidatesJson(
+    std::vector<Player*> const& bots)
+{
+    return BuildGuildCandidatesJson(bots);
+}
+
+void EnsureGuildSessionForPlayer(Player* player)
+{
+    EnsureGuildPlayerSession(player);
+}

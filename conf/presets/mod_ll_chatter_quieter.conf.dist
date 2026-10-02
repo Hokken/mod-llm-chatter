@@ -2423,6 +2423,135 @@ LLMChatter.GuildChatter.LoginGreeting.ReadinessTimeout = 90
 LLMChatter.GuildChatter.LoginGreeting.MaxCandidates = 12
 
 #
+#   LLMChatter.GuildChatter.JoinGreeting.Enable
+#       When someone joins a Guild that has a real player
+#       online, one to three Guild bots react to the
+#       newcomer in Guild Chat, each in its own personality
+#       and tone. A newcomer who is a bot may answer. A real player who joins while online also
+#       gets a Guild conversation session immediately.
+#       Default: 1
+#
+LLMChatter.GuildChatter.JoinGreeting.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.JoinGreeting.Chance
+#       Chance (0-100) that a batch of joins is greeted.
+#       Default: 100
+#
+LLMChatter.GuildChatter.JoinGreeting.Chance = 100
+
+#
+#   LLMChatter.GuildChatter.JoinGreeting.BatchSeconds
+#       Seconds to wait after the first join so that
+#       several joins close together get one reaction.
+#       Supported range is 2-120.
+#       Default: 10
+#
+LLMChatter.GuildChatter.JoinGreeting.BatchSeconds = 10
+
+#
+#   LLMChatter.GuildChatter.RankChange.Enable
+#       When a member is promoted or demoted in game, one
+#       to three Guild bots comment. The changed member may
+#       answer if it is a bot. GM commands such as
+#       .guild rank do not raise a guild event and are not
+#       noticed.
+#       Default: 1
+#
+LLMChatter.GuildChatter.RankChange.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.RankChange.Chance
+#       Chance (0-100) that a batch of rank changes is
+#       commented on.
+#       Default: 100
+#
+LLMChatter.GuildChatter.RankChange.Chance = 100
+
+#
+#   LLMChatter.GuildChatter.RankChange.DebounceSeconds
+#       Rank changes are held until the Guild has had no
+#       further change for this many seconds. Changes made
+#       in the meantime become one event, and a member
+#       whose rank ends where it started is left out.
+#       Supported range is 5-600.
+#       Default: 30
+#
+LLMChatter.GuildChatter.RankChange.DebounceSeconds = 30
+
+#
+#   LLMChatter.GuildChatter.RankChange.NewMemberGraceMinutes
+#       Rank changes of members who joined within this many
+#       minutes are not commented on (recruits are often
+#       promoted right after joining). 0 disables the grace.
+#       Default: 30
+#
+LLMChatter.GuildChatter.RankChange.NewMemberGraceMinutes = 30
+
+#
+#   LLMChatter.GuildChatter.MotdComment.Enable
+#       When the Guild Message of the Day changes, one or
+#       two Guild bots react to it shortly afterwards.
+#       Default: 1
+#
+LLMChatter.GuildChatter.MotdComment.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.MotdComment.Chance
+#       Chance (0-100) that a new MOTD gets a comment.
+#       Default: 100
+#
+LLMChatter.GuildChatter.MotdComment.Chance = 100
+
+#
+#   LLMChatter.GuildChatter.MotdComment.DelaySeconds
+#       Seconds to wait after the MOTD changes. Only the
+#       latest MOTD is commented on when it is edited
+#       several times. Supported range is 2-600.
+#       Default: 20
+#
+LLMChatter.GuildChatter.MotdComment.DelaySeconds = 20
+
+#
+#   LLMChatter.GuildChatter.MemberEvents.MaxCandidates
+#       Maximum live Guild bots passed to the bridge for
+#       join, rank-change and MOTD comments.
+#       Default: 12
+#
+LLMChatter.GuildChatter.MemberEvents.MaxCandidates = 12
+
+#
+#   LLMChatter.GuildChatter.JoinGreeting.MaxResponders
+#   LLMChatter.GuildChatter.RankChange.MaxResponders
+#   LLMChatter.GuildChatter.MotdComment.MaxResponders
+#       Maximum bots that comment on a join, a rank change
+#       or a new MOTD. Supported range is 1-3.
+#       Defaults: JoinGreeting = 3, RankChange = 3,
+#                 MotdComment = 2
+#
+LLMChatter.GuildChatter.JoinGreeting.MaxResponders = 3
+LLMChatter.GuildChatter.RankChange.MaxResponders = 3
+LLMChatter.GuildChatter.MotdComment.MaxResponders = 2
+
+#
+#   LLMChatter.GuildChatter.JoinGreeting.SubjectReplyChance
+#   LLMChatter.GuildChatter.RankChange.SubjectReplyChance
+#       Chance (0-100) that a newcomer or changed member
+#       who is an online bot answers the comments once.
+#       Defaults: 70
+#
+LLMChatter.GuildChatter.JoinGreeting.SubjectReplyChance = 70
+LLMChatter.GuildChatter.RankChange.SubjectReplyChance = 70
+
+#
+#   LLMChatter.GuildChatter.MemberEvents.MaxCharacters
+#       Hard character cap for each join, rank-change and
+#       MOTD comment. Supported range is 40-150.
+#       Default: 120
+#
+LLMChatter.GuildChatter.MemberEvents.MaxCharacters = 120
+
+#
 ###############################################################################
 # GUILD CHATTER PROMPT TUNING [BRIDGE] - read by the Python chatter bridge, NOT the
 # worldserver. `.reload config` does NOT affect this key; restart the
