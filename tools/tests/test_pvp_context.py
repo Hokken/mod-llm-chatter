@@ -305,7 +305,40 @@ def test_state_callouts_never_fall_back_when_pvp_disabled():
     )
 
 
+def test_kill_and_combat_add_factions_and_enemy_lore():
+    alliance = dict(enemy_name="Aldric", enemy_race=1, enemy_class=2,
+                    enemy_faction="Alliance")
+    for build_named in (
+        lambda ed, mode, name: build_kill_reaction_prompt(
+            BOT, TRAITS, name, False, False, mode, extra_data=ed),
+        lambda ed, mode, name: build_combat_reaction_prompt(
+            BOT, TRAITS, name, False, mode, extra_data=ed),
+    ):
+        def build(ed, mode, build_named=build_named):
+            seen = is_pvp_identity_known(ed) or not is_pvp_enemy(ed)
+            return build_named(ed, mode, "Aldric" if seen else "someone")
+
+        rp = build(known_enemy(**alliance), "roleplay")
+        assert "You and your party fight for the Horde; Aldric fights " \
+            "for the Alliance." in rp
+        assert "locked in a long, bitter war" in rp
+        assert "What you know of Aldric's kind:" in rp
+        assert "Human outlook:" in rp and "Paladin calling:" in rp
+
+        hidden = build(anonymous_enemy(), "roleplay")
+        assert "the enemy fights for the Alliance" in hidden
+        assert "Aldric" not in hidden and "outlook:" not in hidden
+
+        normal = build(known_enemy(**alliance), "normal")
+        assert "Aldric fights for the Alliance" in normal
+        assert "outlook:" not in normal
+
+        creature = build({"creature_name": "Hogger"}, "roleplay")
+        assert "fights for the" not in creature
+
+
 def main() -> int:
+    test_kill_and_combat_add_factions_and_enemy_lore()
     test_detection_helpers()
     test_known_enemy_renders_identity()
     test_enemy_is_bot_never_rendered()

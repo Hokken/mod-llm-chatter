@@ -1049,6 +1049,41 @@ void LLMChatterConfig::LoadConfig()
             "LLMChatter.ZoneIntrusion."
             "ZoneThrottleSec", 30);
 
+    // Open-world PvP reactions
+    _guildPvpKillEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter.PvpKill.Enable", true);
+    _guildPvpKillChance =
+        std::min(GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter.PvpKill.Chance", 25),
+            100u);
+    _guildPvpKillCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter.PvpKill.Cooldown", 300);
+    _guildPvpDeathEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter.PvpDeath.Enable", true);
+    _guildPvpDeathChance =
+        std::min(GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter.PvpDeath.Chance", 30),
+            100u);
+    _guildPvpDeathGuildCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter.PvpDeath.GuildCooldown", 600);
+    _generalPvpDeathEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GeneralChat.PvpDeath.Enable", true);
+    _generalPvpDeathChance =
+        std::min(GetChatterOption<uint32>(
+            "LLMChatter.GeneralChat.PvpDeath.Chance", 15),
+            100u);
+    _generalPvpDeathZoneCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.GeneralChat.PvpDeath.ZoneCooldown", 600);
+    _pvpDeathVictimCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.PvpDeath.VictimCooldown", 1800);
+
     // Proximity chatter
     _proxChatterEnable =
         GetChatterOption<bool>(

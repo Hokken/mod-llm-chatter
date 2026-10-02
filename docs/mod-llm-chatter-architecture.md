@@ -945,6 +945,8 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterGroupEmote.cpp` | 780 | Emote reaction system: delayed bot/creature mirror events, emote static data, grouped and ungrouped playerbot mirroring, creature mirroring, observer reactions, and cooldown eviction |
 | `src/LLMChatterGroupQuest.cpp` | 530 | Quest accept batching: `FlushQuestAcceptBatches()`, `LLMChatterCreatureScript` (AllCreatureScript: `CanCreatureQuestAccept` with debounce/immediate paths) |
 | `src/LLMChatterGroupPvP.cpp` | ~630 | Overworld PvP: opposing-faction enemy resolution (players and their pets), the identity visibility gate, PvP reactor selection, enemy JSON fields, per-group and per-enemy PvP cooldowns, PvP pull, player-kill, and pet-kill entry points |
+| `src/LLMChatterGuildPvP.cpp/.h` | ~230 | Open-world PvP reactions outside the player's group, called from `OnPlayerPVPKill`: Guild kill comments for lone guild bots and Guild or zone General death reactions, gated on a real reader (`LLMChatterAudience.cpp`), skipped while the guild talks with a real player, with per-bot, per-guild and per-zone cooldowns |
+| `src/LLMChatterAudience.cpp/.h` | ~75 | Online real players (never playerbots) in a zone or guild: `CollectRealPlayers*()` and `PickRealPlayerInZone()` / `PickRealGuildMember()` |
 | `src/LLMChatterDuel.cpp` | ~300 | Duel start/end `PlayerScript`, duel reactor selection, duel cooldowns, and `bot_group_duel_start` / `bot_group_duel_end` queueing |
 | `src/LLMChatterGroup.h` | 18 | World-to-group cross-call surface plus group registration |
 | `src/LLMChatterPlayer.cpp` | 1105 | Player General-channel hooks, General cooldowns, subzone cooldowns, `EnsureBotInGeneralChannel()`, player registration |
@@ -1000,6 +1002,9 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_guild.py` | Guild prompts and insert orchestration |
 | `tools/chatter_guild_player.py` | Player-driven Guild replies, reply topology, session-context prompts, and rolling summary compaction |
 | `tools/chatter_guild_login.py` | Real-player login greetings, responder selection, short-message prompts, and greeting pacing |
+| `tools/chatter_guild_profile.py` | Guild profile (Guild Information, MOTD, ranks, Guild Master), character guild lookups, guildmate notes and MOTD wording |
+| `tools/chatter_player_context.py` | Description of the real player (race outlook, class calling) for prompts that address them |
+| `tools/chatter_class_style.py` | Light/Shadow priest split from the active spec's talents |
 
 ### Group domain
 
@@ -1093,6 +1098,8 @@ instead of rendering it as a `/slash` command.
 | `tools/chatter_raid_prompts.py` | Raid prompt builders (boss, morale, battle cry, banter) |
 | `tools/chatter_battlegrounds.py` | BG event handlers |
 | `tools/chatter_bg_prompts.py` | BG prompt builders (lore tables moved to `chatter_constants.py`) |
+| `tools/chatter_guild_pvp_events.py` | Open-world Guild PvP kill comments and Guild or General PvP death reactions |
+| `tools/chatter_guild_event_common.py` | Shared guild event prompts, speaker-order validation, generation and delivery |
 | `tools/chatter_bg_flag_timeline.py` | Per-match WSG flag event timeline (drop/return/regrab/stale-carry decisions) |
 
 ## Ownership Boundaries That Matter

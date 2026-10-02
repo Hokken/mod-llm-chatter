@@ -386,6 +386,7 @@ def _run_kill_reaction(db, client, config, event, extra_data):
                     ctx['speaker_talent']),
                 stored_tone=ctx['stored_tone'],
                 map_id=ctx['map_id'],
+                db=ctx['db'],
             )
         ),
         needs_map_id=True,
@@ -635,6 +636,7 @@ def process_group_combat_event(
                     speaker_talent_context=(
                         ctx['speaker_talent']),
                     stored_tone=ctx['stored_tone'],
+                    db=ctx['db'],
                 )
             ),
             delay_seconds=1,

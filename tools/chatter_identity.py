@@ -387,13 +387,14 @@ def prepare_channel_persona(db, client, config, bot_guid, bot_name,
     return persona
 
 
-def prepare_guild_speakers(db, client, config, participants, prepared=None):
+def prepare_guild_speakers(db, client, config, participants, prepared=None,
+                           channel='guild'):
     """Copy selected Guild participants with sampled, canonical profiles."""
     result = []
     for participant in participants:
         persona = prepare_channel_persona(
             db, client, config, participant['guid'], participant['name'],
-            'guild', prepared,
+            channel, prepared,
         )
         speaker = dict(participant['speaker'])
         speaker.update(traits=list(persona.traits), tone=persona.tone,

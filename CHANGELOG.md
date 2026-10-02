@@ -1,5 +1,26 @@
 # Changelog
 
+### 2026-10-02 - Open-World PvP Reactions
+
+* **Guild PvP lines**: A lone guild bot that kills an opposing-faction bot
+  may tell its guild, and a bot killed by one may tell its guild or, if
+  that does not happen, its zone's General channel. Nothing is queued
+  unless a real player can read it.
+* **Message flow**: Guild PvP lines give way to a real player's
+  conversation with the guild, both when queued and at delivery. The
+  General line follows the General zone pacing.
+* **Personality first**: Death reactions are left to the bot's
+  personality instead of a fixed angry tone.
+* **Faction context**: Party kill and battle-cry prompts against enemy
+  players name both factions and, in roleplay, the enemy's race outlook
+  and class calling. Battleground kill prompts name the fallen enemy's
+  race and both sides.
+* **Configuration**: `GuildChatter.PvpKill.*`, `GuildChatter.PvpDeath.*`,
+  `GeneralChat.PvpDeath.*` and `PvpDeath.VictimCooldown`.
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20261002_guild_pvp_events.sql`, rebuild
+  the worldserver and restart the bridge.
+
 ### 2026-10-01 - Shared Chat Profiles and More Natural Player Replies
 
 * **Shared bot profiles**: General speakers create missing traits, tone and

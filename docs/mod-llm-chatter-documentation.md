@@ -3327,6 +3327,70 @@ Existing installations must also apply
 `data/sql/characters/updates/20260725_guild_login_greeting.sql` because
 `llm_chatter_events.event_type` is an SQL enum.
 
+## 13y. Open-World PvP Reactions
+
+`LLMChatterGuildPvP.cpp` handles open-world kills between the factions
+that happen outside the real player's group. `OnPlayerPVPKill` calls
+`HandleOpenWorldPvpKill()` for every kill outside battlegrounds and
+arenas; battleground kills keep the existing `bg_pvp_kill` path and its
+`EventReactionChance`. The events are handled by
+`chatter_guild_pvp_events.py`.
+
+| Event | Trigger | Output |
+|-------|---------|--------|
+| `guild_pvp_kill` | A guild bot that is not grouped with a real player kills an opposing-faction bot, and a real guildmate is online | One Guild line from the killer |
+| `guild_pvp_death` | A guild bot that is not grouped with a real player is killed by an opposing-faction bot, and a real guildmate is online | One Guild line from the slain bot |
+| `zone_pvp_death` | Same death when the Guild line does not happen, the bot can speak in General and a real player of its faction is in the zone | One General line from the slain bot |
+
+The party's own reaction to a PvP kill stays with the existing group PvP
+system (`LLMChatterGroupPvP.cpp`); there is no separate party PvP kill
+event.
+
+### Message flow
+
+- Guild lines are not queued while the guild is in a conversation with a
+  real player (`GuildChatter.PlayerReplies.IdleSuppressionSeconds`). They
+  are Guild filler rows (`delivery_policy='filler'`), so delivery drops
+  them with `guild_conversation_active` when a conversation started after
+  they were queued.
+- The General line reserves a zone window with `_zone_delivery_delay()`,
+  like the other General producers, so it keeps `GeneralChat.MinZoneGap`
+  from other automated General lines.
+- Real listeners come from `LLMChatterAudience.cpp`, which only sees real
+  players. Cooldowns are kept per killer, per victim, per guild and per
+  zone and faction.
+
+### Personality
+
+The prompts state what happened (who killed whom, where, the factions and
+whether the fight was even) and let the bot's personality and tone decide
+the reaction. Death reactions list anger, grief, a shrug, a dry joke, a
+vow of revenge or a warning as possibilities, never as a required mood.
+
+### Faction and enemy context in existing PvP prompts
+
+- Party kill and battle-cry prompts against an opposing-faction player
+  state both factions and the war between them. In roleplay mode, when
+  the bots could see the enemy, they also get the enemy's race outlook and
+  class calling (`character_lore_lines()`), with an instruction not to
+  recite it. An unseen enemy is still never named or described.
+- `bg_pvp_kill` now carries the victim's race, gender and level and both
+  battleground teams, so the prompt can name the fallen enemy's people and
+  frame the two sides.
+
+### Configuration
+
+| Key | Default | Quieter preset | Owner |
+|-----|---------|----------------|-------|
+| `GuildChatter.PvpKill.Enable` / `.Chance` / `.Cooldown` | 1 / 25 / 300 | 1 / 15 / 300 | Server (Enable also Bridge) |
+| `GuildChatter.PvpDeath.Enable` / `.Chance` / `.GuildCooldown` | 1 / 30 / 600 | 1 / 20 / 1200 | Server (Enable also Bridge) |
+| `GeneralChat.PvpDeath.Enable` / `.Chance` / `.ZoneCooldown` | 1 / 15 / 600 | 1 / 10 / 1200 | Server (Enable also Bridge) |
+| `PvpDeath.VictimCooldown` | 1800 | 2700 | Server |
+
+All keys are under `LLMChatter.`. Existing installations must apply
+`data/sql/characters/updates/20261002_guild_pvp_events.sql` because
+`llm_chatter_events.event_type` is an SQL enum.
+
 ---
 
 ## 14. JSON and Queue Contracts

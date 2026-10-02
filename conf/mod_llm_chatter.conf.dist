@@ -1878,6 +1878,82 @@ LLMChatter.GroupChatter.PvP.EnemyCooldown = 120
 LLMChatter.GroupChatter.PvP.TargetSwitchCallout = 1
 
 #
+#   LLMChatter.GuildChatter.PvpKill.Enable
+#       A guild bot outside the player's group that kills an
+#       opposing-faction bot in the open world may tell its guild
+#       about it. Needs a real guildmate online. Never on
+#       battlegrounds or arenas, and skipped while the guild is in
+#       a conversation with a real player.
+#       Default: 1
+#
+LLMChatter.GuildChatter.PvpKill.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.PvpKill.Chance
+#       Percent chance (0-100) per qualifying kill.
+#       Default: 25
+#
+LLMChatter.GuildChatter.PvpKill.Chance = 25
+
+#
+#   LLMChatter.GuildChatter.PvpKill.Cooldown
+#       Seconds before the same bot reports another kill.
+#       Default: 300
+#
+LLMChatter.GuildChatter.PvpKill.Cooldown = 300
+
+#
+#   LLMChatter.GuildChatter.PvpDeath.Enable
+#       A bot killed by an opposing-faction bot in the open world
+#       may tell its guild about it when a real guildmate is
+#       online; its personality decides how it reacts. Never on
+#       battlegrounds, never for bots grouped with a real player,
+#       and skipped while the guild is in a conversation with a
+#       real player.
+#       Default: 1
+#
+LLMChatter.GuildChatter.PvpDeath.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.PvpDeath.Chance
+#   LLMChatter.GuildChatter.PvpDeath.GuildCooldown
+#       Percent chance (0-100) per eligible death, and seconds
+#       between two such lines in the same guild.
+#       Defaults: 30, 600
+#
+LLMChatter.GuildChatter.PvpDeath.Chance = 30
+LLMChatter.GuildChatter.PvpDeath.GuildCooldown = 600
+
+#
+#   LLMChatter.GeneralChat.PvpDeath.Enable
+#       When the Guild chat line does not happen, a bot killed by
+#       an opposing-faction bot may speak in its zone's General
+#       channel, but only if a real player of its faction is in
+#       that zone. Guild membership does not matter. The line
+#       follows the General zone pacing (GeneralChat.MinZoneGap).
+#       Default: 1
+#
+LLMChatter.GeneralChat.PvpDeath.Enable = 1
+
+#
+#   LLMChatter.GeneralChat.PvpDeath.Chance
+#   LLMChatter.GeneralChat.PvpDeath.ZoneCooldown
+#       Percent chance (0-100) per eligible death, and seconds
+#       between two such lines in the same zone per faction.
+#       Defaults: 15, 600
+#
+LLMChatter.GeneralChat.PvpDeath.Chance = 15
+LLMChatter.GeneralChat.PvpDeath.ZoneCooldown = 600
+
+#
+#   LLMChatter.PvpDeath.VictimCooldown
+#       Seconds before the same bot may speak about another
+#       death, shared by Guild and General chat.
+#       Default: 1800
+#
+LLMChatter.PvpDeath.VictimCooldown = 1800
+
+#
 #   LLMChatter.GroupChatter.Duel.Enable [SERVER]
 #       Enable group reactions to duels involving a member of a
 #       group with a real player and bots. Bot duellists and group

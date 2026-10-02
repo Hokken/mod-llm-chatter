@@ -314,6 +314,18 @@ public:
     bool _zoneIntrusionEnable;
     uint32 _zoneIntrusionZoneThrottleSec;
 
+    // Open-world PvP reactions
+    bool _guildPvpKillEnable{true};
+    uint32 _guildPvpKillChance{25};
+    uint32 _guildPvpKillCooldown{300};
+    bool _guildPvpDeathEnable{true};
+    uint32 _guildPvpDeathChance{30};
+    uint32 _guildPvpDeathGuildCooldown{600};
+    bool _generalPvpDeathEnable{true};
+    uint32 _generalPvpDeathChance{15};
+    uint32 _generalPvpDeathZoneCooldown{600};
+    uint32 _pvpDeathVictimCooldown{1800};
+
     // Proximity chatter
     bool _proxChatterEnable;
     bool _proxChatterEnableInDungeons;
