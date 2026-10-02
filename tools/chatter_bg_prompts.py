@@ -15,6 +15,9 @@ dual_worker_dispatch.
 import logging
 import random
 
+from chatter_ab import (
+    normalize_ab_node_changes, render_ab_context, render_ab_milestone,
+)
 from chatter_shared import (
     get_class_name,
     build_race_class_context,
@@ -24,6 +27,7 @@ from chatter_shared import (
     append_json_instruction,
     get_chatter_mode,
 )
+from chatter_db import get_recent_bg_messages
 from chatter_mode import (
     build_player_prompt_header,
     is_roleplay,
@@ -68,10 +72,15 @@ BG_EMOTE_GUIDANCE = (
 
 # ── Shared context builder ────────────────────────────
 
+#: Callouts carry no speaker position; naming a base invents one.
+NO_LOCATION_GUARD = " Do not name a place; your position was not given."
+
+
 def _bg_base_context(
     extra_data, bot_data,
     db=None, config=None,
-    skip_observation_constraint=False
+    skip_observation_constraint=False, include_ab_snapshot=False,
+    score_caveat=True,
 ):
     """Build shared BG context block for all prompts.
 
@@ -144,9 +153,14 @@ def _bg_base_context(
     if ('score_alliance' in extra_data
             or 'score_horde' in extra_data):
         ctx += (
-            f"Score: Alliance {score_a} \u2014 "
+            f"Observed score: Alliance {score_a} \u2014 "
             f"Horde {score_h}.\n"
         )
+        if score_caveat:
+            ctx += (
+                "This is a recent snapshot; do not claim an exact current "
+                "score or a time remaining until victory.\n"
+            )
     # Arrival events carry no live counts; omit the
     # line rather than printing "?" into the prompt.
     alive_team = extra_data.get('players_alive_team')
@@ -157,6 +171,9 @@ def _bg_base_context(
             f"Alive on enemy team: {alive_enemy}.\n"
         )
     ctx += "\n".join(env_lines) + "\n"
+
+    if include_ab_snapshot:
+        ctx += render_ab_context(extra_data)
 
     # Flag carrier status (WSG)
     friendly_fc = extra_data.get(
@@ -225,15 +242,27 @@ def _bg_base_context(
 
     # Anti-repetition
     if db:
-        zone_id = int(
-            extra_data.get('zone_id', 0))
-        if zone_id:
-            recent = get_recent_zone_messages(
-                db, zone_id, limit=8, minutes=10)
-            anti_rep = build_anti_repetition_context(
-                recent, max_items=6)
-            if anti_rep:
-                ctx += f"{anti_rep}\n"
+        token = extra_data.get('bg_match_token')
+        group_id = extra_data.get('group_id')
+        recent = []
+        max_items = 6
+        if isinstance(token, str) and token and type(group_id) is int:
+            # BGs are busy: a zone-wide 8-line window missed lines other
+            # bots said minutes ago, so stock phrases recurred. Scope to
+            # this match and group, spoken lines only, with a wider window.
+            recent = get_recent_bg_messages(
+                db, token, group_id, limit=20, minutes=20)
+            max_items = 12
+        else:
+            # Legacy rows without a match envelope keep the zone window.
+            zone_id = int(extra_data.get('zone_id', 0))
+            if zone_id:
+                recent = get_recent_zone_messages(
+                    db, zone_id, limit=8, minutes=10)
+        anti_rep = build_anti_repetition_context(
+            recent, max_items=max_items)
+        if anti_rep:
+            ctx += f"{anti_rep}\n"
 
     if not skip_observation_constraint:
         ctx += f"\n{OBSERVATION_CONSTRAINT}\n"
@@ -272,7 +301,9 @@ def build_bg_match_end_prompt(
     extra_data, bot_data, is_raid_worker=False
 ):
     """Match end \u2014 victory or defeat."""
-    ctx = _bg_base_context(extra_data, bot_data)
+    # The final score below is exact, so the live-snapshot caveat would
+    # contradict the instruction to reference it.
+    ctx = _bg_base_context(extra_data, bot_data, score_caveat=False)
     won = extra_data.get('won', False)
 
     # Override score with final_score if available
@@ -549,10 +580,153 @@ def build_bg_flag_return_prompt(
     )
 
 
+_AB_NODE_NAMES = frozenset((
+    'Stables', 'Blacksmith', 'Farm', 'Lumber Mill', 'Gold Mine',
+))
+
+
+_AB_NODE_CONSTRAINT = (
+    'React only to these observations. A claimed or assaulted base is not '
+    'held by anyone yet. Credit only a player named in these observations; '
+    'no invented history, timers or promises.'
+)
+
+
+def _ab_who(faction, team):
+    """Team-relative subject for objective wording."""
+    if team not in ('Alliance', 'Horde'):
+        return f'The {faction}'
+    return 'Your team' if faction == team else f'The enemy ({faction})'
+
+
+def _ab_node_fact(extra_data):
+    """One team-relative fact for a node change, with state-only fallback."""
+    node = extra_data.get('node_name')
+    if not isinstance(node, str) or node not in _AB_NODE_NAMES:
+        node = 'a base'
+    team = extra_data.get('team')
+    state = extra_data.get('state')
+    owner = {1: 'Alliance', 2: 'Horde', 3: 'Alliance', 4: 'Horde'}
+    if type(state) is int and state in owner:
+        who = _ab_who(owner[state], team)
+        fact = (f'{who} is contesting {node}; it is not held yet.'
+                if state >= 3 else f'{who} holds {node}.')
+    elif type(state) is int and state == 0:
+        fact = f'{node} is neutral.'
+    elif 'state' not in extra_data:
+        faction = extra_data.get('new_owner')
+        event = extra_data.get('event_type')
+        if faction in ('Alliance', 'Horde') and event == 'bg_node_contested':
+            fact = (f'{_ab_who(faction, team)} is contesting {node}; '
+                    'it is not held yet.')
+        elif faction in ('Alliance', 'Horde') and event == 'bg_node_captured':
+            fact = f'{_ab_who(faction, team)} holds {node}.'
+        else:
+            fact = f'The current control of {node} is unknown.'
+    else:
+        fact = f'The current control of {node} is unknown.'
+    previous = extra_data.get('prev_state')
+    transition = extra_data.get('transition')
+    gap = extra_data.get('observation_gap_ms')
+    sampled = (extra_data.get('evidence') == 'sampled'
+               and type(previous) is int and previous in range(5)
+               and type(state) is int and state in owner
+               and type(gap) is int and gap >= 0)
+    if not sampled:
+        return fact
+    actor = owner[state]
+    who = _ab_who(actor, team)
+    ours = actor == team
+    if transition == 'claim' and previous == 0 and state in (3, 4):
+        fact = (f'{who} is claiming the neutral {node}. Nobody held it before '
+                'and nobody holds it yet.')
+    elif (transition == 'assault' and previous in (1, 2)
+            and state in (3, 4) and state != previous + 2):
+        fact = (f'{who} is assaulting the enemy-held {node}. The enemy '
+                'stops earning from it, but it is not ours yet.' if ours else
+                f'{who} is assaulting your {node}. Your team stops earning '
+                'from it; it is lost only if their assault completes.')
+    elif (transition == 'counter_claim' and previous in (3, 4)
+            and state in (3, 4) and state != previous):
+        fact = (f'{who} has taken over the contested claim at {node}. '
+                'Neither team holds it yet.')
+    elif (transition == 'defence' and previous in (3, 4)
+            and state in (1, 2) and previous != state + 2):
+        failed = "the enemy's" if ours else "your team's"
+        fact = (f'{who} defended {node} and holds it again; {failed} '
+                'assault failed.')
+    elif (transition == 'capture' and previous in (3, 4)
+            and state in (1, 2) and previous == state + 2):
+        fact = f'{who} now holds {node}; the claim completed.'
+    else:
+        return fact
+    return fact + _ab_actor_note(extra_data, transition, node, ours)
+
+
+def _ab_actor_note(extra_data, transition, node, ours):
+    """Name the verified banner actor; C++ publishes only verified clicks."""
+    name = extra_data.get('actor_name')
+    role = extra_data.get('actor_role')
+    real = extra_data.get('actor_is_real_player')
+    if (not isinstance(name, str) or not name.isalpha()
+            or type(real) is not bool):
+        return ''
+    expected = 'capture' if role == 'flag_held' else role
+    if expected != transition:
+        return ''  # role and observed transition disagree: no name
+    if not ours:
+        return f' The enemy player who did it was {name}.'
+    if role == 'flag_held':
+        lead = f" {name}'s flag on {node} held."
+    else:
+        lead = f' {name} took that banner personally.'
+    if real:
+        return lead + f' Acknowledge {name} by name, warmly and positively.'
+    return lead + f' You may mention {name} briefly.'
+
+
+def _ab_node_observation(extra_data):
+    """Single-node prompt block: one fact followed by the constraint."""
+    return ('\nAB objective observation: ' + _ab_node_fact(extra_data)
+            + ' ' + _AB_NODE_CONSTRAINT)
+
+
 def build_bg_node_prompt(
     extra_data, bot_data, is_raid_worker=False
 ):
     """Node events \u2014 contest, capture."""
+    # Old Random-queue AB rows used type 32. Recognize their five unique
+    # node names so those rows cannot revive the old proximity attribution.
+    bg_type = extra_data.get('bg_type_id')
+    node = extra_data.get('node_name')
+    is_ab = bg_type in (3, '3') or (
+        bg_type in (None, 0, '0', 32, '32')
+        and isinstance(node, str) and node in _AB_NODE_NAMES
+    )
+    if is_ab:
+        context = dict(extra_data, bg_type_id=3)
+        # Node reactions depend only on their referenced objective. Do not
+        # expose other base/rate facts that the node-only guard cannot check.
+        context.pop('ab_state', None)
+        # Names come only from verified actor fields, never the roster.
+        context.pop('real_players', None)
+        ctx = _bg_base_context(context, bot_data)
+        if 'node_changes' in extra_data:
+            changes = normalize_ab_node_changes(extra_data['node_changes'])
+            if changes is None:
+                return append_json_instruction(
+                    ctx + '\nNo reliable objective observations are available.',
+                    allow_action=False)
+            facts = ''.join('\n- ' + _ab_node_fact(dict(
+                item, team=extra_data.get('team'))) for item in changes)
+            return append_json_instruction(
+                ctx + '\nAB objective observations:' + facts + '\n'
+                + _AB_NODE_CONSTRAINT + ' Combine these into one brief '
+                'reaction; each base has its own transition.',
+                allow_action=False)
+        return append_json_instruction(
+            ctx + _ab_node_observation(extra_data), allow_action=False)
+
     ctx = _bg_base_context(extra_data, bot_data)
     node_name = extra_data.get(
         'node_name', 'a node')
@@ -673,25 +847,24 @@ def build_bg_pvp_kill_prompt(
         "'one less X' and 'won't be Y "
         "anymore' patterns."
     )
+    victim_label = (f"the enemy {victim}"
+                    f"{' (' + victim_class + ')' if victim_class else ''}")
     if killer and killer_real:
         ctx += (
-            f"\n{killer} killed {victim}"
-            f"{' (' + victim_class + ')' if victim_class else ''}! "
+            f"\nYour teammate {killer} killed {victim_label}! "
             f"Praise {killer} by name for the "
             f"kill. Quick, sharp comment."
             f"{kill_variety}"
         )
     elif killer:
         ctx += (
-            f"\n{killer} took down {victim}"
-            f"{' (' + victim_class + ')' if victim_class else ''}. "
+            f"\nYour teammate {killer} took down {victim_label}. "
             f"React with a quick, sharp comment."
             f"{kill_variety}"
         )
     else:
         ctx += (
-            f"\nA teammate killed {victim}"
-            f"{' (' + victim_class + ')' if victim_class else ''}. "
+            f"\nA teammate killed {victim_label}. "
             f"React with a quick, sharp comment."
             f"{kill_variety}"
         )
@@ -703,6 +876,10 @@ def build_bg_score_milestone_prompt(
     extra_data, bot_data, is_raid_worker=False
 ):
     """Score milestone \u2014 tension, momentum."""
+    if extra_data.get('bg_type_id') in (3, '3'):
+        ctx = _bg_base_context(extra_data, bot_data, include_ab_snapshot=True)
+        return append_json_instruction(
+            ctx + render_ab_milestone(extra_data), allow_action=False)
     ctx = _bg_base_context(extra_data, bot_data)
     milestone_team = extra_data.get(
         'milestone_team', '')
@@ -773,14 +950,44 @@ def build_bg_achievement_prompt(
         'achiever_name', 'someone')
     achievement = extra_data.get(
         'achievement_name', 'an achievement')
+    # Simultaneous duplicates are merged into one natural name list.
+    count = extra_data.get('achiever_count')
+    earned = ('each just earned' if type(count) is int and count > 1
+              else 'just earned')
     ctx += (
-        f"\n{achiever} just earned "
+        f"\n{achiever} {earned} "
         f"\"{achievement}\" mid-battle! "
         "Quick, impressed reaction -- keep "
         "it short and battlefield-appropriate."
     )
     return append_json_instruction(
         ctx, allow_action=False)
+
+
+#: Spell categories LLMChatterGroupCombat.cpp emits for each side. Friendly
+#: ones target group members (dispel is a cleanse, never a purge).
+_BG_HOSTILE_SPELLS = frozenset(('offensive', 'cc'))
+_BG_FRIENDLY_SPELLS = frozenset(
+    ('heal', 'dispel', 'buff', 'resurrect', 'shield', 'support'))
+
+
+def _bg_spell_target(target, category, caster, speaker):
+    """Name a spell target with its side, so allies are never enemies."""
+    if (not isinstance(target, str) or not target.strip()
+            or target.strip().lower() == 'someone'):
+        return 'someone'  # Missing target: neutral, no allegiance.
+    target = target.strip()
+    if target.lower() == 'the group':
+        # Area auras: the producer emits a collective target.
+        return ('your group' if category in _BG_FRIENDLY_SPELLS
+                else 'the group')
+    if target == caster:
+        return 'yourself' if caster == speaker else 'themselves'
+    if category in _BG_HOSTILE_SPELLS:
+        return f'the enemy {target}'
+    if category in _BG_FRIENDLY_SPELLS:
+        return f'your teammate {target}'
+    return target  # Unknown category: no invented allegiance.
 
 
 def build_bg_spell_cast_prompt(
@@ -796,10 +1003,10 @@ def build_bg_spell_cast_prompt(
         'target_name', 'someone')
     category = extra_data.get(
         'spell_category', 'spell')
-    # Make the side explicit so the model never mixes
-    # up an enemy target with a teammate.
-    if category == 'offensive' and target:
-        target = f"the enemy {target}"
+    target = _bg_spell_target(
+        target, category, caster, bot_data.get('bot_name'))
+    if category == 'dispel':
+        category = 'cleansing harmful effects off a teammate'
     no_outcome = (
         " Only the cast happened -- do NOT claim "
         "anyone died, fled, or was defeated."
@@ -865,6 +1072,7 @@ def build_bg_low_health_prompt(
             "\nYour character is critically low on health. Give a brief "
             "urgent player callout or ask for healing."
         )
+    ctx += NO_LOCATION_GUARD
     return append_json_instruction(
         ctx, allow_action=False)
 
@@ -879,6 +1087,7 @@ def build_bg_oom_prompt(
         "Brief frustrated or urgent callout -- "
         "announce it to your team, express "
         "frustration, or ask for support."
+        + NO_LOCATION_GUARD
     )
     return append_json_instruction(
         ctx, allow_action=False)
@@ -889,33 +1098,35 @@ def build_bg_death_prompt(
 ):
     """Teammate death reaction in BG context."""
     ctx = _bg_base_context(extra_data, bot_data)
-    dead = extra_data.get(
-        'dead_name', 'a teammate')
+    dead_name = extra_data.get('dead_name')
+    dead = (f'your teammate {dead_name}' if dead_name
+            else 'a teammate')
     killer = extra_data.get('killer_name', '')
     roleplay = is_roleplay(get_chatter_mode(
         extra_data.get('_config') or {}
     ))
+    # A reaction, not a plan: no orders, target calls or revenge vows.
+    no_orders = " React only; no orders, target calls or vows."
     if killer and roleplay:
         ctx += (
-            f"\n{dead} was just killed by {killer}! "
-            "Brief urgent reaction -- mourn, vow "
-            "revenge, or rally the team."
+            f"\n{dead[0].upper() + dead[1:]} was just killed by the enemy "
+            f"{killer}! Brief reaction -- shock, grief, anger or dark "
+            f"humor.{no_orders}"
         )
     elif killer:
         ctx += (
-            f"\n{killer} just killed {dead}'s character. Give a brief "
-            "tactical, frustrated, or encouraging reaction."
+            f"\nThe enemy {killer} just killed {dead}'s character. Give a "
+            f"brief frustrated, rueful or sympathetic reaction.{no_orders}"
         )
     elif roleplay:
         ctx += (
-            f"\n{dead} just went down! Brief urgent "
-            "reaction -- mourn, vow revenge, or "
-            "rally the team."
+            f"\n{dead[0].upper() + dead[1:]} just went down! Brief reaction "
+            f"-- shock, grief, anger or dark humor.{no_orders}"
         )
     else:
         ctx += (
-            f"\n{dead}'s character just died. Give a brief tactical, "
-            "frustrated, or encouraging reaction."
+            f"\n{dead[0].upper() + dead[1:]}'s character just died. Give a "
+            f"brief frustrated, rueful or sympathetic reaction.{no_orders}"
         )
     return append_json_instruction(
         ctx, allow_action=False)
@@ -940,6 +1151,7 @@ def build_bg_combat_prompt(
             f"\nEngaging {creature}! Quick battle "
             "cry -- one sentence only."
         )
+    ctx += NO_LOCATION_GUARD
     return append_json_instruction(
         ctx, allow_action=False)
 
@@ -1041,7 +1253,17 @@ def build_bg_idle_prompt(
     extra_data, bot_data, is_raid_worker=False
 ):
     """Ambient idle chatter during a BG match."""
-    ctx = _bg_base_context(extra_data, bot_data)
+    ctx = _bg_base_context(extra_data, bot_data, include_ab_snapshot=True)
+    if (extra_data.get('bg_type_id') in (3, '3')
+            and extra_data.get('ab_objective_status') is True):
+        ctx += (
+            '\nGive one brief tactical observation about the supplied base '
+            'control, contested bases, income or remaining resources. Use '
+            'only verified supplied facts; if unavailable, offer general '
+            'encouragement without inventing a base owner, target or rate. '
+            'Do not guarantee victory or estimate a finish time.'
+        )
+        return append_json_instruction(ctx, allow_action=False)
     mode = get_chatter_mode(
         extra_data.get('_config') or {}
     )

@@ -414,6 +414,12 @@ recent history, never an input-length threshold or phrase list. A terse
 invitation for news, advice, an experience, or an explanation can deserve a
 concrete answer. Acknowledgments and conversational closure remain brief.
 The existing `brief_casual` and `requires_reply` decisions stay separate.
+Reply necessity is judged from the whole exchange: silence is eligible only
+when the turn clearly needs no further engagement. If silence would feel
+like ignoring an ongoing contribution, or the intent is uncertain, the model
+is instructed to favor a short acknowledgment unless the purpose clearly
+calls for detail. A casual or
+declarative message does not by itself signal conversational closure.
 Channel length guidance and hard limits still apply; useful detail is
 permitted, never mandatory, and replies should not be padded.
 
@@ -1458,7 +1464,295 @@ duellist or a group bot that can see the duel.
 ### BG ownership
 
 `LLMChatterBG.cpp` owns battleground-specific hooks and BG queue
-helpers.
+helpers. `LLMChatterAB.cpp/.h` owns AB observation, classification,
+pending node changes, revisions, match-target caching and value snapshots.
+`LLMChatterABPending.h` owns the value-only bounded pending policy. The BG
+coordinator invokes AB batch evaluation on the speech polling cadence;
+legacy WSG/EY routing and chance/cooldown behavior remain in the coordinator.
+
+Map-specific polling, score detection and prompt context use
+`GetBgTypeID(true)`, including matches entered through Random Battleground.
+The payload's `bg_type_id` identifies the actual battleground; the separate
+`queue_type_id` preserves `GetBgTypeID()` for queue provenance. Both common
+context and arrival batches use this contract. Python lore lookups must use
+the actual type, not the queue type.
+
+AB observes all five nodes on each in-progress BG update before the speech
+polling gate. Per-node initialized state and one pending window are
+separate; chance/cooldown failure retains pending speech without
+freezing observation. The pending window retains its first previous state
+and latest result; more than one observed change degrades its label.
+First/invalid baselines, disabled chatter and non-progress match states
+clear or seed silently; destruction removes the tracker. Pre-start/end
+snapshots remain available without generating node reactions. EY retains
+its separate `lastNodeState` polling behavior.
+
+AB node events add `prev_state`, `state`, `transition`, `evidence` and
+`observation_gap_ms` (largest actual monotonic sample gap in the pending
+window). States use the core values: 0 neutral, 1/2 Alliance/Horde occupied,
+3/4 Alliance/Horde contested. Contested `new_owner` means claimant, not
+occupied owner. Recognized pairs are claim (neutral to contested), assault
+(opposing occupied to contested), counter_claim (opposing contested,
+never occupied), defence (opposing contested to occupied, previously
+captured) and capture (same-team contested to occupied). `_captured` is
+checked in the producer; unknown pairs use `state_update`.
+
+The source invariant is narrower than a world-tick claim: map updates run
+before the BG manager, but `Battleground::Update` gates to 1000ms and
+advances AB timers by exactly 1000ms per pass. Observation follows
+`PostUpdateImpl`. Several banner actions can alternate between samples,
+but a reset 60-second capture timer cannot expire in that one BG pass.
+Recognized pairs therefore support net team transitions, not an exhaustive
+action history or actor attribution. Ordinary spell cast time is not used
+as a timing bound. This relies on the current core ordering and timer
+semantics and must be rechecked if they change.
+
+One changed pair within `AB.TransitionMaxGapMs` uses `evidence=sampled`.
+Zero disables these labels. Long actual gaps, multiple pending changes or
+unknown pairs use `transition=state_update`, `evidence=ambiguous`. First
+baselines emit nothing. `chatter_bg_prompts.py` validates recognized
+pair/label shapes and renders team-relative observations. Legacy/ambiguous
+payloads render current state only; malformed explicit state becomes
+unknown. Legacy `claimer_name` is ignored for AB, including old Random
+rows identifiable by AB node name. These events use Party with an AB-only
+attempt budget, independent of the shared big-event cooldown.
+
+#### AB node batches
+
+At most one latest revision per node is pending. Each retains its first
+pending time, latest change time and baseline. An unsent return to baseline
+cancels an obsolete alarm. A revision already submitted to any audience
+cannot be cancelled that way because its older message may become visible;
+the reversal becomes a newer fact. Expiry is measured from the latest
+change. Disable, status changes and destruction reset pending work.
+
+At each eligible polling opportunity, select oldest-pending-first with
+rotating ties, capped by `AB.MaxNodesPerBatch`. Spend
+`AB.NodeBatchCooldownSec` even when the one `NodeEventChance` roll fails.
+No listeners or failed insertion retains the pending facts until expiry.
+Score/start cooldowns cannot consume this AB attempt budget.
+
+Eligible node listeners are deduplicated by BG team and group and
+must have a bot in the same BG raid. The first insertion attempt
+freezes that revision's eligible audience set. A new human in an existing
+group may hear a retry; a newly eligible group waits for new changes,
+rather than replaying older announcements. This bounds receipts to one
+live audience snapshot per each of five pending nodes. Successful audiences
+are skipped on retry; mixed failures retain only their outstanding receipts.
+
+One existing `bg_node_captured` event transports bounded `node_changes`
+and the current full snapshot. Each item has its own transition label;
+the transport category does not assert a capture for every item. The
+prompt renders only the referenced nodes as one reaction. Legacy single
+node payloads remain supported. The final guard checks every referenced
+live node/revision and rejects duplicate, empty or oversized batches;
+unrelated node changes do not invalidate a batch.
+
+Insertion uses existing `AppendChatterEvent` in one async transaction per
+audience. World-thread callbacks acknowledge only matching revisions on
+successful commit. Pending selection pauses while any transaction remains
+unacknowledged, so a slow DB cannot create duplicate insertion retries.
+Callbacks belong to the tracker; resetting it discards them, while old
+committed rows remain subject to match/status/token/age delivery checks.
+Insertion acknowledgement is not speech delivery. Once an audience's row
+is committed, later generation or delivery suppression is not retried.
+
+#### AB resource race and objective status
+
+`LLMChatterABScore.h` owns the value-only threshold, score-pending and
+status-clock policy. The AB owner observes scores every BG update, before
+speech polling or chance. Thresholds come from the verified match target:
+configured percentages are rounded up, deduplicated and restricted to
+positive values below target. The core warning is included only below
+target and wins a collision with a percentage. Invalid percentage lists
+use 30,60,90; reload, late enable and delayed target discovery seed current
+scores silently instead of replaying history.
+
+High-water scores record reached thresholds independently of speech.
+Only the newest crossing remains pending across both teams; when several
+cross in one observation the highest threshold wins. Pending score facts
+expire using `AB.PendingMaxAgeSec`. `AB.ScoreCooldownSec` budgets attempts,
+including chance failures, independently of node batches. All eligible
+team/group/subgroup milestone rows are appended to one atomic transaction;
+failure retains the pending revision and successful acknowledgement clears
+only that exact revision. Outstanding score and node callbacks do not gate
+each other's selection. Match-end/status/disable reset score work.
+
+AB score events include the full snapshot and are validated like other
+objective summaries. `chatter_ab.py` renders observed lead/trail, nonlinear
+income, contested/occupied bases and resources remaining against the
+verified target. The AB score prompt identifies percentage versus core
+warning thresholds, prohibits guaranteed winners and exact finish estimates,
+and does not use EY's fixed 1500-based urgency. EY retains its old behavior.
+
+At an existing idle opportunity, `TryABObjectiveStatus` may select a
+`bg_idle_chatter` row with `ab_objective_status=true`. It replaces the
+ordinary choice for that audience; it never adds a second row. Status
+chance failure spends the status interval but leaves ordinary idle chance
+available. A zero status interval disables the specialization. Pending,
+in-flight or recent node batches suppress status attempts, using the node
+cooldown as the recent window. Existing idle audience/speaker selection,
+Party filler gating and full-vector final validation remain in force.
+
+#### AB snapshot publication and consumption
+
+`ObserveABContext` runs on the world thread before arrival processing and
+speech polling, including pre-start updates. It publishes a complete,
+serialized value snapshot; partial/invalid node sets are not published.
+`AppendABContext(instanceId, json)` copies that value under a short mutex.
+Player/map hooks never access the mutable AB tracker or traverse AB nodes;
+the lock is released before formatting/DB operations. Destruction and
+feature disable clear both tracker and published value. Status changes
+seed a new observation baseline and clear pending reactions/estimates.
+
+Only objective producers attach the published snapshot; common
+`AppendBGContext`, arrival batches and player replies carry the shared
+match envelope without base facts. `ab_state` includes five nodes (`id`, `name`,
+`state`, nullable `owner`/`claimant`, `captured`, `revision`), occupied counts,
+core tick points/intervals, `max_score`, `max_score_verified` and
+`warning_score`. Revisions advance on observed state/captured changes and
+baseline initialization. They do not detect invisible change-and-return
+sequences; lifecycle tokens and final-send validation are separate work.
+
+The target is read from `BattlegroundAB::FillInitialWorldStates` on the
+first valid read and cached for that match. Invalid/missing positive target
+values keep the marked core fallback and retry next update. Config reload
+cannot replace the match's actual target with the current world setting.
+This constructs no sent packet and calls neither `Write()` nor a private API.
+
+Optional `contest_estimate` values are internal bounds in `bg_update_time`,
+not wall-clock countdowns. The lower remaining bound accounts for the BG
+advance on the observed transition and subsequent BG advances. The upper
+bound remains the full capture duration because an unseen same-state
+re-claim can reset the timer. Omit intervals containing expiry or wider than
+`AB.TimerEstimateMaxUncertaintySec`. Unknown baselines, ambiguous changes,
+large observation gaps, status/enable resets and occupied/neutral states
+have no estimate. These conservative bounds usually become unusable within
+a few updates. **No numerical timer wording is rendered.**
+
+`tools/chatter_ab.py` validates the bounded snapshot and renders factual
+base-control/income/verified-target context for idle/objective-status
+chatter. `QueueBGEvent` attaches `ab_state` only for `bg_node_captured`,
+`bg_node_contested`, `bg_idle_chatter` and `bg_score_milestone`;
+objective-status chatter uses the idle event with an `ab_objective_status`
+marker. The AB owner attaches the same published snapshot on its async
+node/score insertion paths. Node prompts
+expose only their referenced objective, not the full snapshot.
+Common BG context and arrival producers do not attach base snapshots.
+Arrival, combat/state callouts and player replies (single, conversation,
+and second speaker) never render them, even from legacy payloads. The
+Python transport boundary strips incidental `ab_state` without changing
+match identity, observation time or the original stored event.
+Invalid snapshots are omitted; invalid target metadata only omits the
+target. The renderer ignores all estimate numbers and does not forecast a
+winner. WSG/EY prompts ignore the AB field.
+
+#### Battleground final-delivery contract
+
+`LLMChatterBGDelivery.cpp/.h` owns transient match identities, explicit
+real-player recipients and the shared BG final-send guard. Lifecycle hooks
+create a process-unique token and erase it on destruction or disabled
+observation. An AB-enable change rotates the token on the next observation.
+Producers add `bg_match_token`, monotonic `bg_observed_ms`,
+`bg_recipient_guid` and `bg_map_id` to the existing actual type, instance,
+team, group, subgroup and roster context. Bot-subject events use the same
+eligible real listener for both the envelope and raid projection.
+`chatter_bg_delivery.py` normalizes `raid_group_id` into `group_id`;
+conflicting nonzero IDs are invalid. It never refreshes snapshots or times.
+
+Every message retains its originating `event_id`. Delivery reads the
+original event JSON through that link, including arrival and group replies.
+Before facing, action text, emote-only output or speech, the guard checks
+the token, age, actual map instance, both participants' BG teams, group and
+channel. Party also requires both participants in the recorded subgroup.
+Normal events require in-progress, arrival/start permit pre-start, and
+match-end requires WAIT_LEAVE. Failure finalizes the row with a `bg_*`
+drop reason rather than retrying or retargeting it.
+
+The age budget is chosen by content, not by map: match-end rows use
+`MatchEndMaxAgeSec`; AB rows carrying `ab_state` (node, idle/objective
+status, score) use `AB.FactualMaxAgeSec`; every other BG row, including
+incidental AB replies and callouts, uses `FactualMaxAgeSec`.
+
+AB snapshots include monotonic `observed_at_ms`. The AB owner validates all
+five live node states and captured bits, observed revisions, occupied
+counts, income and verified target against the original snapshot. Full
+snapshot consumers (idle/objective status and score milestones) check all five nodes because
+their prompts expose the complete vector. Node-event prompts omit that
+vector and expose only their referenced objective; `node_id` and
+`node_revision` bind its state to the live node. Unrelated node changes
+therefore do not suppress a node reaction. Score
+increments alone do not invalidate a line; supplied scores are labeled as
+observed snapshots. Observation and validation run on the world thread;
+other producers only copy published values under short mutexes. Changes
+that return to the same state entirely between observations remain a
+sampling limitation. Numerical timer speech remains disabled.
+
+#### AB banner actor attribution
+
+Node changes name a player only from verified banner interactions.
+`LLMChatterABActorPlayerScript::OnPlayerSpellCast` (capture-banner spell
+21651, AB only) snapshots the target banner's node state into a small
+`thread_local` ring keyed by the casting `Spell`, before `CheckCast(false)`.
+`LLMChatterABActorSpellScript::OnSpellCast` runs after `handle_immediate()`,
+where the open-lock effect has already called
+`BattlegroundAB::EventPlayerClickedOnFlag`, and re-reads the node. Only a
+change matching this caster's click (`ClickTransition`: claim, assault,
+counter-claim, defence) becomes a record. Rejected casts never reach the
+post hook, and spells in one map update run sequentially, so the change
+belongs to this caster. Cancelled casts clear their slot, and a reused
+`Spell` pointer replaces its old slot.
+
+Records are written on BG map threads into a per-instance, per-node
+summary under `_abActorMutex`: a click count plus the first record, so
+saturation can only become ambiguous. The world-thread observer swaps the
+summary out once per observation and calls `ResolveActor`
+(`LLMChatterABActor.h`): exactly one verified click whose kind and team
+match the observed transition names the actor. Zero clicks, two or more
+clicks (including a same-state change-and-return), an observation gap, or
+a mismatch name nobody. A verified claim, assault or counter-claim is
+carried until its own timed capture (`actor_role: flag_held`). A quiet
+unchanged observation keeps the carry; any other transition, gap or
+ambiguity clears it. Payload fields `actor_name`, `actor_is_real_player`
+and `actor_role` appear only on attributed node changes. Node prompts drop
+the `real_players` roster, so the model cannot guess a name from it.
+
+Incidental rows contain no base snapshot and retain match/audience/age
+checks without node dependencies. An old incidental row still containing
+`ab_state` is rejected as `bg_ab_context_unexpected`: its already-generated
+prose may mention old facts, so changing the renderer alone cannot make
+that queued prose safe. Drain or discard those rows at rollout.
+
+Old queued BG rows without the envelope fail closed, including WSG/EY
+rows. Ordinary Party, Raid and Guild rows without BG context bypass this
+guard even when their event map is a BG map. See
+the deployment notes in the module documentation for coordinated rollout.
+
+#### AB verification boundaries
+
+The standalone C++ harnesses `test_ab_pending.cpp`, `test_ab_score.cpp`
+and `test_ab_integration.cpp` include the production policy headers.
+The combined harness covers independent attempt budgets, simultaneous
+pending node/score work, out-of-order acknowledgements, replacement
+revisions, changed audience cohorts, expiry and lifecycle reseeding.
+It does not instantiate a battleground or execute transaction callbacks.
+Compile and execute these harnesses only as part of an explicitly
+authorized validation build, with assertions enabled.
+
+`test_arathi_integration.py` executes the actual AB handlers, BG-wide node
+and subgroup score/idle dispatch, prompt construction and single-reaction
+parsing through mocked
+LLM and DB boundaries. A blocked generation overlaps a newer match event
+and verifies that each inserted message retains its own event/group link.
+Insertion is not proof of delivery: the C++ guard must still reject the
+old match, changed subgroup or expired observation at send time.
+The existing delivery source checks are structural checks, not executed
+tests of game objects, observation clocks or final-send decisions.
+
+Live validation must exercise stalled observation versus advancing wall
+time, node changes after generation, subgroup moves, exit/requeue and
+disable/re-enable. Inspect both visible output and finalized drop reasons;
+queued or completed events alone do not establish audibility.
 
 ### Transport detection shape
 
@@ -1683,9 +1977,10 @@ Do not edit `LLMChatterScript.cpp` for new features.
 BG-wide only:
 - match start / end
 - all flag events
+- all AB node transitions, including state-only updates
 
 Subgroup/party only:
-- kills, node chatter, score milestones, spell/state chatter,
+- kills, EY node chatter, score milestones, spell/state chatter,
   idle chatter, flag-carrier self-messages
 
 This reduces duplicate near-identical lines across party and raid.
@@ -1694,7 +1989,11 @@ Party chat in a BG raid only reaches the speaker's sub-group, so
 party-channel BG chatter is scoped to bots in the real player's
 sub-group (`GetRandomBotInGroup()`, `AppendRaidContext()`, and the
 Python `fire_subgroup_worker(speaker_guid=...)` guard). BG arrival
-batches only list bots in the player's sub-group.
+batches only list bots in the player's sub-group. Their Python handler
+selects explicit `(bot, channel)` entries: one BG-wide greeting plus a
+configurable second-greeting roll, independently of the Party count.
+Each channel samples without replacement; a bot may appear in both.
+Generation failures do not reassign later greetings to another channel.
 
 ## Database Tables
 

@@ -1071,6 +1071,10 @@ void HandleGroupPlayerBeforeSendChatMessageImpl(
             std::to_string(groupId) +
         "}";
 
+    if (Battleground* bg = player->GetBattleground())
+        if (bg->isBattleground())
+            AppendBGContext(bg, player, extraData);
+
     extraData = EscapeString(extraData);
 
     QueueChatterEvent(

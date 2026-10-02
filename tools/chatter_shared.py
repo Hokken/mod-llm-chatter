@@ -804,10 +804,10 @@ def build_bot_state_context(extra_data, mode='roleplay'):
     """
     if not extra_data:
         return ""
-    pvp_ctx = build_pvp_enemy_context(extra_data, mode)
+    extra_context = build_pvp_enemy_context(extra_data, mode)
     state = extra_data.get('bot_state')
     if not state or not isinstance(state, dict):
-        return pvp_ctx
+        return extra_context
 
     from chatter_mode import is_roleplay
     roleplay = is_roleplay(mode)
@@ -883,8 +883,8 @@ def build_bot_state_context(extra_data, mode='roleplay'):
                 f"Character gameplay travel state: {travel_ctx}"
             )
 
-    if pvp_ctx:
-        parts.append(pvp_ctx)
+    if extra_context:
+        parts.append(extra_context)
 
     return ' '.join(parts)
 
@@ -2677,17 +2677,24 @@ def find_addressed_bot(
         f"If a turn also contains a substantive request, do not let its "
         f"social framing hide that request. Decide whether a reply is "
         f"required separately from how much it should say.\n"
-        f'- "requires_reply": false ONLY for throwaway filler '
-        f"that friends would naturally leave unanswered: bare "
-        f"laughter or reactions, stepping-away or status notes, "
-        f"bare acknowledgements, or a sign-off after the "
-        f"exchange has already wound down. Everything else is "
-        f"true: every question, request, instruction, warning, "
-        f"piece of news, greeting, and any statement that shares "
-        f"an opinion, feeling, enthusiasm, complaint or "
-        f"experience, because it invites others to respond. "
-        f"Questions always require a reply. Judge meaning and conversational context, not "
-        f"keywords, punctuation, or message length alone."
+        f'- "requires_reply": judge the whole exchange: would silence '
+        f"feel natural, or would it feel like ignoring the player? Set true "
+        f"when the player contributes to an ongoing exchange, responds to "
+        f"a bot's interest, or invites further engagement. This remains "
+        f"true even if a few words would be enough in reply. The absence "
+        f"of a question does not mean the conversation is finished. "
+        f"Questions always require a reply. Set false only when the turn "
+        f"clearly needs no further engagement and silence would naturally "
+        f"close or leave the exchange at rest. An acknowledgment can serve "
+        f"that purpose after an exchange is complete, but its conversational "
+        f"function depends on the recent history. Do not infer closure "
+        f"merely from a message being casual, brief or declarative. When "
+        f"uncertain, favor a reply. If uncertain only whether engagement "
+        f"is needed, prefer a short acknowledgment (brief_casual=true), "
+        f"unless the conversational purpose clearly calls for detail. "
+        f"Reply necessity and reply length remain separate decisions. "
+        f"Judge meaning and context, "
+        f"not keywords, punctuation, or message length alone."
     )
 
     try:
@@ -3028,18 +3035,20 @@ def parse_extra_data(
     raw_data: str, event_id=None, event_type=None
 ) -> dict:
     """Parse extra_data JSON with repair attempts."""
+    from chatter_bg_delivery import normalize_bg_transport
+
     if not raw_data:
         return {}
 
     try:
-        return json.loads(raw_data)
+        return normalize_bg_transport(json.loads(raw_data), event_type)
     except json.JSONDecodeError:
         pass
 
     repaired = repair_json_string(raw_data)
     try:
         result = json.loads(repaired)
-        return result
+        return normalize_bg_transport(result, event_type)
     except json.JSONDecodeError:
         pass
     except Exception:
@@ -3625,6 +3634,14 @@ def build_talent_context(
                 f"{spec_personality}")
 
     return result
+
+
+def format_name_list(names) -> str:
+    """Join names naturally: "A", "A and B", "A, B and C"."""
+    names = [str(n).strip() for n in names or [] if str(n).strip()]
+    if len(names) <= 1:
+        return names[0] if names else ''
+    return ', '.join(names[:-1]) + ' and ' + names[-1]
 
 
 def format_weapon_list(weapons) -> str:

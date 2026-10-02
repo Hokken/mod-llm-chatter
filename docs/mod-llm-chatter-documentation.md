@@ -1411,21 +1411,292 @@ rows instead of speaking directly.
 
 Battleground-specific logic is self-contained in its own files.
 
+Matches entered through Random Battleground use the selected map's rules
+and prompt context, just like directly queued matches. Event payloads carry
+the actual map type in `bg_type_id` and the original queue in
+`queue_type_id`. This applies to WSG flag/carry events, AB/EY objective and
+score polling, and arrival greetings; it does not change channel routing.
+
+Arathi Basin node reactions distinguish sampled claims, assaults,
+counter-claims, defences and captures using the observed pair and the
+core's captured flag. Wording is team-relative and never credits a nearby
+player. Ambiguous or older payloads describe only occupied, contested or
+neutral state. Both normal and RP modes use the same factual rules. A
+contested team is the claimant, not the occupied owner.
+
+First observations seed silently. The pending window retains its first
+previous state and latest result; multiple observed changes or long actual
+gaps degrade to state-only wording. Speech chance and cooldown can still
+suppress node lines; pending changes are consumed at the next speech
+opportunity without retry. Delivery-time state validation is not provided
+by this observation path.
+
+Existing BG selection settings (prefix `LLMChatter.`):
+
+| Key | Default | Meaning |
+|---|---:|---|
+| `BGChatter.NodeEventChance` | 80 | Once per AB batch attempt; legacy per-node EY chance; 0 disables node reactions |
+| `BGChatter.ScoreMilestoneChance` | 80 | Per pending AB score attempt; 0 disables milestone reactions; EY keeps its legacy detection policy |
+| `BGChatter.StatePollingIntervalMs` | 3000 | Legacy polling and AB speech evaluation; 0 evaluates every update |
+| `BGChatter.BigEventCooldownSec` | 15 | Legacy shared big-event cooldown; AB node/score selection uses separate budgets; 0 disables this cooldown |
+| `BGChatter.AB.TransitionMaxGapMs` | 2000 | Maximum actual sample gap for transition labels; 0 uses state-only wording |
+| `BGChatter.AB.Enable` | 1 | AB node/resource observation, reactions and snapshots; other battlegrounds are unchanged |
+| `BGChatter.AB.NodeBatchCooldownSec` | 15 | Minimum between AB batch attempts, including chance failure; clamped 1-300 seconds |
+| `BGChatter.AB.PendingMaxAgeSec` | 30 | Expire pending changes since their latest change; clamped 1-300 seconds |
+| `BGChatter.AB.MaxNodesPerBatch` | 3 | Maximum referenced nodes per reaction; clamped 1-5 |
+| `BGChatter.AB.ScoreMilestonePercents` | 30,60,90 | Integers 1-99, sorted/deduplicated; any malformed list falls back to defaults |
+| `BGChatter.AB.ScoreCooldownSec` | 30 | Minimum between pending score attempts, including chance failure; clamped 1-300 seconds |
+| `BGChatter.AB.ObjectiveStatusIntervalSec` | 60 | Minimum between status opportunities; 0 disables, maximum 3600 seconds |
+| `BGChatter.AB.ObjectiveStatusChance` | 50 | Chance to replace an eligible idle opportunity with objective status; clamped 0-100 |
+| `BGChatter.AB.TimerEstimateMaxUncertaintySec` | 3 | Internal estimate width, clamped to 0-60 seconds; 0 omits estimates; no numerical timer speech |
+
+AB observes all five nodes every in-progress update regardless of the
+speech polling interval. Disabling chatter or leaving in-progress state
+clears AB reaction/estimate baselines; re-enable seeds a new baseline.
+Pre-start/end updates can still publish node snapshots without reactions. The
+observation gap is measured from actual monotonic timestamps. The default
+2000ms tolerates scheduling jitter around the core's one-second BG update.
+Labels describe net sampled team transitions, not every intermediate
+click. The inference relies on map-before-BG ordering and one 1000ms timer
+advance per BG update; it does not rely on banner spell cast duration.
+
+Recent AB node changes combine into one brief reaction, with oldest pending
+changes selected first and rotating ties. Failed chance rolls retain them
+until the next attempt or expiry. A newer change replaces its old revision;
+an entirely unsent reversal can cancel the obsolete alarm. Node batches
+have their own attempt cooldown, so score/start announcements cannot erase
+them. WSG/EY behavior is unchanged.
+
+AB node transitions use the BG-wide raid worker, without a Party copy.
+This includes claim, assault, counter-claim, defence, capture and state-only
+updates. Each eligible team/group receives at most one event per selected
+revision, regardless of how many humans or subgroups share that raid.
+Eligibility requires a present real listener and a bot in the same BG raid.
+Audience membership is frozen for a revision at its first insertion attempt:
+new humans in an existing group may hear retries, while entirely new groups
+receive
+future changes. Failed DB insertions retry only unacknowledged audiences;
+successful inserts are never replayed merely because generation or delivery
+later suppressed them. Pending scheduling waits for outstanding DB results
+and is bounded to five node records and one audience snapshot per revision.
+This acknowledges event insertion, not visible speech.
+
+### AB score milestones and objective status
+
+AB milestones use the actual verified match target. Default percentages
+produce 480/960/1440 for target 1600, 450/900/1350 for 1500, or
+300/600/900 for 1000. The core's 1400 warning is also included only when
+below the target. Thresholds round up, duplicate values collapse, and a
+warning wins a collision. Tiny targets cannot create a milestone at or
+above the winning score.
+
+Reached thresholds are remembered even when chance fails. Multiple
+crossings coalesce into the latest relevant pending context rather than
+replaying every milestone. Pending age and attempt spacing are independent:
+retry is possible only while the original crossing remains within
+`PendingMaxAgeSec`. Defaults of 30 seconds for both age and score cooldown
+may leave no second attempt after polling delay; tune these together if
+retries are desired. Ended matches discard pending score work. Configuration
+reload and late enable seed current scores without historical reactions.
+
+Objective status replaces an existing idle opportunity and uses the same
+Party filler gate and speaker selection. It is suppressed during pending
+or recent node batches. A failed status chance leaves ordinary idle chatter
+available. Zero interval or zero chance disables objective status without
+disabling ordinary idle chatter.
+
+Resource prompts describe observed lead/trail, owned and contested bases,
+income rates and resources remaining. A trailing team may earn faster, and
+a leading team may own no bases. Neither a score gap nor a raw score of
+1500 is treated as proof of dominance or an impending win. No exact
+finish-time prediction is produced. Malformed snapshots omit their facts
+and use conservative general encouragement instead.
+
+### AB snapshot context
+
+AB prompts receive a five-base snapshot: occupied owners, contested
+claimants, occupied counts and resource income from the core's nonlinear
+tick table. Contested bases earn nothing. All bases have equal resource
+value. The verified match target comes from that match's world-state data,
+so custom targets and config reloads do not substitute a guessed default.
+Unavailable target data is marked unverified and omitted from prompt facts;
+initialization retries on later updates.
+
+Base snapshots are reserved for node events, score milestones and idle/objective-status
+chatter. Node prompts expose only the referenced base; idle/status prompts
+receive all five. Arrival greetings, combat/death/spell/state callouts and
+player replies, including conversations and second speakers, receive no
+base snapshot. Normal and RP modes follow the same policy.
+Disabling `AB.Enable` clears the cached context and pending node
+reactions; the next enabled observation seeds silently. Existing chance
+and shared-cooldown policies remain unchanged.
+
+Optional internal contest estimates use the core BG clock and allow for
+unseen timer resets. They are omitted for unknown/gapped/ambiguous samples
+or excessive uncertainty. They are not displayed as countdowns. Snapshots
+are sampled context. Final delivery checks their age and the live five-node
+vector; numerical timer speech remains disabled because unseen same-state
+timer resets cannot be ruled out.
+
+### BG delivery freshness and rollout
+
+Queued BG-context lines are tied to a match lifetime and real recipient.
+Before any facing, action, emote or speech, delivery rechecks the match,
+actual map instance, team and group. Party also checks the recorded
+subgroup. Departures, instance reuse, stale facts and changed AB objectives
+drop the row with a diagnostic `bg_*` reason. New valid WSG/EY rows use the
+same guard and retain their existing generation and channel policies.
+
+Freshness limits are seconds from the original observation, including
+generation and queue delay:
+
+| Configuration under `LLMChatter.BGChatter.` | Default |
+|---|---:|
+| `FactualMaxAgeSec` (rows without AB base facts, all BGs) | 30 |
+| `AB.FactualMaxAgeSec` (rows carrying the AB snapshot) | 45 |
+| `MatchEndMaxAgeSec` (all BGs) | 45 |
+
+The AB limit applies only to node, idle/objective-status and score rows
+that carry `ab_state`; their base revisions are also rechecked at send.
+Normal pipeline latency (reaction delay, party gate, generation and
+pacing) can exceed 15 seconds, so a tighter AB limit silently drops
+otherwise current base-status lines.
+
+Values are clamped to 1-300; zero cannot disable validation. Match-end
+requires the same match in WAIT_LEAVE. Ordinary reactions require
+in-progress; arrival/start permit pre-start. Score snapshots do not claim
+an exact current score or predicted victory time. Node reactions validate
+only their referenced base and expose no other base/income facts.
+Idle/objective-status and score prompts expose the full snapshot and validate all
+five nodes. Ordinary replies have no base facts and check only the shared
+match, audience, status and age contract; unrelated captures cannot drop
+them. This deliberately means an ordinary reply has no authoritative
+five-base snapshot, including when the player asks about base control.
+
+AB objective wording is team-relative ("your team", "the enemy (Horde)").
+Snapshot prompts open with one race-verdict line (who leads by how much,
+who earns faster with how many bases held) so the key comparison is not
+buried in the detail lines. Milestones state absolute progress ("480 of
+1600 resources"), not percentages. Node facts spell out what a transition
+does not mean: a claim or assault is not held by anyone yet, an enemy
+claim on a neutral base is not a loss, and an assault on your base costs
+income but is lost only if it completes. Batched node prompts list the
+facts and state the shared constraint once.
+
+When the server can verify who took a banner, bots name them. A real
+player on your team gets warm, named recognition ("Karaez took that banner
+personally"); when their claim or assault later completes, bots can credit
+"Karaez's flag on Farm held". Bot teammates are mentioned lightly; enemy
+cappers are named neutrally. Credit requires the caster's own spell to have
+changed that base; when two clicks hit the same base between observations,
+or the evidence is otherwise unclear, nobody is named. Node prompts no
+longer include the team roster, so names never come from guesses.
+
+Age applies separately to every line, including later conversation turns.
+There is no exemption after the first line: a slow generation or delivery
+gate can truncate an exchange, possibly leaving a question unanswered.
+For example, lines sent at ages 10, 14 and 18 seconds under the 15-second
+limit allow the first two and reject the third. Match/audience checks also
+run for each line. The defaults are conservative freshness budgets from
+the implementation plan, not measured latency percentiles. No end-to-end
+generation latency has been measured for this rollout. Inspect
+`bg_facts_expired` drop reasons during an authorized live test and tune
+these limits for the configured model and pacing.
+
+BG classification uses owner, channel, event category or explicit BG
+payload fields, never map location alone. Group producer policy is:
+
+| Group events | Delivery policy |
+|---|---|
+| kill, combat, death, achievement, spell_cast, player_msg, low_health, oom | BG-enriched producers use the guard; ordinary variants retain group policy |
+| join_batch | Dedicated BG arrival uses the guard; ordinary group arrival retains group policy |
+| join, farewell, resurrect, corpse_run, zone_transition, subzone_change | Ordinary group policy without BG context |
+| loot, levelup, quest_accept, quest_accept_batch, quest_complete, quest_objectives, dungeon_entry, wipe | Ordinary group policy without BG context |
+| emote_reaction, emote_observer, nearby_object, aggro | Existing producer eligibility and ordinary group policy |
+
+The producer inventory is pinned in the transport regression tests. Any
+of these rows carrying explicit BG context is guarded regardless of its
+ordinary policy; no existing producer is silently suppressed by map ID.
+
+Deploy producer and bridge changes together. Before activation, finish or
+drain pending old-contract AB, WSG and EY work where practical, pausing
+production while draining. If old rows remain at activation, they are
+explicitly discarded by the final guard with `bg_contract_missing` rather
+than delivered without match identity. Restart also invalidates previous
+match tokens. Older incidental AB rows that still contain `ab_state` are
+discarded with `bg_ab_context_unexpected`, since previously generated prose
+may contain base claims even after the new bridge stops rendering them.
+Do not replay those rows into a new match. This applies to
+arrival and BG-context Party replies as well as BG-wide reactions.
+New C++ owners require source discovery in a separately authorized full
+build; Python changes require the affected bridge update. These deployment
+steps are separate from source implementation.
+
+### AB integrated verification and release gates
+
+Run the focused Python regressions directly from the module root:
+
+```text
+python tools/tests/test_arathi_integration.py
+python tools/tests/test_arathi_batches.py
+python tools/tests/test_arathi_resource_race.py
+python tools/tests/test_arathi_context.py
+python tools/tests/test_arathi_snapshot.py
+python tools/tests/test_bg_delivery_contract.py
+python tools/tests/test_battleground_type_context.py
+python tools/tests/test_battleground_flag_context.py
+python tools/tests/test_battleground_carrier_messages.py
+python tools/tests/test_normal_mode_player_chat.py
+```
+
+The integration test uses actual handlers, dispatch and response parsing,
+with LLM/DB boundary replacements. It covers node, score and objective
+idle events in both modes, Party filler deferral, invalid transport,
+missing speakers, generation/insertion failure and overlapping match
+generations. The source checks in other scripts do not execute C++ guards.
+
+Before release, complete these separately authorized gates:
+
+1. Compile and run the production-header harnesses under `tools/tests/cpp/`
+   (`test_ab_pending.cpp`, `test_ab_score.cpp`, `test_ab_integration.cpp`
+   and `test_json_fields.cpp`) with assertions enabled. A passing harness
+   does not replace the full module/worldserver build and link.
+2. Build with discovery of the new C++ owners and coordinate the bridge
+   update with the legacy-row policy above. Follow the host project's
+   build and restart instructions; no SQL migration is required for AB.
+3. Validate explicit and Random AB for both teams and normal/RP modes:
+   simultaneous nodes and score crossings, late entry, human/bot banner
+   interactions, subgroup changes, exit/requeue, match end, custom target
+   and disable/re-enable. Recheck WSG carrier/regrab/return and EY reactions.
+4. Delay generation across a node flip, subgroup move and match change.
+   Verify no facing, action, emote or speech occurs on rejected rows.
+   Test stalled observations, later conversation lines and actual listener
+   audibility. Examine `bg_facts_expired`, `bg_ab_node_changed`,
+   `bg_ab_state_changed`, `bg_subgroup_changed` and `bg_match_changed`.
+
+Python regression success establishes neither compiled compatibility nor
+live delivery correctness. Keep those outcomes distinct in release evidence.
+
 ### C++ ownership
 
 - `LLMChatterBG.cpp`
 - `LLMChatterBG.h`
+- `LLMChatterAB.cpp/.h`
+- `LLMChatterBGDelivery.cpp/.h`
 
 ### Python ownership
 
 - `chatter_battlegrounds.py`
 - `chatter_bg_prompts.py`
+- `chatter_ab.py`
+- `chatter_bg_delivery.py`
 - `chatter_raid_base.py`
 
 ### Typical BG events
 
 - match start / end
 - flag pickup / drop / capture / return
+- all AB node transitions, including state-only updates
 - node assault / capture
 - PvP kill
 - score milestones
@@ -1446,7 +1717,7 @@ BG-wide only:
 Subgroup/party only:
 
 - PvP kills
-- node assault / capture chatter
+- EY node assault / capture chatter
 - score milestones
 - spell/state chatter
 - idle chatter
@@ -1503,13 +1774,18 @@ wounded bot's combat target, not the wounded person.
 
 About 15 seconds after a real player enters a battleground,
 `bot_group_join_batch` fires with the bots in the player's sub-group.
-Python rolls a greeting count between `ArrivalGreetingMin` and
-`ArrivalGreetingMax` and uses the BG arrival prompt. The arrival event
-carries `match_in_progress` and the live score, so a late join into a
-running match is not described as the pre-fight gathering. A random split of
-at most `ArrivalBGChannelGreetings` speak in battleground chat and the
-rest in party chat; with two or more greetings each channel gets at
-least one line.
+Python independently selects one BG-wide greeting plus a second with
+`ArrivalRaidSecondChance` probability (default 50%), and a uniform Party
+count between `ArrivalPartyMin` and `ArrivalPartyMax` (default 0?3).
+Counts are capped by available subgroup bots; a bot can speak once in each
+channel. Channel choices survive failed generation of an earlier greeting.
+These are selection guarantees; duplicate suppression, generation failures
+and final delivery guards can still suppress messages. Disable the feature
+with `ArrivalGreetings.Enable = 0`. The old `ArrivalGreetingMin`,
+`ArrivalGreetingMax` and `ArrivalBGChannelGreetings` split controls are
+replaced by these independent controls.
+The event carries `match_in_progress` and live scores, so a late join is
+not described as the pre-fight gathering.
 BG arrivals skip the party welcome, composition comment, first-meeting
 memory, and farewell pre-generation.
 
@@ -1544,9 +1820,10 @@ a capture is possible while the team's own flag is at base.
 
 | Key | Default | Purpose |
 |---|---|---|
-| `BGChatter.ArrivalGreetingMin` | 1 | Min bots greeting on BG entry |
-| `BGChatter.ArrivalGreetingMax` | 4 | Max bots greeting on BG entry; 0 disables |
-| `BGChatter.ArrivalBGChannelGreetings` | 2 | Max arrival greetings in BG chat (random split); 0 = party only |
+| `BGChatter.ArrivalGreetings.Enable` | 1 | Enable arrival greetings |
+| `BGChatter.ArrivalRaidSecondChance` | 50 | Percent chance of a second BG-wide greeting; first is always selected |
+| `BGChatter.ArrivalPartyMin` | 0 | Minimum independent Party greetings |
+| `BGChatter.ArrivalPartyMax` | 3 | Maximum independent Party greetings |
 | `BGChatter.FlagRegrabWindowSec` | 15 | Same-carrier re-pickup window with no callout; 0 disables |
 | `BGChatter.AchievementCooldownSec` | 45 | Min seconds between BG achievement reactions per group; 0 disables |
 | `BGChatter.AchievementRepeatWindowSec` | 300 | Min seconds before the same achievement gets another reaction in a BG; 0 disables |
@@ -3116,6 +3393,12 @@ recent history, never an input-length threshold or phrase list. A terse
 invitation for news, advice, an experience, or an explanation can deserve a
 concrete answer. Acknowledgments and conversational closure remain brief.
 The existing `brief_casual` and `requires_reply` decisions stay separate.
+Reply necessity is judged from the whole exchange: silence is eligible only
+when the turn clearly needs no further engagement. If silence would feel
+like ignoring an ongoing contribution, or the intent is uncertain, the model
+is instructed to favor a short acknowledgment unless the purpose clearly
+calls for detail. A casual or
+declarative message does not by itself signal conversational closure.
 Channel length guidance and hard limits still apply; useful detail is
 permitted, never mandatory, and replies should not be padded.
 

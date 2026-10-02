@@ -785,6 +785,45 @@ def query_quest_turnin_npc(
             pass
 
 
+def get_recent_bg_messages(
+    db, match_token: str, group_id: int,
+    limit: int = 20,
+    minutes: int = 20,
+) -> list:
+    """Recent lines actually spoken to this BG match and group.
+
+    Scoped by the event envelope's match token and group, so concurrent
+    matches, the other team, other groups and earlier matches never fill
+    the window. Rows finalized with a drop_reason were never spoken.
+    Returns message strings, newest first.
+    """
+    if not match_token or not group_id:
+        return []
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT m.message
+            FROM llm_chatter_messages m
+            JOIN llm_chatter_events e
+                ON m.event_id = e.id
+            WHERE m.delivered = 1
+              AND m.drop_reason IS NULL
+              AND m.channel IN ('party', 'battleground')
+              AND m.delivered_at > DATE_SUB(
+                  NOW(), INTERVAL %s MINUTE
+              )
+              AND JSON_UNQUOTE(JSON_EXTRACT(
+                  e.extra_data, '$.bg_match_token')) = %s
+              AND JSON_EXTRACT(e.extra_data, '$.group_id') = %s
+            ORDER BY m.delivered_at DESC
+            LIMIT %s
+        """, (minutes, match_token, group_id, limit))
+        rows = cursor.fetchall()
+        return [r['message'] for r in rows if r.get('message')]
+    except Exception:
+        return []
+
+
 def get_recent_zone_messages(
     db, zone_id: int,
     limit: int = 15,
