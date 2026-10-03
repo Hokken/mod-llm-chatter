@@ -40,7 +40,6 @@ from chatter_text import (
     repair_json_string,
     _extract_ngrams,
     is_too_similar,
-    strip_leaked_response_fields,
 )
 from chatter_llm import (
     resolve_model,
@@ -2996,9 +2995,7 @@ def parse_conversation_response(
                 if not isinstance(msg, dict):
                     continue
                 speaker = str(msg.get('speaker') or '').strip()
-                message = strip_leaked_response_fields(
-                    str(msg.get('message') or '').strip()
-                )
+                message = str(msg.get('message') or '').strip()
                 raw_emote = msg.get('emote')
                 emote = validate_emote(raw_emote)
                 if speaker and (

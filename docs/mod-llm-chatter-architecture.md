@@ -90,6 +90,39 @@ The agent runs on the host machine (not in Docker) and connects to
 MySQL directly. It is configured via the same `.conf` file and is
 disabled by default.
 
+An optional independent NPC proximity route uses the same capture:
+
+1. After the existing capture-cycle chance, the host rolls
+   `Screenshot.Proximity.Chance` and requests a ticket for the explicit
+   `Screenshot.BoundAccountId` in `llm_screenshot_proximity`.
+2. `LLMChatterScreenshot.cpp` polls that account on the world thread. It
+   validates the live real player and NPC availability through proximity
+   helpers, then retains a session/map/instance/position snapshot in memory.
+3. The host captures only if Party or the local ticket is eligible. It
+   publishes visual JSON using token/state/expiry compare-and-set guards.
+   Party dedup and insertion remain independent of local publication.
+4. C++ consumes once, revalidates the snapshot and selects compatible live
+   NPCs within `ProximityChatter.ScanRadius`. Existing proximity events,
+   entity cooldowns, zone fatigue and conversation pacing own the speech.
+5. `chatter_proximity.py` uses the visual background instead of a random
+   topic and ordinary clock/weather block for this route only. NPCs stay
+   in-world in every chatter mode. Delivery rechecks session, map, instance,
+   player displacement and each NPC's eligibility and scan radius.
+
+The mailbox has one row per bound account. Expired/consumed slots are reused;
+no global player scan is added. Disabled/unbound configurations do not poll.
+The schema is probed once per config load, with one diagnostic if missing.
+Restart or config reload discards transient snapshots and fails closed.
+`MaxAgeSeconds` covers preflight through server consumption; subsequent
+speech uses normal event expiry and live delivery checks. Pixel capture and
+the world tick are not atomic, so the snapshot bounds rather than eliminates
+the interval between observation and reaction.
+
+Ownership: `src/LLMChatterScreenshot.cpp/.h` owns server transport and
+freshness; `tools/screenshot_proximity.py` owns host mailbox operations;
+`tools/chatter_screenshot_context.py` owns shared visual-background guidance.
+Proximity retains NPC selection, prompts, speech pacing and delivery.
+
 ### Proximity chatter data flow
 
 Proximity chatter creates ambient `/say` conversations between bots,
@@ -123,7 +156,11 @@ NPCs, and real players as they move through the world:
    and curated dungeon-lore grounding. NPC payloads also carry
    disposition, creature rank, creature type, and qualification reason.
 6. Messages are written to `llm_chatter_messages` with channel
-   `"say"` (for bots) or `"msay"` (for NPCs).
+   `"say"` (for bots) or `"msay"` (for NPCs). Ordinary, directed speech,
+   and emote conversations use `chatter_proximity_pacing.py` for bounded
+   length-aware gaps with subtle RNG (default 3-8 seconds). The first line
+   has no added wait. Bridge-owned `DynamicPacing.*` settings control this;
+   disabling them restores the event's fixed `line_delay_seconds`.
 7. C++ delivery dispatches bot messages via `CHAT_MSG_SAY` and NPC
    messages via `CHAT_MSG_MONSTER_SAY` (speech bubbles). Movement never
    disqualifies a speaker. Only NPCs whose spawn never moves may rotate:
@@ -142,7 +179,10 @@ NPCs, and real players as they move through the world:
    ineligible cross-faction named bot falls back only to an already selected
    eligible NPC or bot; otherwise the direct route is suppressed. A living
    selected player, party bot, boss, or runtime-ineligible speaking NPC
-   suppresses random fallback; dead and non-speaking targets are ignored.
+   only suppresses fallback when the message names that selected target by
+   full name or a unique meaningful name token. An unrelated selection
+   permits ordinary nearby replies. Dead and
+   non-speaking targets are ignored.
    With no direct addressee, recent-scene and ordinary nearby fallback
    behavior remains available.
 9. A social emote directed at an eligible NPC has its own verbal-reaction
@@ -323,8 +363,8 @@ that playerbots are ready synchronously:
    or a real Guild message cancels the greeting.
 5. One high-priority `guild_login_greeting` event carries the current
    session, target player, delay metadata, and live bot candidates.
-6. `chatter_guild_login.py` normally selects one greeter and
-   occasionally two or three. One LLM request generates the whole
+6. `chatter_guild_login.py` selects one to four greeters, with
+   equal odds for each count when four candidates are available. One LLM request generates the whole
    sequence as short, distinct, message-only Guild lines.
 7. The first line has no extra bridge-side delay because the C++ pending
    timer already supplied the human pause. Additional greeters reuse
@@ -943,7 +983,7 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterShared.cpp` | ~2500 | Shared helpers: SQL/JSON escaping, canonical lookups, queue insertion, cooldowns, priorities/delays, delivery helpers, spawn-GUID creature lookup, NPC role descriptions, and the shared named-boss cache/classifier |
 | `src/LLMChatterReplyHold.cpp` | ~165 | `HoldBotForReply()`: keeps a standing ungrouped bot that owes a player a reply in place for `ProximityChatter.ReplyHoldMs` (moving bots are left alone); raises the AI delay without shortening it and, when released on combat or on the delivery or terminal drop of its reply, takes back only what it added |
 | `src/LLMChatterShared.h` | 83 | Shared declarations still used across domains; `class Unit` forward-declared for `SendUnitTextEmote()`; currently also declares world/player registration |
-| `src/LLMChatterDelivery.cpp` | ~1000 | Outbound DB polling and channel dispatch, including instance-aware local revalidation for `say`/`msay` and safe boss `myell` delivery |
+| `src/LLMChatterDelivery.cpp` | ~1000 | Outbound DB polling and channel dispatch, including instance-aware local revalidation for `say`/`msay`, screenshot snapshot/scan-radius checks, and safe boss `myell` delivery |
 | `src/LLMChatterDelivery.h` | 4 | Narrow delivery extraction declaration used by `LLMChatterWorld.cpp` |
 | `src/LLMChatterAmbient.cpp` | 963 | Ambient world/event ownership: day/night transitions, holiday start/stop routing, weather state tracking, weather reactions, zone-level ambient chatter selection, ambient request queue writes |
 | `src/LLMChatterAmbient.h` | 24 | Narrow ambient declarations consumed by `LLMChatterWorld.cpp` |
@@ -965,7 +1005,8 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterGroup.h` | 18 | World-to-group cross-call surface plus group registration |
 | `src/LLMChatterPlayer.cpp` | 1105 | Player General-channel hooks, General cooldowns, subzone cooldowns, `EnsureBotInGeneralChannel()`, player registration |
 | `src/LLMChatterRaid.cpp` | 767 | Raid boss hooks (pull/kill/wipe), boss lookup table (80+ entries across Classic/TBC/WotLK), `IsDatabaseBound() override`, raid registration |
-| `src/LLMChatterProximity.cpp` | 2674 | Ordinary outdoor/instance proximity scans, curated NPC/playerbot eligibility and compatibility, selected/named `/say` routing, mixed bot-directed reaction chains, map/instance-aware scenes and cooldowns, and event payload construction |
+| `src/LLMChatterProximity.cpp` | ~3400 | Ordinary outdoor/instance proximity scans, curated NPC/playerbot eligibility and compatibility, selected/named `/say` routing, mixed bot-directed reaction chains, map/instance-aware scenes and cooldowns, screenshot NPC preflight/queue exports, and event payload construction |
+| `src/LLMChatterScreenshot.cpp/.h` | ~225 | Account-bound screenshot mailbox polling, live session/map/instance/position snapshots, consume-once dispatch and delivery freshness validation |
 | `src/LLMChatterProximity.h` | ~75 | Proximity scan and player-say hook declarations consumed by `LLMChatterWorld.cpp` and `LLMChatterGroupCombat.cpp`, plus the narrow fight onlooker helpers used by `LLMChatterProximityFight.cpp` |
 | `src/LLMChatterProximityFight.cpp/.h` | ~1090 | Duel and overworld PvP onlooker reactions: own `PlayerScript` (duel request/start/end, PvP kill), duel-instance lifecycle and moment selection, one reaction per moment (proximity speech for same-faction bots, emotes for opposite-faction bots), staggered emote steps, and delivery-time revalidation |
 | `src/LLMChatterBossDialogue.cpp/.h` | ~850 | Separate boss-only pre-aggro scanning, safe-band eligibility, selected/named `/say` routing, denylist, and boss-instance presence scheduling |
@@ -1061,6 +1102,9 @@ This asymmetry is known and acceptable in the shipped source state.
 
 | File | Primary ownership |
 |---|---|
+| `src/LLMChatterScreenshot.cpp/.h` | World-thread preflight, mailbox consumption and snapshot lifetime; delegates NPC roster/speech to proximity |
+| `tools/screenshot_proximity.py` | Host account-slot reservation, preflight wait and token/state/expiry-guarded publication |
+| `tools/chatter_screenshot_context.py` | Shared scene-as-background guidance and NPC visual context; no speaker inference from pixels |
 | `tools/screenshot_agent.py` | Host-side capture agent (runs outside Docker). Captures WoW window via Win32 API, crops UI clutter (bottom 20%, sides 12%), sends JPEG to vision LLM (OpenAI, Anthropic, Google, or OpenRouter), receives structured JSON with environment description, atmosphere, and canonical tags. Queues `bot_group_screenshot_observation` events directly into `llm_chatter_events`. Configurable interval, chance, and vision provider/model |
 | `tools/chatter_screenshot_handler.py` | Bridge handler for `bot_group_screenshot_observation` events. Generates in-character bot comments using personality traits, zone/subzone context, and the vision description. Supports single statements via `run_single_reaction()` and multi-bot conversations via `append_conversation_json_instruction()` / `parse_conversation_response()`. Canonical tag dedup prevents repetitive observations |
 
@@ -1272,10 +1316,10 @@ PvP reactions stay in `LLMChatterDuel.cpp` and `LLMChatterGroupPvP.cpp`.
 - selected/named player `/say` routing before scene fallback
 - directed social-emote verbal events and synchronized per-player/NPC or
   per-player/ungrouped-bot cooldowns
-- mounted real players and mounted playerbots remain eligible for directed
-  `/say`, emotes, and active-scene replies; mounting still suppresses
-  automatic and untargeted new-scene selection, and an untargeted `/say`
-  speaker that mounts after queueing is rejected again at delivery
+- mounted real players and mounted playerbots remain eligible for player
+  `/say` (including untargeted new scenes), emotes, and active-scene
+  replies, both at selection and delivery; mounted players also hear
+  automatic nearby scenes and mounted bots can participate
 - policy-scoped weighted selection with one universal two-joiner cap:
   zero to two NPC joiners for NPC-directed scenes, or zero to two compatible
   NPC/ungrouped-bot joiners when an ungrouped bot is addressed

@@ -28,6 +28,7 @@ import mysql.connector
 from PIL import Image
 
 from chatter_shared import parse_config
+from screenshot_proximity import request_ticket, publish_observation
 from llm_compat import (
     build_chat_options,
     create_chat_completion,
@@ -135,6 +136,12 @@ def load_screenshot_config(raw: dict) -> dict:
             'gpt-6-luna'),
         'bound_account_id': int(raw.get(
             'LLMChatter.Screenshot.BoundAccountId', '0')),
+        'proximity_enable': raw.get(
+            'LLMChatter.Screenshot.Proximity.Enable', '0') == '1',
+        'proximity_chance': max(0, min(100, int(raw.get(
+            'LLMChatter.Screenshot.Proximity.Chance', '30')))),
+        'proximity_request_timeout': max(1, min(30, int(raw.get(
+            'LLMChatter.Screenshot.Proximity.RequestTimeoutSeconds', '5')))),
         'max_width_px': int(raw.get(
             'LLMChatter.Screenshot.MaxWidthPx', '640')),
         'jpeg_quality': int(raw.get(
@@ -655,29 +662,78 @@ def _do_capture_cycle(
 ) -> None:
     """Single capture-analyze-queue cycle."""
     if not is_wow_foreground():
+        log.info('Screenshot skipped: WoW is not the foreground window')
         return
 
-    # Check for active group BEFORE capturing/calling
-    # the vision API — no point spending money if
-    # there's nobody to deliver the observation to.
-    db = get_db_connection(config)
+    # Resolve the routes independently before paying for vision.
+    group_info = None
+    ticket = None
+    account_id = config.get('bound_account_id', 0)
+    log.info('WoW is focused; checking Party recipients (account=%s)',
+             account_id or 'automatic group selection')
     try:
-        account_id = config.get('bound_account_id', 0)
-        if account_id:
-            group_info = get_bound_player_group(
-                db, account_id)
-        else:
-            group_info = get_active_group_fallback(db)
-    finally:
-        db.close()
+        db = get_db_connection(config)
+        try:
+            if account_id:
+                group_info = get_bound_player_group(db, account_id)
+            else:
+                group_info = get_active_group_fallback(db)
+        finally:
+            db.close()
+    except Exception:
+        log.exception('Screenshot Party eligibility failed')
 
     if group_info is None:
-        log.info("No active group with bots, skipping")
+        log.info('Party: no eligible grouped bot found')
+    else:
+        log.info('Party: recipient=%s, zone=%s',
+                 group_info['bot_name'], group_info['zone'])
+    proximity_attempt = False
+    proximity_reason = 'disabled'
+    if config.get('proximity_enable'):
+        if not account_id:
+            proximity_reason = 'no account binding'
+        else:
+            proximity_roll = random.randint(1, 100)
+            proximity_attempt = proximity_roll <= config['proximity_chance']
+            log.info('Proximity: roll=%d, chance=%d%% -> %s',
+                     proximity_roll, config['proximity_chance'],
+                     'request server preflight' if proximity_attempt else 'skip')
+            proximity_reason = (
+                'no server ticket (see preflight log)' if proximity_attempt
+                else 'chance roll skipped; NPC eligibility not checked')
+    if not proximity_attempt:
+        log.info('Proximity: %s', proximity_reason)
+    if proximity_attempt:
+        try:
+            db = get_db_connection(config)
+            try:
+                ticket = request_ticket(
+                    db, account_id, config['proximity_request_timeout'])
+            finally:
+                db.close()
+        except Exception:
+            proximity_reason = 'preflight error'
+            log.exception('Screenshot proximity preflight failed')
+
+    if group_info is None and ticket is None:
+        log.info('Screenshot skipped: no Party recipient; proximity: %s',
+                 proximity_reason)
         return
 
+    log.info('Capture routes: Party=%s, proximity=%s',
+             'eligible' if group_info is not None else 'unavailable',
+             'approved' if ticket is not None else 'unavailable')
     # -- Capture and analyze --
+    # Preflight can wait several seconds; the player may have alt-tabbed.
+    if not is_wow_foreground():
+        log.info('Screenshot skipped: WoW lost focus during preflight')
+        return
+    capture_started = time.monotonic()
+    log.info('Capturing WoW client area, cropping UI and encoding JPEG')
     img = capture_wow_window()
     if img is None:
+        log.warning('Screenshot capture returned no image; ending cycle')
         return
 
     try:
@@ -690,8 +746,8 @@ def _do_capture_cycle(
     finally:
         img.close()
     log.info(
-        "Captured screenshot: %d bytes",
-        len(jpeg_bytes),
+        "Captured screenshot: %d bytes in %.2fs",
+        len(jpeg_bytes), time.monotonic() - capture_started,
     )
 
     # To save captures for debugging, uncomment:
@@ -707,6 +763,9 @@ def _do_capture_cycle(
     #         'wb') as f:
     #     f.write(jpeg_bytes)
 
+    vision_started = time.monotonic()
+    log.info('Vision request started: provider=%s, model=%s',
+             config['vision_provider'], config['vision_model'])
     description = analyze_screenshot(
         jpeg_bytes,
         vision_client,
@@ -717,11 +776,10 @@ def _do_capture_cycle(
             config['openai_max_tokens_multiplier']
         ),
     )
+    log.info('Vision analysis finished in %.2fs',
+             time.monotonic() - vision_started)
     if description is None:
-        return
-
-    if is_duplicate(description):
-        log.info("Vision: duplicate scene, skipping")
+        log.info('Vision returned no usable scene; nothing will be published')
         return
 
     log.info(
@@ -731,19 +789,34 @@ def _do_capture_cycle(
         description.get('weather', 'none'),
     )
 
-    # -- Queue the event --
-    db = get_db_connection(config)
-    try:
-        queue_screenshot_event(
-            db, group_info, description)
-        update_dedup_cache(description)
-        log.info(
-            "Queued observation: %s (zone_id=%s)",
-            group_info['bot_name'],
-            group_info['zone'],
-        )
-    finally:
-        db.close()
+    # Party dedup belongs only to Party. Neither publication can suppress
+    # the other, even if its database operation fails.
+    party_duplicate = group_info is not None and is_duplicate(description)
+    if party_duplicate:
+        log.info('Vision: duplicate Party scene, skipping Party')
+    if group_info is not None and not party_duplicate:
+        log.info('Party: scene passed dedup; inserting observation event')
+        try:
+            db = get_db_connection(config)
+            try:
+                queue_screenshot_event(db, group_info, description)
+                update_dedup_cache(description)
+                log.info('Queued observation: %s (zone_id=%s)',
+                         group_info['bot_name'], group_info['zone'])
+            finally:
+                db.close()
+        except Exception:
+            log.exception('Screenshot Party publication failed')
+    if ticket is not None:
+        log.info('Proximity: publishing visual observation for server validation')
+        try:
+            db = get_db_connection(config)
+            try:
+                publish_observation(db, ticket, description)
+            finally:
+                db.close()
+        except Exception:
+            log.exception('Screenshot proximity publication failed')
 
 
 def _create_vision_client(config: dict):
@@ -792,21 +865,39 @@ def run_agent(config: dict) -> None:
         config['interval_max_seconds'],
         config['chance'],
     )
+    log.info('Proximity enabled=%s, chance=%d%%, bound account=%s; '
+             'publication does not confirm NPC speech delivery',
+             config.get('proximity_enable', False),
+             config.get('proximity_chance', 30),
+             config.get('bound_account_id', 0))
+    cycle = 0
     while True:
+        cycle += 1
         interval = random.randint(
             config['interval_min_seconds'],
             config['interval_max_seconds'],
         )
+        log.info('Cycle %d: waiting %d seconds; next check at %s',
+                 cycle, interval,
+                 time.strftime('%H:%M:%S', time.localtime(time.time() + interval)))
         time.sleep(interval)
 
-        if random.randint(1, 100) > config['chance']:
+        roll = random.randint(1, 100)
+        if roll > config['chance']:
+            log.info('Screenshot cycle skipped: capture roll %d exceeds %d%%',
+                     roll, config['chance'])
             continue
 
+        log.info('Screenshot cycle: capture roll passed; checking recipients')
         try:
+            cycle_started = time.monotonic()
             _do_capture_cycle(config, vision_client)
         except Exception as e:
             log.error("Capture cycle failed: %s", e)
             continue
+        finally:
+            log.info('Cycle %d finished in %.2fs; scheduling next wait',
+                     cycle, time.monotonic() - cycle_started)
 
 
 def main():

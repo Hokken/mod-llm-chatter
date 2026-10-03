@@ -65,45 +65,6 @@ def _link_safe_cut(message: str, cut: int) -> int:
     return cut
 
 
-_LEAKED_FIELD_START = re.compile(r'"(?:emote|action|thread)"\s*:')
-_LEAKED_FIELD_KEYS = frozenset(('emote', 'action', 'thread'))
-
-
-def strip_leaked_response_fields(message: str) -> str:
-    """Remove response fields the model wrote inside the message.
-
-    The model sometimes escapes its remaining fields into the
-    message string, so the JSON stays valid and the scaffolding
-    would reach chat. Only a suffix that decodes as a JSON object
-    of known response fields (two or more, or a thread object) is
-    removed, so quoted labels in normal speech are kept.
-    """
-    if not message or '"' not in message:
-        return message
-    decoder = json.JSONDecoder()
-    for match in _LEAKED_FIELD_START.finditer(message):
-        start = match.start()
-        fields = None
-        # The leaked suffix may or may not close its own object.
-        for candidate in (
-            '{' + message[start:], '{' + message[start:] + '}',
-        ):
-            try:
-                fields, end = decoder.raw_decode(candidate)
-            except ValueError:
-                continue
-            if not candidate[end:].strip().strip('}').strip():
-                break
-            fields = None
-        if fields is None or not set(fields) <= _LEAKED_FIELD_KEYS:
-            continue
-        if len(fields) < 2 and not isinstance(
-            fields.get('thread'), dict
-        ):
-            continue
-        return message[:start].rstrip().rstrip(',').rstrip()
-    return message
-
 def _shorten_at_word_boundary(
     message: str,
     max_length: int,
@@ -230,7 +191,6 @@ def parse_single_response(response: str) -> dict:
             if isinstance(data, dict) and 'message' in data:
                 msg = data.get('message', '')
                 if isinstance(msg, str):
-                    msg = strip_leaked_response_fields(msg)
                     msg = msg.strip().strip('"')
                 else:
                     msg = str(msg).strip()
@@ -265,7 +225,7 @@ def parse_single_response(response: str) -> dict:
         except (json.JSONDecodeError, ValueError):
             decoded = raw
         return {
-            'message': strip_leaked_response_fields(decoded),
+            'message': decoded,
             'emote': None,
             'action': None,
         }
@@ -284,7 +244,6 @@ def parse_single_response(response: str) -> dict:
             decoded = json.loads(f'"{raw}"')
         except (json.JSONDecodeError, ValueError):
             decoded = raw
-        decoded = strip_leaked_response_fields(decoded)
         # Trim trailing partial-field artifacts like
         # ', "emote' or ', "action'
         decoded = re.sub(
@@ -307,7 +266,7 @@ def parse_single_response(response: str) -> dict:
         if m:
             msg = m.group(1).strip().strip('"').rstrip(',}')
     return {
-        'message': strip_leaked_response_fields(msg),
+        'message': msg,
         'emote': None,
         'action': None,
     }

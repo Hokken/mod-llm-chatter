@@ -3,6 +3,7 @@
  */
 
 #include "LLMChatterConfig.h"
+#include "LLMChatterScreenshot.h"
 #include "Guild.h"
 #include "LLMChatterBossDialogue.h"
 #include "LLMChatterDelivery.h"
@@ -656,16 +657,6 @@ void DeliverPendingMessagesImpl()
     bool proximityLocal =
         ownerSubsystem == "proximity"
         && (channel == "say" || channel == "msay");
-    bool addressedPlayerSay =
-        (eventType == "proximity_player_say"
-            || eventType
-                == "proximity_player_conversation")
-        && HasNonEmptyJsonString(
-            eventExtraData, "addressed_name");
-    bool allowMountedProximityBot =
-        addressedPlayerSay
-        || eventType == "proximity_player_emote"
-        || eventType == "proximity_reply";
     float proximityRadius = static_cast<float>(
         std::max(
             sLLMChatterConfig->_proxChatterScanRadius,
@@ -693,6 +684,13 @@ void DeliverPendingMessagesImpl()
                     && anchorPlayer->GetMap()
                            ->GetInstanceId()
                         == eventInstanceId));
+        if (anchorValid && eventExtraData.find("screenshot_token")
+            != std::string::npos)
+        {
+            proximityRadius = sLLMChatterConfig->_proxChatterScanRadius;
+            anchorValid = IsScreenshotProximityCurrent(
+                anchorPlayer, eventExtraData);
+        }
         if (!anchorValid)
         {
             bot = nullptr;
@@ -702,8 +700,7 @@ void DeliverPendingMessagesImpl()
         }
         else if (channel == "say"
             && !IsProximityPlayerbotEligible(
-                anchorPlayer, bot, proximityRadius,
-                allowMountedProximityBot))
+                anchorPlayer, bot, proximityRadius, true))
         {
             bot = nullptr;
             botUnavailable = true;
