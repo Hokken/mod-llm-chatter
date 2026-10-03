@@ -2267,12 +2267,11 @@ LLMChatter.GeneralChat.QuestionChance = 100
 
 #
 #   LLMChatter.GeneralChat.Cooldown
-#       Per-zone cooldown (seconds) between bot reactions to
-#       player messages in General chat. Prevents bots from
-#       responding to every single message in a busy zone.
-#       Default: 30
+#       Per-zone, per-faction cooldown (seconds) between bot reactions
+#       to player messages in General chat. Set to 0 to disable.
+#       Default: 3
 #
-LLMChatter.GeneralChat.Cooldown = 30
+LLMChatter.GeneralChat.Cooldown = 3
 
 #
 #   LLMChatter.GeneralChat.ReactDelay
@@ -3091,7 +3090,7 @@ LLMChatter.DistanceUnit = yards
 #       Does NOT affect party chat or event reactions.
 #       Default: 900 (15 minutes)
 #
-LLMChatter.BotSpeakerCooldownSeconds = 900
+LLMChatter.BotSpeakerCooldownSeconds = 120
 
 #
 #   LLMChatter.EventExpirationSeconds
@@ -3867,6 +3866,8 @@ LLMChatter.Screenshot.Enable = 0
 #       MySQL host for the screenshot agent, which runs
 #       on the host machine (not inside Docker). Use
 #       127.0.0.1 when MySQL is exposed on localhost.
+#       If unset, falls back to LLMChatter.Database.Host,
+#       which is usually a Docker-internal hostname.
 #       Default: 127.0.0.1
 #
 LLMChatter.Screenshot.DBHost = 127.0.0.1
@@ -3907,13 +3908,13 @@ LLMChatter.Screenshot.VisionProvider = openai
 #       Vision model used for screenshot analysis.
 #       Format: an exact vision-capable API model ID with no quotes. Use a
 #       vendor/model slug when VisionProvider is openrouter.
-#       Recommended: gpt-4o-mini (fast and inexpensive)
-#       Alternatives: claude-haiku-4-5-20251001,
+#       Recommended: gpt-6-luna (fast, inexpensive, good vision)
+#       Alternatives: gpt-4o-mini, claude-haiku-4-5-20251001,
 #       gemini-3.1-flash-lite, gemini-2.5-flash,
 #       anthropic/claude-haiku-4.5 (OpenRouter)
-#       Default: gpt-4o-mini
+#       Default: gpt-6-luna
 #
-LLMChatter.Screenshot.VisionModel = gpt-4o-mini
+LLMChatter.Screenshot.VisionModel = gpt-6-luna
 
 #
 #   LLMChatter.Screenshot.ConversationChance
@@ -3955,14 +3956,3 @@ LLMChatter.Screenshot.JpegQuality = 75
 #       Default: 0 (auto-detect first active group)
 #
 LLMChatter.Screenshot.BoundAccountId = 0
-
-#
-#   LLMChatter.Screenshot.DBHost
-#       Database host override for the host-side agent.
-#       The bridge uses a Docker-internal hostname (e.g.
-#       ac-database) that the Windows host can't resolve.
-#       Set this to 127.0.0.1 for the host agent.
-#       If unset, falls back to LLMChatter.Database.Host.
-#       Default: (uses LLMChatter.Database.Host)
-#
-# LLMChatter.Screenshot.DBHost = 127.0.0.1

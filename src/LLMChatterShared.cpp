@@ -2242,6 +2242,15 @@ bool HasUnsafeChatterFacingMotion(Unit* unit)
 
     if (Creature* creature = unit->ToCreature())
     {
+        // A facing spline replaces an NPC's own movement and can strand
+        // its wander or patrol script. Only turn NPCs that never move.
+        if (creature->GetDefaultMovementType() != IDLE_MOTION_TYPE
+            || motion->GetCurrentMovementGeneratorType()
+                != IDLE_MOTION_TYPE
+            || (activeType != NULL_MOTION_TYPE
+                && activeType != IDLE_MOTION_TYPE))
+            return true;
+
         if (CreatureAI* ai = creature->AI())
         {
             if (ai->IsEscorted())
