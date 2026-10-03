@@ -27,6 +27,7 @@ import time
 import mysql.connector
 from PIL import Image
 
+from chatter_shared import parse_config
 from llm_compat import (
     build_chat_options,
     create_chat_completion,
@@ -109,23 +110,8 @@ VISION_SYSTEM = (
 )
 
 # -----------------------------------------------------------
-# Config parsing (reuse chatter pattern)
+# Config parsing
 # -----------------------------------------------------------
-
-
-def parse_config(config_path: str) -> dict:
-    """Parse WoW-style Key = Value config file."""
-    cfg = {}
-    with open(config_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            if '=' not in line:
-                continue
-            key, _, val = line.partition('=')
-            cfg[key.strip()] = val.strip()
-    return cfg
 
 
 def load_screenshot_config(raw: dict) -> dict:
@@ -146,7 +132,7 @@ def load_screenshot_config(raw: dict) -> dict:
             'openai').lower(),
         'vision_model': raw.get(
             'LLMChatter.Screenshot.VisionModel',
-            'gpt-4o-mini'),
+            'gpt-6-luna'),
         'bound_account_id': int(raw.get(
             'LLMChatter.Screenshot.BoundAccountId', '0')),
         'max_width_px': int(raw.get(
@@ -544,8 +530,11 @@ def get_bound_player_group(
 
 
 def get_active_group_fallback(db) -> 'dict | None':
-    """Fallback: find first group with bots and a real
-    player. Used when BoundAccountId is not set."""
+    """Fallback: find a random group bot whose group has an
+    online real player. Used when BoundAccountId is not set.
+    Real players are identified the same way as
+    chatter_db.get_real_player_guid_for_group: not a traits
+    bot in that group and not on an RNDBOT account."""
     cursor = db.cursor(dictionary=True)
     try:
         cursor.execute("""
@@ -563,8 +552,14 @@ def get_active_group_fallback(db) -> 'dict | None':
                 ON gm.guid = t.group_id
             JOIN characters c
                 ON c.guid = gm.memberGuid
-                AND c.account != 0
                 AND c.online = 1
+            JOIN acore_auth.account a
+                ON a.id = c.account
+            LEFT JOIN llm_group_bot_traits pt
+                ON pt.group_id = gm.guid
+                AND pt.bot_guid = gm.memberGuid
+            WHERE pt.bot_guid IS NULL
+              AND a.username NOT LIKE 'RNDBOT%'
             ORDER BY RAND()
             LIMIT 1
         """)
@@ -862,7 +857,10 @@ def main():
                 "LLMChatter.OpenAI.ApiKey not set")
             sys.exit(1)
 
-    run_agent(config)
+    try:
+        run_agent(config)
+    except KeyboardInterrupt:
+        log.info("Screenshot agent stopped")
 
 
 if __name__ == '__main__':

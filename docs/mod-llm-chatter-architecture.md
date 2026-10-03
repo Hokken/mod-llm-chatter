@@ -81,6 +81,11 @@ C++ server:
 7. Messages are written to `llm_chatter_messages` for normal C++
    delivery.
 
+Screenshot descriptions and atmosphere serve as background for personal
+reactions rather than a narrated inventory of the scene. A recognized
+visual time of day takes precedence over clock-derived prompt context.
+Roleplay conversations frame the observation as the speakers' surroundings.
+
 The agent runs on the host machine (not in Docker) and connects to
 MySQL directly. It is configured via the same `.conf` file and is
 disabled by default.
@@ -121,7 +126,9 @@ NPCs, and real players as they move through the world:
    `"say"` (for bots) or `"msay"` (for NPCs).
 7. C++ delivery dispatches bot messages via `CHAT_MSG_SAY` and NPC
    messages via `CHAT_MSG_MONSTER_SAY` (speech bubbles). Movement never
-   disqualifies a speaker. Only idle or random-wandering NPCs may rotate.
+   disqualifies a speaker. Only NPCs whose spawn never moves may rotate:
+   a facing spline replaces an NPC's wander or patrol movement and the core
+   generator may not resume it, so wanderers and patrollers speak unturned.
    A directed line uses its explicit addressee when present; otherwise
    the conversation sequence supplies the fallback. One facing lease is
    retained through the final line before the original orientation is
@@ -679,6 +686,8 @@ It carries two extra attributes:
    - **OpenAI / Google / OpenRouter / Ollama**: system role message +
      user role message; `llm_compat.py` selects the token field and
      optional parameters from a conservative model capability profile
+     resolved through one ordered model-rule table; parameter selection
+     and reasoning-token budgets consume the same resolved capabilities
    - **Modern OpenAI reasoning models**: use
      `max_completion_tokens`, coordinate temperature with reasoning
      effort, and apply `LLMChatter.OpenAI.ReasoningEffort` only when
