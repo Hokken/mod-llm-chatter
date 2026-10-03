@@ -631,6 +631,12 @@ sampling models receive `temperature`; known reasoning models receive
 their supported token-limit shape and configured reasoning effort;
 unrecognized direct OpenAI models start without optional parameters.
 
+One ordered capability table in `llm_compat.py` owns model matching. Specific
+model rules precede family fallbacks, and both request parameters and token
+budgets use the resolved capabilities. GPT-6 Luna and GPT-6 Sol support
+explicit `none`; GPT-6 Astra and GPT-6.1 Sol retain the reasoning fallback.
+OpenRouter routing and fine-tuned IDs are normalized before model matching.
+
 If a provider explicitly rejects `temperature`, `reasoning_effort`,
 `max_tokens`, or `max_completion_tokens`, the bridge adjusts that one
 parameter, retries the rejected request, and caches the successful shape
@@ -639,7 +645,7 @@ or 422 errors and prefers the provider's structured parameter/code fields;
 other failures are not hidden or retried by this compatibility path.
 
 Generic provider error types such as `invalid_request_error` are not treated
-as parameter rejection codes by themselves. When a dotted GPT-5 generation
+as parameter rejection codes by themselves. When a model supporting `none`
 rejects `ReasoningEffort = none`, the retry also removes temperature and
 expands the completion budget before allowing the model's default reasoning.
 
@@ -658,7 +664,7 @@ LLMChatter.Model = haiku
 
 ```ini
 LLMChatter.Provider = openai
-LLMChatter.Model = gpt-5.6-luna
+LLMChatter.Model = gpt-6-luna
 LLMChatter.OpenAI.ReasoningEffort = none
 LLMChatter.OpenAI.MaxTokensMultiplier = 4
 ```
@@ -1123,6 +1129,10 @@ Higher values preserve more short-term context but increase prompt size and
 token use.
 
 ### Shared zone pacing
+
+`LLMChatter.GeneralChat.Cooldown` limits player-message reaction attempts
+per zone and faction. Both presets and the server fallback use 3 seconds;
+set it to 0 to disable this cooldown. Apply changes with `.reload config`.
 
 Automated ambient and world-event General producers share one per-zone
 delivery reservation. Multi-line conversations reserve the complete
@@ -2768,13 +2778,13 @@ All under `LLMChatter.Screenshot.*`:
 |---|---|---|
 | `Enable` | 0 | Enable/disable the feature |
 | `IntervalMinSeconds` | 45 | Minimum seconds between captures |
-| `IntervalMaxSeconds` | 90 | Maximum seconds between captures |
-| `Chance` | 60 | % chance per interval tick |
+| `IntervalMaxSeconds` | 120 | Maximum seconds between captures |
+| `Chance` | 90 | % chance per interval tick |
 | `VisionProvider` | openai | Vision LLM provider (openai, anthropic, google, or openrouter) |
-| `VisionModel` | gpt-4o-mini | Vision model name |
-| `ConversationChance` | 30 | % chance of multi-bot conversation vs statement |
-| `MaxWidthPx` | 800 | Max image width for vision API |
-| `JpegQuality` | 70 | JPEG compression quality |
+| `VisionModel` | gpt-6-luna | Vision model name |
+| `ConversationChance` | 40 | % chance of multi-bot conversation vs statement |
+| `MaxWidthPx` | 1024 | Max image width for vision API |
+| `JpegQuality` | 75 | JPEG compression quality |
 | `BoundAccountId` | 0 | Account ID to find grouped bots |
 | `DBHost` | 127.0.0.1 | MySQL host (host machine, not Docker) |
 
@@ -2856,9 +2866,11 @@ Three local delivery channels are handled by
 | `msay` | `CHAT_MSG_MONSTER_SAY` | NPC speech bubble |
 | `myell` | monster yell | Extended-range boss line |
 
-Ordinary-scene facing is best effort. A speaker with only idle or random
-movement may rotate via `SetFacingToObject()`; any scripted or controlled
-movement speaks without rotation. Directed rows can identify the real
+Ordinary-scene facing is best effort. A bot with idle or random movement,
+or an NPC whose spawn never moves, may rotate via `SetFacingToObject()`.
+NPCs that wander or patrol, and any scripted or controlled movement, speak
+or emote without rotation: turning them replaces their own movement and
+the core may not resume it. Directed rows can identify the real
 player, bot, or NPC addressee explicitly, so NPC asides face the other NPC
 while player-inclusive lines face the player when appropriate. One facing
 lease is kept through the final queued line before the original orientation

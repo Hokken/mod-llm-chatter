@@ -839,7 +839,7 @@ void LLMChatterConfig::LoadConfig()
     _generalChatQuestionChance = GetChatterOption<uint32>(
         "LLMChatter.GeneralChat.QuestionChance", 100);
     _generalChatCooldown = GetChatterOption<uint32>(
-        "LLMChatter.GeneralChat.Cooldown", 0);
+        "LLMChatter.GeneralChat.Cooldown", 3);
     _generalChatConversationChance = GetChatterOption<uint32>(
         "LLMChatter.GeneralChat.ConversationChance", 30);
     uint32 chatHistoryLimit = std::clamp(
