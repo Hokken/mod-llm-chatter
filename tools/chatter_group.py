@@ -123,6 +123,11 @@ from chatter_threads import (
     render_for_player_reply,
     report_tokens,
 )
+from chatter_themed_topics import (
+    themed_candidate,
+    themed_metadata,
+    themed_used,
+)
 from chatter_group_state import (
     set_group_chat_history_limit,
     assign_bot_traits,
@@ -3016,6 +3021,7 @@ def build_idle_chatter_prompt(
     travel_context='',
     persona=None,
     thread_turn=None,
+    themed_topic='',
 ):
     """Build prompt for idle party chat.
 
@@ -3036,6 +3042,8 @@ def build_idle_chatter_prompt(
             exchange; adds the thread context and asks
             for the optional thread report (normal path
             only; the memory path keeps its own focus)
+        themed_topic: optional themed subject used while
+            threads are off (outside instances)
     """
     is_rp = (mode == 'roleplay')
     if persona is None:
@@ -3339,6 +3347,11 @@ def build_idle_chatter_prompt(
         if topic else
         "You're in a party."
     )
+    if themed_topic and topic:
+        party_ctx = (
+            "You're in a party. A possible subject, only if "
+            f"it fits naturally: {themed_topic}"
+        )
     continuing = bool(
         thread_turn and thread_turn.builds_on_subject
     )
@@ -4427,13 +4440,22 @@ def _idle_single_statement(
     # recalls keep their own focus, so they neither
     # see nor consume the thread.
     thread_turn = None
+    themed = None
     if not idle_memories:
+        if not _in_instance(map_id):
+            themed = themed_candidate(
+                db, config, 'party', bot,
+                thread_key=group_id, mode=mode,
+            )
         thread_turn = plan_idle_turn(
             group_id, [bot_name],
             in_instance=_in_instance(map_id),
             topic_pool=_ambient_topic_pool(mode),
             db=db,
+            themed_topic=themed.render() if themed else None,
         )
+        if not themed_used(themed, thread_turn):
+            themed = None
 
     try:
         speaker_talent = _maybe_talent_context(
@@ -4458,6 +4480,10 @@ def _idle_single_statement(
             backstory=idle_backstory,
             travel_context=travel_context,
             thread_turn=thread_turn,
+            themed_topic=(
+                themed.render()
+                if themed and thread_turn is None else ''
+            ),
         )
 
         _dflav = get_dungeon_flavor(map_id)
@@ -4492,6 +4518,7 @@ def _idle_single_statement(
             )
         zone_meta['channel'] = 'party'
         zone_meta['bot_name'] = bot_name
+        zone_meta.update(themed_metadata(themed))
         zone_meta.update(build_travel_metadata(
             travel_state,
             travel_context,
@@ -4739,15 +4766,29 @@ def _idle_conversation(
     # replaces the random pool topic. Memory
     # exchanges keep their own focus.
     thread_turn = None
+    themed = None
     if not memories_map:
+        if not _in_instance(map_id):
+            themed = themed_candidate(
+                db, config, 'party', bots[0],
+                thread_key=group_id, mode=mode,
+            )
         thread_turn = plan_idle_turn(
             group_id, bot_names,
             in_instance=_in_instance(map_id),
             topic_pool=_ambient_topic_pool(mode),
             db=db,
+            themed_topic=themed.render() if themed else None,
         )
+        if not themed_used(themed, thread_turn):
+            themed = None
         if thread_turn is not None:
             topic = None
+        elif themed:
+            topic = (
+                f"something {bots[0]['name']} might bring up, "
+                f"if it fits naturally: {themed.render()}"
+            )
 
     # RNG-gate backstory injection per bot
     conv_backstory_map = None
@@ -4840,6 +4881,7 @@ def _idle_conversation(
             )
         zone_meta['channel'] = 'party'
         zone_meta['bot_name'] = ','.join(bot_names)
+        zone_meta.update(themed_metadata(themed))
         zone_meta['bot_count'] = num_bots
         zone_meta.update(build_group_travel_metadata(bots))
         if memories_map:

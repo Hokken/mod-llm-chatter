@@ -60,6 +60,12 @@ from chatter_threads import (
     report_tokens,
 )
 from chatter_shared import count_conversation_items, get_race_faction
+from chatter_progression import parse_audience
+from chatter_themed_topics import (
+    themed_candidate,
+    themed_metadata,
+    themed_used,
+)
 from chatter_constants import RACE_NAMES
 from chatter_prompts import (
     build_plain_statement_prompt,
@@ -373,15 +379,29 @@ def process_statement(
             if mode == 'roleplay'
             else AMBIENT_CHAT_TOPICS
         )
-        thread_turn = plan_idle_turn(
-            _general_thread_key(request, zone_id),
-            [bot['name']], topic_pool=topic_pool, db=db,
+        thread_key = _general_thread_key(request, zone_id)
+        themed = themed_candidate(
+            db, config, 'general', bot, thread_key=thread_key,
+            audience=parse_audience(request.get('audience_context')),
+            mode=mode,
         )
+        thread_turn = plan_idle_turn(
+            thread_key,
+            [bot['name']], topic_pool=topic_pool, db=db,
+            themed_topic=themed.render() if themed else None,
+        )
+        if not themed_used(themed, thread_turn):
+            themed = None
+        zone_meta.update(themed_metadata(themed))
         topic = (
             None if thread_turn is not None
-            else random.choice(topic_pool)
+            else (themed.render() if themed
+                  else random.choice(topic_pool))
         )
-        chosen_topic = topic or f"thread:{thread_turn.kind}"
+        chosen_topic = (
+            f"themed:{themed.kind}" if themed
+            else topic or f"thread:{thread_turn.kind}"
+        )
         prompt = build_plain_statement_prompt(
             bot, zone_id, zone_mobs,
             config, current_weather,
@@ -685,15 +705,29 @@ def process_conversation(
             if mode == 'roleplay'
             else AMBIENT_CHAT_TOPICS
         )
-        thread_turn = plan_idle_turn(
-            _general_thread_key(request, zone_id),
-            bot_names, topic_pool=topic_pool, db=db,
+        thread_key = _general_thread_key(request, zone_id)
+        themed = themed_candidate(
+            db, config, 'general', bots[0], thread_key=thread_key,
+            audience=parse_audience(request.get('audience_context')),
+            mode=mode,
         )
+        thread_turn = plan_idle_turn(
+            thread_key,
+            bot_names, topic_pool=topic_pool, db=db,
+            themed_topic=themed.render() if themed else None,
+        )
+        if not themed_used(themed, thread_turn):
+            themed = None
+        zone_meta.update(themed_metadata(themed))
         topic = (
             None if thread_turn is not None
-            else random.choice(topic_pool)
+            else (themed.render() if themed
+                  else random.choice(topic_pool))
         )
-        chosen_topic = topic or f"thread:{thread_turn.kind}"
+        chosen_topic = (
+            f"themed:{themed.kind}" if themed
+            else topic or f"thread:{thread_turn.kind}"
+        )
         prompt = build_plain_conversation_prompt(
             bots, zone_id, zone_mobs,
             config, current_weather,

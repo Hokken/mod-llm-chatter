@@ -162,6 +162,9 @@ def configure_threads(config) -> None:
         'pool_weight': _int(
             config, 'LLMChatter.Threads.PoolTopicWeight', 10, 0, 100
         ),
+        'themed_weight': _int(
+            config, 'LLMChatter.Threads.ThemedTopicWeight', 25, 0, 100
+        ),
         'surprise_chance': _int(
             config, 'LLMChatter.Threads.SurpriseChance', 12, 0, 100
         ),
@@ -208,6 +211,11 @@ def reset_settings() -> None:
     """Restore defaults (tests)."""
     _settings.clear()
     _settings.update(_default_settings())
+
+
+def themed_topic_weight() -> int:
+    """ThemedTopicWeight; 0 means a themed subject is never chosen."""
+    return int(_settings.get('themed_weight', 0))
 
 
 def threads_enabled(key=None) -> bool:
@@ -673,13 +681,15 @@ def _pick_move(energy: Optional[float], has_history: bool) -> str:
     return random.choices(_MOVES, weights=weights)[0]
 
 
-def _pick_source(in_instance: bool, has_pool: bool) -> str:
+def _pick_source(in_instance: bool, has_pool: bool,
+                 has_themed: bool = False) -> str:
     weights = {
         'persona': _settings['persona_weight'],
         'surroundings': _settings['surroundings_weight'],
         'pool': _settings['pool_weight'] if (
             has_pool and not in_instance
         ) else 0,
+        'themed': _settings['themed_weight'] if has_themed else 0,
     }
     if not any(weights.values()):
         return 'persona'
@@ -695,12 +705,17 @@ def plan_idle_turn(
     in_instance: bool = False,
     topic_pool: Optional[Sequence[str]] = None,
     db=None,
+    themed_topic: Optional[str] = None,
 ) -> Optional[IdleTurn]:
     """Choose a soft direction for the next idle exchange.
 
     ``db`` lets pending exchanges and quotes be confirmed against
     delivery first. Returns None when threads are disabled; callers
     then keep their original topic behaviour.
+
+    ``themed_topic`` is a themed subject the caller prepared before
+    planning (its lookups never run under the thread lock). It is one
+    more fresh-subject source, weighted by ``ThemedTopicWeight``.
     """
     key = _key(group_id)
     if key is None or not threads_enabled(key):
@@ -720,9 +735,13 @@ def plan_idle_turn(
             move = 'new'
         source, pool_topic, callback_topic = '', None, ''
         if move == 'new':
-            source = _pick_source(in_instance, bool(topic_pool))
+            source = _pick_source(
+                in_instance, bool(topic_pool), bool(themed_topic),
+            )
             if source == 'pool':
                 pool_topic = random.choice(list(topic_pool))
+            elif source == 'themed':
+                pool_topic = themed_topic
         elif move == 'callback':
             callback_topic = random.choice(history).topic
         surprise = (
@@ -821,6 +840,8 @@ def _nudge_sentence(move, source, pool_topic, callback_topic,
         )
     if source == 'pool' and pool_topic:
         return f"A possible fresh subject: {pool_topic}."
+    if source == 'themed' and pool_topic:
+        return f"A possible fresh subject: {pool_topic.rstrip('.')}."
     if source == 'surroundings':
         return (
             "A fresh subject could come from the surroundings or "

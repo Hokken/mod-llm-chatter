@@ -3,6 +3,7 @@
  */
 
 #include "LLMChatterAmbient.h"
+#include "LLMChatterAudience.h"
 #include "LLMChatterBossDialogue.h"
 #include "LLMChatterConfig.h"
 #include "LLMChatterScreenshot.h"
@@ -14,6 +15,7 @@
 #include "LLMChatterProximity.h"
 #include "LLMChatterProximityFight.h"
 #include "LLMChatterShared.h"
+#include "LLMChatterThemedAudience.h"
 
 #include "DatabaseEnv.h"
 #include "Group.h"
@@ -866,6 +868,13 @@ private:
             std::string cooldownKey =
                 "guild_idle_"
                 + std::to_string(guildId);
+
+            // Online real members, so rumors rotate between readers.
+            json.pop_back();
+            json += R"(,"audience":)"
+                + BuildAudienceListJson(
+                    CollectRealGuildMembers(guildId, 10))
+                + "}";
 
             QueueChatterEvent(
                 "guild_idle_chatter",

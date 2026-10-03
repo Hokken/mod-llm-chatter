@@ -2730,6 +2730,74 @@ LLMChatter.GuildChatter.SessionMemory.SummaryMaxChars = 1200
 LLMChatter.GuildChatter.ZoneNameChance = 20
 
 #
+#   LLMChatter.ThemedTopics.Enable [BRIDGE]
+#       Faction, race, class and race+class topics plus rumors
+#       (expansions, dungeons, raids, locations, regions,
+#       profession and class trainers) as idle subjects in guild,
+#       General and party chat. Each rumor is aimed at one real
+#       listener in turn (level, completed content and
+#       mod-individual-progression tier; trainer rumors ignore
+#       the tier), preferring rumors that suit the most
+#       listeners; faction rumors need one faction. A themed
+#       subject is only a suggestion; the bot may set it aside if
+#       it does not fit.
+#       Default: 1
+#
+LLMChatter.ThemedTopics.Enable = 1
+
+#
+#   LLMChatter.ThemedTopics.GuildChance [BRIDGE]
+#   LLMChatter.ThemedTopics.GeneralChance [BRIDGE]
+#   LLMChatter.ThemedTopics.PartyChance [BRIDGE]
+#       Percent chance (0-100) that an idle topic is themed
+#       instead of generic. Only used while conversation threads
+#       are off for the channel; with threads on,
+#       LLMChatter.Threads.ThemedTopicWeight decides instead.
+#       Party only uses class and race+class topics, never
+#       inside dungeons or battlegrounds.
+#       Defaults: 30, 30, 5
+#
+LLMChatter.ThemedTopics.GuildChance = 30
+LLMChatter.ThemedTopics.GeneralChance = 30
+LLMChatter.ThemedTopics.PartyChance = 5
+
+#
+#   LLMChatter.ThemedTopics.*Weight [BRIDGE]
+#       Relative weights of the themed topic kinds. 0 disables
+#       a kind. Rumors need at least one real listener.
+#
+LLMChatter.ThemedTopics.FactionWeight = 12
+LLMChatter.ThemedTopics.RaceWeight = 18
+LLMChatter.ThemedTopics.ClassWeight = 18
+LLMChatter.ThemedTopics.RaceClassWeight = 7
+LLMChatter.ThemedTopics.ExpansionRumorWeight = 8
+LLMChatter.ThemedTopics.DungeonRumorWeight = 12
+LLMChatter.ThemedTopics.RaidRumorWeight = 6
+LLMChatter.ThemedTopics.LocationRumorWeight = 10
+LLMChatter.ThemedTopics.RegionRumorWeight = 9
+LLMChatter.ThemedTopics.ProfessionRumorWeight = 12
+LLMChatter.ThemedTopics.ClassTrainerRumorWeight = 12
+
+#
+#   LLMChatter.ThemedTopics.TrainerRumorReducedPercent [BRIDGE]
+#       Profession trainer rumors use their full weight while the
+#       highest-level listener is up to level 20, this percent of
+#       it at 21-30, and never above 30. Class trainer rumors:
+#       full up to 15, reduced at 16-25, never above 25.
+#       Default: 33
+#
+LLMChatter.ThemedTopics.TrainerRumorReducedPercent = 33
+
+#
+#   LLMChatter.RaceClassNotes.Enable [BRIDGE]
+#       Add a short lore note for the speaker's race and class
+#       (priests split into Light and Shadow by spec) to guild
+#       prompts.
+#       Default: 1
+#
+LLMChatter.RaceClassNotes.Enable = 1
+
+#
 #   LLMChatter.RaidChatter.BattleCryChance
 #       Percent chance (0-100) that a raid-wide battle cry
 #       fires when engaging a boss or elite in a raid instance.
@@ -3523,6 +3591,17 @@ LLMChatter.Threads.FeelingTurns = 3
 LLMChatter.Threads.PersonaTopicWeight = 60
 LLMChatter.Threads.SurroundingsTopicWeight = 30
 LLMChatter.Threads.PoolTopicWeight = 10
+
+#
+#   LLMChatter.Threads.ThemedTopicWeight [BRIDGE]
+#       Weight (0-100) of a themed subject (see
+#       LLMChatter.ThemedTopics.*) as a fresh subject, next to the
+#       three weights above. Used only when a themed subject fits
+#       the channel and its listeners; 0 never picks one while
+#       threads are on.
+#       Default: 25
+#
+LLMChatter.Threads.ThemedTopicWeight = 25
 
 #
 #   LLMChatter.Threads.SurpriseChance [BRIDGE]

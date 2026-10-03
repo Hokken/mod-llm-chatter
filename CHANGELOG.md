@@ -1,5 +1,28 @@
 # Changelog
 
+### 2026-10-02 - Themed Topics and Rumors
+
+* **Themed subjects**: Idle guild, General and party chatter can pick a
+  subject from the speaking bot's faction, race or class (priests split
+  into Light and Shadow by spec), always told from the bot's own side.
+* **Rumors**: Guild and General can share rumors about expansions,
+  dungeons, raids, locations, regions and trainers. Rumors take turns
+  between the real listeners, so a guild or zone with very different
+  levels still hears rumors for each of them: each one fits its target
+  listener's level, completed content and mod-individual-progression
+  tier, and rumors that suit more listeners are preferred.
+* **Conversation threads**: While threads are on, a themed subject is one
+  more fresh-subject source (`Threads.ThemedTopicWeight`) offered with the
+  usual soft nudge. The per-channel chances only apply while threads are
+  off. Candidates are prepared before the thread lock is taken.
+* **Race and class notes**: Guild prompts get a short lore note for the
+  speaker's race and calling (`RaceClassNotes.Enable`).
+* **Configuration**: `ThemedTopics.*`, `Threads.ThemedTopicWeight` and
+  `RaceClassNotes.Enable`.
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20261002_themed_topic_audience.sql`,
+  rebuild the worldserver and restart the bridge.
+
 ### 2026-10-03 - Screenshot Cycle Diagnostics
 
 * **Host agent logging**: Show each cycle's randomized wait and next
@@ -108,7 +131,6 @@
   chatter bridge for Python changes. Existing configurations retain their
   explicit cooldown; set it to 3 and run `.reload config` to apply the new
   value. No database migration is required.
-
 ### 2026-10-02 - Arathi Basin Objectives and Battleground Arrival Variety
 
 * **Arathi Basin objectives**: Observe claims, assaults, counter-claims,

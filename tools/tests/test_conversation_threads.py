@@ -1180,6 +1180,63 @@ def test_session_guard_with_clear_all_and_disabled_threads():
     assert th.snapshot(GID) is None
 
 
+def test_themed_source_follows_its_weight():
+    only_themed = {
+        'LLMChatter.Threads.PersonaTopicWeight': 0,
+        'LLMChatter.Threads.SurroundingsTopicWeight': 0,
+        'LLMChatter.Threads.PoolTopicWeight': 0,
+        'LLMChatter.Threads.ThemedTopicWeight': 100,
+    }
+    _reset(**only_themed)
+    subject = "rumors about Zul'Farrak. Tell it to everyone listening."
+    turn = th.plan_idle_turn(GID, NAMES, themed_topic=subject)
+    assert turn.source == 'themed' and turn.pool_topic == subject
+    assert (
+        "A possible fresh subject: rumors about Zul'Farrak. Tell it to "
+        "everyone listening." in turn.prompt_block
+    )
+    assert 'a nudge, not a script' in turn.prompt_block
+    _reset(**only_themed)
+    assert th.plan_idle_turn(GID, NAMES).source == 'persona'
+    _reset(**dict(only_themed, **{
+        'LLMChatter.Threads.PersonaTopicWeight': 100,
+        'LLMChatter.Threads.ThemedTopicWeight': 0,
+    }))
+    for _ in range(20):
+        th.clear_all()
+        turn = th.plan_idle_turn(GID, NAMES, themed_topic=subject)
+        assert turn.source == 'persona' and turn.pool_topic is None
+    _reset()
+    assert th.themed_topic_weight() == 25
+    counts = Counter(
+        th._pick_source(False, True, True) for _ in range(4000)
+    )
+    assert 0.15 < counts['themed'] / 4000 < 0.25
+    assert 'themed' not in {
+        th._pick_source(False, True, False) for _ in range(500)
+    }
+
+
+def test_themed_subject_keeps_the_energy_context():
+    _reset(**{
+        'LLMChatter.Threads.PersonaTopicWeight': 0,
+        'LLMChatter.Threads.SurroundingsTopicWeight': 0,
+        'LLMChatter.Threads.PoolTopicWeight': 0,
+    })
+    db = _DB()
+    _exchange(db, _report(topic='old treaties', energy='low',
+                          changed=True))
+    with patch.object(th, '_pick_move', return_value='new'):
+        turn = th.plan_idle_turn(
+            GID, NAMES, db=db, themed_topic='the Horde view of trolls.',
+        )
+    assert turn.source == 'themed'
+    assert 'old treaties' in turn.prompt_block
+    assert 'A possible fresh subject: the Horde view of trolls.' in (
+        turn.prompt_block
+    )
+
+
 def main() -> int:
     tests = [
         value for name, value in sorted(globals().items())
