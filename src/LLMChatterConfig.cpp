@@ -4,6 +4,7 @@
  */
 
 #include "LLMChatterConfig.h"
+#include "LLMChatterScreenshot.h"
 #include "LLMChatterABScore.h"
 #include "Config.h"
 #include "Log.h"
@@ -297,6 +298,22 @@ void LLMChatterConfig::LoadConfig()
 {
     _enabled = GetChatterOption<bool>("LLMChatter.Enable", false);
     _debugLog = GetChatterOption<bool>("LLMChatter.DebugLog", false);
+
+    _screenshotEnable = GetChatterOption<bool>(
+        "LLMChatter.Screenshot.Enable", false);
+    _screenshotProximityEnable = GetChatterOption<bool>(
+        "LLMChatter.Screenshot.Proximity.Enable", false);
+    _screenshotBoundAccountId = GetChatterOption<uint32>(
+        "LLMChatter.Screenshot.BoundAccountId", 0);
+    _screenshotProximityPollMs = std::clamp<uint32>(
+        GetChatterOption<uint32>(
+            "LLMChatter.Screenshot.Proximity.PollIntervalMs", 1000),
+        100, 10000);
+    _screenshotProximityMaxAge = std::clamp<uint32>(
+        GetChatterOption<uint32>(
+            "LLMChatter.Screenshot.Proximity.MaxAgeSeconds", 60),
+        5, 300);
+    ResetScreenshotProximity();
 
     // General settings
     _triggerIntervalSeconds = GetChatterOption<uint32>("LLMChatter.TriggerIntervalSeconds", 60);

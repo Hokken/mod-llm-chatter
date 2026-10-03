@@ -62,6 +62,11 @@ bool IsProximityPlayerbotEmoteRouteEnabled();
 bool IsProximityNPCEligible(
     Player* player, Creature* creature, float radius);
 
+// Screenshot transport delegates all live NPC policy to this domain.
+bool CanQueueScreenshotProximity(Player* player);
+bool QueueScreenshotProximity(Player* player, std::string const& token,
+    std::string const& observation);
+
 void CheckProximityChatter(bool instanceMaps);
 void HandleProximityPlayerSay(
     Player* player, uint32 type, uint32 language,
