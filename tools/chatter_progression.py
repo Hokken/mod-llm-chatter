@@ -4,13 +4,18 @@ mod-individual-progression tiers.
 The worldserver sends an ``audience``: the online real players who can
 read the line (every real guild member for Guild chat, every real
 player of the speaker's faction in the zone for General), at most
-``MAX_AUDIENCE``. A rumor that depends on progression must suit all of
-them. When mod-individual-progression is absent or disabled,
-``ip_active`` is false and every tier check passes.
+``MAX_AUDIENCE``. Levels in one guild or zone can be far apart, so a
+rumor that depends on progression is aimed at one target listener at a
+time, rotating to the one served least recently, and among the rumors
+that fit the target the ones fitting the most listeners win. With one
+listener that listener is always the target. When
+mod-individual-progression is absent or disabled, ``ip_active`` is
+false and every tier check passes.
 """
 
 import json
 import logging
+import random
 import time
 from typing import Dict, List, Optional
 
@@ -22,6 +27,9 @@ MAX_AUDIENCE = 10
 
 _ACHIEVEMENT_TTL = 60
 _achievement_cache = {}
+
+_ROTATION_LIMIT = 1000
+_rumor_served = {}
 
 
 def _int(value, default=0):
@@ -110,14 +118,6 @@ def level_in_range(listener, entry):
     return entry.get('min_level', 0) <= level <= entry.get('max_level', 255)
 
 
-def suits_all(listeners: List[Dict], entry) -> bool:
-    """The entry's level band and unlock tier fit every listener."""
-    return bool(listeners) and all(
-        level_in_range(listener, entry) and content_unlocked(listener, entry)
-        for listener in listeners
-    )
-
-
 def audience_team(listeners: List[Dict]) -> str:
     """The listeners' faction, or '' when it is unknown or mixed."""
     teams = {listener.get('team') for listener in listeners}
@@ -155,15 +155,53 @@ def has_completed(db, guid, achievement_ids):
     return any(a in earned for a in ids)
 
 
-def completed_by_all(db, listeners: List[Dict], achievement_ids) -> bool:
-    """True only when every listener has completed the content."""
-    if not listeners or not achievement_ids:
-        return False
-    return all(
-        has_completed(db, listener['guid'], achievement_ids)
-        for listener in listeners
+def fits(db, listener, entry) -> bool:
+    """The entry suits the listener: level band, unlock tier, and a
+    dungeon or raid they have not completed yet."""
+    achievements = entry.get('achievements')
+    return (
+        level_in_range(listener, entry)
+        and content_unlocked(listener, entry)
+        and not (achievements
+                 and has_completed(db, listener['guid'], achievements))
     )
+
+
+def next_rumor_target(listeners: List[Dict]) -> Optional[Dict]:
+    """The listener served least recently, marked as served now.
+
+    Marking happens even when no rumor comes of it, so a listener with
+    nothing left to hear cannot hold the rotation."""
+    if not listeners:
+        return None
+    if len(_rumor_served) > _ROTATION_LIMIT:
+        _rumor_served.clear()
+    target = min(listeners, key=lambda listener: (
+        _rumor_served.get(listener['guid'], 0), random.random()))
+    _rumor_served[target['guid']] = time.time()
+    return target
+
+
+def best_covered(db, listeners: List[Dict], target, entries) -> List:
+    """The entries that fit the target, keeping those that fit the most
+    listeners."""
+    if not target:
+        return []
+    best = 0
+    options = []
+    for entry in entries:
+        if not fits(db, target, entry):
+            continue
+        covered = sum(1 for listener in listeners
+                      if fits(db, listener, entry))
+        if covered > best:
+            best = covered
+            options = [entry]
+        elif covered == best:
+            options.append(entry)
+    return options
 
 
 def clear_caches():
     _achievement_cache.clear()
+    _rumor_served.clear()

@@ -6,9 +6,11 @@
   subject from the speaking bot's faction, race or class (priests split
   into Light and Shadow by spec), always told from the bot's own side.
 * **Rumors**: Guild and General can share rumors about expansions,
-  dungeons, raids, locations, regions and trainers. A rumor must suit
-  every real listener: level, faction, completed content and
-  mod-individual-progression tier.
+  dungeons, raids, locations, regions and trainers. Rumors take turns
+  between the real listeners, so a guild or zone with very different
+  levels still hears rumors for each of them: each one fits its target
+  listener's level, completed content and mod-individual-progression
+  tier, and rumors that suit more listeners are preferred.
 * **Conversation threads**: While threads are on, a themed subject is one
   more fresh-subject source (`Threads.ThemedTopicWeight`) offered with the
   usual soft nudge. The per-channel chances only apply while threads are

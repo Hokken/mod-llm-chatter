@@ -1042,7 +1042,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_persona.py` | Bot persona resolution (identity + real event mood) and the shared persona/cast renderers for Party, Guild and General |
 | `tools/chatter_threads.py` | Party conversation threads: in-memory thread store, soft nudges for idle exchanges, thread prompt rendering, thread report parsing |
 | `tools/chatter_themed_topics.py` | Themed idle subjects (faction, race, class, race+class) and rumors (expansions, dungeons, raids, locations, regions, profession and class trainers); `themed_candidate()` prepares one before a thread turn is planned |
-| `tools/chatter_progression.py` | Rumor gating for every listener: level bands, faction, achievements and mod-individual-progression tiers |
+| `tools/chatter_progression.py` | Rumor gating per listener (level bands, faction, achievements, mod-individual-progression tiers) and the rotating rumor target |
 | `tools/chatter_lore_data.py` / `chatter_rumor_data.py` / `chatter_trainer_rumor_data.py` | Static themed topic, race+class note, rumor and trainer rumor data |
 | `tools/chatter_class_style.py` | Light/Shadow priest split from the active spec's talents |
 | `tools/chatter_general.py` | `player_general_msg` Python path |

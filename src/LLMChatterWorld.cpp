@@ -867,7 +867,7 @@ private:
                 "guild_idle_"
                 + std::to_string(guildId);
 
-            // Online real members, so rumors suit every reader.
+            // Online real members, so rumors rotate between readers.
             json.pop_back();
             json += R"(,"audience":)"
                 + BuildAudienceListJson(

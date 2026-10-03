@@ -2719,11 +2719,13 @@ LLMChatter.GuildChatter.ZoneNameChance = 20
 #       Faction, race, class and race+class topics plus rumors
 #       (expansions, dungeons, raids, locations, regions,
 #       profession and class trainers) as idle subjects in guild,
-#       General and party chat. Rumors must suit every real
-#       listener: level, faction, achievements and
+#       General and party chat. Each rumor is aimed at one real
+#       listener in turn (level, completed content and
 #       mod-individual-progression tier; trainer rumors ignore
-#       the tier. A themed subject is only a suggestion; the bot
-#       may set it aside if it does not fit.
+#       the tier), preferring rumors that suit the most
+#       listeners; faction rumors need one faction. A themed
+#       subject is only a suggestion; the bot may set it aside if
+#       it does not fit.
 #       Default: 1
 #
 LLMChatter.ThemedTopics.Enable = 1

@@ -219,36 +219,125 @@ def test_tbc_race_zones_are_open_in_classic_tiers():
             _listener(ip=True, tier=0, race='Human'), zone)
 
 
-def test_rumor_must_suit_every_listener():
-    northrend = EXPANSION_RUMORS['Northrend']
-    ready = _player(guid=1, level=70, ip=True, tier=13)
-    locked = _player(guid=2, level=70, ip=True, tier=10)
-    assert progression.suits_all(progression.parse_audience([ready]),
-                                 northrend)
-    assert not progression.suits_all(
-        progression.parse_audience([ready, locked]), northrend)
-    assert not progression.suits_all([], northrend)
-    low = _player(guid=3, level=12)
-    entry = next(d for d in DUNGEON_RUMORS if d['min_level'] >= 20)
-    assert not progression.suits_all(
-        progression.parse_audience([_player(guid=4, level=entry['min_level']),
-                                    low]), entry)
-
-
-def test_achievement_blocks_only_when_every_listener_completed():
+def test_fits_checks_level_tier_and_completion_per_listener():
     progression.clear_caches()
+    northrend = EXPANSION_RUMORS['Northrend']
+    ready = _listener(guid=1, level=70, ip=True, tier=13)
+    locked = _listener(guid=2, level=70, ip=True, tier=10)
+    low = _listener(guid=3, level=12)
+    assert progression.fits(_NoDb(), ready, northrend)
+    assert not progression.fits(_NoDb(), locked, northrend)
+    assert not progression.fits(_NoDb(), low, northrend)
     entry = next(d for d in DUNGEON_RUMORS if d['achievements'])
     ach = entry['achievements'][0]
     db = _AchievementDb({99: [ach]})
     assert progression.has_completed(db, 99, entry['achievements'])
     assert not progression.has_completed(db, 99, ())
-    one = progression.parse_audience([_player(guid=99)])
-    two = progression.parse_audience([_player(guid=99), _player(guid=98)])
-    assert progression.completed_by_all(db, one, entry['achievements'])
-    assert not progression.completed_by_all(db, two, entry['achievements'])
+    done = _listener(guid=99, level=entry['min_level'])
+    fresh = _listener(guid=98, level=entry['min_level'])
+    assert not progression.fits(db, done, entry)
+    assert progression.fits(db, fresh, entry)
     progression.clear_caches()
-    both = _AchievementDb({99: [ach], 98: [ach]})
-    assert progression.completed_by_all(both, two, entry['achievements'])
+
+
+def test_best_covered_prefers_rumors_for_more_listeners():
+    progression.clear_caches()
+    wide = {'name': 'wide', 'min_level': 10, 'max_level': 30}
+    narrow = {'name': 'narrow', 'min_level': 10, 'max_level': 15}
+    miss = {'name': 'miss', 'min_level': 40, 'max_level': 50}
+    audience = progression.parse_audience([
+        _player(guid=1, level=12), _player(guid=2, level=25)])
+    target = audience[0]
+    assert progression.best_covered(
+        _NoDb(), audience, target, [narrow, wide, miss]) == [wide]
+    assert progression.best_covered(
+        _NoDb(), audience, target, [narrow, miss]) == [narrow]
+    assert progression.best_covered(
+        _NoDb(), audience, audience[1], [narrow, miss]) == []
+    assert progression.best_covered(_NoDb(), audience, None, [wide]) == []
+
+
+def test_rotation_serves_each_listener_before_repeating():
+    progression.clear_caches()
+    audience = progression.parse_audience(
+        [_player(guid=g) for g in (1, 2, 3)])
+    with patch.object(progression.time, 'time', side_effect=range(1, 7)):
+        order = [progression.next_rumor_target(audience)['guid']
+                 for _ in range(6)]
+    assert sorted(order[:3]) == [1, 2, 3]
+    assert order[3:] == order[:3]
+    assert progression.next_rumor_target([]) is None
+    progression.clear_caches()
+
+
+def test_one_listener_is_always_the_target():
+    progression.clear_caches()
+    random.seed(11)
+    alone = _audience(guid=21, level=25)
+    for _ in range(5):
+        assert progression.next_rumor_target(alone)['guid'] == 21
+    for pool in (DUNGEON_RUMORS, RAID_RUMORS,
+                 list(EXPANSION_RUMORS.values())):
+        old_rule = [e for e in pool
+                    if progression.level_in_range(alone[0], e)
+                    and progression.content_unlocked(alone[0], e)]
+        assert progression.best_covered(
+            _NoDb(), alone, alone[0], pool) == old_rule
+    only_dungeons = {f'LLMChatter.ThemedTopics.{k}Weight': 0 for k in (
+        'Faction', 'Race', 'Class', 'RaceClass', 'ExpansionRumor',
+        'RaidRumor', 'LocationRumor', 'RegionRumor', 'ProfessionRumor',
+        'ClassTrainerRumor')}
+    for _ in range(30):
+        topic = themed.pick_themed_topic(
+            _NoDb(), only_dungeons, 'guild', BOT, alone, roll=False)
+        assert topic and topic.kind == 'dungeon'
+        assert topic.metadata['rumor_target'] == 'Player21'
+    progression.clear_caches()
+
+
+def test_mixed_levels_get_rumors_for_each_listener_in_turn():
+    progression.clear_caches()
+    random.seed(13)
+    audience = progression.parse_audience([
+        _player(guid=31, level=15), _player(guid=32, level=25)])
+    only_places = {f'LLMChatter.ThemedTopics.{k}Weight': 0 for k in (
+        'Faction', 'Race', 'Class', 'RaceClass', 'ExpansionRumor',
+        'RaidRumor', 'LocationRumor', 'ProfessionRumor', 'ClassTrainerRumor')}
+    pools = {'dungeon': DUNGEON_RUMORS, 'region': REGION_RUMORS}
+    by_name = {p['name']: p for p in audience}
+    targets = set()
+    for _ in range(20):
+        topic = themed.pick_themed_topic(
+            _NoDb(), only_places, 'guild', BOT, audience, roll=False)
+        assert topic and topic.kind in pools
+        target = by_name[topic.metadata['rumor_target']]
+        targets.add(target['guid'])
+        entry = next(e for e in pools[topic.kind]
+                     if e['name'] == topic.metadata['rumor'])
+        assert progression.level_in_range(target, entry)
+    assert targets == {31, 32}
+    progression.clear_caches()
+
+
+def test_a_listener_with_nothing_left_does_not_stall_the_others():
+    progression.clear_caches()
+    random.seed(17)
+    earned = [a for d in DUNGEON_RUMORS for a in d['achievements']]
+    db = _AchievementDb({41: earned})
+    audience = progression.parse_audience([
+        _player(guid=41, level=80), _player(guid=42, level=20)])
+    only_dungeons = {f'LLMChatter.ThemedTopics.{k}Weight': 0 for k in (
+        'Faction', 'Race', 'Class', 'RaceClass', 'ExpansionRumor',
+        'RaidRumor', 'LocationRumor', 'RegionRumor', 'ProfessionRumor',
+        'ClassTrainerRumor')}
+    served = 0
+    for _ in range(6):
+        topic = themed.pick_themed_topic(
+            db, only_dungeons, 'guild', BOT, audience, roll=False)
+        if topic:
+            assert topic.metadata['rumor_target'] == 'Player42'
+            served += 1
+    assert served == 3
     progression.clear_caches()
 
 
@@ -315,12 +404,13 @@ def test_expansion_rumor_framing_depends_on_the_highest_listener():
     assert seen.metadata['rumor_seen'] is True
     assert 'has been there' in seen.render()
     mixed = progression.parse_audience([
-        _player(guid=1, level=60), _player(guid=2, level=80)])
-    options = [e for e in EXPANSION_RUMORS.values()
-               if progression.suits_all(mixed, e)]
-    if options:
-        topic = themed._expansion_rumor(_NoDb(), high, mixed, 'roleplay')
-        assert topic.metadata['rumor_seen'] is False
+        _player(guid=1, level=68), _player(guid=2, level=80)])
+    topic = themed._expansion_rumor(_NoDb(), high, mixed, 'roleplay',
+                                    target=mixed[0])
+    assert topic.metadata['rumor'] == 'Northrend'
+    assert topic.metadata['rumor_seen'] is False
+    assert themed._expansion_rumor(_NoDb(), high, mixed, 'roleplay',
+                                   target=mixed[1]) is None
     assert themed._expansion_rumor(
         _NoDb(), low, _audience(level=40), 'roleplay') is None
 
@@ -515,7 +605,7 @@ def test_trainer_data_covers_every_race_and_skill():
             assert len(lines) == len(set(lines)), skill
 
 
-def test_trainer_rumor_level_bands_use_the_highest_listener():
+def test_trainer_rumor_level_bands_follow_the_target():
     for kind, full, reduced, gone in (('profession', 20, 21, 31),
                                       ('trainer', 15, 16, 26)):
         base = themed._kind_weight({}, kind, _audience(level=1))
@@ -526,7 +616,8 @@ def test_trainer_rumor_level_bands_use_the_highest_listener():
         assert themed._kind_weight({}, kind, _audience(level=gone)) == 0
         mixed = progression.parse_audience([
             _player(guid=1, level=1), _player(guid=2, level=gone)])
-        assert themed._kind_weight({}, kind, mixed) == 0
+        assert themed._kind_weight({}, kind, mixed, mixed[0]) == 12
+        assert themed._kind_weight({}, kind, mixed, mixed[1]) == 0
     config = {'LLMChatter.ThemedTopics.TrainerRumorReducedPercent': '50'}
     assert themed._kind_weight(config, 'trainer', _audience(level=20)) == 6
     assert themed._kind_weight({}, 'dungeon', _audience(level=80)) == 12

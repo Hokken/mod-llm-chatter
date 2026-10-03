@@ -3646,7 +3646,7 @@ line.
 - Party chatter never uses themed subjects inside dungeons or
   battlegrounds, nor on memory-recall turns.
 
-### Rumors follow every listener
+### Rumors rotate between listeners
 
 The worldserver sends the listeners with the request:
 
@@ -3655,21 +3655,37 @@ The worldserver sends the listeners with the request:
 - Guild: an `audience` array in the `guild_idle_chatter` extra data, up to
   10 online real guild members.
 
-`chatter_progression.py` only offers a rumor that suits all of them:
+Rumor level bands are only a few levels wide, so listeners of very
+different levels rarely share one. Each themed pick therefore aims rumors
+at one target listener: `next_rumor_target()` in `chatter_progression.py`
+takes the listener served least recently (ties at random) and marks them
+served right away, even when no rumor comes of it, so a listener with
+nothing left to hear never holds up the others. With one listener, that
+listener is always the target. The bridge keeps this rotation in memory.
 
-- every listener's level is inside the rumor's level band;
-- with mod-individual-progression active, every listener has reached the
+A rumor fits a listener (`fits()`) when:
+
+- the listener's level is inside the rumor's level band;
+- with mod-individual-progression active, the listener has reached the
   required tier, no tier is above `IndividualProgression.ProgressionLimit`,
-  and classic-only entries disappear once a listener has moved past them
-  (GMs are never gated). `RequiredZulGurubProgression` and
+  and classic-only entries are gone once they have moved past them (GMs
+  are never gated). `RequiredZulGurubProgression` and
   `RequiredZulAmanProgression` are read from the server config;
-- dungeon and raid rumors are skipped only when every listener has the
-  completion achievement;
+- for dungeons and raids, the listener has not earned the completion
+  achievement.
+
+`best_covered()` keeps the rumors that fit the target and, among them,
+those that fit the most listeners, so a rumor that suits the whole guild
+still wins when one exists. The line is told to everyone listening, never
+addressed to the target. In addition:
+
 - location, region and trainer rumors need all listeners on one faction;
 - an expansion is described as seen first-hand only when the bot is
   higher level than every listener;
-- trainer rumor weights follow the highest listener level and ignore
-  individual-progression tiers.
+- trainer rumors use the target's race or class for their "own" half,
+  and their weights follow the target's level and ignore
+  individual-progression tiers;
+- the request log records the target as `rumor_target`.
 
 Faction, race and class topics need no listener.
 

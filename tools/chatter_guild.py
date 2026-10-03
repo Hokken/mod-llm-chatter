@@ -146,7 +146,7 @@ from chatter_themed_topics import (
 
 def _guild_themed_candidate(db, config, extra, participant, mode):
     """Themed subject for an idle guild turn, prepared before the
-    thread is planned. Rumors must suit every online real member."""
+    thread is planned. Rumors rotate between online real members."""
     bot = dict(participant['speaker'], name=participant['name'])
     return themed_candidate(
         db, config, 'guild', bot,

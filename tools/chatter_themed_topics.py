@@ -2,10 +2,11 @@
 
 Faction, race, class and race+class topics are keyed to the first
 speaker. Rumors are keyed to the ``audience``: every real player who can
-read the line. A rumor that depends on progression is used only when its
-level band, faction and mod-individual-progression tier suit all of
-them, and a completed dungeon or raid is left out only when all of them
-have completed it.
+read the line. Each pick aims progression rumors at one target listener,
+rotating through the audience (``next_rumor_target()``): a rumor must
+fit the target's level band, mod-individual-progression tier and
+uncompleted content, and among those the rumors fitting the most
+listeners win. Faction-bound rumors still need one faction.
 
 A themed topic is a subject the speakers may take up, never a script.
 With conversation threads on it is one more fresh-subject source of the
@@ -31,8 +32,8 @@ from chatter_class_style import class_style
 from chatter_progression import (
     audience_max_level,
     audience_team,
-    completed_by_all,
-    suits_all,
+    best_covered,
+    next_rumor_target,
 )
 from chatter_rumor_data import (
     CAVERNS_OF_TIME_INTRO,
@@ -289,9 +290,13 @@ def _rumor_lines(speaker):
     ]
 
 
-def _expansion_rumor(db, speaker, audience, mode):
-    options = [e for e in EXPANSION_RUMORS.values()
-               if suits_all(audience, e)]
+def _target(audience, target):
+    return target or (audience[0] if audience else None)
+
+
+def _expansion_rumor(db, speaker, audience, mode, target=None):
+    options = best_covered(db, audience, _target(audience, target),
+                           EXPANSION_RUMORS.values())
     if not options:
         return None
     entry = random.choice(options)
@@ -316,12 +321,8 @@ def _expansion_rumor(db, speaker, audience, mode):
                        {'rumor': land, 'rumor_seen': seen})
 
 
-def _place_rumor(db, speaker, audience, mode, pool, kind):
-    options = [
-        e for e in pool
-        if suits_all(audience, e)
-        and not completed_by_all(db, audience, e.get('achievements'))
-    ]
+def _place_rumor(db, speaker, audience, mode, pool, kind, target=None):
+    options = best_covered(db, audience, _target(audience, target), pool)
     if not options:
         return None
     entry = random.choice(options)
@@ -338,15 +339,14 @@ def _place_rumor(db, speaker, audience, mode, pool, kind):
                        {'rumor': entry['name']})
 
 
-def _location_rumor(db, speaker, audience, mode):
+def _location_rumor(db, speaker, audience, mode, target=None):
     team = audience_team(audience)
     if not team:
         return None
-    options = [
+    options = best_covered(db, audience, _target(audience, target), [
         e for e in LOCATION_RUMORS
         if team in e['factions'] and team in e['text']
-        and suits_all(audience, e)
-    ]
+    ])
     if not options:
         return None
     entry = random.choice(options)
@@ -361,15 +361,14 @@ def _location_rumor(db, speaker, audience, mode):
                        {'rumor': entry['name']})
 
 
-def _region_rumor(db, speaker, audience, mode):
+def _region_rumor(db, speaker, audience, mode, target=None):
     team = audience_team(audience)
     if not team:
         return None
-    options = [
+    options = best_covered(db, audience, _target(audience, target), [
         e for e in REGION_RUMORS
         if team in e['factions'] and e['rumors']
-        and suits_all(audience, e)
-    ]
+    ])
     if not options:
         return None
     entry = random.choice(options)
@@ -406,11 +405,11 @@ def _trainer_lines(speaker, trainer, pupils, ability):
     ]
 
 
-def _profession_rumor(db, speaker, audience, mode):
+def _profession_rumor(db, speaker, audience, mode, target=None):
     races = PROFESSION_TRAINERS.get(audience_team(audience))
     if not races:
         return None
-    own_race = random.choice(audience).get('race')
+    own_race = _target(audience, target).get('race')
     own = [(own_race, t) for t in races.get(own_race, ())]
     other = [(race, t) for race, trainers in races.items()
              if race != own_race for t in trainers]
@@ -429,11 +428,11 @@ def _profession_rumor(db, speaker, audience, mode):
          'trainer_race_list': race})
 
 
-def _class_trainer_rumor(db, speaker, audience, mode):
+def _class_trainer_rumor(db, speaker, audience, mode, target=None):
     races = CLASS_TRAINERS.get(audience_team(audience))
     if not races:
         return None
-    own_class = random.choice(audience).get('class')
+    own_class = _target(audience, target).get('class')
     own = [(race, t) for race, trainers in races.items()
            for t in trainers if t['skill'] == own_class]
     race_order = list(races)
@@ -463,12 +462,12 @@ def _class_trainer_rumor(db, speaker, audience, mode):
          'trainer_race_list': race})
 
 
-def _kind_weight(config, kind, audience):
+def _kind_weight(config, kind, audience, target=None):
     weight = max(0, cfg_int(config, *KIND_WEIGHT[kind]))
     band = LEVEL_BANDS.get(kind)
     if not band or not weight:
         return weight
-    level = audience_max_level(audience or [])
+    level = (_target(audience, target) or {}).get('level', 0)
     full, reduced = band
     if level <= full:
         return weight
@@ -484,7 +483,7 @@ def _kind_weight(config, kind, audience):
 # Picker
 # --------------------------------------------------------------------------
 
-def _build(kind, db, speaker, audience, mode):
+def _build(kind, db, speaker, audience, mode, target=None):
     if kind == 'faction':
         return _faction_topic(speaker, mode)
     if kind == 'race':
@@ -496,20 +495,21 @@ def _build(kind, db, speaker, audience, mode):
     if not audience:
         return None
     if kind == 'expansion':
-        return _expansion_rumor(db, speaker, audience, mode)
+        return _expansion_rumor(db, speaker, audience, mode, target)
     if kind == 'dungeon':
         return _place_rumor(db, speaker, audience, mode, DUNGEON_RUMORS,
-                            'dungeon')
+                            'dungeon', target)
     if kind == 'raid':
-        return _place_rumor(db, speaker, audience, mode, RAID_RUMORS, 'raid')
+        return _place_rumor(db, speaker, audience, mode, RAID_RUMORS, 'raid',
+                            target)
     if kind == 'location':
-        return _location_rumor(db, speaker, audience, mode)
+        return _location_rumor(db, speaker, audience, mode, target)
     if kind == 'region':
-        return _region_rumor(db, speaker, audience, mode)
+        return _region_rumor(db, speaker, audience, mode, target)
     if kind == 'profession':
-        return _profession_rumor(db, speaker, audience, mode)
+        return _profession_rumor(db, speaker, audience, mode, target)
     if kind == 'trainer':
-        return _class_trainer_rumor(db, speaker, audience, mode)
+        return _class_trainer_rumor(db, speaker, audience, mode, target)
     return None
 
 
@@ -518,7 +518,8 @@ def pick_themed_topic(db, config, channel, bot, audience=None,
     """Return a ThemedTopic for the channel, or None to use generic topics.
 
     ``audience`` is the list of listeners from ``parse_audience()``;
-    rumors need at least one.
+    rumors need at least one, and each call aims them at the next
+    listener in the rotation.
     """
     if not cfg_int(config, 'LLMChatter.ThemedTopics.Enable', 1):
         return None
@@ -530,9 +531,10 @@ def pick_themed_topic(db, config, channel, bot, audience=None,
         if not chance_hit(config, key, default):
             return None
     speaker = speaker_profile(db, bot, faction)
+    target = next_rumor_target(audience or [])
     remaining = []
     for kind in kinds:
-        weight = _kind_weight(config, kind, audience)
+        weight = _kind_weight(config, kind, audience, target)
         if weight and (kind not in RUMOR_KINDS or audience):
             remaining.append([kind, weight])
     while remaining:
@@ -544,13 +546,15 @@ def pick_themed_topic(db, config, channel, bot, audience=None,
                 break
         remaining.pop(index)
         try:
-            topic = _build(kind, db, speaker, audience, mode)
+            topic = _build(kind, db, speaker, audience, mode, target)
         except Exception:
             logger.exception("themed topic %s failed", kind)
             topic = None
         if topic:
             topic.metadata.update({'themed_kind': kind,
                                    'themed_channel': channel})
+            if kind in RUMOR_KINDS and target:
+                topic.metadata['rumor_target'] = target['name']
             return topic
     return None
 
