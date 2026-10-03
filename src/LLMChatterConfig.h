@@ -30,6 +30,12 @@ public:
     }
 
     void LoadConfig();
+
+    bool _screenshotEnable = false;
+    bool _screenshotProximityEnable = false;
+    uint32 _screenshotBoundAccountId = 0;
+    uint32 _screenshotProximityPollMs = 1000;
+    uint32 _screenshotProximityMaxAge = 60;
     bool IsEnabled() const { return _enabled; }
     bool IsDebugLog() const { return _debugLog; }
     bool IsProximitySpeakerAllowed(uint32 creatureEntry) const;
