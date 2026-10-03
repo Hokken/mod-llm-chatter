@@ -16,6 +16,16 @@ logger = logging.getLogger(__name__)
 _MODEL_OVERRIDES = {}
 _MODEL_OVERRIDES_LOCK = threading.Lock()
 
+# First match wins: verified model capabilities precede family fallbacks.
+# Columns: model pattern, request profile, explicit "none" effort support.
+# GPT-6 Astra and GPT-6.1 Sol deliberately use the reasoning fallback.
+_OPENAI_MODEL_PROFILES = (
+    (r"^gpt-6-(?:luna|sol)$", "reasoning", True),
+    (r"^gpt-5\.\d", "reasoning", True),
+    (r"^(?:gpt-5|gpt-6|o1|o3|o4)", "reasoning", False),
+    (r"^(?:gpt-3\.5|gpt-4|chatgpt-4)", "sampling", False),
+)
+
 _REJECTION_MARKERS = (
     "unsupported",
     "not supported",
@@ -56,24 +66,13 @@ def _openai_model_name(provider, model):
     return model
 
 
-def _is_openai_reasoning_model(provider, model):
+def _openai_model_profile(provider, model):
+    """Resolve model capabilities independently of provider transport."""
     model_name = _openai_model_name(provider, model)
-    return model_name.startswith((
-        "gpt-5", "gpt-6", "o1", "o3", "o4",
-    ))
-
-
-def _is_openai_sampling_model(provider, model):
-    model_name = _openai_model_name(provider, model)
-    return model_name.startswith((
-        "gpt-3.5", "gpt-4", "chatgpt-4",
-    ))
-
-
-def _supports_reasoning_effort_none(provider, model):
-    """Return whether the model documents an explicit ``none`` effort."""
-    model_name = _openai_model_name(provider, model)
-    return bool(re.match(r"^gpt-5\.\d", model_name))
+    for pattern, profile, supports_none in _OPENAI_MODEL_PROFILES:
+        if re.match(pattern, model_name):
+            return profile, supports_none
+    return "safe-default", False
 
 
 def needs_reasoning_token_multiplier(
@@ -81,14 +80,13 @@ def needs_reasoning_token_multiplier(
 ):
     """Return whether hidden reasoning can consume the output budget."""
     provider, _ = _normalized_target(provider, model)
-    if provider != "openai" or not _is_openai_reasoning_model(
-        provider, model
-    ):
+    capabilities = model_capabilities(provider, model)
+    if provider != "openai" or not capabilities["reasoning_effort"]:
         return False
     effort = str(reasoning_effort or "").strip().lower()
     if effort == "none":
         return (
-            not _supports_reasoning_effort_none(provider, model)
+            not capabilities["reasoning_effort_none"]
             or _cached_overrides(provider, model).get(
                 "omit_reasoning_effort", False
             )
@@ -99,21 +97,16 @@ def needs_reasoning_token_multiplier(
 def model_capabilities(provider, model):
     """Resolve a conservative request profile for a model target."""
     provider, _ = _normalized_target(provider, model)
-    reasoning = _is_openai_reasoning_model(provider, model)
-    sampling = _is_openai_sampling_model(provider, model)
+    profile, supports_none = _openai_model_profile(provider, model)
+    reasoning = profile == "reasoning"
 
     if provider == "openai":
-        if reasoning:
-            profile = "reasoning"
-        elif sampling:
-            profile = "sampling"
-        else:
-            profile = "safe-default"
         return {
             "profile": profile,
             "token_field": "max_completion_tokens",
-            "temperature": sampling,
+            "temperature": profile == "sampling",
             "reasoning_effort": reasoning,
+            "reasoning_effort_none": supports_none,
         }
 
     return {
@@ -121,6 +114,7 @@ def model_capabilities(provider, model):
         "token_field": "max_tokens",
         "temperature": not reasoning,
         "reasoning_effort": False,
+        "reasoning_effort_none": supports_none,
     }
 
 
@@ -167,9 +161,7 @@ def build_chat_options(
         capabilities["temperature"]
         or (
             effort == "none"
-            and _supports_reasoning_effort_none(
-                provider, model
-            )
+            and capabilities["reasoning_effort_none"]
         )
     )
     if temperature is not None and supports_temperature:
@@ -181,7 +173,7 @@ def build_chat_options(
         and effort not in ("off", "disabled")
         and (
             effort != "none"
-            or _supports_reasoning_effort_none(provider, model)
+            or capabilities["reasoning_effort_none"]
         )
     ):
         kwargs["reasoning_effort"] = effort

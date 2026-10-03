@@ -450,6 +450,50 @@ def test_broken_thread_tail_keeps_complete_dialogue():
     assert parse_single_response(_report())['message'] == 'placeholder'
 
 
+_SPOKEN = 'The canal has gone quiet.'
+_LEAKED_TAIL = (
+    ' "emote":null,"action":null,'
+    '"thread":{"topic":"Uneasy canal silence","energy":"low"}}'
+)
+
+
+def test_leaked_fields_cut_from_valid_single_response():
+    # The model escaped its remaining fields into the message, so
+    # the JSON is valid but the scaffolding must not reach chat.
+    leaked = json.dumps({'message': _SPOKEN + _LEAKED_TAIL})
+    assert parse_single_response(leaked)['message'] == _SPOKEN
+
+
+def test_leaked_fields_cut_from_truncated_single_response():
+    leaked = json.dumps({'message': _SPOKEN + _LEAKED_TAIL})
+    # Closing brace lost: closed-quote extraction fallback.
+    assert parse_single_response(leaked[:-1])['message'] == _SPOKEN
+
+
+def test_leaked_fields_cut_from_conversation_lines():
+    leaked = json.dumps([
+        {'speaker': 'Gruk',
+         'message': 'Too quiet. "emote":null,"action":"scowls"'},
+        {'speaker': 'Mira', 'message': _SPOKEN + _LEAKED_TAIL},
+    ])
+    parsed = parse_conversation_response(leaked, NAMES)
+    assert [m['message'] for m in parsed] == ['Too quiet.', _SPOKEN]
+
+
+def test_quoted_labels_in_speech_are_kept():
+    for text in (
+        'The inscription reads "action": open the gate.',
+        'She said "action" was overdue.',
+        'The sign says "emote": "smile" and nothing else.',
+        'He shouted "action": "now"!',
+    ):
+        single = json.dumps({'message': text})
+        assert parse_single_response(single)['message'] == text
+        conv = json.dumps([{'speaker': 'Gruk', 'message': text}])
+        assert parse_conversation_response(
+            conv, NAMES)[0]['message'] == text
+
+
 # ------------------------------------------------------------
 # Caller integration
 # ------------------------------------------------------------
