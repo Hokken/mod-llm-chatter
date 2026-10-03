@@ -2791,7 +2791,8 @@ LLMChatter.GuildChatter.SessionMemory.SummaryMaxChars = 1200
 #       (subzone and zone). The post waits until the greeting was
 #       spoken, is cancelled if the greeting is dropped, and is
 #       skipped while the guild is in a conversation with a real
-#       player (PlayerReplies.IdleSuppressionSeconds).
+#       player (PlayerReplies.IdleSuppressionSeconds). The login
+#       welcome alone does not count as a conversation.
 #       Default: 50
 #
 LLMChatter.GuildChatter.MeetGreeting.GuildPostChance = 50

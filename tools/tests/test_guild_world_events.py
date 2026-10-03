@@ -418,9 +418,23 @@ def test_cpp_delivery_drops_guild_filler_during_player_conversation():
     gate = body[body.index('deliveryPolicy == "filler"') - 200:]
     gate = gate[:600]
     assert 'ownerSubsystem == "guild"' in gate
-    assert 'WasGuildPlayerInteractionRecent(' in gate
+    assert 'WasGuildPlayerConversationRecent(' in gate
     assert '_guildPlayerIdleSuppressionSeconds' in gate
     assert '"guild_conversation_active"' in gate
+
+
+def test_cpp_login_welcome_is_not_a_player_conversation():
+    guild = _src('LLMChatterGuild.cpp')
+    handle = _function_body(guild, 'void HandleGuildPlayerMessage(')
+    assert 'NoteGuildPlayerConversation(player->GetGuildId());' in handle
+    record = _function_body(guild, 'void RecordDeliveredGuildLine(')
+    assert ('if (eventType == "guild_player_message")\n'
+            '            NoteGuildPlayerConversation(guildId);') in record
+    assert record.count('NoteGuildPlayerConversation(') == 1
+    active = _function_body(
+        _src('LLMChatterGuildWorld.cpp'), 'bool GuildConversationActive(')
+    assert 'WasGuildPlayerConversationRecent(' in active
+    assert 'WasGuildPlayerInteractionRecent' not in active
 
 
 # -- Join announcement -------------------------------------------------------

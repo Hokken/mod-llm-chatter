@@ -16,6 +16,7 @@
   tells the guild what it thinks of them.
 * **Message flow**: NPC posts and meet follow-ups give way to a real
   player's conversation with the guild, both when queued and at delivery.
+  The login welcome alone does not count as a conversation.
 * **Personality first**: The prompts offer a range of reactions instead of
   a mood.
 * **Reply hold**: The meet greeting uses the short reply hold

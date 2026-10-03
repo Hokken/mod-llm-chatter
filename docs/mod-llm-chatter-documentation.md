@@ -3666,7 +3666,10 @@ only sees real players.
   a conversation with a real player
   (`GuildChatter.PlayerReplies.IdleSuppressionSeconds`), and delivery
   drops filler Guild rows with `guild_conversation_active` when a
-  conversation started after they were queued.
+  conversation started after they were queued. A conversation means the
+  player's own Guild messages and the replies to them
+  (`WasGuildPlayerConversationRecent()`); the login welcome alone does
+  not block these lines.
 - The General join announcement reserves a zone window with
   `_reserve_zone_delivery_window()`, like the other General producers, so
   it keeps `GeneralChat.MinZoneGap` from other automated General lines.
