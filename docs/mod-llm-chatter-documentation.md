@@ -1361,7 +1361,7 @@ The feature is gated by:
 - per-group per-zone cooldown
 - per-bot per-name cooldown
 - combat suppression
-- mounted/flying/BG suppression
+- flying/BG suppression (ground mounting does not block observations)
 
 ### Python handling
 
@@ -2743,7 +2743,7 @@ from the resulting description.
 5. Receives structured JSON: environment description, atmosphere,
    canonical tags (`landmark_type`, `biome`, `weather`, `time_of_day`,
    `creature_presence`)
-6. Canonical tag dedup prevents repeated observations of the same scene
+6. Party-only canonical tag dedup prevents repeated Party observations
 7. Inserts `bot_group_screenshot_observation` event into
    `llm_chatter_events` via direct MySQL connection. If available, the
    selected bot's live travel state from `llm_group_bot_traits` is
@@ -2770,6 +2770,60 @@ as a description of the game screenshot, allows supplied world or UI
 details to be discussed without inventing them, and responds in player
 voice rather than claiming physical presence in the scene.
 
+### Optional nearby NPC reactions
+
+`Screenshot.Proximity.Enable` adds a separate local reaction to the same
+visual observation. Party keeps its existing behavior. The host rolls
+`Screenshot.Proximity.Chance` independently after the existing
+`Screenshot.Chance` capture-cycle roll; either channel, both, or neither
+may speak. Solo players can use the NPC route without a group. A Party
+duplicate or failed insertion does not suppress local publication, and a
+local failure does not suppress Party.
+
+Local reactions require an explicit `Screenshot.BoundAccountId`, matching
+the account in the captured WoW window. Party's automatic group fallback
+does not identify the local player. Before spending on vision, the host
+requests server preflight for eligible live NPCs within
+`ProximityChatter.ScanRadius`. No eligible Party recipient or NPC ticket
+means no capture/vision call. BG/arena, combat, flying, disabled instance
+maps and active proximity conversations reject local scenes. Ground
+mounts remain eligible. After analysis the server rechecks the player and
+selects a fresh NPC-only roster using existing proximity compatibility,
+conversation chance, line limits, entity cooldowns and zone fatigue.
+The fatigue budget can reduce local opportunities further; the screenshot
+chance itself is rolled only once. Player `/say` handling is unchanged.
+
+Visuals are background for a personal reaction, never speaker identity or
+a list to recite. NPCs always speak as inhabitants of Azeroth, including
+normal mode. Authoritative location/lore remains; this route uses the
+supplied visual environment/time/weather instead of the ordinary proximity
+environment block and random topic. Ordinary proximity weather handling is
+unchanged. Biome is not used in prompts.
+
+The request expires if vision takes too long, the player changes session,
+map or instance, or moves beyond the scan radius from preflight. Each
+delivered line rechecks the snapshot and NPC range/visibility. Restart or
+config reload invalidates outstanding local captures. `MaxAgeSeconds`
+bounds preflight through server consumption, not the last spoken line;
+normal event expiry applies after consumption. Capture and server ticks
+are not atomic, so the scene can still change within these bounds.
+
+Deployment for this opt-in route requires:
+
+1. Apply `data/sql/characters/updates/20261003_screenshot_proximity.sql`
+   to the characters database (fresh installs include the base table).
+2. Regenerate the build configuration for the new C++ source, then build,
+   install and restart the worldserver using the deployment's normal flow.
+3. Set the account binding and enable screenshot/proximity settings;
+   reload worldserver config and restart the affected host agent/bridge
+   after installing the Python changes.
+4. Verify solo/grouped/mounted reactions, no-NPC silence, independent
+   channels, and suppression after leaving range, teleporting or relogging.
+
+Missing schema disables server polling with one diagnostic until config
+reload. The host preserves Party when local preflight fails. Feature
+defaults remain disabled; installing files alone does not activate it.
+
 ### Config keys
 
 All under `LLMChatter.Screenshot.*`:
@@ -2785,7 +2839,12 @@ All under `LLMChatter.Screenshot.*`:
 | `ConversationChance` | 40 | % chance of multi-bot conversation vs statement |
 | `MaxWidthPx` | 1024 | Max image width for vision API |
 | `JpegQuality` | 75 | JPEG compression quality |
-| `BoundAccountId` | 0 | Account ID to find grouped bots |
+| `BoundAccountId` | 0 | Party account binding; nonzero required for NPC proximity |
+| `Proximity.Enable` | 0 | Opt-in NPC route; worldserver and host setting |
+| `Proximity.Chance` | 30 | Host local roll after the shared capture-cycle roll |
+| `Proximity.PollIntervalMs` | 1000 | Server mailbox poll interval, 100-10000 ms |
+| `Proximity.RequestTimeoutSeconds` | 5 | Host preflight wait, 1-30 seconds |
+| `Proximity.MaxAgeSeconds` | 60 | Server preflight-to-consumption age, 5-300 seconds |
 | `DBHost` | 127.0.0.1 | MySQL host (host machine, not Docker) |
 
 ### Relevant files
@@ -2801,7 +2860,8 @@ All under `LLMChatter.Screenshot.*`:
 ### Notes
 
 - The agent runs on the host machine, not inside Docker
-- No C++ changes are required
+- Party-only screenshot operation needs no screenshot-specific C++ path;
+  the optional NPC route requires its server coordinator and migration
 - The vision biome tag is excluded from bot prompts (unreliable);
   zone/subzone names from the database are authoritative
 - Indoor scenes are explicitly supported in the vision prompt
@@ -2889,7 +2949,9 @@ preferred joiner rather than automatically replacing the selected addressee.
 An ineligible cross-faction named bot falls back only to an already selected
 eligible NPC or same-team ungrouped bot; otherwise the direct route is
 suppressed. A living selected player, party bot, boss, or runtime-ineligible
-speaking NPC suppresses random fallback with a diagnostic reason. Dead and
+speaking NPC only suppresses fallback when named by full name or a unique
+meaningful name token in the message.
+An unrelated selection no longer prevents nearby replies. Dead and
 non-speaking targets such as corpses and critters are ignored, allowing
 normal fallback. The
 `ProximityScene` struct tracks:
@@ -2919,15 +2981,14 @@ only the first speaker's cooldown key is stored with the event, so persisted
 lookups cannot represent joiner cooldowns. The addressed `/say` target remains
 unthrottled as before; targeted emote speech retains its dedicated pair
 cooldown.
-Mounted players and mounted playerbots remain eligible for directed
-interactions and active-scene replies. Mounting continues to suppress
-automatic scenes and untargeted fallback selection. Untargeted `/say` events
-share their event types with directed `/say`, so delivery uses the presence of
-`addressed_name` to preserve that distinction if a selected speaker mounts
-after queueing. The parser accepts both compact
-`{"addressed_name":"Bob"}` and MySQL-formatted
-`{"addressed_name": "Bob"}` JSON; missing and empty values remain
-untargeted. A mounted playerbot still sends the mirrored text-emote packet,
+Mounted players and mounted playerbots remain eligible for player-initiated
+`/say`, including untargeted speech that starts a new scene, as well as
+emotes and active-scene replies. Selection and delivery both allow mounting
+for these interactions and for automatic nearby conversations. Ground
+mounting also permits party observations of nearby points of interest,
+raid idle morale, and duel/PvP spectator reactions. Existing combat,
+flying, faction, range, visibility and cooldown rules remain in force.
+A mounted playerbot still sends the mirrored text-emote packet,
 although the client may suppress the corresponding character animation while
 the mount is displayed. Before the delayed packet is sent, the bot is
 rechecked for combat and the player is rechecked for presence, map, and range
@@ -3060,6 +3121,21 @@ Roster entries identify each participant as `NPC` or
 to playerbots. Uses global `EmoteChance` and `ActionChance` gates (not
 custom proximity-specific ones).
 
+### Conversation pacing
+
+Ordinary, directed `/say`, and multi-speaker emote conversations share
+`chatter_proximity_pacing.py`. The first generated line has no added wait.
+Subsequent gaps use the longer of the current and previous visible lines,
+allowing reading and composing to overlap. The default base is 3 seconds
+plus that length divided by 20, capped at 8 seconds. Each gap varies by
+up to 20%, sampled within the 3-8-second bounds so even long lines vary.
+A four-line scene therefore finishes within 24 seconds after its first
+scheduled line; generation latency and delivery polling are additional.
+Emote-only lines retain the minimum breathing room. Existing delivery-time
+range and scene checks still apply. Disable `DynamicPacing.Enable` to
+restore the fixed `ConversationLineDelay`. Restart the chatter bridge
+when changing these Python-owned settings.
+
 ### C++ ownership
 
 | File | Responsibility |
@@ -3079,6 +3155,7 @@ custom proximity-specific ones).
 | File | Responsibility |
 |------|----------------|
 | `chatter_proximity.py` | Ordinary/directed handlers, prompts, strict parser, and addressed history |
+| `chatter_proximity_pacing.py` | Bounded length-aware gaps for nearby conversation sequences |
 | `chatter_instance_context.py` | Shared instance location/lore grounding |
 | `chatter_boss_dialogue.py` | Safe one-line boss prompt and `myell` insertion |
 | `chatter_constants.py` | `PROXIMITY_CHAT_TOPICS` (250+ entries) |
@@ -3116,7 +3193,12 @@ All under `LLMChatter.ProximityChatter.*`:
 | `EntityCooldown` | 3 | Seconds per-entity (spawn GUID) cooldown; clamped to 0-3 |
 | `PlayerAddressChance` | 30 | % chance to address the real player |
 | `MaxConversationLines` | 4 | Maximum ambient lines |
-| `ConversationLineDelay` | 2 | Seconds between lines |
+| `ConversationLineDelay` | 2 | Fixed gap when dynamic pacing is disabled |
+| `DynamicPacing.Enable` | 1 | Bridge: length-aware conversation gaps |
+| `DynamicPacing.MinSeconds` | 3 | Minimum inter-line gap |
+| `DynamicPacing.MaxSeconds` | 8 | Maximum inter-line gap |
+| `DynamicPacing.CharsPerSecond` | 20 | Length contribution rate |
+| `DynamicPacing.JitterPercent` | 20 | Random variation within gap bounds |
 | `ReplyWindowSeconds` | 30 | How long a scene accepts replies |
 | `ReplyMaxTurns` | 5 | Maximum tracked scene turns |
 | `EnableBossDialogue` | 0 | Boss path; enable for controlled testing |
@@ -3564,9 +3646,11 @@ pacing.
 
 One high-priority `guild_login_greeting` event carries the current
 session, target player, delay band, and shuffled live candidates.
-`chatter_guild_login.py` normally selects one responder. On a
-`LoginGreeting.MultiReplyChance` success, it selects two or three,
-bounded by `LoginGreeting.MaxResponders` and available candidates.
+`chatter_guild_login.py` selects one responder, or two to four on a
+`LoginGreeting.MultiReplyChance` success, bounded by
+`LoginGreeting.MaxResponders` and available candidates. The defaults
+(75% multiple-greeter chance and a cap of four) give each count from
+one to four a 25% chance when at least four candidates are available.
 
 One LLM request generates the complete greeting sequence. Prompts:
 
@@ -3613,8 +3697,8 @@ duplicate greeting.
 | `LoginGreeting.RetryInterval` | 5 | Server | Bot readiness retry |
 | `LoginGreeting.ReadinessTimeout` | 90 | Server | Total bounded wait |
 | `LoginGreeting.MaxCandidates` | 12 | Server | Live candidate cap |
-| `LoginGreeting.MultiReplyChance` | 20 | Bridge | Multiple-greeter chance |
-| `LoginGreeting.MaxResponders` | 3 | Bridge | Greeter cap |
+| `LoginGreeting.MultiReplyChance` | 75 | Bridge | Multiple-greeter chance |
+| `LoginGreeting.MaxResponders` | 4 | Bridge | Greeter cap |
 | `LoginGreeting.PlayerNameChance` | 60 | Bridge | Primary name chance |
 | `LoginGreeting.MaxCharacters` | 100 | Bridge | Per-greeting hard cap |
 
@@ -3716,6 +3800,15 @@ Typical single-message JSON shape:
 ```json
 {"message": "...", "emote": null, "action": null}
 ```
+
+Shared text parsing removes confirmed leaked response fields from visible
+dialogue, including their optional opening brace. It also removes a complete
+trailing bare thread-report object when it contains only known thread keys,
+with a string `topic`, a valid `energy` label, a boolean `subject_changed`,
+and correctly typed optional `open_point` and `feelings` fields. The same
+cleanup applies to single responses and conversation message strings.
+Unrelated objects and incomplete bare reports are preserved rather than
+guessed at. Removing a bare report does not recover it into thread memory.
 
 ### Conversation response contract
 

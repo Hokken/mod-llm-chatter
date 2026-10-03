@@ -62,13 +62,7 @@ from chatter_text import (
 
 # The vision description is raw scene data; without this the
 # model tends to read it back like an inventory of objects.
-_SCENE_AS_BACKGROUND = (
-    "The scene above is only background. Do not describe it, "
-    "list what is in it, or read it back. React in character "
-    "instead: a thought, opinion, memory, question, or "
-    "concern, touching on one detail at most, or just the "
-    "feel of the place."
-)
+from chatter_screenshot_context import SCENE_AS_BACKGROUND as _SCENE_AS_BACKGROUND
 
 # Varied reaction styles to avoid samey comments
 _REACTION_STYLES = [
