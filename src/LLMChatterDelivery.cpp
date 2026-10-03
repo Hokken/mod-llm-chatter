@@ -610,6 +610,21 @@ void DeliverPendingMessagesImpl()
         }
     }
 
+    // Guild filler rows give way to a live player conversation in
+    // that guild (not to the login welcome).
+    if (bot && ownerSubsystem == "guild"
+        && deliveryPolicy == "filler"
+        && WasGuildPlayerConversationRecent(
+            bot->GetGuildId(),
+            sLLMChatterConfig
+                ->_guildPlayerIdleSuppressionSeconds))
+    {
+        FinalizeDroppedMessage(
+            messageId, eventId, sequence,
+            eventType, "guild_conversation_active");
+        return;
+    }
+
     // Only mark delivered after a successful
     // send (or if the bot is unavailable and
     // retrying would not help).

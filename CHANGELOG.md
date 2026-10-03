@@ -1,5 +1,27 @@
 # Changelog
 
+### 2026-10-02 - Open-World PvP Reactions
+
+* **Guild PvP lines**: A lone guild bot that kills an opposing-faction bot
+  may tell its guild, and a bot killed by one may tell its guild or, if
+  that does not happen, its zone's General channel. Nothing is queued
+  unless a real player can read it.
+* **Message flow**: Guild PvP lines give way to a real player's
+  conversation with the guild, both when queued and at delivery (the
+  login welcome alone does not count). The General line follows the
+  General zone pacing.
+* **Personality first**: Death reactions are left to the bot's
+  personality instead of a fixed angry tone.
+* **Faction context**: Party kill and battle-cry prompts against enemy
+  players name both factions and, in roleplay, the enemy's race outlook
+  and class calling. Battleground kill prompts name the fallen enemy's
+  race and both sides.
+* **Configuration**: `GuildChatter.PvpKill.*`, `GuildChatter.PvpDeath.*`,
+  `GeneralChat.PvpDeath.*` and `PvpDeath.VictimCooldown`.
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20261002_guild_pvp_events.sql`, rebuild
+  the worldserver and restart the bridge.
+
 ### 2026-10-03 - Screenshot Cycle Diagnostics
 
 * **Host agent logging**: Show each cycle's randomized wait and next
@@ -108,7 +130,6 @@
   chatter bridge for Python changes. Existing configurations retain their
   explicit cooldown; set it to 3 and run `.reload config` to apply the new
   value. No database migration is required.
-
 ### 2026-10-02 - Arathi Basin Objectives and Battleground Arrival Variety
 
 * **Arathi Basin objectives**: Observe claims, assaults, counter-claims,

@@ -26,6 +26,7 @@ from chatter_shared import (
     get_recent_zone_messages,
     append_json_instruction,
     get_chatter_mode,
+    faction_war_line,
 )
 from chatter_db import get_recent_bg_messages
 from chatter_mode import (
@@ -868,6 +869,19 @@ def build_bg_pvp_kill_prompt(
             f"React with a quick, sharp comment."
             f"{kill_variety}"
         )
+    victim_race = extra_data.get('victim_race') or ''
+    if victim_race:
+        ctx += (
+            f"\nThe fallen enemy was a "
+            f"{extra_data.get('victim_gender') or ''} "
+            f"{victim_race}."
+        ).replace('  ', ' ')
+    war = faction_war_line(
+        "You and your side", extra_data.get('killer_team'),
+        victim, extra_data.get('victim_team'), own_verb="fight",
+    )
+    if war:
+        ctx += f"\n{war}"
     return append_json_instruction(
         ctx, allow_action=False)
 
