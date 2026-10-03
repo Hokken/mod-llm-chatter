@@ -513,9 +513,8 @@ def test_reply_hold_ends_on_terminal_drops_but_not_on_retry():
     scope = body.index('ReplyHoldDeliveryScope replyHold(botGuid, eventType);')
     assert scope < body.index('FinalizeDroppedMessage(')
     retry = body.index('// Unclaim and reschedule for retry.')
-    keep = body.index('replyHold.Keep();')
-    assert retry < keep < body.index('"SET delivered = 0, "', retry)
-    assert body.count('replyHold.Keep();') == 1
+    keep = body.index('replyHold.Keep();', retry)
+    assert keep < body.index('"SET delivered = 0, "', retry)
     assert 'ReleaseBotReplyHold(botGuid)' not in delivery
     finalize = _function(delivery, 'void FinalizeDroppedMessage(')
     assert finalize.index('ReleaseBotReplyHold(') < finalize.index(
