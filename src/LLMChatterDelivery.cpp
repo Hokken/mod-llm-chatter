@@ -243,6 +243,19 @@ void FinalizeDroppedMessage(
     if (!eventId || !IsDirectedProximityEvent(eventType))
         return;
 
+    // The rest of the scene is cancelled, so its speakers owe no reply.
+    if (QueryResult held = CharacterDatabase.Query(
+            "SELECT DISTINCT bot_guid FROM llm_chatter_messages "
+            "WHERE event_id = {} AND sequence > {} "
+            "AND delivered = 0 AND bot_guid > 0",
+            eventId, sequence))
+    {
+        do
+            ReleaseBotReplyHold(
+                held->Fetch()[0].Get<uint32>(), eventType);
+        while (held->NextRow());
+    }
+
     CharacterDatabase.DirectExecute(
         "UPDATE llm_chatter_messages "
         "SET delivered = 1, delivered_at = NOW(), "
@@ -464,6 +477,10 @@ void DeliverPendingMessagesImpl()
             ? 0
             : fields[22].Get<uint32>();
 
+    // Every return below ends this row for good, except the retry
+    // at the end, which keeps the bot's reply hold.
+    ReplyHoldDeliveryScope replyHold(botGuid, eventType);
+
     // ActionAsEmote disabled: fall back to the historical
     // inline "*action* text" rendering so the action is not
     // silently dropped for rows queued while it was on.
@@ -649,7 +666,10 @@ void DeliverPendingMessagesImpl()
                 CheckMeetGreetingDelivery(bot, playerGuid))
         {
             if (DeferMeetGreeting(messageId, meetDrop))
+            {
+                replyHold.Keep();
                 return;
+            }
             LOG_INFO("module",
                 "LLMChatter: guild_meet_greeting message {} "
                 "(event {}) dropped: {}",
@@ -658,7 +678,6 @@ void DeliverPendingMessagesImpl()
                 messageId, eventId, sequence,
                 eventType, meetDrop);
             SettleMeetGreetingFollowUp(eventId, false);
-            ReleaseBotReplyHold(botGuid);
             return;
         }
     }
@@ -1587,9 +1606,6 @@ void DeliverPendingMessagesImpl()
             message);
     }
 
-    if (sent || botUnavailable)
-        ReleaseBotReplyHold(botGuid);
-
     if (sent)
     {
         CharacterDatabase.DirectExecute(
@@ -1615,6 +1631,7 @@ void DeliverPendingMessagesImpl()
         // worth another attempt; an action already acted out
         // is not, so it is consumed here and the retry
         // delivers the line on its own.
+        replyHold.Keep();
         if (actionEmitted)
         {
             CharacterDatabase.DirectExecute(

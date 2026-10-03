@@ -1274,6 +1274,10 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
             "FacingResetDelay", 8);
+    _proxChatterReplyHoldMs =
+        GetChatterOption<uint32>(
+            "LLMChatter.ProximityChatter."
+            "ReplyHoldMs", 4000);
     _proxDirectedMaxExtraReactors =
         std::min(
             GetChatterOption<uint32>(

@@ -3644,9 +3644,12 @@ only sees real players.
 ### Meet greeting delivery
 
 - The scan holds the bot for a reply with `HoldBotForReply()`
-  (`LLMChatterReplyHold.cpp`): it stops, turns to the player and pauses
-  for at most four seconds, and is released early when it enters combat
-  or its line is delivered or dropped.
+  (`LLMChatterReplyHold.cpp`, `ProximityChatter.ReplyHoldMs`). A bot
+  that is moving keeps moving; a standing bot turns to the player (with
+  `GroupChatter.FacingEnable`) and its AI delay is raised to the hold,
+  never shortened. The hold is released early, taking back only what it
+  added, when the bot enters combat or its greeting is delivered or
+  dropped for good; a short meet retry keeps it.
 - The `/say` line is owned by the Guild subsystem, so the proximity
   checks do not apply to it. Delivery checks it again instead
   (`CheckMeetGreetingDelivery()`): the player must still be online, on the

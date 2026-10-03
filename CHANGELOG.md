@@ -20,7 +20,8 @@
 * **Personality first**: The prompts offer a range of reactions instead of
   a mood.
 * **Reply hold**: The meet greeting uses the short reply hold
-  (`LLMChatterReplyHold.cpp`), released when the bot enters combat.
+  (`LLMChatterReplyHold.cpp`, `ProximityChatter.ReplyHoldMs`): a standing
+  bot waits for its greeting, a moving bot keeps moving.
 * **Configuration**: `GuildChatter.MeetGreeting.*`,
   `GuildChatter.WorldScanInterval`, `GuildChatter.JoinZoneAnnounce.*` and
   `GuildChatter.NpcEncounter.*`.

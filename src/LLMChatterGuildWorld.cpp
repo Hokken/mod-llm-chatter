@@ -281,7 +281,7 @@ void ScanMeetGreetings(Player* player, time_t now)
             "guild_meet_greeting", bot,
             player->GetGUID().GetCounter(), player->GetName(), 0,
             key, json);
-        HoldBotForReply(bot, player, LLM_CHATTER_MAX_REPLY_HOLD_MS);
+        HoldBotForReply(bot, player, "guild_meet_greeting");
         LOG_DEBUG("module",
             "LLMChatter: guild_meet_greeting bot={} player={}",
             bot->GetName(), player->GetName());
