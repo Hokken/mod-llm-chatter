@@ -2428,6 +2428,91 @@ LLMChatter.GuildChatter.PlayerReplies.IdleSuppressionSeconds = 90
 LLMChatter.GuildChatter.PlayerReplies.MaxCandidates = 12
 
 #
+#   LLMChatter.GuildChatter.MeetGreeting.Enable
+#       A guild bot that meets a real guildmate in the open
+#       world (not in the same group) waves (/hello) and greets
+#       them in /say. The line is only spoken if the player is
+#       still on the same map, within Radius, visible and in
+#       line of sight when it is delivered. A range, visibility
+#       or line-of-sight miss is retried every 2 seconds for up
+#       to 8 seconds before the line is dropped.
+#       Default: 1
+#
+LLMChatter.GuildChatter.MeetGreeting.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.MeetGreeting.Radius
+#       Yards around the player searched for guild bots.
+#       Supported range is 5-60.
+#       Default: 25
+#
+LLMChatter.GuildChatter.MeetGreeting.Radius = 25
+
+#
+#   LLMChatter.GuildChatter.MeetGreeting.CooldownHours
+#       Hours before the same bot greets the same player again.
+#       Default: 5
+#
+LLMChatter.GuildChatter.MeetGreeting.CooldownHours = 5
+
+#
+#   LLMChatter.GuildChatter.WorldScanInterval
+#       Seconds between open-world scans for meet greetings
+#       and NPC encounters. Supported range is 5-300.
+#       Default: 10
+#
+LLMChatter.GuildChatter.WorldScanInterval = 10
+
+#
+#   LLMChatter.GuildChatter.JoinZoneAnnounce.Enable
+#       A bot that joins a guild may tell its zone's General
+#       channel about it; other bots there react. Needs a real
+#       player of that faction in the zone. The lines follow the
+#       General zone pacing (GeneralChat.MinZoneGap).
+#       Default: 1
+#
+LLMChatter.GuildChatter.JoinZoneAnnounce.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.JoinZoneAnnounce.Chance
+#       Percent chance (0-100) per joining bot.
+#       Default: 35
+#
+LLMChatter.GuildChatter.JoinZoneAnnounce.Chance = 20
+
+#
+#   LLMChatter.GuildChatter.NpcEncounter.Enable
+#       A guild bot outside the player's group tells the guild
+#       about a friendly service NPC near it (vendor, trainer,
+#       innkeeper, flight master and so on) that it can see and
+#       has line of sight to. Skipped while the guild is in a
+#       conversation with a real player.
+#       Default: 1
+#
+LLMChatter.GuildChatter.NpcEncounter.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.NpcEncounter.Chance
+#       Percent chance (0-100) per guild per world scan.
+#       Default: 4
+#
+LLMChatter.GuildChatter.NpcEncounter.Chance = 2
+
+#
+#   LLMChatter.GuildChatter.NpcEncounter.Radius
+#       Yards around the bot searched for NPCs. Range 5-80.
+#       Default: 30
+#
+LLMChatter.GuildChatter.NpcEncounter.Radius = 30
+
+#
+#   LLMChatter.GuildChatter.NpcEncounter.Cooldown
+#       Minimum seconds between NPC encounters per guild.
+#       Default: 1200
+#
+LLMChatter.GuildChatter.NpcEncounter.Cooldown = 1200
+
+#
 #   LLMChatter.GuildChatter.LoginGreeting.Enable
 #       Greet a real guild member after a full character
 #       login. The greeting is cancelled if the player
@@ -2711,6 +2796,26 @@ LLMChatter.GuildChatter.SessionMemory.SummaryMaxTokens = 300
 #       Default: 1200
 #
 LLMChatter.GuildChatter.SessionMemory.SummaryMaxChars = 1200
+
+#
+#   LLMChatter.GuildChatter.MeetGreeting.GuildPostChance
+#       Percent chance (0-100) that after a meet greeting the bot
+#       also mentions the meeting in Guild chat, naming the place
+#       (subzone and zone). The post waits until the greeting was
+#       spoken, is cancelled if the greeting is dropped, and is
+#       skipped while the guild is in a conversation with a real
+#       player (PlayerReplies.IdleSuppressionSeconds). The login
+#       welcome alone does not count as a conversation.
+#       Default: 50
+#
+LLMChatter.GuildChatter.MeetGreeting.GuildPostChance = 30
+
+#
+#   LLMChatter.GuildChatter.JoinZoneAnnounce.MaxResponders
+#       Maximum zone bots (0-3) reacting to a join announcement.
+#       Default: 2
+#
+LLMChatter.GuildChatter.JoinZoneAnnounce.MaxResponders = 2
 
 #
 #   LLMChatter.GuildChatter.ZoneNameChance

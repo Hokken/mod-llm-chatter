@@ -1,5 +1,33 @@
 # Changelog
 
+### 2026-10-02 - Guild World Events
+
+* **Meet greetings**: A guild bot that runs into a real guildmate in the
+  open world waves and greets them in `/say`, and may mention the meeting
+  in Guild chat afterwards. The greeting is checked again at delivery
+  (same map, range, visibility, line of sight); a brief range or sight
+  miss is retried for up to 8 seconds, and the line is dropped with a
+  reason if the player has moved on. The Guild post waits until the
+  greeting was spoken and is cancelled if it was dropped.
+* **Join announcements**: A bot that joins a guild may tell its zone's
+  General channel, and zone bots react. The announcer always speaks first,
+  and the lines follow the General zone pacing.
+* **NPC encounters**: A guild bot near a friendly service NPC it can see
+  tells the guild what it thinks of them.
+* **Message flow**: NPC posts and meet follow-ups give way to a real
+  player's conversation with the guild, both when queued and at delivery.
+  The login welcome alone does not count as a conversation.
+* **Personality first**: The prompts offer a range of reactions instead of
+  a mood.
+* **Reply hold**: The meet greeting uses the short reply hold
+  (`LLMChatterReplyHold.cpp`), released when the bot enters combat.
+* **Configuration**: `GuildChatter.MeetGreeting.*`,
+  `GuildChatter.WorldScanInterval`, `GuildChatter.JoinZoneAnnounce.*` and
+  `GuildChatter.NpcEncounter.*`.
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20261002_guild_world_events.sql`, rebuild
+  the worldserver and restart the bridge.
+
 ### 2026-10-03 - Chat Parsing and Ambient Speaker Pacing
 
 * **Chat parsing**: When the model writes its `emote`, `action` or
@@ -60,7 +88,6 @@
   chatter bridge for Python changes. Existing configurations retain their
   explicit cooldown; set it to 3 and run `.reload config` to apply the new
   value. No database migration is required.
-
 ### 2026-10-02 - Arathi Basin Objectives and Battleground Arrival Variety
 
 * **Arathi Basin objectives**: Observe claims, assaults, counter-claims,

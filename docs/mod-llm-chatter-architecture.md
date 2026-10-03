@@ -941,6 +941,7 @@ Session 69 added two scheduling controls around that model:
 |---|---:|---|
 | `src/LLMChatterScript.cpp` | 17 | Registration coordinator only |
 | `src/LLMChatterShared.cpp` | ~2500 | Shared helpers: SQL/JSON escaping, canonical lookups, queue insertion, cooldowns, priorities/delays, delivery helpers, spawn-GUID creature lookup, NPC role descriptions, and the shared named-boss cache/classifier |
+| `src/LLMChatterReplyHold.cpp` | ~95 | `HoldBotForReply()`: a short stop-and-face hold (at most 4 s) for an ungrouped bot that owes a player a reply; released when the bot enters combat or one of its lines is delivered or dropped |
 | `src/LLMChatterShared.h` | 83 | Shared declarations still used across domains; `class Unit` forward-declared for `SendUnitTextEmote()`; currently also declares world/player registration |
 | `src/LLMChatterDelivery.cpp` | ~1000 | Outbound DB polling and channel dispatch, including instance-aware local revalidation for `say`/`msay` and safe boss `myell` delivery |
 | `src/LLMChatterDelivery.h` | 4 | Narrow delivery extraction declaration used by `LLMChatterWorld.cpp` |
@@ -951,6 +952,8 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterNearby.cpp` | 691 | Nearby-object and nearby-creature scanning, POI scoring, nearby direct event queueing, nearby-local cooldowns |
 | `src/LLMChatterNearby.h` | 6 | Narrow nearby scan declaration consumed by `LLMChatterWorld.cpp` |
 | `src/LLMChatterWorld.cpp` | ~1000 | WorldScript ownership, thin ambient/nearby/delivery/proximity/boss delegation, transport polling and route announcements, transport-private state, retained world-private `QueueEvent()` helper |
+| `src/LLMChatterGuildWorld.cpp/.h` | ~650 | Guild world events: own `GuildScript` (bot joins) and `WorldScript` (world scan), meet greetings with the reply hold, NPC encounters with visibility and line-of-sight checks, General join announcements, and the delivery-time meet checks and follow-up release used by `LLMChatterDelivery.cpp` |
+| `src/LLMChatterAudience.cpp/.h` | ~75 | Online real players (never playerbots) in a zone or guild: `CollectRealPlayers*()` and `PickRealPlayerInZone()` / `PickRealGuildMember()` |
 | `src/LLMChatterGuild.cpp` | ~750 | Player-driven Guild Chat capture, per-login session lifecycle, deferred login greetings, eligible-bot selection, stale-turn cancellation, recent-interaction suppression, and delivered-line history writes |
 | `src/LLMChatterGuild.h` | ~20 | Guild registration and delivery/world cross-call declarations |
 | `src/LLMChatterGroup.cpp` | ~1350 | Shared group state definitions, shared helpers (`GroupHasRealPlayer`, `GetRandomBotInGroup`, `CountBotsInGroup`, pre-cache helpers), disabled-by-default MultiBot-Chatless `MBOT` fallback handler, `CleanupGroupSession()` coordinator, thin `LLMChatterGroupPlayerScript` shell wrappers, registration |
@@ -986,6 +989,7 @@ Session 69 added two scheduling controls around that model:
 - `AddLLMChatterGuildScripts()`
 - `AddLLMChatterGroupScripts()`
 - `AddLLMChatterPlayerScripts()`
+- `AddLLMChatterGuildWorldScripts()`
 - `AddLLMChatterLootScripts()`
 - `AddLLMChatterBGScripts()`
 - `AddLLMChatterRaidScripts()`
@@ -1014,7 +1018,12 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_loot.py` | Real `bot_loot_item` validation, exact-looter resolution, prompt generation, and General delivery |
 | `tools/chatter_guild.py` | Guild prompts and insert orchestration |
 | `tools/chatter_guild_player.py` | Player-driven Guild replies, reply topology, session-context prompts, and rolling summary compaction |
+| `tools/chatter_guild_world_events.py` | Meet greetings and their held Guild follow-up, NPC encounters, and General join announcements |
+| `tools/chatter_guild_event_common.py` | Shared guild event prompts, speaker-order validation, generation and delivery |
 | `tools/chatter_guild_login.py` | Real-player login greetings, responder selection, short-message prompts, and greeting pacing |
+| `tools/chatter_guild_profile.py` | Guild profile (Guild Information, MOTD, ranks, Guild Master), character guild lookups, guildmate notes and MOTD wording |
+| `tools/chatter_player_context.py` | Description of the real player (race outlook, class calling) for prompts that address them |
+| `tools/chatter_class_style.py` | Light/Shadow priest split from the active spec's talents |
 
 ### Group domain
 

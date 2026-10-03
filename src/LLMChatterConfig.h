@@ -312,6 +312,16 @@ public:
     uint32 _guildChatterScanInterval{30};
     uint32 _guildChatterConversationChance{50};
     uint32 _guildChatterMaxParticipants{3};
+    bool _guildMeetGreetingEnable{true};
+    uint32 _guildMeetGreetingRadius{25};
+    uint32 _guildMeetGreetingCooldownHours{5};
+    uint32 _guildWorldScanInterval{10};
+    bool _guildJoinZoneAnnounceEnable{true};
+    uint32 _guildJoinZoneAnnounceChance{35};
+    bool _guildNpcEncounterEnable{true};
+    uint32 _guildNpcEncounterChance{4};
+    uint32 _guildNpcEncounterRadius{30};
+    uint32 _guildNpcEncounterCooldown{1200};
     bool _guildPlayerRepliesEnable{true};
     uint32 _guildPlayerReplyDebounceSeconds{2};
     uint32 _guildPlayerIdleSuppressionSeconds{90};

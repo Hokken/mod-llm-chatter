@@ -1705,8 +1705,12 @@ def cleanup_all_session_data(db):
         cursor.execute(
             "DELETE FROM llm_chatter_messages"
         )
+        # Finished meet greetings are the persisted cooldown for
+        # guild_meet_greeting (IsPersistedEventOnCooldown).
         cursor.execute(
-            "DELETE FROM llm_chatter_events"
+            "DELETE FROM llm_chatter_events "
+            "WHERE event_type <> 'guild_meet_greeting' "
+            "OR status IN ('pending', 'processing')"
         )
         db.commit()
         try:
