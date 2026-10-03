@@ -36,6 +36,7 @@ from chatter_shared import (
     get_subzone_name,
     get_subzone_lore,
     build_conversation_json_repair_prompt,
+    spell_out_trade_numbers,
 )
 from chatter_shared import (
     build_talent_context,
@@ -500,6 +501,8 @@ def process_statement(
         message = cleanup_message(
             message, action=parsed.get('action')
         )
+        if msg_type == "trade" and get_chatter_mode(config) == 'roleplay':
+            message = spell_out_trade_numbers(message)
 
         if is_too_similar(message, recent_msgs):
             return True
@@ -816,6 +819,10 @@ def process_conversation(
                         else None
                     ),
                 )
+                if (msg_type == "trade"
+                        and get_chatter_mode(config) == 'roleplay'):
+                    final_message = spell_out_trade_numbers(
+                        final_message)
 
                 if i > 0:
                     delay = calculate_dynamic_delay(

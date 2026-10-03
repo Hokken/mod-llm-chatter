@@ -3708,6 +3708,114 @@ Existing installations must also apply
 
 ---
 
+## 13u. Standalone Chat Fixes
+
+### Talents
+
+`acore_world.talent_dbc` is empty by design (the core loads `Talent.dbc`
+from the client data), so `get_character_talents()` no longer joins it.
+It reads the active spec's `character_talent` spells and maps them with
+`TALENT_SPELLS` and `TALENT_TABS` from `talent_data.py`, which loads
+`talent_data.json`: 33 trees and every talent rank spell with its talent,
+tree, rank, tier, column and name. The return shape is unchanged, so every
+talent-aware prompt works as written. To regenerate the JSON, copy
+`Talent.dbc` and `TalentTab.dbc` out of the worldserver container and run
+`tools/generate_talent_data.py` (see its docstring). Names come from
+`spell_names.json` and match `TALENT_CATALOG`.
+
+`class_style()` in `chatter_class_style.py` turns a priest into
+"Shadow Priest" when Shadow has strictly the most points in the active
+spec, otherwise "Light Priest". It keeps no cache of its own: the talent
+helper reads the active spec on every call and caches per guid and spec,
+so the style follows a dual-spec switch.
+
+### Emojis
+
+`strip_emojis()` in `chatter_text.py` removes all emoji blocks, the
+BMP symbol ranges models use as emojis, and the invisible variation
+selectors (U+FE0E/FE0F), zero-width joiner, keycap and tag characters,
+then tidies the leftover spaces. `cleanup_message()` calls it, and
+`insert_chat_message()` and the party reaction cache call it again as a
+final guard; an emoji-only line is not inserted.
+
+### Links
+
+Both the second-speaker cut in `cleanup_message()` and
+`shorten_chat_message()` mask links and `{item:...}` placeholders, so a
+name like "Power Word: Fortitude" or "Formula: Enchant Bracer" is never
+taken for a speaker and a long message is never shortened through a link.
+
+### Late party bots
+
+The server waits up to 120 seconds after a real player logs in for the
+bots of a saved group to appear. A bot that logs into a group with a real
+player online after that window (for example an alt character loading
+minutes later) now queues a rejoin for the group: its traits are restored
+silently, without a greeting, and bots already registered in this session
+are skipped.
+
+### Reply hold
+
+`HoldBotForReply()` (`LLMChatterReplyHold.cpp`) is used when a player
+emotes at an ungrouped bot or addresses it with a `/say` emote, so the
+bot is still nearby when its reply arrives.
+
+- Duration: `ProximityChatter.ReplyHoldMs` (default 4000, `0` disables,
+  capped at 10000 by `LLM_CHATTER_MAX_REPLY_HOLD_MS`), read on every hold,
+  so `.reload config` applies it.
+- Only a bot that is standing still is held: the hold uses the same
+  `IsSafeForChatterFacing()` check as the other chatter facing. A moving
+  bot is not stopped or turned, so its travel is never interrupted. A bot
+  in combat or in flight is never held.
+- A held bot turns toward the player only when
+  `GroupChatter.FacingEnable` is on.
+- The hold raises the bot's AI check delay to the hold length only if
+  it is shorter; a longer delay set by the bot's own AI is left alone.
+- The hold is tied to the event type of the reply it waits for
+  (`proximity_player_emote`). It ends early when the bot enters combat,
+  or when a line of that event type from the bot is delivered or dropped
+  for good, including the speakers of a directed scene cancelled after a
+  drop. A line put back on the queue for a retry, or an unrelated line
+  from the same bot, keeps the hold.
+- Ending early takes back only what the hold added: the delay is lowered
+  to what was left of the bot's own earlier delay, and left alone when
+  something else raised it in the meantime.
+- While held, the bot's AI does not run, so whatever it was doing picks up
+  only when its AI next runs; that may be a new plan rather than the old
+  one.
+
+Directed messages dropped by delivery re-checks, and dropped mirror
+emotes, are logged at INFO.
+
+### Roleplay wording
+
+- Trade: roleplay trade statements and conversations speak as a traveller
+  or merchant offering goods aloud. The vendor price is given in words
+  (`format_price_words()`, e.g. "one gold and twenty silver coins"), the
+  rules ask for a conversational price with every number written as words,
+  and trade shorthand is forbidden. With `LLMChatter.Language` set to
+  English, `spell_out_trade_numbers()` then rewrites any leftover "1g20s",
+  "50 silver" or digits in the delivered text, leaving link markup
+  untouched. It writes English words, so other languages keep the model's
+  own wording. Normal mode keeps WTS-style posts.
+- Level-up: `bot_group_levelup` carries `leveler_guid`, `leveler_class`,
+  `leveler_race` and `leveler_gender`. In roleplay the prompt never names a
+  level: it describes how the leveler grew stronger in their calling
+  (`CLASS_GROWTH` in `chatter_group_prompts.py`). A Shadow Priest has
+  merged deeper with the Void and the shadows gather to them; every other
+  priest is praised for the Light. Level-up memories say "grew noticeably
+  stronger" in roleplay. Normal mode keeps the level number.
+- Slang: roleplay guidelines ban player, trade and group slang
+  (`RP_NO_PLAYER_SLANG` in `chatter_mode.py`).
+
+The canned mod-playerbots lines in General and Guild ("money money money
+[item]", "[item] is hunter bis") come from mod-playerbots' own broadcasts,
+not from this module. Turn them off in `playerbots.conf` as described in
+the README section "Important: Disable Default Bot Chat"
+(`AiPlayerbot.EnableBroadcasts = 0`).
+
+---
+
 ## 14. JSON and Queue Contracts
 
 ### `QueueChatterEvent()`

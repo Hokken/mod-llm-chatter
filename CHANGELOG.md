@@ -1,5 +1,41 @@
 # Changelog
 
+### 2026-10-02 - Standalone Chat Fixes
+
+* **Talents**: `get_character_talents()` joined `acore_world.talent_dbc`,
+  which the core leaves empty, so every character looked talentless and
+  every priest was a Light Priest. It now maps `character_talent` spells
+  through the bundled `tools/talent_data.json` (generated from `Talent.dbc`
+  and `TalentTab.dbc` by `tools/generate_talent_data.py`, loaded by
+  `tools/talent_data.py`). `class_style()` (`chatter_class_style.py`)
+  splits Light and Shadow priests by the active spec.
+* **Emojis**: `strip_emojis()` covers every emoji block plus the invisible
+  variation selectors, joiners, keycaps and flag tags that used to survive
+  as stray characters in game chat. It runs in `cleanup_message()` and
+  again when a line or cached reaction is written; a line that was only
+  emojis is not sent.
+* **Links**: Item and spell links whose names contain a colon (such as
+  "Power Word: Fortitude") are no longer cut off, and long messages are
+  never shortened through a link.
+* **Late party bots**: A bot that logs into a group with a real player
+  online after the 120-second rejoin window is now registered (traits
+  restored silently, no greeting). Before, such bots stayed silent for the
+  whole session.
+* **Reply hold**: A standing bot you emote at, or address with a `/say`
+  emote, waits for its reply (`ProximityChatter.ReplyHoldMs`, default 4
+  seconds, `0` disables) and turns to you when facing is enabled. A moving
+  bot keeps moving. The hold never shortens the bot's own AI delays and
+  ends when the bot enters combat or its reply is delivered or dropped.
+* **Roleplay wording**: Trade offers speak as people in the world with
+  prices in coins written as words; level-ups praise how the character
+  grew stronger in their calling (Shadow and Light priests apart) instead
+  of naming a level; roleplay prompts forbid player and trade slang.
+  Digits left in a trade line are spelled out only when the chatter
+  language is English.
+* **Configuration**: `ProximityChatter.ReplyHoldMs`.
+* **Upgrade**: Rebuild the worldserver and restart the bridge. No database
+  migration.
+
 ### 2026-10-03 - Screenshot Cycle Diagnostics
 
 * **Host agent logging**: Show each cycle's randomized wait and next
@@ -108,7 +144,6 @@
   chatter bridge for Python changes. Existing configurations retain their
   explicit cooldown; set it to 3 and run `.reload config` to apply the new
   value. No database migration is required.
-
 ### 2026-10-02 - Arathi Basin Objectives and Battleground Arrival Variety
 
 * **Arathi Basin objectives**: Observe claims, assaults, counter-claims,

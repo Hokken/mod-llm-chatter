@@ -44,6 +44,13 @@ _NORMAL_PLAYER_EXTRA_TRAITS = [
 ]
 
 
+RP_NO_PLAYER_SLANG = (
+    "Never use player, trade or group slang (bis, gz, grats, WTS, "
+    "WTB, WTT, pst, OBO, lfg, lfm, dps, noob, ding); say it the way "
+    "someone who lives in Azeroth would"
+)
+
+
 def normalize_chatter_mode(mode: str) -> str:
     """Return a supported playerbot chatter mode."""
     value = str(mode or '').strip().lower()
