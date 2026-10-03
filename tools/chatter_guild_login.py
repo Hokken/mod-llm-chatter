@@ -120,12 +120,12 @@ def _choose_responder_count(
     maximum = max(
         1,
         min(
-            3,
+            4,
             _safe_int(config.get(
                 'LLMChatter.GuildChatter.'
                 'LoginGreeting.MaxResponders',
-                3,
-            ), 3),
+                4,
+            ), 4),
             candidate_count,
         ),
     )
@@ -136,7 +136,7 @@ def _choose_responder_count(
         config,
         'LLMChatter.GuildChatter.'
         'LoginGreeting.MultiReplyChance',
-        20,
+        75,
     )
     if random.randint(1, 100) > chance:
         return 1

@@ -145,6 +145,26 @@ def test_single_is_common_and_multi_is_bounded():
     )
 
 
+def test_default_counts_include_four_and_respect_available_bots():
+    choose = chatter_guild_login._choose_responder_count
+    for count in (2, 3, 4):
+        with patch.object(
+            chatter_guild_login.random, 'randint',
+            side_effect=[75, count],
+        ) as roll:
+            assert choose({}, 12) == count
+            assert roll.call_args.args == (2, 4)
+    with patch.object(
+        chatter_guild_login.random, 'randint', return_value=76,
+    ):
+        assert choose({}, 12) == 1
+    with patch.object(
+        chatter_guild_login.random, 'randint', side_effect=[1, 2],
+    ) as roll:
+        assert choose({}, 2) == 2
+        assert roll.call_args.args == (2, 2)
+
+
 def test_first_message_has_no_second_delay():
     messages = [
         {'name': 'Aliss', 'message': 'Welcome, Calwen.'},

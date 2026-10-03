@@ -5,6 +5,7 @@
 #include "LLMChatterAmbient.h"
 #include "LLMChatterBossDialogue.h"
 #include "LLMChatterConfig.h"
+#include "LLMChatterScreenshot.h"
 #include "LLMChatterDelivery.h"
 #include "LLMChatterGuild.h"
 #include "LLMChatterGroup.h"
@@ -351,6 +352,7 @@ public:
     void OnUpdate(uint32 /*diff*/) override
     {
         UpdatePendingGuildLoginGreetings();
+        UpdateScreenshotProximity();
 
         if (!sLLMChatterConfig->IsEnabled())
             return;
@@ -915,8 +917,7 @@ private:
             if (!map || !map->IsRaid())
                 continue;
 
-            if (player->IsMounted()
-                || player->IsFlying())
+            if (player->IsFlying())
                 continue;
 
             Group* group = player->GetGroup();
