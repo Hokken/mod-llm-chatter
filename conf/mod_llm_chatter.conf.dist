@@ -1243,10 +1243,26 @@ LLMChatter.ProximityChatter.MaxConversationLines = 4
 
 #
 #   LLMChatter.ProximityChatter.ConversationLineDelay
-#       Seconds between proximity conversation lines.
+#       Fixed seconds between lines when DynamicPacing.Enable = 0.
 #       Default: 2
 #
 LLMChatter.ProximityChatter.ConversationLineDelay = 2
+
+#
+#   LLMChatter.ProximityChatter.DynamicPacing.* [BRIDGE]
+#       Length-aware gaps between nearby conversation lines. The first
+#       line has no added delay. Reading and typing overlap: the longer
+#       of the previous and current visible lines sets the length term.
+#       MinSeconds + characters / CharsPerSecond sets the base gap,
+#       bounded by MaxSeconds, with JitterPercent variation inside bounds.
+#       Defaults: enabled, 3-8 seconds, 20 chars/sec, 20% variation.
+#       Set Enable = 0 to use ConversationLineDelay instead.
+#
+LLMChatter.ProximityChatter.DynamicPacing.Enable = 1
+LLMChatter.ProximityChatter.DynamicPacing.MinSeconds = 3
+LLMChatter.ProximityChatter.DynamicPacing.MaxSeconds = 8
+LLMChatter.ProximityChatter.DynamicPacing.CharsPerSecond = 20
+LLMChatter.ProximityChatter.DynamicPacing.JitterPercent = 20
 
 #
 #   LLMChatter.ProximityChatter.ReplyWindowSeconds
@@ -2667,18 +2683,19 @@ LLMChatter.GuildChatter.MaxReferenceLines = 2
 
 #
 #   LLMChatter.GuildChatter.LoginGreeting.MultiReplyChance
-#       Chance (0-100) that two or three Guild bots greet
-#       the player instead of the usual single greeting.
-#       Default: 20
+#       Chance (0-100) that two to four Guild bots greet
+#       the player instead of a single greeting. With four eligible
+#       bots and MaxResponders = 4, 75 gives each count equal odds.
+#       Default: 75
 #
-LLMChatter.GuildChatter.LoginGreeting.MultiReplyChance = 20
+LLMChatter.GuildChatter.LoginGreeting.MultiReplyChance = 75
 
 #
 #   LLMChatter.GuildChatter.LoginGreeting.MaxResponders
-#       Maximum greeting bots. Supported range is 1-3.
-#       Default: 3
+#       Maximum greeting bots. Supported range is 1-4.
+#       Default: 4
 #
-LLMChatter.GuildChatter.LoginGreeting.MaxResponders = 3
+LLMChatter.GuildChatter.LoginGreeting.MaxResponders = 4
 
 #
 #   LLMChatter.GuildChatter.LoginGreeting.PlayerNameChance
@@ -4016,13 +4033,54 @@ LLMChatter.Screenshot.JpegQuality = 75
 
 #
 #   LLMChatter.Screenshot.BoundAccountId
-#       Bind this screenshot agent to a specific player
-#       account so the observation is routed to the correct
-#       group. Required for multi-player servers.
-#       For single-player, leave at 0 to auto-detect.
-#       Find your ID: SELECT id FROM acore_auth.account
-#         WHERE username = 'YOURNAME'
-#       Default: 0 (auto-detect first active group)
+#       Bind observations to the account in the captured WoW window.
+#       Required for multi-player servers and always required for NPC
+#       proximity. Zero auto-detects a group for Party only.
+#       Consumed by host and worldserver: restart host and reload server
+#       config after edits. Find your ID in acore_auth.account.
+#       Default: 0 (Party auto-detection; NPC proximity unavailable)
 #
 LLMChatter.Screenshot.BoundAccountId = 0
 
+#
+#   LLMChatter.Screenshot.Proximity.Enable
+#       Enable screenshot-triggered nearby NPC chatter independently of
+#       Party, including while solo. Requires the characters migration,
+#       ProximityChatter.Enable and an explicit Screenshot.BoundAccountId.
+#       Host and worldserver setting: restart host and reload server config.
+#       Default: 0 (disabled)
+#
+LLMChatter.Screenshot.Proximity.Enable = 0
+
+#
+#   LLMChatter.Screenshot.Proximity.Chance
+#       Host-side chance after the existing Screenshot.Chance cycle roll.
+#       Party has no additional roll. Range: 0-100. Restart the host agent.
+#       Default: 30
+#
+LLMChatter.Screenshot.Proximity.Chance = 30
+
+#
+#   LLMChatter.Screenshot.Proximity.PollIntervalMs
+#       Worldserver mailbox polling interval. Clamped to 100-10000 ms.
+#       Reload server config after changing this setting.
+#       Default: 1000
+#
+LLMChatter.Screenshot.Proximity.PollIntervalMs = 1000
+
+#
+#   LLMChatter.Screenshot.Proximity.RequestTimeoutSeconds
+#       Host wait for server preflight. Clamped to 1-30 seconds.
+#       Restart the host agent after changing this setting.
+#       Default: 5
+#
+LLMChatter.Screenshot.Proximity.RequestTimeoutSeconds = 5
+
+#
+#   LLMChatter.Screenshot.Proximity.MaxAgeSeconds
+#       Server preflight-to-consumption lifetime, clamped to 5-300 seconds.
+#       Final speech uses normal event expiry plus live session/range checks.
+#       Reload server config after changing this setting.
+#       Default: 60
+#
+LLMChatter.Screenshot.Proximity.MaxAgeSeconds = 60
