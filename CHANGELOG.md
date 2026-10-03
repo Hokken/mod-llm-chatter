@@ -25,6 +25,66 @@
   target guids; the guild idle payload carries the zone weather) and
   restart the bridge. No database migration is needed.
 
+### 2026-10-03 - Chat Parsing and Ambient Speaker Pacing
+
+* **Chat parsing**: When the model writes its `emote`, `action` or
+  `thread` fields inside the message text, cut them off before delivery
+  in single replies, truncated replies and conversation lines.
+  Previously the raw JSON could appear in General chat. Only a trailing
+  block that is valid JSON made of those fields is removed; quoted
+  labels in normal speech are kept.
+* **Ambient speaker pacing**: Set `BotSpeakerCooldownSeconds` to 120
+  seconds in both the normal template and quieter preset, down from
+  900. This reduces long silences between a bot's ambient turns;
+  party chat and event reactions are unaffected. Existing configurations
+  retain their explicit value.
+* **Upgrade**: Restart the chatter bridge. No rebuild or database
+  migration is required.
+
+### 2026-10-03 - Screenshot Vision Hardening
+
+* **Vision model**: Recommend and default to `gpt-6-luna` for screenshot
+  analysis. It accepts image input and costs less than `gpt-4o-mini`.
+  Existing configurations keep their explicit `VisionModel`.
+* **In-character conversations**: Roleplay screenshot conversations now
+  carry the shared in-character voice guidance, matching single comments.
+* **Real-player grouping**: Without `BoundAccountId`, the screenshot agent
+  only picks bots whose group has an online real player, using the same
+  rule as the bridge.
+* **Config parsing**: The screenshot agent reuses the bridge's config
+  parser, so a BOM or non-UTF-8 characters no longer stop it at startup.
+* **Clean shutdown**: Pressing Ctrl+C stops the screenshot agent with a
+  log line instead of a Python traceback.
+* **Documentation**: The README and the screenshot defaults table now
+  match the configuration templates, and the duplicate
+  `Screenshot.DBHost` entry is gone.
+* **Upgrade**: Restart the chatter bridge and the host-side screenshot
+  agent. No rebuild or database migration is required.
+
+### 2026-10-02 - Model Compatibility, NPC Facing and Responsive Chatter
+
+* **Model capabilities**: Use one ordered capability table for OpenAI
+  request parameters and reasoning-token budgets. GPT-6 Luna and GPT-6 Sol
+  honor explicit `none` reasoning without inflating the output budget;
+  other reasoning models keep conservative fallbacks and parameter-rejection
+  recovery. OpenRouter and fine-tuned model names share the resolver.
+* **NPC facing safety**: Only rotate creatures with idle default and current
+  movement and an empty or idle active movement slot. Wandering and
+  patrolling NPCs can still speak and emote without having their movement
+  replaced by a facing spline. Bot behavior is unchanged. This does not
+  repair movement interruptions caused by stock NPC scripts.
+* **Screenshot reactions**: Treat scene descriptions as background for
+  personal reactions rather than listing visible objects. Preserve scene
+  atmosphere, prefer recognized visual time of day over clock context,
+  and frame roleplay conversations as the speakers' surroundings.
+* **General reply cooldown**: Align both configuration templates, the server
+  fallback and the bridge's displayed default at 3 seconds per zone and
+  faction. Previously the normal template and fallback used 0, while the
+  quieter preset used 30. Set 0 to disable throttling.
+* **Upgrade**: Rebuild worldserver for the NPC-facing change and restart the
+  chatter bridge for Python changes. Existing configurations retain their
+  explicit cooldown; set it to 3 and run `.reload config` to apply the new
+  value. No database migration is required.
 ### 2026-10-02 - Arathi Basin Objectives and Battleground Arrival Variety
 
 * **Arathi Basin objectives**: Observe claims, assaults, counter-claims,

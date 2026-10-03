@@ -1641,7 +1641,7 @@ def main():
         f"  QuestionChance: "
         f"{config.get('LLMChatter.GeneralChat.QuestionChance', 100)}%"
         f"  Cooldown: "
-        f"{config.get('LLMChatter.GeneralChat.Cooldown', 0)}s"
+        f"{config.get('LLMChatter.GeneralChat.Cooldown', 3)}s"
     )
     logger.info("-" * 60)
     logger.info("Guild chatter:")
