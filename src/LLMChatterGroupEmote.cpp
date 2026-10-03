@@ -513,8 +513,7 @@ uint32 HandleEmoteAtUngroupedBot(
     {
         return 0;
     }
-    HoldBotForReply(
-        targetBot, player, LLM_CHATTER_MAX_REPLY_HOLD_MS);
+    HoldBotForReply(targetBot, player, "proximity_player_emote");
     return mirrorEmote;
 }
 

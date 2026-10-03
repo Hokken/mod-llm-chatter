@@ -3673,14 +3673,35 @@ are skipped.
 ### Reply hold
 
 `HoldBotForReply()` (`LLMChatterReplyHold.cpp`) is used when a player
-emotes at an ungrouped bot or addresses it with a `/say` emote. It stops
-the bot, turns it toward the player and delays its next AI check for at
-most `LLM_CHATTER_MAX_REPLY_HOLD_MS` (4 seconds). The motion master is
-not cleared, so following, travelling and questing resume afterwards. A
-bot already in combat is never held, and the hold is released at once
-(`SetNextCheckDelay(0)`) when the bot enters combat or when one of its
-lines is delivered or dropped. Directed messages dropped by delivery
-re-checks, and dropped mirror emotes, are logged at INFO.
+emotes at an ungrouped bot or addresses it with a `/say` emote, so the
+bot is still nearby when its reply arrives.
+
+- Duration: `ProximityChatter.ReplyHoldMs` (default 4000, `0` disables,
+  capped at 10000 by `LLM_CHATTER_MAX_REPLY_HOLD_MS`), read on every hold,
+  so `.reload config` applies it.
+- Only a bot that is standing still is held: the hold uses the same
+  `IsSafeForChatterFacing()` check as the other chatter facing. A moving
+  bot is not stopped or turned, so its travel is never interrupted. A bot
+  in combat or in flight is never held.
+- A held bot turns toward the player only when
+  `GroupChatter.FacingEnable` is on.
+- The hold raises the bot's AI check delay to the hold length only if
+  it is shorter; a longer delay set by the bot's own AI is left alone.
+- The hold is tied to the event type of the reply it waits for
+  (`proximity_player_emote`). It ends early when the bot enters combat,
+  or when a line of that event type from the bot is delivered or dropped
+  for good, including the speakers of a directed scene cancelled after a
+  drop. A line put back on the queue for a retry, or an unrelated line
+  from the same bot, keeps the hold.
+- Ending early takes back only what the hold added: the delay is lowered
+  to what was left of the bot's own earlier delay, and left alone when
+  something else raised it in the meantime.
+- While held, the bot's AI does not run, so whatever it was doing picks up
+  only when its AI next runs; that may be a new plan rather than the old
+  one.
+
+Directed messages dropped by delivery re-checks, and dropped mirror
+emotes, are logged at INFO.
 
 ### Roleplay wording
 
@@ -3688,9 +3709,11 @@ re-checks, and dropped mirror emotes, are logged at INFO.
   or merchant offering goods aloud. The vendor price is given in words
   (`format_price_words()`, e.g. "one gold and twenty silver coins"), the
   rules ask for a conversational price with every number written as words,
-  and trade shorthand is forbidden. `spell_out_numbers()` then rewrites any
-  leftover "1g20s", "50 silver" or digits in the delivered text, leaving
-  link markup untouched. Normal mode keeps WTS-style posts.
+  and trade shorthand is forbidden. With `LLMChatter.Language` set to
+  English, `spell_out_trade_numbers()` then rewrites any leftover "1g20s",
+  "50 silver" or digits in the delivered text, leaving link markup
+  untouched. It writes English words, so other languages keep the model's
+  own wording. Normal mode keeps WTS-style posts.
 - Level-up: `bot_group_levelup` carries `leveler_guid`, `leveler_class`,
   `leveler_race` and `leveler_gender`. In roleplay the prompt never names a
   level: it describes how the leveler grew stronger in their calling

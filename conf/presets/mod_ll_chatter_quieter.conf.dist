@@ -1307,6 +1307,22 @@ LLMChatter.ProximityChatter.MaxTokensPerLine = 120
 LLMChatter.ProximityChatter.FacingResetDelay = 8
 
 #
+#   LLMChatter.ProximityChatter.ReplyHoldMs
+#       Milliseconds an ungrouped bot that owes a player a /say
+#       reply (after an emote at it) stays in place so it is
+#       still nearby when the reply arrives. Only a bot that is
+#       standing still is held; a moving bot keeps moving. With
+#       GroupChatter.FacingEnable on, the held bot also turns
+#       toward the player. The hold only lengthens the bot's AI
+#       delay, never shortens it, and ends early when the bot
+#       enters combat or its reply is delivered or dropped.
+#       Capped at 10000. Applies after .reload config.
+#       0 - Disabled
+#       Default: 4000
+#
+LLMChatter.ProximityChatter.ReplyHoldMs = 4000
+
+#
 #   LLMChatter.ProximityChatter.DirectedMaxExtraReactors
 #       Maximum nearby reactors that may join a directed player /say or
 #       emote interaction in addition to the addressed speaker. Range: 0-2.

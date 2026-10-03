@@ -2996,8 +2996,7 @@ bool HandleProximityPlayerbotEmote(
         textEmote, mirrorEmote,
         "player_inclusive", addressedSpeaks, isCustom);
     if (queued && addressedSpeaks)
-        HoldBotForReply(
-            bot, player, LLM_CHATTER_MAX_REPLY_HOLD_MS);
+        HoldBotForReply(bot, player, "proximity_player_emote");
     return queued;
 }
 

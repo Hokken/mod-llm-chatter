@@ -247,6 +247,19 @@ void FinalizeDroppedMessage(
         eventType, messageId, eventId,
         reason ? reason : "delivery_failed");
 
+    // The rest of the scene is cancelled, so its speakers owe no reply.
+    if (QueryResult held = CharacterDatabase.Query(
+            "SELECT DISTINCT bot_guid FROM llm_chatter_messages "
+            "WHERE event_id = {} AND sequence > {} "
+            "AND delivered = 0 AND bot_guid > 0",
+            eventId, sequence))
+    {
+        do
+            ReleaseBotReplyHold(
+                held->Fetch()[0].Get<uint32>(), eventType);
+        while (held->NextRow());
+    }
+
     CharacterDatabase.DirectExecute(
         "UPDATE llm_chatter_messages "
         "SET delivered = 1, delivered_at = NOW(), "
@@ -467,6 +480,10 @@ void DeliverPendingMessagesImpl()
         fields[22].IsNull()
             ? 0
             : fields[22].Get<uint32>();
+
+    // Every return below ends this row for good, except the retry
+    // at the end, which keeps the bot's reply hold.
+    ReplyHoldDeliveryScope replyHold(botGuid, eventType);
 
     // ActionAsEmote disabled: fall back to the historical
     // inline "*action* text" rendering so the action is not
@@ -1554,9 +1571,6 @@ void DeliverPendingMessagesImpl()
             message);
     }
 
-    if (sent || botUnavailable)
-        ReleaseBotReplyHold(botGuid);
-
     if (sent)
     {
         CharacterDatabase.DirectExecute(
@@ -1582,6 +1596,7 @@ void DeliverPendingMessagesImpl()
         // worth another attempt; an action already acted out
         // is not, so it is consumed here and the retry
         // delivers the line on its own.
+        replyHold.Keep();
         if (actionEmitted)
         {
             CharacterDatabase.DirectExecute(

@@ -21,16 +21,20 @@
   online after the 120-second rejoin window is now registered (traits
   restored silently, no greeting). Before, such bots stayed silent for the
   whole session.
-* **Reply hold**: A bot you emote at, or address with a `/say` emote, stops
-  and faces you for at most 4 seconds so its reply is not lost. The hold
-  no longer clears the bot's movement and ends at once when the bot enters
-  combat or its line is delivered.
+* **Reply hold**: A standing bot you emote at, or address with a `/say`
+  emote, waits for its reply (`ProximityChatter.ReplyHoldMs`, default 4
+  seconds, `0` disables) and turns to you when facing is enabled. A moving
+  bot keeps moving. The hold never shortens the bot's own AI delays and
+  ends when the bot enters combat or its reply is delivered or dropped.
 * **Roleplay wording**: Trade offers speak as people in the world with
   prices in coins written as words; level-ups praise how the character
   grew stronger in their calling (Shadow and Light priests apart) instead
   of naming a level; roleplay prompts forbid player and trade slang.
+  Digits left in a trade line are spelled out only when the chatter
+  language is English.
+* **Configuration**: `ProximityChatter.ReplyHoldMs`.
 * **Upgrade**: Rebuild the worldserver and restart the bridge. No database
-  migration or new configuration keys.
+  migration.
 
 ### 2026-10-03 - Chat Parsing and Ambient Speaker Pacing
 

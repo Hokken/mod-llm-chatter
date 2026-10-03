@@ -1455,6 +1455,15 @@ def spell_out_numbers(text: str) -> str:
     return "".join(pieces)
 
 
+def spell_out_trade_numbers(text: str) -> str:
+    """spell_out_numbers() for English chat only. It writes English
+    words, so other languages keep the model's own wording (the trade
+    prompt already asks for numbers in words)."""
+    if _language:
+        return text
+    return spell_out_numbers(text)
+
+
 def _spell_plain(text: str) -> str:
     text = _COIN_RE.sub(_coin_match_words, text)
     return _DIGITS_RE.sub(lambda m: number_to_words(int(m.group(0))), text)

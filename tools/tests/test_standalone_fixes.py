@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
 """Standalone chat fixes: talents from client data, emoji stripping,
 link-safe cleanup and shortening, the short reply hold, roleplay trade
-prices, roleplay level-up praise and the roleplay slang ban.
+prices (English only), roleplay level-up praise and the roleplay slang
+ban.
 
 Run directly from the module root:
   python tools/tests/test_standalone_fixes.py
 """
 
 import importlib
+import json
 import sys
 import types
 from pathlib import Path
@@ -340,27 +342,186 @@ def test_priest_style_follows_a_spec_switch():
     assert class_style(None, 0, 'Priest') == 'Light Priest'
 
 
+def _trade_patches(lines, inserted):
+    import chatter_ambient as ambient
+    from unittest.mock import patch
+
+    def fake_llm(client, prompt, config, **kwargs):
+        return json.dumps(lines)
+
+    def fake_insert(db, bot_guid, bot_name, message, **kwargs):
+        inserted.append(message)
+        return len(inserted)
+
+    return [
+        patch.object(ambient, 'call_llm', side_effect=fake_llm),
+        patch.object(ambient, 'insert_chat_message',
+                     side_effect=fake_insert),
+        patch.object(ambient, 'get_recent_zone_messages', return_value=[]),
+        patch.object(ambient, 'build_gear_context', return_value=''),
+        patch.object(ambient, 'prepare_channel_persona', return_value=None),
+        patch.object(ambient, 'build_talent_context', return_value=None),
+        patch.object(ambient, 'maybe_queue_group_general_reaction'),
+        patch.object(ambient, '_zone_delivery_delay', return_value=1),
+        patch.object(ambient, '_reserve_zone_delivery_window',
+                     return_value=1),
+        patch.object(ambient, 'is_too_similar', return_value=False),
+    ]
+
+
+class _TradeDb:
+    def cursor(self, *args, **kwargs):
+        class Cursor:
+            def execute(self, sql, params=()):
+                pass
+
+            def fetchone(self):
+                return None
+
+            def fetchall(self):
+                return []
+
+        return Cursor()
+
+    def commit(self):
+        pass
+
+
+def _run_trade(language, lines, conversation):
+    import chatter_ambient as ambient
+    import chatter_shared
+    import chatter_threads
+    chatter_threads.configure_threads({'LLMChatter.Threads.Enable': 0})
+    chatter_shared.set_language(language)
+    request = {
+        'id': 901, 'zone_id': 85, 'area_id': 85,
+        'message_type': 'trade', 'bot1_race': 5,
+        'item_context': json.dumps(dict(POTION, item_id=6149)),
+    }
+    bot = {'guid': 11, 'name': 'Annata', 'class': 'Warlock',
+           'race': 'Undead', 'level': 40, 'zone': 'Tirisfal Glades'}
+    inserted = []
+    db = _TradeDb()
+    patches = _trade_patches(lines, inserted)
+    for p in patches:
+        p.start()
+    try:
+        if conversation:
+            ambient.process_conversation(
+                db, db.cursor(), None, RP, request,
+                [bot, dict(bot, guid=12, name='Borin', race='Orc')])
+        else:
+            ambient.process_statement(
+                db, db.cursor(), None, RP, request, bot)
+    finally:
+        for p in patches:
+            p.stop()
+        chatter_shared.set_language('GB')
+        chatter_threads.reset_settings()
+    return inserted
+
+
+def test_trade_prices_keep_a_non_english_language():
+    french = 'Je vends 10 potions pour 50 pieces.'
+    assert _run_trade('FR', {'message': french}, False) == [french]
+    lines = [{'speaker': 'Annata', 'message': french},
+             {'speaker': 'Borin', 'message': 'Pour 50 pieces, oui.'}]
+    assert _run_trade('FR', lines, True) == [
+        french, 'Pour 50 pieces, oui.']
+
+
+def test_trade_prices_are_spelled_out_in_english():
+    english = 'Ten potions for 50 silver.'
+    assert _run_trade('GB', {'message': english}, False) == [
+        'Ten potions for fifty silver.']
+    lines = [{'speaker': 'Annata', 'message': english},
+             {'speaker': 'Borin', 'message': 'I will take 2 of them.'}]
+    assert _run_trade('GB', lines, True) == [
+        'Ten potions for fifty silver.', 'I will take two of them.']
+
+
 # -- Reply hold ----------------------------------------------------------
 
-def test_reply_hold_is_short_and_keeps_movement():
+def _function(source: str, signature: str) -> str:
+    start = source.index(signature)
+    end = source.find('\n}\n', start)
+    return source[start:end]
+
+
+def test_reply_hold_leaves_moving_bots_alone():
     source = _read('LLMChatterReplyHold.cpp')
-    header = _read('LLMChatterReplyHold.h')
-    assert 'LLM_CHATTER_MAX_REPLY_HOLD_MS = 4000' in header
+    hold = _function(source, 'void HoldBotForReply(')
+    assert 'StopMoving' not in source
     assert 'GetMotionMaster' not in source
-    assert 'std::min(holdMs, LLM_CHATTER_MAX_REPLY_HOLD_MS)' in source
-    assert 'IsInCombat()' in source
+    assert '!IsSafeForChatterFacing(bot)' in hold
+    facing = hold.index('SetFacingToObject(player)')
+    assert hold.index('!IsSafeForChatterFacing(bot)') < facing
+    assert hold.index('_facingEnable') < facing
+    assert 'IsInCombat()' in hold
 
 
-def test_reply_hold_ends_on_combat_and_delivery():
+def test_reply_hold_duration_is_configurable():
+    header = _read('LLMChatterReplyHold.h')
+    hold = _function(_read('LLMChatterReplyHold.cpp'),
+                     'void HoldBotForReply(')
+    assert 'LLM_CHATTER_MAX_REPLY_HOLD_MS = 10000' in header
+    assert '_proxChatterReplyHoldMs,\n        LLM_CHATTER_MAX_REPLY_HOLD_MS' \
+        in hold
+    assert hold.index('!holdMs') < hold.index('SetFacingToObject')
+    assert '"ReplyHoldMs", 4000' in _read('LLMChatterConfig.cpp')
+    for conf in ('mod_llm_chatter.conf.dist',
+                 'presets/mod_ll_chatter_quieter.conf.dist'):
+        text = (MODULE_DIR / 'conf' / conf).read_text(encoding='utf-8')
+        block = text.split('#   LLMChatter.ProximityChatter.ReplyHoldMs')[1]
+        block = block.split('\n\n')[0]
+        assert '0 - Disabled' in block and 'Capped at 10000' in block
+        assert block.rstrip().endswith(
+            'LLMChatter.ProximityChatter.ReplyHoldMs = 4000'), conf
+
+
+def test_reply_hold_never_shortens_other_ai_delays():
     source = _read('LLMChatterReplyHold.cpp')
-    assert 'PLAYERHOOK_ON_PLAYER_ENTER_COMBAT' in source
-    assert 'SetNextCheckDelay(0)' in source
-    delivery = _read('LLMChatterDelivery.cpp')
-    assert 'ReleaseBotReplyHold(botGuid)' in delivery
-    script = _read('LLMChatterScript.cpp')
-    assert 'AddLLMChatterReplyHoldScripts();' in script
+    hold = _function(source, 'void HoldBotForReply(')
+    release = _function(source, 'void ReleaseHold(')
+    assert 'SetNextCheckDelay(0)' not in source
+    assert hold.index('if (priorMs >= holdMs)') < hold.index(
+        'ai->SetNextCheckDelay(holdMs)')
+    assert 'if (current > hold.heldMs - elapsed + kReleaseSlackMs)' \
+        in release
+    assert release.index('kReleaseSlackMs)') < release.index(
+        'ai->SetNextCheckDelay(priorLeft)')
+    assert 'if (priorLeft < current)' in release
+
+
+def test_reply_hold_is_released_only_by_its_own_reply():
+    source = _read('LLMChatterReplyHold.cpp')
+    release = _function(source, 'void ReleaseHold(')
+    assert 'it->second.eventType != *eventType' in release
     for name in ('LLMChatterGroupEmote.cpp', 'LLMChatterProximity.cpp'):
-        assert 'LLM_CHATTER_MAX_REPLY_HOLD_MS' in _read(name), name
+        assert 'HoldBotForReply(' in _read(name)
+        assert ', "proximity_player_emote");' in _read(name), name
+    proximity = _read('LLMChatterProximity.cpp')
+    queue = _function(proximity, 'bool QueuePlayerEmoteProximityEvent(')
+    assert '"proximity_player_emote",' in queue
+    assert 'ReleaseHold(player->GetGUID().GetCounter(), nullptr)' in source
+    assert 'AddLLMChatterReplyHoldScripts();' in _read('LLMChatterScript.cpp')
+
+
+def test_reply_hold_ends_on_terminal_drops_but_not_on_retry():
+    delivery = _read('LLMChatterDelivery.cpp')
+    body = _function(delivery, 'void DeliverPendingMessagesImpl()')
+    scope = body.index('ReplyHoldDeliveryScope replyHold(botGuid, eventType);')
+    assert scope < body.index('FinalizeDroppedMessage(')
+    retry = body.index('// Unclaim and reschedule for retry.')
+    keep = body.index('replyHold.Keep();')
+    assert retry < keep < body.index('"SET delivered = 0, "', retry)
+    assert body.count('replyHold.Keep();') == 1
+    assert 'ReleaseBotReplyHold(botGuid)' not in delivery
+    finalize = _function(delivery, 'void FinalizeDroppedMessage(')
+    assert finalize.index('ReleaseBotReplyHold(') < finalize.index(
+        "cancelled_after_directed_drop")
+    header = _read('LLMChatterReplyHold.h')
+    assert 'if (!_keep)\n            ReleaseBotReplyHold(' in header
 
 
 if __name__ == '__main__':
