@@ -3706,6 +3706,79 @@ Existing installations must also apply
 `data/sql/characters/updates/20260725_guild_login_greeting.sql` because
 `llm_chatter_events.event_type` is an SQL enum.
 
+## 13w. Guild Member Events
+
+`LLMChatterGuildMembers.cpp` owns three guild news events. It registers
+its own `GuildScript` (join, promotion, demotion and MOTD hooks) and a
+`WorldScript` that flushes the batched events, through
+`AddLLMChatterGuildMemberScripts()`. `chatter_guild_events.py` handles
+them in the bridge, with the prompt, validation and delivery helpers in
+`chatter_guild_event_common.py`.
+
+### Join greetings
+
+When a guild with an online real player gains a member, one to three
+Guild bots react to the newcomer. Joins within `JoinGreeting.BatchSeconds`
+share one event. A newcomer who is an online bot may answer once
+(`JoinGreeting.SubjectReplyChance`). A real player who joins while online
+gets a Guild conversation session at once.
+
+### Rank changes
+
+In-game promotions and demotions are held until the guild has had no
+change for `RankChange.DebounceSeconds` (default 30), then one to three
+bots comment. The prompt carries the old and new rank names and the
+direction. Several changes become one event, and a member whose rank ends
+where it started is left out. Members who joined within
+`RankChange.NewMemberGraceMinutes` (default 30) are not commented on. The
+changed member may answer if it is an online bot. GM commands such as
+`.guild rank` do not raise a guild event and are not noticed.
+
+### MOTD comments
+
+A new MOTD gets one or two reactions after `MotdComment.DelaySeconds`. The
+MOTD is quoted as a note from the officers, never as instructions, and the
+bots must not invent details beyond it.
+
+### Personality, validation and delivery
+
+- The prompts list reactions that fit (a greeting, a question, a dry
+  remark, a shrug) instead of prescribing a mood, and tell each speaker to
+  react the way its own personality and tone suggest.
+- A multi-speaker reply must give every chosen speaker exactly one line
+  and no line to anyone else. A misplaced first line is moved to the
+  front; anything else gets one repair attempt and is dropped if it still
+  fails.
+- The lines are ambient Guild Chat. `RecordDeliveredGuildLine()` does not
+  record them as replies and they do not mark a recent player interaction,
+  so they never suppress the player's own Guild conversation.
+
+### Configuration
+
+| Key | Default | Owner | Purpose |
+|-----|---------|-------|---------|
+| `JoinGreeting.Enable` | 1 | Server/Bridge | Join greeting toggle |
+| `JoinGreeting.Chance` | 100 | Server | Chance per join batch |
+| `JoinGreeting.BatchSeconds` | 10 | Server | Join batching window |
+| `JoinGreeting.MaxResponders` | 3 | Bridge | Reacting bots (1-3) |
+| `JoinGreeting.SubjectReplyChance` | 70 | Bridge | Bot newcomer answers |
+| `RankChange.Enable` | 1 | Server/Bridge | Rank-change toggle |
+| `RankChange.Chance` | 100 | Server | Chance per batch |
+| `RankChange.DebounceSeconds` | 30 | Server | Quiet time before commenting |
+| `RankChange.NewMemberGraceMinutes` | 30 | Server | No comments for new members |
+| `RankChange.MaxResponders` | 3 | Bridge | Commenting bots (1-3) |
+| `RankChange.SubjectReplyChance` | 70 | Bridge | Changed bot answers |
+| `MotdComment.Enable` | 1 | Server/Bridge | MOTD comment toggle |
+| `MotdComment.Chance` | 100 | Server | Chance per MOTD change |
+| `MotdComment.DelaySeconds` | 20 | Server | Wait after the change |
+| `MotdComment.MaxResponders` | 2 | Bridge | Commenting bots (1-3) |
+| `MemberEvents.MaxCandidates` | 12 | Server | Live candidate cap |
+| `MemberEvents.MaxCharacters` | 120 | Bridge | Per-line hard cap |
+
+All keys are under `LLMChatter.GuildChatter.`. Existing installations must
+apply `data/sql/characters/updates/20261002_guild_member_events.sql`
+because `llm_chatter_events.event_type` is an SQL enum.
+
 ---
 
 ## 14. JSON and Queue Contracts

@@ -287,7 +287,7 @@ uint32 RollConfiguredDelay(
         sLLMChatterConfig->*maxMember);
 }
 
-constexpr std::array<EventPriorityRule, 41>
+constexpr std::array<EventPriorityRule, 42>
     kTierPriorityRules = {{
         {"bot_group_combat",        PRIORITY_CRITICAL},
         {"bot_group_spell_cast",    PRIORITY_CRITICAL},
@@ -307,6 +307,7 @@ constexpr std::array<EventPriorityRule, 41>
         {"player_general_msg",      PRIORITY_HIGH},
         {"guild_player_message",    PRIORITY_HIGH},
         {"guild_login_greeting",    PRIORITY_HIGH},
+        {"guild_member_join",       PRIORITY_HIGH},
         {"bot_group_death",         PRIORITY_HIGH},
         {"bot_group_wipe",          PRIORITY_HIGH},
         {"bot_group_duel_start",    PRIORITY_HIGH},

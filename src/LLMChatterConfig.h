@@ -329,6 +329,17 @@ public:
     uint32 _guildLoginGreetingRetryInterval{5};
     uint32 _guildLoginGreetingReadinessTimeout{90};
     uint32 _guildLoginGreetingMaxCandidates{12};
+    bool _guildJoinGreetingEnable{true};
+    uint32 _guildJoinGreetingChance{100};
+    uint32 _guildJoinGreetingBatchSeconds{10};
+    bool _guildRankChangeEnable{true};
+    uint32 _guildRankChangeChance{100};
+    uint32 _guildRankChangeDebounceSeconds{30};
+    uint32 _guildRankChangeNewMemberGraceMinutes{30};
+    bool _guildMotdCommentEnable{true};
+    uint32 _guildMotdCommentChance{100};
+    uint32 _guildMotdCommentDelaySeconds{20};
+    uint32 _guildMemberEventMaxCandidates{12};
 
     // Zone intrusion alerts
     bool _zoneIntrusionEnable;

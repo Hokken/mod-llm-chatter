@@ -993,6 +993,7 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterWorld.cpp` | ~1000 | WorldScript ownership, thin ambient/nearby/delivery/proximity/boss delegation, transport polling and route announcements, transport-private state, retained world-private `QueueEvent()` helper |
 | `src/LLMChatterGuild.cpp` | ~750 | Player-driven Guild Chat capture, per-login session lifecycle, deferred login greetings, eligible-bot selection, stale-turn cancellation, recent-interaction suppression, and delivered-line history writes |
 | `src/LLMChatterGuild.h` | ~20 | Guild registration and delivery/world cross-call declarations |
+| `src/LLMChatterGuildMembers.cpp` | ~660 | Guild news events: own `GuildScript` (join, promotion, demotion, MOTD) and `WorldScript` flush, join batching, rank-change debounce, MOTD delay, and event queueing |
 | `src/LLMChatterGroup.cpp` | ~1350 | Shared group state definitions, shared helpers (`GroupHasRealPlayer`, `GetRandomBotInGroup`, `CountBotsInGroup`, pre-cache helpers), disabled-by-default MultiBot-Chatless `MBOT` fallback handler, `CleanupGroupSession()` coordinator, thin `LLMChatterGroupPlayerScript` shell wrappers, registration |
 | `src/LLMChatterGroupCombat.cpp` | ~2550 | Remaining group PlayerScript implementation bodies (kill/death/loot/combat/chat/level/quest/achievement/spell/resurrect/corpse-run/dungeon-entry/emote dispatch), text-emote target classification and group gating, zone transition handling, combat state callouts, `MBOT` debug-log suppression, file-local `QueueStateCallout()` |
 | `src/LLMChatterGroupInternal.h` | ~235 | Shared group internal structs, cooldown/batch/mutex declarations, helper declarations, domain entry points, and `EmoteTargetType` |
@@ -1025,6 +1026,7 @@ Session 69 added two scheduling controls around that model:
 
 - `AddLLMChatterWorldScripts()`
 - `AddLLMChatterGuildScripts()`
+- `AddLLMChatterGuildMemberScripts()`
 - `AddLLMChatterGroupScripts()`
 - `AddLLMChatterPlayerScripts()`
 - `AddLLMChatterLootScripts()`
@@ -1054,8 +1056,13 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_ambient.py` | Ambient statement/conversation generation |
 | `tools/chatter_loot.py` | Real `bot_loot_item` validation, exact-looter resolution, prompt generation, and General delivery |
 | `tools/chatter_guild.py` | Guild prompts and insert orchestration |
+| `tools/chatter_guild_events.py` | Join greetings, rank-change comments and MOTD comments |
+| `tools/chatter_guild_event_common.py` | Shared guild event prompts, speaker-order validation, generation and delivery |
 | `tools/chatter_guild_player.py` | Player-driven Guild replies, reply topology, session-context prompts, and rolling summary compaction |
 | `tools/chatter_guild_login.py` | Real-player login greetings, responder selection, short-message prompts, and greeting pacing |
+| `tools/chatter_guild_profile.py` | Guild profile (Guild Information, MOTD, ranks, Guild Master), character guild lookups, guildmate notes and MOTD wording |
+| `tools/chatter_player_context.py` | Description of the real player (race outlook, class calling) for prompts that address them |
+| `tools/chatter_class_style.py` | Light/Shadow priest split from the active spec's talents |
 
 ### Group domain
 

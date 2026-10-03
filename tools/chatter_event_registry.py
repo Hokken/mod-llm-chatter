@@ -1110,6 +1110,57 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         },
     ),
 
+    # -- Guild news (chatter_guild_events) --------
+
+    'guild_member_join': EventSpec(
+        handler_module='chatter_guild_events',
+        handler_func='process_guild_member_join_event',
+        producer='LLMChatterGuildMembers.cpp',
+        priority='high',
+        description=(
+            'Guild bots react to new guild members'
+        ),
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'team': (str, False),
+            'members': (list, True),
+            'candidates': (list, True),
+        },
+    ),
+
+    'guild_rank_change': EventSpec(
+        handler_module='chatter_guild_events',
+        handler_func='process_guild_rank_change_event',
+        producer='LLMChatterGuildMembers.cpp',
+        description=(
+            'Guild bots comment on promotions and demotions'
+        ),
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'team': (str, False),
+            'changes': (list, True),
+            'candidates': (list, True),
+        },
+    ),
+
+    'guild_motd_comment': EventSpec(
+        handler_module='chatter_guild_events',
+        handler_func='process_guild_motd_comment_event',
+        producer='LLMChatterGuildMembers.cpp',
+        description=(
+            'Guild bots react to a new Message of the Day'
+        ),
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'team': (str, False),
+            'motd': (str, True),
+            'candidates': (list, True),
+        },
+    ),
+
     # -- Real General loot (chatter_loot) ---------
 
     'bot_loot_item': EventSpec(
