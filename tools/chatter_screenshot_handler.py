@@ -48,6 +48,7 @@ from chatter_shared import (
     append_json_instruction,
     strip_conversation_actions,
 )
+from chatter_guild_profile import get_character_guild_name
 from chatter_mode import (
     build_player_chat_guidance,
     build_player_prompt_header,
@@ -275,6 +276,7 @@ def _get_bot_identity(
             get_gender_label(row['gender']),
             mode,
             channel='party',
+            guild_name=get_character_guild_name(db, bot_guid),
         )
     return f"You are {bot_name}."
 
@@ -489,6 +491,7 @@ def _screenshot_conversation(
             'race': get_race_name(char['race']),
             'level': char['level'],
             'gender': get_gender_label(char['gender']),
+            'guild_name': get_character_guild_name(db, guid),
         })
 
     if len(bots) < 2:
@@ -506,9 +509,13 @@ def _screenshot_conversation(
         gender_prefix = (
             f"{b['gender']} " if b.get('gender') else ''
         )
+        guild_part = (
+            f" of the guild \"{b['guild_name']}\""
+            if b.get('guild_name') else ''
+        )
         bot_lines.append(
             f"- {b['name']}: {gender_prefix}"
-            f"{b['race']} {b['class']}, "
+            f"{b['race']} {b['class']}{guild_part}, "
             f"personality: {trait_str}"
             + (
                 f", tone: {tone_map.get(b['name'], '')}"

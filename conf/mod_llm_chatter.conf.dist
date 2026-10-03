@@ -2585,6 +2585,54 @@ LLMChatter.GuildChatter.LoginGreeting.PlayerNameChance = 60
 LLMChatter.GuildChatter.LoginGreeting.MaxCharacters = 100
 
 #
+#   LLMChatter.GuildChatter.MotdChance
+#       Chance (0-100) that an autonomous Guild statement
+#       or conversation uses the Guild's current Message of
+#       the Day as its topic instead of a random one. The
+#       Guild Information text, when set, is always part of
+#       Guild prompts.
+#       When conversation threads are on for Guild chat
+#       (LLMChatter.Threads.GuildEnable), a hit only offers
+#       this topic to the thread's pool source, so
+#       LLMChatter.Threads.PoolTopicWeight decides how often
+#       it is actually used.
+#       Default: 15
+#
+LLMChatter.GuildChatter.MotdChance = 15
+
+#
+#   LLMChatter.GuildChatter.GeneralDiscussionChance
+#       Chance (0-100) that a plain General-channel
+#       conversation becomes a talk about the speakers'
+#       guilds. Needs at least two speakers in a guild.
+#       With conversation threads on for General chat, a hit
+#       only offers this topic to the thread's pool source
+#       (LLMChatter.Threads.PoolTopicWeight).
+#       Default: 10
+#
+LLMChatter.GuildChatter.GeneralDiscussionChance = 10
+
+#
+#   LLMChatter.GuildChatter.GeneralPraiseChance
+#       Chance (0-100) that a plain General-channel
+#       statement from a guilded bot praises its guild.
+#       With conversation threads on for General chat, a hit
+#       only offers this topic to the thread's pool source
+#       (LLMChatter.Threads.PoolTopicWeight).
+#       Default: 8
+#
+LLMChatter.GuildChatter.GeneralPraiseChance = 8
+
+#
+#   LLMChatter.GuildChatter.GeneralPraiseMasterChance
+#       Chance (0-100) that such praise also names the
+#       Guild Master, with race and class. Never used when
+#       the speaker is the Guild Master.
+#       Default: 50
+#
+LLMChatter.GuildChatter.GeneralPraiseMasterChance = 50
+
+#
 #   LLMChatter.GuildChatter.PlayerReplies.MultiReplyChance
 #       Chance (0-100) that two or three bots give
 #       independent reactions to the player after the
@@ -2728,6 +2776,33 @@ LLMChatter.GuildChatter.SessionMemory.SummaryMaxChars = 1200
 #       Default: 20
 #
 LLMChatter.GuildChatter.ZoneNameChance = 20
+
+#
+#   LLMChatter.GuildChatter.ZoneTopicChance
+#       Percent chance (0-100) that an idle Guild line is the
+#       speaker's opinion of its current zone; others agree or
+#       argue.
+#       When conversation threads are on for Guild chat
+#       (LLMChatter.Threads.GuildEnable), a hit only offers
+#       this topic to the thread's pool source, so
+#       LLMChatter.Threads.PoolTopicWeight decides how often
+#       it is actually used.
+#       Default: 10
+#
+LLMChatter.GuildChatter.ZoneTopicChance = 10
+
+#
+#   LLMChatter.GuildChatter.ZoneWeatherTopicChance
+#       Percent chance (0-100) that an idle Guild line is about
+#       the current zone at this hour and in this weather.
+#       When conversation threads are on for Guild chat
+#       (LLMChatter.Threads.GuildEnable), a hit only offers
+#       this topic to the thread's pool source, so
+#       LLMChatter.Threads.PoolTopicWeight decides how often
+#       it is actually used.
+#       Default: 8
+#
+LLMChatter.GuildChatter.ZoneWeatherTopicChance = 8
 
 #
 #   LLMChatter.RaidChatter.BattleCryChance

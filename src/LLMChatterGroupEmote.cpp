@@ -412,7 +412,10 @@ void HandleEmoteAtGroupBot(
                 + JsonEscape(emoteName)
                 + "\",\"mirror_emote\":\""
                 + JsonEscape(mirrorEmoteName)
-                + "\",\"player_name\":\""
+                + "\",\"player_guid\":"
+                + std::to_string(
+                      player->GetGUID().GetCounter())
+                + ",\"player_name\":\""
                 + JsonEscape(player->GetName())
                 + "\",\"directed\":true"
                 + ",\"custom_emote\":"
@@ -637,7 +640,9 @@ void HandleEmoteObserver(
         + std::to_string(reactor->GetLevel())
         + ",\"emote_name\":\""
         + JsonEscape(emoteName)
-        + "\",\"player_name\":\""
+        + "\",\"player_guid\":"
+        + std::to_string(player->GetGUID().GetCounter())
+        + ",\"player_name\":\""
         + JsonEscape(player->GetName())
         + "\",\"target_type\":\""
         + tgtTypeStr
@@ -668,7 +673,10 @@ void HandleEmoteObserver(
             + ",\"target_level\":"
             + std::to_string(targetPlayer->GetLevel())
             + ",\"target_gender\":"
-            + std::to_string(targetPlayer->getGender());
+            + std::to_string(targetPlayer->getGender())
+            + ",\"target_guid\":"
+            + std::to_string(
+                targetPlayer->GetGUID().GetCounter());
 
     extraData += "}";
 
