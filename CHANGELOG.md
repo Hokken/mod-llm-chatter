@@ -7,8 +7,9 @@
   that does not happen, its zone's General channel. Nothing is queued
   unless a real player can read it.
 * **Message flow**: Guild PvP lines give way to a real player's
-  conversation with the guild, both when queued and at delivery. The
-  General line follows the General zone pacing.
+  conversation with the guild, both when queued and at delivery (the
+  login welcome alone does not count). The General line follows the
+  General zone pacing.
 * **Personality first**: Death reactions are left to the bot's
   personality instead of a fixed angry tone.
 * **Faction context**: Party kill and battle-cry prompts against enemy

@@ -370,6 +370,16 @@ def test_cpp_priorities_and_delivery_gate():
     delivery = _src('LLMChatterDelivery.cpp')
     assert 'deliveryPolicy == "filler"' in delivery
     assert '"guild_conversation_active"' in delivery
+    gate = delivery[delivery.index('deliveryPolicy == "filler"'):][:300]
+    assert 'WasGuildPlayerConversationRecent(' in gate
+
+    active = _function_body(
+        _src('LLMChatterGuildPvP.cpp'), 'bool GuildConversationActive(')
+    assert 'WasGuildPlayerConversationRecent(' in active
+    record = _function_body(
+        _src('LLMChatterGuild.cpp'), 'void RecordDeliveredGuildLine(')
+    assert ('if (eventType == "guild_player_message")\n'
+            '            NoteGuildPlayerConversation(guildId);') in record
 
 
 # --------------------------------------------------------------------------

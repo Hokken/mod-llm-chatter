@@ -45,7 +45,7 @@ bool GuildEventsAllowed()
 
 bool GuildConversationActive(uint32 guildId)
 {
-    return WasGuildPlayerInteractionRecent(
+    return WasGuildPlayerConversationRecent(
         guildId,
         sLLMChatterConfig->_guildPlayerIdleSuppressionSeconds);
 }

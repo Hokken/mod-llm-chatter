@@ -3635,7 +3635,9 @@ event.
   real player (`GuildChatter.PlayerReplies.IdleSuppressionSeconds`). They
   are Guild filler rows (`delivery_policy='filler'`), so delivery drops
   them with `guild_conversation_active` when a conversation started after
-  they were queued.
+  they were queued. A conversation means the player's own Guild messages
+  and the replies to them (`WasGuildPlayerConversationRecent()`); the
+  login welcome alone does not block these lines.
 - The General line reserves a zone window with `_zone_delivery_delay()`,
   like the other General producers, so it keeps `GeneralChat.MinZoneGap`
   from other automated General lines.
