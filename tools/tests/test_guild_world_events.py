@@ -632,6 +632,33 @@ def test_config_keys_in_both_confs():
                 text, re.M), (path.name, key)
 
 
+def test_structured_event_repairs_keep_the_contract():
+    config = {'LLMChatter.StructuredOutput.Enable': '1'}
+    speaker = {'class': 'Mage', 'race': 'Human', 'gender': 'female',
+               'level': 80, 'traits': [], 'tone': '', 'backstory': ''}
+    prompts = []
+
+    def record(client, prompt, config, **kwargs):
+        prompts.append(prompt)
+        return ''
+
+    for names in (['Aliss'], ['Aliss', 'Bran']):
+        prompts.clear()
+        prompt, _ = common.build_prompt(
+            [{'name': name, 'speaker': speaker, 'zone_id': 12,
+              'map_id': 0} for name in names],
+            'Keepers', 'Alliance', 'normal', [],
+            ['A dragon was slain.'], 120,
+        )
+        assert prompt.response_contract.message_only
+        with patch.object(common, 'call_llm', side_effect=record):
+            common.generate(None, config, 7, 'guild_world_event', prompt,
+                            names, 120, {})
+        assert len(prompts) == 2
+        assert all(p.response_contract == prompt.response_contract
+                   for p in prompts)
+
+
 if __name__ == '__main__':
     tests = [
         value

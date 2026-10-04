@@ -3829,14 +3829,12 @@ Typical single-message JSON shape:
 {"message": "...", "emote": null, "action": null}
 ```
 
-Shared text parsing removes confirmed leaked response fields from visible
-dialogue, including their optional opening brace. It also removes a complete
-trailing bare thread-report object when it contains only known thread keys,
-with a string `topic`, a valid `energy` label, a boolean `subject_changed`,
-and correctly typed optional `open_point` and `feelings` fields. The same
-cleanup applies to single responses and conversation message strings.
-Unrelated objects and incomplete bare reports are preserved rather than
-guessed at. Removing a bare report does not recover it into thread memory.
+Off mode retains the existing permissive parser and its format-reliability
+limitations. It has no general leaked-field or bare-thread-report stripping
+heuristic. Enabled mode validates the complete wire response first, as
+described below. A schema checks structure and types; it cannot establish
+factual accuracy or prevent a model from putting unwanted prose inside an
+otherwise valid `message` string.
 
 ### Conversation response contract
 
@@ -3850,6 +3848,120 @@ Typical multi-message JSON shape:
 ```
 
 ---
+
+### Native structured output
+
+```ini
+LLMChatter.StructuredOutput.Enable = 0
+```
+
+This single Python setting defaults to `0` when absent. `0` preserves
+legacy prompts, sampling choices, request parameters and parsers. `1`
+requests native schema output on every runtime JSON route: statements,
+conversations, cached reactions, quick analysis, memory and screenshot
+vision. Farewells and identity tone/backstory generation remain free text.
+The global switch applies to the actual selected provider/model for each
+role, including auxiliary overrides and the host vision configuration.
+
+Enable only if **all configured JSON targets** support the required schema
+format. There is no model allowlist or automatic capability detection. A
+model name alone does not establish support: the serving endpoint, deployed
+version and routing also matter. Existing provider/model defaults, reasoning
+settings and output budgets are unchanged.
+
+| Route | Native format used |
+|---|---|
+| Anthropic Messages | `output_config.format` with `type: json_schema` |
+| OpenAI Chat Completions | `response_format` with `type: json_schema`, `strict: true` |
+| Google OpenAI-compatible endpoint | The same Chat Completions schema envelope |
+| OpenRouter | The same envelope plus `provider.require_parameters: true`, merged with existing options |
+| Local Ollama OpenAI-compatible endpoint | The same envelope; support depends on the installed server/model |
+
+Check the provider's current documentation for the endpoint/model you use:
+[OpenAI](https://developers.openai.com/api/docs/guides/structured-outputs),
+[Anthropic](https://platform.claude.com/docs/en/build-with-claude/structured-outputs),
+[Google compatibility](https://ai.google.dev/gemini-api/docs/openai),
+[OpenRouter](https://openrouter.ai/docs/guides/features/structured-outputs),
+and [Ollama](https://docs.ollama.com/capabilities/structured-outputs).
+Ollama's local schema feature does not establish Ollama Cloud support.
+Qwen and similar model families inherit this route's capabilities when
+served through local Ollama; other hosts must expose the compatible API.
+OpenRouter requires a route supporting all request parameters, including
+any configured reasoning options, so routing can reject a request even
+when a model supports structured output elsewhere.
+
+Enabled dialogue prompts carry a contract describing the already selected
+emote/action policy and channel restrictions. Schemas are stable across
+speaker names and requested counts. Every object is closed and its fields
+are required; nullable fields express genuine absence. Conversation wire
+output is an object containing `messages` and, where applicable, `thread`.
+The shared boundary normalizes it to the existing array consumed by channel
+handlers. Thread feelings travel as an array of speaker entries, then become
+the existing known-speaker map. Duplicate known speakers discard the report,
+not otherwise valid dialogue. Thread state still advances only on delivery.
+
+Refusal, incomplete completion, malformed JSON and schema validation failure
+return no usable output to existing failure paths. Existing bounded repair
+calls retain the schema. A format rejection never triggers a retry with the
+schema removed, a different model, or a weaker mode. Speaker/count checks,
+channel policy and delivery eligibility remain the responsibility of their
+existing handlers. JSON callers missing a contract fail before any API call;
+only explicit free-text callers bypass schema enforcement. This also catches
+accidental loss of prompt metadata in future code changes.
+
+**Installation and process loading.** Install the updated
+`tools/requirements.txt` in each interpreter that runs generation. It adds
+`jsonschema>=4.23.0,<5.0.0`; schema validation is local and requires no
+network access. The standard Docker bridge startup installs requirements,
+subject to package/network availability. Verify that installation succeeds
+when restarting the bridge after an upgrade. For a manually managed bridge
+or the host screenshot agent, run the following with that process's Python
+interpreter from the module directory:
+
+```shell
+python -m pip install -r tools/requirements.txt
+```
+
+Retain the host screenshot extras from its installation instructions, such
+as Pillow. Restart only the chatter bridge and the host screenshot agent
+when used, after changing this setting. `.reload config` does not reload
+these Python processes. No C++ build, SQL migration or worldserver restart
+is needed. Enabled startup checks for `jsonschema` and exits with an explicit
+installation error if it is absent, before generation begins. Import failures
+from the validator during a call also fail closed with a rate-limited
+`dependency_missing` diagnostic. Off mode does not import the validator.
+
+**Diagnostics.** Normal logs report requested on/off mode and the resolved
+main/vision targets at startup. Analysis and memory targets appear on first
+use without creating disabled clients or making probes. This is configuration
+evidence, not proof of endpoint support. The ordinary healthcheck's `OK`
+likewise establishes connectivity, not schema enforcement.
+
+Failures identify unsupported formats, rejected schemas/requests, incomplete
+or refused completions, invalid responses, or missing/conflicting caller
+contracts. Incomplete output includes the effective token budget and finish
+reason; contract failures identify the call label. The first occurrence is a
+warning, repeats are DEBUG, and continued failures produce another warning
+at most once per five minutes per diagnostic key with the repeat count.
+This bounded state affects logging only and resets at process startup.
+
+Optional bridge `LLMChatter.RequestLog.Enable = 1` adds requested/applied mode,
+schema ID, actual token field/budget, usage, completion state and validation
+outcome when available, alongside the actual prompt and raw response.
+The host screenshot agent uses its normal logger for mode, target and
+failure diagnostics; it does not initialize or write the bridge JSONL log.
+Both processes can therefore use the same config without the host treating
+the container's `/logs/...` path as a local path. Image payloads are not
+written to these diagnostics. Bridge request logging remains off by default.
+
+**Rollout and rollback.** Keep `0` until dependencies and representative
+requests have been checked on each active endpoint. Include a local
+Ollama/Qwen check when used; success on a remote provider proves nothing
+about that local deployment. Then set `1` and restart the affected Python
+processes. To restore legacy compatibility, set `0` and restart them again.
+Already queued or cached speech retains its existing delivery checks; no
+database migration or cache invalidation is required. Off mode also restores
+its original format-reliability limitations.
 
 ## 15. Database Tables
 

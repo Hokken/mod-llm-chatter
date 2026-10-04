@@ -78,6 +78,13 @@ See [Setup](#setup) below for detailed Docker, non-Docker, and SQL preparation s
 
 ## Compatibility
 
+> **Keep upstream dependencies up to date.** Always keep both
+> [AzerothCore's Playerbot branch](https://github.com/mod-playerbots/azerothcore-wotlk/tree/Playerbot)
+> and [mod-playerbots](https://github.com/mod-playerbots/mod-playerbots)
+> up to date when updating mod-llm-chatter. This module is frequently
+> re-aligned with those upstream branches; older versions may no longer
+> compile or work correctly with the latest chatter release.
+
 This module requires a working AzerothCore server with mod-playerbots. If you don't have one yet, start here:
 
 - [AzerothCore Docker install guide](https://www.azerothcore.org/wiki/install-with-docker)
@@ -171,6 +178,83 @@ providers can remain in the file. Restart `ac-llm-chatter-bridge` after a
 provider or model change. The bridge chooses compatible token, temperature,
 and reasoning parameters automatically, then caches any explicit
 unsupported-parameter correction for the rest of that process.
+
+### Structured Output: Recommended for Reliable Responses
+
+> **Strongly recommended when all your configured models and endpoints
+> support it.** Enabling structured output makes response formatting much
+> more reliable than leaving it off. It remains off by default for
+> compatibility with endpoints that do not support the required format.
+
+Chatter needs more than spoken text from the model: replies can also carry
+speaker names, emotes, actions and conversation state. With structured output
+off, prompts ask the model to follow that format and parsers interpret what
+it returns. With it on, Chatter sends a **JSON Schema** describing the required
+fields and types to the provider, then validates the response locally before
+using it. This reduces malformed replies, missing fields and formatting
+errors that can otherwise disrupt conversations.
+
+| Setting | Behavior |
+|---|---|
+| `0` (default) | Existing prompt and parser behavior; output formatting depends on the model following instructions. |
+| `1` (recommended on supported endpoints) | Native schema output plus local validation; malformed or incomplete responses are rejected. |
+
+This improves the reliability of the response format, not the model's factual
+accuracy or creativity. A valid text field can still contain inappropriate
+content, so existing speaker, channel and delivery checks remain necessary.
+
+**Enable it in `mod_llm_chatter.conf`:**
+
+```ini
+LLMChatter.StructuredOutput.Enable = 1
+```
+
+The setting applies to JSON generation across dialogue, quick analysis,
+memory and screenshot vision, including separately configured models for
+those roles. Farewells and identity tone/backstory generation remain free
+text. **Every configured JSON target must support the required schema
+format.** Support depends on the exact model and serving endpoint; a model
+name alone is not enough. Chatter does not automatically detect support or
+silently retry without the schema. Unsupported requests fail and are logged;
+use `0` if your setup does not support the feature.
+
+**Install the new dependency before enabling:** local validation requires
+`jsonschema>=4.23.0,<5.0.0`, included in `tools/requirements.txt`.
+
+* **Docker bridge:** The [Docker setup below](#docker) already installs
+  `requirements.txt` automatically before starting the bridge. After updating
+  the module and setting the flag, restart only the chatter bridge:
+
+  ```shell
+  docker compose restart ac-llm-chatter-bridge
+  docker compose logs --tail=50 ac-llm-chatter-bridge
+  ```
+
+  Check that dependency installation succeeds and the bridge starts. Package
+  downloads require network access. Custom images that install dependencies
+  only at image-build time need to be rebuilt with the updated requirements.
+
+* **Manual bridge or host screenshot agent:** From the module directory, run
+  this with the Python interpreter or virtual environment used by that process:
+
+  ```shell
+  python -m pip install -r tools/requirements.txt
+  ```
+
+  Do this in each separate Python environment. Docker does not install
+  packages into the host screenshot agent's environment. Keep its screenshot
+  capture dependencies installed as well.
+
+Restart the chatter bridge and, when used, the host screenshot agent after
+changing the setting. `.reload config` does not reload these Python
+processes. No C++ compilation, database migration or worldserver restart is
+needed for this feature. If `jsonschema` is missing with the feature enabled,
+startup stops with an installation error.
+
+To turn the feature off, set the flag back to `0` and restart the same Python
+processes. See the
+[structured-output guide](docs/mod-llm-chatter-documentation.md#native-structured-output)
+for provider formats and diagnostics.
 
 ### Ignoring Visible Protocol Chat
 
@@ -452,6 +536,11 @@ If you want to use Claude instead of GPT-4o-mini, also install `anthropic`:
 ```
 pip install anthropic
 ```
+
+If you enable [structured output](#structured-output-recommended-for-reliable-responses),
+also install the module's `tools/requirements.txt` in this host Python
+environment. It includes the JSON Schema validator; installing dependencies
+inside the Docker bridge does not install them on your Windows host.
 
 **2. Run the database migration**
 
