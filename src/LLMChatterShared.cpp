@@ -1543,8 +1543,28 @@ std::string GetRaceName(uint8 raceId)
         case RACE_TROLL: return "Troll";
         case RACE_BLOODELF: return "Blood Elf";
         case RACE_DRAENEI: return "Draenei";
-        default: return "Unknown";
+        default:
+            break;
     }
+
+    // Races added through ChrRaces (custom servers) are named
+    // the same way as zones: server DBC locale, then enUS.
+    if (ChrRacesEntry const* race =
+            sChrRacesStore.LookupEntry(raceId))
+    {
+        uint8 locale = sWorld->GetDefaultDbcLocale();
+        char const* n = race->name[locale];
+        std::string raceName = n ? n : "";
+        if (raceName.empty())
+        {
+            n = race->name[LOCALE_enUS];
+            raceName = n ? n : "";
+        }
+        if (!raceName.empty())
+            return raceName;
+    }
+
+    return "Unknown";
 }
 
 std::string GetZoneName(uint32 zoneId)

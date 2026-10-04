@@ -303,7 +303,8 @@ registries instead of a single long conditional block.
 - `JsonEscape()`
 - `GetZoneName()`
 - `GetChatterClassName()`
-- `GetRaceName()`
+- `GetRaceName()` — the ten original races by name, any other race
+  from `ChrRaces` (server DBC locale, then enUS)
 - `BuildBotIdentityFields()` — emits `bot_name`, `bot_class`,
   `bot_race`, `bot_gender`, `bot_level` into event JSON
 - `QueueChatterEvent()`
