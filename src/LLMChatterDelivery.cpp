@@ -1201,8 +1201,8 @@ void DeliverPendingMessagesImpl()
                                 if (ch->GetName()
                                     != exactName)
                                     continue;
-                                if (!bot->IsInChannel(
-                                        ch))
+                                if (!IsPlayerInChannel(
+                                        bot, ch))
                                     continue;
 
                                 emitAction();

@@ -709,14 +709,19 @@ model's thread report.
 All prompt builders return a `PromptParts` object (defined in
 `chatter_shared.py`). `PromptParts` subclasses `str` so it is
 backward-compatible with code that treats prompts as plain strings.
-It carries two extra attributes:
+It carries the legacy prompt parts and optional response metadata:
 
 - `.system_prompt` — persona, rules, format instructions
 - `.user_prompt` — event context, chat history, the actual task
+- `.response_contract` — immutable structural policy and semantic context
+- `.structured_system_prompt` — schema-compatible alternative instructions
+- `.contract_conflict` — metadata error rejected before enabled dispatch
 
 ### Flow
 
-1. Prompt builder calls `PromptParts(system_prompt, user_prompt)`.
+1. JSON prompt builders use the shared `append_*_json_instruction()` helpers,
+   which resolve existing RNG choices once and construct
+   `PromptParts(user_prompt, system_prompt)` with response metadata.
 2. `call_llm()` or `quick_llm_analyze()` in `chatter_llm.py`
    auto-detects `PromptParts` via `_split_prompt()`.
 3. Provider dispatch:
@@ -745,8 +750,32 @@ It carries two extra attributes:
      OpenAI-compatible endpoint has no per-request context parameter;
      disabling thinking sends `reasoning_effort = none` and retains the
      `/no_think` prompt fallback
-4. If a plain string is passed instead of `PromptParts`, the entire
-   string is sent as a single user message (backward compatibility).
+4. With structured output off, a plain string is sent as a single user
+   message. With it on, a caller must provide an annotated or explicit
+   contract, or explicitly opt into free text. Missing/conflicting contracts
+   fail before dispatch; only farewell and identity generation opt into text.
+
+### Native response contracts
+
+`chatter_structured.py` owns the global flag reader, immutable contracts,
+stable JSON schemas, local validation and normalization. It has no SDK,
+database or delivery dependencies. `chatter_shared.py` owns prompt metadata
+and matching instructions without changing legacy prompt bytes or RNG.
+`chatter_llm.py` applies the contract after existing target resolution and
+validates complete responses before permissive parsers. `llm_compat.py`
+attaches provider-native envelopes and preserves the schema during existing
+bounded parameter retries. It does not infer structured support from model
+names or remove the schema after rejection.
+
+Conversation objects normalize to the existing array shape; thread feelings
+normalize to the existing known-speaker map. Channel handlers retain
+speaker/count policy, repair limits, queue/history and delivered-thread
+ownership. The host screenshot agent uses the same completion boundary and
+global flag for its existing vision routes. Startup/first-use target logs
+and bounded failure counters are diagnostic only; no capability cache or
+new provider/model resolver is introduced. See the
+[operator contract](mod-llm-chatter-documentation.md#native-structured-output)
+for configuration, dependencies and failure behavior.
 
 ### Token-Saving Gates
 
@@ -1082,6 +1111,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/llm_compat.py` | Declarative OpenAI-compatible model capability profiles plus narrowly scoped parameter-rejection recovery and process-local learned overrides |
 | `tools/chatter_mode.py` | Canonical normal/RP playerbot identity and channel voice rules, plus mode-invariant NPC guidance |
 | `tools/chatter_text.py` | Parsing, sanitization, anti-repetition, and chat length limiting. Never slice LLM chat output by hand; use `shorten_chat_message()` or `shorten_chat_question()` from this file. |
+| `tools/chatter_structured.py` | Global structured-output flag, immutable response contracts, stable schema generation, strict local validation and legacy-shape normalization. No SDK or delivery logic. |
 | `tools/chatter_llm.py` | Provider/model calls for Anthropic, OpenAI, Google Gemini, OpenRouter, and Ollama; `get_llm_client()` shared client factory; `_split_prompt()`, `_build_chat_messages()`, `_ollama_user_msg()`, `_apply_google_options()`, `_apply_openrouter_options()`, `_openrouter_headers()` for system/user prompt separation and provider tuning; delegates cross-model parameter selection to `llm_compat.py`; `label=` param logs every call via `chatter_request_logger` |
 | `tools/chatter_db.py` | DB access, inserts, zone/cache queries, `any_real_players_online()`, stale-group cleanup, and global group/Guild session cleanup |
 | `tools/chatter_links.py` | WoW link parsing and prompt-side link enrichment for player messages |
@@ -1178,6 +1208,10 @@ instead of rendering it as a `/slash` command.
 - `AppendRaidContext()`
 - `GroupHasBots()`
 - `CanSpeakInGeneralChannel()`
+- `IsPlayerInChannel()` checks exact channel membership for General
+  eligibility and delivery. Core exposes no public membership accessor;
+  a read-only adapter accesses Player's protected joined-channel list
+  through a base-member pointer, without casting Player to a derived type.
 - `GetTextEmoteName()` — reverse emote ID-to-name lookup (170+ entries)
 - `SendUnitTextEmote(Unit*, uint32, const std::string&)` — consolidated
   emote packet helper; `SendBotTextEmote` overloads delegate to it
@@ -1949,6 +1983,7 @@ source:
 | General-to-party relay behavior | `tools/chatter_group_general_reaction.py` |
 | DB inserts, history tables, zone/query cache behavior | `tools/chatter_db.py` |
 | Shared parsing/sanitization | `tools/chatter_text.py` |
+| Structured response contracts | `tools/chatter_structured.py` |
 | Provider/model calls | `tools/chatter_llm.py` |
 | Shared compatibility helpers | `tools/chatter_shared.py` |
 | Python event-to-handler ownership map | `tools/chatter_event_registry.py` |

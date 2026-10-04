@@ -5,11 +5,12 @@ WoW game window, sends it to a vision LLM for structured environmental
 analysis, and inserts the result into llm_chatter_events so the bridge
 can generate an in-character bot comment.
 
-Usage:
-    python screenshot_agent.py --config path/to/mod_llm_chatter.conf
+Usage (from the AzerothCore workspace root):
+    python modules/mod-llm-chatter/tools/screenshot_agent.py --config env/dist/etc/modules/mod_llm_chatter.conf
 
-Requirements (host-side):
-    pip install mss Pillow anthropic openai mysql-connector-python pywin32
+Requirements (host-side, using the same Python interpreter):
+    python -m pip install -r modules/mod-llm-chatter/tools/requirements.txt
+    python -m pip install mss Pillow pywin32
 """
 
 import argparse
@@ -28,11 +29,20 @@ import mysql.connector
 from PIL import Image
 
 from chatter_shared import parse_config
+from chatter_structured import (
+    ResponseContract, StructuredDependencyError, StructuredOutputError,
+    structured_output_enabled,
+)
+from chatter_llm import (
+    structured_completion, log_structured_failure, log_structured_target,
+    reset_structured_diagnostics, check_structured_dependencies,
+)
 from screenshot_proximity import request_ticket, publish_observation
 from llm_compat import (
     build_chat_options,
     create_chat_completion,
     needs_reasoning_token_multiplier,
+    structured_rejection_category,
 )
 
 log = logging.getLogger("screenshot_agent")
@@ -118,6 +128,7 @@ VISION_SYSTEM = (
 def load_screenshot_config(raw: dict) -> dict:
     """Extract screenshot-specific config with defaults."""
     return {
+        'structured_output': structured_output_enabled(raw),
         'enable': raw.get(
             'LLMChatter.Screenshot.Enable', '0') == '1',
         'interval_min_seconds': int(raw.get(
@@ -278,10 +289,36 @@ def compress_screenshot(
 # -----------------------------------------------------------
 
 
+def _structured_vision_call(operation, kwargs, provider, model, multiplier=1):
+    diagnostics = dict(requested=True, applied='schema')
+    result = None
+    try:
+        result = structured_completion(
+            operation, kwargs, provider, model, ResponseContract('vision'),
+            diagnostics, log, multiplier,
+        )
+    except Exception as exc:
+        category = ('dependency_missing'
+                    if isinstance(exc, StructuredDependencyError) else
+                    diagnostics.get('validation', 'invalid_response')
+                    if isinstance(exc, StructuredOutputError) else
+                    structured_rejection_category(exc, provider))
+        if category:
+            diagnostics['error_category'] = category
+            log_structured_failure(provider, model,
+                                   diagnostics.get('schema_id'), category, log,
+                                   diagnostics=diagnostics,
+                                   label='screenshot_vision', error=exc)
+        else:
+            log.error('Vision API call failed: %s', exc)
+    return result
+
+
 def _call_anthropic(
     jpeg_b64: str, client, model: str,
+    *, structured_output=False,
 ) -> 'str | None':
-    resp = client.messages.create(
+    request_kwargs = dict(
         model=model,
         max_tokens=300,
         system=VISION_SYSTEM,
@@ -300,6 +337,11 @@ def _call_anthropic(
             }],
         }],
     )
+    if structured_output:
+        return _structured_vision_call(
+            client.messages.create, request_kwargs, 'anthropic', model,
+        )
+    resp = client.messages.create(**request_kwargs)
     return resp.content[0].text.strip()
 
 
@@ -310,6 +352,7 @@ def _call_openai(
     provider: str = 'openai',
     reasoning_effort: str = '',
     max_tokens_multiplier: float = 4,
+    *, structured_output=False,
 ) -> 'str | None':
     if provider != 'openai':
         reasoning_effort = ''
@@ -346,6 +389,11 @@ def _call_openai(
         max_tokens,
         reasoning_effort=reasoning_effort,
     ))
+    if structured_output:
+        return _structured_vision_call(
+            client.chat.completions.create, request_kwargs, provider, model,
+            max_tokens_multiplier,
+        )
     resp = create_chat_completion(
         client.chat.completions.create,
         request_kwargs,
@@ -374,6 +422,7 @@ def analyze_screenshot(
     provider: str = 'openai',
     reasoning_effort: str = '',
     max_tokens_multiplier: float = 4,
+    *, structured_output=False,
 ) -> 'dict | None':
     """Send screenshot to vision LLM, return structured
     description or None if uninteresting / error."""
@@ -381,7 +430,9 @@ def analyze_screenshot(
 
     try:
         if provider == 'anthropic':
-            raw = _call_anthropic(b64, client, model)
+            raw = _call_anthropic(
+                b64, client, model, structured_output=structured_output,
+            )
         else:
             raw = _call_openai(
                 b64,
@@ -390,6 +441,7 @@ def analyze_screenshot(
                 provider,
                 reasoning_effort,
                 max_tokens_multiplier,
+                structured_output=structured_output,
             )
     except Exception as e:
         log.error("Vision API call failed: %s", e)
@@ -399,12 +451,16 @@ def analyze_screenshot(
         return None
 
     # Robust JSON extraction — handle markdown fences
-    match = re.search(r'\{[^{}]*\}', raw, re.DOTALL)
-    if not match:
-        log.warning("No JSON found in vision response")
-        return None
+    if structured_output:
+        json_text = raw
+    else:
+        match = re.search(r'\{[^{}]*\}', raw, re.DOTALL)
+        if not match:
+            log.warning("No JSON found in vision response")
+            return None
+        json_text = match.group()
     try:
-        data = json.loads(match.group())
+        data = json.loads(json_text)
     except json.JSONDecodeError:
         log.warning("JSON parse failed for vision response")
         return None
@@ -775,6 +831,7 @@ def _do_capture_cycle(
         max_tokens_multiplier=(
             config['openai_max_tokens_multiplier']
         ),
+        structured_output=config.get('structured_output', False),
     )
     log.info('Vision analysis finished in %.2fs',
              time.monotonic() - vision_started)
@@ -857,7 +914,15 @@ def _create_vision_client(config: dict):
 
 def run_agent(config: dict) -> None:
     """Main agent loop — runs indefinitely."""
+    reset_structured_diagnostics()
+    if not check_structured_dependencies(
+        config.get('structured_output', False), log,
+    ):
+        sys.exit(1)
     vision_client = _create_vision_client(config)
+    log_structured_target('vision', config['vision_provider'],
+                          config['vision_model'],
+                          config.get('structured_output', False), log)
     log.info(
         "Screenshot agent started "
         "(interval=%d-%ds, chance=%d%%)",

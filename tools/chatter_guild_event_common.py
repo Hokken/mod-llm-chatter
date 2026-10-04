@@ -24,6 +24,7 @@ from chatter_shared import (
     build_conversation_json_repair_prompt,
     calculate_dynamic_delay,
     parse_conversation_response,
+    structured_output_enabled,
 )
 from chatter_text import parse_single_response
 
@@ -307,6 +308,7 @@ def run_multi_prompt(
             client,
             build_conversation_json_repair_prompt(
                 prompt, names, message_only=True,
+                structured_output=structured_output_enabled(config),
             ),
             config,
             max_tokens_override=token_budget,

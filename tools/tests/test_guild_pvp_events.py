@@ -433,7 +433,35 @@ def test_conf_keys_are_documented_and_loaded():
         assert 'contempt, resentment' not in text
 
 
+def test_structured_event_repairs_keep_the_contract():
+    config = {'LLMChatter.StructuredOutput.Enable': '1'}
+    speaker = {'class': 'Mage', 'race': 'Human', 'gender': 'female',
+               'level': 80, 'traits': [], 'tone': '', 'backstory': ''}
+    prompts = []
+
+    def record(client, prompt, config, **kwargs):
+        prompts.append(prompt)
+        return ''
+
+    for names in (['Aliss'], ['Aliss', 'Bran']):
+        prompts.clear()
+        prompt, _ = common.build_prompt(
+            [{'name': name, 'speaker': speaker, 'zone_id': 12,
+              'map_id': 0} for name in names],
+            'Keepers', 'Alliance', 'normal', [],
+            ['A guildmate fell in battle.'], 120,
+        )
+        assert prompt.response_contract.message_only
+        with patch.object(common, 'call_llm', side_effect=record):
+            common.generate(None, config, 7, 'guild_pvp_death', prompt,
+                            names, 120, {})
+        assert len(prompts) == 2
+        assert all(p.response_contract == prompt.response_contract
+                   for p in prompts)
+
+
 def main() -> int:
+    test_structured_event_repairs_keep_the_contract()
     test_registry_routes_pvp_events()
     test_guild_kill_goes_to_guild_as_filler()
     test_guild_death_is_personality_led()
