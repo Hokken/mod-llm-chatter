@@ -7,6 +7,7 @@ fallbacks when a provider explicitly rejects a parameter.
 """
 
 import logging
+from copy import deepcopy
 import re
 import threading
 
@@ -409,3 +410,51 @@ def reset_compatibility_cache():
     """Clear learned model overrides (used by focused tests)."""
     with _MODEL_OVERRIDES_LOCK:
         _MODEL_OVERRIDES.clear()
+
+
+def with_response_schema(request_kwargs, provider, name, schema):
+    """Attach native schema parameters without changing existing options."""
+    kwargs = dict(request_kwargs)
+    if provider == 'anthropic':
+        output = deepcopy(kwargs.get('output_config', {}))
+        output['format'] = {'type': 'json_schema', 'schema': deepcopy(schema)}
+        kwargs['output_config'] = output
+    elif provider in ('openai', 'google', 'openrouter', 'ollama'):
+        kwargs['response_format'] = {
+            'type': 'json_schema',
+            'json_schema': {'name': name, 'strict': True,
+                            'schema': deepcopy(schema)},
+        }
+        if provider == 'openrouter':
+            extra = deepcopy(kwargs.get('extra_body', {}))
+            routing = extra.setdefault('provider', {})
+            routing['require_parameters'] = True
+            kwargs['extra_body'] = extra
+    else:
+        raise ValueError('Unknown structured-output provider')
+    return kwargs
+
+
+def structured_rejection_category(error, provider):
+    """Classify diagnostics only; never learn a schema-removal retry."""
+    if _error_status(error) not in (400, 422):
+        return None
+    body = _error_body(error)
+    parameter = _normalize_parameter(body.get('param'))
+    code = _normalize_parameter(body.get('code'))
+    message = str(body.get('message', '')).lower()
+    # An invalid nested schema is not evidence that a model lacks support.
+    if ('schema' in parameter or 'schema' in code or 'schema' in message):
+        if 'invalid' in code or 'invalid schema' in message:
+            return 'schema_rejected'
+    field = 'output_config' if provider == 'anthropic' else 'response_format'
+    rejected = _is_parameter_rejection(error, field)
+    if provider == 'anthropic' and field in message:
+        rejected = True
+    unsupported = code in ('unsupported_parameter', 'unknown_parameter') or any(
+        marker in message for marker in ('not supported', 'unsupported',
+                                         'not support', 'unknown parameter')
+    )
+    if rejected and unsupported:
+        return 'format_unsupported'
+    return 'request_rejected'

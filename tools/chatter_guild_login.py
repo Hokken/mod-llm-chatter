@@ -33,6 +33,7 @@ from chatter_shared import (
     append_conversation_json_instruction,
     append_json_instruction,
     build_conversation_json_repair_prompt,
+    structured_output_enabled,
     calculate_dynamic_delay,
     get_chatter_mode,
     parse_conversation_response,
@@ -474,6 +475,9 @@ def _generate_multi(
                 prompt,
                 names,
                 message_only=True,
+                structured_output=(
+                    structured_output_enabled(config)
+                ),
             ),
             config,
             max_tokens_override=token_budget,

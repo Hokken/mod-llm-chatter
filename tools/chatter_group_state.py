@@ -589,6 +589,7 @@ def _generate_farewell(
             max_tokens_override=60,
             context=f"farewell:{bot_name}",
             label='group_farewell',
+            free_text=True,
         )
         if not response:
             return

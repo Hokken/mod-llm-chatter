@@ -20,6 +20,7 @@ from chatter_shared import (
     append_conversation_json_instruction,
     append_json_instruction,
     build_conversation_json_repair_prompt,
+    structured_output_enabled,
     calculate_dynamic_delay,
     get_chatter_mode,
     get_class_name,
@@ -447,6 +448,8 @@ def _build_guild_prompt(
             skip_emote=True,
             message_only=True,
             extra_field=THREAD_REPORT_FIELD,
+            include_thread=True,
+            thread_speaker_names=(speaker_name,),
             extra_rule=THREAD_REPORT_RULE,
         )
     return append_json_instruction(
@@ -1306,6 +1309,8 @@ def _build_guild_conversation_prompt(
             allow_action=False,
             message_only=True,
             trailing_object=THREAD_REPORT_OBJECT,
+            include_thread=True,
+            thread_speaker_names=bot_names,
             extra_rule=THREAD_REPORT_RULE,
         )
     return append_conversation_json_instruction(
@@ -1713,17 +1718,19 @@ def _generate_guild_conversation(
         repair_metadata[
             'guild_previous_accepted_message_count'
         ] = len(messages)
+        structured = structured_output_enabled(config)
         repair_instruction = (
             build_conversation_json_repair_prompt(
                 prompt,
                 bot_names,
                 message_only=True,
+                structured_output=structured,
             )
         )
         repair_prompt = (
-            prompt
-            + "\n\n"
-            + repair_instruction
+            repair_instruction
+            if structured
+            else prompt + "\n\n" + repair_instruction
         )
         response = call_llm(
             client,

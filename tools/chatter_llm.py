@@ -1,6 +1,9 @@
 """LLM call-layer helpers extracted from chatter_shared (N14)."""
 
 import logging
+import importlib.util
+import re
+from collections import OrderedDict
 import threading
 import time
 from typing import Any, Optional
@@ -17,9 +20,200 @@ from llm_compat import (
     build_chat_options,
     create_chat_completion,
     needs_reasoning_token_multiplier,
+    structured_rejection_category,
+    with_response_schema,
+)
+from chatter_structured import (
+    StructuredDependencyError, StructuredOutputError, schema_for,
+    structured_output_enabled,
+    validate_and_normalize,
 )
 
 logger = logging.getLogger(__name__)
+
+_structured_failures = OrderedDict()
+_structured_targets = OrderedDict()
+_structured_failure_lock = threading.Lock()
+
+
+def reset_structured_diagnostics():
+    """Reset logging-only state on process/config initialization."""
+    with _structured_failure_lock:
+        _structured_failures.clear()
+        _structured_targets.clear()
+
+
+def log_structured_target(role, provider, model, enabled, active_logger=None):
+    """Report resolved targets once; this is not a capability probe/cache."""
+    key = (role, provider, model, enabled)
+    with _structured_failure_lock:
+        if key in _structured_targets:
+            return
+        _structured_targets[key] = True
+        if len(_structured_targets) > 256:
+            _structured_targets.popitem(last=False)
+    (active_logger or logger).info(
+        'Structured output requested=%s role=%s provider=%s model=%s; '
+        'endpoint support is not verified by startup',
+        'on' if enabled else 'off', role, provider, model,
+    )
+
+
+def check_structured_dependencies(enabled, active_logger=None):
+    """Fail startup clearly before generation when the validator is missing."""
+    if enabled and importlib.util.find_spec('jsonschema') is None:
+        (active_logger or logger).error(
+            'Structured output requires jsonschema; install '
+            'tools/requirements.txt in this Python environment before startup',
+        )
+        return False
+    return True
+
+
+def _provider_error_message(error):
+    """Keep normal diagnostics short; never serialize the SDK request/body."""
+    body = getattr(error, 'body', None)
+    if isinstance(body, dict):
+        body = body.get('error', body)
+    message = body.get('message', '') if isinstance(body, dict) else ''
+    message = re.sub(r'(?i)\b(?:sk-|bearer\s+)\S+', '[redacted]', str(message))
+    message = re.sub(
+        r'(?i)((?:api[_-]?key|authorization)\s*[:=]\s*)\S+',
+        r'\1[redacted]', message,
+    )
+    return ' '.join(message.split())[:240] or 'No provider message available'
+
+
+def log_structured_failure(provider, model, schema_id, category,
+                           active_logger=None, *, diagnostics=None,
+                           label='', error=None):
+    active_logger = active_logger or logger
+    diagnostics = diagnostics or {}
+    key = (provider, model, schema_id, category,
+           label if category == 'contract_error' else '')
+    now = time.monotonic()
+    with _structured_failure_lock:
+        previous = _structured_failures.get(key)
+        count = previous[1] + 1 if previous else 0
+        warn = previous is None or now - previous[0] >= 300
+        _structured_failures[key] = (now, 0) if warn else (previous[0], count)
+        _structured_failures.move_to_end(key)
+        if len(_structured_failures) > 256:
+            _structured_failures.popitem(last=False)
+    if category == 'format_unsupported':
+        detail = ('Endpoint does not support this format; disable '
+                  'LLMChatter.StructuredOutput.Enable for unsupported targets')
+    elif category == 'incomplete_or_refused':
+        detail = ('finish_reason=%s token_budget=%s; check output budget or '
+                  'provider refusal' % (diagnostics.get('finish_reason'),
+                                       diagnostics.get('token_budget')))
+    elif category == 'contract_error':
+        detail = 'label=%s; missing or conflicting caller contract' % label
+    elif category == 'invalid_response':
+        detail = 'Response failed local JSON/schema validation; output discarded'
+    elif category == 'schema_rejected':
+        detail = 'Endpoint rejected the schema; check schema compatibility'
+    elif category == 'dependency_missing':
+        detail = ('Local schema validator unavailable; install '
+                  'tools/requirements.txt in this Python environment')
+    else:
+        detail = ('Provider rejected request: ' + _provider_error_message(error)
+                  if warn else 'Provider rejected request')
+    active_logger.log(
+        logging.WARNING if warn else logging.DEBUG,
+        'Structured output rejected: provider=%s model=%s schema=%s reason=%s; '
+        '%s (%s repeats since last warning)',
+        provider, model, schema_id, category, detail, count,
+    )
+
+
+def _field(value, name, default=None):
+    return value.get(name, default) if isinstance(value, dict) else getattr(
+        value, name, default,
+    )
+
+
+def read_structured_response(response, provider, contract, diagnostics):
+    """Reject incomplete/refused outputs before the tolerant legacy parsers."""
+    usage = _field(response, 'usage')
+    diagnostics['usage'] = {
+        key: _field(usage, key) for key in (
+            'input_tokens', 'output_tokens', 'prompt_tokens',
+            'completion_tokens', 'total_tokens',
+        ) if _field(usage, key) is not None
+    }
+    refused = False
+    malformed = False
+    if provider == 'anthropic':
+        finish = _field(response, 'stop_reason')
+        blocks = _field(response, 'content', []) or []
+        parts = []
+        for block in blocks:
+            kind = _field(block, 'type')
+            if kind == 'text' and isinstance(_field(block, 'text'), str):
+                parts.append(_field(block, 'text'))
+            elif kind not in ('thinking', 'redacted_thinking'):
+                refused = True
+        raw = ''.join(parts)
+        complete = str(finish).lower() == 'end_turn'
+    else:
+        choices = _field(response, 'choices', []) or []
+        choice = choices[0] if choices else None
+        message = _field(choice, 'message')
+        finish = _field(choice, 'finish_reason')
+        refused = bool(_field(message, 'refusal') or
+                       _field(message, 'tool_calls') or
+                       _field(message, 'function_call'))
+        content = _field(message, 'content')
+        if isinstance(content, list):
+            parts = []
+            for block in content:
+                text = _field(block, 'text')
+                if _field(block, 'type') == 'text' and isinstance(text, str):
+                    parts.append(text)
+                else:
+                    malformed = True
+            raw = ''.join(parts)
+        else:
+            raw = content if isinstance(content, str) else ''
+        complete = bool(choices) and str(finish).lower() == 'stop'
+    diagnostics.update(finish_reason=finish, _raw_response=raw)
+    if not complete or refused or malformed or not raw.strip():
+        diagnostics['validation'] = 'incomplete_or_refused'
+        raise StructuredOutputError('Incomplete or refused response')
+    try:
+        normalized = validate_and_normalize(raw, contract)
+    except StructuredOutputError:
+        diagnostics['validation'] = 'invalid_response'
+        raise
+    diagnostics.update(validation='passed', normalization='passed')
+    return normalized
+
+
+def structured_completion(operation, kwargs, provider, model, contract,
+                          diagnostics, active_logger=None,
+                          reasoning_token_multiplier=1):
+    """Shared text/vision transport, preserving existing bounded retries."""
+    schema_id, schema = schema_for(contract)
+    diagnostics['schema_id'] = schema_id
+    request = with_response_schema(kwargs, provider, schema_id, schema)
+
+    def observed_operation(**attempt):
+        for field in ('max_tokens', 'max_completion_tokens'):
+            if field in attempt:
+                diagnostics['token_field'] = field
+                diagnostics['token_budget'] = attempt[field]
+        return operation(**attempt)
+
+    if provider == 'anthropic':
+        response = observed_operation(**request)
+    else:
+        response = create_chat_completion(
+            observed_operation, request, provider, model,
+            active_logger or logger,
+            reasoning_token_multiplier=reasoning_token_multiplier,
+        )
+    return read_structured_response(response, provider, contract, diagnostics)
 
 
 def _split_prompt(prompt):
@@ -417,6 +611,96 @@ def get_llm_client(config):
         return _main_client
 
 
+def _call_target(client, prompt, config, provider, model, max_tokens,
+                 temperature, label, metadata, response_contract, free_text):
+    """One request boundary after main/auxiliary target resolution."""
+    t0 = time.monotonic()
+    result = None
+    enabled = structured_output_enabled(config)
+    contract = response_contract or getattr(prompt, 'response_contract', None)
+    role = contract.kind if contract and contract.kind in (
+        'analysis', 'memory',
+    ) else 'main'
+    log_structured_target(role, provider, model, enabled)
+    diagnostics = dict(requested=enabled,
+                       applied='schema' if enabled and contract else
+                       'text' if enabled else 'off')
+    log_metadata = dict(metadata or {})
+    sys_msg, user_msg = _split_prompt(prompt)
+    sent_user_msg = user_msg
+    try:
+        if enabled:
+            annotated = getattr(prompt, 'response_contract', None)
+            if (getattr(prompt, 'contract_conflict', False)
+                    or (not contract and not free_text)
+                    or (contract and free_text)
+                    or (response_contract is not None and annotated is not None
+                        and response_contract != annotated)):
+                diagnostics.update(applied='error', validation='contract_error')
+                raise StructuredOutputError('Conflicting prompt contract')
+            if contract and getattr(prompt, 'structured_system_prompt', None):
+                sys_msg = prompt.structured_system_prompt
+        if provider == 'ollama':
+            sent_user_msg = _ollama_user_msg(user_msg, config)
+        compatible = provider in ('openai', 'google', 'openrouter', 'ollama')
+        if compatible:
+            kwargs = build_compatible_chat_request(
+                provider, model, _build_chat_messages(sys_msg, sent_user_msg),
+                config, max_tokens, temperature,
+            )
+            operation = client.chat.completions.create
+        else:
+            kwargs = _build_anthropic_request_kwargs(
+                model, max_tokens, temperature, sys_msg, user_msg,
+            )
+            operation = client.messages.create
+        multiplier = compatible_reasoning_token_multiplier(provider, config)
+        if enabled and contract:
+            result = structured_completion(
+                operation, kwargs, provider, model, contract, diagnostics,
+                reasoning_token_multiplier=multiplier,
+            )
+        elif compatible:
+            response = create_chat_completion(
+                operation, kwargs, provider, model, logger,
+                reasoning_token_multiplier=multiplier,
+            )
+            result = _extract_chat_content(response, label)
+        else:
+            response = operation(**kwargs)
+            result = response.content[0].text.strip()
+    except Exception as exc:
+        category = None
+        if enabled:
+            category = ('dependency_missing'
+                        if isinstance(exc, StructuredDependencyError) else
+                        diagnostics.get('validation', 'invalid_response')
+                        if isinstance(exc, StructuredOutputError) else
+                        structured_rejection_category(exc, provider))
+        if category:
+            diagnostics['error_category'] = category
+            log_structured_failure(
+                provider, model, diagnostics.get('schema_id'), category,
+                diagnostics=diagnostics, label=label, error=exc,
+            )
+        else:
+            logger.error('LLM call failed (%s): %s', label, exc)
+        result = None
+    finally:
+        raw_response = diagnostics.pop('_raw_response', result)
+        log_metadata['structured_output'] = diagnostics
+        try:
+            from chatter_request_logger import log_request
+            log_request(
+                label, sent_user_msg, raw_response, model, provider,
+                int((time.monotonic() - t0) * 1000),
+                metadata=log_metadata, system_prompt=sys_msg,
+            )
+        except Exception:
+            pass
+    return result
+
+
 def call_llm(
     client: Any,
     prompt: str,
@@ -426,6 +710,8 @@ def call_llm(
     *,
     label: str = '',
     metadata: dict = None,
+    response_contract=None,
+    free_text: bool = False,
 ) -> str:
     """Call LLM API.
 
@@ -455,78 +741,10 @@ def call_llm(
         config.get('LLMChatter.Temperature', 0.85)
     )
 
-    t0 = time.monotonic()
-    result = None
-    sys_msg, user_msg = _split_prompt(prompt)
-    sent_user_msg = user_msg  # tracks actual payload
-    try:
-        if provider == 'ollama':
-            sent_user_msg = _ollama_user_msg(
-                user_msg, config
-            )
-        if provider in (
-            'openai', 'google', 'openrouter', 'ollama'
-        ):
-            kwargs = build_compatible_chat_request(
-                provider,
-                model,
-                _build_chat_messages(
-                    sys_msg, sent_user_msg
-                ),
-                config,
-                max_tokens,
-                temperature,
-            )
-            response = create_chat_completion(
-                client.chat.completions.create,
-                kwargs,
-                provider,
-                model,
-                logger,
-                reasoning_token_multiplier=(
-                    compatible_reasoning_token_multiplier(
-                        provider, config
-                    )
-                ),
-            )
-            result = _extract_chat_content(
-                response, label
-            )
-        else:
-            # Anthropic (default)
-            kwargs = _build_anthropic_request_kwargs(
-                model,
-                max_tokens,
-                temperature,
-                sys_msg,
-                user_msg,
-            )
-            response = client.messages.create(
-                **kwargs
-            )
-            result = response.content[0].text.strip()
-    except Exception as exc:
-        logger.error(
-            "LLM call failed (%s): %s", label, exc
-        )
-        result = None
-    finally:
-        duration_ms = int(
-            (time.monotonic() - t0) * 1000
-        )
-        try:
-            from chatter_request_logger import (
-                log_request,
-            )
-            log_request(
-                label, sent_user_msg, result,
-                model, provider, duration_ms,
-                metadata=metadata,
-                system_prompt=sys_msg,
-            )
-        except Exception:
-            pass
-    return result
+    return _call_target(
+        client, prompt, config, provider, model, max_tokens,
+        temperature, label, metadata, response_contract, free_text,
+    )
 
 
 # Cached client for quick analyze when provider
@@ -650,6 +868,8 @@ def quick_llm_analyze(
     *,
     label: str = '',
     metadata: dict = None,
+    response_contract=None,
+    free_text: bool = False,
 ) -> Optional[str]:
     """Fast LLM call for pre-processing analysis.
 
@@ -712,76 +932,7 @@ def quick_llm_analyze(
         )
     model = resolve_model(model)
 
-    t0 = time.monotonic()
-    result = None
-    sys_msg, user_msg = _split_prompt(prompt)
-    sent_user_msg = user_msg
-    try:
-        if provider == 'ollama':
-            sent_user_msg = _ollama_user_msg(
-                user_msg, config
-            )
-        if provider in (
-            'openai', 'google', 'openrouter', 'ollama'
-        ):
-            kwargs = build_compatible_chat_request(
-                provider,
-                model,
-                _build_chat_messages(
-                    sys_msg, sent_user_msg
-                ),
-                config,
-                max_tokens,
-                0.1,
-            )
-            response = create_chat_completion(
-                active_client.chat.completions.create,
-                kwargs,
-                provider,
-                model,
-                logger,
-                reasoning_token_multiplier=(
-                    compatible_reasoning_token_multiplier(
-                        provider, config
-                    )
-                ),
-            )
-            result = _extract_chat_content(
-                response, label
-            )
-        else:
-            kwargs = _build_anthropic_request_kwargs(
-                model,
-                max_tokens,
-                0.1,
-                sys_msg,
-                user_msg,
-            )
-            response = (
-                active_client.messages.create(
-                    **kwargs
-                )
-            )
-            result = response.content[0].text.strip()
-    except Exception as exc:
-        logger.error(
-            "LLM call failed (%s): %s", label, exc
-        )
-        result = None
-    finally:
-        duration_ms = int(
-            (time.monotonic() - t0) * 1000
-        )
-        try:
-            from chatter_request_logger import (
-                log_request,
-            )
-            log_request(
-                label, sent_user_msg, result,
-                model, provider, duration_ms,
-                metadata=metadata,
-                system_prompt=sys_msg,
-            )
-        except Exception:
-            pass
-    return result
+    return _call_target(
+        active_client, prompt, config, provider, model, max_tokens,
+        0.1, label, metadata, response_contract, free_text,
+    )

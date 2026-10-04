@@ -204,6 +204,21 @@ LLMChatter.RequestLog.MaxSizeMB = 50
 # LLM PROVIDER SETTINGS [BRIDGE]
 ###############################################################################
 #
+#   LLMChatter.StructuredOutput.Enable
+#       Request native JSON Schema output for all runtime JSON generation,
+#       including quick analysis, memory and host screenshot vision.
+#       0 = existing prompt/parser behavior; 1 = require validated schema output.
+#       Enable only when every configured JSON target supports this format.
+#       Unsupported endpoints must use 0; no automatic downgrade is performed.
+#       Local Ollama support depends on the server/model; Qwen is not an API.
+#       Install updated tools/requirements.txt before enabling. Restart the
+#       chatter bridge and host screenshot agent to load changes, not worldserver.
+#       Default: 0
+#       [BRIDGE / HOST SCREENSHOT AGENT]
+#
+LLMChatter.StructuredOutput.Enable = 0
+
+#
 # To switch providers, just change LLMChatter.Provider and LLMChatter.Model.
 # Only configure the settings for your chosen provider.
 # The bridge selects a safe parameter profile for the model and learns from

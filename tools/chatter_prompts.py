@@ -644,6 +644,8 @@ def build_plain_statement_prompt(
         return append_json_instruction(
             prompt, allow_action, skip_emote=True,
             extra_field=THREAD_REPORT_FIELD,
+            include_thread=True,
+            thread_speaker_names=(bot['name'],),
             extra_rule=THREAD_REPORT_RULE,
         )
     return append_json_instruction(
@@ -1304,6 +1306,8 @@ def build_plain_conversation_prompt(
         return append_conversation_json_instruction(
             prompt, bot_names, msg_count, allow_action,
             trailing_object=THREAD_REPORT_OBJECT,
+            include_thread=True,
+            thread_speaker_names=bot_names,
             extra_rule=THREAD_REPORT_RULE,
         )
     return append_conversation_json_instruction(

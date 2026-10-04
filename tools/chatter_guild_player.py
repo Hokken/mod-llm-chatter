@@ -43,6 +43,7 @@ from chatter_shared import (
     brief_casual_response_fits,
     build_brief_casual_repair_prompt,
     build_conversation_json_repair_prompt,
+    structured_output_enabled,
     calculate_dynamic_delay,
     find_addressed_bot,
     should_reply_to_optional_casual,
@@ -962,6 +963,9 @@ def _generate_multi_reply(
                 prompt,
                 names,
                 message_only=True,
+                structured_output=(
+                    structured_output_enabled(config)
+                ),
             )
         )
         repair_metadata = dict(metadata)

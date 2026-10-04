@@ -25,6 +25,53 @@
   target guids; the guild idle payload carries the zone weather) and
   restart the bridge. No database migration is needed.
 
+### 2026-10-04 - Playerbot Core Compatibility
+
+* **Bot identification**: Use headless sessions to identify playerbots
+  after upstream removed `WorldSession::IsBot()`. Preserve the existing
+  AI fallback and treatment of player-controlled self-bots.
+* **General channel membership**: Replace the removed
+  `Player::IsInChannel()` calls with a shared, read-only check of the
+  player's joined channels. Eligibility and delivery require membership
+  in the exact channel; eligibility continues searching past matching
+  channels the bot has not joined. No core patch is required.
+* **Documentation**: Explain the membership helper in the architecture
+  guide and remind users in the README to keep both upstream dependencies
+  up to date as chatter is frequently re-aligned with them.
+* **Upgrade**: Update AzerothCore's Playerbot branch and mod-playerbots
+  together, then rebuild, install, and restart worldserver. Older cores
+  without `WorldSession::IsHeadless()` are no longer supported. This
+  chatter fix adds no database migration or configuration changes.
+
+### 2026-10-04 - Structured Output Setup Guide
+
+* **README**: Recommend structured output on compatible endpoints and
+  explain its formatting reliability, on/off behavior, model requirements
+  and handling of rejected responses.
+* **Dependencies**: Document automatic installation for the Docker bridge,
+  separate host screenshot-agent requirements, the missing-validator error,
+  and the Python process restarts needed to enable or disable the feature.
+
+### 2026-10-03 - Optional Native Structured Output
+
+* **Global switch**: Add `LLMChatter.StructuredOutput.Enable`, default `0`,
+  for JSON generation across Anthropic, OpenAI, Google, OpenRouter and
+  Ollama, including analysis, memory and host screenshot vision.
+* **Strict responses**: Enabled calls request a native schema and reject
+  incomplete, refused or invalid output before existing parsers. Repairs
+  retain their schema; unsupported formats never silently fall back to text.
+  Farewell and identity prose remain explicit free-text calls.
+* **Diagnostics**: Report requested mode and resolved targets, categorized
+  failures and periodic repeat counts. Optional request logs include schema,
+  completion and validation details. Host vision diagnostics use its normal
+  logger, without image payloads or writes to the bridge's JSONL path.
+* **Upgrade**: Install updated `tools/requirements.txt` (adds `jsonschema`)
+  in bridge and host environments; enabled startup checks for the validator.
+  Restart the affected Python processes
+  to load the setting. No rebuild, migration or worldserver restart.
+  Enable only after checking every configured JSON endpoint's capability;
+  return the flag to `0` and restart those processes to restore legacy mode.
+
 ### 2026-10-03 - Screenshot Cycle Diagnostics
 
 * **Host agent logging**: Show each cycle's randomized wait and next
