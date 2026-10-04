@@ -3180,6 +3180,16 @@ LLMChatter.Memory.AmbientChance = 20
 LLMChatter.Memory.RecallChance = 20
 
 #
+#   LLMChatter.Memory.RecallCount
+#       How many past memories (1-10) are retrieved for a
+#       reunion greeting, a reply to the player or a bot
+#       question. More memories give the bot more to draw on
+#       but make the prompt longer.
+#       Default: 3
+#
+LLMChatter.Memory.RecallCount = 3
+
+#
 #   LLMChatter.Memory.SessionMinutes
 #       Minimum session length (minutes) before memories are
 #       committed on farewell. Shorter sessions are discarded.
@@ -3303,6 +3313,14 @@ LLMChatter.Memory.PartyMemberGenerationChance = 50
 #       Default: 20
 #
 LLMChatter.Memory.IdleRecallChance = 20
+
+#
+#   LLMChatter.Memory.IdleRecallCount
+#       How many past memories (1-10) idle chatter retrieves
+#       when IdleRecallChance passes.
+#       Default: 2
+#
+LLMChatter.Memory.IdleRecallCount = 2
 
 ###############################################################################
 # BACKSTORY

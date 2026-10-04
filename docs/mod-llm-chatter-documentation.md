@@ -2702,6 +2702,8 @@ experiences rather than treating the player as a stranger.
 | `LLMChatter.Memory.SessionMinutes` | `15` | Minimum session length to activate memories |
 | `LLMChatter.Memory.MaxPerBotPlayer` | `50` | Cap on active memories per bot–player pair |
 | `LLMChatter.Memory.RecallChance` | `30` | % chance a specific memory is highlighted in reunion greeting |
+| `LLMChatter.Memory.RecallCount` | `3` | Memories retrieved for a greeting, a reply to the player or a bot question (1-10) |
+| `LLMChatter.Memory.IdleRecallCount` | `2` | Memories retrieved for idle chatter (1-10) |
 | `LLMChatter.Memory.IdentityVersion` | `1` | Bump to force personality regeneration for all bots |
 
 ---
