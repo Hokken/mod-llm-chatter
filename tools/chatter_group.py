@@ -3399,6 +3399,8 @@ def build_idle_chatter_prompt(
         return append_json_instruction(
             prompt, allow_action,
             extra_field=THREAD_REPORT_FIELD,
+            include_thread=True,
+            thread_speaker_names=(bot['name'],),
             extra_rule=THREAD_REPORT_RULE,
         )
     return append_json_instruction(
@@ -3927,6 +3929,8 @@ def build_idle_conversation_prompt(
             msg_count,
             allow_action=allow_action,
             trailing_object=THREAD_REPORT_OBJECT,
+            include_thread=True,
+            thread_speaker_names=bot_names,
             extra_rule=THREAD_REPORT_RULE,
         )
     return append_conversation_json_instruction(

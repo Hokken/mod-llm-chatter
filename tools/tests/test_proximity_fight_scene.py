@@ -122,11 +122,12 @@ def test_generate_single_line_prefers_fight_topic():
     source = Path(chatter_proximity.__file__).read_text(
         encoding="utf-8")
     assert re.search(
-        r"topic\s*\n\s*or _fight_topic\(extra, get_chatter_mode"
+        r"topic\s+or _fight_topic\(extra, get_chatter_mode"
         r"\(config or \{\}\)\)", source)
     assert re.search(
         r"fight_topic = _fight_topic\(extra, mode\)\s*"
-        r"if fight_topic:\s*topic = fight_topic", source)
+        r"if isinstance\(extra.get\('screenshot_observation'\), dict\):\s*"
+        r"topic = None\s*elif fight_topic:\s*topic = fight_topic", source)
 
 
 # ---------------------------------------------------------
