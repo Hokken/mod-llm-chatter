@@ -37,6 +37,7 @@ from chatter_shared import (
     get_subzone_lore,
     build_conversation_json_repair_prompt,
     spell_out_trade_numbers,
+    structured_output_enabled,
 )
 from chatter_shared import (
     build_talent_context,
@@ -777,6 +778,9 @@ def process_conversation(
         if not messages:
             repair_prompt = build_conversation_json_repair_prompt(
                 prompt, bot_names,
+                structured_output=(
+                    structured_output_enabled(config)
+                ),
             )
             response = call_llm(
                 client, repair_prompt, config,
