@@ -332,8 +332,8 @@ def test_cpp_meet_greeting_is_rechecked_at_delivery():
     assert 'SettleMeetGreetingFollowUp(eventId, false);' in drop
     # The delivery scope ends the hold on this terminal drop.
     assert 'ReleaseBotReplyHold' not in drop
-    assert body.index('ReplyHoldDeliveryScope replyHold(botGuid, eventType);') \
-        < gate
+    assert body.index('ReplyHoldDeliveryScope replyHold(botGuid,') < gate
+    assert 'eventExtraData, LLM_CHATTER_REPLY_HOLD_KEY));' in body
     settle = body.rindex('SettleMeetGreetingFollowUp(eventId, sent);')
     assert settle > body.rindex('"SET delivered = 0, "')
     assert settle > body.rindex('FinalizeDroppedMessage(')
@@ -368,8 +368,13 @@ def test_cpp_follow_up_release_and_cancel():
 def test_cpp_meet_scan_uses_short_reply_hold():
     source = _src('LLMChatterGuildWorld.cpp')
     scan = _function_body(source, 'void ScanMeetGreetings(')
-    assert 'HoldBotForReply(bot, player, "guild_meet_greeting")' in scan
-    assert '"guild_post_allowed":{}' in scan
+    # The hold is tied to this greeting, not to any later one.
+    hold_id = scan.index('uint32 replyHoldId = NewReplyHoldId();')
+    field = scan.index('ReplyHoldJsonField(replyHoldId)')
+    queue = scan.index('"guild_meet_greeting", bot,')
+    hold = scan.index('HoldBotForReply(bot, player, replyHoldId);')
+    assert hold_id < field < queue < hold
+    assert '"guild_post_allowed":{}{}' in scan
     assert 'GuildConversationActive(guildId)' in scan
     assert 'IsPersistedEventOnCooldown(key, cooldown)' in scan
     assert 'InSameGroup(bot, player)' in scan

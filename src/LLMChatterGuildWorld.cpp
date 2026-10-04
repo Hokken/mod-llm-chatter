@@ -268,20 +268,22 @@ void ScanMeetGreetings(Player* player, time_t now)
 
         // The /say greeting is always allowed; the optional Guild
         // follow-up gives way to a live player conversation.
+        uint32 replyHoldId = NewReplyHoldId();
         std::string json = fmt::format(
             R"({{{},{},{},"zone_id":{},"area_id":{},)"
-            R"("guild_post_allowed":{}}})",
+            R"("guild_post_allowed":{}{}}})",
             GuildFields(guild, player->GetTeamId()),
             PlayerJson(bot, "bot"),
             PlayerJson(player, "player"),
             bot->GetZoneId(),
             bot->GetAreaId(),
-            GuildConversationActive(guildId) ? "false" : "true");
+            GuildConversationActive(guildId) ? "false" : "true",
+            ReplyHoldJsonField(replyHoldId));
         QueueGuildWorldEvent(
             "guild_meet_greeting", bot,
             player->GetGUID().GetCounter(), player->GetName(), 0,
             key, json);
-        HoldBotForReply(bot, player, "guild_meet_greeting");
+        HoldBotForReply(bot, player, replyHoldId);
         LOG_DEBUG("module",
             "LLMChatter: guild_meet_greeting bot={} player={}",
             bot->GetName(), player->GetName());

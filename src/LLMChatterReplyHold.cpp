@@ -12,7 +12,9 @@
 #include "ScriptMgr.h"
 
 #include <algorithm>
+#include <atomic>
 #include <chrono>
+#include <ctime>
 #include <limits>
 #include <mutex>
 #include <unordered_map>
@@ -31,11 +33,15 @@ struct ReplyHold
     uint32 heldMs = 0;
     // AI delay the bot already had when the hold started.
     uint32 priorMs = 0;
-    std::string eventType;
+    uint32 replyId = 0;
 };
 
 std::mutex _holdMutex;
 std::unordered_map<uint32, ReplyHold> _heldBots;
+
+// Seeded from the clock so ids still queued from before a restart do
+// not match the holds of the new run.
+std::atomic<uint32> _nextReplyId{static_cast<uint32>(std::time(nullptr))};
 
 // PlayerbotAIBase keeps the delay protected and has no getter.
 struct AICheckDelayAccess : PlayerbotAIBase
@@ -54,8 +60,8 @@ uint32 ElapsedMs(HoldClock::time_point since, HoldClock::time_point now)
         ms, std::numeric_limits<uint32>::max()));
 }
 
-// eventType nullptr releases whatever the bot is held for.
-void ReleaseHold(uint32 botGuid, std::string const* eventType)
+// replyId nullptr releases whatever the bot is held for.
+void ReleaseHold(uint32 botGuid, uint32 const* replyId)
 {
     if (!botGuid)
         return;
@@ -65,7 +71,7 @@ void ReleaseHold(uint32 botGuid, std::string const* eventType)
         std::lock_guard<std::mutex> guard(_holdMutex);
         auto it = _heldBots.find(botGuid);
         if (it == _heldBots.end()
-            || (eventType && it->second.eventType != *eventType))
+            || (replyId && it->second.replyId != *replyId))
             return;
         hold = it->second;
         _heldBots.erase(it);
@@ -93,8 +99,19 @@ void ReleaseHold(uint32 botGuid, std::string const* eventType)
 }
 } // namespace
 
-void HoldBotForReply(
-    Player* bot, Player* player, std::string const& eventType)
+uint32 NewReplyHoldId()
+{
+    uint32 id = _nextReplyId.fetch_add(1);
+    return id ? id : _nextReplyId.fetch_add(1);
+}
+
+std::string ReplyHoldJsonField(uint32 replyId)
+{
+    return std::string(",\"") + LLM_CHATTER_REPLY_HOLD_KEY + "\":"
+        + std::to_string(replyId);
+}
+
+void HoldBotForReply(Player* bot, Player* player, uint32 replyId)
 {
     uint32 holdMs = std::min(
         sLLMChatterConfig->_proxChatterReplyHoldMs,
@@ -113,13 +130,17 @@ void HoldBotForReply(
     uint32 botGuid = bot->GetGUID().GetCounter();
     HoldClock::time_point now = HoldClock::now();
     std::lock_guard<std::mutex> guard(_holdMutex);
-    uint32 priorMs = AICheckDelayAccess::Get(*ai);
+    uint32 current = AICheckDelayAccess::Get(*ai);
+    uint32 priorMs = current;
     auto previous = _heldBots.find(botGuid);
     if (previous != _heldBots.end())
     {
-        // Still held: the current delay is partly the old hold's own.
+        // Still held and not raised since: the current delay is partly
+        // the old hold's own. A longer one was set by something else.
         uint32 elapsed = ElapsedMs(previous->second.start, now);
-        if (elapsed < previous->second.heldMs)
+        if (elapsed < previous->second.heldMs
+            && current <= previous->second.heldMs - elapsed
+                + kReleaseSlackMs)
             priorMs = previous->second.priorMs > elapsed
                 ? previous->second.priorMs - elapsed : 0;
     }
@@ -134,12 +155,13 @@ void HoldBotForReply(
             ++it;
     }
     ai->SetNextCheckDelay(holdMs);
-    _heldBots[botGuid] = ReplyHold{now, holdMs, priorMs, eventType};
+    _heldBots[botGuid] = ReplyHold{now, holdMs, priorMs, replyId};
 }
 
-void ReleaseBotReplyHold(uint32 botGuid, std::string const& eventType)
+void ReleaseBotReplyHold(uint32 botGuid, uint32 replyId)
 {
-    ReleaseHold(botGuid, &eventType);
+    if (replyId)
+        ReleaseHold(botGuid, &replyId);
 }
 
 class LLMChatterReplyHoldPlayerScript : public PlayerScript

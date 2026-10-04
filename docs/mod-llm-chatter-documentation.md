@@ -3733,7 +3733,9 @@ only sees real players.
   `GroupChatter.FacingEnable`) and its AI delay is raised to the hold,
   never shortened. The hold is released early, taking back only what it
   added, when the bot enters combat or its greeting is delivered or
-  dropped for good; a short meet retry keeps it.
+  dropped for good; a short meet retry keeps it. The hold is tied to this
+  greeting by the `reply_hold_id` in its event, so a late line from an
+  earlier reply of the same bot does not end it.
 - The `/say` line is owned by the Guild subsystem, so the proximity
   checks do not apply to it. Delivery checks it again instead
   (`CheckMeetGreetingDelivery()`): the player must still be online, on the

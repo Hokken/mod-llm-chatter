@@ -21,7 +21,7 @@
   a mood.
 * **Reply hold**: The meet greeting uses the short reply hold
   (`LLMChatterReplyHold.cpp`, `ProximityChatter.ReplyHoldMs`): a standing
-  bot waits for its greeting, a moving bot keeps moving.
+  bot waits for its own greeting, a moving bot keeps moving.
 * **Configuration**: `GuildChatter.MeetGreeting.*`,
   `GuildChatter.WorldScanInterval`, `GuildChatter.JoinZoneAnnounce.*` and
   `GuildChatter.NpcEncounter.*`.
