@@ -25,7 +25,8 @@
   emote, waits for its reply (`ProximityChatter.ReplyHoldMs`, default 4
   seconds, `0` disables) and turns to you when facing is enabled. A moving
   bot keeps moving. The hold never shortens the bot's own AI delays and
-  ends when the bot enters combat or its reply is delivered or dropped.
+  ends when the bot enters combat or its own queued reply is delivered or
+  dropped; a late reply to an earlier emote at the bot does not end it.
 * **Roleplay wording**: Trade offers speak as people in the world with
   prices in coins written as words; level-ups praise how the character
   grew stronger in their calling (Shadow and Light priests apart) instead

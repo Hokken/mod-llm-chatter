@@ -493,16 +493,48 @@ def test_reply_hold_never_shortens_other_ai_delays():
     assert 'if (priorLeft < current)' in release
 
 
+def test_reply_hold_rehold_keeps_a_delay_raised_from_outside():
+    hold = _function(_read('LLMChatterReplyHold.cpp'),
+                     'void HoldBotForReply(')
+    assert 'uint32 priorMs = current;' in hold
+    rehold = hold[hold.index('if (previous != _heldBots.end())'):
+                  hold.index('if (priorMs >= holdMs)')]
+    assert ('&& current <= previous->second.heldMs - elapsed\n'
+            '                + kReleaseSlackMs)') in rehold
+    assert rehold.index('kReleaseSlackMs)') < rehold.index(
+        'priorMs = previous->second.priorMs')
+
+
 def test_reply_hold_is_released_only_by_its_own_reply():
     source = _read('LLMChatterReplyHold.cpp')
+    header = _read('LLMChatterReplyHold.h')
     release = _function(source, 'void ReleaseHold(')
-    assert 'it->second.eventType != *eventType' in release
-    for name in ('LLMChatterGroupEmote.cpp', 'LLMChatterProximity.cpp'):
-        assert 'HoldBotForReply(' in _read(name)
-        assert ', "proximity_player_emote");' in _read(name), name
+    assert 'it->second.replyId != *replyId' in release
+    assert 'eventType' not in source and 'eventType' not in header
+    assert 'if (replyId)\n        ReleaseHold(botGuid, &replyId);' in source
+    assert 'LLM_CHATTER_REPLY_HOLD_KEY = "reply_hold_id"' in header
+    assert 'std::time(nullptr)' in source
+
     proximity = _read('LLMChatterProximity.cpp')
+    emote = _function(proximity, 'bool HandleProximityPlayerbotEmote(')
+    assert 'addressedSpeaks ? NewReplyHoldId() : 0' in emote
+    assert 'isCustom, replyHoldId);' in emote
+    assert 'if (queued && replyHoldId)\n' \
+        '        HoldBotForReply(bot, player, replyHoldId);' in emote
     queue = _function(proximity, 'bool QueuePlayerEmoteProximityEvent(')
-    assert '"proximity_player_emote",' in queue
+    assert queue.index('extra += ReplyHoldJsonField(replyHoldId);') \
+        < queue.index('QueueChatterEvent(')
+    # The mirror emote queues no reply, so no delivered line ends it.
+    assert 'HoldBotForReply(targetBot, player, 0);' \
+        in _read('LLMChatterGroupEmote.cpp')
+
+    delivery = _read('LLMChatterDelivery.cpp')
+    assert ('ReplyHoldDeliveryScope replyHold(botGuid, ExtractJsonUInt(\n'
+            '        eventExtraData, LLM_CHATTER_REPLY_HOLD_KEY));') \
+        in delivery
+    finalize = _function(delivery, 'void FinalizeDroppedMessage(')
+    assert 'JOIN llm_chatter_events e ON e.id = m.event_id' in finalize
+    assert 'LLM_CHATTER_REPLY_HOLD_KEY' in finalize
     assert 'ReleaseHold(player->GetGUID().GetCounter(), nullptr)' in source
     assert 'AddLLMChatterReplyHoldScripts();' in _read('LLMChatterScript.cpp')
 
@@ -510,7 +542,7 @@ def test_reply_hold_is_released_only_by_its_own_reply():
 def test_reply_hold_ends_on_terminal_drops_but_not_on_retry():
     delivery = _read('LLMChatterDelivery.cpp')
     body = _function(delivery, 'void DeliverPendingMessagesImpl()')
-    scope = body.index('ReplyHoldDeliveryScope replyHold(botGuid, eventType);')
+    scope = body.index('ReplyHoldDeliveryScope replyHold(botGuid,')
     assert scope < body.index('FinalizeDroppedMessage(')
     retry = body.index('// Unclaim and reschedule for retry.')
     keep = body.index('replyHold.Keep();', retry)

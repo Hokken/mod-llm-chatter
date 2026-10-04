@@ -250,15 +250,21 @@ void FinalizeDroppedMessage(
 
     // The rest of the scene is cancelled, so its speakers owe no reply.
     if (QueryResult held = CharacterDatabase.Query(
-            "SELECT DISTINCT bot_guid FROM llm_chatter_messages "
-            "WHERE event_id = {} AND sequence > {} "
-            "AND delivered = 0 AND bot_guid > 0",
+            "SELECT m.bot_guid, e.extra_data "
+            "FROM llm_chatter_messages m "
+            "JOIN llm_chatter_events e ON e.id = m.event_id "
+            "WHERE m.event_id = {} AND m.sequence > {} "
+            "AND m.delivered = 0 AND m.bot_guid > 0",
             eventId, sequence))
     {
         do
-            ReleaseBotReplyHold(
-                held->Fetch()[0].Get<uint32>(), eventType);
-        while (held->NextRow());
+        {
+            Field* row = held->Fetch();
+            ReleaseBotReplyHold(row[0].Get<uint32>(),
+                row[1].IsNull() ? 0 : ExtractJsonUInt(
+                    row[1].Get<std::string>(),
+                    LLM_CHATTER_REPLY_HOLD_KEY));
+        } while (held->NextRow());
     }
 
     CharacterDatabase.DirectExecute(
@@ -484,7 +490,8 @@ void DeliverPendingMessagesImpl()
 
     // Every return below ends this row for good, except the retry
     // at the end, which keeps the bot's reply hold.
-    ReplyHoldDeliveryScope replyHold(botGuid, eventType);
+    ReplyHoldDeliveryScope replyHold(botGuid, ExtractJsonUInt(
+        eventExtraData, LLM_CHATTER_REPLY_HOLD_KEY));
 
     // ActionAsEmote disabled: fall back to the historical
     // inline "*action* text" rendering so the action is not

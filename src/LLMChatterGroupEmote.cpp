@@ -513,7 +513,7 @@ uint32 HandleEmoteAtUngroupedBot(
     {
         return 0;
     }
-    HoldBotForReply(targetBot, player, "proximity_player_emote");
+    HoldBotForReply(targetBot, player, 0);
     return mirrorEmote;
 }
 

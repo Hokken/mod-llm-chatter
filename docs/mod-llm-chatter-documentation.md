@@ -3771,12 +3771,17 @@ bot is still nearby when its reply arrives.
   `GroupChatter.FacingEnable` is on.
 - The hold raises the bot's AI check delay to the hold length only if
   it is shorter; a longer delay set by the bot's own AI is left alone.
-- The hold is tied to the event type of the reply it waits for
-  (`proximity_player_emote`). It ends early when the bot enters combat,
-  or when a line of that event type from the bot is delivered or dropped
-  for good, including the speakers of a directed scene cancelled after a
-  drop. A line put back on the queue for a retry, or an unrelated line
-  from the same bot, keeps the hold.
+  Holding a bot again while it is still held keeps a delay that
+  something else raised in the meantime.
+- The hold is tied to the one queued reply it waits for: the emote event
+  carries the hold's id as `reply_hold_id` in its extra data
+  (`NewReplyHoldId()`). It ends early when the bot enters combat, or
+  when a line of that reply from the bot is delivered or dropped for
+  good, including the speakers of a directed scene cancelled after a
+  drop. A line put back on the queue for a retry, an unrelated line, or
+  a late reply to an earlier emote at the same bot keeps the hold. The
+  short hold for a mirror emote waits for no queued reply, so only
+  combat or its own end finishes it.
 - Ending early takes back only what the hold added: the delay is lowered
   to what was left of the bot's own earlier delay, and left alone when
   something else raised it in the meantime.

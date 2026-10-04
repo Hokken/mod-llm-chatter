@@ -1010,7 +1010,7 @@ Session 69 added two scheduling controls around that model:
 |---|---:|---|
 | `src/LLMChatterScript.cpp` | 17 | Registration coordinator only |
 | `src/LLMChatterShared.cpp` | ~2500 | Shared helpers: SQL/JSON escaping, canonical lookups, queue insertion, cooldowns, priorities/delays, delivery helpers, spawn-GUID creature lookup, NPC role descriptions, and the shared named-boss cache/classifier |
-| `src/LLMChatterReplyHold.cpp` | ~165 | `HoldBotForReply()`: keeps a standing ungrouped bot that owes a player a reply in place for `ProximityChatter.ReplyHoldMs` (moving bots are left alone); raises the AI delay without shortening it and, when released on combat or on the delivery or terminal drop of its reply, takes back only what it added |
+| `src/LLMChatterReplyHold.cpp` | ~185 | `HoldBotForReply()`: keeps a standing ungrouped bot that owes a player a reply in place for `ProximityChatter.ReplyHoldMs` (moving bots are left alone); raises the AI delay without shortening it and, when released on combat or on the delivery or terminal drop of its own reply (matched by the `reply_hold_id` in the event's extra data), takes back only what it added |
 | `src/LLMChatterShared.h` | 83 | Shared declarations still used across domains; `class Unit` forward-declared for `SendUnitTextEmote()`; currently also declares world/player registration |
 | `src/LLMChatterDelivery.cpp` | ~1000 | Outbound DB polling and channel dispatch, including instance-aware local revalidation for `say`/`msay`, screenshot snapshot/scan-radius checks, and safe boss `myell` delivery |
 | `src/LLMChatterDelivery.h` | 4 | Narrow delivery extraction declaration used by `LLMChatterWorld.cpp` |
