@@ -2930,8 +2930,8 @@ LLMChatter.Bridge.InterSystemStaggerMax = 6
 #       message. Simulates "reading + typing" time. Applies
 #       to all chatter: party replies, General reactions,
 #       idle conversations, event reactions. Direct replies
-#       to player chat use a faster 2-second floor but still
-#       respect this minimum. Lower = snappier replies.
+#       to player chat use ResponsiveDelayMin/Max instead.
+#       Lower = snappier replies.
 #       Default: 1000
 #
 LLMChatter.MessageDelayMin = 1000
@@ -2945,6 +2945,19 @@ LLMChatter.MessageDelayMin = 1000
 #       Default: 30000
 #
 LLMChatter.MessageDelayMax = 30000
+
+#
+#   LLMChatter.ResponsiveDelayMin
+#   LLMChatter.ResponsiveDelayMax
+#       Delay range (milliseconds) before a bot answers a
+#       message the player sent it. The LLM call itself
+#       already takes time, so this only simulates a short
+#       pause before typing. Lower = snappier replies to the
+#       player. Ambient chatter keeps MessageDelayMin/Max.
+#       Default: Min = 4000, Max = 8000
+#
+LLMChatter.ResponsiveDelayMin = 4000
+LLMChatter.ResponsiveDelayMax = 8000
 
 #
 # PARTY CHAT PACING GATE [BRIDGE]
