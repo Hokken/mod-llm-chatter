@@ -1,5 +1,6 @@
 """LLM call-layer helpers extracted from chatter_shared (N14)."""
 
+import fnmatch
 import logging
 import importlib.util
 import re
@@ -701,6 +702,26 @@ def _call_target(client, prompt, config, provider, model, max_tokens,
     return result
 
 
+def label_model(label: str, config: dict) -> Optional[str]:
+    """Model for a call whose label matches LLMChatter.LabelModel.Labels.
+
+    The labels are comma-separated fnmatch patterns (group_*,
+    reaction_*). Returns None when the label matches nothing or the
+    feature is not configured, so the call keeps LLMChatter.Model.
+    """
+    model = (config.get('LLMChatter.LabelModel') or '').strip()
+    patterns = (
+        config.get('LLMChatter.LabelModel.Labels') or ''
+    ).strip()
+    if not model or not patterns or not label:
+        return None
+    for pattern in patterns.split(','):
+        pattern = pattern.strip()
+        if pattern and fnmatch.fnmatchcase(label, pattern):
+            return model
+    return None
+
+
 def call_llm(
     client: Any,
     prompt: str,
@@ -727,7 +748,7 @@ def call_llm(
         default_model = DEFAULT_GOOGLE_MODEL
     elif provider == 'openrouter':
         default_model = DEFAULT_OPENROUTER_MODEL
-    model = config.get(
+    model = label_model(label, config) or config.get(
         'LLMChatter.Model', default_model
     )
     model = resolve_model(model)

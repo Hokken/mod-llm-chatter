@@ -624,6 +624,13 @@ Supported providers:
 - OpenRouter
 - Ollama
 
+`LLMChatter.LabelModel` sends calls whose label matches
+`LLMChatter.LabelModel.Labels` (comma-separated fnmatch patterns, see
+[Labels](#labels)) to a second model on the same provider, for example a
+stronger model for party chat and replies to the player while ambient
+General chatter stays on a cheaper one. Unmatched calls keep
+`LLMChatter.Model`. Quick analysis is unaffected (`QuickAnalyze.Model`).
+
 Changing models normally requires only the provider and model ID. The
 bridge resolves a conservative capability profile for OpenAI-compatible
 targets, including direct OpenAI, Google, OpenRouter, and Ollama. Known
@@ -2487,8 +2494,9 @@ prompt was sent as a single user message.
 ### Labels
 
 Every `call_llm()` call site passes a descriptive `label=` keyword
-argument so log entries can be filtered by feature. All 27 call sites
-are labelled:
+argument so log entries can be filtered by feature, and
+`LLMChatter.LabelModel.Labels` can route calls to a second model by
+label. All 27 call sites are labelled:
 
 | Label | Source |
 |---|---|

@@ -296,6 +296,26 @@ LLMChatter.Provider = anthropic
 #
 LLMChatter.Model = claude-haiku-4-5-20251001
 
+#
+#   LLMChatter.LabelModel
+#   LLMChatter.LabelModel.Labels
+#       Sends selected calls to a second model on the same
+#       provider. Labels is a comma-separated list of call
+#       labels, with * and ? wildcards (the labels are the
+#       label= of each call_llm() call and appear in the
+#       request log). Matching calls use LabelModel; all other
+#       calls keep LLMChatter.Model. Example: a small, cheap
+#       model for ambient General chatter and a stronger one
+#       for what the player is part of:
+#         LLMChatter.LabelModel = claude-sonnet-4-5
+#         LLMChatter.LabelModel.Labels = group_*,reaction_*,general_player_msg
+#       QuickAnalyze calls are not affected (QuickAnalyze.Model).
+#       Empty model or label list = every call uses Model.
+#       Default: (empty)
+#
+LLMChatter.LabelModel =
+LLMChatter.LabelModel.Labels =
+
 ###############################################################################
 # ANTHROPIC SETTINGS [BRIDGE] (only needed if Provider = anthropic)
 ###############################################################################
