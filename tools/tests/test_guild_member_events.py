@@ -382,6 +382,57 @@ def test_multi_prompt_moves_expected_first_speaker_to_the_front():
     assert llm.call_count == 1
 
 
+def _event_prompt(names):
+    participants = [
+        {'name': name, 'speaker': _candidate_speaker(), 'zone_id': 12,
+         'map_id': 0}
+        for name in names
+    ]
+    return common.build_prompt(
+        participants, 'Keepers', 'Alliance', 'normal', [],
+        ['Someone joined the guild.'], 120,
+    )
+
+
+def test_event_prompts_carry_structured_contracts():
+    single, _ = _event_prompt(['Aliss'])
+    assert single.response_contract.kind == 'statement'
+    assert single.response_contract.message_only
+    names = ['Aliss', 'Bran']
+    multi, _ = _event_prompt(names)
+    contract = multi.response_contract
+    assert contract.kind == 'conversation' and contract.message_only
+    assert contract.speaker_names == tuple(names)
+    assert contract.message_count == 2
+
+
+def test_structured_repairs_keep_the_event_contract():
+    config = {'LLMChatter.StructuredOutput.Enable': '1'}
+    prompts = []
+
+    def record(client, prompt, config, **kwargs):
+        prompts.append(prompt)
+        return ''
+
+    for names in (['Aliss'], ['Aliss', 'Bran']):
+        prompts.clear()
+        prompt, _ = _event_prompt(names)
+        with patch.object(common, 'call_llm', side_effect=record):
+            if len(names) == 1:
+                common.run_single_prompt(
+                    None, config, prompt, names[0], 120, {},
+                    'guild_member_join', 'ctx', 'repair',
+                )
+            else:
+                common.run_multi_prompt(
+                    None, config, prompt, names, 120, {},
+                    'guild_member_join', 'ctx', 'repair',
+                )
+        assert len(prompts) == 2
+        assert all(p.response_contract == prompt.response_contract
+                   for p in prompts)
+
+
 # -- C++, SQL and config wiring ----------------------------------------
 
 def _src(name: str) -> str:

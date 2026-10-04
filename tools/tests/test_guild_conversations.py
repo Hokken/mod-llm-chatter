@@ -593,7 +593,7 @@ def test_three_participant_conversation():
     ])
 
 
-def test_invalid_conversation_repairs_once():
+def test_invalid_conversation_repairs_once(structured=False):
     names = ['Aliss', 'Rytsen']
     db = _DB()
     inserted = []
@@ -615,6 +615,16 @@ def test_invalid_conversation_repairs_once():
     def fake_call_llm(
         client, prompt, config, **kwargs
     ):
+        if structured:
+            assert prompt.response_contract.kind == 'conversation'
+            assert prompt.response_contract.message_only
+            assert prompt.response_contract.message_count == 4
+            if calls:
+                assert prompt.user_prompt.count(
+                    'Your previous output was invalid.'
+                ) == 1
+                assert 'JSON array' not in prompt.user_prompt
+                assert 'JSON array' not in prompt.structured_system_prompt
         calls.append(kwargs)
         return next(responses)
 
@@ -658,7 +668,9 @@ def test_invalid_conversation_repairs_once():
     ):
         result = (
             chatter_guild.process_guild_idle_chatter_event(
-                db, None, _config(), _event(names)
+                db, None, {**_config(),
+                           'LLMChatter.StructuredOutput.Enable':
+                           '1' if structured else '0'}, _event(names)
             )
         )
 
@@ -798,6 +810,7 @@ def main() -> int:
         test_two_participant_conversation,
         test_three_participant_conversation,
         test_invalid_conversation_repairs_once,
+        lambda: test_invalid_conversation_repairs_once(structured=True),
         test_failed_repair_falls_back_to_statement,
     ]
     for test in tests:

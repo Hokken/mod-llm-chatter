@@ -255,6 +255,7 @@ def _generate_field(db, config, bot_guid, group_id, bot_name, field,
             get_llm_client(config), prompt, config,
             max_tokens_override=token_limit,
             context=f'{field}:{bot_name}', label=f'bot_{field}',
+            free_text=True,
         )
         value = str(value or '').strip().strip('"').strip()
         if field == 'tone':

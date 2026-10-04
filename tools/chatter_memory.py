@@ -29,6 +29,7 @@ from chatter_shared import (
     build_bot_identity,
 )
 from chatter_llm import call_llm, get_llm_client
+from chatter_structured import ResponseContract
 
 logger = logging.getLogger(__name__)
 
@@ -732,6 +733,7 @@ def _call_llm_for_memory(
             max_tokens_override=120,
             context=f"memory:{bot_name}:{memory_type}",
             label='memory_generation',
+            response_contract=ResponseContract('memory'),
         )
         if not response:
             return None, None

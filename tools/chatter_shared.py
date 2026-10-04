@@ -64,6 +64,11 @@ from chatter_db import (
     get_creature_entry_column,
 )
 from talent_catalog import TALENT_CATALOG
+from chatter_structured import (
+    ResponseContract,
+    conversation_contract, render_structured_format, statement_contract,
+    structured_output_enabled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -78,27 +83,47 @@ class PromptParts(str):
     messages.
     """
     def __new__(
-        cls, user_prompt: str, system_block: str
+        cls, user_prompt: str, system_block: str, *,
+        response_contract=None, structured_system_prompt=None,
+        contract_conflict=False,
     ):
         instance = super().__new__(
             cls, user_prompt + system_block
         )
         instance.user_prompt = user_prompt
         instance.system_prompt = system_block
+        instance.response_contract = response_contract
+        instance.structured_system_prompt = structured_system_prompt
+        instance.contract_conflict = contract_conflict
         return instance
+
+    def _metadata(self):
+        return dict(response_contract=self.response_contract,
+                    structured_system_prompt=self.structured_system_prompt,
+                    contract_conflict=self.contract_conflict)
 
     def __add__(self, other):
         if isinstance(other, PromptParts):
+            selected = self if self.system_prompt else other
+            metadata = selected._metadata()
+            metadata['contract_conflict'] = (
+                self.contract_conflict or other.contract_conflict
+                or any(part.response_contract is not None
+                       and part.response_contract != selected.response_contract
+                       for part in (self, other))
+            )
             return PromptParts(
                 self.user_prompt
                 + other.user_prompt,
                 self.system_prompt
-                or other.system_prompt
+                or other.system_prompt,
+                **metadata,
             )
         if isinstance(other, str):
             return PromptParts(
                 self.user_prompt + other,
-                self.system_prompt
+                self.system_prompt,
+                **self._metadata(),
             )
         return NotImplemented
 
@@ -106,12 +131,27 @@ class PromptParts(str):
         if isinstance(other, str):
             return PromptParts(
                 other + self.user_prompt,
-                self.system_prompt
+                self.system_prompt,
+                **self._metadata(),
             )
         return NotImplemented
 
     def __iadd__(self, other):
         return self.__add__(other)
+
+
+def _annotated_prompt(prompt, block, factory, semantic_rules, **options):
+    """Invalid metadata must not break legacy prompt construction.
+
+    Enabled dispatch rejects the explicit marker before sending a request.
+    """
+    try:
+        contract = factory(**options)
+        structured = render_structured_format(contract, semantic_rules)
+    except (ValueError, TypeError):
+        return PromptParts(prompt, block, contract_conflict=True)
+    return PromptParts(prompt, block, response_contract=contract,
+                       structured_system_prompt=structured)
 
 
 # N12 decomposition scaffold note:
@@ -1804,6 +1844,8 @@ def append_json_instruction(
     allow_narrator_message: bool = False,
     extra_field: str = '',
     extra_rule: str = '',
+    include_thread: bool = False,
+    thread_speaker_names=(),
 ) -> str:
     """Append structured JSON response instruction
     to a prompt.
@@ -1856,7 +1898,15 @@ def append_json_instruction(
             "stated character limit."
             f"{lang_rule}"
         )
-        return PromptParts(prompt, block)
+        # Thread callers currently use extra_rule only for legacy report format.
+        return _annotated_prompt(
+            prompt, block, statement_contract,
+            narrator_rule
+            + ' Follow the Length instruction and character limit exactly.'
+            + lang_rule + (extra_rule if not include_thread else ''),
+            message_only=True, thread=include_thread,
+            thread_speaker_names=thread_speaker_names,
+        )
     # Apply ActionChance RNG: allow_action=True means
     # "eligible for action" — the RNG decides.
     # allow_action=False means "never include action"
@@ -1935,7 +1985,15 @@ def append_json_instruction(
         "stated character limit."
         f"{lang_rule}"
     )
-    return PromptParts(prompt, block)
+    return _annotated_prompt(
+        prompt, block, statement_contract,
+        action_desc + emote_only_rule
+        + 'Follow the Length instruction and character limit exactly.'
+        + lang_rule + (extra_rule if not include_thread else ''),
+        emote=emote_available, action=allow_action,
+        emote_only=allow_emote_only, thread=include_thread,
+        thread_speaker_names=thread_speaker_names,
+    )
 
 
 def append_conversation_json_instruction(
@@ -1949,6 +2007,8 @@ def append_conversation_json_instruction(
     allow_narrator_messages: bool = False,
     trailing_object: str = '',
     extra_rule: str = '',
+    include_thread: bool = False,
+    thread_speaker_names=(),
 ) -> str:
     """Append conversation JSON array instruction.
 
@@ -2008,7 +2068,15 @@ def append_conversation_json_instruction(
             "stated character limit."
             f"{lang_rule}"
         )
-        return PromptParts(prompt, block)
+        return _annotated_prompt(
+            prompt, block, conversation_contract,
+            narrator_rule
+            + 'Follow the Length instruction and character limit exactly.'
+            + lang_rule + (extra_rule if not include_thread else ''),
+            speaker_names=bot_names, message_count=msg_count,
+            message_only=True, thread=include_thread,
+            thread_speaker_names=thread_speaker_names,
+        )
 
     # When actions are enabled, every message MUST
     # include an action — strip_conversation_actions()
@@ -2121,7 +2189,16 @@ def append_conversation_json_instruction(
         "stated character limit."
         f"{lang_rule}"
     )
-    return PromptParts(prompt, block)
+    return _annotated_prompt(
+        prompt, block, conversation_contract,
+        action_text + '\n' + addressee_rule + emote_only_rule
+        + 'Follow the Length instruction and character limit exactly.'
+        + lang_rule + (extra_rule if not include_thread else ''),
+        speaker_names=bot_names, message_count=msg_count, emote=emote_available,
+        action=bool(action_speakers), addressee_names=addressee_names or (),
+        emote_only=allow_emote_only, thread=include_thread,
+        thread_speaker_names=thread_speaker_names,
+    )
 
 
 def select_conversation_message_count(
@@ -2145,8 +2222,19 @@ def build_conversation_json_repair_prompt(
     prompt: str,
     bot_names: List[str],
     message_only: bool = False,
+    *, structured_output: bool = False,
 ) -> str:
     """Build the shared one-attempt conversation repair prompt."""
+    if structured_output:
+        contract = getattr(prompt, 'response_contract', None)
+        if contract is None or contract.kind != 'conversation':
+            raise ValueError('Structured repair requires conversation metadata')
+        return prompt + (
+            '\n\nYour previous output was invalid. Return ONLY the JSON '
+            'object required by the supplied schema, with exactly '
+            f'{contract.message_count} messages. Preserve the original '
+            'scene, selected speakers and response rules.'
+        )
     msg_count = extract_conversation_msg_count(prompt)
     repair_prompt = (
         "Your previous output was invalid JSON. "
@@ -2612,6 +2700,8 @@ def find_addressed_bot(
         result = quick_llm_analyze(
             client, config, prompt, max_tokens=80,
             label='find_addressed_bot',
+            response_contract=ResponseContract('analysis',
+                                               speaker_names=bot_names),
         )
     except Exception:
         logger.error(
