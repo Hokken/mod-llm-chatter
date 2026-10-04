@@ -17,6 +17,7 @@ from chatter_ab import normalize_ab_node_changes
 logger = logging.getLogger(__name__)
 
 from chatter_shared import (
+    get_race_faction,
     parse_extra_data,
     run_single_reaction,
 )
@@ -224,24 +225,10 @@ def _try_carrier_self_message(
 
     # Skip if bot is on a different faction
     # than the event perspective
-    # (race is a string name from
-    #  get_lightweight_bot_data)
     event_team = extra_data.get('team', '')
     if event_team:
-        race = bot_data.get('race', '')
-        ALLIANCE_RACES = {
-            'Human', 'Dwarf', 'Night Elf',
-            'Gnome', 'Draenei',
-        }
-        HORDE_RACES = {
-            'Orc', 'Undead', 'Tauren',
-            'Troll', 'Blood Elf',
-        }
-        if (event_team == 'Alliance'
-                and race not in ALLIANCE_RACES):
-            return
-        if (event_team == 'Horde'
-                and race not in HORDE_RACES):
+        if (get_race_faction(bot_data.get('race_id'))
+                != event_team):
             return
 
     extra_data['_db'] = db

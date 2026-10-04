@@ -23,6 +23,7 @@ from chatter_shared import (
     get_chatter_mode,
     get_class_name,
     get_gender_label,
+    get_race_faction,
     get_race_name,
     get_zone_name,
     get_zone_flavor,
@@ -85,6 +86,7 @@ def _query_speaker(db, bot_guid: int) -> Dict[str, object]:
             'race': get_race_name(
                 int(base.get('race', 0) or 0)
             ),
+            'race_id': int(base.get('race', 0) or 0),
             'gender': get_gender_label(
                 int(base.get('gender', 0) or 0)
             ),
@@ -106,6 +108,7 @@ def _query_speaker(db, bot_guid: int) -> Dict[str, object]:
 from chatter_constants import (
     GUILD_CHAT_TOPICS,
     GUILD_CHAT_TOPICS_RP,
+    RACE_NAMES,
 )
 from chatter_general import _pick_length_hint
 from chatter_mode import (
@@ -146,20 +149,21 @@ from chatter_shared import count_conversation_items
 
 # Review #4: never insult your own faction. Derive Alliance/Horde from race so
 # the prompt can pass the speaker's side and forbid self-faction jabs.
-_ALLIANCE_RACES = {"Human", "Dwarf", "Night Elf", "Gnome", "Draenei"}
-_HORDE_RACES = {"Orc", "Undead", "Scourge", "Tauren", "Troll", "Blood Elf"}
-
-
 def _faction_of(race_name: str) -> str:
-    if race_name in _ALLIANCE_RACES:
-        return "Alliance"
-    if race_name in _HORDE_RACES:
-        return "Horde"
+    """Faction of a race name, through its ID in RACE_NAMES."""
+    if race_name == "Scourge":  # the DBC's internal name for Undead
+        race_name = "Undead"
+    for race_id, name in RACE_NAMES.items():
+        if name == race_name:
+            return get_race_faction(race_id)
     return ""
 
 
 def _speaker_faction(speaker: Dict) -> str:
     """Resolve the speaker's faction from its race (name or id), defensively."""
+    fac = get_race_faction(speaker.get('race_id'))
+    if fac:
+        return fac
     race = speaker.get('race')
     candidates = []
     if isinstance(race, str):

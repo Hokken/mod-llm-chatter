@@ -71,6 +71,7 @@ from chatter_mode import (
     build_player_identity,
 )
 from chatter_constants import (
+    ALLIANCE_RACE_IDS, HORDE_RACE_IDS,
     RACE_SPEECH_PROFILES,
     LENGTH_HINTS, RP_LENGTH_HINTS,
 )
@@ -169,12 +170,15 @@ def _get_general_chat_history(
     if limit is None:
         limit = _chat_history_limit
     cursor = db.cursor(dictionary=True)
-    if faction == 'Alliance':
-        race_filter = 'AND c.race IN (1, 3, 4, 7, 11)'
-    elif faction == 'Horde':
-        race_filter = 'AND c.race IN (2, 5, 6, 8, 10)'
-    else:
-        race_filter = ''
+    race_ids = {
+        'Alliance': ALLIANCE_RACE_IDS,
+        'Horde': HORDE_RACE_IDS,
+    }.get(faction)
+    race_filter = (
+        'AND c.race IN ('
+        + ', '.join(str(i) for i in race_ids) + ')'
+        if race_ids else ''
+    )
     # Faction-scoped history fails closed: a speaker whose
     # character row cannot establish a faction is not prompt context.
     character_join = (

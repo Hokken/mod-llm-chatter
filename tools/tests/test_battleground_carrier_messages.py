@@ -57,6 +57,7 @@ def test_carrier_messages_use_event_type_as_delivery_reason():
         mocks['get_lightweight_bot_data'].return_value = {
             'class': 'Mage',
             'race': 'Human',
+            'race_id': 1,
         }
         mocks['_maybe_talent_context'].return_value = None
         mocks['build_bg_flag_carrier_prompt'].return_value = 'prompt'
@@ -100,6 +101,7 @@ def test_carrier_outside_player_subgroup_stays_silent():
         mocks['get_lightweight_bot_data'].return_value = {
             'class': 'Mage',
             'race': 'Human',
+            'race_id': 1,
         }
         for event_type, actor in (
             ('bg_flag_picked_up', 'carrier'),

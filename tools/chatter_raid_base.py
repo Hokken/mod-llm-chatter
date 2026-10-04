@@ -143,7 +143,7 @@ def get_lightweight_bot_data(
     """Query characters table for minimal bot info.
 
     Returns dict with bot_name, race, class (strings),
-    or None if not found.
+    race_id, or None if not found.
     """
     cursor = db.cursor(dictionary=True)
     try:
@@ -159,6 +159,7 @@ def get_lightweight_bot_data(
             'bot_name': row['name'],
             'bot_guid': bot_guid,
             'race': get_race_name(int(row['race'])),
+            'race_id': int(row['race']),
             'class': get_class_name(
                 int(row['class'])),
             'gender': get_gender_label(
