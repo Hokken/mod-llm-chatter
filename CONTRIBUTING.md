@@ -5,6 +5,15 @@ how to contribute, what to expect, and how to test your changes.
 
 ---
 
+## Design Philosophy
+
+Read [`docs/mod-llm-chatter-philosophy.md`](docs/mod-llm-chatter-philosophy.md)
+before designing a feature. It defines the module's purpose (immersion)
+and the principles every new feature and its implementation must uphold.
+Reviews use it as the design standard.
+
+---
+
 ## Branch Model
 
 - **`master`** — stable releases only. Do not submit PRs here.
@@ -189,6 +198,8 @@ in-game.
 - Does it follow separation of concerns?
 - Are meaningful config values exposed (not hardcoded)?
 - Is it immersion-positive? (bots should feel more alive, not less)
+- Does it uphold the
+  [development philosophy](docs/mod-llm-chatter-philosophy.md)?
 - Does it handle edge cases? (empty groups, dead bots, missing data)
 
 ---
