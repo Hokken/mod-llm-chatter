@@ -98,8 +98,8 @@ EXPANSION_RUMORS = {'Outland': {'name': 'Outland',
 CAVERNS_OF_TIME_INTRO = 'Deep in the Tanaris desert lies a mysterious place, the Caverns of Time, which belongs to the bronze dragonflight. There one can travel into the past to witness the events of ancient times in person.'
 
 DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
-  'min_level': 1,
-  'max_level': 14,
+  'min_level': 10,
+  'max_level': 21,
   'expansion': 'classic',
   'text': 'in a cave right beneath Orgrimmar, cultists are summoning demons. If the speaker '
           'belongs to the Alliance, condemn the Horde for having a nest of cultists right in their '
@@ -109,7 +109,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Wailing Caverns',
   'min_level': 12,
-  'max_level': 17,
+  'max_level': 25,
   'expansion': 'classic',
   'text': 'beneath the arid lands of The Barrens lies a vast network of caves filled with ancient '
           'creatures and plants. The druid Naralex is trying to restore the fertility of the '
@@ -120,7 +120,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'The Deadmines',
   'min_level': 12,
-  'max_level': 17,
+  'max_level': 25,
   'expansion': 'classic',
   'text': 'in a mine in Westfall, the Defias gang of bandits and pirates is preparing for war '
           'against everyone, because they believe the Alliance wronged them and did not pay for '
@@ -131,7 +131,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Shadowfang Keep',
   'min_level': 13,
-  'max_level': 18,
+  'max_level': 26,
   'expansion': 'classic',
   'text': 'in Silverpine Forest, the mad mage Arugal, together with his half-man, half-wolf '
           'creatures (worgens), has seized a castle and is conducting his experiments there.',
@@ -140,7 +140,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'The Stockade',
   'min_level': 17,
-  'max_level': 22,
+  'max_level': 30,
   'expansion': 'classic',
   'text': 'in Stormwind a prison riot broke out and the prisoners killed all the guards. If the '
           'speaker belongs to the Horde, mock the Alliance for being unable to cope with its own '
@@ -150,7 +150,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Blackfathom Deeps',
   'min_level': 16,
-  'max_level': 21,
+  'max_level': 29,
   'expansion': 'classic',
   'text': 'on Zoram Strand (in the western part of Ashenvale), in a sunken former temple of Elune, '
           'Twilight’s Hammer cultists perform dark rituals and worship the naga.',
@@ -159,7 +159,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Scarlet Monastery',
   'min_level': 24,
-  'max_level': 32,
+  'max_level': 45,
   'expansion': 'classic',
   'text': 'in Tirisfal Glades, the Scarlet Crusade, an organization of cruel fanatics, engages in '
           'torture and abductions of people. Before the Scourge plague ravaged Lordaeron, the '
@@ -179,7 +179,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Gnomeregan',
   'min_level': 20,
-  'max_level': 25,
+  'max_level': 33,
   'expansion': 'classic',
   'text': 'in Dun Morogh, the old city of the gnomes is now contaminated with radiation and '
           'inhabited by strange mutated creatures. The city itself is a marvel of engineering and '
@@ -192,7 +192,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Razorfen Kraul',
   'min_level': 19,
-  'max_level': 24,
+  'max_level': 32,
   'expansion': 'classic',
   'text': 'in the southern part of The Barrens lies a vast labyrinth made of the roots of an '
           'ancient thornbush. It has been seized by a quilboar tribe that worships the demigod '
@@ -203,7 +203,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Razorfen Downs',
   'min_level': 29,
-  'max_level': 34,
+  'max_level': 42,
   'expansion': 'classic',
   'text': 'deep among the Razorfen thickets in The Barrens lies an ancient quilboar burial ground, '
           'which became a haven for the undead after the death of their chieftain. Necromancer '
@@ -213,7 +213,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Uldaman',
   'min_level': 32,
-  'max_level': 37,
+  'max_level': 45,
   'expansion': 'classic',
   'text': 'in the Badlands lies an ancient, buried Titan vault. Dark Iron dwarves later invaded '
           'the winding tunnels, hoping to claim the ancient relics and secrets for their fiery '
@@ -223,7 +223,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': "Zul'Farrak",
   'min_level': 38,
-  'max_level': 43,
+  'max_level': 51,
   'expansion': 'classic',
   'text': "in the Tanaris desert lies an ancient, sun-blasted Zul'Farrak troll city. It was once "
           'part of the Gurubashi Empire, but now it belongs to the Farraki tribe - a tribe of sand '
@@ -233,7 +233,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Maraudon',
   'min_level': 36,
-  'max_level': 42,
+  'max_level': 53,
   'expansion': 'classic',
   'text': 'in Desolace lies a vast sacred cave that was the birthplace of the centaur race. Now '
           'Princess Theradras dwells there - a huge earth elemental who drains the life from all '
@@ -243,7 +243,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': "Sunken Temple of Atal'Hakkar",
   'min_level': 42,
-  'max_level': 47,
+  'max_level': 55,
   'expansion': 'classic',
   'text': "in the Swamp of Sorrows lies an ancient sunken temple belonging to the cruel Atal'ai "
           'trolls. There, fanatical troll priests are trying to summon the Blood God, Hakkar the '
@@ -253,7 +253,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Blackrock Depths',
   'min_level': 44,
-  'max_level': 50,
+  'max_level': 60,
   'expansion': 'classic',
   'text': 'deep inside Blackrock Mountain lies a vast underground city of the Dark Iron dwarves. '
           'It is ruled by Emperor Dagran Thaurissan, who, together with his subjects, worships '
@@ -263,7 +263,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Lower Blackrock Spire',
   'min_level': 52,
-  'max_level': 57,
+  'max_level': 60,
   'expansion': 'classic',
   'text': 'in the lower part of Blackrock Mountain lies a fortress of the clan of the Blackrock '
           'Orcs, seized by orcs and ogres under the command of General Drakkisath. They are using '
@@ -273,7 +273,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Upper Blackrock Spire',
   'min_level': 53,
-  'max_level': 58,
+  'max_level': 60,
   'expansion': 'classic',
   'text': 'the upper halls of Blackrock Spire are controlled by Rend Blackhand, the '
           'self-proclaimed warchief of the orcs of the Dark Horde. He is trying to unite orcs, '
@@ -283,7 +283,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Dire Maul',
   'min_level': 50,
-  'max_level': 56,
+  'max_level': 60,
   'expansion': 'classic',
   'text': 'deep in Feralas lie the ruins of an ancient night elf city, turned by time into a vast '
           'labyrinth. Now parts of it have been seized by ogres, demons, satyrs and Prince '
@@ -293,7 +293,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Stratholme',
   'min_level': 52,
-  'max_level': 57,
+  'max_level': 60,
   'expansion': 'classic',
   'text': 'it was once one of the largest and richest cities of Lordaeron, but after the plague '
           'spread, Arthas slaughtered its inhabitants to keep them from turning into undead. Now '
@@ -304,7 +304,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Scholomance',
   'min_level': 52,
-  'max_level': 57,
+  'max_level': 60,
   'expansion': 'classic',
   'text': 'on the island of Caer Darrow lies a former school of magic, turned by the necromancer '
           "Kel'Thuzad into an academy of the dark arts. Now its corridors are filled with undead, "
@@ -314,7 +314,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Hellfire Ramparts',
   'min_level': 58,
-  'max_level': 63,
+  'max_level': 67,
   'expansion': 'tbc',
   'text': 'inside the ruined Hellfire Citadel lies a fortress of the Fel Horde orcs. Under the '
           'leadership of Nazgrel and demonic forces, the orcs are preparing a new war against '
@@ -324,7 +324,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 8},
  {'name': 'The Blood Furnace',
   'min_level': 58,
-  'max_level': 63,
+  'max_level': 68,
   'expansion': 'tbc',
   'text': 'deep beneath Hellfire Citadel lies a huge forge where demons and Fel Orcs turn '
           "prisoners into crazed warriors. The main power of this place is Keli'dan the Breaker, "
@@ -334,7 +334,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 8},
  {'name': 'The Slave Pens',
   'min_level': 58,
-  'max_level': 63,
+  'max_level': 69,
   'expansion': 'tbc',
   'text': "beneath the marshes of Zangarmarsh, Lady Vashj's naga are pumping water out of the "
           'region, threatening to dry it out completely. In huge underground reservoirs they keep '
@@ -344,7 +344,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 8},
  {'name': 'The Steamvault',
   'min_level': 65,
-  'max_level': 69,
+  'max_level': 70,
   'expansion': 'tbc',
   'text': "deep beneath Zangarmarsh lies a gigantic complex of reservoirs that Lady Vashj's naga "
           'use to pump water out of the marshes. Inside are huge machines, elementals and '
@@ -354,7 +354,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 8},
  {'name': 'The Underbog',
   'min_level': 61,
-  'max_level': 65,
+  'max_level': 70,
   'expansion': 'tbc',
   'text': 'in the depths of Zangarmarsh lies a huge system of caves where the naga conduct '
           'experiments on the local flora and fauna. Under the influence of their activities, the '
@@ -364,7 +364,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 8},
  {'name': 'Mana-Tombs',
   'min_level': 61,
-  'max_level': 65,
+  'max_level': 70,
   'expansion': 'tbc',
   'text': 'deep in Terokkar Forest lies an ancient necropolis belonging to the ethereals. They '
           'explore the ruins of Auchindoun and guard them against marauders and rival groups.',
@@ -373,7 +373,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 8},
  {'name': 'Auchenai Crypts',
   'min_level': 62,
-  'max_level': 66,
+  'max_level': 70,
   'expansion': 'tbc',
   'text': 'in the depths of Auchindoun lies a sacred draenei tomb that has been seized by the mad '
           'Auchenai. Their spiritual leaders are trying to summon the dead and use necromancy to '
@@ -383,7 +383,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 8},
  {'name': 'Sethekk Halls',
   'min_level': 63,
-  'max_level': 67,
+  'max_level': 70,
   'expansion': 'tbc',
   'text': 'in one part of Auchindoun, Arakkoa who worship the ancient god Anzu have settled. Their '
           'leader, Talon King Ikiss, is trying to restore the might of his people with the help of '
@@ -393,7 +393,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 8},
  {'name': 'Shadow Labyrinth',
   'min_level': 62,
-  'max_level': 69,
+  'max_level': 70,
   'expansion': 'tbc',
   'text': 'deep inside Auchindoun lies an ancient labyrinth seized by the Shadow Council and '
           'demons. It is led by Murmur, a mysterious being of pure sonic energy, capable of '
@@ -403,7 +403,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 8},
  {'name': 'The Shattered Halls',
   'min_level': 65,
-  'max_level': 69,
+  'max_level': 70,
   'expansion': 'tbc',
   'text': 'in the upper part of Hellfire Citadel lies a huge fortress seized by Fel Orcs under the '
           'command of Warchief Kargath Bladefist. The orcs use it as a military base and turn '
@@ -414,7 +414,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 8},
  {'name': 'The Mechanar',
   'min_level': 65,
-  'max_level': 69,
+  'max_level': 70,
   'expansion': 'tbc',
   'text': 'inside Tempest Keep lies a huge magical complex where the naaru and their adversaries '
           'use advanced technology and the energy of Netherstorm. Its defenders, led by Pathaleon '
@@ -424,7 +424,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 8},
  {'name': 'The Botanica',
   'min_level': 65,
-  'max_level': 69,
+  'max_level': 70,
   'expansion': 'tbc',
   'text': "in one of the wings of Tempest Keep, Prince Kael'thas is growing artificial flora using "
           'the energy of Netherstorm. High Botanist Freywinn, who runs the complex, creates '
@@ -455,7 +455,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 12},
  {'name': 'Old Hillsbrad Foothills',
   'min_level': 62,
-  'max_level': 67,
+  'max_level': 70,
   'expansion': 'tbc',
   'text': "Thrall's escape from slavery.",
   'caverns_of_time': True,
@@ -471,7 +471,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 0},
  {'name': 'Utgarde Keep',
   'min_level': 68,
-  'max_level': 71,
+  'max_level': 80,
   'expansion': 'wotlk',
   'text': 'in a huge fortress in the Howling Fjord live the Vrykul, an ancient race of giants who '
           'serve Ymiron. They are preparing their warriors for war against the living and are '
@@ -481,7 +481,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 13},
  {'name': 'The Nexus',
   'min_level': 69,
-  'max_level': 72,
+  'max_level': 80,
   'expansion': 'wotlk',
   'text': 'inside the magical Nexus in Borean Tundra, the dragons of the blue dragonflight under '
           'the command of Malygos are gathering the magical energy of Azeroth. Malygos has '
@@ -491,7 +491,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 13},
  {'name': 'Azjol-Nerub',
   'min_level': 70,
-  'max_level': 73,
+  'max_level': 80,
   'expansion': 'wotlk',
   'text': "deep underground lies the ancient nerubian kingdom, destroyed by the Lich King's army. "
           "The remaining nerubians wage war against the Scourge, while their former king Anub'arak "
@@ -501,7 +501,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 13},
  {'name': "Ahn'kahet: The Old Kingdom",
   'min_level': 71,
-  'max_level': 74,
+  'max_level': 80,
   'expansion': 'wotlk',
   'text': 'beneath the ruins of Azjol-Nerub lie ancient cities inhabited by nerubians and '
           'mysterious creatures who worship the Old Gods. In the depths of the city dwells Herald '
@@ -511,7 +511,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 13},
  {'name': "Drak'Tharon Keep",
   'min_level': 71,
-  'max_level': 74,
+  'max_level': 80,
   'expansion': 'wotlk',
   'text': 'an ancient troll fortress in Grizzly Hills has been seized by the Scourge. Drakuru, a '
           'former leader of the Drakkari, betrayed his people and is helping the Lich King create '
@@ -521,7 +521,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 13},
  {'name': 'The Violet Hold',
   'min_level': 71,
-  'max_level': 75,
+  'max_level': 80,
   'expansion': 'wotlk',
   'text': 'in Dalaran there is a magical prison holding the most dangerous creatures of Azeroth. '
           'After the protective barriers were breached, the prisoners broke out, and the mages '
@@ -531,7 +531,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 13},
  {'name': 'Gundrak',
   'min_level': 72,
-  'max_level': 76,
+  'max_level': 80,
   'expansion': 'wotlk',
   'text': "the ancient Drakkari city in Zul'Drak has become the center of the trolls' desperate "
           'war against the Scourge. The trolls have begun sacrificing their own loa, trying to '
@@ -541,7 +541,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 13},
  {'name': 'Halls of Stone',
   'min_level': 73,
-  'max_level': 76,
+  'max_level': 80,
   'expansion': 'wotlk',
   'text': "deep in the Storm Peaks lies a titan complex where part of Azeroth's ancient history is "
           'kept. Its keepers have turned hostile, and inside dwells Loken, a powerful titanic '
@@ -551,7 +551,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 13},
  {'name': 'Halls of Lightning',
   'min_level': 74,
-  'max_level': 79,
+  'max_level': 80,
   'expansion': 'wotlk',
   'text': 'one of the great titan fortresses in the Storm Peaks is under the rule of Loken. He '
           'uses titan-made creatures and ancient mechanisms to conceal his betrayal and keep '
@@ -561,7 +561,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 13},
  {'name': 'The Oculus',
   'min_level': 75,
-  'max_level': 79,
+  'max_level': 80,
   'expansion': 'wotlk',
   'text': 'in the magical fortress of the Nexus, Malygos is amassing huge reserves of energy for '
           'his war against mortal mages.',
@@ -570,7 +570,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 13},
  {'name': 'Utgarde Pinnacle',
   'min_level': 75,
-  'max_level': 79,
+  'max_level': 80,
   'expansion': 'wotlk',
   'text': 'at the top of the huge fortress of Utgarde Keep in the Howling Fjord lies a Vrykul '
           'sanctuary, where King Ymiron is preparing to lead his people in a war against the '
@@ -582,7 +582,7 @@ DUNGEON_RUMORS = [{'name': 'Ragefire Chasm',
   'required_tier': 13},
  {'name': 'The Culling of Stratholme',
   'min_level': 75,
-  'max_level': 79,
+  'max_level': 80,
   'expansion': 'wotlk',
   'text': 'Arthas slaughters the inhabitants of Stratholme.',
   'caverns_of_time': True,

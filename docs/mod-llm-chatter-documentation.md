@@ -3751,8 +3751,8 @@ The worldserver sends the listeners with the request:
 - Guild: an `audience` array in the `guild_idle_chatter` extra data, up to
   10 online real guild members.
 
-Rumor level bands are only a few levels wide, so listeners of very
-different levels rarely share one. Each themed pick therefore aims rumors
+Rumor level bands are limited, so listeners of very different levels
+rarely share one. Each themed pick therefore aims rumors
 at one target listener: `next_rumor_target()` in `chatter_progression.py`
 takes the listener served least recently (ties at random) and marks them
 served right away, even when no rumor comes of it, so a listener with
@@ -3761,7 +3761,14 @@ listener is always the target. The bridge keeps this rotation in memory.
 
 A rumor fits a listener (`fits()`) when:
 
-- the listener's level is inside the rumor's level band;
+- the listener's level is inside the rumor's level band. A dungeon's band
+  starts a few levels before the Dungeon Finder offers it and ends at its
+  Dungeon Finder upper limit (the last wing's for multi-wing dungeons) or
+  at the expansion's level cap (60 for classic, 70 for The Burning
+  Crusade), whichever is lower. Upper Blackrock Spire, which the Dungeon
+  Finder lists only as a raid, ends at 60 like the other classic endgame
+  dungeons. A dungeon rumor therefore stops only when the listener
+  completes the dungeon or outlevels it;
 - with mod-individual-progression active, the listener has reached the
   required tier, no tier is above `IndividualProgression.ProgressionLimit`,
   and classic-only entries are gone once they have moved past them (GMs

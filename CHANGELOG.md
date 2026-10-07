@@ -10,7 +10,9 @@
   between the real listeners, so a guild or zone with very different
   levels still hears rumors for each of them: each one fits its target
   listener's level, completed content and mod-individual-progression
-  tier, and rumors that suit more listeners are preferred.
+  tier, and rumors that suit more listeners are preferred. A dungeon
+  rumor lasts until the listener completes the dungeon or outlevels its
+  Dungeon Finder range or its expansion.
 * **Conversation threads**: While threads are on, a themed subject is one
   more fresh-subject source (`Threads.ThemedTopicWeight`) offered with the
   usual soft nudge. The per-channel chances only apply while threads are

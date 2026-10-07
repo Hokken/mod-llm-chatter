@@ -708,6 +708,33 @@ def test_trainer_rumor_prompt_and_channels():
         roll=False) is None
 
 
+def test_dungeon_rumors_last_until_the_dungeon_finder_drops_them():
+    progression.clear_caches()
+    # The Dungeon Finder upper limit (the last wing's for multi-wing
+    # dungeons), capped at the expansion's level cap.
+    expected_max = {'Ragefire Chasm': 21, 'The Deadmines': 25,
+                    'Scarlet Monastery': 45, 'Maraudon': 53,
+                    'Blackrock Depths': 60, 'Dire Maul': 60,
+                    'Upper Blackrock Spire': 60, 'Hellfire Ramparts': 67,
+                    'Old Hillsbrad Foothills': 70, 'The Black Morass': 70,
+                    'Utgarde Keep': 80}
+    by_name = {d['name']: d for d in DUNGEON_RUMORS}
+    for name, top in expected_max.items():
+        entry = by_name[name]
+        assert entry['max_level'] == top, name
+        assert progression.fits(_NoDb(), _listener(level=top), entry), name
+        assert not progression.fits(
+            _NoDb(), _listener(level=top + 1), entry), name
+    level_cap = {'classic': 60, 'tbc': 70, 'wotlk': 80}
+    for entry in DUNGEON_RUMORS:
+        assert entry['min_level'] < entry['max_level'], entry['name']
+        assert entry['max_level'] <= level_cap[entry['expansion']], \
+            entry['name']
+        if entry['expansion'] == 'wotlk':
+            assert entry['max_level'] == 80, entry['name']
+    progression.clear_caches()
+
+
 if __name__ == '__main__':
     tests = [
         value
