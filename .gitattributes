@@ -1,0 +1,3 @@
+# Keep LF everywhere: the module is built and run on Linux (shell scripts,
+# C++ sources, Python bridge), whatever core.autocrlf a contributor uses.
+* text=auto eol=lf
