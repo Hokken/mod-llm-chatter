@@ -22,6 +22,13 @@
   `data/sql/characters/updates/20261002_guild_pvp_events.sql`, rebuild
   the worldserver and restart the bridge.
 
+### 2026-10-06 - LF Line Endings
+
+* **Repository**: Add `.gitattributes` forcing LF line endings, so
+  checkouts on Windows with `core.autocrlf` enabled no longer write CRLF
+  files that break shell scripts in Linux builds. Committed files were
+  already LF; no code, configuration or database changes.
+
 ### 2026-10-04 - Playerbot Core Compatibility
 
 * **Bot identification**: Use headless sessions to identify playerbots
@@ -177,6 +184,7 @@
   chatter bridge for Python changes. Existing configurations retain their
   explicit cooldown; set it to 3 and run `.reload config` to apply the new
   value. No database migration is required.
+
 ### 2026-10-02 - Arathi Basin Objectives and Battleground Arrival Variety
 
 * **Arathi Basin objectives**: Observe claims, assaults, counter-claims,
