@@ -29,6 +29,26 @@
   `data/sql/characters/updates/20261002_guild_world_events.sql`, rebuild
   the worldserver and restart the bridge.
 
+### 2026-10-08 - Claude Haiku 5.5 Compatibility
+
+* **Parameter recovery**: When an Anthropic model explicitly rejects
+  `temperature` (as `claude-haiku-5-5` does) or the configured `thinking`
+  mode, the bridge drops that field, retries, and remembers the correction
+  for that model until restart. Other errors are not retried.
+* **Thinking blocks**: Read only text blocks from Anthropic responses.
+  Models that think by default can return a thinking block first, which
+  crashed free-text calls such as bot backstories.
+* **New settings**: `LLMChatter.Anthropic.Thinking` (default `disabled`)
+  stops default thinking from using up short chatter budgets, which left
+  replies empty. `LLMChatter.Anthropic.MaxTokensMultiplier` (default `1`)
+  scales Anthropic output budgets. The bridge, the startup health probe
+  and the host screenshot agent all apply both through one shared request
+  builder.
+* **Upgrade**: Optionally add the two new keys from the `.conf.dist`
+  templates to your config; when they are absent, nothing extra is sent.
+  Restart the chatter bridge (and the screenshot agent if used). No
+  database migration, compilation or worldserver restart is needed.
+
 ### 2026-10-06 - LF Line Endings
 
 * **Repository**: Add `.gitattributes` forcing LF line endings, so

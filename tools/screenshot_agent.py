@@ -36,10 +36,12 @@ from chatter_structured import (
 from chatter_llm import (
     structured_completion, log_structured_failure, log_structured_target,
     reset_structured_diagnostics, check_structured_dependencies,
+    build_anthropic_request, extract_anthropic_text,
 )
 from screenshot_proximity import request_ticket, publish_observation
 from llm_compat import (
     build_chat_options,
+    create_anthropic_message,
     create_chat_completion,
     needs_reasoning_token_multiplier,
     structured_rejection_category,
@@ -159,6 +161,13 @@ def load_screenshot_config(raw: dict) -> dict:
             'LLMChatter.Screenshot.JpegQuality', '75')),
         'anthropic_api_key': raw.get(
             'LLMChatter.Anthropic.ApiKey', ''),
+        # Raw keys consumed by chatter_llm.build_anthropic_request.
+        'anthropic_options': {
+            key: raw[key] for key in (
+                'LLMChatter.Anthropic.Thinking',
+                'LLMChatter.Anthropic.MaxTokensMultiplier',
+            ) if key in raw
+        },
         'openai_api_key': raw.get(
             'LLMChatter.OpenAI.ApiKey', ''),
         'openai_reasoning_effort': raw.get(
@@ -316,33 +325,30 @@ def _structured_vision_call(operation, kwargs, provider, model, multiplier=1):
 
 def _call_anthropic(
     jpeg_b64: str, client, model: str,
-    *, structured_output=False,
+    *, structured_output=False, anthropic_options=None,
 ) -> 'str | None':
-    request_kwargs = dict(
-        model=model,
-        max_tokens=300,
-        system=VISION_SYSTEM,
-        messages=[{
-            "role": "user",
-            "content": [{
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": "image/jpeg",
-                    "data": jpeg_b64,
-                },
-            }, {
-                "type": "text",
-                "text": "What do you see in this scene?",
-            }],
+    request_kwargs = build_anthropic_request(
+        model, anthropic_options or {}, 300, [{
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": "image/jpeg",
+                "data": jpeg_b64,
+            },
+        }, {
+            "type": "text",
+            "text": "What do you see in this scene?",
         }],
+        sys_msg=VISION_SYSTEM,
     )
     if structured_output:
         return _structured_vision_call(
             client.messages.create, request_kwargs, 'anthropic', model,
         )
-    resp = client.messages.create(**request_kwargs)
-    return resp.content[0].text.strip()
+    resp = create_anthropic_message(
+        client.messages.create, request_kwargs, model, log,
+    )
+    return extract_anthropic_text(resp)
 
 
 def _call_openai(
@@ -422,7 +428,7 @@ def analyze_screenshot(
     provider: str = 'openai',
     reasoning_effort: str = '',
     max_tokens_multiplier: float = 4,
-    *, structured_output=False,
+    *, structured_output=False, anthropic_options=None,
 ) -> 'dict | None':
     """Send screenshot to vision LLM, return structured
     description or None if uninteresting / error."""
@@ -432,6 +438,7 @@ def analyze_screenshot(
         if provider == 'anthropic':
             raw = _call_anthropic(
                 b64, client, model, structured_output=structured_output,
+                anthropic_options=anthropic_options,
             )
         else:
             raw = _call_openai(
@@ -832,6 +839,7 @@ def _do_capture_cycle(
             config['openai_max_tokens_multiplier']
         ),
         structured_output=config.get('structured_output', False),
+        anthropic_options=config.get('anthropic_options'),
     )
     log.info('Vision analysis finished in %.2fs',
              time.monotonic() - vision_started)
