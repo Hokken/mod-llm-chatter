@@ -12,6 +12,7 @@ if str(TOOLS_DIR) not in sys.path:
 
 from llm_compat import (  # noqa: E402
     build_chat_options,
+    create_anthropic_message,
     create_chat_completion,
     needs_reasoning_token_multiplier,
     reset_compatibility_cache,
@@ -192,6 +193,50 @@ class CompatibilityTests(unittest.TestCase):
         self.assertNotIn("temperature", build_chat_options(
             "openrouter", "vendor/model", 80, temperature=0.4
         ))
+
+    def test_anthropic_rejected_fields_are_removed_and_cached(self):
+        calls = []
+        rejections = [
+            "`temperature` is deprecated for this model.",
+            "thinking: type 'disabled' is not supported for this model",
+        ]
+
+        def operation(**kwargs):
+            calls.append(kwargs)
+            if rejections:
+                raise ProviderError(rejections.pop(0))
+            return "ok"
+
+        request = {
+            "max_tokens": 80,
+            "extra_body": {
+                "temperature": 0.4,
+                "thinking": {"type": "disabled"},
+            },
+        }
+        self.assertEqual(create_anthropic_message(
+            operation, request, "claude-new"
+        ), "ok")
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(calls[2]["extra_body"], {})
+        self.assertEqual(request["extra_body"]["temperature"], 0.4)
+
+        calls.clear()
+        self.assertEqual(create_anthropic_message(
+            operation, request, "claude-new"
+        ), "ok")
+        self.assertEqual(calls[0]["extra_body"], {})
+
+    def test_anthropic_other_errors_propagate(self):
+        def operation(**kwargs):
+            raise ProviderError("overloaded", status_code=529)
+
+        with self.assertRaises(ProviderError):
+            create_anthropic_message(
+                operation,
+                {"extra_body": {"temperature": 0.4}},
+                "claude-new",
+            )
 
     def test_rejected_token_field_is_changed_and_cached(self):
         calls = []
