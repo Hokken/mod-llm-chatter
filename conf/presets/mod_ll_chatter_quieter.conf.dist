@@ -327,6 +327,28 @@ LLMChatter.Model = claude-haiku-4-5-20251001
 #
 LLMChatter.Anthropic.ApiKey =
 
+#
+#   LLMChatter.Anthropic.Thinking
+#       Thinking mode sent to Anthropic models.
+#       Format: disabled, adaptive, or empty for the model default.
+#       Newer models such as claude-haiku-5-5 think by default, which
+#       spends the short chatter output budgets before any reply text.
+#       "disabled" keeps chatter fast and complete. If a model rejects
+#       the setting, the bridge retries without it and remembers that
+#       correction for the rest of the process.
+#       Default: disabled
+#
+LLMChatter.Anthropic.Thinking = disabled
+
+#
+#   LLMChatter.Anthropic.MaxTokensMultiplier
+#       Multiplies per-call output token budgets for Anthropic models.
+#       Format: a number from 1 through 8, for example 1 or 1.5.
+#       Values outside that range are clamped by the bridge.
+#       Default: 1
+#
+LLMChatter.Anthropic.MaxTokensMultiplier = 1
+
 ###############################################################################
 # OPENAI SETTINGS [BRIDGE] (only needed if Provider = openai)
 ###############################################################################
