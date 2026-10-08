@@ -655,11 +655,39 @@ default, or cannot be disabled by the selected model. The multiplier is
 clamped to 1-8 and is skipped for models such as Luna when they accept
 `ReasoningEffort = none`.
 
+Anthropic models that think by default (for example `claude-haiku-5-5`)
+spend part of the output budget on thinking before any reply text, so a
+short chatter budget can end with no text at all. Two bridge settings
+control this:
+
+- `Anthropic.Thinking`: `disabled` (template default), `adaptive`, or
+  empty to omit the field and use the model's default. `disabled` keeps
+  chatter fast and complete. If the key is absent, nothing is sent.
+- `Anthropic.MaxTokensMultiplier`: multiplies every Anthropic output
+  budget, clamped to 1-8; absent means 1.
+
+Both apply to the bridge, the startup health probe and the host
+screenshot agent. If a model explicitly rejects `temperature` (newer
+models such as `claude-haiku-5-5` reject it) or the configured
+`thinking` mode (some models cannot turn thinking off), the bridge drops
+that field, retries, and remembers the correction for that model until
+the process restarts. The same HTTP 400/422 rules as above apply. These
+are Python settings: after changing them, restart only the chatter
+bridge (and the screenshot agent if it is running); no worldserver
+restart or compilation is needed.
+
 Examples:
 
 ```ini
 LLMChatter.Provider = anthropic
 LLMChatter.Model = haiku
+```
+
+```ini
+LLMChatter.Provider = anthropic
+LLMChatter.Model = claude-haiku-5-5
+LLMChatter.Anthropic.Thinking = disabled
+LLMChatter.Anthropic.MaxTokensMultiplier = 1.5
 ```
 
 ```ini
@@ -730,7 +758,9 @@ Provider behavior:
 
 - **Anthropic**: system content passed via the `system=` parameter
   on the API call (native system prompt support); sampling temperature
-  is sent through `extra_body` for Anthropic SDK v1 compatibility
+  and the configured thinking mode are sent through `extra_body` for
+  Anthropic SDK v1 compatibility (see the `Anthropic.Thinking` and
+  `Anthropic.MaxTokensMultiplier` notes in the provider settings above)
 - **OpenAI**: system content sent as a `{"role": "system", ...}`
   message prepended to the messages array. Modern reasoning models use
   `max_completion_tokens`; custom temperature is used only with a

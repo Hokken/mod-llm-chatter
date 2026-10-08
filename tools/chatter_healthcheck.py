@@ -478,21 +478,38 @@ def _is_model_error(exc):
     )
 
 
-def _probe_anthropic(config, model):
-    """Make a minimal Anthropic call; returns text or raises."""
-    import anthropic
-    client = anthropic.Anthropic(
-        api_key=config.get('LLMChatter.Anthropic.ApiKey', ''),
+def _probe_token_budget(config):
+    """Bounded probe budget that leaves room for model overhead."""
+    try:
+        return max(128, min(int(config.get(
+            'LLMChatter.MaxTokens', 256
+        )), 512))
+    except (TypeError, ValueError):
+        return 256
+
+
+def _probe_anthropic(config, model, client=None):
+    """Make a minimal Anthropic call; returns text or raises.
+
+    Uses the production request settings (thinking mode, output
+    multiplier, temperature recovery) so the probe cannot fail on a
+    model whose default thinking would consume a tiny budget.
+    """
+    from chatter_llm import build_anthropic_request, extract_anthropic_text
+    from llm_compat import create_anthropic_message
+
+    if client is None:
+        import anthropic
+        client = anthropic.Anthropic(
+            api_key=config.get('LLMChatter.Anthropic.ApiKey', ''),
+        )
+    kwargs = build_anthropic_request(
+        model, config, _probe_token_budget(config),
+        'Reply with the single word: OK',
+        temperature=float(config.get('LLMChatter.Temperature', 0.85)),
     )
-    resp = client.messages.create(
-        model=model,
-        max_tokens=5,
-        messages=[{
-            'role': 'user',
-            'content': 'Reply with the single word: OK',
-        }],
-    )
-    return resp.content[0].text.strip()
+    resp = create_anthropic_message(client.messages.create, kwargs, model)
+    return extract_anthropic_text(resp)
 
 
 def _probe_openai_compatible(client, model, provider, config):
@@ -507,18 +524,12 @@ def _probe_openai_compatible(client, model, provider, config):
             'role': 'user',
             'content': 'Reply with the single word: OK',
         }]
-    try:
-        probe_tokens = max(128, min(int(config.get(
-            'LLMChatter.MaxTokens', 256
-        )), 512))
-    except (TypeError, ValueError):
-        probe_tokens = 256
     kwargs = build_compatible_chat_request(
         provider,
         model,
         messages,
         config,
-        probe_tokens,
+        _probe_token_budget(config),
         temperature=float(config.get(
             'LLMChatter.Temperature', 0.85
         )),
