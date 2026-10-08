@@ -725,9 +725,18 @@ It carries the legacy prompt parts and optional response metadata:
 2. `call_llm()` or `quick_llm_analyze()` in `chatter_llm.py`
    auto-detects `PromptParts` via `_split_prompt()`.
 3. Provider dispatch:
-   - **Anthropic**: native `system=` parameter + user message;
-     sampling temperature is sent through `extra_body` for Anthropic
-     SDK v1 compatibility
+   - **Anthropic**: native `system=` parameter + user message, built by
+     the shared `build_anthropic_request()` that the bridge, the startup
+     health probe and the host screenshot agent all use. Sampling
+     temperature and the optional `LLMChatter.Anthropic.Thinking` mode
+     are sent through `extra_body` for Anthropic SDK v1 compatibility;
+     `_effective_max_tokens()` applies
+     `LLMChatter.Anthropic.MaxTokensMultiplier`.
+     `llm_compat.create_anthropic_message()` drops an explicitly
+     rejected `temperature` or `thinking` field, retries, and caches
+     the correction for that model until the process restarts.
+     `extract_anthropic_text()` joins text blocks only, because models
+     that think by default can return `thinking` blocks first
    - **OpenAI / Google / OpenRouter / Ollama**: system role message +
      user role message; `llm_compat.py` selects the token field and
      optional parameters from a conservative model capability profile

@@ -35,6 +35,7 @@ _REJECTION_MARKERS = (
     "unrecognized parameter",
     "unexpected keyword",
     "only the default",
+    "deprecated",
 )
 
 _REJECTION_CODES = {
@@ -46,6 +47,10 @@ _REJECTION_CODES = {
 _GENERIC_REJECTION_CODES = {
     "invalid_request_error",
 }
+
+# Optional Anthropic request fields that may be dropped after an
+# explicit rejection, in the order they are checked.
+_ANTHROPIC_OPTIONAL_FIELDS = ("temperature", "thinking")
 
 
 def _normalized_target(provider, model):
@@ -404,6 +409,51 @@ def create_chat_completion(
                 adjustment,
             )
     raise last_error
+
+
+def create_anthropic_message(
+    operation,
+    request_kwargs,
+    model,
+    request_logger=None,
+):
+    """Call Anthropic Messages and learn rejected optional parameters.
+
+    The Anthropic path sends temperature and thinking through
+    ``extra_body``. Some models reject one of them outright, so drop
+    the rejected field, remember the override for this model, and
+    retry. Every other error propagates unchanged.
+    """
+    active_logger = request_logger or logger
+    kwargs = dict(request_kwargs)
+    extra = dict(kwargs.get("extra_body") or {})
+    overrides = _cached_overrides("anthropic", model)
+    for field in _ANTHROPIC_OPTIONAL_FIELDS:
+        if overrides.get(f"omit_{field}"):
+            extra.pop(field, None)
+    kwargs["extra_body"] = extra
+
+    changed_fields = set()
+    while True:
+        try:
+            return operation(**kwargs)
+        except Exception as error:
+            field = next((
+                name for name in _ANTHROPIC_OPTIONAL_FIELDS
+                if name in extra and name not in changed_fields
+                and _is_parameter_rejection(error, name)
+            ), None)
+            if field is None:
+                raise
+        extra.pop(field, None)
+        changed_fields.add(field)
+        _remember_override("anthropic", model, f"omit_{field}", True)
+        active_logger.warning(
+            "Adjusted request parameters for anthropic/%s after provider "
+            "rejection: omitted unsupported %s",
+            model,
+            field,
+        )
 
 
 def reset_compatibility_cache():
