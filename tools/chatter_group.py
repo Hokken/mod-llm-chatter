@@ -175,6 +175,7 @@ from chatter_memory import (
     start_session,
     queue_memory,
     get_bot_memories,
+    memory_recall_count,
     flush_session_memories,
     sanitize_memory_for_prompt,
     _get_group_lock,
@@ -732,7 +733,7 @@ def process_group_event(db, client, config, event):
             if player_guid:
                 memories = get_bot_memories(
                     db, bot_guid, player_guid,
-                    count=3,
+                    count=memory_recall_count(config),
                 )
                 player_name_known = bool(memories)
                 recall_chance = int(config.get(
@@ -1217,7 +1218,7 @@ def process_group_join_batch_event(
                     bot_memories = get_bot_memories(
                         db, bot_guid,
                         batch_player_guid,
-                        count=3,
+                        count=memory_recall_count(config),
                     )
                     bot_player_known = bool(
                         bot_memories
@@ -2079,7 +2080,8 @@ def process_group_player_msg_event(
             ):
                 msg_memories = get_bot_memories(
                     db, bot_guid,
-                    player_guid, count=3,
+                    player_guid,
+                    count=memory_recall_count(config),
                     exclude_first_meeting=True,
                 )
                 if not msg_memories:
@@ -4473,7 +4475,10 @@ def _idle_single_statement(
                 if player_guid:
                     idle_memories = get_bot_memories(
                         db, bot_guid,
-                        player_guid, count=2,
+                        player_guid,
+                        count=memory_recall_count(
+                            config, idle=True
+                        ),
                         exclude_first_meeting=True,
                     )
                     if not idle_memories:
@@ -4810,7 +4815,9 @@ def _idle_conversation(
                         mems = get_bot_memories(
                             db, b['guid'],
                             player_guid,
-                            count=2,
+                            count=memory_recall_count(
+                                config, idle=True
+                            ),
                             exclude_first_meeting=(
                                 True
                             ),
@@ -5363,7 +5370,8 @@ def check_bot_questions(db, client, config):
                 question_memories = (
                     get_bot_memories(
                         db, bot_guid,
-                        p_guid, count=3,
+                        p_guid,
+                        count=memory_recall_count(config),
                         exclude_first_meeting=True,
                     )
                 )
