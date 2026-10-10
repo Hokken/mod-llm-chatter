@@ -1348,19 +1348,47 @@ def build_death_reaction_prompt(
     )
 
 
+# Neutral sense of each calling for the roleplay level-up prompt. It only
+# names what the class is known for; the level-up itself reports no new
+# events, so nothing here may claim one happened.
+CLASS_GROWTH = {
+    'Warrior': "a warrior's strength and endurance in battle",
+    'Paladin': "a paladin's devotion to the Light and skill at arms",
+    'Hunter': "a hunter's aim, tracking and bond with their beast",
+    'Rogue': "a rogue's speed, stealth and skill with blades",
+    'Light Priest': "a priest's faith and gift for healing",
+    'Shadow Priest': "a priest's command of shadow magic",
+    'Death Knight': "a death knight's runic power and command of death",
+    'Shaman': "a shaman's bond with the elements and the spirits",
+    'Mage': "a mage's mastery of arcane, fire and frost",
+    'Warlock': "a warlock's grip on fel magic and their demons",
+    'Druid': "a druid's bond with nature and their shapeshifting",
+}
+
+
+def _article(phrase: str) -> str:
+    return "an" if phrase[:1].lower() in "aeiou" else "a"
+
+
 def build_levelup_reaction_prompt(
     bot, traits, leveler_name, new_level, is_bot,
     mode, chat_history="", allow_action=True,
     speaker_talent_context=None,
     stored_tone=None,
+    leveler_race="", leveler_class="",
+    leveler_style="",
     leveler_desc="",
 ):
     """Build prompt for a bot reacting to someone
-    leveling up. Always congratulatory/excited.
+    leveling up.
     leveler_desc ("Dwarf Priest") keeps the speaker from
     guessing the leveler's race or class.
     If is_bot=True, reacting to another bot.
     If is_bot=False, reacting to the real player.
+    Roleplay never names a level; it states that the
+    leveler grew stronger in their calling.
+    leveler_style overrides the class key (e.g.
+    'Shadow Priest' / 'Light Priest').
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
@@ -1382,22 +1410,38 @@ def build_levelup_reaction_prompt(
     who = leveler_name
     if not is_bot:
         who = f"{leveler_name} (the real player)"
-    if leveler_desc:
-        who = f"{who}, a {leveler_desc},"
-
-    levelup_context = (
-        f"{who} just reached level {new_level}! "
-        f"Leveling up is always exciting. "
-        f"Congratulate or react to this milestone."
-    )
-
     if is_rp:
+        style_key = leveler_style or leveler_class
+        if style_key == 'Priest':
+            style_key = 'Light Priest'
+        growth = CLASS_GROWTH.get(style_key, "")
+        calling = " ".join(
+            p for p in (leveler_race, style_key) if p
+        )
+        levelup_context = (
+            f"{who}"
+            + (f", {_article(calling)} {calling}," if calling else "")
+            + " has just grown noticeably stronger"
+            + (f" in {growth}" if growth else "")
+            + "."
+        )
         style = (
-            "React in-character with genuine "
-            "excitement or congratulations. "
-            "Keep it natural and grounded."
+            "React in character, the way a companion "
+            "in the world would notice it; your "
+            "personality and tone decide how you take "
+            "it. Keep it natural and grounded."
         )
     else:
+        desc = leveler_desc or " ".join(
+            p for p in (leveler_race, leveler_class) if p
+        )
+        if desc:
+            who = f"{who}, {_article(desc)} {desc},"
+        levelup_context = (
+            f"{who} just reached level {new_level}! "
+            f"Leveling up is always exciting. "
+            f"Congratulate or react to this milestone."
+        )
         style = (
             "React naturally in party chat. "
             "Congratulate or comment on "
@@ -1423,8 +1467,14 @@ def build_levelup_reaction_prompt(
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
-        f"- Can mention level {new_level}\n"
-        "- Let your personality show in how you say it, "
+        + (
+            "- Never mention levels, numbers or the "
+            "word 'level'; people in the world do not "
+            "count levels\n"
+            if is_rp else
+            f"- Can mention level {new_level}\n"
+        )
+        + "- Let your personality show in how you say it, "
         f"without naming your traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
