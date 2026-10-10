@@ -1183,6 +1183,54 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         },
     ),
 
+    # -- Open-world PvP (chatter_guild_pvp_events) --
+
+    'guild_pvp_kill': EventSpec(
+        handler_module='chatter_guild_pvp_events',
+        handler_func='process_guild_pvp_kill_event',
+        producer='LLMChatterGuildPvP.cpp',
+        priority='normal',
+        description='Lone guild bot tells the guild about a PvP kill',
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'bot_guid': (int, True),
+            'bot_name': (str, True),
+            'victim_name': (str, True),
+            'victim_race': (str, False),
+            'victim_class': (str, False),
+        },
+    ),
+    'guild_pvp_death': EventSpec(
+        handler_module='chatter_guild_pvp_events',
+        handler_func='process_guild_pvp_death_event',
+        producer='LLMChatterGuildPvP.cpp',
+        priority='normal',
+        description='Guild bot killed by an enemy bot tells the guild',
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'bot_guid': (int, True),
+            'bot_name': (str, True),
+            'killer_name': (str, True),
+        },
+    ),
+    'zone_pvp_death': EventSpec(
+        handler_module='chatter_guild_pvp_events',
+        handler_func='process_zone_pvp_death_event',
+        producer='LLMChatterGuildPvP.cpp',
+        priority='normal',
+        description='Bot killed by an enemy bot speaks in zone General '
+                    'chat',
+        payload_fields={
+            'team': (str, True),
+            'bot_guid': (int, True),
+            'bot_name': (str, True),
+            'killer_name': (str, True),
+            'zone_id': (int, True),
+        },
+    ),
+
     # -- World events (chatter_world_events) ------
 
     'transport_arrives': EventSpec(

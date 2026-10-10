@@ -423,6 +423,24 @@ def get_race_faction(race_id) -> str:
     return ""
 
 
+def faction_war_line(
+    own_subject: str, own_team: str,
+    enemy_name: str, enemy_team: str,
+    own_verb: str = "fights",
+) -> str:
+    """PvP framing: who fights for which faction, and that the Horde and
+    the Alliance are hostile. Empty when a faction is unknown or equal."""
+    own_team = str(own_team or '').strip()
+    enemy_team = str(enemy_team or '').strip()
+    if not own_team or not enemy_team or own_team == enemy_team:
+        return ""
+    return (
+        f"{own_subject} {own_verb} for the {own_team}; {enemy_name} "
+        f"fights for the {enemy_team}. The Horde and the Alliance are "
+        "hostile factions, locked in a long, bitter war for survival."
+    )
+
+
 def get_gender_label(gender_id: int) -> str:
     """Get human-readable gender label from gender ID."""
     return 'female' if gender_id == 1 else 'male'

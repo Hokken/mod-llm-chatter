@@ -7,6 +7,7 @@
 #include "LLMChatterBG.h"
 #include "LLMChatterGroup.h"
 #include "LLMChatterGroupInternal.h"
+#include "LLMChatterGuildPvP.h"
 #include "LLMChatterShared.h"
 
 #include "Battleground.h"
@@ -1241,13 +1242,17 @@ public:
         Player* killer, Player* killed) override
     {
         if (!sLLMChatterConfig
-            || !sLLMChatterConfig->IsEnabled()
-            || !sLLMChatterConfig->_bgChatterEnable)
+            || !sLLMChatterConfig->IsEnabled())
             return;
         if (!killer || !killed)
             return;
 
         if (!killer->InBattleground())
+        {
+            HandleOpenWorldPvpKill(killer, killed);
+            return;
+        }
+        if (!sLLMChatterConfig->_bgChatterEnable)
             return;
         Battleground* bg = killer->GetBattleground();
         if (!bg || !bg->isBattleground())
@@ -1264,8 +1269,26 @@ public:
             "\"victim_class\":" +
                 std::to_string(
                     killed->getClass()) +
+            ",\"victim_race\":\"" +
+                GetRaceName(killed->getRace()) +
+                "\",\"victim_gender\":\"" +
+                std::string(
+                    killed->getGender() == GENDER_FEMALE
+                    ? "female" : "male") +
+                "\",\"victim_level\":" +
+                std::to_string(killed->GetLevel()) +
             ",\"killer_name\":\"" +
                 JsonEscape(killer->GetName()) +
+                "\","
+            "\"killer_team\":\"" +
+                std::string(
+                    killer->GetBgTeamId() == TEAM_ALLIANCE
+                    ? "Alliance" : "Horde") +
+                "\","
+            "\"victim_team\":\"" +
+                std::string(
+                    killed->GetBgTeamId() == TEAM_ALLIANCE
+                    ? "Alliance" : "Horde") +
                 "\","
             "\"killer_is_real_player\":"
                 + std::string(

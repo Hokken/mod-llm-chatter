@@ -731,8 +731,13 @@ docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20260926_duel_events.sql
 
 docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
-  modules/mod-llm-chatter/data/sql/characters/updates/20261002_guild_world_events.sql
   modules/mod-llm-chatter/data/sql/characters/updates/20261002_guild_member_events.sql
+
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20261002_guild_world_events.sql
+
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20261002_guild_pvp_events.sql
 
 # Non-Docker
 mysql -uroot -ppassword acore_characters < \
@@ -799,8 +804,13 @@ mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260926_duel_events.sql
 
 mysql -uroot -ppassword acore_characters < \
-  data/sql/characters/updates/20261002_guild_world_events.sql
   data/sql/characters/updates/20261002_guild_member_events.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20261002_guild_world_events.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20261002_guild_pvp_events.sql
 ```
 
 Migrations are idempotent — safe to run on an already

@@ -5,6 +5,7 @@
 #include "LLMChatterAB.h"
 #include "LLMChatterBG.h"
 #include "LLMChatterGuild.h"
+#include "LLMChatterGuildPvP.h"
 #include "LLMChatterGuildWorld.h"
 #include "LLMChatterGroup.h"
 #include "LLMChatterLoot.h"
@@ -23,6 +24,7 @@ void AddLLMChatterScripts()
     AddLLMChatterGroupScripts();
     AddLLMChatterPlayerScripts();
     AddLLMChatterGuildWorldScripts();
+    AddLLMChatterGuildPvPScripts();
     AddLLMChatterLootScripts();
     AddLLMChatterBGScripts();
     AddLLMChatterABScripts();

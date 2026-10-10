@@ -1042,6 +1042,7 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterGroupEmote.cpp` | 780 | Emote reaction system: delayed bot/creature mirror events, emote static data, grouped and ungrouped playerbot mirroring, creature mirroring, observer reactions, and cooldown eviction |
 | `src/LLMChatterGroupQuest.cpp` | 530 | Quest accept batching: `FlushQuestAcceptBatches()`, `LLMChatterCreatureScript` (AllCreatureScript: `CanCreatureQuestAccept` with debounce/immediate paths) |
 | `src/LLMChatterGroupPvP.cpp` | ~630 | Overworld PvP: opposing-faction enemy resolution (players and their pets), the identity visibility gate, PvP reactor selection, enemy JSON fields, per-group and per-enemy PvP cooldowns, PvP pull, player-kill, and pet-kill entry points |
+| `src/LLMChatterGuildPvP.cpp/.h` | ~370 | Open-world PvP reactions outside the player's group: `OnPlayerPVPKill` only records the kill; the world update queues Guild kill comments for lone guild bots and Guild or zone General death reactions, gated on a real reader (`LLMChatterAudience.cpp`), skipped while the guild talks with a real player, with per-bot, per-guild and per-zone cooldowns; `CheckPvpReactionDelivery()` keeps each line in its original guild or zone at delivery |
 | `src/LLMChatterDuel.cpp` | ~300 | Duel start/end `PlayerScript`, duel reactor selection, duel cooldowns, and `bot_group_duel_start` / `bot_group_duel_end` queueing |
 | `src/LLMChatterGroup.h` | 18 | World-to-group cross-call surface plus group registration |
 | `src/LLMChatterPlayer.cpp` | 1105 | Player General-channel hooks, General cooldowns, subzone cooldowns, `EnsureBotInGeneralChannel()`, player registration |
@@ -1102,7 +1103,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_guild_event_common.py` | Shared guild event prompts, speaker-order validation, generation and delivery |
 | `tools/chatter_guild_player.py` | Player-driven Guild replies, reply topology, session-context prompts, and rolling summary compaction |
 | `tools/chatter_guild_world_events.py` | Meet greetings and their held Guild follow-up, NPC encounters, and General join announcements |
-| `tools/chatter_guild_event_common.py` | Shared guild event prompts, speaker-order validation, generation and delivery |
+| `tools/chatter_guild_pvp_events.py` | Open-world Guild PvP kill comments and Guild or General PvP death reactions |
 | `tools/chatter_guild_login.py` | Real-player login greetings, responder selection, short-message prompts, and greeting pacing |
 | `tools/chatter_guild_profile.py` | Guild profile (Guild Information, MOTD, ranks, Guild Master), character guild lookups, guildmate notes and MOTD wording |
 | `tools/chatter_player_context.py` | Description of the real player (race outlook, class calling) for prompts that address them |

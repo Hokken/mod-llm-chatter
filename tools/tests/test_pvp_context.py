@@ -305,7 +305,83 @@ def test_state_callouts_never_fall_back_when_pvp_disabled():
     )
 
 
+def test_kill_and_combat_add_factions_and_enemy_lore():
+    alliance = dict(enemy_name="Aldric", enemy_race=1, enemy_class=2,
+                    enemy_faction="Alliance", reactor_faction="Horde")
+    for build_named in (
+        lambda ed, mode, name: build_kill_reaction_prompt(
+            BOT, TRAITS, name, False, False, mode, extra_data=ed),
+        lambda ed, mode, name: build_combat_reaction_prompt(
+            BOT, TRAITS, name, False, mode, extra_data=ed),
+    ):
+        def build(ed, mode, build_named=build_named):
+            seen = is_pvp_identity_known(ed) or not is_pvp_enemy(ed)
+            return build_named(ed, mode, "Aldric" if seen else "someone")
+
+        rp = build(known_enemy(**alliance), "roleplay")
+        assert "You and your party fight for the Horde; Aldric fights " \
+            "for the Alliance." in rp
+        assert "locked in a long, bitter war" in rp
+        assert "What you know of Aldric's kind:" in rp
+        assert "Human outlook:" in rp and "Paladin calling:" in rp
+        # The lore is optional colour, not a required jab.
+        assert "sharpen your words" not in rp
+        assert "Draw on it only if it fits how you would speak of them " \
+            "(a jab, wariness, grudging respect); never recite it." in rp
+
+        hidden = build(anonymous_enemy(enemy_faction="Alliance",
+                                       reactor_faction="Horde"), "roleplay")
+        assert "the enemy fights for the Alliance" in hidden
+        assert "Aldric" not in hidden and "outlook:" not in hidden
+
+        normal = build(known_enemy(**alliance), "normal")
+        assert "Aldric fights for the Alliance" in normal
+        assert "outlook:" not in normal
+
+        creature = build({"creature_name": "Hogger"}, "roleplay")
+        assert "fights for the" not in creature
+
+        # Sides come from the payload, never from race names: an
+        # Alliance reactor of an Orc-named race is still Alliance.
+        custom = build(known_enemy(**dict(
+            alliance, enemy_faction="Horde",
+            reactor_faction="Alliance")), "normal")
+        assert "You and your party fight for the Alliance; Aldric " \
+            "fights for the Horde." in custom
+
+        # A missing side is not guessed.
+        for missing in ('reactor_faction', 'enemy_faction'):
+            partial = known_enemy(**alliance)
+            partial.pop(missing)
+            assert "fights for the" not in build(partial, "normal")
+            assert "fights for the" not in build(
+                anonymous_enemy(**{
+                    k: v for k, v in alliance.items()
+                    if k in ('enemy_faction', 'reactor_faction')
+                    and k != missing}), "normal")
+
+
+def test_cpp_sends_both_sides_from_teams():
+    source = (MODULE_DIR / "src" / "LLMChatterGroupPvP.cpp").read_text(
+        encoding="utf-8")
+    start = source.index("std::string BuildPvPEnemyFields(")
+    body = source[start:source.index("\n}\n", start)]
+    first = body.index("enemy_identity_known")
+    unknown = body[first:body.index("return json;", first)]
+    known = body[body.index("enemy_identity_known", first + 1):]
+    assert "reactor_faction" in body[:body.index("if (ref.viaPet")]
+    assert "TeamNameOf(reactor)" in body
+    assert 'enemy_faction' in unknown and "TeamNameOf(ref.enemy)" in unknown
+    assert 'enemy_faction' in known and "TeamNameOf(enemy)" in known
+    prompts = (MODULE_DIR / "tools" / "chatter_group_prompts.py").read_text(
+        encoding="utf-8")
+    assert "_race_name_faction" not in prompts
+    assert "RACE_NAMES" not in prompts
+
+
 def main() -> int:
+    test_kill_and_combat_add_factions_and_enemy_lore()
+    test_cpp_sends_both_sides_from_teams()
     test_detection_helpers()
     test_known_enemy_renders_identity()
     test_enemy_is_bot_never_rendered()

@@ -1,5 +1,37 @@
 # Changelog
 
+### 2026-10-10 - Open-World PvP Reactions
+
+* **Guild PvP lines**: A lone guild bot that kills an opposing-faction bot
+  may tell its guild, and a bot killed by one may tell its guild or, if
+  that does not happen, its zone's General channel. Nothing is queued
+  unless a real player can read it.
+* **Thread safety**: The kill hook runs on a map thread and only records
+  the facts of the kill; the next world update checks the readers, the
+  guild conversation and the cooldowns and queues the line.
+* **Message flow**: Guild PvP lines give way to a real player's
+  conversation with the guild, both when queued and at delivery (the
+  login welcome alone does not count). The General line follows the
+  General zone pacing. At delivery a line is dropped if its bot has left
+  the guild or zone it was written for, or no real player there can read
+  it any more.
+* **Personality first**: The prompts offer a range of reactions instead
+  of a mood, and the enemy's lore in party prompts is optional colour,
+  not a required jab. A small level gap is described as similar
+  experience, not as an even fight.
+* **Faction context**: Party kill and battle-cry prompts against enemy
+  players name both factions, taken from the server's teams rather than
+  race names, and, in roleplay, the enemy's race outlook and class
+  calling. Battleground kill prompts name the fallen enemy's race and
+  both sides.
+* **Configuration**: `GuildChatter.PvpKill.*` (including a per-guild
+  `GuildCooldown`), `GuildChatter.PvpDeath.*`, `GeneralChat.PvpDeath.*`
+  and `PvpDeath.VictimCooldown`.
+* **README**: Each migration has its own `mysql` command again.
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20261002_guild_pvp_events.sql`, rebuild
+  the worldserver and restart the bridge.
+
 ### 2026-10-10 - Guild World Events
 
 * **Meet greetings**: A guild bot that runs into a real guildmate in the
