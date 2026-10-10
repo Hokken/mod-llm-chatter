@@ -16,6 +16,7 @@
 #include "LLMChatterConfig.h"
 #include "LLMChatterGroup.h"
 #include "LLMChatterGroupInternal.h"
+#include "LLMChatterReplyHold.h"
 #include "LLMChatterShared.h"
 
 #include "Creature.h"
@@ -150,7 +151,13 @@ public:
         if (!bot || !bot->IsInWorld()
             || !bot->IsAlive()
             || bot->IsInCombat())
+        {
+            LOG_INFO("module",
+                "LLMChatter: mirror emote dropped, bot {} "
+                "unavailable or in combat (player {})",
+                bot ? bot->GetName() : "?", _playerName);
             return true;
+        }
 
         Player* target =
             ObjectAccessor::FindConnectedPlayer(
@@ -164,6 +171,12 @@ public:
             || bot->GetMap() != target->GetMap()
             || !bot->IsWithinDistInMap(target, radius))
         {
+            LOG_INFO("module",
+                "LLMChatter: mirror emote dropped, bot {} "
+                "out of range of player {} ({:.1f} yd)",
+                bot->GetName(), _playerName,
+                target && bot->GetMap() == target->GetMap()
+                    ? bot->GetDistance(target) : -1.0f);
             return true;
         }
 
@@ -500,6 +513,7 @@ uint32 HandleEmoteAtUngroupedBot(
     {
         return 0;
     }
+    HoldBotForReply(targetBot, player, 0);
     return mirrorEmote;
 }
 

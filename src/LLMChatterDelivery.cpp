@@ -11,6 +11,7 @@
 #include "LLMChatterGuild.h"
 #include "LLMChatterProximity.h"
 #include "LLMChatterProximityFight.h"
+#include "LLMChatterReplyHold.h"
 #include "LLMChatterShared.h"
 
 #include "Channel.h"
@@ -242,6 +243,30 @@ void FinalizeDroppedMessage(
     if (!eventId || !IsDirectedProximityEvent(eventType))
         return;
 
+    LOG_INFO("module",
+        "LLMChatter: directed {} message {} (event {}) dropped: {}",
+        eventType, messageId, eventId,
+        reason ? reason : "delivery_failed");
+
+    // The rest of the scene is cancelled, so its speakers owe no reply.
+    if (QueryResult held = CharacterDatabase.Query(
+            "SELECT m.bot_guid, e.extra_data "
+            "FROM llm_chatter_messages m "
+            "JOIN llm_chatter_events e ON e.id = m.event_id "
+            "WHERE m.event_id = {} AND m.sequence > {} "
+            "AND m.delivered = 0 AND m.bot_guid > 0",
+            eventId, sequence))
+    {
+        do
+        {
+            Field* row = held->Fetch();
+            ReleaseBotReplyHold(row[0].Get<uint32>(),
+                row[1].IsNull() ? 0 : ExtractJsonUInt(
+                    row[1].Get<std::string>(),
+                    LLM_CHATTER_REPLY_HOLD_KEY));
+        } while (held->NextRow());
+    }
+
     CharacterDatabase.DirectExecute(
         "UPDATE llm_chatter_messages "
         "SET delivered = 1, delivered_at = NOW(), "
@@ -462,6 +487,11 @@ void DeliverPendingMessagesImpl()
         fields[22].IsNull()
             ? 0
             : fields[22].Get<uint32>();
+
+    // Every return below ends this row for good, except the retry
+    // at the end, which keeps the bot's reply hold.
+    ReplyHoldDeliveryScope replyHold(botGuid, ExtractJsonUInt(
+        eventExtraData, LLM_CHATTER_REPLY_HOLD_KEY));
 
     // ActionAsEmote disabled: fall back to the historical
     // inline "*action* text" rendering so the action is not
@@ -1570,6 +1600,7 @@ void DeliverPendingMessagesImpl()
         // worth another attempt; an action already acted out
         // is not, so it is consumed here and the retry
         // delivers the line on its own.
+        replyHold.Keep();
         if (actionEmitted)
         {
             CharacterDatabase.DirectExecute(
