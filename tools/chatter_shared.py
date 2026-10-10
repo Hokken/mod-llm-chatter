@@ -2472,7 +2472,19 @@ def calculate_dynamic_delay(
         # Player is waiting — fast reply.  The LLM
         # already took several seconds ("thinking"),
         # so keep the typing simulation short.
-        return random.uniform(4.0, 8.0)
+        try:
+            low = int(config.get(
+                'LLMChatter.ResponsiveDelayMin', 4000
+            )) / 1000.0
+            high = int(config.get(
+                'LLMChatter.ResponsiveDelayMax', 8000
+            )) / 1000.0
+        except (ValueError, TypeError):
+            low, high = 4.0, 8.0
+        low, high = max(0.0, low), max(0.0, high)
+        if high < low:
+            low, high = high, low
+        return random.uniform(low, high)
 
     # Ambient/idle — full simulation
     reading_time = (

@@ -2594,10 +2594,11 @@ Player-directed replies use faster timing than ambient chatter. The
 `calculate_dynamic_delay()` function in `chatter_shared.py` accepts a
 `responsive=True` parameter that:
 
-- skips distraction simulation
-- uses shorter reaction and typing windows
-- enforces a 2-second floor (vs 4 seconds for ambient)
-- skips reading time for multi-bot conversation follow-up messages
+- skips the reading, typing and distraction simulation
+- waits a random `LLMChatter.ResponsiveDelayMin` to
+  `LLMChatter.ResponsiveDelayMax` milliseconds (default 4000-8000)
+- ignores `MessageDelayMin`/`MessageDelayMax`, which keep governing
+  ambient timing
 
 All player message paths (single reply, conversation, multi-addressed)
 use responsive delays. Ambient chatter, idle banter, and world events
@@ -2612,7 +2613,7 @@ delivery code:
 
 | Helper | Purpose |
 |--------|---------|
-| `calculate_dynamic_delay(responsive=False)` | Delivery timing — skips distraction sim and uses a 2s floor when `responsive=True` |
+| `calculate_dynamic_delay(responsive=False)` | Delivery timing — uses the `ResponsiveDelayMin`/`Max` range instead of the full simulation when `responsive=True` |
 | `find_addressed_bot(...)` | Explicit/implicit addressee, multi-addressed intent, brief-casual scale, and optional-reply classification via LLM context analysis |
 | `should_reply_to_optional_casual(...)` | One bounded RNG roll for semantically optional brief turns; non-optional turns always pass |
 | `bound_brief_casual_response(...)` | Deterministically enforce the 8-word/50-character brief contract while preserving a usable original response and emote |
