@@ -61,6 +61,9 @@ std::string JsonEscape(const std::string& str);
 std::string GetCreatureRoleName(Creature* creature);
 std::string GetChatterClassName(uint8 classId);
 std::string GetRaceName(uint8 raceId);
+// Writes the name of every race in ChrRaces to
+// llm_chatter_race_names for the bridge (startup only).
+void SaveRaceNames();
 std::string BuildBotIdentityFields(
     Player* player, bool includeRoles = false);
 std::string BuildBotStateJson(Player* player);

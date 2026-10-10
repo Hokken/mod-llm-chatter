@@ -20,7 +20,7 @@ from typing import Optional, Dict, List, Tuple, Any
 from chatter_lore_data import RACE_CLASS_NOTES
 from chatter_constants import (
     ZONE_LEVELS, ZONE_NAMES,
-    CLASS_NAMES, RACE_NAMES, ALLIANCE_RACE_IDS, HORDE_RACE_IDS,
+    CLASS_NAMES, ALLIANCE_RACE_IDS, HORDE_RACE_IDS,
     RACE_SPEECH_PROFILES, CLASS_SPEECH_MODIFIERS,
     CLASS_ROLE_MAP, ROLE_COMBAT_PERSPECTIVES,
     ZONE_FLAVOR, DUNGEON_FLAVOR, OPEN_AIR_INSTANCES,
@@ -63,6 +63,7 @@ from chatter_db import (
     get_character_info_by_name,
     get_character_talents,
     get_creature_entry_column,
+    get_race_name,
 )
 from talent_catalog import TALENT_CATALOG
 from chatter_structured import (
@@ -404,11 +405,6 @@ def debug_log_zone(
 def get_class_name(class_id: int) -> str:
     """Get human-readable class name from class ID."""
     return CLASS_NAMES.get(class_id, "Adventurer")
-
-
-def get_race_name(race_id: int) -> str:
-    """Get human-readable race name from race ID."""
-    return RACE_NAMES.get(race_id, "Unknown")
 
 
 def get_race_faction(race_id) -> str:
