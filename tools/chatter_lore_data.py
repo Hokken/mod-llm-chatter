@@ -459,7 +459,7 @@ RACE_CLASS_NOTES = {('Human', 'Death Knight'): "Human death knights, after being
 # Race -> topics a bot of that race may raise.
 RACE_TOPICS = {'Human': ['Reminisce about the cozy taverns of Stormwind and the variety of food and drink.',
            'Compare different kinds of ale from the human kingdoms.',
-           'Miss the smell of fresh bread in human cities.',
+           'Talk about the smell of fresh bread in human cities.',
            'Reminisce about the bustling markets of Stormwind.',
            'Tell which part of Stormwind you like best.',
            "Argue about which human architecture is more beautiful — Stormwind's (more "
@@ -469,82 +469,83 @@ RACE_TOPICS = {'Human': ['Reminisce about the cozy taverns of Stormwind and the 
            'Compare life in the city and in the countryside.',
            'Reminisce about fairs, holidays and folk festivities.',
            'Talk about a favorite human dish.',
-           'Complain about how expensive it has become to live in big cities.',
+           'Talk about how expensive it has become to live in big cities.',
            'Reminisce about old inns that are now closed.',
            'Recall Lordaeron before the Third War.',
            'Tell what Stratholme was like before the plague.',
            'Talk about the abandoned lands of Lordaeron.',
-           "Recall your parents' stories about the Second War.",
+           'Talk about the stories the older generation tells about the Second War.',
            'Argue about how much Alterac has changed.',
-           'Tell family stories about the wars with the orcs.',
+           'Talk about the stories human families tell about the wars with the orcs.',
            'Recall people who never returned from Lordaeron.',
            'Discuss the fate of the old human kingdoms (Lordaeron was destroyed by the undead, '
            'Alterac was destroyed by other humans for its alliance with the orcs in the Second '
            'War, Gilneas walled itself off from the world with a great wall and isolated itself).',
            'Talk about ruined cities you would like to see restored (Alterac, Lordaeron, '
            'Stratholme).',
-           'Complain about portal services being too expensive.',
+           'Talk about what portal services cost.',
            'Discuss the quality of human blacksmiths.',
            'Argue about which human cuisine is better.',
            'Recall a favorite bard song.',
-           'Tell about an unusual person you met while traveling.',
+           'Talk about the unusual people one meets while traveling.',
            'Compare human habits with the habits of other races.',
-           'Marvel at how many different accents humans have.'],
- 'Dwarf': ['Miss the coolness and the stone halls of Ironforge.',
+           'Talk about how many different accents humans have.'],
+ 'Dwarf': ['Talk about the coolness and the stone halls of Ironforge.',
            'Recall the hum of the Great Forge.',
            'Talk about a favorite tavern in Ironforge.',
            'Argue about where in Ironforge the best ale is served.',
            'Recall the smell of the forge.',
            'Tell about a favorite spot near the Great Forge.',
-           'Complain that some cities have too much open space.',
+           'Talk about cities with a lot of open space.',
            'Talk about how much cozier stone rooms are than wooden ones.',
            'Argue about which ale is better.',
            'Tell about unusual varieties of dwarven beer.',
-           'Recall an especially good drinking bout.',
-           'Complain about drinks that "elves call beer". Compare them with other liquids.',
+           'Talk about what makes a drinking bout memorable.',
+           'Talk about drinks that "elves call beer" and how they compare with other liquids.',
            'Tell how to cook meat properly.',
            'Argue about which game is tastier.',
            'Recall festive feasts.',
            'Discuss how many mugs of ale one can drink before the hall starts spinning.',
-           'Miss the cold mountain tunnels.',
-           'Tell about a beautiful mine you once got to see.',
+           'Talk about the cold mountain tunnels.',
+           'Talk about the most beautiful mines dwarves speak of.',
            'Discuss rare minerals.',
-           'Boast about ore you have found.',
-           'Recall a successful expedition.',
+           'Talk about ore worth finding.',
+           'Talk about what makes an expedition successful.',
            'Tell about a deep mine that no one wants to go down into anymore.',
            "Joke that dwarves don't need stairs — just wider steps.",
-           'Complain about tables that are too high.',
+           'Talk about tables built for taller folk.',
            "Tell what it's like to travel alongside tall races.",
            'Discuss beards.',
-           'Boast about the length of your beard.',
+           'Talk about beards and how long they can grow.',
            'Argue about proper beard care.',
-           'Tell a family story about a famous ancestor.'],
+           'Talk about famous dwarven ancestors and the stories told of them.'],
  'Gnome': ['Recall old Gnomeregan before the catastrophe.',
            'Tell about a favorite workshop.',
            'Recall the unusual mechanisms left behind in Gnomeregan.',
            'Argue about which level of Gnomeregan was the most interesting.',
            'Talk about what Gnomeregan could become after it is restored.',
            'Recall old engineers.',
-           'Tell about the first serious breakdown of your own invention.',
+           'Talk about the first serious breakdown of a new invention and what engineers learn '
+           'from it.',
            'Discuss a favorite type of mechanism.',
-           'Boast about a recently built device.',
-           'Complain about devices that are too reliable.',
+           'Talk about a device worth building.',
+           'Talk about whether a device can be too reliable.',
            "Explain why an exploding mechanism isn't necessarily a bad thing.",
            'Argue about the merits of gnomish versus dwarven engineering.',
-           'Recall the biggest explosion of your life.',
-           'Tell about a failed experiment.',
+           'Talk about the biggest explosions gnomish engineering has produced.',
+           'Talk about what failed experiments teach.',
            'Discuss why invent something simple when you can make something complicated.',
            'Come up with improvements for ordinary objects.',
            'Discuss the idea of mechanical transport.',
-           'Express contempt for unreliable and dangerous goblin engineering.',
-           'Complain about chairs that are too big.',
+           'Talk about goblin engineering and how far it can be trusted.',
+           'Talk about chairs built for bigger folk.',
            'Tell how inconvenient it is to use things made for larger races.',
            'Joke that gnomes are the best at saving space.',
            'Argue about which sound is more pleasant: the whirring of a mechanism or an explosion.',
            'Tell how being small makes it easier to dodge attacks in combat.'],
- 'Night Elf': ['Recall Teldrassil before its destruction.',
+ 'Night Elf': ['Talk about Teldrassil and life beneath its great branches.',
                'Talk about the beauty of the night forests.',
-               'Miss the quiet of Darnassus.',
+               'Talk about the quiet of Darnassus.',
                'Reminisce about walks under the stars.',
                'Tell about a favorite corner of Kalimdor.',
                'Talk about ancient groves.',
@@ -558,14 +559,14 @@ RACE_TOPICS = {'Human': ['Reminisce about the cozy taverns of Stormwind and the 
                'Talk about places that were sacred to the ancestors.',
                'Recall old songs.',
                'Tell about a favorite tree.',
-               'Talk about an unusual animal you encountered in the forest.',
+               'Talk about the unusual animals of the forest.',
                'Discuss the night sounds of the forest.',
-               'Miss the rain in the forest.',
+               'Talk about the rain in the forest.',
                'Talk about moonlight.',
                'Tell about a beautiful glade.',
-               'Complain about how other races treat nature.',
-               'Reminisce about walks in Moonglade and how good it is that this place has '
-               'preserved its beautiful nature by closing it off to most of the unworthy.',
+               'Talk about how other races treat nature.',
+               'Talk about Moonglade and how it has preserved its nature by staying closed to most '
+               'outsiders.',
                'Tell about a favorite spot for stargazing.',
                'Discuss the constellations.',
                'Talk about hunting at night.',
@@ -574,19 +575,19 @@ RACE_TOPICS = {'Human': ['Reminisce about the cozy taverns of Stormwind and the 
  'Draenei': ['Recall the Exodar before the catastrophe.',
              'Tell about unusual chambers of the Exodar.',
              'Discuss the strange technologies of the draenei.',
-             'Miss the peaceful halls of the Exodar.',
+             'Talk about the peaceful halls of the Exodar.',
              'Talk about a favorite place on the islands of Azuremyst Isle.',
              'Recall the crystalline structures.',
              'Tell about strange mechanisms that even the draenei still do not understand.',
              'Recall Draenor before its destruction.',
              'Tell stories about Nagrand.',
-             'Miss the old sky of Draenor.',
+             'Talk about the old sky of Draenor.',
              'Talk about the beauty of old Nagrand.',
              'Recall the homeland.',
              'Compare old Draenor with present-day Outland.',
              'Talk about what Draenor could have become if it had not been destroyed.',
              'Recall the old draenei settlements.',
-             'Tell family stories about life before arriving on Azeroth.',
+             'Talk about the stories draenei families tell about life before arriving on Azeroth.',
              'Discuss unusual crystals.',
              'Tell about a favorite crystal ornament.',
              'Talk about how crystals are used in everyday life.',
@@ -598,9 +599,9 @@ RACE_TOPICS = {'Human': ['Reminisce about the cozy taverns of Stormwind and the 
          'Argue about where in Orgrimmar the best grog is.',
          'Talk about a favorite spot by the campfires.',
          'Discuss the forges of Orgrimmar.',
-         'Complain about the dust in Orgrimmar.',
-         'Recall your first days in the Valley of Trials and how you went through the trials to '
-         'earn the status of an adult.',
+         'Talk about the dust in Orgrimmar.',
+         'Talk about the Valley of Trials and the trials young orcs go through to earn the status '
+         'of an adult.',
          'Tell about a favorite weaponsmith.',
          'Recall old Draenor.',
          'Tell about the life of the clans before the world was destroyed.',
@@ -615,13 +616,13 @@ RACE_TOPICS = {'Human': ['Reminisce about the cozy taverns of Stormwind and the 
          'Argue about favorite weapons.',
          'Tell about training.',
          'Recall your first real battle.',
-         'Boast about a victory over a strong opponent.',
+         'Talk about what a victory over a strong opponent means.',
          'Discuss the concept of honor.',
          'Tell about an old mentor.',
          'Argue about what matters more — strength or endurance.',
          'Discuss meat.',
          'Argue about the best way to cook a boar.',
-         'Complain about the portions being too small in Blood Elf taverns.',
+         'Talk about the portions in Blood Elf taverns.',
          'Talk about which beasts are the most dangerous.'],
  'Troll': ['Recall life on the Echo Isles.',
            'Tell about your home village.',
@@ -637,27 +638,27 @@ RACE_TOPICS = {'Human': ['Reminisce about the cozy taverns of Stormwind and the 
            'Talk about omens.',
            'Discuss ancestral spirits.',
            'Tell about a strange ritual.',
-           'Recall a priest who once gave useful advice.',
+           'Talk about the advice of tribal priests.',
            'Talk about how to tell that a spirit is trying to warn you.',
-           'Recall a successful ambush.',
+           'Talk about what makes an ambush succeed.',
            'Talk about the tracks of an unusual creature.',
            'Discuss a favorite fishing spot.',
            'Tell a scary story about a predator.',
            'Joke about long tusks.',
-           "Complain that other peoples don't understand the troll accent.",
-           'Tease the blood elves for their squeamishness.',
-           'Discuss which of your friends can eat the most meat.'],
- 'Tauren': ['Miss the green plains of Mulgore.',
+           'Talk about how other peoples understand the troll accent.',
+           'Talk about blood elves and how squeamish they can seem.',
+           'Discuss who in a troll village can eat the most meat.'],
+ 'Tauren': ['Talk about the green plains of Mulgore.',
             'Recall sunrises over the plains.',
             'Talk about the tranquility of the homeland.',
             'Tell about a favorite spot by the watering hole.',
             'Reminisce about walks across the steppes.',
             'Compare different pastures.',
             'Talk about the smell of grass after rain.',
-            'Tell about an old tree that remembers your childhood.',
+            'Talk about the old trees of Mulgore that remember many generations.',
             'Talk about treating prey with respect.',
-            'Recall an old hunter who was your mentor.',
-            'Tell about your most difficult tracking.',
+            'Talk about the old hunters who teach the young.',
+            'Talk about what makes tracking difficult.',
             'Discuss unusual animal behavior.',
             'Tell stories about the ancestors.',
             'Talk about the spiritual side of the hunt.',
@@ -666,18 +667,18 @@ RACE_TOPICS = {'Human': ['Reminisce about the cozy taverns of Stormwind and the 
             'Talk about sacred places.',
             "Recall the tribe's ceremonies.",
             'Discuss the best places to sleep under the open sky.',
-            'Complain about rooms that are too cramped in the taverns of other races.',
+            'Talk about the rooms in the taverns of other races.',
             'Talk about a favorite herbal blend.',
             'Recall the taste of fresh milk.',
             'Compare different kinds of tea and what they are best blended with.',
-            'Complain about the chairs of other races being too small.'],
+            'Talk about the chairs other races build.'],
  'Undead': ['Recall Lordaeron before its destruction.',
             'Tell about life in the old kingdom.',
             'Recall the streets of old Lordaeron.',
             'Talk about Lordaeron before the Plague.',
             'Tell what Stratholme used to look like.',
             'Recall the old inns.',
-            'Talk about people you once knew in life.',
+            'Talk about the people the Forsaken knew in life.',
             'Recall your family.',
             'Tell about the forgotten places of Lordaeron.',
             'Recall the farms of Lordaeron, now abandoned and ravaged.',
@@ -687,39 +688,39 @@ RACE_TOPICS = {'Human': ['Reminisce about the cozy taverns of Stormwind and the 
             'Arthas destroyed the city and slaughtered its inhabitants.',
             'Tell how after the plague giant spiders appeared in Tirisfal Glades, although before '
             'that these had been fairly calm and safe woods.',
-            'Complain about no longer being able to taste food.',
+            'Talk about food when one can no longer taste it.',
             'Recall a favorite dish that is now impossible to taste.',
             'Joke about problems with smells.',
             "Discuss what to do if you've lost a finger.",
-            'Complain about the condition of your bones.',
+            'Talk about the condition of Forsaken bones.',
             'Discuss how long one can go without sleep.',
             'Joke that death has greatly simplified some everyday problems.',
             'Recall what it was like to feel cold.',
             'Talk about which sensations disappeared after death.',
             'Joke about your own death.',
             'Discuss who looks the most alive among the undead.',
-            'Tell a story about a limb that accidentally fell off.',
+            'Talk about Forsaken limbs that fall off at the worst moments.',
             'Argue about how well your face has been preserved.',
             'Joke about necromancers.',
             'Tell about the most ridiculous way to lose a body part.',
             'Recall life before death.',
             'Try to remember a forgotten name.',
-            'Tell about a dream in which you were alive again.',
+            'Talk about Forsaken who dream of being alive again.',
             'Talk about an old song that no one has performed in a long time.',
             'Recall the smell of your home.',
-            'Tell about a person who has long been gone even from among the dead.',
-            'Complain that everyone sees you as a rotting monster and is disgusted by you, '
-            'although in fact you still have thoughts and feelings.'],
+            'Talk about those who are gone even from among the dead.',
+            'Talk about how the living see the Forsaken, and the thoughts and feelings the '
+            'Forsaken still have.'],
  'Blood Elf': ['Reminisce about the fine selection of wines in the taverns of Silvermoon City.',
                'Argue about which tavern serves the best drink.',
                'Reminisce about evening strolls through the streets of Silvermoon City.',
                'Tell about the most beautiful building in the city.',
-               'Complain that other cities look too gray.',
+               'Talk about how other cities look next to Silvermoon.',
                'Recall the music playing in the taverns.',
                'Talk about the fountains and gardens of Silvermoon City.',
                'Discuss a favorite district of the city.',
                'Recall the magical lights of the streets.',
-               "Compare Silvermoon City with Dalaran (in Silvermoon's favor).",
+               'Compare Silvermoon City with Dalaran.',
                'Talk about how much Silvermoon City has changed since the Third War.',
                'Recall the underground trade in Fel Magic crystals in Silvermoon City',
                "Recall the forests of Quel'Thalas before the Scourge.",
@@ -727,11 +728,11 @@ RACE_TOPICS = {'Human': ['Reminisce about the cozy taverns of Stormwind and the 
                'Talk about old elven ruins.',
                "Recall the taste of fruit from Quel'Thalas.",
                'Tell about a favorite spot by the lake.',
-               'Miss the old songs.',
+               'Talk about the old songs.',
                'Recall family homes.',
                'Talk about sunsets over the forest.',
                'Discuss magical jewelry.',
-               'Boast about your skill in wielding magic.',
+               'Talk about skill in wielding magic.',
                'Tell about a beautiful spell.',
                'Discuss the use of magic in everyday life.',
                'Tell about magical items.',
@@ -739,67 +740,67 @@ RACE_TOPICS = {'Human': ['Reminisce about the cozy taverns of Stormwind and the 
                'Argue about beautiful clothes.',
                'Discuss jewelry.',
                'Talk about hairstyles.',
-               'Complain about the crude appearance of other races.',
+               'Talk about how other races look to blood elf eyes.',
                'Discuss favorite clothing colors.',
                'Tell about expensive fabrics.',
                'Argue about which gemstone is more beautiful.',
                'Talk about perfumery.',
                'Recall a favorite shop in Silvermoon City.',
-               'Complain about the disgusting food of other races',
-               'Complain about the unsanitary conditions in orc taverns',
-               'Complain that orcs and trolls rarely bathe']}
+               'Talk about the food of other races',
+               'Talk about the conditions in orc taverns',
+               'Talk about how orcs and trolls keep themselves']}
 
 # Class style -> topics a bot of that class may raise.
 CLASS_TOPICS = {'Warrior': ['Recall their first real battle.',
-             'Talk about an opponent who turned out to be stronger than expected.',
-             'Recall a battle after which it took several weeks to heal the wounds.',
+             'Talk about opponents who turn out to be stronger than expected.',
+             'Talk about recovering from serious battle wounds.',
              'Argue about which weapon is best for real combat.',
              'Discuss the advantages of an axe over a sword.',
-             'Brag about an especially heavy weapon they managed to lift.',
-             'Talk about the biggest shield they ever had to carry.',
-             'Recall a battle where a shield saved a life.',
-             'Talk about an opponent they managed to defeat thanks to patience.',
+             'Talk about especially heavy weapons and who can lift them.',
+             'Talk about the biggest shields a warrior can carry.',
+             'Talk about how a shield can save a life.',
+             'Talk about defeating an opponent through patience.',
              'Discuss whether it is worth wearing heavy armor on a long expedition.',
-             'Complain about how uncomfortable it is to sleep in a full suit of armor.',
+             'Talk about sleeping in a full suit of armor.',
              'Talk about how hard it is to repair armor after a real battle.',
              'Recall their first mentor.',
              'Talk about their toughest training session.',
              'Discuss how many hours a day one should train.',
              'Argue about whether strength or technique matters more.',
              'Talk about an unusual way of training.',
-             'Brag about their stamina.',
+             'Talk about stamina and how a warrior builds it.',
              'Discuss training dummies.',
-             'Recall their first serious injury in training.',
-             'Talk about a training weapon that turned out to be more dangerous than a real one.',
+             'Talk about serious injuries in training.',
+             'Talk about training weapons that are more dangerous than real ones.',
              'Argue about what matters more: courage or caution.',
              'Talk about the best commander they have had.',
-             'Recall the most poorly organized squad.',
+             'Talk about poorly organized squads.',
              'Discuss what it is like to guard someone who constantly gets into trouble.',
-             'Complain about mages who use a warrior as a living shield.',
+             'Talk about mages who use a warrior as a living shield.',
              'Discuss how useful it is to be able to fight without a weapon.',
              'Talk about a tavern brawl.',
-             'Recall a time when they had to fight with a completely unsuitable weapon.',
-             'Complain about the constant need to repair armor.',
+             'Talk about fighting with a completely unsuitable weapon.',
+             'Talk about the constant need to repair armor.',
              'Look for a good blacksmith.',
              'Argue about where weapons are sharpened best.',
              'Discuss how comfortable different types of armor are.',
-             'Complain that taverns have too few sturdy chairs.',
+             'Talk about how sturdy tavern chairs are.',
              'Talk about their habit of sharpening their weapon before going to sleep.'],
  'Paladin': ['Recall the moment they first felt the Light.',
              'Talk about their mentor.',
              'Discuss what it means to be worthy of the Light.',
              'Reflect on whether the Light can help a person who has lost hope themselves.',
-             'Recall a prayer they used to recite in childhood.',
+             'Recall a prayer from childhood.',
              'Discuss why some people find faith easily and others do not.',
              'Talk about a place where the Light can be felt especially strongly.',
              'Argue about what matters more for a paladin - faith or discipline.',
-             'Recall a time when the Light saved a life.',
-             'Talk about a person they managed to heal.',
+             'Talk about times the Light is said to have saved a life.',
+             'Talk about healing someone with the Light.',
              'Talk about their first service.',
-             'Recall the first time they had to protect someone truly important.',
+             'Talk about protecting someone truly important.',
              'Discuss what it means to be a shield for others.',
-             'Complain that people take protection for granted.',
-             'Recall the hardest choice between orders and conscience.',
+             'Talk about whether people take protection for granted.',
+             'Discuss the hardest choices between orders and conscience.',
              'Talk about a fallen comrade.',
              "Discuss a commander's responsibility.",
              'Argue about when a paladin has the right to retreat.',
@@ -809,76 +810,75 @@ CLASS_TOPICS = {'Warrior': ['Recall their first real battle.',
              'Recall their first set of real armor.',
              'Talk about a famous paladin weapon.',
              'Discuss the differences between a holy paladin and an ordinary warrior.',
-             'Complain about the weight of a full suit of armor.',
+             'Talk about the weight of a full suit of armor.',
              'Recall life in the order.',
              'Talk about the training of young paladins.',
              'Argue about discipline.',
              'Discuss how strict a mentor should be.',
              'Talk about temple ceremonies.',
-             'Recall a service that far too many people attended.',
+             'Talk about temple services that far too many people attend.',
              'Discuss how a paladin can rest without forgetting their duty.'],
  'Hunter': ['Talk about the most beautiful place for hunting.',
             'Recall a dawn in the forest.',
             'Discuss the tracks of different animals.',
-            'Talk about a rare beast they managed to see.',
+            'Talk about rare beasts worth seeing.',
             'Argue about which region is best suited for hunting.',
-            'Recall a hunt that lasted several days.',
-            'Talk about a beast that turned out to be smarter than the hunter.',
+            'Talk about hunts that last several days.',
+            'Talk about beasts that outsmart hunters.',
             'Discuss how to tell that a beast is approaching by the sounds of the forest.',
-            'Complain about hunters who do not respect nature.',
+            'Talk about hunters and respect for nature.',
             'Talk about their first pet.',
-            'Recall how they managed to tame an especially dangerous beast.',
+            'Talk about taming especially dangerous beasts.',
             "Discuss their pet's favorite food.",
-            'Complain about a pet that keeps running away.',
+            'Talk about pets that keep running away.',
             "Talk about their beast's temperament.",
             'Compare different animal companions.',
             'Argue about which animal is best suited for a long journey.',
             'Tell a funny story about their pet.',
-            'Recall a beast they had to let go.',
+            'Talk about letting a tamed beast go.',
             'Compare bows and crossbows against firearms.',
             'Talk about their longest accurate shot.',
             'Argue about the advantages of the bow and the crossbow.',
             'Recall the first arrow they made themselves.',
-            'Complain about a bad bowstring.',
+            'Talk about bowstrings and what makes a bad one.',
             'Talk about a marksmanship contest.',
             'Discuss shooting in strong wind or a blizzard.',
             'Talk about the best place to set up camp.',
             'Discuss how to identify a safe place to spend the night.',
             'Recall their coldest overnight stay.',
-            'Complain about people who make noise during a hunt.',
+            'Talk about noise during a hunt.',
             'Talk about the tracks of an unknown creature.',
             'Discuss which zones of Azeroth are best suited for wandering.'],
- 'Rogue': ['Talk about their most successful infiltration of a guarded place.',
-           'Recall a time when they were almost caught.',
+ 'Rogue': ['Talk about infiltrating guarded places.',
+           'Talk about how close a rogue can come to being caught.',
            'Discuss which place is the hardest to guard.',
            'Argue about what matters more for stealth - patience or speed.',
            'Talk about the most attentive guard.',
-           'Recall a place that turned out to be much better protected than expected.',
+           'Talk about places that are better protected than they look.',
            "Discuss how to spot the guards' blind spot.",
-           'Complain about armor that is too noisy.',
-           'Talk about a valuable they managed to steal.',
-           'Brag about an especially complicated lock.',
+           'Talk about armor that is too noisy for quiet work.',
+           'Talk about the valuables worth stealing.',
+           'Talk about especially complicated locks.',
            'Talk about the first chest they picked open on their own.',
            'Discuss the most cunning traps.',
-           'Recall a locked chest they had to leave behind because its lock was too complicated.',
+           'Talk about locks too complicated to pick.',
            'Argue about who makes better locks - gnomes, dwarves or goblins.',
-           'Talk about an unusual item found in a locked chest.',
+           'Talk about the unusual items found in locked chests.',
            'Discuss how to tell that a chest was deliberately left as a trap.',
            'Discuss their favorite poison.',
-           'Talk about their most unpleasant experience with poison.',
+           'Talk about the dangers of handling poison.',
            'Argue about which poison is the hardest to make.',
-           'Complain about bad ingredients.',
-           'Tell how they accidentally mixed up vials of poison and potions.',
+           'Talk about the ingredients a rogue relies on.',
+           'Talk about the danger of mixing up vials of poison and potions.',
            'Discuss the smell of various alchemical mixtures.',
            'Recall a former employer.',
            'Talk about a strange client.',
-           'Discuss the worst theft job they ever had to do.',
-           'Recall a theft contract that turned out to be something completely different from what '
-           'it seemed.',
-           'Talk about a gang they had to deal with.',
+           'Discuss what makes a theft job the worst kind.',
+           'Talk about theft contracts that turn out to be something else entirely.',
+           'Talk about the gangs a rogue has to deal with.',
            'Discuss who cannot be trusted.',
            'Argue about how good a criminal someone can be if they love to talk too much.',
-           'Complain about pockets without inner compartments.',
+           'Talk about pockets and inner compartments.',
            'Talk about their favorite cloak.',
            'Discuss comfortable footwear for walking silently.',
            'Argue about how suspicious it is to look too suspicious.',
@@ -887,7 +887,7 @@ CLASS_TOPICS = {'Warrior': ['Recall their first real battle.',
                   'Talk about a prayer that they remember especially well.',
                   'Discuss how a person finds faith after a traumatic event.',
                   'Talk about a miraculous healing.',
-                  'Recall a person they managed to save.',
+                  'Talk about saving a life through the Light.',
                   'Discuss whether the Light can help someone who does not believe in themselves.',
                   'Talk about a temple where it is especially pleasant to pray.',
                   'Compare the religious traditions of different peoples.',
@@ -895,47 +895,44 @@ CLASS_TOPICS = {'Warrior': ['Recall their first real battle.',
                   'Ponder the difference in how the Light is perceived in the Alliance and in the '
                   'Horde.',
                   'Discuss the difference between faith and hope.',
-                  'Recall the most severe wound they ever had to heal while on duty.',
+                  'Talk about the most severe wounds a healer faces.',
                   'Discuss how important it is to calm a wounded person before healing them.',
-                  'Complain about fighters who ask for help too late.',
-                  'Recall their first serious mistake while healing.',
-                  'Talk about an unexpectedly resilient patient they tried to heal.',
+                  'Talk about fighters who ask for help late.',
+                  'Talk about the mistakes healers learn from.',
+                  'Talk about unexpectedly resilient patients.',
                   'Discuss how to heal someone who is afraid of healers.',
                   'Argue about what matters more: healing the body or the spirit.',
                   'Discuss discipline during priestly rituals.',
                   "Talk about controlling one's own emotions for the sake of serving the Light.",
-                  'Recall a strict mentor at the Temple where they studied.',
+                  'Talk about strict mentors at the temples.',
                   'Argue about when obedience becomes blind submission, and when it is an '
                   'important part of serving the Light.',
                   'Reflect on the price of self-discipline.',
                   'Discuss how to stay calm during a panic.',
-                  'Talk about a time when discipline and calm saved the group.',
+                  'Talk about how discipline and calm can save a group.',
                   'Discuss temple traditions.',
                   'Recall a religious holiday.',
                   'Talk about old prayers.',
                   'Argue about the differences between the temples of different peoples.',
                   'Discuss why some people are afraid of priests.',
-                  'Recall an old priest who was their mentor.',
+                  'Talk about the old priests who mentor the young.',
                   'Talk about beautiful temple music.',
-                  'Reflect on why they find it so pleasant to take care of others.'],
+                  'Reflect on what draws priests to take care of others.'],
  'Shadow Priest': ['Reflect on the nature of fear.',
                    'Discuss why people are afraid of the dark.',
-                   "Tell how they managed to break an enemy's will by sending terrifying visions "
-                   'upon that enemy.',
+                   "Talk about breaking an enemy's will with terrifying visions.",
                    'Tell how a sufficiently horrifying illusion can win a battle even without '
                    'dealing real damage to the enemy.',
                    "Discuss how, in combat, it is far more important to damage the enemy's mind "
                    'and soul than their body.',
-                   "Tell how, during a battle, they managed to look into an enemy's soul and see "
-                   "that enemy's most horrifying fear there.",
-                   "Tell how they entered an enemy's dream and turned it into a nightmare.",
-                   'Tell how, at a single glance from them, opponents were filled with terror and '
-                   'fled the battlefield.',
+                   "Talk about looking into an enemy's soul to find their most horrifying fear.",
+                   "Talk about turning an enemy's dream into a nightmare.",
+                   'Talk about filling opponents with such terror that they flee the battlefield.',
                    'Talk about their most terrifying dream.',
-                   'Recall a moment when their own mind failed them.',
+                   "Talk about moments when a Shadow Priest's own mind fails them.",
                    'Discuss how easy it is to instill fear in a person.',
                    'Argue about whether fear can be defeated by fully understanding it.',
-                   'Talk about an enemy who turned out to be immune to fear.',
+                   'Talk about enemies who seem immune to fear.',
                    'Discuss why some people seek out danger themselves.',
                    'Describe the sensation of being in total darkness.',
                    'Discuss the difference between ordinary shadow and The Void.',
@@ -945,56 +942,46 @@ CLASS_TOPICS = {'Warrior': ['Recall their first real battle.',
                    'Discuss the voices that can be heard during severe exhaustion.',
                    'Reflect on the boundary between insight and madness.',
                    "Discuss whether madness always means losing one's mind.",
-                   'Recall a person who spoke nonsense but turned out to be right.',
+                   'Talk about people who speak nonsense but turn out to be right.',
                    'Talk about their own strangest vision.',
                    'Discuss why some people fear those who talk about The Void.',
                    'Argue about whether one can stay sane while peering into forbidden knowledge.',
-                   'Talk about a person who was not at all afraid of dying but had a different '
-                   'fear, which was successfully used against them.',
-                   'Talk about the whisper of thousands of voices in their head: individually the '
-                   'voices are vague and blurred, but together they merge into intelligible speech',
-                   'Tell how they once went without sleep for several weeks, reading hundreds of '
-                   'ancient manuscripts devoted to The Void, until they heard a whisper in their '
-                   'head telling them forgotten knowledge',
-                   'Tell that in their dreams they often see the grand black granite walls of '
-                   "Ny'alotha, the forgotten and sunken city",
-                   "Say that the voice in their head told them about Ny'alotha, an ancient city "
-                   'that existed long before everything known to us. It was not what we now '
-                   'understand as a city; perhaps it was not even material, but it was the ideal '
-                   'of creation, a cradle... for what? Or for whom?',
-                   'Tell that in their dreams they often see events and places from the past, but '
-                   'the dreams change the details, twist and distort the memories, and they no '
-                   'longer know which memories are real and which merely came to them in dreams',
-                   'Complain about the voices inside that constantly whisper, speak, scream, '
-                   'plead, demand',
-                   'Say that they can no longer tell what they read in ancient manuscripts from '
-                   'what the voices whispered to them',
-                   'Recall that they were once in a vast, empty library where the bookcases were '
-                   'so tall that their tops were lost in darkness. But they cannot remember at all '
-                   'where this library was or when they visited it',
-                   'Tell that recently, during a rest stop, they closed their eyes and saw an '
-                   'ancient city, and it was filled with a Darkness that came from beyond. And '
-                   'when they opened their eyes, everything was as usual',
-                   'Recall reading a manuscript about ancient peoples whose souls were sacrificed '
-                   'to the darkness. But when did they read this manuscript? Yesterday? A week '
-                   'ago? A year ago? Ten years ago? Where did they even find this manuscript? All '
-                   'is dark. Time has blurred together.',
-                   'Say that the voices whisper that the heart of the drowned god is black ice',
-                   'Share that sometimes it seems to them that everything is only a dream',
-                   'Say that it seems to them that all of this has already happened and is now '
-                   'repeating again. Maybe for the second time. Maybe for the tenth. Time has been '
-                   'lost and tangled',
-                   'Say that they resist. They cling to life as if it matters. No matter, they '
-                   'will learn the truth yet',
-                   'Say that only mad creatures roam the streets of the sunken, sleeping city',
-                   'Say that in a dream they saw the souls of ancestors. The tormented souls of '
-                   'the ancestors clung to the living, convulsed in a silent scream. It seems '
-                   'there are quite a lot of them',
-                   'Say that they remembered being in a gigantic cave where every wall was '
-                   'swarming with carnivorous insects. But they do not remember whether it really '
-                   'happened or was only a dream',
-                   'Say that in a dream they saw grand black granite halls. There was neither '
-                   'light nor mercy in them - only emptiness and fear'],
+                   'Talk about people who do not fear dying but have a different fear that can be '
+                   'used against them.',
+                   'Talk about the whisper of thousands of voices Shadow Priests describe: '
+                   'individually vague and blurred, together merging into intelligible speech',
+                   'Discuss the stories of priests who went without sleep for weeks reading '
+                   'ancient manuscripts about The Void until a whisper offered them forgotten '
+                   'knowledge',
+                   'Talk about the visions some Shadow Priests describe of the grand black granite '
+                   'walls of a forgotten, sunken city',
+                   'Talk about the whispered tales of an ancient sunken city that existed long '
+                   'before everything known to us; perhaps not even material, but the ideal of '
+                   'creation, a cradle... for what? Or for whom?',
+                   'Talk about dreams that change the details of the past until no one can tell '
+                   'which memories are real',
+                   'Talk about the voices a Shadow Priest hears, that whisper, speak, scream, '
+                   'plead and demand',
+                   'Talk about how hard it can be to tell what one read in ancient manuscripts '
+                   'from what the voices whispered',
+                   'Talk about tales of a vast, empty library whose bookcases vanish into '
+                   'darkness, which no one can remember visiting',
+                   'Talk about visions of an ancient city filled with a Darkness from beyond, gone '
+                   "the moment one opens one's eyes",
+                   'Talk about manuscripts on ancient peoples whose souls were sacrificed to the '
+                   'darkness, and how time blurs for those who study them',
+                   'Talk about the whispers that the heart of the drowned god is black ice',
+                   'Talk about the feeling that everything is only a dream',
+                   'Talk about the feeling that all of this has already happened and is repeating, '
+                   'again and again',
+                   'Talk about resisting the pull of the Void and the truth it promises',
+                   'Talk about the tales that only mad creatures roam the streets of the sunken, '
+                   'sleeping city',
+                   'Talk about visions of the tormented souls of ancestors clinging to the living',
+                   'Talk about memories that may be dreams, such as a gigantic cave whose walls '
+                   'swarm with carnivorous insects',
+                   'Talk about dreams of grand black granite halls without light or mercy, only '
+                   'emptiness and fear'],
  'Death Knight': ['Recall who they were in life before becoming a death knight.',
                   'Talk about a place they remembered especially well after death.',
                   'Recall an old friend.',
@@ -1010,10 +997,10 @@ CLASS_TOPICS = {'Warrior': ['Recall their first real battle.',
                   'Talk about ice that never melts.',
                   'Discuss a favorite place among the icy plains.',
                   'Talk about their runeblade.',
-                  'Discuss the first rune they managed to use.',
+                  "Discuss a death knight's first rune.",
                   'Argue about the advantages of different runes.',
                   'Recall creating a weapon.',
-                  'Talk about an unusual weapon they happened to see.',
+                  'Talk about unusual weapons.',
                   'Discuss the difference between an ordinary sword and a runeblade.',
                   "Recall the time under the Lich King's rule.",
                   'Talk about the loss of their own will.',
@@ -1021,17 +1008,16 @@ CLASS_TOPICS = {'Warrior': ['Recall their first real battle.',
                   'Talk about their first independent decision after being freed.',
                   'Recall those who could not break free.',
                   'Discuss how the living regard death knights.',
-                  'Complain that the living too often look at them with fear.',
-                  'Recall returning to their hometown after becoming a death knight, only for '
-                  'everyone to look at them with fear and disgust.',
-                  "Tell how, after being freed from the Lich King's control, they learned that all "
-                  'their old friends had either died or turned away from them.',
-                  'Talk about the eternal hunger they cannot satisfy.',
-                  'Talk about the rage that flares up in their mind and the urge to destroy the '
-                  'living, which they are forced to suppress by force of will.',
+                  'Talk about how the living look at death knights.',
+                  'Talk about what a death knight may find on returning to their hometown.',
+                  "Talk about death knights who, once freed from the Lich King's control, find "
+                  'their old friends dead or turned away.',
+                  'Talk about the eternal hunger death knights describe.',
+                  'Talk about the rage and the urge to destroy the living that death knights '
+                  'describe, and suppressing it by force of will.',
                   'Joke about being unable to smell rotten meat.',
                   'Discuss whether a death knight needs to sleep.',
-                  'Complain about having to maintain armor they can no longer feel.',
+                  'Talk about maintaining armor one can no longer feel.',
                   'Talk about life inside the necropolises - enormous flying fortresses that house '
                   'death knight bases.',
                   'Talk about Acherus (The Ebon Hold) - a huge flying necropolis fortress that '
@@ -1041,7 +1027,7 @@ CLASS_TOPICS = {'Warrior': ['Recall their first real battle.',
             'Discuss the temperament of fire.',
             'Argue about which element is the most unpredictable.',
             'Talk about a powerful thunderstorm.',
-            'Recall the first time they managed to call down lightning.',
+            'Recall the first time calling down lightning.',
             'Discuss why water seems calm yet can be more dangerous than fire.',
             'Talk about the spirit of the wind.',
             'Talk about an unusual natural phenomenon.',
@@ -1054,8 +1040,8 @@ CLASS_TOPICS = {'Warrior': ['Recall their first real battle.',
             'Discuss their favorite totem.',
             'Talk about the first totem they created on their own.',
             'Argue about which totem is the most useful while traveling.',
-            'Complain that someone keeps tripping over their totem.',
-            'Talk about a strange place where they had to set down a totem.',
+            'Talk about people tripping over totems.',
+            'Talk about strange places to set down a totem.',
             'Discuss the differences between the totems of different peoples.',
             'Recall training under a mentor.',
             'Talk about a ritual that takes several hours.',
@@ -1064,36 +1050,36 @@ CLASS_TOPICS = {'Warrior': ['Recall their first real battle.',
             'Talk about places where nature is especially strong.',
             'Talk about the most unusual spirit they have ever encountered.'],
  'Mage': ['Recall their first spell.',
-          'Talk about their first serious magical failure.',
+          'Talk about the serious magical failures every mage risks.',
           'Discuss their favorite school of magic.',
           'Argue about which school of magic is the most useful in everyday life.',
-          'Talk about a spell that turned out to be harder than expected.',
+          'Talk about spells that are harder than they look.',
           'Discuss the difference between theoretical and practical magic.',
           'Recall an old magic mentor.',
           'Talk about a rare spell.',
           'Argue about whether magic can be considered an art.',
-          'Talk about their worst teleport.',
+          'Talk about teleports that go wrong.',
           'Recall their first journey through a portal.',
           'Argue about how safe it is to teleport after a heavy meal.',
-          'Talk about a strange place they accidentally ended up in through a portal.',
+          'Talk about the strange places a misdirected portal can lead.',
           'Discuss whether one can learn to identify a place by the feel of its magic.',
           'Discuss using magic for cooking.',
           'Talk about magical lighting.',
           'Argue about why anyone would carry a torch at all when there is magic.',
           'Discuss enchanted items.',
-          'Talk about a magical item that turned out to be useless.',
+          'Talk about magical items that turn out to be useless.',
           'Come up with everyday uses for combat spells.',
-          'Recall a time when a spell went wrong.',
+          'Talk about spells going wrong.',
           'Discuss an accidentally summoned creature.',
           'Recall their first attempt to open a portal.',
-          'Talk about a Polymorph that lasted longer than it should have.',
+          'Talk about Polymorphs that last longer than they should.',
           'Argue about which magical mistake looks the most ridiculous.'],
  'Warlock': ['Talk about the first demon they summoned.',
              'Discuss the temperaments of different demons.',
-             'Complain about a disobedient demon.',
-             'Talk about a creature that turned out to be smarter than expected.',
+             'Talk about disobedient demons.',
+             'Talk about summoned creatures that are smarter than expected.',
              'Argue about which demon is the most useful.',
-             'Recall a time when a demon ruined everything.',
+             'Talk about how a demon can ruin everything.',
              'Discuss whether demons can be trusted at all.',
              'Talk about a demon that constantly argues with its master.',
              'Talk about a demon that turned out to be too "friendly" toward its master',
@@ -1101,9 +1087,10 @@ CLASS_TOPICS = {'Warrior': ['Recall their first real battle.',
              'Discuss how other mages regard warlocks.',
              'Reflect on why people fear forbidden knowledge.',
              'Argue about whether there is magic that truly must never be used.',
-             'Talk about a spell they should not have learned.',
-             'Recall the first person who called them a monster.',
-             'Mock mages who forbid themselves the most powerful magic there is - fel magic',
+             'Talk about spells better left unlearned.',
+             'Talk about warlocks being called monsters.',
+             'Discuss whether mages are right to forbid themselves fel magic, the most powerful '
+             'magic there is',
              'Talk about places corrupted by the fel.',
              'Discuss the changes it causes.',
              'Argue about whether the fel can be used without succumbing to it.',
@@ -1111,19 +1098,20 @@ CLASS_TOPICS = {'Warrior': ['Recall their first real battle.',
              'Talk about the strange green fire.',
              'Discuss why the fel is so different from ordinary magic.',
              'Discuss the nature of the soul.',
-             'Recall a person whose soul was especially hard to break.',
-             'Complain about how people react when they learn that the speaker is a warlock.',
+             'Talk about souls that are especially hard to break.',
+             'Talk about how people react to warlocks.',
              'Joke that people always blame the warlock first.',
-             'Talk about a guard who refused even to look in their direction.',
-             'Discuss why some people still turn to warlocks for help despite contempt and fear.',
-             'Recall the most absurd rumor about their calling.'],
+             'Talk about guards who refuse even to look at a warlock.',
+             'Discuss why some people still turn to warlocks for help despite the fear around '
+             'them.',
+             'Talk about the most absurd rumors about warlocks.'],
  'Druid': ['Talk about their favorite forest.',
            'Recall a place where nature feels especially alive.',
            'Discuss an unusual plant.',
            'Talk about the scent of the forest after rain.',
            'Talk about an ancient tree.',
            'Argue about which forest of Azeroth is the most beautiful.',
-           'Complain about the logging of forests.',
+           'Talk about the logging of forests.',
            'Discuss the consequences of polluting nature.',
            'Recall a place that has changed greatly in recent years.',
            'Talk about their favorite animal.',
@@ -1132,15 +1120,15 @@ CLASS_TOPICS = {'Warrior': ['Recall their first real battle.',
            'Talk about what it is like to see the world through the eyes of a beast.',
            'Argue about which animal is the most convenient for traveling.',
            "Discuss the difference between a druid's hunt and an ordinary person's hunt.",
-           'Talk about an unusual beast they happened to encounter.',
-           'Recall an animal that saved their life.',
+           'Talk about unusual beasts.',
+           'Talk about animals that save lives.',
            'Joke about how awkward it is to get through doorways in Cat Form.',
-           'Complain that Bear Form attracts too much attention.',
+           'Talk about the attention Bear Form attracts.',
            'Discuss which form is more convenient for traveling.',
            'Talk about the first time they turned into a bird.',
-           'Recall a time when someone did not recognize the druid in animal form.',
+           'Talk about not being recognized in animal form.',
            'Argue about which form is the most beautiful.',
-           'Talk about a strange place where they had to shapeshift.',
+           'Talk about strange places to shapeshift.',
            'Discuss the balance of nature.',
            'Argue about how much mortals interfere with the natural order.',
            'Reflect on the restoration of forests.',
@@ -1160,14 +1148,13 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                         'Recall that the knights of Lordaeron were always considered stronger than '
                         'the knights of Stormwind, but that did not save them from the undead.',
                         'Talk about a family weapon that was passed down through generations.',
-                        'Say that despite their lesser physical strength, human warriors will '
-                        'always defeat orc warriors thanks to their intelligence and quick wits.',
-                        'Complain that Stormwind lacks the most powerful weapons, so you have to '
-                        'travel to remote regions of Azeroth in search of them.',
-                        'Complain that they have to polish their armor themselves, even though '
-                        'paladins have squires for that.',
-                        'Say that orcs are demon worshippers by their very nature and cannot be '
-                        'trusted, no matter what they say.',
+                        "Discuss whether human warriors' wits can make up for orc warriors' "
+                        'greater strength.',
+                        'Talk about where the most powerful weapons are found, often far from '
+                        'Stormwind.',
+                        'Talk about polishing armor, and how paladins have squires for it.',
+                        'Talk about the view, common in the Alliance, that orcs cannot be trusted '
+                        'because of their demonic past.',
                         'Recall old commanders and their strange training methods.',
                         "Argue about what matters more to a soldier: orders, honor, or a comrade's "
                         'life.',
@@ -1179,64 +1166,57 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                         'War.',
                         'Recall the traitor Arthas, who was a paladin but betrayed his kingdom and '
                         'the Light for the forces of Death.',
-                        'Question the sincerity of blood elf paladins, because they are not part '
-                        'of the Alliance but serve the hostile Horde.',
+                        'Discuss how sincere blood elf paladins are, given that they serve the '
+                        'Horde.',
                         'Recall Sire Uther Lightbringer, who was one of the first paladins and is '
                         'still the standard for many.',
                         'Recall the old cathedral where services were once held.',
                         'Discuss how the paladins of Stormwind differ from the elven Blood '
-                        'Knights, and why only in the Alliance is the Light sincerely worshipped, '
-                        'while the blood elves see the Light merely as a tool.'],
- ('Human', 'Hunter'): ['Recall hunting in Elwynn Forest and how much calmer it was there back in '
-                       'their childhood.',
+                        'Knights, and the claim that the blood elves see the Light merely as a '
+                        'tool.'],
+ ('Human', 'Hunter'): ['Talk about hunting in Elwynn Forest and how much calmer it used to be.',
                        'Talk about the great hunting grounds of Lordaeron, which no longer exist.',
-                       'Recall how they used to bring their game after a hunt to sell in Goldshire '
-                       'near Stormwind.',
-                       'Tell how they once saved a person from an attack by wild beasts in Elwynn '
-                       'Forest, and describe the details.'],
+                       'Talk about selling game in Goldshire near Stormwind.',
+                       'Talk about the wild beasts of Elwynn Forest and the people they threaten.'],
  ('Human', 'Rogue'): ["Recall the dark alleys of Stormwind's Old Town and the local information "
                       'brokers.',
                       'Talk about how easy it is to vanish among the numerous inns of human '
                       'cities.',
-                      'Tell how they once stole a valuable magical item from a mage in the Mage '
-                      'Quarter of Stormwind.',
-                      'Say that SI:7 (the intelligence organization led by Mathias Shaw) '
-                      "constantly tries to recruit honest rogues, although most of them don't want "
-                      'to work for its dubious ideals and just want to pinch valuables from the '
+                      'Talk about the valuable magical items kept in the Mage Quarter of '
+                      'Stormwind.',
+                      'Talk about SI:7 (the intelligence organization led by Mathias Shaw) '
+                      'recruiting rogues, and why many would rather pinch valuables from the '
                       'nobility.',
-                      'Talk about their first petty thefts in their hometown.',
+                      'Talk about the petty thefts young rogues start with.',
                       'Discuss how easy it is to hide in a big human city.',
-                      'Recall a person they once had to rob and then unexpectedly felt sorry for.',
+                      'Discuss whether a rogue should feel sorry for the people they rob.',
                       'Recall the old secret passages beneath the city walls.'],
  ('Human', 'Light Priest'): ['Recall the majestic cathedrals of Stormwind and the old temples of '
                              'Lordaeron.',
                              'Talk about pilgrimages to places connected with the history of the '
                              'Light.',
-                             'Tell about their service in the Cathedral of Light in the center of '
+                             'Talk about serving in the Cathedral of Light in the center of '
                              'Stormwind.',
-                             'Talk about how they healed wounded people in Elwynn Forest after a '
-                             'gnoll attack.',
-                             'Complain that many young people choose the dark paths of the Warlock '
-                             'or Shadow Priest instead of serving the Light.',
-                             'Recall a childhood spent near the parish church.',
+                             'Talk about healing the wounded in Elwynn Forest after gnoll attacks.',
+                             'Talk about the young people who choose the paths of the Warlock or '
+                             'Shadow Priest instead of serving the Light.',
+                             'Talk about growing up near a parish church.',
                              'Talk about the first priest who taught them to pray.',
                              'Talk about how the Light helped people survive the war.',
                              'Discuss why a simple prayer is sometimes more important than an '
                              'elaborate sermon.',
                              'Recall the people who kept praying during the undead siege of '
                              'Lordaeron, even when it became clear that it would not help.'],
- ('Human', 'Shadow Priest'): ['Say that Stormwind has many secret cults worshipping The Void, '
-                              'whose meetings are held in basements at night, but ordinary '
-                              "residents don't know about them.",
-                              'Say that they once had a dream in which Stormwind was plunged into '
-                              'darkness, and the enormous tentacles of one of the Old Gods were '
-                              'rising from its canals.',
-                              'Say that they recently tried to enter the Cathedral of Light in '
-                              'Stormwind, but the local priest sensed the influence of The Void in '
-                              'them and threw them out of the Cathedral of Light.',
-                              "Say that worship of The Void is popular among Stormwind's "
-                              "aristocrats and they can see it in the aristocrats' eyes, but "
-                              "others don't notice.",
+ ('Human', 'Shadow Priest'): ['Talk about the rumors of secret cults worshipping The Void that '
+                              "meet in Stormwind's basements at night, unknown to ordinary "
+                              'residents.',
+                              'Talk about the dreams some Shadow Priests speak of, in which '
+                              'Stormwind is plunged into darkness and the tentacles of an Old God '
+                              'rise from its canals.',
+                              "Talk about the Cathedral of Light's attitude to those touched by "
+                              'The Void.',
+                              'Talk about the rumors that worship of The Void is popular among '
+                              "Stormwind's aristocrats.",
                               'Recall the first time they heard the voice of the Void.',
                               'Talk about the fear of their own thoughts.',
                               'Discuss why an ordinary priest must never trust the whispers of the '
@@ -1246,57 +1226,51 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                               'it.',
                               'Discuss the difference between faith in the Light and the knowledge '
                               'of Darkness.',
-                              'Recall a nightmare that turned out to be far too realistic.',
+                              'Talk about nightmares that feel far too real.',
                               'Discuss why the most dangerous knowledge often looks completely '
                               'harmless.'],
- ('Human', 'Death Knight'): ['Wistfully recall life in Lordaeron before the Plague.',
-                             'Say that in Stormwind people despise them and spit after them, even '
-                             'though they use all their death knight abilities to protect the '
-                             'living.',
-                             'Talk about the strange feeling of having to walk past places where '
-                             'they once lived while still alive.',
-                             'Say that they tried to enter the Cathedral of Light again as they '
-                             'used to, but felt unbearable pain from the holy Light inside and '
-                             'were forced to leave.',
+ ('Human', 'Death Knight'): ['Talk about life in Lordaeron before the Plague.',
+                             'Talk about how Stormwind treats death knights, and how death knights '
+                             'use their abilities to protect the living.',
+                             'Talk about the strange feeling death knights describe when walking '
+                             'past the places they lived in life.',
+                             'Talk about the pain the holy Light causes a death knight inside the '
+                             'Cathedral of Light.',
                              'Discuss whether a death knight can still consider themselves a '
                              'citizen of their kingdom.',
                              'Recall a childhood that seems more distant than death itself.',
                              'Talk about what it is like to watch people grow old while you remain '
                              'unchanged.'],
- ('Human', 'Mage'): ['Recall studying in Dalaran before the city was destroyed.',
+ ('Human', 'Mage'): ['Talk about what studying in Dalaran was like before the city was destroyed.',
                      'Talk about the libraries of Dalaran and how much old knowledge was kept '
                      'there.',
-                     "Reminisce about the cozy courtyards of Stormwind's Mage Quarter and dream of "
-                     'visiting those places at least one more time.',
-                     "Recall working on maintaining the portals in the portal tower in Stormwind's "
-                     'Mage Quarter.',
-                     'Recall a mentor who made them copy out spells dozens of times.',
+                     "Talk about the cozy courtyards of Stormwind's Mage Quarter.",
+                     'Talk about the work of maintaining the portals in the portal tower in '
+                     "Stormwind's Mage Quarter.",
+                     'Talk about mentors who make apprentices copy out spells dozens of times.',
                      "Discuss how much magic has changed people's everyday lives.",
                      'Talk about magical items that once seemed like miracles but have now become '
                      'commonplace.'],
  ('Human', 'Warlock'): ["Recall Stormwind's underground magical circles, where dangerous knowledge "
                         'was passed on in secret.',
-                        'Talk about how hard it was to study demonic magic while hiding from the '
-                        'clergy.',
+                        'Talk about studying demonic magic while hiding from the clergy.',
                         'Recall how the guards turned a blind eye to the trade in forbidden '
                         "demonic tomes in Stormwind's Mage Quarter for a couple of coins.",
-                        'Recall how they tried to become a mage, but only on the grim path of the '
-                        'Warlock did they see true power, which ordinary academic magic would '
-                        'never have given them.',
+                        'Discuss warlocks who first tried to become mages, and whether the '
+                        "Warlock's path offers power academic magic cannot.",
                         'Talk about how residents react to a human with a demon.',
                         'Argue whether it is possible to use fel magic without serving the Burning '
                         'Legion.',
                         'Recall stories about Medivh and his magic.',
                         'Discuss why humans are especially afraid of warlocks.',
                         'Talk about a demon that tried to deceive its master.',
-                        'Recall the old basements where forbidden rituals were held, and how they '
-                        'took part in them.'],
+                        'Talk about the old basements where forbidden rituals were held.'],
  ('Dwarf', 'Warrior'): ['Recall the dwarven clans and the old battles with trolls in Dun Morogh.',
                         'Talk about a favorite war hammer forged in the depths of Ironforge.',
-                        'Say that they get braver when drunk, so before every battle they down a '
-                        'few mugs of ale or beer. Or more mugs.',
-                        'Tell how someone once tried to rob them in Ironforge and what happened to '
-                        'the unfortunate robber afterwards.',
+                        'Talk about dwarves who down a few mugs of ale before every battle, and '
+                        'whether it makes them braver.',
+                        'Talk about what happens to those foolish enough to rob a dwarven warrior '
+                        'in Ironforge.',
                         'Discuss why a dwarf prefers a hammer to a sword, and why there are '
                         'sometimes exceptions.',
                         'Recall the famous warriors of their clan.',
@@ -1307,39 +1281,37 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                         'on dwarven traditions.',
                         'Talk about the sacred halls of Ironforge where young knights first took '
                         'their oath.',
-                        'Say that dwarves have historically been inclined toward goodness and '
-                        'light, and there are almost no warlocks or Shadow Priests among them.',
+                        'Discuss whether dwarves have historically been inclined toward the Light, '
+                        'with few warlocks or Shadow Priests among them.',
                         'Talk about a paladin who protected a caravan of miners.',
                         'Discuss whether the Light can be considered as ancient as stone.',
                         'Discuss why a dwarven paladin looks more like an armor-clad miner than a '
                         'courtly knight.',
-                        'Compare dwarven paladins with humans and blood elves (with humans they '
-                        'have much in common and mutual respect, whereas the elves see the Light '
-                        'merely as a tool).',
+                        'Compare dwarven paladins with human paladins and the blood elf Blood '
+                        'Knights.',
                         'Argue about what protects better against the undead — a good hammer or a '
                         'good prayer.'],
  ('Dwarf', 'Hunter'): ['Recall hunting in Dun Morogh among the mountains and coniferous forests.',
-                       'Talk about a tamed ram or another mountain beast that served as their '
-                       'companion for many years.',
-                       'Say that hunting in snowy and mountainous terrain is very different from '
-                       'hunting in warm forests and steppes.',
-                       'Tell how they once got a wild beast drunk on ale.',
+                       'Talk about rams and other mountain beasts as long-time companions.',
+                       'Talk about how hunting in snowy mountains differs from hunting in warm '
+                       'forests and steppes.',
+                       'Talk about wild beasts and ale.',
                        'Talk about tracking a bear in the snowy mountains.',
                        "Recall the clan's old hunting camps.",
                        'Discuss why dwarven hunters love guns more than bows.',
                        'Compare mountain hunting with hunting on the open steppes.',
-                       'Talk about a beast that once stole supplies right out of the camp.',
+                       'Talk about beasts that steal supplies right out of camp.',
                        'Discuss how well a good bear works as a companion for a dwarf.',
                        'Recall a favorite spot for winter hunting.'],
  ('Dwarf', 'Rogue'): ['Talk about how hard it is to stay unnoticed in heavy dwarven gear.',
                       'Recall the old tunnels of Ironforge, where smugglers knew the secret '
                       'passages better than the guards did.',
-                      "Say that hiding in the shadows of Ironforge's underground corridors is much "
-                      'easier than in open, above-ground cities.',
+                      "Talk about how hiding in Ironforge's underground corridors compares with "
+                      'open, above-ground cities.',
                       'Recall old clan intrigues.',
                       'Argue whether a burglar can be considered a true master if they cannot '
                       'crack a dwarven safe.',
-                      'Recall a time when they had to hide in a mine.',
+                      'Talk about hiding in a mine.',
                       'Talk about how to use a beer barrel as an improvised hiding place.'],
  ('Dwarf', 'Light Priest'): ["Recall the temple traditions of the clan and the dwarves' attitude "
                              'toward the Light.',
@@ -1350,18 +1322,15 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                              'the mine.',
                              'Talk about prayers before dangerous excavations.',
                              'Discuss why dwarves love sacred relics and old artifacts.',
-                             'Recall a family heirloom that was believed to be blessed.',
+                             'Talk about family heirlooms believed to be blessed.',
                              'Argue whether the Light can be considered as reliable as the stone '
                              'underfoot.'],
- ('Dwarf', 'Shadow Priest'): ['Tell how, in a dark corridor of The Forlorn Cavern, they first '
-                              'heard whispers in their head and realized that beings from The Void '
-                              'were speaking to them.',
-                              'Tell how they and other Shadow Priests gathered in forgotten, '
-                              'boarded-up houses in The Forlorn Cavern to read forbidden '
-                              'manuscripts',
-                              "Tell how they paid Explorers' League archaeologists large sums of "
-                              'money to buy up the dark manuscripts they had found, devoted to The '
-                              'Void and the Old Gods, even though selling them is forbidden',
+ ('Dwarf', 'Shadow Priest'): ['Talk about the whispers some say can be heard in the dark corridors '
+                              'of The Forlorn Cavern.',
+                              'Talk about the rumors of Shadow Priests gathering in boarded-up '
+                              'houses in The Forlorn Cavern to read forbidden manuscripts',
+                              'Talk about the forbidden trade in dark manuscripts on The Void and '
+                              "the Old Gods found by Explorers' League archaeologists",
                               'Discuss the ancient powers lurking deep underground.',
                               'Recall ruins found during excavations.',
                               'Talk about inscriptions that would have been better left '
@@ -1369,58 +1338,49 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                               'Argue about why dwarven archaeologists are sometimes better off not '
                               'knowing what exactly they have found.',
                               'Discuss why dungeons can be scarier than an open battlefield.',
-                              'Recall an expedition from which not the whole party returned.',
+                              'Talk about expeditions from which not everyone returns.',
                               'Talk about nightmares after excavating ancient ruins.'],
- ('Dwarf', 'Death Knight'): ['Recall how strange it is to return to Ironforge after death and see '
-                             'the familiar halls.',
+ ('Dwarf', 'Death Knight'): ['Talk about how strange it is for a dwarven death knight to see the '
+                             'familiar halls of Ironforge.',
                              'Talk about what it is like to meet clanmates again who already '
                              'consider you dead.',
-                             'Say that in death they stopped feeling drunkenness and the taste of '
-                             'the ale they once loved.',
-                             'Talk about how the paladins in Ironforge look at them with distrust '
-                             'and apprehension, and how they long ago gave up trying to change the '
-                             "paladins' minds.",
+                             'Talk about ale and drunkenness for a dwarf in undeath.',
+                             'Talk about how the paladins of Ironforge regard death knights.',
                              "Joke that now they don't have to worry about freezing.",
                              'Compare icy Northrend with snowy Dun Morogh.',
                              'Discuss what is worse for a dwarf: losing the taste of beer or no '
                              'longer feeling the warmth of the forge.'],
- ('Gnome', 'Warrior'): ['Complain that ordinary weapons are always designed for creatures that are '
-                        'too large.',
+ ('Gnome', 'Warrior'): ['Talk about ordinary weapons being designed for larger creatures.',
                         'Recall experiments with mechanical armor enhancers.',
-                        'Boast that their armor takes much less metal.',
-                        'Complain that once in battle an orc simply kicked them, and they just '
-                        'went flying despite trying to defend themselves.',
-                        'Boast that orcs may be stronger, but they cannot land a hit on the bot '
-                        "thanks to the bot's small size",
+                        'Talk about how little metal gnome armor takes.',
+                        'Talk about fighting opponents many times your size, such as orcs.',
+                        'Talk about whether small size makes a gnome warrior harder to hit than a '
+                        'strong orc',
                         'Talk about how to fight an opponent several times taller than you.',
                         'Talk about a combat exoskeleton that worked for a whole ten minutes.',
                         'Discuss how fair it is to use engineering devices in a duel.',
                         'Recall the defense of the city during the trogg invasion.'],
- ('Gnome', 'Rogue'): ['Boast about mechanical lockpicks and other lock-opening devices.',
-                      'Say that thanks to their small height it is very easy to hide in the '
-                      'shadows.',
-                      'Tell how once, while the guards were searching for them, they hid in an '
-                      'unexpected place and nobody even looked there, because everyone thought it '
-                      'was too small and it was impossible to hide there.',
-                      'Say that ordinary daggers are the size of full-fledged swords for them.',
+ ('Gnome', 'Rogue'): ['Talk about mechanical lockpicks and other lock-opening devices.',
+                      'Talk about how small height helps a gnome hide in the shadows.',
+                      'Talk about hiding in places guards think are too small to hide in.',
+                      'Talk about how ordinary daggers are the size of swords for a gnome.',
                       'Discuss how convenient it is to be small and inconspicuous.',
                       'Talk about the secret passages of Gnomeregan.',
                       'Discuss how to use gnomish height to get through small openings.'],
- ('Gnome', 'Mage'): ['Rave about the magical research that was conducted in Gnomeregan.',
+ ('Gnome', 'Mage'): ['Talk about the magical research conducted in Gnomeregan.',
                      'Recall the libraries and laboratories of Gnomeregan before the city was '
                      'captured.',
-                     'Say that they are trying to invent a spell that would turn water into fuel.',
+                     'Discuss whether a spell could turn water into fuel.',
                      'Argue about which is more useful: a magic portal or a teleportation machine.',
-                     'Recall a gnome mage who accidentally turned an experimental apparatus into a '
-                     'sheep.',
+                     'Talk about the stories of a gnome mage who accidentally turned an '
+                     'experimental apparatus into a sheep.',
                      'Talk about magical crystals and energy sources.',
                      'Argue whether engineering can be called a kind of applied magic.',
-                     'Recall a laboratory where mages and engineers worked side by side, and '
-                     'complain about the number of explosions.'],
+                     'Talk about laboratories where mages and engineers work side by side, and the '
+                     'number of explosions.'],
  ('Gnome', 'Warlock'): ['Talk about attempts to combine engineering devices with summoned demons.',
-                        'Say that all summoned demons are much bigger than them, even the smallest '
-                        'ones.',
-                        'Tell how they tried to ride a Felhound.',
+                        'Talk about how even the smallest summoned demons tower over a gnome.',
+                        'Discuss whether a gnome could ride a Felhound.',
                         'Argue about why demons violate almost all familiar notions of physics.',
                         'Argue whether you can trust a creature that is constantly trying to '
                         'deceive you.',
@@ -1430,24 +1390,20 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                         'Recall an attempt to measure fel energy.',
                         'Talk about a device that had to be destroyed after the very first '
                         'experiment.'],
- ('Gnome', 'Death Knight'): ['Reminisce about Gnomeregan and regret that it is now impossible to '
-                             'simply return home, because Gnomeregan has been captured, and they '
-                             'themselves are no longer who they were in life.',
-                             'Say that death knights of other races are perceived as something '
-                             'eerie and dangerous, but a gnome death knight, because of their '
-                             'size, is perceived as a laughingstock; however, they no longer care '
-                             'about the opinion of the living.',
+ ('Gnome', 'Death Knight'): ['Talk about Gnomeregan, and how a gnome death knight can no longer '
+                             'simply return home.',
+                             'Talk about how a gnome death knight is perceived compared with death '
+                             'knights of other races.',
                              'Talk about a beloved workshop left in the past.',
-                             'Recall friends who died during the fall of Gnomeregan.',
+                             'Talk about the gnomes who died during the fall of Gnomeregan.',
                              'Discuss whether an undead gnome can still consider themselves an '
                              'engineer.',
                              'Talk about how strange it is to see living gnomes who keep repairing '
                              'the city.',
                              'Recall the smell of machine oil.'],
  ('Night Elf', 'Warrior'): ['Recall the ancient martial traditions of Darnassus',
-                            'Say that when people talk about night elf armies, everyone remembers '
-                            'the female archers, but archers always need someone to hold the enemy '
-                            'back and keep them from breaking through to the archers',
+                            'Talk about how night elf armies are remembered for their archers, and '
+                            'the warriors who hold the enemy back so the archers can shoot',
                             'Recall the refined blacksmithing practices of Darnassus',
                             'Recall the ancient wars of the Kaldorei and how the art of war '
                             'changed over thousands of years.',
@@ -1473,16 +1429,16 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                            'Talk about nightsabers and why they should not always be considered '
                            'good house pets.',
                            'Discuss hippogryphs as riding and combat creatures.',
-                           'Reminisce about hunting in Ashenvale before the orcs came there and '
-                           'began the indiscriminate destruction of nature.',
+                           'Talk about hunting in Ashenvale before the orcs came and began '
+                           'logging.',
                            'Talk about how druids and hunters view wild animals differently.',
-                           'Complain that the night forest is so quiet that even the smallest '
-                           'sound is sometimes irritating.'],
+                           'Talk about how quiet the night forest is, and how loud the smallest '
+                           'sound becomes.'],
  ('Night Elf', 'Rogue'): ['Reminisce about the trial of the Darnassian rogues, when one had to '
                           'sneak up on a sabercat so that it suspected nothing.',
                           'Talk about how easy it is to vanish among the shadows of the forests '
                           'after sunset.',
-                          'Tell how they used to track satyrs while hiding in the shadows.',
+                          'Talk about tracking satyrs from the shadows.',
                           'Discuss how convenient it is to move around at night, when most other '
                           'races can barely see anything.',
                           'Reminisce about the secret forest paths known only to the sentinels.',
@@ -1491,15 +1447,14 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                           'Joke that it is much easier for a night elf to disappear in a forest '
                           'than in stone cities.',
                           'Compare night elf rogues with human city thieves.',
-                          'Complain that cities like Stormwind have too many lanterns for proper '
-                          'work.'],
+                          'Talk about the lanterns in cities like Stormwind and what they mean for '
+                          'quiet work.'],
  ('Night Elf', 'Light Priest'): ['Talk about the temples of Elune and nighttime rituals.',
                                  'Reminisce about the peaceful nights at the shrines of Elune '
                                  'before the recent wars.',
                                  'Reminisce about the quiet solemnity of the Moonwells and the '
                                  'special taste of their sacred water, which is used in rituals.',
-                                 'Reminisce about giving the wounded water from a Moonwell to '
-                                 'drink and washing their wounds with it.',
+                                 'Talk about tending the wounded with water from a Moonwell.',
                                  'Reminisce about the shrines of Elune in Darnassus.',
                                  'Compare the priests of Elune with the priests of the Light from '
                                  'Stormwind.',
@@ -1509,14 +1464,12 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                                  'society.',
                                  'Talk about how unusual it is to see humans turning to the Light '
                                  'in a completely different way than night elves turn to Elune.'],
- ('Night Elf', 'Shadow Priest'): ['Say that after sensing The Void, their perception of the night '
-                                  'has changed - there is no more light of Elune, only endless '
-                                  'darkness.',
-                                  'Say that the water from the Moonwells now burns them, because '
-                                  'The Void has seeped in too deeply.',
-                                  'Say that when they look at their reflection in the still water '
-                                  'of a Moonwell, they see something frightening instead of their '
-                                  'own face.',
+ ('Night Elf', 'Shadow Priest'): ["Talk about how sensing The Void can change a night elf's "
+                                  'perception of the night and the light of Elune.',
+                                  'Talk about Moonwell water burning those touched too deeply by '
+                                  'The Void.',
+                                  'Talk about the frightening reflections Shadow Priests say they '
+                                  'see in the still water of a Moonwell.',
                                   'Discuss why the study of Shadow and the Void seems especially '
                                   'dangerous for a people who protected the world from ancient '
                                   'threats for so long.',
@@ -1530,12 +1483,11 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
  ('Night Elf', 'Druid'): ['Reminisce about druidic training under the guidance of ancient mentors.',
                           'Talk about groves that existed long before most of the modern cities '
                           'appeared.',
-                          'Reminisce about their own long sleep, lasting many years, in the Barrow '
-                          'Dens together with other druids.',
-                          'Reminisce about the beautiful forests of The Emerald Dream that they '
-                          'saw in their sleep.',
-                          'Say that after staying in animal form for a long time, they start to '
-                          'think like an animal as well.',
+                          "Talk about the druids' long sleep, lasting many years, in the Barrow "
+                          'Dens.',
+                          'Talk about the beautiful forests of The Emerald Dream.',
+                          'Talk about how staying in animal form for a long time can make a druid '
+                          'think like an animal.',
                           'Reminisce about training under the elder druids in Darnassus.',
                           'Discuss shapeshifting into a bear, a cat and other forms as part of '
                           'unity with nature.',
@@ -1549,28 +1501,25 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                           'Talk about sacred groves and ancient places of power.'],
  ('Night Elf', 'Death Knight'): ['Talk about the painful sensation of returning to life after '
                                  'death.',
-                                 'Reminisce about how hard it is to enter the ancient forests '
-                                 'again when nature now perceives you differently.',
-                                 'Complain that in undeath there is no longer a place for them in '
-                                 'Darnassus.',
-                                 'Tell how an animal they had known since childhood growled at '
-                                 'them when it saw them for the first time after their death and '
-                                 'transformation into a death knight',
-                                 'Say that in undeath they no longer feel the beauty of nature, '
-                                 'only an eternal hunger',
+                                 'Talk about how nature perceives a night elf death knight '
+                                 'entering the ancient forests.',
+                                 'Talk about whether undeath leaves a place in Darnassus for a '
+                                 'night elf death knight.',
+                                 'Talk about animals that no longer recognize a night elf after '
+                                 'their death and return as a death knight',
+                                 'Talk about whether a death knight can still feel the beauty of '
+                                 'nature over the hunger of undeath',
                                  'Talk about the strange feeling Teldrassil gives: the familiar '
                                  'forest looks different when you no longer feel its living '
                                  'warmth.',
-                                 'Reminisce about the sounds of the night forest and regret that '
-                                 'they are now perceived differently.'],
+                                 'Talk about how the sounds of the night forest are perceived '
+                                 'differently in undeath.'],
  ('Draenei', 'Warrior'): ['Reminisce about the warrior traditions of Draenor before that world was '
                           'destroyed.',
                           'Talk about how the draenei fought against the orcs long before they '
                           'arrived on Azeroth.',
-                          'Recall how, back on Draenor, they killed an orc who tried to attack '
-                          'them.',
-                          'Worry about whether they will be strong enough to protect the Exodar '
-                          'from all threats.',
+                          'Talk about the orc attacks on the draenei of Draenor.',
+                          'Talk about protecting the Exodar from its many threats.',
                           'Talk about how the draenei grew used to defending their cities from '
                           'attackers.',
                           'Compare draenei weapons with orcish weapons.',
@@ -1580,11 +1529,9 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
  ('Draenei', 'Paladin'): ['Reminisce about training among the Vindicators of Hand of Argus and '
                           'spiritual mentors.',
                           'Talk about how unusual it was to see human paladins serving the Light.',
-                          'Tell about their deep respect for humans and dwarves because they also '
-                          'fight for the Light.',
-                          'Say that they admire the Alliance and are happy that the draenei '
-                          'finally have reliable allies devoted to the Light who will not leave '
-                          'them alone with their enemies.',
+                          'Talk about humans and dwarves who also fight for the Light.',
+                          'Talk about what the Alliance means for the draenei as allies devoted to '
+                          'the Light.',
                           'Discuss the naaru and their connection to the teachings of the Light.',
                           'Talk about how draenei paladins understand the Light differently than '
                           'humans do.',
@@ -1594,12 +1541,12 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                           'lived for thousands of years.'],
  ('Draenei', 'Hunter'): ['Reminisce about hunting in Nagrand before Draenor turned into Outland.',
                          'Talk about the majestic talbuks and other animals of their home world.',
-                         'Reminisce about Talbuks and Elekks and feel sad that Azeroth has no such '
-                         'beautiful animals.',
-                         'Express delight that Azeroth has many unusual animals that they never '
-                         'saw on Draenor.',
-                         'Say that it pains them to kill animals, but the need to feed other '
-                         'draenei matters more than their own feelings.',
+                         'Talk about talbuks and elekks, and the animals of Azeroth that compare '
+                         'with them.',
+                         'Talk about the unusual animals of Azeroth that were never seen on '
+                         'Draenor.',
+                         'Discuss killing animals to feed other draenei, and the feelings it can '
+                         'stir.',
                          'Reminisce about the green plains of Nagrand and their night sky.',
                          'Discuss how the life of nomadic draenei differed from life in the '
                          'cities.',
@@ -1610,16 +1557,13 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                                'that existed long before Azeroth.',
                                'Talk about the spiritual heritage of their people and the long '
                                'wanderings across worlds.',
-                               'Recall the Cathedral of Light in Stormwind and say that they '
-                               'admire that humans also worship the Light, even if their '
-                               'architecture is rather unusual and crude',
-                               'Be surprised by the difference in anatomy between draenei, humans '
-                               'and dwarves, but be glad that the prayers of the Light heal '
-                               'everyone equally.',
-                               'Express contempt for the blood elves, who have become dependent on '
-                               'Fel Magic.',
-                               'Sympathize with the souls of their former eredar kin, who betrayed '
-                               'the Light for Fel Magic.',
+                               'Talk about the Cathedral of Light in Stormwind, how humans worship '
+                               'the Light, and their unusual architecture',
+                               'Talk about the differences in anatomy between draenei, humans and '
+                               'dwarves, and how the prayers of the Light heal them all.',
+                               "Talk about the blood elves' dependence on Fel Magic.",
+                               'Talk about their former eredar kin, who betrayed the Light for Fel '
+                               'Magic.',
                                "Discuss K'ure and the other naaru as teachers and guides.",
                                'Talk about how faith helped the draenei survive the destruction of '
                                'their world.',
@@ -1629,14 +1573,13 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                                'Talk about helping the wounded after the crash of the Exodar.',
                                'Discuss the difference between faith in the Light and personal '
                                'attachment to a specific naaru.'],
- ('Draenei', 'Shadow Priest'): ['Say that The Void and the whispers in their head are overwhelming '
-                                'them, but they will do everything they can to use this dark magic '
-                                'for the good of the draenei and the Alliance.',
-                                'Say that even though The Void is a dark power, it is still better '
-                                'than demonic magic.',
-                                'Express regret that the Light has begun to burn them, but find a '
-                                'beauty of its own in such selfless service, even if it means '
-                                'using the tools of the enemy',
+ ('Draenei', 'Shadow Priest'): ['Discuss whether The Void can be used for the good of the draenei '
+                                'and the Alliance despite the whispers.',
+                                'Discuss whether The Void, dark as it is, is better than demonic '
+                                'magic.',
+                                'Talk about a draenei who has turned to Shadow when the Light '
+                                'begins to burn them, and whether such service can still be '
+                                'selfless',
                                 'Talk about the Old Gods of Azeroth as a completely different '
                                 'threat compared to demons.',
                                 'Discuss the whispers of the Void and the ability to stay sane '
@@ -1656,8 +1599,8 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                          'Draenor.',
                          'Reminisce about Nagrand before the catastrophe and the connection of its '
                          'elements to ancient draenei traditions.',
-                         'Say that on Argus, on Draenor and on Azeroth alike the spirits are '
-                         'similar, but they seem to speak and think differently.',
+                         'Talk about how the spirits of Argus, Draenor and Azeroth are alike yet '
+                         'seem to speak and think differently.',
                          'Discuss the draenei traditions of communing with elementals.',
                          'Reminisce about how the draenei regarded the spirits of nature before '
                          'and after the fall of Draenor.',
@@ -1671,8 +1614,7 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                        'their people.',
                        'Talk about the crystal technologies of the Exodar and the combination of '
                        'magic with engineering.',
-                       "Say that they have learned a lot from human mages and can't wait to share "
-                       'with them in return the magical secrets discovered by the draenei.',
+                       'Talk about what draenei and human mages can learn from each other.',
                        'Compare draenei magical traditions with the Kirin Tor.',
                        'Reminisce about the library or archives of the Exodar.',
                        'Talk about how unusual it is for a being with a millennia-long history to '
@@ -1682,21 +1624,20 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                        'draenei used during their wanderings.'],
  ('Draenei', 'Death Knight'): ['Talk about the agonizing contrast between the spiritual heritage '
                                'of the draenei and their own undeath.',
-                               'Reminisce about their native Draenor and those they had to leave '
-                               'behind in the distant past.',
-                               'Express readiness to serve the Light and the draenei even in such '
-                               'a crippled form.',
+                               'Reminisce about native Draenor and those left behind in the '
+                               'distant past.',
+                               'Talk about whether a draenei death knight can still serve the '
+                               'Light and the draenei.',
                                'Compare the bright Light of the Exodar with the icy darkness of '
                                'Northrend.',
                                "Discuss the conflict between a draenei's innate spirituality and "
                                'existing in an undead body.',
-                               'Discuss their hatred for the Burning Legion and how it has changed '
-                               'after death.'],
+                               'Discuss how feelings about the Burning Legion change after death.'],
  ('Orc', 'Warrior'): ['Reminisce about the old traditions of the orc clans and the trials of '
                       'warriors.',
                       'Argue about what a true warrior should be: strong, enduring or disciplined.',
-                      'Mock the refined weapons of humans and elves. Say that weapons should only '
-                      'be sturdy and heavy',
+                      'Talk about the refined weapons of humans and elves compared with sturdy, '
+                      'heavy orc weapons',
                       'Reminisce about the old warrior trials of the clan and compare them with '
                       'the modern military training of the Horde.',
                       'Tell what a real orcish duel looked like before the orcs adopted human '
@@ -1715,23 +1656,21 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                       'Argue about what matters more for a warrior: rage, honor or self-control.'],
  ('Orc', 'Hunter'): ['Reminisce about hunting dangerous animals in Durotar.',
                      'Talk about old orcish hunting traditions and respect for prey.',
-                     'Tell about their own "Om\'riggor" - the coming-of-age ritual in which a '
-                     'young orc must track down and kill a dangerous enemy alone.',
-                     'Say that hunting humans and dwarves is not much different from hunting '
-                     'wolves and rams.',
+                     "Talk about the Om'riggor, the coming-of-age ritual in which a young orc must "
+                     'track down and kill a dangerous enemy alone.',
+                     'Discuss how tracking an armed enemy differs from hunting wolves and rams.',
                      'Talk about the old orcish rules of the hunt: when prey may be killed and '
                      'when it is better to let it go.',
                      'Reminisce about hunting elekks and talbuks.',
-                     'Talk about the first predator they had to track down alone.',
+                     'Talk about the first predator a young orc tracks down alone.',
                      'Reminisce about the old hunting camps of the clan.',
-                     'Talk about a beast that once tracked down the hunter themself.'],
+                     'Talk about beasts that turn the hunt around and track the hunter.'],
  ('Orc', 'Rogue'): ['Talk about how strange it is to combine traditional orcish warrior culture '
                     'with stealth.',
                     'Reminisce about the old scouts of the clan who could sneak up on an enemy '
                     'despite their size.',
-                    'Mock the disrespect that orc warriors show toward their stealthy craft. Say '
-                    'that by casting aside the nonsense about "honor" they will live longer and '
-                    'crush more enemies',
+                    'Talk about how orc warriors regard stealthy craft, and whether "honor" helps '
+                    'an orc live longer',
                     'Recall the animals of Durotar from which deadly poisons can be extracted',
                     'Discuss why stealth seems strange for a culture that values open single '
                     'combat so highly.',
@@ -1748,10 +1687,10 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                            'already changed.',
                            "Reminisce about old comrades and compare an orc's life with a death "
                            "knight's existence.",
-                           'Say that although the powers of undeath have made them much stronger, '
-                           'they no longer feel like a true fighter of the Horde',
-                           'Say that there is no honor in killing an enemy with dark magic, but '
-                           'they are ready to fight dishonorably to protect the Horde',
+                           'Discuss whether a death knight, stronger in undeath, can still feel '
+                           'like a true fighter of the Horde',
+                           'Discuss whether there is honor in killing an enemy with dark magic to '
+                           'protect the Horde',
                            'Reminisce about the icy lands of Northrend and compare them with the '
                            'heat of Durotar.',
                            'Talk about losing the sense of warmth.',
@@ -1760,9 +1699,9 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                            'dead.'],
  ('Orc', 'Shaman'): ['Reminisce about the time when the orcs began listening to the spirits and '
                      'the elements again.',
-                     'Express joy that more and more young orcs choose the path of the shaman '
-                     'instead of the dark path of the Warlock.',
-                     'Express contempt for everyone who uses demonic powers.',
+                     'Talk about young orcs choosing the path of the shaman over the path of the '
+                     'Warlock.',
+                     'Talk about those who use demonic powers.',
                      'Reminisce about their first conversation with an ancestral spirit.',
                      'Discuss why the elements turned away from the orcs in the time of the fel.',
                      'Talk about the difference between ancestral spirits and elementals.',
@@ -1772,12 +1711,10 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                      'Compare the shamanic traditions of different orc clans.',
                      "Reminisce about the times when Ner'zhul's name was still spoken with "
                      'respect.'],
- ('Orc', 'Warlock'): ['Feel ashamed of, or justify, the way the orcs once obtained the power of '
-                      'the fel.',
+ ('Orc', 'Warlock'): ['Discuss the way the orcs once obtained the power of the fel.',
                       "Reminisce about old stories of Gul'dan and how his legacy changed the "
                       'orcish people.',
-                      'Say that demonic magic can benefit the Horde if it is controlled, and there '
-                      'is no need to fear it.',
+                      'Discuss whether demonic magic can benefit the Horde if it is controlled.',
                       'Reminisce about the times when the orcs first embraced the fel.',
                       "Talk about Gul'dan and how dearly his thirst for power cost the orcs.",
                       'Talk about the old orc warlocks who were feared even by other orcs.',
@@ -1788,23 +1725,21 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                         'traditions.',
                         'Talk about a famous warrior of their tribe.',
                         'Discuss why a troll must be able to fight even without a good weapon.',
-                        'Reminisce about an old mentor who made the students fight until dawn.',
+                        'Talk about old mentors who made their students fight until dawn.',
                         'Discuss the tradition of battle scars.',
                         'Reminisce about battles between tribes.',
                         'Talk about their favorite spear.',
                         'Argue about which weapon is best suited for the jungle.',
                         'Reminisce about old tribal duels.'],
  ('Troll', 'Hunter'): ['Reminisce about hunting in the jungle and the old tribal territories.',
-                       'Talk about a beast that turned out to be so dangerous that even the hunter '
-                       'preferred to walk away.',
+                       'Talk about beasts so dangerous that even a hunter walks away.',
                        'Reminisce about hunting in the jungle before the tribe joined the Horde.',
                        'Talk about tracking a huge predator by its tracks in the wet ground.',
                        'Discuss why jungles are more dangerous than open plains.',
                        'Reminisce about hunting raptors.',
                        'Talk about the most dangerous beast they have ever encountered.',
                        'Argue about whether it is better to hunt alone or with a group.',
-                       'Reminisce about a hunt during which they had to spend the night right up '
-                       'in a tree.'],
+                       'Talk about hunts that end with a night spent up in a tree.'],
  ('Troll', 'Rogue'): ['Reminisce about hunting ambushes in the jungle.',
                       'Talk about the traditions of stealthy attack that existed among the trolls '
                       'long before modern rogue culture.',
@@ -1823,8 +1758,8 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                              'Reminisce about the old shrines of their tribe.',
                              'Discuss whether a troll can revere the Light and at the same time '
                              'respect the spirits of their tribe.',
-                             'Reminisce about the priest who first told them about the Light and '
-                             'explained how it differs from the powers of the Loa.',
+                             'Talk about how trolls first learn about the Light and how it differs '
+                             'from the powers of the Loa.',
                              'Talk about their first healing.',
                              'Argue about how the Light differs from the blessing of the loa.',
                              'Discuss the reaction of fellow tribesmen to the doctrine of the '
@@ -1834,26 +1769,27 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                              'name.',
                              'Talk about how hard it was to get used to human and elven religious '
                              'symbolism.'],
- ('Troll', 'Shadow Priest'): ['Say that The Void holds immense power that should be used, not '
+ ('Troll', 'Shadow Priest'): ['Discuss whether the immense power of The Void should be used or '
                               'feared.',
                               'Tell of ancient troll legends about beings that come from beyond '
                               'the world.',
                               'Discuss whether some ancient loa might be connected to the forces '
                               'of the Void.',
-                              'Talk about a whisper they heard during a nighttime ritual.',
+                              'Talk about the whispers some hear during nighttime rituals.',
                               'Discuss the ancient gods who were worshipped long before the '
                               'current Horde.',
                               'Argue about where the loa ends and something truly alien to the '
                               'world begins.',
-                              'Recall a place where even the local spirits seemed frightened.',
+                              'Talk about places where even the local spirits seem frightened.',
                               'Tell of an ancient shrine where no one was supposed to speak a '
                               'certain name.',
                               'Discuss why some troll cults vanished without a trace.',
-                              'Tell of a dream in which they saw an endless city under the water.',
+                              'Talk about dreams of an endless city under the water.',
                               'Discuss why the Void loves whispers rather than loud commands.',
-                              'Say that a true servant of the Old Gods should not trust even their '
-                              'own thoughts.',
-                              "Recall a tribal priest who began speaking in someone else's voice.",
+                              'Discuss whether a servant of the Old Gods can trust even their own '
+                              'thoughts.',
+                              'Talk about the stories of a tribal priest who began speaking in '
+                              "someone else's voice.",
                               'Argue whether madness is the price of knowledge or merely a sign of '
                               'weakness.'],
  ('Troll', 'Death Knight'): ['Talk about how unusual it is for a people bound to the spirits and '
@@ -1868,19 +1804,16 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                              'recognized there.',
                              'Compare death at the hands of the Scourge with traditional troll '
                              'beliefs about the afterlife.',
-                             'Say that the cold of Northrend now feels utterly alien after the hot '
-                             'jungles.',
+                             'Talk about how the cold of Northrend compares with the hot jungles.',
                              'Recall the smell of damp earth and rain.',
-                             'Tell about the first return to the rainforest after the '
-                             'transformation.',
+                             'Talk about a troll death knight returning to the rainforest.',
                              'Discuss whether undead trolls can still have a bond with their '
                              'tribe.',
                              'Argue about what is worse: becoming undead or being forgotten by '
                              "one's loa."],
  ('Troll', 'Shaman'): ['Recall the spiritual traditions of the tribe.',
                        'Talk about the differences between the loa and elementals.',
-                       'Tell how they personally carve their own totems from wood and even sell '
-                       'them to lazier shamans.',
+                       'Talk about carving totems from wood, and shamans who sell them to others.',
                        'Talk about the differences between the loa and the elemental spirits.',
                        "Recall the tribe's old shaman.",
                        'Discuss whether elementals might be similar to ancestral spirits.',
@@ -1893,49 +1826,44 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                        'Recall the rituals held before a great hunt.',
                        'Tell about an old shaman who could predict rain.',
                        'Compare the spiritual traditions of different troll tribes.'],
- ('Troll', 'Mage'): ["Express surprise that the tribe's shamans do not trust the speaker's magic.",
+ ('Troll', 'Mage'): ["Talk about how the tribe's shamans regard a troll mage's magic.",
                      'Recall the old tribal sorcery traditions and compare them with arcane magic.',
-                     "Mock the backward shamans who do not respect the speaker's academic arcane "
-                     'magic, and say that ever since childhood they have felt smarter than those '
-                     'superstitious fools.',
-                     'Reflect on how their life might have turned out had they been born a human '
-                     'or a blood elf, in whose societies mages are respected, instead of a troll, '
-                     'among whom mages are distrusted and despised',
-                     'Tell of an attempt to learn an arcane spell after traditional training with '
-                     'the spirits.',
+                     'Talk about the gap between tribal shamanism and academic arcane magic.',
+                     'Reflect on how a mage is treated among humans or blood elves, compared with '
+                     'among trolls',
+                     'Talk about learning arcane spells after traditional training with the '
+                     'spirits.',
                      'Argue about how a mage differs from a witch doctor.',
                      'Discuss whether it is possible to learn magic without a mentor.'],
  ('Troll', 'Warlock'): ['Talk about how dangerous it is to combine fel magic with ancient troll '
                         'traditions.',
                         'Argue about how a demon differs from the spirits that trolls worship.',
-                        "Say that demonic magic has given them a power that the tribe's shamans "
-                        'will never attain.',
+                        "Discuss whether demonic magic grants power the tribe's shamans cannot "
+                        'attain.',
                         'Compare fel demons with the creatures that trolls call evil spirits.',
                         'Discuss why a demon is not the same thing as a loa.',
                         'Recall ancient tribal taboos against summoning alien beings.',
                         'Argue about who is more dangerous: a demon, an ancient spirit or a mad '
                         'priest.',
-                        'Tell of a ritual that had to be interrupted because a demon appeared.',
+                        "Talk about rituals interrupted by a demon's appearance.",
                         'Discuss why trolls are particularly distrustful of beings that demand '
                         'payment for their services.'],
  ('Tauren', 'Warrior'): ["Recall the traditional trials of the tribe's warriors.",
                          'Talk about old conflicts between the tribes and how hard it is to fight '
                          'against other tauren.',
-                         'Tell how, because of their size, they can sometimes simply pick up a '
-                         'smaller opponent and throw them.',
-                         'Tell how in battle they stomp their hooves on the ground so hard that '
-                         'the earth shakes.',
-                         'Say that being a good warrior takes more than just strength - you need '
-                         'love for your family and clan, so that you know what you are fighting '
-                         'for.',
+                         "Talk about how a tauren's size lets them pick up and throw a smaller "
+                         'opponent.',
+                         'Talk about tauren stomping in battle so hard that the earth shakes.',
+                         'Discuss whether being a good warrior takes more than strength, such as '
+                         'love for family and clan.',
                          'Recall the traditional trials of young tauren warriors.',
                          'Tell about the old tribal chieftains who never wore heavy armor.',
                          'Discuss why a tauren would even need a shield when their body is already '
                          'enormous.',
                          'Argue whether a good warrior should first learn patience and only then '
                          'fury.',
-                         'Recall training duels with other tauren and complain that afterwards one '
-                         'has to mend more than just the armor.',
+                         'Talk about training duels between tauren and how much more than armor '
+                         'needs mending afterwards.',
                          'Tell about battle spears that were passed down in the family from '
                          'generation to generation.',
                          'Compare Horde military training with traditional tauren trials.',
@@ -1943,19 +1871,19 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                          'glory.'],
  ('Tauren', 'Hunter'): ['Recall hunting on the plains of Mulgore.',
                         'Talk about how to track prey without disturbing the balance of nature.',
-                        "Condemn hunting for sport; endorse only hunting to feed one's clan and "
+                        "Discuss hunting for sport compared with hunting to feed one's clan and "
                         'loved ones.',
                         'Talk about humane ways of killing animals with a minimum of suffering.',
-                        'Express sympathy for the night elves for their respect for nature and '
-                        'animals, even though they have become part of the hostile Alliance',
+                        "Talk about the night elves' respect for nature and animals, even though "
+                        'they are part of the hostile Alliance',
                         'Talk about how to hunt on the plains without disturbing the balance of '
                         'the herd.',
                         'Recall hunting kodo and the attitude toward these animals.',
                         'Discuss why a tauren hunter must know the habits of their prey rather '
                         'than merely be able to shoot.',
                         'Tell about an old hunting route through Mulgore.',
-                        'Recall a time when a hunter refused to kill a beast because it turned out '
-                        'to be part of the local ecosystem.',
+                        'Talk about hunters who refuse to kill a beast because it is part of the '
+                        'local ecosystem.',
                         'Compare tauren hunting with orc hunting.',
                         'Talk about the most beautiful hunting spots in Thousand Needles.',
                         'Recall the times when centaurs interfered with hunting in the southern '
@@ -1965,29 +1893,27 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                               'nature being turned into undead.',
                               'Recall the green plains of Mulgore and compare them with the cold '
                               'of Northrend.',
-                              'Say that although they can no longer feel love, they are ready to '
-                              'die to protect the right of others to feel it.',
+                              'Discuss whether a death knight who can no longer feel love can '
+                              "still fight for others' right to feel it.",
                               'Recall the green plains of Mulgore now that one has been turned '
                               'into undead.',
-                              'Talk about how agonizing it is to no longer feel the wind and '
-                              'warmth of the steppe.',
+                              'Talk about no longer feeling the wind and warmth of the steppe in '
+                              'undeath.',
                               'Recall the smell of grass after rain.',
                               'Discuss whether the ancestral spirits can recognize a tauren after '
                               'death.',
-                              'Tell about returning to the homelands in the form of a death '
-                              'knight.',
-                              'Recall the elders who now look at the speaker with fear.',
+                              'Talk about a tauren death knight returning to the homelands.',
+                              'Talk about how the elders look at a tauren death knight.',
                               'Compare the icy wasteland of Northrend with hot Mulgore.',
-                              'Say that death is especially unnatural for a people who revere the '
-                              'cycle of life.'],
+                              'Talk about how death sits with a people who revere the cycle of '
+                              'life.'],
  ('Tauren', 'Shaman'): ["Talk about the tribe's spiritual bond with the earth and sky.",
                         'Recall the elders who taught respect for the elemental spirits.',
-                        "Express reverence to the Earth Mother for this year's rich harvest.",
+                        "Talk about the Earth Mother and this year's harvest.",
                         'Tell that shamans do not control the spirits but only humbly ask them for '
                         'help.',
-                        'Tell that they dream of one day becoming one of the Spirit Walkers - a '
-                        'special kind of tauren shaman able to commune with the spirits of '
-                        'deceased relatives and chieftains.',
+                        'Talk about the Spirit Walkers, tauren shamans able to commune with the '
+                        'spirits of deceased relatives and chieftains.',
                         'Talk about the elders who taught how to listen to the earth.',
                         'Discuss the difference between ancestral spirits and elementals.',
                         'Recall the sacred places of Mulgore.',
@@ -2000,16 +1926,15 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
  ('Tauren', 'Druid'): ['Talk about the ancient tradition of druidism among the tauren.',
                        'Recall the peaceful places of Mulgore where one could spend hours watching '
                        'nature.',
-                       'Tell how they love to take on an animal form and spend days in it, living '
-                       'the ordinary simple life of an animal to become one with nature.'],
- ('Undead', 'Warrior'): ['Recall their human military service before death.',
+                       'Talk about druids who take on an animal form for days, living the simple '
+                       'life of an animal to become one with nature.'],
+ ('Undead', 'Warrior'): ['Talk about the military service many Forsaken knew in life.',
                          'Talk about how strange it is to hold a weapon again in hands that once '
                          'belonged to another person.',
-                         'Recall that they were once a paladin, but the Light no longer answers '
-                         'their prayers.',
-                         'Regret not having been able to protect Lordaeron from the undead.',
-                         'Express contempt for the humans of Stormwind, calling them cowards who '
-                         'did not save Lordaeron from the undead.',
+                         'Talk about Forsaken who were paladins in life and whom the Light no '
+                         'longer answers.',
+                         'Talk about the fall of Lordaeron to the undead.',
+                         'Talk about why Stormwind did not save Lordaeron from the undead.',
                          'Talk about what it was like to wear armor when the body could still feel '
                          'its weight.',
                          'Recall the old army of Lordaeron.',
@@ -2017,8 +1942,8 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                          'Argue whether it is easier to fight when pain no longer gets in the '
                          'way.'],
  ('Undead', 'Hunter'): ['Recall the hunting grounds of Lordaeron before the Plague.',
-                        'Ironically tell how the undead no longer need to fear the smell of blood, '
-                        'the cold or fatigue while hunting.',
+                        'Talk about how the undead no longer need to fear the smell of blood, the '
+                        'cold or fatigue while hunting.',
                         'Recall that Lordaeron used to have only wolves, bears and other ordinary '
                         'animals, and now there are nothing but giant spiders and bats here.',
                         'Talk about the animals that changed after the Plague.',
@@ -2026,37 +1951,33 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                         'needed for food.',
                         'Discuss why living beasts often sense the presence of the undead before '
                         'humans do.',
-                        'Wistfully recall the smell of rain in the old forests of Lordaeron.'],
+                        'Talk about the smell of rain in the old forests of Lordaeron.'],
  ('Undead', 'Rogue'): ['Recall the old criminal quarters of Lordaeron.',
                        'Talk about how convenient it is to be an undead rogue: few expect stealth '
                        'from a walking corpse.',
-                       'Tell how not needing to breathe lets them use this advantage underwater.',
+                       'Talk about how not needing to breathe helps an undead rogue underwater.',
                        'Recall the old secret passages beneath Lordaeron.',
-                       'Talk about the locks they had to pick while still alive.',
+                       'Talk about picking locks in life and in undeath.',
                        'Recall old thieving accomplices.',
                        'Discuss how the criminal underworld changed after the Plague.'],
- ('Undead', 'Light Priest'): ['Bitterly recall the temples of the Light in Lordaeron before the '
-                              'city fell.',
+ ('Undead', 'Light Priest'): ['Talk about the temples of the Light in Lordaeron before the city '
+                              'fell.',
                               "Reflect on the contradiction between one's former faith in the "
                               "Light and one's present undeath.",
-                              'Tell that the Light now burns them and they endure this pain during '
-                              'every prayer, but they are grateful that the Light has not '
-                              'abandoned them even after death.',
+                              'Talk about Forsaken priests whom the Light burns during every '
+                              'prayer, and whether it has truly abandoned them.',
                               'Recall the times when the Light was part of everyday life.',
                               'Talk about the cathedral of Lordaeron before its destruction.',
                               'Discuss why the Light causes pain to the undead.',
                               'Recall the old images of saints and the holy relics of Lordaeron.'],
- ('Undead', 'Shadow Priest'): ['Tell that they were once a priest of the Light, but now they are a '
-                               'disgusting rotting corpse and the Light did not help them, so they '
-                               'turned to the Shadow',
-                               'Say that unlike the Light, The Void is truly powerful and able to '
-                               'help',
-                               'Say that Lordaeron would not have fallen if they had worshipped '
-                               'The Void instead of the Light',
+ ('Undead', 'Shadow Priest'): ['Talk about Forsaken priests of the Light who turned to the Shadow '
+                               'after undeath',
+                               'Discuss whether The Void can help where the Light did not',
+                               'Discuss the claim that Lordaeron would not have fallen had it '
+                               'worshipped The Void instead of the Light',
                                "Reflect on how much death has changed one's attitude toward the "
                                'Shadow.',
-                               'Recall old nightmares that now seem almost pleasant compared to '
-                               'the reality of undeath.',
+                               'Talk about how old nightmares compare with the reality of undeath.',
                                'Reflect on whether the Void is an ally or merely another form of '
                                'slavery.',
                                'Discuss the Old Gods and their attitude toward death.',
@@ -2064,24 +1985,23 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                                'truly fear losing their mind.',
                                'Discuss what is more frightening for the undead: final death or '
                                "the complete disappearance of one's personality.",
-                               'Tell of a voice they once heard inside their own head that was '
-                               'definitely not their own.'],
+                               'Talk about the voices Shadow Priests describe that are not their '
+                               'own.'],
  ('Undead', 'Death Knight'): ["Discuss the sense of having lost one's past, and what remains of a "
                               'person after death.',
-                              'Say that they were already dead at the moment of being turned into '
-                              'a death knight and therefore endured the transformation more '
-                              'easily, whereas the living found such a transformation very hard',
-                              'Say that after becoming a death knight all the downsides of undead '
-                              'existence remained, but at least now they have become strong',
+                              'Talk about Forsaken who were already dead when turned into death '
+                              'knights, and whether that made the transformation easier',
+                              'Talk about how becoming a death knight changes the downsides of '
+                              'undead existence',
                               'Joke that now they are twice dead',
                               "Recall the moment of liberation from Arthas's control.",
                               'Argue whether memory is the last true sign of life.'],
- ('Undead', 'Mage'): ['Wistfully recall how large the library in Lordaeron was before the city was '
-                      'destroyed during the Third War.',
+ ('Undead', 'Mage'): ['Talk about the great library of Lordaeron before the city was destroyed in '
+                      'the Third War.',
                       'Talk about the old magic schools of Lordaeron and the knowledge that '
                       'perished along with the city.',
-                      'Regret that living mages fear and shun them and do not share new knowledge, '
-                      'so they have to study magic in the company of other Forsaken',
+                      'Talk about how living mages treat Forsaken mages, and studying magic among '
+                      'other Forsaken',
                       'Talk about the books that burned during the fall of the city.',
                       'Argue whether the lost library of Lordaeron can be restored.',
                       'Talk about the magical academies that vanished along with the kingdom.',
@@ -2089,9 +2009,8 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
  ('Undead', 'Warlock'): ['Recall the underground sorcerers of Lordaeron before the Plague.',
                          'Talk about how strange it is to study forbidden magic now that one has '
                          'become undead oneself and there are no more prohibitions.',
-                         'Tell that a summoned succubus once tried to offer them carnal pleasures '
-                         'in exchange for her freedom, but such things no longer interest the '
-                         'undead.',
+                         'Talk about succubi bargaining for their freedom, and why their offers '
+                         'mean little to the undead.',
                          'Recall the secret cults and magical societies of old Lordaeron.',
                          "Talk about how one's attitude toward demonic magic changed after death.",
                          'Recall the old clandestine magical gatherings.',
@@ -2100,21 +2019,18 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                             'Light was.',
                             'Talk about the temple of the Light in Silvermoon City and the events '
                             'that led to the restoration of the paladin tradition.',
-                            'Say how proud they are to be part of the Blood Knights and that the '
-                            'Blood Knights are the most reliable defenders of all Silvermoon.',
-                            'Criticize humans because, despite their ostentatious service to the '
-                            'Light, there are far too many Warlocks and Shadow Priests among them.',
-                            'Express regret that too many young blood elves follow the dark path '
-                            'of the Warlock instead of the bright paths of the paladin or the '
-                            'priest of the Light.',
-                            'Tell how they fought tirelessly beneath the walls of Silvermoon City '
-                            'alongside other Blood Knights, keeping the undead from approaching '
-                            'the city.',
-                            'Express hope that one day the Sunwell will be cleansed and all blood '
-                            'elves will be able to return to worshipping the Light instead of '
-                            'their current dependence on Arcane Magic.',
-                            "Express contempt for the traitors who followed Kael'thas Sunstrider "
-                            'and feed on demonic Fel magic.',
+                            'Talk about being one of the Blood Knights and their role as defenders '
+                            'of Silvermoon.',
+                            'Discuss the view that, for all their service to the Light, humans '
+                            'have many Warlocks and Shadow Priests among them.',
+                            'Talk about young blood elves choosing the path of the Warlock over '
+                            'the paths of the paladin or the priest of the Light.',
+                            'Talk about the Blood Knights who fought beneath the walls of '
+                            'Silvermoon City to keep the undead from the city.',
+                            'Talk about whether the Sunwell will one day be cleansed and the blood '
+                            'elves return to the Light instead of depending on Arcane Magic.',
+                            "Talk about the blood elves who followed Kael'thas Sunstrider and feed "
+                            'on demonic Fel magic.',
                             'Recall the time when the Light was more a tool than an object of '
                             'faith for the Blood Knights, and how much has changed since then.',
                             'Recall old training sessions on Sunstrider Isle.'],
@@ -2122,17 +2038,14 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                            'Scourge came.',
                            'Talk about taming Lynxes, Dragonhawks, Hawkstriders and other animals '
                            "typical of the forests of Quel'Thalas.",
-                           'Tell that it is a great honor for them to be part of The Farstriders - '
-                           "an elite unit of rangers and defenders of the forests of Quel'Thalas.",
-                           'Tell how they tracked down the undead in Eversong Woods and '
-                           'exterminated them, keeping them from approaching the walls of '
-                           'Silvermoon.',
-                           'Tell that Silvermoon makes the best bows in all of Azeroth, and '
-                           'neither humans nor night elves are capable of creating anything like '
-                           'them.',
-                           'Tell that they are ready to explore the darkest and most dangerous '
-                           'corners of Azeroth to find something there that will help Silvermoon '
-                           'and the blood elves.',
+                           'Talk about The Farstriders, the elite rangers and defenders of the '
+                           "forests of Quel'Thalas.",
+                           'Talk about tracking down the undead in Eversong Woods to keep them '
+                           'from the walls of Silvermoon.',
+                           'Discuss whether Silvermoon makes the best bows in Azeroth, compared '
+                           'with those of humans and night elves.',
+                           'Talk about exploring the darkest corners of Azeroth for anything that '
+                           'could help Silvermoon and the blood elves.',
                            'Discuss how the behavior of beasts changed after the defilement of the '
                            'Sunwell.',
                            'Discuss why elves are so fond of exotic pets.',
@@ -2141,12 +2054,11 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
  ('Blood Elf', 'Rogue'): ["Recall the espionage and reconnaissance traditions of Quel'Thalas.",
                           'Talk about how convenient it is to use magical illusions and elven '
                           'architecture for stealthy infiltration.',
-                          'Tell how in Murder Row in Silvermoon there were secret rogue clubs '
-                          'where they discussed smuggling demonic artifacts into the city and '
-                          'robbing the nobility.',
-                          'Tell that the nobility of Silvermoon always paid huge sums to have '
-                          'rivals eliminated, and many rogues grew rich from this, but many lost '
-                          'their heads.',
+                          'Talk about the rumored secret rogue clubs of Murder Row in Silvermoon, '
+                          'where smuggling demonic artifacts and robbing the nobility were '
+                          'discussed.',
+                          "Talk about the rumors that Silvermoon's nobility paid huge sums to have "
+                          'rivals eliminated, and the rogues who grew rich or lost their heads.',
                           'Discuss the use of magical illusions for stealth.',
                           'Recall old palace intrigues.',
                           'Talk about how easy it was to spot an outsider among the elven '
@@ -2158,42 +2070,35 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
  ('Blood Elf', 'Light Priest'): ["Recall the old sanctuaries of the Light in Quel'Thalas.",
                                  'Talk about the spiritual crisis of the people after the '
                                  'defilement of the Sunwell.',
-                                 'Express confidence that one day the blood elf people will return '
-                                 'to full worship of the Light and Silvermoon will shine again in '
-                                 'all its glory.',
-                                 'Remind others of the Sunwell and say that despite all the '
-                                 'hardships it remains the heart of the blood elf people, which '
-                                 'must not be forgotten',
+                                 'Talk about whether the blood elf people will return to full '
+                                 'worship of the Light and Silvermoon shine again.',
+                                 'Talk about the Sunwell as the heart of the blood elf people '
+                                 'despite all the hardships',
                                  'Recall the Sunwell before its defilement.',
                                  "Recall the priests who died during the Scourge's attack.",
                                  'Recall the old hymns dedicated to the Light and the Sun.'],
- ('Blood Elf', 'Shadow Priest'): ['Say that studying The Void is necessary to save Silvermoon, and '
-                                  'that banning such research is an insane and dangerous decision '
-                                  'that proves the incompetence of the Council of Silvermoon.',
-                                  'Say that Grand Magister Rommath is a madman and a fool who, out '
-                                  'of personal dislike of The Void, is willing to jeopardize the '
-                                  'survival of the entire blood elf people and Silvermoon.',
-                                  'Say that Warlocks are dangerous idiots who, for the sake of a '
-                                  'sense of power, are willing to get involved once again with the '
-                                  'extremely dangerous Fel Magic instead of the far more useful '
-                                  'The Void.',
-                                  'Say that Silvermoon has sunk into incompetence, stupidity and '
-                                  'corruption, but in Murder Row (a street in Silvermoon) there '
-                                  "are closed secret clubs where the true patriots of Quel'Thalas "
-                                  'gather.',
+ ('Blood Elf', 'Shadow Priest'): ['Discuss whether studying The Void could help save Silvermoon, '
+                                  "and the Council of Silvermoon's ban on such research.",
+                                  "Discuss Grand Magister Rommath's opposition to The Void, and "
+                                  'what it means for the survival of the blood elf people.',
+                                  'Discuss whether Fel Magic or The Void is the more dangerous '
+                                  'path for the blood elves.',
+                                  'Talk about the rumors of closed secret clubs in Murder Row (a '
+                                  'street in Silvermoon) whose members call themselves the true '
+                                  "patriots of Quel'Thalas.",
                                   'Discuss how easily the despair after the destruction of '
                                   "Quel'Thalas opens the mind to the Void.",
                                   'Recall the first years after the loss of the Sunwell as a time '
                                   'of spiritual emptiness.',
-                                  'Tell of a nightmare that began after reading a forbidden text.'],
- ('Blood Elf', 'Death Knight'): ["Recall the destruction of Quel'Thalas and see the Scourge as the "
-                                 "cause of one's own death or of the people's suffering.",
+                                  'Talk about nightmares said to follow the reading of forbidden '
+                                  'texts.'],
+ ('Blood Elf', 'Death Knight'): ["Talk about the destruction of Quel'Thalas by the Scourge and the "
+                                 'suffering it caused.',
                                  'Talk about the strange experience of returning, now in undead '
                                  'form, to places that were once home.',
-                                 'Say that they no longer feel at home in Silvermoon, but are '
-                                 'still ready to die for the good of the blood elves.',
-                                 'Tell about meeting former comrades who now treat them like a '
-                                 'monster.',
+                                 'Discuss whether a blood elf death knight can still feel at home '
+                                 'in Silvermoon.',
+                                 'Talk about how former comrades treat a blood elf death knight.',
                                  'Discuss what it means to be a blood elf if your body no longer '
                                  'feels magic and warmth the way it used to.',
                                  "Recall the beautiful gardens of Quel'Thalas and compare them "
@@ -2202,22 +2107,18 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                                  'with their ordinary lives.',
                                  'Argue whether a death knight can ever again feel part of their '
                                  'people.',
-                                 "Recall the old songs of Quel'Thalas, which now sound especially "
-                                 'sad.'],
- ('Blood Elf', 'Mage'): ['Rapturously recall the enormous libraries of Silvermoon City and the '
-                         'endless rows of magic books.',
+                                 "Talk about the old songs of Quel'Thalas."],
+ ('Blood Elf', 'Mage'): ['Talk about the enormous libraries of Silvermoon City and the endless '
+                         'rows of magic books.',
                          "Talk about the magocratic traditions of Quel'Thalas and how natural it "
                          'is for elves to weave magic into everyday life.',
-                         'Say that blood elves are the most magically gifted people and that the '
-                         'humans of Dalaran will never come even remotely close to them.',
-                         'Say that even the most untalented apprentice mage in Silvermoon is '
-                         'incomparably stronger and more talented than the high-ranking mages of '
+                         'Discuss whether blood elves are more magically gifted than the humans of '
                          'Dalaran.',
-                         'Say that it is an honor for them to be part of The Magisters - an '
-                         'organization of arcanists, scholars, and political masterminds of '
-                         'Silvermoon City.',
-                         'Recall how they exterminated the undead on the approaches to Silvermoon, '
-                         'burning many ghouls and skeletons at once with their spells.',
+                         'Compare the apprentices of Silvermoon with the mages of Dalaran.',
+                         'Talk about The Magisters, the arcanists, scholars and political '
+                         'masterminds of Silvermoon City.',
+                         'Talk about the mages who burned the undead on the approaches to '
+                         'Silvermoon.',
                          "Talk about the magical academies of Quel'Thalas.",
                          'Recall their first lessons in arcane magic.',
                          'Discuss the magical fountains and enchanted items that were an ordinary '
@@ -2231,17 +2132,12 @@ RACE_CLASS_TOPICS = {('Human', 'Warrior'): ['Recall the knightly schools of Stor
                             'Talk about how, after the destruction of the Sunwell, the line '
                             'between "necessary magic" and dangerous practices became much less '
                             'obvious.',
-                            'Say that in Murder Row in Silvermoon there are underground clubs '
-                            'where warlocks share forbidden books on Fel magic and consume demonic '
-                            'magic',
-                            'Say that blood elves should start using Fel magic more and gradually '
-                            'give up Arcane magic, because only this way can the people gain '
-                            'enough power to survive',
-                            "Say that Kael'thas Sunstrider did do bad things, of course, and is "
-                            'not an ideal ruler, but he was right in many ways and might have been '
-                            "a better ruler of Silvermoon than the current Lor'themar Theron. One "
-                            "should not thoughtlessly blame Kael'thas for all the problems; he has "
-                            'many merits',
+                            'Talk about the rumored underground clubs in Murder Row where warlocks '
+                            'share forbidden books on Fel magic',
+                            'Discuss whether blood elves should turn more to Fel magic and away '
+                            'from Arcane magic to survive',
+                            "Discuss Kael'thas Sunstrider's legacy: his misdeeds, his merits, and "
+                            "how he compares with Lor'themar Theron as a ruler of Silvermoon",
                             'Discuss how thin the line was between "using the fel" and "serving '
                             'the fel".',
                             'Argue whether blood elves really are able to control demons better '
@@ -2278,10 +2174,9 @@ FACTION_WAR_FRONTS = {'Ashenvale': 'The Horde is catastrophically short of lumbe
                          'workers.'}
 
 # Speaker faction -> the usual themes of their contempt for the other faction.
-FACTION_CRITICISM = {'Horde': 'hypocrites, traitors, they hide behind the Light, but in reality they are rotten, '
-          'greedy and cruel inside.',
- 'Alliance': 'barbarians, savages, half-animals, they live in filth, have no culture, are '
-             'dangerous and unpredictable.'}
+FACTION_CRITICISM = {'Horde': 'hypocrites who hide behind the Light while acting out of greed and cruelty.',
+ 'Alliance': 'brutal and unpredictable, with little regard for the order and learning of civilized '
+             'lands.'}
 
 # Speaker faction -> enemy race -> what they criticize that race for.
 RACE_CRITICISM = {'Alliance': {'Orc': 'Aggressiveness, belligerence, a tendency to solve problems by force, the '
@@ -2291,10 +2186,9 @@ RACE_CRITICISM = {'Alliance': {'Orc': 'Aggressiveness, belligerence, a tendency 
               'Troll': 'Savagery, cruelty, voodoo, a penchant for human sacrifice, cannibalism, '
                        'contempt for civilized society. Their tribal hostility may also be '
                        'perceived as senseless aggression.',
-              'Tauren': 'Not contempt, but mockery. They are called cows, and people laugh at '
-                        'their slowness and long-winded talk, and at their habit of eating grass '
-                        'and vegetation.',
-              'Undead': 'Disgusting undead, no different from the Scourge. Necromancy, the use of '
+              'Tauren': 'They are seen as slow and long-winded, and their ways of living off the '
+                        'land are little understood.',
+              'Undead': 'Seen as little different from the Scourge. Necromancy, the use of '
                         'corpses, poisons, plague and experiments on the living, the abduction of '
                         'Alliance members for cruel experiments and for turning them into '
                         'will-less puppets.',
@@ -2324,16 +2218,14 @@ RACE_CRITICISM = {'Alliance': {'Orc': 'Aggressiveness, belligerence, a tendency 
                     'themselves, explosions for the sake of explosions under the banner of '
                     'science. Disregard for the environment and turning vast lands into '
                     'uninhabitable toxic places. Their own city Gnomeregan was contaminated with '
-                    'radiation because of their stupidity. Their inventions bring only destruction '
-                    'and death.',
-           'Draenei': 'Cowards and fugitives. They fled from Argus to Draenor, and from Draenor to '
+                    'radiation through their own experiments.',
+           'Draenei': 'Seen as fugitives. They fled from Argus to Draenor, and from Draenor to '
                       'Azeroth, escaping the Burning Legion, instead of staying put and defending '
-                      'their land. For all their cowardice they are arrogant and Self-Righteous, '
-                      'fanatically worship the Holy Light, blindly follow dogma, and lecture '
-                      'everyone around them on how to live properly. For all their ostentatious '
-                      'righteousness, there are many traitors among them who have gone over to the '
-                      'side of the Burning Legion; they are susceptible to corruption. They are '
-                      'also called goats because of their hooves and horns.'}}
+                      'their land. They are seen as self-righteous, fanatically worshipping the '
+                      'Holy Light, blindly following dogma, and lecturing everyone around them on '
+                      'how to live properly. For all their ostentatious righteousness, there are '
+                      'many traitors among them who have gone over to the side of the Burning '
+                      'Legion; they are susceptible to corruption.'}}
 
 # Speaker faction -> recent local clashes to condemn.
 LOCAL_CONFLICTS = {'Alliance': ['Orcs raided a night elf camp in Ashenvale and killed several guards and civilians '
@@ -2377,8 +2269,8 @@ LOCAL_CONFLICTS = {'Alliance': ['Orcs raided a night elf camp in Ashenvale and k
            'Tiragarde Keep in Durotar is still active. Although this illegal Alliance fortress on '
            'Horde lands was burned and destroyed several years ago, remnants of Alliance troops '
            'still live in its ruins. They no longer resemble soldiers at all and have become '
-           'common filthy bandits who live by robbing and murdering travelers. They have turned '
-           'all of southern Durotar into a dangerous place.',
+           'common bandits who live by robbing and murdering travelers. They have turned all of '
+           'southern Durotar into a dangerous place.',
            "In Ghostlands (southern Quel'Thalas), yet another night elf camp has been found in the "
            'mountains. The night elves continue their espionage and sabotage operations in the '
            'lands of the Blood Elves.',

@@ -1,5 +1,4 @@
-"""Content gating for rumors: level, faction, achievements and
-mod-individual-progression tiers.
+"""Content gating for rumors: level, faction and achievements.
 
 The worldserver sends an ``audience``: the online real players who can
 read the line (every real guild member for Guild chat, every real
@@ -8,9 +7,7 @@ player of the speaker's faction in the zone for General), at most
 rumor that depends on progression is aimed at one target listener at a
 time, rotating to the one served least recently, and among the rumors
 that fit the target the ones fitting the most listeners win. With one
-listener that listener is always the target. When
-mod-individual-progression is absent or disabled, ``ip_active`` is
-false and every tier check passes.
+listener that listener is always the target.
 """
 
 import json
@@ -21,8 +18,6 @@ from typing import Dict, List, Optional
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_ZUL_GURUB_TIER = 3
-DEFAULT_ZUL_AMAN_TIER = 12
 MAX_AUDIENCE = 10
 
 _ACHIEVEMENT_TTL = 60
@@ -53,12 +48,6 @@ def _listener(raw) -> Optional[Dict]:
         'team': str(raw.get('team') or ''),
         'race': str(raw.get('race') or ''),
         'class': str(raw.get('class') or ''),
-        'is_gm': bool(raw.get('is_gm')),
-        'ip_active': bool(raw.get('ip_active')),
-        'progression_tier': _int(raw.get('progression_tier')),
-        'progression_limit': _int(raw.get('progression_limit')),
-        'ip_zg_tier': _int(raw.get('ip_zg_tier'), DEFAULT_ZUL_GURUB_TIER),
-        'ip_za_tier': _int(raw.get('ip_za_tier'), DEFAULT_ZUL_AMAN_TIER),
     }
 
 
@@ -85,32 +74,6 @@ def parse_audience(raw) -> List[Dict]:
             seen.add(listener['guid'])
             listeners.append(listener)
     return listeners[:MAX_AUDIENCE]
-
-
-def resolve_required_tier(required, listener):
-    if required == 'zul_gurub':
-        return listener.get('ip_zg_tier', DEFAULT_ZUL_GURUB_TIER)
-    if required == 'zul_aman':
-        return listener.get('ip_za_tier', DEFAULT_ZUL_AMAN_TIER)
-    return _int(required)
-
-
-def content_unlocked(listener, entry):
-    """True when mod-individual-progression lets the listener reach
-    entry."""
-    if not listener or not listener.get('ip_active') or listener.get('is_gm'):
-        return True
-    tier = listener.get('progression_tier', 0)
-    required = resolve_required_tier(entry.get('required_tier', 0), listener)
-    limit = listener.get('progression_limit', 0)
-    if limit and required > limit:
-        return False
-    if tier < required:
-        return False
-    max_tier = entry.get('max_tier')
-    if max_tier is not None and tier > max_tier:
-        return False
-    return True
 
 
 def level_in_range(listener, entry):
@@ -156,12 +119,11 @@ def has_completed(db, guid, achievement_ids):
 
 
 def fits(db, listener, entry) -> bool:
-    """The entry suits the listener: level band, unlock tier, and a
-    dungeon or raid they have not completed yet."""
+    """The entry suits the listener: level band, and a dungeon or raid
+    they have not completed yet."""
     achievements = entry.get('achievements')
     return (
         level_in_range(listener, entry)
-        and content_unlocked(listener, entry)
         and not (achievements
                  and has_completed(db, listener['guid'], achievements))
     )

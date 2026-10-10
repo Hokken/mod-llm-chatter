@@ -604,8 +604,7 @@ def race_class_note(
 
 def build_race_class_context(
     race: str, class_name: str,
-    actual_role: str = None,
-    class_style: str = None,
+    actual_role: str = None
 ) -> str:
     """Build an RP personality fragment for prompts."""
     parts = []
@@ -651,9 +650,6 @@ def build_race_class_context(
         if isinstance(modifier, list):
             modifier = random.choice(modifier)
         parts.append(f"As a {class_name}, you are {modifier}.")
-    note = race_class_note(race, class_name, class_style, actual_role)
-    if note:
-        parts.append(note)
     role = actual_role or CLASS_ROLE_MAP.get(class_name)
     if role:
         perspective = ROLE_COMBAT_PERSPECTIVES.get(role)
@@ -666,7 +662,6 @@ def build_race_class_context_parts(
     race: str, class_name: str,
     actual_role: str = None,
     race_count: int = 1,
-    class_style: str = None,
 ):
     """Return (per_bot, shared_race, shared_class) strings.
 
@@ -742,9 +737,6 @@ def build_race_class_context_parts(
         per_bot_parts.append(
             f"As a {class_name}, you are {modifier}."
         )
-    note = race_class_note(race, class_name, class_style, actual_role)
-    if note:
-        per_bot_parts.append(note)
 
     # Shared class: role perspective only (fixed per role)
     role = actual_role or CLASS_ROLE_MAP.get(class_name)

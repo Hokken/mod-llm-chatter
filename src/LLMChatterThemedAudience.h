@@ -10,8 +10,7 @@
 
 class Player;
 
-// One listener object: level, team, race, class and the
-// mod-individual-progression state when that module is active.
+// One listener object: guid, name, level, team, race and class.
 std::string BuildAudienceJson(Player* player);
 
 // JSON array of listener objects; "[]" when there are none.

@@ -635,7 +635,8 @@ def test_cpp_sends_guids_and_weather():
     assert '\\"target_guid\\":' in emote
     world = (MODULE_DIR / 'src' / 'LLMChatterWorld.cpp').read_text(
         encoding='utf-8')
-    assert 'R"("weather":"{}"}})"' in world
+    assert 'R"("weather":"{}",)"' in world
+    assert 'R"("audience":{}}})"' in world
     assert 'GetZoneWeatherName(' in world
 
 

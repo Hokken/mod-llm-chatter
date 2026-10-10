@@ -4,9 +4,9 @@ Faction, race, class and race+class topics are keyed to the first
 speaker. Rumors are keyed to the ``audience``: every real player who can
 read the line. Each pick aims progression rumors at one target listener,
 rotating through the audience (``next_rumor_target()``): a rumor must
-fit the target's level band, mod-individual-progression tier and
-uncompleted content, and among those the rumors fitting the most
-listeners win. Faction-bound rumors still need one faction.
+fit the target's level band and uncompleted content, and among those
+the rumors fitting the most listeners win. Faction-bound rumors still
+need one faction.
 
 A themed topic is a subject the speakers may take up, never a script.
 With conversation threads on it is one more fresh-subject source of the
@@ -29,8 +29,9 @@ from chatter_lore_data import (
     RACE_TOPICS,
 )
 from chatter_class_style import class_style
+from chatter_constants import CLASS_NAMES, RACE_NAMES
+from chatter_guild_profile import indefinite_article as _a
 from chatter_progression import (
-    audience_max_level,
     audience_team,
     best_covered,
     next_rumor_target,
@@ -43,6 +44,7 @@ from chatter_rumor_data import (
     RAID_RUMORS,
     REGION_RUMORS,
 )
+from chatter_shared import get_race_faction
 from chatter_threads import themed_topic_weight, threads_enabled
 from chatter_trainer_rumor_data import (
     CLASS_ABILITIES,
@@ -55,16 +57,7 @@ from chatter_trainer_rumor_data import (
 
 logger = logging.getLogger(__name__)
 
-ALLIANCE_RACES = ('Human', 'Dwarf', 'Night Elf', 'Gnome', 'Draenei')
-HORDE_RACES = ('Orc', 'Undead', 'Tauren', 'Troll', 'Blood Elf')
-RACE_NAMES_BY_ID = {
-    1: 'Human', 2: 'Orc', 3: 'Dwarf', 4: 'Night Elf', 5: 'Undead',
-    6: 'Tauren', 7: 'Gnome', 8: 'Troll', 10: 'Blood Elf', 11: 'Draenei',
-}
-CLASS_NAMES_BY_ID = {
-    1: 'Warrior', 2: 'Paladin', 3: 'Hunter', 4: 'Rogue', 5: 'Priest',
-    6: 'Death Knight', 7: 'Shaman', 8: 'Mage', 9: 'Warlock', 11: 'Druid',
-}
+_RACE_IDS = {name: race_id for race_id, name in RACE_NAMES.items()}
 
 CHANNEL_KINDS = {
     'guild': ('faction', 'race', 'class', 'race_class', 'expansion',
@@ -96,9 +89,20 @@ KIND_WEIGHT = {
 }
 RUMOR_KINDS = ('expansion', 'dungeon', 'raid', 'location', 'region',
                'profession', 'trainer')
+# (last level at full weight, last level at reduced weight)
 LEVEL_BANDS = {
-    'profession': PROFESSION_RUMOR_LEVELS,
-    'trainer': CLASS_TRAINER_RUMOR_LEVELS,
+    'profession': (
+        ('LLMChatter.ThemedTopics.ProfessionRumorFullLevel',
+         PROFESSION_RUMOR_LEVELS[0]),
+        ('LLMChatter.ThemedTopics.ProfessionRumorMaxLevel',
+         PROFESSION_RUMOR_LEVELS[1]),
+    ),
+    'trainer': (
+        ('LLMChatter.ThemedTopics.ClassTrainerRumorFullLevel',
+         CLASS_TRAINER_RUMOR_LEVELS[0]),
+        ('LLMChatter.ThemedTopics.ClassTrainerRumorMaxLevel',
+         CLASS_TRAINER_RUMOR_LEVELS[1]),
+    ),
 }
 
 
@@ -127,22 +131,18 @@ def chance_hit(config, key, default):
 
 def _race_name(value):
     if isinstance(value, int) or (isinstance(value, str) and value.isdigit()):
-        return RACE_NAMES_BY_ID.get(int(value), '')
+        return RACE_NAMES.get(int(value), '')
     return str(value or '')
 
 
 def _class_name(value):
     if isinstance(value, int) or (isinstance(value, str) and value.isdigit()):
-        return CLASS_NAMES_BY_ID.get(int(value), '')
+        return CLASS_NAMES.get(int(value), '')
     return str(value or '')
 
 
 def race_faction(race):
-    if race in ALLIANCE_RACES:
-        return 'Alliance'
-    if race in HORDE_RACES:
-        return 'Horde'
-    return ''
+    return get_race_faction(_RACE_IDS.get(race, 0))
 
 
 def speaker_profile(db, bot: Dict, faction: str = '') -> Dict:
@@ -161,6 +161,11 @@ def speaker_profile(db, bot: Dict, faction: str = '') -> Dict:
     }
 
 
+def _shares_view(speaker):
+    return (f"How far {speaker['name']} shares these views is up to "
+            "their own personality.")
+
+
 def _enemy(faction):
     return 'Horde' if faction == 'Alliance' else 'Alliance'
 
@@ -169,10 +174,6 @@ def _faction_line(speaker):
     return (f"{speaker['name']} is {_a(speaker['race'])} {speaker['race']} "
             f"{speaker['class_style'] or speaker['class']} who fights for "
             f"the {speaker['faction']}.")
-
-
-def _a(word):
-    return 'an' if word[:1].upper() in 'AEIOU' else 'a'
 
 
 def _mode_lines(mode, rumor=False, place_kind=''):
@@ -205,29 +206,33 @@ def _faction_topic(speaker, mode):
     lines = [_faction_line(speaker)]
     if choice == 'war_front':
         zone, text = random.choice(list(FACTION_WAR_FRONTS.items()))
-        subject = (f"rumors that the war between the Horde and the Alliance "
-                   f"has flared up again in {zone}")
+        subject = (f"the long struggle between the Horde and the Alliance "
+                   f"in {zone}")
         lines += [f"Background: {text}",
-                  f"They see it from the {faction} side."]
+                  "Talk about it as an old, ongoing conflict, not as news "
+                  "of a fresh battle."]
         meta = {'faction_topic': choice, 'faction_zone': zone}
     elif choice == 'criticism':
         subject = f"what the {faction} thinks of the {enemy}"
-        lines += [f"Typical {faction} criticism of the {enemy}: "
-                  f"{FACTION_CRITICISM[faction]}"]
+        lines += [f"Views often heard in the {faction} about the "
+                  f"{enemy}: {FACTION_CRITICISM[faction]}",
+                  _shares_view(speaker)]
         meta = {'faction_topic': choice}
     elif choice == 'race':
         race, text = random.choice(list(RACE_CRITICISM[faction].items()))
         subject = (f"the {race}, a race of the {enemy}, as the {faction} "
                    "sees them")
-        lines += [f"What the {faction} holds against the {race}: {text}",
+        lines += [f"Views often heard in the {faction} about the "
+                  f"{race}: {text}",
+                  _shares_view(speaker),
                   f"Talk about the {race} only, no other race."]
         meta = {'faction_topic': choice, 'faction_target_race': race}
     else:
         text = random.choice(LOCAL_CONFLICTS[faction])
-        subject = "a recent local clash with the " + enemy
-        lines += [f"What happened: {text}",
-                  f"They see it from the {faction} side; new details may "
-                  "be invented."]
+        subject = "a story going around about a clash with the " + enemy
+        lines += [f"The story as it is told: {text}",
+                  "Tell it as hearsay, not as something that just "
+                  "happened, and add no new details."]
         meta = {'faction_topic': choice}
     lines += _mode_lines(mode)
     return ThemedTopic('faction', subject, lines, meta)
@@ -301,24 +306,20 @@ def _expansion_rumor(db, speaker, audience, mode, target=None):
         return None
     entry = random.choice(options)
     facts = random.sample(entry['facts'], min(3, len(entry['facts'])))
-    seen = speaker['level'] > audience_max_level(audience)
     land = entry['name']
     hint = ("the lands beyond the Dark Portal" if land == 'Outland'
             else "the frozen continent in the north")
-    subject = (f"what {speaker['name']} has seen with their own eyes in {land}"
-               if seen else f"rumors about {land}")
+    subject = f"rumors about {land}"
     lines = _rumor_lines(speaker) + [
         f"Name {land} or call it something like \"{hint}\" so it is clear "
         "which land is meant.",
-        "Ideas to retell in your own words (you may invent or expand): "
-        + "; ".join(facts) + ".",
-        ("Speak as someone who has been there." if seen
-         else "Frame it as a rumor you have heard."),
+        "Ideas to retell in your own words: " + "; ".join(facts) + ".",
+        "Frame it as a rumor you have heard.",
         "Others may show interest in going, or unease and a wish to stay "
         "away.",
     ] + _mode_lines(mode, rumor=True)
     return ThemedTopic('expansion', subject, lines,
-                       {'rumor': land, 'rumor_seen': seen})
+                       {'rumor': land})
 
 
 def _place_rumor(db, speaker, audience, mode, pool, kind, target=None):
@@ -330,8 +331,6 @@ def _place_rumor(db, speaker, audience, mode, pool, kind, target=None):
     if entry.get('caverns_of_time') and CAVERNS_OF_TIME_INTRO:
         lines.append(f"Where it is: {CAVERNS_OF_TIME_INTRO}")
     lines += [
-        "Try to spark interest in going there, or warn of the threat and "
-        "the need to end it.",
         "Others may show interest, wish the place cleansed and the threat "
         "ended, or voice fear.",
     ] + _mode_lines(mode, rumor=True, place_kind=kind)
@@ -352,8 +351,7 @@ def _location_rumor(db, speaker, audience, mode, target=None):
     entry = random.choice(options)
     lines = _rumor_lines(speaker) + [
         f"What is known about {entry['name']}: {entry['text'][team]}",
-        f"Name {entry['name']} and try to spark interest in it, or report "
-        "its threats and the need to deal with them.",
+        f"Name {entry['name']} so it is clear which place is meant.",
         "Others may show interest, hope things there improve, want to "
         "visit, or voice fear.",
     ] + _mode_lines(mode, rumor=True)
@@ -375,37 +373,38 @@ def _region_rumor(db, speaker, audience, mode, target=None):
     rumor = random.choice(entry['rumors'])
     place = entry.get('general_region') or entry['name']
     lines = _rumor_lines(speaker) + [
-        f"The rumor to retell in your own words (details may be added): "
-        f"{rumor}",
-        f"Say that it happens in {place}. Keep it vague and mysterious, a "
-        "rumor rather than hard fact.",
-        "Others may say they heard the same, want to check it, or doubt "
+        f"The rumor to retell in your own words: {rumor}",
+        f"It is said to happen in {place}. Tell it as a rumor, not as "
+        "hard fact, and add no new details.",
+        "Others may want to check it, doubt it, or wonder what is behind "
         "it.",
     ] + _mode_lines(mode, rumor=True)
     return ThemedTopic('region', f"a strange rumor from {place}", lines,
                        {'rumor': entry['name']})
 
 
-def _own_or_other(own, other):
-    """Half the time a listener's own group, falling back when one is
-    empty."""
-    first, second = (own, other) if random.random() < 0.5 else (other, own)
+def _own_or_other(config, own, other):
+    """The listener's own race or class at OwnTrainerChance, otherwise
+    another one; falls back when one side is empty."""
+    own_first = chance_hit(
+        config, 'LLMChatter.ThemedTopics.OwnTrainerChance', 50)
+    first, second = (own, other) if own_first else (other, own)
     return first or second
 
 
 def _trainer_lines(speaker, trainer, pupils, ability):
     return _rumor_lines(speaker) + [
-        f"The speaker knows of {trainer['name']}, found at "
-        f"{trainer['place']}, who can do amazing things and is willing to "
-        f"teach {pupils}.",
-        f"The amazing skill to retell in your own words: {ability}.",
-        "Tell, as a rumor, how this master has mastered it. Name the master "
-        "and the place.",
+        f"The speaker has heard of {trainer['name']}, found at "
+        f"{trainer['place']}, who teaches {pupils}.",
+        f"Something this trainer is said to teach, to retell in your own "
+        f"words: {ability}.",
+        "Tell it as a rumor. Name the trainer and the place.",
         "Others may admire it, want to learn it too, or doubt it.",
     ]
 
 
-def _profession_rumor(db, speaker, audience, mode, target=None):
+def _profession_rumor(db, config, speaker, audience, mode,
+                      target=None):
     races = PROFESSION_TRAINERS.get(audience_team(audience))
     if not races:
         return None
@@ -413,7 +412,7 @@ def _profession_rumor(db, speaker, audience, mode, target=None):
     own = [(own_race, t) for t in races.get(own_race, ())]
     other = [(race, t) for race, trainers in races.items()
              if race != own_race for t in trainers]
-    pool = _own_or_other(own, other)
+    pool = _own_or_other(config, own, other)
     if not pool:
         return None
     race, trainer = random.choice(pool)
@@ -428,7 +427,8 @@ def _profession_rumor(db, speaker, audience, mode, target=None):
          'trainer_race_list': race})
 
 
-def _class_trainer_rumor(db, speaker, audience, mode, target=None):
+def _class_trainer_rumor(db, config, speaker, audience, mode,
+                         target=None):
     races = CLASS_TRAINERS.get(audience_team(audience))
     if not races:
         return None
@@ -445,7 +445,7 @@ def _class_trainer_rumor(db, speaker, audience, mode, target=None):
     if own:
         own_race = random.choice(sorted({race for race, _ in own}))
         own = [pair for pair in own if pair[0] == own_race]
-    pool = _own_or_other(own, other)
+    pool = _own_or_other(config, own, other)
     if not pool:
         return None
     race, trainer = random.choice(pool)
@@ -468,22 +468,23 @@ def _kind_weight(config, kind, audience, target=None):
     if not band or not weight:
         return weight
     level = (_target(audience, target) or {}).get('level', 0)
-    full, reduced = band
+    # The maximum always wins: a FullLevel above it is capped to it.
+    reduced = cfg_int(config, *band[1])
+    full = min(cfg_int(config, *band[0]), reduced)
+    if level > reduced:
+        return 0
     if level <= full:
         return weight
-    if level <= reduced:
-        percent = max(0, min(100, cfg_int(
-            config, 'LLMChatter.ThemedTopics.TrainerRumorReducedPercent',
-            33)))
-        return weight * percent / 100
-    return 0
+    percent = max(0, min(100, cfg_int(
+        config, 'LLMChatter.ThemedTopics.TrainerRumorReducedPercent', 33)))
+    return weight * percent / 100
 
 
 # --------------------------------------------------------------------------
 # Picker
 # --------------------------------------------------------------------------
 
-def _build(kind, db, speaker, audience, mode, target=None):
+def _build(kind, db, config, speaker, audience, mode, target=None):
     if kind == 'faction':
         return _faction_topic(speaker, mode)
     if kind == 'race':
@@ -507,9 +508,11 @@ def _build(kind, db, speaker, audience, mode, target=None):
     if kind == 'region':
         return _region_rumor(db, speaker, audience, mode, target)
     if kind == 'profession':
-        return _profession_rumor(db, speaker, audience, mode, target)
+        return _profession_rumor(db, config, speaker, audience, mode,
+                                 target)
     if kind == 'trainer':
-        return _class_trainer_rumor(db, speaker, audience, mode, target)
+        return _class_trainer_rumor(db, config, speaker, audience, mode,
+                                    target)
     return None
 
 
@@ -546,7 +549,8 @@ def pick_themed_topic(db, config, channel, bot, audience=None,
                 break
         remaining.pop(index)
         try:
-            topic = _build(kind, db, speaker, audience, mode, target)
+            topic = _build(kind, db, config, speaker, audience, mode,
+                           target)
         except Exception:
             logger.exception("themed topic %s failed", kind)
             topic = None

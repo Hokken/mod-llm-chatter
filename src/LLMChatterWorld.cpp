@@ -854,7 +854,9 @@ private:
                 R"("guildmates":"{}",)"
                 R"("team":"{}",)"
                 R"("zone_id":{},)"
-                R"("weather":"{}"}})",
+                R"("weather":"{}",)"
+                // Online real members, so rumors rotate between readers.
+                R"("audience":{}}})",
                 guildId,
                 JsonEscape(guildName),
                 JsonEscape(speaker->GetName()),
@@ -866,18 +868,13 @@ private:
                 teamName,
                 speaker->GetZoneId(),
                 JsonEscape(GetZoneWeatherName(
-                    speaker->GetZoneId())));
+                    speaker->GetZoneId())),
+                BuildAudienceListJson(
+                    CollectRealGuildMembers(guildId, 10)));
 
             std::string cooldownKey =
                 "guild_idle_"
                 + std::to_string(guildId);
-
-            // Online real members, so rumors rotate between readers.
-            json.pop_back();
-            json += R"(,"audience":)"
-                + BuildAudienceListJson(
-                    CollectRealGuildMembers(guildId, 10))
-                + "}";
 
             QueueChatterEvent(
                 "guild_idle_chatter",

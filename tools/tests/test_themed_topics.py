@@ -46,13 +46,17 @@ if str(TOOLS_DIR) not in sys.path:
     sys.path.insert(0, str(TOOLS_DIR))
 _install_non_strict_stubs()
 
+import chatter_guild  # noqa: E402
 import chatter_progression as progression  # noqa: E402
 import chatter_themed_topics as themed  # noqa: E402
 import chatter_threads as th  # noqa: E402
+from chatter_constants import RACE_NAMES  # noqa: E402
 from chatter_lore_data import (  # noqa: E402
     CLASS_TOPICS,
+    FACTION_CRITICISM,
     RACE_CLASS_NOTES,
     RACE_CLASS_TOPICS,
+    RACE_CRITICISM,
     RACE_TOPICS,
 )
 from chatter_rumor_data import (  # noqa: E402
@@ -127,13 +131,10 @@ class _AchievementDb:
         return _Cursor()
 
 
-def _player(level=60, team='Horde', race='Orc', ip=False, tier=0,
-            limit=0, gm=False, guid=7, klass='Warrior'):
+def _player(level=60, team='Horde', race='Orc', guid=7, klass='Warrior'):
     return {
         'guid': guid, 'name': f'Player{guid}', 'level': level,
-        'team': team, 'race': race, 'class': klass, 'is_gm': gm,
-        'ip_active': ip, 'progression_tier': tier,
-        'progression_limit': limit, 'ip_zg_tier': 3, 'ip_za_tier': 12,
+        'team': team, 'race': race, 'class': klass,
     }
 
 
@@ -149,7 +150,9 @@ BOT = {'guid': 5, 'name': 'Grom', 'race': 'Orc', 'class': 'Warrior',
        'level': 60}
 
 PUSHY_WORDING = ('Open with it', 'leave it behind', 'build the line around',
-                 'raises the subject')
+                 'raises the subject', 'spark interest', 'amazing',
+                 'They see it from', 'may be invented', 'invent or expand',
+                 'has been there', 'own eyes', 'need to end it')
 
 
 def test_every_playable_combination_has_topics_and_notes():
@@ -168,7 +171,8 @@ def test_parse_audience_accepts_lists_objects_and_rejects_garbage():
         ' {"guid": 3, "level": 20}, {"guid": 4, "level": 30}]')
     assert [p['guid'] for p in parsed] == [3, 4]
     assert parsed[0]['team'] == 'Alliance'
-    assert parsed[0]['ip_active'] is False
+    assert set(parsed[0]) == {'guid', 'name', 'level', 'team', 'race',
+                              'class'}
     single = progression.parse_audience('{"guid": 9, "level": 11}')
     assert [p['guid'] for p in single] == [9]
     assert progression.parse_audience('not json') == []
@@ -178,55 +182,20 @@ def test_parse_audience_accepts_lists_objects_and_rejects_garbage():
     assert len(progression.parse_audience(many)) == progression.MAX_AUDIENCE
 
 
-def test_content_unlocked_without_ip_and_for_gms():
-    northrend = EXPANSION_RUMORS['Northrend']
-    assert progression.content_unlocked(_listener(ip=False), northrend)
-    assert progression.content_unlocked(_listener(ip=True, gm=True),
-                                        northrend)
-    assert not progression.content_unlocked(_listener(ip=True, tier=12),
-                                            northrend)
-    assert progression.content_unlocked(_listener(ip=True, tier=13),
-                                        northrend)
 
 
-def test_progression_limit_and_max_tier():
-    outland = EXPANSION_RUMORS['Outland']
-    assert not progression.content_unlocked(
-        _listener(ip=True, tier=8, limit=7), outland)
-    classic_naxx = next(r for r in RAID_RUMORS
-                        if r.get('max_tier') is not None
-                        and r['name'] == 'Naxxramas')
-    assert progression.content_unlocked(
-        _listener(ip=True, tier=classic_naxx['max_tier']), classic_naxx)
-    assert not progression.content_unlocked(
-        _listener(ip=True, tier=classic_naxx['max_tier'] + 1), classic_naxx)
 
 
-def test_zul_gurub_tier_follows_ip_config():
-    zg = next(r for r in RAID_RUMORS if r['required_tier'] == 'zul_gurub')
-    listener = _listener(ip=True, tier=2)
-    assert not progression.content_unlocked(listener, zg)
-    listener['ip_zg_tier'] = 2
-    assert progression.content_unlocked(listener, zg)
 
 
-def test_tbc_race_zones_are_open_in_classic_tiers():
-    for name in ('Ghostlands', 'Bloodmyst Isle'):
-        zone = next(r for r in REGION_RUMORS if r['name'] == name)
-        assert progression.content_unlocked(
-            _listener(ip=True, tier=0, race='Orc'), zone)
-        assert progression.content_unlocked(
-            _listener(ip=True, tier=0, race='Human'), zone)
 
 
-def test_fits_checks_level_tier_and_completion_per_listener():
+def test_fits_checks_level_and_completion_per_listener():
     progression.clear_caches()
     northrend = EXPANSION_RUMORS['Northrend']
-    ready = _listener(guid=1, level=70, ip=True, tier=13)
-    locked = _listener(guid=2, level=70, ip=True, tier=10)
+    ready = _listener(guid=1, level=northrend['min_level'])
     low = _listener(guid=3, level=12)
     assert progression.fits(_NoDb(), ready, northrend)
-    assert not progression.fits(_NoDb(), locked, northrend)
     assert not progression.fits(_NoDb(), low, northrend)
     entry = next(d for d in DUNGEON_RUMORS if d['achievements'])
     ach = entry['achievements'][0]
@@ -279,8 +248,7 @@ def test_one_listener_is_always_the_target():
     for pool in (DUNGEON_RUMORS, RAID_RUMORS,
                  list(EXPANSION_RUMORS.values())):
         old_rule = [e for e in pool
-                    if progression.level_in_range(alone[0], e)
-                    and progression.content_unlocked(alone[0], e)]
+                    if progression.level_in_range(alone[0], e)]
         assert progression.best_covered(
             _NoDb(), alone, alone[0], pool) == old_rule
     only_dungeons = {f'LLMChatter.ThemedTopics.{k}Weight': 0 for k in (
@@ -388,41 +356,35 @@ def test_mixed_faction_listeners_get_no_faction_rumors():
         _player(guid=2, level=30, team='Alliance', race='Human'),
     ])
     assert progression.audience_team(mixed) == ''
-    for build in (themed._location_rumor, themed._region_rumor,
-                  themed._profession_rumor, themed._class_trainer_rumor):
+    for build in (themed._location_rumor, themed._region_rumor):
         assert build(_NoDb(), speaker, mixed, 'roleplay') is None
+    for build in (themed._profession_rumor, themed._class_trainer_rumor):
+        assert build(_NoDb(), {}, speaker, mixed, 'roleplay') is None
 
 
-def test_expansion_rumor_framing_depends_on_the_highest_listener():
+def test_expansion_rumors_are_always_hearsay():
     low = themed.speaker_profile(_NoDb(), dict(BOT, level=60))
     high = themed.speaker_profile(_NoDb(), dict(BOT, level=80))
     audience = _audience(level=68)
-    heard = themed._expansion_rumor(_NoDb(), low, audience, 'roleplay')
-    seen = themed._expansion_rumor(_NoDb(), high, audience, 'roleplay')
-    assert heard.metadata['rumor_seen'] is False
-    assert 'rumor you have heard' in heard.render()
-    assert seen.metadata['rumor_seen'] is True
-    assert 'has been there' in seen.render()
+    for speaker in (low, high):
+        topic = themed._expansion_rumor(_NoDb(), speaker, audience,
+                                        'roleplay')
+        text = topic.render()
+        assert topic.subject == 'rumors about Northrend'
+        assert 'rumor you have heard' in text
+        assert 'has been there' not in text
+        assert 'own eyes' not in text
+        assert 'invent' not in text
+        assert 'rumor_seen' not in topic.metadata
     mixed = progression.parse_audience([
         _player(guid=1, level=68), _player(guid=2, level=80)])
     topic = themed._expansion_rumor(_NoDb(), high, mixed, 'roleplay',
                                     target=mixed[0])
     assert topic.metadata['rumor'] == 'Northrend'
-    assert topic.metadata['rumor_seen'] is False
     assert themed._expansion_rumor(_NoDb(), high, mixed, 'roleplay',
                                    target=mixed[1]) is None
     assert themed._expansion_rumor(
         _NoDb(), low, _audience(level=40), 'roleplay') is None
-
-
-def test_ip_gating_hides_locked_expansion():
-    speaker = themed.speaker_profile(_NoDb(), BOT)
-    locked = _audience(level=58, ip=True, tier=7)
-    assert themed._expansion_rumor(_NoDb(), speaker, locked,
-                                   'roleplay') is None
-    open_ = _audience(level=58, ip=True, tier=8)
-    assert themed._expansion_rumor(_NoDb(), speaker, open_,
-                                   'roleplay') is not None
 
 
 def test_pick_states_speaker_faction_and_channel_kinds():
@@ -439,17 +401,33 @@ def test_pick_states_speaker_faction_and_channel_kinds():
         assert topic.kind in ('class', 'race_class')
 
 
-def test_faction_topics_stay_with_the_speakers_view():
+def test_faction_topics_offer_views_without_orders():
     random.seed(2)
-    for _ in range(60):
+    seen = set()
+    for _ in range(120):
         topic = themed._faction_topic(
             themed.speaker_profile(_NoDb(), BOT), 'roleplay')
         text = topic.render()
+        kind = topic.metadata['faction_topic']
+        seen.add(kind)
         assert 'Horde' in text
-        if topic.metadata['faction_topic'] == 'criticism':
+        assert 'They see it from' not in text
+        assert 'criticism' not in text.lower()
+        assert 'holds against' not in text
+        if kind == 'criticism':
             assert topic.subject == 'what the Horde thinks of the Alliance'
-        if topic.metadata['faction_topic'] == 'race':
+        if kind == 'race':
             assert 'as the Horde sees them' in topic.subject
+        if kind in ('criticism', 'race'):
+            assert 'Views often heard in the Horde' in text
+            assert ('How far Grom shares these views is up to their own '
+                    'personality.') in text
+        if kind == 'conflict':
+            assert 'recent' not in topic.subject
+            assert 'What happened' not in text
+            assert 'add no new details' in text
+            assert 'may be invented' not in text
+    assert seen == {'war_front', 'criticism', 'race', 'conflict'}
 
 
 def test_themed_wording_is_a_suggestion_not_an_order():
@@ -461,7 +439,8 @@ def test_themed_wording_is_a_suggestion_not_an_order():
         for channel in ('guild', 'general', 'party'):
             topic = themed.pick_themed_topic(
                 _AchievementDb([]), {}, channel, BOT,
-                _audience(level=30), roll=False)
+                _audience(level=random.choice((10, 30, 60, 75))),
+                roll=False)
             if topic:
                 texts.append(topic.render())
     texts.append(themed._faction_topic(speaker, 'normal').render())
@@ -577,8 +556,11 @@ def test_race_class_notes_split_priests():
     assert 'Light Priest' in light and 'Shadow Priest' in shadow
     assert race_class_note('Undead', 'Priest',
                            class_style='Shadow Priest') == shadow
-    assert 'Your people and calling' in build_race_class_context(
+    assert 'people and calling' not in build_race_class_context(
         'Orc', 'Warrior')
+    identity = chatter_guild._guild_identity(
+        'Grom', {'race': 'Orc', 'class': 'Warrior'})
+    assert "Grom's people and calling (Orc Warrior)" in identity
 
 
 def _trainer_names(tree):
@@ -589,8 +571,11 @@ def _trainer_names(tree):
 def test_trainer_data_covers_every_race_and_skill():
     for tree, abilities in ((PROFESSION_TRAINERS, PROFESSION_ABILITIES),
                             (CLASS_TRAINERS, CLASS_ABILITIES)):
-        assert set(tree['Alliance']) == set(themed.ALLIANCE_RACES)
-        assert set(tree['Horde']) == set(themed.HORDE_RACES)
+        races = RACE_NAMES.values()
+        assert set(tree['Alliance']) == {
+            r for r in races if themed.race_faction(r) == 'Alliance'}
+        assert set(tree['Horde']) == {
+            r for r in races if themed.race_faction(r) == 'Horde'}
         for races in tree.values():
             for trainers in races.values():
                 for trainer in trainers:
@@ -621,6 +606,21 @@ def test_trainer_rumor_level_bands_follow_the_target():
     config = {'LLMChatter.ThemedTopics.TrainerRumorReducedPercent': '50'}
     assert themed._kind_weight(config, 'trainer', _audience(level=20)) == 6
     assert themed._kind_weight({}, 'dungeon', _audience(level=80)) == 12
+    bands = {'LLMChatter.ThemedTopics.ClassTrainerRumorFullLevel': '30',
+             'LLMChatter.ThemedTopics.ClassTrainerRumorMaxLevel': '40',
+             'LLMChatter.ThemedTopics.ProfessionRumorMaxLevel': '20'}
+    assert themed._kind_weight(bands, 'trainer', _audience(level=30)) == 12
+    assert 0 < themed._kind_weight(bands, 'trainer',
+                                   _audience(level=40)) < 12
+    assert themed._kind_weight(bands, 'profession', _audience(level=21)) == 0
+    # A MaxLevel below the FullLevel still caps every level above it.
+    low_max = {'LLMChatter.ThemedTopics.ProfessionRumorMaxLevel': '10',
+               'LLMChatter.ThemedTopics.ClassTrainerRumorMaxLevel': '10'}
+    for kind in ('profession', 'trainer'):
+        assert themed._kind_weight(low_max, kind, _audience(level=10)) == 12
+        for level in (11, 15, 18, 20, 60):
+            assert themed._kind_weight(
+                low_max, kind, _audience(level=level)) == 0, (kind, level)
 
 
 def test_trainer_rumors_never_cross_factions():
@@ -635,53 +635,52 @@ def test_trainer_rumors_never_cross_factions():
     random.seed(3)
     for _ in range(200):
         for build in (themed._profession_rumor, themed._class_trainer_rumor):
-            topic = build(_NoDb(), speaker,
+            topic = build(_NoDb(), {}, speaker,
                           _audience(level=10, team='Horde', race='Tauren'),
                           'roleplay')
             assert topic.metadata['rumor'] in horde
-            topic = build(_NoDb(), speaker,
+            topic = build(_NoDb(), {}, speaker,
                           _audience(level=10, team='Alliance', race='Gnome'),
                           'normal')
             assert topic.metadata['rumor'] in alliance
 
 
-def test_trainer_rumors_split_own_and_other_half_and_half():
+def test_trainer_rumors_own_or_other_follows_the_config():
     speaker = themed.speaker_profile(_NoDb(), BOT)
     audience = _audience(level=8, team='Alliance', race='Night Elf',
                          klass='Druid')
-    with patch.object(themed.random, 'random', return_value=0.1):
-        own = themed._profession_rumor(_NoDb(), speaker, audience, 'roleplay')
+    always = {'LLMChatter.ThemedTopics.OwnTrainerChance': '100'}
+    never = {'LLMChatter.ThemedTopics.OwnTrainerChance': '0'}
+    own = themed._profession_rumor(_NoDb(), always, speaker, audience,
+                                   'roleplay')
+    assert own.metadata['trainer_race_list'] == 'Night Elf'
+    other = themed._class_trainer_rumor(_NoDb(), never, speaker, audience,
+                                        'roleplay')
+    assert other.metadata['trainer_class'] != 'Druid'
+    with patch.object(themed.random, 'randint', return_value=50):
+        own = themed._profession_rumor(_NoDb(), {}, speaker, audience,
+                                       'roleplay')
         assert own.metadata['trainer_race_list'] == 'Night Elf'
-        own = themed._class_trainer_rumor(_NoDb(), speaker, audience,
+        own = themed._class_trainer_rumor(_NoDb(), {}, speaker, audience,
                                           'roleplay')
         assert own.metadata['trainer_class'] == 'Druid'
-    with patch.object(themed.random, 'random', return_value=0.9):
-        other = themed._profession_rumor(_NoDb(), speaker, audience,
+    with patch.object(themed.random, 'randint', return_value=51):
+        other = themed._profession_rumor(_NoDb(), {}, speaker, audience,
                                          'roleplay')
         assert other.metadata['trainer_race_list'] != 'Night Elf'
-        other = themed._class_trainer_rumor(_NoDb(), speaker, audience,
+        other = themed._class_trainer_rumor(_NoDb(), {}, speaker, audience,
                                             'roleplay')
         assert other.metadata['trainer_class'] != 'Druid'
 
 
-def test_trainer_rumors_ignore_individual_progression():
-    speaker = themed.speaker_profile(_NoDb(), BOT)
-    audience = _audience(level=5, team='Alliance', race='Human', ip=True,
-                         tier=0, limit=1)
-    places = set()
-    random.seed(5)
-    for _ in range(300):
-        places.add(themed._profession_rumor(
-            _NoDb(), speaker, audience, 'roleplay').metadata['rumor'])
-    assert 'Farii' in places
 
 
 def test_death_knight_audience_gets_other_class_trainers():
     speaker = themed.speaker_profile(_NoDb(), BOT)
     audience = _audience(level=10, team='Horde', race='Orc',
                          klass='Death Knight')
-    with patch.object(themed.random, 'random', return_value=0.1):
-        topic = themed._class_trainer_rumor(_NoDb(), speaker, audience,
+    with patch.object(themed.random, 'randint', return_value=1):
+        topic = themed._class_trainer_rumor(_NoDb(), {}, speaker, audience,
                                             'roleplay')
     assert topic and topic.metadata['trainer_class'] != 'Death Knight'
 
@@ -689,10 +688,11 @@ def test_death_knight_audience_gets_other_class_trainers():
 def test_trainer_rumor_prompt_and_channels():
     speaker = themed.speaker_profile(_NoDb(), BOT)
     topic = themed._class_trainer_rumor(
-        _NoDb(), speaker, _audience(level=5), 'normal')
+        _NoDb(), {}, speaker, _audience(level=5), 'normal')
     text = topic.render()
     assert topic.metadata['rumor'] in text
-    assert 'Name the master and the place' in text
+    assert 'Name the trainer and the place' in text
+    assert 'amazing' not in text and 'master' not in text
     assert 'Frame it the way a player would chat' in text
     assert 'profession' not in themed.CHANNEL_KINDS['party']
     assert 'trainer' not in themed.CHANNEL_KINDS['party']
@@ -732,6 +732,166 @@ def test_dungeon_rumors_last_until_the_dungeon_finder_drops_them():
             entry['name']
         if entry['expansion'] == 'wotlk':
             assert entry['max_level'] == 80, entry['name']
+    progression.clear_caches()
+
+
+
+def test_no_external_progression_module_support():
+    for pool in (DUNGEON_RUMORS, RAID_RUMORS, LOCATION_RUMORS,
+                 REGION_RUMORS, list(EXPANSION_RUMORS.values())):
+        for entry in pool:
+            assert 'required_tier' not in entry, entry['name']
+            assert 'max_tier' not in entry, entry['name']
+    # Classic Onyxia and classic Naxxramas do not exist on 3.3.5; only the
+    # level-80 versions remain.
+    for name in ("Onyxia's Lair", 'Naxxramas'):
+        levels = [(r['min_level'], r['max_level']) for r in RAID_RUMORS
+                  if r['name'] == name]
+        assert levels == [(78, 80)], (name, levels)
+    for name in ('LLMChatterThemedAudience.cpp', 'LLMChatterThemedAudience.h'):
+        text = (MODULE_DIR / 'src' / name).read_text(encoding='utf-8')
+        for word in ('IndividualProgression', 'ModuleMgr', 'ip_active',
+                     'progression', 'is_gm'):
+            assert word not in text, (name, word)
+    source = (TOOLS_DIR / 'chatter_progression.py').read_text(
+        encoding='utf-8')
+    assert 'content_unlocked' not in source and 'tier' not in source
+
+
+def test_trainer_rumors_never_name_gossip_only_npcs():
+    names = {t['name'] for tree in (PROFESSION_TRAINERS, CLASS_TRAINERS)
+             for races in tree.values() for trainers in races.values()
+             for t in trainers}
+    for apprentice in ('Graham Van Talen', 'Lalina Summermoon',
+                       'Malcomb Wynn', 'Mot Dawnstrider', 'Thund',
+                       'Trianna', 'Victor Ward'):
+        assert apprentice not in names, apprentice
+
+
+def test_a_turn_never_carries_a_guild_topic_and_a_themed_subject():
+    """#67's guild topics and the themed source share plan_idle_turn():
+    the guild topic is offered through the pool, the themed subject
+    through its own source, and a used guild topic drops the themed one
+    (with threads off it comes first)."""
+    ambient = (TOOLS_DIR / 'chatter_ambient.py').read_text(encoding='utf-8')
+    for helper in ('= _guild_praise_topic(', '= _guild_discussion_topic('):
+        start = ambient.index(helper)
+        block = ambient[start:start + 1600]
+        assert ('topic_pool=[guild_topic] if guild_topic else topic_pool'
+                in block)
+        assert 'themed_topic=themed.render() if themed else None' in block
+        assert ('if guild_used or not themed_used(themed, thread_turn):'
+                in block)
+        assert 'guild_topic or (themed.render() if themed' in block
+    guild = (TOOLS_DIR / 'chatter_guild.py').read_text(encoding='utf-8')
+    plans = [m.start() for m in re.finditer(r'plan_idle_turn\(', guild)]
+    assert len(plans) == 2
+    for start in plans:
+        block = guild[start:start + 900]
+        assert '_guild_topic_pool(special, topic_pool)' in block
+        assert 'themed_topic=themed.render() if themed else None' in block
+        assert ('if special or not themed_used(themed, thread_turn):'
+                in block)
+        assert (block.index('special.subject if special')
+                < block.index('else themed.render() if themed'))
+    for needle in ('special_override=special,\n        themed_override=themed,',
+                   'special=special,\n        themed=themed,'):
+        assert needle in guild, needle
+
+
+STANCE_OPENINGS = re.compile(
+    r'^(Express|Mock|Complain|Boast|Brag|Scoff|Sneer|Grumble|Lament|'
+    r'Mourn|Miss|Rant|Wistfully|Bitterly|Regret|Marvel|Tease|Condemn|'
+    r'Praise|Say|Share|Feel|Be|Worry|Criticize|Question|Remind|Rave|'
+    r'Rapturously|Ironically|Sympathize)\b')
+STANCE_WORDS = re.compile(
+    r'\b(contempt|proud|pride|despise|mock|hatred|scorn|disgust\w*|'
+    r'bitter\w*|resent\w*|condemn|endorse)\b', re.I)
+SCRIPTED_PAST = re.compile(
+    r'\b(they once|you once|once had|they were once|they recently|'
+    r'recently|how they (once|managed|tried|fought|tracked|used)|'
+    r'they managed to|they had to|they used to|who was (your|their) '
+    r'mentor|your own invention|of your life)\b', re.I)
+
+# Representative entries the semantic review found; each must be gone.
+REMOVED_STANCES_AND_PASTS = (
+    'admire the Alliance', 'Feel ashamed of, or justify',
+    'Rommath is a madman', 'dangerous idiots',
+    "he was right in many ways", 'Teldrassil before its destruction',
+    'several weeks to heal', 'breakdown of your own invention',
+    'old hunter who was your mentor', 'during a rest stop',
+    'tried to enter the Cathedral', 'vast, empty library where',
+    'the souls of ancestors. The tormented', 'stole a valuable magical',
+    'demon worshippers by their very nature',
+    'hunting humans and dwarves is not much different',
+)
+
+
+def _all_topics():
+    for table in (RACE_TOPICS, CLASS_TOPICS, RACE_CLASS_TOPICS):
+        for key, topics in table.items():
+            for topic in topics:
+                yield key, topic
+
+
+def test_topics_leave_the_mood_to_the_persona():
+    for key, topic in _all_topics():
+        assert not STANCE_OPENINGS.match(topic), (key, topic)
+        assert not STANCE_WORDS.search(topic), (key, topic)
+
+
+def test_topics_never_script_the_speakers_past():
+    for key, topic in _all_topics():
+        assert not SCRIPTED_PAST.search(topic), (key, topic)
+
+
+def test_reviewed_stances_and_scripted_pasts_are_gone():
+    texts = [topic for _, topic in _all_topics()]
+    for phrase in REMOVED_STANCES_AND_PASTS:
+        assert not any(phrase in text for text in texts), phrase
+    assert any('Teldrassil and life beneath its great branches' in text
+               for text in texts)
+    assert any('recovering from serious battle wounds' in text
+               for text in texts)
+
+
+def test_faction_views_have_no_dehumanising_terms():
+    texts = list(FACTION_CRITICISM.values()) + [
+        text for races in RACE_CRITICISM.values() for text in races.values()]
+    for text in texts:
+        for term in ('half-animals', 'filth', 'stupidity', 'called cows',
+                     'called goats', 'Disgusting'):
+            assert term not in text, (term, text)
+
+
+def test_rumor_texts_never_order_a_stance():
+    texts = [e['text'] for e in DUNGEON_RUMORS + RAID_RUMORS]
+    texts += [t for e in LOCATION_RUMORS for t in e['text'].values()]
+    texts += [t for e in REGION_RUMORS for t in e['rumors']]
+    for text in texts:
+        assert 'If the speaker' not in text, text
+        assert not re.search(r'\b(condemn|mock|express hope)\b', text,
+                             re.I), text
+
+
+def test_region_and_war_front_wording_is_grounded():
+    random.seed(9)
+    speaker = themed.speaker_profile(_NoDb(), BOT)
+    progression.clear_caches()
+    for _ in range(40):
+        topic = themed._region_rumor(_NoDb(), speaker,
+                                     _audience(level=30), 'roleplay')
+        if topic:
+            text = topic.render()
+            for phrase in ('details may be added', 'vague and mysterious',
+                           'heard the same'):
+                assert phrase not in text, phrase
+            assert 'add no new details' in text
+    for _ in range(60):
+        topic = themed._faction_topic(speaker, 'roleplay')
+        if topic.metadata['faction_topic'] == 'war_front':
+            assert 'flared up' not in topic.render()
+            assert 'not as news of a fresh battle' in topic.render()
     progression.clear_caches()
 
 

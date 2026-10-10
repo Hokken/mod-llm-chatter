@@ -3199,12 +3199,10 @@ LLMChatter.GuildChatter.ZoneNameChance = 20
 #       (expansions, dungeons, raids, locations, regions,
 #       profession and class trainers) as idle subjects in guild,
 #       General and party chat. Each rumor is aimed at one real
-#       listener in turn (level, completed content and
-#       mod-individual-progression tier; trainer rumors ignore
-#       the tier), preferring rumors that suit the most
-#       listeners; faction rumors need one faction. A themed
-#       subject is only a suggestion; the bot may set it aside if
-#       it does not fit.
+#       listener in turn (level and completed content),
+#       preferring rumors that suit the most listeners; faction
+#       rumors need one faction. A themed subject is only a
+#       suggestion; the bot may set it aside if it does not fit.
 #       Default: 1
 #
 LLMChatter.ThemedTopics.Enable = 1
@@ -3243,20 +3241,36 @@ LLMChatter.ThemedTopics.ProfessionRumorWeight = 12
 LLMChatter.ThemedTopics.ClassTrainerRumorWeight = 12
 
 #
+#   LLMChatter.ThemedTopics.ProfessionRumorFullLevel [BRIDGE]
+#   LLMChatter.ThemedTopics.ProfessionRumorMaxLevel [BRIDGE]
+#   LLMChatter.ThemedTopics.ClassTrainerRumorFullLevel [BRIDGE]
+#   LLMChatter.ThemedTopics.ClassTrainerRumorMaxLevel [BRIDGE]
 #   LLMChatter.ThemedTopics.TrainerRumorReducedPercent [BRIDGE]
-#       Profession trainer rumors use their full weight while the
-#       highest-level listener is up to level 20, this percent of
-#       it at 21-30, and never above 30. Class trainer rumors:
-#       full up to 15, reduced at 16-25, never above 25.
-#       Default: 33
+#       Trainer rumors follow the level of the listener the rumor
+#       is aimed at: full weight up to the FullLevel, this
+#       percent of it up to the MaxLevel, never above it.
+#       Defaults: 20, 30 (profession), 15, 25 (class), 33
 #
+LLMChatter.ThemedTopics.ProfessionRumorFullLevel = 20
+LLMChatter.ThemedTopics.ProfessionRumorMaxLevel = 30
+LLMChatter.ThemedTopics.ClassTrainerRumorFullLevel = 15
+LLMChatter.ThemedTopics.ClassTrainerRumorMaxLevel = 25
 LLMChatter.ThemedTopics.TrainerRumorReducedPercent = 33
+
+#
+#   LLMChatter.ThemedTopics.OwnTrainerChance [BRIDGE]
+#       Percent chance (0-100) that a trainer rumor names a
+#       trainer for the listener's own race or class rather than
+#       another one.
+#       Default: 50
+#
+LLMChatter.ThemedTopics.OwnTrainerChance = 50
 
 #
 #   LLMChatter.RaceClassNotes.Enable [BRIDGE]
 #       Add a short lore note for the speaker's race and class
-#       (priests split into Light and Shadow by spec) to guild
-#       prompts.
+#       (priests split into Light and Shadow by spec) to the
+#       speaker's identity in Guild chat prompts.
 #       Default: 1
 #
 LLMChatter.RaceClassNotes.Enable = 1

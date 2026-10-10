@@ -4241,7 +4241,7 @@ line.
 
 | Kind | Channels | Subject |
 |------|----------|---------|
-| Faction | Guild, General | A war front flaring up, what the bot's faction thinks of the other one, one enemy race as the bot's faction sees it, or a local clash. Always told from the bot's own faction side |
+| Faction | Guild, General | The long struggle on a war front, views often heard in the bot's faction about the other one or about one enemy race, or a story going around about a clash. How far the bot shares those views is left to its personality |
 | Race / Class / Race+class | Guild, General, Party (class and race+class only) | A topic from the bot's own race, calling (priests split into Light and Shadow by spec) or both |
 | Expansion, dungeon, raid, location, region rumors | Guild, General | A place the listeners can reach and have not all finished |
 | Profession and class trainer rumors | Guild, General | A trainer of the listeners' faction and what they can teach |
@@ -4293,11 +4293,6 @@ A rumor fits a listener (`fits()`) when:
   Finder lists only as a raid, ends at 60 like the other classic endgame
   dungeons. A dungeon rumor therefore stops only when the listener
   completes the dungeon or outlevels it;
-- with mod-individual-progression active, the listener has reached the
-  required tier, no tier is above `IndividualProgression.ProgressionLimit`,
-  and classic-only entries are gone once they have moved past them (GMs
-  are never gated). `RequiredZulGurubProgression` and
-  `RequiredZulAmanProgression` are read from the server config;
 - for dungeons and raids, the listener has not earned the completion
   achievement.
 
@@ -4307,20 +4302,25 @@ still wins when one exists. The line is told to everyone listening, never
 addressed to the target. In addition:
 
 - location, region and trainer rumors need all listeners on one faction;
-- an expansion is described as seen first-hand only when the bot is
-  higher level than every listener;
-- trainer rumors use the target's race or class for their "own" half,
-  and their weights follow the target's level and ignore
-  individual-progression tiers;
+- expansion rumors are always hearsay, never the bot's own experience;
+- trainer rumors name a trainer for the target's own race or class at
+  `ThemedTopics.OwnTrainerChance`, and their weights follow the target's
+  level (`ThemedTopics.*RumorFullLevel` / `*RumorMaxLevel`);
 - the request log records the target as `rumor_target`.
 
 Faction, race and class topics need no listener.
 
+Rumors and faction stories describe the place, the trainer or the story
+as it is told; they never ask the bot to promote, warn, admire or
+condemn, and never present a stock story as something that just
+happened. The other speakers get a list of possible reactions.
+
 ### Race and class notes
 
 `race_class_note()` (`chatter_shared.py`, data in `chatter_lore_data.py`)
-adds a short lore note for the speaker's race and calling to guild
-prompts, with priests split into Light and Shadow by spec
+adds a short lore note for the speaker's race and calling to the
+speaker's identity in Guild chat prompts (and nowhere else), with
+priests split into Light and Shadow by spec
 (`chatter_class_style.py`). `RaceClassNotes.Enable` turns it off.
 
 ### Configuration
@@ -4330,7 +4330,10 @@ prompts, with priests split into Light and Shadow by spec
 | `ThemedTopics.Enable` | 1 | 1 | Bridge |
 | `ThemedTopics.GuildChance` / `GeneralChance` / `PartyChance` (threads off only) | 30 / 30 / 5 | 25 / 25 / 3 | Bridge |
 | `ThemedTopics.*Weight` (11 kinds) | 12 / 18 / 18 / 7 / 8 / 12 / 6 / 10 / 9 / 12 / 12 | same | Bridge |
+| `ThemedTopics.ProfessionRumorFullLevel` / `ProfessionRumorMaxLevel` | 20 / 30 | same | Bridge |
+| `ThemedTopics.ClassTrainerRumorFullLevel` / `ClassTrainerRumorMaxLevel` | 15 / 25 | same | Bridge |
 | `ThemedTopics.TrainerRumorReducedPercent` | 33 | 33 | Bridge |
+| `ThemedTopics.OwnTrainerChance` | 50 | 50 | Bridge |
 | `Threads.ThemedTopicWeight` | 25 | 20 | Bridge |
 | `RaceClassNotes.Enable` | 1 | 1 | Bridge |
 

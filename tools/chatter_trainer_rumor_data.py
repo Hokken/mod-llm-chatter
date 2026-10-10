@@ -1,9 +1,10 @@
-"""Profession and class trainer rumors (updates/Update-Guild/Rumors-professions.md
-and Rumors-class-trainers.md).
+"""Profession and class trainer rumors.
 
 Trainers are listed per faction and per race of the player they are meant
 for, so a trainer may appear under several races and need not be of that
-race. Level bands: (last level at full weight, last level at reduced weight).
+race. Every name is a spawned NPC with the trainer flag in acore_world
+(checked against creature_template and creature). Level bands: the
+defaults of the LLMChatter.ThemedTopics.*RumorFullLevel / *MaxLevel keys.
 """
 
 PROFESSION_RUMOR_LEVELS = (20, 30)
@@ -257,7 +258,7 @@ _ORGRIMMAR_PROFESSIONS = [
     _t('Alchemy', "Miao'zan", "Sen'jin Village, Durotar"),
     _t('Blacksmithing', 'Dwukk', 'Razor Hill, Durotar'),
     _t('Enchanting', 'Godan', 'The Drag in Orgrimmar'),
-    _t('Engineering', 'Thund', 'Valley of Honor in Orgrimmar'),
+    _t('Engineering', 'Roxxik', 'Valley of Honor in Orgrimmar'),
     _t('Inscription', "Jo'mah", 'The Drag in Orgrimmar'),
     _t('Leatherworking', 'Karolek', 'The Drag in Orgrimmar'),
     _t('Tailoring', 'Magar', 'The Drag in Orgrimmar'),
@@ -294,11 +295,11 @@ PROFESSION_TRAINERS = {
         'Night Elf': [
             _t('Alchemy', 'Cyndra Kindwhisper', 'Dolanaar, Teldrassil'),
             _t('Blacksmithing', 'Delfrum Flintbeard', 'Auberdine, Darkshore'),
-            _t('Enchanting', 'Lalina Summermoon', "the Craftsmen's Terrace in Darnassus"),
+            _t('Enchanting', 'Taladan', "the Craftsmen's Terrace in Darnassus"),
             _t('Engineering', 'Jenna Lemkenilli', 'Auberdine, Darkshore'),
             _t('Inscription', 'Feyden Darkin', "the Craftsmen's Terrace in Darnassus"),
             _t('Leatherworking', 'Nadyia Maneweaver', 'Teldrassil'),
-            _t('Tailoring', 'Trianna', "the Craftsmen's Terrace in Darnassus"),
+            _t('Tailoring', "Me'lynn", "the Craftsmen's Terrace in Darnassus"),
             _t('Herbalism', 'Firodren Mooncaller', 'the Temple Gardens in Darnassus'),
             _t('Mining', 'Kurdram Stonehammer', 'Auberdine, Darkshore'),
             _t('Skinning', 'Eladriel', "the Craftsmen's Terrace in Darnassus"),
@@ -336,8 +337,8 @@ PROFESSION_TRAINERS = {
         'Tauren': [
             _t('Alchemy', 'Bena Winterhoof', 'the Middle Rise in Thunder Bluff'),
             _t('Blacksmithing', 'Karn Stonehoof', 'Thunder Bluff'),
-            _t('Enchanting', 'Mot Dawnstrider', 'the central bluff in Thunder Bluff'),
-            _t('Engineering', 'Thund', 'Valley of Honor in Orgrimmar'),
+            _t('Enchanting', 'Teg Dawnstrider', 'Thunder Bluff'),
+            _t('Engineering', 'Roxxik', 'Valley of Honor in Orgrimmar'),
             _t('Inscription', 'Poshken Hardbinder', 'Spirit Rise in Thunder Bluff'),
             _t('Leatherworking', 'Chaw Stronghide', 'Bloodhoof Village, Mulgore'),
             _t('Tailoring', 'Tepa', 'the central bluff in Thunder Bluff'),
@@ -352,11 +353,11 @@ PROFESSION_TRAINERS = {
         'Undead': [
             _t('Alchemy', 'Carolai Anise', 'Brill, Tirisfal Glades'),
             _t('Blacksmithing', 'James Van Brunt', 'the War Quarter of the Undercity'),
-            _t('Enchanting', 'Malcomb Wynn', 'the Apothecarium in the Undercity'),
-            _t('Engineering', 'Graham Van Talen', 'the Rogues\' Quarter of the Undercity'),
+            _t('Enchanting', 'Lavinia Crowe', 'the Undercity'),
+            _t('Engineering', 'Franklin Lloyd', 'the Undercity'),
             _t('Inscription', 'Margaux Parchley', 'the Apothecarium in the Undercity'),
             _t('Leatherworking', 'Shelene Rhobart', "Death's Watch Waystation, Tirisfal Glades"),
-            _t('Tailoring', 'Victor Ward', 'the Magic Quarter of the Undercity'),
+            _t('Tailoring', 'Josef Gregorian', 'the Undercity'),
             _t('Herbalism', 'Martha Alliestar', 'the Apothecarium in the Undercity'),
             _t('Mining', 'Brom Killian', 'the War Quarter of the Undercity'),
             _t('Skinning', 'Killian Hagey', "the Rogues' Quarter of the Undercity"),
