@@ -200,6 +200,11 @@ std::string GetPerceivedPvPEnemyName(
     return "";
 }
 
+static char const* TeamNameOf(Player* player)
+{
+    return player->GetTeamId() == TEAM_ALLIANCE ? "Alliance" : "Horde";
+}
+
 char const* DetectPvPInitiator(
     Player* member, Player* enemy)
 {
@@ -242,6 +247,12 @@ std::string BuildPvPEnemyFields(
         + std::string(initiator ? initiator : "unknown")
         + "\"";
 
+    // Sides come from the teams, never from race names: custom races
+    // can share a display name across factions.
+    if (reactor)
+        json += ",\"reactor_faction\":\""
+            + std::string(TeamNameOf(reactor)) + "\"";
+
     if (ref.viaPet && ref.unit
         && ref.unit != ref.enemy
         && IsPvPEnemyPerceivable(reactor, ref.unit))
@@ -254,6 +265,11 @@ std::string BuildPvPEnemyFields(
         || !IsPvPEnemyPerceivable(reactor, ref.enemy))
     {
         json += ",\"enemy_identity_known\":false";
+        // The side of an unseen attacker is still known; only who it
+        // was stays hidden.
+        if (ref.enemy)
+            json += ",\"enemy_faction\":\""
+                + std::string(TeamNameOf(ref.enemy)) + "\"";
         return json;
     }
 
@@ -282,9 +298,7 @@ std::string BuildPvPEnemyFields(
         + ",\"enemy_level\":"
         + std::to_string(enemyLevel)
         + ",\"enemy_faction\":\""
-        + std::string(
-            enemy->GetTeamId() == TEAM_ALLIANCE
-                ? "Alliance" : "Horde")
+        + std::string(TeamNameOf(enemy))
         + "\""
         + ",\"enemy_is_bot\":"
         + std::string(

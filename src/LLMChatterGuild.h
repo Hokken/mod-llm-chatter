@@ -4,12 +4,26 @@
 #include "Define.h"
 
 #include <string>
+#include <vector>
+
+class Player;
 
 void AddLLMChatterGuildScripts();
+void AddLLMChatterGuildMemberScripts();
+// guild_member_join, guild_rank_change and guild_motd_comment: ambient
+// Guild news that must never land in a player's Guild conversation.
+bool IsGuildNewsEventType(std::string const& eventType);
 
 void NoteGuildPlayerInteraction(uint32 guildId);
 
 bool WasGuildPlayerInteractionRecent(
+    uint32 guildId, uint32 seconds);
+
+// A real player's own Guild message, or a delivered reply to one. The
+// login welcome counts as interaction above but not as conversation.
+void NoteGuildPlayerConversation(uint32 guildId);
+
+bool WasGuildPlayerConversationRecent(
     uint32 guildId, uint32 seconds);
 
 void UpdatePendingGuildLoginGreetings();
@@ -20,5 +34,13 @@ void RecordDeliveredGuildLine(
     uint32 botGuid,
     std::string const& botName,
     std::string const& message);
+
+// Guild event producers reuse the Guild candidate selection and sessions
+// owned by LLMChatterGuild.cpp.
+std::vector<Player*> GetGuildEventBots(
+    uint32 guildId, Player* anchor, uint32 maxCandidates);
+std::string BuildGuildEventCandidatesJson(
+    std::vector<Player*> const& bots);
+void EnsureGuildSessionForPlayer(Player* player);
 
 #endif

@@ -34,6 +34,9 @@ namespace
 std::mutex sGuildActivityMutex;
 std::unordered_map<uint32, time_t>
     sLastGuildPlayerInteraction;
+// Unlike the interaction time, never refreshed by the login welcome.
+std::unordered_map<uint32, time_t>
+    sLastGuildPlayerConversation;
 
 struct PendingGuildLoginGreeting
 {
@@ -424,6 +427,8 @@ void HandleGuildPlayerMessage(
     if (sLLMChatterConfig
             ->IsPlayerChatPrefixIgnored(rawMessage))
         return;
+
+    NoteGuildPlayerConversation(player->GetGuildId());
 
     // A real Guild message is more current than a
     // scheduled login acknowledgement. Cancel both
@@ -869,6 +874,34 @@ bool WasGuildPlayerInteractionRecent(
         < static_cast<time_t>(seconds);
 }
 
+void NoteGuildPlayerConversation(uint32 guildId)
+{
+    if (!guildId)
+        return;
+
+    std::lock_guard<std::mutex> guard(
+        sGuildActivityMutex);
+    sLastGuildPlayerConversation[guildId] =
+        time(nullptr);
+}
+
+bool WasGuildPlayerConversationRecent(
+    uint32 guildId, uint32 seconds)
+{
+    if (!guildId || !seconds)
+        return false;
+
+    std::lock_guard<std::mutex> guard(
+        sGuildActivityMutex);
+    auto it =
+        sLastGuildPlayerConversation.find(guildId);
+    if (it == sLastGuildPlayerConversation.end())
+        return false;
+
+    return time(nullptr) - it->second
+        < static_cast<time_t>(seconds);
+}
+
 void RecordDeliveredGuildLine(
     uint32 guildId,
     uint32 eventId,
@@ -896,6 +929,8 @@ void RecordDeliveredGuildLine(
             sourceKind = "reply";
             NoteGuildPlayerInteraction(guildId);
         }
+        if (eventType == "guild_player_message")
+            NoteGuildPlayerConversation(guildId);
     }
 
     CharacterDatabase.DirectExecute(
@@ -930,4 +965,24 @@ void UpdatePendingGuildLoginGreetings()
 void AddLLMChatterGuildScripts()
 {
     new LLMChatterGuildPlayerScript();
+}
+
+std::vector<Player*> GetGuildEventBots(
+    uint32 guildId, Player* anchor, uint32 maxCandidates)
+{
+    if (!anchor)
+        return {};
+    return GetEligibleGuildBots(
+        guildId, anchor->GetTeamId(), "", maxCandidates);
+}
+
+std::string BuildGuildEventCandidatesJson(
+    std::vector<Player*> const& bots)
+{
+    return BuildGuildCandidatesJson(bots);
+}
+
+void EnsureGuildSessionForPlayer(Player* player)
+{
+    EnsureGuildPlayerSession(player);
 }

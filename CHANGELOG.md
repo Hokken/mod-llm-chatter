@@ -24,6 +24,173 @@
 * **Upgrade**: Apply
   `data/sql/characters/updates/20261002_themed_topic_audience.sql`,
   rebuild the worldserver and restart the bridge.
+### 2026-10-10 - Open-World PvP Reactions
+
+* **Guild PvP lines**: A lone guild bot that kills an opposing-faction bot
+  may tell its guild, and a bot killed by one may tell its guild or, if
+  that does not happen, its zone's General channel. Nothing is queued
+  unless a real player can read it.
+* **Thread safety**: The kill hook runs on a map thread and only records
+  the facts of the kill; the next world update checks the readers, the
+  guild conversation and the cooldowns and queues the line.
+* **Message flow**: Guild PvP lines give way to a real player's
+  conversation with the guild, both when queued and at delivery (the
+  login welcome alone does not count). The General line follows the
+  General zone pacing. At delivery a line is dropped if its bot has left
+  the guild or zone it was written for, or no real player there can read
+  it any more.
+* **Personality first**: The prompts offer a range of reactions instead
+  of a mood, and the enemy's lore in party prompts is optional colour,
+  not a required jab. A small level gap is described as similar
+  experience, not as an even fight.
+* **Faction context**: Party kill and battle-cry prompts against enemy
+  players name both factions, taken from the server's teams rather than
+  race names, and, in roleplay, the enemy's race outlook and class
+  calling. Battleground kill prompts name the fallen enemy's race and
+  both sides.
+* **Configuration**: `GuildChatter.PvpKill.*` (including a per-guild
+  `GuildCooldown`), `GuildChatter.PvpDeath.*`, `GeneralChat.PvpDeath.*`
+  and `PvpDeath.VictimCooldown`.
+* **README**: Each migration has its own `mysql` command again.
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20261002_guild_pvp_events.sql`, rebuild
+  the worldserver and restart the bridge.
+
+### 2026-10-10 - Guild World Events
+
+* **Meet greetings**: A guild bot that runs into a real guildmate in the
+  open world waves and greets them in `/say`, and may mention the meeting
+  in Guild chat afterwards. The greeting is checked again at delivery
+  (same map, range, visibility, line of sight, and both still in the
+  guild they met as); a brief range or sight miss is retried for up to 8
+  seconds, and the line is dropped with a reason if the player has moved
+  on. The Guild post is stored on hold from the start, waits until the
+  greeting was spoken, is cancelled if it was dropped, and never reaches
+  a guild the bot has since left. It names the place without guessing
+  what the guildmate is doing there.
+* **Join announcements**: A bot that joins a guild may tell its zone's
+  General channel, and zone bots react. The announcer always speaks first,
+  and the lines follow the General zone pacing.
+* **NPC encounters**: A guild bot near a friendly service NPC it can see
+  tells the guild what it thinks of them.
+* **Message flow**: NPC posts and meet follow-ups give way to a real
+  player's conversation with the guild, both when queued and at delivery.
+  The login welcome alone does not count as a conversation.
+* **Personality first**: The prompts offer a range of reactions instead of
+  a mood.
+* **Reply hold**: The meet greeting uses the short reply hold
+  (`LLMChatterReplyHold.cpp`, `ProximityChatter.ReplyHoldMs`): a standing
+  bot waits for its own greeting, a moving bot keeps moving.
+* **Configuration**: `GuildChatter.MeetGreeting.*` (including
+  `FollowUpDelayMin`/`Max`; `CooldownHours` capped at 24),
+  `GuildChatter.WorldScanInterval`, `GuildChatter.JoinZoneAnnounce.*`
+  (including `DelaySeconds`) and `GuildChatter.NpcEncounter.*` (including
+  `PairCooldownHours`).
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20261002_guild_world_events.sql`, rebuild
+  the worldserver and restart the bridge.
+
+### 2026-10-10 - Guild Member Events
+
+* **Join greetings**: When a guild with an online real player gains a
+  member, one to three Guild bots react to the newcomer. Joins close
+  together share one event, and a newcomer who is a bot may answer.
+* **Rank changes**: In-game promotions and demotions are commented on once
+  the guild has been quiet for `RankChange.DebounceSeconds`. The prompt
+  names the old and new ranks. Members who just joined are left out.
+* **MOTD comments**: A new MOTD gets one or two reactions, quoting it as a
+  note from the officers and never as instructions.
+* **Personality first**: The prompts offer a range of reactions instead of
+  a mood, and each bot reacts in its own personality and tone.
+* **Own C++ file**: The batching and hooks live in
+  `LLMChatterGuildMembers.cpp` with their own `GuildScript` and
+  `WorldScript`. The lines are ambient Guild Chat and are not recorded as
+  replies to the player.
+* **Player conversations come first**: Guild news waits while a real
+  player is talking in Guild (`MemberEvents.MaxDeferSeconds`, then
+  dropped), lines queued before the player spoke are dropped at delivery,
+  and the events rank below replies to the player.
+* **Link-safe lines**: Shortened lines never cut through an item link or
+  placeholder, including bare `|H...|h` links.
+* **Configuration**: `GuildChatter.JoinGreeting.*`,
+  `GuildChatter.RankChange.*`, `GuildChatter.MotdComment.*` and
+  `GuildChatter.MemberEvents.*` (including `MemberEvents.MaxDeferSeconds`).
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20261002_guild_member_events.sql`, rebuild
+  the worldserver and restart the bridge.
+
+### 2026-10-10 - Guild Names in Party Relay Conversations
+
+* **Party relay conversations**: When several party bots discuss a line
+  they heard in General, the speaker roster now names each bot's guild
+  (`of the guild "Red Death"`), like the other party prompts. The guild
+  was already loaded for these bots but never shown.
+
+### 2026-10-10 - Guild Identity and Context
+
+* **Guild Information and MOTD**: Every Guild prompt quotes the guild's
+  Guild Information text as background. Idle Guild lines may talk about
+  the MOTD (`GuildChatter.MotdChance`), the speaker's zone
+  (`GuildChatter.ZoneTopicChance`) or the zone at this hour and in this
+  weather (`GuildChatter.ZoneWeatherTopicChance`, skipped when the weather
+  is unknown). When conversation
+  threads are on, these subjects are only offered as the thread's pool
+  topic, so the thread weights still apply.
+* **Guild names everywhere**: Bot and player descriptions name the
+  character's guild in party, General, proximity, emote and screenshot
+  prompts. Bots that share the real player's guild are told so, in
+  unprompted proximity `/say` lines as well as replies.
+* **Real player description**: Prompts that address the real player
+  describe their race and class; roleplay adds the race outlook and class
+  calling, with priests split into Light and Shadow by the active spec.
+  Proximity prompts with an NPC speaker get a neutral in-world line
+  instead of a "real player" one.
+* **Guild talk in General**: General conversations may compare the
+  speakers' guilds (`GuildChatter.GeneralDiscussionChance`) and guilded
+  bots may talk about their guild and Guild Master, in their own way
+  (`GuildChatter.GeneralPraiseChance`,
+  `GuildChatter.GeneralPraiseMasterChance`).
+* **Upgrade**: Rebuild the worldserver (emote payloads carry player and
+  target guids; the guild idle payload carries the zone weather) and
+  restart the bridge. No database migration is needed.
+
+### 2026-10-10 - Standalone Chat Fixes
+
+* **Talents**: `get_character_talents()` joined `acore_world.talent_dbc`,
+  which is empty by default, so every character looked talentless and
+  every priest was a Light Priest. It now maps `character_talent` spells
+  through the bundled `tools/talent_data.json` (generated from `Talent.dbc`
+  and `TalentTab.dbc` by `tools/generate_talent_data.py`, loaded by
+  `tools/talent_data.py`). `class_style()` (`chatter_class_style.py`)
+  splits Light and Shadow priests by the active spec.
+* **Emojis**: `strip_emojis()` covers every emoji block plus the invisible
+  variation selectors, joiners, keycaps and flag tags that used to survive
+  as stray characters in game chat. It runs in `cleanup_message()` and
+  again when a line or cached reaction is written; a line that was only
+  emojis is not sent.
+* **Links**: Item and spell links whose names contain a colon (such as
+  "Power Word: Fortitude") are no longer cut off, and long messages are
+  never shortened through a link.
+* **Late party bots**: A bot that logs into a group with a real player
+  online after the 120-second rejoin window is now registered (traits
+  restored silently, no greeting). Before, such bots stayed silent for the
+  whole session.
+* **Reply hold**: A standing bot you emote at, or address with a `/say`
+  emote, waits for its reply (`ProximityChatter.ReplyHoldMs`, default 4
+  seconds, `0` disables) and turns to you when facing is enabled. A moving
+  bot keeps moving. The hold never shortens the bot's own AI delays and
+  ends when the bot enters combat or its own queued reply is delivered or
+  dropped; a late reply to an earlier emote at the bot does not end it.
+* **Roleplay wording**: Trade offers speak as people in the world with
+  prices in coins written as words; level-ups say the character grew
+  stronger in their calling (Shadow and Light priests apart) instead of
+  naming a level, and leave the reaction to the speaker's persona;
+  roleplay prompts forbid player and trade slang. Digits left in a trade
+  line, including grouped ones such as "1,500", are spelled out only when
+  the chatter language is English.
+* **Configuration**: `ProximityChatter.ReplyHoldMs`.
+* **Upgrade**: Rebuild the worldserver and restart the bridge. No database
+  migration.
 
 ### 2026-10-08 - Claude Haiku 5.5 Compatibility
 

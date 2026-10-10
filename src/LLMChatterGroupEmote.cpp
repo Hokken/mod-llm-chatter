@@ -16,6 +16,7 @@
 #include "LLMChatterConfig.h"
 #include "LLMChatterGroup.h"
 #include "LLMChatterGroupInternal.h"
+#include "LLMChatterReplyHold.h"
 #include "LLMChatterShared.h"
 
 #include "Creature.h"
@@ -150,7 +151,13 @@ public:
         if (!bot || !bot->IsInWorld()
             || !bot->IsAlive()
             || bot->IsInCombat())
+        {
+            LOG_INFO("module",
+                "LLMChatter: mirror emote dropped, bot {} "
+                "unavailable or in combat (player {})",
+                bot ? bot->GetName() : "?", _playerName);
             return true;
+        }
 
         Player* target =
             ObjectAccessor::FindConnectedPlayer(
@@ -164,6 +171,12 @@ public:
             || bot->GetMap() != target->GetMap()
             || !bot->IsWithinDistInMap(target, radius))
         {
+            LOG_INFO("module",
+                "LLMChatter: mirror emote dropped, bot {} "
+                "out of range of player {} ({:.1f} yd)",
+                bot->GetName(), _playerName,
+                target && bot->GetMap() == target->GetMap()
+                    ? bot->GetDistance(target) : -1.0f);
             return true;
         }
 
@@ -412,7 +425,10 @@ void HandleEmoteAtGroupBot(
                 + JsonEscape(emoteName)
                 + "\",\"mirror_emote\":\""
                 + JsonEscape(mirrorEmoteName)
-                + "\",\"player_name\":\""
+                + "\",\"player_guid\":"
+                + std::to_string(
+                      player->GetGUID().GetCounter())
+                + ",\"player_name\":\""
                 + JsonEscape(player->GetName())
                 + "\",\"directed\":true"
                 + ",\"custom_emote\":"
@@ -500,6 +516,7 @@ uint32 HandleEmoteAtUngroupedBot(
     {
         return 0;
     }
+    HoldBotForReply(targetBot, player, 0);
     return mirrorEmote;
 }
 
@@ -637,7 +654,9 @@ void HandleEmoteObserver(
         + std::to_string(reactor->GetLevel())
         + ",\"emote_name\":\""
         + JsonEscape(emoteName)
-        + "\",\"player_name\":\""
+        + "\",\"player_guid\":"
+        + std::to_string(player->GetGUID().GetCounter())
+        + ",\"player_name\":\""
         + JsonEscape(player->GetName())
         + "\",\"target_type\":\""
         + tgtTypeStr
@@ -668,7 +687,10 @@ void HandleEmoteObserver(
             + ",\"target_level\":"
             + std::to_string(targetPlayer->GetLevel())
             + ",\"target_gender\":"
-            + std::to_string(targetPlayer->getGender());
+            + std::to_string(targetPlayer->getGender())
+            + ",\"target_guid\":"
+            + std::to_string(
+                targetPlayer->GetGUID().GetCounter());
 
     extraData += "}";
 

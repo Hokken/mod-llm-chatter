@@ -21,6 +21,9 @@ from chatter_shared import (
     build_anti_repetition_context,
     format_distance,
     append_speaker_gear,
+    faction_war_line,
+    get_class_name,
+    get_race_name,
 )
 from chatter_prompts import (
     maybe_get_creative_twist,
@@ -52,6 +55,7 @@ from chatter_mode import (
     build_player_prompt_header,
     build_player_prompt_header_from_dict,
 )
+from chatter_player_context import character_lore_lines
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +68,43 @@ def _enemy_name_rule(pvp, pvp_named, creature_word):
     if pvp:
         return "- Can mention the enemy by name\n"
     return f"- Can mention the {creature_word} by name\n"
+
+
+def _pvp_foe_context(bot, extra_data, mode, db=None):
+    """Faction framing for an open-world PvP fight and, in roleplay, the
+    enemy's race outlook and class calling. Identity details only when
+    the reactor could see the enemy."""
+    if not is_pvp_enemy(extra_data):
+        return ""
+    # Both sides come from the server's teams, never from race names.
+    enemy_team = str(extra_data.get('enemy_faction') or '').strip()
+    own_team = str(extra_data.get('reactor_faction') or '').strip()
+    known = is_pvp_identity_known(extra_data)
+    name = str(extra_data.get('enemy_name') or '').strip() if known else ''
+    lines = []
+    war = faction_war_line(
+        "You and your party", own_team, name or "the enemy", enemy_team,
+        own_verb="fight",
+    )
+    if war:
+        lines.append(war)
+    if known and mode == 'roleplay':
+        try:
+            race = get_race_name(int(extra_data.get('enemy_race', 0)))
+            cls = get_class_name(int(extra_data.get('enemy_class', 0)))
+        except (TypeError, ValueError):
+            race, cls = '', ''
+        lore = character_lore_lines(
+            db, extra_data.get('enemy_guid'), name or 'The enemy', race, cls,
+        )
+        if lore:
+            lines.append(f"What you know of {name or 'the enemy'}'s kind:")
+            lines.extend(lore)
+            lines.append(
+                "Draw on it only if it fits how you would speak of them "
+                "(a jab, wariness, grudging respect); never recite it."
+            )
+    return "\n".join(lines)
 
 
 def _pick_length_hint(mode):
@@ -197,10 +238,14 @@ def _append_bots_with_rp(
     seen_races = set()
     seen_classes = set()
     for bot in bots:
+        guild_part = (
+            f" of the guild \"{bot['guild_name']}\""
+            if bot.get('guild_name') else ""
+        )
         parts.append(
             f"{bot['name']} is a level "
             f"{bot['level']} {bot['race']} "
-            f"{bot['class']}"
+            f"{bot['class']}{guild_part}"
         )
         append_speaker_gear(parts, bot)
         if bot.get('travel_context'):
@@ -255,6 +300,7 @@ def build_bot_greeting_prompt(
     map_id=0,
     zone_id=0,
     bg_context=None,
+    player_context="",
 ):
     """Build the LLM prompt for a group greeting.
 
@@ -480,6 +526,8 @@ def build_bot_greeting_prompt(
             "a short sentence (10-16 words)"
         )
 
+    if player_context:
+        prompt += f"\n{player_context}\n"
     if is_reunion:
         prompt += (
             f"\nYou are rejoining a party with "
@@ -824,6 +872,7 @@ def build_kill_reaction_prompt(
     speaker_talent_context=None,
     stored_tone=None,
     map_id=0,
+    db=None,
 ):
     """Build prompt for a bot reacting to a kill.
 
@@ -942,6 +991,9 @@ def build_kill_reaction_prompt(
         prompt += f"{TWIST_LABEL}: {twist}\n"
     if state_ctx:
         prompt += f"{state_ctx}\n"
+    foe_ctx = _pvp_foe_context(bot, extra_data, mode, db)
+    if foe_ctx:
+        prompt += f"{foe_ctx}\n"
     prompt += (
         f"{rp_context}\n\n"
         f"{kill_context}\n\n"
@@ -1108,6 +1160,7 @@ def build_combat_reaction_prompt(
     extra_data=None, allow_action=False,
     speaker_talent_context=None,
     stored_tone=None,
+    db=None,
 ):
     """Build prompt for a bot's battle cry when
     engaging a creature. Very short — must feel
@@ -1198,6 +1251,9 @@ def build_combat_reaction_prompt(
         prompt += f"{TWIST_LABEL}: {twist}\n"
     if state_ctx:
         prompt += f"{state_ctx}\n"
+    foe_ctx = _pvp_foe_context(bot, extra_data, mode, db)
+    if foe_ctx:
+        prompt += f"{foe_ctx}\n"
     prompt += (
         f"{rp_context}\n\n"
         f"{combat_context}\n\n"
@@ -1341,19 +1397,47 @@ def build_death_reaction_prompt(
     )
 
 
+# Neutral sense of each calling for the roleplay level-up prompt. It only
+# names what the class is known for; the level-up itself reports no new
+# events, so nothing here may claim one happened.
+CLASS_GROWTH = {
+    'Warrior': "a warrior's strength and endurance in battle",
+    'Paladin': "a paladin's devotion to the Light and skill at arms",
+    'Hunter': "a hunter's aim, tracking and bond with their beast",
+    'Rogue': "a rogue's speed, stealth and skill with blades",
+    'Light Priest': "a priest's faith and gift for healing",
+    'Shadow Priest': "a priest's command of shadow magic",
+    'Death Knight': "a death knight's runic power and command of death",
+    'Shaman': "a shaman's bond with the elements and the spirits",
+    'Mage': "a mage's mastery of arcane, fire and frost",
+    'Warlock': "a warlock's grip on fel magic and their demons",
+    'Druid': "a druid's bond with nature and their shapeshifting",
+}
+
+
+def _article(phrase: str) -> str:
+    return "an" if phrase[:1].lower() in "aeiou" else "a"
+
+
 def build_levelup_reaction_prompt(
     bot, traits, leveler_name, new_level, is_bot,
     mode, chat_history="", allow_action=True,
     speaker_talent_context=None,
     stored_tone=None,
+    leveler_race="", leveler_class="",
+    leveler_style="",
     leveler_desc="",
 ):
     """Build prompt for a bot reacting to someone
-    leveling up. Always congratulatory/excited.
+    leveling up.
     leveler_desc ("Dwarf Priest") keeps the speaker from
     guessing the leveler's race or class.
     If is_bot=True, reacting to another bot.
     If is_bot=False, reacting to the real player.
+    Roleplay never names a level; it states that the
+    leveler grew stronger in their calling.
+    leveler_style overrides the class key (e.g.
+    'Shadow Priest' / 'Light Priest').
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
@@ -1375,22 +1459,38 @@ def build_levelup_reaction_prompt(
     who = leveler_name
     if not is_bot:
         who = f"{leveler_name} (the real player)"
-    if leveler_desc:
-        who = f"{who}, a {leveler_desc},"
-
-    levelup_context = (
-        f"{who} just reached level {new_level}! "
-        f"Leveling up is always exciting. "
-        f"Congratulate or react to this milestone."
-    )
-
     if is_rp:
+        style_key = leveler_style or leveler_class
+        if style_key == 'Priest':
+            style_key = 'Light Priest'
+        growth = CLASS_GROWTH.get(style_key, "")
+        calling = " ".join(
+            p for p in (leveler_race, style_key) if p
+        )
+        levelup_context = (
+            f"{who}"
+            + (f", {_article(calling)} {calling}," if calling else "")
+            + " has just grown noticeably stronger"
+            + (f" in {growth}" if growth else "")
+            + "."
+        )
         style = (
-            "React in-character with genuine "
-            "excitement or congratulations. "
-            "Keep it natural and grounded."
+            "React in character, the way a companion "
+            "in the world would notice it; your "
+            "personality and tone decide how you take "
+            "it. Keep it natural and grounded."
         )
     else:
+        desc = leveler_desc or " ".join(
+            p for p in (leveler_race, leveler_class) if p
+        )
+        if desc:
+            who = f"{who}, {_article(desc)} {desc},"
+        levelup_context = (
+            f"{who} just reached level {new_level}! "
+            f"Leveling up is always exciting. "
+            f"Congratulate or react to this milestone."
+        )
         style = (
             "React naturally in party chat. "
             "Congratulate or comment on "
@@ -1416,8 +1516,14 @@ def build_levelup_reaction_prompt(
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
-        f"- Can mention level {new_level}\n"
-        "- Let your personality show in how you say it, "
+        + (
+            "- Never mention levels, numbers or the "
+            "word 'level'; people in the world do not "
+            "count levels\n"
+            if is_rp else
+            f"- Can mention level {new_level}\n"
+        )
+        + "- Let your personality show in how you say it, "
         f"without naming your traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
@@ -2189,6 +2295,8 @@ def build_player_response_prompt(
     memories=None,
     travel_context="",
     brief_casual=False,
+    guild_note="",
+    player_context="",
     thread_context="",
     backstory="",
     bg_context=None,
@@ -2281,6 +2389,8 @@ def build_player_response_prompt(
     prompt += (
         f"Your tone: {tone}\n"
     )
+    if guild_note:
+        prompt += f"{guild_note}\n"
     if twist:
         prompt += f"{TWIST_LABEL}: {twist}\n"
     if members:
@@ -2377,6 +2487,8 @@ def build_player_response_prompt(
                 )
 
     prompt += f"{rp_context}\n\n"
+    if player_context:
+        prompt += f"{player_context}\n\n"
     if link_context:
         prompt += f"{link_context}\n\n"
     thread_note = (
@@ -4164,6 +4276,8 @@ def build_player_msg_conversation_prompt(
     target_talent_context=None,
     zone_id=0, area_id=0, map_id=0,
     brief_casual=False,
+    guild_notes=None,
+    player_context="",
     thread_context="",
     bg_context=None,
 ):
@@ -4217,6 +4331,8 @@ def build_player_msg_conversation_prompt(
             f"player just said."
         )
 
+    if player_context:
+        parts.append(player_context)
     parts.append(
         f"\n{player_name} just said in party "
         f"chat:\n\"{player_message}\""
@@ -4256,6 +4372,7 @@ def build_player_msg_conversation_prompt(
     _append_bots_with_rp(
         parts, bots, traits_map, is_rp
     )
+    parts.extend(guild_notes or [])
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -4643,6 +4760,7 @@ def build_bot_question_prompt(
     area_id=0,
     stored_tone=None,
     memories=None,
+    player_context="",
 ):
     """Build prompt for a bot asking the player a
     creative, contextual question in party chat.
@@ -4667,6 +4785,17 @@ def build_bot_question_prompt(
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
+    if is_rp and player_context:
+        grouped_with = (
+            f"You are grouped with {player_name}.\n{player_context}\n"
+        )
+    else:
+        grouped_with = (
+            f"You are grouped with {player_name}, a level "
+            f"{player_level} "
+            f"{player_gender + ' ' if player_gender else ''}"
+            f"{player_race} {player_class} (real player).\n"
+        )
 
     # --------------------------------------------------
     # LEAN MEMORY PATH — when memories are present,
@@ -4725,12 +4854,7 @@ def build_bot_question_prompt(
                 f"moment by name so {player_name} "
                 f"would recognise it.\n"
                 f"</past_memories>\n\n"
-                f"You are grouped with "
-                f"{player_name}, a level "
-                f"{player_level} "
-                f"{player_gender + ' ' if player_gender else ''}"
-                f"{player_race} "
-                f"{player_class} (real player).\n\n"
+                f"{grouped_with}\n"
             )
             if solo_bot:
                 prompt += (
@@ -4900,11 +5024,7 @@ def build_bot_question_prompt(
 
     prompt += (
         f"{rp_context}\n\n"
-        f"You are grouped with {player_name}, "
-        f"a level {player_level} "
-        f"{player_gender + ' ' if player_gender else ''}"
-        f"{player_race} "
-        f"{player_class} (real player).\n"
+        f"{grouped_with}"
         f"You want to ask {player_name} about "
         f"{topic}.\n\n"
         f"Ask {player_name} ONE short, creative "

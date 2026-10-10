@@ -750,6 +750,11 @@ void CheckActiveHolidays()
     }
 }
 
+std::string GetZoneWeatherName(uint32 zoneId)
+{
+    return GetCachedWeatherName(zoneId);
+}
+
 static uint32 GetFaction(Player* player)
 {
     return player->GetTeamId();

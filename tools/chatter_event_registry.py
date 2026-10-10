@@ -1110,6 +1110,57 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         },
     ),
 
+    # -- Guild news (chatter_guild_events) --------
+
+    'guild_member_join': EventSpec(
+        handler_module='chatter_guild_events',
+        handler_func='process_guild_member_join_event',
+        producer='LLMChatterGuildMembers.cpp',
+        priority='normal',
+        description=(
+            'Guild bots react to new guild members'
+        ),
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'team': (str, False),
+            'members': (list, True),
+            'candidates': (list, True),
+        },
+    ),
+
+    'guild_rank_change': EventSpec(
+        handler_module='chatter_guild_events',
+        handler_func='process_guild_rank_change_event',
+        producer='LLMChatterGuildMembers.cpp',
+        description=(
+            'Guild bots comment on promotions and demotions'
+        ),
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'team': (str, False),
+            'changes': (list, True),
+            'candidates': (list, True),
+        },
+    ),
+
+    'guild_motd_comment': EventSpec(
+        handler_module='chatter_guild_events',
+        handler_func='process_guild_motd_comment_event',
+        producer='LLMChatterGuildMembers.cpp',
+        description=(
+            'Guild bots react to a new Message of the Day'
+        ),
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'team': (str, False),
+            'motd': (str, True),
+            'candidates': (list, True),
+        },
+    ),
+
     # -- Real General loot (chatter_loot) ---------
 
     'bot_loot_item': EventSpec(
@@ -1129,6 +1180,54 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'loot_source_guid': (str, False),
             'zone_id': (int, False),
             'area_id': (int, False),
+        },
+    ),
+
+    # -- Open-world PvP (chatter_guild_pvp_events) --
+
+    'guild_pvp_kill': EventSpec(
+        handler_module='chatter_guild_pvp_events',
+        handler_func='process_guild_pvp_kill_event',
+        producer='LLMChatterGuildPvP.cpp',
+        priority='normal',
+        description='Lone guild bot tells the guild about a PvP kill',
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'bot_guid': (int, True),
+            'bot_name': (str, True),
+            'victim_name': (str, True),
+            'victim_race': (str, False),
+            'victim_class': (str, False),
+        },
+    ),
+    'guild_pvp_death': EventSpec(
+        handler_module='chatter_guild_pvp_events',
+        handler_func='process_guild_pvp_death_event',
+        producer='LLMChatterGuildPvP.cpp',
+        priority='normal',
+        description='Guild bot killed by an enemy bot tells the guild',
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'bot_guid': (int, True),
+            'bot_name': (str, True),
+            'killer_name': (str, True),
+        },
+    ),
+    'zone_pvp_death': EventSpec(
+        handler_module='chatter_guild_pvp_events',
+        handler_func='process_zone_pvp_death_event',
+        producer='LLMChatterGuildPvP.cpp',
+        priority='normal',
+        description='Bot killed by an enemy bot speaks in zone General '
+                    'chat',
+        payload_fields={
+            'team': (str, True),
+            'bot_guid': (int, True),
+            'bot_name': (str, True),
+            'killer_name': (str, True),
+            'zone_id': (int, True),
         },
     ),
 
@@ -1244,6 +1343,60 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'previous_period': (str, True),
             'description': (str, True),
             'season': (str, False),
+        },
+    ),
+
+    # -- Guild world events (chatter_guild_world_events) --
+
+    'guild_meet_greeting': EventSpec(
+        handler_module='chatter_guild_world_events',
+        handler_func='process_guild_meet_greeting_event',
+        producer='LLMChatterGuildWorld.cpp',
+        priority='high',
+        description=(
+            'Guild bot waves and greets a guildmate it meets'
+        ),
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'bot_guid': (int, True),
+            'bot_name': (str, True),
+            'player_guid': (int, True),
+            'player_name': (str, True),
+            'zone_id': (int, False),
+            'guild_post_allowed': (bool, False),
+        },
+    ),
+
+    'guild_join_zone_announce': EventSpec(
+        handler_module='chatter_guild_world_events',
+        handler_func='process_guild_join_zone_announce_event',
+        producer='LLMChatterGuildWorld.cpp',
+        description=(
+            'New guild member tells General; zone bots react'
+        ),
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'bot_guid': (int, True),
+            'bot_name': (str, True),
+            'zone_id': (int, True),
+            'candidates': (list, False),
+        },
+    ),
+
+    'guild_npc_encounter': EventSpec(
+        handler_module='chatter_guild_world_events',
+        handler_func='process_guild_npc_encounter_event',
+        producer='LLMChatterGuildWorld.cpp',
+        priority='filler',
+        description='Guild bot tells the guild about a friendly NPC',
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'bot_guid': (int, True),
+            'bot_name': (str, True),
+            'npc_name': (str, True),
         },
     ),
 

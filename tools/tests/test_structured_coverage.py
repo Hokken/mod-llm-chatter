@@ -102,7 +102,7 @@ class CoverageTests(unittest.TestCase):
             if kind in ('thread', 'repair'):
                 self.assertEqual(category, kind)
         self.assertEqual(sum(kind == 'thread' for kind, _ in actual.values()), 6)
-        self.assertEqual(sum(kind == 'repair' for kind, _ in actual.values()), 4)
+        self.assertEqual(sum(kind == 'repair' for kind, _ in actual.values()), 5)
 
     def test_ambient_enabled_repair_reaches_real_shared_boundary(self):
         import test_guild_general_threads as fixture

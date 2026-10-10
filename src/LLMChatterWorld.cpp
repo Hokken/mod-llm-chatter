@@ -853,7 +853,8 @@ private:
                 R"("participants":{},)"
                 R"("guildmates":"{}",)"
                 R"("team":"{}",)"
-                R"("zone_id":{}}})",
+                R"("zone_id":{},)"
+                R"("weather":"{}"}})",
                 guildId,
                 JsonEscape(guildName),
                 JsonEscape(speaker->GetName()),
@@ -863,7 +864,9 @@ private:
                 participantsJson,
                 JsonEscape(mates),
                 teamName,
-                speaker->GetZoneId());
+                speaker->GetZoneId(),
+                JsonEscape(GetZoneWeatherName(
+                    speaker->GetZoneId())));
 
             std::string cooldownKey =
                 "guild_idle_"

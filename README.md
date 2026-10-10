@@ -446,10 +446,13 @@ docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
 
 **4. Load talent data (optional)**
 
-Populates talent and spell lookup tables that give the LLM richer context
-about each bot's specialization. Worldserver treats `talenttab_dbc` rows as
-runtime DBC overrides, so the included masks and ordering match the WotLK
-3.3.5a client DBC.
+Populates the `talenttab_dbc` and talent `spell_dbc` rows. Worldserver
+treats `talenttab_dbc` rows as runtime DBC overrides, so the included masks
+and ordering match the WotLK 3.3.5a client DBC. The bridge does not need this
+step for talent-aware prompts: it maps each character's talents to trees with
+the bundled `tools/talent_data.json` (regenerate it with
+`tools/generate_talent_data.py` from the client `Talent.dbc` and
+`TalentTab.dbc`).
 
 ```bash
 docker exec -i ac-database mysql -uroot -ppassword acore_world < \
@@ -496,10 +499,13 @@ python llm_chatter_bridge.py --config /path/to/mod_llm_chatter.conf
 
 **5. Load talent data (optional)**
 
-Populates talent and spell lookup tables that give the LLM richer context
-about each bot's specialization. Worldserver treats `talenttab_dbc` rows as
-runtime DBC overrides, so the included masks and ordering match the WotLK
-3.3.5a client DBC.
+Populates the `talenttab_dbc` and talent `spell_dbc` rows. Worldserver
+treats `talenttab_dbc` rows as runtime DBC overrides, so the included masks
+and ordering match the WotLK 3.3.5a client DBC. The bridge does not need this
+step for talent-aware prompts: it maps each character's talents to trees with
+the bundled `tools/talent_data.json` (regenerate it with
+`tools/generate_talent_data.py` from the client `Talent.dbc` and
+`TalentTab.dbc`).
 
 ```bash
 mysql -uroot -ppassword acore_world < \
@@ -725,6 +731,15 @@ docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20260926_duel_events.sql
 
 docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20261002_guild_member_events.sql
+
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20261002_guild_world_events.sql
+
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20261002_guild_pvp_events.sql
+
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20261002_themed_topic_audience.sql
 
 # Non-Docker
@@ -790,6 +805,15 @@ mysql -uroot -ppassword acore_characters < \
 
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260926_duel_events.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20261002_guild_member_events.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20261002_guild_world_events.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20261002_guild_pvp_events.sql
 
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20261002_themed_topic_audience.sql
