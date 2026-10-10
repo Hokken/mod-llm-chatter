@@ -1866,6 +1866,9 @@ DEFAULT_BRIEF_CASUAL_TIER = 'short'
 _BRIEF_CASUAL_TIER_ORDER = ('tiny', 'short', 'relaxed')
 
 
+_FIRST_SENTENCE = re.compile(r'^(.+?[.!?])(?=\s|$)', re.S)
+
+
 def _brief_casual_limits(
     tier: Optional[str],
 ) -> Tuple[int, int, int]:
@@ -1983,19 +1986,25 @@ def bound_brief_casual_response(
     fallback_emote: Optional[str] = None,
     tier: Optional[str] = None,
 ) -> Tuple[str, Optional[str]]:
-    """Bound a usable brief response instead of discarding it."""
+    """Keep a usable brief response instead of discarding it.
+
+    A reply that runs over its length band is never cut mid-sentence:
+    its first complete sentence is kept when that fits the band,
+    otherwise the reply is delivered whole (only the chat limit applies).
+    """
     if brief_casual_response_fits(message, emote, tier):
         return message, emote
-    _, hi, chars = _brief_casual_limits(tier)
     source = (
         str(message or '').strip()
         or str(fallback_message or '').strip()
     )
-    first_words = ' '.join(source.split()[:hi])
-    return (
-        shorten_chat_message(first_words, chars),
-        emote or fallback_emote,
-    )
+    emote = emote or fallback_emote
+    match = _FIRST_SENTENCE.match(source)
+    if match:
+        first = match.group(1).strip()
+        if brief_casual_response_fits(first, None, tier):
+            return first, emote
+    return shorten_chat_message(source), emote
 
 
 def build_brief_casual_repair_prompt(

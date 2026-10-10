@@ -2864,8 +2864,10 @@ LLMChatter.GuildChatter.RankChange.SubjectReplyChance = 70
 
 #
 #   LLMChatter.GuildChatter.MemberEvents.MaxCharacters
-#       Hard character cap for each join, rank-change and
-#       MOTD comment. Supported range is 40-150.
+#       Length the prompt asks for in each Guild event line (joins,
+#       rank changes, MOTD comments, world events, PvP). A line that
+#       runs over it is delivered whole, never cut mid-sentence.
+#       Supported range is 40-150.
 #       Default: 120
 #
 LLMChatter.GuildChatter.MemberEvents.MaxCharacters = 120
@@ -2972,7 +2974,9 @@ LLMChatter.GuildChatter.LoginGreeting.PlayerNameChance = 60
 
 #
 #   LLMChatter.GuildChatter.LoginGreeting.MaxCharacters
-#       Hard character cap for each short greeting.
+#       Length the prompt asks for in each short greeting. A
+#       greeting that runs over it is delivered whole, never cut
+#       mid-sentence.
 #       Supported range is 40-150.
 #       Default: 100
 #

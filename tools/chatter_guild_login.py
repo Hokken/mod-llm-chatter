@@ -39,7 +39,7 @@ from chatter_shared import (
     parse_conversation_response,
     parse_extra_data,
 )
-from chatter_text import parse_single_response
+from chatter_text import parse_single_response, shorten_chat_message
 
 logger = logging.getLogger(__name__)
 
@@ -89,29 +89,18 @@ def _max_characters(config: Dict) -> int:
     ), 100)))
 
 
-def _trim_greeting(text: str, maximum: int) -> str:
-    text = " ".join(str(text or '').split())
-    if len(text) <= maximum:
-        return text
+def _trim_greeting(text: str) -> str:
+    """Normalize whitespace and deliver the greeting intact.
 
-    shortened = text[:maximum - 1].rsplit(' ', 1)[0]
-    shortened = shortened.rstrip(' ,;:-')
-    if not shortened:
-        return ""
-    if shortened[-1] not in '.!?':
-        shortened += '.'
-    return shortened
+    LoginGreeting.MaxCharacters steers the length in the prompt; a line
+    that runs over it is never cut mid-sentence. Only the client's chat
+    limit is enforced, keeping whole sentences.
+    """
+    return shorten_chat_message(" ".join(str(text or '').split()))
 
 
-def _clean_greeting(
-    text: str,
-    speaker_name: str,
-    maximum: int,
-) -> str:
-    return _trim_greeting(
-        _clean_single(text, speaker_name),
-        maximum,
-    )
+def _clean_greeting(text: str, speaker_name: str) -> str:
+    return _trim_greeting(_clean_single(text, speaker_name))
 
 
 def _choose_responder_count(
@@ -377,7 +366,6 @@ def _generate_single(
             response or ''
         ).get('message', ''),
         participant['name'],
-        maximum,
     )
     if not text:
         repair_metadata = dict(metadata)
@@ -405,7 +393,6 @@ def _generate_single(
                 response or ''
             ).get('message', ''),
             participant['name'],
-            maximum,
         )
     if not text:
         return []
@@ -500,7 +487,6 @@ def _generate_multi(
     for message in messages:
         message['message'] = _trim_greeting(
             message.get('message', ''),
-            maximum,
         )
     return [
         message for message in messages
@@ -697,7 +683,6 @@ def process_guild_login_greeting_event(
                 messages[0].get('message', ''),
                 [player_name],
             ),
-            maximum,
         )
 
     if not messages:

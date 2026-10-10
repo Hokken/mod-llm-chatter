@@ -541,19 +541,36 @@ def test_guild_news_never_outranks_player_replies():
         assert EVENT_REGISTRY[event_type].priority == 'normal'
 
 
+def test_event_lines_are_delivered_intact():
+    # Seen in game: a 140-character NPC remark was cut at 120 and ended
+    # "Worth a visit if." Lines over the prompt's length are kept whole.
+    line = ("Haferet's leatherworking stall in the Exodar has decent hide, "
+            "though the prices feel like a curse. Worth a visit if you're "
+            "patient, friends.")
+    assert common.trim_line(line) == line
+    assert common.trim_line("  Spaced \n  out   line. ") == 'Spaced out line.'
+
+
+def test_only_the_chat_limit_is_enforced_at_a_sentence_end():
+    first = 'A' * 150 + ' rests here.'
+    second = ' Then ' + 'b' * 150 + ' goes on.'
+    trimmed = common.trim_line(first + second)
+    assert trimmed == first
+    assert len(trimmed) <= 255
+
+
 def test_trimmed_lines_never_split_links():
     colored = ('|cff1eff00|Hitem:12345:0:0:0:0:0:0:0|h'
                '[Fine Guild Reward]|h|r')
     bare = '|Hitem:12345:0:0:0:0:0:0:0|h[Fine Guild Reward]|h'
     for link in (colored, bare):
         text = f'Take a look at {link} before deciding.'
-        # The limit lands inside the link label.
-        cut = text.index('Guild Reward') + 3
-        assert common.trim_line(text, cut) == 'Take a look at.'
-        whole = common.trim_line(text, len(text) - 5)
-        assert link in whole
-    placeholder = 'Take a look at {item:Fine Guild Reward} before deciding.'
-    assert common.trim_line(placeholder, 30) == 'Take a look at.'
+        assert link in common.trim_line(text)
+        # Past the chat limit the link still stays whole or goes whole.
+        long_text = 'Word ' * 40 + text + ' ' + 'more ' * 20
+        trimmed = common.trim_line(long_text)
+        assert len(trimmed) <= 255
+        assert link in trimmed or '|H' not in trimmed
 
 
 def test_sql_adds_guild_news_event_types():

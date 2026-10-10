@@ -387,20 +387,19 @@ def test_multi_greeting_inserts_native_guild_rows():
     complete.assert_called_once_with(db, 91)
 
 
-def test_long_greeting_is_trimmed_at_word_boundary():
+def test_long_greeting_is_delivered_intact():
+    # The prompt's MaxCharacters steers length; a greeting that runs over
+    # it is never cut mid-sentence.
     text = (
         "Welcome back to the guild, Calwen, may your "
         "travels across distant lands bring honor and "
         "many remarkable stories to us all."
     )
-    trimmed = chatter_guild_login._trim_greeting(
-        text,
-        60,
-    )
-
-    assert len(trimmed) <= 60
-    assert trimmed.endswith('.')
-    assert "travels" in trimmed
+    assert chatter_guild_login._trim_greeting(text) == text
+    first = 'Welcome back, ' + 'friend ' * 20 + 'of the guild.'
+    long_text = first + ' ' + 'And ' + 'more ' * 30 + 'words.'
+    trimmed = chatter_guild_login._trim_greeting(long_text)
+    assert trimmed == first and len(trimmed) <= 255
 
 
 if __name__ == '__main__':

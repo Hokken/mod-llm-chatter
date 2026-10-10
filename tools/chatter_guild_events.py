@@ -132,7 +132,7 @@ def _ensure_first_names(
     if all(_contains_speaker_name(first, name) for name in names):
         return
     messages[0]['message'] = trim_line(
-        _insert_reference_names(first, names), maximum,
+        _insert_reference_names(first, names),
     )
 
 

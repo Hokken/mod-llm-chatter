@@ -26,7 +26,7 @@ from chatter_shared import (
     parse_conversation_response,
     structured_output_enabled,
 )
-from chatter_text import _link_safe_cut, parse_single_response
+from chatter_text import parse_single_response, shorten_chat_message
 
 logger = logging.getLogger(__name__)
 
@@ -62,23 +62,15 @@ def max_characters(
     )))
 
 
-def trim_line(text: str, maximum: int) -> str:
-    text = " ".join(str(text or '').split())
-    if len(text) <= maximum:
-        return text
-    # Never cut through a WoW link or {item:...} placeholder: the client
-    # drops or garbles a partial link.
-    end = _link_safe_cut(text, maximum - 1)
-    if end == maximum - 1:
-        space = text.rfind(' ', 0, end)
-        if space > 0:
-            end = _link_safe_cut(text, space)
-    shortened = text[:end].rstrip(' ,;:-')
-    if not shortened:
-        return ""
-    if shortened[-1] not in '.!?':
-        shortened += '.'
-    return shortened
+def trim_line(text: str) -> str:
+    """Normalize whitespace and deliver the line intact.
+
+    Like idle Guild and General chat, length is steered by the prompt
+    (MemberEvents.MaxCharacters); a line that runs over it is never cut
+    mid-sentence. Only the client's chat limit is enforced, keeping whole
+    sentences and never splitting a WoW link.
+    """
+    return shorten_chat_message(" ".join(str(text or '').split()))
 
 
 def base_lines(
@@ -243,7 +235,6 @@ def run_single_prompt(
                 parse_single_response(response or '').get('message', ''),
                 speaker_name,
             ),
-            maximum,
         )
 
     text = _parse(call_llm(
@@ -329,9 +320,7 @@ def run_multi_prompt(
         return []
 
     for message in messages:
-        message['message'] = trim_line(
-            message.get('message', ''), maximum,
-        )
+        message['message'] = trim_line(message.get('message', ''))
     if not all(message.get('message') for message in messages):
         return []
     return messages

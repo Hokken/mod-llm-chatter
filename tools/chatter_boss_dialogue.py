@@ -24,6 +24,7 @@ from chatter_shared import (
 from chatter_text import (
     cleanup_message,
     parse_single_response,
+    shorten_chat_message,
     strip_speaker_prefix,
 )
 
@@ -319,8 +320,8 @@ def handle_boss_dialogue(db, client, config, event):
     ):
         _mark_event(db, event_id, 'skipped')
         return False
-    if len(message) > 180:
-        message = message[:177] + '...'
+    # Never cut the yell mid-sentence: only the chat limit applies.
+    message = shorten_chat_message(message)
 
     insert_chat_message(
         db,

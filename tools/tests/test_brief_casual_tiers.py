@@ -73,7 +73,13 @@ def test_fits_and_bound_follow_the_tier():
     assert not brief_casual_response_fits(line, tier='tiny')
     assert not brief_casual_response_fits(line)
     assert brief_casual_response_fits(line, tier='relaxed')
+    # No complete sentence fits: the reply is delivered whole, not cut.
     bounded, _ = bound_brief_casual_response(line, tier='tiny')
+    assert bounded == line
+    # A complete first sentence that fits the band is kept.
+    two = 'Docks, friend. Auberdine has decent beds down by the water.'
+    bounded, _ = bound_brief_casual_response(two, tier='tiny')
+    assert bounded == 'Docks, friend.'
     assert brief_casual_response_fits(bounded, tier='tiny')
 
 

@@ -3010,11 +3010,11 @@ def execute_player_msg_conversation(
         messages = _bound_brief_player_conversation(
             messages, brief_fallback_messages
         )
+        # A line that runs over its band is kept whole, not cut, so only
+        # an empty line (with no emote either) is unusable.
         if not all(
-            brief_casual_response_fits(
-                str(message.get('message') or ''),
-                message.get('emote'),
-            )
+            str(message.get('message') or '').strip()
+            or message.get('emote')
             for message in messages
         ):
             return False

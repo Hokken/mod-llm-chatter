@@ -3970,7 +3970,7 @@ bots must not invent details beyond it.
 | `MotdComment.DelaySeconds` | 20 | Server | Wait after the change |
 | `MotdComment.MaxResponders` | 2 | Bridge | Commenting bots (1-3) |
 | `MemberEvents.MaxCandidates` | 12 | Server | Live candidate cap |
-| `MemberEvents.MaxCharacters` | 120 | Bridge | Per-line hard cap |
+| `MemberEvents.MaxCharacters` | 120 | Bridge | Length the prompt asks for |
 | `MemberEvents.MaxDeferSeconds` | 300 | Server | Longest wait behind a player conversation |
 
 Guild news never lands in a real player's Guild conversation. While a
@@ -3980,9 +3980,12 @@ wait in `LLMChatterGuildMembers.cpp` and are dropped once they have waited
 `MemberEvents.MaxDeferSeconds` since the news happened (`0` drops them at
 once). Lines already queued when the player starts talking are dropped at
 delivery (`IsGuildNewsEventType()`, drop reason `guild_player_active`).
-The events use the default priority, below replies to the player. Lines
-are shortened with the link-safe cut, so item links and `{item:...}`
-placeholders are never split.
+The events use the default priority, below replies to the player. The
+length is steered by the prompt (`MemberEvents.MaxCharacters`), and a
+line that runs over it is delivered whole, never cut mid-sentence; only
+the client's chat limit is enforced, at a sentence end, and item links
+are never split. The other Guild event lines (world events and PvP)
+share this handling.
 
 All keys are under `LLMChatter.GuildChatter.`. Existing installations must
 apply `data/sql/characters/updates/20261002_guild_member_events.sql`

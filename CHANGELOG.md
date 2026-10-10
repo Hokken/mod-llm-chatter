@@ -1,5 +1,19 @@
 # Changelog
 
+### 2026-10-10 - No Truncated Chat Lines
+
+* **Whole lines**: Guild event lines (member events, NPC remarks, meet
+  follow-ups, PvP) and Guild login greetings are no longer cut at their
+  character target. The length is asked for in the prompt and a line that
+  runs over it is delivered whole; only the client's 255-character chat
+  limit is enforced, at a sentence end, and item links are never split.
+* **Boss and NPC yells**: Long proximity yells keep whole sentences instead
+  of being cut at 177 characters with "...".
+* **Brief party replies**: A reply that overshoots its brief length band
+  keeps its first complete sentence when that fits, otherwise it is
+  delivered whole rather than cut to a few words. A long line no longer
+  drops a brief party conversation.
+
 ### 2026-10-10 - Faction From the Race ID in One Place
 
 * **One faction list**: A race's faction is now decided from its race ID
