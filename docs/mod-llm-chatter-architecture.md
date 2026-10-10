@@ -1030,6 +1030,8 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterNearby.cpp` | 691 | Nearby-object and nearby-creature scanning, POI scoring, nearby direct event queueing, nearby-local cooldowns |
 | `src/LLMChatterNearby.h` | 6 | Narrow nearby scan declaration consumed by `LLMChatterWorld.cpp` |
 | `src/LLMChatterWorld.cpp` | ~1000 | WorldScript ownership, thin ambient/nearby/delivery/proximity/boss delegation, transport polling and route announcements, transport-private state, retained world-private `QueueEvent()` helper |
+| `src/LLMChatterGuildWorld.cpp/.h` | ~650 | Guild world events: own `GuildScript` (bot joins) and `WorldScript` (world scan), meet greetings with the reply hold, NPC encounters with visibility and line-of-sight checks, General join announcements, and the delivery-time meet checks and follow-up release used by `LLMChatterDelivery.cpp` |
+| `src/LLMChatterAudience.cpp/.h` | ~75 | Online real players (never playerbots) in a zone or guild: `CollectRealPlayers*()` and `PickRealPlayerInZone()` / `PickRealGuildMember()` |
 | `src/LLMChatterGuild.cpp` | ~750 | Player-driven Guild Chat capture, per-login session lifecycle, deferred login greetings, eligible-bot selection, stale-turn cancellation, recent-interaction suppression, and delivered-line history writes |
 | `src/LLMChatterGuild.h` | ~20 | Guild registration and delivery/world cross-call declarations |
 | `src/LLMChatterGuildMembers.cpp` | ~660 | Guild news events: own `GuildScript` (join, promotion, demotion, MOTD) and `WorldScript` flush, join batching, rank-change debounce, MOTD delay, and event queueing |
@@ -1068,6 +1070,7 @@ Session 69 added two scheduling controls around that model:
 - `AddLLMChatterGuildMemberScripts()`
 - `AddLLMChatterGroupScripts()`
 - `AddLLMChatterPlayerScripts()`
+- `AddLLMChatterGuildWorldScripts()`
 - `AddLLMChatterLootScripts()`
 - `AddLLMChatterBGScripts()`
 - `AddLLMChatterRaidScripts()`
@@ -1098,6 +1101,8 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_guild_events.py` | Join greetings, rank-change comments and MOTD comments |
 | `tools/chatter_guild_event_common.py` | Shared guild event prompts, speaker-order validation, generation and delivery |
 | `tools/chatter_guild_player.py` | Player-driven Guild replies, reply topology, session-context prompts, and rolling summary compaction |
+| `tools/chatter_guild_world_events.py` | Meet greetings and their held Guild follow-up, NPC encounters, and General join announcements |
+| `tools/chatter_guild_event_common.py` | Shared guild event prompts, speaker-order validation, generation and delivery |
 | `tools/chatter_guild_login.py` | Real-player login greetings, responder selection, short-message prompts, and greeting pacing |
 | `tools/chatter_guild_profile.py` | Guild profile (Guild Information, MOTD, ranks, Guild Master), character guild lookups, guildmate notes and MOTD wording |
 | `tools/chatter_player_context.py` | Description of the real player (race outlook, class calling) for prompts that address them |

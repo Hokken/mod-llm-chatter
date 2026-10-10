@@ -19,6 +19,13 @@ void NoteGuildPlayerInteraction(uint32 guildId);
 bool WasGuildPlayerInteractionRecent(
     uint32 guildId, uint32 seconds);
 
+// A real player's own Guild message, or a delivered reply to one. The
+// login welcome counts as interaction above but not as conversation.
+void NoteGuildPlayerConversation(uint32 guildId);
+
+bool WasGuildPlayerConversationRecent(
+    uint32 guildId, uint32 seconds);
+
 void UpdatePendingGuildLoginGreetings();
 
 void RecordDeliveredGuildLine(

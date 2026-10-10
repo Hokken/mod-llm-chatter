@@ -1016,6 +1016,98 @@ void LLMChatterConfig::LoadConfig()
                     "LLMChatter.GuildChatter."
                     "MaxParticipants", 3),
                 3u));
+    _guildMeetGreetingEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter."
+            "MeetGreeting.Enable", true);
+    _guildMeetGreetingRadius =
+        std::max(
+            5u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "MeetGreeting.Radius", 25),
+                60u));
+    // Capped at 24: finished events, which carry the cooldown across
+    // restarts, are pruned after 24 hours.
+    _guildMeetGreetingCooldownHours =
+        std::max(
+            1u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "MeetGreeting.CooldownHours", 5),
+                24u));
+    _guildMeetFollowUpDelayMin =
+        std::max(
+            1u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "MeetGreeting.FollowUpDelayMin", 8),
+                120u));
+    _guildMeetFollowUpDelayMax =
+        std::max(
+            _guildMeetFollowUpDelayMin,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "MeetGreeting.FollowUpDelayMax", 15),
+                120u));
+    _guildWorldScanInterval =
+        std::max(
+            5u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "WorldScanInterval", 10),
+                300u));
+    _guildJoinZoneAnnounceEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter."
+            "JoinZoneAnnounce.Enable", true);
+    _guildJoinZoneAnnounceChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "JoinZoneAnnounce.Chance", 35),
+            100u);
+    _guildJoinZoneAnnounceDelaySeconds =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "JoinZoneAnnounce.DelaySeconds", 8),
+            60u);
+    _guildNpcEncounterEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GuildChatter."
+            "NpcEncounter.Enable", true);
+    _guildNpcEncounterChance =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "NpcEncounter.Chance", 4),
+            100u);
+    _guildNpcEncounterRadius =
+        std::max(
+            5u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "NpcEncounter.Radius", 30),
+                80u));
+    _guildNpcEncounterCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter."
+            "NpcEncounter.Cooldown", 1200);
+    _guildNpcEncounterPairCooldownHours =
+        std::max(
+            1u,
+            std::min(
+                GetChatterOption<uint32>(
+                    "LLMChatter.GuildChatter."
+                    "NpcEncounter.PairCooldownHours", 6),
+                168u));
     _guildPlayerRepliesEnable =
         GetChatterOption<bool>(
             "LLMChatter.GuildChatter."

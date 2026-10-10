@@ -9,6 +9,7 @@
 #include "LLMChatterDelivery.h"
 #include "LLMChatterBGDelivery.h"
 #include "LLMChatterGuild.h"
+#include "LLMChatterGuildWorld.h"
 #include "LLMChatterProximity.h"
 #include "LLMChatterProximityFight.h"
 #include "LLMChatterReplyHold.h"
@@ -640,6 +641,21 @@ void DeliverPendingMessagesImpl()
         }
     }
 
+    // Guild filler rows give way to a live player conversation in
+    // that guild (not to the login welcome).
+    if (bot && ownerSubsystem == "guild"
+        && deliveryPolicy == "filler"
+        && WasGuildPlayerConversationRecent(
+            bot->GetGuildId(),
+            sLLMChatterConfig
+                ->_guildPlayerIdleSuppressionSeconds))
+    {
+        FinalizeDroppedMessage(
+            messageId, eventId, sequence,
+            eventType, "guild_conversation_active");
+        return;
+    }
+
     // Only mark delivered after a successful
     // send (or if the bot is unavailable and
     // retrying would not help).
@@ -654,6 +670,47 @@ void DeliverPendingMessagesImpl()
             : !bot || !bot->IsInWorld();
     std::string dropReason = botUnavailable
         ? "speaker_unavailable" : "";
+
+    // A meet greeting is only spoken while the guildmate is still
+    // close, visible and in line of sight, and both are still in the
+    // guild they met as.
+    uint32 meetGuildId = eventType == "guild_meet_greeting"
+        ? ExtractJsonUInt(eventExtraData, "guild_id") : 0;
+    if (eventType == "guild_meet_greeting" && channel == "say")
+    {
+        if (char const* meetDrop =
+                CheckMeetGreetingDelivery(bot, playerGuid, meetGuildId))
+        {
+            if (DeferMeetGreeting(messageId, meetDrop))
+            {
+                replyHold.Keep();
+                return;
+            }
+            LOG_INFO("module",
+                "LLMChatter: guild_meet_greeting message {} "
+                "(event {}) dropped: {}",
+                messageId, eventId, meetDrop);
+            FinalizeDroppedMessage(
+                messageId, eventId, sequence,
+                eventType, meetDrop);
+            SettleMeetGreetingFollowUp(eventId, false);
+            return;
+        }
+    }
+    // The Guild follow-up goes to bot->GetGuild(): never to a guild
+    // other than the one the meeting was about.
+    if (eventType == "guild_meet_greeting" && channel == "guild"
+        && bot && bot->GetGuildId() != meetGuildId)
+    {
+        LOG_INFO("module",
+            "LLMChatter: guild_meet_greeting follow-up {} "
+            "(event {}) dropped: meet_guild_changed",
+            messageId, eventId);
+        FinalizeDroppedMessage(
+            messageId, eventId, sequence,
+            eventType, "meet_guild_changed");
+        return;
+    }
 
     ObjectGuid playerObjGuid =
         ObjectGuid::Create<HighGuid::Player>(
@@ -1630,4 +1687,10 @@ void DeliverPendingMessagesImpl()
             "WHERE id = {}",
             messageId);
     }
+
+    // After the greeting row is final, so the bridge can tell whether
+    // a follow-up it holds still needs settling.
+    if (eventType == "guild_meet_greeting" && channel == "say"
+        && (sent || botUnavailable))
+        SettleMeetGreetingFollowUp(eventId, sent);
 }

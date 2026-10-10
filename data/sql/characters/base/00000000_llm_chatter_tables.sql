@@ -87,6 +87,9 @@ CREATE TABLE IF NOT EXISTS `llm_chatter_events` (
         'guild_login_greeting',
         'bot_group_duel_start',
         'bot_group_duel_end',
+        'guild_meet_greeting',
+        'guild_join_zone_announce',
+        'guild_npc_encounter',
         'guild_member_join',
         'guild_rank_change',
         'guild_motd_comment'

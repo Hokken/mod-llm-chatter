@@ -630,8 +630,12 @@ def insert_chat_message(
     addressee_player_guid: int = None,
     addressee_bot_guid: int = None,
     addressee_npc_spawn_id: int = None,
+    held: bool = False,
 ):
     """Insert a message into llm_chatter_messages.
+
+    held=True stores the row with no deliver_at, so delivery never
+    picks it up until something releases it (sets deliver_at).
 
     Centralised helper replacing individual INSERT
     statements across the codebase. Handles the emote
@@ -711,7 +715,8 @@ def insert_chat_message(
          addressee_npc_spawn_id)
         VALUES (
             %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, 0,
-            DATE_ADD(NOW(), INTERVAL %s SECOND),
+            CASE WHEN %s THEN NULL
+                 ELSE DATE_ADD(NOW(), INTERVAL %s SECOND) END,
             %s, %s, %s, %s, %s, %s
         )
     """, (
@@ -719,7 +724,7 @@ def insert_chat_message(
         bot_guid, bot_name, message,
         validate_emote(emote), action, npc_spawn_id,
         player_guid, channel, owner_subsystem,
-        int(final_delay),
+        1 if held else 0, int(final_delay),
         group_id, delivery_policy, delivery_reason,
         addressee_player_guid, addressee_bot_guid,
         addressee_npc_spawn_id,
@@ -1707,8 +1712,12 @@ def cleanup_all_session_data(db):
         cursor.execute(
             "DELETE FROM llm_chatter_messages"
         )
+        # Finished meet greetings are the persisted cooldown for
+        # guild_meet_greeting (IsPersistedEventOnCooldown).
         cursor.execute(
-            "DELETE FROM llm_chatter_events"
+            "DELETE FROM llm_chatter_events "
+            "WHERE event_type <> 'guild_meet_greeting' "
+            "OR status IN ('pending', 'processing')"
         )
         db.commit()
         try:
