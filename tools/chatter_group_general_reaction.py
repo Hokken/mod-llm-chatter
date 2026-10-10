@@ -23,7 +23,7 @@ from chatter_group_state import (
     format_chat_history,
     get_group_player_name,
 )
-from chatter_guild_profile import get_character_guild_name
+from chatter_guild_profile import get_character_guild_name, guild_suffix
 from chatter_mode import (
     build_player_chat_guidance,
     build_player_prompt_header_from_dict,
@@ -580,6 +580,7 @@ def _build_conversation_prompt(
         line = (
             f"- {bot['name']}: level {bot['level']} "
             f"{bot['race']} {bot['class']}"
+            f"{guild_suffix(bot.get('guild_name', ''))}"
         )
         if traits:
             line += f"; traits: {traits}"

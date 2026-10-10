@@ -659,6 +659,23 @@ def test_config_defaults():
 
 
 
+def test_party_relay_conversation_roster_names_guilds():
+    import chatter_group_general_reaction as relay
+
+    base = {'level': 31, 'race': 'Human', 'class': 'Rogue',
+            'trait1': 'humble'}
+    prompt = relay._build_conversation_prompt(
+        [dict(base, guid=1, name='Leneve', guild_name='Red Death'),
+         dict(base, guid=2, name='Zerinaya', guild_name='')],
+        {'name': 'Leemlis', 'race': 'Gnome', 'class': 'Mage'},
+        'Fate always collects.', 'Karaez', '', 'roleplay',
+        {'dungeon_flavor': '', 'zone_flavor': '', 'subzone_lore': ''},
+    )
+    assert ('- Leneve: level 31 Human Rogue of the guild "Red Death"'
+            in prompt)
+    assert '- Zerinaya: level 31 Human Rogue; traits' in prompt
+
+
 def test_player_description_is_neutral_for_npc_prompts():
     normal = pc.player_character_lines(
         None, 0, 'Lyn', 'normal', race='Human', class_name='Mage',

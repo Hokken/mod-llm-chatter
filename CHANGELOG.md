@@ -1,5 +1,12 @@
 # Changelog
 
+### 2026-10-10 - Guild Names in Party Relay Conversations
+
+* **Party relay conversations**: When several party bots discuss a line
+  they heard in General, the speaker roster now names each bot's guild
+  (`of the guild "Red Death"`), like the other party prompts. The guild
+  was already loaded for these bots but never shown.
+
 ### 2026-10-10 - Guild Identity and Context
 
 * **Guild Information and MOTD**: Every Guild prompt quotes the guild's
