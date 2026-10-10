@@ -244,6 +244,11 @@ void FinalizeDroppedMessage(
     if (!eventId || !IsDirectedProximityEvent(eventType))
         return;
 
+    LOG_INFO("module",
+        "LLMChatter: directed {} message {} (event {}) dropped: {}",
+        eventType, messageId, eventId,
+        reason ? reason : "delivery_failed");
+
     // The rest of the scene is cancelled, so its speakers owe no reply.
     if (QueryResult held = CharacterDatabase.Query(
             "SELECT m.bot_guid, e.extra_data "
@@ -1160,7 +1165,18 @@ void DeliverPendingMessagesImpl()
                 WorldSession* session =
                     bot->GetSession();
 
-                if (guild && session)
+                // Guild news queued before the player started
+                // talking must not land in the conversation.
+                if (guild && IsGuildNewsEventType(eventType)
+                    && WasGuildPlayerInteractionRecent(
+                        guild->GetId(),
+                        sLLMChatterConfig
+                            ->_guildPlayerIdleSuppressionSeconds))
+                {
+                    botUnavailable = true;
+                    dropReason = "guild_player_active";
+                }
+                else if (guild && session)
                 {
                     emitAction();
                     guild->BroadcastToGuild(

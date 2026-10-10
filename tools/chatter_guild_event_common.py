@@ -26,7 +26,7 @@ from chatter_shared import (
     parse_conversation_response,
     structured_output_enabled,
 )
-from chatter_text import parse_single_response
+from chatter_text import _link_safe_cut, parse_single_response
 
 logger = logging.getLogger(__name__)
 
@@ -66,8 +66,14 @@ def trim_line(text: str, maximum: int) -> str:
     text = " ".join(str(text or '').split())
     if len(text) <= maximum:
         return text
-    shortened = text[:maximum - 1].rsplit(' ', 1)[0]
-    shortened = shortened.rstrip(' ,;:-')
+    # Never cut through a WoW link or {item:...} placeholder: the client
+    # drops or garbles a partial link.
+    end = _link_safe_cut(text, maximum - 1)
+    if end == maximum - 1:
+        space = text.rfind(' ', 0, end)
+        if space > 0:
+            end = _link_safe_cut(text, space)
+    shortened = text[:end].rstrip(' ,;:-')
     if not shortened:
         return ""
     if shortened[-1] not in '.!?':

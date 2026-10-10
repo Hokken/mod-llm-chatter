@@ -19,6 +19,7 @@ void AddLLMChatterScripts()
 {
     AddLLMChatterWorldScripts();
     AddLLMChatterGuildScripts();
+    AddLLMChatterGuildMemberScripts();
     AddLLMChatterGroupScripts();
     AddLLMChatterPlayerScripts();
     AddLLMChatterGuildWorldScripts();

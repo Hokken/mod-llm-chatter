@@ -39,6 +39,11 @@ from chatter_shared import (
     is_pvp_enemy,
     is_pvp_identity_known,
 )
+from chatter_guild_profile import (
+    get_character_guild_name,
+    same_guild_note,
+)
+from chatter_player_context import player_context_text
 from chatter_db import (
     fail_event,
     get_group_location,
@@ -112,6 +117,7 @@ from chatter_handler_pipeline import (
     _build_bot_from_db,
     _maybe_talent_context,
 )
+from chatter_class_style import class_style
 from chatter_memory import queue_memory
 from chatter_bg_prompts import (
     build_bg_achievement_prompt,
@@ -722,6 +728,15 @@ def _levelup_post_success(db, ctx, message):
     new_level = ctx['new_level']
     is_bot = ctx['is_bot']
     leveler_guid = ctx['leveler_guid']
+    is_rp = ctx['mode'] == 'roleplay'
+    other_context = (
+        f"{leveler_name} grew noticeably stronger"
+        if is_rp else f"{leveler_name} reached level {new_level}"
+    )
+    self_context = (
+        "I felt myself grow noticeably stronger"
+        if is_rp else f"I reached level {new_level}"
+    )
 
     mem_chance = int(config.get(
         'LLMChatter.Memory'
@@ -732,10 +747,7 @@ def _levelup_post_success(db, ctx, message):
             config, group_id,
             reactor_guid, 0,
             memory_type='level_up',
-            event_context=(
-                f"{leveler_name} reached"
-                f" level {new_level}"
-            ),
+            event_context=other_context,
             bot_name=reactor_name,
             bot_class=ctx['bot']['class'],
             bot_race=ctx['bot']['race'],
@@ -758,10 +770,7 @@ def _levelup_post_success(db, ctx, message):
                 config, group_id,
                 leveler_guid, 0,
                 memory_type='level_up',
-                event_context=(
-                    f"I reached level"
-                    f" {new_level}"
-                ),
+                event_context=self_context,
                 bot_name=leveler_name,
                 bot_class=get_class_name(
                     lv_row['class']
@@ -797,6 +806,12 @@ def process_group_levelup_event(
                 ed.get('bot_level', 1)),
             'is_bot': bool(int(
                 ed.get('is_bot', 1))),
+            'leveler_class': get_class_name(
+                int(ed.get('leveler_class', 0))
+            ) if ed.get('leveler_class') else '',
+            'leveler_race': get_race_name(
+                int(ed.get('leveler_race', 0))
+            ) if ed.get('leveler_race') else '',
         },
         build_prompt=lambda ctx: (
             build_levelup_reaction_prompt(
@@ -805,13 +820,22 @@ def process_group_levelup_event(
                 ctx['new_level'],
                 ctx['is_bot'],
                 ctx['mode'],
+                # Roleplay names the calling from the payload
+                # and never reads leveler_desc.
                 leveler_desc=_race_class_of(
                     ctx['db'], ctx['leveler_guid'],
-                    ctx['leveler_name']),
+                    ctx['leveler_name'],
+                ) if ctx['mode'] != 'roleplay' else '',
                 chat_history=ctx['chat_hist'],
                 speaker_talent_context=(
                     ctx['speaker_talent']),
                 stored_tone=ctx['stored_tone'],
+                leveler_race=ctx['leveler_race'],
+                leveler_class=ctx['leveler_class'],
+                leveler_style=class_style(
+                    ctx['db'], ctx['leveler_guid'],
+                    ctx['leveler_class'],
+                ) if ctx['mode'] == 'roleplay' else '',
             )
         ),
         needs_reactor_from_db=True,
@@ -1695,6 +1719,9 @@ def process_group_zone_transition_event(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, bot_guid
+        ),
         'gear': build_gear_context(
             db, bot_guid,
             get_class_name(char_row['class']), config,
@@ -2025,8 +2052,8 @@ def process_group_quest_accept_batch_event(
 def _race_class_of(db, guid, name):
     """'Dwarf Priest' for a character, or ''.
 
-    Level-up events name the leveler but carry no guid for it, so
-    the name is the fallback key.
+    The name is the fallback key when an event carries no guid
+    (events queued before level-ups sent leveler_guid).
     """
     if not guid and name:
         found = get_character_info_by_name(db, name)
@@ -2567,6 +2594,9 @@ def _nearby_object_conversation(
             'race': get_race_name(char['race']),
             'level': char['level'],
             'gender': get_gender_label(char['gender']),
+            'guild_name': get_character_guild_name(
+                db, guid
+            ),
         })
 
     if len(bots) < 2:
@@ -2816,6 +2846,9 @@ def execute_player_msg_conversation(
             'race': get_race_name(char['race']),
             'level': char['level'],
             'gender': get_gender_label(char['gender']),
+            'guild_name': get_character_guild_name(
+                db, guid
+            ),
             'travel_mode': travel_state.get('mode') or '',
             'travel_context': travel_context,
             'travel_state': travel_state,
@@ -2873,6 +2906,20 @@ def execute_player_msg_conversation(
         area_id=area_id,
         map_id=map_id,
         brief_casual=brief_casual,
+        guild_notes=[
+            note for note in (
+                same_guild_note(
+                    db, b['guid'],
+                    player_info['guid'] if player_info else 0,
+                    player_name, bot_name=b['name'],
+                )
+                for b in bots
+            ) if note
+        ],
+        player_context=player_context_text(
+            db, player_info['guid'] if player_info else 0,
+            player_name, mode,
+        ),
         bg_context=bg_context,
         thread_context=render_for_player_reply(group_id, db),
     )
@@ -3105,6 +3152,9 @@ def _quest_conversation_pick_bots(
             'race': get_race_name(char['race']),
             'level': char['level'],
             'gender': get_gender_label(char['gender']),
+            'guild_name': get_character_guild_name(
+                db, guid
+            ),
         })
 
     if len(bots) < 2:
