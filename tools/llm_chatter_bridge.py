@@ -62,6 +62,7 @@ from chatter_shared import (
     wait_for_database,
     stagger_if_needed,
 )
+from chatter_guild_profile import get_character_guild_name
 from chatter_events import (
     cleanup_expired_events,
     reset_stuck_processing_events,
@@ -227,7 +228,10 @@ def process_pending_requests(
                     else raw_race
                 ),
                 'level': request['bot1_level'],
-                'zone': request['bot1_zone']
+                'zone': request['bot1_zone'],
+                'guild_name': get_character_guild_name(
+                    db, request['bot1_guid']
+                ),
             }
             success = process_statement(
                 db, cursor, client,
@@ -272,6 +276,9 @@ def process_pending_requests(
                         f'{prefix}_level'
                     ],
                     'zone': zone,
+                    'guild_name': get_character_guild_name(
+                        db, request[f'{prefix}_guid']
+                    ),
                 }
 
             # Bot 1 (always present)

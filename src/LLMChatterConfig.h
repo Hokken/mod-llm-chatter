@@ -368,6 +368,8 @@ public:
     uint32 _proxChatterReplyMaxTurns;
     uint32 _proxChatterMaxTokensPerLine;
     uint32 _proxChatterFacingResetDelay;
+    // Capped at LLM_CHATTER_MAX_REPLY_HOLD_MS where it is used.
+    uint32 _proxChatterReplyHoldMs;
     uint32 _proxDirectedMaxExtraReactors;
     uint32 _proxDirectedBotMaxParticipants;
     std::array<uint32, 4> _proxDirectedExtraReactorWeights;
