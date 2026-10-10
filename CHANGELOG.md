@@ -1,5 +1,15 @@
 # Changelog
 
+### 2026-10-10 - Faction From the Race ID in One Place
+
+* **One faction list**: A race's faction is now decided from its race ID
+  in one place (`ALLIANCE_RACE_IDS` and `HORDE_RACE_IDS` in
+  `chatter_constants.py`). The faction-scoped zone and General history
+  filters, the battleground flag-carrier check and the Guild speaker check
+  all use it instead of their own lists.
+* **Custom races**: A server that adds races through `ChrRaces` lists
+  their IDs once. The ten original races behave exactly as before.
+
 ### 2026-10-10 - Themed Topics and Rumors
 
 * **Themed subjects**: Idle guild, General and party chatter can pick a
