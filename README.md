@@ -828,6 +828,7 @@ language and tells you how to fix it. It checks:
 - the required tables exist
 - the LLM provider and API key — missing key, a leftover example
   placeholder, an invalid key, or an unreachable local model
+- the second model in `LLMChatter.LabelModel`, when it is set
 
 A failing check looks like this:
 

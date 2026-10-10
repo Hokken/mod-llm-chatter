@@ -630,6 +630,9 @@ Supported providers:
 stronger model for party chat and replies to the player while ambient
 General chatter stays on a cheaper one. Unmatched calls keep
 `LLMChatter.Model`. Quick analysis is unaffected (`QuickAnalyze.Model`).
+When both keys are set, the startup health check makes the same live
+probe for `LabelModel` as for `LLMChatter.Model`, reported as its own
+`LabelModel connectivity` line.
 
 Changing models normally requires only the provider and model ID. The
 bridge resolves a conservative capability profile for OpenAI-compatible
