@@ -54,6 +54,7 @@ from chatter_group_general_reaction import (
     maybe_queue_group_general_reaction,
 )
 from chatter_text import pick_statement_length
+from chatter_guild import _bounded_percent
 from chatter_guild_profile import (
     get_character_guild,
     get_character_guild_name,
@@ -258,15 +259,15 @@ def _pick_bot_gossip_target(config, cursor, zone_id, speaker_guids):
 
 
 def _chance_hit(config, key: str, default: int) -> bool:
-    try:
-        chance = int(config.get(key, default))
-    except (TypeError, ValueError):
-        chance = default
-    return random.randint(1, 100) <= max(0, min(100, chance))
+    return random.randint(1, 100) <= _bounded_percent(config, key, default)
 
 
 def _guild_praise_topic(db, config, bot: dict) -> str:
-    """Sometimes a guilded bot praises its guild, or guild and GM."""
+    """Sometimes a guilded bot talks about its guild, or guild and GM.
+
+    The speaker's persona decides how they feel about it; the topic
+    prescribes no pride or praise.
+    """
     if not _chance_hit(
         config, 'LLMChatter.GuildChatter.GeneralPraiseChance', 8,
     ):
@@ -276,9 +277,9 @@ def _guild_praise_topic(db, config, bot: dict) -> str:
         return ""
     profile = get_guild_profile(db, membership['id']) or {}
     topic = (
-        f"praising your own guild \"{membership['name']}\" and why "
-        "you are proud to belong to it (a heartfelt boast, not a "
-        "recruitment advert)"
+        f"your own guild \"{membership['name']}\" and what belonging "
+        "to it means to you, in your own way (not a recruitment "
+        "advert)"
     )
     leader = profile.get('leader')
     if (
@@ -324,8 +325,9 @@ def _guild_discussion_topic(db, config, bots: List[dict]) -> str:
     )
     topic = (
         f"their guilds ({listing}). Each guilded speaker talks about "
-        "their own guild, its people, habits or recent deeds, and "
-        "they compare notes, trade friendly boasts or tease each other"
+        "their own guild and what belonging to it is like, without "
+        "inventing events or history for it, and they compare notes, "
+        "trade friendly boasts or tease each other"
     )
     if len({bot['guild_name'] for bot in guilded}) == 1:
         topic += ". They share the same guild and chat about it openly"

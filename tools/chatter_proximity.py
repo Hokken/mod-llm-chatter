@@ -890,7 +890,7 @@ def _single_prompt(
         extra, mode, [speaker], db=db,
     ))
     if player_message or player_addressed:
-        lines.extend(_player_lines(db, extra, mode))
+        lines.extend(_player_lines(db, extra, mode, [speaker]))
     disposition_guidance = _npc_disposition_guidance(
         speaker
     )
@@ -1083,7 +1083,7 @@ def _conversation_prompt(
         extra, mode, participants, db=db,
     ))
     if player_addressed and player_name:
-        lines.extend(_player_lines(db, extra, mode))
+        lines.extend(_player_lines(db, extra, mode, participants))
     lines.extend(_mixed_voice_guidance(mode))
 
     addressable = list(nearby_names)
@@ -1579,9 +1579,14 @@ def _format_history_block(
     )
 
 
-def _player_lines(db, extra: Dict, mode: str) -> List[str]:
+def _player_lines(
+    db, extra: Dict, mode: str, speakers: List[Dict],
+) -> List[str]:
+    # NPC voice rules forbid talk of players and game systems, so any
+    # prompt with an NPC speaker gets a neutral, in-world description.
     return player_character_lines(
         db, extra.get('player_guid'), extra.get('player_name', ''), mode,
+        neutral=any(speaker.get('is_npc') for speaker in speakers),
     )
 
 
@@ -1655,7 +1660,7 @@ def _player_say_single_prompt(
     if speech_guidance:
         lines.append(speech_guidance)
 
-    lines.extend(_player_lines(db, extra, mode))
+    lines.extend(_player_lines(db, extra, mode, [speaker]))
     addressed = extra.get('addressed_name', '')
     if addressed:
         lines.append(
@@ -1741,7 +1746,7 @@ def _player_say_conversation_prompt(
     ))
     lines.extend(_mixed_voice_guidance(mode))
 
-    lines.extend(_player_lines(db, extra, mode))
+    lines.extend(_player_lines(db, extra, mode, participants))
     addressed = extra.get('addressed_name', '')
     if addressed:
         lines.append(
@@ -1879,7 +1884,7 @@ def _player_emote_single_prompt(
         speech_guidance = _npc_speech_capability_guidance(speaker)
         if speech_guidance:
             lines.append(speech_guidance)
-    lines.extend(_player_lines(db, extra, mode))
+    lines.extend(_player_lines(db, extra, mode, [speaker]))
     lines.extend([
         f"The player ({player_name}) "
         f"{_describe_player_emote(extra, player_emote, addressed)}.",
@@ -1964,7 +1969,7 @@ def _player_emote_conversation_prompt(
     ))
     lines.extend(_location_lines(extra, mode, participants, db=db))
     lines.extend(_mixed_voice_guidance(mode))
-    lines.extend(_player_lines(db, extra, mode))
+    lines.extend(_player_lines(db, extra, mode, participants))
     lines.extend([
         f"The player ({player_name}) "
         f"{_describe_player_emote(extra, player_emote, addressed)}.",

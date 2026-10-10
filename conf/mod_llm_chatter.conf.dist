@@ -2668,7 +2668,9 @@ LLMChatter.GuildChatter.GeneralDiscussionChance = 10
 #
 #   LLMChatter.GuildChatter.GeneralPraiseChance
 #       Chance (0-100) that a plain General-channel
-#       statement from a guilded bot praises its guild.
+#       statement from a guilded bot is about its guild and
+#       what belonging to it means to the speaker (its own
+#       personality decides how it feels about it).
 #       With conversation threads on for General chat, a hit
 #       only offers this topic to the thread's pool source
 #       (LLMChatter.Threads.PoolTopicWeight).
@@ -2678,7 +2680,7 @@ LLMChatter.GuildChatter.GeneralPraiseChance = 8
 
 #
 #   LLMChatter.GuildChatter.GeneralPraiseMasterChance
-#       Chance (0-100) that such praise also names the
+#       Chance (0-100) that such a statement also names the
 #       Guild Master, with race and class. Never used when
 #       the speaker is the Guild Master.
 #       Default: 50

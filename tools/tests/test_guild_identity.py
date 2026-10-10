@@ -431,6 +431,34 @@ def test_zone_topics_name_the_zone():
     assert chatter_guild._guild_zone_topic(0, 'roleplay') is None
 
 
+def test_zero_chance_disables_a_guild_topic():
+    config = {'LLMChatter.GuildChatter.ZoneTopicChance': 0,
+              'LLMChatter.GuildChatter.ZoneWeatherTopicChance': '0'}
+    assert chatter_guild._bounded_percent(
+        config, 'LLMChatter.GuildChatter.ZoneTopicChance', 10) == 0
+    assert chatter_guild._bounded_percent(
+        config, 'LLMChatter.GuildChatter.ZoneWeatherTopicChance', 8) == 0
+    assert chatter_guild._bounded_percent(
+        {}, 'LLMChatter.GuildChatter.MotdChance', 15) == 15
+    assert chatter_guild._bounded_percent(
+        {'k': 'bad'}, 'k', 15) == 15
+    assert chatter_guild._bounded_percent({'k': 250}, 'k', 15) == 100
+
+
+def test_unknown_weather_declines_the_weather_topic():
+    with patch.object(chatter_guild, 'get_zone_name',
+                      return_value='Stormwind City'):
+        for unknown in (None, '', '   '):
+            assert chatter_guild._guild_zone_weather_topic(
+                1519, unknown, 'roleplay') is None
+        config = {'LLMChatter.GuildChatter.MotdChance': 0,
+                  'LLMChatter.GuildChatter.ZoneTopicChance': 0,
+                  'LLMChatter.GuildChatter.ZoneWeatherTopicChance': 100}
+        assert chatter_guild._pick_guild_topic(
+            config, 'roleplay', _profile(), zone_id=1519,
+            weather='') is None
+
+
 def test_guild_topic_enters_threads_only_through_the_pool():
     topic = chatter_guild.GuildTopic('motd', 'the MOTD', ['line'])
     assert chatter_guild._guild_topic_pool(topic, ['a', 'b']) == [
@@ -549,7 +577,10 @@ def test_general_praise_can_include_guild_master():
         own_leader = chatter_ambient._guild_praise_topic(
             object(), {}, {'guid': 5, 'name': 'Varra'},
         )
-    assert 'praising your own guild "Keepers"' in topic
+    assert 'your own guild "Keepers"' in topic
+    # The persona decides how the speaker feels about the guild.
+    for prescribed in ('praising', 'proud', 'boast'):
+        assert prescribed not in topic
     assert 'Guild Master Varra, an Orc Warrior' in topic
     assert '"Friends first."' in topic
     assert 'Guild Master' not in own_leader
@@ -578,6 +609,9 @@ def test_general_discussion_needs_two_guilded_speakers():
     assert 'Aliss belongs to "Keepers"' in topic
     assert 'Bran belongs to "Wardens"' in topic
     assert 'Cato has no guild' in topic
+    # Only names and memberships are supplied: no invented history.
+    assert 'recent deeds' not in topic
+    assert 'without inventing events or history' in topic
     assert lonely == ''
 
 
@@ -622,6 +656,35 @@ def test_config_defaults():
         for text, value in ((dist, dist_value), (quiet, quiet_value)):
             match = re.search(rf'^{re.escape(key)} = (\d+)', text, re.M)
             assert match and int(match.group(1)) == value, key
+
+
+
+def test_player_description_is_neutral_for_npc_prompts():
+    normal = pc.player_character_lines(
+        None, 0, 'Lyn', 'normal', race='Human', class_name='Mage',
+        gender='female', neutral=True)
+    assert normal == ['Lyn is a female Human Mage.']
+    rp = pc.player_character_lines(
+        None, 0, 'Lyn', 'roleplay', race='Orc', class_name='Hunter',
+        neutral=True)
+    assert rp[0] == 'Lyn is an Orc Hunter.'
+    text = '\n'.join(rp)
+    assert 'real player' not in text
+    assert 'Hunter calling:' in text
+
+
+def test_proximity_player_lines_go_neutral_with_an_npc_speaker():
+    import chatter_proximity as prox
+
+    calls = []
+    with patch.object(prox, 'player_character_lines',
+                      side_effect=lambda *a, **k: calls.append(k) or []):
+        extra = {'player_guid': 7, 'player_name': 'Lyn'}
+        prox._player_lines(None, extra, 'normal', [SPEAKER])
+        prox._player_lines(None, extra, 'normal', [{'is_npc': True}])
+        prox._player_lines(None, extra, 'normal',
+                           [SPEAKER, {'is_npc': True}])
+    assert [call['neutral'] for call in calls] == [False, True, True]
 
 
 if __name__ == '__main__':

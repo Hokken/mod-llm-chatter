@@ -516,10 +516,12 @@ def _guild_zone_weather_topic(
     zone_id: int, weather, mode: str,
 ) -> Optional[GuildTopic]:
     zone = get_zone_name(zone_id) if zone_id else ''
-    if not zone:
+    weather = str(weather or '').strip()
+    # No observed weather (nothing cached for the zone, or an event
+    # queued before the payload carried it): never invent one.
+    if not zone or not weather:
         return None
     _, time_desc = get_time_of_day_context()
-    weather = (str(weather or 'clear')).strip() or 'clear'
     lines = [
         f"Right now in {zone}: {time_desc.lower()}, and the weather is "
         f"{weather}.",
@@ -794,13 +796,14 @@ def _bounded_percent(
     key: str,
     default: int,
 ) -> int:
-    return max(
-        0,
-        min(
-            100,
-            _safe_int(config.get(key, default), default),
-        ),
-    )
+    # Not _safe_int(): its "value or default" would turn a configured 0
+    # (feature off) back into the default.
+    value = config.get(key, default)
+    try:
+        chance = default if value is None or value == '' else int(value)
+    except (TypeError, ValueError):
+        chance = default
+    return max(0, min(100, chance))
 
 
 def _empty_guild_history_metadata(
