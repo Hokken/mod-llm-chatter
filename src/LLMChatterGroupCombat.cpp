@@ -1188,9 +1188,6 @@ void HandleGroupPlayerLevelChangedImpl(
         "\"leveler_race\":" +
             std::to_string(
                 player->getRace()) + ","
-        "\"leveler_gender\":" +
-            std::to_string(
-                player->getGender()) + ","
         "\"group_id\":" +
             std::to_string(groupId) +
         "}";

@@ -1341,43 +1341,21 @@ def build_death_reaction_prompt(
     )
 
 
+# Neutral sense of each calling for the roleplay level-up prompt. It only
+# names what the class is known for; the level-up itself reports no new
+# events, so nothing here may claim one happened.
 CLASS_GROWTH = {
-    'Warrior': (
-        "their arm is stronger, their blade bites deeper, and their body grows tougher; they stand firmer in the thick of battle, weathering blows that would have felled them before"
-    ),
-    'Paladin': (
-        "the Light burns brighter in them; their weapon falls "
-        "heavier and their faith shields their allies more surely"
-    ),
-    'Hunter': (
-        "their aim is truer, their senses keener and the bond with "
-        "their beast runs deeper"
-    ),
-    'Rogue': (
-        "they move quicker and quieter, and their blades find the gaps in any guard more surely; they have also learned to brew deadlier, more terrifying poisons"
-    ),
-    'Light Priest': (
-        "the Holy Light shines brighter within them; their prayers ring louder and carry deeper, reaching farther into the hearts of those who hear them"
-    ),
-    'Shadow Priest': (
-        "they have merged deeper with the Void; darker shadows gather around them, and the strange whispers that follow in their wake grow louder"
-    ),
-    'Death Knight': (
-        "the runes answer them more readily; their runeblade hungers more, and the cold of death obeys them, gathering more terrible diseases along its edge"
-    ),
-    'Shaman': (
-        "the elements heed their call more readily; earth, fire, water and air answer them with greater force, while the spirits of their ancestors gather ever closer around them"
-    ),
-    'Mage': (
-        "the arcane bends more easily to their will; their fire burns hotter, their frost bites colder, and their mind grows sharper"
-    ),
-    'Warlock': (
-        "their grip on fel power tightens; demons obey them more "
-        "readily and their curses bite deeper"
-    ),
-    'Druid': (
-        "nature's power runs deeper in them; their forms grow stronger and the wild answers their call, while more and more creatures come willingly to guard and protect them"
-    ),
+    'Warrior': "a warrior's strength and endurance in battle",
+    'Paladin': "a paladin's devotion to the Light and skill at arms",
+    'Hunter': "a hunter's aim, tracking and bond with their beast",
+    'Rogue': "a rogue's speed, stealth and skill with blades",
+    'Light Priest': "a priest's faith and gift for healing",
+    'Shadow Priest': "a priest's command of shadow magic",
+    'Death Knight': "a death knight's runic power and command of death",
+    'Shaman': "a shaman's bond with the elements and the spirits",
+    'Mage': "a mage's mastery of arcane, fire and frost",
+    'Warlock': "a warlock's grip on fel magic and their demons",
+    'Druid': "a druid's bond with nature and their shapeshifting",
 }
 
 
@@ -1395,13 +1373,13 @@ def build_levelup_reaction_prompt(
     leveler_desc="",
 ):
     """Build prompt for a bot reacting to someone
-    leveling up. Always congratulatory/excited.
+    leveling up.
     leveler_desc ("Dwarf Priest") keeps the speaker from
     guessing the leveler's race or class.
     If is_bot=True, reacting to another bot.
     If is_bot=False, reacting to the real player.
-    Roleplay never names a level; it praises how the
-    leveler grew stronger in their class.
+    Roleplay never names a level; it states that the
+    leveler grew stronger in their calling.
     leveler_style overrides the class key (e.g.
     'Shadow Priest' / 'Light Priest').
     """
@@ -1429,26 +1407,22 @@ def build_levelup_reaction_prompt(
         style_key = leveler_style or leveler_class
         if style_key == 'Priest':
             style_key = 'Light Priest'
-        growth = CLASS_GROWTH.get(
-            style_key,
-            "they have grown stronger and more capable",
-        )
+        growth = CLASS_GROWTH.get(style_key, "")
         calling = " ".join(
             p for p in (leveler_race, style_key) if p
         )
         levelup_context = (
             f"{who}"
             + (f", {_article(calling)} {calling}," if calling else "")
-            + f" has just grown noticeably stronger: "
-            f"{growth}. Praise or react to how much "
-            f"stronger they have become."
+            + " has just grown noticeably stronger"
+            + (f" in {growth}" if growth else "")
+            + "."
         )
         style = (
-            "React in-character with genuine "
-            "admiration or congratulations, the way "
-            "a companion in the world would notice "
-            "someone's growing power. "
-            "Keep it natural and grounded."
+            "React in character, the way a companion "
+            "in the world would notice it; your "
+            "personality and tone decide how you take "
+            "it. Keep it natural and grounded."
         )
     else:
         desc = leveler_desc or " ".join(

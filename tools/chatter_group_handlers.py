@@ -815,9 +815,12 @@ def process_group_levelup_event(
                 ctx['new_level'],
                 ctx['is_bot'],
                 ctx['mode'],
+                # Roleplay names the calling from the payload
+                # and never reads leveler_desc.
                 leveler_desc=_race_class_of(
                     ctx['db'], ctx['leveler_guid'],
-                    ctx['leveler_name']),
+                    ctx['leveler_name'],
+                ) if ctx['mode'] != 'roleplay' else '',
                 chat_history=ctx['chat_hist'],
                 speaker_talent_context=(
                     ctx['speaker_talent']),
@@ -2041,8 +2044,8 @@ def process_group_quest_accept_batch_event(
 def _race_class_of(db, guid, name):
     """'Dwarf Priest' for a character, or ''.
 
-    Level-up events name the leveler but carry no guid for it, so
-    the name is the fallback key.
+    The name is the fallback key when an event carries no guid
+    (events queued before level-ups sent leveler_guid).
     """
     if not guid and name:
         found = get_character_info_by_name(db, name)

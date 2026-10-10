@@ -3834,12 +3834,15 @@ emotes, are logged at INFO.
   untouched. It writes English words, so other languages keep the model's
   own wording. Normal mode keeps WTS-style posts.
 - Level-up: `bot_group_levelup` carries `leveler_guid`, `leveler_class`,
-  `leveler_race` and `leveler_gender`. In roleplay the prompt never names a
-  level: it describes how the leveler grew stronger in their calling
-  (`CLASS_GROWTH` in `chatter_group_prompts.py`). A Shadow Priest has
-  merged deeper with the Void and the shadows gather to them; every other
-  priest is praised for the Light. Level-up memories say "grew noticeably
-  stronger" in roleplay. Normal mode keeps the level number.
+  and `leveler_race`. In roleplay the prompt never names a level: it says
+  the leveler grew noticeably stronger in their calling, using a neutral
+  description of what the class is known for (`CLASS_GROWTH` in
+  `chatter_group_prompts.py`), with Shadow and Light priests apart. It
+  reports no other events and prescribes no reaction; the speaker's
+  personality and tone decide how they take it. Only normal mode looks up
+  the leveler's race and class from the database (`_race_class_of()`).
+  Level-up memories say "grew noticeably stronger" in roleplay. Normal
+  mode keeps the level number.
 - Slang: roleplay guidelines ban player, trade and group slang
   (`RP_NO_PLAYER_SLANG` in `chatter_mode.py`).
 

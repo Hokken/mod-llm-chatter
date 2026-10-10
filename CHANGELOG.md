@@ -1,9 +1,9 @@
 # Changelog
 
-### 2026-10-02 - Standalone Chat Fixes
+### 2026-10-10 - Standalone Chat Fixes
 
 * **Talents**: `get_character_talents()` joined `acore_world.talent_dbc`,
-  which the core leaves empty, so every character looked talentless and
+  which is empty by default, so every character looked talentless and
   every priest was a Light Priest. It now maps `character_talent` spells
   through the bundled `tools/talent_data.json` (generated from `Talent.dbc`
   and `TalentTab.dbc` by `tools/generate_talent_data.py`, loaded by
@@ -28,11 +28,12 @@
   ends when the bot enters combat or its own queued reply is delivered or
   dropped; a late reply to an earlier emote at the bot does not end it.
 * **Roleplay wording**: Trade offers speak as people in the world with
-  prices in coins written as words; level-ups praise how the character
-  grew stronger in their calling (Shadow and Light priests apart) instead
-  of naming a level; roleplay prompts forbid player and trade slang.
-  Digits left in a trade line are spelled out only when the chatter
-  language is English.
+  prices in coins written as words; level-ups say the character grew
+  stronger in their calling (Shadow and Light priests apart) instead of
+  naming a level, and leave the reaction to the speaker's persona;
+  roleplay prompts forbid player and trade slang. Digits left in a trade
+  line, including grouped ones such as "1,500", are spelled out only when
+  the chatter language is English.
 * **Configuration**: `ProximityChatter.ReplyHoldMs`.
 * **Upgrade**: Rebuild the worldserver and restart the bridge. No database
   migration.

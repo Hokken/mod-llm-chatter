@@ -1461,12 +1461,22 @@ def format_price_words(copper: int) -> str:
 
 _WOW_LINK_RE = re.compile(r'\|c[0-9A-Fa-f]{8}\|H[^|]*\|h\[[^\]]*\]\|h\|r')
 _COIN_RE = re.compile(
-    r'(?<![\w.])(\d+)\s?(g|gold|s|silver|c|copper)(?![A-Za-z])'
+    r'(?<![\w.])(?<!\d,)(\d+)\s?(g|gold|s|silver|c|copper)(?![A-Za-z])'
     r'(?:\s*(\d+)\s?(s|silver|c|copper)(?![A-Za-z]))?'
     r'(?:\s*(\d+)\s?(c|copper)(?![A-Za-z]))?',
     re.IGNORECASE,
 )
-_DIGITS_RE = re.compile(r'(?<![\w.])\d{1,6}(?![\w.])')
+# Digits joined by a comma ("12,5", "1,500.50") are left as written.
+_DIGITS_RE = re.compile(r'(?<![\w.])(?<!\d,)\d{1,6}(?![\w.]|,\d)')
+# "1,500" must reach _COIN_RE and _DIGITS_RE as one number, or each
+# would rewrite its digit groups separately ("one,five hundred"). It may
+# be followed by a coin suffix ("1,500g20s") but not by more digits or a
+# decimal part.
+_GROUPED_RE = re.compile(
+    r'(?<![\w.,])\d{1,3}(?:,\d{3})+(?![\d,.]?\d)'
+    r'(?=(?:g|gold|s|silver|c|copper)(?![A-Za-z])|\W|$)',
+    re.IGNORECASE,
+)
 
 
 def _coin_match_words(match) -> str:
@@ -1503,7 +1513,14 @@ def spell_out_trade_numbers(text: str) -> str:
     return spell_out_numbers(text)
 
 
+def _ungroup(match) -> str:
+    # number_to_words() stops at 999,999; larger amounts keep their commas.
+    plain = match.group(0).replace(',', '')
+    return plain if int(plain) < 1_000_000 else match.group(0)
+
+
 def _spell_plain(text: str) -> str:
+    text = _GROUPED_RE.sub(_ungroup, text)
     text = _COIN_RE.sub(_coin_match_words, text)
     return _DIGITS_RE.sub(lambda m: number_to_words(int(m.group(0))), text)
 

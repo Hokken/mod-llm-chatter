@@ -115,6 +115,22 @@ def test_spell_out_numbers_keeps_links():
         'yours for forty-five silver')
 
 
+def test_spell_out_numbers_reads_grouped_numbers_whole():
+    assert spell_out_numbers('Selling for 1,500 gold') == (
+        'Selling for one thousand five hundred gold')
+    assert spell_out_numbers('all 2,000 of them') == (
+        'all two thousand of them')
+    assert spell_out_numbers('take 3.5 gold') == 'take 3.5 gold'
+    assert spell_out_numbers('only 1,500g') == (
+        'only one thousand five hundred gold')
+    assert spell_out_numbers('1,500g20s each') == (
+        'one thousand five hundred gold and twenty silver each')
+    assert spell_out_numbers('worth 1,500.50 gold') == (
+        'worth 1,500.50 gold')
+    assert spell_out_numbers('about 12,5g') == 'about 12,5g'
+    assert spell_out_numbers('1,234,567 gold') == '1,234,567 gold'
+
+
 def test_roleplay_trade_prompts_speak_in_world():
     for prompt in (
         chatter_prompts.build_trade_statement_prompt(
@@ -135,13 +151,17 @@ def test_roleplay_trade_prompts_speak_in_world():
 
 # -- Level-up ------------------------------------------------------------
 
-def test_roleplay_levelup_praises_growth_without_levels():
+def test_roleplay_levelup_names_growth_without_levels():
     prompt = build_levelup_reaction_prompt(
         REACTOR, ['kind'], 'Brand', 25, True, 'roleplay',
         leveler_race='Human', leveler_class='Warrior')
     assert CLASS_GROWTH['Warrior'] in prompt
     assert '25' not in prompt
     assert 'Never mention levels' in prompt
+    # The persona decides the reaction; the prompt prescribes none.
+    assert 'admiration' not in prompt
+    assert 'Praise' not in prompt
+    assert 'personality and tone decide' in prompt
     normal = build_levelup_reaction_prompt(
         REACTOR, ['kind'], 'Brand', 25, True, 'normal')
     assert 'level 25' in normal
@@ -152,13 +172,14 @@ def test_levelup_splits_shadow_and_light_priests():
         REACTOR, ['kind'], 'Lyn', 30, True, 'roleplay',
         leveler_race='Blood Elf', leveler_class='Priest',
         leveler_style='Shadow Priest')
-    assert 'merged deeper with the Void' in shadow
-    assert 'shadows gather' in shadow
+    assert 'Blood Elf Shadow Priest' in shadow
+    assert CLASS_GROWTH['Shadow Priest'] in shadow
     light = build_levelup_reaction_prompt(
         REACTOR, ['kind'], 'Lyn', 30, True, 'roleplay',
         leveler_race='Blood Elf', leveler_class='Priest')
-    assert 'Holy Light shines' in light
-    assert 'Void' not in light.split('Lyn, a')[1].split('\n')[0]
+    assert 'Blood Elf Light Priest' in light
+    assert CLASS_GROWTH['Light Priest'] in light
+    assert 'shadow' not in light.split('Lyn, a')[1].split('\n')[0]
 
 
 TELIRIAH_SPELLS = [15286, 15310, 15311, 15314, 15328, 15332, 15336, 15338,
@@ -234,9 +255,9 @@ def test_talents_resolve_without_talent_dbc():
 
 def test_levelup_payload_carries_leveler_identity():
     source = _read('LLMChatterGroupCombat.cpp')
-    for field in ('leveler_guid', 'leveler_class', 'leveler_race',
-                  'leveler_gender'):
+    for field in ('leveler_guid', 'leveler_class', 'leveler_race'):
         assert f'\\"{field}\\":' in source
+    assert 'leveler_gender' not in source
 
 
 # -- Links ---------------------------------------------------------------
