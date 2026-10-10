@@ -18,7 +18,8 @@ _SENTENCE_END = re.compile(
 # WoW links and {item:...}-style placeholders must never be split: the
 # client drops or garbles a partial link.
 _UNSPLITTABLE_RE = re.compile(
-    r'\|c[0-9A-Fa-f]{8}\|H[^|]*\|h\[[^\]]*\]\|h\|r'
+    # The colour wrapper is optional: a model may write a bare |H...|h link.
+    r'(?:\|c[0-9A-Fa-f]{8})?\|H[^|]*\|h\[[^\]]*\]\|h(?:\|r)?'
     r'|\{\{?(?:quest|item|spell):[^}]+\}\}?'
 )
 

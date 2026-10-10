@@ -1,5 +1,34 @@
 # Changelog
 
+### 2026-10-10 - Guild Member Events
+
+* **Join greetings**: When a guild with an online real player gains a
+  member, one to three Guild bots react to the newcomer. Joins close
+  together share one event, and a newcomer who is a bot may answer.
+* **Rank changes**: In-game promotions and demotions are commented on once
+  the guild has been quiet for `RankChange.DebounceSeconds`. The prompt
+  names the old and new ranks. Members who just joined are left out.
+* **MOTD comments**: A new MOTD gets one or two reactions, quoting it as a
+  note from the officers and never as instructions.
+* **Personality first**: The prompts offer a range of reactions instead of
+  a mood, and each bot reacts in its own personality and tone.
+* **Own C++ file**: The batching and hooks live in
+  `LLMChatterGuildMembers.cpp` with their own `GuildScript` and
+  `WorldScript`. The lines are ambient Guild Chat and are not recorded as
+  replies to the player.
+* **Player conversations come first**: Guild news waits while a real
+  player is talking in Guild (`MemberEvents.MaxDeferSeconds`, then
+  dropped), lines queued before the player spoke are dropped at delivery,
+  and the events rank below replies to the player.
+* **Link-safe lines**: Shortened lines never cut through an item link or
+  placeholder, including bare `|H...|h` links.
+* **Configuration**: `GuildChatter.JoinGreeting.*`,
+  `GuildChatter.RankChange.*`, `GuildChatter.MotdComment.*` and
+  `GuildChatter.MemberEvents.*` (including `MemberEvents.MaxDeferSeconds`).
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20261002_guild_member_events.sql`, rebuild
+  the worldserver and restart the bridge.
+
 ### 2026-10-10 - Guild Names in Party Relay Conversations
 
 * **Party relay conversations**: When several party bots discuss a line
