@@ -83,12 +83,17 @@ from chatter_shared import (
     bound_brief_casual_response,
     build_brief_casual_repair_prompt,
 )
+from chatter_guild_profile import (
+    get_character_guild_name,
+    same_guild_note,
+)
 from chatter_db import (
     get_character_info_by_name,
     get_group_location,
     is_player_online,
 )
 from chatter_party_gate import should_defer_party_generation
+from chatter_player_context import player_context_text
 from chatter_mode import (
     build_player_chat_guidance,
     build_player_prompt_header_from_dict,
@@ -635,6 +640,9 @@ def process_group_event(db, client, config, event):
         'gender': get_gender_label(
             int(extra_data.get('bot_gender', 0))
         ),
+        'guild_name': get_character_guild_name(
+            db, bot_guid
+        ),
         'gear': build_gear_context(
             db, bot_guid, bot_class, config,
         ),
@@ -881,6 +889,9 @@ def process_group_event(db, client, config, event):
             stored_tone=stored_tone,
             map_id=greet_map_id,
             zone_id=greet_zone_id,
+            player_context=player_context_text(
+                db, extra_data.get('player_guid'), player_name, mode,
+            ),
         )
 
         # 3. Call LLM
@@ -1135,6 +1146,9 @@ def process_group_join_batch_event(
                 'gender': get_gender_label(
                     int(bot_raw.get('bot_gender', 0))
                 ),
+                'guild_name': get_character_guild_name(
+                    db, bot_guid
+                ),
                 'gear': build_gear_context(
                     db, bot_guid, bot_class, config,
                 ),
@@ -1369,6 +1383,10 @@ def process_group_join_batch_event(
                     map_id=pm or 0,
                     zone_id=pz or 0,
                     bg_context=_bg_ctx,
+                    player_context=player_context_text(
+                        db, extra_data.get('player_guid'),
+                        player_name, mode,
+                    ),
                 )
 
             # 3. Call LLM
@@ -1645,6 +1663,9 @@ def _batch_welcome(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, wb_guid
+        ),
         'gear': build_gear_context(
             db, wb_guid,
             get_class_name(char_row['class']), config,
@@ -1852,6 +1873,9 @@ def process_group_player_msg_event(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, bot_guid
+        ),
         'gear': build_gear_context(
             db, bot_guid,
             get_class_name(char_row['class']), config,
@@ -2074,6 +2098,15 @@ def process_group_player_msg_event(
             brief_casual=brief_casual,
             bg_context=extra_data,
             allow_action=not brief_casual,
+            guild_note=same_guild_note(
+                db, bot_guid,
+                player_info['guid'] if player_info else 0,
+                player_name,
+            ),
+            player_context=player_context_text(
+                db, player_info['guid'] if player_info else 0,
+                player_name, mode,
+            ),
             thread_context=render_for_player_reply(
                 group_id, db
             ),
@@ -2430,6 +2463,9 @@ def _try_second_bot_response(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, bot2_guid
+        ),
         'gear': build_gear_context(
             db, bot2_guid,
             get_class_name(char_row['class']), config,
@@ -2484,6 +2520,15 @@ def _try_second_bot_response(
         map_id=map_id,
         stored_tone=bot2_tone,
         travel_context=bot2_travel_context,
+        guild_note=same_guild_note(
+            db, bot2_guid,
+            player_info['guid'] if player_info else 0,
+            player_name,
+        ),
+        player_context=player_context_text(
+            db, player_info['guid'] if player_info else 0,
+            player_name, mode,
+        ),
         thread_context=render_for_player_reply(group_id, db),
         backstory=party_reaction_backstory(
             config, second.get('backstory'), mode,
@@ -2583,6 +2628,9 @@ def _welcome_from_existing_bot(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, wb_guid
+        ),
         'gear': build_gear_context(
             db, wb_guid,
             get_class_name(char_row['class']), config,
@@ -4317,6 +4365,9 @@ def _idle_single_statement(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, bot_guid
+        ),
         'gear': build_gear_context(
             db, bot_guid,
             get_class_name(char_row['class']), config,
@@ -4637,6 +4688,9 @@ def _idle_conversation(
             'race': get_race_name(char['race']),
             'level': char['level'],
             'gender': get_gender_label(char['gender']),
+            'guild_name': get_character_guild_name(
+                db, br['bot_guid']
+            ),
             'gear': build_gear_context(
                 db, br['bot_guid'],
                 get_class_name(char['class']), config,
@@ -5188,6 +5242,9 @@ def check_bot_questions(db, client, config):
             ),
             'level': char_row['level'],
             'gender': get_gender_label(char_row['gender']),
+            'guild_name': get_character_guild_name(
+                db, bot_guid
+            ),
             'gear': build_gear_context(
                 db, bot_guid,
                 get_class_name(char_row['class']),
@@ -5289,6 +5346,14 @@ def check_bot_questions(db, client, config):
             area_id=area_id,
             stored_tone=stored_tone,
             memories=question_memories or None,
+            player_context=player_context_text(
+                db,
+                (get_character_info_by_name(db, player_name) or {}).get(
+                    'guid', 0),
+                player_name, mode,
+                race=player_race, class_name=player_class,
+                gender=player_gender,
+            ),
         )
 
         max_tokens = int(config.get(

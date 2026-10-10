@@ -1,5 +1,33 @@
 # Changelog
 
+### 2026-10-10 - Guild Identity and Context
+
+* **Guild Information and MOTD**: Every Guild prompt quotes the guild's
+  Guild Information text as background. Idle Guild lines may talk about
+  the MOTD (`GuildChatter.MotdChance`), the speaker's zone
+  (`GuildChatter.ZoneTopicChance`) or the zone at this hour and in this
+  weather (`GuildChatter.ZoneWeatherTopicChance`, skipped when the weather
+  is unknown). When conversation
+  threads are on, these subjects are only offered as the thread's pool
+  topic, so the thread weights still apply.
+* **Guild names everywhere**: Bot and player descriptions name the
+  character's guild in party, General, proximity, emote and screenshot
+  prompts. Bots that share the real player's guild are told so, in
+  unprompted proximity `/say` lines as well as replies.
+* **Real player description**: Prompts that address the real player
+  describe their race and class; roleplay adds the race outlook and class
+  calling, with priests split into Light and Shadow by the active spec.
+  Proximity prompts with an NPC speaker get a neutral in-world line
+  instead of a "real player" one.
+* **Guild talk in General**: General conversations may compare the
+  speakers' guilds (`GuildChatter.GeneralDiscussionChance`) and guilded
+  bots may talk about their guild and Guild Master, in their own way
+  (`GuildChatter.GeneralPraiseChance`,
+  `GuildChatter.GeneralPraiseMasterChance`).
+* **Upgrade**: Rebuild the worldserver (emote payloads carry player and
+  target guids; the guild idle payload carries the zone weather) and
+  restart the bridge. No database migration is needed.
+
 ### 2026-10-10 - Standalone Chat Fixes
 
 * **Talents**: `get_character_talents()` joined `acore_world.talent_dbc`,

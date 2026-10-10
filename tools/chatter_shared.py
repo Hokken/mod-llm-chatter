@@ -435,6 +435,7 @@ def build_bot_identity(
     gender: str = '',
     suffix: str = '.',
     gear: str = '',
+    guild_name: str = '',
 ) -> str:
     """Return an identity prefix for bot prompts.
 
@@ -450,9 +451,17 @@ def build_bot_identity(
         )
     else:
         identity = f"You are {bot_name}{suffix}"
+    identity += _guild_membership_sentence(guild_name)
 
     gear = (gear or '').strip()
     return f"{identity} {gear}" if gear else identity
+
+
+def _guild_membership_sentence(guild_name: str) -> str:
+    guild_name = (guild_name or '').strip()
+    if not guild_name:
+        return ''
+    return f" You are a member of the guild \"{guild_name}\"."
 
 
 def build_bot_identity_with_level(
@@ -462,6 +471,7 @@ def build_bot_identity_with_level(
     bot_level,
     gender: str = '',
     suffix: str = ' in World of Warcraft.',
+    guild_name: str = '',
 ) -> str:
     """Return a leveled identity prefix for bot prompts."""
     gender_prefix = f"{gender} " if gender else ""
@@ -469,6 +479,7 @@ def build_bot_identity_with_level(
         f"You are {bot_name}, a level "
         f"{bot_level} {gender_prefix}{bot_race} "
         f"{bot_class}{suffix}"
+        + _guild_membership_sentence(guild_name)
     )
 
 
@@ -479,6 +490,7 @@ def build_bot_identity_from_dict(
 ) -> str:
     """Build a standard identity line from a bot dict."""
     gender = bot.get('gender', '')
+    guild_name = bot.get('guild_name', '')
     if include_level:
         return build_bot_identity_with_level(
             bot['name'],
@@ -487,12 +499,14 @@ def build_bot_identity_from_dict(
             bot['level'],
             gender=gender,
             suffix=suffix,
+            guild_name=guild_name,
         )
     return build_bot_identity(
         bot['name'],
         bot['race'],
         bot['class'],
         gender=gender,
+        guild_name=guild_name,
     )
 
 
