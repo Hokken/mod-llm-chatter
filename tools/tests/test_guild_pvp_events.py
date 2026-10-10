@@ -199,6 +199,8 @@ def test_guild_kill_goes_to_guild_as_filler():
             in prompt)
     assert "a shrug or a dry remark" in prompt
     assert "contempt for the enemy" not in prompt
+    assert "They were of similar experience." in prompt
+    assert "even fight" not in prompt
 
 
 def test_guild_death_is_personality_led():
@@ -247,7 +249,8 @@ def test_zone_death_uses_general_persona_and_zone_pacing():
     row = capture.inserted[0]
     assert row['channel'] == 'general'
     assert 'owner_subsystem' not in row
-    assert row['delay_seconds'] == pvp.ZONE_LINE_DELAY + 12.0
+    assert row['delay_seconds'] == 12.0
+    assert not hasattr(pvp, 'ZONE_LINE_DELAY')
     prompt = capture.prompts[0]
     assert "on General chat" in prompt
     assert "Never insult or mock the Horde" in prompt
@@ -319,17 +322,52 @@ def test_cpp_queues_only_readable_and_quiet_guild_posts():
     source = _src('LLMChatterGuildPvP.cpp')
     kill = _function_body(source, 'void QueueGuildPvpKill(')
     death = _function_body(source, 'void QueuePvpDeathComplaint(')
-    assert 'GuildConversationActive(guildId)' in kill
-    assert 'PickRealGuildMember(guildId)' in kill
-    assert 'IsGroupedWithRealPlayer(killer)' in kill
-    assert '!GuildConversationActive(guildId)' in death
-    assert 'PickRealGuildMember(guildId)' in death
-    assert 'PickRealPlayerInZone(zoneId, team)' in death
-    assert 'CanSpeakInGeneralChannel(killed)' in death
-    assert 'sPvpCooldownMutex' in kill and 'sPvpCooldownMutex' in death
+    guild_open = _function_body(source, 'bool GuildDeathOpen(')
+    zone_open = _function_body(source, 'bool ZoneDeathOpen(')
+    lone = _function_body(source, 'Player* FindLoneBot(')
+    assert 'GuildConversationActive(killer.guildId)' in kill
+    assert 'PickRealGuildMember(killer.guildId)' in kill
+    assert 'FindLoneBot(killer)' in kill
+    assert 'IsGroupedWithRealPlayer(bot)' in lone
+    assert 'FindLoneBot(killed)' in death
+    assert '!GuildConversationActive(killed.guildId)' in guild_open
+    assert 'PickRealGuildMember(killed.guildId)' in guild_open
+    assert 'PickRealPlayerInZone(killed.zoneId, killed.team)' in zone_open
+    assert 'CanSpeakInGeneralChannel(bot)' in zone_open
+    assert 'bot->GetZoneId() == killed.zoneId' in zone_open
+    # The General channel is only touched when that route is tried.
+    assert death.index('_generalPvpDeathChance') \
+        < death.index('ZoneDeathOpen(bot, killed)')
 
+    # S1: kill comments are capped per guild as well as per killer.
+    assert 'sGuildPvpKillCooldowns' in kill
+    assert 'sGuildPvpKillGuildCooldowns' in kill
+    assert '_guildPvpKillGuildCooldown' in kill
+
+
+def test_cpp_kill_hook_only_records_the_kill():
+    source = _src('LLMChatterGuildPvP.cpp')
     handler = _function_body(source, 'void HandleOpenWorldPvpKill(')
     assert 'InBattleground()' in handler and 'InArena()' in handler
+    assert 'CaptureFighter(killer)' in handler
+    assert 'CaptureFighter(killed)' in handler
+    assert 'sPendingPvpKillsMutex' in handler
+    assert 'MAX_PENDING_PVP_KILLS' in handler
+    for world_work in ('PickRealGuildMember', 'PickRealPlayerInZone',
+                       'CanSpeakInGeneralChannel', 'IsGroupedWithRealPlayer',
+                       'sGuildMgr', 'QueueChatterEvent', 'QueueGuildPvpKill',
+                       'QueuePvpDeathComplaint'):
+        assert world_work not in handler, world_work
+
+    process = _function_body(source, 'void ProcessPendingPvpKills(')
+    assert 'pending.swap(sPendingPvpKills)' in process
+    assert 'QueueGuildPvpKill(kill, now)' in process
+    assert 'QueuePvpDeathComplaint(kill, now)' in process
+    assert 'WORLDHOOK_ON_UPDATE' in source
+    update = _function_body(source, 'void OnUpdate(')
+    assert 'ProcessPendingPvpKills()' in update
+    script = _src('LLMChatterScript.cpp')
+    assert 'AddLLMChatterGuildPvPScripts();' in script
     assert 'QueueGroupPvpKill' not in source
     for name in ('LLMChatterGuildPvP.cpp', 'LLMChatterPlayer.cpp',
                  'LLMChatterShared.cpp', 'LLMChatterConfig.cpp',
@@ -373,6 +411,22 @@ def test_cpp_priorities_and_delivery_gate():
     gate = delivery[delivery.index('deliveryPolicy == "filler"'):][:300]
     assert 'WasGuildPlayerConversationRecent(' in gate
 
+    guard = delivery[delivery.index('IsPvpReactionEvent(eventType)'):][:600]
+    assert 'CheckPvpReactionDelivery(' in guard
+    assert 'ExtractJsonUInt(eventExtraData, "guild_id")' in guard
+    assert 'eventZoneId' in guard
+    assert 'FinalizeDroppedMessage(' in guard
+
+    check = _function_body(
+        _src('LLMChatterGuildPvP.cpp'), 'char const* CheckPvpReactionDelivery(')
+    assert 'bot->GetZoneId() != zoneId' in check
+    assert 'PickRealPlayerInZone(zoneId, bot->GetTeamId())' in check
+    assert 'bot->GetGuildId() != guildId' in check
+    assert 'PickRealGuildMember(guildId)' in check
+    for reason in ('"pvp_zone_changed"', '"pvp_guild_changed"',
+                   '"pvp_no_reader"'):
+        assert reason in check, reason
+
     active = _function_body(
         _src('LLMChatterGuildPvP.cpp'), 'bool GuildConversationActive(')
     assert 'WasGuildPlayerConversationRecent(' in active
@@ -401,6 +455,10 @@ def test_sql_adds_event_types_additively():
     assert "LEFT(@event_type, CHAR_LENGTH(@event_type) - 1)" in update
     readme = (MODULE_DIR / 'README.md').read_text(encoding='utf-8')
     assert readme.count('20261002_guild_pvp_events.sql') == 2
+    lines = readme.splitlines()
+    for index, line in enumerate(lines[1:], 1):
+        if line.strip().endswith('.sql'):
+            assert lines[index - 1].rstrip().endswith('< \\'), line
 
 
 def test_conf_keys_are_documented_and_loaded():
@@ -408,6 +466,7 @@ def test_conf_keys_are_documented_and_loaded():
         'LLMChatter.GuildChatter.PvpKill.Enable': ('1', '1'),
         'LLMChatter.GuildChatter.PvpKill.Chance': ('25', '15'),
         'LLMChatter.GuildChatter.PvpKill.Cooldown': ('300', '300'),
+        'LLMChatter.GuildChatter.PvpKill.GuildCooldown': ('600', '1200'),
         'LLMChatter.GuildChatter.PvpDeath.Enable': ('1', '1'),
         'LLMChatter.GuildChatter.PvpDeath.Chance': ('30', '20'),
         'LLMChatter.GuildChatter.PvpDeath.GuildCooldown': ('600', '1200'),
@@ -470,6 +529,7 @@ def main() -> int:
     test_zone_pacing_is_reserved_per_zone()
     test_bg_kill_names_race_and_factions_without_massive_battle()
     test_cpp_queues_only_readable_and_quiet_guild_posts()
+    test_cpp_kill_hook_only_records_the_kill()
     test_cpp_pvp_kill_hook_keeps_bg_reaction_chance()
     test_cpp_priorities_and_delivery_gate()
     test_sql_adds_event_types_additively()

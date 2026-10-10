@@ -23,7 +23,6 @@ from chatter_shared import (
     append_speaker_gear,
     faction_war_line,
     get_class_name,
-    get_race_faction,
     get_race_name,
 )
 from chatter_prompts import (
@@ -50,7 +49,6 @@ from chatter_constants import (
     BG_MAP_NAMES,
     BG_LORE,
     CLASS_ROLE_MAP,
-    RACE_NAMES,
 )
 from chatter_mode import (
     build_player_chat_guidance,
@@ -72,25 +70,15 @@ def _enemy_name_rule(pvp, pvp_named, creature_word):
     return f"- Can mention the {creature_word} by name\n"
 
 
-def _race_name_faction(race) -> str:
-    for race_id, name in RACE_NAMES.items():
-        if name == race:
-            return get_race_faction(race_id)
-    return get_race_faction(race)
-
-
 def _pvp_foe_context(bot, extra_data, mode, db=None):
     """Faction framing for an open-world PvP fight and, in roleplay, the
     enemy's race outlook and class calling. Identity details only when
     the reactor could see the enemy."""
     if not is_pvp_enemy(extra_data):
         return ""
+    # Both sides come from the server's teams, never from race names.
     enemy_team = str(extra_data.get('enemy_faction') or '').strip()
-    own_team = _race_name_faction(bot.get('race'))
-    if not enemy_team and own_team:
-        enemy_team = 'Horde' if own_team == 'Alliance' else 'Alliance'
-    if not own_team and enemy_team:
-        own_team = 'Horde' if enemy_team == 'Alliance' else 'Alliance'
+    own_team = str(extra_data.get('reactor_faction') or '').strip()
     known = is_pvp_identity_known(extra_data)
     name = str(extra_data.get('enemy_name') or '').strip() if known else ''
     lines = []
@@ -113,8 +101,8 @@ def _pvp_foe_context(bot, extra_data, mode, db=None):
             lines.append(f"What you know of {name or 'the enemy'}'s kind:")
             lines.extend(lore)
             lines.append(
-                "Let this sharpen your words (a jab at their people or "
-                "calling); never recite it."
+                "Draw on it only if it fits how you would speak of them "
+                "(a jab, wariness, grudging respect); never recite it."
             )
     return "\n".join(lines)
 

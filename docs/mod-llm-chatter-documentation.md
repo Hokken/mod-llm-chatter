@@ -3745,6 +3745,13 @@ arenas; battleground kills keep the existing `bg_pvp_kill` path and its
 `EventReactionChance`. The events are handled by
 `chatter_guild_pvp_events.py`.
 
+The kill hook runs on a map thread, so it only records the facts of the
+kill (both fighters' names, race, class, level, team, guild, zone and
+area). The next world update (`LLMChatterGuildPvPWorldScript`) checks
+the readers, the guild conversation, the cooldowns and the rolls, and
+queues the event from the recorded facts. That work reads players on
+other maps and the shared General channels, which is only safe there.
+
 | Event | Trigger | Output |
 |-------|---------|--------|
 | `guild_pvp_kill` | A guild bot that is not grouped with a real player kills an opposing-faction bot, and a real guildmate is online | One Guild line from the killer |
@@ -3768,23 +3775,30 @@ event.
   like the other General producers, so it keeps `GeneralChat.MinZoneGap`
   from other automated General lines.
 - Real listeners come from `LLMChatterAudience.cpp`, which only sees real
-  players. Cooldowns are kept per killer, per victim, per guild and per
-  zone and faction.
+  players. Cooldowns are kept per killer, per victim, per guild (kills
+  and deaths separately) and per zone and faction.
+- At delivery, `CheckPvpReactionDelivery()` drops a line whose bot has
+  left the guild (`pvp_guild_changed`) or zone (`pvp_zone_changed`) it
+  was written for, or when no real player there can read it any more
+  (`pvp_no_reader`).
 
 ### Personality
 
 The prompts state what happened (who killed whom, where, the factions and
-whether the fight was even) and let the bot's personality and tone decide
+how their levels compared) and let the bot's personality and tone decide
 the reaction. Death reactions list anger, grief, a shrug, a dry joke, a
 vow of revenge or a warning as possibilities, never as a required mood.
 
 ### Faction and enemy context in existing PvP prompts
 
 - Party kill and battle-cry prompts against an opposing-faction player
-  state both factions and the war between them. In roleplay mode, when
-  the bots could see the enemy, they also get the enemy's race outlook and
-  class calling (`character_lore_lines()`), with an instruction not to
-  recite it. An unseen enemy is still never named or described.
+  state both factions and the war between them. Both sides come from the
+  server's teams (`reactor_faction` and `enemy_faction` in the payload),
+  never from race names, which custom races can share across factions.
+  In roleplay mode, when the bots could see the enemy, they also get the
+  enemy's race outlook and class calling (`character_lore_lines()`), to
+  draw on only if it fits how the bot would speak of them, never to
+  recite. An unseen enemy is still never named or described.
 - `bg_pvp_kill` now carries the victim's race, gender and level and both
   battleground teams, so the prompt can name the fallen enemy's people and
   frame the two sides.
@@ -3793,7 +3807,7 @@ vow of revenge or a warning as possibilities, never as a required mood.
 
 | Key | Default | Quieter preset | Owner |
 |-----|---------|----------------|-------|
-| `GuildChatter.PvpKill.Enable` / `.Chance` / `.Cooldown` | 1 / 25 / 300 | 1 / 15 / 300 | Server (Enable also Bridge) |
+| `GuildChatter.PvpKill.Enable` / `.Chance` / `.Cooldown` / `.GuildCooldown` | 1 / 25 / 300 / 600 | 1 / 15 / 300 / 1200 | Server (Enable also Bridge) |
 | `GuildChatter.PvpDeath.Enable` / `.Chance` / `.GuildCooldown` | 1 / 30 / 600 | 1 / 20 / 1200 | Server (Enable also Bridge) |
 | `GeneralChat.PvpDeath.Enable` / `.Chance` / `.ZoneCooldown` | 1 / 15 / 600 | 1 / 10 / 1200 | Server (Enable also Bridge) |
 | `PvpDeath.VictimCooldown` | 1800 | 2700 | Server |

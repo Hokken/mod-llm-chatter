@@ -9,6 +9,7 @@
 #include "LLMChatterDelivery.h"
 #include "LLMChatterBGDelivery.h"
 #include "LLMChatterGuild.h"
+#include "LLMChatterGuildPvP.h"
 #include "LLMChatterGuildWorld.h"
 #include "LLMChatterProximity.h"
 #include "LLMChatterProximityFight.h"
@@ -710,6 +711,24 @@ void DeliverPendingMessagesImpl()
             messageId, eventId, sequence,
             eventType, "meet_guild_changed");
         return;
+    }
+    // Open-world PvP lines only reach the guild or zone they were
+    // written for, while a real player there can read them.
+    if (bot && IsPvpReactionEvent(eventType))
+    {
+        if (char const* pvpDrop = CheckPvpReactionDelivery(
+                bot, eventType,
+                ExtractJsonUInt(eventExtraData, "guild_id"),
+                eventZoneId))
+        {
+            LOG_INFO("module",
+                "LLMChatter: {} message {} (event {}) dropped: {}",
+                eventType, messageId, eventId, pvpDrop);
+            FinalizeDroppedMessage(
+                messageId, eventId, sequence,
+                eventType, pvpDrop);
+            return;
+        }
     }
 
     ObjectGuid playerObjGuid =

@@ -2046,6 +2046,14 @@ LLMChatter.GuildChatter.PvpKill.Chance = 15
 LLMChatter.GuildChatter.PvpKill.Cooldown = 300
 
 #
+#   LLMChatter.GuildChatter.PvpKill.GuildCooldown
+#       Seconds between two kill comments in the same guild,
+#       whichever bot made the kill.
+#       Default: 600
+#
+LLMChatter.GuildChatter.PvpKill.GuildCooldown = 1200
+
+#
 #   LLMChatter.GuildChatter.PvpDeath.Enable
 #       A bot killed by an opposing-faction bot in the open world
 #       may tell its guild about it when a real guildmate is

@@ -364,6 +364,7 @@ public:
     bool _guildPvpKillEnable{true};
     uint32 _guildPvpKillChance{25};
     uint32 _guildPvpKillCooldown{300};
+    uint32 _guildPvpKillGuildCooldown{600};
     bool _guildPvpDeathEnable{true};
     uint32 _guildPvpDeathChance{30};
     uint32 _guildPvpDeathGuildCooldown{600};

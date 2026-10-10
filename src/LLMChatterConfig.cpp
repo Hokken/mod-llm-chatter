@@ -1270,6 +1270,9 @@ void LLMChatterConfig::LoadConfig()
     _guildPvpKillCooldown =
         GetChatterOption<uint32>(
             "LLMChatter.GuildChatter.PvpKill.Cooldown", 300);
+    _guildPvpKillGuildCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.GuildChatter.PvpKill.GuildCooldown", 600);
     _guildPvpDeathEnable =
         GetChatterOption<bool>(
             "LLMChatter.GuildChatter.PvpDeath.Enable", true);

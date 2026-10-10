@@ -47,8 +47,6 @@ from chatter_shared import (
 
 logger = logging.getLogger(__name__)
 
-ZONE_LINE_DELAY = 2.0
-
 
 def _participant(db, extra: Dict, prefix: str = 'bot') -> Dict:
     guid = safe_int(extra.get(f'{prefix}_guid'))
@@ -150,7 +148,8 @@ def _strength_note(own_level, victim_level) -> str:
         return "The enemy was far less seasoned than the killer."
     if diff <= -5:
         return "The enemy was far more seasoned than the killer."
-    return "It was a fairly even fight."
+    # Only the levels are known, not how the fight went.
+    return "They were of similar experience."
 
 
 def _pvp_kill_scenario(extra: Dict, mode: str) -> List[str]:
@@ -195,7 +194,8 @@ def _death_strength_note(name, own_level, killer_level) -> str:
         return f"The killer was far less seasoned than {name}."
     if diff <= -5:
         return f"The killer was far more seasoned than {name}."
-    return "It was a fairly even fight."
+    # Only the levels are known, not how the fight went.
+    return "They were of similar experience."
 
 
 def _pvp_death_scenario(extra: Dict, mode: str, audience: str) -> List[str]:
@@ -310,9 +310,7 @@ def process_zone_pvp_death_event(db, client, config, event):
         bot_name=bot['name'],
         message=text,
         channel='general',
-        delay_seconds=(
-            ZONE_LINE_DELAY + _zone_delivery_delay(bot['zone_id'], config)
-        ),
+        delay_seconds=_zone_delivery_delay(bot['zone_id'], config),
         event_id=event_id,
     )
     _mark_event(db, event_id, 'completed')
