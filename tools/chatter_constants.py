@@ -203,6 +203,12 @@ RACE_NAMES = {
     6: "Tauren", 7: "Gnome", 8: "Troll", 10: "Blood Elf", 11: "Draenei"
 }
 
+# Playable race IDs by faction: the one place a race decides the
+# faction (get_race_faction() and the faction-scoped SQL filters).
+# A server with races added through ChrRaces lists their IDs here.
+ALLIANCE_RACE_IDS = (1, 3, 4, 7, 11)
+HORDE_RACE_IDS = (2, 5, 6, 8, 10)
+
 # =============================================================================
 # ROLEPLAY PERSONALITY DATA
 # =============================================================================

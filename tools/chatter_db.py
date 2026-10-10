@@ -14,6 +14,8 @@ from chatter_constants import (
     CLASS_NAMES,
     EMOTE_LIST,
     RACE_NAMES,
+    ALLIANCE_RACE_IDS,
+    HORDE_RACE_IDS,
     WEAPON_SUBCLASS_NAMES,
     ZONE_COORDINATES,
     ZONE_LEVELS,
@@ -844,16 +846,15 @@ def get_recent_zone_messages(
     if not zone_id:
         return []
     try:
-        if faction == 'Alliance':
-            faction_filter = (
-                'AND c.race IN (1, 3, 4, 7, 11)'
-            )
-        elif faction == 'Horde':
-            faction_filter = (
-                'AND c.race IN (2, 5, 6, 8, 10)'
-            )
-        else:
-            faction_filter = ''
+        race_ids = {
+            'Alliance': ALLIANCE_RACE_IDS,
+            'Horde': HORDE_RACE_IDS,
+        }.get(faction)
+        faction_filter = (
+            'AND c.race IN ('
+            + ', '.join(str(i) for i in race_ids) + ')'
+            if race_ids else ''
+        )
         # Faction-scoped anti-repetition context fails closed when
         # the speaking character can no longer be identified.
         character_join = (
