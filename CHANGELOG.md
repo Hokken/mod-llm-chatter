@@ -1,5 +1,13 @@
 # Changelog
 
+### 2026-10-10 - Configurable Memory Recall Count
+
+* **Recall count**: How many memories a bot recalls about the player is
+  now configurable: `Memory.RecallCount` for greetings, replies to the
+  player and bot questions, and `Memory.IdleRecallCount` for idle chatter
+  (1-10). The defaults stay 3 and 2, so nothing changes unless they are
+  set.
+
 ### 2026-10-10 - Quieter Preset for the New Guild Events
 
 * **Quieter preset**: The new Guild event lines are rarer in
