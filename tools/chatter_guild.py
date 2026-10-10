@@ -30,6 +30,7 @@ from chatter_shared import (
     get_zone_flavor,
     parse_extra_data,
     parse_conversation_response,
+    race_class_note,
     select_conversation_message_count,
 )
 from chatter_text import (
@@ -79,11 +80,11 @@ def _query_speaker(db, bot_guid: int) -> Dict[str, object]:
             db, bot_guid, base.get('name') or '',
             'roleplay',
         )
+        class_name = get_class_name(int(base.get('class', 0) or 0))
         return {
             'guid': int(bot_guid),
-            'class': get_class_name(
-                int(base.get('class', 0) or 0)
-            ),
+            'class': class_name,
+            'class_style': class_style(db, bot_guid, class_name),
             'race': get_race_name(
                 int(base.get('race', 0) or 0)
             ),
@@ -142,6 +143,25 @@ from chatter_threads import (
     report_tokens,
 )
 from chatter_shared import count_conversation_items
+from chatter_class_style import class_style
+from chatter_progression import parse_audience
+from chatter_themed_topics import (
+    themed_candidate,
+    themed_metadata,
+    themed_used,
+)
+
+
+def _guild_themed_candidate(db, config, extra, participant, mode):
+    """Themed subject for an idle guild turn, prepared before the
+    thread is planned. Rumors rotate between online real members."""
+    bot = dict(participant['speaker'], name=participant['name'])
+    return themed_candidate(
+        db, config, 'guild', bot,
+        thread_key=guild_key(extra.get('guild_id')),
+        audience=parse_audience(extra.get('audience')),
+        mode=mode, faction=extra.get('team') or '',
+    )
 
 
 # Length control mirrors the General channel, which works well: we do NOT
@@ -250,7 +270,12 @@ def _guild_identity(speaker_name: str, speaker: Dict) -> str:
     base = f"You are {speaker_name}, a {race} {klass} of Azeroth"
     if flavor:
         base += f" — {flavor}"
-    return base + "."
+    base += "."
+    note = race_class_note(
+        race, klass, speaker.get('class_style'),
+        subject=f"{speaker_name}'s",
+    )
+    return f"{base} {note}" if note else base
 
 
 def _build_guild_prompt(
@@ -590,6 +615,7 @@ def _process_guild_statement_event(
     history_metadata_override: Optional[Dict] = None,
     thread_turn_override=None,
     special_override=None,
+    themed_override=None,
 ):
     """Handle guild_idle_chatter — one online guild member
     posts a short in-character line to guild chat.
@@ -642,22 +668,31 @@ def _process_guild_statement_event(
     profile = get_guild_profile(db, extra.get('guild_id'))
     special = special_override
     thread_turn = thread_turn_override
+    themed = themed_override
     if thread_turn is None and not topic_override:
         special = _pick_guild_topic(
             config, chatter_mode, profile, zone_id, extra.get('weather'),
+        )
+        themed = _guild_themed_candidate(
+            db, config, extra,
+            {'name': speaker_name, 'speaker': speaker}, chatter_mode,
         )
         thread_turn = plan_idle_turn(
             guild_key(extra.get('guild_id')),
             [speaker_name],
             topic_pool=_guild_topic_pool(special, topic_pool), db=db,
+            themed_topic=themed.render() if themed else None,
         )
         if thread_turn is not None and not _thread_used_topic(
                 thread_turn, special):
             special = None
+        if special or not themed_used(themed, thread_turn):
+            themed = None
     topic = (
         topic_override
         or ('' if thread_turn is not None
             else (special.subject if special
+                  else themed.render() if themed
                   else random.choice(topic_pool)))
     )
     if special and special.name_zone:
@@ -729,6 +764,7 @@ def _process_guild_statement_event(
         "guild_info_included": bool(guild_identity_lines(profile)),
     }
     metadata.update(_guild_topic_metadata(special))
+    metadata.update(themed_metadata(themed))
     metadata.update(history_metadata)
     response = call_llm(
         client, prompt, config,
@@ -1590,6 +1626,7 @@ def _generate_guild_conversation(
     thread_turn=None,
     guild_context: Optional[List[str]] = None,
     special: Optional[GuildTopic] = None,
+    themed=None,
 ) -> bool:
     participant_count = len(participants)
     max_lines = int(config.get(
@@ -1651,6 +1688,7 @@ def _generate_guild_conversation(
         name_zone,
     )
     metadata.update(_guild_topic_metadata(special))
+    metadata.update(themed_metadata(themed))
     metadata['guild_info_included'] = bool(guild_context)
     metadata['guild_requested_message_count'] = (
         message_count
@@ -1890,17 +1928,24 @@ def process_guild_idle_chatter_event(
             extra.get('zone_id')),
         extra.get('weather'),
     )
+    themed = _guild_themed_candidate(
+        db, config, extra, primary, chatter_mode,
+    )
     thread_turn = plan_idle_turn(
         guild_key(extra.get('guild_id')),
         [p['name'] for p in loaded_participants],
         topic_pool=_guild_topic_pool(special, topic_pool), db=db,
+        themed_topic=themed.render() if themed else None,
     )
     if thread_turn is not None and not _thread_used_topic(
             thread_turn, special):
         special = None
+    if special or not themed_used(themed, thread_turn):
+        themed = None
     topic = (
         '' if thread_turn is not None
         else (special.subject if special
+              else themed.render() if themed
               else random.choice(topic_pool))
     )
     faction = (
@@ -1947,6 +1992,7 @@ def process_guild_idle_chatter_event(
         thread_turn=thread_turn,
         guild_context=guild_identity_lines(profile),
         special=special,
+        themed=themed,
     )
     if completed:
         _mark_event(db, event_id, 'completed')
@@ -1964,4 +2010,5 @@ def process_guild_idle_chatter_event(
         history_metadata_override=history_metadata,
         thread_turn_override=thread_turn,
         special_override=special,
+        themed_override=themed,
     )

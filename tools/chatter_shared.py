@@ -17,6 +17,7 @@ import threading
 import time
 from typing import Optional, Dict, List, Tuple, Any
 
+from chatter_lore_data import RACE_CLASS_NOTES
 from chatter_constants import (
     ZONE_LEVELS, ZONE_NAMES,
     CLASS_NAMES, RACE_NAMES,
@@ -559,6 +560,8 @@ _race_lore_chance = 0.15
 # Module-level race vocabulary chance (set from config)
 _race_vocab_chance = 0.15
 
+_race_class_notes_enabled = True
+
 
 def set_race_lore_chance(chance_pct: int):
     """Set from config: LLMChatter.RaceLoreChance (0-100)."""
@@ -570,6 +573,33 @@ def set_race_vocab_chance(chance_pct: int):
     """Set from config: LLMChatter.RaceVocabChance (0-100)."""
     global _race_vocab_chance
     _race_vocab_chance = chance_pct / 100.0
+
+
+def set_race_class_notes_enabled(enabled: bool):
+    """Set from config: LLMChatter.RaceClassNotes.Enable."""
+    global _race_class_notes_enabled
+    _race_class_notes_enabled = bool(enabled)
+
+
+def race_class_note(
+    race: str, class_name: str,
+    class_style: str = None, actual_role: str = None,
+    subject: str = "Your",
+) -> str:
+    """Lore note for this race+class; priests split into Light/Shadow."""
+    if not _race_class_notes_enabled:
+        return ""
+    style = class_style or class_name
+    if style == 'Priest':
+        style = (
+            'Shadow Priest'
+            if actual_role and actual_role.endswith('dps')
+            else 'Light Priest'
+        )
+    note = RACE_CLASS_NOTES.get((race, style))
+    if not note:
+        return ""
+    return f"{subject} people and calling ({race} {style}): {note}"
 
 
 def build_race_class_context(

@@ -3,6 +3,7 @@
  */
 
 #include "LLMChatterAmbient.h"
+#include "LLMChatterAudience.h"
 #include "LLMChatterBossDialogue.h"
 #include "LLMChatterConfig.h"
 #include "LLMChatterScreenshot.h"
@@ -14,6 +15,7 @@
 #include "LLMChatterProximity.h"
 #include "LLMChatterProximityFight.h"
 #include "LLMChatterShared.h"
+#include "LLMChatterThemedAudience.h"
 
 #include "DatabaseEnv.h"
 #include "Group.h"
@@ -852,7 +854,9 @@ private:
                 R"("guildmates":"{}",)"
                 R"("team":"{}",)"
                 R"("zone_id":{},)"
-                R"("weather":"{}"}})",
+                R"("weather":"{}",)"
+                // Online real members, so rumors rotate between readers.
+                R"("audience":{}}})",
                 guildId,
                 JsonEscape(guildName),
                 JsonEscape(speaker->GetName()),
@@ -864,7 +868,9 @@ private:
                 teamName,
                 speaker->GetZoneId(),
                 JsonEscape(GetZoneWeatherName(
-                    speaker->GetZoneId())));
+                    speaker->GetZoneId())),
+                BuildAudienceListJson(
+                    CollectRealGuildMembers(guildId, 10)));
 
             std::string cooldownKey =
                 "guild_idle_"

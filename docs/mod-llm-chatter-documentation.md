@@ -4232,6 +4232,115 @@ the README section "Important: Disable Default Bot Chat"
 
 ---
 
+## 13z. Themed Topics and Rumors
+
+`chatter_themed_topics.py` gives idle guild, General and party chatter
+subjects tied to the speaking bot's faction, race and class, plus rumors
+about places and trainers that suit the real players who can read the
+line.
+
+| Kind | Channels | Subject |
+|------|----------|---------|
+| Faction | Guild, General | The long struggle on a war front, views often heard in the bot's faction about the other one or about one enemy race, or a story going around about a clash. How far the bot shares those views is left to its personality |
+| Race / Class / Race+class | Guild, General, Party (class and race+class only) | A topic from the bot's own race, calling (priests split into Light and Shadow by spec) or both |
+| Expansion, dungeon, raid, location, region rumors | Guild, General | A place the listeners can reach and have not all finished |
+| Profession and class trainer rumors | Guild, General | A trainer of the listeners' faction and what they can teach |
+
+### How a themed subject is chosen
+
+- **Threads on** (`Threads.Enable` and the channel switch): a themed
+  subject is one more fresh-subject source for the conversation thread,
+  next to persona, surroundings and the topic pool, weighted by
+  `Threads.ThemedTopicWeight`. The thread prompt offers it as "A possible
+  fresh subject: ...", the same soft nudge as the pool topic.
+- **Threads off**: `ThemedTopics.GuildChance`, `GeneralChance` and
+  `PartyChance` decide whether the idle topic is themed instead of a
+  generic one. The prompt keeps the existing soft wording ("Topic idea
+  (optional ...)" in guild chat, "A possible subject, only if it fits
+  naturally" in party chat).
+- `themed_candidate()` builds the candidate before `plan_idle_turn()` is
+  called and passes it in as text, so the talent, achievement and guild
+  lookups never run under the thread lock. `themed_used()` tells the
+  caller whether the planned turn actually used it; request metadata
+  records `themed_kind` and `themed_channel`.
+- Party chatter never uses themed subjects inside dungeons or
+  battlegrounds, nor on memory-recall turns.
+
+### Rumors rotate between listeners
+
+The worldserver sends the listeners with the request:
+
+- General: `llm_chatter_queue.audience_context`, up to 10 online real
+  players of the speaker's faction in the zone.
+- Guild: an `audience` array in the `guild_idle_chatter` extra data, up to
+  10 online real guild members.
+
+Rumor level bands are limited, so listeners of very different levels
+rarely share one. Each themed pick therefore aims rumors
+at one target listener: `next_rumor_target()` in `chatter_progression.py`
+takes the listener served least recently (ties at random) and marks them
+served right away, even when no rumor comes of it, so a listener with
+nothing left to hear never holds up the others. With one listener, that
+listener is always the target. The bridge keeps this rotation in memory.
+
+A rumor fits a listener (`fits()`) when:
+
+- the listener's level is inside the rumor's level band. A dungeon's band
+  starts a few levels before the Dungeon Finder offers it and ends at its
+  Dungeon Finder upper limit (the last wing's for multi-wing dungeons) or
+  at the expansion's level cap (60 for classic, 70 for The Burning
+  Crusade), whichever is lower. Upper Blackrock Spire, which the Dungeon
+  Finder lists only as a raid, ends at 60 like the other classic endgame
+  dungeons. A dungeon rumor therefore stops only when the listener
+  completes the dungeon or outlevels it;
+- for dungeons and raids, the listener has not earned the completion
+  achievement.
+
+`best_covered()` keeps the rumors that fit the target and, among them,
+those that fit the most listeners, so a rumor that suits the whole guild
+still wins when one exists. The line is told to everyone listening, never
+addressed to the target. In addition:
+
+- location, region and trainer rumors need all listeners on one faction;
+- expansion rumors are always hearsay, never the bot's own experience;
+- trainer rumors name a trainer for the target's own race or class at
+  `ThemedTopics.OwnTrainerChance`, and their weights follow the target's
+  level (`ThemedTopics.*RumorFullLevel` / `*RumorMaxLevel`);
+- the request log records the target as `rumor_target`.
+
+Faction, race and class topics need no listener.
+
+Rumors and faction stories describe the place, the trainer or the story
+as it is told; they never ask the bot to promote, warn, admire or
+condemn, and never present a stock story as something that just
+happened. The other speakers get a list of possible reactions.
+
+### Race and class notes
+
+`race_class_note()` (`chatter_shared.py`, data in `chatter_lore_data.py`)
+adds a short lore note for the speaker's race and calling to the
+speaker's identity in Guild chat prompts (and nowhere else), with
+priests split into Light and Shadow by spec
+(`chatter_class_style.py`). `RaceClassNotes.Enable` turns it off.
+
+### Configuration
+
+| Key | Default | Quieter preset | Owner |
+|-----|---------|----------------|-------|
+| `ThemedTopics.Enable` | 1 | 1 | Bridge |
+| `ThemedTopics.GuildChance` / `GeneralChance` / `PartyChance` (threads off only) | 30 / 30 / 5 | 25 / 25 / 3 | Bridge |
+| `ThemedTopics.*Weight` (11 kinds) | 12 / 18 / 18 / 7 / 8 / 12 / 6 / 10 / 9 / 12 / 12 | same | Bridge |
+| `ThemedTopics.ProfessionRumorFullLevel` / `ProfessionRumorMaxLevel` | 20 / 30 | same | Bridge |
+| `ThemedTopics.ClassTrainerRumorFullLevel` / `ClassTrainerRumorMaxLevel` | 15 / 25 | same | Bridge |
+| `ThemedTopics.TrainerRumorReducedPercent` | 33 | 33 | Bridge |
+| `ThemedTopics.OwnTrainerChance` | 50 | 50 | Bridge |
+| `Threads.ThemedTopicWeight` | 25 | 20 | Bridge |
+| `RaceClassNotes.Enable` | 1 | 1 | Bridge |
+
+All keys are under `LLMChatter.`. Existing installations must apply
+`data/sql/characters/updates/20261002_themed_topic_audience.sql`, which
+adds `llm_chatter_queue.audience_context`.
+
 ## 14. JSON and Queue Contracts
 
 ### `QueueChatterEvent()`

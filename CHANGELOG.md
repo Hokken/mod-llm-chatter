@@ -1,5 +1,38 @@
 # Changelog
 
+### 2026-10-10 - Themed Topics and Rumors
+
+* **Themed subjects**: Idle guild, General and party chatter can pick a
+  subject from the speaking bot's faction, race or class (priests split
+  into Light and Shadow by spec). Faction subjects offer views often
+  heard in the bot's faction; how far the bot shares them is left to its
+  personality.
+* **Rumors**: Guild and General can share rumors about expansions,
+  dungeons, raids, locations, regions and trainers. Rumors take turns
+  between the real listeners, so a guild or zone with very different
+  levels still hears rumors for each of them: each one fits its target
+  listener's level and completed content, and rumors that suit more
+  listeners are preferred. A dungeon rumor lasts until the listener
+  completes the dungeon or outlevels its Dungeon Finder range or its
+  expansion. Rumors and faction stories are told as hearsay, never as
+  the bot's own experience or something that just happened, and name
+  only real, spawned trainers.
+* **Conversation threads**: While threads are on, a themed subject is one
+  more fresh-subject source (`Threads.ThemedTopicWeight`) offered with the
+  usual soft nudge. The per-channel chances only apply while threads are
+  off. Candidates are prepared before the thread lock is taken. A turn
+  uses either a guild topic (MOTD, zone, guild praise or discussion) or a
+  themed subject, never both; the guild topic comes first.
+* **Race and class notes**: The speaker's identity in Guild chat prompts
+  gets a short lore note for their race and calling
+  (`RaceClassNotes.Enable`).
+* **Configuration**: `ThemedTopics.*` (including the trainer rumor level
+  bands and `OwnTrainerChance`), `Threads.ThemedTopicWeight` and
+  `RaceClassNotes.Enable`.
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20261002_themed_topic_audience.sql`,
+  rebuild the worldserver and restart the bridge.
+
 ### 2026-10-10 - Open-World PvP Reactions
 
 * **Guild PvP lines**: A lone guild bot that kills an opposing-faction bot
