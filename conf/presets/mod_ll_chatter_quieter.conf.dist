@@ -2520,9 +2520,22 @@ LLMChatter.GuildChatter.MeetGreeting.Radius = 25
 #
 #   LLMChatter.GuildChatter.MeetGreeting.CooldownHours
 #       Hours before the same bot greets the same player again.
+#       The cooldown survives server restarts for up to 24 hours,
+#       so the supported range is 1-24.
 #       Default: 5
 #
 LLMChatter.GuildChatter.MeetGreeting.CooldownHours = 5
+
+#
+#   LLMChatter.GuildChatter.MeetGreeting.FollowUpDelayMin
+#   LLMChatter.GuildChatter.MeetGreeting.FollowUpDelayMax
+#       Seconds after the meet greeting is spoken before the
+#       optional Guild follow-up is posted (a random value in
+#       this range). Supported range is 1-120.
+#       Default: 8 and 15
+#
+LLMChatter.GuildChatter.MeetGreeting.FollowUpDelayMin = 8
+LLMChatter.GuildChatter.MeetGreeting.FollowUpDelayMax = 15
 
 #
 #   LLMChatter.GuildChatter.WorldScanInterval
@@ -2548,6 +2561,14 @@ LLMChatter.GuildChatter.JoinZoneAnnounce.Enable = 1
 #       Default: 35
 #
 LLMChatter.GuildChatter.JoinZoneAnnounce.Chance = 20
+
+#
+#   LLMChatter.GuildChatter.JoinZoneAnnounce.DelaySeconds
+#       Seconds after a bot joins a guild before it may
+#       announce it in General. Supported range is 0-60.
+#       Default: 8
+#
+LLMChatter.GuildChatter.JoinZoneAnnounce.DelaySeconds = 8
 
 #
 #   LLMChatter.GuildChatter.NpcEncounter.Enable
@@ -2580,6 +2601,14 @@ LLMChatter.GuildChatter.NpcEncounter.Radius = 30
 #       Default: 1200
 #
 LLMChatter.GuildChatter.NpcEncounter.Cooldown = 1200
+
+#
+#   LLMChatter.GuildChatter.NpcEncounter.PairCooldownHours
+#       Hours before the same bot comments on the same NPC
+#       again. Supported range is 1-168.
+#       Default: 6
+#
+LLMChatter.GuildChatter.NpcEncounter.PairCooldownHours = 6
 
 #
 #   LLMChatter.GuildChatter.LoginGreeting.Enable

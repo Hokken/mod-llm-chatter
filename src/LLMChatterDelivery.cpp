@@ -672,11 +672,14 @@ void DeliverPendingMessagesImpl()
         ? "speaker_unavailable" : "";
 
     // A meet greeting is only spoken while the guildmate is still
-    // close, visible and in line of sight.
+    // close, visible and in line of sight, and both are still in the
+    // guild they met as.
+    uint32 meetGuildId = eventType == "guild_meet_greeting"
+        ? ExtractJsonUInt(eventExtraData, "guild_id") : 0;
     if (eventType == "guild_meet_greeting" && channel == "say")
     {
         if (char const* meetDrop =
-                CheckMeetGreetingDelivery(bot, playerGuid))
+                CheckMeetGreetingDelivery(bot, playerGuid, meetGuildId))
         {
             if (DeferMeetGreeting(messageId, meetDrop))
             {
@@ -693,6 +696,20 @@ void DeliverPendingMessagesImpl()
             SettleMeetGreetingFollowUp(eventId, false);
             return;
         }
+    }
+    // The Guild follow-up goes to bot->GetGuild(): never to a guild
+    // other than the one the meeting was about.
+    if (eventType == "guild_meet_greeting" && channel == "guild"
+        && bot && bot->GetGuildId() != meetGuildId)
+    {
+        LOG_INFO("module",
+            "LLMChatter: guild_meet_greeting follow-up {} "
+            "(event {}) dropped: meet_guild_changed",
+            messageId, eventId);
+        FinalizeDroppedMessage(
+            messageId, eventId, sequence,
+            eventType, "meet_guild_changed");
+        return;
     }
 
     ObjectGuid playerObjGuid =

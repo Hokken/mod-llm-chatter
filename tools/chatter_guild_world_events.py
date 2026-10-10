@@ -55,7 +55,19 @@ from chatter_shared import (
 
 logger = logging.getLogger(__name__)
 
-FOLLOW_UP_DELAY = (8.0, 15.0)
+FOLLOW_UP_DELAY = (8, 15)
+
+
+def _follow_up_delay(config: Optional[Dict]) -> tuple:
+    """MeetGreeting.FollowUpDelayMin/Max in seconds, as C++ loads them."""
+    config = config or {}
+    low = max(1, min(120, safe_int(config.get(
+        PREFIX + 'MeetGreeting.FollowUpDelayMin', FOLLOW_UP_DELAY[0],
+    ), FOLLOW_UP_DELAY[0])))
+    high = max(low, min(120, safe_int(config.get(
+        PREFIX + 'MeetGreeting.FollowUpDelayMax', FOLLOW_UP_DELAY[1],
+    ), FOLLOW_UP_DELAY[1])))
+    return low, high
 FOLLOW_UP_DROP_REASON = 'meet_greeting_not_delivered'
 
 
@@ -226,7 +238,7 @@ def _meet_guild_scenario(extra: Dict, greeting: str) -> List[str]:
         f"{bot_name} has just run into their guildmate {player}{where} by "
         f"chance and greeted them in person: \"{greeting}\".",
         f"Now {bot_name} mentions the meeting to the guild. A remark about "
-        "the place or what they might be up to there may fit.",
+        f"the place may fit; do not guess what {player} is doing there.",
         f"Name {player}" + (f" and {place}" if place else "")
         + " so the guild knows who and where. Do not repeat the greeting "
         "and do not invent a long story.",
@@ -299,28 +311,25 @@ def _greeting_state(db, greeting_id: int) -> str:
     return 'dropped' if drop_reason else 'spoken'
 
 
-def hold_follow_up(db, follow_up_id: int, greeting_id: int) -> str:
-    """Hold the Guild follow-up until the greeting has been spoken.
+def settle_follow_up(
+    db, follow_up_id: int, greeting_id: int, config: Optional[Dict] = None,
+) -> str:
+    """Settle a Guild follow-up that was inserted held.
 
-    A held row has no deliver_at, so delivery never picks it up. C++
-    releases or cancels it once the greeting row is final; when that
-    already happened, it is settled here instead. Returns the greeting
-    state seen.
+    The follow-up is inserted with no deliver_at (held), so delivery never
+    picks it up on its own. C++ releases or cancels it once the greeting
+    row is final; when that already happened, it is settled here instead.
+    If this fails, the row simply stays held and the world scan's sweep
+    cancels it. Returns the greeting state seen.
     """
-    cursor = db.cursor()
-    cursor.execute(
-        "UPDATE llm_chatter_messages SET deliver_at = NULL "
-        "WHERE id = %s AND delivered = 0",
-        (follow_up_id,),
-    )
-    db.commit()
     state = _greeting_state(db, greeting_id)
+    cursor = db.cursor()
     if state == 'spoken':
         cursor.execute(
             "UPDATE llm_chatter_messages "
             "SET deliver_at = DATE_ADD(NOW(), INTERVAL %s SECOND) "
             "WHERE id = %s AND delivered = 0 AND deliver_at IS NULL",
-            (int(random.uniform(*FOLLOW_UP_DELAY)), follow_up_id),
+            (random.randint(*_follow_up_delay(config)), follow_up_id),
         )
     elif state == 'dropped':
         cursor.execute(
@@ -351,15 +360,18 @@ def _post_meet_follow_up(
             bot_name=bot['name'],
             message=text,
             channel='guild',
-            delay_seconds=FOLLOW_UP_DELAY[1],
+            delay_seconds=_follow_up_delay(config)[1],
             event_id=event_id,
             sequence=1,
             owner_subsystem='guild',
             delivery_policy='filler',
+            held=True,
         )
         if not follow_up_id:
             return False
-        return hold_follow_up(db, follow_up_id, greeting_id) != 'dropped'
+        return settle_follow_up(
+            db, follow_up_id, greeting_id, config,
+        ) != 'dropped'
     except Exception:
         logger.exception("guild_meet_post failed event=%s", event_id)
         return False

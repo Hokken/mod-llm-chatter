@@ -3770,22 +3770,28 @@ only sees real players.
   checks do not apply to it. Delivery checks it again instead
   (`CheckMeetGreetingDelivery()`): the player must still be online, on the
   same map, within `MeetGreeting.Radius`, able to see the bot and in line
-  of sight, and the bot must be alive and out of combat. Otherwise the
-  line is dropped with the reason (`meet_player_gone`, `meet_other_map`,
+  of sight, the bot must be alive and out of combat, and both must still
+  be members of the event's guild (`guild_id`). Otherwise the line is
+  dropped with the reason (`meet_player_gone`, `meet_other_map`,
   `meet_out_of_range`, `meet_not_visible`, `meet_no_line_of_sight`,
-  `meet_bot_unavailable`) and an INFO log line. Range, visibility and
+  `meet_bot_unavailable`, `meet_guild_changed`) and an INFO log line. Range, visibility and
   line of sight can fail for a moment (a tent pole, a step back), so
   those three are retried every 2 seconds (`DeferMeetGreeting()`) and the
   line is dropped only if the check still fails 8 seconds after the first
   miss.
-- The Guild follow-up is generated after the greeting and stored on hold:
-  its `deliver_at` is NULL, so delivery never picks it up. When the
-  greeting row is final, delivery releases the follow-up 8 to 15 seconds
-  later, or cancels it with `meet_greeting_not_delivered` when the
-  greeting was dropped (`SettleMeetGreetingFollowUp()`). If the greeting
-  was already final when the bridge stored the follow-up, the bridge
-  settles it itself (`hold_follow_up()`). Follow-ups still on hold ten
-  minutes after their event are cancelled by the world scan.
+- The Guild follow-up is generated after the greeting and inserted
+  already held (`insert_chat_message(held=True)`): its `deliver_at` is
+  NULL from the start, so delivery never picks it up on its own, even if
+  the bridge fails right after the insert. When the greeting row is
+  final, delivery releases the follow-up `MeetGreeting.FollowUpDelayMin`
+  to `FollowUpDelayMax` seconds later (8 to 15 by default), or cancels it
+  with `meet_greeting_not_delivered` when the greeting was dropped
+  (`SettleMeetGreetingFollowUp()`). If the greeting was already final
+  when the bridge stored the follow-up, the bridge settles it itself
+  (`settle_follow_up()`). Follow-ups still on hold ten minutes after their
+  event are cancelled by the world scan. The follow-up is dropped with
+  `meet_guild_changed` if the bot is no longer in the event's guild, so it
+  never reaches another guild.
 - When no players are online, the session cleanup keeps finished
   `guild_meet_greeting` events because they are the persisted meet
   cooldown.
@@ -4005,11 +4011,17 @@ next prompt.
 | Key | Default | Quieter preset | Owner |
 |-----|---------|----------------|-------|
 | `MeetGreeting.Enable` / `.Radius` / `.CooldownHours` | 1 / 25 / 5 | 1 / 25 / 5 | Server |
+| `MeetGreeting.FollowUpDelayMin` / `.FollowUpDelayMax` | 8 / 15 | 8 / 15 | Server and Bridge |
 | `MeetGreeting.GuildPostChance` | 50 | 30 | Bridge |
 | `WorldScanInterval` | 10 | 10 | Server |
 | `JoinZoneAnnounce.Enable` / `.Chance` | 1 / 35 | 1 / 20 | Server |
 | `JoinZoneAnnounce.MaxResponders` | 2 | 2 | Bridge |
+| `JoinZoneAnnounce.DelaySeconds` | 8 | 8 | Server |
 | `NpcEncounter.Enable` / `.Chance` / `.Radius` / `.Cooldown` | 1 / 4 / 30 / 1200 | 1 / 2 / 30 / 1200 | Server |
+| `NpcEncounter.PairCooldownHours` | 6 | 6 | Server |
+
+`MeetGreeting.CooldownHours` is capped at 24: finished events, which carry
+the cooldown across restarts, are pruned after 24 hours.
 
 All keys are under `LLMChatter.GuildChatter.`. Existing installations must
 apply `data/sql/characters/updates/20261002_guild_world_events.sql`

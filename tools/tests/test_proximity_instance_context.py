@@ -1135,10 +1135,11 @@ def test_message_insert_addressee_parameters_match_placeholders():
         addressee_npc_spawn_id=102,
     )
     query, params = db.cursor_value.queries[0]
-    # 19, not 18: insert_chat_message also binds the `action`
-    # column (added on this branch for Actions Are Real
-    # Emotes) ahead of the three addressee_* columns below.
-    assert query.count('%s') == len(params) == 19
+    # 20: insert_chat_message also binds the `action` column
+    # (Actions Are Real Emotes) and the `held` flag that stores a
+    # row with no deliver_at, ahead of the three addressee_*
+    # columns below.
+    assert query.count('%s') == len(params) == 20
     assert params[-3:] == (None, None, 102)
 
 

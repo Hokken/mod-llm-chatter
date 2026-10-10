@@ -10,8 +10,10 @@
 class Player;
 
 // Delivery-time check for a meet greeting's /say line: nullptr when
-// the bot may still greet the player, otherwise the drop reason.
-char const* CheckMeetGreetingDelivery(Player* bot, uint32 playerGuid);
+// the bot may still greet the player, otherwise the drop reason. Both
+// must still be members of the event's guild (guildId).
+char const* CheckMeetGreetingDelivery(
+    Player* bot, uint32 playerGuid, uint32 guildId);
 
 // Reschedules a meet greeting whose check failed for a reason that can
 // pass again moments later (range, visibility, line of sight), for up

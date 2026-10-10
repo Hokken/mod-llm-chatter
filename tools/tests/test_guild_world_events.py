@@ -117,7 +117,7 @@ class _Capture:
     def mark(self, db, event_id, status):
         self.marked.append(status)
 
-    def hold(self, db, follow_up_id, greeting_id):
+    def hold(self, db, follow_up_id, greeting_id, config=None):
         self.held.append((follow_up_id, greeting_id))
         return 'pending'
 
@@ -136,7 +136,7 @@ def _patches(capture, messages):
         patch.object(world, '_mark_event', side_effect=capture.mark),
         patch.object(world, 'run_single_prompt', side_effect=single),
         patch.object(common, 'run_single_prompt', side_effect=single),
-        patch.object(world, 'hold_follow_up', side_effect=capture.hold),
+        patch.object(world, 'settle_follow_up', side_effect=capture.hold),
         patch.object(world, 'get_guild_profile', return_value={}),
         patch.object(world, 'get_character_guild_name',
                      return_value='Ember Court'),
@@ -241,10 +241,15 @@ def test_meet_follow_up_is_held_until_the_greeting_is_spoken():
     assert post['channel'] == 'guild' and post['sequence'] == 1
     assert post['owner_subsystem'] == 'guild'
     assert post['delivery_policy'] == 'filler'
+    # Inserted already held: never deliverable before it is settled.
+    assert post['held'] is True
     assert capture.held == [(2, 1)]
     guild_prompt = capture.prompts[1]
     assert 'The Crossroads in The Barrens' in guild_prompt
     assert '"Vlad. Mind the raptors."' in guild_prompt
+    # Only who met whom and where is known: no guessing the activity.
+    assert 'might be up to' not in guild_prompt
+    assert 'do not guess what Vlad is doing there' in guild_prompt
     assert 'React the way Grom naturally would' in guild_prompt
     _assert_no_mood(guild_prompt)
 
@@ -284,29 +289,86 @@ class _FakeDb:
         pass
 
 
-def test_hold_follow_up_settles_by_greeting_state():
+def test_settle_follow_up_releases_or_cancels_by_greeting_state():
     db = _FakeDb((0, None, None))
-    assert world.hold_follow_up(db, 9, 8) == 'pending'
-    assert db.statements[0][0].startswith(
-        'UPDATE llm_chatter_messages SET deliver_at = NULL')
-    assert db.statements[0][1] == (9,)
-    assert len(db.statements) == 2
+    assert world.settle_follow_up(db, 9, 8) == 'pending'
+    # Pending: only the greeting state is read; the row stays held.
+    assert len(db.statements) == 1
+    assert db.statements[0][0].startswith('SELECT delivered')
 
     db = _FakeDb((1, None, None))
-    assert world.hold_follow_up(db, 9, 8) == 'pending'
+    assert world.settle_follow_up(db, 9, 8) == 'pending'
 
     db = _FakeDb((1, '2026-10-02 10:00:00', None))
-    assert world.hold_follow_up(db, 9, 8) == 'spoken'
+    assert world.settle_follow_up(db, 9, 8) == 'spoken'
     release, params = db.statements[-1]
     assert 'SET deliver_at = DATE_ADD(NOW()' in release
     assert 'deliver_at IS NULL' in release
     assert 8 <= params[0] <= 15 and params[1] == 9
 
     db = _FakeDb((1, '2026-10-02 10:00:00', 'meet_out_of_range'))
-    assert world.hold_follow_up(db, 9, 8) == 'dropped'
+    assert world.settle_follow_up(db, 9, 8) == 'dropped'
     cancel, params = db.statements[-1]
     assert 'SET delivered = 1' in cancel and 'deliver_at IS NULL' in cancel
     assert params == ('meet_greeting_not_delivered', 9)
+
+
+def test_follow_up_stays_held_when_settling_fails():
+    # The settle step fails after the insert: the row must not be
+    # deliverable on its own, so the C++ settle/sweep can still cancel it.
+    capture = _Capture()
+
+    def boom(*args, **kwargs):
+        raise RuntimeError('db gone')
+
+    patches = _patches(capture, ['Vlad.', 'Ran into Vlad.'])
+    for item in patches:
+        item.start()
+    try:
+        with patch.object(world, 'settle_follow_up', side_effect=boom),                 patch.object(world.logger, 'exception'):
+            world.process_guild_meet_greeting_event(
+                None, None,
+                dict(RP, **{'LLMChatter.GuildChatter.MeetGreeting.'
+                            'GuildPostChance': '100'}),
+                _event('guild_meet_greeting', _meet_extra()))
+    finally:
+        for item in reversed(patches):
+            item.stop()
+    post = [row for row in capture.inserted if row['channel'] == 'guild']
+    assert len(post) == 1 and post[0]['held'] is True
+
+
+def test_insert_chat_message_can_store_a_held_row():
+    import chatter_db
+
+    class Cursor:
+        def __init__(self):
+            self.calls = []
+            self.lastrowid = 7
+
+        def execute(self, sql, params=()):
+            self.calls.append((" ".join(sql.split()), params))
+
+    class Db:
+        def __init__(self):
+            self.cur = Cursor()
+
+        def cursor(self, *args, **kwargs):
+            return self.cur
+
+        def commit(self):
+            pass
+
+    for held in (True, False):
+        db = Db()
+        chatter_db.insert_chat_message(
+            db, 1, 'Grom', 'Ran into Vlad.', channel='guild',
+            delay_seconds=15, held=held)
+        sql, params = db.cur.calls[-1]
+        assert 'CASE WHEN %s THEN NULL' in sql
+        # The flag sits right before the delay binding.
+        assert params[12] == (1 if held else 0)
+        assert params[13] == 15
 
 
 def test_cpp_meet_greeting_is_rechecked_at_delivery():
@@ -323,7 +385,8 @@ def test_cpp_meet_greeting_is_rechecked_at_delivery():
 
     delivery = _src('LLMChatterDelivery.cpp')
     body = _function_body(delivery, 'void DeliverPendingMessagesImpl(')
-    gate = body.index('CheckMeetGreetingDelivery(bot, playerGuid)')
+    gate = body.index(
+        'CheckMeetGreetingDelivery(bot, playerGuid, meetGuildId)')
     assert gate < body.index('ai->Say(processedMessage)')
     drop = body[gate:gate + 700]
     defer = drop.index('if (DeferMeetGreeting(messageId, meetDrop))')
@@ -337,6 +400,34 @@ def test_cpp_meet_greeting_is_rechecked_at_delivery():
     settle = body.rindex('SettleMeetGreetingFollowUp(eventId, sent);')
     assert settle > body.rindex('"SET delivered = 0, "')
     assert settle > body.rindex('FinalizeDroppedMessage(')
+
+
+def test_meet_lines_need_the_original_guild_at_delivery():
+    # The player or the bot may leave the guild while the line is
+    # generated: the greeting must not call them guildmates, and the
+    # follow-up must never reach another guild.
+    world_src = _src('LLMChatterGuildWorld.cpp')
+    check = _function_body(
+        world_src, 'char const* CheckMeetGreetingDelivery(')
+    for needle in ('bot->GetGuildId() != guildId',
+                   'player->GetGuildId() != guildId',
+                   'return "meet_guild_changed";'):
+        assert needle in check, needle
+    retry = _function_body(world_src, 'bool DeferMeetGreeting(')
+    assert 'meet_guild_changed' not in retry  # dropped, not retried
+
+    body = _function_body(_src('LLMChatterDelivery.cpp'),
+                          'void DeliverPendingMessagesImpl(')
+    assert ('ExtractJsonUInt(eventExtraData, "guild_id")'
+            in body)
+    follow = body[body.index(
+        'if (eventType == "guild_meet_greeting" && channel == "guild"'):]
+    follow = follow[:follow.index('return;')]
+    assert 'bot->GetGuildId() != meetGuildId' in follow
+    assert '"meet_guild_changed"' in follow
+    # Checked before the Guild broadcast.
+    assert body.index('bot->GetGuildId() != meetGuildId') < body.index(
+        'guild->BroadcastToGuild(')
 
 
 def test_cpp_meet_greeting_retries_passing_failures():
@@ -360,7 +451,8 @@ def test_cpp_follow_up_release_and_cancel():
     settle = _function_body(source, 'void SettleMeetGreetingFollowUp(')
     assert settle.count('deliver_at IS NULL') == 2
     assert 'meet_greeting_not_delivered' in settle
-    assert 'urand(kMeetFollowUpMinDelay, kMeetFollowUpMaxDelay)' in settle
+    assert '_guildMeetFollowUpDelayMin' in settle
+    assert '_guildMeetFollowUpDelayMax' in settle
     sweep = _function_body(source, 'void SweepHeldFollowUps(')
     assert "e.event_type = 'guild_meet_greeting'" in sweep
 
@@ -631,10 +723,38 @@ def test_config_keys_in_both_confs():
             'JoinZoneAnnounce.Chance', 'JoinZoneAnnounce.MaxResponders',
             'NpcEncounter.Enable', 'NpcEncounter.Chance',
             'NpcEncounter.Radius', 'NpcEncounter.Cooldown',
+            'NpcEncounter.PairCooldownHours',
+            'MeetGreeting.FollowUpDelayMin',
+            'MeetGreeting.FollowUpDelayMax',
+            'JoinZoneAnnounce.DelaySeconds',
         ):
             assert re.search(
                 rf'^LLMChatter\.GuildChatter\.{re.escape(key)} = \d+',
                 text, re.M), (path.name, key)
+
+
+def test_world_event_timings_come_from_config():
+    source = _src('LLMChatterGuildWorld.cpp')
+    for constant in ('kNpcPairCooldownSeconds', 'kMeetFollowUpMinDelay',
+                     'kMeetFollowUpMaxDelay', 'kJoinAnnounceDelaySeconds'):
+        assert constant not in source, constant
+    assert '_guildNpcEncounterPairCooldownHours * 3600' in source
+    assert '_guildJoinZoneAnnounceDelaySeconds' in source
+    config = _src('LLMChatterConfig.cpp')
+    for key, default in (('NpcEncounter.PairCooldownHours', 6),
+                         ('MeetGreeting.FollowUpDelayMin', 8),
+                         ('MeetGreeting.FollowUpDelayMax', 15),
+                         ('JoinZoneAnnounce.DelaySeconds', 8)):
+        assert f'"{key}", {default})' in config, key
+    # The persisted meet cooldown is pruned after 24 hours.
+    cap = config[config.index('"MeetGreeting.CooldownHours", 5)'):]
+    assert cap[:cap.index(';')].rstrip().endswith('24u))')
+    # Python uses the same follow-up delay keys and defaults.
+    assert world._follow_up_delay({}) == (8, 15)
+    assert world._follow_up_delay({
+        'LLMChatter.GuildChatter.MeetGreeting.FollowUpDelayMin': '20',
+        'LLMChatter.GuildChatter.MeetGreeting.FollowUpDelayMax': '5',
+    }) == (20, 20)
 
 
 def test_structured_event_repairs_keep_the_contract():

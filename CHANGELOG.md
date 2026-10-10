@@ -1,14 +1,17 @@
 # Changelog
 
-### 2026-10-02 - Guild World Events
+### 2026-10-10 - Guild World Events
 
 * **Meet greetings**: A guild bot that runs into a real guildmate in the
   open world waves and greets them in `/say`, and may mention the meeting
   in Guild chat afterwards. The greeting is checked again at delivery
-  (same map, range, visibility, line of sight); a brief range or sight
-  miss is retried for up to 8 seconds, and the line is dropped with a
-  reason if the player has moved on. The Guild post waits until the
-  greeting was spoken and is cancelled if it was dropped.
+  (same map, range, visibility, line of sight, and both still in the
+  guild they met as); a brief range or sight miss is retried for up to 8
+  seconds, and the line is dropped with a reason if the player has moved
+  on. The Guild post is stored on hold from the start, waits until the
+  greeting was spoken, is cancelled if it was dropped, and never reaches
+  a guild the bot has since left. It names the place without guessing
+  what the guildmate is doing there.
 * **Join announcements**: A bot that joins a guild may tell its zone's
   General channel, and zone bots react. The announcer always speaks first,
   and the lines follow the General zone pacing.
@@ -22,9 +25,11 @@
 * **Reply hold**: The meet greeting uses the short reply hold
   (`LLMChatterReplyHold.cpp`, `ProximityChatter.ReplyHoldMs`): a standing
   bot waits for its own greeting, a moving bot keeps moving.
-* **Configuration**: `GuildChatter.MeetGreeting.*`,
-  `GuildChatter.WorldScanInterval`, `GuildChatter.JoinZoneAnnounce.*` and
-  `GuildChatter.NpcEncounter.*`.
+* **Configuration**: `GuildChatter.MeetGreeting.*` (including
+  `FollowUpDelayMin`/`Max`; `CooldownHours` capped at 24),
+  `GuildChatter.WorldScanInterval`, `GuildChatter.JoinZoneAnnounce.*`
+  (including `DelaySeconds`) and `GuildChatter.NpcEncounter.*` (including
+  `PairCooldownHours`).
 * **Upgrade**: Apply
   `data/sql/characters/updates/20261002_guild_world_events.sql`, rebuild
   the worldserver and restart the bridge.

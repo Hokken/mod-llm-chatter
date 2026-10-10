@@ -42,12 +42,8 @@
 
 namespace
 {
-constexpr uint32 kJoinAnnounceDelaySeconds = 8;
 constexpr uint32 kJoinAnnounceExpireSeconds = 120;
 constexpr uint32 kJoinAnnounceMaxResponders = 3;
-constexpr uint32 kNpcPairCooldownSeconds = 6 * 3600;
-constexpr uint32 kMeetFollowUpMinDelay = 8;
-constexpr uint32 kMeetFollowUpMaxDelay = 15;
 constexpr uint32 kHeldFollowUpTimeoutSeconds = 600;
 constexpr uint32 kHeldFollowUpSweepSeconds = 300;
 constexpr uint32 kMeetDeliveryRetrySeconds = 2;
@@ -215,6 +211,11 @@ void QueueGuildWorldEvent(
         false);
 }
 
+uint32 NpcPairCooldownSeconds()
+{
+    return sLLMChatterConfig->_guildNpcEncounterPairCooldownHours * 3600;
+}
+
 bool InSameGroup(Player* left, Player* right)
 {
     Group* group = left->GetGroup();
@@ -366,7 +367,7 @@ bool TryNpcEncounter(
                 "{}:{}", bot->GetGUID().GetCounter(),
                 creature->GetSpawnId());
             if (!OnCooldown(sNpcPairCooldowns, key,
-                    kNpcPairCooldownSeconds, now))
+                    NpcPairCooldownSeconds(), now))
                 options.push_back(creature);
         }
         if (options.empty())
@@ -411,7 +412,8 @@ void NoteGuildJoinForZoneAnnounce(uint32 guildId, uint32 memberGuid)
     std::lock_guard<std::mutex> guard(sJoinAnnounceMutex);
     sPendingJoinAnnounces.push_back(
         {guildId, memberGuid,
-         time(nullptr) + kJoinAnnounceDelaySeconds});
+         time(nullptr)
+             + sLLMChatterConfig->_guildJoinZoneAnnounceDelaySeconds});
 }
 
 void FlushJoinAnnounce(PendingJoinAnnounce const& pending)
@@ -543,11 +545,12 @@ void UpdateGuildWorldEvents()
 
     EvictExpired(sMeetCooldowns,
         sLLMChatterConfig->_guildMeetGreetingCooldownHours * 3600, now);
-    EvictExpired(sNpcPairCooldowns, kNpcPairCooldownSeconds, now);
+    EvictExpired(sNpcPairCooldowns, NpcPairCooldownSeconds(), now);
 }
 } // namespace
 
-char const* CheckMeetGreetingDelivery(Player* bot, uint32 playerGuid)
+char const* CheckMeetGreetingDelivery(
+    Player* bot, uint32 playerGuid, uint32 guildId)
 {
     Player* player = playerGuid
         ? ObjectAccessor::FindConnectedPlayer(
@@ -558,6 +561,10 @@ char const* CheckMeetGreetingDelivery(Player* bot, uint32 playerGuid)
     if (!bot || !bot->IsInWorld() || !bot->IsAlive()
         || bot->IsInCombat())
         return "meet_bot_unavailable";
+    // They met as guildmates; either may have left the guild since.
+    if (!guildId || bot->GetGuildId() != guildId
+        || player->GetGuildId() != guildId)
+        return "meet_guild_changed";
     if (bot->GetMap() != player->GetMap())
         return "meet_other_map";
     float radius = sLLMChatterConfig
@@ -619,7 +626,10 @@ void SettleMeetGreetingFollowUp(uint32 eventId, bool greeted)
             "SET deliver_at = DATE_ADD(NOW(), INTERVAL {} SECOND) "
             "WHERE event_id = {} AND delivered = 0 "
             "AND deliver_at IS NULL",
-            urand(kMeetFollowUpMinDelay, kMeetFollowUpMaxDelay),
+            sLLMChatterConfig
+                ? urand(sLLMChatterConfig->_guildMeetFollowUpDelayMin,
+                      sLLMChatterConfig->_guildMeetFollowUpDelayMax)
+                : urand(8, 15),
             eventId);
         return;
     }
