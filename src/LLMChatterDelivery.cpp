@@ -9,8 +9,10 @@
 #include "LLMChatterDelivery.h"
 #include "LLMChatterBGDelivery.h"
 #include "LLMChatterGuild.h"
+#include "LLMChatterGuildWorld.h"
 #include "LLMChatterProximity.h"
 #include "LLMChatterProximityFight.h"
+#include "LLMChatterReplyHold.h"
 #include "LLMChatterShared.h"
 
 #include "Channel.h"
@@ -242,6 +244,30 @@ void FinalizeDroppedMessage(
     if (!eventId || !IsDirectedProximityEvent(eventType))
         return;
 
+    LOG_INFO("module",
+        "LLMChatter: directed {} message {} (event {}) dropped: {}",
+        eventType, messageId, eventId,
+        reason ? reason : "delivery_failed");
+
+    // The rest of the scene is cancelled, so its speakers owe no reply.
+    if (QueryResult held = CharacterDatabase.Query(
+            "SELECT m.bot_guid, e.extra_data "
+            "FROM llm_chatter_messages m "
+            "JOIN llm_chatter_events e ON e.id = m.event_id "
+            "WHERE m.event_id = {} AND m.sequence > {} "
+            "AND m.delivered = 0 AND m.bot_guid > 0",
+            eventId, sequence))
+    {
+        do
+        {
+            Field* row = held->Fetch();
+            ReleaseBotReplyHold(row[0].Get<uint32>(),
+                row[1].IsNull() ? 0 : ExtractJsonUInt(
+                    row[1].Get<std::string>(),
+                    LLM_CHATTER_REPLY_HOLD_KEY));
+        } while (held->NextRow());
+    }
+
     CharacterDatabase.DirectExecute(
         "UPDATE llm_chatter_messages "
         "SET delivered = 1, delivered_at = NOW(), "
@@ -463,6 +489,11 @@ void DeliverPendingMessagesImpl()
             ? 0
             : fields[22].Get<uint32>();
 
+    // Every return below ends this row for good, except the retry
+    // at the end, which keeps the bot's reply hold.
+    ReplyHoldDeliveryScope replyHold(botGuid, ExtractJsonUInt(
+        eventExtraData, LLM_CHATTER_REPLY_HOLD_KEY));
+
     // ActionAsEmote disabled: fall back to the historical
     // inline "*action* text" rendering so the action is not
     // silently dropped for rows queued while it was on.
@@ -639,6 +670,47 @@ void DeliverPendingMessagesImpl()
             : !bot || !bot->IsInWorld();
     std::string dropReason = botUnavailable
         ? "speaker_unavailable" : "";
+
+    // A meet greeting is only spoken while the guildmate is still
+    // close, visible and in line of sight, and both are still in the
+    // guild they met as.
+    uint32 meetGuildId = eventType == "guild_meet_greeting"
+        ? ExtractJsonUInt(eventExtraData, "guild_id") : 0;
+    if (eventType == "guild_meet_greeting" && channel == "say")
+    {
+        if (char const* meetDrop =
+                CheckMeetGreetingDelivery(bot, playerGuid, meetGuildId))
+        {
+            if (DeferMeetGreeting(messageId, meetDrop))
+            {
+                replyHold.Keep();
+                return;
+            }
+            LOG_INFO("module",
+                "LLMChatter: guild_meet_greeting message {} "
+                "(event {}) dropped: {}",
+                messageId, eventId, meetDrop);
+            FinalizeDroppedMessage(
+                messageId, eventId, sequence,
+                eventType, meetDrop);
+            SettleMeetGreetingFollowUp(eventId, false);
+            return;
+        }
+    }
+    // The Guild follow-up goes to bot->GetGuild(): never to a guild
+    // other than the one the meeting was about.
+    if (eventType == "guild_meet_greeting" && channel == "guild"
+        && bot && bot->GetGuildId() != meetGuildId)
+    {
+        LOG_INFO("module",
+            "LLMChatter: guild_meet_greeting follow-up {} "
+            "(event {}) dropped: meet_guild_changed",
+            messageId, eventId);
+        FinalizeDroppedMessage(
+            messageId, eventId, sequence,
+            eventType, "meet_guild_changed");
+        return;
+    }
 
     ObjectGuid playerObjGuid =
         ObjectGuid::Create<HighGuid::Player>(
@@ -1110,7 +1182,18 @@ void DeliverPendingMessagesImpl()
                 WorldSession* session =
                     bot->GetSession();
 
-                if (guild && session)
+                // Guild news queued before the player started
+                // talking must not land in the conversation.
+                if (guild && IsGuildNewsEventType(eventType)
+                    && WasGuildPlayerInteractionRecent(
+                        guild->GetId(),
+                        sLLMChatterConfig
+                            ->_guildPlayerIdleSuppressionSeconds))
+                {
+                    botUnavailable = true;
+                    dropReason = "guild_player_active";
+                }
+                else if (guild && session)
                 {
                     emitAction();
                     guild->BroadcastToGuild(
@@ -1585,6 +1668,7 @@ void DeliverPendingMessagesImpl()
         // worth another attempt; an action already acted out
         // is not, so it is consumed here and the retry
         // delivers the line on its own.
+        replyHold.Keep();
         if (actionEmitted)
         {
             CharacterDatabase.DirectExecute(
@@ -1603,4 +1687,10 @@ void DeliverPendingMessagesImpl()
             "WHERE id = {}",
             messageId);
     }
+
+    // After the greeting row is final, so the bridge can tell whether
+    // a follow-up it holds still needs settling.
+    if (eventType == "guild_meet_greeting" && channel == "say"
+        && (sent || botUnavailable))
+        SettleMeetGreetingFollowUp(eventId, sent);
 }

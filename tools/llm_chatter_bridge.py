@@ -62,6 +62,7 @@ from chatter_shared import (
     wait_for_database,
     stagger_if_needed,
 )
+from chatter_guild_profile import get_character_guild_name
 from chatter_events import (
     cleanup_expired_events,
     reset_stuck_processing_events,
@@ -227,7 +228,10 @@ def process_pending_requests(
                     else raw_race
                 ),
                 'level': request['bot1_level'],
-                'zone': request['bot1_zone']
+                'zone': request['bot1_zone'],
+                'guild_name': get_character_guild_name(
+                    db, request['bot1_guid']
+                ),
             }
             success = process_statement(
                 db, cursor, client,
@@ -272,6 +276,9 @@ def process_pending_requests(
                         f'{prefix}_level'
                     ],
                     'zone': zone,
+                    'guild_name': get_character_guild_name(
+                        db, request[f'{prefix}_guid']
+                    ),
                 }
 
             # Bot 1 (always present)
@@ -502,8 +509,14 @@ EVENT_LOG_OVERRIDES = {
     'bot_group_screenshot_observation': 'Screenshot vision',
     'bot_group_general_reaction': 'General-to-party relay',
     'player_general_msg': 'General chat event',
+    'guild_meet_greeting': 'Guild meet greeting',
+    'guild_join_zone_announce': 'Guild join announcement',
+    'guild_npc_encounter': 'Guild NPC encounter',
     'guild_player_message': 'Guild player turn',
     'guild_login_greeting': 'Guild login greeting',
+    'guild_member_join': 'Guild join greeting',
+    'guild_rank_change': 'Guild rank change',
+    'guild_motd_comment': 'Guild MOTD comment',
     'player_enters_zone': 'Zone intrusion',
     'bot_group_low_health': 'State callout',
     'bot_group_oom': 'State callout',

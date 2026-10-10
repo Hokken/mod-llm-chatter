@@ -453,6 +453,7 @@ def build_bot_identity(
     gender: str = '',
     suffix: str = '.',
     gear: str = '',
+    guild_name: str = '',
 ) -> str:
     """Return an identity prefix for bot prompts.
 
@@ -468,9 +469,17 @@ def build_bot_identity(
         )
     else:
         identity = f"You are {bot_name}{suffix}"
+    identity += _guild_membership_sentence(guild_name)
 
     gear = (gear or '').strip()
     return f"{identity} {gear}" if gear else identity
+
+
+def _guild_membership_sentence(guild_name: str) -> str:
+    guild_name = (guild_name or '').strip()
+    if not guild_name:
+        return ''
+    return f" You are a member of the guild \"{guild_name}\"."
 
 
 def build_bot_identity_with_level(
@@ -480,6 +489,7 @@ def build_bot_identity_with_level(
     bot_level,
     gender: str = '',
     suffix: str = ' in World of Warcraft.',
+    guild_name: str = '',
 ) -> str:
     """Return a leveled identity prefix for bot prompts."""
     gender_prefix = f"{gender} " if gender else ""
@@ -487,6 +497,7 @@ def build_bot_identity_with_level(
         f"You are {bot_name}, a level "
         f"{bot_level} {gender_prefix}{bot_race} "
         f"{bot_class}{suffix}"
+        + _guild_membership_sentence(guild_name)
     )
 
 
@@ -497,6 +508,7 @@ def build_bot_identity_from_dict(
 ) -> str:
     """Build a standard identity line from a bot dict."""
     gender = bot.get('gender', '')
+    guild_name = bot.get('guild_name', '')
     if include_level:
         return build_bot_identity_with_level(
             bot['name'],
@@ -505,12 +517,14 @@ def build_bot_identity_from_dict(
             bot['level'],
             gender=gender,
             suffix=suffix,
+            guild_name=guild_name,
         )
     return build_bot_identity(
         bot['name'],
         bot['race'],
         bot['class'],
         gender=gender,
+        guild_name=guild_name,
     )
 
 
@@ -1426,6 +1440,121 @@ def format_price(copper: int) -> str:
     if cop > 0 and gold == 0:
         parts.append(f"{cop}c")
     return " ".join(parts) if parts else ""
+
+
+_ONES = (
+    "zero one two three four five six seven eight nine ten eleven "
+    "twelve thirteen fourteen fifteen sixteen seventeen eighteen "
+    "nineteen"
+).split()
+_TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
+
+
+def number_to_words(n: int) -> str:
+    """Spell out a non-negative integer (up to 999,999) in English."""
+    n = int(n)
+    if n < 20:
+        return _ONES[n]
+    if n < 100:
+        tens, ones = divmod(n, 10)
+        return _TENS[tens] + (f"-{_ONES[ones]}" if ones else "")
+    if n < 1000:
+        hundreds, rest = divmod(n, 100)
+        head = f"{_ONES[hundreds]} hundred"
+        return head + (f" and {number_to_words(rest)}" if rest else "")
+    if n < 1_000_000:
+        thousands, rest = divmod(n, 1000)
+        head = f"{number_to_words(thousands)} thousand"
+        if not rest:
+            return head
+        return head + (" and " if rest < 100 else " ") + number_to_words(rest)
+    return str(n)
+
+
+def _coins_in_words(gold: int, silver: int, copper: int) -> str:
+    parts = [f"{number_to_words(amount)} {metal}"
+             for amount, metal in ((gold, "gold"), (silver, "silver"),
+                                   (copper, "copper")) if amount]
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return parts[0]
+    return ", ".join(parts[:-1]) + " and " + parts[-1]
+
+
+def format_price_words(copper: int) -> str:
+    """Copper amount as spoken coins, e.g. 'one gold and twenty silver coins'."""
+    if not copper or copper <= 0:
+        return ""
+    words = _coins_in_words(
+        copper // 10000, (copper % 10000) // 100, copper % 100)
+    return f"{words} coins"
+
+
+_WOW_LINK_RE = re.compile(r'\|c[0-9A-Fa-f]{8}\|H[^|]*\|h\[[^\]]*\]\|h\|r')
+_COIN_RE = re.compile(
+    r'(?<![\w.])(?<!\d,)(\d+)\s?(g|gold|s|silver|c|copper)(?![A-Za-z])'
+    r'(?:\s*(\d+)\s?(s|silver|c|copper)(?![A-Za-z]))?'
+    r'(?:\s*(\d+)\s?(c|copper)(?![A-Za-z]))?',
+    re.IGNORECASE,
+)
+# Digits joined by a comma ("12,5", "1,500.50") are left as written.
+_DIGITS_RE = re.compile(r'(?<![\w.])(?<!\d,)\d{1,6}(?![\w.]|,\d)')
+# "1,500" must reach _COIN_RE and _DIGITS_RE as one number, or each
+# would rewrite its digit groups separately ("one,five hundred"). It may
+# be followed by a coin suffix ("1,500g20s") but not by more digits or a
+# decimal part.
+_GROUPED_RE = re.compile(
+    r'(?<![\w.,])\d{1,3}(?:,\d{3})+(?![\d,.]?\d)'
+    r'(?=(?:g|gold|s|silver|c|copper)(?![A-Za-z])|\W|$)',
+    re.IGNORECASE,
+)
+
+
+def _coin_match_words(match) -> str:
+    amounts = {'g': 0, 's': 0, 'c': 0}
+    for amount, unit in ((match.group(1), match.group(2)),
+                         (match.group(3), match.group(4)),
+                         (match.group(5), match.group(6))):
+        if amount and unit:
+            amounts[unit[0].lower()] = int(amount)
+    return _coins_in_words(amounts['g'], amounts['s'], amounts['c'])
+
+
+def spell_out_numbers(text: str) -> str:
+    """Write prices ('1g20s', '50 silver') and other numbers in words,
+    leaving WoW link markup untouched."""
+    if not text:
+        return text
+    pieces = []
+    last = 0
+    for link in _WOW_LINK_RE.finditer(text):
+        pieces.append(_spell_plain(text[last:link.start()]))
+        pieces.append(link.group(0))
+        last = link.end()
+    pieces.append(_spell_plain(text[last:]))
+    return "".join(pieces)
+
+
+def spell_out_trade_numbers(text: str) -> str:
+    """spell_out_numbers() for English chat only. It writes English
+    words, so other languages keep the model's own wording (the trade
+    prompt already asks for numbers in words)."""
+    if _language:
+        return text
+    return spell_out_numbers(text)
+
+
+def _ungroup(match) -> str:
+    # number_to_words() stops at 999,999; larger amounts keep their commas.
+    plain = match.group(0).replace(',', '')
+    return plain if int(plain) < 1_000_000 else match.group(0)
+
+
+def _spell_plain(text: str) -> str:
+    text = _GROUPED_RE.sub(_ungroup, text)
+    text = _COIN_RE.sub(_coin_match_words, text)
+    return _DIGITS_RE.sub(lambda m: number_to_words(int(m.group(0))), text)
 
 
 def format_quest_link(

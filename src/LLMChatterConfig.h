@@ -318,6 +318,20 @@ public:
     uint32 _guildChatterScanInterval{30};
     uint32 _guildChatterConversationChance{50};
     uint32 _guildChatterMaxParticipants{3};
+    bool _guildMeetGreetingEnable{true};
+    uint32 _guildMeetGreetingRadius{25};
+    uint32 _guildMeetGreetingCooldownHours{5};
+    uint32 _guildMeetFollowUpDelayMin{8};
+    uint32 _guildMeetFollowUpDelayMax{15};
+    uint32 _guildWorldScanInterval{10};
+    bool _guildJoinZoneAnnounceEnable{true};
+    uint32 _guildJoinZoneAnnounceChance{35};
+    uint32 _guildJoinZoneAnnounceDelaySeconds{8};
+    bool _guildNpcEncounterEnable{true};
+    uint32 _guildNpcEncounterChance{4};
+    uint32 _guildNpcEncounterRadius{30};
+    uint32 _guildNpcEncounterCooldown{1200};
+    uint32 _guildNpcEncounterPairCooldownHours{6};
     bool _guildPlayerRepliesEnable{true};
     uint32 _guildPlayerReplyDebounceSeconds{2};
     uint32 _guildPlayerIdleSuppressionSeconds{90};
@@ -329,6 +343,18 @@ public:
     uint32 _guildLoginGreetingRetryInterval{5};
     uint32 _guildLoginGreetingReadinessTimeout{90};
     uint32 _guildLoginGreetingMaxCandidates{12};
+    bool _guildJoinGreetingEnable{true};
+    uint32 _guildJoinGreetingChance{100};
+    uint32 _guildJoinGreetingBatchSeconds{10};
+    bool _guildRankChangeEnable{true};
+    uint32 _guildRankChangeChance{100};
+    uint32 _guildRankChangeDebounceSeconds{30};
+    uint32 _guildRankChangeNewMemberGraceMinutes{30};
+    bool _guildMotdCommentEnable{true};
+    uint32 _guildMotdCommentChance{100};
+    uint32 _guildMotdCommentDelaySeconds{20};
+    uint32 _guildMemberEventMaxCandidates{12};
+    uint32 _guildMemberEventMaxDeferSeconds{300};
 
     // Zone intrusion alerts
     bool _zoneIntrusionEnable;
@@ -369,6 +395,8 @@ public:
     uint32 _proxChatterReplyMaxTurns;
     uint32 _proxChatterMaxTokensPerLine;
     uint32 _proxChatterFacingResetDelay;
+    // Capped at LLM_CHATTER_MAX_REPLY_HOLD_MS where it is used.
+    uint32 _proxChatterReplyHoldMs;
     uint32 _proxDirectedMaxExtraReactors;
     uint32 _proxDirectedBotMaxParticipants;
     std::array<uint32, 4> _proxDirectedExtraReactorWeights;

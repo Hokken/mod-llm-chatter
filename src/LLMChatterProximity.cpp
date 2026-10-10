@@ -7,6 +7,7 @@
 #include "LLMChatterBossDialogue.h"
 #include "LLMChatterConfig.h"
 #include "LLMChatterGroup.h"
+#include "LLMChatterReplyHold.h"
 #include "LLMChatterShared.h"
 
 #include "CellImpl.h"
@@ -1775,7 +1776,8 @@ bool QueuePlayerEmoteProximityEvent(
     uint32 mirrorEmote,
     std::string const& interactionMode,
     bool addressedSpeaks,
-    bool isCustom = false)
+    bool isCustom = false,
+    uint32 replyHoldId = 0)
 {
     if (!player || speakers.empty())
         return false;
@@ -1809,6 +1811,8 @@ bool QueuePlayerEmoteProximityEvent(
         + JsonEscape(interactionMode) + "\""
         + ",\"custom_emote\":"
         + (isCustom ? "1" : "0");
+    if (replyHoldId)
+        extra += ReplyHoldJsonField(replyHoldId);
     if (!json.empty() && json.back() == '}')
         json.insert(json.size() - 1, extra);
 
@@ -3087,13 +3091,17 @@ bool HandleProximityPlayerbotEmote(
         return false;
     }
 
+    uint32 replyHoldId = addressedSpeaks ? NewReplyHoldId() : 0;
     // GetTextEmoteName(0) falls back to "wave", so a custom
     // emote must carry its typed text instead of an id lookup.
-    return QueuePlayerEmoteProximityEvent(
+    bool queued = QueuePlayerEmoteProximityEvent(
         player, *addressedIt, speakers, candidates,
         isCustom ? customText : GetTextEmoteName(textEmote),
         textEmote, mirrorEmote,
-        "player_inclusive", addressedSpeaks, isCustom);
+        "player_inclusive", addressedSpeaks, isCustom, replyHoldId);
+    if (queued && replyHoldId)
+        HoldBotForReply(bot, player, replyHoldId);
+    return queued;
 }
 
 bool HandleProximityPartyBotEmoteWitness(

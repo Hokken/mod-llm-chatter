@@ -2,7 +2,7 @@
 
 import logging
 import random
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from chatter_db import insert_chat_message
 from chatter_identity import prepare_guild_speakers
@@ -25,8 +25,10 @@ from chatter_guild_player import (
     _select_responders,
     _session_is_current,
 )
+from chatter_guild_profile import get_guild_profile, guild_identity_lines
 from chatter_llm import call_llm
 from chatter_mode import build_player_chat_guidance, is_roleplay
+from chatter_player_context import player_character_lines
 from chatter_shared import (
     append_conversation_json_instruction,
     append_json_instruction,
@@ -170,8 +172,11 @@ def _shared_prompt_lines(
     player_name: str,
     maximum: int,
     mode: str = 'roleplay',
+    guild_context: Optional[List[str]] = None,
+    player_lines: Optional[List[str]] = None,
 ) -> List[str]:
     lines = [f"The guild is \"{guild_name}\"."]
+    lines.extend(guild_context or [])
     if is_roleplay(mode):
         lines.insert(
             0, "Write natural in-character World of Warcraft Guild Chat."
@@ -192,6 +197,7 @@ def _shared_prompt_lines(
     lines.extend(
         _guild_location_lines(participants, False, mode)
     )
+    lines.extend(player_lines or [])
     lines.extend([
         "",
         f"{player_name}, a real guild member, has just "
@@ -226,6 +232,8 @@ def _build_single_prompt(
     name_requested: bool,
     maximum: int,
     mode: str = 'roleplay',
+    guild_context: Optional[List[str]] = None,
+    player_lines: Optional[List[str]] = None,
 ):
     lines = _shared_prompt_lines(
         [participant],
@@ -234,6 +242,8 @@ def _build_single_prompt(
         player_name,
         maximum,
         mode,
+        guild_context=guild_context,
+        player_lines=player_lines,
     )
     lines.extend([
         "",
@@ -262,6 +272,8 @@ def _build_multi_prompt(
     name_requested: bool,
     maximum: int,
     mode: str = 'roleplay',
+    guild_context: Optional[List[str]] = None,
+    player_lines: Optional[List[str]] = None,
 ) -> Tuple[object, List[str]]:
     names = [
         participant['name']
@@ -274,6 +286,8 @@ def _build_multi_prompt(
         player_name,
         maximum,
         mode,
+        guild_context=guild_context,
+        player_lines=player_lines,
     )
     lines.extend([
         "",
@@ -328,6 +342,8 @@ def _generate_single(
     name_requested: bool,
     maximum: int,
     metadata: Dict,
+    guild_context: Optional[List[str]] = None,
+    player_lines: Optional[List[str]] = None,
 ) -> List[Dict]:
     prompt = _build_single_prompt(
         participant,
@@ -337,6 +353,8 @@ def _generate_single(
         name_requested,
         maximum,
         get_chatter_mode(config),
+        guild_context=guild_context,
+        player_lines=player_lines,
     )
     token_budget = max(80, _safe_int(config.get(
         'LLMChatter.GuildChatter.MaxTokens',
@@ -408,6 +426,8 @@ def _generate_multi(
     name_requested: bool,
     maximum: int,
     metadata: Dict,
+    guild_context: Optional[List[str]] = None,
+    player_lines: Optional[List[str]] = None,
 ) -> List[Dict]:
     prompt, names = _build_multi_prompt(
         participants,
@@ -417,6 +437,8 @@ def _generate_multi(
         name_requested,
         maximum,
         get_chatter_mode(config),
+        guild_context=guild_context,
+        player_lines=player_lines,
     )
     base_tokens = max(100, _safe_int(config.get(
         'LLMChatter.GuildChatter.MaxTokens',
@@ -599,6 +621,13 @@ def process_guild_login_greeting_event(
         extra.get('guild_name') or 'the guild'
     )
     faction = str(extra.get('team') or '')
+    guild_context = guild_identity_lines(
+        get_guild_profile(db, guild_id)
+    )
+    metadata['guild_info_included'] = bool(guild_context)
+    player_lines = player_character_lines(
+        db, player_guid, player_name, get_chatter_mode(config),
+    )
 
     if len(responders) == 1:
         messages = _generate_single(
@@ -612,6 +641,8 @@ def process_guild_login_greeting_event(
             name_requested,
             maximum,
             metadata,
+            guild_context=guild_context,
+            player_lines=player_lines,
         )
         topology = 'single'
     else:
@@ -626,6 +657,8 @@ def process_guild_login_greeting_event(
             name_requested,
             maximum,
             metadata,
+            guild_context=guild_context,
+            player_lines=player_lines,
         )
         topology = 'multi_reply'
 
@@ -646,6 +679,8 @@ def process_guild_login_greeting_event(
             name_requested,
             maximum,
             metadata,
+            guild_context=guild_context,
+            player_lines=player_lines,
         )
         responders = responders[:1]
 

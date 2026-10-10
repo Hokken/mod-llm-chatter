@@ -8,6 +8,7 @@ from typing import Dict, List
 
 from chatter_class_style import class_style
 from chatter_constants import RACE_SPEECH_PROFILES
+from chatter_guild_profile import indefinite_article
 from chatter_mode import is_roleplay
 from chatter_shared import (
     get_class_name,
@@ -61,10 +62,6 @@ def _safe_int(value) -> int:
         return 0
 
 
-def _article(word: str) -> str:
-    return "an" if word[:1].lower() in "aeiou" else "a"
-
-
 def _load_character(db, guid: int) -> Dict[str, str]:
     now = time.time()
     cached = _cache.get(guid)
@@ -97,8 +94,7 @@ def _calling_style(db, guid: int, class_name: str) -> str:
             if db is not None and guid else 'Light Priest')
 
 
-def _lore_lines(db, guid: int, name: str, race: str, class_name: str,
-                style: str) -> List[str]:
+def _lore_lines(race: str, style: str) -> List[str]:
     lines = []
     worldview = (RACE_SPEECH_PROFILES.get(race) or {}).get('worldview')
     if worldview:
@@ -120,15 +116,19 @@ def character_lore_lines(
     if not race or not class_name:
         return []
     guid = _safe_int(guid)
-    return _lore_lines(db, guid, name, race, class_name,
-                       _calling_style(db, guid, class_name))
+    return _lore_lines(race, _calling_style(db, guid, class_name))
 
 
 def player_character_lines(
     db, guid, name: str, mode: str,
     race: str = '', class_name: str = '', gender: str = '',
+    neutral: bool = False,
 ) -> List[str]:
-    """Describe the real player; empty when nothing is known."""
+    """Describe the real player; empty when nothing is known.
+
+    neutral: plain in-world wording for prompts with NPC speakers, which
+    must not hear about players or game systems.
+    """
     name = str(name or '').strip()
     guid = _safe_int(guid)
     if not name:
@@ -144,16 +144,21 @@ def player_character_lines(
         return []
 
     who = " ".join(p for p in (gender, race) if p)
-    a = _article(who)
-    if not is_roleplay(mode):
+    a = indefinite_article(who)
+    roleplay = is_roleplay(mode)
+    style = _calling_style(db, guid, class_name) if roleplay else class_name
+    if neutral:
+        lines = [f"{name} is {a} {who} {style}."]
+        if not roleplay:
+            return lines
+    elif not roleplay:
         return [f"{name} (the real player) plays {a} {who} {class_name}."]
-
-    style = _calling_style(db, guid, class_name)
-    lines = [
-        f"About {name}, the real player you are talking to: {a} {who} "
-        f"{style}."
-    ]
-    lines.extend(_lore_lines(db, guid, name, race, class_name, style))
+    else:
+        lines = [
+            f"About {name}, the real player you are talking to: {a} {who} "
+            f"{style}."
+        ]
+    lines.extend(_lore_lines(race, style))
     lines.append(
         "Let this colour your words (a fitting greeting, a nod to their "
         "people or calling); never recite it or explain it back to them."

@@ -89,7 +89,13 @@ CREATE TABLE IF NOT EXISTS `llm_chatter_events` (
         'bot_group_duel_end',
         'guild_pvp_kill',
         'guild_pvp_death',
-        'zone_pvp_death'
+        'zone_pvp_death',
+        'guild_meet_greeting',
+        'guild_join_zone_announce',
+        'guild_npc_encounter',
+        'guild_member_join',
+        'guild_rank_change',
+        'guild_motd_comment'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,

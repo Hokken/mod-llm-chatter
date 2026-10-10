@@ -540,6 +540,45 @@ static void HandleBotEntersEnemyTerritory(
 std::mutex _rejoinMutex;
 std::vector<PendingRejoin> _pendingRejoins;
 
+// A bot that logs in after its real player's rejoin window (120s) closed
+// would otherwise never get traits: OnAddMember does not fire for a saved
+// group. Queue a rejoin for that player; bots already registered in this
+// session are skipped when it is processed.
+static void QueueLateBotRejoin(Player* bot)
+{
+    if (!sLLMChatterConfig->_useGroupChatter)
+        return;
+    Group* group = bot->GetGroup();
+    if (!group)
+        return;
+
+    Player* realPlayer = nullptr;
+    for (GroupReference* itr = group->GetFirstMember();
+         itr != nullptr; itr = itr->next())
+    {
+        Player* member = itr->GetSource();
+        if (member && member != bot && !IsPlayerBot(member))
+        {
+            realPlayer = member;
+            break;
+        }
+    }
+    if (!realPlayer)
+        return;
+
+    uint32 groupId = group->GetGUID().GetCounter();
+    std::lock_guard<std::mutex> guard(_rejoinMutex);
+    for (auto const& pending : _pendingRejoins)
+    {
+        if (pending.groupId == groupId)
+            return;
+    }
+    _pendingRejoins.push_back(
+        {groupId,
+         realPlayer->GetGUID().GetCounter(),
+         time(nullptr)});
+}
+
 void ProcessPendingRejoins()
 {
     if (!sLLMChatterConfig->_useGroupChatter)
@@ -623,6 +662,14 @@ void ProcessPendingRejoins()
 
         // All members loaded — collect bot data.
         uint32 groupId = entry.groupId;
+        std::vector<uint32> alreadyGreeted;
+        {
+            std::lock_guard<std::mutex> guard(
+                _groupJoinBatchMutex);
+            auto git = _groupGreetedBots.find(groupId);
+            if (git != _groupGreetedBots.end())
+                alreadyGreeted = git->second;
+        }
         uint32 pZone = player->GetZoneId();
         uint32 pArea = player->GetAreaId();
         uint32 pMap  = player->GetMapId();
@@ -643,6 +690,10 @@ void ProcessPendingRejoins()
 
             uint32 bguid =
                 member->GetGUID().GetCounter();
+            if (std::find(alreadyGreeted.begin(),
+                    alreadyGreeted.end(), bguid)
+                != alreadyGreeted.end())
+                continue;
             botGuids.push_back(bguid);
             if (first)
                 firstBotName = member->GetName();
@@ -780,8 +831,13 @@ public:
             || !sLLMChatterConfig->IsEnabled())
             return;
 
-        if (!player || IsPlayerBot(player))
+        if (!player)
             return;
+        if (IsPlayerBot(player))
+        {
+            QueueLateBotRejoin(player);
+            return;
+        }
 
         // Defensive crash-recovery cleanup: if the
         // server crashed, CleanupGroupSession never
