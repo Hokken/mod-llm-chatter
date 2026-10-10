@@ -2043,7 +2043,7 @@ LLMChatter.GuildChatter.PvpKill.Chance = 15
 #       Seconds before the same bot reports another kill.
 #       Default: 300
 #
-LLMChatter.GuildChatter.PvpKill.Cooldown = 300
+LLMChatter.GuildChatter.PvpKill.Cooldown = 600
 
 #
 #   LLMChatter.GuildChatter.PvpKill.GuildCooldown
@@ -2608,7 +2608,7 @@ LLMChatter.GuildChatter.MeetGreeting.Radius = 25
 #       so the supported range is 1-24.
 #       Default: 5
 #
-LLMChatter.GuildChatter.MeetGreeting.CooldownHours = 5
+LLMChatter.GuildChatter.MeetGreeting.CooldownHours = 8
 
 #
 #   LLMChatter.GuildChatter.MeetGreeting.FollowUpDelayMin
@@ -2684,7 +2684,7 @@ LLMChatter.GuildChatter.NpcEncounter.Radius = 30
 #       Minimum seconds between NPC encounters per guild.
 #       Default: 1200
 #
-LLMChatter.GuildChatter.NpcEncounter.Cooldown = 1200
+LLMChatter.GuildChatter.NpcEncounter.Cooldown = 2400
 
 #
 #   LLMChatter.GuildChatter.NpcEncounter.PairCooldownHours
@@ -2692,7 +2692,7 @@ LLMChatter.GuildChatter.NpcEncounter.Cooldown = 1200
 #       again. Supported range is 1-168.
 #       Default: 6
 #
-LLMChatter.GuildChatter.NpcEncounter.PairCooldownHours = 6
+LLMChatter.GuildChatter.NpcEncounter.PairCooldownHours = 12
 
 #
 #   LLMChatter.GuildChatter.LoginGreeting.Enable
@@ -2758,7 +2758,7 @@ LLMChatter.GuildChatter.JoinGreeting.Enable = 1
 #       Chance (0-100) that a batch of joins is greeted.
 #       Default: 100
 #
-LLMChatter.GuildChatter.JoinGreeting.Chance = 100
+LLMChatter.GuildChatter.JoinGreeting.Chance = 70
 
 #
 #   LLMChatter.GuildChatter.JoinGreeting.BatchSeconds
@@ -2786,7 +2786,7 @@ LLMChatter.GuildChatter.RankChange.Enable = 1
 #       commented on.
 #       Default: 100
 #
-LLMChatter.GuildChatter.RankChange.Chance = 100
+LLMChatter.GuildChatter.RankChange.Chance = 70
 
 #
 #   LLMChatter.GuildChatter.RankChange.DebounceSeconds
@@ -2821,7 +2821,7 @@ LLMChatter.GuildChatter.MotdComment.Enable = 1
 #       Chance (0-100) that a new MOTD gets a comment.
 #       Default: 100
 #
-LLMChatter.GuildChatter.MotdComment.Chance = 100
+LLMChatter.GuildChatter.MotdComment.Chance = 70
 
 #
 #   LLMChatter.GuildChatter.MotdComment.DelaySeconds
@@ -2863,9 +2863,9 @@ LLMChatter.GuildChatter.MemberEvents.MaxDeferSeconds = 300
 #       Defaults: JoinGreeting = 3, RankChange = 3,
 #                 MotdComment = 2
 #
-LLMChatter.GuildChatter.JoinGreeting.MaxResponders = 3
-LLMChatter.GuildChatter.RankChange.MaxResponders = 3
-LLMChatter.GuildChatter.MotdComment.MaxResponders = 2
+LLMChatter.GuildChatter.JoinGreeting.MaxResponders = 2
+LLMChatter.GuildChatter.RankChange.MaxResponders = 2
+LLMChatter.GuildChatter.MotdComment.MaxResponders = 1
 
 #
 #   LLMChatter.GuildChatter.JoinGreeting.SubjectReplyChance
@@ -2874,8 +2874,8 @@ LLMChatter.GuildChatter.MotdComment.MaxResponders = 2
 #       who is an online bot answers the comments once.
 #       Defaults: 70
 #
-LLMChatter.GuildChatter.JoinGreeting.SubjectReplyChance = 70
-LLMChatter.GuildChatter.RankChange.SubjectReplyChance = 70
+LLMChatter.GuildChatter.JoinGreeting.SubjectReplyChance = 50
+LLMChatter.GuildChatter.RankChange.SubjectReplyChance = 50
 
 #
 #   LLMChatter.GuildChatter.MemberEvents.MaxCharacters
@@ -3195,7 +3195,7 @@ LLMChatter.GuildChatter.MeetGreeting.GuildPostChance = 30
 #       Maximum zone bots (0-3) reacting to a join announcement.
 #       Default: 2
 #
-LLMChatter.GuildChatter.JoinZoneAnnounce.MaxResponders = 2
+LLMChatter.GuildChatter.JoinZoneAnnounce.MaxResponders = 1
 
 #
 #   LLMChatter.GuildChatter.ZoneNameChance

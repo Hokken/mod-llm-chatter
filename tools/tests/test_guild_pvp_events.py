@@ -465,7 +465,7 @@ def test_conf_keys_are_documented_and_loaded():
     keys = {
         'LLMChatter.GuildChatter.PvpKill.Enable': ('1', '1'),
         'LLMChatter.GuildChatter.PvpKill.Chance': ('25', '15'),
-        'LLMChatter.GuildChatter.PvpKill.Cooldown': ('300', '300'),
+        'LLMChatter.GuildChatter.PvpKill.Cooldown': ('300', '600'),
         'LLMChatter.GuildChatter.PvpKill.GuildCooldown': ('600', '1200'),
         'LLMChatter.GuildChatter.PvpDeath.Enable': ('1', '1'),
         'LLMChatter.GuildChatter.PvpDeath.Chance': ('30', '20'),

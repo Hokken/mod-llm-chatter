@@ -3807,7 +3807,7 @@ vow of revenge or a warning as possibilities, never as a required mood.
 
 | Key | Default | Quieter preset | Owner |
 |-----|---------|----------------|-------|
-| `GuildChatter.PvpKill.Enable` / `.Chance` / `.Cooldown` / `.GuildCooldown` | 1 / 25 / 300 / 600 | 1 / 15 / 300 / 1200 | Server (Enable also Bridge) |
+| `GuildChatter.PvpKill.Enable` / `.Chance` / `.Cooldown` / `.GuildCooldown` | 1 / 25 / 300 / 600 | 1 / 15 / 600 / 1200 | Server (Enable also Bridge) |
 | `GuildChatter.PvpDeath.Enable` / `.Chance` / `.GuildCooldown` | 1 / 30 / 600 | 1 / 20 / 1200 | Server (Enable also Bridge) |
 | `GeneralChat.PvpDeath.Enable` / `.Chance` / `.ZoneCooldown` | 1 / 15 / 600 | 1 / 10 / 1200 | Server (Enable also Bridge) |
 | `PvpDeath.VictimCooldown` | 1800 | 2700 | Server |
@@ -3973,6 +3973,8 @@ bots must not invent details beyond it.
 | `MemberEvents.MaxCharacters` | 120 | Bridge | Length the prompt asks for |
 | `MemberEvents.MaxDeferSeconds` | 300 | Server | Longest wait behind a player conversation |
 
+The quieter preset reacts to 70% of joins, rank changes and MOTD changes, with at most 2 / 2 / 1 bots and a 50% chance of a reply from the newcomer or the promoted bot.
+
 Guild news never lands in a real player's Guild conversation. While a
 player has spoken in Guild within `PlayerReplies.IdleSuppressionSeconds`
 (`WasGuildPlayerInteractionRecent()`), due join, rank and MOTD batches
@@ -4093,15 +4095,15 @@ next prompt.
 
 | Key | Default | Quieter preset | Owner |
 |-----|---------|----------------|-------|
-| `MeetGreeting.Enable` / `.Radius` / `.CooldownHours` | 1 / 25 / 5 | 1 / 25 / 5 | Server |
+| `MeetGreeting.Enable` / `.Radius` / `.CooldownHours` | 1 / 25 / 5 | 1 / 25 / 8 | Server |
 | `MeetGreeting.FollowUpDelayMin` / `.FollowUpDelayMax` | 8 / 15 | 8 / 15 | Server and Bridge |
 | `MeetGreeting.GuildPostChance` | 50 | 30 | Bridge |
 | `WorldScanInterval` | 10 | 10 | Server |
 | `JoinZoneAnnounce.Enable` / `.Chance` | 1 / 35 | 1 / 20 | Server |
-| `JoinZoneAnnounce.MaxResponders` | 2 | 2 | Bridge |
+| `JoinZoneAnnounce.MaxResponders` | 2 | 1 | Bridge |
 | `JoinZoneAnnounce.DelaySeconds` | 8 | 8 | Server |
-| `NpcEncounter.Enable` / `.Chance` / `.Radius` / `.Cooldown` | 1 / 4 / 30 / 1200 | 1 / 2 / 30 / 1200 | Server |
-| `NpcEncounter.PairCooldownHours` | 6 | 6 | Server |
+| `NpcEncounter.Enable` / `.Chance` / `.Radius` / `.Cooldown` | 1 / 4 / 30 / 1200 | 1 / 2 / 30 / 2400 | Server |
+| `NpcEncounter.PairCooldownHours` | 6 | 12 | Server |
 
 `MeetGreeting.CooldownHours` is capped at 24: finished events, which carry
 the cooldown across restarts, are pruned after 24 hours.

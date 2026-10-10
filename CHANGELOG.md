@@ -1,5 +1,15 @@
 # Changelog
 
+### 2026-10-10 - Quieter Preset for the New Guild Events
+
+* **Quieter preset**: The new Guild event lines are rarer in
+  `mod_ll_chatter_quieter.conf.dist`: NPC remarks wait 2400 s per guild and
+  12 h per bot and NPC, a bot reports PvP kills at most every 600 s, meet
+  greetings repeat at most every 8 h per pair, joins, rank changes and
+  MOTD changes get a reaction 70% of the time from at most 2 / 2 / 1 bots
+  with a 50% chance of a reply back, and General join announcements get
+  one responder. The default preset is unchanged.
+
 ### 2026-10-10 - No Truncated Chat Lines
 
 * **Whole lines**: Guild event lines (member events, NPC remarks, meet
