@@ -10,6 +10,9 @@ class Player;
 
 void AddLLMChatterGuildScripts();
 void AddLLMChatterGuildMemberScripts();
+// guild_member_join, guild_rank_change and guild_motd_comment: ambient
+// Guild news that must never land in a player's Guild conversation.
+bool IsGuildNewsEventType(std::string const& eventType);
 
 void NoteGuildPlayerInteraction(uint32 guildId);
 

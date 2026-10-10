@@ -1125,7 +1125,18 @@ void DeliverPendingMessagesImpl()
                 WorldSession* session =
                     bot->GetSession();
 
-                if (guild && session)
+                // Guild news queued before the player started
+                // talking must not land in the conversation.
+                if (guild && IsGuildNewsEventType(eventType)
+                    && WasGuildPlayerInteractionRecent(
+                        guild->GetId(),
+                        sLLMChatterConfig
+                            ->_guildPlayerIdleSuppressionSeconds))
+                {
+                    botUnavailable = true;
+                    dropReason = "guild_player_active";
+                }
+                else if (guild && session)
                 {
                     emitAction();
                     guild->BroadcastToGuild(

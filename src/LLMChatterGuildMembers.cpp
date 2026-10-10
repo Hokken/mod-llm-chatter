@@ -43,6 +43,7 @@ struct PendingGuildJoinBatch
 {
     std::vector<uint32> memberGuids;
     time_t dueAt = 0;
+    time_t createdAt = 0;
 };
 
 struct PendingGuildRankChange
@@ -57,12 +58,14 @@ struct PendingGuildRankBatch
 {
     std::vector<PendingGuildRankChange> changes;
     time_t lastChangeAt = 0;
+    time_t createdAt = 0;
 };
 
 struct PendingGuildMotd
 {
     std::string motd;
     time_t dueAt = 0;
+    time_t createdAt = 0;
 };
 
 std::unordered_map<uint32, PendingGuildJoinBatch>
@@ -97,8 +100,11 @@ void NoteGuildMemberJoined(uint32 guildId, uint32 memberGuid)
 
     PendingGuildJoinBatch& batch = sPendingGuildJoins[guildId];
     if (batch.memberGuids.empty())
+    {
         batch.dueAt = now
             + sLLMChatterConfig->_guildJoinGreetingBatchSeconds;
+        batch.createdAt = now;
+    }
     if (std::find(
             batch.memberGuids.begin(),
             batch.memberGuids.end(),
@@ -130,6 +136,8 @@ void NoteGuildRankChanged(
     PendingGuildRankBatch& batch =
         sPendingGuildRankChanges[guildId];
     batch.lastChangeAt = time(nullptr);
+    if (batch.changes.empty())
+        batch.createdAt = batch.lastChangeAt;
     auto it = std::find_if(
         batch.changes.begin(), batch.changes.end(),
         [memberGuid](PendingGuildRankChange const& change)
@@ -156,10 +164,32 @@ void NoteGuildMotdChanged(
     }
 
     std::lock_guard<std::mutex> guard(sGuildEventMutex);
+    time_t now = time(nullptr);
     PendingGuildMotd& pending = sPendingGuildMotds[guildId];
+    if (pending.motd.empty())
+        pending.createdAt = now;
     pending.motd = motd;
-    pending.dueAt = time(nullptr)
+    pending.dueAt = now
         + sLLMChatterConfig->_guildMotdCommentDelaySeconds;
+}
+
+// Guild news never interrupts a real player's Guild conversation.
+bool GuildConversationActive(uint32 guildId)
+{
+    return WasGuildPlayerInteractionRecent(
+        guildId,
+        sLLMChatterConfig
+            ->_guildPlayerIdleSuppressionSeconds);
+}
+
+// News that happened MemberEvents.MaxDeferSeconds ago or earlier is
+// dropped while the guild is in a player conversation. createdAt never
+// moves, so later updates (a new rank change, an edited MOTD) cannot
+// keep held news alive; 0 drops the news as soon as a player talks.
+bool GuildNewsExpired(time_t createdAt, time_t now)
+{
+    return now - createdAt >= static_cast<time_t>(
+        sLLMChatterConfig->_guildMemberEventMaxDeferSeconds);
 }
 
 bool JoinedGuildRecently(
@@ -525,10 +555,20 @@ void ProcessPendingGuildMemberEvents()
             sPendingGuildMotds.clear();
         }
 
+        // WasGuildPlayerInteractionRecent() takes its own mutex and
+        // never calls back into this file, so the lock order is fixed.
         for (auto it = sPendingGuildJoins.begin();
              it != sPendingGuildJoins.end();)
         {
-            if (now < it->second.dueAt)
+            // Expiry first: it must not depend on the due time.
+            bool busy = GuildConversationActive(it->first);
+            if (busy
+                && GuildNewsExpired(it->second.createdAt, now))
+            {
+                it = sPendingGuildJoins.erase(it);
+                continue;
+            }
+            if (busy || now < it->second.dueAt)
             {
                 ++it;
                 continue;
@@ -544,8 +584,16 @@ void ProcessPendingGuildMemberEvents()
         for (auto it = sPendingGuildRankChanges.begin();
              it != sPendingGuildRankChanges.end();)
         {
-            if (now - it->second.lastChangeAt
-                < static_cast<time_t>(debounce))
+            bool busy = GuildConversationActive(it->first);
+            if (busy
+                && GuildNewsExpired(it->second.createdAt, now))
+            {
+                it = sPendingGuildRankChanges.erase(it);
+                continue;
+            }
+            if (busy
+                || now - it->second.lastChangeAt
+                    < static_cast<time_t>(debounce))
             {
                 ++it;
                 continue;
@@ -558,7 +606,14 @@ void ProcessPendingGuildMemberEvents()
         for (auto it = sPendingGuildMotds.begin();
              it != sPendingGuildMotds.end();)
         {
-            if (now < it->second.dueAt)
+            bool busy = GuildConversationActive(it->first);
+            if (busy
+                && GuildNewsExpired(it->second.createdAt, now))
+            {
+                it = sPendingGuildMotds.erase(it);
+                continue;
+            }
+            if (busy || now < it->second.dueAt)
             {
                 ++it;
                 continue;
@@ -650,6 +705,13 @@ public:
         ProcessPendingGuildMemberEvents();
     }
 };
+}
+
+bool IsGuildNewsEventType(std::string const& eventType)
+{
+    return eventType == "guild_member_join"
+        || eventType == "guild_rank_change"
+        || eventType == "guild_motd_comment";
 }
 
 void AddLLMChatterGuildMemberScripts()

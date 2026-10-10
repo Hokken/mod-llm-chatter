@@ -340,6 +340,7 @@ public:
     uint32 _guildMotdCommentChance{100};
     uint32 _guildMotdCommentDelaySeconds{20};
     uint32 _guildMemberEventMaxCandidates{12};
+    uint32 _guildMemberEventMaxDeferSeconds{300};
 
     // Zone intrusion alerts
     bool _zoneIntrusionEnable;

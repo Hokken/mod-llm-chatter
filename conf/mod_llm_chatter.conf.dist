@@ -2628,6 +2628,20 @@ LLMChatter.GuildChatter.MotdComment.DelaySeconds = 20
 LLMChatter.GuildChatter.MemberEvents.MaxCandidates = 12
 
 #
+#   LLMChatter.GuildChatter.MemberEvents.MaxDeferSeconds
+#       Guild news (join greetings, rank-change and MOTD
+#       comments) never interrupts a real player's Guild
+#       conversation. While a player has spoken in Guild
+#       within PlayerReplies.IdleSuppressionSeconds, due news
+#       waits; news still waiting this many seconds after it
+#       happened is dropped. Lines already queued are dropped
+#       at delivery if the player starts talking. 0 drops the
+#       news instead of waiting. Supported range is 0-1800.
+#       Default: 300
+#
+LLMChatter.GuildChatter.MemberEvents.MaxDeferSeconds = 300
+
+#
 #   LLMChatter.GuildChatter.JoinGreeting.MaxResponders
 #   LLMChatter.GuildChatter.RankChange.MaxResponders
 #   LLMChatter.GuildChatter.MotdComment.MaxResponders

@@ -1116,7 +1116,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         handler_module='chatter_guild_events',
         handler_func='process_guild_member_join_event',
         producer='LLMChatterGuildMembers.cpp',
-        priority='high',
+        priority='normal',
         description=(
             'Guild bots react to new guild members'
         ),

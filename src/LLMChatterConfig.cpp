@@ -1150,6 +1150,12 @@ void LLMChatterConfig::LoadConfig()
                     "LLMChatter.GuildChatter."
                     "MemberEvents.MaxCandidates", 12),
                 30u));
+    _guildMemberEventMaxDeferSeconds =
+        std::min(
+            GetChatterOption<uint32>(
+                "LLMChatter.GuildChatter."
+                "MemberEvents.MaxDeferSeconds", 300),
+            1800u);
 
     // Zone intrusion alerts
     _zoneIntrusionEnable =

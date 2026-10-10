@@ -473,6 +473,89 @@ def test_member_events_are_not_recorded_as_replies():
         assert event_type not in record
 
 
+def test_guild_news_waits_for_the_player_conversation():
+    source = _src('LLMChatterGuildMembers.cpp').replace('\r\n', '\n')
+    helpers = source[source.index('bool GuildConversationActive('):]
+    helpers = helpers[:helpers.index('bool JoinedGuildRecently(')]
+    assert 'WasGuildPlayerInteractionRecent(' in helpers
+    assert '_guildPlayerIdleSuppressionSeconds' in helpers
+    expired = helpers[helpers.index('bool GuildNewsExpired('):]
+    assert 'now - createdAt >= ' in expired
+    assert '_guildMemberEventMaxDeferSeconds' in expired
+    flush = source[source.index('void ProcessPendingGuildMemberEvents()'):]
+    flush = flush[:flush.index('class LLMChatterGuildMemberEventScript')]
+    loops = {
+        'sPendingGuildJoins': 'now < it->second.dueAt',
+        'sPendingGuildRankChanges': 'now - it->second.lastChangeAt',
+        'sPendingGuildMotds': 'now < it->second.dueAt',
+    }
+    for buffer, due_check in loops.items():
+        loop = flush[flush.index(f'for (auto it = {buffer}.begin();'):]
+        loop = loop[:loop.index('.emplace_back(')]
+        expiry = loop.index('GuildNewsExpired(it->second.createdAt, now)')
+        # A held batch that keeps receiving updates (a new rank change,
+        # an edited MOTD) moves its due/debounce time, never createdAt:
+        # expiry must be checked before, and independently of, that time.
+        assert expiry < loop.index(due_check), buffer
+        assert 'if (busy\n                && GuildNewsExpired(' in loop, \
+            buffer
+        assert f'it = {buffer}.erase(it);\n                continue;' \
+            in loop[expiry:], buffer
+        # While busy and not expired, the batch stays pending.
+        assert 'if (busy ||' in loop[expiry:] or 'if (busy\n' in \
+            loop[expiry + 1:], buffer
+    # createdAt is set once, when the batch starts.
+    assert 'batch.createdAt = now;' in source
+    assert ('if (batch.changes.empty())\n'
+            '        batch.createdAt = batch.lastChangeAt;') in source
+    assert ('if (pending.motd.empty())\n'
+            '        pending.createdAt = now;') in source
+
+
+def test_guild_news_queued_before_the_player_spoke_is_dropped():
+    # The player may start talking after the event was queued (during
+    # generation or the line delay): delivery checks again.
+    source = _src('LLMChatterDelivery.cpp')
+    branch = source[source.index('else if (channel == "guild")'):]
+    branch = branch[:branch.index('guild->BroadcastToGuild(')]
+    assert 'IsGuildNewsEventType(eventType)' in branch
+    assert 'WasGuildPlayerInteractionRecent(' in branch
+    assert 'dropReason = "guild_player_active";' in branch
+    members = _src('LLMChatterGuildMembers.cpp')
+    news = members[members.index('bool IsGuildNewsEventType('):]
+    news = news[:news.index('}')]
+    for event_type in (
+        'guild_member_join', 'guild_rank_change', 'guild_motd_comment',
+    ):
+        assert f'"{event_type}"' in news
+
+
+def test_guild_news_never_outranks_player_replies():
+    shared = _src('LLMChatterShared.cpp')
+    assert '{"guild_player_message",    PRIORITY_HIGH}' in shared
+    assert EVENT_REGISTRY['guild_player_message'].priority == 'high'
+    for event_type in (
+        'guild_member_join', 'guild_rank_change', 'guild_motd_comment',
+    ):
+        assert f'{{"{event_type}",' not in shared
+        assert EVENT_REGISTRY[event_type].priority == 'normal'
+
+
+def test_trimmed_lines_never_split_links():
+    colored = ('|cff1eff00|Hitem:12345:0:0:0:0:0:0:0|h'
+               '[Fine Guild Reward]|h|r')
+    bare = '|Hitem:12345:0:0:0:0:0:0:0|h[Fine Guild Reward]|h'
+    for link in (colored, bare):
+        text = f'Take a look at {link} before deciding.'
+        # The limit lands inside the link label.
+        cut = text.index('Guild Reward') + 3
+        assert common.trim_line(text, cut) == 'Take a look at.'
+        whole = common.trim_line(text, len(text) - 5)
+        assert link in whole
+    placeholder = 'Take a look at {item:Fine Guild Reward} before deciding.'
+    assert common.trim_line(placeholder, 30) == 'Take a look at.'
+
+
 def test_sql_adds_guild_news_event_types():
     sql_dir = MODULE_DIR / 'data' / 'sql' / 'characters'
     update = (
@@ -501,12 +584,14 @@ def test_config_keys_in_both_confs():
             'RankChange.DebounceSeconds', 'MotdComment.DelaySeconds',
             'MemberEvents.MaxCandidates', 'MemberEvents.MaxCharacters',
             'JoinGreeting.SubjectReplyChance',
+            'MemberEvents.MaxDeferSeconds',
         ):
             assert re.search(
                 rf'^LLMChatter\.GuildChatter\.{re.escape(key)} = \d+',
                 text, re.M), (path.name, key)
     config = _src('LLMChatterConfig.cpp')
     assert '"MemberEvents.MaxCandidates", 12)' in config
+    assert '"MemberEvents.MaxDeferSeconds", 300)' in config
 
 
 if __name__ == '__main__':
