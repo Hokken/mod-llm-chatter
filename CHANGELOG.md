@@ -1,5 +1,13 @@
 # Changelog
 
+### 2026-10-10 - Configurable Reply Delay to Player Messages
+
+* **Reply delay**: The pause before a reply to a player message in General
+  or party chat is now configurable with `ResponsiveDelayMin` and
+  `ResponsiveDelayMax` (milliseconds). The defaults stay 4000 and 8000, so
+  nothing changes unless they are set. Guild replies keep their own
+  `GuildChatter.PlayerReplies.FirstDelay` timing.
+
 ### 2026-10-10 - Configurable Memory Recall Count
 
 * **Recall count**: How many memories a bot recalls about the player is
