@@ -1,5 +1,16 @@
 # Changelog
 
+### 2026-10-11 - Names for Custom Races
+
+* **Custom races**: Races outside the original ten (for example from a
+  custom `ChrRaces.dbc`) are now named instead of "Unknown". The
+  worldserver writes every ChrRaces name to the new
+  `llm_chatter_race_names` table at startup, and the bridge reads it for
+  races it does not know. The original ten keep their names, and a
+  faction is still decided only from the race ID.
+* **Upgrade**: Apply `data/sql/characters/updates/20261010_race_names.sql`
+  to the characters database before starting the updated worldserver.
+
 ### 2026-10-10 - Configurable Reply Delay to Player Messages
 
 * **Reply delay**: The pause before a reply to a player message in General
