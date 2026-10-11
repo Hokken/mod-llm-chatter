@@ -326,7 +326,8 @@ LLMChatter.Model = claude-haiku-4-5-20251001
 #       request log). Matching calls use LabelModel; all other
 #       calls keep LLMChatter.Model. Example: a small, cheap
 #       model for ambient General chatter and a stronger one
-#       for what the player is part of:
+#       for party chat, reactions and the first bot reply to
+#       a player in General:
 #         LLMChatter.LabelModel = claude-sonnet-4-5
 #         LLMChatter.LabelModel.Labels = group_*,reaction_*,general_player_msg
 #       QuickAnalyze calls are not affected (QuickAnalyze.Model).

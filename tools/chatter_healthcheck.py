@@ -672,14 +672,16 @@ def _check_llm_probe(
 def _check_label_model_probe(config):
     """Live-test LLMChatter.LabelModel when label routing is on.
 
-    Returns None when LabelModel or LabelModel.Labels is empty:
-    every call then uses LLMChatter.Model, already probed.
+    Returns None when routing is off (label_routing() finds no
+    model or no label pattern): every call then uses
+    LLMChatter.Model, already probed.
     """
-    model = (config.get('LLMChatter.LabelModel') or '').strip()
-    labels = (
-        config.get('LLMChatter.LabelModel.Labels') or ''
-    ).strip()
-    if not model or not labels:
+    try:
+        from chatter_llm import label_routing
+        model, _patterns = label_routing(config)
+    except Exception:
+        return None
+    if not model:
         return None
     return _check_llm_probe(
         config,

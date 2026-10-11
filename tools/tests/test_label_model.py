@@ -129,6 +129,14 @@ class LabelModelHealthCheckTests(unittest.TestCase):
             self.assertEqual(probed, ['small-model'])
             self.assertNotIn('label_model_probe', results)
 
+    def test_label_list_without_patterns_is_not_probed(self):
+        # Nothing is routed, so LabelModel must not fail startup.
+        config = dict(ROUTED, **{'LLMChatter.LabelModel.Labels': ' , ,'})
+        self.assertIsNone(chatter_llm.label_model('group_idle', config))
+        results, probed = self._run(config)
+        self.assertEqual(probed, ['small-model'])
+        self.assertNotIn('label_model_probe', results)
+
     def test_disabled_live_probe_skips_both(self):
         results, probed = self._run(ROUTED, do_llm_probe=False)
         self.assertEqual(probed, [])

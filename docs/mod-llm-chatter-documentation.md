@@ -625,8 +625,9 @@ Supported providers:
 - Ollama
 
 `LLMChatter.LabelModel` sends calls whose label matches
-`LLMChatter.LabelModel.Labels` (comma-separated fnmatch patterns, see
-[Labels](#labels)) to a second model on the same provider, for example a
+`LLMChatter.LabelModel.Labels` (comma-separated fnmatch patterns over
+the `label=` of each `call_llm()` call, which the request log records)
+to a second model on the same provider, for example a
 stronger model for party chat and replies to the player while ambient
 General chatter stays on a cheaper one. Unmatched calls keep
 `LLMChatter.Model`. Quick analysis is unaffected (`QuickAnalyze.Model`).
@@ -2499,7 +2500,8 @@ prompt was sent as a single user message.
 Every `call_llm()` call site passes a descriptive `label=` keyword
 argument so log entries can be filtered by feature, and
 `LLMChatter.LabelModel.Labels` can route calls to a second model by
-label. All 27 call sites are labelled:
+label. The request log records the label of every call; the table
+lists the original call sites:
 
 | Label | Source |
 |---|---|
