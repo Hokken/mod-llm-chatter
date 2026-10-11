@@ -1529,6 +1529,18 @@ std::string GetChatterClassName(uint8 classId)
     }
 }
 
+std::string GetChrRacesName(uint32 raceId)
+{
+    ChrRacesEntry const* race = sChrRacesStore.LookupEntry(raceId);
+    if (!race)
+        return "";
+    uint8 locale = sWorld->GetDefaultDbcLocale();
+    char const* name = race->name[locale];
+    if (!name || !*name)
+        name = race->name[LOCALE_enUS];
+    return name ? name : "";
+}
+
 std::string GetRaceName(uint8 raceId)
 {
     switch (raceId)
@@ -1547,24 +1559,9 @@ std::string GetRaceName(uint8 raceId)
             break;
     }
 
-    // Races added through ChrRaces (custom servers) are named
-    // the same way as zones: server DBC locale, then enUS.
-    if (ChrRacesEntry const* race =
-            sChrRacesStore.LookupEntry(raceId))
-    {
-        uint8 locale = sWorld->GetDefaultDbcLocale();
-        char const* n = race->name[locale];
-        std::string raceName = n ? n : "";
-        if (raceName.empty())
-        {
-            n = race->name[LOCALE_enUS];
-            raceName = n ? n : "";
-        }
-        if (!raceName.empty())
-            return raceName;
-    }
-
-    return "Unknown";
+    // Races added through ChrRaces (custom servers).
+    std::string const raceName = GetChrRacesName(raceId);
+    return raceName.empty() ? "Unknown" : raceName;
 }
 
 void SaveRaceNames()

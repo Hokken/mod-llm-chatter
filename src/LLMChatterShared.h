@@ -60,6 +60,9 @@ std::string EscapeString(const std::string& str);
 std::string JsonEscape(const std::string& str);
 std::string GetCreatureRoleName(Creature* creature);
 std::string GetChatterClassName(uint8 classId);
+// Name of any race in ChrRaces, playable or not, in the
+// server DBC locale with enUS as fallback; empty if unknown.
+std::string GetChrRacesName(uint32 raceId);
 std::string GetRaceName(uint8 raceId);
 // Writes the name of every race in ChrRaces to
 // llm_chatter_race_names for the bridge (startup only).

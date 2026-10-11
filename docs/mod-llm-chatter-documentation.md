@@ -304,8 +304,10 @@ registries instead of a single long conditional block.
 - `JsonEscape()`
 - `GetZoneName()`
 - `GetChatterClassName()`
+- `GetChrRacesName()` — any race in `ChrRaces`, playable or not, in the
+  server DBC locale with enUS as fallback (also names humanoid NPCs)
 - `GetRaceName()` — the ten original races by name, any other race
-  from `ChrRaces` (server DBC locale, then enUS)
+  from `ChrRaces` (`GetChrRacesName()`)
 - `SaveRaceNames()` — at startup, writes every race in `ChrRaces` with
   its `GetRaceName()` name to `llm_chatter_race_names`. The bridge's
   `get_race_name()` (`chatter_db.py`) names the original ten from
@@ -4530,6 +4532,7 @@ its original format-reliability limitations.
 | `llm_general_chat_history` | C++/Python read path | Python/C++ | General-channel history |
 | `llm_bot_memories` | Python | Python | Per-bot-per-player memory journal (active=1 persists; first_meeting immune to prune) |
 | `llm_bot_identities` | Python | Python | Persistent bot personality traits; regenerated on IdentityVersion bump |
+| `llm_chatter_race_names` | C++ (startup) | Python | Every race in `ChrRaces` with its `GetRaceName()` name; the bridge names races outside `RACE_NAMES` from it |
 
 ---
 

@@ -1229,6 +1229,7 @@ instead of rendering it as a `/slash` command.
 - `JsonEscape()`
 - `GetZoneName()`
 - `GetChatterClassName()`
+- `GetChrRacesName()`
 - `GetRaceName()`
 - `SaveRaceNames()`
 - `BuildBotIdentityFields()`
@@ -2126,6 +2127,7 @@ Generation failures do not reassign later greetings to another channel.
 | `llm_group_bot_traits` | Python + C++ travel refresh | Python | Group traits/state, location, and live travel context |
 | `llm_group_chat_history` | Python | Python | Group anti-repetition history |
 | `llm_general_chat_history` | C++/Python read path | Python/C++ | General-channel history |
+| `llm_chatter_race_names` | C++ (startup) | Python | Race names from `ChrRaces`, for races outside `RACE_NAMES` |
 
 ## Known Gaps
 
