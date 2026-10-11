@@ -1,5 +1,16 @@
 # Changelog
 
+### 2026-10-11 - Second Model by Call Label
+
+* **Label routing**: `LLMChatter.LabelModel` sends the calls whose label
+  matches `LLMChatter.LabelModel.Labels` (comma-separated, with `*` and
+  `?` wildcards, for example `group_*,reaction_*,general_player_msg`) to
+  a second model on the same provider. All other calls keep
+  `LLMChatter.Model`. Both keys are empty by default, so nothing changes
+  unless they are set.
+* **Health check**: When both keys are set, the startup health check
+  live-tests the second model on its own "LabelModel connectivity" line.
+
 ### 2026-10-11 - Names for Custom Races
 
 * **Custom races**: Races outside the original ten (for example from a
