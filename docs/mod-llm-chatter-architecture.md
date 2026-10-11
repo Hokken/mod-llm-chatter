@@ -1136,7 +1136,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_text.py` | Parsing, sanitization, anti-repetition, and chat length limiting. Never slice LLM chat output by hand; use `shorten_chat_message()` or `shorten_chat_question()` from this file. |
 | `tools/chatter_structured.py` | Global structured-output flag, immutable response contracts, stable schema generation, strict local validation and legacy-shape normalization. No SDK or delivery logic. |
 | `tools/chatter_llm.py` | Provider/model calls for Anthropic, OpenAI, Google Gemini, OpenRouter, and Ollama; `get_llm_client()` shared client factory; `_split_prompt()`, `_build_chat_messages()`, `_ollama_user_msg()`, `_apply_google_options()`, `_apply_openrouter_options()`, `_openrouter_headers()` for system/user prompt separation and provider tuning; delegates cross-model parameter selection to `llm_compat.py`; `label=` param logs every call via `chatter_request_logger` |
-| `tools/chatter_db.py` | DB access, inserts, zone/cache queries, `any_real_players_online()`, stale-group cleanup, and global group/Guild session cleanup |
+| `tools/chatter_db.py` | DB access, inserts, zone/cache queries, `any_real_players_online()`, stale-group cleanup, and global group/Guild session cleanup. Owns `get_race_name()`: `RACE_NAMES`, then the races the worldserver wrote to `llm_chatter_race_names` (`load_race_names()`) |
 | `tools/chatter_links.py` | WoW link parsing and prompt-side link enrichment for player messages |
 | `tools/chatter_prompts.py` | Ambient/event prompt builders; twist and spice gating (`configure_prompt_flavor()`) |
 | `tools/chatter_general_length.py` | Configurable player-driven General reply length bands and adjacent-turn avoidance; no other channel length policy |
@@ -1229,7 +1229,9 @@ instead of rendering it as a `/slash` command.
 - `JsonEscape()`
 - `GetZoneName()`
 - `GetChatterClassName()`
+- `GetChrRacesName()`
 - `GetRaceName()`
+- `SaveRaceNames()`
 - `BuildBotIdentityFields()`
 - `QueueChatterEvent()`
 - `BuildBotStateJson()`
@@ -2125,6 +2127,7 @@ Generation failures do not reassign later greetings to another channel.
 | `llm_group_bot_traits` | Python + C++ travel refresh | Python | Group traits/state, location, and live travel context |
 | `llm_group_chat_history` | Python | Python | Group anti-repetition history |
 | `llm_general_chat_history` | C++/Python read path | Python/C++ | General-channel history |
+| `llm_chatter_race_names` | C++ (startup) | Python | Race names from `ChrRaces`, for races outside `RACE_NAMES` |
 
 ## Known Gaps
 
