@@ -1,12 +1,13 @@
 """LLM call-layer helpers extracted from chatter_shared (N14)."""
 
+import fnmatch
 import logging
 import importlib.util
 import re
 from collections import OrderedDict
 import threading
 import time
-from typing import Any, Optional
+from typing import Any, List, Optional, Tuple
 
 from chatter_constants import (
     DEFAULT_ANTHROPIC_MODEL,
@@ -744,6 +745,41 @@ def _call_target(client, prompt, config, provider, model, max_tokens,
     return result
 
 
+def label_routing(config: dict) -> Tuple[str, List[str]]:
+    """LLMChatter.LabelModel and its label patterns.
+
+    The labels are comma-separated fnmatch patterns (group_*,
+    reaction_*). Returns ('', []) when either key is empty, so
+    every call keeps LLMChatter.Model.
+    """
+    model = (config.get('LLMChatter.LabelModel') or '').strip()
+    patterns = [
+        pattern.strip()
+        for pattern in (
+            config.get('LLMChatter.LabelModel.Labels') or ''
+        ).split(',')
+        if pattern.strip()
+    ]
+    if not model or not patterns:
+        return '', []
+    return model, patterns
+
+
+def label_model(label: str, config: dict) -> Optional[str]:
+    """Model for a call whose label matches LLMChatter.LabelModel.Labels.
+
+    Returns None when the label matches nothing or the feature is
+    not configured, so the call keeps LLMChatter.Model.
+    """
+    model, patterns = label_routing(config)
+    if not label:
+        return None
+    for pattern in patterns:
+        if fnmatch.fnmatchcase(label, pattern):
+            return model
+    return None
+
+
 def call_llm(
     client: Any,
     prompt: str,
@@ -770,7 +806,7 @@ def call_llm(
         default_model = DEFAULT_GOOGLE_MODEL
     elif provider == 'openrouter':
         default_model = DEFAULT_OPENROUTER_MODEL
-    model = config.get(
+    model = label_model(label, config) or config.get(
         'LLMChatter.Model', default_model
     )
     model = resolve_model(model)
