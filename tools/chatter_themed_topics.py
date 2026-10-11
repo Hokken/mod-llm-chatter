@@ -44,7 +44,7 @@ from chatter_rumor_data import (
     RAID_RUMORS,
     REGION_RUMORS,
 )
-from chatter_shared import get_race_faction
+from chatter_shared import get_race_faction, get_race_name
 from chatter_threads import themed_topic_weight, threads_enabled
 from chatter_trainer_rumor_data import (
     CLASS_ABILITIES,
@@ -131,7 +131,7 @@ def chance_hit(config, key, default):
 
 def _race_name(value):
     if isinstance(value, int) or (isinstance(value, str) and value.isdigit()):
-        return RACE_NAMES.get(int(value), '')
+        return get_race_name(int(value), '')
     return str(value or '')
 
 

@@ -128,7 +128,8 @@ does not process all of them inline in one thread.
 `llm_chatter_bridge.py` runs one long-lived coordinator loop. That loop:
 
 - harvests completed futures
-- runs periodic cleanup
+- runs periodic cleanup, and rereads the race names the worldserver
+  wrote at startup
 - claims ready events from `llm_chatter_events`
 - submits them to worker threads
 - periodically submits timer-like jobs such as:
@@ -303,7 +304,15 @@ registries instead of a single long conditional block.
 - `JsonEscape()`
 - `GetZoneName()`
 - `GetChatterClassName()`
-- `GetRaceName()`
+- `GetChrRacesName()` — any race in `ChrRaces`, playable or not, in the
+  server DBC locale with enUS as fallback (also names humanoid NPCs)
+- `GetRaceName()` — the ten original races by name, any other race
+  from `ChrRaces` (`GetChrRacesName()`)
+- `SaveRaceNames()` — at startup, writes every race in `ChrRaces` with
+  its `GetRaceName()` name to `llm_chatter_race_names`. The bridge's
+  `get_race_name()` (`chatter_db.py`) names the original ten from
+  `RACE_NAMES` and any other race ID from this table, so a prompt
+  built from a character row names a custom race as event JSON does
 - `BuildBotIdentityFields()` — emits `bot_name`, `bot_class`,
   `bot_race`, `bot_gender`, `bot_level` into event JSON
 - `QueueChatterEvent()`
@@ -4523,6 +4532,7 @@ its original format-reliability limitations.
 | `llm_general_chat_history` | C++/Python read path | Python/C++ | General-channel history |
 | `llm_bot_memories` | Python | Python | Per-bot-per-player memory journal (active=1 persists; first_meeting immune to prune) |
 | `llm_bot_identities` | Python | Python | Persistent bot personality traits; regenerated on IdentityVersion bump |
+| `llm_chatter_race_names` | C++ (startup) | Python | Every race in `ChrRaces` with its `GetRaceName()` name; the bridge names races outside `RACE_NAMES` from it |
 
 ---
 

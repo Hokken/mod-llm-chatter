@@ -164,6 +164,43 @@ def get_creature_entry_column(db):
     return _creature_entry_col
 
 
+# Race names the worldserver wrote at startup, for races outside
+# RACE_NAMES (added through ChrRaces). Replaced, never mutated, by
+# load_race_names() so worker threads always read a whole dict.
+_server_race_names: Dict[int, str] = {}
+
+
+def load_race_names(db) -> None:
+    """Refresh the race names from llm_chatter_race_names.
+
+    Keeps the previous names when the table cannot be read (not
+    created yet, or the worldserver has not started).
+    """
+    global _server_race_names
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT race_id, name FROM llm_chatter_race_names"
+        )
+        rows = cursor.fetchall()
+        cursor.close()
+    except Exception:
+        logger.debug("Could not read race names", exc_info=True)
+        return
+    _server_race_names = {
+        int(row['race_id']): row['name']
+        for row in rows if row.get('name')
+    }
+
+
+def get_race_name(race_id: int, default: str = "Unknown") -> str:
+    """Get human-readable race name from race ID."""
+    return (
+        RACE_NAMES.get(race_id)
+        or _server_race_names.get(race_id, default)
+    )
+
+
 def wait_for_database(
     config: dict,
     max_retries: int = 30,
@@ -520,9 +557,7 @@ def query_zone_bot_gossip_targets(
             'class': CLASS_NAMES.get(
                 int(row.get('class') or 0), 'Adventurer'
             ),
-            'race': RACE_NAMES.get(
-                int(row.get('race') or 0), 'Unknown'
-            ),
+            'race': get_race_name(int(row.get('race') or 0)),
             'level': int(row.get('level') or 0),
             'zone_id': int(row.get('zone') or 0),
         })

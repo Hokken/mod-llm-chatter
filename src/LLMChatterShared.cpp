@@ -1529,6 +1529,18 @@ std::string GetChatterClassName(uint8 classId)
     }
 }
 
+std::string GetChrRacesName(uint32 raceId)
+{
+    ChrRacesEntry const* race = sChrRacesStore.LookupEntry(raceId);
+    if (!race)
+        return "";
+    uint8 locale = sWorld->GetDefaultDbcLocale();
+    char const* name = race->name[locale];
+    if (!name || !*name)
+        name = race->name[LOCALE_enUS];
+    return name ? name : "";
+}
+
 std::string GetRaceName(uint8 raceId)
 {
     switch (raceId)
@@ -1543,8 +1555,39 @@ std::string GetRaceName(uint8 raceId)
         case RACE_TROLL: return "Troll";
         case RACE_BLOODELF: return "Blood Elf";
         case RACE_DRAENEI: return "Draenei";
-        default: return "Unknown";
+        default:
+            break;
     }
+
+    // Races added through ChrRaces (custom servers).
+    std::string const raceName = GetChrRacesName(raceId);
+    return raceName.empty() ? "Unknown" : raceName;
+}
+
+void SaveRaceNames()
+{
+    // The bridge names a race ID it does not know from this
+    // table, so prompts built from a character row use the
+    // same name as GetRaceName() puts in event JSON.
+    CharacterDatabaseTransaction trans =
+        CharacterDatabase.BeginTransaction();
+    trans->Append("DELETE FROM llm_chatter_race_names");
+    for (uint32 raceId = 1;
+         raceId < sChrRacesStore.GetNumRows(); ++raceId)
+    {
+        if (!sChrRacesStore.LookupEntry(raceId))
+            continue;
+
+        std::string const raceName = GetRaceName(raceId);
+        if (raceName == "Unknown")
+            continue;
+
+        trans->Append(
+            "INSERT INTO llm_chatter_race_names "
+            "(race_id, name) VALUES ({}, '{}')",
+            raceId, EscapeString(raceName));
+    }
+    CharacterDatabase.CommitTransaction(trans);
 }
 
 std::string GetZoneName(uint32 zoneId)

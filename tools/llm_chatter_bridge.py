@@ -45,6 +45,7 @@ from chatter_db import (
     any_real_players_online,
     cleanup_stale_groups,
     cleanup_all_session_data,
+    load_race_names,
 )
 from chatter_shared import (
     format_location_label,
@@ -2149,6 +2150,9 @@ def main():
                     # player went offline (runs
                     # regardless of UseEventSystem)
                     cleanup_stale_groups(db)
+                    # Race names the worldserver
+                    # wrote at its last startup
+                    load_race_names(db)
                     last_cleanup = current_time
 
                 # DB state snapshot for log viewer

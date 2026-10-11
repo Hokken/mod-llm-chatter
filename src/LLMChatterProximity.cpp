@@ -1198,16 +1198,8 @@ static std::string GetNPCRaceName(Creature const* cr)
     if (!extra || !extra->DisplayRaceID)
         return "";
     // ChrRaces also names non-playable races (goblins,
-    // ogres...) that GetRaceName() does not know.
-    ChrRacesEntry const* race =
-        sChrRacesStore.LookupEntry(extra->DisplayRaceID);
-    if (!race)
-        return "";
-    uint8 locale = sWorld->GetDefaultDbcLocale();
-    char const* name = race->name[locale];
-    if (!name || !*name)
-        name = race->name[LOCALE_enUS];
-    return name ? name : "";
+    // ogres...), and names every race in the DBC locale.
+    return GetChrRacesName(extra->DisplayRaceID);
 }
 
 // The faction the NPC belongs to (e.g. "Darnassus",

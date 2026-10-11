@@ -331,6 +331,8 @@ public:
         CharacterDatabase.Execute(
             "DELETE FROM llm_guild_chat_sessions");
 
+        SaveRaceNames();
+
         LoadTransportCache();
 
         LoadNamedBossCache();

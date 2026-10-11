@@ -11,7 +11,6 @@ from chatter_constants import (
     NPC_RANK_NAMES,
     REACTION_TONES,
     CLASS_NAMES,
-    RACE_NAMES,
 )
 from chatter_shared import (
     parse_extra_data,
@@ -25,6 +24,7 @@ from chatter_shared import (
     get_chatter_mode,
     get_gender_label,
     build_gear_context,
+    get_race_name,
 )
 from chatter_mode import build_player_prompt_header
 from chatter_guild_profile import (
@@ -80,9 +80,7 @@ def handle_emote_observer(db, client, config, event):
     bot_class = CLASS_NAMES.get(
         int(extra.get('bot_class') or 0), ''
     )
-    bot_race = RACE_NAMES.get(
-        int(extra.get('bot_race') or 0), ''
-    )
+    bot_race = get_race_name(int(extra.get('bot_race') or 0), '')
     bot_gender = get_gender_label(
         int(extra.get('bot_gender') or 0)
     )
@@ -383,9 +381,7 @@ def _describe_target_player(extra, db=None) -> str:
     "a level 24 female Orc Hunter". Empty when C++
     sent no details for the target."""
     level = int(extra.get('target_level') or 0)
-    race = RACE_NAMES.get(
-        int(extra.get('target_race') or 0), ''
-    )
+    race = get_race_name(int(extra.get('target_race') or 0), '')
     class_name = CLASS_NAMES.get(
         int(extra.get('target_class') or 0), ''
     )

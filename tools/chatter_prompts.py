@@ -18,10 +18,10 @@ from chatter_constants import (
     RP_GOSSIP_CREATIVE_TWISTS,
     RP_MESSAGE_CATEGORIES, RP_LENGTH_HINTS,
     PERSONALITY_SPICES, RP_PERSONALITY_SPICES,
-    CLASS_NAMES, RACE_NAMES, CLASS_ROLE_MAP,
+    CLASS_NAMES, CLASS_ROLE_MAP,
 )
 from chatter_shared import (
-    get_chatter_mode, build_race_class_context,
+    get_chatter_mode, get_race_name, build_race_class_context,
     build_race_class_context_parts,
     build_bot_identity,
     get_zone_flavor, format_price, format_price_words,
@@ -2898,9 +2898,8 @@ def build_zone_intrusion_prompt(
         int(extra_data.get('defender_class', 0)),
         'adventurer'
     )
-    defender_race = RACE_NAMES.get(
-        int(extra_data.get('defender_race', 0)),
-        'Unknown'
+    defender_race = get_race_name(
+        int(extra_data.get('defender_race', 0))
     )
     defender_level = extra_data.get(
         'defender_level', '??'
@@ -2914,9 +2913,8 @@ def build_zone_intrusion_prompt(
         int(extra_data.get('intruder_class', 0)),
         'adventurer'
     )
-    intruder_race = RACE_NAMES.get(
-        int(extra_data.get('intruder_race', 0)),
-        'Unknown'
+    intruder_race = get_race_name(
+        int(extra_data.get('intruder_race', 0))
     )
     intruder_level = extra_data.get(
         'intruder_level', '??'

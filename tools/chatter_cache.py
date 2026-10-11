@@ -27,8 +27,9 @@ from chatter_shared import (
     pick_emote_for_statement,
     parse_single_response,
     shorten_chat_message,
+    get_race_name,
 )
-from chatter_constants import CLASS_NAMES, RACE_NAMES
+from chatter_constants import CLASS_NAMES
 from chatter_text import strip_emojis
 
 logger = logging.getLogger(__name__)
@@ -203,9 +204,7 @@ def _get_bot_race_class(db, bot_guid):
         return None
 
     class_id = int(row['class'])
-    race_name = RACE_NAMES.get(
-        int(row['race']), 'Unknown'
-    )
+    race_name = get_race_name(int(row['race']))
     class_name = CLASS_NAMES.get(
         class_id, 'Adventurer'
     )
