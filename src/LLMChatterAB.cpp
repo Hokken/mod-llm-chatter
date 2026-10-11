@@ -357,7 +357,10 @@ void QueueABNodeBatch(Battleground* bg)
         auto callback = CharacterDatabase.AsyncCommitTransaction(trans);
         // Owned and polled by this tracker on the world thread. Destroy/reset
         // drops callbacks; no live game object or cross-lifetime reference.
-        callback.AfterComplete([&tracker, audience, items](bool success)
+        // audience is a structured binding; Clang before 16 cannot capture
+        // one by name, so it is copied through an init-capture.
+        callback.AfterComplete(
+            [&tracker, audience = audience, items](bool success)
         {
             tracker.pending.Acknowledge(audience, items, success);
         });

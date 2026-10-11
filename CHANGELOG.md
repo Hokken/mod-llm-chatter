@@ -1,5 +1,13 @@
 # Changelog
 
+### 2026-10-11 - Clang Build Fix for Arathi Basin Chatter
+
+* **Build fix**: `LLMChatterAB.cpp` failed to compile on Clang before 16
+  ("'audience' in capture list does not name a variable"), because a
+  lambda captured a structured binding by name. It is now copied through
+  an init-capture; behavior is unchanged, and GCC builds were never
+  affected.
+
 ### 2026-10-11 - Second Model by Call Label
 
 * **Label routing**: `LLMChatter.LabelModel` sends the calls whose label
