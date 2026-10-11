@@ -2539,19 +2539,22 @@ prompt was sent as a single user message.
 Every `call_llm()` call site passes a descriptive `label=` keyword
 argument so log entries can be filtered by feature, and
 `LLMChatter.LabelModel.Labels` can route calls to a second model by
-label. The request log records the label of every call; the table
-lists the original call sites:
+label. The request log records the exact label of every call. The table
+groups the labels by family, which is what a `Labels` pattern such as
+`group_*` matches:
 
-| Label | Source |
-|---|---|
-| `event_conv` / `event_statement` | `llm_chatter_bridge.py` |
-| `ambient_statement` / `ambient_conv` | `chatter_ambient.py` |
-| `precache` | `chatter_cache.py` |
-| `general_player_msg` / `general_followup` / `general_conv` | `chatter_general.py` |
-| `group_join` / `group_welcome` / `group_player_msg` / `group_composition` / `group_idle` / `group_idle_conv` / `group_bot_question` | `chatter_group.py` |
-| `group_nearby_obj` / `group_player_msg_conv` / `group_quest_conv` | `chatter_group_handlers.py` |
-| `group_farewell` | `chatter_group_state.py` |
-| `single_reaction` | `chatter_shared.py` |
+| Labels | Calls | Source |
+|---|---|---|
+| `ambient_*` | idle General chatter: `ambient_statement`, `ambient_conv` | `chatter_ambient.py` |
+| `general_*` | General replies and lines: `general_player_msg` (first reply to a player), `general_followup`, `general_conv`, `general_loot` | `chatter_general.py`, `chatter_loot.py` |
+| `group_*` | party chat: `group_greeting`, `group_welcome`, `group_player_msg`, `group_idle`, `group_idle_conv`, `group_bot_question` (each with a `_memory` variant when memories are recalled), `group_composition`, `group_farewell`, `group_nearby_obj`, `group_quest_conv`, `group_player_msg_conv`, `group_general_relay`, `group_general_relay_conv` | `chatter_group*.py` |
+| `bot_group_*` | party event lines: `bot_group_kill`, `bot_group_loot`, `bot_group_death`, `bot_group_levelup`, `bot_group_duel_start`, ... | `chatter_group_handlers.py`, `chatter_duel.py` |
+| `reaction_*` | reactions to events: `reaction_kill`, `reaction_loot`, `reaction_bg_*`, `reaction_emote`, `reaction_raid`, `reaction_zone_intrusion`, `reaction_world_event`, ... | `chatter_group_handlers.py`, `chatter_battlegrounds.py`, `chatter_emote_*.py`, `chatter_events.py`, `chatter_raid_base.py`, `chatter_world_events.py` |
+| `raid_battle_cry` | raid battle cries | `chatter_group_handlers.py` |
+| `guild_*` | Guild chat: `guild_idle_chatter`, `guild_login_greeting`, `guild_player_message`, `guild_session_summary`, and the event lines (`guild_member_join`, `guild_pvp_kill`, `guild_npc_encounter`, ...) | `chatter_guild*.py` |
+| `proximity_*` | nearby /say chatter: `proximity_say`, `proximity_conversation`, `proximity_reply`, `proximity_player_conversation`, `proximity_player_emote`, ... | `chatter_proximity.py` |
+| `screenshot_*` | `screenshot_vision`, `screenshot_conv` | `chatter_screenshot_handler.py` |
+| other | `event_conv` (world events), `single_reaction`, `precache`, `find_addressed_bot`, `memory_generation`, `bot_<field>` (bot identity) | `chatter_world_events.py`, `chatter_handler_pipeline.py`, `chatter_cache.py`, `chatter_shared.py`, `chatter_memory.py`, `chatter_identity.py` |
 
 ### Web viewer
 
