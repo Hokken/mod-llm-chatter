@@ -1,5 +1,591 @@
 # Changelog
 
+### 2026-10-11 - Clang Build Fix for Arathi Basin Chatter
+
+* **Build fix**: `LLMChatterAB.cpp` failed to compile on Clang before 16
+  ("'audience' in capture list does not name a variable"), because a
+  lambda captured a structured binding by name. It is now copied through
+  an init-capture; behavior is unchanged, and GCC builds were never
+  affected.
+
+### 2026-10-11 - Second Model by Call Label
+
+* **Label routing**: `LLMChatter.LabelModel` sends the calls whose label
+  matches `LLMChatter.LabelModel.Labels` (comma-separated, with `*` and
+  `?` wildcards, for example `group_*,reaction_*,general_player_msg`) to
+  a second model on the same provider. All other calls keep
+  `LLMChatter.Model`. Both keys are empty by default, so nothing changes
+  unless they are set.
+* **Health check**: When both keys are set, the startup health check
+  live-tests the second model on its own "LabelModel connectivity" line.
+
+### 2026-10-11 - Names for Custom Races
+
+* **Custom races**: Races outside the original ten (for example from a
+  custom `ChrRaces.dbc`) are now named instead of "Unknown". The
+  worldserver writes every ChrRaces name to the new
+  `llm_chatter_race_names` table at startup, and the bridge reads it for
+  races it does not know. The original ten keep their names, and a
+  faction is still decided only from the race ID.
+* **Upgrade**: Apply `data/sql/characters/updates/20261010_race_names.sql`
+  to the characters database before starting the updated worldserver.
+
+### 2026-10-10 - Configurable Reply Delay to Player Messages
+
+* **Reply delay**: The pause before a reply to a player message in General
+  or party chat is now configurable with `ResponsiveDelayMin` and
+  `ResponsiveDelayMax` (milliseconds). The defaults stay 4000 and 8000, so
+  nothing changes unless they are set. Guild replies keep their own
+  `GuildChatter.PlayerReplies.FirstDelay` timing.
+
+### 2026-10-10 - Configurable Memory Recall Count
+
+* **Recall count**: How many memories a bot recalls about the player is
+  now configurable: `Memory.RecallCount` for greetings, replies to the
+  player and bot questions, and `Memory.IdleRecallCount` for idle chatter
+  (1-10). The defaults stay 3 and 2, so nothing changes unless they are
+  set.
+
+### 2026-10-10 - Quieter Preset for the New Guild Events
+
+* **Quieter preset**: The new Guild event lines are rarer in
+  `mod_ll_chatter_quieter.conf.dist`: NPC remarks wait 2400 s per guild and
+  12 h per bot and NPC, a bot reports PvP kills at most every 600 s, meet
+  greetings repeat at most every 8 h per pair, joins, rank changes and
+  MOTD changes get a reaction 70% of the time from at most 2 / 2 / 1 bots
+  with a 50% chance of a reply back, and General join announcements get
+  one responder. The default preset is unchanged.
+
+### 2026-10-10 - No Truncated Chat Lines
+
+* **Whole lines**: Guild event lines (member events, NPC remarks, meet
+  follow-ups, PvP) and Guild login greetings are no longer cut at their
+  character target. The length is asked for in the prompt and a line that
+  runs over it is delivered whole; only the client's 255-character chat
+  limit is enforced, at a sentence end, and item links are never split.
+* **Boss and NPC yells**: Long proximity yells keep whole sentences instead
+  of being cut at 177 characters with "...".
+* **Brief party replies**: A reply that overshoots its brief length band
+  keeps its first complete sentence when that fits, otherwise it is
+  delivered whole rather than cut to a few words. A long line no longer
+  drops a brief party conversation.
+
+### 2026-10-10 - Faction From the Race ID in One Place
+
+* **One faction list**: A race's faction is now decided from its race ID
+  in one place (`ALLIANCE_RACE_IDS` and `HORDE_RACE_IDS` in
+  `chatter_constants.py`). The faction-scoped zone and General history
+  filters, the battleground flag-carrier check and the Guild speaker check
+  all use it instead of their own lists.
+* **Custom races**: A server that adds races through `ChrRaces` lists
+  their IDs once. The ten original races behave exactly as before.
+
+### 2026-10-10 - Themed Topics and Rumors
+
+* **Themed subjects**: Idle guild, General and party chatter can pick a
+  subject from the speaking bot's faction, race or class (priests split
+  into Light and Shadow by spec). Faction subjects offer views often
+  heard in the bot's faction; how far the bot shares them is left to its
+  personality.
+* **Rumors**: Guild and General can share rumors about expansions,
+  dungeons, raids, locations, regions and trainers. Rumors take turns
+  between the real listeners, so a guild or zone with very different
+  levels still hears rumors for each of them: each one fits its target
+  listener's level and completed content, and rumors that suit more
+  listeners are preferred. A dungeon rumor lasts until the listener
+  completes the dungeon or outlevels its Dungeon Finder range or its
+  expansion. Rumors and faction stories are told as hearsay, never as
+  the bot's own experience or something that just happened, and name
+  only real, spawned trainers.
+* **Conversation threads**: While threads are on, a themed subject is one
+  more fresh-subject source (`Threads.ThemedTopicWeight`) offered with the
+  usual soft nudge. The per-channel chances only apply while threads are
+  off. Candidates are prepared before the thread lock is taken. A turn
+  uses either a guild topic (MOTD, zone, guild praise or discussion) or a
+  themed subject, never both; the guild topic comes first.
+* **Race and class notes**: The speaker's identity in Guild chat prompts
+  gets a short lore note for their race and calling
+  (`RaceClassNotes.Enable`).
+* **Configuration**: `ThemedTopics.*` (including the trainer rumor level
+  bands and `OwnTrainerChance`), `Threads.ThemedTopicWeight` and
+  `RaceClassNotes.Enable`.
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20261002_themed_topic_audience.sql`,
+  rebuild the worldserver and restart the bridge.
+
+### 2026-10-10 - Open-World PvP Reactions
+
+* **Guild PvP lines**: A lone guild bot that kills an opposing-faction bot
+  may tell its guild, and a bot killed by one may tell its guild or, if
+  that does not happen, its zone's General channel. Nothing is queued
+  unless a real player can read it.
+* **Thread safety**: The kill hook runs on a map thread and only records
+  the facts of the kill; the next world update checks the readers, the
+  guild conversation and the cooldowns and queues the line.
+* **Message flow**: Guild PvP lines give way to a real player's
+  conversation with the guild, both when queued and at delivery (the
+  login welcome alone does not count). The General line follows the
+  General zone pacing. At delivery a line is dropped if its bot has left
+  the guild or zone it was written for, or no real player there can read
+  it any more.
+* **Personality first**: The prompts offer a range of reactions instead
+  of a mood, and the enemy's lore in party prompts is optional colour,
+  not a required jab. A small level gap is described as similar
+  experience, not as an even fight.
+* **Faction context**: Party kill and battle-cry prompts against enemy
+  players name both factions, taken from the server's teams rather than
+  race names, and, in roleplay, the enemy's race outlook and class
+  calling. Battleground kill prompts name the fallen enemy's race and
+  both sides.
+* **Configuration**: `GuildChatter.PvpKill.*` (including a per-guild
+  `GuildCooldown`), `GuildChatter.PvpDeath.*`, `GeneralChat.PvpDeath.*`
+  and `PvpDeath.VictimCooldown`.
+* **README**: Each migration has its own `mysql` command again.
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20261002_guild_pvp_events.sql`, rebuild
+  the worldserver and restart the bridge.
+
+### 2026-10-10 - Guild World Events
+
+* **Meet greetings**: A guild bot that runs into a real guildmate in the
+  open world waves and greets them in `/say`, and may mention the meeting
+  in Guild chat afterwards. The greeting is checked again at delivery
+  (same map, range, visibility, line of sight, and both still in the
+  guild they met as); a brief range or sight miss is retried for up to 8
+  seconds, and the line is dropped with a reason if the player has moved
+  on. The Guild post is stored on hold from the start, waits until the
+  greeting was spoken, is cancelled if it was dropped, and never reaches
+  a guild the bot has since left. It names the place without guessing
+  what the guildmate is doing there.
+* **Join announcements**: A bot that joins a guild may tell its zone's
+  General channel, and zone bots react. The announcer always speaks first,
+  and the lines follow the General zone pacing.
+* **NPC encounters**: A guild bot near a friendly service NPC it can see
+  tells the guild what it thinks of them.
+* **Message flow**: NPC posts and meet follow-ups give way to a real
+  player's conversation with the guild, both when queued and at delivery.
+  The login welcome alone does not count as a conversation.
+* **Personality first**: The prompts offer a range of reactions instead of
+  a mood.
+* **Reply hold**: The meet greeting uses the short reply hold
+  (`LLMChatterReplyHold.cpp`, `ProximityChatter.ReplyHoldMs`): a standing
+  bot waits for its own greeting, a moving bot keeps moving.
+* **Configuration**: `GuildChatter.MeetGreeting.*` (including
+  `FollowUpDelayMin`/`Max`; `CooldownHours` capped at 24),
+  `GuildChatter.WorldScanInterval`, `GuildChatter.JoinZoneAnnounce.*`
+  (including `DelaySeconds`) and `GuildChatter.NpcEncounter.*` (including
+  `PairCooldownHours`).
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20261002_guild_world_events.sql`, rebuild
+  the worldserver and restart the bridge.
+
+### 2026-10-10 - Guild Member Events
+
+* **Join greetings**: When a guild with an online real player gains a
+  member, one to three Guild bots react to the newcomer. Joins close
+  together share one event, and a newcomer who is a bot may answer.
+* **Rank changes**: In-game promotions and demotions are commented on once
+  the guild has been quiet for `RankChange.DebounceSeconds`. The prompt
+  names the old and new ranks. Members who just joined are left out.
+* **MOTD comments**: A new MOTD gets one or two reactions, quoting it as a
+  note from the officers and never as instructions.
+* **Personality first**: The prompts offer a range of reactions instead of
+  a mood, and each bot reacts in its own personality and tone.
+* **Own C++ file**: The batching and hooks live in
+  `LLMChatterGuildMembers.cpp` with their own `GuildScript` and
+  `WorldScript`. The lines are ambient Guild Chat and are not recorded as
+  replies to the player.
+* **Player conversations come first**: Guild news waits while a real
+  player is talking in Guild (`MemberEvents.MaxDeferSeconds`, then
+  dropped), lines queued before the player spoke are dropped at delivery,
+  and the events rank below replies to the player.
+* **Link-safe lines**: Shortened lines never cut through an item link or
+  placeholder, including bare `|H...|h` links.
+* **Configuration**: `GuildChatter.JoinGreeting.*`,
+  `GuildChatter.RankChange.*`, `GuildChatter.MotdComment.*` and
+  `GuildChatter.MemberEvents.*` (including `MemberEvents.MaxDeferSeconds`).
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20261002_guild_member_events.sql`, rebuild
+  the worldserver and restart the bridge.
+
+### 2026-10-10 - Guild Names in Party Relay Conversations
+
+* **Party relay conversations**: When several party bots discuss a line
+  they heard in General, the speaker roster now names each bot's guild
+  (`of the guild "Red Death"`), like the other party prompts. The guild
+  was already loaded for these bots but never shown.
+
+### 2026-10-10 - Guild Identity and Context
+
+* **Guild Information and MOTD**: Every Guild prompt quotes the guild's
+  Guild Information text as background. Idle Guild lines may talk about
+  the MOTD (`GuildChatter.MotdChance`), the speaker's zone
+  (`GuildChatter.ZoneTopicChance`) or the zone at this hour and in this
+  weather (`GuildChatter.ZoneWeatherTopicChance`, skipped when the weather
+  is unknown). When conversation
+  threads are on, these subjects are only offered as the thread's pool
+  topic, so the thread weights still apply.
+* **Guild names everywhere**: Bot and player descriptions name the
+  character's guild in party, General, proximity, emote and screenshot
+  prompts. Bots that share the real player's guild are told so, in
+  unprompted proximity `/say` lines as well as replies.
+* **Real player description**: Prompts that address the real player
+  describe their race and class; roleplay adds the race outlook and class
+  calling, with priests split into Light and Shadow by the active spec.
+  Proximity prompts with an NPC speaker get a neutral in-world line
+  instead of a "real player" one.
+* **Guild talk in General**: General conversations may compare the
+  speakers' guilds (`GuildChatter.GeneralDiscussionChance`) and guilded
+  bots may talk about their guild and Guild Master, in their own way
+  (`GuildChatter.GeneralPraiseChance`,
+  `GuildChatter.GeneralPraiseMasterChance`).
+* **Upgrade**: Rebuild the worldserver (emote payloads carry player and
+  target guids; the guild idle payload carries the zone weather) and
+  restart the bridge. No database migration is needed.
+
+### 2026-10-10 - Standalone Chat Fixes
+
+* **Talents**: `get_character_talents()` joined `acore_world.talent_dbc`,
+  which is empty by default, so every character looked talentless and
+  every priest was a Light Priest. It now maps `character_talent` spells
+  through the bundled `tools/talent_data.json` (generated from `Talent.dbc`
+  and `TalentTab.dbc` by `tools/generate_talent_data.py`, loaded by
+  `tools/talent_data.py`). `class_style()` (`chatter_class_style.py`)
+  splits Light and Shadow priests by the active spec.
+* **Emojis**: `strip_emojis()` covers every emoji block plus the invisible
+  variation selectors, joiners, keycaps and flag tags that used to survive
+  as stray characters in game chat. It runs in `cleanup_message()` and
+  again when a line or cached reaction is written; a line that was only
+  emojis is not sent.
+* **Links**: Item and spell links whose names contain a colon (such as
+  "Power Word: Fortitude") are no longer cut off, and long messages are
+  never shortened through a link.
+* **Late party bots**: A bot that logs into a group with a real player
+  online after the 120-second rejoin window is now registered (traits
+  restored silently, no greeting). Before, such bots stayed silent for the
+  whole session.
+* **Reply hold**: A standing bot you emote at, or address with a `/say`
+  emote, waits for its reply (`ProximityChatter.ReplyHoldMs`, default 4
+  seconds, `0` disables) and turns to you when facing is enabled. A moving
+  bot keeps moving. The hold never shortens the bot's own AI delays and
+  ends when the bot enters combat or its own queued reply is delivered or
+  dropped; a late reply to an earlier emote at the bot does not end it.
+* **Roleplay wording**: Trade offers speak as people in the world with
+  prices in coins written as words; level-ups say the character grew
+  stronger in their calling (Shadow and Light priests apart) instead of
+  naming a level, and leave the reaction to the speaker's persona;
+  roleplay prompts forbid player and trade slang. Digits left in a trade
+  line, including grouped ones such as "1,500", are spelled out only when
+  the chatter language is English.
+* **Configuration**: `ProximityChatter.ReplyHoldMs`.
+* **Upgrade**: Rebuild the worldserver and restart the bridge. No database
+  migration.
+
+### 2026-10-08 - Claude Haiku 5.5 Compatibility
+
+* **Parameter recovery**: When an Anthropic model explicitly rejects
+  `temperature` (as `claude-haiku-5-5` does) or the configured `thinking`
+  mode, the bridge drops that field, retries, and remembers the correction
+  for that model until restart. Other errors are not retried.
+* **Thinking blocks**: Read only text blocks from Anthropic responses.
+  Models that think by default can return a thinking block first, which
+  crashed free-text calls such as bot backstories.
+* **New settings**: `LLMChatter.Anthropic.Thinking` (default `disabled`)
+  stops default thinking from using up short chatter budgets, which left
+  replies empty. `LLMChatter.Anthropic.MaxTokensMultiplier` (default `1`)
+  scales Anthropic output budgets. The bridge, the startup health probe
+  and the host screenshot agent all apply both through one shared request
+  builder.
+* **Upgrade**: Optionally add the two new keys from the `.conf.dist`
+  templates to your config; when they are absent, nothing extra is sent.
+  Restart the chatter bridge (and the screenshot agent if used). No
+  database migration, compilation or worldserver restart is needed.
+
+### 2026-10-06 - LF Line Endings
+
+* **Repository**: Add `.gitattributes` forcing LF line endings, so
+  checkouts on Windows with `core.autocrlf` enabled no longer write CRLF
+  files that break shell scripts in Linux builds. Committed files were
+  already LF; no code, configuration or database changes.
+
+### 2026-10-04 - Playerbot Core Compatibility
+
+* **Bot identification**: Use headless sessions to identify playerbots
+  after upstream removed `WorldSession::IsBot()`. Preserve the existing
+  AI fallback and treatment of player-controlled self-bots.
+* **General channel membership**: Replace the removed
+  `Player::IsInChannel()` calls with a shared, read-only check of the
+  player's joined channels. Eligibility and delivery require membership
+  in the exact channel; eligibility continues searching past matching
+  channels the bot has not joined. No core patch is required.
+* **Documentation**: Explain the membership helper in the architecture
+  guide and remind users in the README to keep both upstream dependencies
+  up to date as chatter is frequently re-aligned with them.
+* **Upgrade**: Update AzerothCore's Playerbot branch and mod-playerbots
+  together, then rebuild, install, and restart worldserver. Older cores
+  without `WorldSession::IsHeadless()` are no longer supported. This
+  chatter fix adds no database migration or configuration changes.
+
+### 2026-10-04 - Structured Output Setup Guide
+
+* **README**: Recommend structured output on compatible endpoints and
+  explain its formatting reliability, on/off behavior, model requirements
+  and handling of rejected responses.
+* **Dependencies**: Document automatic installation for the Docker bridge,
+  separate host screenshot-agent requirements, the missing-validator error,
+  and the Python process restarts needed to enable or disable the feature.
+
+### 2026-10-03 - Optional Native Structured Output
+
+* **Global switch**: Add `LLMChatter.StructuredOutput.Enable`, default `0`,
+  for JSON generation across Anthropic, OpenAI, Google, OpenRouter and
+  Ollama, including analysis, memory and host screenshot vision.
+* **Strict responses**: Enabled calls request a native schema and reject
+  incomplete, refused or invalid output before existing parsers. Repairs
+  retain their schema; unsupported formats never silently fall back to text.
+  Farewell and identity prose remain explicit free-text calls.
+* **Diagnostics**: Report requested mode and resolved targets, categorized
+  failures and periodic repeat counts. Optional request logs include schema,
+  completion and validation details. Host vision diagnostics use its normal
+  logger, without image payloads or writes to the bridge's JSONL path.
+* **Upgrade**: Install updated `tools/requirements.txt` (adds `jsonschema`)
+  in bridge and host environments; enabled startup checks for the validator.
+  Restart the affected Python processes
+  to load the setting. No rebuild, migration or worldserver restart.
+  Enable only after checking every configured JSON endpoint's capability;
+  return the flag to `0` and restart those processes to restore legacy mode.
+
+### 2026-10-03 - Screenshot Cycle Diagnostics
+
+* **Host agent logging**: Show each cycle's randomized wait and next
+  check time, capture and proximity rolls, foreground-window checks,
+  Party recipients, and server preflight approval or rejection.
+* **Capture pipeline**: Report image size, capture and vision durations,
+  Party deduplication and observation publication. Successful publication
+  is explicitly distinct from NPC generation and speech delivery.
+* **Upgrade**: Restart the host screenshot agent. No rebuild, database
+  migration or server config reload is required.
+
+### 2026-10-03 - Revert Leaked-Field Parser Workarounds
+
+* **Chat parsing**: Remove the leaked `emote`, `action` and `thread`
+  field stripping and the bare thread report cleanup added earlier
+  today. The heuristics did not handle the range of malformed output
+  some models return and will be replaced by structured output. The
+  `BotSpeakerCooldownSeconds` default of 120 is unchanged.
+* **Upgrade**: Restart the chatter bridge. No rebuild or database
+  migration is required.
+
+### 2026-10-03 - Screenshot Proximity and Private Metadata Cleanup
+
+* **Nearby NPC screenshot reactions**: Optionally trigger NPC statements
+  or conversations from the same visual observation used by Party.
+  Party and proximity are independent, and solo players are supported.
+  Requires an explicit `Screenshot.BoundAccountId`; proximity defaults
+  to disabled with a 30% chance after the existing capture-cycle roll.
+* **Live scene validation**: Server preflight checks nearby NPC eligibility
+  within the configured proximity scan radius. Session, map, instance,
+  movement and NPC eligibility are rechecked before delayed delivery.
+  Existing proximity conversation pacing and ambient limits apply.
+* **Visual grounding**: NPCs react in-world to the supplied surroundings
+  without unrelated random topics or identifying speakers from pixels.
+  Ordinary proximity weather handling is unchanged.
+* **Screenshot diagnostics**: Distinguish chance-roll skips, missing
+  account binding, server rejection and preflight expiry instead of
+  reporting every skipped cycle as having no recipients.
+* **Private JSON cleanup**: Remove complete trailing bare thread reports
+  and the opening brace of wrapped response metadata from dialogue.
+  Preserve unrelated objects, incomplete JSON and ordinary quoted labels.
+* **Upgrade**: Apply
+  `data/sql/characters/updates/20261003_screenshot_proximity.sql` to the
+  characters database, regenerate CMake for the new source, rebuild and
+  install worldserver, and restart the chatter bridge and screenshot
+  agent. Configure the account binding and opt-in proximity setting, then
+  reload server config. Fresh installations include the mailbox table.
+
+### 2026-10-03 - Chat Parsing and Ambient Speaker Pacing
+
+* **Chat parsing**: When the model writes its `emote`, `action` or
+  `thread` fields inside the message text, cut them off before delivery
+  in single replies, truncated replies and conversation lines.
+  Previously the raw JSON could appear in General chat. Only a trailing
+  block that is valid JSON made of those fields is removed; quoted
+  labels in normal speech are kept.
+* **Ambient speaker pacing**: Set `BotSpeakerCooldownSeconds` to 120
+  seconds in both the normal template and quieter preset, down from
+  900. This reduces long silences between a bot's ambient turns;
+  party chat and event reactions are unaffected. Existing configurations
+  retain their explicit value.
+* **Upgrade**: Restart the chatter bridge. No rebuild or database
+  migration is required.
+
+### 2026-10-03 - Screenshot Vision Hardening
+
+* **Vision model**: Recommend and default to `gpt-6-luna` for screenshot
+  analysis. It accepts image input and costs less than `gpt-4o-mini`.
+  Existing configurations keep their explicit `VisionModel`.
+* **In-character conversations**: Roleplay screenshot conversations now
+  carry the shared in-character voice guidance, matching single comments.
+* **Real-player grouping**: Without `BoundAccountId`, the screenshot agent
+  only picks bots whose group has an online real player, using the same
+  rule as the bridge.
+* **Config parsing**: The screenshot agent reuses the bridge's config
+  parser, so a BOM or non-UTF-8 characters no longer stop it at startup.
+* **Clean shutdown**: Pressing Ctrl+C stops the screenshot agent with a
+  log line instead of a Python traceback.
+* **Documentation**: The README and the screenshot defaults table now
+  match the configuration templates, and the duplicate
+  `Screenshot.DBHost` entry is gone.
+* **Upgrade**: Restart the chatter bridge and the host-side screenshot
+  agent. No rebuild or database migration is required.
+
+### 2026-10-02 - Model Compatibility, NPC Facing and Responsive Chatter
+
+* **Model capabilities**: Use one ordered capability table for OpenAI
+  request parameters and reasoning-token budgets. GPT-6 Luna and GPT-6 Sol
+  honor explicit `none` reasoning without inflating the output budget;
+  other reasoning models keep conservative fallbacks and parameter-rejection
+  recovery. OpenRouter and fine-tuned model names share the resolver.
+* **NPC facing safety**: Only rotate creatures with idle default and current
+  movement and an empty or idle active movement slot. Wandering and
+  patrolling NPCs can still speak and emote without having their movement
+  replaced by a facing spline. Bot behavior is unchanged. This does not
+  repair movement interruptions caused by stock NPC scripts.
+* **Screenshot reactions**: Treat scene descriptions as background for
+  personal reactions rather than listing visible objects. Preserve scene
+  atmosphere, prefer recognized visual time of day over clock context,
+  and frame roleplay conversations as the speakers' surroundings.
+* **General reply cooldown**: Align both configuration templates, the server
+  fallback and the bridge's displayed default at 3 seconds per zone and
+  faction. Previously the normal template and fallback used 0, while the
+  quieter preset used 30. Set 0 to disable throttling.
+* **Upgrade**: Rebuild worldserver for the NPC-facing change and restart the
+  chatter bridge for Python changes. Existing configurations retain their
+  explicit cooldown; set it to 3 and run `.reload config` to apply the new
+  value. No database migration is required.
+
+### 2026-10-02 - Arathi Basin Objectives and Battleground Arrival Variety
+
+* **Arathi Basin objectives**: Observe claims, assaults, counter-claims,
+  defences and completed captures separately. Batch recent base changes
+  into one reaction, retain pending observations across failed chance
+  rolls, and credit banner interactions only when the actor is verified.
+* **Raid-wide base announcements**: All AB node transitions, including
+  state-only updates, use battleground chat without a Party copy. Humans
+  in different subgroups of the same raid no longer create duplicate
+  announcements for the same node revision.
+* **Grounded objective context**: Score milestones and objective-status
+  chatter use observed ownership, income and verified score targets.
+  Combat and social messages do not inherit unrelated base snapshots.
+  Team-relative prompts distinguish contested bases from held bases.
+* **Delivery freshness**: Match identity, team, group, event age and AB
+  objective revisions are checked before delivery. Random battleground
+  queues retain their actual map identity. BG history excludes dropped
+  messages and is scoped to the appropriate match and audience.
+* **Independent arrival greetings**: Select one battleground-wide greeting,
+  with a 50% chance of a second, independently of a uniform 0–3 Party
+  greetings. Available subgroup bots cap each count; a bot may speak once
+  in each channel. Generation and delivery checks still apply.
+* **Conversational replies**: General and Guild replies judge whether the
+  exchange is still open from its context. Brief or declarative messages
+  no longer imply that the player wants silence; uncertain cases favor a
+  short acknowledgment while keeping reply length a separate decision.
+* **Configuration**: Added AB observation, batching, milestone, status and
+  freshness controls. Arrival controls are now `ArrivalGreetings.Enable`,
+  `ArrivalRaidSecondChance`, `ArrivalPartyMin` and `ArrivalPartyMax` under
+  `BGChatter`. They replace `ArrivalGreetingMin`, `ArrivalGreetingMax` and
+  `ArrivalBGChannelGreetings`; migrate old overrides, including disables.
+* **Upgrade**: Rebuild worldserver for the AB changes and restart the
+  chatter bridge. No database migration is required.
+
+### 2026-10-01 - Shared Chat Profiles and More Natural Player Replies
+
+* **Shared bot profiles**: General speakers create missing traits, tone and
+  backstory before generating speech and reuse saved profiles afterward.
+  Guild members receive the same profile preparation through bounded
+  background scans while a real guildmate is online; selected Guild
+  speakers also fill missing fields before speaking. Existing profile
+  fields are preserved, with retries for incomplete generation.
+* **Consistent persona context**: General and Guild prompts include each
+  selected speaker's traits and tone. In roleplay mode, each speaker has
+  an independent 25% chance of including their backstory, configurable
+  through `Backstory.GeneralChance` and `Backstory.GuildChance`.
+* **Varied General replies**: Player-driven replies use configurable short,
+  medium and developed length suggestions. Follow-up speakers vary their
+  suggested length where possible. Useful answers take priority over
+  targets, and messages are never asked to pad to a minimum.
+* **Intent-based conversational scope**: The LLM judges what the player
+  invites from meaning and recent conversation, rather than input length.
+  Short open questions can receive concrete detail; acknowledgments and
+  farewells stay brief. Existing optional silence, Party responsiveness,
+  channel limits and normal/roleplay boundaries are preserved. No keyword
+  matching or additional analysis call is introduced.
+* **Configuration**: Added `GeneralChat.PlayerReplyLengthWeights`,
+  `GeneralChat.PlayerReplyLengthMaxima`, and `Profile.*` controls for Guild
+  profile scan intervals, batch sizes and retry delays.
+* **Upgrade**: Restart only the chatter bridge. No C++ compilation or
+  database migration is needed. New configuration keys have built-in
+  defaults.
+
+### 2026-09-30 - Coherent Personas, Conversation Threads, and Battleground Chatter
+
+* **Coherent personas**: Bots speak from one persona in party, Guild and
+  General chat: stored traits and tone (plus backstory in roleplay mode),
+  or a stable fallback seeded from the bot. Random tones, re-rolled
+  traits and per-message mood sequences are gone; mood only changes from
+  real events and is shared across channels. Twists and spices are gated
+  by `Persona.TwistChance` / `Persona.SpiceChance` and never override the
+  personality. Backstories can colour party reactions and player replies.
+* **Conversation threads**: Party idle chatter, Guild and General follow
+  a conversation thread instead of a random topic per exchange. Subjects
+  develop, drift and get called back, feelings linger, and new subjects
+  are mostly persona-driven, with a small allowance for surprises. Player
+  messages and event reactions blend into the thread; wipes and deaths
+  take over. Tunable with `Threads.*`.
+* **Emote ripples**: Emoting at a party bot can ripple to other party
+  bots and nearby witnesses, with contagious mood.
+* **Battleground chatter**: Party chat in a battleground only reaches the
+  speaker's sub-group, so reactions now come from bots in the player's
+  sub-group and always use battleground context (score, flags, faction).
+  Arrival greetings no longer crash, vary in number and split between
+  battleground and party chat, and tell a pre-start entry from a late
+  join. In Warsong Gulch, drops are no longer missed when the flag is
+  returned before the next state check, re-grabs and stale lines are
+  filtered per match, and bots talk about ongoing flag carries (escort,
+  hunt or standoff) in party and battleground chat. Achievement
+  reactions are throttled.
+* **Prompt context fixes**: Low-health callouts name the attacker, not an
+  imaginary casualty; spell lines no longer invent kills; speakers who
+  scored or carried the flag speak in first person; kill reactions know
+  the killer's class; pets and totems are named with their owner.
+  Hostile NPCs treat a nearby party as intruders, pull reactions and
+  cached lines never announce the kill, and open-air instances keep time
+  and season while indoor ones drop them.
+* **Playtest fixes**: Pet and totem kills reach the kill reaction path,
+  dungeon encounter bosses count as bosses on the pull, dungeon entry
+  reactions pick a speaker, level-up reactions name the leveler's race
+  and class, General replies keep the addressed bot, a new bot gets one
+  tone instead of two, and quest/item/spell placeholders no longer leave
+  stray braces around links. Kill and pull reactions use burst guards
+  (`GroupChatter.KillBurstWindow`, `GroupChatter.PullBurstWindow`).
+* **Brief replies in General vary in length**: Replies to brief casual
+  player messages no longer all land at 2-8 words. Each reply picks a
+  tiny, short or relaxed size, a second bot answering the same message
+  picks a different one, and a relaxed reply may toss a light question
+  back. Tunable with `PlayerChat.BriefCasualLengthWeights`.
+* **Configuration**: Added `Persona.*`, `Threads.*`, burst windows and new
+  `BGChatter.*` keys (arrival greetings, flag re-grab window, achievement
+  throttles, flag-carry chatter). The quieter preset now carries every
+  key of the default config, and like the default it always answers
+  player messages in General (`GeneralChat.ReactionChance` and
+  `GeneralChat.QuestionChance` at 100) and party
+  (`GroupChatter.PlayerMsgCooldown` at 0). Brief casual turns keep
+  `PlayerChat.OptionalCasualReplyChance`. Removed the unused
+  `Memory.DiscoveryGenerationChance`.
+* **Upgrade**: No database migration. Rebuild the server and restart the
+  chatter bridge. Copy the new keys from `mod_llm_chatter.conf.dist` into
+  your config, or keep the built-in defaults.
+
 ### 2026-09-26 - Open-World PvP, Duels, and Nearby Onlookers
 
 * **Party PvP reactions**: Companions react to opposing-faction players

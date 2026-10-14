@@ -4,8 +4,10 @@
 
 #include "LLMChatterAmbient.h"
 
+#include "LLMChatterAudience.h"
 #include "LLMChatterConfig.h"
 #include "LLMChatterShared.h"
+#include "LLMChatterThemedAudience.h"
 #include "LLMChatterTrade.h"
 
 #include "DatabaseEnv.h"
@@ -748,6 +750,11 @@ void CheckActiveHolidays()
     }
 }
 
+std::string GetZoneWeatherName(uint32 zoneId)
+{
+    return GetCachedWeatherName(zoneId);
+}
+
 static uint32 GetFaction(Player* player)
 {
     return player->GetTeamId();
@@ -913,6 +920,15 @@ static void QueueChatterRequest(
             + EscapeString(BuildTradeItemContext(*tradeItem))
             + "'";
     }
+    std::string audienceSql = "NULL";
+    std::vector<Player*> audience =
+        CollectRealPlayersInZone(zoneId, bot1->GetTeamId(), 10);
+    if (!audience.empty())
+    {
+        audienceSql = "'"
+            + EscapeString(BuildAudienceListJson(audience))
+            + "'";
+    }
 
     if (isConversation && bot2)
     {
@@ -989,11 +1005,13 @@ static void QueueChatterRequest(
                 bot4Level);
         }
 
-        columns += ", message_type, item_context, status";
+        columns += ", message_type, item_context, "
+                   "audience_context, status";
         values += fmt::format(
-            ", '{}', {}, 'pending'",
+            ", '{}', {}, {}, 'pending'",
             EscapeString(messageType),
-            itemContextSql);
+            itemContextSql,
+            audienceSql);
 
         CharacterDatabase.Execute(
             "INSERT INTO llm_chatter_queue ({}) "
@@ -1008,9 +1026,9 @@ static void QueueChatterRequest(
             "bot1_class, bot1_race, bot1_level, "
             "bot1_zone, zone_id, weather, "
             "bot_count, message_type, item_context, "
-            "status) VALUES "
+            "audience_context, status) VALUES "
             "('{}', {}, '{}', '{}', '{}', {}, "
-            "'{}', {}, '{}', 1, '{}', {}, 'pending')",
+            "'{}', {}, '{}', 1, '{}', {}, {}, 'pending')",
             requestType,
             bot1->GetGUID().GetCounter(),
             EscapeString(bot1Name),
@@ -1021,7 +1039,8 @@ static void QueueChatterRequest(
             zoneId,
             currentWeather,
             EscapeString(messageType),
-            itemContextSql);
+            itemContextSql,
+            audienceSql);
     }
 }
 

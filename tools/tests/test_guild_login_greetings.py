@@ -145,6 +145,26 @@ def test_single_is_common_and_multi_is_bounded():
     )
 
 
+def test_default_counts_include_four_and_respect_available_bots():
+    choose = chatter_guild_login._choose_responder_count
+    for count in (2, 3, 4):
+        with patch.object(
+            chatter_guild_login.random, 'randint',
+            side_effect=[75, count],
+        ) as roll:
+            assert choose({}, 12) == count
+            assert roll.call_args.args == (2, 4)
+    with patch.object(
+        chatter_guild_login.random, 'randint', return_value=76,
+    ):
+        assert choose({}, 12) == 1
+    with patch.object(
+        chatter_guild_login.random, 'randint', side_effect=[1, 2],
+    ) as roll:
+        assert choose({}, 2) == 2
+        assert roll.call_args.args == (2, 2)
+
+
 def test_first_message_has_no_second_delay():
     messages = [
         {'name': 'Aliss', 'message': 'Welcome, Calwen.'},
@@ -367,20 +387,19 @@ def test_multi_greeting_inserts_native_guild_rows():
     complete.assert_called_once_with(db, 91)
 
 
-def test_long_greeting_is_trimmed_at_word_boundary():
+def test_long_greeting_is_delivered_intact():
+    # The prompt's MaxCharacters steers length; a greeting that runs over
+    # it is never cut mid-sentence.
     text = (
         "Welcome back to the guild, Calwen, may your "
         "travels across distant lands bring honor and "
         "many remarkable stories to us all."
     )
-    trimmed = chatter_guild_login._trim_greeting(
-        text,
-        60,
-    )
-
-    assert len(trimmed) <= 60
-    assert trimmed.endswith('.')
-    assert "travels" in trimmed
+    assert chatter_guild_login._trim_greeting(text) == text
+    first = 'Welcome back, ' + 'friend ' * 20 + 'of the guild.'
+    long_text = first + ' ' + 'And ' + 'more ' * 30 + 'words.'
+    trimmed = chatter_guild_login._trim_greeting(long_text)
+    assert trimmed == first and len(trimmed) <= 255
 
 
 if __name__ == '__main__':

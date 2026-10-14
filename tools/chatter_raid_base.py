@@ -143,7 +143,7 @@ def get_lightweight_bot_data(
     """Query characters table for minimal bot info.
 
     Returns dict with bot_name, race, class (strings),
-    or None if not found.
+    race_id, or None if not found.
     """
     cursor = db.cursor(dictionary=True)
     try:
@@ -159,6 +159,7 @@ def get_lightweight_bot_data(
             'bot_name': row['name'],
             'bot_guid': bot_guid,
             'race': get_race_name(int(row['race'])),
+            'race_id': int(row['race']),
             'class': get_class_name(
                 int(row['class'])),
             'gender': get_gender_label(
@@ -264,9 +265,16 @@ def fire_subgroup_worker(
     prompt_fn: Optional[Callable] = None,
     config_prefix: str = 'BGChatter',
     label: str = 'reaction_raid',
+    speaker_guid: Optional[int] = None,
 ) -> Optional[Dict[str, Any]]:
     """Select bot from player's sub-group, build
     prompt, call LLM, insert message.
+
+    speaker_guid pins the speaker to the event's own
+    bot (self-state callouts must come from the bot
+    they describe). It is skipped when that bot is
+    outside the player's sub-group, where party chat
+    would be inaudible.
 
     Returns dict with 'used_guids' on success,
     or {} on skip.
@@ -286,7 +294,16 @@ def fire_subgroup_worker(
             "(no party bots)")
         return {}
 
-    bot_guid = random.choice(party_guids)
+    if speaker_guid:
+        if int(speaker_guid) not in party_guids:
+            LOG.info(
+                "Skipped: subgroup worker "
+                "(speaker %s not in player's "
+                "sub-group)", speaker_guid)
+            return {}
+        bot_guid = int(speaker_guid)
+    else:
+        bot_guid = random.choice(party_guids)
     group_id = int(extra_data.get('group_id', 0))
 
     trait_data = get_bot_traits(
@@ -346,10 +363,12 @@ def fire_subgroup_worker(
         speaker_name=bot_name,
         bot_guid=bot_guid,
         channel='party',
-        # Raid boss chatter rides the party channel but is
+        # Raid/BG chatter rides the party channel but is
         # NOT group chatter — tag so GroupChatter.Enable
         # does not silence it.
-        owner_subsystem='raid',
+        owner_subsystem=(
+            'bg' if extra_data.get('is_battleground')
+            else 'raid'),
         delay_seconds=2,
         event_id=event.get('id'),
         allow_emote_fallback=True,
@@ -479,6 +498,7 @@ def fire_raid_worker(
             f":{bot_name}"),
         metadata=rw_meta or None,
         label=label,
+        group_id=(int(extra_data.get('group_id', 0) or 0) if in_bg else 0),
     )
 
     if not result.get('ok'):

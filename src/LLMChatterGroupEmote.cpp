@@ -9,12 +9,14 @@
  *   - HandleEmoteAtGroupBot()
  *   - HandleEmoteAtCreature()
  *   - HandleEmoteObserver()
+ *   - HandleEmoteMoodSpread()
  *   - EvictEmoteCooldowns()
  */
 
 #include "LLMChatterConfig.h"
 #include "LLMChatterGroup.h"
 #include "LLMChatterGroupInternal.h"
+#include "LLMChatterReplyHold.h"
 #include "LLMChatterShared.h"
 
 #include "Creature.h"
@@ -149,7 +151,13 @@ public:
         if (!bot || !bot->IsInWorld()
             || !bot->IsAlive()
             || bot->IsInCombat())
+        {
+            LOG_INFO("module",
+                "LLMChatter: mirror emote dropped, bot {} "
+                "unavailable or in combat (player {})",
+                bot ? bot->GetName() : "?", _playerName);
             return true;
+        }
 
         Player* target =
             ObjectAccessor::FindConnectedPlayer(
@@ -163,6 +171,12 @@ public:
             || bot->GetMap() != target->GetMap()
             || !bot->IsWithinDistInMap(target, radius))
         {
+            LOG_INFO("module",
+                "LLMChatter: mirror emote dropped, bot {} "
+                "out of range of player {} ({:.1f} yd)",
+                bot->GetName(), _playerName,
+                target && bot->GetMap() == target->GetMap()
+                    ? bot->GetDistance(target) : -1.0f);
             return true;
         }
 
@@ -411,7 +425,10 @@ void HandleEmoteAtGroupBot(
                 + JsonEscape(emoteName)
                 + "\",\"mirror_emote\":\""
                 + JsonEscape(mirrorEmoteName)
-                + "\",\"player_name\":\""
+                + "\",\"player_guid\":"
+                + std::to_string(
+                      player->GetGUID().GetCounter())
+                + ",\"player_name\":\""
                 + JsonEscape(player->GetName())
                 + "\",\"directed\":true"
                 + ",\"custom_emote\":"
@@ -438,8 +455,41 @@ void HandleEmoteAtGroupBot(
             );
         }
     }
-    // Mood spread (Phase 6 -- deferred):
-    // s_contagiousEmotes check goes here
+    // Mood spread to the rest of the party is handled by
+    // HandleEmoteMoodSpread() from the emote router, which
+    // knows the nearby party bots.
+}
+
+// ============================================================================
+// HandleEmoteMoodSpread
+// ============================================================================
+
+void HandleEmoteMoodSpread(
+    Player* player, uint32 textEmote,
+    std::vector<Player*> const& candidates)
+{
+    if (!player || candidates.empty())
+        return;
+    if (!s_contagiousEmotes.count(textEmote))
+        return;
+    uint32 const chance =
+        sLLMChatterConfig->_emoteMoodSpreadChance;
+    if (!chance)
+        return;
+    auto mit = s_mirrorEmoteMap.find(textEmote);
+    if (mit == s_mirrorEmoteMap.end())
+        return;
+
+    time_t now = time(nullptr);
+    for (Player* bot : candidates)
+    {
+        if (!bot || !bot->IsAlive() || bot->IsInCombat())
+            continue;
+        if (urand(1, 100) > chance)
+            continue;
+        ScheduleBotMirrorEmote(
+            player, bot, mit->second, now);
+    }
 }
 
 uint32 HandleEmoteAtUngroupedBot(
@@ -466,6 +516,7 @@ uint32 HandleEmoteAtUngroupedBot(
     {
         return 0;
     }
+    HoldBotForReply(targetBot, player, 0);
     return mirrorEmote;
 }
 
@@ -583,6 +634,8 @@ void HandleEmoteObserver(
             ? "creature"
         : (tgtType == EMOTE_TGT_EXT_PLAYER)
             ? "player_external"
+        : (tgtType == EMOTE_TGT_GROUP_BOT)
+            ? "party_bot"
         : "none";
 
     std::string extraData =
@@ -601,7 +654,9 @@ void HandleEmoteObserver(
         + std::to_string(reactor->GetLevel())
         + ",\"emote_name\":\""
         + JsonEscape(emoteName)
-        + "\",\"player_name\":\""
+        + "\",\"player_guid\":"
+        + std::to_string(player->GetGUID().GetCounter())
+        + ",\"player_name\":\""
         + JsonEscape(player->GetName())
         + "\",\"target_type\":\""
         + tgtTypeStr
@@ -622,14 +677,20 @@ void HandleEmoteObserver(
     // Orc Hunter") instead of naming a stranger blindly.
     if (targetPlayer)
         extraData +=
-            ",\"target_race\":"
+            ",\"target_guid\":"
+            + std::to_string(
+                targetPlayer->GetGUID().GetCounter())
+            + ",\"target_race\":"
             + std::to_string(targetPlayer->getRace())
             + ",\"target_class\":"
             + std::to_string(targetPlayer->getClass())
             + ",\"target_level\":"
             + std::to_string(targetPlayer->GetLevel())
             + ",\"target_gender\":"
-            + std::to_string(targetPlayer->getGender());
+            + std::to_string(targetPlayer->getGender())
+            + ",\"target_guid\":"
+            + std::to_string(
+                targetPlayer->GetGUID().GetCounter());
 
     extraData += "}";
 

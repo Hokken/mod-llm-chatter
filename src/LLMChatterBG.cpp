@@ -4,6 +4,8 @@
 
 #include "LLMChatterConfig.h"
 #include "LLMChatterBG.h"
+#include "LLMChatterAB.h"
+#include "LLMChatterBGDelivery.h"
 #include "LLMChatterShared.h"
 
 #include "ScriptMgr.h"
@@ -18,6 +20,7 @@
 #include "Log.h"
 #include "Playerbots.h"
 
+#include <algorithm>
 #include <map>
 #include <unordered_map>
 #include <vector>
@@ -44,6 +47,12 @@ struct BGStateTracker
     uint32 firstArrivalMs{0};
 
     uint32 lastIdleChatterMs{0};
+
+    /* WSG: when each flag was picked up (NO_CAPTURE =
+       not carried) and the last carry-status chatter. */
+    uint32 carryStartAllianceFlagMs{NO_CAPTURE};
+    uint32 carryStartHordeFlagMs{NO_CAPTURE};
+    uint32 lastCarryChatterMs{0};
 
     static constexpr uint32 NO_BIG_EVENT = UINT32_MAX;
     uint32 lastBigEventMs = NO_BIG_EVENT;
@@ -94,11 +103,16 @@ void AppendBGContext(
 
     json += ","
         "\"is_battleground\":true,"
+        "\"bg_instance_id\":"
+        + std::to_string(bg->GetInstanceID()) + ","
         "\"zone_id\":"
         + std::to_string(
             player->GetZoneId()) + ","
         "\"bg_type\":\"" + bgName + "\","
         "\"bg_type_id\":"
+        + std::to_string(
+            bg->GetBgTypeID(true)) + ","
+        "\"queue_type_id\":"
         + std::to_string(
             bg->GetBgTypeID()) + ","
         "\"team\":\""
@@ -157,6 +171,29 @@ void AppendBGContext(
             bg->ToBattlegroundWS())
     {
         TeamId pTeam = player->GetBgTeamId();
+        TeamId eTeam = pTeam == TEAM_ALLIANCE
+            ? TEAM_HORDE : TEAM_ALLIANCE;
+        /* Flag states let prompts tell "at base" from
+           "on the ground" (a capture only counts while
+           your own flag is at base). */
+        auto flagStateName = [&](TeamId t) -> char const*
+        {
+            switch (wsg->GetFlagState(t))
+            {
+                case BG_WS_FLAG_STATE_ON_BASE:
+                    return "base";
+                case BG_WS_FLAG_STATE_ON_PLAYER:
+                    return "carried";
+                case BG_WS_FLAG_STATE_ON_GROUND:
+                    return "ground";
+                default:
+                    return "respawning";
+            }
+        };
+        json += ",\"own_flag_state\":\""
+            + std::string(flagStateName(pTeam)) + "\","
+            "\"enemy_flag_state\":\""
+            + std::string(flagStateName(eTeam)) + "\"";
         /* Enemy flag carrier = our team carrying
            their flag (offense) */
         ObjectGuid offGuid =
@@ -200,7 +237,9 @@ void AppendBGContext(
 
     json += "}";
 
-    AppendRaidContext(player, json);
+    Player* recipient = GetBGChatterRecipient(bg, player);
+    AppendRaidContext(recipient ? recipient : player, json);
+    AppendBGDeliveryContext(bg, player, json);
 }
 
 void QueueBGEvent(
@@ -208,6 +247,11 @@ void QueueBGEvent(
     const std::string& eventType,
     const std::string& extraJson)
 {
+    std::string context = extraJson;
+    if (BGEventUsesABSnapshot(eventType))
+        if (Battleground* bg = player->GetBattleground())
+            if (bg->GetBgTypeID(true) == BATTLEGROUND_AB)
+                AppendABContext(bg->GetInstanceID(), context);
     QueueChatterEvent(
         eventType,
         "player",
@@ -218,7 +262,7 @@ void QueueBGEvent(
         player->GetGUID().GetCounter(),
         player->GetName(),
         0, "", 0,
-        EscapeString(extraJson),
+        EscapeString(context),
         GetReactionDelaySeconds(eventType),
         120,
         true);
@@ -269,7 +313,7 @@ static void DetectScoreEvents(
     ObjectGuid preScorerA = ObjectGuid::Empty,
     ObjectGuid preScorerH = ObjectGuid::Empty)
 {
-    uint32 bgType = bg->GetBgTypeID();
+    uint32 bgType = bg->GetBgTypeID(true);
 
     if (bgType == BATTLEGROUND_WS)
     {
@@ -348,8 +392,7 @@ static void DetectScoreEvents(
         return;
     }
 
-    if (bgType == BATTLEGROUND_AB
-        || bgType == BATTLEGROUND_EY)
+    if (bgType == BATTLEGROUND_EY)
     {
         if (urand(1, 100)
             > sLLMChatterConfig
@@ -409,6 +452,11 @@ static void PollWSGState(
 
     constexpr uint32 CAPTURE_SUPPRESS_MS = 10000;
 
+    /* A carrier losing the flag without a capture is a
+       drop. Do not require the flag to still be on the
+       ground: bots often return it before the next
+       poll, which used to swallow the drop entirely. */
+
     /* Flag events always fire — no RNG gate,
        no big-event cooldown.  These are the most
        important BG events and must never be
@@ -457,8 +505,6 @@ static void PollWSGState(
                  && !tracker
                          .lastFlagPickerAlliance
                          .IsEmpty()
-                 && aState
-                     == BG_WS_FLAG_STATE_ON_GROUND
                  && !tracker
                          .WasFlagRecentlyCaptured(
                              tracker
@@ -544,8 +590,6 @@ static void PollWSGState(
                  && !tracker
                          .lastFlagPickerHorde
                          .IsEmpty()
-                 && hState
-                     == BG_WS_FLAG_STATE_ON_GROUND
                  && !tracker
                          .WasFlagRecentlyCaptured(
                              tracker
@@ -590,113 +634,70 @@ static void PollWSGState(
 
     tracker.lastFlagStateAlliance = aState;
     tracker.lastFlagStateHorde = hState;
+
+    /* Carry timers: start when a flag is first held,
+       clear when nobody holds it. */
+    if (allianceCarrier.IsEmpty())
+        tracker.carryStartAllianceFlagMs =
+            BGStateTracker::NO_CAPTURE;
+    else if (tracker.carryStartAllianceFlagMs
+             == BGStateTracker::NO_CAPTURE)
+        tracker.carryStartAllianceFlagMs =
+            tracker.totalElapsedMs;
+    if (hordeCarrier.IsEmpty())
+        tracker.carryStartHordeFlagMs =
+            BGStateTracker::NO_CAPTURE;
+    else if (tracker.carryStartHordeFlagMs
+             == BGStateTracker::NO_CAPTURE)
+        tracker.carryStartHordeFlagMs =
+            tracker.totalElapsedMs;
 }
 
-static void PollABState(
+/* While a WSG flag is carried, periodically let the team
+   talk about the ongoing carry (encourage our carrier,
+   hunt theirs, standoff). Rides the bg_idle_chatter event
+   with a flag_carry_status marker. */
+static void MaybeQueueFlagCarryChatter(
     Battleground* bg, BGStateTracker& tracker)
 {
-    BattlegroundAB* ab =
-        bg->ToBattlegroundAB();
-    if (!ab)
+    uint32 intervalMs = sLLMChatterConfig
+        ->_bgFlagCarryChatterIntervalSec * 1000;
+    if (!intervalMs)
+        return;
+    bool aHeld = tracker.carryStartAllianceFlagMs
+        != BGStateTracker::NO_CAPTURE;
+    bool hHeld = tracker.carryStartHordeFlagMs
+        != BGStateTracker::NO_CAPTURE;
+    if (!aHeld && !hHeld)
         return;
 
-    static const char* AB_NODE_NAMES[] = {
-        "Stables", "Blacksmith", "Farm",
-        "Lumber Mill", "Gold Mine"
-    };
+    uint32 now = tracker.totalElapsedMs;
+    /* Let the pickup callout breathe before the first
+       carry-status line. */
+    uint32 aSec = aHeld
+        ? (now - tracker.carryStartAllianceFlagMs) / 1000
+        : 0;
+    uint32 hSec = hHeld
+        ? (now - tracker.carryStartHordeFlagMs) / 1000
+        : 0;
+    uint32 longest = std::max(aSec, hSec);
+    if (longest * 1000 < intervalMs)
+        return;
+    if (now - tracker.lastCarryChatterMs < intervalMs)
+        return;
+    tracker.lastCarryChatterMs = now;
 
-    for (uint8 i = 0; i < 5; ++i)
-    {
-        auto const& info =
-            ab->GetCapturePointInfo(i);
-        uint8 curState = info._state;
+    if (urand(1, 100)
+        > sLLMChatterConfig->_bgFlagCarryChatterChance)
+        return;
 
-        auto it =
-            tracker.lastNodeState.find(i);
-        uint8 prevState =
-            (it != tracker.lastNodeState.end())
-                ? it->second
-                : BG_AB_NODE_STATE_NEUTRAL;
-
-        if (curState != prevState)
-        {
-            if (urand(1, 100)
-                <= sLLMChatterConfig
-                    ->_bgNodeEventChance)
-            {
-                bool contested =
-                    (curState
-                         == BG_AB_NODE_STATE_ALLY_CONTESTED
-                     || curState
-                         == BG_AB_NODE_STATE_HORDE_CONTESTED);
-                std::string eventType = contested
-                    ? "bg_node_contested"
-                    : "bg_node_captured";
-
-                TeamId owner;
-                if (curState == BG_AB_NODE_STATE_ALLY_CONTESTED
-                    || curState == BG_AB_NODE_STATE_ALLY_OCCUPIED)
-                    owner = TEAM_ALLIANCE;
-                else if (curState == BG_AB_NODE_STATE_HORDE_CONTESTED
-                    || curState == BG_AB_NODE_STATE_HORDE_OCCUPIED)
-                    owner = TEAM_HORDE;
-                else
-                    owner = TEAM_NEUTRAL;
-
-                std::string ownerStr =
-                    (owner == TEAM_ALLIANCE)
-                        ? "Alliance" : "Horde";
-
-                std::string nodeJson =
-                    "{\"node_name\":\"" +
-                    std::string(
-                        AB_NODE_NAMES[i]) +
-                    "\","
-                    "\"new_owner\":\"" +
-                    ownerStr + "\"";
-                float bestDist = 15.0f;
-                Player* claimer = nullptr;
-                for (auto const& [g, p] :
-                     bg->GetPlayers())
-                {
-                    Player* pp =
-                        ObjectAccessor::
-                            FindPlayer(g);
-                    if (!pp
-                        || IsPlayerBot(pp))
-                        continue;
-                    float d =
-                        pp->GetDistance2d(
-                            BG_AB_NodePositions
-                                [i][0],
-                            BG_AB_NodePositions
-                                [i][1]);
-                    if (d < bestDist)
-                    {
-                        bestDist = d;
-                        claimer = pp;
-                    }
-                }
-                if (claimer)
-                {
-                    nodeJson +=
-                        ",\"claimer_name\":\""
-                        + JsonEscape(
-                            claimer->GetName())
-                        + "\","
-                        "\"claimer_is_real_"
-                        "player\":true";
-                }
-                nodeJson += "}";
-
-                TryQueueBGBigEvent(
-                    bg, tracker, eventType,
-                    nodeJson);
-            }
-
-            tracker.lastNodeState[i] = curState;
-        }
-    }
+    QueueBGEventForAllPlayers(
+        bg, "bg_idle_chatter",
+        "{\"flag_carry_status\":true,"
+        "\"alliance_flag_carry_sec\":"
+            + std::to_string(aSec) + ","
+        "\"horde_flag_carry_sec\":"
+            + std::to_string(hSec) + "}");
 }
 
 static void PollEYState(
@@ -857,6 +858,7 @@ public:
                 ->_bgMatchStartChance)
             return;
 
+        EnsureBGDeliveryLifetime(bg);
         QueueBGEventForAllPlayers(
             bg, "bg_match_start",
             "{\"event_detail\":"
@@ -961,6 +963,7 @@ public:
                    ->_bgChatterEnable)
             return;
 
+        EnsureBGDeliveryLifetime(bg);
         uint32 instanceId =
             bg->GetInstanceID();
         auto& tracker =
@@ -980,12 +983,20 @@ public:
         if (!sLLMChatterConfig
             || !sLLMChatterConfig->IsEnabled()
             || !sLLMChatterConfig->_bgChatterEnable)
+        {
+            ResetABContext(bg->GetInstanceID());
+            ResetBGDeliveryLifetime(bg->GetInstanceID());
             return;
+        }
 
+        EnsureBGDeliveryLifetime(bg);
         uint32 instanceId =
             bg->GetInstanceID();
         auto& tracker =
             _bgTrackers[instanceId];
+
+        if (bg->GetBgTypeID(true) == BATTLEGROUND_AB)
+            ObserveABContext(bg, diff);
 
         if (!tracker.pendingArrivals.empty()
             && getMSTimeDiff(
@@ -1006,7 +1017,13 @@ public:
                     || !GroupHasBots(arrGroup))
                     continue;
 
-                // Build bots array from group
+                // Build bots array from group. Party
+                // chat in a BG raid only reaches the
+                // speaker's sub-group, so greeters are
+                // limited to the player's sub-group.
+                uint8 arrSubGroup =
+                    arrGroup->GetMemberGroup(
+                        arrPlayer->GetGUID());
                 std::string botsJson = "[";
                 bool hasBot = false;
                 for (GroupReference* ref =
@@ -1015,6 +1032,10 @@ public:
                 {
                     Player* m = ref->GetSource();
                     if (!m || !IsPlayerBot(m))
+                        continue;
+                    if (arrGroup->GetMemberGroup(
+                            m->GetGUID())
+                        != arrSubGroup)
                         continue;
 
                     if (hasBot)
@@ -1082,12 +1103,31 @@ public:
                     "\","
                     "\"bg_type_id\":" +
                         std::to_string(
+                            bg->GetBgTypeID(true)) +
+                    ","
+                    "\"queue_type_id\":" +
+                        std::to_string(
                             bg->GetBgTypeID()) +
                     ","
                     "\"team\":\"" + teamStr +
                     "\","
+                    "\"match_in_progress\":" +
+                        std::string(
+                            bg->GetStatus()
+                                == STATUS_IN_PROGRESS
+                                ? "true" : "false") +
+                    ","
+                    "\"score_alliance\":" +
+                        std::to_string(bg->GetTeamScore(
+                            TEAM_ALLIANCE)) +
+                    ","
+                    "\"score_horde\":" +
+                        std::to_string(bg->GetTeamScore(
+                            TEAM_HORDE)) +
+                    ","
                     "\"bots\":" + botsJson +
                     "}";
+                AppendBGDeliveryContext(bg, arrPlayer, extraData);
                 extraData =
                     EscapeString(extraData);
 
@@ -1162,13 +1202,16 @@ public:
             tracker.lastScoreHorde = scoreH;
         }
 
-        switch (bg->GetBgTypeID())
+        switch (bg->GetBgTypeID(true))
         {
             case BATTLEGROUND_WS:
                 PollWSGState(bg, tracker);
+                MaybeQueueFlagCarryChatter(
+                    bg, tracker);
                 break;
             case BATTLEGROUND_AB:
-                PollABState(bg, tracker);
+                QueueABNodeBatch(bg);
+                QueueABScoreMilestone(bg);
                 break;
             case BATTLEGROUND_EY:
                 PollEYState(bg, tracker);
@@ -1185,7 +1228,9 @@ public:
              - tracker.lastIdleChatterMs)
             >= idleCooldownMs)
         {
-            if (urand(1, 100)
+            bool objectiveStatus = bg->GetBgTypeID(true) == BATTLEGROUND_AB
+                && TryABObjectiveStatus(bg);
+            if (objectiveStatus || urand(1, 100)
                 <= sLLMChatterConfig
                     ->_bgIdleChatterChance)
             {
@@ -1217,6 +1262,11 @@ public:
                         + JsonEscape(
                             chosen->GetName())
                         + "\"}";
+                    if (objectiveStatus)
+                    {
+                        extra.pop_back();
+                        extra += ",\"ab_objective_status\":true}";
+                    }
                     AppendBGContext(
                         bg, chosen, extra);
                     QueueBGEvent(
@@ -1235,6 +1285,8 @@ public:
     {
         if (!bg)
             return;
+        ResetABContext(bg->GetInstanceID());
+        ResetBGDeliveryLifetime(bg->GetInstanceID());
         _bgTrackers.erase(
             bg->GetInstanceID());
     }

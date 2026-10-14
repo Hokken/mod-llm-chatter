@@ -1,3 +1,4 @@
 anthropic>=1.0.0,<2.0.0
 openai
 mysql-connector-python
+jsonschema>=4.23.0,<5.0.0

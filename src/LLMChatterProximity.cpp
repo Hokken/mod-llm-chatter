@@ -7,6 +7,7 @@
 #include "LLMChatterBossDialogue.h"
 #include "LLMChatterConfig.h"
 #include "LLMChatterGroup.h"
+#include "LLMChatterReplyHold.h"
 #include "LLMChatterShared.h"
 
 #include "CellImpl.h"
@@ -191,12 +192,6 @@ bool IsEligibleProximityAnchor(Player* player)
         && !player->IsInCombat()
         && !player->IsFlying()
         && IsProximityMapAllowed(player->GetMap());
-}
-
-bool IsEligibleAmbientProximityAnchor(Player* player)
-{
-    return IsEligibleProximityAnchor(player)
-        && !player->IsMounted();
 }
 
 std::string GetNPCDisposition(
@@ -914,7 +909,8 @@ struct SelectedCandidateMatch
 
 SelectedCandidateMatch FindSelectedCandidate(
     Player* player,
-    std::vector<ProximityCandidate> const& candidates)
+    std::vector<ProximityCandidate> const& candidates,
+    std::string const& message)
 {
     if (!player)
         return {};
@@ -932,12 +928,41 @@ SelectedCandidateMatch FindSelectedCandidate(
         return {};
     }
 
+    // A selection alone is not conversational intent when that target
+    // cannot answer here. Preserve ownership for explicitly named targets.
+    ProximityCandidate selectedIdentity;
+    selectedIdentity.name = selected->GetName();
+    if (Creature* creature = selected->ToCreature())
+    {
+        selectedIdentity.isNPC = true;
+        selectedIdentity.id = creature->GetSpawnId();
+        if (CreatureTemplate const* tmpl = creature->GetCreatureTemplate())
+            selectedIdentity.subName = tmpl->SubName;
+    }
+    else
+        selectedIdentity.id = selected->GetGUID().GetCounter();
+
+    std::string messageLower = ToLowerAscii(message);
+    bool namesSelected = FindNameWithBoundary(
+        messageLower, ToLowerAscii(selectedIdentity.name))
+        != std::string::npos;
+    for (std::string const& token : ExtractNameTokens(selectedIdentity.name))
+    {
+        if (!IsCandidateTokenExcluded(selectedIdentity, token)
+            && IsUniqueCandidateToken(candidates, selectedIdentity, token)
+            && FindNameWithBoundary(messageLower, token) != std::string::npos)
+        {
+            namesSelected = true;
+            break;
+        }
+    }
+
     if (Player* selectedPlayer = selected->ToPlayer())
     {
         if (!IsPlayerBot(selectedPlayer))
         {
             return {
-                nullptr, true, "selected_living_player",
+                nullptr, namesSelected, "selected_living_player",
             };
         }
 
@@ -945,7 +970,7 @@ SelectedCandidateMatch FindSelectedCandidate(
                 selectedPlayer, player->GetGroup()))
         {
             return {
-                nullptr, true, "selected_party_bot",
+                nullptr, namesSelected, "selected_party_bot",
             };
         }
 
@@ -958,9 +983,9 @@ SelectedCandidateMatch FindSelectedCandidate(
             }
         }
 
-        // A non-party playerbot that is currently ineligible
-        // is ignored like any other non-speaking target.
-        return {};
+        return {
+            nullptr, namesSelected, "selected_bot_ineligible",
+        };
     }
 
     Creature* selectedCreature =
@@ -971,7 +996,7 @@ SelectedCandidateMatch FindSelectedCandidate(
     if (IsLLMChatterBoss(selectedCreature))
     {
         return {
-            nullptr, true, "selected_boss_not_routed",
+            nullptr, namesSelected, "selected_boss_not_routed",
         };
     }
 
@@ -992,7 +1017,7 @@ SelectedCandidateMatch FindSelectedCandidate(
     }
 
     return {
-        nullptr, true, "selected_npc_ineligible",
+        nullptr, namesSelected, "selected_npc_ineligible",
     };
 }
 
@@ -1157,6 +1182,45 @@ std::string BuildBotParticipantJson(Player* bot)
         + "\",\"role\":\"bot\"}";
 }
 
+// A creature has no race of its own; humanoid NPCs take one
+// from their display model's extended info. Empty for beasts
+// and other models without it.
+static std::string GetNPCRaceName(Creature const* cr)
+{
+    CreatureDisplayInfoEntry const* display =
+        sCreatureDisplayInfoStore.LookupEntry(
+            cr->GetDisplayId());
+    if (!display || !display->ExtendedDisplayInfoID)
+        return "";
+    CreatureDisplayInfoExtraEntry const* extra =
+        sCreatureDisplayInfoExtraStore.LookupEntry(
+            display->ExtendedDisplayInfoID);
+    if (!extra || !extra->DisplayRaceID)
+        return "";
+    // ChrRaces also names non-playable races (goblins,
+    // ogres...), and names every race in the DBC locale.
+    return GetChrRacesName(extra->DisplayRaceID);
+}
+
+// The faction the NPC belongs to (e.g. "Darnassus",
+// "Defias Brotherhood"), from its faction template.
+static std::string GetNPCFactionName(Creature const* cr)
+{
+    FactionTemplateEntry const* factionTemplate =
+        cr->GetFactionTemplateEntry();
+    if (!factionTemplate)
+        return "";
+    FactionEntry const* faction =
+        sFactionStore.LookupEntry(factionTemplate->faction);
+    if (!faction)
+        return "";
+    uint8 locale = sLLMChatterConfig->GetModuleLocale();
+    char const* name = faction->name[locale];
+    if (!name || !*name)
+        name = faction->name[LOCALE_enUS];
+    return name ? name : "";
+}
+
 std::string BuildNPCParticipantJson(
     Creature* cr, Player* player)
 {
@@ -1182,6 +1246,10 @@ std::string BuildNPCParticipantJson(
             GetLocalizedCreatureSubName(cr))
         + "\",\"gender\":\""
         + gender
+        + "\",\"race\":\""
+        + JsonEscape(GetNPCRaceName(cr))
+        + "\",\"faction\":\""
+        + JsonEscape(GetNPCFactionName(cr))
         + "\",\"disposition\":\""
         + JsonEscape(
             GetNPCDisposition(cr, player))
@@ -1576,14 +1644,15 @@ std::string BuildBaseEventJson(
         + "}";
 }
 
-void QueueProximityEvent(
+bool QueueProximityEvent(
     Player* player, char const* eventType,
     std::vector<ProximityCandidate> const& speakers,
     std::vector<ProximityCandidate> const& allCandidates,
-    bool playerAddressed, uint32 maxLines)
+    bool playerAddressed, uint32 maxLines,
+    std::string const& screenshotFields = "")
 {
     if (!player || speakers.empty())
-        return;
+        return false;
 
     ProximityCandidate const& first = speakers[0];
     std::string cooldownKey =
@@ -1594,11 +1663,13 @@ void QueueProximityEvent(
             sLLMChatterConfig
                 ->_proxChatterEntityCooldown,
             true))
-        return;
+        return false;
 
     std::string json = BuildBaseEventJson(
         player, speakers, allCandidates,
         playerAddressed, maxLines);
+    if (!screenshotFields.empty())
+        json.insert(json.size() - 1, "," + screenshotFields);
     std::string escaped = EscapeString(json);
 
     QueueChatterEvent(
@@ -1622,6 +1693,7 @@ void QueueProximityEvent(
     SetProximityCooldown(
         _entityCooldowns, cooldownKey);
     NoteZoneTrigger(player);
+    return true;
 }
 
 void QueuePlayerSayProximityEvent(
@@ -1696,7 +1768,8 @@ bool QueuePlayerEmoteProximityEvent(
     uint32 mirrorEmote,
     std::string const& interactionMode,
     bool addressedSpeaks,
-    bool isCustom = false)
+    bool isCustom = false,
+    uint32 replyHoldId = 0)
 {
     if (!player || speakers.empty())
         return false;
@@ -1730,6 +1803,8 @@ bool QueuePlayerEmoteProximityEvent(
         + JsonEscape(interactionMode) + "\""
         + ",\"custom_emote\":"
         + (isCustom ? "1" : "0");
+    if (replyHoldId)
+        extra += ReplyHoldJsonField(replyHoldId);
     if (!json.empty() && json.back() == '}')
         json.insert(json.size() - 1, extra);
 
@@ -1788,7 +1863,7 @@ DirectedSayResult QueueDirectedPlayerSayProximityEvent(
     NamedCandidateMatch named =
         FindNamedCandidate(player, nonParty, safeMsg);
     SelectedCandidateMatch selectedMatch =
-        FindSelectedCandidate(player, nonParty);
+        FindSelectedCandidate(player, nonParty, safeMsg);
     bool explicitNamedOverride =
         named.candidate && named.vocative;
     if (selectedMatch.suppress
@@ -1911,14 +1986,14 @@ DirectedSayResult QueueDirectedPlayerSayProximityEvent(
 void HandleProximityPlayerSayNewScene(
     Player* player, std::string const& safeMsg)
 {
-    if (!IsEligibleAmbientProximityAnchor(player))
+    if (!IsEligibleProximityAnchor(player))
         return;
 
     float radius = static_cast<float>(
         sLLMChatterConfig
             ->_proxChatterPlayerSayScanRadius);
     std::vector<ProximityCandidate> candidates;
-    CollectNearbyBots(player, radius, candidates, false);
+    CollectNearbyBots(player, radius, candidates, true);
     CollectNearbyNPCs(player, radius, candidates);
     DeduplicateCandidates(candidates);
 
@@ -2012,7 +2087,7 @@ void HandleProximityPlayerSayNewScene(
 
 void MaybeQueueProximityScene(Player* player)
 {
-    if (!IsEligibleAmbientProximityAnchor(player))
+    if (!IsEligibleProximityAnchor(player))
         return;
 
     uint32 effectiveChance =
@@ -2025,7 +2100,7 @@ void MaybeQueueProximityScene(Player* player)
         sLLMChatterConfig
             ->_proxChatterScanRadius);
     std::vector<ProximityCandidate> candidates;
-    CollectNearbyBots(player, radius, candidates, false);
+    CollectNearbyBots(player, radius, candidates, true);
     CollectNearbyNPCs(player, radius, candidates);
     DeduplicateCandidates(candidates);
 
@@ -2096,7 +2171,7 @@ void MaybeQueueProximityScene(Player* player)
 
 ProximityScene* FindBestScene(Player* player)
 {
-    if (!IsEligibleAmbientProximityAnchor(player))
+    if (!IsEligibleProximityAnchor(player))
         return nullptr;
 
     Map* map = player->GetMap();
@@ -2291,6 +2366,78 @@ std::string GetBotEntityCooldownKey(
 
 } // namespace
 
+bool CanQueueScreenshotProximity(Player* player)
+{
+    if (!IsEligibleProximityAnchor(player) || IsPlayerBot(player))
+        return false;
+    auto scenes = _playerScenes.find(player->GetGUID().GetCounter());
+    if (scenes != _playerScenes.end())
+        for (uint32 id : scenes->second)
+        {
+            auto scene = _activeScenes.find(id);
+            if (scene != _activeScenes.end() && !scene->second.IsExpired()
+                && scene->second.mapId == player->GetMapId()
+                && scene->second.instanceId == player->GetInstanceId())
+                return false;
+        }
+    std::vector<ProximityCandidate> candidates;
+    CollectNearbyNPCs(player,
+        sLLMChatterConfig->_proxChatterScanRadius, candidates);
+    return std::any_of(candidates.begin(), candidates.end(),
+        [player](ProximityCandidate const& candidate)
+        {
+            return !IsProximityCooldownActive(_entityCooldowns,
+                GetEntityCooldownKey(player, candidate),
+                sLLMChatterConfig->_proxChatterEntityCooldown, false);
+        });
+}
+
+bool QueueScreenshotProximity(Player* player, std::string const& token,
+    std::string const& observation)
+{
+    if (!CanQueueScreenshotProximity(player))
+        return false;
+    // The host already rolled screenshot chance. Only the shared ambient
+    // fatigue budget can reduce this opportunity further.
+    uint32 budget = ComputeFatiguedChance(player, 100);
+    if (!budget || (budget < 100 && urand(1, 100) > budget))
+        return false;
+    std::vector<ProximityCandidate> candidates;
+    CollectNearbyNPCs(player,
+        sLLMChatterConfig->_proxChatterScanRadius, candidates);
+    candidates.erase(std::remove_if(candidates.begin(), candidates.end(),
+        [player](ProximityCandidate const& candidate)
+        {
+            return IsProximityCooldownActive(_entityCooldowns,
+                GetEntityCooldownKey(player, candidate),
+                sLLMChatterConfig->_proxChatterEntityCooldown, false);
+        }), candidates.end());
+    DeduplicateCandidates(candidates);
+    if (candidates.empty())
+        return false;
+    std::shuffle(candidates.begin(), candidates.end(), _rng);
+    auto speakers = SelectCompatibleSpeakers(
+        candidates, &candidates.front(), 3);
+    bool conversation = speakers.size() >= 2 && urand(1, 100)
+        <= sLLMChatterConfig->_proxChatterConversationChance;
+    if (!conversation)
+        speakers.resize(1);
+    uint32 maxLines = conversation ? std::clamp<uint32>(
+        sLLMChatterConfig->_proxChatterMaxConversationLines, 2, 4) : 1;
+    bool addressed = urand(1, 100)
+        <= sLLMChatterConfig->_proxChatterPlayerAddressChance;
+    if (!QueueProximityEvent(player,
+            conversation ? "proximity_conversation" : "proximity_say",
+            speakers, candidates, addressed, maxLines,
+            "\"screenshot_token\":\"" + JsonEscape(token)
+                + "\",\"screenshot_observation\":" + observation))
+        return false;
+    for (auto const& speaker : speakers)
+        SetProximityCooldown(_entityCooldowns,
+            GetEntityCooldownKey(player, speaker));
+    return true;
+}
+
 bool IsProximityFightOnlookerEligible(
     Player* anchor, Player* bot,
     std::vector<Unit*> const& fighters, bool speech)
@@ -2299,10 +2446,10 @@ bool IsProximityFightOnlookerEligible(
         return false;
     float radius = static_cast<float>(
         sLLMChatterConfig->_proxChatterScanRadius);
-    // Range, LOS, alive, not in combat, not mounted or
-    // flying, same map, session ready.
+    // Range, LOS, alive, not in combat or flying, same map,
+    // session ready. Ground-mounted spectators can still react.
     if (!IsEligibleProximityBotAnyTeam(
-            anchor, bot, radius, false))
+            anchor, bot, radius, true))
         return false;
     // Speech only from bots the player can read; emotes only
     // from the other faction.
@@ -2936,13 +3083,117 @@ bool HandleProximityPlayerbotEmote(
         return false;
     }
 
+    uint32 replyHoldId = addressedSpeaks ? NewReplyHoldId() : 0;
     // GetTextEmoteName(0) falls back to "wave", so a custom
     // emote must carry its typed text instead of an id lookup.
-    return QueuePlayerEmoteProximityEvent(
+    bool queued = QueuePlayerEmoteProximityEvent(
         player, *addressedIt, speakers, candidates,
         isCustom ? customText : GetTextEmoteName(textEmote),
         textEmote, mirrorEmote,
-        "player_inclusive", addressedSpeaks, isCustom);
+        "player_inclusive", addressedSpeaks, isCustom, replyHoldId);
+    if (queued && replyHoldId)
+        HoldBotForReply(bot, player, replyHoldId);
+    return queued;
+}
+
+bool HandleProximityPartyBotEmoteWitness(
+    Player* player, Player* partyBot,
+    uint32 textEmote,
+    std::string const& customText)
+{
+    bool const isCustom = !customText.empty();
+    if (!IsProximityPlayerbotEmoteRouteEnabled()
+        || !player || IsPlayerBot(player) || !partyBot)
+    {
+        return false;
+    }
+    uint32 const chance = sLLMChatterConfig
+        ->_emotePartyBotWitnessChance;
+    if (!chance || !IsEligibleProximityAnchor(player))
+        return false;
+
+    float radius = static_cast<float>(
+        sLLMChatterConfig
+            ->_proxChatterPlayerSayScanRadius);
+    // The target must be the player's own party member and a
+    // valid scene anchor (in range, in sight, not in combat).
+    if (!IsSameGroup(partyBot, player->GetGroup())
+        || !IsEligibleProximityBot(
+            player, partyBot, radius, true))
+    {
+        return false;
+    }
+
+    Map* map = player->GetMap();
+    std::string pairKey = "partybot:"
+        + std::to_string(
+            player->GetGUID().GetCounter())
+        + ":" + std::to_string(player->GetMapId())
+        + ":" + std::to_string(
+            map ? map->GetInstanceId() : 0)
+        + ":" + std::to_string(
+            partyBot->GetGUID().GetCounter());
+    uint32 cooldownSeconds =
+        sLLMChatterConfig->_emoteMirrorCooldown * 2;
+    if (IsProximityCooldownActive(
+            _directedBotEmoteCooldowns,
+            pairKey, cooldownSeconds, false))
+    {
+        return false;
+    }
+    if (urand(1, 100) > chance)
+        return false;
+
+    std::vector<ProximityCandidate> candidates;
+    CollectNearbyBots(player, radius, candidates, true);
+    CollectNearbyNPCs(player, radius, candidates);
+    DeduplicateCandidates(candidates);
+    auto addressedIt = std::find_if(
+        candidates.begin(), candidates.end(),
+        [partyBot](ProximityCandidate const& candidate)
+        {
+            return !candidate.isNPC && candidate.bot
+                && candidate.bot->GetGUID()
+                    == partyBot->GetGUID();
+        });
+    if (addressedIt == candidates.end())
+        return false;
+
+    // Only outsiders witness in /say; the party bot itself
+    // answers in party chat through the group emote path.
+    std::vector<ProximityCandidate> speakers =
+        SelectDirectedReactors(
+            player, candidates, *addressedIt, nullptr,
+            DirectedReactorScope::NPCsAndUngroupedBots,
+            sLLMChatterConfig
+                ->_proxDirectedBotMaxParticipants - 1,
+            true);
+    if (speakers.empty())
+        return false;
+
+    if (!TryReserveProximityCooldown(
+            _directedBotEmoteCooldowns,
+            pairKey, cooldownSeconds))
+    {
+        return false;
+    }
+
+    if (sLLMChatterConfig->IsDebugLog())
+    {
+        LOG_DEBUG(
+            "module",
+            "LLMChatter: party-bot emote witnesses target={} "
+            "speakers={}",
+            partyBot->GetName(), speakers.size());
+    }
+
+    // No mirror is passed: the party bot's own mirror and
+    // reply are owned by the group emote path.
+    return QueuePlayerEmoteProximityEvent(
+        player, *addressedIt, speakers, candidates,
+        isCustom ? customText : GetTextEmoteName(textEmote),
+        textEmote, 0,
+        "player_inclusive", false, isCustom);
 }
 
 void RecordDeliveredProximityLine(

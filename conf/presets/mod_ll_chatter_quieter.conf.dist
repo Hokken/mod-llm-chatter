@@ -204,6 +204,21 @@ LLMChatter.RequestLog.MaxSizeMB = 50
 # LLM PROVIDER SETTINGS [BRIDGE]
 ###############################################################################
 #
+#   LLMChatter.StructuredOutput.Enable
+#       Request native JSON Schema output for all runtime JSON generation,
+#       including quick analysis, memory and host screenshot vision.
+#       0 = existing prompt/parser behavior; 1 = require validated schema output.
+#       Enable only when every configured JSON target supports this format.
+#       Unsupported endpoints must use 0; no automatic downgrade is performed.
+#       Local Ollama support depends on the server/model; Qwen is not an API.
+#       Install updated tools/requirements.txt before enabling. Restart the
+#       chatter bridge and host screenshot agent to load changes, not worldserver.
+#       Default: 0
+#       [BRIDGE / HOST SCREENSHOT AGENT]
+#
+LLMChatter.StructuredOutput.Enable = 0
+
+#
 # To switch providers, just change LLMChatter.Provider and LLMChatter.Model.
 # Only configure the settings for your chosen provider.
 # The bridge selects a safe parameter profile for the model and learns from
@@ -301,6 +316,29 @@ LLMChatter.Provider = anthropic
 #
 LLMChatter.Model = claude-haiku-4-5-20251001
 
+#
+#   LLMChatter.LabelModel
+#   LLMChatter.LabelModel.Labels
+#       Sends selected calls to a second model on the same
+#       provider. Labels is a comma-separated list of call
+#       labels, with * and ? wildcards (the labels are the
+#       label= of each call_llm() call and appear in the
+#       request log). Matching calls use LabelModel; all other
+#       calls keep LLMChatter.Model. Example: a small, cheap
+#       model for ambient General chatter and a stronger one
+#       for party chat, reactions and the first bot reply to
+#       a player in General:
+#         LLMChatter.LabelModel = claude-sonnet-4-5
+#         LLMChatter.LabelModel.Labels = group_*,reaction_*,general_player_msg
+#       QuickAnalyze calls are not affected (QuickAnalyze.Model).
+#       When both are set, the startup health check live-tests
+#       LabelModel on its own line (HealthCheck.LLMProbe).
+#       Empty model or label list = every call uses Model.
+#       Default: (empty)
+#
+LLMChatter.LabelModel =
+LLMChatter.LabelModel.Labels =
+
 ###############################################################################
 # ANTHROPIC SETTINGS [BRIDGE] (only needed if Provider = anthropic)
 ###############################################################################
@@ -311,6 +349,28 @@ LLMChatter.Model = claude-haiku-4-5-20251001
 #       Get one at: https://console.anthropic.com/
 #
 LLMChatter.Anthropic.ApiKey =
+
+#
+#   LLMChatter.Anthropic.Thinking
+#       Thinking mode sent to Anthropic models.
+#       Format: disabled, adaptive, or empty for the model default.
+#       Newer models such as claude-haiku-5-5 think by default, which
+#       spends the short chatter output budgets before any reply text.
+#       "disabled" keeps chatter fast and complete. If a model rejects
+#       the setting, the bridge retries without it and remembers that
+#       correction for the rest of the process.
+#       Default: disabled
+#
+LLMChatter.Anthropic.Thinking = disabled
+
+#
+#   LLMChatter.Anthropic.MaxTokensMultiplier
+#       Multiplies per-call output token budgets for Anthropic models.
+#       Format: a number from 1 through 8, for example 1 or 1.5.
+#       Values outside that range are clamped by the bridge.
+#       Default: 1
+#
+LLMChatter.Anthropic.MaxTokensMultiplier = 1
 
 ###############################################################################
 # OPENAI SETTINGS [BRIDGE] (only needed if Provider = openai)
@@ -670,12 +730,99 @@ LLMChatter.GeneralChat.HistoryLimit = 15
 LLMChatter.PlayerChat.OptionalCasualReplyChance = 20
 
 #
+#   LLMChatter.PlayerChat.BriefCasualLengthWeights [BRIDGE]
+#       Relative weights for the length of a reply to a brief casual
+#       player message in General, as three numbers:
+#       tiny (1-4 words), short (2-8 words), relaxed (5-14 words).
+#       Each reply picks one, and a second bot answering the same
+#       message picks a different size, so brief replies stay brief
+#       without all coming out the same length. Use 0,100,0 for the
+#       previous fixed 2-8 word replies.
+#       Default: 35,45,20
+#
+LLMChatter.PlayerChat.BriefCasualLengthWeights = 35,45,20
+
+#
+#   LLMChatter.PlayerChat.IgnoredPrefixes [SERVER]
+#       Comma-separated literal prefixes for player-authored Party,
+#       General, Guild, and /say messages that Chatter must ignore.
+#       Matching ignores leading whitespace and ASCII letter case. A
+#       matching message is ignored by Chatter before chat history,
+#       cooldown, session, or LLM event processing. Existing addon and
+#       Playerbot command filters remain active independently.
+#       This is only for protocols sent through visible player chat. Normal
+#       SendAddonMessage prefixes already arrive as LANG_ADDON and are
+#       ignored separately. Leave empty unless your server has a known
+#       visible-chat or admin-command prefix. Avoid ordinary words because
+#       every message starting with a configured value is suppressed.
+#       Entries are trimmed, so trailing spaces cannot be used to require a
+#       word boundary or separator; include punctuation instead.
+#       Changes take effect after `.reload config`.
+#       Default: empty (disabled)
+#
+LLMChatter.PlayerChat.IgnoredPrefixes =
+
+#
 #   LLMChatter.BGChatter.Enable
 #       Enable BG-specific chatter (flag events, node captures, match
 #       start/end, PvP kills, score milestones).
 #       Default: 1
 #
 LLMChatter.BGChatter.Enable = 1
+
+# Chance (0-100) per AB batch attempt; legacy per-node chance for EY.
+# AB observes every BG update; failed rolls retain pending facts until expiry.
+# 0 disables node reactions.
+LLMChatter.BGChatter.NodeEventChance = 80
+
+# Chance (0-100) for score milestone reactions; 0 disables these reactions.
+LLMChatter.BGChatter.ScoreMilestoneChance = 80
+
+# Milliseconds between legacy BG polls and AB pending-node speech attempts.
+# AB node observation runs every update regardless of this setting.
+# 0 evaluates speech every update; it does not provide stronger evidence.
+LLMChatter.BGChatter.StatePollingIntervalMs = 3000
+
+# Legacy shared big-event cooldown; AB node/score attempts are independent.
+# 0 disables this legacy cooldown.
+LLMChatter.BGChatter.BigEventCooldownSec = 15
+
+# Maximum actual gap (ms) for sampled AB transition labels. BG updates run
+# about once per second; 2000 tolerates ordinary scheduling jitter.
+# Larger gaps or multiple pending changes use state-only wording.
+# 0 disables transition labels. This does not change speech frequency.
+LLMChatter.BGChatter.AB.TransitionMaxGapMs = 2000
+
+# Enable AB node/resource observation, reactions and objective snapshots.
+# Disabling clears AB state; re-enable seeds silently. Other BGs are unchanged.
+LLMChatter.BGChatter.AB.Enable = 1
+
+# Maximum uncertainty of internal contest estimates, in seconds (0-60).
+# 0 omits estimates. These use the BG timer clock, not a wall-clock ETA.
+# Numerical timer wording remains disabled.
+LLMChatter.BGChatter.AB.TimerEstimateMaxUncertaintySec = 3
+
+# Maximum age in seconds at final BG delivery (clamped to 1-300).
+# These cannot disable match/audience validation. 0 is clamped to 1.
+# Match-end has its own limit and is allowed only during WAIT_LEAVE.
+LLMChatter.BGChatter.FactualMaxAgeSec = 30
+LLMChatter.BGChatter.AB.FactualMaxAgeSec = 15
+## AB node batches: attempt spacing and pending expiry clamp to 1-300 sec.
+## Chance failures consume the interval but retain current pending facts.
+LLMChatter.BGChatter.AB.NodeBatchCooldownSec = 15
+LLMChatter.BGChatter.AB.PendingMaxAgeSec = 30
+## Maximum referenced nodes in one reaction, clamped to 1-5.
+LLMChatter.BGChatter.AB.MaxNodesPerBatch = 3
+## Percentages 1-99; sorted/deduplicated. Any invalid list uses 30,60,90.
+## Rounded up against the verified target; core warning wins collisions.
+LLMChatter.BGChatter.AB.ScoreMilestonePercents = "30,60,90"
+## Score attempt interval, clamped 1-300 sec. Uses ScoreMilestoneChance.
+LLMChatter.BGChatter.AB.ScoreCooldownSec = 30
+## Replace an idle opportunity with objective status. Zero disables status;
+## positive intervals clamp to 1-3600 sec; chance clamps to 0-100.
+LLMChatter.BGChatter.AB.ObjectiveStatusIntervalSec = 60
+LLMChatter.BGChatter.AB.ObjectiveStatusChance = 50
+LLMChatter.BGChatter.MatchEndMaxAgeSec = 45
 
 #
 #   LLMChatter.RaidChatter.Enable
@@ -1017,7 +1164,7 @@ LLMChatter.ProximityChatter.OutdoorChance = 15
 #       default because combat and movement remove many opportunities.
 #       Default: 100
 #
-LLMChatter.ProximityChatter.InstanceChance = 100
+LLMChatter.ProximityChatter.InstanceChance = 50
 
 #
 #   LLMChatter.ProximityChatter.EntityCooldown
@@ -1174,10 +1321,26 @@ LLMChatter.ProximityChatter.MaxConversationLines = 4
 
 #
 #   LLMChatter.ProximityChatter.ConversationLineDelay
-#       Seconds between proximity conversation lines.
+#       Fixed seconds between lines when DynamicPacing.Enable = 0.
 #       Default: 2
 #
 LLMChatter.ProximityChatter.ConversationLineDelay = 8
+
+#
+#   LLMChatter.ProximityChatter.DynamicPacing.* [BRIDGE]
+#       Length-aware gaps between nearby conversation lines. The first
+#       line has no added delay. Reading and typing overlap: the longer
+#       of the previous and current visible lines sets the length term.
+#       MinSeconds + characters / CharsPerSecond sets the base gap,
+#       bounded by MaxSeconds, with JitterPercent variation inside bounds.
+#       Defaults: enabled, 3-8 seconds, 20 chars/sec, 20% variation.
+#       Set Enable = 0 to use ConversationLineDelay instead.
+#
+LLMChatter.ProximityChatter.DynamicPacing.Enable = 1
+LLMChatter.ProximityChatter.DynamicPacing.MinSeconds = 3
+LLMChatter.ProximityChatter.DynamicPacing.MaxSeconds = 8
+LLMChatter.ProximityChatter.DynamicPacing.CharsPerSecond = 20
+LLMChatter.ProximityChatter.DynamicPacing.JitterPercent = 20
 
 #
 #   LLMChatter.ProximityChatter.ReplyWindowSeconds
@@ -1218,6 +1381,22 @@ LLMChatter.ProximityChatter.MaxTokensPerLine = 120
 #       Default: 8
 #
 LLMChatter.ProximityChatter.FacingResetDelay = 8
+
+#
+#   LLMChatter.ProximityChatter.ReplyHoldMs
+#       Milliseconds an ungrouped bot that owes a player a /say
+#       reply (after an emote at it, or a guild meet greeting) stays in place so it is
+#       still nearby when the reply arrives. Only a bot that is
+#       standing still is held; a moving bot keeps moving. With
+#       GroupChatter.FacingEnable on, the held bot also turns
+#       toward the player. The hold only lengthens the bot's AI
+#       delay, never shortens it, and ends early when the bot
+#       enters combat or its reply is delivered or dropped.
+#       Capped at 10000. Applies after .reload config.
+#       0 - Disabled
+#       Default: 4000
+#
+LLMChatter.ProximityChatter.ReplyHoldMs = 4000
 
 #
 #   LLMChatter.ProximityChatter.DirectedMaxExtraReactors
@@ -1519,6 +1698,27 @@ LLMChatter.GroupChatter.KillChanceNormal = 8
 #       Default: 120
 #
 LLMChatter.GroupChatter.KillCooldown = 120
+
+#
+#   LLMChatter.GroupChatter.KillBurstWindow [BRIDGE]
+#       Seconds after a kill reaction during which further non-boss
+#       kills in the same group stay silent. Stops a boss and its
+#       rare-flagged escorts from producing several near-identical
+#       lines in one fight. Boss kills always react and restart the
+#       window. 0 disables the guard.
+#       Default: 30
+#
+LLMChatter.GroupChatter.KillBurstWindow = 45
+
+#
+#   LLMChatter.GroupChatter.PullBurstWindow [BRIDGE]
+#       Seconds during which only one pull (battle cry) reaction is
+#       voiced per group. Every bot entering combat on the same pull
+#       raises its own event; the first speaks, the rest stay quiet.
+#       0 disables the guard.
+#       Default: 15
+#
+LLMChatter.GroupChatter.PullBurstWindow = 25
 
 #
 #   LLMChatter.GroupChatter.DeathChance
@@ -1844,6 +2044,90 @@ LLMChatter.GroupChatter.PvP.EnemyCooldown = 120
 LLMChatter.GroupChatter.PvP.TargetSwitchCallout = 1
 
 #
+#   LLMChatter.GuildChatter.PvpKill.Enable
+#       A guild bot outside the player's group that kills an
+#       opposing-faction bot in the open world may tell its guild
+#       about it. Needs a real guildmate online. Never on
+#       battlegrounds or arenas, and skipped while the guild is in
+#       a conversation with a real player.
+#       Default: 1
+#
+LLMChatter.GuildChatter.PvpKill.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.PvpKill.Chance
+#       Percent chance (0-100) per qualifying kill.
+#       Default: 25
+#
+LLMChatter.GuildChatter.PvpKill.Chance = 15
+
+#
+#   LLMChatter.GuildChatter.PvpKill.Cooldown
+#       Seconds before the same bot reports another kill.
+#       Default: 300
+#
+LLMChatter.GuildChatter.PvpKill.Cooldown = 600
+
+#
+#   LLMChatter.GuildChatter.PvpKill.GuildCooldown
+#       Seconds between two kill comments in the same guild,
+#       whichever bot made the kill.
+#       Default: 600
+#
+LLMChatter.GuildChatter.PvpKill.GuildCooldown = 1200
+
+#
+#   LLMChatter.GuildChatter.PvpDeath.Enable
+#       A bot killed by an opposing-faction bot in the open world
+#       may tell its guild about it when a real guildmate is
+#       online; its personality decides how it reacts. Never on
+#       battlegrounds, never for bots grouped with a real player,
+#       and skipped while the guild is in a conversation with a
+#       real player.
+#       Default: 1
+#
+LLMChatter.GuildChatter.PvpDeath.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.PvpDeath.Chance
+#   LLMChatter.GuildChatter.PvpDeath.GuildCooldown
+#       Percent chance (0-100) per eligible death, and seconds
+#       between two such lines in the same guild.
+#       Defaults: 30, 600
+#
+LLMChatter.GuildChatter.PvpDeath.Chance = 20
+LLMChatter.GuildChatter.PvpDeath.GuildCooldown = 1200
+
+#
+#   LLMChatter.GeneralChat.PvpDeath.Enable
+#       When the Guild chat line does not happen, a bot killed by
+#       an opposing-faction bot may speak in its zone's General
+#       channel, but only if a real player of its faction is in
+#       that zone. Guild membership does not matter. The line
+#       follows the General zone pacing (GeneralChat.MinZoneGap).
+#       Default: 1
+#
+LLMChatter.GeneralChat.PvpDeath.Enable = 1
+
+#
+#   LLMChatter.GeneralChat.PvpDeath.Chance
+#   LLMChatter.GeneralChat.PvpDeath.ZoneCooldown
+#       Percent chance (0-100) per eligible death, and seconds
+#       between two such lines in the same zone per faction.
+#       Defaults: 15, 600
+#
+LLMChatter.GeneralChat.PvpDeath.Chance = 10
+LLMChatter.GeneralChat.PvpDeath.ZoneCooldown = 1200
+
+#
+#   LLMChatter.PvpDeath.VictimCooldown
+#       Seconds before the same bot may speak about another
+#       death, shared by Guild and General chat.
+#       Default: 1800
+#
+LLMChatter.PvpDeath.VictimCooldown = 2700
+
+#
 #   LLMChatter.GroupChatter.Duel.Enable [SERVER]
 #       Enable group reactions to duels involving a member of a
 #       group with a real player and bots. Bot duellists and group
@@ -1988,9 +2272,9 @@ LLMChatter.GroupChatter.PlayerMsgSecondBotChance = 25
 #   LLMChatter.GroupChatter.PlayerMsgCooldown
 #       Minimum seconds between group reactions to player
 #       chat messages.
-#       Default: 15
+#       Default: 0
 #
-LLMChatter.GroupChatter.PlayerMsgCooldown = 15
+LLMChatter.GroupChatter.PlayerMsgCooldown = 0
 
 #
 #   LLMChatter.GroupChatter.GeneralRelayEnable
@@ -2066,9 +2350,9 @@ LLMChatter.GroupChatter.GeneralRelayMaxGroups = 1
 #       Chance (0-100) that a bot reacts when a player types
 #       a non-question message in General chat. Questions
 #       (ending with ?) use QuestionChance instead.
-#       Default: 40
+#       Default: 100
 #
-LLMChatter.GeneralChat.ReactionChance = 40
+LLMChatter.GeneralChat.ReactionChance = 100
 
 #
 #   LLMChatter.GeneralChat.QuestionChance
@@ -2077,18 +2361,17 @@ LLMChatter.GeneralChat.ReactionChance = 40
 #       "?" use ReactionChance instead. This simple detection
 #       gives direct questions a higher response rate, but
 #       statements and remarks also trigger at ReactionChance.
-#       Default: 80
+#       Default: 100
 #
-LLMChatter.GeneralChat.QuestionChance = 80
+LLMChatter.GeneralChat.QuestionChance = 100
 
 #
 #   LLMChatter.GeneralChat.Cooldown
-#       Per-zone cooldown (seconds) between bot reactions to
-#       player messages in General chat. Prevents bots from
-#       responding to every single message in a busy zone.
-#       Default: 30
+#       Per-zone, per-faction cooldown (seconds) between bot reactions
+#       to player messages in General chat. Set to 0 to disable.
+#       Default: 3
 #
-LLMChatter.GeneralChat.Cooldown = 30
+LLMChatter.GeneralChat.Cooldown = 3
 
 #
 #   LLMChatter.GeneralChat.ReactDelay
@@ -2148,6 +2431,30 @@ LLMChatter.GeneralChat.ExtendedConversationChance = 40
 #       [BRIDGE]
 #
 LLMChatter.GeneralChat.ExtendedMaxMessages = 3
+
+#
+#   LLMChatter.GeneralChat.PlayerReplyLengthWeights [BRIDGE]
+#       Relative weights for short, medium and developed player replies.
+#       Three nonnegative integers with a positive total. Invalid values use
+#       the default. Followups avoid the previous band if another is enabled.
+#       Both normal and roleplay modes use this policy. Brief casual replies
+#       keep PlayerChat.BriefCasualLengthWeights instead.
+#       Requires bridge restart to take effect.
+#       Default: 35,45,20
+#
+LLMChatter.GeneralChat.PlayerReplyLengthWeights = 35,45,20
+
+#
+#   LLMChatter.GeneralChat.PlayerReplyLengthMaxima [BRIDGE]
+#       Approximate short, medium and developed character ceilings.
+#       Three strictly increasing integers in 1-255. Invalid values use the
+#       default. Targets guide wording; never pad a reply to reach a minimum.
+#       Player conversational scale takes priority. Delivery caps at 255.
+#       Does not change Party, Guild or autonomous General length policies.
+#       Requires bridge restart to take effect.
+#       Default: 75,150,240
+#
+LLMChatter.GeneralChat.PlayerReplyLengthMaxima = 75,150,240
 
 ###############################################################################
 # RAID CHATTER TUNING [SERVER]
@@ -2297,6 +2604,120 @@ LLMChatter.GuildChatter.PlayerReplies.IdleSuppressionSeconds = 90
 LLMChatter.GuildChatter.PlayerReplies.MaxCandidates = 12
 
 #
+#   LLMChatter.GuildChatter.MeetGreeting.Enable
+#       A guild bot that meets a real guildmate in the open
+#       world (not in the same group) waves (/hello) and greets
+#       them in /say. The line is only spoken if the player is
+#       still on the same map, within Radius, visible and in
+#       line of sight when it is delivered. A range, visibility
+#       or line-of-sight miss is retried every 2 seconds for up
+#       to 8 seconds before the line is dropped.
+#       Default: 1
+#
+LLMChatter.GuildChatter.MeetGreeting.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.MeetGreeting.Radius
+#       Yards around the player searched for guild bots.
+#       Supported range is 5-60.
+#       Default: 25
+#
+LLMChatter.GuildChatter.MeetGreeting.Radius = 25
+
+#
+#   LLMChatter.GuildChatter.MeetGreeting.CooldownHours
+#       Hours before the same bot greets the same player again.
+#       The cooldown survives server restarts for up to 24 hours,
+#       so the supported range is 1-24.
+#       Default: 5
+#
+LLMChatter.GuildChatter.MeetGreeting.CooldownHours = 8
+
+#
+#   LLMChatter.GuildChatter.MeetGreeting.FollowUpDelayMin
+#   LLMChatter.GuildChatter.MeetGreeting.FollowUpDelayMax
+#       Seconds after the meet greeting is spoken before the
+#       optional Guild follow-up is posted (a random value in
+#       this range). Supported range is 1-120.
+#       Default: 8 and 15
+#
+LLMChatter.GuildChatter.MeetGreeting.FollowUpDelayMin = 8
+LLMChatter.GuildChatter.MeetGreeting.FollowUpDelayMax = 15
+
+#
+#   LLMChatter.GuildChatter.WorldScanInterval
+#       Seconds between open-world scans for meet greetings
+#       and NPC encounters. Supported range is 5-300.
+#       Default: 10
+#
+LLMChatter.GuildChatter.WorldScanInterval = 10
+
+#
+#   LLMChatter.GuildChatter.JoinZoneAnnounce.Enable
+#       A bot that joins a guild may tell its zone's General
+#       channel about it; other bots there react. Needs a real
+#       player of that faction in the zone. The lines follow the
+#       General zone pacing (GeneralChat.MinZoneGap).
+#       Default: 1
+#
+LLMChatter.GuildChatter.JoinZoneAnnounce.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.JoinZoneAnnounce.Chance
+#       Percent chance (0-100) per joining bot.
+#       Default: 35
+#
+LLMChatter.GuildChatter.JoinZoneAnnounce.Chance = 20
+
+#
+#   LLMChatter.GuildChatter.JoinZoneAnnounce.DelaySeconds
+#       Seconds after a bot joins a guild before it may
+#       announce it in General. Supported range is 0-60.
+#       Default: 8
+#
+LLMChatter.GuildChatter.JoinZoneAnnounce.DelaySeconds = 8
+
+#
+#   LLMChatter.GuildChatter.NpcEncounter.Enable
+#       A guild bot outside the player's group tells the guild
+#       about a friendly service NPC near it (vendor, trainer,
+#       innkeeper, flight master and so on) that it can see and
+#       has line of sight to. Skipped while the guild is in a
+#       conversation with a real player.
+#       Default: 1
+#
+LLMChatter.GuildChatter.NpcEncounter.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.NpcEncounter.Chance
+#       Percent chance (0-100) per guild per world scan.
+#       Default: 4
+#
+LLMChatter.GuildChatter.NpcEncounter.Chance = 2
+
+#
+#   LLMChatter.GuildChatter.NpcEncounter.Radius
+#       Yards around the bot searched for NPCs. Range 5-80.
+#       Default: 30
+#
+LLMChatter.GuildChatter.NpcEncounter.Radius = 30
+
+#
+#   LLMChatter.GuildChatter.NpcEncounter.Cooldown
+#       Minimum seconds between NPC encounters per guild.
+#       Default: 1200
+#
+LLMChatter.GuildChatter.NpcEncounter.Cooldown = 2400
+
+#
+#   LLMChatter.GuildChatter.NpcEncounter.PairCooldownHours
+#       Hours before the same bot comments on the same NPC
+#       again. Supported range is 1-168.
+#       Default: 6
+#
+LLMChatter.GuildChatter.NpcEncounter.PairCooldownHours = 12
+
+#
 #   LLMChatter.GuildChatter.LoginGreeting.Enable
 #       Greet a real guild member after a full character
 #       login. The greeting is cancelled if the player
@@ -2343,6 +2764,151 @@ LLMChatter.GuildChatter.LoginGreeting.ReadinessTimeout = 90
 #       Default: 12
 #
 LLMChatter.GuildChatter.LoginGreeting.MaxCandidates = 12
+
+#
+#   LLMChatter.GuildChatter.JoinGreeting.Enable
+#       When someone joins a Guild that has a real player
+#       online, one to three Guild bots react to the
+#       newcomer in Guild Chat, each in its own personality
+#       and tone. A newcomer who is a bot may answer. A real player who joins while online also
+#       gets a Guild conversation session immediately.
+#       Default: 1
+#
+LLMChatter.GuildChatter.JoinGreeting.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.JoinGreeting.Chance
+#       Chance (0-100) that a batch of joins is greeted.
+#       Default: 100
+#
+LLMChatter.GuildChatter.JoinGreeting.Chance = 70
+
+#
+#   LLMChatter.GuildChatter.JoinGreeting.BatchSeconds
+#       Seconds to wait after the first join so that
+#       several joins close together get one reaction.
+#       Supported range is 2-120.
+#       Default: 10
+#
+LLMChatter.GuildChatter.JoinGreeting.BatchSeconds = 10
+
+#
+#   LLMChatter.GuildChatter.RankChange.Enable
+#       When a member is promoted or demoted in game, one
+#       to three Guild bots comment. The changed member may
+#       answer if it is a bot. GM commands such as
+#       .guild rank do not raise a guild event and are not
+#       noticed.
+#       Default: 1
+#
+LLMChatter.GuildChatter.RankChange.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.RankChange.Chance
+#       Chance (0-100) that a batch of rank changes is
+#       commented on.
+#       Default: 100
+#
+LLMChatter.GuildChatter.RankChange.Chance = 70
+
+#
+#   LLMChatter.GuildChatter.RankChange.DebounceSeconds
+#       Rank changes are held until the Guild has had no
+#       further change for this many seconds. Changes made
+#       in the meantime become one event, and a member
+#       whose rank ends where it started is left out.
+#       Supported range is 5-600.
+#       Default: 30
+#
+LLMChatter.GuildChatter.RankChange.DebounceSeconds = 30
+
+#
+#   LLMChatter.GuildChatter.RankChange.NewMemberGraceMinutes
+#       Rank changes of members who joined within this many
+#       minutes are not commented on (recruits are often
+#       promoted right after joining). 0 disables the grace.
+#       Default: 30
+#
+LLMChatter.GuildChatter.RankChange.NewMemberGraceMinutes = 30
+
+#
+#   LLMChatter.GuildChatter.MotdComment.Enable
+#       When the Guild Message of the Day changes, one or
+#       two Guild bots react to it shortly afterwards.
+#       Default: 1
+#
+LLMChatter.GuildChatter.MotdComment.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.MotdComment.Chance
+#       Chance (0-100) that a new MOTD gets a comment.
+#       Default: 100
+#
+LLMChatter.GuildChatter.MotdComment.Chance = 70
+
+#
+#   LLMChatter.GuildChatter.MotdComment.DelaySeconds
+#       Seconds to wait after the MOTD changes. Only the
+#       latest MOTD is commented on when it is edited
+#       several times. Supported range is 2-600.
+#       Default: 20
+#
+LLMChatter.GuildChatter.MotdComment.DelaySeconds = 20
+
+#
+#   LLMChatter.GuildChatter.MemberEvents.MaxCandidates
+#       Maximum live Guild bots passed to the bridge for
+#       join, rank-change and MOTD comments.
+#       Default: 12
+#
+LLMChatter.GuildChatter.MemberEvents.MaxCandidates = 12
+
+#
+#   LLMChatter.GuildChatter.MemberEvents.MaxDeferSeconds
+#       Guild news (join greetings, rank-change and MOTD
+#       comments) never interrupts a real player's Guild
+#       conversation. While a player has spoken in Guild
+#       within PlayerReplies.IdleSuppressionSeconds, due news
+#       waits; news still waiting this many seconds after it
+#       happened is dropped. Lines already queued are dropped
+#       at delivery if the player starts talking. 0 drops the
+#       news instead of waiting. Supported range is 0-1800.
+#       Default: 300
+#
+LLMChatter.GuildChatter.MemberEvents.MaxDeferSeconds = 300
+
+#
+#   LLMChatter.GuildChatter.JoinGreeting.MaxResponders
+#   LLMChatter.GuildChatter.RankChange.MaxResponders
+#   LLMChatter.GuildChatter.MotdComment.MaxResponders
+#       Maximum bots that comment on a join, a rank change
+#       or a new MOTD. Supported range is 1-3.
+#       Defaults: JoinGreeting = 3, RankChange = 3,
+#                 MotdComment = 2
+#
+LLMChatter.GuildChatter.JoinGreeting.MaxResponders = 2
+LLMChatter.GuildChatter.RankChange.MaxResponders = 2
+LLMChatter.GuildChatter.MotdComment.MaxResponders = 1
+
+#
+#   LLMChatter.GuildChatter.JoinGreeting.SubjectReplyChance
+#   LLMChatter.GuildChatter.RankChange.SubjectReplyChance
+#       Chance (0-100) that a newcomer or changed member
+#       who is an online bot answers the comments once.
+#       Defaults: 70
+#
+LLMChatter.GuildChatter.JoinGreeting.SubjectReplyChance = 50
+LLMChatter.GuildChatter.RankChange.SubjectReplyChance = 50
+
+#
+#   LLMChatter.GuildChatter.MemberEvents.MaxCharacters
+#       Length the prompt asks for in each Guild event line (joins,
+#       rank changes, MOTD comments, world events, PvP). A line that
+#       runs over it is delivered whole, never cut mid-sentence.
+#       Supported range is 40-150.
+#       Default: 120
+#
+LLMChatter.GuildChatter.MemberEvents.MaxCharacters = 120
 
 #
 ###############################################################################
@@ -2422,18 +2988,19 @@ LLMChatter.GuildChatter.MaxReferenceLines = 2
 
 #
 #   LLMChatter.GuildChatter.LoginGreeting.MultiReplyChance
-#       Chance (0-100) that two or three Guild bots greet
-#       the player instead of the usual single greeting.
-#       Default: 20
+#       Chance (0-100) that two to four Guild bots greet
+#       the player instead of a single greeting. With four eligible
+#       bots and MaxResponders = 4, 75 gives each count equal odds.
+#       Default: 75
 #
-LLMChatter.GuildChatter.LoginGreeting.MultiReplyChance = 20
+LLMChatter.GuildChatter.LoginGreeting.MultiReplyChance = 75
 
 #
 #   LLMChatter.GuildChatter.LoginGreeting.MaxResponders
-#       Maximum greeting bots. Supported range is 1-3.
-#       Default: 3
+#       Maximum greeting bots. Supported range is 1-4.
+#       Default: 4
 #
-LLMChatter.GuildChatter.LoginGreeting.MaxResponders = 3
+LLMChatter.GuildChatter.LoginGreeting.MaxResponders = 4
 
 #
 #   LLMChatter.GuildChatter.LoginGreeting.PlayerNameChance
@@ -2445,11 +3012,63 @@ LLMChatter.GuildChatter.LoginGreeting.PlayerNameChance = 60
 
 #
 #   LLMChatter.GuildChatter.LoginGreeting.MaxCharacters
-#       Hard character cap for each short greeting.
+#       Length the prompt asks for in each short greeting. A
+#       greeting that runs over it is delivered whole, never cut
+#       mid-sentence.
 #       Supported range is 40-150.
 #       Default: 100
 #
 LLMChatter.GuildChatter.LoginGreeting.MaxCharacters = 100
+
+#
+#   LLMChatter.GuildChatter.MotdChance
+#       Chance (0-100) that an autonomous Guild statement
+#       or conversation uses the Guild's current Message of
+#       the Day as its topic instead of a random one. The
+#       Guild Information text, when set, is always part of
+#       Guild prompts.
+#       When conversation threads are on for Guild chat
+#       (LLMChatter.Threads.GuildEnable), a hit only offers
+#       this topic to the thread's pool source, so
+#       LLMChatter.Threads.PoolTopicWeight decides how often
+#       it is actually used.
+#       Default: 15
+#
+LLMChatter.GuildChatter.MotdChance = 15
+
+#
+#   LLMChatter.GuildChatter.GeneralDiscussionChance
+#       Chance (0-100) that a plain General-channel
+#       conversation becomes a talk about the speakers'
+#       guilds. Needs at least two speakers in a guild.
+#       With conversation threads on for General chat, a hit
+#       only offers this topic to the thread's pool source
+#       (LLMChatter.Threads.PoolTopicWeight).
+#       Default: 5
+#
+LLMChatter.GuildChatter.GeneralDiscussionChance = 5
+
+#
+#   LLMChatter.GuildChatter.GeneralPraiseChance
+#       Chance (0-100) that a plain General-channel
+#       statement from a guilded bot is about its guild and
+#       what belonging to it means to the speaker (its own
+#       personality decides how it feels about it).
+#       With conversation threads on for General chat, a hit
+#       only offers this topic to the thread's pool source
+#       (LLMChatter.Threads.PoolTopicWeight).
+#       Default: 4
+#
+LLMChatter.GuildChatter.GeneralPraiseChance = 4
+
+#
+#   LLMChatter.GuildChatter.GeneralPraiseMasterChance
+#       Chance (0-100) that such a statement also names the
+#       Guild Master, with race and class. Never used when
+#       the speaker is the Guild Master.
+#       Default: 50
+#
+LLMChatter.GuildChatter.GeneralPraiseMasterChance = 50
 
 #
 #   LLMChatter.GuildChatter.PlayerReplies.MultiReplyChance
@@ -2582,6 +3201,26 @@ LLMChatter.GuildChatter.SessionMemory.SummaryMaxTokens = 300
 LLMChatter.GuildChatter.SessionMemory.SummaryMaxChars = 1200
 
 #
+#   LLMChatter.GuildChatter.MeetGreeting.GuildPostChance
+#       Percent chance (0-100) that after a meet greeting the bot
+#       also mentions the meeting in Guild chat, naming the place
+#       (subzone and zone). The post waits until the greeting was
+#       spoken, is cancelled if the greeting is dropped, and is
+#       skipped while the guild is in a conversation with a real
+#       player (PlayerReplies.IdleSuppressionSeconds). The login
+#       welcome alone does not count as a conversation.
+#       Default: 50
+#
+LLMChatter.GuildChatter.MeetGreeting.GuildPostChance = 30
+
+#
+#   LLMChatter.GuildChatter.JoinZoneAnnounce.MaxResponders
+#       Maximum zone bots (0-3) reacting to a join announcement.
+#       Default: 2
+#
+LLMChatter.GuildChatter.JoinZoneAnnounce.MaxResponders = 1
+
+#
 #   LLMChatter.GuildChatter.ZoneNameChance
 #       Percent chance (0-100) that a Guild event may name
 #       the primary speaker's current zone. Guild chat reaches
@@ -2595,6 +3234,115 @@ LLMChatter.GuildChatter.SessionMemory.SummaryMaxChars = 1200
 #       Default: 20
 #
 LLMChatter.GuildChatter.ZoneNameChance = 20
+
+#
+#   LLMChatter.ThemedTopics.Enable [BRIDGE]
+#       Faction, race, class and race+class topics plus rumors
+#       (expansions, dungeons, raids, locations, regions,
+#       profession and class trainers) as idle subjects in guild,
+#       General and party chat. Each rumor is aimed at one real
+#       listener in turn (level and completed content),
+#       preferring rumors that suit the most listeners; faction
+#       rumors need one faction. A themed subject is only a
+#       suggestion; the bot may set it aside if it does not fit.
+#       Default: 1
+#
+LLMChatter.ThemedTopics.Enable = 1
+
+#
+#   LLMChatter.ThemedTopics.GuildChance [BRIDGE]
+#   LLMChatter.ThemedTopics.GeneralChance [BRIDGE]
+#   LLMChatter.ThemedTopics.PartyChance [BRIDGE]
+#       Percent chance (0-100) that an idle topic is themed
+#       instead of generic. Only used while conversation threads
+#       are off for the channel; with threads on,
+#       LLMChatter.Threads.ThemedTopicWeight decides instead.
+#       Party only uses class and race+class topics, never
+#       inside dungeons or battlegrounds.
+#       Defaults: 30, 30, 5
+#
+LLMChatter.ThemedTopics.GuildChance = 25
+LLMChatter.ThemedTopics.GeneralChance = 25
+LLMChatter.ThemedTopics.PartyChance = 3
+
+#
+#   LLMChatter.ThemedTopics.*Weight [BRIDGE]
+#       Relative weights of the themed topic kinds. 0 disables
+#       a kind. Rumors need at least one real listener.
+#
+LLMChatter.ThemedTopics.FactionWeight = 12
+LLMChatter.ThemedTopics.RaceWeight = 18
+LLMChatter.ThemedTopics.ClassWeight = 18
+LLMChatter.ThemedTopics.RaceClassWeight = 7
+LLMChatter.ThemedTopics.ExpansionRumorWeight = 8
+LLMChatter.ThemedTopics.DungeonRumorWeight = 12
+LLMChatter.ThemedTopics.RaidRumorWeight = 6
+LLMChatter.ThemedTopics.LocationRumorWeight = 10
+LLMChatter.ThemedTopics.RegionRumorWeight = 9
+LLMChatter.ThemedTopics.ProfessionRumorWeight = 12
+LLMChatter.ThemedTopics.ClassTrainerRumorWeight = 12
+
+#
+#   LLMChatter.ThemedTopics.ProfessionRumorFullLevel [BRIDGE]
+#   LLMChatter.ThemedTopics.ProfessionRumorMaxLevel [BRIDGE]
+#   LLMChatter.ThemedTopics.ClassTrainerRumorFullLevel [BRIDGE]
+#   LLMChatter.ThemedTopics.ClassTrainerRumorMaxLevel [BRIDGE]
+#   LLMChatter.ThemedTopics.TrainerRumorReducedPercent [BRIDGE]
+#       Trainer rumors follow the level of the listener the rumor
+#       is aimed at: full weight up to the FullLevel, this
+#       percent of it up to the MaxLevel, never above it.
+#       Defaults: 20, 30 (profession), 15, 25 (class), 33
+#
+LLMChatter.ThemedTopics.ProfessionRumorFullLevel = 20
+LLMChatter.ThemedTopics.ProfessionRumorMaxLevel = 30
+LLMChatter.ThemedTopics.ClassTrainerRumorFullLevel = 15
+LLMChatter.ThemedTopics.ClassTrainerRumorMaxLevel = 25
+LLMChatter.ThemedTopics.TrainerRumorReducedPercent = 33
+
+#
+#   LLMChatter.ThemedTopics.OwnTrainerChance [BRIDGE]
+#       Percent chance (0-100) that a trainer rumor names a
+#       trainer for the listener's own race or class rather than
+#       another one.
+#       Default: 50
+#
+LLMChatter.ThemedTopics.OwnTrainerChance = 50
+
+#
+#   LLMChatter.RaceClassNotes.Enable [BRIDGE]
+#       Add a short lore note for the speaker's race and class
+#       (priests split into Light and Shadow by spec) to the
+#       speaker's identity in Guild chat prompts.
+#       Default: 1
+#
+LLMChatter.RaceClassNotes.Enable = 1
+
+#
+#   LLMChatter.GuildChatter.ZoneTopicChance
+#       Percent chance (0-100) that an idle Guild line is the
+#       speaker's opinion of its current zone; others agree or
+#       argue.
+#       When conversation threads are on for Guild chat
+#       (LLMChatter.Threads.GuildEnable), a hit only offers
+#       this topic to the thread's pool source, so
+#       LLMChatter.Threads.PoolTopicWeight decides how often
+#       it is actually used.
+#       Default: 10
+#
+LLMChatter.GuildChatter.ZoneTopicChance = 10
+
+#
+#   LLMChatter.GuildChatter.ZoneWeatherTopicChance
+#       Percent chance (0-100) that an idle Guild line is about
+#       the current zone at this hour and in this weather.
+#       When conversation threads are on for Guild chat
+#       (LLMChatter.Threads.GuildEnable), a hit only offers
+#       this topic to the thread's pool source, so
+#       LLMChatter.Threads.PoolTopicWeight decides how often
+#       it is actually used.
+#       Default: 8
+#
+LLMChatter.GuildChatter.ZoneWeatherTopicChance = 8
 
 #
 #   LLMChatter.RaidChatter.BattleCryChance
@@ -2636,6 +3384,21 @@ LLMChatter.RaidChatter.IdleCooldown = 60
 #       Default: 20
 #
 LLMChatter.ActionChance = 15
+
+#
+#   LLMChatter.ActionAsEmote.Enable
+#       Deliver the action as a separate text emote sent just
+#       before the spoken line, so it reads as a real emote in the
+#       chat log ("Miranda looks out the window") rather than
+#       *asterisks* glued to the speech.
+#       Set to 0 to restore the old inline "*action* text" form.
+#       Note that /e is proximity based: on party, raid, guild and
+#       General messages the emote is only seen by players standing
+#       near the bot, while the spoken line still reaches the whole
+#       channel.
+#       Default: 1
+#
+LLMChatter.ActionAsEmote.Enable = 1
 
 #
 #   LLMChatter.EmoteChance
@@ -2767,8 +3530,8 @@ LLMChatter.Bridge.InterSystemStaggerMax = 6
 #       message. Simulates "reading + typing" time. Applies
 #       to all chatter: party replies, General reactions,
 #       idle conversations, event reactions. Direct replies
-#       to player chat use a faster 2-second floor but still
-#       respect this minimum. Lower = snappier replies.
+#       to player chat use ResponsiveDelayMin/Max instead.
+#       Lower = snappier replies.
 #       Default: 1000
 #
 LLMChatter.MessageDelayMin = 1000
@@ -2782,6 +3545,19 @@ LLMChatter.MessageDelayMin = 1000
 #       Default: 30000
 #
 LLMChatter.MessageDelayMax = 30000
+
+#
+#   LLMChatter.ResponsiveDelayMin
+#   LLMChatter.ResponsiveDelayMax
+#       Delay range (milliseconds) before a bot answers a
+#       message the player sent it. The LLM call itself
+#       already takes time, so this only simulates a short
+#       pause before typing. Lower = snappier replies to the
+#       player. Ambient chatter keeps MessageDelayMin/Max.
+#       Default: Min = 4000, Max = 8000
+#
+LLMChatter.ResponsiveDelayMin = 4000
+LLMChatter.ResponsiveDelayMax = 8000
 
 #
 # PARTY CHAT PACING GATE [BRIDGE]
@@ -2868,7 +3644,7 @@ LLMChatter.DistanceUnit = yards
 #       Does NOT affect party chat or event reactions.
 #       Default: 900 (15 minutes)
 #
-LLMChatter.BotSpeakerCooldownSeconds = 900
+LLMChatter.BotSpeakerCooldownSeconds = 120
 
 #
 #   LLMChatter.EventExpirationSeconds
@@ -2889,6 +3665,49 @@ LLMChatter.EventExpirationSeconds = 600
 LLMChatter.BGChatter.MaxTokens = 300
 
 #
+#   BG arrival greetings [BRIDGE]
+#       Always select one BG-wide greeting when enabled and bots exist.
+#       A second BG-wide greeting has ArrivalRaidSecondChance percent chance.
+#       Independently roll a uniform Party count from ArrivalPartyMin to Max.
+#       Counts are capped by subgroup bots. A bot may speak once per channel.
+#       Generation and delivery guards still apply.
+#
+LLMChatter.BGChatter.ArrivalGreetings.Enable = 1
+LLMChatter.BGChatter.ArrivalRaidSecondChance = 50
+LLMChatter.BGChatter.ArrivalPartyMin = 0
+LLMChatter.BGChatter.ArrivalPartyMax = 3
+
+#
+#   LLMChatter.BGChatter.FlagRegrabWindowSec
+#       [BRIDGE] A flag pickup by the same player who dropped
+#       that flag within this many seconds is treated as a
+#       re-grab and gets no callout, so one carry that briefly
+#       drops the flag does not spam BG chat. 0 disables.
+#       Default: 15
+#
+LLMChatter.BGChatter.FlagRegrabWindowSec = 15
+
+#
+#   LLMChatter.BGChatter.AchievementCooldownSec
+#       [BRIDGE] Minimum seconds between achievement reactions for
+#       the same group inside a battleground. Early in a match
+#       everyone earns honorable-kill achievements at once; this
+#       keeps them from flooding party chat. 0 disables.
+#       Default: 45
+#
+LLMChatter.BGChatter.AchievementCooldownSec = 45
+
+#
+#   LLMChatter.BGChatter.AchievementRepeatWindowSec
+#       [BRIDGE] Once an achievement got a reaction in a
+#       battleground, the same achievement earned by other
+#       teammates is ignored for this many seconds (e.g. "Know
+#       Thy Enemy" earned bot after bot). 0 disables.
+#       Default: 300
+#
+LLMChatter.BGChatter.AchievementRepeatWindowSec = 300
+
+#
 #   LLMChatter.BGChatter.IdleChatterChance
 #       Percent chance (0-100) that bots chat during quiet
 #       stretches in a battleground. Checked each poll cycle
@@ -2904,6 +3723,35 @@ LLMChatter.BGChatter.IdleChatterChance = 15
 #       Default: 30
 #
 LLMChatter.BGChatter.IdleChatterCooldownSec = 30
+
+#
+#   LLMChatter.BGChatter.FlagCarryChatterIntervalSec
+#       [SERVER] While a Warsong Gulch flag is being carried, how
+#       often (seconds) the team may talk about the ongoing carry:
+#       encouraging your carrier, hunting theirs, or a standoff.
+#       The first line waits at least this long after a pickup.
+#       0 disables.
+#       Default: 45
+#
+LLMChatter.BGChatter.FlagCarryChatterIntervalSec = 45
+
+#
+#   LLMChatter.BGChatter.FlagCarryChatterChance
+#       [SERVER] Percent chance (0-100) that each carry-chatter
+#       interval actually produces a line, so the cadence is not
+#       predictable.
+#       Default: 50
+#
+LLMChatter.BGChatter.FlagCarryChatterChance = 50
+
+#
+#   LLMChatter.BGChatter.FlagCarryBGChannelChance
+#       [BRIDGE] Percent chance (0-100) that an ongoing flag-carry
+#       line is said in battleground chat by a teammate outside
+#       your sub-group, instead of in party chat.
+#       Default: 70
+#
+LLMChatter.BGChatter.FlagCarryBGChannelChance = 70
 
 #
 #   LLMChatter.BGChatter.RezChance
@@ -2957,6 +3805,16 @@ LLMChatter.Memory.AmbientChance = 20
 #       Default: 20
 #
 LLMChatter.Memory.RecallChance = 20
+
+#
+#   LLMChatter.Memory.RecallCount
+#       How many past memories (1-10) are retrieved for a
+#       reunion greeting, a reply to the player or a bot
+#       question. More memories give the bot more to draw on
+#       but make the prompt longer.
+#       Default: 3
+#
+LLMChatter.Memory.RecallCount = 3
 
 #
 #   LLMChatter.Memory.SessionMinutes
@@ -3035,14 +3893,6 @@ LLMChatter.Memory.LevelUpGenerationChance = 60
 LLMChatter.Memory.BGMatchGenerationChance = 45
 
 #
-#   LLMChatter.Memory.DiscoveryGenerationChance
-#       Percent chance (0-100) that discovering a new
-#       area generates a persistent memory.
-#       Default: 30
-#
-LLMChatter.Memory.DiscoveryGenerationChance = 30
-
-#
 #   LLMChatter.Memory.PvPKillGenerationChance
 #       Percent chance (0-100) that a PvP kill event
 #       generates a persistent memory.
@@ -3091,6 +3941,14 @@ LLMChatter.Memory.PartyMemberGenerationChance = 50
 #
 LLMChatter.Memory.IdleRecallChance = 20
 
+#
+#   LLMChatter.Memory.IdleRecallCount
+#       How many past memories (1-10) idle chatter retrieves
+#       when IdleRecallChance passes.
+#       Default: 2
+#
+LLMChatter.Memory.IdleRecallCount = 2
+
 ###############################################################################
 # BACKSTORY
 ###############################################################################
@@ -3118,6 +3976,19 @@ LLMChatter.Backstory.Enable = 1
 LLMChatter.Backstory.IdleChance = 25
 
 #
+#   LLMChatter.Backstory.PartyReactionChance [BRIDGE]
+#       Percent chance (0-100) that a party bot's backstory is included
+#       when it reacts to a party event (kills, loot, deaths, level-ups,
+#       quests, zone changes...) or replies to the player, including
+#       each speaker in multi-bot party conversations. Roleplay mode
+#       only; quick casual replies never include it. Lower it to save
+#       prompt tokens (roughly 50-150 per bot).
+#       Requires bridge restart to take effect.
+#       Default: 50
+#
+LLMChatter.Backstory.PartyReactionChance = 50
+
+#
 #   LLMChatter.Backstory.ProximityChance [BRIDGE]
 #       Percent chance (0-100) that a bot's backstory
 #       is included in proximity chatter prompts.
@@ -3125,6 +3996,250 @@ LLMChatter.Backstory.IdleChance = 25
 #       Default: 15
 #
 LLMChatter.Backstory.ProximityChance = 15
+
+#
+#   LLMChatter.Backstory.GeneralChance [BRIDGE]
+#       Independent chance per General speaker to include their backstory.
+#       Traits and tone are always included. Roleplay only. Range: 0-100.
+#       Does not affect profile creation or storage.
+#       Requires bridge restart to take effect.
+#       Default: 25
+#
+LLMChatter.Backstory.GeneralChance = 25
+
+#
+#   LLMChatter.Backstory.GuildChance [BRIDGE]
+#       Independent chance per Guild speaker to include their backstory.
+#       Traits and tone are always included. Roleplay only. Range: 0-100.
+#       Does not affect profile creation or storage.
+#       Requires bridge restart to take effect.
+#       Default: 25
+#
+LLMChatter.Backstory.GuildChance = 25
+
+#
+#   LLMChatter.Profile.GuildScanIntervalSeconds [BRIDGE]
+#       Poll for missing profiles in guilds with an online real-player session.
+#       One background batch at a time; bot-only guilds are excluded.
+#       Requires bridge restart to take effect.
+#       Default: 15
+#
+LLMChatter.Profile.GuildScanIntervalSeconds = 15
+
+#
+#   LLMChatter.Profile.GuildBatchSize [BRIDGE]
+#       Maximum profiles prepared per scan (1-100). Existing guild members
+#       are backfilled at this rate; selected speakers are also ensured.
+#       Requires bridge restart to take effect.
+#       Default: 2
+#
+LLMChatter.Profile.GuildBatchSize = 2
+
+#
+#   LLMChatter.Profile.RetrySeconds [BRIDGE]
+#       Retry delay after failed profile persistence or LLM generation.
+#       Successful fields are retained. Minimum: 1 second.
+#       Requires bridge restart to take effect.
+#       Default: 300
+#
+LLMChatter.Profile.RetrySeconds = 300
+
+#
+#   LLMChatter.Persona.TwistChance [BRIDGE]
+#       Percent chance (0-100) that a prompt gets an
+#       optional creative angle. The angle is framed as
+#       "use only if it fits your personality".
+#       Requires bridge restart to take effect.
+#       Default: 25
+#
+LLMChatter.Persona.TwistChance = 25
+
+#
+#   LLMChatter.Persona.SpiceChance [BRIDGE]
+#       Percent chance (0-100) that a prompt gets
+#       background feelings ("spices") at all. Spices
+#       are framed as texture that must fit the bot's
+#       personality. 0 disables them.
+#       Requires bridge restart to take effect.
+#       Default: 30
+#
+LLMChatter.Persona.SpiceChance = 30
+
+#
+#   LLMChatter.PersonalitySpiceCount [BRIDGE]
+#       How many background feelings a prompt gets when
+#       the SpiceChance roll passes (0-5). 0 disables
+#       spices.
+#       Requires bridge restart to take effect.
+#       Default: 2
+#
+LLMChatter.PersonalitySpiceCount = 2
+
+#
+#   LLMChatter.Threads.Enable [BRIDGE]
+#       1 = party idle chatter follows conversation threads.
+#       0 = previous behaviour (random topic per exchange).
+#       Default: 1
+#
+LLMChatter.Threads.Enable = 1
+
+#
+#   LLMChatter.Threads.GuildEnable [BRIDGE]
+#   LLMChatter.Threads.GeneralEnable [BRIDGE]
+#       Per-channel switches under Threads.Enable. Guild chat keeps one
+#       thread per guild; the General channel keeps one per zone and
+#       faction (Alliance and Horde each have their own General). Their
+#       ambient lines follow the thread, and replies to the player see
+#       it. 0 = that channel keeps the random-topic behaviour.
+#       Defaults: 1 / 1
+#
+LLMChatter.Threads.GuildEnable = 1
+
+LLMChatter.Threads.GeneralEnable = 1
+
+#
+#   LLMChatter.Threads.HistorySize [BRIDGE]
+#       How many finished subjects a party remembers for callbacks
+#       ("about what you said earlier"). Range 1-10.
+#       Default: 5
+#
+LLMChatter.Threads.HistorySize = 5
+
+#
+#   LLMChatter.Threads.ExchangeDecay [BRIDGE]
+#       Percent (10-95) of a subject's remaining energy kept after each
+#       exchange when the model does not report it. Higher = stickier
+#       subjects.
+#       Default: 70
+#
+LLMChatter.Threads.ExchangeDecay = 70
+
+#
+#   LLMChatter.Threads.CoolMinutes [BRIDGE]
+#       Minutes of silence that halve a subject's energy (1-240), so an
+#       old subject is not picked up as if no time had passed.
+#       Default: 15
+#
+LLMChatter.Threads.CoolMinutes = 15
+
+#
+#   LLMChatter.Threads.FeelingTurns [BRIDGE]
+#       How many following exchanges a bot's lingering feeling stays in
+#       the prompt (1-10).
+#       Default: 3
+#
+LLMChatter.Threads.FeelingTurns = 3
+
+#
+#   LLMChatter.Threads.PersonaTopicWeight [BRIDGE]
+#   LLMChatter.Threads.SurroundingsTopicWeight [BRIDGE]
+#   LLMChatter.Threads.PoolTopicWeight [BRIDGE]
+#       Relative weights (0-100) for where a fresh subject comes from:
+#       something a bot personally cares about (traits, backstory,
+#       race/class), the surroundings, or the random topic pool. The
+#       pool is never used inside dungeons or battlegrounds.
+#       Defaults: 60 / 30 / 10
+#
+LLMChatter.Threads.PersonaTopicWeight = 60
+LLMChatter.Threads.SurroundingsTopicWeight = 30
+LLMChatter.Threads.PoolTopicWeight = 10
+
+#
+#   LLMChatter.Threads.ThemedTopicWeight [BRIDGE]
+#       Weight (0-100) of a themed subject (see
+#       LLMChatter.ThemedTopics.*) as a fresh subject, next to the
+#       three weights above. Used only when a themed subject fits
+#       the channel and its listeners; 0 never picks one while
+#       threads are on.
+#       Default: 25
+#
+LLMChatter.Threads.ThemedTopicWeight = 20
+
+#
+#   LLMChatter.Threads.SurpriseChance [BRIDGE]
+#       Percent chance (0-100) that an exchange explicitly allows a
+#       believable surprise: a bot changing its mind, going off on a
+#       tangent, revealing something or taking an unexpected stance.
+#       Default: 12
+#
+LLMChatter.Threads.SurpriseChance = 12
+
+#
+#   LLMChatter.Threads.HighEnergyThreshold [BRIDGE]
+#   LLMChatter.Threads.LowEnergyThreshold [BRIDGE]
+#       Energy bands (percent) that pick which move weights apply to
+#       the current subject: at or above High uses HighEnergyMoveWeights,
+#       at or above Low uses MidEnergyMoveWeights, below uses
+#       LowEnergyMoveWeights. Low must be below High.
+#       Defaults: 60 / 30
+#
+LLMChatter.Threads.HighEnergyThreshold = 60
+LLMChatter.Threads.LowEnergyThreshold = 30
+
+#
+#   LLMChatter.Threads.HighEnergyMoveWeights [BRIDGE]
+#   LLMChatter.Threads.MidEnergyMoveWeights [BRIDGE]
+#   LLMChatter.Threads.LowEnergyMoveWeights [BRIDGE]
+#       Relative weights "continue,drift,callback,new" (four numbers,
+#       0-100 each, not all zero) for the soft nudge in each energy
+#       band. Callback weight moves to "new" while no earlier subject
+#       exists. Invalid values fall back to the defaults.
+#       Defaults: 70,20,5,5 / 35,35,15,15 / 10,25,25,40
+#
+LLMChatter.Threads.HighEnergyMoveWeights = 70,20,5,5
+LLMChatter.Threads.MidEnergyMoveWeights = 35,35,15,15
+LLMChatter.Threads.LowEnergyMoveWeights = 10,25,25,40
+
+#
+#   LLMChatter.Threads.PendingTimeoutSeconds [BRIDGE]
+#       An idle exchange only becomes part of the thread once every line
+#       it queued was actually sent in game. Lines still unsent after
+#       this many seconds (30-3600) count as dropped, even if the
+#       delivery status cannot be read.
+#       Default: 300
+#
+LLMChatter.Threads.PendingTimeoutSeconds = 300
+
+#
+#   LLMChatter.Threads.MaxPending [BRIDGE]
+#       Maximum unconfirmed idle exchanges held per party (1-50); the
+#       oldest is discarded first.
+#       Default: 6
+#
+LLMChatter.Threads.MaxPending = 6
+
+#
+#   LLMChatter.Threads.IdleTTLMinutes [BRIDGE]
+#       Minutes without any activity after which a party's threads are
+#       forgotten (10-1440). Ended parties are also forgotten on the next
+#       idle tick.
+#       Default: 180
+#
+LLMChatter.Threads.IdleTTLMinutes = 180
+
+#
+#   LLMChatter.Threads.MaxGroups [BRIDGE]
+#       Maximum parties kept in thread memory (1-5000); the least
+#       recently active party is dropped first.
+#       Default: 200
+#
+LLMChatter.Threads.MaxGroups = 200
+
+#
+#   LLMChatter.Threads.MaxInterruptions [BRIDGE]
+#       How many recent player lines and events (1-10) the next idle
+#       exchange is told about.
+#       Default: 4
+#
+LLMChatter.Threads.MaxInterruptions = 4
+
+#
+#   LLMChatter.Threads.ReportTokens [BRIDGE]
+#       Extra output tokens (40-400) reserved for the model's thread
+#       report so it never truncates the chat line before it.
+#       Default: 90
+#
+LLMChatter.Threads.ReportTokens = 90
 
 ###############################################################################
 # EMOTE REACTION SYSTEM
@@ -3200,6 +4315,26 @@ LLMChatter.EmoteReactions.UngroupedBotWitnessReactionChance = 50
 LLMChatter.EmoteReactions.ObserverChance = 50
 
 #
+#   LLMChatter.EmoteReactions.PartyObserverExchangeChance [BRIDGE]
+#       When a party bot chimes in on the player's emote at another
+#       party bot, percent chance (0-100) that it becomes a short
+#       two-line exchange: the observer remarks and the targeted bot
+#       answers it. Otherwise a single comment.
+#       Default: 35
+#
+LLMChatter.EmoteReactions.PartyObserverExchangeChance = 25
+
+#
+#   LLMChatter.EmoteReactions.PartyBotWitnessChance [SERVER]
+#       Percent chance (0-100) that nearby NPCs or playerbots outside
+#       the party witness the player's emote at a party bot and react
+#       in /say (proximity chatter must be enabled). The party bot
+#       itself answers in party chat.
+#       Default: 30
+#
+LLMChatter.EmoteReactions.PartyBotWitnessChance = 20
+
+#
 #   LLMChatter.EmoteReactions.ObserverCooldown
 #       Seconds before the same group can trigger another
 #       observer comment.
@@ -3224,6 +4359,32 @@ LLMChatter.EmoteReactions.MoodSpreadChance = 50
 #       Default: 1
 #
 LLMChatter.EmoteReactions.NPCMirrorEnable = 1
+
+#
+#   LLMChatter.EmoteReactions.CustomEnable
+#       React to free-text emotes typed as /e or /me
+#       ("/e grabs hand"), not just the ~244 named emotes
+#       like /point and /salute. The typed text is passed to
+#       the model as the action.
+#       Because a custom emote has no emote id, bots can only
+#       answer verbally: there is no animation to mirror, and
+#       NPC mirroring stays named-emote only. The target is
+#       taken from whoever the player has selected, since the
+#       client sends no target with a custom emote.
+#       Requires LLMChatter.EmoteReactions.Enable.
+#       Default: 1
+#
+LLMChatter.EmoteReactions.CustomEnable = 1
+
+#
+#   LLMChatter.EmoteReactions.CustomMaxChars
+#       Clamp for the typed emote text before it reaches the
+#       prompt, counted in characters (not bytes), so non-ASCII
+#       text gets the same length. Longer emotes are cut at a
+#       character boundary.
+#       Default: 120
+#
+LLMChatter.EmoteReactions.CustomMaxChars = 120
 
 #
 #   LLMChatter.EmoteReactions.NPCVerbalReactionChance
@@ -3251,6 +4412,23 @@ LLMChatter.EmoteReactions.NPCVerbalCooldown = 3
 #
 LLMChatter.EmoteReactions.CxxScriptExclusionEntries = 620,25305,33211,33224,6626,7233,3401
 
+#
+#   LLMChatter.GearContext.Enable
+#       [BRIDGE]
+#       Tell bots what they are actually carrying: the
+#       equipped main hand, off hand and ranged items by
+#       name and type, plus the pet of a hunter or warlock
+#       by name and species. Without it a bot invents its
+#       gear, talking about a sword while holding a mace,
+#       or treats its own pet as a stranger.
+#       Applies to party chatter, emote reactions and
+#       ambient chatter. Reads the character database and
+#       caches per bot, so the cost is one small query
+#       every few minutes rather than one per message.
+#       Default: 1 (enabled)
+#
+LLMChatter.GearContext.Enable = 1
+
 ###############################################
 # Screenshot Vision Feature (Experimental)
 # Requires screenshot_agent.py running on host
@@ -3271,6 +4449,8 @@ LLMChatter.Screenshot.Enable = 0
 #       MySQL host for the screenshot agent, which runs
 #       on the host machine (not inside Docker). Use
 #       127.0.0.1 when MySQL is exposed on localhost.
+#       If unset, falls back to LLMChatter.Database.Host,
+#       which is usually a Docker-internal hostname.
 #       Default: 127.0.0.1
 #
 LLMChatter.Screenshot.DBHost = 127.0.0.1
@@ -3311,13 +4491,13 @@ LLMChatter.Screenshot.VisionProvider = openai
 #       Vision model used for screenshot analysis.
 #       Format: an exact vision-capable API model ID with no quotes. Use a
 #       vendor/model slug when VisionProvider is openrouter.
-#       Recommended: gpt-4o-mini (fast and inexpensive)
-#       Alternatives: claude-haiku-4-5-20251001,
+#       Recommended: gpt-6-luna (fast, inexpensive, good vision)
+#       Alternatives: gpt-4o-mini, claude-haiku-4-5-20251001,
 #       gemini-3.1-flash-lite, gemini-2.5-flash,
 #       anthropic/claude-haiku-4.5 (OpenRouter)
-#       Default: gpt-4o-mini
+#       Default: gpt-6-luna
 #
-LLMChatter.Screenshot.VisionModel = gpt-4o-mini
+LLMChatter.Screenshot.VisionModel = gpt-6-luna
 
 #
 #   LLMChatter.Screenshot.ConversationChance
@@ -3350,23 +4530,54 @@ LLMChatter.Screenshot.JpegQuality = 75
 
 #
 #   LLMChatter.Screenshot.BoundAccountId
-#       Bind this screenshot agent to a specific player
-#       account so the observation is routed to the correct
-#       group. Required for multi-player servers.
-#       For single-player, leave at 0 to auto-detect.
-#       Find your ID: SELECT id FROM acore_auth.account
-#         WHERE username = 'YOURNAME'
-#       Default: 0 (auto-detect first active group)
+#       Bind observations to the account in the captured WoW window.
+#       Required for multi-player servers and always required for NPC
+#       proximity. Zero auto-detects a group for Party only.
+#       Consumed by host and worldserver: restart host and reload server
+#       config after edits. Find your ID in acore_auth.account.
+#       Default: 0 (Party auto-detection; NPC proximity unavailable)
 #
 LLMChatter.Screenshot.BoundAccountId = 0
 
 #
-#   LLMChatter.Screenshot.DBHost
-#       Database host override for the host-side agent.
-#       The bridge uses a Docker-internal hostname (e.g.
-#       ac-database) that the Windows host can't resolve.
-#       Set this to 127.0.0.1 for the host agent.
-#       If unset, falls back to LLMChatter.Database.Host.
-#       Default: (uses LLMChatter.Database.Host)
+#   LLMChatter.Screenshot.Proximity.Enable
+#       Enable screenshot-triggered nearby NPC chatter independently of
+#       Party, including while solo. Requires the characters migration,
+#       ProximityChatter.Enable and an explicit Screenshot.BoundAccountId.
+#       Host and worldserver setting: restart host and reload server config.
+#       Default: 0 (disabled)
 #
-# LLMChatter.Screenshot.DBHost = 127.0.0.1
+LLMChatter.Screenshot.Proximity.Enable = 0
+
+#
+#   LLMChatter.Screenshot.Proximity.Chance
+#       Host-side chance after the existing Screenshot.Chance cycle roll.
+#       Party has no additional roll. Range: 0-100. Restart the host agent.
+#       Default: 30
+#
+LLMChatter.Screenshot.Proximity.Chance = 30
+
+#
+#   LLMChatter.Screenshot.Proximity.PollIntervalMs
+#       Worldserver mailbox polling interval. Clamped to 100-10000 ms.
+#       Reload server config after changing this setting.
+#       Default: 1000
+#
+LLMChatter.Screenshot.Proximity.PollIntervalMs = 1000
+
+#
+#   LLMChatter.Screenshot.Proximity.RequestTimeoutSeconds
+#       Host wait for server preflight. Clamped to 1-30 seconds.
+#       Restart the host agent after changing this setting.
+#       Default: 5
+#
+LLMChatter.Screenshot.Proximity.RequestTimeoutSeconds = 5
+
+#
+#   LLMChatter.Screenshot.Proximity.MaxAgeSeconds
+#       Server preflight-to-consumption lifetime, clamped to 5-300 seconds.
+#       Final speech uses normal event expiry plus live session/range checks.
+#       Reload server config after changing this setting.
+#       Default: 60
+#
+LLMChatter.Screenshot.Proximity.MaxAgeSeconds = 60

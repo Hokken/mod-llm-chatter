@@ -5,11 +5,12 @@ WoW game window, sends it to a vision LLM for structured environmental
 analysis, and inserts the result into llm_chatter_events so the bridge
 can generate an in-character bot comment.
 
-Usage:
-    python screenshot_agent.py --config path/to/mod_llm_chatter.conf
+Usage (from the AzerothCore workspace root):
+    python modules/mod-llm-chatter/tools/screenshot_agent.py --config env/dist/etc/modules/mod_llm_chatter.conf
 
-Requirements (host-side):
-    pip install mss Pillow anthropic openai mysql-connector-python pywin32
+Requirements (host-side, using the same Python interpreter):
+    python -m pip install -r modules/mod-llm-chatter/tools/requirements.txt
+    python -m pip install mss Pillow pywin32
 """
 
 import argparse
@@ -27,10 +28,23 @@ import time
 import mysql.connector
 from PIL import Image
 
+from chatter_shared import parse_config
+from chatter_structured import (
+    ResponseContract, StructuredDependencyError, StructuredOutputError,
+    structured_output_enabled,
+)
+from chatter_llm import (
+    structured_completion, log_structured_failure, log_structured_target,
+    reset_structured_diagnostics, check_structured_dependencies,
+    build_anthropic_request, extract_anthropic_text,
+)
+from screenshot_proximity import request_ticket, publish_observation
 from llm_compat import (
     build_chat_options,
+    create_anthropic_message,
     create_chat_completion,
     needs_reasoning_token_multiplier,
+    structured_rejection_category,
 )
 
 log = logging.getLogger("screenshot_agent")
@@ -109,28 +123,14 @@ VISION_SYSTEM = (
 )
 
 # -----------------------------------------------------------
-# Config parsing (reuse chatter pattern)
+# Config parsing
 # -----------------------------------------------------------
-
-
-def parse_config(config_path: str) -> dict:
-    """Parse WoW-style Key = Value config file."""
-    cfg = {}
-    with open(config_path, 'r', encoding='utf-8') as f:
-        for line in f:
-            line = line.strip()
-            if not line or line.startswith('#'):
-                continue
-            if '=' not in line:
-                continue
-            key, _, val = line.partition('=')
-            cfg[key.strip()] = val.strip()
-    return cfg
 
 
 def load_screenshot_config(raw: dict) -> dict:
     """Extract screenshot-specific config with defaults."""
     return {
+        'structured_output': structured_output_enabled(raw),
         'enable': raw.get(
             'LLMChatter.Screenshot.Enable', '0') == '1',
         'interval_min_seconds': int(raw.get(
@@ -146,15 +146,28 @@ def load_screenshot_config(raw: dict) -> dict:
             'openai').lower(),
         'vision_model': raw.get(
             'LLMChatter.Screenshot.VisionModel',
-            'gpt-4o-mini'),
+            'gpt-6-luna'),
         'bound_account_id': int(raw.get(
             'LLMChatter.Screenshot.BoundAccountId', '0')),
+        'proximity_enable': raw.get(
+            'LLMChatter.Screenshot.Proximity.Enable', '0') == '1',
+        'proximity_chance': max(0, min(100, int(raw.get(
+            'LLMChatter.Screenshot.Proximity.Chance', '30')))),
+        'proximity_request_timeout': max(1, min(30, int(raw.get(
+            'LLMChatter.Screenshot.Proximity.RequestTimeoutSeconds', '5')))),
         'max_width_px': int(raw.get(
             'LLMChatter.Screenshot.MaxWidthPx', '640')),
         'jpeg_quality': int(raw.get(
             'LLMChatter.Screenshot.JpegQuality', '75')),
         'anthropic_api_key': raw.get(
             'LLMChatter.Anthropic.ApiKey', ''),
+        # Raw keys consumed by chatter_llm.build_anthropic_request.
+        'anthropic_options': {
+            key: raw[key] for key in (
+                'LLMChatter.Anthropic.Thinking',
+                'LLMChatter.Anthropic.MaxTokensMultiplier',
+            ) if key in raw
+        },
         'openai_api_key': raw.get(
             'LLMChatter.OpenAI.ApiKey', ''),
         'openai_reasoning_effort': raw.get(
@@ -285,29 +298,57 @@ def compress_screenshot(
 # -----------------------------------------------------------
 
 
+def _structured_vision_call(operation, kwargs, provider, model, multiplier=1):
+    diagnostics = dict(requested=True, applied='schema')
+    result = None
+    try:
+        result = structured_completion(
+            operation, kwargs, provider, model, ResponseContract('vision'),
+            diagnostics, log, multiplier,
+        )
+    except Exception as exc:
+        category = ('dependency_missing'
+                    if isinstance(exc, StructuredDependencyError) else
+                    diagnostics.get('validation', 'invalid_response')
+                    if isinstance(exc, StructuredOutputError) else
+                    structured_rejection_category(exc, provider))
+        if category:
+            diagnostics['error_category'] = category
+            log_structured_failure(provider, model,
+                                   diagnostics.get('schema_id'), category, log,
+                                   diagnostics=diagnostics,
+                                   label='screenshot_vision', error=exc)
+        else:
+            log.error('Vision API call failed: %s', exc)
+    return result
+
+
 def _call_anthropic(
     jpeg_b64: str, client, model: str,
+    *, structured_output=False, anthropic_options=None,
 ) -> 'str | None':
-    resp = client.messages.create(
-        model=model,
-        max_tokens=300,
-        system=VISION_SYSTEM,
-        messages=[{
-            "role": "user",
-            "content": [{
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": "image/jpeg",
-                    "data": jpeg_b64,
-                },
-            }, {
-                "type": "text",
-                "text": "What do you see in this scene?",
-            }],
+    request_kwargs = build_anthropic_request(
+        model, anthropic_options or {}, 300, [{
+            "type": "image",
+            "source": {
+                "type": "base64",
+                "media_type": "image/jpeg",
+                "data": jpeg_b64,
+            },
+        }, {
+            "type": "text",
+            "text": "What do you see in this scene?",
         }],
+        sys_msg=VISION_SYSTEM,
     )
-    return resp.content[0].text.strip()
+    if structured_output:
+        return _structured_vision_call(
+            client.messages.create, request_kwargs, 'anthropic', model,
+        )
+    resp = create_anthropic_message(
+        client.messages.create, request_kwargs, model, log,
+    )
+    return extract_anthropic_text(resp)
 
 
 def _call_openai(
@@ -317,6 +358,7 @@ def _call_openai(
     provider: str = 'openai',
     reasoning_effort: str = '',
     max_tokens_multiplier: float = 4,
+    *, structured_output=False,
 ) -> 'str | None':
     if provider != 'openai':
         reasoning_effort = ''
@@ -353,6 +395,11 @@ def _call_openai(
         max_tokens,
         reasoning_effort=reasoning_effort,
     ))
+    if structured_output:
+        return _structured_vision_call(
+            client.chat.completions.create, request_kwargs, provider, model,
+            max_tokens_multiplier,
+        )
     resp = create_chat_completion(
         client.chat.completions.create,
         request_kwargs,
@@ -381,6 +428,7 @@ def analyze_screenshot(
     provider: str = 'openai',
     reasoning_effort: str = '',
     max_tokens_multiplier: float = 4,
+    *, structured_output=False, anthropic_options=None,
 ) -> 'dict | None':
     """Send screenshot to vision LLM, return structured
     description or None if uninteresting / error."""
@@ -388,7 +436,10 @@ def analyze_screenshot(
 
     try:
         if provider == 'anthropic':
-            raw = _call_anthropic(b64, client, model)
+            raw = _call_anthropic(
+                b64, client, model, structured_output=structured_output,
+                anthropic_options=anthropic_options,
+            )
         else:
             raw = _call_openai(
                 b64,
@@ -397,6 +448,7 @@ def analyze_screenshot(
                 provider,
                 reasoning_effort,
                 max_tokens_multiplier,
+                structured_output=structured_output,
             )
     except Exception as e:
         log.error("Vision API call failed: %s", e)
@@ -406,12 +458,16 @@ def analyze_screenshot(
         return None
 
     # Robust JSON extraction — handle markdown fences
-    match = re.search(r'\{[^{}]*\}', raw, re.DOTALL)
-    if not match:
-        log.warning("No JSON found in vision response")
-        return None
+    if structured_output:
+        json_text = raw
+    else:
+        match = re.search(r'\{[^{}]*\}', raw, re.DOTALL)
+        if not match:
+            log.warning("No JSON found in vision response")
+            return None
+        json_text = match.group()
     try:
-        data = json.loads(match.group())
+        data = json.loads(json_text)
     except json.JSONDecodeError:
         log.warning("JSON parse failed for vision response")
         return None
@@ -544,8 +600,11 @@ def get_bound_player_group(
 
 
 def get_active_group_fallback(db) -> 'dict | None':
-    """Fallback: find first group with bots and a real
-    player. Used when BoundAccountId is not set."""
+    """Fallback: find a random group bot whose group has an
+    online real player. Used when BoundAccountId is not set.
+    Real players are identified the same way as
+    chatter_db.get_real_player_guid_for_group: not a traits
+    bot in that group and not on an RNDBOT account."""
     cursor = db.cursor(dictionary=True)
     try:
         cursor.execute("""
@@ -563,8 +622,14 @@ def get_active_group_fallback(db) -> 'dict | None':
                 ON gm.guid = t.group_id
             JOIN characters c
                 ON c.guid = gm.memberGuid
-                AND c.account != 0
                 AND c.online = 1
+            JOIN acore_auth.account a
+                ON a.id = c.account
+            LEFT JOIN llm_group_bot_traits pt
+                ON pt.group_id = gm.guid
+                AND pt.bot_guid = gm.memberGuid
+            WHERE pt.bot_guid IS NULL
+              AND a.username NOT LIKE 'RNDBOT%'
             ORDER BY RAND()
             LIMIT 1
         """)
@@ -660,29 +725,78 @@ def _do_capture_cycle(
 ) -> None:
     """Single capture-analyze-queue cycle."""
     if not is_wow_foreground():
+        log.info('Screenshot skipped: WoW is not the foreground window')
         return
 
-    # Check for active group BEFORE capturing/calling
-    # the vision API — no point spending money if
-    # there's nobody to deliver the observation to.
-    db = get_db_connection(config)
+    # Resolve the routes independently before paying for vision.
+    group_info = None
+    ticket = None
+    account_id = config.get('bound_account_id', 0)
+    log.info('WoW is focused; checking Party recipients (account=%s)',
+             account_id or 'automatic group selection')
     try:
-        account_id = config.get('bound_account_id', 0)
-        if account_id:
-            group_info = get_bound_player_group(
-                db, account_id)
-        else:
-            group_info = get_active_group_fallback(db)
-    finally:
-        db.close()
+        db = get_db_connection(config)
+        try:
+            if account_id:
+                group_info = get_bound_player_group(db, account_id)
+            else:
+                group_info = get_active_group_fallback(db)
+        finally:
+            db.close()
+    except Exception:
+        log.exception('Screenshot Party eligibility failed')
 
     if group_info is None:
-        log.info("No active group with bots, skipping")
+        log.info('Party: no eligible grouped bot found')
+    else:
+        log.info('Party: recipient=%s, zone=%s',
+                 group_info['bot_name'], group_info['zone'])
+    proximity_attempt = False
+    proximity_reason = 'disabled'
+    if config.get('proximity_enable'):
+        if not account_id:
+            proximity_reason = 'no account binding'
+        else:
+            proximity_roll = random.randint(1, 100)
+            proximity_attempt = proximity_roll <= config['proximity_chance']
+            log.info('Proximity: roll=%d, chance=%d%% -> %s',
+                     proximity_roll, config['proximity_chance'],
+                     'request server preflight' if proximity_attempt else 'skip')
+            proximity_reason = (
+                'no server ticket (see preflight log)' if proximity_attempt
+                else 'chance roll skipped; NPC eligibility not checked')
+    if not proximity_attempt:
+        log.info('Proximity: %s', proximity_reason)
+    if proximity_attempt:
+        try:
+            db = get_db_connection(config)
+            try:
+                ticket = request_ticket(
+                    db, account_id, config['proximity_request_timeout'])
+            finally:
+                db.close()
+        except Exception:
+            proximity_reason = 'preflight error'
+            log.exception('Screenshot proximity preflight failed')
+
+    if group_info is None and ticket is None:
+        log.info('Screenshot skipped: no Party recipient; proximity: %s',
+                 proximity_reason)
         return
 
+    log.info('Capture routes: Party=%s, proximity=%s',
+             'eligible' if group_info is not None else 'unavailable',
+             'approved' if ticket is not None else 'unavailable')
     # -- Capture and analyze --
+    # Preflight can wait several seconds; the player may have alt-tabbed.
+    if not is_wow_foreground():
+        log.info('Screenshot skipped: WoW lost focus during preflight')
+        return
+    capture_started = time.monotonic()
+    log.info('Capturing WoW client area, cropping UI and encoding JPEG')
     img = capture_wow_window()
     if img is None:
+        log.warning('Screenshot capture returned no image; ending cycle')
         return
 
     try:
@@ -695,8 +809,8 @@ def _do_capture_cycle(
     finally:
         img.close()
     log.info(
-        "Captured screenshot: %d bytes",
-        len(jpeg_bytes),
+        "Captured screenshot: %d bytes in %.2fs",
+        len(jpeg_bytes), time.monotonic() - capture_started,
     )
 
     # To save captures for debugging, uncomment:
@@ -712,6 +826,9 @@ def _do_capture_cycle(
     #         'wb') as f:
     #     f.write(jpeg_bytes)
 
+    vision_started = time.monotonic()
+    log.info('Vision request started: provider=%s, model=%s',
+             config['vision_provider'], config['vision_model'])
     description = analyze_screenshot(
         jpeg_bytes,
         vision_client,
@@ -721,12 +838,13 @@ def _do_capture_cycle(
         max_tokens_multiplier=(
             config['openai_max_tokens_multiplier']
         ),
+        structured_output=config.get('structured_output', False),
+        anthropic_options=config.get('anthropic_options'),
     )
+    log.info('Vision analysis finished in %.2fs',
+             time.monotonic() - vision_started)
     if description is None:
-        return
-
-    if is_duplicate(description):
-        log.info("Vision: duplicate scene, skipping")
+        log.info('Vision returned no usable scene; nothing will be published')
         return
 
     log.info(
@@ -736,19 +854,34 @@ def _do_capture_cycle(
         description.get('weather', 'none'),
     )
 
-    # -- Queue the event --
-    db = get_db_connection(config)
-    try:
-        queue_screenshot_event(
-            db, group_info, description)
-        update_dedup_cache(description)
-        log.info(
-            "Queued observation: %s (zone_id=%s)",
-            group_info['bot_name'],
-            group_info['zone'],
-        )
-    finally:
-        db.close()
+    # Party dedup belongs only to Party. Neither publication can suppress
+    # the other, even if its database operation fails.
+    party_duplicate = group_info is not None and is_duplicate(description)
+    if party_duplicate:
+        log.info('Vision: duplicate Party scene, skipping Party')
+    if group_info is not None and not party_duplicate:
+        log.info('Party: scene passed dedup; inserting observation event')
+        try:
+            db = get_db_connection(config)
+            try:
+                queue_screenshot_event(db, group_info, description)
+                update_dedup_cache(description)
+                log.info('Queued observation: %s (zone_id=%s)',
+                         group_info['bot_name'], group_info['zone'])
+            finally:
+                db.close()
+        except Exception:
+            log.exception('Screenshot Party publication failed')
+    if ticket is not None:
+        log.info('Proximity: publishing visual observation for server validation')
+        try:
+            db = get_db_connection(config)
+            try:
+                publish_observation(db, ticket, description)
+            finally:
+                db.close()
+        except Exception:
+            log.exception('Screenshot proximity publication failed')
 
 
 def _create_vision_client(config: dict):
@@ -789,7 +922,15 @@ def _create_vision_client(config: dict):
 
 def run_agent(config: dict) -> None:
     """Main agent loop — runs indefinitely."""
+    reset_structured_diagnostics()
+    if not check_structured_dependencies(
+        config.get('structured_output', False), log,
+    ):
+        sys.exit(1)
     vision_client = _create_vision_client(config)
+    log_structured_target('vision', config['vision_provider'],
+                          config['vision_model'],
+                          config.get('structured_output', False), log)
     log.info(
         "Screenshot agent started "
         "(interval=%d-%ds, chance=%d%%)",
@@ -797,21 +938,39 @@ def run_agent(config: dict) -> None:
         config['interval_max_seconds'],
         config['chance'],
     )
+    log.info('Proximity enabled=%s, chance=%d%%, bound account=%s; '
+             'publication does not confirm NPC speech delivery',
+             config.get('proximity_enable', False),
+             config.get('proximity_chance', 30),
+             config.get('bound_account_id', 0))
+    cycle = 0
     while True:
+        cycle += 1
         interval = random.randint(
             config['interval_min_seconds'],
             config['interval_max_seconds'],
         )
+        log.info('Cycle %d: waiting %d seconds; next check at %s',
+                 cycle, interval,
+                 time.strftime('%H:%M:%S', time.localtime(time.time() + interval)))
         time.sleep(interval)
 
-        if random.randint(1, 100) > config['chance']:
+        roll = random.randint(1, 100)
+        if roll > config['chance']:
+            log.info('Screenshot cycle skipped: capture roll %d exceeds %d%%',
+                     roll, config['chance'])
             continue
 
+        log.info('Screenshot cycle: capture roll passed; checking recipients')
         try:
+            cycle_started = time.monotonic()
             _do_capture_cycle(config, vision_client)
         except Exception as e:
             log.error("Capture cycle failed: %s", e)
             continue
+        finally:
+            log.info('Cycle %d finished in %.2fs; scheduling next wait',
+                     cycle, time.monotonic() - cycle_started)
 
 
 def main():
@@ -862,7 +1021,10 @@ def main():
                 "LLMChatter.OpenAI.ApiKey not set")
             sys.exit(1)
 
-    run_agent(config)
+    try:
+        run_agent(config)
+    except KeyboardInterrupt:
+        log.info("Screenshot agent stopped")
 
 
 if __name__ == '__main__':

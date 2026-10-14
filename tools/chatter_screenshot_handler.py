@@ -48,6 +48,7 @@ from chatter_shared import (
     append_json_instruction,
     strip_conversation_actions,
 )
+from chatter_guild_profile import get_character_guild_name
 from chatter_mode import (
     build_player_chat_guidance,
     build_player_prompt_header,
@@ -59,6 +60,10 @@ from chatter_text import (
     shorten_chat_message,
     strip_speaker_prefix,
 )
+
+# The vision description is raw scene data; without this the
+# model tends to read it back like an inventory of objects.
+from chatter_screenshot_context import SCENE_AS_BACKGROUND as _SCENE_AS_BACKGROUND
 
 # Varied reaction styles to avoid samey comments
 _REACTION_STYLES = [
@@ -158,14 +163,17 @@ def handle_screenshot_observation(db, client, config, event):
         observation_parts.append(environment)
     if creatures:
         observation_parts.append(creatures)
-    if atmosphere and not environment:
+    if atmosphere:
         observation_parts.append(atmosphere)
 
     if not observation_parts:
         _mark_event(db, event_id, 'skipped')
         return False
 
-    observation = '. '.join(observation_parts)
+    observation = ' '.join(
+        p if p.rstrip().endswith(('.', '!', '?')) else p + '.'
+        for p in observation_parts
+    )
 
     # -- Location context --
     if subzone_name:
@@ -175,8 +183,18 @@ def handle_screenshot_observation(db, client, config, event):
     context_parts = [f"Location: {location_str}"]
     if weather and weather != 'none':
         context_parts.append(f"Weather: {weather}")
+    # The sky in the screenshot is what the player actually
+    # sees, so it replaces the clock-based time line.
+    seen_time = str(time_of_day or '').strip().lower()
+    has_seen_time = seen_time in ('dawn', 'day', 'dusk', 'night')
+    if has_seen_time:
+        context_parts.append(f"Time of day: {seen_time}")
     if is_roleplay(get_chatter_mode(config)):
-        context_parts.extend(build_environmental_context_lines())
+        context_parts.extend(
+            line for line in build_environmental_context_lines()
+            if not (has_seen_time
+                    and line.startswith('Time of day:'))
+        )
     context_str = ', '.join(context_parts)
 
     # -- Recent chat + anti-repetition --
@@ -193,7 +211,7 @@ def handle_screenshot_observation(db, client, config, event):
     members = get_group_members(db, group_id)
     conv_chance = int(config.get(
         'LLMChatter.Screenshot.ConversationChance',
-        30,
+        40,
     ))
     do_conversation = (
         len(members) >= 2
@@ -258,6 +276,7 @@ def _get_bot_identity(
             get_gender_label(row['gender']),
             mode,
             channel='party',
+            guild_name=get_character_guild_name(db, bot_guid),
         )
     return f"You are {bot_name}."
 
@@ -349,6 +368,7 @@ def _screenshot_single(
         )
     prompt += (
         f"{observation}\n\n"
+        f"{_SCENE_AS_BACKGROUND}\n"
         f"Style: {style}\n"
         "One or two sentences, 80-150 characters.\n\n"
         "DO NOT:\n"
@@ -471,6 +491,7 @@ def _screenshot_conversation(
             'race': get_race_name(char['race']),
             'level': char['level'],
             'gender': get_gender_label(char['gender']),
+            'guild_name': get_character_guild_name(db, guid),
         })
 
     if len(bots) < 2:
@@ -488,9 +509,13 @@ def _screenshot_conversation(
         gender_prefix = (
             f"{b['gender']} " if b.get('gender') else ''
         )
+        guild_part = (
+            f" of the guild \"{b['guild_name']}\""
+            if b.get('guild_name') else ''
+        )
         bot_lines.append(
             f"- {b['name']}: {gender_prefix}"
-            f"{b['race']} {b['class']}, "
+            f"{b['race']} {b['class']}{guild_part}, "
             f"personality: {trait_str}"
             + (
                 f", tone: {tone_map.get(b['name'], '')}"
@@ -505,6 +530,7 @@ def _screenshot_conversation(
 
     if roleplay:
         prompt = (
+            f"{build_player_chat_guidance(mode, 'party')}\n"
             f"The following party members are travelling through "
             f"{context_str}:\n{bot_block}\n\n"
         )
@@ -516,19 +542,22 @@ def _screenshot_conversation(
         )
     if roleplay and zone_flavor:
         prompt += f"About this place: {zone_flavor}\n\n"
+    if roleplay:
+        prompt += f"Around them:\n{observation}\n\n"
+    else:
+        prompt += f"The game screenshot shows:\n{observation}\n\n"
     prompt += (
-        f"The game screenshot shows:\n"
-        f"{observation}\n\n"
         "Write a short conversation (2-4 lines) where "
-        "the party members react to what is visible. "
-        "Each speaker should respond differently "
-        "based on their personality and background.\n\n"
+        "the party members chat as they take in the "
+        "place. Each speaker should respond differently "
+        "based on their personality and background.\n"
+        f"{_SCENE_AS_BACKGROUND}\n\n"
         "Rules:\n"
         "- Each line: 40-80 characters\n"
         "- No narrator actions (no *looks around*)\n"
         "- No mentions of people, players, or "
         "humanoid NPCs\n"
-        "- Focus on details actually present in the screenshot description\n"
+        "- Do not invent landmarks that are not described\n"
         "- Each bot speaks once, naturally\n"
     )
     if chat_block:

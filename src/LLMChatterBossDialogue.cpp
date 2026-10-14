@@ -834,7 +834,7 @@ bool HandleBossProximityPlayerSay(
     {
         if (!IsBossDialogueSpeakerEligible(
                 player, selectedBoss, radius))
-            return true;
+            return messageNamesSelectedBoss;
         directedBoss = selectedBoss;
     }
 

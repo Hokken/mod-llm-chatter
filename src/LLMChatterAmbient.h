@@ -12,6 +12,7 @@ class Player;
 enum WeatherState : uint32;
 
 std::vector<uint32> GetZonesWithRealPlayers();
+std::string GetZoneWeatherName(uint32 zoneId);
 void HandleAmbientGameEventStart(uint16 eventId);
 void HandleAmbientGameEventStop(uint16 eventId);
 void HandleWeatherChange(

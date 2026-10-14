@@ -34,6 +34,8 @@ import openai
 
 import chatter_ambient
 
+from chatter_identity import config_int as profile_config_int
+from chatter_identity_jobs import prepare_guild_profiles, guild_profiles_enabled
 from chatter_constants import (
     DEFAULT_ANTHROPIC_MODEL,
     DEFAULT_GOOGLE_MODEL,
@@ -47,6 +49,7 @@ from chatter_db import (
     any_real_players_online,
     cleanup_stale_groups,
     cleanup_all_session_data,
+    load_race_names,
 )
 from chatter_shared import (
     format_location_label,
@@ -54,6 +57,7 @@ from chatter_shared import (
     get_chatter_mode,
     set_race_lore_chance,
     set_race_vocab_chance,
+    set_race_class_notes_enabled,
     set_action_chance,
     set_emote_chance,
     set_language,
@@ -64,6 +68,7 @@ from chatter_shared import (
     wait_for_database,
     stagger_if_needed,
 )
+from chatter_guild_profile import get_character_guild_name
 from chatter_events import (
     cleanup_expired_events,
     reset_stuck_processing_events,
@@ -90,7 +95,11 @@ from chatter_event_registry import (
     validate_registry,
 )
 from llm_compat import describe_model_compatibility
-from chatter_llm import compatible_reasoning_effort
+from chatter_llm import (
+    compatible_reasoning_effort, log_structured_target,
+    reset_structured_diagnostics, resolve_model, check_structured_dependencies,
+)
+from chatter_structured import structured_output_enabled
 
 # Configure logging
 logging.basicConfig(
@@ -410,7 +419,10 @@ def process_pending_requests(
                     else raw_race
                 ),
                 'level': request['bot1_level'],
-                'zone': request['bot1_zone']
+                'zone': request['bot1_zone'],
+                'guild_name': get_character_guild_name(
+                    db, request['bot1_guid']
+                ),
             }
             success = process_statement(
                 db, cursor, client,
@@ -455,6 +467,9 @@ def process_pending_requests(
                         f'{prefix}_level'
                     ],
                     'zone': zone,
+                    'guild_name': get_character_guild_name(
+                        db, request[f'{prefix}_guid']
+                    ),
                 }
 
             # Bot 1 (always present)
@@ -685,8 +700,14 @@ EVENT_LOG_OVERRIDES = {
     'bot_group_screenshot_observation': 'Screenshot vision',
     'bot_group_general_reaction': 'General-to-party relay',
     'player_general_msg': 'General chat event',
+    'guild_meet_greeting': 'Guild meet greeting',
+    'guild_join_zone_announce': 'Guild join announcement',
+    'guild_npc_encounter': 'Guild NPC encounter',
     'guild_player_message': 'Guild player turn',
     'guild_login_greeting': 'Guild login greeting',
+    'guild_member_join': 'Guild join greeting',
+    'guild_rank_change': 'Guild rank change',
+    'guild_motd_comment': 'Guild MOTD comment',
     'player_enters_zone': 'Zone intrusion',
     'bot_group_low_health': 'State callout',
     'bot_group_oom': 'State callout',
@@ -700,6 +721,9 @@ EVENT_LOG_OVERRIDES = {
     'bg_node_contested': 'BG event',
     'bg_node_captured': 'BG event',
     'bg_pvp_kill': 'BG event',
+    'guild_pvp_kill': 'Guild PvP kill',
+    'guild_pvp_death': 'Guild PvP death',
+    'zone_pvp_death': 'General PvP death',
     'bg_score_milestone': 'BG event',
     'bg_idle_chatter': 'BG event',
     'raid_boss_pull': 'Raid event',
@@ -1437,6 +1461,9 @@ def main():
     set_race_vocab_chance(int(config.get(
         'LLMChatter.RaceVocabChance', 15
     )))
+    set_race_class_notes_enabled(str(config.get(
+        'LLMChatter.RaceClassNotes.Enable', '1'
+    )) == '1')
     set_action_chance(int(config.get(
         'LLMChatter.ActionChance', 10
     )), mode=config.get(
@@ -1468,6 +1495,9 @@ def main():
         init_request_logger,
     )
     init_request_logger(config)
+    reset_structured_diagnostics()
+    if not check_structured_dependencies(structured_output_enabled(config)):
+        sys.exit(1)
 
     # Derive snapshot dir from log path
     import os as _os
@@ -1660,6 +1690,9 @@ def main():
     logger.info("=" * 60)
     logger.info(f"ChatterMode: {chatter_mode}")
     logger.info(f"Provider: {provider}")
+    log_structured_target(
+        'main', provider, resolve_model(model), structured_output_enabled(config),
+    )
     logger.info(
         f"Model: {model}"
     )
@@ -1859,7 +1892,7 @@ def main():
         f"  QuestionChance: "
         f"{config.get('LLMChatter.GeneralChat.QuestionChance', 100)}%"
         f"  Cooldown: "
-        f"{config.get('LLMChatter.GeneralChat.Cooldown', 0)}s"
+        f"{config.get('LLMChatter.GeneralChat.Cooldown', 3)}s"
     )
     logger.info("-" * 60)
     logger.info("Guild chatter:")
@@ -2205,6 +2238,8 @@ def main():
     bot_question_future = None
     legacy_future = None
     tone_regen_future = None
+    guild_profile_future = None
+    last_guild_profile_scan = 0
     # Track online→offline transition for full wipe
     was_players_online = True
     # Assume company until proven otherwise: if the first
@@ -2293,6 +2328,10 @@ def main():
                 )
                 tone_regen_future = None
 
+            if guild_profile_future and guild_profile_future.done():
+                _harvest_future(guild_profile_future, "guild-profiles")
+                guild_profile_future = None
+
             # DB connection with proper lifecycle
             db = None
             try:
@@ -2347,6 +2386,9 @@ def main():
                     # player went offline (runs
                     # regardless of UseEventSystem)
                     cleanup_stale_groups(db)
+                    # Race names the worldserver
+                    # wrote at its last startup
+                    load_race_names(db)
                     last_cleanup = current_time
 
                 # DB state snapshot for log viewer
@@ -2461,6 +2503,23 @@ def main():
                                 future
                             )
                             dispatched += 1
+
+                if (
+                    players_online
+                    and guild_profiles_enabled(config)
+                    and guild_profile_future is None
+                    and current_time - last_guild_profile_scan
+                    >= profile_config_int(
+                        config, 'LLMChatter.Profile.GuildScanIntervalSeconds',
+                        15, 1,
+                    )
+                    and not _has_urgent_event_backlog(db, _PRIORITY_URGENT_FLOOR)
+                ):
+                    last_guild_profile_scan = current_time
+                    guild_profile_future = executor.submit(
+                        _run_in_worker, "guild-profiles",
+                        prepare_guild_profiles, client, config,
+                    )
 
                 # Idle chatter -> worker pool
                 if (

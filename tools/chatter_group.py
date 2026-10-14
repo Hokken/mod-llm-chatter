@@ -33,8 +33,8 @@ import time
 
 # Module-level config defaults (set by init_group_config)
 _chat_history_limit = 10
-_spice_count = 2
 
+from chatter_bg_prompts import build_bg_arrival_prompt
 from chatter_shared import (
     call_llm, cleanup_message, strip_speaker_prefix,
     get_race_speech_profile,
@@ -48,7 +48,9 @@ from chatter_shared import (
     format_location_label,
     pick_random_max_tokens,
     get_dungeon_flavor, get_dungeon_bosses,
+    instance_has_sky,
     parse_conversation_response,
+    count_conversation_items,
     calculate_dynamic_delay,
     find_addressed_bot,
     insert_chat_message,
@@ -82,23 +84,55 @@ from chatter_shared import (
     bound_brief_casual_response,
     build_brief_casual_repair_prompt,
 )
+from chatter_guild_profile import (
+    get_character_guild_name,
+    same_guild_note,
+)
 from chatter_db import (
     get_character_info_by_name,
     get_group_location,
     is_player_online,
 )
 from chatter_party_gate import should_defer_party_generation
+from chatter_player_context import player_context_text
 from chatter_mode import (
     build_player_chat_guidance,
     build_player_prompt_header_from_dict,
 )
 from chatter_prompts import (
-    pick_random_tone,
+    configure_prompt_flavor,
     maybe_get_creative_twist,
     build_environmental_context_lines,
-    generate_conversation_mood_sequence,
     generate_conversation_length_sequence,
-    pick_personality_spices,
+    maybe_pick_personality_spices,
+    format_spices_line,
+    TWIST_LABEL,
+    TWIST_LABEL_CONVERSATION,
+)
+from chatter_persona import (
+    build_cast_lines,
+    build_persona_block,
+    fallback_tone,
+    party_reaction_backstory,
+    persona_from_fields,
+    without_backstory,
+)
+from chatter_threads import (
+    THREAD_REPORT_FIELD,
+    THREAD_REPORT_OBJECT,
+    THREAD_REPORT_RULE,
+    configure_threads,
+    note_player_message,
+    plan_idle_turn,
+    reconcile_active_groups,
+    record_idle_exchange,
+    render_for_player_reply,
+    report_tokens,
+)
+from chatter_themed_topics import (
+    themed_candidate,
+    themed_metadata,
+    themed_used,
 )
 from chatter_group_state import (
     set_group_chat_history_limit,
@@ -142,13 +176,13 @@ from chatter_memory import (
     start_session,
     queue_memory,
     get_bot_memories,
+    memory_recall_count,
     flush_session_memories,
     sanitize_memory_for_prompt,
     _get_group_lock,
     _active_sessions,
 )
 from chatter_group_prompts import (
-    set_prompt_spice_count,
     _pick_length_hint,
     build_bot_greeting_prompt,
     build_bot_welcome_prompt,
@@ -225,7 +259,7 @@ __all__ = [
 
 def init_group_config(config):
     """Initialize module-level config values."""
-    global _chat_history_limit, _spice_count
+    global _chat_history_limit
     try:
         val = int(
             config.get('LLMChatter.ChatHistoryLimit', 10)
@@ -233,19 +267,10 @@ def init_group_config(config):
     except (ValueError, TypeError):
         val = 10
     _chat_history_limit = max(1, min(val, 50))
-    try:
-        _spice_count = int(config.get(
-            'LLMChatter.PersonalitySpiceCount', 2
-        ))
-        _spice_count = max(0, min(_spice_count, 5))
-    except Exception:
-        logger.error(
-            "Failed to parse PersonalitySpiceCount",
-            exc_info=True,
-        )
-        _spice_count = 2
-    # Keep moved prompt builders in sync.
-    set_prompt_spice_count(_spice_count)
+    # Spice/twist gating and conversation threads
+    # live with their owners.
+    configure_prompt_flavor(config)
+    configure_threads(config)
     # Keep shared group helper state in sync.
     set_group_chat_history_limit(_chat_history_limit)
 
@@ -621,6 +646,9 @@ def process_group_event(db, client, config, event):
         'gender': get_gender_label(
             int(extra_data.get('bot_gender', 0))
         ),
+        'guild_name': get_character_guild_name(
+            db, bot_guid
+        ),
         'gear': build_gear_context(
             db, bot_guid, bot_class, config,
         ),
@@ -705,7 +733,7 @@ def process_group_event(db, client, config, event):
             if player_guid:
                 memories = get_bot_memories(
                     db, bot_guid, player_guid,
-                    count=3,
+                    count=memory_recall_count(config),
                 )
                 player_name_known = bool(memories)
                 recall_chance = int(config.get(
@@ -867,6 +895,9 @@ def process_group_event(db, client, config, event):
             stored_tone=stored_tone,
             map_id=greet_map_id,
             zone_id=greet_zone_id,
+            player_context=player_context_text(
+                db, extra_data.get('player_guid'), player_name, mode,
+            ),
         )
 
         # 3. Call LLM
@@ -963,6 +994,24 @@ def process_group_event(db, client, config, event):
         return False
 
 
+def _select_bg_arrival_greetings(bots, config):
+    """Roll each channel independently; a bot may greet once per channel."""
+    if not bots or not int(config.get(
+            'LLMChatter.BGChatter.ArrivalGreetings.Enable', 1)):
+        return []
+    second_chance = max(0, min(100, int(config.get(
+        'LLMChatter.BGChatter.ArrivalRaidSecondChance', 50))))
+    raid_count = min(len(bots), 1 + (
+        random.randint(1, 100) <= second_chance))
+    party_max = max(0, min(len(bots), int(config.get(
+        'LLMChatter.BGChatter.ArrivalPartyMax', 3))))
+    party_min = max(0, min(party_max, int(config.get(
+        'LLMChatter.BGChatter.ArrivalPartyMin', 0))))
+    party_count = random.randint(party_min, party_max)
+    return ([(bot, 'battleground') for bot in random.sample(bots, raid_count)]
+            + [(bot, 'party') for bot in random.sample(bots, party_count)])
+
+
 def process_group_join_batch_event(
     db, client, config, event
 ):
@@ -1036,6 +1085,19 @@ def process_group_join_batch_event(
                     player_name,
                 )
 
+    # BG arrival: the batch holds the bots in the
+    # player's BG sub-group. Greet with a small random
+    # subset, and skip party-lifetime side effects
+    # (first-meeting memory, farewell pre-gen) that
+    # make no sense for random BG teammates.
+    in_bg_arrival = bool(extra_data.get('bg_type'))
+    greetings = [(bot, 'party') for bot in bots_raw]
+    if in_bg_arrival:
+        greetings = _select_bg_arrival_greetings(bots_raw, config)
+        if not greetings:
+            _mark_event(db, event_id, 'skipped')
+            return False
+
     greeted_bots = []
     last_bot = None
     last_delay = 0
@@ -1046,7 +1108,7 @@ def process_group_join_batch_event(
 
     try:
         # --- Per-bot greetings (staggered) ---
-        for idx, bot_raw in enumerate(bots_raw):
+        for idx, (bot_raw, greet_channel) in enumerate(greetings):
             bot_guid = int(
                 bot_raw.get('bot_guid', 0)
             )
@@ -1089,6 +1151,9 @@ def process_group_join_batch_event(
                 'level': bot_level,
                 'gender': get_gender_label(
                     int(bot_raw.get('bot_gender', 0))
+                ),
+                'guild_name': get_character_guild_name(
+                    db, bot_guid
                 ),
                 'gear': build_gear_context(
                     db, bot_guid, bot_class, config,
@@ -1153,7 +1218,7 @@ def process_group_join_batch_event(
                     bot_memories = get_bot_memories(
                         db, bot_guid,
                         batch_player_guid,
-                        count=3,
+                        count=memory_recall_count(config),
                     )
                     bot_player_known = bool(
                         bot_memories
@@ -1171,7 +1236,8 @@ def process_group_join_batch_event(
 
                     # First meeting: write a factual
                     # memory so the bot remembers
-                    if not bot_player_known:
+                    if (not bot_player_known
+                            and not in_bg_arrival):
                         pz_mem, _ = get_player_zone(
                             db, player_name
                         )
@@ -1265,6 +1331,9 @@ def process_group_join_batch_event(
                     'bg_type_id': int(
                         extra_data.get(
                             'bg_type_id', 0)),
+                    'queue_type_id': int(
+                        extra_data.get(
+                            'queue_type_id', 0)),
                     'bg_type': extra_data.get(
                         'bg_type', ''),
                     'team': extra_data.get(
@@ -1281,21 +1350,50 @@ def process_group_join_batch_event(
                     _bg_ctx['score_horde'] = (
                         int(sh))
 
-            prompt = build_bot_greeting_prompt(
-                bot, traits, mode,
-                chat_history=chat_hist,
-                members=members,
-                player_name=player_name,
-                group_size=len(bots_raw) + 1,
-                speaker_talent_context=speaker_talent,
-                memories=bot_memories or None,
-                player_name_known=bot_player_known,
-                recall_memory=bot_recall,
-                stored_tone=stored_tone,
-                map_id=pm or 0,
-                zone_id=pz or 0,
-                bg_context=_bg_ctx,
-            )
+            if in_bg_arrival:
+                # Team rally before the gates open,
+                # not a "joined your party" greeting.
+                bg_extra = dict(extra_data)
+                bg_extra['_db'] = db
+                bg_extra['_config'] = config
+                # Arrival events carry 'zone', but the BG
+                # anti-repetition lookup reads 'zone_id'.
+                bg_extra.setdefault(
+                    'zone_id', extra_data.get('zone', 0))
+                if speaker_talent:
+                    bg_extra['_talent_context'] = (
+                        speaker_talent)
+                prompt = build_bg_arrival_prompt(
+                    bg_extra,
+                    {
+                        'bot_name': bot_name,
+                        'race': bot_race,
+                        'class': bot_class,
+                        'gender': bot.get('gender', ''),
+                        'level': bot_level,
+                        'traits': traits,
+                    },
+                )
+            else:
+                prompt = build_bot_greeting_prompt(
+                    bot, traits, mode,
+                    chat_history=chat_hist,
+                    members=members,
+                    player_name=player_name,
+                    group_size=len(bots_raw) + 1,
+                    speaker_talent_context=speaker_talent,
+                    memories=bot_memories or None,
+                    player_name_known=bot_player_known,
+                    recall_memory=bot_recall,
+                    stored_tone=stored_tone,
+                    map_id=pm or 0,
+                    zone_id=pz or 0,
+                    bg_context=_bg_ctx,
+                    player_context=player_context_text(
+                        db, extra_data.get('player_guid'),
+                        player_name, mode,
+                    ),
+                )
 
             # 3. Call LLM
             _greet_label = (
@@ -1333,9 +1431,11 @@ def process_group_join_batch_event(
             last_delay = delay
 
             emote = parsed.get('emote')
+            # The arrival plan fixes the channel independently of which
+            # earlier greetings generated successfully.
             insert_chat_message(
                 db, bot_guid, bot_name, message,
-                channel='party',
+                channel=greet_channel,
                 delay_seconds=delay,
                 event_id=event_id,
                 emote=emote,
@@ -1360,13 +1460,15 @@ def process_group_join_batch_event(
                 'stored_tone': stored_tone,
             }
 
-            # 5. Pre-generate farewell
-            _prepare_group_farewell(
-                db, client, config,
-                bot_name, bot_race, bot_class,
-                bot.get('gender', ''),
-                traits, mode, group_id, bot_guid,
-            )
+            # 5. Pre-generate farewell (C++ never
+            # delivers farewells inside a BG)
+            if not in_bg_arrival:
+                _prepare_group_farewell(
+                    db, client, config,
+                    bot_name, bot_race, bot_class,
+                    bot.get('gender', ''),
+                    traits, mode, group_id, bot_guid,
+                )
 
         if not greeted_bots:
             _mark_event(db, event_id, 'skipped')
@@ -1440,7 +1542,7 @@ def process_group_join_batch_event(
                                 exc_info=True,
                             )
 
-        if not is_rejoin:
+        if not is_rejoin and not in_bg_arrival:
             # --- ONE welcome from existing bot ---
             new_names = [
                 b['name'] for b in greeted_bots
@@ -1567,6 +1669,9 @@ def _batch_welcome(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, wb_guid
+        ),
         'gear': build_gear_context(
             db, wb_guid,
             get_class_name(char_row['class']), config,
@@ -1665,6 +1770,10 @@ def process_group_player_msg_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
+    # The player's words join the conversation thread
+    # so the next idle exchange knows what was said.
+    note_player_message(group_id, player_name, player_message)
+
     # Parse and resolve WoW links in message
     # Keep raw message for detect_item_links
     raw_player_message = player_message
@@ -1687,6 +1796,7 @@ def process_group_player_msg_event(
     cursor.execute("""
         SELECT t.bot_guid, t.bot_name,
                t.trait1, t.trait2, t.trait3, t.tone,
+               t.backstory,
                t.travel_mode, t.travel_context,
                t.is_mounted, t.is_flying,
                t.is_taxi_flying, t.is_on_transport,
@@ -1769,6 +1879,9 @@ def process_group_player_msg_event(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, bot_guid
+        ),
         'gear': build_gear_context(
             db, bot_guid,
             get_class_name(char_row['class']), config,
@@ -1881,6 +1994,8 @@ def process_group_player_msg_event(
                 'trait1': bot_row['trait1'],
                 'trait2': bot_row['trait2'],
                 'trait3': bot_row['trait3'],
+                'tone': stored_tone,
+                'backstory': bot_row.get('backstory'),
                 'travel_mode': travel_state.get('mode') or '',
                 'travel_context': travel_context,
                 'travel_state': travel_state,
@@ -1901,6 +2016,7 @@ def process_group_player_msg_event(
                         area_id=area_id,
                         map_id=map_id,
                         brief_casual=brief_casual,
+                        bg_context=extra_data,
                     )
                 )
                 if conv_ok:
@@ -1964,7 +2080,8 @@ def process_group_player_msg_event(
             ):
                 msg_memories = get_bot_memories(
                     db, bot_guid,
-                    player_guid, count=3,
+                    player_guid,
+                    count=memory_recall_count(config),
                     exclude_first_meeting=True,
                 )
                 if not msg_memories:
@@ -1986,7 +2103,23 @@ def process_group_player_msg_event(
             memories=msg_memories,
             travel_context=travel_context,
             brief_casual=brief_casual,
+            bg_context=extra_data,
             allow_action=not brief_casual,
+            guild_note=same_guild_note(
+                db, bot_guid,
+                player_info['guid'] if player_info else 0,
+                player_name,
+            ),
+            player_context=player_context_text(
+                db, player_info['guid'] if player_info else 0,
+                player_name, mode,
+            ),
+            thread_context=render_for_player_reply(
+                group_id, db
+            ),
+            backstory=party_reaction_backstory(
+                config, bot_row.get('backstory'), mode,
+            ),
         )
 
         max_tokens = pick_random_max_tokens(config)
@@ -2131,6 +2264,7 @@ def process_group_player_msg_event(
                         event_id,
                         link_context=link_context,
                         items_info=items_info,
+                        bg_context=extra_data,
                     )
                 except Exception as e2:
                     logger.error(
@@ -2296,6 +2430,7 @@ def _try_second_bot_response(
     first_bot_guid, player_name,
     player_message, mode, event_id,
     link_context="", items_info=None,
+    bg_context=None,
 ):
     """Maybe generate a second bot response to a
     player message, for more natural group feel.
@@ -2335,6 +2470,9 @@ def _try_second_bot_response(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, bot2_guid
+        ),
         'gear': build_gear_context(
             db, bot2_guid,
             get_class_name(char_row['class']), config,
@@ -2378,6 +2516,7 @@ def _try_second_bot_response(
         bot2, bot2_traits, player_name,
         player_message, mode,
         chat_history=chat_hist,
+        bg_context=bg_context,
         members=members,
         link_context=link_context,
         item_context=bot2_item_context,
@@ -2388,6 +2527,19 @@ def _try_second_bot_response(
         map_id=map_id,
         stored_tone=bot2_tone,
         travel_context=bot2_travel_context,
+        guild_note=same_guild_note(
+            db, bot2_guid,
+            player_info['guid'] if player_info else 0,
+            player_name,
+        ),
+        player_context=player_context_text(
+            db, player_info['guid'] if player_info else 0,
+            player_name, mode,
+        ),
+        thread_context=render_for_player_reply(group_id, db),
+        backstory=party_reaction_backstory(
+            config, second.get('backstory'), mode,
+        ),
     )
 
     max_tokens = int(config.get(
@@ -2483,6 +2635,9 @@ def _welcome_from_existing_bot(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, wb_guid
+        ),
         'gear': build_gear_context(
             db, wb_guid,
             get_class_name(char_row['class']), config,
@@ -2634,11 +2789,14 @@ def _build_composition_comment_prompt(
         if ctx:
             rp_context = f"\n{ctx}"
 
+    tone = stored_tone or fallback_tone(
+        bot.get('guid'), bot.get('name'), mode
+    )
     prompt = (
         f"{build_player_prompt_header_from_dict(bot, mode)}\n"
         f"Your personality: {trait_str}"
         f"\nYour tone: "
-        f"{stored_tone or pick_random_tone(mode)}"
+        f"{tone}"
         f"{rp_context}\n"
     )
     if speaker_talent_context:
@@ -2682,15 +2840,11 @@ def _build_composition_comment_prompt(
         f"characters). No greetings — you already "
         f"said hello."
     )
-    spices = pick_personality_spices(
-        mode=mode, spice_count_override=_spice_count
+    spice_line = format_spices_line(
+        maybe_pick_personality_spices(mode)
     )
-    if spices:
-        prompt += (
-            "\nBackground feelings (texture, "
-            "not the topic): "
-            + "; ".join(spices)
-        )
+    if spice_line:
+        prompt += f"\n{spice_line}"
     return append_json_instruction(
         prompt, allow_action
     )
@@ -2879,6 +3033,23 @@ def get_recent_weather(db, zone_id):
 # Track last idle chatter per group
 _last_idle_chatter = {}
 _idle_inflight = set()
+
+
+def _in_instance(map_id):
+    """True inside a dungeon or battleground map."""
+    return (
+        get_dungeon_flavor(map_id) is not None
+        or map_id in BG_MAP_NAMES
+    )
+
+
+def _ambient_topic_pool(mode):
+    """Random subject pool for idle party chatter."""
+    return (
+        AMBIENT_CHAT_TOPICS_RP
+        if mode == 'roleplay'
+        else AMBIENT_CHAT_TOPICS
+    )
 _last_idle_chatter_lock = threading.Lock()
 
 
@@ -2898,6 +3069,9 @@ def build_idle_chatter_prompt(
     memories=None,
     backstory=None,
     travel_context='',
+    persona=None,
+    thread_turn=None,
+    themed_topic='',
 ):
     """Build prompt for idle party chat.
 
@@ -2912,9 +3086,22 @@ def build_idle_chatter_prompt(
         current_weather: weather string (overworld)
         zone_id: for zone flavor
         map_id: for dungeon flavor
+        persona: resolved Persona; built from traits,
+            stored_tone and backstory when omitted
+        thread_turn: chatter_threads.IdleTurn for this
+            exchange; adds the thread context and asks
+            for the optional thread report (normal path
+            only; the memory path keeps its own focus)
+        themed_topic: optional themed subject used while
+            threads are off (outside instances)
     """
     is_rp = (mode == 'roleplay')
-    trait_str = ', '.join(traits)
+    if persona is None:
+        persona = persona_from_fields(
+            bot.get('name', ''), mode, bot.get('guid', 0),
+            traits=traits, tone=stored_tone,
+            backstory=backstory,
+        )
 
     # --------------------------------------------------
     # LEAN MEMORY PATH — when memories are present,
@@ -2928,7 +3115,6 @@ def build_idle_chatter_prompt(
         ]
         sanitized = [s for s in sanitized if s]
         if sanitized:
-            tone = stored_tone or pick_random_tone(mode)
             p_label = (
                 player_name
                 or 'your party leader'
@@ -2936,10 +3122,14 @@ def build_idle_chatter_prompt(
             mem_lines = '\n'.join(
                 f"  - {m}" for m in sanitized
             )
+            # The memory is the focus here, so the
+            # backstory stays out of this path.
+            memory_persona = build_persona_block(
+                without_backstory(persona), mode
+            )
             prompt = (
                 f"{build_player_prompt_header_from_dict(bot, mode)}\n"
-                f"Your personality: {trait_str}\n"
-                f"Your tone: {tone}\n"
+                f"{memory_persona}\n"
             )
             if speaker_talent_context:
                 prompt += (
@@ -3033,17 +3223,18 @@ def build_idle_chatter_prompt(
     # --------------------------------------------------
     # NORMAL PATH — no memories, full context prompt
     # --------------------------------------------------
-    tone = stored_tone or pick_random_tone(mode)
-    twist = maybe_get_creative_twist(
-        chance=1.0, mode=mode
-    )
+    twist = maybe_get_creative_twist(mode=mode)
     # Detect dungeon/BG before topic selection so we
     # can skip AMBIENT topics when inside an instance
     # or battleground.
     dungeon_flav_early = get_dungeon_flavor(map_id)
     in_dungeon_early = dungeon_flav_early is not None
     in_bg_early = map_id in BG_MAP_NAMES
-    if in_dungeon_early or in_bg_early:
+    if thread_turn is not None:
+        # The conversation thread carries the subject
+        # (including any rare pool topic) instead.
+        topic = None
+    elif in_dungeon_early or in_bg_early:
         topic = None  # instance/BG context drives tone
     else:
         topic_pool = (
@@ -3122,7 +3313,8 @@ def build_idle_chatter_prompt(
     weather_arg = (
         None if in_dungeon else current_weather
     )
-    if is_rp:
+    sky = not in_dungeon or instance_has_sky(map_id)
+    if is_rp and sky:
         for line in build_environmental_context_lines(
             weather_arg
         ):
@@ -3187,69 +3379,80 @@ def build_idle_chatter_prompt(
 
     prompt = (
         f"{build_player_prompt_header_from_dict(bot, mode)}\n"
-        f"Your personality: {trait_str}\n"
+        f"{build_persona_block(persona, mode)}\n"
     )
     if speaker_talent_context:
         prompt += f"{speaker_talent_context}\n"
-    prompt += (
-        f"Your tone: {tone}\n"
-    )
     if travel_context:
         label = (
             "Travel context"
             if is_rp else "Character gameplay travel state"
         )
         prompt += f"{label}: {travel_context}\n"
-    if is_rp and backstory:
-        prompt += (
-            f"\n<backstory>\n"
-            f"Your history: {backstory}\n"
-            f"Draw from this background naturally "
-            f"if it fits the moment -- don't force "
-            f"it.\n"
-            f"</backstory>\n"
-        )
     if twist:
-        prompt += f"Creative twist: {twist}\n"
+        prompt += f"{TWIST_LABEL}: {twist}\n"
 
     party_ctx = (
         f"You're in a party, currently {topic}."
         if topic else
         "You're in a party."
     )
+    if themed_topic and topic:
+        party_ctx = (
+            "You're in a party. A possible subject, only if "
+            f"it fits naturally: {themed_topic}"
+        )
+    continuing = bool(
+        thread_turn and thread_turn.builds_on_subject
+    )
+    repeat_rule = (
+        "- Don't repeat jokes or wording already used in "
+        "chat; building on the current or an earlier "
+        "subject is fine\n"
+        if continuing else
+        "- Don't repeat jokes or themes already said in chat\n"
+    )
+    thread_block = (
+        f"{thread_turn.prompt_block}\n\n" if thread_turn else ""
+    )
     prompt += (
         f"{rp_context}\n\n"
         f"{party_ctx}\n"
         f"{address_hint}\n"
         f"{style}\n\n"
+        f"{thread_block}"
         f"Say something casual in party chat.\n"
         f"{_pick_length_hint(mode)}\n"
         f"Rules:\n"
         f"- No quotes, no emojis\n"
-        f"- Reflect your personality traits\n"
+        "- Let your personality show in how you say it, "
+        f"without naming your traits\n"
         f"- Just a natural idle comment\n"
-        f"- Don't repeat jokes or themes "
-        f"already said in chat\n"
+        f"{repeat_rule}"
         f"- NEVER claim to have killed a creature, "
         f"looted an item, completed a quest, "
         f"or made a trade\n"
         f"- Stick to observation, opinion, banter, "
         f"and small talk"
     )
-    spices = pick_personality_spices(
-        mode=mode, spice_count_override=_spice_count
+    spice_line = format_spices_line(
+        maybe_pick_personality_spices(mode)
     )
-    if spices:
-        prompt += (
-            "\nBackground feelings (texture, "
-            "not the topic): "
-            + "; ".join(spices)
-        )
+    if spice_line:
+        prompt += f"\n{spice_line}"
     anti_rep = build_anti_repetition_context(
-        recent_messages
+        recent_messages, allow_same_subject=continuing,
     )
     if anti_rep:
         prompt += f"\n{anti_rep}"
+    if thread_turn is not None:
+        return append_json_instruction(
+            prompt, allow_action,
+            extra_field=THREAD_REPORT_FIELD,
+            include_thread=True,
+            thread_speaker_names=(bot['name'],),
+            extra_rule=THREAD_REPORT_RULE,
+        )
     return append_json_instruction(
         prompt, allow_action
     )
@@ -3268,6 +3471,8 @@ def build_idle_conversation_prompt(
     area_id=0,
     memories_map=None,
     backstory_map=None,
+    personas=None,
+    thread_turn=None,
 ):
     """Build prompt for a multi-bot idle conversation.
 
@@ -3288,6 +3493,12 @@ def build_idle_conversation_prompt(
         current_weather: weather string (overworld)
         player_name: real player name if known
         dungeon_bosses: list of boss names
+        personas: dict bot name -> Persona; built from
+            traits_map, each bot's 'tone' and
+            backstory_map when omitted
+        thread_turn: chatter_threads.IdleTurn; adds the
+            thread context and asks for the optional
+            trailing thread report (normal path only)
     """
     is_rp = (mode == 'roleplay')
     num_bots = len(bots)
@@ -3295,6 +3506,22 @@ def build_idle_conversation_prompt(
     msg_count = select_conversation_message_count(
         num_bots, 4, 4
     )
+    if personas is None:
+        personas = {
+            b['name']: persona_from_fields(
+                b['name'], mode, b.get('guid', 0),
+                traits=(traits_map or {}).get(b['name']),
+                tone=b.get('tone'),
+                backstory=(backstory_map or {}).get(
+                    b['name']
+                ),
+            )
+            for b in bots
+        }
+    cast = [
+        personas[name] for name in bot_names
+        if name in personas
+    ]
 
     # --------------------------------------------------
     # LEAN MEMORY PATH — when any bot has memories,
@@ -3352,13 +3579,6 @@ def build_idle_conversation_prompt(
                 f"{', '.join(bot_names)}"
             )
             for bot in bots:
-                t = traits_map.get(
-                    bot['name'], []
-                )
-                trait_str = (
-                    ', '.join(t)
-                    if t else 'average'
-                )
                 dead_tag = ""
                 if bot.get('is_dead'):
                     dead_tag = (
@@ -3369,8 +3589,7 @@ def build_idle_conversation_prompt(
                     f"{bot['name']} is a level "
                     f"{bot['level']} "
                     f"{bot['race']} "
-                    f"{bot['class']} "
-                    f"(personality: {trait_str})"
+                    f"{bot['class']}"
                     f"{dead_tag}"
                 )
                 append_speaker_gear(parts, bot, indent='')
@@ -3384,6 +3603,13 @@ def build_idle_conversation_prompt(
                         f"{bot['name']} {travel_label}: "
                         f"{bot['travel_context']}"
                     )
+
+            # Memories are the focus here, so
+            # backstories stay out of this path.
+            parts.extend(build_cast_lines(
+                [without_backstory(p) for p in cast],
+                mode,
+            ))
 
             # Per-bot memory blocks
             for b in bots:
@@ -3532,7 +3758,8 @@ def build_idle_conversation_prompt(
     weather_arg = (
         None if in_dungeon else current_weather
     )
-    if is_rp:
+    sky = not in_dungeon or instance_has_sky(map_id)
+    if is_rp and sky:
         parts.extend(
             build_environmental_context_lines(weather_arg)
         )
@@ -3562,10 +3789,6 @@ def build_idle_conversation_prompt(
     seen_races = set()
     seen_classes = set()
     for bot in bots:
-        t = traits_map.get(bot['name'], [])
-        trait_str = (
-            ', '.join(t) if t else 'average'
-        )
         dead_tag = ""
         if bot.get('is_dead'):
             dead_tag = (
@@ -3575,8 +3798,7 @@ def build_idle_conversation_prompt(
         parts.append(
             f"{bot['name']} is a level "
             f"{bot['level']} {bot['race']} "
-            f"{bot['class']} "
-            f"(personality: {trait_str})"
+            f"{bot['class']}"
             f"{dead_tag}"
         )
         append_speaker_gear(parts, bot)
@@ -3620,24 +3842,9 @@ def build_idle_conversation_prompt(
                     parts.append(f"  {shared_class}")
                 seen_classes.add(cls_role_key)
 
-    # Inject backstories for participating bots
-    if is_rp and backstory_map:
-        bs_lines = []
-        for bot in bots:
-            bs = backstory_map.get(bot['name'])
-            if bs:
-                bs_lines.append(
-                    f"  {bot['name']}: {bs}"
-                )
-        if bs_lines:
-            parts.append(
-                "<backstories>\n"
-                + "\n".join(bs_lines)
-                + "\nDraw from these backgrounds "
-                "naturally if they fit the moment "
-                "-- don't force them.\n"
-                "</backstories>"
-            )
+    # Per-speaker personality, tone, backstory (RP)
+    # and real event mood. Nothing below overrides it.
+    parts.extend(build_cast_lines(cast, mode))
 
     if speaker_talent_context:
         parts.append(speaker_talent_context)
@@ -3657,45 +3864,35 @@ def build_idle_conversation_prompt(
     # already grounds the conversation)
     if topic:
         parts.append(f"Topic: {topic}")
-
-    # Tone and twist
-    tone = pick_random_tone(mode)
-    twist = maybe_get_creative_twist(
-        chance=1.0, mode=mode
+    continuing = bool(
+        thread_turn and thread_turn.builds_on_subject
     )
-    parts.append(f"Overall tone: {tone}")
+    if thread_turn is not None:
+        parts.append(thread_turn.prompt_block)
+
+    twist = maybe_get_creative_twist(mode=mode)
     if twist:
-        parts.append(f"Creative twist: {twist}")
+        parts.append(
+            f"{TWIST_LABEL_CONVERSATION}: {twist}"
+        )
 
     # Fixed message count keeps idle conversation
     # volume constant regardless of group size.
     # Bots still all participate via round-robin
     # speaker assignment (bot_names[i % num_bots]).
-    mood_sequence = (
-        generate_conversation_mood_sequence(
-            msg_count, mode
-        )
-    )
     length_sequence = (
         generate_conversation_length_sequence(
             msg_count
         )
     )
-
-    twist_log = (
-        f", twist={twist}" if twist else ""
-    )
-
     parts.append(
-        "\nMOOD AND LENGTH SEQUENCE "
-        "(follow for each message):"
+        "\nLENGTH SEQUENCE (follow for each message):"
     )
-    for i, mood in enumerate(mood_sequence):
+    for i, length in enumerate(length_sequence):
         speaker = bot_names[i % num_bots]
         parts.append(
             f"  Message {i+1} ({speaker}): "
-            f"mood={mood}, "
-            f"length={length_sequence[i]}"
+            f"length={length}"
         )
 
     # Natural flow instruction for 3+ bots
@@ -3749,30 +3946,43 @@ def build_idle_conversation_prompt(
         "or made a trade. "
         "Stick to observation, opinion, banter, "
         "occasional philosophical consideration. "
-        "Don't repeat jokes or themes already "
-        "said in chat."
+        + (
+            "Don't repeat jokes or wording already used "
+            "in chat; building on the current or an "
+            "earlier subject is fine."
+            if continuing else
+            "Don't repeat jokes or themes already "
+            "said in chat."
+        )
     )
     parts.append(
         "STRICT: Each message MUST be under "
         "120 characters. Short is better."
     )
 
-    spices = pick_personality_spices(
-        mode=mode, spice_count_override=_spice_count
+    spice_line = format_spices_line(
+        maybe_pick_personality_spices(mode)
     )
-    if spices:
-        parts.append(
-            "Background feelings (texture, "
-            "not the topic): "
-            + "; ".join(spices)
-        )
+    if spice_line:
+        parts.append(spice_line)
 
     anti_rep = build_anti_repetition_context(
-        recent_messages
+        recent_messages, allow_same_subject=continuing,
     )
     if anti_rep:
         parts.append(anti_rep)
 
+    if thread_turn is not None:
+        return append_conversation_json_instruction(
+            '\n'.join(parts),
+            bot_names,
+            msg_count,
+            allow_action=allow_action,
+            trailing_object=THREAD_REPORT_OBJECT,
+            include_thread=True,
+            thread_speaker_names=bot_names,
+            extra_rule=THREAD_REPORT_RULE,
+        )
     return append_conversation_json_instruction(
         '\n'.join(parts),
         bot_names,
@@ -3810,6 +4020,9 @@ def check_idle_group_chatter(
         FROM llm_group_bot_traits
     """)
     groups = cursor.fetchall()
+    # Forget conversation threads of parties that ended
+    # through any path (last bot removed, disband, logout).
+    reconcile_active_groups(g['group_id'] for g in groups)
 
     if not groups:
         return False
@@ -4167,6 +4380,9 @@ def _idle_single_statement(
         'race': get_race_name(char_row['race']),
         'level': char_row['level'],
         'gender': get_gender_label(char_row['gender']),
+        'guild_name': get_character_guild_name(
+            db, bot_guid
+        ),
         'gear': build_gear_context(
             db, bot_guid,
             get_class_name(char_row['class']), config,
@@ -4259,7 +4475,10 @@ def _idle_single_statement(
                 if player_guid:
                     idle_memories = get_bot_memories(
                         db, bot_guid,
-                        player_guid, count=2,
+                        player_guid,
+                        count=memory_recall_count(
+                            config, idle=True
+                        ),
                         exclude_first_meeting=True,
                     )
                     if not idle_memories:
@@ -4272,10 +4491,31 @@ def _idle_single_statement(
     ))
     if backstory_enabled:
         idle_chance = int(config.get(
-            'LLMChatter.Backstory.IdleChance', 25
+            'LLMChatter.Backstory.IdleChance', 100
         )) / 100.0
         if random.random() < idle_chance:
             idle_backstory = bot_row.get('backstory')
+
+    # Conversation thread for this exchange. Memory
+    # recalls keep their own focus, so they neither
+    # see nor consume the thread.
+    thread_turn = None
+    themed = None
+    if not idle_memories:
+        if not _in_instance(map_id):
+            themed = themed_candidate(
+                db, config, 'party', bot,
+                thread_key=group_id, mode=mode,
+            )
+        thread_turn = plan_idle_turn(
+            group_id, [bot_name],
+            in_instance=_in_instance(map_id),
+            topic_pool=_ambient_topic_pool(mode),
+            db=db,
+            themed_topic=themed.render() if themed else None,
+        )
+        if not themed_used(themed, thread_turn):
+            themed = None
 
     try:
         speaker_talent = _maybe_talent_context(
@@ -4299,6 +4539,11 @@ def _idle_single_statement(
             memories=idle_memories,
             backstory=idle_backstory,
             travel_context=travel_context,
+            thread_turn=thread_turn,
+            themed_topic=(
+                themed.render()
+                if themed and thread_turn is None else ''
+            ),
         )
 
         _dflav = get_dungeon_flavor(map_id)
@@ -4333,6 +4578,7 @@ def _idle_single_statement(
             )
         zone_meta['channel'] = 'party'
         zone_meta['bot_name'] = bot_name
+        zone_meta.update(themed_metadata(themed))
         zone_meta.update(build_travel_metadata(
             travel_state,
             travel_context,
@@ -4346,6 +4592,11 @@ def _idle_single_statement(
         # Memory allusions need room — lift floor
         if idle_memories:
             max_tokens = max(max_tokens, 250)
+        if thread_turn is not None:
+            # Room for the trailing thread report so it
+            # never truncates the message itself.
+            max_tokens += report_tokens()
+            zone_meta['thread_move'] = thread_turn.kind
         _idle_label = (
             'group_idle_memory'
             if idle_memories else 'group_idle'
@@ -4375,7 +4626,7 @@ def _idle_single_statement(
 
         # Insert directly into messages table
         emote = parsed.get('emote')
-        insert_chat_message(
+        message_id = insert_chat_message(
             db, bot_guid, bot_name, message,
             channel='party', delay_seconds=2,
             event_id=None, emote=emote,
@@ -4388,6 +4639,10 @@ def _idle_single_statement(
         _store_chat(
             db, group_id, bot_guid,
             bot_name, True, message
+        )
+        # Adopted into the thread only once delivered.
+        record_idle_exchange(
+            thread_turn, response, [bot_name], [message_id],
         )
 
         with _last_idle_chatter_lock:
@@ -4465,11 +4720,17 @@ def _idle_conversation(
             'race': get_race_name(char['race']),
             'level': char['level'],
             'gender': get_gender_label(char['gender']),
+            'guild_name': get_character_guild_name(
+                db, br['bot_guid']
+            ),
             'gear': build_gear_context(
                 db, br['bot_guid'],
                 get_class_name(char['class']), config,
             ),
             'role': br.get('role'),
+            # Stored per-bot tone feeds the speaker's
+            # persona in the conversation prompt.
+            'tone': br.get('tone'),
             'is_dead': int(
                 br.get('health', 1)) == 0,
             'travel_mode': travel_state.get('mode') or '',
@@ -4554,7 +4815,9 @@ def _idle_conversation(
                         mems = get_bot_memories(
                             db, b['guid'],
                             player_guid,
-                            count=2,
+                            count=memory_recall_count(
+                                config, idle=True
+                            ),
                             exclude_first_meeting=(
                                 True
                             ),
@@ -4564,6 +4827,34 @@ def _idle_conversation(
                                 b['guid']
                             ] = mems
 
+    # Conversation thread for this exchange; it
+    # replaces the random pool topic. Memory
+    # exchanges keep their own focus.
+    thread_turn = None
+    themed = None
+    if not memories_map:
+        if not _in_instance(map_id):
+            themed = themed_candidate(
+                db, config, 'party', bots[0],
+                thread_key=group_id, mode=mode,
+            )
+        thread_turn = plan_idle_turn(
+            group_id, bot_names,
+            in_instance=_in_instance(map_id),
+            topic_pool=_ambient_topic_pool(mode),
+            db=db,
+            themed_topic=themed.render() if themed else None,
+        )
+        if not themed_used(themed, thread_turn):
+            themed = None
+        if thread_turn is not None:
+            topic = None
+        elif themed:
+            topic = (
+                f"something {bots[0]['name']} might bring up, "
+                f"if it fits naturally: {themed.render()}"
+            )
+
     # RNG-gate backstory injection per bot
     conv_backstory_map = None
     backstory_enabled = int(config.get(
@@ -4571,7 +4862,7 @@ def _idle_conversation(
     ))
     if backstory_enabled:
         idle_chance = int(config.get(
-            'LLMChatter.Backstory.IdleChance', 25
+            'LLMChatter.Backstory.IdleChance', 100
         )) / 100.0
         _bs_map = {}
         for br in selected_rows:
@@ -4632,6 +4923,7 @@ def _idle_conversation(
             memories_map=memories_map or None,
             backstory_map=conv_backstory_map,
             allow_action=allow_action,
+            thread_turn=thread_turn,
         )
         logger.info(
             "[IDLE] prompt snippet: %r",
@@ -4645,12 +4937,16 @@ def _idle_conversation(
         conv_tokens = min(
             max_tokens * (1 + num_bots), 1000
         )
+        if thread_turn is not None:
+            conv_tokens += report_tokens()
+            zone_meta['thread_move'] = thread_turn.kind
         if speaker_talent:
             zone_meta['speaker_talent'] = (
                 speaker_talent
             )
         zone_meta['channel'] = 'party'
         zone_meta['bot_name'] = ','.join(bot_names)
+        zone_meta.update(themed_metadata(themed))
         zone_meta['bot_count'] = num_bots
         zone_meta.update(build_group_travel_metadata(bots))
         if memories_map:
@@ -4693,6 +4989,8 @@ def _idle_conversation(
         # Insert messages with staggered delivery
         cumulative_delay = 2.0
         prev_len = 0
+        queued_ids = []
+        queued_speakers = []
 
         for seq, msg in enumerate(messages):
             msg_text = msg['message']
@@ -4726,7 +5024,7 @@ def _idle_conversation(
                 )
                 cumulative_delay += delay
 
-            insert_chat_message(
+            queued_ids.append(insert_chat_message(
                 db, speaker_guid, msg['name'],
                 text, channel='party',
                 delay_seconds=int(cumulative_delay),
@@ -4736,7 +5034,8 @@ def _idle_conversation(
                 group_id=group_id,
                 delivery_policy='filler',
                 delivery_reason='group_idle_conv',
-            )
+            ))
+            queued_speakers.append(msg['name'])
 
             _store_chat(
                 db, group_id, speaker_guid,
@@ -4744,6 +5043,18 @@ def _idle_conversation(
             )
 
             prev_len = len(text)
+
+        # Adopted into the thread only once every queued
+        # line was delivered, and only if no line the
+        # model wrote was filtered out before queueing.
+        record_idle_exchange(
+            thread_turn, response,
+            sorted(set(queued_speakers)), queued_ids,
+            complete=(
+                len(queued_ids)
+                == count_conversation_items(response)
+            ),
+        )
 
         with _last_idle_chatter_lock:
             _last_idle_chatter[group_id] = now
@@ -4980,6 +5291,9 @@ def check_bot_questions(db, client, config):
             ),
             'level': char_row['level'],
             'gender': get_gender_label(char_row['gender']),
+            'guild_name': get_character_guild_name(
+                db, bot_guid
+            ),
             'gear': build_gear_context(
                 db, bot_guid,
                 get_class_name(char_row['class']),
@@ -5056,7 +5370,8 @@ def check_bot_questions(db, client, config):
                 question_memories = (
                     get_bot_memories(
                         db, bot_guid,
-                        p_guid, count=3,
+                        p_guid,
+                        count=memory_recall_count(config),
                         exclude_first_meeting=True,
                     )
                 )
@@ -5081,6 +5396,14 @@ def check_bot_questions(db, client, config):
             area_id=area_id,
             stored_tone=stored_tone,
             memories=question_memories or None,
+            player_context=player_context_text(
+                db,
+                (get_character_info_by_name(db, player_name) or {}).get(
+                    'guid', 0),
+                player_name, mode,
+                race=player_race, class_name=player_class,
+                gender=player_gender,
+            ),
         )
 
         max_tokens = int(config.get(

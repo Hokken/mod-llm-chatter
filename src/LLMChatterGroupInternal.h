@@ -331,6 +331,13 @@ void HandleEmoteObserver(
     std::vector<Player*> const& candidates,
     std::string const& customText = "",
     Player* targetPlayer = nullptr);
+// Contagious emotes (dance, cheer, laugh...) may spread to
+// other nearby party bots as a mirrored animation. Each
+// candidate rolls EmoteReactions.MoodSpreadChance and
+// respects its own mirror cooldown. No LLM call.
+void HandleEmoteMoodSpread(
+    Player* player, uint32 textEmote,
+    std::vector<Player*> const& candidates);
 
 // Emote statics (used by PlayerScript dispatch)
 extern const std::unordered_set<uint32>

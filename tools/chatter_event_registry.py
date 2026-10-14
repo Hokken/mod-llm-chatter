@@ -41,6 +41,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         producer='LLMChatterGroup.cpp',
         description='Bot reacts to creature kill',
         payload_fields={
+            'ab_state': (dict, False),
             'creature_name': (str, True),
             'creature_entry': (int, True),
             'is_boss': (int, False),
@@ -70,6 +71,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         priority='critical',
         description='Bot reacts to combat start',
         payload_fields={
+            'ab_state': (dict, False),
             'creature_name': (str, True),
             'creature_entry': (int, True),
             'is_boss': (str, False),
@@ -86,6 +88,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'Bot reacts to party member death'
         ),
         payload_fields={
+            'ab_state': (dict, False),
             'dead_name': (str, True),
             'dead_guid': (int, True),
             'killer_name': (str, False),
@@ -150,6 +153,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         producer='LLMChatterGroup.cpp',
         description='Bot reacts to achievement',
         payload_fields={
+            'ab_state': (dict, False),
             'achiever_name': (str, True),
             'achievement_name': (str, True),
             'achievement_id': (int, True),
@@ -166,6 +170,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         priority='critical',
         description='Bot reacts to spell cast',
         payload_fields={
+            'ab_state': (dict, False),
             'caster_name': (str, True),
             'spell_name': (str, True),
             'spell_category': (str, True),
@@ -488,6 +493,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'Multiple bots join group at once'
         ),
         payload_fields={
+            'ab_state': (dict, False),
             'player_name': (str, True),
             'player_guid': (int, False),
             'zone': (int, True),
@@ -508,6 +514,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'Bot responds to player party message'
         ),
         payload_fields={
+            'ab_state': (dict, False),
             'player_name': (str, True),
             'player_message': (str, True),
         },
@@ -787,6 +794,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         priority='high',
         description='BG match begins',
         payload_fields={
+            'ab_state': (dict, False),
             'event_detail': (str, True),
         },
     ),
@@ -799,6 +807,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         producer='LLMChatterBG.cpp',
         description='BG match ends',
         payload_fields={
+            'ab_state': (dict, False),
             'winner_team': (str, True),
             'won': (int, True),
             'final_score_alliance': (int, True),
@@ -813,6 +822,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         priority='critical',
         description='Flag picked up in WSG/EY',
         payload_fields={
+            'ab_state': (dict, False),
             'flag_team': (str, True),
             'carrier_guid': (int, False),
             'carrier_name': (str, False),
@@ -826,6 +836,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         priority='critical',
         description='Flag dropped in WSG/EY',
         payload_fields={
+            'ab_state': (dict, False),
             'flag_team': (str, True),
             'dropper_guid': (int, False),
             'dropper_name': (str, False),
@@ -839,6 +850,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         priority='critical',
         description='Flag captured in WSG',
         payload_fields={
+            'ab_state': (dict, False),
             'flag_team': (str, True),
             'new_score': (int, True),
             'scorer_name': (str, False),
@@ -854,6 +866,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         priority='critical',
         description='Flag returned in WSG',
         payload_fields={
+            'ab_state': (dict, False),
             'flag_team': (str, True),
             'returner_name': (str, True),
             'returner_is_real_player': (int, True),
@@ -867,9 +880,18 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         priority='critical',
         description='AB/EY node contested',
         payload_fields={
-            'node_name': (str, True),
-            'new_owner': (str, True),
+            'ab_state': (dict, False),
+            'node_changes': (list, False),
+            'node_id': (int, False),
+            'node_revision': (int, False),
+            'node_name': (str, False),
+            'new_owner': (str, False),
             'claimer_name': (str, False),
+            'prev_state': (int, False),
+            'state': (int, False),
+            'transition': (str, False),
+            'evidence': (str, False),
+            'observation_gap_ms': (int, False),
         },
     ),
 
@@ -880,9 +902,18 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         priority='critical',
         description='AB/EY node captured',
         payload_fields={
-            'node_name': (str, True),
-            'new_owner': (str, True),
+            'ab_state': (dict, False),
+            'node_changes': (list, False),
+            'node_id': (int, False),
+            'node_revision': (int, False),
+            'node_name': (str, False),
+            'new_owner': (str, False),
             'claimer_name': (str, False),
+            'prev_state': (int, False),
+            'state': (int, False),
+            'transition': (str, False),
+            'evidence': (str, False),
+            'observation_gap_ms': (int, False),
         },
     ),
 
@@ -895,6 +926,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         priority='high',
         description='PvP kill in BG',
         payload_fields={
+            'ab_state': (dict, False),
             'victim_name': (str, True),
             'victim_class': (int, True),
             'killer_name': (str, True),
@@ -910,6 +942,9 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         producer='LLMChatterBG.cpp',
         description='AB/EY score milestone reached',
         payload_fields={
+            'ab_state': (dict, False),
+            'milestone_kind': (str, False),
+            'ab_state': (dict, False),
             'milestone_team': (str, True),
             'milestone_value': (int, True),
             'milestone_description': (str, True),
@@ -925,6 +960,8 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         priority='filler',
         description='Ambient BG chatter',
         payload_fields={
+            'ab_objective_status': (bool, False),
+            'ab_state': (dict, False),
             'player_name': (str, True),
         },
     ),
@@ -1073,6 +1110,57 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         },
     ),
 
+    # -- Guild news (chatter_guild_events) --------
+
+    'guild_member_join': EventSpec(
+        handler_module='chatter_guild_events',
+        handler_func='process_guild_member_join_event',
+        producer='LLMChatterGuildMembers.cpp',
+        priority='normal',
+        description=(
+            'Guild bots react to new guild members'
+        ),
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'team': (str, False),
+            'members': (list, True),
+            'candidates': (list, True),
+        },
+    ),
+
+    'guild_rank_change': EventSpec(
+        handler_module='chatter_guild_events',
+        handler_func='process_guild_rank_change_event',
+        producer='LLMChatterGuildMembers.cpp',
+        description=(
+            'Guild bots comment on promotions and demotions'
+        ),
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'team': (str, False),
+            'changes': (list, True),
+            'candidates': (list, True),
+        },
+    ),
+
+    'guild_motd_comment': EventSpec(
+        handler_module='chatter_guild_events',
+        handler_func='process_guild_motd_comment_event',
+        producer='LLMChatterGuildMembers.cpp',
+        description=(
+            'Guild bots react to a new Message of the Day'
+        ),
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'team': (str, False),
+            'motd': (str, True),
+            'candidates': (list, True),
+        },
+    ),
+
     # -- Real General loot (chatter_loot) ---------
 
     'bot_loot_item': EventSpec(
@@ -1092,6 +1180,54 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'loot_source_guid': (str, False),
             'zone_id': (int, False),
             'area_id': (int, False),
+        },
+    ),
+
+    # -- Open-world PvP (chatter_guild_pvp_events) --
+
+    'guild_pvp_kill': EventSpec(
+        handler_module='chatter_guild_pvp_events',
+        handler_func='process_guild_pvp_kill_event',
+        producer='LLMChatterGuildPvP.cpp',
+        priority='normal',
+        description='Lone guild bot tells the guild about a PvP kill',
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'bot_guid': (int, True),
+            'bot_name': (str, True),
+            'victim_name': (str, True),
+            'victim_race': (str, False),
+            'victim_class': (str, False),
+        },
+    ),
+    'guild_pvp_death': EventSpec(
+        handler_module='chatter_guild_pvp_events',
+        handler_func='process_guild_pvp_death_event',
+        producer='LLMChatterGuildPvP.cpp',
+        priority='normal',
+        description='Guild bot killed by an enemy bot tells the guild',
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'bot_guid': (int, True),
+            'bot_name': (str, True),
+            'killer_name': (str, True),
+        },
+    ),
+    'zone_pvp_death': EventSpec(
+        handler_module='chatter_guild_pvp_events',
+        handler_func='process_zone_pvp_death_event',
+        producer='LLMChatterGuildPvP.cpp',
+        priority='normal',
+        description='Bot killed by an enemy bot speaks in zone General '
+                    'chat',
+        payload_fields={
+            'team': (str, True),
+            'bot_guid': (int, True),
+            'bot_name': (str, True),
+            'killer_name': (str, True),
+            'zone_id': (int, True),
         },
     ),
 
@@ -1207,6 +1343,60 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'previous_period': (str, True),
             'description': (str, True),
             'season': (str, False),
+        },
+    ),
+
+    # -- Guild world events (chatter_guild_world_events) --
+
+    'guild_meet_greeting': EventSpec(
+        handler_module='chatter_guild_world_events',
+        handler_func='process_guild_meet_greeting_event',
+        producer='LLMChatterGuildWorld.cpp',
+        priority='high',
+        description=(
+            'Guild bot waves and greets a guildmate it meets'
+        ),
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'bot_guid': (int, True),
+            'bot_name': (str, True),
+            'player_guid': (int, True),
+            'player_name': (str, True),
+            'zone_id': (int, False),
+            'guild_post_allowed': (bool, False),
+        },
+    ),
+
+    'guild_join_zone_announce': EventSpec(
+        handler_module='chatter_guild_world_events',
+        handler_func='process_guild_join_zone_announce_event',
+        producer='LLMChatterGuildWorld.cpp',
+        description=(
+            'New guild member tells General; zone bots react'
+        ),
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'bot_guid': (int, True),
+            'bot_name': (str, True),
+            'zone_id': (int, True),
+            'candidates': (list, False),
+        },
+    ),
+
+    'guild_npc_encounter': EventSpec(
+        handler_module='chatter_guild_world_events',
+        handler_func='process_guild_npc_encounter_event',
+        producer='LLMChatterGuildWorld.cpp',
+        priority='filler',
+        description='Guild bot tells the guild about a friendly NPC',
+        payload_fields={
+            'guild_id': (int, True),
+            'guild_name': (str, True),
+            'bot_guid': (int, True),
+            'bot_name': (str, True),
+            'npc_name': (str, True),
         },
     ),
 

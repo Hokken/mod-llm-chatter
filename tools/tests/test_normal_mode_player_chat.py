@@ -160,7 +160,7 @@ def test_general_party_relay_rechecks_faction_when_processed():
     assert [bot['guid'] for bot in selected] == [2]
 
 
-def test_brief_party_fallback_is_deterministically_bounded():
+def test_brief_party_fallback_is_never_cut_mid_sentence():
     original = (
         'Certainly friend I can explain this complicated matter '
         'with all the detail it deserves'
@@ -172,19 +172,20 @@ def test_brief_party_fallback_is_deterministically_bounded():
     shortened, emote = bound_brief_casual_response(
         repaired, None, original, None
     )
-    assert len(shortened) <= 50
-    assert len(shortened.split()) <= 8
+    assert shortened == repaired
     assert emote is None
 
     recovered, emote = bound_brief_casual_response(
         '   ', None, original, 'nod'
     )
-    assert recovered
-    assert len(recovered) <= 50
-    assert len(recovered.split()) <= 8
+    assert recovered == original
     assert emote == 'nod'
 
-    assert brief_casual_response_fits(recovered, emote)
+    kept, _ = bound_brief_casual_response(
+        'Gladly. ' + repaired, None, original, None
+    )
+    assert kept == 'Gladly.'
+    assert brief_casual_response_fits(kept)
 
 
 def test_brief_party_conversation_bounds_every_speaker():
@@ -213,12 +214,8 @@ def test_brief_party_conversation_bounds_every_speaker():
     ]
     assert bounded[0]['message'].startswith('Aliss repaired')
     assert bounded[1]['message'].startswith('Rytsen original')
-    assert all(
-        brief_casual_response_fits(
-            message['message'], message.get('emote')
-        )
-        for message in bounded
-    )
+    # Lines without a fitting first sentence are kept whole, never cut.
+    assert bounded[0]['message'] == ('Aliss repaired answer ' * 8).strip()
 
     empty_repair = group_handlers._bound_brief_player_conversation(
         [], fallback

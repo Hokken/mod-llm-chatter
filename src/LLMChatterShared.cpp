@@ -74,6 +74,17 @@ std::string const& GetCreatureEntryColumn()
 
 namespace
 {
+// Core has no public membership accessor. Form a pointer to the
+// protected base member here, then read it on the actual Player.
+// No derived object, downcast, or channel-list copy is involved.
+struct PlayerChannelAccess : Player
+{
+    static auto const& JoinedChannels(Player const& player)
+    {
+        return player.*&PlayerChannelAccess::m_channels;
+    }
+};
+
 constexpr uint8 PRIORITY_FILLER =
     static_cast<uint8>(LLMChatterPriorityBand::Filler);
 constexpr uint8 PRIORITY_NORMAL =
@@ -293,7 +304,7 @@ uint32 RollConfiguredDelay(
         sLLMChatterConfig->*maxMember);
 }
 
-constexpr std::array<EventPriorityRule, 41>
+constexpr std::array<EventPriorityRule, 47>
     kTierPriorityRules = {{
         {"bot_group_combat",        PRIORITY_CRITICAL},
         {"bot_group_spell_cast",    PRIORITY_CRITICAL},
@@ -321,6 +332,9 @@ constexpr std::array<EventPriorityRule, 41>
         {"bot_group_join_batch",    PRIORITY_HIGH},
         {"bg_match_start",          PRIORITY_HIGH},
         {"bg_pvp_kill",             PRIORITY_HIGH},
+        {"guild_pvp_kill",          PRIORITY_NORMAL},
+        {"guild_pvp_death",         PRIORITY_NORMAL},
+        {"zone_pvp_death",          PRIORITY_NORMAL},
         {"player_enters_zone",      PRIORITY_HIGH},
         {"bg_idle_chatter",         PRIORITY_FILLER},
         {"raid_idle_morale",        PRIORITY_FILLER},
@@ -338,6 +352,9 @@ constexpr std::array<EventPriorityRule, 41>
         {"proximity_player_conversation",
             PRIORITY_HIGH},
         {"proximity_player_emote", PRIORITY_HIGH},
+        {"guild_meet_greeting",     PRIORITY_HIGH},
+        {"guild_join_zone_announce", PRIORITY_NORMAL},
+        {"guild_npc_encounter",     PRIORITY_FILLER},
     }};
 
 constexpr std::array<PredicatePriorityRule, 1>
@@ -1119,16 +1136,16 @@ bool IsPlayerBot(Player* player)
         return false;
 
     WorldSession* session = player->GetSession();
-    if (session && session->IsBot())
+    if (session && session->IsHeadless())
         return true;
 
     PlayerbotAI* ai = GET_PLAYERBOT_AI(player);
     if (!ai)
         return false;
 
-    // During playerbot login, the synthetic bot
+    // During playerbot login, the socketless bot
     // WorldSession exists before PlayerbotAI master
-    // state is always available. Session::IsBot()
+    // state is always available. IsHeadless()
     // handles that timing window. A user-controlled
     // self-bot uses a real client session and sets
     // master == bot, so IsSelfBot() keeps it in
@@ -1518,6 +1535,18 @@ std::string GetChatterClassName(uint8 classId)
     }
 }
 
+std::string GetChrRacesName(uint32 raceId)
+{
+    ChrRacesEntry const* race = sChrRacesStore.LookupEntry(raceId);
+    if (!race)
+        return "";
+    uint8 locale = sLLMChatterConfig->GetModuleLocale();
+    char const* name = race->name[locale];
+    if (!name || !*name)
+        name = race->name[LOCALE_enUS];
+    return name ? name : "";
+}
+
 std::string GetRaceName(uint8 raceId)
 {
     switch (raceId)
@@ -1532,8 +1561,39 @@ std::string GetRaceName(uint8 raceId)
         case RACE_TROLL: return "Troll";
         case RACE_BLOODELF: return "Blood Elf";
         case RACE_DRAENEI: return "Draenei";
-        default: return "Unknown";
+        default:
+            break;
     }
+
+    // Races added through ChrRaces (custom servers).
+    std::string const raceName = GetChrRacesName(raceId);
+    return raceName.empty() ? "Unknown" : raceName;
+}
+
+void SaveRaceNames()
+{
+    // The bridge names a race ID it does not know from this
+    // table, so prompts built from a character row use the
+    // same name as GetRaceName() puts in event JSON.
+    CharacterDatabaseTransaction trans =
+        CharacterDatabase.BeginTransaction();
+    trans->Append("DELETE FROM llm_chatter_race_names");
+    for (uint32 raceId = 1;
+         raceId < sChrRacesStore.GetNumRows(); ++raceId)
+    {
+        if (!sChrRacesStore.LookupEntry(raceId))
+            continue;
+
+        std::string const raceName = GetRaceName(raceId);
+        if (raceName == "Unknown")
+            continue;
+
+        trans->Append(
+            "INSERT INTO llm_chatter_race_names "
+            "(race_id, name) VALUES ({}, '{}')",
+            raceId, EscapeString(raceName));
+    }
+    CharacterDatabase.CommitTransaction(trans);
 }
 
 std::string GetZoneName(uint32 zoneId)
@@ -1885,6 +1945,16 @@ void LogIgnoredAddonChat(
         preview);
 }
 
+bool IsPlayerInChannel(Player const* player, Channel const* channel)
+{
+    if (!player || !channel)
+        return false;
+
+    auto const& channels = PlayerChannelAccess::JoinedChannels(*player);
+    return std::find(channels.begin(), channels.end(), channel)
+        != channels.end();
+}
+
 bool CanSpeakInGeneralChannel(Player* bot)
 {
     if (!bot || !bot->IsInWorld())
@@ -1931,7 +2001,8 @@ bool CanSpeakInGeneralChannel(Player* bot)
             == std::string::npos)
             continue;
 
-        return bot->IsInChannel(channel);
+        if (IsPlayerInChannel(bot, channel))
+            return true;
     }
 
     return false;
@@ -2443,6 +2514,15 @@ bool HasUnsafeChatterFacingMotion(Unit* unit)
 
     if (Creature* creature = unit->ToCreature())
     {
+        // A facing spline replaces an NPC's own movement and can strand
+        // its wander or patrol script. Only turn NPCs that never move.
+        if (creature->GetDefaultMovementType() != IDLE_MOTION_TYPE
+            || motion->GetCurrentMovementGeneratorType()
+                != IDLE_MOTION_TYPE
+            || (activeType != NULL_MOTION_TYPE
+                && activeType != IDLE_MOTION_TYPE))
+            return true;
+
         if (CreatureAI* ai = creature->AI())
         {
             if (ai->IsEscorted())
@@ -2681,6 +2761,25 @@ void AppendRaidContext(
 
     uint8 playerSubGroup =
         group->GetMemberGroup(player->GetGUID());
+
+    // Bot-triggered events pass the bot here. Anchor
+    // the party list on the real player's subgroup so
+    // Python targets bots the player can actually hear.
+    if (IsPlayerBot(player))
+    {
+        for (GroupReference* itr =
+                 group->GetFirstMember();
+             itr; itr = itr->next())
+        {
+            Player* member = itr->GetSource();
+            if (member && !IsPlayerBot(member))
+            {
+                playerSubGroup = group->GetMemberGroup(
+                    member->GetGUID());
+                break;
+            }
+        }
+    }
 
     std::string partyGuids = "[";
     std::string raidGuids = "[";

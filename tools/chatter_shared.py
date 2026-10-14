@@ -18,14 +18,16 @@ import time
 from typing import Optional, Dict, List, Tuple, Any
 
 from locales import dataset as locale_dataset
+from chatter_lore_data import RACE_CLASS_NOTES
 from chatter_constants import (
     ZONE_LEVELS, ZONE_NAMES,
-    CLASS_NAMES, RACE_NAMES,
+    CLASS_NAMES,
+    ALLIANCE_RACE_IDS, HORDE_RACE_IDS,
     RACE_SPEECH_PROFILES,
     CLASS_SPEECH_MODIFIERS,
     CLASS_ROLE_MAP, ROLE_COMBAT_PERSPECTIVES,
     ZONE_FLAVOR,
-    DUNGEON_FLAVOR,
+    DUNGEON_FLAVOR, OPEN_AIR_INSTANCES,
     BG_LORE,
     ITEM_QUALITY_COLORS, ITEM_QUALITY_NAMES,
     ITEM_CLASS_NAMES, WEAPON_SUBCLASS_NAMES,
@@ -66,8 +68,14 @@ from chatter_db import (
     get_character_info_by_name,
     get_character_talents,
     get_creature_entry_column,
+    get_race_name,
 )
 from talent_catalog import TALENT_CATALOG
+from chatter_structured import (
+    ResponseContract,
+    conversation_contract, render_structured_format, statement_contract,
+    structured_output_enabled,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -82,27 +90,47 @@ class PromptParts(str):
     messages.
     """
     def __new__(
-        cls, user_prompt: str, system_block: str
+        cls, user_prompt: str, system_block: str, *,
+        response_contract=None, structured_system_prompt=None,
+        contract_conflict=False,
     ):
         instance = super().__new__(
             cls, user_prompt + system_block
         )
         instance.user_prompt = user_prompt
         instance.system_prompt = system_block
+        instance.response_contract = response_contract
+        instance.structured_system_prompt = structured_system_prompt
+        instance.contract_conflict = contract_conflict
         return instance
+
+    def _metadata(self):
+        return dict(response_contract=self.response_contract,
+                    structured_system_prompt=self.structured_system_prompt,
+                    contract_conflict=self.contract_conflict)
 
     def __add__(self, other):
         if isinstance(other, PromptParts):
+            selected = self if self.system_prompt else other
+            metadata = selected._metadata()
+            metadata['contract_conflict'] = (
+                self.contract_conflict or other.contract_conflict
+                or any(part.response_contract is not None
+                       and part.response_contract != selected.response_contract
+                       for part in (self, other))
+            )
             return PromptParts(
                 self.user_prompt
                 + other.user_prompt,
                 self.system_prompt
-                or other.system_prompt
+                or other.system_prompt,
+                **metadata,
             )
         if isinstance(other, str):
             return PromptParts(
                 self.user_prompt + other,
-                self.system_prompt
+                self.system_prompt,
+                **self._metadata(),
             )
         return NotImplemented
 
@@ -110,12 +138,27 @@ class PromptParts(str):
         if isinstance(other, str):
             return PromptParts(
                 other + self.user_prompt,
-                self.system_prompt
+                self.system_prompt,
+                **self._metadata(),
             )
         return NotImplemented
 
     def __iadd__(self, other):
         return self.__add__(other)
+
+
+def _annotated_prompt(prompt, block, factory, semantic_rules, **options):
+    """Invalid metadata must not break legacy prompt construction.
+
+    Enabled dispatch rejects the explicit marker before sending a request.
+    """
+    try:
+        contract = factory(**options)
+        structured = render_structured_format(contract, semantic_rules)
+    except (ValueError, TypeError):
+        return PromptParts(prompt, block, contract_conflict=True)
+    return PromptParts(prompt, block, response_contract=contract,
+                       structured_system_prompt=structured)
 
 
 # N12 decomposition scaffold note:
@@ -465,22 +508,35 @@ def get_class_name(class_id: int) -> str:
     return CLASS_NAMES.get(class_id, "Adventurer")
 
 
-def get_race_name(race_id: int) -> str:
-    """Get human-readable race name from race ID."""
-    return RACE_NAMES.get(race_id, "Unknown")
-
-
 def get_race_faction(race_id) -> str:
     """Return the playable faction for a WotLK race ID."""
     try:
         race_id = int(race_id)
     except (TypeError, ValueError):
         return ""
-    if race_id in (1, 3, 4, 7, 11):
+    if race_id in ALLIANCE_RACE_IDS:
         return "Alliance"
-    if race_id in (2, 5, 6, 8, 10):
+    if race_id in HORDE_RACE_IDS:
         return "Horde"
     return ""
+
+
+def faction_war_line(
+    own_subject: str, own_team: str,
+    enemy_name: str, enemy_team: str,
+    own_verb: str = "fights",
+) -> str:
+    """PvP framing: who fights for which faction, and that the Horde and
+    the Alliance are hostile. Empty when a faction is unknown or equal."""
+    own_team = str(own_team or '').strip()
+    enemy_team = str(enemy_team or '').strip()
+    if not own_team or not enemy_team or own_team == enemy_team:
+        return ""
+    return (
+        f"{own_subject} {own_verb} for the {own_team}; {enemy_name} "
+        f"fights for the {enemy_team}. The Horde and the Alliance are "
+        "hostile factions, locked in a long, bitter war for survival."
+    )
 
 
 def get_gender_label(gender_id: int) -> str:
@@ -495,6 +551,7 @@ def build_bot_identity(
     gender: str = '',
     suffix: str = '.',
     gear: str = '',
+    guild_name: str = '',
 ) -> str:
     """Return an identity prefix for bot prompts.
 
@@ -510,9 +567,17 @@ def build_bot_identity(
         )
     else:
         identity = f"You are {bot_name}{suffix}"
+    identity += _guild_membership_sentence(guild_name)
 
     gear = (gear or '').strip()
     return f"{identity} {gear}" if gear else identity
+
+
+def _guild_membership_sentence(guild_name: str) -> str:
+    guild_name = (guild_name or '').strip()
+    if not guild_name:
+        return ''
+    return f" You are a member of the guild \"{guild_name}\"."
 
 
 def build_bot_identity_with_level(
@@ -522,6 +587,7 @@ def build_bot_identity_with_level(
     bot_level,
     gender: str = '',
     suffix: str = ' in World of Warcraft.',
+    guild_name: str = '',
 ) -> str:
     """Return a leveled identity prefix for bot prompts."""
     gender_prefix = f"{gender} " if gender else ""
@@ -529,6 +595,7 @@ def build_bot_identity_with_level(
         f"You are {bot_name}, a level "
         f"{bot_level} {gender_prefix}{bot_race} "
         f"{bot_class}{suffix}"
+        + _guild_membership_sentence(guild_name)
     )
 
 
@@ -539,6 +606,7 @@ def build_bot_identity_from_dict(
 ) -> str:
     """Build a standard identity line from a bot dict."""
     gender = bot.get('gender', '')
+    guild_name = bot.get('guild_name', '')
     if include_level:
         return build_bot_identity_with_level(
             bot['name'],
@@ -547,12 +615,14 @@ def build_bot_identity_from_dict(
             bot['level'],
             gender=gender,
             suffix=suffix,
+            guild_name=guild_name,
         )
     return build_bot_identity(
         bot['name'],
         bot['race'],
         bot['class'],
         gender=gender,
+        guild_name=guild_name,
     )
 
 
@@ -587,6 +657,8 @@ _race_lore_chance = 0.15
 # Module-level race vocabulary chance (set from config)
 _race_vocab_chance = 0.15
 
+_race_class_notes_enabled = True
+
 
 def set_race_lore_chance(chance_pct: int):
     """Set from config: LLMChatter.RaceLoreChance (0-100)."""
@@ -598,6 +670,33 @@ def set_race_vocab_chance(chance_pct: int):
     """Set from config: LLMChatter.RaceVocabChance (0-100)."""
     global _race_vocab_chance
     _race_vocab_chance = chance_pct / 100.0
+
+
+def set_race_class_notes_enabled(enabled: bool):
+    """Set from config: LLMChatter.RaceClassNotes.Enable."""
+    global _race_class_notes_enabled
+    _race_class_notes_enabled = bool(enabled)
+
+
+def race_class_note(
+    race: str, class_name: str,
+    class_style: str = None, actual_role: str = None,
+    subject: str = "Your",
+) -> str:
+    """Lore note for this race+class; priests split into Light/Shadow."""
+    if not _race_class_notes_enabled:
+        return ""
+    style = class_style or class_name
+    if style == 'Priest':
+        style = (
+            'Shadow Priest'
+            if actual_role and actual_role.endswith('dps')
+            else 'Light Priest'
+        )
+    note = RACE_CLASS_NOTES.get((race, style))
+    if not note:
+        return ""
+    return f"{subject} people and calling ({race} {style}): {note}"
 
 
 def build_race_class_context(
@@ -904,10 +1003,10 @@ def build_bot_state_context(extra_data, mode='roleplay'):
     """
     if not extra_data:
         return ""
-    pvp_ctx = build_pvp_enemy_context(extra_data, mode)
+    extra_context = build_pvp_enemy_context(extra_data, mode)
     state = extra_data.get('bot_state')
     if not state or not isinstance(state, dict):
-        return pvp_ctx
+        return extra_context
 
     from chatter_mode import is_roleplay
     roleplay = is_roleplay(mode)
@@ -983,8 +1082,8 @@ def build_bot_state_context(extra_data, mode='roleplay'):
                 f"Character gameplay travel state: {travel_ctx}"
             )
 
-    if pvp_ctx:
-        parts.append(pvp_ctx)
+    if extra_context:
+        parts.append(extra_context)
 
     return ' '.join(parts)
 
@@ -1315,6 +1414,14 @@ def get_bg_lore(bg_type_id: int) -> Dict:
             return localized_map[bg_type_id]
     return BG_LORE.get(bg_type_id, {})
 
+def instance_has_sky(map_id: int = 0, map_name: str = '') -> bool:
+    """True when an instance is fought under the open sky, so time
+    of day, season and weather belong in its prompts. Raid events
+    only carry a map name, so either key is accepted."""
+    if map_id and map_id in OPEN_AIR_INSTANCES:
+        return True
+    return bool(map_name) and map_name in OPEN_AIR_INSTANCES.values()
+
 
 def get_group_area(db, group_id: int) -> int:
     """Get the current area (subzone) for a group.
@@ -1563,6 +1670,121 @@ def format_price(copper: int) -> str:
     return " ".join(parts) if parts else ""
 
 
+_ONES = (
+    "zero one two three four five six seven eight nine ten eleven "
+    "twelve thirteen fourteen fifteen sixteen seventeen eighteen "
+    "nineteen"
+).split()
+_TENS = "_ _ twenty thirty forty fifty sixty seventy eighty ninety".split()
+
+
+def number_to_words(n: int) -> str:
+    """Spell out a non-negative integer (up to 999,999) in English."""
+    n = int(n)
+    if n < 20:
+        return _ONES[n]
+    if n < 100:
+        tens, ones = divmod(n, 10)
+        return _TENS[tens] + (f"-{_ONES[ones]}" if ones else "")
+    if n < 1000:
+        hundreds, rest = divmod(n, 100)
+        head = f"{_ONES[hundreds]} hundred"
+        return head + (f" and {number_to_words(rest)}" if rest else "")
+    if n < 1_000_000:
+        thousands, rest = divmod(n, 1000)
+        head = f"{number_to_words(thousands)} thousand"
+        if not rest:
+            return head
+        return head + (" and " if rest < 100 else " ") + number_to_words(rest)
+    return str(n)
+
+
+def _coins_in_words(gold: int, silver: int, copper: int) -> str:
+    parts = [f"{number_to_words(amount)} {metal}"
+             for amount, metal in ((gold, "gold"), (silver, "silver"),
+                                   (copper, "copper")) if amount]
+    if not parts:
+        return ""
+    if len(parts) == 1:
+        return parts[0]
+    return ", ".join(parts[:-1]) + " and " + parts[-1]
+
+
+def format_price_words(copper: int) -> str:
+    """Copper amount as spoken coins, e.g. 'one gold and twenty silver coins'."""
+    if not copper or copper <= 0:
+        return ""
+    words = _coins_in_words(
+        copper // 10000, (copper % 10000) // 100, copper % 100)
+    return f"{words} coins"
+
+
+_WOW_LINK_RE = re.compile(r'\|c[0-9A-Fa-f]{8}\|H[^|]*\|h\[[^\]]*\]\|h\|r')
+_COIN_RE = re.compile(
+    r'(?<![\w.])(?<!\d,)(\d+)\s?(g|gold|s|silver|c|copper)(?![A-Za-z])'
+    r'(?:\s*(\d+)\s?(s|silver|c|copper)(?![A-Za-z]))?'
+    r'(?:\s*(\d+)\s?(c|copper)(?![A-Za-z]))?',
+    re.IGNORECASE,
+)
+# Digits joined by a comma ("12,5", "1,500.50") are left as written.
+_DIGITS_RE = re.compile(r'(?<![\w.])(?<!\d,)\d{1,6}(?![\w.]|,\d)')
+# "1,500" must reach _COIN_RE and _DIGITS_RE as one number, or each
+# would rewrite its digit groups separately ("one,five hundred"). It may
+# be followed by a coin suffix ("1,500g20s") but not by more digits or a
+# decimal part.
+_GROUPED_RE = re.compile(
+    r'(?<![\w.,])\d{1,3}(?:,\d{3})+(?![\d,.]?\d)'
+    r'(?=(?:g|gold|s|silver|c|copper)(?![A-Za-z])|\W|$)',
+    re.IGNORECASE,
+)
+
+
+def _coin_match_words(match) -> str:
+    amounts = {'g': 0, 's': 0, 'c': 0}
+    for amount, unit in ((match.group(1), match.group(2)),
+                         (match.group(3), match.group(4)),
+                         (match.group(5), match.group(6))):
+        if amount and unit:
+            amounts[unit[0].lower()] = int(amount)
+    return _coins_in_words(amounts['g'], amounts['s'], amounts['c'])
+
+
+def spell_out_numbers(text: str) -> str:
+    """Write prices ('1g20s', '50 silver') and other numbers in words,
+    leaving WoW link markup untouched."""
+    if not text:
+        return text
+    pieces = []
+    last = 0
+    for link in _WOW_LINK_RE.finditer(text):
+        pieces.append(_spell_plain(text[last:link.start()]))
+        pieces.append(link.group(0))
+        last = link.end()
+    pieces.append(_spell_plain(text[last:]))
+    return "".join(pieces)
+
+
+def spell_out_trade_numbers(text: str) -> str:
+    """spell_out_numbers() for English chat only. It writes English
+    words, so other languages keep the model's own wording (the trade
+    prompt already asks for numbers in words)."""
+    if _language:
+        return text
+    return spell_out_numbers(text)
+
+
+def _ungroup(match) -> str:
+    # number_to_words() stops at 999,999; larger amounts keep their commas.
+    plain = match.group(0).replace(',', '')
+    return plain if int(plain) < 1_000_000 else match.group(0)
+
+
+def _spell_plain(text: str) -> str:
+    text = _GROUPED_RE.sub(_ungroup, text)
+    text = _COIN_RE.sub(_coin_match_words, text)
+    return _DIGITS_RE.sub(lambda m: number_to_words(int(m.group(0))), text)
+
+
 def format_quest_link(
     quest_id: int, quest_level: int, quest_name: str
 ) -> str:
@@ -1605,7 +1827,7 @@ def replace_placeholders(
     result = message
 
     if quest_data:
-        quest_pattern = r'\{quest:[^}]+\}'
+        quest_pattern = r'\{?\{quest:[^}]+\}\}?'
         if re.search(quest_pattern, result):
             link = format_quest_link(
                 quest_data['quest_id'],
@@ -1615,7 +1837,7 @@ def replace_placeholders(
             result = re.sub(quest_pattern, link, result)
 
     if item_data:
-        item_pattern = r'\{item:[^}]+\}'
+        item_pattern = r'\{?\{item:[^}]+\}\}?'
         link = format_item_link(
             item_data['item_id'],
             item_data.get('item_quality', 2),
@@ -1631,7 +1853,7 @@ def replace_placeholders(
                 )
 
     if spell_data:
-        spell_pattern = r'\{spell:[^}]+\}'
+        spell_pattern = r'\{?\{spell:[^}]+\}\}?'
         if re.search(spell_pattern, result):
             link = format_spell_link(
                 spell_data['spell_id'],
@@ -2284,40 +2506,129 @@ def strip_conversation_actions(
             pass
 
 
+# Brief casual length tiers: name -> (min words, max words, max chars).
+# One fixed band made every brief reply land at the same size; picking
+# a tier per reply keeps brief turns brief while varying them the way
+# people do ("Evening!" vs. a short line vs. one relaxed sentence).
+BRIEF_CASUAL_TIERS: Dict[str, Tuple[int, int, int]] = {
+    'tiny': (1, 4, 30),
+    'short': (2, 8, 50),
+    'relaxed': (5, 14, 85),
+}
+DEFAULT_BRIEF_CASUAL_TIER = 'short'
+_BRIEF_CASUAL_TIER_ORDER = ('tiny', 'short', 'relaxed')
+
+
+_FIRST_SENTENCE = re.compile(r'^(.+?[.!?])(?=\s|$)', re.S)
+
+
+def _brief_casual_limits(
+    tier: Optional[str],
+) -> Tuple[int, int, int]:
+    return BRIEF_CASUAL_TIERS.get(
+        tier or DEFAULT_BRIEF_CASUAL_TIER,
+        BRIEF_CASUAL_TIERS[DEFAULT_BRIEF_CASUAL_TIER],
+    )
+
+
+def pick_brief_casual_tier(
+    config: Dict,
+    avoid: Optional[str] = None,
+) -> str:
+    """Pick a brief casual length tier from the configured weights.
+
+    avoid: tier used by the previous speaker in the same exchange;
+    it is skipped when another tier has weight, so two replies to
+    one player message do not come out the same size.
+    """
+    raw = str(config.get(
+        'LLMChatter.PlayerChat.BriefCasualLengthWeights',
+        '35,45,20',
+    ))
+    weights = []
+    for part in raw.split(','):
+        try:
+            weights.append(max(0, int(part.strip())))
+        except ValueError:
+            weights.append(0)
+    weights = (weights + [0, 0, 0])[:3]
+    pairs = [
+        (name, w)
+        for name, w in zip(_BRIEF_CASUAL_TIER_ORDER, weights)
+        if w > 0
+    ]
+    if avoid and any(name != avoid for name, _ in pairs):
+        pairs = [(name, w) for name, w in pairs if name != avoid]
+    if not pairs:
+        return DEFAULT_BRIEF_CASUAL_TIER
+    names, tier_weights = zip(*pairs)
+    return random.choices(names, weights=tier_weights, k=1)[0]
+
+
+def brief_casual_length_line(tier: Optional[str] = None) -> str:
+    """Length instruction for a brief casual reply."""
+    lo, hi, chars = _brief_casual_limits(tier)
+    return (
+        f"Length: {lo}-{hi} words, no more than {chars} characters."
+    )
+
+
 def build_conversational_scale_guidance(
     subject: str = "message",
     force_brief: bool = False,
+    brief_tier: Optional[str] = None,
 ) -> str:
-    """Keep player-responsive dialogue proportional to its input."""
+    """Match response scope to conversational purpose, not input size."""
     guidance = (
-        f"Match the player's conversational scale. If the player's "
-        f"{subject} is brief and casual, respond in kind with a few "
-        "casual words or one short sentence. Do not expand it into a "
-        "speech, explanation, story, or new topic. This instruction "
-        "overrides generic mood, creativity, and length suggestions."
+        f"Judge what the player's {subject} invites in this conversation, "
+        "not how many words it contains. Within this channel's length "
+        "guidance and hard limits, a short open question may deserve a "
+        "concrete answer, useful detail, or explanation. Use recent context "
+        "to understand terse follow-ups. An acknowledgment, routine social "
+        "exchange, or closure usually needs only a few natural words; "
+        "do not turn it into a speech or introduce a new topic. When the "
+        "player invites information or discussion, contribute something "
+        "relevant rather than a stock dismissal. Use the supplied context; "
+        "do not invent factual updates to fill space. Never pad a reply."
     )
     if force_brief:
+        lo, hi, chars = _brief_casual_limits(brief_tier)
         guidance += (
             " This interaction has been classified as brief and casual. "
-            "Use 2-8 words and no more than 50 characters. Use plain "
-            "conversational wording rather than a metaphor, blessing, "
-            "proverb, explanation, question, or ceremonial flourish. "
-            "Keep character voice through light word choice only."
+            "This brief contract overrides generic mood, creativity, and "
+            "length suggestions. "
+            f"Use {lo}-{hi} words and no more than {chars} characters. "
         )
+        if brief_tier == 'relaxed':
+            guidance += (
+                "Answer the way a person would in passing: plain words, "
+                "and if it feels natural, one small personal touch or a "
+                "light question back. No metaphor, blessing, proverb, "
+                "explanation, or ceremonial flourish."
+            )
+        else:
+            guidance += (
+                "Use plain conversational wording rather than a "
+                "metaphor, blessing, proverb, explanation, question, "
+                "or ceremonial flourish."
+            )
+        guidance += " Keep character voice through light word choice only."
     return guidance
 
 
 def brief_casual_response_fits(
     message: str,
     emote: Optional[str] = None,
+    tier: Optional[str] = None,
 ) -> bool:
     """Validate the hard output contract for a brief casual turn."""
     text = str(message or '').strip()
     if not text:
         return bool(emote)
+    _, hi, chars = _brief_casual_limits(tier)
     return (
-        len(text) <= 50
-        and len(text.split()) <= 8
+        len(text) <= chars
+        and len(text.split()) <= hi
     )
 
 
@@ -2326,30 +2637,40 @@ def bound_brief_casual_response(
     emote: Optional[str] = None,
     fallback_message: str = '',
     fallback_emote: Optional[str] = None,
+    tier: Optional[str] = None,
 ) -> Tuple[str, Optional[str]]:
-    """Bound a usable brief response instead of discarding it."""
-    if brief_casual_response_fits(message, emote):
+    """Keep a usable brief response instead of discarding it.
+
+    A reply that runs over its length band is never cut mid-sentence:
+    its first complete sentence is kept when that fits the band,
+    otherwise the reply is delivered whole (only the chat limit applies).
+    """
+    if brief_casual_response_fits(message, emote, tier):
         return message, emote
     source = (
         str(message or '').strip()
         or str(fallback_message or '').strip()
     )
-    first_eight_words = ' '.join(source.split()[:8])
-    return (
-        shorten_chat_message(first_eight_words, 50),
-        emote or fallback_emote,
-    )
+    emote = emote or fallback_emote
+    match = _FIRST_SENTENCE.match(source)
+    if match:
+        first = match.group(1).strip()
+        if brief_casual_response_fits(first, None, tier):
+            return first, emote
+    return shorten_chat_message(source), emote
 
 
 def build_brief_casual_repair_prompt(
     prompt: PromptParts,
+    tier: Optional[str] = None,
 ) -> PromptParts:
     """Request one format-preserving rewrite of an oversized reply."""
+    lo, hi, chars = _brief_casual_limits(tier)
     return prompt + (
         "\n\nYour previous response violated the brief-casual hard "
-        "limit. Rewrite it using 2-8 words and no more than 50 "
-        "characters. Keep it plain and conversational. Return the same "
-        "JSON shape requested above."
+        f"limit. Rewrite it using {lo}-{hi} words and no more than "
+        f"{chars} characters. Keep it plain and conversational. Return "
+        "the same JSON shape requested above."
     )
 
 
@@ -2360,6 +2681,10 @@ def append_json_instruction(
     message_only: bool = False,
     allow_emote_only: bool = False,
     allow_narrator_message: bool = False,
+    extra_field: str = '',
+    extra_rule: str = '',
+    include_thread: bool = False,
+    thread_speaker_names=(),
 ) -> str:
     """Append structured JSON response instruction
     to a prompt.
@@ -2374,6 +2699,8 @@ def append_json_instruction(
     instead (used by General conversation paths).
     message_only=True emits a strict {"message": "..."} schema with no
     emote/action fields at all (e.g. guild chat, which is spoken text only).
+    extra_field / extra_rule add one optional trailing field to the
+    full schema (e.g. the party conversation-thread report).
     """
     if message_only:
         lang_rule = get_language_rule()
@@ -2390,12 +2717,18 @@ def append_json_instruction(
             if allow_narrator_message
             else ""
         )
+        if extra_field:
+            message_example = (
+                message_example.rstrip('\n') + ',\n'
+                + f'  {extra_field}\n'
+            )
         block = (
             "\n\nRESPONSE FORMAT: You MUST respond with "
             "ONLY valid JSON. No other text.\n"
             "{\n"
             f"{message_example}"
             "}\n"
+            f"{extra_rule + chr(10) if extra_rule else ''}"
             "Rules: double quotes only, no trailing "
             "commas, no code fences, no markdown.\n"
             f"{narrator_rule}"
@@ -2404,7 +2737,15 @@ def append_json_instruction(
             "stated character limit."
             f"{lang_rule}"
         )
-        return PromptParts(prompt, block)
+        # Thread callers currently use extra_rule only for legacy report format.
+        return _annotated_prompt(
+            prompt, block, statement_contract,
+            narrator_rule
+            + ' Follow the Length instruction and character limit exactly.'
+            + lang_rule + (extra_rule if not include_thread else ''),
+            message_only=True, thread=include_thread,
+            thread_speaker_names=thread_speaker_names,
+        )
     # Apply ActionChance RNG: allow_action=True means
     # "eligible for action" — the RNG decides.
     # allow_action=False means "never include action"
@@ -2472,8 +2813,10 @@ def append_json_instruction(
         f"{message_line}"
         f"{emote_line}"
         f"  {action_desc}"
+        f"{f'  {extra_field}' + chr(10) if extra_field else ''}"
         "}\n"
         f"{emote_only_rule}"
+        f"{extra_rule + chr(10) if extra_rule else ''}"
         "Rules: double quotes only, no trailing "
         "commas, no code fences, no markdown.\n"
         "CRITICAL: Follow the Length instruction "
@@ -2481,7 +2824,15 @@ def append_json_instruction(
         "stated character limit."
         f"{lang_rule}"
     )
-    return PromptParts(prompt, block)
+    return _annotated_prompt(
+        prompt, block, statement_contract,
+        action_desc + emote_only_rule
+        + 'Follow the Length instruction and character limit exactly.'
+        + lang_rule + (extra_rule if not include_thread else ''),
+        emote=emote_available, action=allow_action,
+        emote_only=allow_emote_only, thread=include_thread,
+        thread_speaker_names=thread_speaker_names,
+    )
 
 
 def append_conversation_json_instruction(
@@ -2493,12 +2844,20 @@ def append_conversation_json_instruction(
     addressee_names: Optional[List[str]] = None,
     allow_emote_only: bool = False,
     allow_narrator_messages: bool = False,
+    trailing_object: str = '',
+    extra_rule: str = '',
+    include_thread: bool = False,
+    thread_speaker_names=(),
 ) -> str:
     """Append conversation JSON array instruction.
 
     By default each item has speaker/message/emote/action
     fields. Guild chat uses message_only to request spoken
-    text without action or emote fields.
+    text without action or emote fields. trailing_object /
+    extra_rule add one optional non-message object as the last
+    array element (e.g. the party conversation-thread report);
+    parse_conversation_response() skips it because it has no
+    speaker.
     """
     lang_rule = get_language_rule()
     if lang_rule:
@@ -2530,12 +2889,17 @@ def append_conversation_json_instruction(
             "quotes/newlines, no trailing commas, "
             "no code fences.\n"
             f"\nRespond with EXACTLY {msg_count} messages "
-            "in JSON:\n"
+            "in JSON"
+            f"{', then one final object' if trailing_object else ''}"
+            ":\n"
             "[\n"
-            f"  {example_msgs}\n"
+            f"  {example_msgs}"
+            f"{f',{chr(10)}  {trailing_object}' if trailing_object else ''}"
+            "\n"
             "]\n"
-            "Each object must contain only \"speaker\" "
+            "Each message object must contain only \"speaker\" "
             "and \"message\".\n"
+            f"{extra_rule + chr(10) if extra_rule else ''}"
             f"{narrator_rule}"
             "ONLY the JSON array, nothing else.\n"
             "CRITICAL: Follow the Length instruction "
@@ -2543,7 +2907,15 @@ def append_conversation_json_instruction(
             "stated character limit."
             f"{lang_rule}"
         )
-        return PromptParts(prompt, block)
+        return _annotated_prompt(
+            prompt, block, conversation_contract,
+            narrator_rule
+            + 'Follow the Length instruction and character limit exactly.'
+            + lang_rule + (extra_rule if not include_thread else ''),
+            speaker_names=bot_names, message_count=msg_count,
+            message_only=True, thread=include_thread,
+            thread_speaker_names=thread_speaker_names,
+        )
 
     # When actions are enabled, every message MUST
     # include an action — strip_conversation_actions()
@@ -2643,17 +3015,29 @@ def append_conversation_json_instruction(
         f"{emote_only_rule}"
         "JSON rules: Use double quotes, escape "
         "quotes/newlines, no trailing commas, no code fences.\n"
-        f"\nRespond with EXACTLY {msg_count} messages in JSON:\n"
+        f"\nRespond with EXACTLY {msg_count} messages in JSON"
+        f"{', then one final object' if trailing_object else ''}:\n"
         "[\n"
-        f"  {example_msgs}\n"
+        f"  {example_msgs}"
+        f"{f',{chr(10)}  {trailing_object}' if trailing_object else ''}\n"
         "]\n"
+        f"{extra_rule + chr(10) if extra_rule else ''}"
         "ONLY the JSON array, nothing else.\n"
         "CRITICAL: Follow the Length instruction "
         "in the prompt exactly — never exceed the "
         "stated character limit."
         f"{lang_rule}"
     )
-    return PromptParts(prompt, block)
+    return _annotated_prompt(
+        prompt, block, conversation_contract,
+        action_text + '\n' + addressee_rule + emote_only_rule
+        + 'Follow the Length instruction and character limit exactly.'
+        + lang_rule + (extra_rule if not include_thread else ''),
+        speaker_names=bot_names, message_count=msg_count, emote=emote_available,
+        action=bool(action_speakers), addressee_names=addressee_names or (),
+        emote_only=allow_emote_only, thread=include_thread,
+        thread_speaker_names=thread_speaker_names,
+    )
 
 
 def select_conversation_message_count(
@@ -2677,8 +3061,19 @@ def build_conversation_json_repair_prompt(
     prompt: str,
     bot_names: List[str],
     message_only: bool = False,
+    *, structured_output: bool = False,
 ) -> str:
     """Build the shared one-attempt conversation repair prompt."""
+    if structured_output:
+        contract = getattr(prompt, 'response_contract', None)
+        if contract is None or contract.kind != 'conversation':
+            raise ValueError('Structured repair requires conversation metadata')
+        return prompt + (
+            '\n\nYour previous output was invalid. Return ONLY the JSON '
+            'object required by the supplied schema, with exactly '
+            f'{contract.message_count} messages. Preserve the original '
+            'scene, selected speakers and response rules.'
+        )
     msg_count = extract_conversation_msg_count(prompt)
     repair_prompt = (
         "Your previous output was invalid JSON. "
@@ -2730,7 +3125,19 @@ def calculate_dynamic_delay(
         # Player is waiting — fast reply.  The LLM
         # already took several seconds ("thinking"),
         # so keep the typing simulation short.
-        return random.uniform(4.0, 8.0)
+        try:
+            low = int(config.get(
+                'LLMChatter.ResponsiveDelayMin', 4000
+            )) / 1000.0
+            high = int(config.get(
+                'LLMChatter.ResponsiveDelayMax', 8000
+            )) / 1000.0
+        except (ValueError, TypeError):
+            low, high = 4.0, 8.0
+        low, high = max(0.0, low), max(0.0, high)
+        if high < low:
+            low, high = high, low
+        return random.uniform(low, high)
 
     # Ambient/idle — full simulation
     reading_time = (
@@ -2934,7 +3341,7 @@ def run_single_reaction(
     emote = parsed.get('emote')
 
     try:
-        insert_chat_message(
+        message_id = insert_chat_message(
             db,
             bot_guid,
             speaker_name,
@@ -2967,6 +3374,7 @@ def run_single_reaction(
         'message': message,
         'emote': emote,
         'delay_seconds': resolved_delay,
+        'message_id': message_id,
         'error_reason': None,
     }
 
@@ -3106,26 +3514,45 @@ def find_addressed_bot(
         f"prompt group discussion\n"
         f'- If only one bot is addressed, '
         f'"multi_addressed" must be false.\n'
-        f'- "brief_casual": true when the message and '
-        f"conversation context call for a similarly brief, "
-        f"casual response rather than a developed answer. "
-        f"Judge meaning and conversational function, not "
-        f"keywords or message length alone. A concise but "
-        f"substantive question is not brief casual talk.\n"
-        f'- "requires_reply": true for every question, request, '
-        f"instruction, warning, important piece of information, "
-        f"greeting that invites engagement, or any turn that "
-        f"expects acknowledgment. Questions always require a reply. "
-        f"For statements, judge their meaning and conversational "
-        f"context: use false only when leaving the statement "
-        f"unanswered would feel socially natural. Do not decide "
-        f"from keywords, punctuation, or message length alone."
+        f'- "brief_casual": true only when a minimal social response '
+        f"would satisfy the player's conversational purpose. Judge meaning "
+        f"and conversational function, not keywords or message length alone. "
+        f"An open invitation to share information, news, experiences, advice, "
+        f"an explanation or a story is false, even if terse or informal: "
+        f"a concrete or developed contribution may be welcome. This permits "
+        f"detail without requiring a long answer. Acknowledgments, routine "
+        f"social exchanges and closures are true when elaboration would "
+        f"feel disproportionate. Use recent history to decide what a short "
+        f"follow-up invites; do not classify it from its size in isolation. "
+        f"If a turn also contains a substantive request, do not let its "
+        f"social framing hide that request. Decide whether a reply is "
+        f"required separately from how much it should say.\n"
+        f'- "requires_reply": judge the whole exchange: would silence '
+        f"feel natural, or would it feel like ignoring the player? Set true "
+        f"when the player contributes to an ongoing exchange, responds to "
+        f"a bot's interest, or invites further engagement. This remains "
+        f"true even if a few words would be enough in reply. The absence "
+        f"of a question does not mean the conversation is finished. "
+        f"Questions always require a reply. Set false only when the turn "
+        f"clearly needs no further engagement and silence would naturally "
+        f"close or leave the exchange at rest. An acknowledgment can serve "
+        f"that purpose after an exchange is complete, but its conversational "
+        f"function depends on the recent history. Do not infer closure "
+        f"merely from a message being casual, brief or declarative. When "
+        f"uncertain, favor a reply. If uncertain only whether engagement "
+        f"is needed, prefer a short acknowledgment (brief_casual=true), "
+        f"unless the conversational purpose clearly calls for detail. "
+        f"Reply necessity and reply length remain separate decisions. "
+        f"Judge meaning and context, "
+        f"not keywords, punctuation, or message length alone."
     )
 
     try:
         result = quick_llm_analyze(
             client, config, prompt, max_tokens=80,
             label='find_addressed_bot',
+            response_contract=ResponseContract('analysis',
+                                               speaker_names=bot_names),
         )
     except Exception:
         logger.error(
@@ -3320,6 +3747,69 @@ def _resolve_conversation_speaker(
     return None
 
 
+_THREAD_TAIL_RE = re.compile(r'\s*\{\s*"thread"')
+
+
+def _conversation_array_items(cleaned: str):
+    """Decode a conversation JSON array.
+
+    Returns the list, or None when no usable array exists. If the
+    full array does not decode, complete leading objects are kept
+    only when what failed is a trailing ``thread`` bookkeeping
+    element (or the array simply ends); broken dialogue is still
+    rejected as before.
+    """
+    start = cleaned.find('[')
+    if start == -1:
+        return None
+    end = cleaned.rfind(']')
+    if end > start:
+        try:
+            data = json.loads(cleaned[start:end + 1])
+            return data if isinstance(data, list) else None
+        except json.JSONDecodeError:
+            pass
+    decoder = json.JSONDecoder()
+    items = []
+    pos = start + 1
+    size = len(cleaned)
+    while pos < size:
+        while pos < size and (
+            cleaned[pos].isspace() or cleaned[pos] == ','
+        ):
+            pos += 1
+        if pos >= size or cleaned[pos] == ']':
+            return items or None
+        if cleaned[pos] != '{':
+            break
+        try:
+            obj, pos = decoder.raw_decode(cleaned, pos)
+        except ValueError:
+            break
+        items.append(obj)
+    tail = cleaned[pos:]
+    if items and (not tail.strip() or _THREAD_TAIL_RE.match(tail)):
+        return items
+    return None
+
+
+def count_conversation_items(response: str) -> int:
+    """Count the dialogue objects (with a speaker) the model sent.
+
+    Lets callers tell whether every line the model wrote survived
+    parsing and filtering. Returns 0 when nothing decodes.
+    """
+    cleaned = re.sub(
+        r'```(?:json)?', '', (response or '').strip(),
+        flags=re.IGNORECASE,
+    ).strip()
+    items = _conversation_array_items(cleaned) or []
+    return sum(
+        1 for item in items
+        if isinstance(item, dict) and 'speaker' in item
+    )
+
+
 def parse_conversation_response(
     response: str,
     bot_names: List[str],
@@ -3328,30 +3818,27 @@ def parse_conversation_response(
     addressee_names: Optional[List[str]] = None,
     allow_emote_only: bool = False,
 ) -> list:
-    """Parse conversation JSON response into message list."""
+    """Parse conversation JSON response into message list.
+
+    Non-object elements and speakerless objects (such as the
+    trailing party ``thread`` report) are skipped. When only an
+    optional trailing ``thread`` element is malformed or cut off,
+    the complete dialogue objects before it are still returned.
+    """
     try:
-        cleaned = response.strip()
+        cleaned = (response or '').strip()
         cleaned = re.sub(
             r'```(?:json)?', '', cleaned,
             flags=re.IGNORECASE
         ).strip()
-        json_match = re.search(r'\[.*\]', cleaned, re.DOTALL)
-        if json_match:
-            try:
-                messages = json.loads(json_match.group())
-            except json.JSONDecodeError:
-                start = cleaned.find('[')
-                end = cleaned.rfind(']')
-                if start != -1 and end != -1 and end > start:
-                    messages = json.loads(
-                        cleaned[start:end + 1]
-                    )
-                else:
-                    raise
+        messages = _conversation_array_items(cleaned)
+        if messages is not None:
             result = []
             for msg in messages:
-                speaker = msg.get('speaker', '').strip()
-                message = msg.get('message', '').strip()
+                if not isinstance(msg, dict):
+                    continue
+                speaker = str(msg.get('speaker') or '').strip()
+                message = str(msg.get('message') or '').strip()
                 raw_emote = msg.get('emote')
                 emote = validate_emote(raw_emote)
                 if speaker and (
@@ -3400,18 +3887,20 @@ def parse_extra_data(
     raw_data: str, event_id=None, event_type=None
 ) -> dict:
     """Parse extra_data JSON with repair attempts."""
+    from chatter_bg_delivery import normalize_bg_transport
+
     if not raw_data:
         return {}
 
     try:
-        return json.loads(raw_data)
+        return normalize_bg_transport(json.loads(raw_data), event_type)
     except json.JSONDecodeError:
         pass
 
     repaired = repair_json_string(raw_data)
     try:
         result = json.loads(repaired)
-        return result
+        return normalize_bg_transport(result, event_type)
     except json.JSONDecodeError:
         pass
     except Exception:
@@ -3548,11 +4037,14 @@ def format_item_context(
 # =============================================================================
 def build_anti_repetition_context(
     recent_messages: list,
-    max_items: int = 10
+    max_items: int = 10,
+    allow_same_subject: bool = False,
 ) -> str:
     """Format recent messages as an anti-repetition
     prompt injection block.
 
+    allow_same_subject=True keeps the ban on repeated wording but
+    lets an ongoing conversation keep developing its subject.
     Returns empty string if no recent messages.
     """
     if not recent_messages:
@@ -3587,8 +4079,14 @@ def build_anti_repetition_context(
     return (
         "ANTI-REPETITION: These messages were recently "
         "said in this area. You MUST NOT repeat or "
-        "closely paraphrase ANY of them. Say something "
-        "completely different.\n"
+        "closely paraphrase ANY of them. "
+        + (
+            "Developing the same subject with a new point "
+            "is fine.\n"
+            if allow_same_subject
+            else "Say something completely different.\n"
+        )
+        +
         f"{lines}"
         f"{lang_note}"
     )
@@ -3988,6 +4486,14 @@ def build_talent_context(
                 f"{spec_personality}")
 
     return result
+
+
+def format_name_list(names) -> str:
+    """Join names naturally: "A", "A and B", "A, B and C"."""
+    names = [str(n).strip() for n in names or [] if str(n).strip()]
+    if len(names) <= 1:
+        return names[0] if names else ''
+    return ', '.join(names[:-1]) + ' and ' + names[-1]
 
 
 def format_weapon_list(weapons) -> str:

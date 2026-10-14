@@ -339,7 +339,6 @@ void CheckNearbyGameObjects()
 
         if (player->IsInCombat()
             || player->InBattleground()
-            || player->IsMounted()
             || player->IsFlying())
             continue;
 

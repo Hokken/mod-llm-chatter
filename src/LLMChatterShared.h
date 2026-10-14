@@ -9,6 +9,7 @@
 #include <string>
 #include <vector>
 
+class Channel;
 struct AchievementEntry;
 struct CharTitlesEntry;
 class Creature;
@@ -65,7 +66,13 @@ std::string EscapeString(const std::string& str);
 std::string JsonEscape(const std::string& str);
 std::string GetCreatureRoleName(Creature* creature);
 std::string GetChatterClassName(uint8 classId);
+// Name of any race in ChrRaces, playable or not, in the
+// server DBC locale with enUS as fallback; empty if unknown.
+std::string GetChrRacesName(uint32 raceId);
 std::string GetRaceName(uint8 raceId);
+// Writes the name of every race in ChrRaces to
+// llm_chatter_race_names for the bridge (startup only).
+void SaveRaceNames();
 std::string BuildBotIdentityFields(
     Player* player, bool includeRoles = false);
 std::string BuildBotStateJson(Player* player);
@@ -112,6 +119,7 @@ void RecordPartyChatGateActivity(
     const std::string& deliveryPolicy,
     const std::string& deliveryReason);
 void EnsureBotInGeneralChannel(Player* bot);
+bool IsPlayerInChannel(Player const* player, Channel const* channel);
 bool CanSpeakInGeneralChannel(Player* bot);
 bool IsEventOnCooldown(
     std::map<std::string, time_t>& cooldownCache,

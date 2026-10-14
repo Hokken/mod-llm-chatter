@@ -2,9 +2,10 @@
 
 import logging
 import random
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 from chatter_db import insert_chat_message
+from chatter_identity import prepare_guild_speakers
 from chatter_guild import (
     _clean_guild_conversation,
     _contains_speaker_name,
@@ -24,18 +25,21 @@ from chatter_guild_player import (
     _select_responders,
     _session_is_current,
 )
+from chatter_guild_profile import get_guild_profile, guild_identity_lines
 from chatter_llm import call_llm
 from chatter_mode import build_player_chat_guidance, is_roleplay
+from chatter_player_context import player_character_lines
 from chatter_shared import (
     append_conversation_json_instruction,
     append_json_instruction,
     build_conversation_json_repair_prompt,
+    structured_output_enabled,
     calculate_dynamic_delay,
     get_chatter_mode,
     parse_conversation_response,
     parse_extra_data,
 )
-from chatter_text import parse_single_response
+from chatter_text import parse_single_response, shorten_chat_message
 
 logger = logging.getLogger(__name__)
 
@@ -85,29 +89,18 @@ def _max_characters(config: Dict) -> int:
     ), 100)))
 
 
-def _trim_greeting(text: str, maximum: int) -> str:
-    text = " ".join(str(text or '').split())
-    if len(text) <= maximum:
-        return text
+def _trim_greeting(text: str) -> str:
+    """Normalize whitespace and deliver the greeting intact.
 
-    shortened = text[:maximum - 1].rsplit(' ', 1)[0]
-    shortened = shortened.rstrip(' ,;:-')
-    if not shortened:
-        return ""
-    if shortened[-1] not in '.!?':
-        shortened += '.'
-    return shortened
+    LoginGreeting.MaxCharacters steers the length in the prompt; a line
+    that runs over it is never cut mid-sentence. Only the client's chat
+    limit is enforced, keeping whole sentences.
+    """
+    return shorten_chat_message(" ".join(str(text or '').split()))
 
 
-def _clean_greeting(
-    text: str,
-    speaker_name: str,
-    maximum: int,
-) -> str:
-    return _trim_greeting(
-        _clean_single(text, speaker_name),
-        maximum,
-    )
+def _clean_greeting(text: str, speaker_name: str) -> str:
+    return _trim_greeting(_clean_single(text, speaker_name))
 
 
 def _choose_responder_count(
@@ -117,12 +110,12 @@ def _choose_responder_count(
     maximum = max(
         1,
         min(
-            3,
+            4,
             _safe_int(config.get(
                 'LLMChatter.GuildChatter.'
                 'LoginGreeting.MaxResponders',
-                3,
-            ), 3),
+                4,
+            ), 4),
             candidate_count,
         ),
     )
@@ -133,7 +126,7 @@ def _choose_responder_count(
         config,
         'LLMChatter.GuildChatter.'
         'LoginGreeting.MultiReplyChance',
-        20,
+        75,
     )
     if random.randint(1, 100) > chance:
         return 1
@@ -168,8 +161,11 @@ def _shared_prompt_lines(
     player_name: str,
     maximum: int,
     mode: str = 'roleplay',
+    guild_context: Optional[List[str]] = None,
+    player_lines: Optional[List[str]] = None,
 ) -> List[str]:
     lines = [f"The guild is \"{guild_name}\"."]
+    lines.extend(guild_context or [])
     if is_roleplay(mode):
         lines.insert(
             0, "Write natural in-character World of Warcraft Guild Chat."
@@ -190,6 +186,7 @@ def _shared_prompt_lines(
     lines.extend(
         _guild_location_lines(participants, False, mode)
     )
+    lines.extend(player_lines or [])
     lines.extend([
         "",
         f"{player_name}, a real guild member, has just "
@@ -224,6 +221,8 @@ def _build_single_prompt(
     name_requested: bool,
     maximum: int,
     mode: str = 'roleplay',
+    guild_context: Optional[List[str]] = None,
+    player_lines: Optional[List[str]] = None,
 ):
     lines = _shared_prompt_lines(
         [participant],
@@ -232,6 +231,8 @@ def _build_single_prompt(
         player_name,
         maximum,
         mode,
+        guild_context=guild_context,
+        player_lines=player_lines,
     )
     lines.extend([
         "",
@@ -260,6 +261,8 @@ def _build_multi_prompt(
     name_requested: bool,
     maximum: int,
     mode: str = 'roleplay',
+    guild_context: Optional[List[str]] = None,
+    player_lines: Optional[List[str]] = None,
 ) -> Tuple[object, List[str]]:
     names = [
         participant['name']
@@ -272,6 +275,8 @@ def _build_multi_prompt(
         player_name,
         maximum,
         mode,
+        guild_context=guild_context,
+        player_lines=player_lines,
     )
     lines.extend([
         "",
@@ -326,6 +331,8 @@ def _generate_single(
     name_requested: bool,
     maximum: int,
     metadata: Dict,
+    guild_context: Optional[List[str]] = None,
+    player_lines: Optional[List[str]] = None,
 ) -> List[Dict]:
     prompt = _build_single_prompt(
         participant,
@@ -335,6 +342,8 @@ def _generate_single(
         name_requested,
         maximum,
         get_chatter_mode(config),
+        guild_context=guild_context,
+        player_lines=player_lines,
     )
     token_budget = max(80, _safe_int(config.get(
         'LLMChatter.GuildChatter.MaxTokens',
@@ -357,7 +366,6 @@ def _generate_single(
             response or ''
         ).get('message', ''),
         participant['name'],
-        maximum,
     )
     if not text:
         repair_metadata = dict(metadata)
@@ -385,7 +393,6 @@ def _generate_single(
                 response or ''
             ).get('message', ''),
             participant['name'],
-            maximum,
         )
     if not text:
         return []
@@ -406,6 +413,8 @@ def _generate_multi(
     name_requested: bool,
     maximum: int,
     metadata: Dict,
+    guild_context: Optional[List[str]] = None,
+    player_lines: Optional[List[str]] = None,
 ) -> List[Dict]:
     prompt, names = _build_multi_prompt(
         participants,
@@ -415,6 +424,8 @@ def _generate_multi(
         name_requested,
         maximum,
         get_chatter_mode(config),
+        guild_context=guild_context,
+        player_lines=player_lines,
     )
     base_tokens = max(100, _safe_int(config.get(
         'LLMChatter.GuildChatter.MaxTokens',
@@ -451,6 +462,9 @@ def _generate_multi(
                 prompt,
                 names,
                 message_only=True,
+                structured_output=(
+                    structured_output_enabled(config)
+                ),
             ),
             config,
             max_tokens_override=token_budget,
@@ -473,7 +487,6 @@ def _generate_multi(
     for message in messages:
         message['message'] = _trim_greeting(
             message.get('message', ''),
-            maximum,
         )
     return [
         message for message in messages
@@ -558,6 +571,8 @@ def process_guild_login_greeting_event(
         _mark_event(db, event_id, 'skipped')
         return False
 
+    responders = prepare_guild_speakers(db, client, config, responders)
+
     name_requested = (
         random.randint(1, 100)
         <= _bounded_percent(
@@ -592,6 +607,13 @@ def process_guild_login_greeting_event(
         extra.get('guild_name') or 'the guild'
     )
     faction = str(extra.get('team') or '')
+    guild_context = guild_identity_lines(
+        get_guild_profile(db, guild_id)
+    )
+    metadata['guild_info_included'] = bool(guild_context)
+    player_lines = player_character_lines(
+        db, player_guid, player_name, get_chatter_mode(config),
+    )
 
     if len(responders) == 1:
         messages = _generate_single(
@@ -605,6 +627,8 @@ def process_guild_login_greeting_event(
             name_requested,
             maximum,
             metadata,
+            guild_context=guild_context,
+            player_lines=player_lines,
         )
         topology = 'single'
     else:
@@ -619,6 +643,8 @@ def process_guild_login_greeting_event(
             name_requested,
             maximum,
             metadata,
+            guild_context=guild_context,
+            player_lines=player_lines,
         )
         topology = 'multi_reply'
 
@@ -639,6 +665,8 @@ def process_guild_login_greeting_event(
             name_requested,
             maximum,
             metadata,
+            guild_context=guild_context,
+            player_lines=player_lines,
         )
         responders = responders[:1]
 
@@ -655,7 +683,6 @@ def process_guild_login_greeting_event(
                 messages[0].get('message', ''),
                 [player_name],
             ),
-            maximum,
         )
 
     if not messages:

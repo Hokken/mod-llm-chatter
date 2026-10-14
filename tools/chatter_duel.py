@@ -140,7 +140,8 @@ def _build_duel_prompt(
         f"dies\n"
         f"- Friendly teasing is fine, but no slurs, "
         f"abuse, or hateful language\n"
-        f"- Reflect your personality traits\n"
+        "- Let your personality show in how you say it, "
+        f"without naming your traits\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )

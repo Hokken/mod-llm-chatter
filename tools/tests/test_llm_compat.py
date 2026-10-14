@@ -12,6 +12,7 @@ if str(TOOLS_DIR) not in sys.path:
 
 from llm_compat import (  # noqa: E402
     build_chat_options,
+    create_anthropic_message,
     create_chat_completion,
     needs_reasoning_token_multiplier,
     reset_compatibility_cache,
@@ -93,6 +94,30 @@ class CompatibilityTests(unittest.TestCase):
             "openai", "o4-mini", ""
         ))
 
+    def test_gpt6_luna_disables_reasoning_without_inflating_budget(self):
+        self.assertEqual(build_chat_options(
+            "openai", "gpt-6-luna", 350,
+            temperature=0.8, reasoning_effort="none",
+        ), {
+            "max_completion_tokens": 350,
+            "temperature": 0.8,
+            "reasoning_effort": "none",
+        })
+        self.assertFalse(needs_reasoning_token_multiplier(
+            "openai", "gpt-6-luna", "none"
+        ))
+        self.assertTrue(needs_reasoning_token_multiplier(
+            "openai", "gpt-6-luna", "medium"
+        ))
+        self.assertNotIn("temperature", build_chat_options(
+            "openai", "gpt-6-luna", 350,
+            temperature=0.8, reasoning_effort="medium",
+        ))
+        for model in ("gpt-6-astra", "gpt-6.1-sol"):
+            self.assertNotIn("reasoning_effort", build_chat_options(
+                "openai", model, 350, reasoning_effort="none",
+            ))
+
     def test_fine_tuned_model_uses_base_model_profile(self):
         self.assertEqual(build_chat_options(
             "openai", "ft:gpt-4o-mini:org:custom", 100,
@@ -101,6 +126,37 @@ class CompatibilityTests(unittest.TestCase):
             "max_completion_tokens": 100,
             "temperature": 0.7,
         })
+
+    def test_capability_rules_preserve_provider_routing(self):
+        for model in ("gpt-6-luna", "gpt-6-sol", "gpt-5.6-terra"):
+            with self.subTest(model=model):
+                direct = build_chat_options(
+                    "openai", model, 100,
+                    temperature=0.8, reasoning_effort="none",
+                )
+                self.assertEqual(direct, {
+                    "max_completion_tokens": 100,
+                    "temperature": 0.8,
+                    "reasoning_effort": "none",
+                })
+                self.assertEqual(build_chat_options(
+                    " OPENAI ", " FT:" + model.upper() + ":org:custom ",
+                    100, temperature=0.8, reasoning_effort="NONE",
+                ), direct)
+                self.assertEqual(build_chat_options(
+                    "openrouter", "openai/" + model, 100,
+                    temperature=0.8, reasoning_effort="none",
+                ), {"max_tokens": 100, "temperature": 0.8})
+
+        for model in ("gpt-6-astra", "gpt-6.1-sol", "gpt-6-unknown"):
+            with self.subTest(model=model):
+                self.assertEqual(build_chat_options(
+                    "openai", model, 100,
+                    temperature=0.8, reasoning_effort="none",
+                ), {"max_completion_tokens": 100})
+                self.assertTrue(needs_reasoning_token_multiplier(
+                    "openai", model, "none"
+                ))
 
     def test_unknown_openai_model_uses_safe_defaults(self):
         self.assertEqual(build_chat_options(
@@ -137,6 +193,50 @@ class CompatibilityTests(unittest.TestCase):
         self.assertNotIn("temperature", build_chat_options(
             "openrouter", "vendor/model", 80, temperature=0.4
         ))
+
+    def test_anthropic_rejected_fields_are_removed_and_cached(self):
+        calls = []
+        rejections = [
+            "`temperature` is deprecated for this model.",
+            "thinking: type 'disabled' is not supported for this model",
+        ]
+
+        def operation(**kwargs):
+            calls.append(kwargs)
+            if rejections:
+                raise ProviderError(rejections.pop(0))
+            return "ok"
+
+        request = {
+            "max_tokens": 80,
+            "extra_body": {
+                "temperature": 0.4,
+                "thinking": {"type": "disabled"},
+            },
+        }
+        self.assertEqual(create_anthropic_message(
+            operation, request, "claude-new"
+        ), "ok")
+        self.assertEqual(len(calls), 3)
+        self.assertEqual(calls[2]["extra_body"], {})
+        self.assertEqual(request["extra_body"]["temperature"], 0.4)
+
+        calls.clear()
+        self.assertEqual(create_anthropic_message(
+            operation, request, "claude-new"
+        ), "ok")
+        self.assertEqual(calls[0]["extra_body"], {})
+
+    def test_anthropic_other_errors_propagate(self):
+        def operation(**kwargs):
+            raise ProviderError("overloaded", status_code=529)
+
+        with self.assertRaises(ProviderError):
+            create_anthropic_message(
+                operation,
+                {"extra_body": {"temperature": 0.4}},
+                "claude-new",
+            )
 
     def test_rejected_token_field_is_changed_and_cached(self):
         calls = []

@@ -18,6 +18,7 @@
 #include <atomic>
 #include <memory>
 #include <string>
+#include <vector>
 #include <unordered_set>
 
 class LLMChatterConfig
@@ -37,6 +38,12 @@ public:
     {
         return _moduleLocale;
     }
+
+    bool _screenshotEnable = false;
+    bool _screenshotProximityEnable = false;
+    uint32 _screenshotBoundAccountId = 0;
+    uint32 _screenshotProximityPollMs = 1000;
+    uint32 _screenshotProximityMaxAge = 60;
     bool IsEnabled() const { return _enabled; }
     bool IsDebugLog() const { return _debugLog; }
     bool IsProximitySpeakerAllowed(uint32 creatureEntry) const;
@@ -284,9 +291,24 @@ public:
     uint32 _bgScoreMilestoneChance;
     uint32 _bgRaidWorkerChance;
     uint32 _bgStatePollingIntervalMs;
+    uint32 _bgABTransitionMaxGapMs;
+    uint32 _bgABNodeBatchCooldownSec;
+    uint32 _bgABPendingMaxAgeSec;
+    uint32 _bgABMaxNodesPerBatch;
+    std::vector<uint32> _bgABScoreMilestonePercents;
+    uint32 _bgABScoreCooldownSec;
+    uint32 _bgABObjectiveStatusIntervalSec;
+    uint32 _bgABObjectiveStatusChance;
+    bool _bgABEnable;
+    uint32 _bgABTimerEstimateMaxUncertaintySec;
+    uint32 _bgFactualMaxAgeSec;
+    uint32 _bgABFactualMaxAgeSec;
+    uint32 _bgMatchEndMaxAgeSec;
     uint32 _bgBigEventCooldownSec;
     uint32 _bgIdleChatterChance{25};
     uint32 _bgIdleChatterCooldownSec{30};
+    uint32 _bgFlagCarryChatterIntervalSec{45};
+    uint32 _bgFlagCarryChatterChance{50};
     uint32 _bgRezChance{20};
 
     // Raid chatter (PvE)
@@ -305,6 +327,20 @@ public:
     uint32 _guildChatterScanInterval{30};
     uint32 _guildChatterConversationChance{50};
     uint32 _guildChatterMaxParticipants{3};
+    bool _guildMeetGreetingEnable{true};
+    uint32 _guildMeetGreetingRadius{25};
+    uint32 _guildMeetGreetingCooldownHours{5};
+    uint32 _guildMeetFollowUpDelayMin{8};
+    uint32 _guildMeetFollowUpDelayMax{15};
+    uint32 _guildWorldScanInterval{10};
+    bool _guildJoinZoneAnnounceEnable{true};
+    uint32 _guildJoinZoneAnnounceChance{35};
+    uint32 _guildJoinZoneAnnounceDelaySeconds{8};
+    bool _guildNpcEncounterEnable{true};
+    uint32 _guildNpcEncounterChance{4};
+    uint32 _guildNpcEncounterRadius{30};
+    uint32 _guildNpcEncounterCooldown{1200};
+    uint32 _guildNpcEncounterPairCooldownHours{6};
     bool _guildPlayerRepliesEnable{true};
     uint32 _guildPlayerReplyDebounceSeconds{2};
     uint32 _guildPlayerIdleSuppressionSeconds{90};
@@ -316,10 +352,35 @@ public:
     uint32 _guildLoginGreetingRetryInterval{5};
     uint32 _guildLoginGreetingReadinessTimeout{90};
     uint32 _guildLoginGreetingMaxCandidates{12};
+    bool _guildJoinGreetingEnable{true};
+    uint32 _guildJoinGreetingChance{100};
+    uint32 _guildJoinGreetingBatchSeconds{10};
+    bool _guildRankChangeEnable{true};
+    uint32 _guildRankChangeChance{100};
+    uint32 _guildRankChangeDebounceSeconds{30};
+    uint32 _guildRankChangeNewMemberGraceMinutes{30};
+    bool _guildMotdCommentEnable{true};
+    uint32 _guildMotdCommentChance{100};
+    uint32 _guildMotdCommentDelaySeconds{20};
+    uint32 _guildMemberEventMaxCandidates{12};
+    uint32 _guildMemberEventMaxDeferSeconds{300};
 
     // Zone intrusion alerts
     bool _zoneIntrusionEnable;
     uint32 _zoneIntrusionZoneThrottleSec;
+
+    // Open-world PvP reactions
+    bool _guildPvpKillEnable{true};
+    uint32 _guildPvpKillChance{25};
+    uint32 _guildPvpKillCooldown{300};
+    uint32 _guildPvpKillGuildCooldown{600};
+    bool _guildPvpDeathEnable{true};
+    uint32 _guildPvpDeathChance{30};
+    uint32 _guildPvpDeathGuildCooldown{600};
+    bool _generalPvpDeathEnable{true};
+    uint32 _generalPvpDeathChance{15};
+    uint32 _generalPvpDeathZoneCooldown{600};
+    uint32 _pvpDeathVictimCooldown{1800};
 
     // Proximity chatter
     bool _proxChatterEnable;
@@ -344,6 +405,8 @@ public:
     uint32 _proxChatterReplyMaxTurns;
     uint32 _proxChatterMaxTokensPerLine;
     uint32 _proxChatterFacingResetDelay;
+    // Capped at LLM_CHATTER_MAX_REPLY_HOLD_MS where it is used.
+    uint32 _proxChatterReplyHoldMs;
     uint32 _proxDirectedMaxExtraReactors;
     uint32 _proxDirectedBotMaxParticipants;
     std::array<uint32, 4> _proxDirectedExtraReactorWeights;
@@ -400,6 +463,7 @@ public:
     uint32 _emoteUngroupedBotMirrorChance;
     uint32 _emoteUngroupedBotVerbalReactionChance;
     uint32 _emoteUngroupedBotWitnessReactionChance;
+    uint32 _emotePartyBotWitnessChance;
     uint32 _emoteObserverChance;
     uint32 _emoteObserverCooldown;
     uint32 _emoteMoodSpreadChance;
