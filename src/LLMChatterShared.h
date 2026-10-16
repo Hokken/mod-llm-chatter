@@ -90,6 +90,7 @@ std::string GetZoneName(uint32 zoneId);
 // to the English-default value baked into the template/DBC row, never
 // throw on a missing locale entry).
 std::string GetLocalizedCreatureName(Creature* creature);
+uint32 GetChatterNameEntry(Creature* creature);
 std::string GetLocalizedCreatureSubName(Creature* creature);
 std::string GetLocalizedGameObjectName(GameObject* go);
 std::string GetLocalizedUnitName(Unit* unit);

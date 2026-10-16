@@ -1633,8 +1633,29 @@ std::string GetLocalizedCreatureName(Creature* creature)
     if (!creature)
         return "";
 
+    // A pet carries its own name, which may be one the player
+    // chose. GetNameForLocaleIdx() resolves
+    // creature_template_locale from the entry, so it would answer
+    // with the species instead -- "Cat" for "Fluffy".
+    if (creature->IsPet())
+        return creature->GetName();
+
     LocaleConstant locale = sLLMChatterConfig->GetModuleLocale();
     return creature->GetNameForLocaleIdx(locale);
+}
+
+uint32 GetChatterNameEntry(Creature* creature)
+{
+    if (!creature)
+        return 0;
+
+    // The bridge re-resolves a name from this entry, which for a
+    // pet would replace the name above with its species. Reporting
+    // no entry keeps the name that was sent.
+    if (creature->IsPet())
+        return 0;
+
+    return creature->GetEntry();
 }
 
 std::string GetLocalizedCreatureSubName(Creature* creature)

@@ -144,12 +144,9 @@ def _resolve_zone_name(
 
     Localization is driven from the stable zone_id by the bridge, so
     that every name in a prompt comes from one consistent locale.
-    LLMChatter.Language is the authoritative setting here: the C++
-    zone_name in extra_data is resolved with
-    sWorld->GetDefaultDbcLocale(), which is a separate, server-wide
-    setting and can disagree (an English worldserver configured for
-    Russian chatter would otherwise inject English zone names into
-    Russian prompts).
+    LLMChatter.Language is the authoritative setting on both sides:
+    the C++ zone_name in extra_data is resolved through the module
+    locale too, so the two agree.
 
     The C++ string is still a useful fallback -- it covers ids the
     bridge has no table entry for -- so it is used whenever the

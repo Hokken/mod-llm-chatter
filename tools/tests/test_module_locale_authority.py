@@ -110,9 +110,47 @@ def test_every_supported_language_maps_to_a_locale():
         assert '"%s"' % code in body, 'language %s is unmapped' % code
         assert locale in body, '%s missing' % locale
 
-    # Anything else keeps the previous behaviour rather than guessing.
-    assert SERVER_LOCALE in body, (
-        'unmapped languages must fall back to the worldserver locale')
+    # Anything the bridge has no name data for has to resolve to
+    # English on both sides, or one prompt mixes English creature and
+    # zone names with server-locale item and quest names.
+    assert SERVER_LOCALE not in body, (
+        'the module locale must not depend on the worldserver locale')
+    tail = body[body.rindex('return'):]
+    assert 'LOCALE_enUS' in tail, (
+        'unmapped languages must fall back to English name data')
+
+
+def test_pets_keep_their_own_name():
+    """A pet's name is its own, not its species.
+
+    Creature::GetNameForLocaleIdx() resolves creature_template_locale
+    from the entry, so without this a player-named pet comes back as
+    its species in every mapped language. The entry is withheld for the
+    same reason: the bridge would re-resolve the name from it.
+    """
+    shared = _read('LLMChatterShared.cpp')
+    localized = re.search(
+        r'std::string GetLocalizedCreatureName\([^)]*\)\s*\{(.*?)\n\}',
+        shared, re.S)
+    assert localized, 'GetLocalizedCreatureName not found'
+    body = localized.group(1)
+    assert 'IsPet()' in body, 'pets must not be renamed to their species'
+    lookup = 'creature->GetNameForLocaleIdx(locale)'
+    assert lookup in body, 'the locale lookup is gone'
+    assert body.index('IsPet()') < body.index(lookup), (
+        'the pet check has to come before the template lookup')
+
+    entry = re.search(
+        r'uint32 GetChatterNameEntry\([^)]*\)\s*\{(.*?)\n\}',
+        shared, re.S)
+    assert entry, 'GetChatterNameEntry not found'
+    assert 'IsPet()' in entry.group(1), (
+        'pets must report no entry, or the bridge re-resolves the name')
+
+    combat = _read('LLMChatterGroupCombat.cpp')
+    assert 'GetEntry()) + ","' not in combat.replace(
+        'GetChatterNameEntry', ''), (
+        'creature_entry must be built with GetChatterNameEntry')
 
 
 def main() -> int:
@@ -120,6 +158,7 @@ def main() -> int:
     test_no_prompt_facing_lookup_reads_the_server_locale()
     test_channel_matching_keeps_the_worldserver_locale()
     test_every_supported_language_maps_to_a_locale()
+    test_pets_keep_their_own_name()
     print('OK')
     return 0
 

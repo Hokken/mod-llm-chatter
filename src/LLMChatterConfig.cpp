@@ -4,7 +4,6 @@
  */
 
 #include "LLMChatterConfig.h"
-#include "World.h"
 #include "LLMChatterScreenshot.h"
 #include "LLMChatterABScore.h"
 #include "Config.h"
@@ -320,7 +319,14 @@ LocaleConstant ResolveModuleLocale(std::string code)
     if (code == "US" || code == "GB" || code == "EN")
         return LOCALE_enUS;
 
-    return sWorld->GetDefaultDbcLocale();
+    // Anything else -- unset, or a language the bridge has no name
+    // data for -- falls back to English rather than the
+    // worldserver's DBC locale. The locale has to be one the bridge
+    // can also resolve, or a single prompt ends up mixing English
+    // creature and zone names with server-locale item and quest
+    // names. The reply language is unaffected: it follows
+    // LLMChatter.Language as written.
+    return LOCALE_enUS;
 }
 }  // namespace
 

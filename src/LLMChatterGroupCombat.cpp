@@ -264,7 +264,7 @@ void HandleGroupCreatureKillImpl(
         reactor->GetGUID().GetCounter();
     std::string botName = reactor->GetName();
     std::string creatureName = GetLocalizedCreatureName(killed);
-    uint32 creatureEntry = killed->GetEntry();
+    uint32 creatureEntry = GetChatterNameEntry(killed);
 
     std::string extraData = "{"
         + BuildBotIdentityFields(reactor) + ","
@@ -349,7 +349,7 @@ void HandleGroupPlayerKilledByCreatureImpl(
     QueueGroupDeathOrWipe(
         killed, group,
         killerName,
-        killer ? killer->GetEntry() : 0,
+        GetChatterNameEntry(killer),
         nullptr);
 }
 
@@ -854,7 +854,7 @@ void HandleGroupPlayerEnterCombatImpl(
             JsonEscape(creatureName) + "\","
         "\"creature_entry\":" +
             std::to_string(
-                creature->GetEntry()) + ","
+                GetChatterNameEntry(creature)) + ","
         "\"is_boss\":" +
             std::string(
                 isBoss ? "1" : "0") + ","
