@@ -298,8 +298,8 @@ namespace
 {
 // LLMChatter.Language uses the two-letter codes the bridge understands.
 // Map them onto the 3.3.5a DBC locales; anything unset or without a
-// locale of its own (Portuguese) keeps the worldserver's, which is the
-// behaviour that applied before the module had its own.
+// locale of its own (Portuguese) resolves to English name data, the
+// same fallback the bridge uses.
 LocaleConstant ResolveModuleLocale(std::string code)
 {
     for (char& c : code)
