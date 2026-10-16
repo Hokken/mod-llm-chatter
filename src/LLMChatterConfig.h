@@ -12,6 +12,7 @@
 #ifndef LLM_CHATTER_CONFIG_H
 #define LLM_CHATTER_CONFIG_H
 
+#include "Common.h"
 #include "Define.h"
 #include <array>
 #include <atomic>
@@ -30,6 +31,13 @@ public:
     }
 
     void LoadConfig();
+    // Locale the module speaks, from LLMChatter.Language.
+    // Distinct from the worldserver's DBC locale, which
+    // reflects the clients rather than this module.
+    LocaleConstant GetModuleLocale() const
+    {
+        return _moduleLocale;
+    }
 
     bool _screenshotEnable = false;
     bool _screenshotProximityEnable = false;
@@ -46,6 +54,7 @@ public:
     bool IsPlayerChatPrefixIgnored(std::string const& message) const;
 
     // General settings
+    LocaleConstant _moduleLocale;
     bool _enabled;
     bool _debugLog;
     uint32 _triggerIntervalSeconds;

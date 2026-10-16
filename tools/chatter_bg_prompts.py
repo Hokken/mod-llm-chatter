@@ -20,11 +20,13 @@ from chatter_ab import (
 )
 from chatter_shared import (
     get_class_name,
+    get_bg_lore,
     build_race_class_context,
     build_bot_identity,
     build_anti_repetition_context,
     get_recent_zone_messages,
     append_json_instruction,
+    localize_creature_name,
     get_chatter_mode,
     faction_war_line,
 )
@@ -37,7 +39,6 @@ from chatter_prompts import (
     pick_personality_spices,
     build_environmental_context_lines,
 )
-from chatter_constants import BG_LORE
 from chatter_db import get_character_info_by_name
 
 LOG = logging.getLogger("chatter_bg_prompts")
@@ -103,7 +104,7 @@ def _bg_base_context(
     mode = get_chatter_mode(config or {})
     roleplay = is_roleplay(mode)
     bg_type_id = int(extra_data.get('bg_type_id', 0))
-    lore = BG_LORE.get(bg_type_id, {})
+    lore = get_bg_lore(bg_type_id)
     team = extra_data.get('team', 'Unknown')
 
     faction_name = lore.get(
@@ -1151,8 +1152,11 @@ def build_bg_combat_prompt(
 ):
     """Combat pull reaction in BG context."""
     ctx = _bg_base_context(extra_data, bot_data)
-    creature = extra_data.get(
-        'creature_name', 'enemies')
+    creature = localize_creature_name(
+        extra_data.get('_db'),
+        extra_data.get(
+            'creature_name', 'enemies'),
+        extra_data.get('creature_entry'))
     is_boss = bool(int(
         extra_data.get('is_boss', 0)))
     if is_boss:

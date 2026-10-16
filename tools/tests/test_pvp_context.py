@@ -247,7 +247,8 @@ def test_bot_state_target_is_visibility_gated_in_cpp():
     assert re.search(
         r"Unit\* victim = player->GetVictim\(\);\s*"
         r"if \(victim && IsUnitPerceivableBy\(player, victim\)\)"
-        r"\s*targetName = victim->GetName\(\);",
+        r"\s*targetName = "
+        r"(?:victim->GetName\(\)|GetLocalizedUnitName\(victim\));",
         shared,
     )
 

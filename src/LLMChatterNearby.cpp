@@ -415,7 +415,7 @@ void CheckNearbyGameObjects()
                 continue;
 
             std::string goName =
-                go->GetGOInfo()->name;
+                GetLocalizedGameObjectName(go);
             if (goName.empty())
                 continue;
 
@@ -476,7 +476,7 @@ void CheckNearbyGameObjects()
             if (!IsInterestingCreature(cr, bot))
                 continue;
 
-            std::string crName = cr->GetName();
+            std::string crName = GetLocalizedCreatureName(cr);
             if (crName.empty())
                 continue;
 
@@ -495,7 +495,7 @@ void CheckNearbyGameObjects()
             sp.name = crName;
             sp.typeName = GetCreatureRoleName(cr);
             sp.subName =
-                cr->GetCreatureTemplate()->SubName;
+                GetLocalizedCreatureSubName(cr);
             sp.distance = bot->GetDistance(cr);
             sp.entry = cr->GetEntry();
             sp.spellFocusId = 0;
@@ -580,12 +580,12 @@ void CheckNearbyGameObjects()
             sAreaTableStore.LookupEntry(areaId);
         char const* zp = zone
             ? zone->area_name[
-                sWorld->GetDefaultDbcLocale()]
+                sLLMChatterConfig->GetModuleLocale()]
             : nullptr;
         std::string zoneName = zp ? zp : "";
         char const* sp = area
             ? area->area_name[
-                sWorld->GetDefaultDbcLocale()]
+                sLLMChatterConfig->GetModuleLocale()]
             : nullptr;
         std::string subzoneName = sp ? sp : "";
         bool inCity =

@@ -7,10 +7,10 @@ import time
 from typing import Dict, List
 
 from chatter_class_style import class_style
-from chatter_constants import RACE_SPEECH_PROFILES
 from chatter_guild_profile import indefinite_article
 from chatter_mode import is_roleplay
 from chatter_shared import (
+    get_race_speech_profile,
     get_class_name,
     get_gender_label,
     get_race_name,
@@ -96,7 +96,7 @@ def _calling_style(db, guid: int, class_name: str) -> str:
 
 def _lore_lines(race: str, style: str) -> List[str]:
     lines = []
-    worldview = (RACE_SPEECH_PROFILES.get(race) or {}).get('worldview')
+    worldview = (get_race_speech_profile(race) or {}).get('worldview')
     if worldview:
         lines.append(f"{race} outlook: {worldview}")
     calling = CLASS_CALLINGS.get(style)
