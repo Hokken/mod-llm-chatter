@@ -855,6 +855,13 @@ A copy of the report is also saved to
 `modules/mod-llm-chatter/logs/healthcheck.log`, so you can open it
 like a normal text file.
 
+Just before the report, the bridge also lists every setting it
+loaded from your config, grouped under the same section headings as
+the config file and with the values lined up, so you can check a value
+without opening the file. API keys and the database password
+are shown only as `<set, hidden>` or `<empty>`, so the output is safe
+to paste when asking for help.
+
 If something is misconfigured, the report names the problem in plain
 language and tells you how to fix it. It checks:
 

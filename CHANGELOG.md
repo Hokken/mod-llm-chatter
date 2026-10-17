@@ -1,5 +1,13 @@
 # Changelog
 
+### 2026-10-17 - Startup Config Listing
+
+* **The bridge shows the settings it loaded**: at startup it now lists every
+  setting from the active config, grouped under the config file's own section
+  headings with the values lined up, so you can confirm a value without
+  opening the file. API keys and the database password show only as set or empty,
+  which keeps the log safe to share.
+
 ### 2026-10-16 - Localization, Battleground, and Prompt Fixes
 
 * **Female characters are addressed as female**: in languages that inflect

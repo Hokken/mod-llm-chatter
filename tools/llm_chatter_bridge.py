@@ -63,7 +63,8 @@ from chatter_shared import (
     set_language,
     get_language_label,
     is_supported_language_code,
-    parse_config, get_db_connection,
+    parse_config, parse_config_sections, format_config_for_log,
+    get_db_connection,
     parse_extra_data,
     wait_for_database,
     stagger_if_needed,
@@ -2089,6 +2090,17 @@ def main():
         f"  PrioritySystem.SafetyEnable: "
         f"{config.get('LLMChatter.PrioritySystem.SafetyEnable', 1)}"
     )
+    logger.info("=" * 60)
+
+    # Full active config, so users can confirm every value the bridge
+    # actually loaded without opening the file. Secrets are masked.
+    logger.info(
+        f"Active config ({len(config)} keys) from {args.config}:"
+    )
+    for line in format_config_for_log(
+        config, parse_config_sections(args.config)
+    ):
+        logger.info(line)
     logger.info("=" * 60)
 
     # Startup health check (preflight). Surfaces the most

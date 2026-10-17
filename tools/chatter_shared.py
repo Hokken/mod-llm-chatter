@@ -1253,9 +1253,8 @@ def build_group_travel_metadata(bots):
 # =============================================================================
 # CONFIG & DATABASE
 # =============================================================================
-def parse_config(config_path: str) -> dict:
-    """Parse the WoW-style config file."""
-    config = {}
+def _read_config_text(config_path: str) -> str:
+    """Read and decode the config file, exiting on a read failure."""
     # Read raw bytes so we can decode explicitly. A genuine file-access
     # error (missing/unreadable) is fatal and logged; encoding is handled
     # separately below so a decodable-but-non-UTF-8 file is never treated
@@ -1282,13 +1281,17 @@ def parse_config(config_path: str) -> dict:
     #      keep parsing the way plain open() used to read them. Use
     #      errors='replace' so this fallback can never itself raise.
     try:
-        text = raw.decode('utf-8-sig')
+        return raw.decode('utf-8-sig')
     except UnicodeDecodeError:
-        text = raw.decode(
+        return raw.decode(
             locale.getpreferredencoding(False), errors='replace'
         )
 
-    for line in text.splitlines():
+
+def parse_config(config_path: str) -> dict:
+    """Parse the WoW-style config file."""
+    config = {}
+    for line in _read_config_text(config_path).splitlines():
         line = line.strip()
         if not line or line.startswith('#'):
             continue
@@ -1296,6 +1299,88 @@ def parse_config(config_path: str) -> dict:
             key, value = line.split('=', 1)
             config[key.strip()] = value.strip()
     return config
+
+
+# A section banner is a full '#' rule followed by '# TITLE [TAG]'.
+_SECTION_RULE_RE = re.compile(r'^#{20,}\s*$')
+_SECTION_TAG_RE = re.compile(r'\s*[\[(].*$')
+
+
+def parse_config_sections(config_path: str) -> dict:
+    """Map each config key to the title of the file section holding it.
+
+    Titles come from the file's own '#####' banners, with the
+    [BOTH]/[BRIDGE]/[SERVER] tags and '(only needed if ...)' notes
+    dropped. Keys above the first banner are left out.
+    """
+    sections = {}
+    current = ''
+    after_rule = False
+    for line in _read_config_text(config_path).splitlines():
+        stripped = line.strip()
+        if _SECTION_RULE_RE.match(stripped):
+            after_rule = True
+            continue
+        is_title_line = after_rule and stripped.startswith('#')
+        after_rule = False
+        if is_title_line:
+            title = _SECTION_TAG_RE.sub('', stripped.lstrip('#')).strip()
+            if title:
+                current = title.upper()
+                continue
+        if stripped and not stripped.startswith('#') and '=' in stripped:
+            key = stripped.split('=', 1)[0].strip()
+            if current:
+                sections[key] = current
+    return sections
+
+
+# Key-name suffixes whose values must never reach a log.
+_SECRET_KEY_SUFFIXES = ('apikey', 'password', 'secret')
+_CONFIG_KEY_PREFIX = 'LLMChatter.'
+_CONFIG_LOG_KEY_WIDTH = 48
+_CONFIG_LOG_RULE_WIDTH = 60
+
+
+def format_config_for_log(config: dict, sections: dict = None) -> list:
+    """Return the config as readable log lines, grouped by file section.
+
+    Each group gets a '-- TITLE (N) ---' header and a blank line before
+    it; keys keep their file order, drop the 'LLMChatter.' prefix and
+    have their values aligned. Keys with no known section go under
+    OTHER. Secrets (API keys, passwords) are shown only as set or
+    empty, so the startup log can be shared when asking for help.
+    Internal keys the bridge adds at runtime (``__name__``) are skipped.
+    """
+    sections = sections or {}
+    groups = {}
+    for key, value in config.items():
+        if key.startswith('__'):
+            continue
+        if key.lower().endswith(_SECRET_KEY_SUFFIXES):
+            value = '<set, hidden>' if str(value).strip() else '<empty>'
+        elif not str(value).strip():
+            value = '<empty>'
+        groups.setdefault(sections.get(key, 'OTHER'), []).append(
+            (key, value)
+        )
+
+    lines = []
+    for title, items in groups.items():
+        header = f"-- {title} ({len(items)}) "
+        lines.append('')
+        lines.append(header.ljust(_CONFIG_LOG_RULE_WIDTH, '-'))
+        names = [
+            k[len(_CONFIG_KEY_PREFIX):]
+            if k.startswith(_CONFIG_KEY_PREFIX) else k
+            for k, _ in items
+        ]
+        width = min(
+            max(len(n) for n in names), _CONFIG_LOG_KEY_WIDTH
+        )
+        for name, (_, value) in zip(names, items):
+            lines.append(f"  {name.ljust(width)}  {value}")
+    return lines
 
 
 # =============================================================================
