@@ -231,6 +231,31 @@ class RequestTests(unittest.TestCase):
         self.assertEqual(create.call_args_list[0].kwargs['response_format'],
                          create.call_args_list[1].kwargs['response_format'])
 
+    def test_openrouter_none_reasoning_routing_404_keeps_schema(self):
+        client, create = client_for(None)
+        message = 'No endpoints found that can handle the requested parameters.'
+        routing = Rejection(None, 404, message)
+        routing.status_code = 404
+        routing.body = {'message': message, 'code': 404, 'metadata': {
+            'failed_routing_step': 'Filter by Parameters'}}
+        create.side_effect = [routing, completion()]
+        config = {**self.config('openrouter'),
+                  'LLMChatter.OpenRouter.ReasoningEffort': 'none'}
+        self.assertEqual(json.loads(llm.call_llm(client, self.prompt, config)),
+                         {'message': 'Hello'})
+        first, retry = (c.kwargs for c in create.call_args_list)
+        self.assertEqual(first['extra_body']['reasoning'], {'effort': 'none'})
+        self.assertNotIn('reasoning', retry['extra_body'])
+        self.assertTrue(retry['extra_body']['provider']['require_parameters'])
+        self.assertEqual(first['response_format'], retry['response_format'])
+        # Free-text calls for the same model still ask for no reasoning.
+        config['LLMChatter.StructuredOutput.Enable'] = '0'
+        create.side_effect = None
+        create.return_value = completion(raw='Hello')
+        llm.call_llm(client, 'Plain', config)
+        self.assertEqual(create.call_args.kwargs['extra_body']['reasoning'],
+                         {'effort': 'none'})
+
     def test_raw_logging_and_caller_metadata_isolation(self):
         raw = '  {"message":"Bonjour"} \n'
         client, _ = client_for(completion(raw=raw))

@@ -479,8 +479,13 @@ LLMChatter.OpenRouter.BaseUrl = https://openrouter.ai/api/v1
 #       Optional OpenRouter reasoning effort. Leave empty to omit the
 #       reasoning object and preserve the model's default behavior.
 #       Set to "none" to explicitly disable reasoning on hybrid models.
+#       With StructuredOutput.Enable = 1, a model with no endpoint that
+#       accepts "none" alongside the JSON schema (most non-reasoning
+#       models) gets the request retried without it, once per model.
 #       Other values are passed through without validation because
-#       supported efforts vary by model (for example: low, high, xhigh).
+#       supported efforts vary by model (for example: low, high, xhigh);
+#       if such an effort cannot be combined with the schema, the call
+#       fails and the bridge log names this setting.
 #       Format: an unquoted effort name supported by the routed model.
 #
 LLMChatter.OpenRouter.ReasoningEffort =

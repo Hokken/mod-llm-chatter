@@ -796,6 +796,22 @@ not reduce reasoning-token usage or cost. The multiplier is ignored
 when the effort is empty or `none`. OpenRouter effort values are passed
 through without client-side validation because support varies by model.
 
+Structured output asks OpenRouter to use only endpoints that accept every
+requested parameter (`provider.require_parameters`). For a model whose
+endpoints cannot take `reasoning` together with the JSON schema, OpenRouter
+answers HTTP 404 with the routing step "Filter by Parameters". When the
+effort is `none`, which only asks hybrid models not to think, the bridge
+retries that request without the reasoning object, keeps the schema and the
+routing requirement, and after a successful retry remembers this for that
+model's structured requests until restart. Free-text requests keep sending
+`none`. The output budget is not raised for the retry: on a hybrid model
+whose schema-capable endpoint then thinks by default, expect more latency
+and token use, or an empty reply if reasoning exhausts the budget; raise
+`LLMChatter.MaxTokens` or pick a non-hybrid model if that happens. Any
+other effort is the user's explicit choice and is never
+dropped: the call fails and the bridge logs, once per model, that
+`OpenRouter.ReasoningEffort` or the model should change.
+
 ```ini
 LLMChatter.Provider = ollama
 LLMChatter.Model = qwen3:4b
@@ -4482,7 +4498,10 @@ Enable only if **all configured JSON targets** support the required schema
 format. There is no model allowlist or automatic capability detection. A
 model name alone does not establish support: the serving endpoint, deployed
 version and routing also matter. Existing provider/model defaults, reasoning
-settings and output budgets are unchanged.
+settings and output budgets are unchanged, with one exception: an OpenRouter
+`ReasoningEffort = none` that no endpoint accepts alongside the schema is
+dropped for that model's structured requests (see the OpenRouter notes in
+Supported Providers).
 
 | Route | Native format used |
 |---|---|
