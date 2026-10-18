@@ -366,6 +366,41 @@ def _apply_openrouter_options(kwargs, config):
     kwargs['extra_body'] = {'reasoning': reasoning}
 
 
+def openai_compatible_client_kwargs(config):
+    """Build OpenAI client kwargs for a generic compatible server.
+
+    Only the base URL and key are sent: no vendor headers or options.
+    Local servers often need no key, but the SDK rejects an empty one.
+    """
+    base_url = str(config.get(
+        'LLMChatter.OpenAICompatible.BaseUrl', ''
+    )).strip()
+    api_key = str(config.get(
+        'LLMChatter.OpenAICompatible.ApiKey', ''
+    )).strip()
+    return {
+        'base_url': base_url,
+        'api_key': api_key or 'not-needed',
+    }
+
+
+def openai_compatible_target_error(
+    config, model_key='LLMChatter.Model'
+):
+    """Return why an openai_compatible target is unusable, or None.
+
+    There are no defaults, so the base URL and the model under
+    model_key must both be set.
+    """
+    if not str(config.get(
+        'LLMChatter.OpenAICompatible.BaseUrl', ''
+    )).strip():
+        return "LLMChatter.OpenAICompatible.BaseUrl is empty"
+    if not str(config.get(model_key, '')).strip():
+        return f"{model_key} is empty"
+    return None
+
+
 def _ollama_user_msg(user_msg, config):
     """Apply Ollama-specific transforms to user msg
     (e.g. /no_think prefix)."""
@@ -547,9 +582,15 @@ def _extract_chat_content(response, label=''):
     return None
 
 
-def resolve_model(model_name: str) -> str:
-    """Resolve friendly model aliases to provider model IDs."""
+def resolve_model(model_name: str, provider: str = None) -> str:
+    """Resolve friendly model aliases to provider model IDs.
+
+    openai_compatible IDs belong to the user's server and are kept
+    verbatim, so a local model named "haiku" is not remapped.
+    """
     normalized = (model_name or '').strip()
+    if provider == 'openai_compatible':
+        return normalized
     aliases = {
         'haiku': DEFAULT_ANTHROPIC_MODEL,
         'gpt4o-mini': DEFAULT_OPENAI_MODEL,
@@ -639,6 +680,11 @@ def get_llm_client(config):
             if headers:
                 kwargs['default_headers'] = headers
             _main_client = openai.OpenAI(**kwargs)
+        elif provider == 'openai_compatible':
+            import openai
+            _main_client = openai.OpenAI(
+                **openai_compatible_client_kwargs(config)
+            )
         else:
             import anthropic
             _main_client = anthropic.Anthropic(
@@ -683,7 +729,8 @@ def _call_target(client, prompt, config, provider, model, max_tokens,
                 sys_msg = prompt.structured_system_prompt
         if provider == 'ollama':
             sent_user_msg = _ollama_user_msg(user_msg, config)
-        compatible = provider in ('openai', 'google', 'openrouter', 'ollama')
+        compatible = provider in ('openai', 'google', 'openrouter', 'ollama',
+                                  'openai_compatible')
         if compatible:
             kwargs = build_compatible_chat_request(
                 provider, model, _build_chat_messages(sys_msg, sent_user_msg),
@@ -794,7 +841,8 @@ def call_llm(
 ) -> str:
     """Call LLM API.
 
-    Supports Anthropic, OpenAI, Google, OpenRouter, and Ollama.
+    Supports Anthropic, OpenAI, Google, OpenRouter, Ollama and any
+    OpenAI-compatible server.
     """
     provider = config.get(
         'LLMChatter.Provider', 'anthropic'
@@ -806,10 +854,12 @@ def call_llm(
         default_model = DEFAULT_GOOGLE_MODEL
     elif provider == 'openrouter':
         default_model = DEFAULT_OPENROUTER_MODEL
+    elif provider == 'openai_compatible':
+        default_model = ''
     model = label_model(label, config) or config.get(
         'LLMChatter.Model', default_model
     )
-    model = resolve_model(model)
+    model = resolve_model(model, provider)
     if max_tokens_override is not None:
         max_tokens = max_tokens_override
     else:
@@ -839,7 +889,9 @@ def _get_quick_analyze_client(config):
 
     If QuickAnalyze.Provider matches the main
     provider (or is empty), returns None so the
-    caller uses the main client.
+    caller uses the main client. Raises ValueError
+    when an explicit openai_compatible target lacks
+    its base URL or QuickAnalyze.Model.
 
     Thread-safe: lazy init protected by lock.
     """
@@ -922,6 +974,22 @@ def _get_quick_analyze_client(config):
             if headers:
                 kwargs['default_headers'] = headers
             _quick_analyze_client = openai.OpenAI(**kwargs)
+        elif qa_provider == 'openai_compatible':
+            # An explicitly selected server must not silently fall
+            # back to the main provider: that would hide a broken
+            # target and send analysis somewhere else.
+            error = openai_compatible_target_error(
+                config, 'LLMChatter.QuickAnalyze.Model'
+            )
+            if error:
+                raise ValueError(
+                    "QuickAnalyze.Provider 'openai_compatible' is not "
+                    f"configured: {error}"
+                )
+            import openai
+            _quick_analyze_client = openai.OpenAI(
+                **openai_compatible_client_kwargs(config)
+            )
         elif qa_provider == 'anthropic':
             import anthropic
             api_key = config.get(
@@ -956,7 +1024,9 @@ def quick_llm_analyze(
     or defaults to the fastest model on the main
     provider (Haiku for Anthropic, gpt-4o-mini for
     OpenAI, Gemini Flash for Google, OpenRouter's
-    configured model, main model for Ollama).
+    configured model, main model for Ollama and
+    openai_compatible). A separate openai_compatible
+    QuickAnalyze.Provider needs QuickAnalyze.Model.
 
     Useful for tasks like:
     - Determining which bot a player is addressing
@@ -966,9 +1036,13 @@ def quick_llm_analyze(
     Returns raw text response, or None on error.
     """
     # Check for separate quick analyze provider
-    qa_client, provider = (
-        _get_quick_analyze_client(config)
-    )
+    try:
+        qa_client, provider = (
+            _get_quick_analyze_client(config)
+        )
+    except ValueError as exc:
+        logger.error('Quick analyze skipped (%s): %s', label, exc)
+        return None
     if qa_client is not None:
         active_client = qa_client
         using_quick_provider = True
@@ -1003,13 +1077,17 @@ def quick_llm_analyze(
                 'LLMChatter.Model',
                 DEFAULT_OPENROUTER_MODEL
             )
+    elif provider == 'openai_compatible':
+        # Main-provider case only: an independent target always
+        # has QuickAnalyze.Model (checked when its client is made).
+        model = config.get('LLMChatter.Model', '')
     else:
         # Ollama: use configured model
         model = config.get(
             'LLMChatter.Model',
             DEFAULT_ANTHROPIC_MODEL
         )
-    model = resolve_model(model)
+    model = resolve_model(model, provider)
 
     return _call_target(
         active_client, prompt, config, provider, model, max_tokens,

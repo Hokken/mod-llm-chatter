@@ -844,7 +844,8 @@ It carries the legacy prompt parts and optional response metadata:
      the correction for that model until the process restarts.
      `extract_anthropic_text()` joins text blocks only, because models
      that think by default can return `thinking` blocks first
-   - **OpenAI / Google / OpenRouter / Ollama**: system role message +
+   - **OpenAI / Google / OpenRouter / Ollama / openai_compatible**:
+     system role message +
      user role message; `llm_compat.py` selects the token field and
      optional parameters from a conservative model capability profile
      resolved through one ordered model-rule table; parameter selection
@@ -862,6 +863,12 @@ It carries the legacy prompt parts and optional response metadata:
      opt-in `reasoning` object to normal and quick-analysis requests;
      `_effective_max_tokens()` applies its multiplier only while an
      effort other than `none` is enabled
+   - **openai_compatible**: a generic server; the client gets only the
+     base URL and key from `openai_compatible_client_kwargs()`, requests
+     carry no vendor options, and `resolve_model(..., provider)` keeps the
+     model ID verbatim. `openai_compatible_target_error()` is the single
+     "configured?" rule shared by bridge startup, the health check and the
+     lazy QuickAnalyze client, which raises instead of falling back
    - **Ollama**: context size is owned by the Ollama server because its
      OpenAI-compatible endpoint has no per-request context parameter;
      disabling thinking sends `reasoning_effort = none` and retains the
@@ -1242,7 +1249,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_mode.py` | Canonical normal/RP playerbot identity and channel voice rules, plus mode-invariant NPC guidance |
 | `tools/chatter_text.py` | Parsing, sanitization, anti-repetition, and chat length limiting. Never slice LLM chat output by hand; use `shorten_chat_message()` or `shorten_chat_question()` from this file. |
 | `tools/chatter_structured.py` | Global structured-output flag, immutable response contracts, stable schema generation, strict local validation and legacy-shape normalization. No SDK or delivery logic. |
-| `tools/chatter_llm.py` | Provider/model calls for Anthropic, OpenAI, Google Gemini, OpenRouter, and Ollama; `get_llm_client()` shared client factory; `_split_prompt()`, `_build_chat_messages()`, `_ollama_user_msg()`, `_apply_google_options()`, `_apply_openrouter_options()`, `_openrouter_headers()` for system/user prompt separation and provider tuning; delegates cross-model parameter selection to `llm_compat.py`; `label=` param logs every call via `chatter_request_logger` |
+| `tools/chatter_llm.py` | Provider/model calls for Anthropic, OpenAI, Google Gemini, OpenRouter, Ollama, and generic OpenAI-compatible servers (`openai_compatible_client_kwargs()`, `openai_compatible_target_error()`); `get_llm_client()` shared client factory; `_split_prompt()`, `_build_chat_messages()`, `_ollama_user_msg()`, `_apply_google_options()`, `_apply_openrouter_options()`, `_openrouter_headers()` for system/user prompt separation and provider tuning; delegates cross-model parameter selection to `llm_compat.py`; `label=` param logs every call via `chatter_request_logger` |
 | `tools/chatter_db.py` | DB access, inserts, zone/cache queries, `any_real_players_online()`, stale-group cleanup, and global group/Guild session cleanup. Owns `get_race_name()`: `RACE_NAMES`, then the races the worldserver wrote to `llm_chatter_race_names` (`load_race_names()`) |
 | `tools/chatter_links.py` | WoW link parsing and prompt-side link enrichment for player messages |
 | `tools/chatter_prompts.py` | Ambient/event prompt builders; twist and spice gating (`configure_prompt_flavor()`) |

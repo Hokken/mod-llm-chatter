@@ -38,6 +38,9 @@
 #   - google    : Gemini models (Gemini 3.1 Flash-Lite / 2.5 Flash) - cloud, requires API key
 #   - openrouter: OpenRouter model routing - cloud, requires API key
 #   - ollama    : Local running on very fast hardware or cloud models
+#   - openai_compatible: any server implementing the OpenAI Chat Completions
+#                 API (llama.cpp, vLLM, LM Studio, a hosted service) - base URL
+#                 required, API key only if the server needs one
 #
 # SETUP INSTRUCTIONS:
 # 1. Copy this file to your server's config directory as mod_llm_chatter.conf
@@ -232,7 +235,8 @@ LLMChatter.StructuredOutput.Enable = 0
 #   - Use 0 or 1 for switches, plain numbers for numeric values, and a dot for
 #     decimals (for example: 1.5). Do not add commas, units, or percent signs.
 #   - Copy model IDs exactly. OpenRouter uses vendor/model; Ollama uses the
-#     name and optional tag shown by `ollama list`.
+#     name and optional tag shown by `ollama list`; openai_compatible uses
+#     the ID exactly as your server lists it under /v1/models.
 #
 # QUICK SETUP EXAMPLES:
 #
@@ -270,13 +274,21 @@ LLMChatter.StructuredOutput.Enable = 0
 #     will result in severely degraded performance. Only use local Ollama if you
 #     have dedicated GPU inference hardware capable of sub-5s response times.
 #
+#   Any OpenAI-compatible server (here a local llama.cpp / vLLM / LM Studio
+#   server; the same latency warning as local Ollama applies):
+#     LLMChatter.Provider = openai_compatible
+#     LLMChatter.Model = <model ID as your server lists it>
+#     LLMChatter.OpenAICompatible.BaseUrl = http://host.docker.internal:8080/v1
+#     (leave LLMChatter.OpenAICompatible.ApiKey empty if no key is required)
+#
 ###############################################################################
 
 #
 #   LLMChatter.Provider
 #       Which LLM provider to use:
 #       Format: one lowercase name with no quotes.
-#       Values: anthropic, openai, google, openrouter, or ollama
+#       Values: anthropic, openai, google, openrouter, ollama, or
+#       openai_compatible
 #       Default: anthropic
 #
 LLMChatter.Provider = anthropic
@@ -309,6 +321,10 @@ LLMChatter.Provider = anthropic
 #
 #       Ollama models (from 'ollama list'):
 #         qwen3:4b, qwen3:8b, llama3.2:3b
+#
+#       openai_compatible models:
+#         Required; there is no default. Use the ID exactly as your server
+#         reports it. It is sent verbatim (no aliases are applied).
 #
 #       Default: claude-haiku-4-5-20251001
 #
@@ -520,6 +536,45 @@ LLMChatter.OpenRouter.HttpReferer =
 #       Leave empty if you do not want to send this header.
 #
 LLMChatter.OpenRouter.Title =
+
+###############################################################################
+# OPENAI-COMPATIBLE SETTINGS [BRIDGE] (only needed if Provider =
+# openai_compatible)
+###############################################################################
+#
+# Any server implementing the OpenAI Chat Completions API: local llama.cpp,
+# vLLM, LM Studio, Ollama's /v1 endpoint, or a hosted compatible service.
+# Only the base URL, API key and the standard request fields are sent; no
+# vendor-specific headers or options (for example OpenRouter attribution or
+# reasoning settings) are added. Set LLMChatter.StructuredOutput.Enable = 1
+# only if your server supports json_schema response_format.
+#
+# LLMChatter.QuickAnalyze.Provider = openai_compatible with a different main
+# provider uses these settings and also requires LLMChatter.QuickAnalyze.Model;
+# the bridge refuses to start without them rather than falling back to the
+# main provider.
+#
+
+#
+#   LLMChatter.OpenAICompatible.BaseUrl
+#       The server's OpenAI base URL, used exactly as written (nothing is
+#       appended). Usually ends in /v1. Required; there is no default
+#       server.
+#       Format: http://host:port/v1 without quotes.
+#       NOTE: If the chatter bridge runs in Docker and the server runs on the
+#       host machine, use host.docker.internal instead of localhost.
+#       "localhost" inside a container refers to the container itself.
+#       Default: http://host.docker.internal:8080/v1
+#
+LLMChatter.OpenAICompatible.BaseUrl = http://host.docker.internal:8080/v1
+
+#
+#   LLMChatter.OpenAICompatible.ApiKey
+#       API key, sent as a Bearer token. Leave empty for local servers that
+#       do not require one.
+#       Default: (empty)
+#
+LLMChatter.OpenAICompatible.ApiKey =
 
 ###############################################################################
 # OLLAMA SETTINGS [BRIDGE] (only needed if Provider = ollama)

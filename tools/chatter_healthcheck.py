@@ -66,7 +66,8 @@ _REQUIRED_TABLES = [
 ]
 
 _VALID_PROVIDERS = (
-    'anthropic', 'openai', 'google', 'openrouter', 'ollama'
+    'anthropic', 'openai', 'google', 'openrouter', 'ollama',
+    'openai_compatible',
 )
 
 # provider -> (api_key_config_key, example_placeholder)
@@ -124,6 +125,8 @@ def format_llm_target(config, model=None):
         default_model = DEFAULT_GOOGLE_MODEL
     elif provider == 'openrouter':
         default_model = DEFAULT_OPENROUTER_MODEL
+    elif provider == 'openai_compatible':
+        default_model = ''
     if model is None:
         model = config.get('LLMChatter.Model', default_model)
 
@@ -143,6 +146,11 @@ def format_llm_target(config, model=None):
             'LLMChatter.OpenRouter.BaseUrl', OPENROUTER_BASE_URL
         )
         return f"openrouter {model} @ {base_url}"
+    if provider == 'openai_compatible':
+        base_url = config.get(
+            'LLMChatter.OpenAICompatible.BaseUrl', ''
+        ).strip()
+        return f"openai_compatible {model} @ {base_url}"
     return f"{provider} {model}"
 
 
@@ -158,11 +166,13 @@ def _resolved_model(config, provider, model=None):
         default_model = DEFAULT_GOOGLE_MODEL
     elif provider == 'openrouter':
         default_model = DEFAULT_OPENROUTER_MODEL
+    elif provider == 'openai_compatible':
+        default_model = ''
     if model is None:
         model = config.get('LLMChatter.Model', default_model)
     try:
         from chatter_llm import resolve_model
-        return resolve_model(model)
+        return resolve_model(model, provider)
     except Exception:
         return model
 
@@ -234,6 +244,30 @@ def _check_provider_config(config):
             + ", ".join(_VALID_PROVIDERS) + ".",
         )
 
+    if provider == 'openai_compatible':
+        from chatter_llm import openai_compatible_target_error
+        error = openai_compatible_target_error(config)
+        if error:
+            return _result(
+                'provider_config', 'LLM provider config', 'fail',
+                f"Provider 'openai_compatible': {error}.",
+                "Set LLMChatter.OpenAICompatible.BaseUrl to your "
+                "server's OpenAI base URL (usually ending in /v1) "
+                "and LLMChatter.Model to a model ID it serves.",
+            )
+        base_url = config.get(
+            'LLMChatter.OpenAICompatible.BaseUrl', ''
+        ).strip()
+        key_set = bool((config.get(
+            'LLMChatter.OpenAICompatible.ApiKey', ''
+        ) or '').strip())
+        return _result(
+            'provider_config', 'LLM provider config', 'pass',
+            f"Provider 'openai_compatible'. URL: {base_url}, "
+            + ("API key set." if key_set
+               else "no API key (fine for local servers)."),
+        )
+
     if provider == 'ollama':
         base_url = config.get(
             'LLMChatter.Ollama.BaseUrl',
@@ -271,6 +305,42 @@ def _check_provider_config(config):
     return _result(
         'provider_config', 'LLM provider config', 'pass',
         f"Provider '{provider}', API key set in {key_name}.",
+    )
+
+
+def _check_quick_analyze_target(config):
+    """Validate an independent openai_compatible QuickAnalyze target.
+
+    Returns None unless LLMChatter.QuickAnalyze.Provider selects
+    openai_compatible while the main provider is something else.
+    Such a target has no defaults and never falls back.
+    """
+    qa_provider = (config.get(
+        'LLMChatter.QuickAnalyze.Provider', ''
+    ) or '').strip().lower()
+    provider = config.get(
+        'LLMChatter.Provider', 'anthropic'
+    ).strip().lower()
+    if qa_provider != 'openai_compatible' or qa_provider == provider:
+        return None
+    from chatter_llm import openai_compatible_target_error
+    error = openai_compatible_target_error(
+        config, 'LLMChatter.QuickAnalyze.Model'
+    )
+    if error:
+        return _result(
+            'quick_analyze_config', 'QuickAnalyze provider config',
+            'fail',
+            f"QuickAnalyze.Provider 'openai_compatible': {error}.",
+            "Set LLMChatter.OpenAICompatible.BaseUrl and "
+            "LLMChatter.QuickAnalyze.Model, or clear "
+            "LLMChatter.QuickAnalyze.Provider.",
+        )
+    return _result(
+        'quick_analyze_config', 'QuickAnalyze provider config', 'pass',
+        "QuickAnalyze uses openai_compatible "
+        f"{config.get('LLMChatter.QuickAnalyze.Model', '').strip()} @ "
+        f"{config.get('LLMChatter.OpenAICompatible.BaseUrl', '').strip()}.",
     )
 
 
@@ -580,6 +650,11 @@ def _build_openai_compatible_client(config, provider):
                 'LLMChatter.Google.BaseUrl', GOOGLE_OPENAI_BASE_URL
             ),
         )
+    if provider == 'openai_compatible':
+        from chatter_llm import openai_compatible_client_kwargs
+        return openai.OpenAI(
+            **openai_compatible_client_kwargs(config)
+        )
     # openrouter
     kwargs = {
         'api_key': config.get('LLMChatter.OpenRouter.ApiKey', ''),
@@ -623,6 +698,10 @@ def _check_llm_probe(
         endpoint = config.get(
             'LLMChatter.OpenRouter.BaseUrl', OPENROUTER_BASE_URL
         )
+    elif provider == 'openai_compatible':
+        endpoint = config.get(
+            'LLMChatter.OpenAICompatible.BaseUrl', ''
+        ).strip()
     else:
         endpoint = "the provider API"
 
@@ -713,6 +792,9 @@ def run_all_checks(config, *, do_llm_probe=True):
     results.append(_check_config_file(config, config_path))
     results.append(_check_module_enabled(config))
     results.append(_check_provider_config(config))
+    qa_result = _check_quick_analyze_target(config)
+    if qa_result is not None:
+        results.append(qa_result)
 
     db_result = _check_database(config)
     results.append(db_result)

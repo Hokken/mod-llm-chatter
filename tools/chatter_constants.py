@@ -3268,6 +3268,8 @@ GOOGLE_OPENAI_BASE_URL = (
     'https://generativelanguage.googleapis.com/v1beta/openai/'
 )
 OPENROUTER_BASE_URL = 'https://openrouter.ai/api/v1'
+# The generic openai_compatible provider deliberately has no default
+# model or base URL: both must name the user's own server.
 
 # =============================================================================
 # EVENT DESCRIPTIONS

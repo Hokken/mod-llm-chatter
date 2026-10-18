@@ -99,6 +99,7 @@ from llm_compat import describe_model_compatibility
 from chatter_llm import (
     compatible_reasoning_effort, log_structured_target,
     reset_structured_diagnostics, resolve_model, check_structured_dependencies,
+    openai_compatible_client_kwargs, openai_compatible_target_error,
 )
 from chatter_structured import structured_output_enabled
 
@@ -1522,6 +1523,8 @@ def main():
         default_model = DEFAULT_GOOGLE_MODEL
     elif provider == 'openrouter':
         default_model = DEFAULT_OPENROUTER_MODEL
+    elif provider == 'openai_compatible':
+        default_model = ''
     model = config.get(
         'LLMChatter.Model', default_model
     )
@@ -1601,6 +1604,17 @@ def main():
         if headers:
             kwargs['default_headers'] = headers
         client = openai.OpenAI(**kwargs)
+    elif provider == 'openai_compatible':
+        error = openai_compatible_target_error(config)
+        if error:
+            logger.error(
+                "FATAL: provider 'openai_compatible' selected but "
+                "%s.", error,
+            )
+            sys.exit(1)
+        client = openai.OpenAI(
+            **openai_compatible_client_kwargs(config)
+        )
     else:
         # Anthropic is the documented default when Provider is unset.
         # A *typo* in LLMChatter.Provider also lands here; fail loudly
@@ -1608,7 +1622,8 @@ def main():
         if provider != 'anthropic':
             logger.error(
                 "FATAL: unknown LLMChatter.Provider '%s'. Valid values: "
-                "anthropic, openai, google, openrouter, ollama.",
+                "anthropic, openai, google, openrouter, ollama, "
+                "openai_compatible.",
                 provider,
             )
             sys.exit(1)
@@ -1622,6 +1637,22 @@ def main():
             )
             sys.exit(1)
         client = anthropic.Anthropic(api_key=api_key)
+
+    # An explicitly selected openai_compatible QuickAnalyze target
+    # has no defaults and never falls back to the main provider.
+    qa_provider = config.get(
+        'LLMChatter.QuickAnalyze.Provider', ''
+    ).strip().lower()
+    if qa_provider == 'openai_compatible' and qa_provider != provider:
+        error = openai_compatible_target_error(
+            config, 'LLMChatter.QuickAnalyze.Model'
+        )
+        if error:
+            logger.error(
+                "FATAL: LLMChatter.QuickAnalyze.Provider "
+                "'openai_compatible' selected but %s.", error,
+            )
+            sys.exit(1)
 
     # Get poll interval
     poll_interval = int(config.get(
@@ -1692,13 +1723,15 @@ def main():
     logger.info(f"ChatterMode: {chatter_mode}")
     logger.info(f"Provider: {provider}")
     log_structured_target(
-        'main', provider, resolve_model(model), structured_output_enabled(config),
+        'main', provider, resolve_model(model, provider),
+        structured_output_enabled(config),
     )
     logger.info(
         f"Model: {model}"
     )
     if provider in (
-        'openai', 'google', 'openrouter', 'ollama'
+        'openai', 'google', 'openrouter', 'ollama',
+        'openai_compatible',
     ):
         logger.info(
             "Model compatibility: %s",
@@ -1723,6 +1756,11 @@ def main():
         logger.info(
             f"Thinking mode: "
             f"{'disabled' if disable_thinking else 'enabled'}"
+        )
+    if provider == 'openai_compatible':
+        logger.info(
+            "OpenAI-compatible URL: %s",
+            openai_compatible_client_kwargs(config)['base_url'],
         )
     logger.info(f"Poll interval: {poll_interval}s")
     logger.info(
