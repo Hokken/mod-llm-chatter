@@ -1759,6 +1759,8 @@ def test_dungeon_boss_lookup_uses_registered_encounters():
     assert 'ie.creditType = 0' in lookup
     assert 'CreatureImmunitiesId > 0' in lookup
     assert '(map_id, map_id)' in lookup
+    # A UNION's ORDER BY may only name result columns (MySQL 1250).
+    assert 'ORDER BY name' in lookup
 
 
 def test_boss_event_types_are_persistable():
