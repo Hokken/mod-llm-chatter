@@ -191,7 +191,9 @@ Use only one provider recipe at a time. Existing credentials for inactive
 providers can remain in the file. Restart `ac-llm-chatter-bridge` after a
 provider or model change. The bridge chooses compatible token, temperature,
 and reasoning parameters automatically, then caches any explicit
-unsupported-parameter correction for the rest of that process.
+unsupported-parameter correction for the rest of that process. With
+structured output on, an OpenRouter `ReasoningEffort = none` that no endpoint
+of the model accepts alongside the JSON schema is dropped the same way.
 
 ### Structured Output: Recommended for Reliable Responses
 

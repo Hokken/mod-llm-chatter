@@ -14,6 +14,17 @@
 * **New settings**: `LLMChatter.OpenAICompatible.BaseUrl` and
   `LLMChatter.OpenAICompatible.ApiKey`.
 
+### 2026-10-18 - OpenRouter Structured Output Fix
+
+* **Structured output now works with non-reasoning OpenRouter models**:
+  with `LLMChatter.OpenRouter.ReasoningEffort = none`, models such as
+  GPT-4o-mini, Llama 3.1 8B, Mistral Nemo or Qwen3 instruct answered every
+  structured request with "No endpoints found that can handle the requested
+  parameters", so those bots stayed silent. The bridge now retries once
+  without the reasoning setting, keeping the JSON schema, and remembers it
+  for that model. A real reasoning effort is never dropped; the log now
+  says which setting to change instead.
+
 ### 2026-10-17 - Startup Config Listing
 
 * **The bridge shows the settings it loaded**: at startup it now lists every

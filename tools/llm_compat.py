@@ -52,6 +52,18 @@ _GENERIC_REJECTION_CODES = {
 # explicit rejection, in the order they are checked.
 _ANTHROPIC_OPTIONAL_FIELDS = ("temperature", "thinking")
 
+# OpenRouter answers 404 with this routing step when no endpoint of the
+# model accepts every requested parameter (only enforced when
+# provider.require_parameters is set, as structured output does).
+_OPENROUTER_PARAMETER_STEP = "filter_by_parameters"
+_OPENROUTER_PARAMETER_MESSAGE = (
+    "no endpoints found that can handle the requested parameters"
+)
+# Learned per model: drop reasoning {effort: none} from requests that
+# require every parameter. Other requests keep it, because without
+# require_parameters an endpoint that honours it can still be chosen.
+_OMIT_REQUIRED_NONE_REASONING = "omit_none_reasoning_when_required"
+
 
 def _normalized_target(provider, model):
     return (
@@ -136,8 +148,40 @@ def _remember_override(provider, model, name, value):
         _MODEL_OVERRIDES.setdefault(key, {})[name] = value
 
 
+def _openrouter_reasoning(kwargs):
+    """Return the OpenRouter reasoning object of a request, or {}."""
+    extra = kwargs.get("extra_body")
+    reasoning = extra.get("reasoning") if isinstance(extra, dict) else None
+    return reasoning if isinstance(reasoning, dict) else {}
+
+
+def _requires_all_parameters(kwargs):
+    extra = kwargs.get("extra_body")
+    routing = extra.get("provider") if isinstance(extra, dict) else None
+    return isinstance(routing, dict) and bool(
+        routing.get("require_parameters")
+    )
+
+
+def _omit_openrouter_reasoning(kwargs):
+    """Remove the reasoning object without mutating the caller's dict."""
+    extra = dict(kwargs.get("extra_body") or {})
+    extra.pop("reasoning", None)
+    if extra:
+        kwargs["extra_body"] = extra
+    else:
+        kwargs.pop("extra_body", None)
+
+
 def _apply_cached_overrides(kwargs, provider, model):
     overrides = _cached_overrides(provider, model)
+    if (
+        overrides.get(_OMIT_REQUIRED_NONE_REASONING)
+        and _requires_all_parameters(kwargs)
+        and str(_openrouter_reasoning(kwargs).get("effort", ""))
+        .strip().lower() == "none"
+    ):
+        _omit_openrouter_reasoning(kwargs)
     if overrides.get("omit_temperature"):
         kwargs.pop("temperature", None)
     if overrides.get("omit_reasoning_effort"):
@@ -270,6 +314,20 @@ def _is_parameter_rejection(error, parameter):
     ))
 
 
+def _is_openrouter_parameter_routing_failure(error):
+    """Match OpenRouter's "no endpoint accepts these parameters" 404."""
+    if _error_status(error) != 404:
+        return False
+    body = _error_body(error)
+    metadata = body.get("metadata")
+    if isinstance(metadata, dict) and metadata.get("failed_routing_step"):
+        return _normalize_parameter(
+            str(metadata["failed_routing_step"]).replace(" ", "_")
+        ) == _OPENROUTER_PARAMETER_STEP
+    message = str(body.get("message") or error).lower()
+    return _OPENROUTER_PARAMETER_MESSAGE in message
+
+
 def _adjust_rejected_parameters(
     kwargs,
     provider,
@@ -279,6 +337,26 @@ def _adjust_rejected_parameters(
     reasoning_token_multiplier,
 ):
     """Apply one safe correction for an explicit parameter rejection."""
+    # reasoning {effort: none} only asks hybrid models not to think.
+    # When no endpoint accepts it together with the other required
+    # parameters (e.g. a JSON schema on a non-reasoning model), sending
+    # it cannot help, so retry without it. The override is remembered
+    # only after the retry succeeds (see create_chat_completion).
+    if (
+        provider == "openrouter"
+        and "openrouter_reasoning" not in changed_fields
+        and _requires_all_parameters(kwargs)
+        and str(_openrouter_reasoning(kwargs).get("effort", ""))
+        .strip().lower() == "none"
+        and _is_openrouter_parameter_routing_failure(error)
+    ):
+        _omit_openrouter_reasoning(kwargs)
+        changed_fields.add("openrouter_reasoning")
+        return (
+            "omitted reasoning effort none, which no endpoint accepts "
+            "together with the other required parameters"
+        )
+
     if (
         "temperature" in kwargs
         and "temperature" not in changed_fields
@@ -386,9 +464,10 @@ def create_chat_completion(
     changed_fields = set()
     last_error = None
 
-    for _ in range(4):
+    # One attempt per correctable field, plus the original request.
+    for _ in range(5):
         try:
-            return operation(**kwargs)
+            response = operation(**kwargs)
         except Exception as error:
             last_error = error
             adjustment = _adjust_rejected_parameters(
@@ -400,6 +479,9 @@ def create_chat_completion(
                 reasoning_token_multiplier,
             )
             if not adjustment:
+                _warn_openrouter_reasoning_routing(
+                    kwargs, provider, model, error, active_logger,
+                )
                 raise
             active_logger.warning(
                 "Adjusted request parameters for %s/%s after provider "
@@ -408,7 +490,41 @@ def create_chat_completion(
                 model,
                 adjustment,
             )
+            continue
+        if "openrouter_reasoning" in changed_fields:
+            _remember_override(
+                provider, model, _OMIT_REQUIRED_NONE_REASONING, True
+            )
+        return response
     raise last_error
+
+
+def _warn_openrouter_reasoning_routing(
+    kwargs, provider, model, error, active_logger
+):
+    """Explain, once per model, a routing failure we must not hide.
+
+    A real reasoning effort is the user's explicit request, so it is
+    never dropped; the warning names the setting to change instead.
+    """
+    effort = str(_openrouter_reasoning(kwargs).get("effort", "")).strip()
+    if (
+        provider != "openrouter"
+        or not effort
+        or effort.lower() == "none"
+        or not _is_openrouter_parameter_routing_failure(error)
+        or _cached_overrides(provider, model).get("routing_warned")
+    ):
+        return
+    _remember_override(provider, model, "routing_warned", True)
+    active_logger.warning(
+        "OpenRouter has no endpoint for %s that accepts reasoning effort "
+        "%r together with the other required parameters (such as the "
+        "structured-output JSON schema). Choose a model that supports "
+        "both, or clear LLMChatter.OpenRouter.ReasoningEffort.",
+        model,
+        effort,
+    )
 
 
 def create_anthropic_message(
