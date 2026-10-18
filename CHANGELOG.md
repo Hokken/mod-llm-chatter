@@ -1,5 +1,19 @@
 # Changelog
 
+### 2026-10-18 - Any OpenAI-Compatible Server
+
+* **Use any server that speaks the OpenAI API**: the new
+  `openai_compatible` provider works with local llama.cpp, vLLM, LM Studio
+  or Ollama's `/v1` endpoint, and with hosted services that offer the same
+  API. Set `LLMChatter.OpenAICompatible.BaseUrl`, the model ID your server
+  lists, and a key only if it needs one. Unlike pointing the OpenRouter
+  settings at another host, it sends no OpenRouter headers or reasoning
+  options. It also works for `LabelModel` and as a separate
+  `QuickAnalyze.Provider`. A missing URL or model stops the bridge with a
+  clear message instead of quietly using another provider.
+* **New settings**: `LLMChatter.OpenAICompatible.BaseUrl` and
+  `LLMChatter.OpenAICompatible.ApiKey`.
+
 ### 2026-10-17 - Startup Config Listing
 
 * **The bridge shows the settings it loaded**: at startup it now lists every

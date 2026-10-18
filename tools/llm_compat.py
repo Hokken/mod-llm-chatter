@@ -469,7 +469,8 @@ def with_response_schema(request_kwargs, provider, name, schema):
         output = deepcopy(kwargs.get('output_config', {}))
         output['format'] = {'type': 'json_schema', 'schema': deepcopy(schema)}
         kwargs['output_config'] = output
-    elif provider in ('openai', 'google', 'openrouter', 'ollama'):
+    elif provider in ('openai', 'google', 'openrouter', 'ollama',
+                      'openai_compatible'):
         kwargs['response_format'] = {
             'type': 'json_schema',
             'json_schema': {'name': name, 'strict': True,

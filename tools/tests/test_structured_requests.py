@@ -19,7 +19,8 @@ from llm_compat import (reset_compatibility_cache, structured_rejection_category
                         with_response_schema)
 
 
-PROVIDERS = ('openai', 'google', 'openrouter', 'ollama', 'anthropic')
+PROVIDERS = ('openai', 'google', 'openrouter', 'ollama', 'anthropic',
+             'openai_compatible')
 
 
 def completion(raw='{"message":"Hello"}', *, provider='openai', finish=None,

@@ -675,6 +675,7 @@ Supported providers:
 - Google Gemini
 - OpenRouter
 - Ollama
+- Any OpenAI-compatible server (`openai_compatible`)
 
 `LLMChatter.LabelModel` sends calls whose label matches
 `LLMChatter.LabelModel.Labels` (comma-separated fnmatch patterns over
@@ -689,7 +690,8 @@ probe for `LabelModel` as for `LLMChatter.Model`, reported as its own
 
 Changing models normally requires only the provider and model ID. The
 bridge resolves a conservative capability profile for OpenAI-compatible
-targets, including direct OpenAI, Google, OpenRouter, and Ollama. Known
+targets, including direct OpenAI, Google, OpenRouter, Ollama, and
+`openai_compatible`. Known
 sampling models receive `temperature`; known reasoning models receive
 their supported token-limit shape and configured reasoning effort;
 unrecognized direct OpenAI models start without optional parameters.
@@ -806,6 +808,28 @@ Ollama context size must be configured on the Ollama server with
 OpenAI-compatible endpoint does not accept it per request. Verify the loaded
 context with `ollama ps`. `Ollama.DisableThinking = 1` sends
 `reasoning_effort = none` and retains `/no_think` as a model fallback.
+
+```ini
+LLMChatter.Provider = openai_compatible
+LLMChatter.Model = your-model-id
+LLMChatter.OpenAICompatible.BaseUrl = http://host.docker.internal:8080/v1
+LLMChatter.OpenAICompatible.ApiKey =
+```
+
+`openai_compatible` covers any server implementing the OpenAI Chat
+Completions API, local or hosted. It sends only the base URL, the API key
+(a placeholder when the key is empty, for servers that need none) and the
+standard request fields; no OpenRouter attribution headers, reasoning
+options or provider-routing fields are added. There are no defaults: the
+bridge refuses to start when `OpenAICompatible.BaseUrl` or
+`LLMChatter.Model` is empty, and the model ID is sent verbatim without
+alias mapping. Structured output sends a plain `json_schema`
+`response_format`, so enable it only when the server supports that.
+`LabelModel` works on this provider like any other. Setting
+`LLMChatter.QuickAnalyze.Provider = openai_compatible` while the main
+provider differs requires `LLMChatter.QuickAnalyze.Model` as well; a
+missing URL or model stops the bridge at startup and the health check
+reports it, instead of silently analysing on the main provider.
 
 ### System prompt support
 
