@@ -37,6 +37,7 @@
 #include <algorithm>
 #include <array>
 #include <cctype>
+#include <cstdio>
 #include <ctime>
 #include <map>
 #include <memory>
@@ -1616,6 +1617,51 @@ std::string GetZoneName(uint32 zoneId)
     return "Unknown Zone";
 }
 
+std::string GetAreaNameForLocale(uint32 areaId)
+{
+    AreaTableEntry const* area =
+        sAreaTableStore.LookupEntry(areaId);
+    if (!area)
+        return "";
+
+    uint8 locale = sLLMChatterConfig->GetModuleLocale();
+    char const* name = area->area_name[locale];
+    if (!name || !*name)
+        name = area->area_name[LOCALE_enUS];
+    return name ? name : "";
+}
+
+// The exact name the core gives a zone's General channel. This is
+// the one deliberate exception to the module-locale rule: the core
+// builds channel names from the worldserver DBC locale, so resolving
+// them in LLMChatter.Language would point bots at a channel no player
+// is in -- or, with enUS-only DBCs, at an empty name. Returns "" when
+// no name can be resolved; callers must not join or speak then.
+std::string GetGeneralChannelName(uint32 zoneId)
+{
+    AreaTableEntry const* area =
+        sAreaTableStore.LookupEntry(zoneId);
+    ChatChannelsEntry const* chEntry =
+        sChatChannelsStore.LookupEntry(
+            ChatChannelId::GENERAL);
+    if (!area || !chEntry)
+        return "";
+
+    LocaleConstant locale = sWorld->GetDefaultDbcLocale();
+    char const* zoneName = area->area_name[locale];
+    if (!zoneName || !*zoneName)
+        zoneName = area->area_name[LOCALE_enUS];
+    char const* pattern = chEntry->pattern[locale];
+    if (!pattern || !*pattern)
+        pattern = chEntry->pattern[LOCALE_enUS];
+    if (!zoneName || !*zoneName || !pattern || !*pattern)
+        return "";
+
+    char nameBuf[100];
+    std::snprintf(nameBuf, sizeof(nameBuf), pattern, zoneName);
+    return nameBuf;
+}
+
 // ---------------------------------------------------------------------
 // Locale-aware name/text lookups.
 //
@@ -1988,21 +2034,9 @@ bool CanSpeakInGeneralChannel(Player* bot)
     // they would never be in any General channel.
     EnsureBotInGeneralChannel(bot);
 
-    uint32 zoneId = bot->GetZoneId();
-    AreaTableEntry const* area =
-        sAreaTableStore.LookupEntry(zoneId);
-    if (!area)
-        return false;
-
-    char const* zn =
-        area->area_name[sWorld->GetDefaultDbcLocale()];
-    std::string zoneName = zn ? zn : "";
-    if (zoneName.empty())
-    {
-        zn = area->area_name[LOCALE_enUS];
-        zoneName = zn ? zn : "";
-    }
-    if (zoneName.empty())
+    std::string channelName =
+        GetGeneralChannelName(bot->GetZoneId());
+    if (channelName.empty())
         return false;
 
     ChannelMgr* cMgr =
@@ -2018,8 +2052,7 @@ bool CanSpeakInGeneralChannel(Player* bot)
         if (channel->GetChannelId()
             != ChatChannelId::GENERAL)
             continue;
-        if (channel->GetName().find(zoneName)
-            == std::string::npos)
+        if (channel->GetName() != channelName)
             continue;
 
         if (IsPlayerInChannel(bot, channel))

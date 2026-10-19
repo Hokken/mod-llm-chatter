@@ -1297,20 +1297,6 @@ std::string BuildParticipantsJson(
     return json;
 }
 
-std::string GetAreaNameForLocale(uint32 areaId)
-{
-    AreaTableEntry const* area =
-        sAreaTableStore.LookupEntry(areaId);
-    if (!area)
-        return "";
-
-    uint8 locale = sLLMChatterConfig->GetModuleLocale();
-    char const* name = area->area_name[locale];
-    if (!name || !*name)
-        name = area->area_name[LOCALE_enUS];
-    return name ? name : "";
-}
-
 // Scale `chance` down by the anchor's recent proximity
 // trigger count (zone fatigue). Shared by ambient scenes
 // and fight onlooker reactions.

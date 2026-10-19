@@ -84,6 +84,8 @@ bool IsSafeForChatterFacing(Unit* unit);
 void UpdateGroupBotTravelState(Player* player, uint32 groupId = 0);
 std::string ConvertAllLinks(const std::string& text);
 std::string GetZoneName(uint32 zoneId);
+std::string GetAreaNameForLocale(uint32 areaId);
+std::string GetGeneralChannelName(uint32 zoneId);
 
 // Locale-aware name/text lookups (mirror the fallback semantics of
 // GetZoneName() above: prefer the module locale, fall back

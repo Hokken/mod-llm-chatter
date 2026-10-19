@@ -1,5 +1,21 @@
 # Changelog
 
+### 2026-10-19 - Non-English Chatter Crash Fix
+
+* **No more worldserver crash with a non-English `LLMChatter.Language`**:
+  with enUS server DBCs (as mod-playerbots requires) and a language such
+  as `DE`, the first General-channel message aborted the worldserver
+  (`channelName.length() > 0`), and the undelivered message crashed it
+  again on every restart (#83). General channel names now always follow
+  the worldserver's DBC locale, as the core's own channels do, so bots
+  join and speak in the same General channel as players while still
+  chatting in the configured language. A General message whose channel
+  cannot be resolved is dropped as `general_channel_unresolved` instead of
+  crashing or retrying forever.
+* **Zone names for nearby-object chatter**: zone and subzone names now
+  fall back to English when the server DBCs have no entry in the chatter
+  language, instead of reaching the prompt empty.
+
 ### 2026-10-18 - Any OpenAI-Compatible Server
 
 * **Use any server that speaks the OpenAI API**: the new

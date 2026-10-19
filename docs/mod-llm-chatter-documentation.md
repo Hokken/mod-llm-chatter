@@ -346,6 +346,10 @@ registries instead of a single long conditional block.
 - `EscapeString()`
 - `JsonEscape()`
 - `GetZoneName()`
+- `GetAreaNameForLocale()` — zone or subzone name in the module locale,
+  enUS fallback, empty when absent
+- `GetGeneralChannelName()` — exact General channel name for a zone,
+  built in the worldserver DBC locale like the core's own channels
 - `GetChatterClassName()`
 - `GetChrRacesName()` — any race in `ChrRaces`, playable or not, in the
   server DBC locale with enUS as fallback (also names humanoid NPCs)

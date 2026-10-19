@@ -49,11 +49,21 @@ Two different settings decide language, and they are not the same thing:
 would contradict the configured chatter language on any server where the
 two differ.
 
-There is exactly one deliberate exception.
-`CanSpeakInGeneralChannel()` compares a zone name against live channel
-names, and the core creates those in the worldserver's locale, so that
-lookup keeps `GetDefaultDbcLocale()`. Resolving it in the module
-language would match no channel at all.
+There is exactly one deliberate exception: General channel names.
+The core creates them in the worldserver's locale, so
+`GetGeneralChannelName()` builds them with `GetDefaultDbcLocale()`,
+falling back to enUS for the zone name and the channel pattern.
+Joining (`EnsureBotInGeneralChannel()`), the speak gate
+(`CanSpeakInGeneralChannel()`) and General delivery all go through it.
+Resolving the name in the module language would match no channel at
+all, and with enUS-only server DBCs it would yield an empty name. An
+empty result means no join and no speech; delivery drops the row as
+`general_channel_unresolved`.
+
+A server that loads several DBC locales still names each session's
+General channel in that session's locale, so players can be split
+across differently named channels. That is core behaviour; bots join
+the default-locale channel.
 
 ### Where a name is resolved
 
@@ -1342,6 +1352,10 @@ instead of rendering it as a `/slash` command.
 - `EscapeString()`
 - `JsonEscape()`
 - `GetZoneName()`
+- `GetAreaNameForLocale()` — zone or subzone name in the module locale,
+  enUS fallback, empty when absent
+- `GetGeneralChannelName()` — exact General channel name for a zone
+  (worldserver locale; see Locale Ownership)
 - `GetChatterClassName()`
 - `GetChrRacesName()`
 - `GetRaceName()`
