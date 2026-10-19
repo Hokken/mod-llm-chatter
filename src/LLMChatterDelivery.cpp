@@ -32,7 +32,6 @@
 
 #include <algorithm>
 #include <cctype>
-#include <cstdio>
 #include <ctime>
 #include <limits>
 #include <map>
@@ -1258,64 +1257,45 @@ void DeliverPendingMessagesImpl()
                 ChannelMgr* cMgr =
                     ChannelMgr::forTeam(
                         bot->GetTeamId());
-                if (cMgr)
+                std::string exactName =
+                    GetGeneralChannelName(
+                        bot->GetZoneId());
+                // Zone data is static: an unresolvable
+                // name stays unresolvable, so drop the
+                // row instead of retrying it forever.
+                if (exactName.empty())
                 {
-                    uint32 zId = bot->GetZoneId();
-                    AreaTableEntry const* ar =
-                        sAreaTableStore
-                            .LookupEntry(zId);
-                    if (ar)
+                    LOG_WARN("module",
+                        "LLMChatter: General message {} "
+                        "dropped: no channel name for "
+                        "zone {}",
+                        messageId, bot->GetZoneId());
+                    botUnavailable = true;
+                    dropReason =
+                        "general_channel_unresolved";
+                }
+                else if (cMgr)
+                {
+                    for (auto const& [k, ch] :
+                        cMgr->GetChannels())
                     {
-                        uint8 loc = sLLMChatterConfig->GetModuleLocale();
-                        char const* zn =
-                            ar->area_name[loc];
-                        std::string zName =
-                            zn ? zn : "";
-                        if (zName.empty())
-                        {
-                            zn = ar->area_name[
-                                LOCALE_enUS];
-                            zName = zn ? zn : "";
-                        }
+                        if (!ch)
+                            continue;
+                        if (ch->GetName()
+                            != exactName)
+                            continue;
+                        if (!IsPlayerInChannel(
+                                bot, ch))
+                            continue;
 
-                        ChatChannelsEntry const*
-                            chEntry =
-                                sChatChannelsStore
-                                    .LookupEntry(
-                                        ChatChannelId
-                                            ::GENERAL);
-                        if (chEntry && !zName.empty())
-                        {
-                            char buf[100];
-                            std::snprintf(
-                                buf, sizeof(buf),
-                                chEntry
-                                    ->pattern[loc],
-                                zName.c_str());
-
-                            std::string exactName(buf);
-                            for (auto const& [k, ch] :
-                                cMgr->GetChannels())
-                            {
-                                if (!ch)
-                                    continue;
-                                if (ch->GetName()
-                                    != exactName)
-                                    continue;
-                                if (!IsPlayerInChannel(
-                                        bot, ch))
-                                    continue;
-
-                                emitAction();
-                                ch->Say(
-                                    bot->GetGUID(),
-                                    processedMessage
-                                        .c_str(),
-                                    LANG_UNIVERSAL);
-                                sent = true;
-                                break;
-                            }
-                        }
+                        emitAction();
+                        ch->Say(
+                            bot->GetGUID(),
+                            processedMessage
+                                .c_str(),
+                            LANG_UNIVERSAL);
+                        sent = true;
+                        break;
                     }
                 }
             }
