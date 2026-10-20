@@ -3385,6 +3385,23 @@ LLMChatter.ThemedTopics.OwnTrainerChance = 50
 LLMChatter.RaceClassNotes.Enable = 1
 
 #
+#   LLMChatter.GuildChatter.SubzoneTopicChance
+#       Percent chance (0-100) that an idle Guild line is the
+#       speaker's opinion of the subzone it is standing in
+#       (for example Goldshire in Elwynn Forest), with the
+#       subzone and zone descriptions in roleplay mode;
+#       others agree or argue. Only rolled when the speaker
+#       is inside a named subzone, and before the zone topic.
+#       When conversation threads are on for Guild chat
+#       (LLMChatter.Threads.GuildEnable), a hit only offers
+#       this topic to the thread's pool source, so
+#       LLMChatter.Threads.PoolTopicWeight decides how often
+#       it is actually used.
+#       Default: 10
+#
+LLMChatter.GuildChatter.SubzoneTopicChance = 10
+
+#
 #   LLMChatter.GuildChatter.ZoneTopicChance
 #       Percent chance (0-100) that an idle Guild line is the
 #       speaker's opinion of its current zone; others agree or
@@ -4168,6 +4185,22 @@ LLMChatter.Persona.SpiceChance = 30
 #       Default: 2
 #
 LLMChatter.PersonalitySpiceCount = 2
+
+#
+#   LLMChatter.LocationContext.EventChance [BRIDGE]
+#       Percent chance (0-100) that a roleplay party reaction
+#       in the open world (kill, death, wipe, corpse run,
+#       quest accept/objectives/complete, join greeting)
+#       includes the description of the subzone the party
+#       is in, and the zone description where the reaction
+#       had none. Subzone descriptions are long, so short
+#       reactions do not carry them every time. Dungeon,
+#       raid and battleground reactions keep their own
+#       instance context. 0 disables the extra context.
+#       Requires bridge restart to take effect.
+#       Default: 50
+#
+LLMChatter.LocationContext.EventChance = 50
 
 ###############################################################################
 # CONVERSATION THREADS (party, guild and General chatter)

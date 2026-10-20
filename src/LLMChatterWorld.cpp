@@ -654,6 +654,14 @@ private:
                     std::string cooldownKey =
                         "transport:"
                         + std::to_string(entry);
+                    // The area the transport is in as it arrives,
+                    // usually its harbour, so the bridge can describe
+                    // the place.
+                    uint32 dockArea = map->GetAreaId(
+                        transport->GetPhaseMask(),
+                        transport->GetPositionX(),
+                        transport->GetPositionY(),
+                        transport->GetPositionZ());
                     std::string extraData = "{"
                         "\"transport_entry\":"
                         + std::to_string(entry) + ","
@@ -665,6 +673,8 @@ private:
                         "\"transport_type\":\""
                         + JsonEscape(info.transportType)
                         + "\","
+                        "\"dock_area_id\":"
+                        + std::to_string(dockArea) + ","
                         "\"verified_bots\":"
                         + verifiedJson + "}";
 
@@ -839,10 +849,11 @@ private:
                     participantsJson += ",";
                 participantsJson += fmt::format(
                     R"({{"guid":{},"name":"{}",)"
-                    R"("zone_id":{},"map_id":{}}})",
+                    R"("zone_id":{},"area_id":{},"map_id":{}}})",
                     participant->GetGUID().GetCounter(),
                     JsonEscape(participant->GetName()),
                     participant->GetZoneId(),
+                    participant->GetAreaId(),
                     participant->GetMapId());
             }
             participantsJson += "]";
@@ -856,6 +867,7 @@ private:
                 R"("guildmates":"{}",)"
                 R"("team":"{}",)"
                 R"("zone_id":{},)"
+                R"("area_id":{},)"
                 R"("weather":"{}",)"
                 // Online real members, so rumors rotate between readers.
                 R"("audience":{}}})",
@@ -869,6 +881,7 @@ private:
                 JsonEscape(mates),
                 teamName,
                 speaker->GetZoneId(),
+                speaker->GetAreaId(),
                 JsonEscape(GetZoneWeatherName(
                     speaker->GetZoneId())),
                 BuildAudienceListJson(

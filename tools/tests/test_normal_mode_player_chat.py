@@ -356,7 +356,8 @@ def test_normal_dungeon_greeting_keeps_gameplay_location_context():
     prompt = build_bot_greeting_prompt(
         BOT, ['patient'], 'normal', map_id=33,
     )
-    assert 'Your character is currently in a dungeon' in prompt.user_prompt
+    assert ('Your character is currently in Shadowfang Keep'
+            in prompt.user_prompt)
     assert 'haunted fortress' not in prompt.user_prompt
 
 

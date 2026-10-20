@@ -879,7 +879,7 @@ def process_group_event(db, client, config, event):
             config, db, bot_guid,
             bot['class'], bot_name,
         )
-        greet_zone_id, _, greet_map_id = (
+        greet_zone_id, greet_area_id, greet_map_id = (
             get_group_location(db, group_id)
         )
         prompt = build_bot_greeting_prompt(
@@ -895,6 +895,7 @@ def process_group_event(db, client, config, event):
             stored_tone=stored_tone,
             map_id=greet_map_id,
             zone_id=greet_zone_id,
+            area_id=greet_area_id,
             player_context=player_context_text(
                 db, extra_data.get('player_guid'), player_name, mode,
             ),
@@ -1388,6 +1389,7 @@ def process_group_join_batch_event(
                     stored_tone=stored_tone,
                     map_id=pm or 0,
                     zone_id=pz or 0,
+                    area_id=int(extra_data.get('area', 0) or 0),
                     bg_context=_bg_ctx,
                     player_context=player_context_text(
                         db, extra_data.get('player_guid'),
@@ -3278,7 +3280,10 @@ def build_idle_chatter_prompt(
                 f"\nDungeon context: {dungeon_flav}"
             )
         else:
-            rp_context += "\nYour character is inside a dungeon instance."
+            rp_context += (
+                "\nYour character is inside "
+                f"{dungeon_flav.split(':')[0].strip()}."
+            )
         if dungeon_bosses:
             boss_list = ', '.join(dungeon_bosses[:6])
             rp_context += f"\nBosses here: {boss_list}"
@@ -3724,7 +3729,8 @@ def build_idle_conversation_prompt(
             )
         else:
             parts.append(
-                "The characters are inside a dungeon instance."
+                "The characters are inside "
+                f"{dungeon_flav.split(':')[0].strip()}."
             )
         if dungeon_bosses:
             boss_list = ', '.join(dungeon_bosses[:6])

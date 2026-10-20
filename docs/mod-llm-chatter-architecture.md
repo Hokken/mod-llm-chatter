@@ -270,7 +270,8 @@ NPCs, and real players as they move through the world:
    NPC spawn GUIDs and nearby entity names in `extra_data`.
 5. Python `chatter_proximity.py` claims the event and uses
    `chatter_instance_context.py` for canonical map name, current area,
-   and curated dungeon-lore grounding. NPC payloads also carry
+   and curated dungeon-lore grounding; outdoors it adds the subzone (or
+   zone) description when a speaker is in-world. NPC payloads also carry
    disposition, creature rank, creature type, and qualification reason.
 6. Messages are written to `llm_chatter_messages` with channel
    `"say"` (for bots) or `"msay"` (for NPCs). Ordinary, directed speech,

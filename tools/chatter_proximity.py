@@ -575,7 +575,14 @@ def _location_lines(
     speakers: List[Dict],
     db=None,
 ) -> List[str]:
-    lines = build_location_prompt_lines(extra)
+    # The place description is world lore, so it goes to scenes with
+    # an in-world speaker: any NPC, or playerbots in roleplay mode.
+    lines = build_location_prompt_lines(
+        extra,
+        describe=any(
+            _speaker_is_roleplay(speaker, mode) for speaker in speakers
+        ),
+    )
     context = build_instance_context(extra)
     observation = extra.get('screenshot_observation')
     if isinstance(observation, dict):

@@ -34,8 +34,6 @@ from chatter_shared import (
     _zone_delivery_delay,
     get_zone_name,
     get_zone_flavor,
-    get_subzone_name,
-    get_subzone_lore,
     build_conversation_json_repair_prompt,
     spell_out_trade_numbers,
     structured_output_enabled,
@@ -100,21 +98,16 @@ _VALID_MESSAGE_TYPES = {
 }
 
 
-def _build_zone_metadata(zone_id, area_id=0):
+def _build_zone_metadata(zone_id):
     """Build zone metadata dict for request logging.
 
     Thin wrapper around build_zone_metadata() that
-    resolves zone/subzone names from IDs first.
+    resolves the zone name from its ID first. Ambient
+    General requests are zone-wide and carry no subzone.
     """
     return build_zone_metadata(
         zone_name=get_zone_name(zone_id) or '',
         zone_flavor=get_zone_flavor(zone_id) or '',
-        subzone_name=(
-            get_subzone_name(zone_id, area_id) or ''
-        ),
-        subzone_lore=(
-            get_subzone_lore(zone_id, area_id) or ''
-        ),
     )
 
 
@@ -366,14 +359,11 @@ def process_statement(
 
     # Select message type
     zone_id = request.get('zone_id', 0)
-    area_id = request.get('area_id', zone_id)
     current_weather = request.get('weather') or None
     mode = get_chatter_mode(config)
 
     # Zone metadata for request logging
-    zone_meta = _build_zone_metadata(
-        zone_id, area_id
-    )
+    zone_meta = _build_zone_metadata(zone_id)
     msg_type = _request_message_type(request)
 
 
@@ -520,7 +510,6 @@ def process_statement(
             recent_messages=recent_msgs,
             speaker_talent_context=speaker_talent,
             topic=topic,
-            area_id=area_id,
             length_hint=rng_length,
             thread_turn=thread_turn,
         )
@@ -574,7 +563,6 @@ def process_statement(
             zone_id, config, current_weather,
             recent_messages=recent_msgs,
             speaker_talent_context=speaker_talent,
-            area_id=area_id,
             length_hint=rng_length,
         )
     else:
@@ -598,7 +586,6 @@ def process_statement(
             recent_messages=recent_msgs,
             speaker_talent_context=speaker_talent,
             topic=topic,
-            area_id=area_id,
             length_hint=rng_length,
             thread_turn=thread_turn,
         )
@@ -704,14 +691,11 @@ def process_conversation(
 
 
     zone_id = request.get('zone_id', 0)
-    area_id = request.get('area_id', zone_id)
     current_weather = request.get('weather') or None
     mode = get_chatter_mode(config)
 
     # Zone metadata for request logging
-    zone_meta = _build_zone_metadata(
-        zone_id, area_id
-    )
+    zone_meta = _build_zone_metadata(zone_id)
 
     # Fetch recent zone messages for anti-repetition
     recent_msgs = get_recent_zone_messages(
@@ -859,7 +843,6 @@ def process_conversation(
             recent_messages=recent_msgs,
             speaker_talent_context=speaker_talent,
             topic=topic,
-            area_id=area_id,
             thread_turn=thread_turn,
         )
     elif msg_type == "quest":
@@ -895,7 +878,6 @@ def process_conversation(
             zone_id, config, current_weather,
             recent_messages=recent_msgs,
             speaker_talent_context=speaker_talent,
-            area_id=area_id,
         )
     else:
         raise ValueError(

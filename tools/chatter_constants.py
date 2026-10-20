@@ -1141,425 +1141,944 @@ ROLE_COMBAT_PERSPECTIVES = {
 }
 
 # =============================================================================
-# ZONE FLAVOR - Rich context for immersive chat generation
+# ZONE FLAVOR - Short zone context for chat prompts
 # =============================================================================
-# Each zone gets a description paragraph that gives the LLM world knowledge.
-# The LLM uses this as creative inspiration, not a template to copy.
+# One paragraph per zone, summarizing the full zone description in
+# subzone_lore.json (read by get_zone_lore()). Written in the world's
+# voice for the WotLK 3.3.5 timeline: geography, climate, history and
+# inhabitants, no game terms, no quest plots, neutral between the
+# Alliance and the Horde. Keep the "<Zone name>: " prefix.
 ZONE_FLAVOR = {
     # -------------------------------------------------------------------------
-    # Eastern Kingdoms - Alliance Starting Zones
+    # Eastern Kingdoms - Khaz Modan
     # -------------------------------------------------------------------------
-    1: """Dun Morogh: Snowy dwarven highlands surrounding Ironforge. Troggs have
-invaded from underground, and hostile ice trolls lurk in the mountains. Coldridge
-Valley is where young dwarves and gnomes begin their journey. The air is crisp,
-the ale is strong, and the mountains echo with the sound of gunfire and hammers.""",
+    1: """Dun Morogh: Snowbound highlands among the peaks of Khaz Modan, home
+of the dwarves of Ironforge and the exiled gnomes of Gnomeregan. Snow blankets
+the rocky hills, frozen lakes glint under a pale sun, and silent pine forests
+stand under heavy drifts. The air is sharp with frost, woodsmoke and the smell
+of the forge. Dwarven villages keep their fires burning against the endless
+cold, while troggs, frost trolls, wolves and bears make the wilds dangerous.""",
 
-    12: """Elwynn Forest: Peaceful human farmland outside Stormwind, but trouble
-brews beneath the surface. Kobolds infest the mines crying "you no take candle,"
-the Defias Brotherhood threatens the roads, and gnolls raid from the borders.
-Goldshire inn is always lively. A deceptively calm zone with danger lurking.""",
+    1537: """Ironforge: The ancient capital of the dwarves, a vast city carved
+into the heart of a mountain in Dun Morogh. Torchlit halls and stone passages
+surround the Great Forge, fed by rivers of molten rock, where King Magni
+Bronzebeard rules Khaz Modan from the High Seat. The exiled gnomes of
+Gnomeregan live in Tinker Town, the Explorers' League seeks the secrets of
+dwarven origins in the Hall of Explorers, and the Deeprun Tram runs beneath the
+earth to Stormwind. The air is warm, smoky and loud with hammers and laughter.""",
 
-    38: """Loch Modan: A mountainous region dominated by a massive lake. Troggs
-and kobolds plague the area, while Dark Iron dwarves cause trouble near the dam.
-The great dam is an engineering marvel. Thelsamar is a quiet town of hunters and
-excavators. The landscape feels rugged and frontier-like.""",
+    38: """Loch Modan: Rugged hills and green valleys in eastern Khaz Modan,
+around a great loch held back by the Stonewrought Dam, a marvel of dwarven
+engineering. The climate is cool and damp, with mists on the water, frequent
+rain and chill mornings. Dwarves fish the loch, mine the cliffs and cut timber
+from the town of Thelsamar. Broken Horde siege engines from the Second War
+still rust on the islands. Troggs infest the valleys, kobolds hold a mine,
+ogres keep a stronghold in the northeast, and Dark Iron dwarves threaten the
+dam.""",
 
-    40: """Westfall: Once fertile farmland, now dusty and abandoned. The Defias
-Brotherhood controls much of the region from their hidden base. Homeless farmers
-wander the roads, mechanical harvest watchers patrol empty fields, and gnolls
-scavenge the edges. Sentinel Hill stands as the last bastion of order.""",
+    330: """Thandol Span: A massive dwarven bridge over the deep sea channel
+between Khaz Modan and Lordaeron, linking the Wetlands with the Arathi
+Highlands. For centuries it carried armies and trade between the dwarves and
+the northern human kingdoms. The Scourge damaged it in the Third War, and a
+Dark Iron attack has all but destroyed one of its bridges, leaving great
+sections lying beneath the waves. It is still the only land route between
+Lordaeron and the south. Wind and sea spray whip across its heights.""",
 
-    44: """Redridge Mountains: A besieged human territory. Blackrock orcs pour
-down from the mountains, gnolls roam freely, and the town of Lakeshire desperately
-holds on. The bridge is always under threat. A zone that feels like a warfront,
-with citizens caught in the crossfire.""",
+    269: """Dun Algaz: A tunneled mountain pass and old dwarven stronghold
+linking Loch Modan to the Wetlands, guarded at its southern end by the Algaz
+Gate. In the Second War it was the Horde's last hold in Khaz Modan. It remains
+the main road between the dwarven lands and Menethil Harbor, but Dragonmaw orcs
+have overrun the outpost in the middle of the pass, and dwarven mountaineers
+hold only the upper tunnel. The tunnels are dark, cold and echoing, and the
+road through them has become dangerous.""",
 
-    10: """Duskwood: Perpetually dark, cursed forest shrouded in eternal night.
-Undead shamble through the woods, worgen howl in the darkness, and giant spiders
-lurk everywhere. Darkshire's Night Watch barely holds back the horrors. An
-unsettling zone where something terrible happened and the land never recovered.""",
+    11: """Wetlands: A vast, cold marshland in northern Khaz Modan, laced with
+rivers, bogs and reed-choked channels between the mountains and Baradin Bay.
+Mist cloaks the ground, the sky is a uniform grey and rain falls often. Once a
+land of Wildhammer strongholds, it was ravaged in the Second and Third Wars,
+when the Dragonmaw held Grim Batol and enslaved the Dragonqueen Alexstrasza.
+Menethil Harbor on the western coast links Khaz Modan by sea with Kalimdor and
+Northrend. Dragonmaw remnants, Dark Iron dwarves, gnolls, murlocs, raptors and
+crocolisks make the marshes dangerous.""",
 
-    11: """Wetlands: Soggy marshland connecting the dwarven lands to Lordaeron.
-Hostile crocolisks and raptors everywhere, Dark Iron dwarves scheme in the hills,
-and dragonkin threaten from the northeast. Menethil Harbor is a rain-soaked port
-town. Everything here is damp and slightly miserable.""",
+    3: """Badlands: A sun-scorched wasteland of cracked red earth, mesas and
+winding canyons in southern Khaz Modan. Water is scarce, the days are fiercely
+hot and dust storms sweep the barren flats, where coyotes, buzzards, scorpids,
+basilisks and rock elementals survive. In the north lies Uldaman, a titan vault
+unearthed by dwarven digs and now defended by the troggs it awakened. Dark Iron
+dwarves dig there for their master Ragnaros, Dustbelcher ogres roam the land,
+black dragons nest in the eastern canyons, and the Horde holds the fortress of
+Kargath.""",
 
-    # -------------------------------------------------------------------------
-    # Eastern Kingdoms - Horde Starting Zones
-    # -------------------------------------------------------------------------
-    85: """Tirisfal Glades: Haunted forest surrounding the Undercity. The land
-itself feels diseased - sickly trees, green fog, and restless undead. Scarlet
-Crusade zealots hunt anything undead, while mindless zombies and bats roam freely.
-Brill is a grim town of the Forsaken. The atmosphere is gothic and melancholic.""",
+    51: """Searing Gorge: A volcanic wasteland of ash, cinders and lava between
+the Badlands and Blackrock Mountain, once part of the green Redridge Mountains
+until Thaurissan's summoning of Ragnaros shattered the land. The air is hot,
+dry and choked with smoke, and fire elementals roam among scorched rock. Dark
+Iron dwarves rule the gorge and work enslaved captives in the great excavation
+of the Cauldron. On its northern edge, the craftsmen of the Thorium
+Brotherhood, who broke away from their clan, keep the neutral town of Thorium
+Point.""",
 
-    130: """Silverpine Forest: Dark, misty woods south of Tirisfal. Worgen have
-overrun much of the forest, and the Scourge presence lingers. Shadowfang Keep
-looms ominously. The Forsaken fight for every inch of territory. A zone caught
-between multiple threats, feeling isolated and dangerous.""",
+    25: """Blackrock Mountain: A towering, still-active volcano between the
+Searing Gorge and the Burning Steppes, raised when the Dark Iron sorcerer-thane
+Thaurissan summoned the Firelord Ragnaros. The Dark Irons carved a vast city in
+its depths, and Blackrock Spire rises above. It is bitterly contested: Ragnaros
+and his Dark Iron servants rule the depths and the molten core, while the black
+dragon Nefarian commands orcs, ogres and dragonkin from the heights of the
+spire. Chains and platforms span a chamber of molten rock, and the heat, smoke
+and constant rumble never cease.""",
 
-    267: """Hillsbrad Foothills: Contested farmland where Horde and Alliance
-clash openly. Southshore and Tarren Mill are in constant conflict. Yetis roam
-the mountains, and the Syndicate bandits cause trouble. A zone defined by
-faction warfare and old grudges.""",
-
-    # -------------------------------------------------------------------------
-    # Eastern Kingdoms - Mid-Level Zones
-    # -------------------------------------------------------------------------
-    47: """The Hinterlands: Remote forested highlands, home to the Wildhammer
-dwarves and forest trolls locked in eternal conflict. Wolves and owlbeasts roam
-the wilds. Aerie Peak sits atop a massive cliff. The zone feels untamed and
-far from civilization.""",
-
-    45: """Arathi Highlands: Rolling grasslands dotted with ancient ruins. The
-Syndicate controls Stromgarde's ruins, ogres inhabit the caves, and raptors hunt
-the plains. Refuge Pointe and Hammerfall eye each other warily. A windswept
-frontier zone with echoes of fallen kingdoms.""",
-
-    33: """Stranglethorn Vale: Dense, dangerous jungle teeming with life. Trolls,
-pirates, raptors, tigers, and gorillas everywhere. Booty Bay is a lawless goblin
-port where anything goes. Nesingwary's hunting expedition draws adventurers.
-The zone is beautiful but deadly - something wants to eat you around every corner.""",
-
-    3: """Badlands: Harsh, barren desert of red rock and dust. Hostile troggs,
-coyotes, and black dragon whelps make travel dangerous. Scattered archaeology
-sites hint at ancient secrets. Kargath is a rough Horde outpost. A zone that
-feels desolate and unforgiving.""",
-
-    8: """Swamp of Sorrows: Murky, depressing swampland. Lost ones wander aimlessly,
-jaguars stalk the waters, and the Temple of Atal'Hakkar draws dark worshippers.
-Everything is wet, muddy, and slightly hopeless. A forgotten corner of the world.""",
-
-    4: """Blasted Lands: Scarred wasteland corrupted by the Dark Portal's energies.
-Demons, mutated wildlife, and fel creatures roam freely. The very ground feels
-wrong. Nethergarde Keep watches the Portal nervously. A zone that feels like the
-edge of the world, where everything went wrong.""",
-
-    51: """Searing Gorge: Volcanic wasteland controlled by Dark Iron dwarves.
-Lava flows, fire elementals, and slag pits dominate the landscape. Thorium Point
-is a small outpost of resistance. Brutally hot and industrially ravaged.""",
-
-    46: """Burning Steppes: Blackrock orcs and black dragons rule this scorched
-land. The Blackrock Spire looms overhead. Fire elementals and dragonkin patrol.
-A high-level warzone where the Dark Horde masses its forces.""",
+    46: """Burning Steppes: A scorched volcanic land south of Blackrock
+Mountain, the only land passage between Stormwind and Khaz Modan. Charred
+earth, craggy foothills and lava rivers lie under a sky glowing red from the
+mountain, with ash drifting on hot, dry air. Abandoned by Stormwind, the
+steppes are held by the minions of the black dragonflight and the agents of
+Ragnaros: Blackrock orcs who reject Thrall, Fire-Gut ogres, black dragons and
+Dark Iron dwarves. Here Anduin Lothar fell at the end of the Second War. The
+Alliance clings to Morgan's Vigil.""",
 
     # -------------------------------------------------------------------------
-    # Eastern Kingdoms - Plaguelands
+    # Eastern Kingdoms - Azeroth
     # -------------------------------------------------------------------------
-    28: """Western Plaguelands: Diseased farmland crawling with undead. Andorhal
-is a ruined city contested by multiple factions. The Scourge presence is heavy,
-and Cauldrons spread plague across the land. The Scarlet Crusade fights
-fanatically. A zone of death, disease, and desperate struggles.""",
+    12: """Elwynn Forest: The green heartland of the Kingdom of Stormwind, a
+mild land of oak and pine forests, meadows, lakes and farms south of the
+capital, with the village of Goldshire at its center and Northshire Abbey in a
+valley to the north. The Horde razed it in the First War, and the unpaid
+stonemasons who rebuilt Stormwind became the Defias Brotherhood. Its peace is
+fragile: Defias bandits seize farms, kobolds infest the mines, gnolls camp on
+the western border and murlocs haunt the lakes, while the guard is stretched
+thin by distant wars.""",
 
-    139: """Eastern Plaguelands: The Scourge's heartland. Undead everywhere -
-ghouls, abominations, necromancers. Stratholme burns eternally, Naxxramas floats
-overhead. Light's Hope Chapel is humanity's last stand. The most corrupted,
-dangerous zone on the continent. Hope is scarce here.""",
+    1519: """Stormwind City: The capital of the Kingdom of Stormwind and the
+grandest human city in the world, rebuilt after the First War with white stone
+walls, blue-roofed towers and districts divided by canals. King Varian Wrynn
+rules from Stormwind Keep after his long absence. The Cathedral of Light is the
+heart of the faith of the Holy Light, and the city holds the Trade District,
+Old Town with SI:7, the Mage Quarter, the Dwarven District with the Deeprun
+Tram to Ironforge, and the Park with its moonwell. Humans, dwarves, gnomes,
+night elves and draenei walk its streets.""",
 
-    41: """Deadwind Pass: Desolate canyon leading to Karazhan. Deadwind ogres lurk
-in caves, restless spirits wander, and demonic corruption seeps from the tower.
-The land itself feels drained of life. Creepy, empty, and ominous - something
-terrible happened here.""",
+    40: """Westfall: Rolling farmland on the western coast of Stormwind, once
+the kingdom's breadbasket and now fallen into ruin. Fields lie fallow, the
+grass is yellow and sea winds carry dust over empty farmsteads. The Defias
+Brotherhood, outlaws born from the unpaid stonemasons of Stormwind, drove off
+many farmers, hold the ghost town of Moonbrook and set rogue harvest watchers
+loose in the fields. Gnolls raid from the south and murlocs prowl the coast.
+The People's Militia holds out at Sentinel Hill, and the farmers feel forgotten
+by the crown.""",
+
+    44: """Redridge Mountains: Red-hued peaks, tall elms and rushing rivers
+east of Elwynn Forest, around the blue expanse of Lake Everstill and the old
+town of Lakeshire. Its hardy, self-governing folk supply Stormwind with timber,
+fish and crops. The range was shattered long ago by the summoning of Ragnaros.
+Today it is a frontier: Blackrock orcs from the Burning Steppes have seized the
+stronghold of Stonewatch and camp in the hills, gnolls claim the canyons,
+murlocs infest the lake and black whelps roam the heights. Lakeshire relies on
+its own small guard.""",
+
+    10: """Duskwood: A dark, cursed forest south of Elwynn, once a bright
+woodland and now swallowed by an unnatural, eternal twilight. Black fog hangs
+among twisted trees, and the air is cold and smells of rot. Some blame the evil
+of Karazhan, others an ancient artifact and the worgen that came with the
+curse. The dead rise from the graveyards, worgen and giant spiders stalk the
+woods, and the Black Riders are said to ride out of the night. The stubborn
+people of Darkshire, guarded by the Night Watch, feel abandoned by Stormwind.""",
+
+    41: """Deadwind Pass: A desolate, cursed canyon between Duskwood and the
+Swamp of Sorrows, where trees stand leafless and petrified, the grass is grey
+and a foul, keening wind never stops. Storms brew constantly and lightning
+strikes the barren rocks. In the south stands Karazhan, the tower of Medivh,
+the last Guardian of Tirisfal, who opened the Dark Portal; evil magic still
+leaks from it and drains the life from the land. Ogres, restless spirits and
+carrion birds haunt the pass, and it is whispered that a new dark presence has
+claimed the tower.""",
+
+    8: """Swamp of Sorrows: A stagnant, mist-shrouded marsh of bogs, weeping
+willows and brackish pools east of Deadwind Pass, once the northern Black
+Morass. The air is humid and heavy, and crocolisks, jaguars, spiders and bog
+beasts lurk in the reeds. The Atal'ai built a temple to the blood god Hakkar
+here, and the Dragon Aspect Ysera drowned it beneath the largest bog, where her
+dragonspawn still keep watch. The Horde holds the rebuilt town of Stonard. Lost
+Ones and Broken draenei stranded on Azeroth live in the swamp, and murlocs
+inhabit the coast.""",
+
+    4: """Blasted Lands: A scorched desert of crimson clay south of the Swamp
+of Sorrows, once the southern Black Morass, twisted by the magic of the Dark
+Portal. Lightning strikes often, nothing fertile grows, the days are hot and
+the nights bitterly cold. Mutated basilisks, scorpids and hyenas roam the land.
+The Dark Portal stands in a great crater in the southeast, open once more to
+Outland, and armies of the Alliance and the Horde guard its foot. Nethergarde
+Keep, founded by Khadgar, watches from the north; Dreadmaul ogres and Legion
+remnants lurk in the waste.""",
+
+    33: """Stranglethorn Vale: A vast, steaming jungle across the southern tip
+of the Eastern Kingdoms, full of towering trees, vines and thorny undergrowth,
+alive with tigers, panthers, raptors, gorillas and crocolisks. It was the heart
+of the Gurubashi troll empire until the summoning of Hakkar tore it apart;
+ruins now cover the land, the Bloodscalp and Skullsplitter tribes fight
+outsiders, and Zul'Gurub has fallen again under Hakkar's sway. Goblins,
+pirates, ogres, naga and rebels all claim a share. Booty Bay is the bustling
+neutral port on the southern cape, and the Horde keeps Grom'gol on the coast.""",
 
     # -------------------------------------------------------------------------
-    # Kalimdor - Alliance Starting Zones
+    # Eastern Kingdoms - Lordaeron
     # -------------------------------------------------------------------------
-    141: """Teldrassil: Massive world tree home to the night elves. Despite some
-troubles with hostile Gnarlpine furbolgs and timberlings, the forest remains
-breathtakingly beautiful - ancient trees glow softly at twilight, sacred
-glades shimmer with lingering magic, and quiet clearings invite reflection.
-Darnassus sits serenely above the canopy. The air carries whispers of old
-magic. Night elves go about daily life: training, crafting, tending gardens.
-A place where nature's beauty persists even as adventurers deal with threats.""",
+    85: """Tirisfal Glades: Rolling wooded hills on the northern coast of
+Lordaeron, once the heartland of the human kingdom and now the homeland of the
+Forsaken of Sylvanas Windrunner. The sky is gloomy and tinted green, and cold
+mist drifts over abandoned farms, silent lakes and ruined mills, yet the land
+keeps a melancholy beauty, especially around the village of Brill. Here
+Kel'Thuzad first spread the plague, and Arthas slew his father. Beneath the
+ruined capital lies the Undercity. The Scourge still haunts the farms, the
+Scarlet Crusade holds its monastery, and the Bulwark faces the Plaguelands.""",
 
-    148: """Darkshore: Long, misty coastline where fog rolls in from the sea,
-creating an ethereal atmosphere. Ancient night elf ruins hold mysteries and
-forgotten lore. Auberdine bustles with travelers catching boats to Teldrassil,
-Stormwind, or Azuremyst Isle. Fishermen work the docks, adventurers trade
-stories at the inn. Yes, murlocs and naga cause trouble on the beaches, and
-some wildlife has turned aggressive - but the coastline's haunting beauty
-endures. Moonlit shores, ancient architecture, the sound of waves. A zone
-of contrasts: peaceful harbors and dangerous wilds, old magic and new threats.""",
+    1497: """Undercity: The capital of the Forsaken, a vast underground city
+beneath the ruins of Lordaeron's royal capital, built from the old royal
+crypts, dungeons and sewers. Arthas began expanding it, and Sylvanas finished
+it after driving out the dreadlords. It is dark, cold and labyrinthine, built
+in rings around the Trade Quarter, with the Magic, Rogues' and War Quarters and
+the Apothecarium, where the Royal Apothecary Society brews plagues and poisons.
+Green sludge flows in its canals, great lifts carry travelers to the ruins
+above, and Sylvanas rules from the Royal Quarter.""",
+
+    130: """Silverpine Forest: An ancient wood of tall, silver-barked pines
+along the western coast of Lordaeron, haunted and sickly since the Scourge
+burned and slaughtered its way through in the Third War. Ghostly mists drift
+among the trees, and razed farmsteads and abandoned mines dot the land. The
+Forsaken hold the north from the Sepulcher and fight plague-ridden gnolls. In
+the south, Dalaran's wizards guard Ambermill, Pyrewood Village bears a curse
+that turns its people into worgen at night, Arugal broods in Shadowfang Keep,
+and the Greymane Wall seals away Gilneas.""",
+
+    170: """Lordamere Lake: One of the largest lakes in the Eastern Kingdoms, a
+vast expanse of cold, grey water at the heart of the fallen Kingdom of
+Lordaeron, whose capital once stood on its northern shore. Around it lay
+Lordaeron, Dalaran and Alterac, the great realms of the old Alliance. Today it
+divides the Forsaken lands from the Alterac Mountains. Fenris Isle and its dark
+keep lie at its center, the Dawning Isles form the rim of an ancient volcano,
+and an old plague left its waters strangely empty of life. Mist often hangs
+over the lake, and Vile Fin murlocs camp on its shores.""",
+
+    267: """Hillsbrad Foothills: Green rolling hills, meadows, pine groves and
+farmland in southern Lordaeron, the best-preserved region of the fallen
+kingdom. A river from Darrowmere Lake runs through the hills, and small islands
+dot the southern coast. It is also one of the most blood-soaked battlefields in
+Azeroth: the first battle of the Second War was fought here, and Durnholde held
+the orc internment camps where young Thrall was a slave. The human town of
+Southshore and the Forsaken of Tarren Mill wage a bitter struggle, while the
+Syndicate holds Durnholde's ruins.""",
+
+    36: """Alterac Mountains: Snow-capped peaks north of Hillsbrad, once the
+human kingdom of Alterac, destroyed by the Alliance after Lord Perenolde
+betrayed it to the Horde. The exiled nobles formed the Syndicate, which holds
+the Uplands and camps above Hillsbrad, while Crushridge ogres occupy the ruins
+of Alterac City. On the shore of Lordamere Lake lies the crater where Dalaran
+stood before it flew to Northrend. In a hidden valley the Frostwolf orcs battle
+the dwarves of the Stormpike Expedition, and the secretive Ravenholdt Manor
+hides among the peaks. Yetis and mountain lions roam the snows.""",
+
+    45: """Arathi Highlands: Grey, windswept uplands of rolling grass and rocky
+outcrops in southeastern Lordaeron, the cradle of human civilization, where
+Thoradin founded the Empire of Arathor and humans and high elves first allied
+against the Amani. The kingdom of Stromgarde later rose here, but the Syndicate
+and Boulderfist ogres overran its capital, and its army now holds out at Refuge
+Pointe. The Horde holds Hammerfall, the old internment camp. Ogres, forest
+trolls, raptors and kobolds roam the land, and ancient stone circles are said
+to bind something imprisoned.""",
+
+    293: """Thoradin's Wall: An immense stone wall on the border between the
+Hillsbrad Foothills and the Arathi Highlands, built in ancient times by King
+Thoradin, founder of the Empire of Arathor, against the Amani trolls. It later
+shielded Stromgarde from the advancing Scourge. Now it is collapsed and gaping,
+its great gate open and sections crumbled into rubble. The main road between
+Hillsbrad and Arathi passes beneath its shadow, a reminder of the glory of the
+first human empire and of how far its descendants have fallen.""",
+
+    47: """The Hinterlands: A wild, mountainous land of lush forests, deep
+valleys and steep cliffs in the northern Eastern Kingdoms, untouched by the
+plague and mild in climate. It was the heart of the Amani troll empire, whose
+colossal ruins still stand among the trees. The Wildhammer dwarves of High
+Thane Falstad live above ground in Aerie Peak, a city carved like a gryphon's
+head, and ride the wild gryphons into battle. The Vilebranch hold Jintha'Alor,
+the Witherbark dwell in Shadra'Alor, and the Revantusk trolls have allied with
+the Horde. In the north, the tree of Seradane is a gateway to the Emerald
+Dream.""",
 
     # -------------------------------------------------------------------------
-    # Kalimdor - Horde Starting Zones
+    # Eastern Kingdoms - Plaguelands, Quel'Thalas and southern isles
     # -------------------------------------------------------------------------
-    14: """Durotar: Harsh, rocky desert home to the orcs. Scorpids, raptors, and
-boars roam the red canyons. Quilboar raid from the south, and Burning Blade
-cultists hide in caves. Orgrimmar's gates welcome warriors. A zone that embodies
-the Horde's strength through adversity.""",
+    28: """Western Plaguelands: A blighted land in northern Lordaeron, once the
+forested breadbasket of the kingdom's north. Here Kel'Thuzad and the Cult of
+the Damned poisoned Andorhal's grain with the plague of undeath. A smoky grey
+mist hangs over the land, the trees pulse with tumorous growths and the
+surviving beasts are blighted and savage. Undead infest Andorhal, the cauldron
+fields and the graveyards, and the Scourge trains necromancers in the
+Scholomance at Caer Darrow. The Scarlet Crusade holds Hearthglen, the Argent
+Dawn keeps Chillwind Camp, and the tomb of Uther the Lightbringer is one of the
+few peaceful places left.""",
 
-    215: """Mulgore: Peaceful rolling plains of the tauren. Kodo beasts graze
-lazily, but harpies swoop from the mountains and Venture Co. goblins exploit the
-land. Thunder Bluff rises on its mesas. The most serene Horde zone - wide skies
-and gentle winds, though danger lurks at the edges.""",
+    139: """Eastern Plaguelands: The more devastated half of the Plaguelands,
+once a land of farms and villages governed from Stratholme, where the Order of
+the Silver Hand was founded and Arthas carried out his purge. The Scourge's
+rule here is nearly absolute: the ground is brown and sick, trees have twisted
+into giant mushrooms and orange and green mists choke the air. Stratholme burns
+as the Scourge's capital in Lordaeron, and Plaguewood is full of ziggurats. The
+Scarlet Crusade holds Tyr's Hand, the Argent Dawn keeps Light's Hope Chapel
+open to all who fight the Scourge, and Acherus, the home of the death knights,
+hovers in the east.""",
+
+    3430: """Eversong Woods: The enchanted forest at the heart of Quel'Thalas,
+standing in perpetual autumn under golden and crimson leaves, dotted with
+graceful spires, floating towers and arcane crystals. In the Third War, Arthas
+led the Scourge through the kingdom to the Sunwell and left the Dead Scar, a
+path of lifeless earth that cuts through the woods and Silvermoon itself. The
+survivors took the name blood elves and, under Regent Lord Lor'themar Theron,
+joined the Horde and rebuilt much of their land. Yet the Wretched haunt the
+ruins, arcane constructs run wild, trolls lurk in the hills and the runestones
+holding back the blight are weakening.""",
+
+    3487: """Silvermoon City: The capital of the blood elves in Eversong Woods,
+founded thousands of years ago and perhaps the oldest capital still standing.
+Arthas led the Scourge through its gates in the Third War and slew the king.
+The blood elves have rebuilt the eastern half to much of its former glory, with
+golden spires, floating platforms, chained crystals brimming with magic and
+lush gardens, while the western half still lies in ruins beyond the Dead Scar.
+Regent Lord Lor'themar Theron rules from the Sunstrider Spire, arcane guardians
+patrol the streets, and an orb of translocation links the city to the
+Undercity.""",
+
+    3433: """Ghostlands: The southern part of Quel'Thalas, a shadowy land of
+withered black trees, gloomy skies and deathly chill, devastated when the
+Scourge marched to the Sunwell and never recovered. The Dead Scar runs from
+Deatholme, the Scourge citadel ruled by the traitor Dar'Khan Drathir, who
+helped Arthas breach the kingdom. Ghosts of slain elves haunt the ruined
+villages. Blood elves and their Forsaken allies hold Tranquillien and strive to
+reclaim the land, while Amani trolls lurk near Zul'Aman in the east. The
+Thalassian Pass leads south through an ancient Elfgate to the Plaguelands.""",
+
+    4080: """Isle of Quel'Danas: An island off the northern coast of Eversong
+Woods, where the founders of Quel'Thalas created the Sunwell, a fountain of
+immense power, seven thousand years ago. Arthas defiled it to raise Kel'Thuzad.
+In recent times the island became the stage of a desperate struggle, as
+Kael'thas Sunstrider and the Burning Legion sought to use the Sunwell as a
+gateway, and the Shattered Sun Offensive of the Aldor and Scryers made the
+harbor of Sun's Reach its base. Battle scars mark the land, yet its golden
+forests, white beaches and elegant spires remain beautiful, and the Sunwell
+Plateau rises at its heart.""",
+
+    408: """Gillijim's Isle: A remote jungle island in the South Seas off the
+southern coast of Stranglethorn Vale. Old charts mark it as a former troll
+island, but few living sailors have set foot on its shores, and it lies far
+from the usual shipping lanes. The surrounding sea is warm, deep and blue, home
+to sharks and other creatures of the open ocean, and the currents can carry the
+unwary far from land. Tales speak of ancient troll ruins hidden in its jungles,
+but its secrets remain lost to most of the world.""",
+
+    409: """Island of Doctor Lapidis: A remote jungle island in the South Seas
+off the southwestern coast of Stranglethorn Vale. Old charts mark crumbling
+ruins of the ancient jungle trolls there, but few have visited it in living
+memory, and the meaning of its name is known to few. The waters around it are
+deep, warm and empty of ships, home only to sharks and creatures of the open
+sea. It remains a mystery, a dark speck on the horizon that most sailors prefer
+to avoid.""",
 
     # -------------------------------------------------------------------------
-    # Kalimdor - Mid-Level Zones
+    # Kalimdor - North
     # -------------------------------------------------------------------------
-    17: """The Barrens: Vast, dry savanna stretching endlessly. Centaur, quilboar,
-raptors, lions, and zhevra everywhere. The Crossroads is a major hub where
-adventurers gather. Known for long travel times and memorable general chat.
-A defining Horde leveling experience.""",
+    141: """Teldrassil: A colossal World Tree rising from the Veiled Sea off
+northwestern Kalimdor, so vast that a land of forests, hills and lakes grows on
+its boughs above the clouds. Archdruid Fandral Staghelm grew it after the night
+elves lost their immortality, and their capital Darnassus stands in its western
+branches. The land lies in an eternal violet twilight, full of ancient trees,
+moonwells, wisps and nightsabers. But the tree was never blessed by the Dragon
+Aspects, and a creeping corruption is spreading: furbolgs have turned savage,
+timberlings rage and satyrs lurk in caves. Rut'theran Village at its foot is
+the harbor to the wider world.""",
 
-    331: """Ashenvale: Ancient night elf forest under siege. The Horde pushes in
-from the east, demons lurk in the shadows, and furbolgs have gone mad. Astranaar
-and Splintertree outpost represent the faction conflict. A beautiful forest
-marred by war and corruption.""",
+    1657: """Darnassus: The capital of the night elves, built in the western
+boughs of Teldrassil and bathed in eternal violet twilight. Graceful terraces
+of living wood and white stone surround a central lake, joined by arching
+bridges. High Priestess Tyrande Whisperwind leads the night elves from the
+Temple of the Moon, while Archdruid Fandral Staghelm leads the Cenarion Circle
+from the Cenarion Enclave, often at odds with her. Malfurion Stormrage remains
+lost in the Emerald Dream. Sentinels and ancients guard the quiet, somewhat
+melancholy city, and a portal leads down to Rut'theran Village.""",
 
-    405: """Desolace: Barren, grey wasteland. Centaur tribes war endlessly with
-each other and everyone else. Kodo graveyards dot the landscape. The zone feels
-empty and hopeless - even the sky seems drained of color. One of the most
-depressing places in Azeroth.""",
+    148: """Darkshore: A long, rocky coast in northwestern Kalimdor of shadowed
+woods, misty beaches and crumbling ruins, where the weather is cold and stormy
+and fog is common. Once a prosperous region of the ancient Kaldorei empire, it
+was ravaged by the Great Sundering, and its cities have stood empty for
+thousands of years. The night elves rebuilt the port of Auberdine, the link to
+Teldrassil, the Azuremyst Isles and the Eastern Kingdoms. Beyond it, naga,
+satyrs and Highborne ghosts haunt the ruins, cultists hide in secret places,
+and furbolgs have been driven mad by corruption flowing down from Felwood.""",
 
-    400: """Thousand Needles: Dramatic canyon of towering stone spires. Before
-the Cataclysm, a dry desert floor with the Shimmering Flats raceway. Centaur
-and harpies control various pillars. The Great Lift connects to the Barrens.
-Visually stunning but harsh to travel.""",
+    3524: """Azuremyst Isle: The larger of the Azuremyst Isles off western
+Kalimdor, long home only to furbolgs, owlkin and wild beasts, until the Exodar,
+the dimensional ship of the draenei, crashed onto its shores. The survivors
+under the Prophet Velen built their capital in its largest intact section. The
+island is a land of evergreen forests, purple flowers and rolling hills, but
+strange crystals from the wreck dot the landscape, arcane storms ripple across
+the sky and the crash has mutated some plants and animals. The friendly
+Stillpine furbolgs live in the north, naga lurk in old ruins and blood elf
+saboteurs hide in the hills.""",
 
-    15: """Dustwallow Marsh: Hot, humid swampland. Black dragons scheme in the
-south, hostile crocolisks and spiders lurk in the murk, and Theramore stands as
-an Alliance fortress. The ruins of a burned inn hint at darker plots.
-Oppressively muggy and dangerous.""",
+    3557: """The Exodar: The capital of the draenei, built within the largest
+intact section of the dimensional ship that crashed on Azuremyst Isle. Once a
+satellite of Tempest Keep, it was seized in Outland by the Prophet Velen and
+his followers with the help of the naaru, sabotaged by blood elves and sent
+hurtling through the Twisting Nether. Now it is a city of gleaming crystal
+halls and glowing conduits that carry holy light and warmth. Velen resides in
+the Seat of the Naaru beside a naaru, and the city hums with the song of the
+naaru and the quiet devotion of a people who have wandered for thousands of
+years.""",
 
-    357: """Feralas: Lush, overgrown jungle and forest. Yetis in the mountains,
-naga on the coast, ogres and gnolls throughout. Twin Colossals are massive trees,
-and Dire Maul's ruins loom large. A wild, untamed zone that swallows travelers.""",
+    3525: """Bloodmyst Isle: The northern of the two Azuremyst Isles, once
+called Silvergale, corrupted when pieces of the crashed Exodar scattered
+blood-red crystals across it. A blood-like liquid seeps from the crystals into
+the soil, mutating plants and beasts and filling the air with an eerie crimson
+mist; even the pines have turned red. The draenei study and heal the land from
+Blood Watch, facing blood elf invaders after the crystals' power, satyrs, naga,
+corrupted furbolgs and creatures escaped from the ship. Ancient night elf ruins
+dot the island, and the spirits of green dragons haunt Wyrmscar.""",
 
-    440: """Tanaris: Scorching desert surrounding the goblin port of Gadgetzan.
-Pirates, bandits, basilisks, and silithid insects everywhere. Zul'Farrak's trolls
-are hostile. The Caverns of Time hide nearby. Blazing hot during the day, the
-desert is unforgiving but profitable.""",
+    331: """Ashenvale: A vast, ancient forest in northern Kalimdor and the
+ancestral homeland of the night elves, a primordial wilderness of towering
+trees, deep glades, lakes and rivers under a thick canopy. For thousands of
+years the night elves tended it without cutting it, guarded by Sentinels,
+druids and ancients. In the Third War, Grom Hellscream's orcs came for its
+lumber and slew the demigod Cenarius. Since then it has been bitterly
+contested: the night elves hold Astranaar in the west, the Warsong clan cuts
+timber in the east, and the Silverwing Sentinels and Warsong Outriders clash
+constantly. Demons, satyrs and corrupted furbolgs linger.""",
 
-    16: """Azshara: Ruined night elf coastline, hauntingly beautiful but empty.
-Naga control much of the shore, and the Blue Dragonflight maintains a presence.
-Giant sea creatures roam, and Legion remnants linger at Forlorn Ridge. The zone
-feels abandoned and sad - a monument to what was lost.""",
+    361: """Felwood: A corrupted forest in northern Kalimdor, once a lush
+paradise protected by Cenarius, befouled by the Burning Legion with the Skull
+of Gul'dan in the Third War. Twisted trees, charred meadows and streams boiling
+with toxic sludge fill the land, and the ancients that once guarded it roam
+blindly, bleeding fel poison. Corrupted furbolgs, satyrs, demons and Shadow
+Council warlocks infest the woods, and starving beasts turn on each other. The
+druids of the Cenarion Circle strive to cleanse it, and the uncorrupted
+Timbermaw furbolgs hold the northern tunnels to Moonglade and Winterspring.""",
 
-    361: """Felwood: Corrupted forest oozing with demonic taint. Slimes, satyrs,
-and corrupted wildlife plague every corner. The trees themselves seem sick.
-Timbermaw furbolgs are wary but neutral; Deadwood furbolgs are hostile. A zone
-that makes you feel unclean just passing through.""",
+    493: """Moonglade: A sacred valley on the lower slopes of Mount Hyjal,
+sheltered by tall mountains and draped in perpetual night, where the moon
+bathes the land in silver and the air is a warm, endless summer eve. It is the
+home of the Cenarion Circle, where night elves and tauren live together in
+peace, and conflict between the races is not tolerated. For thousands of years
+the druids slumbered in the Barrow Dens here while their spirits walked the
+Emerald Dream; Malfurion Stormrage remains lost there still. The village of
+Nighthaven lies on the shores of Lake Elune'ara, watched over by the Keepers of
+the Grove.""",
 
-    490: """Un'Goro Crater: Prehistoric jungle crater teeming with dinosaurs.
-Devilsaurs are apex predators, raptors hunt in packs, and elementals guard
-pylons. It's like stepping back in time - lush, dangerous, and full of wonder.
-Crystal formations hold mysterious power.""",
+    618: """Winterspring: A cold, snowy valley high on Mount Hyjal, in
+near-perpetual winter above the clouds over Moonglade. Snow blankets the hills,
+frozen lakes glitter and the air is crisp and clean. Night elves settled here
+after the Great Sundering, and their ruins still stand in the snow, while the
+exposed roots of the World Tree tower overhead like archways. The blue
+dragonflight of Mazthoril has long contended with the night elves. The goblin
+town of Everlook is open to all, corrupted Winterfall furbolgs, yetis and
+frostsabers roam the land, and demons hold Darkwhisper Gorge in the south.""",
 
-    493: """Moonglade: Sacred druid sanctuary. Largely peaceful and safe, with
-few hostile creatures. The Cenarion Circle gathers here, and the zone feels
-timeless and serene - a respite from the chaos of the world. Druids meet at
-Nighthaven.""",
+    # -------------------------------------------------------------------------
+    # Kalimdor - Center and East
+    # -------------------------------------------------------------------------
+    14: """Durotar: A land of red, sun-baked earth, rugged canyons and rocky
+hills on the eastern coast of Kalimdor, whose harsh beauty recalls Draenor.
+Thrall claimed it as the new homeland of the orcs and Darkspear trolls after
+the Third War and named it for his father Durotan, founding Orgrimmar at its
+northern edge. It is the heart of the Horde, with Razor Hill at its crossroads
+and the troll village of Sen'jin on the southern coast. Dangers remain:
+quilboar raid from the west, centaurs lurk in the south, harpies nest in the
+canyons, the Burning Blade hides in caves and a Kul Tiran fortress still stands
+on the coast.""",
 
-    618: """Winterspring: Frozen highland of eternal winter. Frostsaber cats,
-yetis, and ice giants roam the snow. Everlook is a goblin town of questionable
-dealings. Winterfall furbolgs are hostile throughout. Beautiful but deadly cold,
-the zone rewards only the well-prepared.""",
+    1637: """Orgrimmar: The capital of the orcs and seat of the Horde, a mighty
+fortress city built into a canyon at the northern edge of Durotar, founded by
+Warchief Thrall after the Third War and named for Orgrim Doomhammer. Stout
+walls, massive gates and tall towers guard it, and its districts are valleys:
+Strength, the commercial heart; Spirits, home of trolls and shamans; Wisdom,
+where Thrall's Grommash Hold stands; and Honor. The Drag leads to the shadowy
+Cleft of Shadow. Its rustic wood, hide and stone are hung with spikes and
+banners, and zeppelins link it to the Eastern Kingdoms and Northrend.""",
 
-    1377: """Silithus: Desert wasteland swarming with silithid insects. The
-Qiraji threat looms from Ahn'Qiraj. Cenarion Circle druids fight desperately
-against the hive. Sand storms, giant bugs, and an overwhelming sense that
-something ancient and evil stirs beneath the sands.""",
+    2917: """Hall of Legends: The great officers' hall of the Horde in the
+Valley of Strength in Orgrimmar, a massive building of wood, stone and hide
+hung with banners, trophies and the weapons of fallen enemies. It serves as
+barracks and gathering place for the Horde's most distinguished warriors, and
+its secret armory holds weapons from every continent of Azeroth and from
+Draenor, many of them spoils of war with proud histories. It is a place of
+honor and pride, where tales of glory are told around great fires and the
+legends of the Horde are remembered.""",
+
+    377: """Southfury River: One of the great rivers of Kalimdor, rising from
+the highlands of Mount Hyjal and running south as a wide, swift river. It
+divides Ashenvale from Azshara and, further south, the Barrens from Durotar,
+passing near the walls of Orgrimmar. Its waters run cold and fast in the north
+and warm and murky in the south, where crocolisks lurk among the reeds. It
+empties into the Great Sea in a cascading waterfall near the goblin port of
+Ratchet. Bridges cross it at a few points, and travelers of every kind pass
+over its waters.""",
+
+    16: """Azshara: A beautiful but cursed coastal land in northeastern
+Kalimdor, cloaked in eternal autumn, with brilliant orange and red trees, great
+cliffs and white beaches. Ten thousand years ago it was part of Zin-Azshari,
+the capital of Queen Azshara, until the Great Sundering drowned much of the
+city. Night elves consider it cursed; ruins perch on the cliffs and lie among
+the coral, and tales say the queen now rules the naga beneath the waves.
+Highborne ghosts, satyrs, naga and blue dragons haunt the land, the friendly
+Timbermaw hold the western mountains, and storms often sweep in from the sea.""",
+
+    17: """The Barrens: A vast, hot savanna of yellow grass, thorny trees and
+dusty plains in central Kalimdor, between Ashenvale and Thousand Needles, with
+a few lush oases in the north. Night elf cities stood here before the
+Sundering, and the ancient Gold Road still carries caravans between Ratchet and
+the north. The Horde's Crossroads is the main hub, while the Alliance holds
+Northwatch Hold and the dig at Bael Modan. Centaurs and quilboar raid caravans,
+harpies nest in the hills, the Venture Company drills for oil and the Burning
+Blade hides on Dreadmist Peak. Ratchet on the coast is open to all.""",
+
+    215: """Mulgore: Green plains and windswept mesas in central Kalimdor, the
+ancestral homeland of the tauren, walled by mountains with a single pass east
+to the Barrens. For centuries the tauren roamed as nomads, warring with the
+centaurs, until Thrall's Horde helped drive them out and Cairne Bloodhoof built
+Thunder Bluff atop the mesas. It is a sheltered, pastoral land of grasslands,
+clear lakes and pine-scented breezes, with tauren villages, windmills and
+carved totems. Quilboar hold the sacred Red Rocks, the Venture Company has
+seized the sacred wells and harpies nest in the north.""",
+
+    1638: """Thunder Bluff: The capital of the tauren, built atop four towering
+mesas in northern Mulgore, high above the Golden Plains, the first permanent
+city of a people who wandered for centuries. Great tents, longhouses and totem
+poles crown the mesas, joined by swaying rope bridges, and wooden lifts carry
+visitors up from the plains. High Chieftain Cairne Bloodhoof rules from the
+central mesa, the druids gather on Elder Rise, the shamans on Spirit Rise above
+the misty Pools of Vision, and the hunters on Hunter Rise. The weather is warm
+and sunny, and the view over Mulgore is breathtaking.""",
+
+    406: """Stonetalon Mountains: A rugged range in central Kalimdor, thrust
+high by the Great Sundering and carved by the Blackwolf River into canyons and
+cliffs. The lower slopes are hot, dry and windy, rain breaks on the western
+peaks and the violent Ill Winds whip through the canyons. Stonetalon Peak,
+sacred to night elves and tauren, was once the home of the Oracle. The goblins
+of the Venture Company are cutting down the ancient forests and fouling the
+waters, the Charred Vale is a burned ruin full of fire elementals, harpies hold
+canyon strongholds and renegade Grimtotem tauren attack their own kin.""",
+
+    # -------------------------------------------------------------------------
+    # Kalimdor - South
+    # -------------------------------------------------------------------------
+    405: """Desolace: A grey, rocky wasteland in western Kalimdor that seems to
+lie under a curse: the sky is always dark and stormy, lightning and high winds
+sweep the land, yellow polluted pools dot the ash and the skulls of ancient
+kodo stare from their graves. It is the homeland of the centaurs, said to be
+born in the depths of Maraudon, and four warring tribes fight each other as
+fiercely as outsiders. Ruins of the Highborne stand scattered across the land,
+naga haunt the northwest coast and the Burning Blade has summoned demons here.
+In sad contrast, the western coast is sunny and lush.""",
+
+    357: """Feralas: A lush, ancient rainforest in southwestern Kalimdor of
+huge trees, misty valleys, rushing rivers and clear lakes, sheltered by high
+mountains. It was part of the night elf empire, and the vast Highborne city of
+Eldre'Thalas, now called Dire Maul, lies in ruins among the trees. The night
+elves hold Feathermoon Stronghold on Sardor Isle and the tauren keep Camp
+Mojache in the east. The bloodthirsty Gordunni ogres control many of the ruins,
+Grimtotem renegades keep a compound, naga infest the western isles, and a great
+tree in the northwest is a portal to the Emerald Dream.""",
+
+    400: """Thousand Needles: A vast, dry canyon in southern Kalimdor filled
+with towering sandstone spires that rise like a forest of needles, shaped by
+water before the Sundering lifted the land. In the east it opens onto the
+Shimmering Flats, a salt pan where goblin and gnomish engineers race their
+machines, and the sunrises from the mesas are spectacular. Tauren tribes long
+lived precariously atop the mesas and now fight back from Freewind Post. Galak
+centaurs patrol the canyon floor, Grimtotem renegades hold Darkcloud Pinnacle,
+and rope bridges link the spires above the dangers below.""",
+
+    15: """Dustwallow Marsh: A vast, hot and fetid swamp on the eastern coast
+of central Kalimdor, sunk by the Great Sundering, where mosquitoes buzz, trees
+trail fronds into stagnant pools and mud banks divide algae-choked channels.
+Raptors, spiders, crocolisks and murlocs lurk everywhere, and in the south the
+black dragon Onyxia is said to dwell in the Wyrmbog. Jaina Proudmoore founded
+Theramore on an island off the coast, the Stonemaul ogres welcome the Horde at
+Brackenwall, and here Admiral Daelin Proudmoore met his end. Covert skirmishes
+continue despite the truce, and the goblins of Mudsprocket welcome all.""",
+
+    2159: """Onyxia's Lair: A volcanic cave in the Wyrmbog of southern
+Dustwallow Marsh, the lair of Onyxia, the great black dragon and daughter of
+Deathwing, brood mother of the black dragonflight. The cave winds deep into the
+warm earth, and the main cavern holds her vast clutch of eggs, guarded by
+whelps and dragonspawn. The floor is a thin crust over molten rock, and the air
+is thick with smoke, brimstone and the stench of her victims, with bones and
+treasure scattered among the rocks. Travelers tell grim tales of those taken by
+her brood, and few who enter return.""",
+
+    440: """Tanaris: A vast desert in southeastern Kalimdor, an endless sea of
+dunes under a cloudless sky, blazing by day and swept by dangerous sandstorms,
+with mountains and deep caverns in the south. It is the ancestral home of the
+bronze dragonflight, whose Aspect Nozdormu dwells in the Caverns of Time, and
+in the south lies the sealed gateway to the titan city of Uldum. The
+Steamwheedle goblins keep the neutral town of Gadgetzan and Steamwheedle Port.
+The Sandfury trolls rule from Zul'Farrak, ogres hold southern ruins,
+Wastewander bandits seize the water towers and pirates hide on the coast.""",
+
+    1941: """Caverns of Time: A vast network of caves in eastern Tanaris, home
+of the bronze dragonflight and their Aspect Nozdormu, guardians of the flow of
+time. Portals within lead to key moments in the world's history, such as the
+opening of the Dark Portal, Thrall's escape from Durnholde, the Battle of Mount
+Hyjal and the culling of Stratholme. Sand gives way to lush growth, great
+hourglasses turn and colossal bronze dragon statues tower overhead. In recent
+times the infinite dragonflight has begun meddling with history, and the bronze
+dragons seek aid. Those who enter uninvited are said to emerge changed.""",
+
+    490: """Un'Goro Crater: A vast, lush crater in southern Kalimdor between
+Tanaris and Silithus, cut off by towering walls. A steaming jungle of exotic
+plants and giant creatures fills it: devilsaurs, stegodons and pterrordax roam
+freely, gorillas dwell in the caves and silithid dig hives in the south. The
+active volcano of Fire Plume Ridge rises at its center, hot springs and tar
+pits bubble, and strange crystals and mysterious pylons dot the land. Many
+scholars believe it was a place of the titans. Explorers of all races gather at
+Marshal's Refuge on the northern wall, and the jungle never falls silent.""",
+
+    1377: """Silithus: A harsh desert of rock and sand in the southwestern
+corner of Kalimdor, broken by the towering hives of the insectoid silithid. A
+thousand years ago their Qiraji masters waged the War of the Shifting Sands
+until the night elves and the dragonflights sealed them behind the Scarab Wall
+in Ahn'Qiraj. In recent times the gates were opened once more, and the armies
+of the Alliance and the Horde marched against the Qiraji. The Cenarion Circle
+watches from Cenarion Hold, the bronze dragonflight has returned and the
+Twilight's Hammer camps across the land. The heat is relentless and the wind
+carries stinging sand.""",
+
+    3478: """Gates of Ahn'Qiraj: The great gates in the Scarab Wall at the
+southern edge of Silithus, guarding Ahn'Qiraj, the ancient stronghold of the
+Qiraji and their silithid. A thousand years ago the night elves and the
+dragonflights sealed the Qiraji behind the wall; in recent times the gates were
+opened once more with the Scepter of the Shifting Sands, and the armies of the
+Alliance and the Horde marched in. Beyond lie the Ruins and the Temple of
+Ahn'Qiraj, where the true masters of the Qiraji are said to dwell. The sand
+before the gates is scarred by battle, and an ominous silence hangs over them.""",
 
     # -------------------------------------------------------------------------
     # Outland
     # -------------------------------------------------------------------------
-    3483: """Hellfire Peninsula: Shattered red wasteland, first zone through the
-Dark Portal. Fel orcs, demons, and Burning Legion forces everywhere. Honor Hold
-and Thrallmar are the faction bases. The sky is torn, the ground is cracked,
-and war rages constantly. Brutal introduction to Outland.""",
+    3483: """Hellfire Peninsula: A barren, blood-red wasteland in eastern
+Outland, the shattered remains of Draenor and the first land seen beyond the
+Dark Portal. Orc warlocks drained its life long ago, the cracked red ground
+bursts with fire geysers, and fragments of land float at its edges against the
+swirling sky of the Twisting Nether. Here the Alliance Expedition fought the
+Horde of Draenor and sealed the Portal. Today Hellfire Citadel is the
+stronghold of the fel orcs, the Burning Legion assaults the Stair of Destiny
+from its forge camps, the Alliance holds Honor Hold and the Horde holds
+Thrallmar.""",
 
-    3521: """Zangarmarsh: Surreal mushroom swamp glowing with bioluminescence.
-Giant fungi tower overhead, sporebats float lazily, and naga drain the waters.
-Cenarion Refuge works to save the ecosystem. Strangely beautiful and alien -
-nothing here looks like Azeroth.""",
+    3521: """Zangarmarsh: A hauntingly beautiful swamp in western Outland,
+covered by a forest of giant mushrooms towering over its lakes like great
+trees. Glowing fungi, luminous spores and bioluminescent creatures fill its
+eternal twilight with blue and green light, and it largely escaped the
+corruption that ravaged Draenor. Now its balance is failing: the naga of Lady
+Vashj drain its waters with great pumps in Coilfang Reservoir, ogres cut down
+the mushrooms, and the marsh is dying. The Cenarion Expedition defends it from
+Cenarion Refuge, and the peaceful sporelings, a race of sapient fungi, live at
+Sporeggar.""",
 
-    3518: """Nagrand: Floating islands and lush green plains - Outland's last
-paradise. Clefthoof and talbuks graze peacefully, but ogres and the Burning
-Blade threaten the land. Garadar and Telaar represent the factions. The most
-beautiful zone in Outland, a reminder of what Draenor once was.""",
+    3519: """Terokkar Forest: A dark, ancient forest in southern Outland of
+tall crystal pines, deep green canopy and misty glades, home to the bird-like
+arakkoa, whose hidden capital Skettis lies in the southeastern mountains. In
+the northwest stands Shattrath City, a sanctuary for refugees of every race.
+The southern half is the Bone Wastes, laid waste when the Shadow Council
+summoned a terrible entity in the draenei necropolis of Auchindoun and tore a
+rift that drew the ethereals into Outland. The Alliance holds Allerian
+Stronghold and the Horde Stonebreaker Hold, while fel orcs and Shadow Council
+warlocks lurk in the woods.""",
 
-    3519: """Terokkar Forest: Divided between lush forest and the bone-littered
-wastes around Auchindoun. Arakkoa lurk in the trees, and the Shadow Council
-conducts dark rituals. Shattrath City is the neutral capital. A zone of
-contrasts between life and death.""",
+    3703: """Shattrath City: The City of Light, the ancient draenei capital in
+northwestern Terokkar Forest, fallen to the demon-corrupted orcs and rebuilt by
+the Sha'tar, naaru born from light, with the draenei priests of the Aldor.
+Blood elves sent by Kael'thas to destroy it laid down their arms and became the
+Scryers, bitter rivals of the Aldor in the same city. The naaru A'dal rules
+from the Terrace of Light, where the Archmage Khadgar also resides. The Lower
+City is crowded with refugees of every race, violence between the Alliance and
+the Horde is forbidden, and portals link the city to the capitals of Azeroth.""",
 
-    3522: """Blade's Edge Mountains: Jagged, hostile landscape of towering spikes.
-Ogres rule here, and gronn giants are the apex predators. The Burning Legion
-maintains outposts, and dragons circle overhead. Dangerous terrain where the
-land itself seems to want to kill you.""",
+    3917: """Auchindoun: The shattered necropolis of the draenei at the heart
+of the Bone Wastes in Terokkar Forest, for thousands of years their most sacred
+place, where they interred their honored dead. Agents of the Shadow Council
+summoned an ancient elemental of sound within it, and the ritual blew the
+temple apart, laid waste to the forest and tore a rift that drew the ethereals
+into Outland. The draenei dead now walk the ruins as restless spirits. Its
+halls are claimed by different powers: ethereals in the Mana-Tombs, demons in
+the Auchenai Crypts, arakkoa in the Sethekk Halls and the Shadow Council in the
+Shadow Labyrinth.""",
 
-    3520: """Shadowmoon Valley: Dark, fel-corrupted wasteland. The Black Temple
-looms ominously, and Illidan's forces control the region. Demons, fel orcs, and
-death knights patrol. The sky burns green. The most dangerous and oppressive
-zone in Outland - hope feels distant here.""",
+    3518: """Nagrand: The last unscarred land of Outland, rolling green and
+golden grasslands, sparkling lakes and floating islands drifting under a
+pink-tinged sky. Its name means Land of Winds; it was the homeland of the
+Frostwolf clan and the gathering place of the orcs beneath the sacred mountain
+Oshu'gun. Elementals commune with mortals at the Throne of the Elements. The
+uncorrupted Mag'har orcs live in Garadar under Greatmother Geyah, and the
+Kurenai Broken in Telaar. Warmaul and Boulderfist ogres threaten the land, the
+Legion has forge camps in the west, and the town of Halaa is fought over by the
+Alliance and the Horde.""",
 
-    3523: """Netherstorm: Shattered islands floating in the Twisting Nether.
-Mana forges harvest the land's energy, blood elves and ethereals compete for
-resources, and mana creatures roam wildly. The eco-domes preserve life
-artificially. A zone tearing itself apart at the seams.""",
+    3522: """Blade's Edge Mountains: Knife-sharp crags and axe-cut valleys in
+northern Outland, worn by harsh winds into dagger-like spikes under the green
+glow of the Twisting Nether. It is the land of the Bladespire and Bloodmaul
+ogres, who fight each other for the favor of the gronn, giants ruled by Gruul
+the Dragonkiller from his lair in the north; the bones of slain black dragons
+hang impaled on the peaks. The Legion has forge camps on the plateaus and black
+dragon cultists lurk in the north. The night elves hold Sylvanaar, the Horde
+Thunderlord Stronghold, and the enlightened ogres of Ogri'la dwell on a western
+plateau.""",
 
-    3524: """Azuremyst Isle: Tranquil draenei island suffused with soft azure
-light and the hum of crystal technology. The Exodar crash site still glows with
-residual energy, and draenei survivors tend their wounds and rebuild. Gentle
-wildlife, shimmering pools, and crystalline ruins share space with the hopeful
-beginnings of a displaced people finding their footing on a new world.""",
+    3523: """Netherstorm: Great fragments of land and countless shards of rock
+floating in the Twisting Nether in northeastern Outland, once the Fields of
+Farahlon. A constant arcane storm warps the land: the soil is sickly purple,
+magical lightning arcs through violet haze and bands of energy twist across the
+sky as the region slowly tears apart. Blood elves loyal to Kael'thas siphon the
+Nether with great manaforges built from the technology of Tempest Keep, which
+they hold, and the Burning Legion has bases across the islands. The ethereals
+of the Consortium keep the Stormspire and their eco-domes, and goblins run Area
+52.""",
 
-    3525: """Bloodmyst Isle: Sister island to Azuremyst, stained crimson by
-corrupted crystals from the Exodar wreckage. The fel energy has twisted local
-wildlife into dangerous predators and mutated the vegetation. Blood elves and
-demons work to corrupt the land further. A place of beauty turned sinister,
-where the draenei must confront the damage their own ship's crash has caused.""",
+    3520: """Shadowmoon Valley: A grim, blasted land in southeastern Outland
+where molten fel energy erupts day and night and lights the sky with green
+flame. Black rock and ash cover the ground, and the volcano called the Hand of
+Gul'dan spews green lava at its center. In the east stands the Black Temple,
+once the draenei Temple of Karabor, now the citadel of Illidan Stormrage, the
+self-proclaimed Lord of Outland, and his Illidari, who hold off the Burning
+Legion of Legion Hold. Dragonmaw fel orcs enslave the Netherwing drakes. The
+Wildhammer Stronghold, Shadowmoon Village and the camps of the Aldor and
+Scryers wage war on Illidan.""",
+
+    3540: """Twisting Nether: The chaotic astral realm between worlds, a
+dimension of wild magic that links the worlds of the universe and is home to
+the demons of the Burning Legion. When Draenor was torn apart, its remnants
+were pulled into the Nether, and at the edges of Outland the land simply ends
+in an endless void of prismatic clouds, ribbons of colored energy and drifting
+rocks. Distant worlds can be glimpsed in the swirling heavens, physical laws
+seem uncertain and the mind strains to make sense of what the eye sees. Those
+who stray too far may never return.""",
 
     # -------------------------------------------------------------------------
     # Northrend
     # -------------------------------------------------------------------------
-    3537: """Borean Tundra: Frozen coastal tundra, one of two entry points to
-Northrend. Nerubians burrow beneath, the Scourge probes defenses, and tuskarr
-fish the shores. Warsong Hold and Valiance Keep are the faction strongholds.
-The cold bites hard - winter is just beginning.""",
+    3537: """Borean Tundra: A vast, wind-swept plain on the southwestern edge
+of Northrend, for many the first land seen in the war against the Lich King.
+Red-brown earth, lichen and ice stretch under a wind that can strip the beard
+from a dwarf's face; geysers steam in the middle, and the snowy east is
+harshest. Mammoths and woolly rhinos roam the plains, and the peaceful tuskarr
+fish and whale along the coast, their villages ravaged by kvaldir raiders.
+Malygos and the blue dragonflight rule the island of Coldarra, the Scourge
+holds En'kilah, and the Alliance's Valiance Keep and the Horde's Warsong Hold
+face the north.""",
 
-    495: """Howling Fjord: Dramatic Viking-inspired coastline with towering
-cliffs. Vrykul warriors raid from their villages, and the Scourge corrupts the
-dead. Valgarde and Vengeance Landing are the landing points. The fjords are
-breathtaking but the vrykul are relentless.""",
+    495: """Howling Fjord: A rugged land in southeastern Northrend of green
+meadows, icy rivers, dark pine forests and towering fjords whose cliffs plunge
+into the cold sea. At the head of Daggercap Bay, Utgarde Keep rises above Lake
+Cauldros. It was the ancient seat of the vrykul, giant warriors awakened from
+their long sleep, many of whom now serve the Lich King and raid all who come
+near. The Alliance holds the old port of Valgarde and Westguard Keep, the
+Forsaken of the Hand of Vengeance hold Vengeance Landing and New Agamand, and
+the Explorers' League digs for titan ruins where iron dwarves have appeared.""",
 
-    394: """Grizzly Hills: Forested frontier that feels almost peaceful. Furbolgs
-corrupted by the Scourge, iron dwarves dig for secrets, and the worgen curse
-spreads. Logging operations scar the hillsides. A zone that would be beautiful
-if not for the creeping corruption.""",
+    65: """Dragonblight: The heart of southern Northrend, an arctic waste of
+glaring white glaciers littered with the gleaming bones of dragons, the place
+where dragons come to die. Here the titans' keepers made the first Dragon
+Aspects, and the bones of Galakrond still jut from the ice. At its center rises
+Wyrmrest Temple, where the dragonflights gather, ringed by the five
+dragonshrines. The Scourge besieges the shrines and raises frost wyrms from the
+bones, Naxxramas hovers over the eastern plains, and the Scarlet Onslaught
+holds a fortress on the coast. The Alliance and the Horde have raised
+strongholds before the Wrathgate, the barred entrance to Icecrown.""",
 
-    3711: """Sholazar Basin: Lush jungle crater untouched by the Scourge,
-maintained by titan technology. Dinosaurs, gorillas, and exotic beasts thrive.
-The Frenzyheart and Oracles wage petty war. An unexpected paradise in frozen
-Northrend - but something threatens the pylons.""",
+    394: """Grizzly Hills: A forested region of southeastern Northrend, low
+green foothills laced with pines rising toward craggy mountains, where the
+thick forest blocks the wind and the hills seem almost warm. Bears, wolves,
+deer and snowy owls fill the woods. It is the homeland of the furbolgs, whose
+city of Grizzlemaw stands in the stump of Vordrassil, a World Tree the druids
+destroyed when they found it corrupted, and a creeping madness spreads among
+their tribes. Trappers keep trading posts in the forest, the Scourge holds
+Drak'Tharon Keep in the north, and the Alliance and the Horde contest the
+logging camps.""",
 
-    66: """Zul'Drak: Frozen troll kingdom in collapse. The Drakkari sacrifice
-their own gods to fight the Scourge. Undead and desperate trolls clash
-everywhere. The zone feels like watching a civilization die - grim, cold,
-and hopeless.""",
+    4201: """Vordrassil's Tears: One of the great fallen segments of the World
+Tree Vordrassil in the Grizzly Hills. Long ago Fandral Staghelm planted
+branches of Nordrassil across Northrend, and the greatest, Andrassil, the Crown
+of the Snow, towered over these hills for decades. But its roots reached the
+prison of an ancient evil, and madness spread among the creatures of the land,
+so the Cenarion Circle destroyed it and renamed it Vordrassil, the Broken
+Crown. Its pieces still lie in the forest, and the land around this segment is
+covered in living ooze, sign of the corruption that doomed it.""",
 
-    67: """Storm Peaks: Towering frozen mountains home to titan secrets. Storm
-giants, iron dwarves, and proto-drakes dominate. Ulduar's entrance looms above.
-The Sons of Hodir are wary of outsiders. Epic scale, brutal conditions,
-ancient mysteries.""",
+    3477: """Azjol-Nerub: A vast underground kingdom beneath half of Northrend,
+the ancient realm of the arachnid nerubians, a culture devoted to scholarship,
+art and philosophy, with polished corridors, carved halls and great libraries
+lit by glowing fungi. The Lich King saw them as the greatest threat to his
+power and overran the kingdom in the War of the Spider; every nerubian who fell
+rose to fight for the Scourge, and their own king Anub'arak now serves him.
+Undead nerubians guard egg clutches in the Upper Kingdom, living survivors wage
+a hidden war, and in the Old Kingdom of Ahn'kahet faceless ones stir.""",
 
-    210: """Icecrown: The Lich King's domain. Endless undead armies, necropolis
-fortresses, and the Icecrown Citadel itself. The Argent Crusade makes its final
-stand. The air itself feels dead. This is the end of the road - victory
-or oblivion.""",
+    66: """Zul'Drak: The homeland of the Drakkari ice trolls in eastern
+Northrend, a valley that is itself one vast temple city of plazas, ziggurats,
+walls and aqueducts raised in tiers, with thornwood trees, frozen ponds and
+snow between the ruins. The Drakkari are among the oldest races of Azeroth,
+ruling from Gundrak, but their empire is collapsing. The Scourge holds
+Drak'Tharon Keep and its necropolises raise fallen trolls against their own
+people. In desperation the Drakkari prophets have slain their own gods, the
+loa, and drunk their blood for power, driving many mad. The Argent Crusade and
+the Zandalari have come to intervene.""",
+
+    3711: """Sholazar Basin: A tropical jungle basin in the middle of
+Northrend, ringed by towering mountains, hot, humid and teeming with life after
+the bitter cold outside. The keeper Freya made it a cradle of life, and titan
+pylons crowned with swirling crystals keep its warmth and protect it from foul
+creatures. Four rivers meet at River's Heart in the dense Wildgrowth Mangal.
+Rhinos, gorillas, crocolisks and hydras roam the jungle, and the gorloc Oracles
+war with the Frenzyheart wolvar. The Scourge has broken into the basin from the
+east, and the Avatar of Freya fights to contain the spreading blight.""",
+
+    2817: """Crystalsong Forest: A land in the middle of Northrend where every
+tree, every blade of grass and much of the earth has turned to glowing living
+crystal, humming with the wind so that the forest plays a soft, unending music.
+It was once Moonsong, where the Highborne kept the outpost of Shandaral; when
+the blue dragons came for revenge over stolen relics, the sorcerers' reckless
+spell crystallized the whole forest, and their spirits still wander it. Dalaran
+now hovers over the western forest, the Silver Covenant and the Sunreavers hold
+ruined towers on opposite sides, and the blue dragonflight wages its Nexus War
+in the south.""",
+
+    4395: """Dalaran: The city of the magi and home of the Kirin Tor, whose
+violet spires once stood by Lordamere Lake until the Scourge destroyed it in
+the Third War. The Kirin Tor have lifted the whole city into the sky and moved
+it to Northrend, where it floats above Crystalsong Forest to oppose the Lich
+King and the blue Aspect Malygos, whose war on spellcasters makes it a prime
+target. The Council of Six under the archmage Rhonin rules from the Violet
+Citadel. Dalaran welcomes the Alliance and the Horde alike: the Silver Covenant
+and the Sunreavers keep their own enclaves and eye each other warily.""",
+
+    4197: """Wintergrasp: A frozen valley in central Northrend, raised above
+the surrounding lands, the bed of a shrunken lake that has revealed titan
+ruins, dark forests, frozen marshes and a volcanic cauldron. At its heart
+stands Wintergrasp Fortress, a titan complex guarding the entrance to the Vault
+of Archavon, which holds titan relics of untold power, watched over by ancient
+giants who resent all intruders. Since the war against the Lich King began, the
+Alliance and the Horde have fought endlessly for the fortress and the vault,
+battering its walls with siege engines while control changes hands again and
+again.""",
+
+    67: """The Storm Peaks: A towering mountain range in northeastern
+Northrend, harsh and dangerous, where fierce winds can pluck a dwarf off a
+cliff, avalanches thunder down the slopes and the glare off the ice blinds the
+unwary. The peaks were the home of the titans' keepers, and nearly every
+mountain hides temples, terraces and vast machines; the Temple of Storms crowns
+the highest peak, and to the north lies Ulduar, the greatest titan complex on
+Azeroth. Its keeper Loken has turned to darkness, and his iron dwarves and
+giants drive the earthen from their home. The frost giants of the Sons of Hodir
+hold the eastern valleys.""",
+
+    210: """Icecrown: The dark heart of Northrend and seat of the Lich King, a
+land of mountains and glacier where the ice has gone black with corruption.
+From the Frozen Throne the Lich King enslaved the peoples of Northrend and
+raised the Scourge, and around it stands Icecrown Citadel, a cathedral of
+saronite blades visible from almost anywhere on the continent. Saronite walls
+and walkways link fortresses, necropolises and mines, and the undead outnumber
+all else. Now the war has come to his doorstep: the Argent Crusade and the
+Knights of the Ebon Blade strike from captured strongholds, and the Alliance
+and Horde gunships battle in the skies above.""",
+
+    4742: """Hrothgar's Landing: A small, mist-shrouded island off the northern
+coast of Icecrown, across the strait called the Sea Reaver's Run. A tuskarr
+village once stood here, until the kvaldir, the cursed sea vrykul, came under
+their chieftain Hrothgar, slew or drove off its people and renamed the island
+after him. Now it is a staging point for kvaldir raids on ships in the strait,
+where they call up great kraken from the depths, while the fleets of the Silver
+Covenant and the Sunreavers battle to drive them back.""",
 
     # -------------------------------------------------------------------------
-    # Capital Cities
+    # Seas
     # -------------------------------------------------------------------------
-    1519: """Stormwind City: The grand human capital, rebuilt after the First War. The great cathedral dominates the skyline, the canals wind between stone districts, and the bustling Trade District never sleeps. Guards patrol everywhere. The harbor connects to distant lands. King Varian Wrynn rules from Stormwind Keep. A city of cobblestones, banners, and civic pride — the heart of the Alliance.""",
+    308: """The Forbidding Sea: A vast, cold and largely uncharted sea along
+the eastern coast of the Eastern Kingdoms, from the Swamp of Sorrows north to
+Eversong Woods. Its grey waters are rough and often fog-bound, strong currents
+and sudden storms make sailing dangerous, and much of the coast is walled by
+cliffs and mountains. Few ships venture far from shore, and sailors tell of
+unknown lands and terrible creatures beyond the horizon. Sharks and sea
+serpents dwell in its depths, and murlocs and naga lurk along its shores.""",
 
-    1537: """Ironforge: The great dwarven city carved into the heart of a mountain. A massive forge of molten metal dominates the center, surrounded by the Great Forge district where master smiths hammer day and night. The air is warm and smells of iron and ale. Tunnels branch into the Military Ward, Mystic Ward, and the Deeprun Tram to Stormwind. Solid, ancient, and built to last forever.""",
+    214: """The Great Sea: The vast ocean between the continents of Azeroth,
+created when the Well of Eternity was destroyed and ancient Kalimdor split
+apart in the Great Sundering; every sea in the world connects to it. Its deep
+blue waters stretch beyond the horizon, and sailors tell of lost islands,
+sunken cities and the great whirlpool of the Maelstrom at its heart, where the
+Well once stood. Storms rise suddenly, and sea serpents, giant sharks and naga
+are said to lurk in its depths. Ships of the Alliance, the Horde, the goblins
+and the pirates cross it constantly between the continents.""",
 
-    1657: """Darnassus: The serene night elf capital atop the world tree Teldrassil. Ancient trees arch overhead, soft purple light filters through the canopy, and still pools reflect the stars even at midday. The Temple of the Moon honors Elune. Druids meditate in the Cenarion Enclave. The city feels timeless and peaceful, far removed from the wars below — though that peace is more fragile than it appears.""",
+    332: """The Great Sea: The open ocean between the continents of Azeroth,
+born when the Well of Eternity imploded in the Great Sundering. Far from any
+shore, only endless blue water stretches in every direction, broken by a
+distant island or a passing ship. The swell rises and falls, seabirds circle
+high above and creatures few have ever seen swim in the depths. Sailors speak
+with awe of the Maelstrom, the colossal whirlpool at the center of the sea, and
+of the countless ships lost to storms and the deep. It is a place of solitude
+and danger, where wind and waves rule.""",
 
-    3557: """The Exodar: The crashed dimensional ship of the draenei, now repurposed as their capital. Crystal pylons hum with otherworldly energy, purple and blue light bathes geometric corridors, and a radiant sanctuary glows at its heart. The architecture is alien and beautiful — part cathedral, part starship. Draenei go about their lives with quiet dignity, rebuilding after yet another long journey.""",
+    457: """The Veiled Sea: The great ocean off the western coasts of Kalimdor,
+stretching from Darkshore, Ashenvale, Desolace and Feralas into the unknown
+west. It is often shrouded in mist, which gave it its name; its waters are
+deep, cold in the north and warmer in the south. Teldrassil rises from it off
+the northwestern coast, and the Azuremyst Isles lie within it. Naga, sea giants
+and sea serpents dwell in its depths, and the drowned ruins of ancient night
+elf cities lie beneath its waves. Beyond the known coasts it is largely
+uncharted.""",
 
-    1637: """Orgrimmar: The brutal orcish capital carved into red desert canyons. Iron spikes, war banners, and massive gates define the skyline. The Valley of Strength echoes with grunts of training warriors and the clang of the auction house. Thrall's legacy hangs in the air. The city is raw, loud, and unapologetically aggressive — a fortress city built for a people who expect war.""",
+    3479: """The Veiled Sea: The waters around the Azuremyst Isles off
+northwestern Kalimdor, where the draenei vessel known as the Exodar crashed.
+The sea is deep and often veiled in mist, and debris and crystals from the
+fallen ship give some coastal waters a strange glow, above all around Bloodmyst
+Isle, whose shores run red. Murlocs and naga dwell along the coasts, drowned
+night elf ruins lie beneath the waves, and ships sail between the Exodar and
+the night elf lands, with Teldrassil rising from the sea to the east.""",
 
-    1638: """Thunder Bluff: The tauren capital built on towering mesas connected by rope bridges high above the Mulgore plains. Wind sweeps across the open-air platforms. Totems and hides decorate every structure. The Elder Rise hosts druids, the Spirit Rise the priests. Cairne Bloodhoof leads with ancient wisdom. The most peaceful Horde capital — sky, wind, grass, and the quiet strength of an ancient people.""",
+    3455: """The North Sea: The cold waters off the northern shores of
+Quel'Thalas, stretching from the coasts of Eversong Woods north toward
+Northrend. The Isle of Quel'Danas rises from them off the northern coast, and
+the elven ships that sail them have long linked the elves' homeland with the
+wider world. The waters are cold and grey, and the winds that blow across them
+carry the chill of the frozen north.""",
 
-    1497: """Undercity: The Forsaken capital beneath the ruins of Lordaeron. A dark, circular sewer city where the undead conduct their existence among green slime canals and flickering torches. The Royal Quarter houses Sylvanas Windrunner. Apothecaries brew dubious concoctions. The air is damp, cold, and faintly toxic. Grim, functional, and unsettling — but home to those who have nowhere else.""",
+    4258: """The North Sea: The cold waters along the southeastern coasts of
+Northrend, off the Grizzly Hills and the Howling Fjord, reaching south toward
+the northern coasts of Lordaeron. Islands such as Bloodmoon Isle and the Ruins
+of Tethys dot the grey water. Alliance and Forsaken ships cross it bound for
+the fjord's harbors, while vrykul longships and kvaldir raiders prowl the
+mists.""",
 
-    3487: """Silvermoon City: The blood elf capital, half-rebuilt after the Scourge invasion. The functioning western half gleams with crimson and gold spires, arcane guardians patrol pristine streets, and fountains flow with magical energy. The eastern ruins remain a scar. Sin'dorei culture prizes beauty, magic, and sophistication. An elegant city masking deep wounds and desperate addiction to arcane power.""",
+    4630: """The North Sea: The frigid waters around the eastern and northern
+coasts of Northrend, grey and full of drifting ice beneath bitter winds. Few
+ships venture far into them, for icebergs and fog hide the coasts, and the
+cursed kvaldir and other sea raiders are said to rise from the mists.""",
 
-    3703: """Shattrath City: The neutral draenei city in Terokkar Forest, now shared by the Aldor and Scryers factions. The Terrace of Light glows with naaru radiance at its center. Refugees from across Outland crowd the Lower City. Both Alliance and Horde walk these streets in uneasy truce. A cosmopolitan hub where every race mingles — part sanctuary, part political powder keg.""",
-
-    4395: """Dalaran: The floating mage city hovering above Crystalsong Forest in Northrend. Violet spires pierce the clouds, arcane wards shimmer at every corner, and the Kirin Tor governs from the Violet Citadel. Both factions maintain sanctuaries here for the war against the Lich King. Portals connect to every major city. A city of scholars, secrets, and barely contained magical power suspended impossibly in the sky.""",
+    3979: """The Frozen Sea: The cold sea south of Northrend, part of the Great
+Sea, stretching from the southern coasts of the Borean Tundra, the Dragonblight
+and the Howling Fjord toward the Maelstrom. Pack ice and icebergs drift on its
+grey waters. Alliance and Horde fleets cross it to reach the continent, tuskarr
+ride their giant turtles between coastal villages, and the carved columns of
+the ancient Path of the Titans rise from its waves. Kvaldir raiders and sea
+monsters haunt its depths.""",
 }
 
-# Russian (ruRU) zone flavor text -- translated from the
-# ZONE_FLAVOR entries above (same 64 zone-ID keys, same
-# short atmospheric-lore paragraphs), not injected verbatim
-# since the English text was leaking untranslated into
-# Russian bot chat. Proper nouns reuse the official
-# DBC-extracted terms from ZONE_NAMES_RU where the zone/city
-# is covered there (Ironforge -> Стальгорн, Stormwind ->
-# Штормград, etc.); faction/place names outside that dict
-# use the standard Russian WoW-community/official terms
-# (e.g. Syndicate -> Синдикат, Defias Brotherhood -> Братство
-# Справедливости, Scourge -> Плеть). Falls back to English
-# ZONE_FLAVOR via get_zone_flavor() for any locale other than
-# ruRU, or for the 8 zones ZONE_FLAVOR itself doesn't cover.
-
-# French (frFR) zone flavor text -- translated from the
-# ZONE_FLAVOR entries above, covering only the zone_ids present
-# in ZONE_NAMES_FR (62 of ZONE_FLAVOR's 64 zone-ID keys; The
-# Barrens/17 and Dalaran/4395 have no French zone name in
-# ZONE_NAMES_FR and are intentionally left uncovered here, same
-# as ZONE_FLAVOR_RU's scoping principle), not injected verbatim
-# since the English text was leaking untranslated into French
-# bot chat. Proper nouns reuse the community-sourced terms from
-# ZONE_NAMES_FR where the zone/city is covered there (Ironforge
-# -> Forgefer, Stormwind -> Hurlevent, etc.) -- same confidence
-# tier as ZONE_NAMES_FR itself (community/wiki-sourced, not
-# independently verified against official client DBC data,
-# unlike ZONE_FLAVOR_RU's DBC-extracted ZONE_NAMES_RU base).
-# Faction/creature-race names outside that dict use the
-# standard French WoW-community terms (e.g. Defias Brotherhood
-# -> Confrérie Defias, Scourge -> le Fléau, Forsaken ->
-# Réprouvés); minor creature-race names with no well-established
-# French term (troggs, kobolds, gnolls, furbolgs, murlocs, naga,
-# quilboars, etc.) are left as commonly used in French WoW
-# community discourse rather than invented ad hoc. Falls back to
-# English ZONE_FLAVOR via get_zone_flavor() for any locale other
-# than frFR/ruRU, or for the zones this dict doesn't cover.
-
-# German (deDE) zone flavor text -- translated from the
-# ZONE_FLAVOR entries above, covering only the zone_ids present
-# in ZONE_NAMES_DE (62 of ZONE_FLAVOR's 64 zone-ID keys; The
-# Barrens/17 and The Exodar/3557 have no German zone name in
-# ZONE_NAMES_DE and are intentionally left uncovered here, same
-# as ZONE_FLAVOR_RU/ZONE_FLAVOR_FR's scoping principle), not
-# injected verbatim since the English text was leaking
-# untranslated into German bot chat. Proper nouns reuse the
-# community-sourced terms from ZONE_NAMES_DE where the zone/city
-# is covered there (Ironforge -> Eisenschmiede, Stormwind ->
-# Sturmwind, etc.) -- same confidence tier as ZONE_NAMES_DE
-# itself (community/wiki-sourced, not independently verified
-# against official client DBC data, unlike ZONE_FLAVOR_RU's
-# DBC-extracted ZONE_NAMES_RU base). Faction/creature-race names
-# outside that dict use the standard official German WoW terms
-# where one exists (e.g. Defias Brotherhood -> Bruderschaft der
-# Defias, Scourge -> Geißel, Forsaken -> Verlassene, Scarlet
-# Crusade -> Scharlachroter Kreuzzug, Cenarion Circle -> Zirkel
-# des Cenarius, Burning Legion -> Brennende Legion); minor
-# creature-race names with no well-established German term
-# (troggs, kobolds, gnolls, furbolgs, murlocs, naga, quilboars,
-# etc.) are left as commonly used in German WoW community
-# discourse rather than invented ad hoc, same as ZONE_FLAVOR_FR's
-# approach. Falls back to English ZONE_FLAVOR via
-# get_zone_flavor() for any locale other than deDE/frFR/ruRU, or
-# for the zones this dict doesn't cover.
-
-# Spanish (esES) zone flavor text -- translated from the
-# ZONE_FLAVOR entries above, scoped to the intersection of
-# ZONE_FLAVOR's 64 zone-ID keys and ZONE_NAMES_ES's ~70 zone-ID
-# keys (62 zones), not injected verbatim since the English text
-# was leaking untranslated into Spanish bot chat. Two zones covered
-# by ZONE_FLAVOR (Nagrand, Dalaran) have no Spanish name in
-# ZONE_NAMES_ES to draw on (both are confirmed by ZONE_NAMES_ES's
-# own comment to keep their English/original names in Spanish) and
-# are intentionally omitted here, exactly mirroring
-# ZONE_FLAVOR_FR/ZONE_FLAVOR_DE's 62/64 scoping. Proper nouns reuse
-# the mixed-provenance terms from ZONE_NAMES_ES where the zone/city
-# is covered there; faction/place names outside that dict use
-# community-sourced Spanish WoW terminology (e.g. Defias Brotherhood
-# -> Hermandad Defias, Scourge -> Flagelo, Scarlet Crusade ->
-# Cruzada Escarlata, Syndicate -> Sindicato), same confidence tier
-# as ZONE_FLAVOR_FR/ZONE_FLAVOR_DE's community-sourced approach, NOT
-# independently verified against official client data. Falls back
-# to English ZONE_FLAVOR via get_zone_flavor() for any locale other
-# than esES/ruRU/frFR/deDE, or for zones this dict doesn't cover.
+# Translated ZONE_FLAVOR copies for ruRU, frFR, deDE and esES live in
+# tools/locales, keyed by the same zone IDs. get_zone_flavor() prefers
+# the copy for LLMChatter.Language and falls back to the English text
+# above for any other locale or missing zone.
 
 # =============================================================================
 # BATTLEGROUND MAP NAMES
 # =============================================================================
-# Map ID → display name for the four WotLK battlegrounds.
+# Map ID → display name for the six WotLK battlegrounds.
 # Used to suppress AMBIENT topics and inject BG context
 # into idle party chat prompts when players are inside a BG.
 BG_MAP_NAMES = {
@@ -1567,6 +2086,8 @@ BG_MAP_NAMES = {
     489: "Warsong Gulch",
     529: "Arathi Basin",
     566: "Eye of the Storm",
+    607: "Strand of the Ancients",
+    628: "Isle of Conquest",
 }
 
 BG_LORE = {
@@ -1575,22 +2096,27 @@ BG_LORE = {
         'alliance_faction': 'Stormpike Expedition',
         'horde_faction': 'Frostwolf Clan',
         'lore': (
-            'The frozen mountain conflict — Stormpike dwarves vs '
-            'Frostwolf orcs in the Alterac Mountains.'
+            'A hidden valley deep in the Alterac Mountains, home of '
+            'the Frostwolf orcs since Gul\'dan exiled them there '
+            'before the First War. The dwarves of the Stormpike '
+            'Expedition came to dig for resources and titan relics '
+            'and claim the valley for Ironforge, and the Frostwolves '
+            'have vowed to drive them out. War now rages from the '
+            'fortress of Dun Baldar in the north to Frostwolf Keep in '
+            'the south.'
         ),
         'tone': (
-            'Epic, large-scale, war-like. 40v40 feels like an '
-            'actual battle.'
+            'Epic, large-scale, a true war in the snow between two '
+            'armies.'
         ),
-        'objectives': (
-            'Kill the enemy general. Capture towers and graveyards.'
-        ),
+        'objectives': 'Kill the enemy general. Capture towers and graveyards.',
         'landmarks': (
-            'Key locations: Stormpike Base, Dun Baldar, Icewing '
-            'Bunker, Stonehearth Graveyard, Snowfall Graveyard, '
-            'Iceblood Tower, Tower Point, Frostwolf Graveyard, '
-            'Frostwolf Keep. Do NOT mention locations from other '
-            'battlegrounds.'
+            'Key locations: Dun Baldar and the Stormpike bunkers in '
+            'the north, Stonehearth and Snowfall in the middle, '
+            'Iceblood Tower and Tower Point, Frostwolf Graveyard and '
+            'Frostwolf Keep in the south. Snow, pine forests, '
+            'mountain passes and ice caves. Do NOT mention locations '
+            'from other battlegrounds.'
         ),
     },
     2: {  # WSG (BATTLEGROUND_WS = 2)
@@ -1598,19 +2124,22 @@ BG_LORE = {
         'alliance_faction': 'Silverwing Sentinels',
         'horde_faction': 'Warsong Outriders',
         'lore': (
-            'The lumber war in Ashenvale — Silverwing defend the '
-            'forest, Warsong seek its resources.'
+            'A forest gulch in southern Ashenvale where Grom '
+            'Hellscream\'s orcs cut great swaths of forest in the '
+            'Third War. The orcs of the Warsong Outriders still '
+            'harvest its timber for the Horde, and the night elf '
+            'Silverwing Sentinels have sworn not to rest until every '
+            'last orc is driven from the gulch.'
         ),
-        'tone': (
-            'Intense, fast, personal. Small team, every player '
-            'matters.'
-        ),
+        'tone': 'Intense, fast and personal, a bitter fight over the forest.',
         'objectives': 'Capture the enemy flag 3 times.',
         'landmarks': (
-            'Key locations: Silverwing Hold (Alliance base), '
-            'Warsong Fort (Horde base), the tunnel, midfield, the '
-            'ramp. Do NOT mention locations from other battlegrounds '
-            'like mills, farms, or towers.'
+            'Key locations: Silverwing Hold (night elf stronghold), '
+            'the Warsong fort (orc stronghold), the tunnels beneath '
+            'each base, the open midfield, the ramps and the '
+            'graveyards. Tall trees, stumps and lumber piles. Do NOT '
+            'mention locations from other battlegrounds like mills, '
+            'farms, or towers.'
         ),
     },
     3: {  # AB (BATTLEGROUND_AB = 3)
@@ -1618,12 +2147,15 @@ BG_LORE = {
         'alliance_faction': 'League of Arathor',
         'horde_faction': 'The Defilers',
         'lore': (
-            'The fight for Arathi Highlands resources between '
-            'Stromgarde and Forsaken.'
+            'A fertile basin in the heart of the Arathi Highlands, '
+            'rich in ore, timber and farmland. The League of Arathor, '
+            'the remnant of Stromgarde, fights to reclaim the land\'s '
+            'resources, while the Forsaken Defilers seek to seize '
+            'them for the Horde.'
         ),
         'tone': (
-            'Strategic, territorial, spread out. Reactions about '
-            'node control.'
+            'Strategic and territorial, fought across the whole basin '
+            'at once.'
         ),
         'objectives': 'Control nodes to reach 1600 resources first.',
         'landmarks': (
@@ -1640,67 +2172,91 @@ BG_LORE = {
         'name': 'Eye of the Storm',
         'alliance_faction': 'Alliance',
         'horde_faction': 'Horde',
-        'lore': 'A Netherstorm battlefield over a fragment of Draenor.',
+        'lore': (
+            'A fragment of Draenor floating in the Twisting Nether at '
+            'the edge of Netherstorm, where four ruins sit on a great '
+            'island around a font of raw energy at its center. Both '
+            'the Alliance and the Horde fight to control the island '
+            'and its power.'
+        ),
         'tone': (
-            'Hybrid tension. Holding bases while fighting over a '
-            'central flag.'
+            'Tense and chaotic, with the void of the Nether just '
+            'beyond the edges.'
         ),
         'objectives': (
-            'Control bases and capture the central flag to reach '
-            '1600 points.'
+            'Control bases and capture the central flag to reach 1600 '
+            'points.'
         ),
         'landmarks': (
             'Key locations: Fel Reaver Ruins, Blood Elf Tower, '
-            'Draenei Ruins, Mage Tower, the center flag. Do NOT '
-            'mention locations from other battlegrounds.'
+            'Draenei Ruins, Mage Tower, the bridges and the center '
+            'flag. Purple stone, crackling energy and the endless '
+            'Nether all around. Do NOT mention locations from other '
+            'battlegrounds.'
+        ),
+    },
+    9: {  # SA (BATTLEGROUND_SA = 9)
+        'name': 'Strand of the Ancients',
+        'alliance_faction': 'Alliance',
+        'horde_faction': 'Horde',
+        'lore': (
+            'An island off the southern coast of the Dragonblight, '
+            'where a titan relic rests behind the crumbling walls of '
+            'an ancient citadel. Both the Alliance and the Horde seek '
+            'it for the knowledge of the titans it is said to hold, '
+            'one side storming the walls from the sea while the other '
+            'holds them.'
+        ),
+        'tone': 'A grinding siege, wave after wave against ancient walls.',
+        'objectives': (
+            'Break through the gates and capture the relic, or defend '
+            'it as long as possible.'
+        ),
+        'landmarks': (
+            'Key locations: the beach and docks where attackers land, '
+            'the Green Emerald and Blue Sapphire gates, the Red Sun '
+            'and Purple Amethyst gates, the Yellow Moon gate, the '
+            'Chamber of Ancient Relics, demolishers, cannons and '
+            'graveyards. Glittering sand, titan stone and crashing '
+            'waves. Do NOT mention locations from other '
+            'battlegrounds.'
+        ),
+    },
+    30: {  # IC (BATTLEGROUND_IC = 30)
+        'name': 'Isle of Conquest',
+        'alliance_faction': '7th Legion',
+        'horde_faction': 'Warsong Offensive',
+        'lore': (
+            'An island of great strategic value for the war in '
+            'Northrend, with docks, a quarry, an oil refinery, a '
+            'siege workshop and a gunship hangar. The Alliance under '
+            'High Commander Halford Wyrmbane and the Horde under '
+            'Overlord Agmar each hold a keep on the island and fight '
+            'to secure it.'
+        ),
+        'tone': (
+            'Massive and mechanized, siege engines and gunships in '
+            'open war.'
+        ),
+        'objectives': (
+            'Kill the enemy general. Capture the docks, workshop and '
+            'hangar to break the enemy keep.'
+        ),
+        'landmarks': (
+            'Key locations: the Alliance Keep in the west, the Horde '
+            'Keep in the east, the Docks, the Workshop, the Hangar '
+            'with its gunships, the Quarry and the Refinery. Siege '
+            'engines, cannons and iron walls. Do NOT mention '
+            'locations from other battlegrounds.'
         ),
     },
 }
 
-# Russian (ruRU) battleground lore text -- translated from the
-# BG_LORE entries above (same bg_type_id keys). 'name',
-# 'alliance_faction', and 'horde_faction' are left as English proper
-# nouns (out of scope here; only 'lore'/'tone'/'objectives'/
-# 'landmarks' -- the genuine English prose fields that were leaking
-# into Russian bot chat -- are translated), mirroring how
-# ZONE_FLAVOR_RU/DUNGEON_FLAVOR_RU only translate the prose lore
-# text and reuse the official/community Russian place names inline.
-# Falls back to English BG_LORE via get_bg_lore() for any locale
-# other than ruRU.
-
-# French (frFR) battleground lore text -- translated from the
-# BG_LORE entries above (same bg_type_id keys). 'name',
-# 'alliance_faction', and 'horde_faction' are left as English proper
-# nouns (out of scope here; only 'lore'/'tone'/'objectives'/
-# 'landmarks' -- the genuine English prose fields that were leaking
-# into French bot chat -- are translated), mirroring how
-# ZONE_FLAVOR_FR/DUNGEON_FLAVOR_FR only translate the prose lore
-# text and reuse the community-sourced French place names inline.
-# Falls back to English BG_LORE via get_bg_lore() for any locale
-# other than frFR/ruRU.
-
-# German (deDE) battleground lore text -- translated from the
-# BG_LORE entries above (same bg_type_id keys). 'name',
-# 'alliance_faction', and 'horde_faction' are left as English proper
-# nouns (out of scope here; only 'lore'/'tone'/'objectives'/
-# 'landmarks' -- the genuine English prose fields that were leaking
-# into German bot chat -- are translated), mirroring how
-# ZONE_FLAVOR_DE/DUNGEON_FLAVOR_DE only translate the prose lore
-# text and reuse the community-sourced German place names inline.
-# Falls back to English BG_LORE via get_bg_lore() for any locale
-# other than deDE/frFR/ruRU.
-
-# Spanish (esES) battleground lore text -- translated from the
-# BG_LORE entries above (same bg_type_id keys). 'name',
-# 'alliance_faction', and 'horde_faction' are left as English proper
-# nouns (out of scope here; only 'lore'/'tone'/'objectives'/
-# 'landmarks' -- the genuine English prose fields that were leaking
-# into Spanish bot chat -- are translated), mirroring how
-# ZONE_FLAVOR_ES/DUNGEON_FLAVOR_ES only translate the prose lore text
-# and reuse the community/official-press-sourced Spanish place names
-# inline. Falls back to English BG_LORE via get_bg_lore() for any
-# locale other than esES/deDE/frFR/ruRU.
-
+# Translated BG_LORE copies for ruRU, frFR, deDE and esES live in
+# tools/locales, keyed by the same bg_type_id. Only the prose fields
+# ('lore', 'tone', 'objectives', 'landmarks') are translated; 'name' and
+# the faction fields stay English. get_bg_lore() falls back to the
+# English entry for any other locale.
 
 # Raid instance map IDs (Classic, TBC, WotLK)
 RAID_MAP_IDS = {
@@ -1713,7 +2269,7 @@ RAID_MAP_IDS = {
 }
 
 # =============================================================================
-# OPEN-AIR INSTANCES - dungeons and raids fought under the open sky
+# OPEN-AIR INSTANCES - dungeons, raids and arenas under the open sky
 # =============================================================================
 # Only these get time of day, season and weather in prompts; every
 # other instance is indoors (prisons, caves, crypts, keeps), where the
@@ -1738,228 +2294,204 @@ OPEN_AIR_INSTANCES = {
     534: "Battle for Mount Hyjal",
     568: "Zul'Aman",
     649: "Trial of the Crusader",
+    559: "Nagrand Arena",
+    562: "Blade's Edge Arena",
+    572: "Ruins of Lordaeron",
+    618: "The Ring of Valor",
 }
 
 # =============================================================================
-# DUNGEON FLAVOR - Rich context for immersive dungeon/raid chat generation
+# DUNGEON FLAVOR - Context for dungeon, raid and arena chat
 # =============================================================================
-# Each dungeon/raid gets a description that gives the LLM world knowledge.
-# Keyed by Map ID (not zone ID). The LLM uses this as creative inspiration.
+# Keyed by map ID (not zone ID). Written in the world's voice for the WotLK
+# 3.3.5 timeline: history, inhabitants and atmosphere, no game terms, no
+# quest plots; bosses are described as present powers, never as defeated.
+# Keep the "<Instance name>: " prefix; callers split on it for the name.
 DUNGEON_FLAVOR = {
     # -------------------------------------------------------------------------
     # Classic Dungeons
     # -------------------------------------------------------------------------
-    33: """Shadowfang Keep: A haunted fortress in Silverpine Forest, overrun by worgen and the undead servants of the necromancer Arugal. Ghostly nobles wander the dark halls, spectral hounds bay in the courtyards, and arcane experiments gone wrong lurk in every shadow. The keep feels like a gothic horror story - cold stone, flickering torchlight, and the constant sense that something is watching.""",
+    33: """Shadowfang Keep: A haunted keep on a bluff above Pyrewood Village in southern Silverpine Forest, once the seat of Baron Silverlaine. During the Third War the archmage Arugal summoned the worgen to fight the Scourge, but they turned on everyone; driven mad with guilt, he took them as his children and made the keep his lair. Worgen stalk the courtyards and towers, undead servants walk the halls, and the vengeful ghost of the baron is said to linger. Cold stone, flickering torches and the howls of wolves fill the night.""",
 
-    34: """The Stockade: A prison beneath Stormwind City where the inmates have revolted and taken control. Defias rioters, crazed convicts, and gang leaders roam the cramped stone cellblocks. The dungeon is claustrophobic and brutal - narrow corridors, iron bars, and the sounds of violence echoing off damp walls. Quick, dirty, and dangerous.""",
+    34: """The Stockade: A high-security prison hidden beneath the canal district of Stormwind City, home to petty crooks, political agitators, murderers and some of the most dangerous criminals in the land, many of them Defias. A recent revolt has driven out the guards, and the convicts now roam the cells and corridors freely under the cunning felon who led the uprising. The air is damp and close, water drips from the stone, and the shouts of prisoners echo down the narrow halls.""",
 
-    36: """The Deadmines: A sprawling mine complex beneath Westfall, secretly the headquarters of the Defias Brotherhood. The path winds through goblin-engineered tunnels, lumber mills, and smelting operations before emerging in a massive underground cavern where a full-sized pirate ship sits in a hidden cove. It feels like discovering a criminal empire hidden right under Stormwind's nose.""",
+    36: """The Deadmines: An old gold mine beneath the ghost town of Moonbrook in Westfall, the hidden stronghold of the Defias Brotherhood, the outlaws born from the unpaid stonemasons of Stormwind. Defias miners, goblin engineers and ogres work the tunnels, and the passages open onto a vast hidden cove where the Brotherhood is building a great warship, the heart of its plans against the kingdom. The tunnels are dark and cramped, smelling of dust, oil and gunpowder, with the creak of timber and the clank of machinery all around.""",
 
-    43: """Wailing Caverns: A maze of twisting caverns in the Barrens, overgrown with lush vegetation fed by corrupted druid magic. Deviate creatures - mutated raptors, serpents, and oozes - slither through the emerald-tinted tunnels. The Druids of the Fang have lost themselves to the Emerald Nightmare. The air is thick, humid, and smells of jungle rot.""",
+    43: """Wailing Caverns: A network of caves beneath the heart of the Barrens, named for the long, mournful wails of the steam fissures venting through them. The night elf druid Naralex hoped to use their springs and the power of the Emerald Dream to make the Barrens green again, but his dream became a nightmare. The waters turned foul, the beasts within grew into vicious predators, and his own disciples were twisted into the Druids of the Fang. Naralex is said to lie somewhere in the depths, trapped in his waking nightmare.""",
 
-    47: """Razorfen Kraul: A thorny labyrinth grown from massive briars in the Barrens, home to the quilboar and their matriarch Charlga Razorflank. Quilboar warriors, shamans, and their boar companions fill the winding thorn-walled corridors. The dungeon feels primal and feral - nature twisted into a fortress of bone, thorn, and mud.""",
+    47: """Razorfen Kraul: The great thorn warren of the quilboar at the southern edge of the Barrens, grown from the vines that sprouted where the blood of the demigod Agamaggan fell in the War of the Ancients. The quilboar hold it sacred as the home of their race. The old crone Charlga Razorflank rules it, and her shamans stage raids on rival tribes and Horde villages, while some whisper that she deals with agents of the Scourge. Massive thorny vines arch overhead, and the tunnels are muddy, cramped and full of boars.""",
 
-    48: """Blackfathom Deeps: A partially submerged ancient temple on Darkshore's coast, sacred to dark powers. Naga, satyrs, and twilight cultists worship old gods in flooded halls adorned with crumbling night elf architecture. The water glows an eerie blue-green, and the atmosphere is oppressive and ancient - something powerful sleeps in the deepest pools.""",
+    48: """Blackfathom Deeps: Once a glorious temple to the moon goddess Elune on the Zoram Strand of Ashenvale, shattered by the Great Sundering and sunk beneath the waves of the Veiled Sea. Its flooded caverns and broken ruins lead deep toward a shrine of the Old Gods. Naga and satyrs plumb its secrets, the Twilight's Hammer cult works alongside them, and the ancient beast Aku'mai, a favored pet of the Old Gods, is said to dwell in its depths. Cold water, slick stone and dim, eerie light fill the deeps.""",
 
-    70: """Uldaman: A titan excavation site buried in the Badlands, half-dig and half-dungeon. Stone troggs, earthen constructs, and archaeological hazards fill chambers of polished titan metal and raw rock. The deeper you go, the more alien the architecture becomes - smooth geometric halls humming with dormant power. It feels like trespassing in a library built by gods.""",
+    70: """Uldaman: An ancient titan vault buried deep in the northern Badlands, recently breached by dwarven excavations, which released the troggs, the titans' first failed creations. Legends hold that the vault records the secrets of the dwarves' own creation on the fabled Discs of Norgannon. Dark Iron dwarves dig there for their master Ragnaros, while living stone guardians crush any intruder. Vast halls of carved stone, collapsed passages and silent titan machinery lie under the weight of the mountains.""",
 
-    90: """Gnomeregan: The irradiated ruins of the gnomish capital city, lost to a trogg invasion and a catastrophic radiation leak. Crazed leper gnomes, malfunctioning robots, and toxic oozes populate the multi-leveled mechanical complex. Alarm klaxons blare, green radiation pools glow, and broken machinery sparks everywhere. It is equal parts tragic and absurd.""",
+    90: """Gnomeregan: The technological wonder that was the capital of the gnomes, beneath the snows of Dun Morogh, lost when troggs invaded from the depths and the gnomes vented the city's radioactive waste in a desperate attempt to stop them. The troggs, irradiated but unbroken, still roam its halls, and the surviving gnomes fled to Ironforge. The traitor Mekgineer Thermaplugg rules the ruins as their mad techno-overlord. Clanking machinery, leaking pipes, toxic sludge and alarm sentries fill the twisting corridors.""",
 
-    109: """Sunken Temple: The Temple of Atal'Hakkar, a troll temple dragged beneath the swamps by the Green Dragonflight. Atal'ai trolls worship the blood god Hakkar in flooded, vine-choked halls. Dragonkin guard the deeper levels, and the maze-like layout is disorienting. The atmosphere is thick with jungle humidity, ancient troll magic, and a sense of forbidden ritual.""",
+    109: """Sunken Temple: The Temple of Atal'Hakkar, raised by the exiled Atal'ai priests in the Swamp of Sorrows to prepare the return of the blood god Hakkar the Soulflayer. The Dragon Aspect Ysera smashed it beneath the marshes, and her green dragons still guard the drowned ruins, some of them now corrupted. Yet fanatical Atal'ai survive within and serve Hakkar still. Flooded halls, crumbling stone and troll idols lie in murky water, and the air is heavy with rot and old blood magic.""",
 
-    129: """Razorfen Downs: A quilboar burial ground in the Barrens, infested with undead. The Scourge agent Amnennar the Coldbringer has raised the quilboar dead, turning their sacred crypts into a necropolis of bone and thorn. Skeletal quilboar and plague bats fill the gloomy corridors. A place where two kinds of death collide - primal and necromantic.""",
+    129: """Razorfen Downs: The ancestral burial grounds and traditional capital of the quilboar, a sprawling labyrinth of thorns at the southern edge of the Barrens, grown from the same mighty vines as Razorfen Kraul. A looming shadow has fallen over it: it is said that the Scourge has taken hold of the downs, that a lich commands the quilboar high priests of the Death's Head, and that the dead of the burial grounds are rising again. Cold mist clings to the brambles, and the stench of death mixes with mud and thorns.""",
 
-    189: """Scarlet Monastery: A fortified monastery in Tirisfal Glades, stronghold of the fanatical Scarlet Crusade. Four wings house a library of forbidden texts, an armory bristling with zealots, a cathedral of twisted faith, and a haunted graveyard. The Crusaders are well-armed, disciplined, and utterly insane - convinced everyone is secretly undead. Beautiful architecture hiding murderous fanaticism.""",
+    189: """Scarlet Monastery: Once a proud center of learning of Lordaeron's priesthood in northeastern Tirisfal Glades, now a fortress of the fanatical Scarlet Crusade, which trusts no one who is not human and sees every outsider as a carrier of the plague. Its graveyard, library, armory and cathedral are held by zealous warriors under Scarlet Commander Mograine, while the High Inquisitor Whitemane, said to raise the fallen to fight again, is the monastery's true master. Red banners, incense and the cries of the faithful fill its halls.""",
 
-    209: """Zul'Farrak: A troll city half-buried in the sands of Tanaris, home to the hostile Sandfury trolls. Sun-baked stone temples, sacrificial altars, and sandy courtyards make up this open-air dungeon. The famous staircase battle pits you against waves of troll warriors. The desert heat is relentless, the trolls are savage, and ancient magic crackles through the ruins.""",
+    209: """Zul'Farrak: The walled city of the Sandfury trolls in the deserts of northwestern Tanaris, sun-scorched stone and pyramids rising from the dunes. Its warriors, priests and witch doctors guard it fiercely and raise the dead to defend it. Legends tell of a powerful troll sword split in two that lies somewhere within, of mercenaries who wandered into the city and were never seen again, and of an ancient creature sleeping in the sacred pool at its heart. Heat, sand and scorpids are everywhere.""",
 
-    229: """Blackrock Spire: A massive orc fortress carved into the upper reaches of Blackrock Mountain. The lower spire teems with Blackrock orcs, ogres, and trolls, while the upper spire is the seat of Warchief Rend Blackhand and his dragonkin allies. Lava glows below, war drums echo constantly, and the air reeks of smoke and blood. A sprawling military stronghold at the heart of the Dark Horde.""",
+    229: """Blackrock Spire: The fortress carved into the upper reaches of Blackrock Mountain, built by the Dark Iron mason Franclorn Forgewright as a symbol of their power. The orcish Horde made it their capital in the Second War. Now it is held by the Dark Horde of Warchief Rend Blackhand, with orcs, ogres and trolls, and by the black dragon Nefarian and his dragonkin, who rule the upper spire and war against Ragnaros in the depths below. Lava, chains, iron gates and drakes circling in the smoke make it a vast and deadly fortress.""",
 
-    230: """Blackrock Depths: A vast Dark Iron dwarf city deep within Blackrock Mountain, built around a lake of molten lava. The Grim Guzzler tavern, the Emperor's throne room, and Molten Core's doorstep are all here. Elementals, golems, and fanatical Dark Iron dwarves fill an impossibly large underground metropolis. It feels like an entire civilization exists down here, dark and industrious and hostile.""",
+    230: """Blackrock Depths: The once-great capital of the Dark Iron dwarves, a volcanic labyrinth deep in Blackrock Mountain, now ruled by Emperor Dagran Thaurissan as the seat of power of Ragnaros the Firelord. Forges blaze, lava flows through the halls, golems of living stone are built for the Firelord's army, and an arena, a prison and a tavern lie among its vast chambers. Dark Iron soldiers, fire elementals and enslaved captives fill the city. The heat is crushing, and the hammering never stops.""",
 
-    269: """The Black Morass: A Caverns of Time instance set in the primordial swamp that would become the Blasted Lands. Infinite Dragonflight agents attempt to prevent Medivh from opening the Dark Portal, and waves of dragonkin assault through time rifts. The swamp is dark, foggy, and primeval, with the Portal's energy crackling in the distance. Time itself feels unstable here.""",
+    269: """The Black Morass: A journey through the Caverns of Time into the swamp of the Black Morass, on the day Medivh, the last Guardian of Tirisfal, opened the Dark Portal and let the orcish Horde into Azeroth. The bronze dragonflight guards the moment, for the infinite dragonflight sends wave after wave through rifts in time to slay Medivh and change history. Fog, stagnant water and twisted trees surround the growing portal, while time itself seems to tremble.""",
 
-    289: """Scholomance: A necromantic academy in the crypts beneath Caer Darrow, run by the Cult of the Damned. Students and professors of dark magic practice their craft on the dead and the living alike. Skeletons, ghosts, and flesh golems fill classrooms and laboratories. The dungeon has a perverse scholarly atmosphere - lecture halls and libraries devoted entirely to death magic.""",
+    289: """Scholomance: A school of necromancy in the crypts beneath Caer Darrow, an old keep on an island in Darrowmere Lake. The noble Barov family gave the keep to Kel'Thuzad's Cult of the Damned in exchange for promised immortality, and the cult turned its crypts into an academy that trained the agents who spread the plague. The Barovs now walk its halls as undead, the lich Ras Frostwhisper guards it for the Scourge, and the necromancer Darkmaster Gandling rules as headmaster. Candles, bones and forbidden tomes fill its classrooms.""",
 
-    329: """Stratholme: The burning ruins of a once-great city, forever aflame since Arthas purged it. The undead Scourge controls the eastern half while the Scarlet Crusade fanatically holds the western gates. Buildings crumble in perpetual fire, abominations lumber through the streets, and the ash never settles. A monument to tragedy and madness - every corner holds the memory of slaughter.""",
+    329: """Stratholme: The second city of Lordaeron, where the Order of the Silver Hand was founded and where Prince Arthas purged the plague-ridden population. Now it is the Scourge's capital in Lordaeron and burns to this day. The city is split between the Scarlet Crusade, which holds the Scarlet Bastion under Grand Crusader Dathrohan, and the Scourge, whose death knight Baron Rivendare rules the ziggurats of the eastern districts. Ash drifts over shattered streets, and the dead fill the squares.""",
 
-    349: """Maraudon: A sacred cavern system in Desolace, warped by Princess Theradras and her centaur descendants after the death of the keeper Zaetar. Three color-coded paths wind through crystalline caves, poisonous waterfalls, and lush underground gardens before reaching the inner sanctum. The deeper chambers are hauntingly beautiful - glowing crystals, clear pools, and ancient earth magic struggling against corruption. Nature, grief, and elemental fury tangled together.""",
+    349: """Maraudon: A holy place of the centaurs in the Valley of Spears in Desolace, the tomb of Zaetar, son of Cenarius, and the home of the earth elemental princess Theradras, the mother of the centaur race. Their cursed children slew their father, and Theradras keeps his body in her crystal caverns. Nature's blessing turned his resting place into a paradise of flowers and pools deep underground, while purple-stained caves, earth elementals and the spirits of centaur khans fill the maze. The Maraudine centaurs guard it fiercely.""",
 
-    389: """Ragefire Chasm: A volcanic cavern system beneath Orgrimmar itself, where Burning Blade cultists and troggs have taken root. Lava flows through narrow tunnels, fire elementals patrol, and the heat is suffocating. Short and brutal - the kind of place that reminds you the Horde built their capital on top of a volcano.""",
+    389: """Ragefire Chasm: A network of volcanic caverns beneath Orgrimmar, full of lava and fire. Ragefire troggs have crept up from the depths and refuse all attempts at peace, and a cult loyal to the Burning Blade and the Shadow Council has taken refuge in the chasm, plotting to destroy all that the Horde has built in Durotar. The tunnels are scorching hot, the light is red, and the hiss of molten rock never ceases, a danger lurking right beneath the capital.""",
 
-    429: """Dire Maul: A ruined Highborne city in Feralas, divided into three wings. Ogres have claimed the north, satyrs and corrupted ancients infest the east, and ghostly Highborne spirits haunt the west wing's library. Crumbling elven architecture of staggering beauty slowly succumbs to jungle overgrowth. The dungeon feels vast, ancient, and melancholy - a great civilization's corpse being picked apart by squatters.""",
+    429: """Dire Maul: The ruins of Eldre'Thalas, a Highborne city built twelve thousand years ago in northern Feralas to guard Queen Azshara's most prized arcane secrets. Ravaged by the Great Sundering, much of it still stands. Gordunni ogres rule the northern district, satyrs and corrupted ancients haunt the eastern gardens, and the last Highborne, the secretive Shen'dralar, keep the western halls and their great library, guarding the ancient evils locked in its vaults. Broken marble, elven arches and overgrown courtyards fill the city.""",
 
     # -------------------------------------------------------------------------
     # Classic Raids
     # -------------------------------------------------------------------------
-    249: """Onyxia's Lair: A single vast cavern in Dustwallow Marsh, home to the broodmother Onyxia. The approach winds through a narrow tunnel of scorched rock before opening into an enormous chamber littered with bones and egg clutches. Whelps swarm, lava bubbles at the edges, and Onyxia herself fills the cavern with fire and shadow. Claustrophobic tunnel into an overwhelming arena of dragonfire.""",
+    249: """Onyxia's Lair: A volcanic cave in the Wyrmbog of southern Dustwallow Marsh, the lair of Onyxia, the black dragon broodmother and daughter of Deathwing. A narrow tunnel of scorched rock winds down past whelps and dragonspawn into an enormous chamber littered with bones and egg clutches. The floor of the cavern is only a thin crust over molten rock, and the air is thick with smoke and brimstone. Onyxia herself fills the chamber with fire and shadow, and few who enter her lair return.""",
 
-    309: """Zul'Gurub: A massive troll temple complex in the jungles of Stranglethorn, where the Gurubashi tribe has unleashed the blood god Hakkar. Overgrown courtyards, sacrificial altars, and beast-filled plazas surround a central temple dripping with blood magic. Snake priests, bat riders, and tiger cultists serve their dark masters. The jungle itself seems to pulse with primal voodoo energy.""",
+    309: """Zul'Gurub: The ancient capital of the Gurubashi Empire in northeastern Stranglethorn Vale, a vast troll city of temples and ziggurats overgrown by jungle. Over a thousand years ago the Atal'ai summoned Hakkar the Soulflayer and shattered the empire; now the blood god has returned in the heart of the ruins. The high priests sent by the tribes to stop him, champions of the Bat, Panther, Tiger, Spider and Snake, have fallen under his sway and feed his power. Blood rituals, drums and the cries of jungle beasts fill the air.""",
 
-    409: """Molten Core: The burning heart of Blackrock Mountain, a realm of pure fire ruled by Ragnaros the Firelord. Rivers of lava flow between obsidian platforms, fire elementals and molten giants patrol everywhere, and the heat is apocalyptic. Core hounds with multiple heads, towering lava surgers, and ancient flamewakers guard their master. The ultimate trial by fire - beautiful and terrifying in equal measure.""",
+    409: """Molten Core: The burning heart of Blackrock Mountain, at the very bottom of the depths, where Thaurissan summoned Ragnaros the Firelord into the world. The Firelord dwells here in a lake of fire that acts as a rift to the Elemental Plane, and his lieutenants, the flamewakers and their majordomo Executus, command the elementals and the enslaved Dark Irons. Rivers of lava run between obsidian platforms, core hounds and molten giants roam the caverns, and the heat is overwhelming.""",
 
-    469: """Blackwing Lair: Nefarian's stronghold atop Blackrock Spire, a dark laboratory where the black dragon experiments on other dragonflights. Drakonid soldiers, chromatic drakes, and failed experiments fill halls of dark iron and dragon bone. Each chamber presents a unique tactical challenge. The raid feels clinical and sinister - a mad scientist's lair scaled up to dragon proportions.""",
+    469: """Blackwing Lair: The lair of the black dragon Nefarian at the very top of Blackrock Spire, where he plots to crush Ragnaros and claim all of Blackrock Mountain. Like his father Deathwing before him, he breeds a new army, experimenting with the blood of all the dragonflights to create unstoppable warriors. Laboratories, suppression chambers and drake hatcheries fill the lair, guarded by black dragonkin, drakonids and his most terrible creations. Heat, smoke and the stench of dragon blood hang in the halls.""",
 
-    509: """Ruins of Ahn'Qiraj: An open-air battlefield in Silithus where qiraji forces mass for war. Insectoid warriors, obsidian destroyers, and massive beetle-like creatures swarm across sand-swept courtyards and crumbling temple ruins. The architecture is alien and chitinous, equal parts Egyptian tomb and insect hive. The desert wind carries the clicking of a million legs.""",
+    509: """Ruins of Ahn'Qiraj: The outer ruins of the city of Ahn'Qiraj behind the Scarab Wall in southern Silithus, where the Qiraji and their silithid were sealed a thousand years ago at the end of the War of the Shifting Sands. The gates have been opened once more, and the armies of the Alliance and the Horde have driven the Qiraji back into the ruins. Colossal stone structures and pillars rise from the sand among silithid hives, and the Qiraji generals and their swarms defend the ruins fiercely.""",
 
-    531: """Temple of Ahn'Qiraj: The sealed inner sanctum of the qiraji empire, a nightmare of alien architecture and old god corruption. The twin emperors, massive silithid royalty, and the ancient god C'Thun itself lurk within. Walls pulse with organic growth, eyes watch from every surface, and reality bends near the old god's prison. The most alien and disturbing place in classic Azeroth.""",
+    531: """Temple of Ahn'Qiraj: The great temple at the heart of Ahn'Qiraj in southern Silithus, stronghold of the Qiraji emperors and their silithid swarms. Dark whispers say that beneath it an Old God stirs in his lair, regaining his power after thousands of years, and that the dragons who sacrificed themselves to imprison him lie weakened or enslaved within. Vast insectile halls, pulsing hives and twisted chambers lead deeper and deeper, and an alien, oppressive dread grows with every step.""",
 
     # -------------------------------------------------------------------------
     # TBC Dungeons
     # -------------------------------------------------------------------------
-    540: """Shattered Halls: The fel orc stronghold within Hellfire Citadel, a blood-soaked gauntlet of the most fanatical Burning Legion servants. Fel orc gladiators, legionnaires, and berserkers pack every corridor, with prisoners chained to the walls. The architecture is brutal iron and red stone, stained with the evidence of constant violence. An unrelenting assault on a fortress that fights back at every step.""",
+    540: """Shattered Halls: The innermost wing of Hellfire Citadel on Hellfire Peninsula, the training ground and barracks of the fel orcs. Here Warchief Kargath Bladefist commands the Fel Horde, warlocks of the Shadow Council work their dark magic, gladiators fight in the arena and archers rain fire on the narrow corridors. The halls are brutal, cramped and filled with the clash of arms. Every hall is soaked in blood and fel energy.""",
 
-    542: """Blood Furnace: A demonic factory within Hellfire Citadel where fel orcs are manufactured through dark rituals. Vats of boiling blood, caged prisoners awaiting transformation, and fel machinery fill the steaming chambers. Nascent fel orcs and their overseers guard the production lines. The dungeon reeks of blood and brimstone - an industrial horror show.""",
+    542: """Blood Furnace: A wing of Hellfire Citadel on Hellfire Peninsula, where the fel orcs bleed the imprisoned pit lord Magtheridon and use his blood to breed a new Fel Horde, infused with demonic power. Vats of corrupted blood, cells of prisoners and chained warlocks line the furnace halls. Fel orc sorcerers channel the energies of the captive demon below, and the air is thick with fel fumes, heat and screams.""",
 
-    543: """Hellfire Ramparts: The outer fortifications of Hellfire Citadel, first line of defense for the fel orc army. Watchtowers, battlements, and narrow walkways offer sweeping views of the shattered Hellfire Peninsula below. Fel orc soldiers, worg riders, and a captive dragon guard the walls. The wind howls through broken ramparts, and the red sky of Outland stretches endlessly overhead.""",
+    543: """Hellfire Ramparts: The fortified outer walls and towers of Hellfire Citadel on Hellfire Peninsula, the first line of defense of the fel orcs. Bonechewer fel orcs patrol the battlements, their watchkeepers command the walls, and a fel orc champion rides a nether dragon above the towers. The ramparts overlook the red wasteland, the Dark Portal and the Legion's forge camps. Wind, fel fire and the roar of drakes fill the air.""",
 
-    545: """The Steamvault: A naga-controlled water pumping station in Coilfang Reservoir, where Lady Vashj's forces drain Zangarmarsh. Massive pipes, valves, and water channels dominate the industrial layout. Naga, bog lords, and water elementals guard the machinery. Steam hisses from every joint and the roar of rushing water is deafening. A dungeon that feels like sabotaging a hostile factory.""",
+    545: """The Steamvault: The heart of Coilfang Reservoir in Zangarmarsh, where the naga of Lady Vashj run great steam-driven machines and pumps that drain the waters of the marsh. Naga warriors, sirens and water elementals guard the vault, and enslaved Broken toil in the halls. Hissing pipes, roaring turbines and clouds of steam fill the air, and the walls run with condensation. The hum of the machines never stops.""",
 
-    546: """The Underbog: A festering swamp beneath Coilfang Reservoir, teeming with mutated fungal creatures and hostile nature spirits. Spore giants, bog lords, and venomous wildlife fill the overgrown caverns. Bioluminescent fungi cast an eerie glow over stagnant pools. The air is thick with spores and the smell of decay - nature run wild and turned hostile.""",
+    546: """The Underbog: A wing of Coilfang Reservoir in Zangarmarsh, home to the last of the marsh's natural life not yet stamped out by the naga. Giant fungi, bog lords, spore bats and hungry beasts thrive in its caverns, while the naga defend a temple where they keep their hydra god Ghaz'an. Glowing mushrooms, murky water and thick, spore-laden air make it a wild, untamed place.""",
 
-    547: """The Slave Pens: The labor camps of Coilfang Reservoir where the Broken draenei are held captive by naga slavemasters. Waterlogged tunnels, crude holding pens, and naga overseers with their whips define the atmosphere. Fungal growths and marsh creatures have infiltrated the complex. A dungeon suffused with misery and oppression, half-drowned and rotting.""",
+    547: """The Slave Pens: The first wing of Coilfang Reservoir in Zangarmarsh, where the naga of Lady Vashj keep enslaved Broken draenei and bog lords to labor on their great pumps. Naga taskmasters and their servants patrol the pens, while the enslaved toil in chains. Wooden walkways, iron cages and dripping water fill the halls, and the cries of the captives echo across the reservoir.""",
 
-    552: """The Arcatraz: A dimensional prison satellite of Tempest Keep, holding the most dangerous entities in the cosmos. Eredar warlocks, void creatures, and blood elf saboteurs roam cellblocks designed to contain horrors beyond imagination. The architecture is crystalline draenei technology warped by its inmates. Every cell door you pass makes you wonder what got out - and what is still locked inside.""",
+    552: """The Arcatraz: A satellite of Tempest Keep in Netherstorm where the naaru imprisoned the most dangerous creatures they met on their journeys: demons, agents of the black dragonflight and even servants of the Old Gods. The blood elves of Kael'thas now guard it, but they are corruptible, and the prisoners are breaking free. Cells of shimmering force, crystal corridors and the howls of escaped horrors fill the prison.""",
 
-    553: """The Botanica: A vast biodome satellite of Tempest Keep, where exotic flora from across the cosmos was once cultivated. Blood elves have seized the facility, and the plants have grown wild and hostile. Lashers, treants, and alien botanical specimens fill conservatories of shimmering crystal. Beautiful but deadly - every flower might kill you, and the blood elves are worse.""",
+    553: """The Botanica: A satellite of Tempest Keep in Netherstorm, where blood elf scientists loyal to Kael'thas use stolen naaru technology to experiment on the plants and creatures of Outland, seeking new powers. Gardens of strange flora grow under crystal domes, but the experiments have gone out of control, and mutated plants and enraged treants now fill the halls. The air is humid and thick with pollen.""",
 
-    554: """The Mechanar: A manufacturing wing of Tempest Keep, now controlled by blood elf engineers and their mechanical creations. Arcane constructs, fel reavers, and nethermancer overseers guard corridors of gleaming crystal and humming machinery. The technology is elegant and alien - draenei engineering repurposed for sinister ends. Everything hums with barely contained arcane energy.""",
+    554: """The Mechanar: A satellite of Tempest Keep in Netherstorm, turned by Kael'thas into a factory that harnesses naaru technology to create great amounts of power, stored in manacells piled in walls and heaps. Blood elves under the command of Pathaleon the Calculator run the machines, aided by demons of the Burning Legion. Humming engines, arcane conduits and clanking constructs fill the purple crystal halls.""",
 
-    555: """Shadow Labyrinth: The deepest wing of Auchindoun, where the Shadow Council conducts its darkest rituals. Void walkers, fel casters, and Cabal cultists worship in chambers thick with shadow magic. Murmur, a primordial sound elemental, is chained in the deepest chamber. The darkness here feels alive and hungry - shadows move on their own, and whispers come from everywhere and nowhere.""",
+    555: """Shadow Labyrinth: The deepest wing of Auchindoun in Terokkar Forest, where the Shadow Council summoned an ancient elemental of sound whose ritual blew the necropolis apart. The council still plots here, struggling to contain and harness the entity it unleashed, served by fel orcs and demons. Long halls, ritual chambers and a constant, deafening echo fill the labyrinth, and the very air trembles.""",
 
-    556: """Sethekk Halls: Arakkoa temple halls within Auchindoun, occupied by fanatics devoted to the Raven God Anzu. Crazed arakkoa priests, their summoned spirits, and spectral guardians fill the feather-strewn corridors. The architecture mixes draenei and arakkoa styles in unsettling ways. The inhabitants have gone utterly insane, and the halls echo with deranged screeching and dark prophecy.""",
+    556: """Sethekk Halls: A wing of Auchindoun in Terokkar Forest, held by the Sethekk, renegade arakkoa who broke away from Skettis under the insane Talon King Ikiss. They believe the destruction of Auchindoun heralded the return of their master and search the ruins for him. Feathered idols, ritual fires and dark magic fill the ancient draenei halls, and the shrieks of the arakkoa echo through them.""",
 
-    557: """Mana-Tombs: The ethereal-infested wing of Auchindoun, where Nexus-Prince Shaffar's consortium plunders draenei burial vaults. Ethereal bandits, arcane constructs, and restless draenei spirits clash in crystalline tomb chambers. The tombs glow with residual holy energy while the ethereals siphon it away. A sacred place being systematically looted by interdimensional thieves.""",
+    557: """Mana-Tombs: A wing of Auchindoun in Terokkar Forest, where renegade ethereals led by Nexus-Prince Shaffar plunder the crypts and siphon arcane energy from the ruins. Wards keep their rivals of the Consortium out. Shimmering energy, floating debris and the restless spirits of the draenei dead fill the tombs, and the halls hum with stolen power.""",
 
-    558: """Auchenai Crypts: The draenei burial grounds beneath Auchindoun, where the Auchenai priests have gone mad communing with the dead. Restless spirits, possessed clerics, and undead draenei fill the bone-lined crypts. What was once a place of respectful remembrance has become a charnel house. The tragedy is palpable - these were caretakers who lost themselves to grief.""",
+    558: """Auchenai Crypts: A wing of Auchindoun in Terokkar Forest, the burial crypts of the draenei, where the Auchenai priests tended their honored dead. Since the necropolis was shattered, the crypts have fallen to darkness: demons of the Burning Legion harvest souls here, and the draenei dead rise as restless spirits and undead. Cold stone, faded holy light and the whispers of the dead fill the halls.""",
 
-    560: """Old Hillsbrad Foothills: A Caverns of Time instance set in the past, when Thrall was still a slave in Durnholde Keep. The Hillsbrad of years ago is green, peaceful, and full of unsuspecting humans going about their lives. The Infinite Dragonflight tries to alter history by preventing Thrall's escape. It feels surreal - walking through a place you know before it all went wrong.""",
+    560: """Old Hillsbrad Foothills: A journey through the Caverns of Time to Hillsbrad years before the Third War, when the young orc Thrall was a slave of Aedelas Blackmoore at Durnholde Keep and the orcs languished in internment camps. The bronze dragonflight guards the moment of his escape, for the infinite dragonflight seeks to change it. Green hills, peaceful farms, the town of Southshore and the stone walls of Durnholde appear as they once were.""",
 
-    568: """Zul'Aman: A forest troll stronghold in the Ghostlands, where Warlord Zul'jin has empowered his champions with the essence of animal gods. Lynx, bear, eagle, and dragonhawk spirits infuse the troll temple guardians. The Amani forest-temple architecture is vivid and primal, decorated with masks, totems, and war paint. A timed gauntlet where speed matters and the troll drums never stop beating.""",
+    568: """Zul'Aman: The temple city of the Amani forest trolls in the eastern Ghostlands, the last remnant of the empire that once spanned Lordaeron before humans and high elves broke it together. Warlord Zul'jin, who never forgave the elves, has rallied his trolls and sealed the power of the Amani animal gods, the bear, eagle, lynx and dragonhawk, within his strongest champions, with the Hex Lord's help. Stepped ziggurats, voodoo totems and drums fill the dark, primal forest.""",
 
-    585: """Magisters' Terrace: The final bastion of Kael'thas Sunstrider on the Isle of Quel'Danas, a blood elf palace of stunning elegance hiding demonic corruption. Fel crystals power arcane constructs, blood elf magisters channel forbidden magic, and a captured naaru is being drained of its Light. The beauty of Silvermoon architecture twisted by desperation and addiction - gilded halls concealing a monstrous bargain.""",
+    585: """Magisters' Terrace: An elegant blood elf compound on the northeastern corner of the Isle of Quel'Danas, with an observatory looking out over the Sunwell. It is held by followers of Kael'thas Sunstrider, who is said to have retreated here, and the halls hum with stolen arcane power and the energy of mana-crystals. Golden spires, gardens and observatory domes fill the terrace, beautiful and dangerous.""",
 
     # -------------------------------------------------------------------------
     # TBC Raids
     # -------------------------------------------------------------------------
-    532: """Karazhan: The haunted tower of the last Guardian, Medivh, in Deadwind Pass. A spectral dinner party, an opera stage with ghostly performers, a chess game come to life, and a celestial observatory fill the impossibly tall tower. The tower exists partially outside normal reality - rooms shift, time bends, and echoes of Medivh's madness play out eternally. Hauntingly beautiful, deeply eerie, and utterly unique.""",
+    532: """Karazhan: The ivory tower of Medivh, the last Guardian of Tirisfal, in Deadwind Pass, standing on a nexus of ley lines where reality is weak. After Medivh's death a terrible curse fell over the tower and the lands around it. Now it has reawakened: an evil presence has claimed it, its halls crawl with spirits and demons, ghostly nobles of Darkshire relive an endless feast, and echoes of the past play out in its libraries, opera house and menagerie. Dusty grandeur and cold magic fill every chamber.""",
 
-    534: """Hyjal Summit: A Caverns of Time raid set during the Battle of Mount Hyjal, the climactic stand against Archimonde and the Burning Legion. Waves of undead and demons assault three bases in succession - human, Horde, and night elf. The world tree Nordrassil looms above while the forest burns. An epic defense scenario where the fate of Azeroth hangs in the balance and legendary heroes fight at your side.""",
+    534: """Hyjal Summit: A journey through the Caverns of Time to the slopes of Mount Hyjal at the end of the Third War, when humans, orcs and night elves stood together against the Burning Legion and the Scourge. The demon lord Archimonde marches up the mountain to drain the power of the World Tree Nordrassil. The bronze dragonflight guards the battle as it was, while the defenders fall back from base to base. Ancient forests, the great tree above and the burning armies of the Legion below.""",
 
-    544: """Magtheridon's Lair: A single brutal chamber beneath Hellfire Citadel where the pit lord Magtheridon is chained. Channelers maintain his prison while hellfire energy pulses through the room. The space is oppressively hot, reeking of demon blood and brimstone. A straightforward but punishing encounter - one massive demon, one deadly room, no room for error.""",
+    544: """Magtheridon's Lair: A chamber deep beneath Hellfire Citadel where the pit lord Magtheridon, former master of Outland, lies chained and imprisoned since Illidan defeated him. His blood is harvested to breed the Fel Horde, and Hellfire channelers keep his bonds in place. The cavern trembles with his rage, the ceiling cracks under his power, and fel fire flickers around the cage. It is a place of raw demonic fury.""",
 
-    548: """Serpentshrine Cavern: Lady Vashj's underwater stronghold in Coilfang Reservoir, a flooded palace of corrupted beauty. Naga, tidewalkers, and colossal hydras guard chambers where waterfalls cascade into luminous pools. Bridges span underground lakes, and the deeper chambers pulse with the corrupted waters of Zangarmarsh. Elegant naga architecture meets the raw power of a subterranean ocean.""",
+    548: """Serpentshrine Cavern: The lair of Lady Vashj, the naga sorceress who serves Illidan, deep within Coilfang Reservoir in Zangarmarsh, where the waters pumped from the marsh collect. Her most powerful lieutenants guard the shrine, from a corrupted water elemental to a lurker in the deep, and the waters swarm with naga. Vast flooded caverns, coral pillars and shimmering pools glow in an eerie blue light.""",
 
-    550: """Tempest Keep - The Eye: Kael'thas Sunstrider's captured naaru fortress, a crystalline citadel floating above Netherstorm. Blood elf advisors, arcane constructs, and void creatures guard chambers of shimmering draenei crystal. The technology is breathtakingly alien and beautiful, repurposed by desperate elves feeding their magic addiction. The view of the shattered Netherstorm from the platforms is both stunning and terrifying.""",
+    550: """Tempest Keep - The Eye: The inner palace of Tempest Keep, the naaru fortress in Netherstorm seized by the blood elves of Kael'thas Sunstrider, the Sun King, who rules here with his phoenixes and his most powerful advisors. Crystal halls, arcane machinery and floating platforms glow with stolen naaru energy, and a captured naaru is drained for power. The Eye looks out over the twisting storms of the Nether, magnificent and cold.""",
 
-    564: """Black Temple: Illidan Stormrage's fortress in Shadowmoon Valley, a massive draenei temple corrupted by demonic occupation. Fel orcs, demons, naga, and blood elves serve the Betrayer through sprawling courtyards, sewer systems, and grand halls. The temple's original beauty is scarred by fel corruption - cracked holy symbols, defiled altars, and green fire where there was once Light. The culmination of Outland's story, ending at Illidan's throne.""",
+    564: """Black Temple: Once the Temple of Karabor, the most sacred place of the draenei and refuge of the Prophet Velen, conquered by Gul'dan as the headquarters of the Shadow Council and later held by the Burning Legion. Now it is the fortress-citadel of Illidan Stormrage, the self-proclaimed Lord of Outland, guarded by his Illidari: naga, blood elves, Broken, demons and fel orcs. Fel fire burns in its sanctuaries, shadow fills its halls, and the cries of tormented souls echo from its depths.""",
 
-    565: """Gruul's Lair: A rough cavern complex in Blade's Edge Mountains, home to the gronn father Gruul the Dragonkiller. Ogre servants and Gruul's monstrous sons guard the approach to his chamber, which is littered with dragon bones and trophies. The caves feel primal and brutal - no architecture, no decoration, just raw stone shaped by the fists of giants.""",
+    565: """Gruul's Lair: A cavernous lair in the northern Blade's Edge Mountains, home of Gruul the Dragonkiller, the merciless overlord of the gronn, and his son, the ogre High King Maulgar, who rule the ogres of the mountains. The bones of slain dragons hang from the walls, and the ground shakes beneath the footsteps of giants. Crude ogre banners, trophies and raw stone fill the vast cave, a place of brute strength and violence.""",
 
-    580: """Sunwell Plateau: The final raid of the Burning Crusade, set in the heart of the restored Sunwell on the Isle of Quel'Danas. The Burning Legion attempts to summon Kil'jaeden through the Sunwell itself. Pristine elven architecture of breathtaking beauty frames a desperate battle against the most powerful demons in the Legion's army. The holy light of the Sunwell clashes with demonic darkness in every chamber.""",
+    580: """Sunwell Plateau: The holiest place of the elves on the Isle of Quel'Danas, where the Sunwell, the fountain of power that sustained Quel'Thalas, stands at the heart of graceful courtyards and halls. In recent times the Burning Legion has sought to use it as a gateway for the eredar lord Kil'jaeden, and the Legion's servants, demons and blood elves loyal to them, hold the plateau. Golden spires, captured naaru and fel energy surround the defiled well.""",
 
     # -------------------------------------------------------------------------
     # WotLK Dungeons
     # -------------------------------------------------------------------------
-    574: """Utgarde Keep: A vrykul fortress on the shores of the Howling Fjord, the first taste of Northrend's dangers. Viking-inspired halls of dark stone and iron, lit by roaring hearths and decorated with dragon skulls. Vrykul warriors, proto-drake handlers, and their undead servants fill the great halls. The dungeon feels like raiding a Norse longhouse - cold, brutal, and steeped in warrior culture.""",
+    574: """Utgarde Keep: The great vrykul fortress on the cliffs above Lake Cauldros in the Howling Fjord, built into the fjord with waterfalls tumbling down on either side, home of the Dragonflayer clan. Long silent, it has awakened, and its warriors raid all settlements nearby, rumored to serve the Lich King, who raises the most worthy of them beyond the grave. Proto-drakes, worgs and the undead serve the vrykul, and the higher one climbs in the keep, the mightier its dwellers.""",
 
-    575: """Utgarde Pinnacle: The upper reaches of Utgarde Keep, where the vrykul king Ymiron rules from his frozen throne. Trophy halls, eagle aviaries, and ritual chambers tower above the fjord. The architecture grows grander and more menacing as you ascend, culminating in Ymiron's frost-rimed throne room. Wind howls through open battlements, and the view of the frozen landscape below is dizzying.""",
+    575: """Utgarde Pinnacle: The highest reaches of Utgarde Keep in the Howling Fjord, where the mightiest of the vrykul dwell and King Ymiron holds his throne, eager to prove his people worthy of the Lich King's favor. Great halls of stone and timber, carved skulls and the trophies of fallen enemies fill the pinnacle, and proto-drakes circle the cold heights above the fjord.""",
 
-    576: """The Nexus: The crystalline caves beneath Coldarra, stronghold of the Blue Dragonflight's war on mortal magic. Frozen caverns of impossible beauty contain arcane anomalies, crazed mage hunters, and rifts in reality. Crystallized dragons hang frozen in mid-flight. The dungeon shimmers with unstable arcane energy - blues, purples, and whites refracting through ice and crystal in every direction.""",
+    576: """The Nexus: The ancient home of the blue dragonflight beneath the island of Coldarra off the Borean Tundra, an arcane fortress of ice and floating crystal where the Aspect of Magic, Malygos, wages his war against all mortal spellcasters. The blue dragons and their servants guard its frozen halls, and captured enemies are held in prisons of ice. Arcane energy crackles through the air, and the ice glows with magic.""",
 
-    578: """The Oculus: The upper rings of the Nexus, a series of floating platforms connected by magical bridges high above the ley line nexus. Players mount drakes to navigate between ring segments while battling Malygos's forces. The void stretches below, arcane energy crackles between platforms, and the vertigo is real. A dungeon that feels like flying through a magical storm at the edge of reality.""",
+    578: """The Oculus: The great tower of floating rings above the Nexus on Coldarra, where Malygos channels the ley lines of Azeroth, diverting the world's magic through the Nexus and into the Twisting Nether. The Kirin Tor and the red dragonflight fight to stop him. The rings drift high in the sky, crackling with arcane power, and drakes are the only way between them. Raw magic splinters the air and distant rifts tear at reality.""",
 
-    595: """Culling of Stratholme: A Caverns of Time instance set during Arthas's fateful purge of the plagued city. The streets of Stratholme are intact but doomed - citizens transform into undead as you watch, and Arthas grimly orders their deaths before the change. The dungeon is uniquely disturbing because you are helping commit the atrocity that begins Arthas's fall. History's darkest moment, relived.""",
+    595: """Culling of Stratholme: A journey through the Caverns of Time to the day the plague reached Stratholme in infected grain and Prince Arthas, refusing to let its people rise as undead, ordered the city purged. The dreadlord Mal'Ganis watches over the dying city, and the infinite dragonflight seeks to twist the moment. The streets are full of frightened citizens, burning houses and the first of the walking dead, a day that marked the beginning of Arthas's fall.""",
 
-    599: """Halls of Stone: A titan facility in the Storm Peaks, part of Ulduar's vast complex. Stone corridors of geometric perfection house malfunctioning titan constructs, iron dwarves, and ancient defense systems. The Tribunal of Ages holds records of creation itself. The dungeon feels scholarly and ancient - a museum where the exhibits fight back and the history stored here could shatter civilizations.""",
+    599: """Halls of Stone: A wing of the titan city of Ulduar in the Storm Peaks, home of the Tribunal of Ages, the vast stone archive of the titans' history, and of the Forge of Wills. Iron dwarves and stone giants, corrupted by the fallen keeper Loken, now hold its halls and guard their secrets. Towering statues, carved reliefs and titan machinery fill the vast halls of stone, silent but for the rumble of the machines.""",
 
-    600: """Drak'Tharon Keep: A Scourge-infested troll fortress on the border of Grizzly Hills and Zul'Drak. The Scourge has raised the troll dead and corrupted their dinosaur beasts, creating an unholy fusion of troll culture and necromantic power. Skeletal raptors, zombie trolls, and the lich Novos the Summoner fill the decaying halls. Troll architecture crumbling under the weight of undeath.""",
+    600: """Drak'Tharon Keep: An old ice troll fortress of spires and carved walls on the border of the Grizzly Hills and Zul'Drak, seized by the Scourge, which raises the fallen Drakkari to fight against their own empire. Its former leader, the Prophet Tharon'ja, has been twisted into a monstrous undead form, and undead trolls pour from its gates into the hills. Bones, Scourge banners and frozen troll carvings fill the keep.""",
 
-    601: """Azjol-Nerub: The ruined nerubian kingdom beneath Northrend, a web-choked vertical descent through the spider empire. Nerubian architecture of silk and chitin stretches across vast underground chasms. Undead nerubians serve the Scourge while the living fight desperately. The dungeon drops you deeper and deeper through collapsing floors - claustrophobic, alien, and crawling with things that should not exist.""",
+    601: """Azjol-Nerub: The Upper Kingdom of the nerubians beneath the Dragonblight, a grand underground realm of scholarship and art overrun by the Scourge in the War of the Spider. Undead nerubians now patrol its polished halls, guarding clutches of eggs that will hatch into new Scourge warriors, and their fallen king Anub'arak serves the Lich King. Webs, carved murals and glowing fungi fill the vast caverns, while living nerubians fight a hidden, losing war.""",
 
-    602: """Halls of Lightning: A titan forge complex in Ulduar, crackling with electrical energy. Iron dwarves, storm giants, and runic constructs guard corridors of gleaming metal and arcing lightning. Loken, the corrupted titan keeper, waits in the deepest chamber. Every surface hums with power, sparks dance across the walls, and the thunder of the forge is constant and deafening.""",
+    602: """Halls of Lightning: The eastern wing of the titan city of Ulduar in the Storm Peaks, where the fallen keeper Loken sits on his throne and mass-produces iron vrykul and constructs for his dark purposes. Storm elementals, iron giants and lightning-forged guardians serve him, and great forges and machines thunder throughout. Lightning crackles across the vast halls of stone and metal.""",
 
-    604: """Gundrak: A Drakkari troll temple in Zul'Drak, where the trolls sacrifice their own animal gods to fuel their war against the Scourge. Altars run with divine blood as serpent, mammoth, and rhino spirits are consumed. The temple is massive and primal - carved stone, ritual pools, and the desperate energy of a dying civilization burning its own gods for survival.""",
+    604: """Gundrak: The capital of the Drakkari ice trolls in Zul'Drak, a massive city of thick walls, tall towers and tiered buildings wound together like a nest. In desperation against the Scourge, its high prophets have slain their own gods, the loa, and drink their blood for power, steeping the sacred shrines in the mojo of slain gods. Rhino, snake and mammoth idols stand in the courtyards, and drums echo through the stepped streets.""",
 
-    608: """Violet Hold: A magical prison beneath Dalaran, where the Kirin Tor contains the most dangerous creatures in Northrend. Azure Dragonflight agents assault the prison from portals, releasing inmates in waves. The architecture is elegant Dalaran purple and silver, but the inmates are nightmarish. A tower defense scenario in a wizard's dungeon - arcane wards strain against chaos.""",
+    608: """Violet Hold: The prison of the Kirin Tor in Dalaran, its magically shielded cells holding powerful and dangerous prisoners. The blue dragonflight of Malygos has broken in through a great crack in its roof and pours through portals within, testing the prison's defenses and freeing its inmates. Arcane wards flicker, violet stone glows, and the guards of the Kirin Tor fight to hold the line.""",
 
-    619: """Ahn'kahet: The Old Kingdom: The deepest reaches of Azjol-Nerub, where Faceless Ones serve the old god Yogg-Saron. The architecture shifts from nerubian to something far older and more alien - organic walls pulse, reality warps, and insanity effects assault the mind. Forgotten ones, spell flingers, and the herald Volazj lurk in chambers that defy geometry. The most disturbing dungeon in Northrend.""",
+    619: """Ahn'kahet: The Old Kingdom, the deepest reaches of Azjol-Nerub beneath the Dragonblight, a vast underground city of the ancient nerubian empire. Scourge nerubians and the mysterious faceless ones hold it, the latter said to answer to an evil power lurking beneath Northrend, and the Twilight's Hammer stirs among them. Fungal forests, great webbed chambers and an oppressive darkness fill the depths.""",
 
-    632: """Forge of Souls: The first of three Icecrown Citadel dungeons, a massive soul-grinding engine where the Lich King processes the dead. Rivers of tortured souls flow through iron machinery, spectral smiths hammer at anvils of suffering, and the Devourer of Souls guards the forge. The screaming never stops. An industrial nightmare powered by eternal torment.""",
+    632: """Forge of Souls: The first of the Frozen Halls within Icecrown Citadel, a massive production facility where soul grinders, the latest foul construct of the Lich King, are built. Tormented souls are bound into the machines amid saronite pillars and spectral chains. The air is thick with despair and the moans of the dead.""",
 
-    650: """Trial of the Champion: A grand tournament arena beneath the Argent Coliseum in Icecrown, where champions of the Alliance and Horde prove their worth. Mounted jousting, champion duels, and a final ambush by the Black Knight play out on the tournament grounds. The atmosphere is festive and competitive until the undead crash the party. Pageantry and spectacle with a dark twist.""",
+    650: """Trial of the Champion: The tournament grounds of the Argent Crusade beneath the Argent Coliseum in Icecrown, where champions of the Alliance and the Horde joust and duel to prove their worth for the war against the Lich King. Mounts, lances, banners and the roar of the crowd fill the arena, festive and proud, though the Scourge is never far away.""",
 
-    658: """Pit of Saron: A brutal slave mine in Icecrown where Scourge forces work prisoners to death extracting saronite ore. The pit is open to the frozen sky, with massive chains, mining platforms, and saronite deposits everywhere. Forgemaster Garfrost hurls boulders while Tyrannus patrols on his frostbrood drake overhead. Hopelessness and cruelty distilled into frozen stone and dark metal.""",
+    658: """Pit of Saron: The great saronite mine below Icecrown Citadel, where the Scourge forces Alliance and Horde prisoners to dig the ore that builds its fortresses, under the lash of the Scourgelord Tyrannus. Saronite veins pulse in the walls, slaves toil in chains, and the dead are raised to keep working. The cold, the dark and the cracks of whips fill the pit.""",
 
-    668: """Halls of Reflection: The haunted Frozen Halls of Icecrown Citadel, where echoes of Frostmourne's victims linger around the blade's chamber. The Lich King himself pursues you through collapsing corridors as waves of ghosts attack. The halls are pristine ice and dark saronite, and the terror is real - you cannot fight him, only run. The most narratively intense dungeon in the game, a desperate flight from inevitable doom.""",
+    668: """Halls of Reflection: The private chambers of the Lich King within Icecrown Citadel, the only place where he lets his guard down, a dark and twisted replica of Lordaeron's throne room. Frostmourne, the runeblade of the Lich King, waits here, and the spirits trapped within it haunt the halls. Ice, silence and memories of the past fill the chambers.""",
 
     # -------------------------------------------------------------------------
     # WotLK Raids
     # -------------------------------------------------------------------------
-    533: """Naxxramas: The floating necropolis of the arch-lich Kel'Thuzad, hovering over Dragonblight. Four wings of themed horrors - the Arachnid Quarter of giant spiders, the Plague Quarter of disease and abominations, the Military Quarter of death knight commanders, and the Construct Quarter of flesh golems. Gothic architecture of dark stone and green slime, with the cold precision of undead military organization. The Scourge's masterwork of death.""",
+    533: """Naxxramas: A Scourge necropolis floating over the Dragonblight, once a nerubian ziggurat overrun by the Scourge and raised into the sky by the Lich King's dark magic. It is the seat of the archlich Kel'Thuzad, who has brought it back to Northrend to lay siege to Wintergarde. Its four quarters house horrors of every kind: arachnid crypt lords, plague laboratories and abominations, legions of death knights, and the flesh-stitched constructs. Green slime, rotting flesh and the cold of the grave fill its halls.""",
 
-    603: """Ulduar: A titan city-prison in the Storm Peaks, the grandest raid in Northrend. Massive halls of gleaming metal and stone house the corrupted titan keepers and their servants, with the old god Yogg-Saron imprisoned in the deepest vault. The scale is staggering - vehicle battles at the gates, an observatory open to the cosmos, gardens of unearthly beauty, and a descent into madness itself. Ancient, magnificent, and terrifying.""",
+    603: """Ulduar: The greatest titan complex on Azeroth, perfectly preserved in the snows of the Storm Peaks, hidden behind rock and ice, a profusion of tunnels, stairs and balconies carved from a vast cave. It was home to the titans' keepers and their engines of creation, but whispers speak of a great evil at work behind its fall, and its corrupted guardians now turn on all intruders. Colossal statues, titan machines and star-filled observatories fill its halls.""",
 
-    615: """Obsidian Sanctum: A volcanic chamber beneath Wyrmrest Temple where Sartharion guards twilight dragon eggs. Lava rivers divide the obsidian platforms, and three twilight drake lieutenants patrol their own islands. The chamber glows orange and red, heat shimmers distort the air, and the black dragonflight's betrayal is laid bare. A straightforward arena of fire and scale.""",
+    615: """Obsidian Sanctum: The black dragonflight's chamber beneath Wyrmrest Temple in the Dragonblight, part of the Chamber of the Aspects, where Sartharion the Onyx Guardian guards a clutch of twilight dragon eggs. Three twilight drakes watch over their own islands amid rivers of lava between platforms of obsidian. The chamber glows orange and red, and heat shimmers in the air.""",
 
-    616: """Eye of Eternity: Malygos's personal sanctum at the apex of the Nexus above Coldarra, a platform suspended in raw ley energy. There is no ground, no walls - only a disc of magical force over a void of swirling blue and violet arcana. The Spell-Weaver attacks with the full power of the Blue Dragonflight. The raid feels otherworldly - fighting a dragon aspect in the heart of Azeroth's arcane storm.""",
+    616: """Eye of Eternity: The personal domain of the blue Aspect Malygos, high above the Nexus on Coldarra, from which he directs his war to reclaim dominance over the arcane energies of Azeroth. It is a vast floating platform in an endless void of swirling arcane energy and stars, where the world's magic flows. Raw power fills the air.""",
 
-    624: """Vault of Archavon: A titan vault beneath Wintergrasp Fortress, accessible only to the faction controlling the zone. Stone giants and elemental constructs guard the chambers in a straightforward series of boss encounters. The architecture is utilitarian titan design - functional, massive, and unadorned. A reward for PvP victory, quick and brutal.""",
+    624: """Vault of Archavon: A titan vault beneath Wintergrasp Fortress, holding relics of untold power, guarded by ancient stone watchers who resent all intruders. Its halls open only to those who hold the fortress above. Carved stone, titan machinery and an eerie silence fill the vault.""",
 
-    631: """Icecrown Citadel: The Lich King's throne, the culmination of Wrath of the Lich King. A towering fortress of saronite and ice rising from the heart of Icecrown. Every wing escalates the horror - from the Lower Spire's undead armies, through the Plagueworks, Crimson Hall, and Frostwing Halls, to the Frozen Throne itself. The architecture is oppressive, beautiful in its cruelty, and designed to break hope. This is the end.""",
+    631: """Icecrown Citadel: The Lich King's fortress, rising from the black ice of Icecrown, a cathedral of saronite blades and spires wrapped around the Frozen Throne. Its halls swarm with the most loyal and vile of the Scourge: death knights, cultists, abominations and frost wyrms. The Lower Spire, the Plagueworks, the Crimson Hall and the Frostwing Halls lead toward the throne. The Ashen Verdict leads the assault, and the cold seeps into the bones.""",
 
-    649: """Trial of the Crusader: The Argent Coliseum in Icecrown, a tournament arena that descends into the earth when the floor collapses into an underground nerubian cavern. The upper level is bright banners and cheering crowds; the lower level is chitinous horror and Anub'arak's domain. The contrast between festive competition above and ancient terror below defines the entire experience.""",
+    649: """Trial of the Crusader: The great Argent Coliseum in Icecrown, built by the Argent Crusade to test the champions worthy of the assault on the Lich King. Banners of the Alliance and the Horde fly above cheering crowds, and fearsome beasts and champions are brought into its arena under the eyes of Highlord Tirion Fordring. Pageantry and spectacle unfold at the very doorstep of the Lich King, and the old rivalry of the two factions burns in the stands.""",
 
-    724: """Ruby Sanctum: A chamber beneath Wyrmrest Temple where the twilight dragonflight has invaded the red dragons' sanctum. Halion, the twilight destroyer, phases between the physical realm and the shadow realm. The chamber shifts between warm ruby light and cold purple shadow. The last raid before the Cataclysm - a brief, ominous warning of the destruction to come.""",
+    724: """Ruby Sanctum: The red dragonflight's sanctum beneath Wyrmrest Temple in the Dragonblight, part of the Chamber of the Aspects, a peaceful refuge of red dragon eggs, warm light and green growth. Its guardians have fallen silent and the portal's guards have been slain; a dark force has breached the sanctum, and twilight dragons now threaten the eggs of the red flight.""",
+
+    # -------------------------------------------------------------------------
+    # Arenas
+    # -------------------------------------------------------------------------
+    559: """Nagrand Arena: The Ring of Trials in the grasslands of Nagrand, an ancient proving ground of the orcs built in the style of the old ogre empire. Gladiators of every race meet here to fight for glory. A ring of weathered stone pillars stands open to the sky, the wind sweeps over the grass, and spectators watch from the hills.""",
+
+    562: """Blade's Edge Arena: The Circle of Blood in the Blade's Edge Mountains, an ogre-built arena where gladiators fight for glory before roaring crowds. A wooden bridge spans a pit at its center, ropes and pillars cross the ring, and the jagged peaks rise all around. Rough timber, bones and banners give it a brutal, savage air.""",
+
+    572: """Ruins of Lordaeron: An arena among the shattered ruins of Lordaeron's capital city in Tirisfal Glades, above the Undercity, where the great palace still stands as a sad reminder of the city's fall. Broken walls, toppled statues and a ruined tomb surround the fighting ground, and the memory of the kingdom's tragic end hangs over the stones.""",
+
+    617: """Dalaran Sewers: An arena hidden in the Underbelly, the sewers beneath the floating city of Dalaran, where gladiators fight in a pit surrounded by water channels and pipes. Damp stone, the rush of water and the murmur of a rough crowd fill the arena, far from the grandeur of the violet city above.""",
+
+    618: """The Ring of Valor: The great arena in the Valley of Honor in Orgrimmar, where the gladiators of the Crimson Ring train and fight. Columns rise from the floor, the spectators roar from the stands, and the heat of Durotar beats down on the sand. It is a place of honor, strength and spectacle.""",
 }
 
-# Russian (ruRU) dungeon/raid flavor text -- translated from the
-# DUNGEON_FLAVOR entries above (same map-ID keys, same
-# paragraph-length atmospheric lore), not injected verbatim since
-# the English text was leaking untranslated into Russian bot chat.
-# Falls back to English DUNGEON_FLAVOR via get_dungeon_flavor() for
-# any locale other than ruRU, mirroring ZONE_FLAVOR_RU/
-# get_zone_flavor()'s convention.
-
-# French (frFR) dungeon/raid flavor text -- translated from the
-# DUNGEON_FLAVOR entries above (same map-ID keys, same
-# paragraph-length atmospheric lore), not injected verbatim since
-# the English text was leaking untranslated into French bot chat.
-# Proper nouns reuse the community-sourced terms from ZONE_NAMES_FR
-# where covered there; dungeon/raid names themselves and most NPC
-# names use well-known French WoW-community terms (community/wiki-
-# sourced confidence, same tier as ZONE_NAMES_FR, not independently
-# re-verified against official client DBC data). Falls back to
-# English DUNGEON_FLAVOR via get_dungeon_flavor() for any locale
-# other than frFR/ruRU, mirroring ZONE_FLAVOR_FR/get_zone_flavor()'s
-# convention.
-
-# German (deDE) dungeon/raid flavor text -- translated from the
-# DUNGEON_FLAVOR entries above (same map-ID keys, same
-# paragraph-length atmospheric lore), not injected verbatim since
-# the English text was leaking untranslated into German bot chat.
-# Falls back to English DUNGEON_FLAVOR via get_dungeon_flavor() for
-# any locale other than deDE/frFR/ruRU, mirroring ZONE_FLAVOR_DE/
-# get_zone_flavor()'s convention. Proper nouns reuse community-
-# sourced German WoW terms (Shadowfang Keep -> Schattenfangfeste,
-# Ironforge -> Eisenschmiede, etc.), same confidence tier as
-# ZONE_FLAVOR_DE/RACE_SPEECH_PROFILES_DE above (community/
-# wiki-sourced, not independently verified against official client
-# DBC data).
-
-# Spanish (esES) dungeon/raid flavor text -- translated from the
-# DUNGEON_FLAVOR entries above (same map-ID keys, same
-# paragraph-length atmospheric lore), not injected verbatim since
-# the English text was leaking untranslated into Spanish bot chat.
-# Falls back to English DUNGEON_FLAVOR via get_dungeon_flavor() for
-# any locale other than esES/deDE/frFR/ruRU, mirroring
-# ZONE_FLAVOR_ES/get_zone_flavor()'s convention. Proper nouns reuse
-# ZONE_NAMES_ES/ZONE_FLAVOR_ES's mixed-provenance terms where
-# covered there; faction/place names outside those dicts use
-# community-sourced Spanish WoW terminology, same confidence tier
-# as ZONE_FLAVOR_ES's community-sourced portion, NOT independently
-# verified against official client data.
-
+# Translated DUNGEON_FLAVOR copies for ruRU, frFR, deDE and esES live in
+# tools/locales, keyed by the same map IDs and prefixed with the
+# localized instance name. get_dungeon_flavor() falls back to the
+# English text for any other locale or missing map.
 
 # Item quality colors for WoW links (FF prefix for alpha channel)
 ITEM_QUALITY_COLORS = {

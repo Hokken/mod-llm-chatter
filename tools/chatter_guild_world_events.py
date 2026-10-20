@@ -48,7 +48,9 @@ from chatter_shared import (
     append_conversation_json_instruction,
     append_json_instruction,
     get_chatter_mode,
+    get_subzone_lore,
     get_subzone_name,
+    get_zone_flavor,
     get_zone_name,
     parse_extra_data,
 )
@@ -109,6 +111,19 @@ def _place(extra: Dict) -> str:
     return subzone or zone
 
 
+def _place_lore_lines(extra: Dict, mode: str) -> List[str]:
+    """Roleplay description of where the bot stands: the subzone lore,
+    or the zone flavor when the subzone has none."""
+    if not is_roleplay(mode):
+        return []
+    zone_id = safe_int(extra.get('zone_id'))
+    subzone_lore = get_subzone_lore(zone_id, safe_int(extra.get('area_id')))
+    if subzone_lore:
+        return [f"About this place: {subzone_lore}"]
+    zone_flavor = get_zone_flavor(zone_id) if zone_id else None
+    return [f"Zone context: {zone_flavor}"] if zone_flavor else []
+
+
 # --------------------------------------------------------------------------
 # Guild NPC encounter
 # --------------------------------------------------------------------------
@@ -128,7 +143,7 @@ def _npc_scenario(extra: Dict, mode: str) -> List[str]:
         "worth a visit or not worth the trip are all possible.",
         f"Name {npc}{' and ' + zone if zone else ''} so guildmates know "
         "who and where. Do not invent quests or rewards.",
-    ]
+    ] + _place_lore_lines(extra, mode)
 
 
 def process_guild_npc_encounter_event(db, client, config, event):
@@ -211,6 +226,7 @@ def build_meet_greeting_prompt(db, bot: Dict, extra: Dict, mode: str):
         class_name=str(extra.get('player_class') or ''),
         gender=str(extra.get('player_gender') or ''),
     ))
+    lines.extend(_place_lore_lines(extra, mode))
     lines.extend([
         f"{bot['name']} and {player_name} are both members of the "
         f"guild \"{guild_name}\" but are not travelling together.",
@@ -229,7 +245,9 @@ def build_meet_greeting_prompt(db, bot: Dict, extra: Dict, mode: str):
     )
 
 
-def _meet_guild_scenario(extra: Dict, greeting: str) -> List[str]:
+def _meet_guild_scenario(
+    extra: Dict, greeting: str, mode: str = '',
+) -> List[str]:
     bot_name = str(extra.get('bot_name') or 'The speaker')
     player = str(extra.get('player_name') or 'a guildmate')
     place = _place(extra)
@@ -242,7 +260,7 @@ def _meet_guild_scenario(extra: Dict, greeting: str) -> List[str]:
         f"Name {player}" + (f" and {place}" if place else "")
         + " so the guild knows who and where. Do not repeat the greeting "
         "and do not invent a long story.",
-    ]
+    ] + _place_lore_lines(extra, mode)
 
 
 def _guild_post_wanted(config: Dict, extra: Dict) -> bool:
@@ -267,7 +285,7 @@ def _meet_follow_up_text(
         str(extra.get('team') or ''),
         mode,
         guild_context,
-        _meet_guild_scenario(extra, greeting),
+        _meet_guild_scenario(extra, greeting, mode),
         maximum,
     )
     metadata = {
@@ -452,7 +470,7 @@ def _responder_count(config: Dict, available: int) -> int:
 
 def _announce_lines(
     participants: List[Dict], responders: List[Dict], announcer: Dict,
-    guild_name: str, zone: str, mode: str,
+    guild_name: str, zone: str, mode: str, zone_flavor: str = '',
 ) -> List[str]:
     lines = (
         ["Write natural in-character World of Warcraft General chat "
@@ -460,6 +478,8 @@ def _announce_lines(
         if is_roleplay(mode)
         else [build_player_chat_guidance(mode, 'general')]
     )
+    if is_roleplay(mode) and zone_flavor:
+        lines.append(f"Zone context: {zone_flavor}")
     for participant in participants:
         lines.extend(_participant_identity_lines(participant, mode))
     lines.append(
@@ -569,6 +589,7 @@ def process_guild_join_zone_announce_event(db, client, config, event):
     zone = get_zone_name(announcer['zone_id']) or 'this zone'
     lines = _announce_lines(
         participants, responders, announcer, guild_name, zone, mode,
+        get_zone_flavor(announcer['zone_id']) or '',
     )
     maximum = max_characters(config)
     metadata = {

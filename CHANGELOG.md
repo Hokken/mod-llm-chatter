@@ -1,5 +1,44 @@
 # Changelog
 
+### 2026-10-21 - Rewritten Location Lore and Wider Place Context
+
+* **New zone and subzone descriptions**: all subzone texts were rewritten
+  from Wowpedia for the 3.3.5 timeline, in the world's voice and without
+  quest spoilers. The old texts were generated from the area name alone;
+  more than half were in the first person and many were simply wrong.
+  Unreachable and never-built areas now have no text, so their prompts
+  fall back to the zone description.
+* **Every real zone has a description**: `ZONE_FLAVOR` was rebuilt from the
+  new zone texts and grew from 64 to 98 zones, adding Alterac Mountains,
+  Dragonblight, Eversong Woods, Ghostlands, Stonetalon Mountains,
+  Wintergrasp, the seas and the small connecting zones. Arriving in a zone
+  and the Guild zone topic now use the full zone description.
+* **Instance lore rewritten**: dungeon, raid and battleground descriptions
+  no longer carry game commentary ("the culmination of Wrath of the Lich
+  King", "loot-focused"). The five arenas, Strand of the Ancients and Isle
+  of Conquest now have lore, and party chatter in those battlegrounds is
+  treated as battleground chatter.
+* **Translations**: the new zone, instance and battleground texts are
+  translated into Russian, French, German and Spanish, with official
+  localized place names.
+* **More prompts know where they are**: proximity `/say` scenes, guild
+  meeting and NPC-encounter posts, boat and zeppelin arrivals, and
+  roleplay party reactions in the open world (kills, deaths, wipes, corpse
+  runs, quests, join greetings) now get the subzone or zone description.
+  The party reactions roll `LLMChatter.LocationContext.EventChance` so short
+  lines do not always carry long lore.
+* **Guild chat about the subzone**: an idle Guild line can now be the
+  speaker's opinion of the subzone it stands in, together with its zone
+  (`LLMChatter.GuildChatter.SubzoneTopicChance`).
+* **Fixes**: a normal-mode party reply no longer receives roleplay subzone
+  lore, a nearby-object comment falls back to the zone description when the
+  subzone has none, and normal-mode instance prompts name the instance
+  instead of calling every instance a dungeon.
+* **New settings**: `LLMChatter.LocationContext.EventChance` and
+  `LLMChatter.GuildChatter.SubzoneTopicChance`. The proximity, guild idle and
+  transport events carry new payload fields, so this needs a worldserver
+  rebuild as well as a bridge restart.
+
 ### 2026-10-19 - Non-English Chatter Crash Fix
 
 * **No more worldserver crash with a non-English `LLMChatter.Language`**:

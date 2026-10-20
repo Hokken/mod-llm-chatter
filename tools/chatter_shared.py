@@ -1396,8 +1396,8 @@ def get_zone_level_range(
 
 
 # Locale-keyed zone flavor text maps, mirroring
-# _ZONE_NAME_LOCALE_MAPS above. Only ruRU has a translated
-# ZONE_FLAVOR_RU dict so far; any other locale (or zone_id
+# _ZONE_NAME_LOCALE_MAPS above. ruRU, frFR, deDE and esES carry
+# translated ZONE_FLAVOR tables; any other locale (or zone_id
 # missing from the localized map) falls back to the English
 # ZONE_FLAVOR via get_zone_flavor() below.
 _ZONE_FLAVOR_LOCALE_MAPS: Dict[str, Dict[int, str]] = locale_dataset("ZONE_FLAVOR")
@@ -1438,7 +1438,7 @@ def get_zone_flavor(zone_id: int) -> Optional[str]:
     entry, mirroring get_zone_name()'s locale-fallback pattern.
 
     Returns None when the zone ID has no flavor text at all
-    (8 zones aren't covered even in English), exactly as before.
+    (unreachable and developer zones).
     """
     locale = get_language_locale_code()
     if locale:
@@ -1449,8 +1449,8 @@ def get_zone_flavor(zone_id: int) -> Optional[str]:
 
 
 # Locale-keyed dungeon/raid flavor text maps, mirroring
-# _ZONE_FLAVOR_LOCALE_MAPS above. Only ruRU has a translated
-# DUNGEON_FLAVOR_RU dict so far; any other locale (or map_id
+# _ZONE_FLAVOR_LOCALE_MAPS above. ruRU, frFR, deDE and esES carry
+# translated DUNGEON_FLAVOR tables; any other locale (or map_id
 # missing from the localized map) falls back to the static
 # English DUNGEON_FLAVOR via get_dungeon_flavor() below.
 _DUNGEON_FLAVOR_LOCALE_MAPS: Dict[str, Dict[int, str]] = locale_dataset("DUNGEON_FLAVOR")
@@ -1474,10 +1474,10 @@ def get_dungeon_flavor(map_id: int) -> Optional[str]:
 
 
 # Locale-keyed battleground lore maps, mirroring
-# _DUNGEON_FLAVOR_LOCALE_MAPS above. Only ruRU has a translated
-# BG_LORE_RU dict so far; any other locale (or bg_type_id missing
-# from the localized map) falls back to the static English BG_LORE
-# entry via get_bg_lore() below.
+# _DUNGEON_FLAVOR_LOCALE_MAPS above. ruRU, frFR, deDE and esES
+# carry translated BG_LORE tables; any other locale (or bg_type_id
+# missing from the localized map) falls back to the static English
+# BG_LORE entry via get_bg_lore() below.
 _BG_LORE_LOCALE_MAPS: Dict[str, Dict[int, Dict]] = locale_dataset("BG_LORE")
 
 
@@ -1587,6 +1587,44 @@ def get_subzone_lore(
         )
         return desc
     return None
+
+
+def get_zone_lore(zone_id: int) -> Optional[str]:
+    """Get the full zone description from subzone_lore.json.
+
+    Much longer than ZONE_FLAVOR, so it is only for prompts whose
+    subject is the zone itself; everything else uses
+    get_zone_flavor(). The text is English only, so it returns
+    None when LLMChatter.Language has a translated ZONE_FLAVOR
+    for the zone (callers then fall back to get_zone_flavor()),
+    and when the zone has no description.
+    """
+    if not zone_id:
+        return None
+    locale = get_language_locale_code()
+    if locale and zone_id in _ZONE_FLAVOR_LOCALE_MAPS.get(locale, {}):
+        return None
+    zdata = _load_subzone_lore().get("zones", {}).get(
+        str(zone_id), {}
+    )
+    return zdata.get("description") or None
+
+
+def location_lore_lines(
+    zone_id: int, area_id: int, include_zone: bool = True,
+) -> List[str]:
+    """Open-world lore lines for a prompt: the zone flavor
+    (unless include_zone is False) and the subzone lore,
+    each only when it exists."""
+    lines = []
+    if include_zone:
+        zone_flavor = get_zone_flavor(zone_id) if zone_id else None
+        if zone_flavor:
+            lines.append(f"Zone context: {zone_flavor}")
+    subzone_lore = get_subzone_lore(zone_id, area_id)
+    if subzone_lore:
+        lines.append(f"Current subzone: {subzone_lore}")
+    return lines
 
 
 def get_subzone_name(

@@ -2770,6 +2770,64 @@ Builders that intentionally do **not** receive dungeon context injection:
 - OOM / low-health callouts (state-focused, not location-flavored)
 - level-up (character milestone, independent of location)
 
+### Location lore sources
+
+| Text | Source | Key | Lookup |
+|------|--------|-----|--------|
+| Short zone description | `ZONE_FLAVOR` in `chatter_constants.py` | zone ID | `get_zone_flavor()` |
+| Full zone description | zone `description` in `subzone_lore.json` | zone ID | `get_zone_lore()` |
+| Subzone description | subzone `description` in `subzone_lore.json` | zone ID, then area ID | `get_subzone_lore()` |
+| Dungeon, raid and arena description | `DUNGEON_FLAVOR` in `chatter_constants.py` | map ID | `get_dungeon_flavor()` |
+| Raid chat lore | `RAID_LORE` in `chatter_raid_prompts.py` | raid name | direct |
+| Battleground lore | `BG_LORE` in `chatter_constants.py` | battleground type ID | `get_bg_lore()` |
+
+All texts are written in the world's voice for the WotLK 3.3.5 timeline:
+no game terms, no quest plots, neutral between the factions, and bosses
+described as present powers. `ZONE_FLAVOR`, `DUNGEON_FLAVOR` and `BG_LORE`
+have ruRU, frFR, deDE and esES copies in `tools/locales`. The full zone
+description and the subzone descriptions are English only;
+`get_zone_lore()` returns nothing when the configured language has a
+translated `ZONE_FLAVOR` entry, so callers fall back to it. Unreachable and
+never-built areas have an empty subzone description, which also falls back
+to the zone text.
+
+The full zone description is used only where the zone itself is the
+subject: arriving in a zone (`bot_group_zone_transition`) and the Guild
+zone topic. Everything else uses the short `ZONE_FLAVOR`.
+
+Arenas are in `DUNGEON_FLAVOR`, so every instance-aware path treats them
+as instances; the four open-air arenas are also in `OPEN_AIR_INSTANCES`.
+`BG_MAP_NAMES` lists all six battlegrounds, including Strand of the
+Ancients and Isle of Conquest.
+
+### Where open-world location lore is injected
+
+- **Proximity** (`proximity_say`, `proximity_conversation`, replies,
+  player say and emote scenes): `build_location_prompt_lines(extra,
+  describe=True)` adds the subzone description, or the zone description
+  when the subzone has none. It is added when any speaker is in-world: an
+  NPC in either mode, or a playerbot in roleplay mode. The payload carries
+  `area_id` for this.
+- **Party reactions in the open world** (kill, death, wipe, corpse run,
+  quest accept, quest objectives, quest complete and their conversation
+  variants, join greeting): roleplay mode only, through
+  `maybe_event_location_lines()`. The roll uses
+  `LLMChatter.LocationContext.EventChance` (default 50), because subzone
+  descriptions are long and these lines are short. Instances and
+  battlegrounds are skipped; they keep their own flavor.
+- **Party idle chatter, bot questions, player replies, General
+  reactions, nearby objects and screenshots**: zone and subzone
+  description in roleplay mode, names in normal mode.
+- **Guild world events** (`guild_meet_greeting`, `guild_npc_encounter`):
+  subzone or zone description in roleplay mode. `guild_join_zone_announce`
+  gets the zone description.
+- **Transport arrivals**: `transport_arrives` sends `dock_area_id`, the
+  area the boat or zeppelin is in as it arrives, so the arrival can
+  describe the harbour. Other world events (weather, holidays, day and
+  night) are zone-wide General chat and get the zone description only.
+- **General ambient chatter and replies to players in General**: zone
+  description only. General is zone-wide, so no subzone is described.
+
 ---
 
 ## 13n. Persistent Bot–Player Memory
@@ -4120,7 +4178,7 @@ prompt (idle statements and conversations, player replies and login
 greetings) quotes the Guild Information text when it is set, as background
 about the guild and never as instructions.
 
-### MOTD and zone topics in Guild chat
+### MOTD, subzone and zone topics in Guild chat
 
 An idle Guild statement or conversation can take a guild-specific subject
 instead of a generic one:
@@ -4128,6 +4186,7 @@ instead of a generic one:
 | Subject | Key | Default | Notes |
 |---------|-----|---------|-------|
 | Current MOTD | `GuildChatter.MotdChance` | 15 | Framed as a casual note, never instructions |
+| Speaker's opinion of its subzone | `GuildChatter.SubzoneTopicChance` | 10 | Names the subzone and zone; roleplay adds both descriptions |
 | Speaker's opinion of its zone | `GuildChatter.ZoneTopicChance` | 10 | Names the zone; others agree or argue |
 | Zone at this hour and in this weather | `GuildChatter.ZoneWeatherTopicChance` | 8 | Uses the cached zone weather sent by the server |
 
@@ -4141,6 +4200,12 @@ used. The zone weather comes from `GetZoneWeatherName()`, added to the
 has no observation for the zone (and absent from events queued before
 the upgrade); the zone-weather topic is then skipped rather than
 inventing a weather.
+
+The subzone topic is only rolled when the speaker stands inside a named
+subzone of its zone. `guild_idle_chatter` carries the speaker's `area_id`,
+and each participant object carries its own; events queued by an older
+worldserver have none, and the subzone topic is then skipped. The zone
+topic uses the full zone description from `get_zone_lore()`.
 
 #### MOTD tone
 
@@ -4228,6 +4293,7 @@ apply `data/sql/characters/updates/20261002_guild_world_events.sql`
 because `llm_chatter_events.event_type` is an SQL enum.
 
 | `GuildChatter.MotdChance` | 15 | 15 | Bridge |
+| `GuildChatter.SubzoneTopicChance` | 10 | 10 | Bridge |
 | `GuildChatter.ZoneTopicChance` | 10 | 10 | Bridge |
 | `GuildChatter.ZoneWeatherTopicChance` | 8 | 8 | Bridge |
 | `GuildChatter.GeneralDiscussionChance` | 10 | 5 | Bridge |
