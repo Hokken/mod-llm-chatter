@@ -482,6 +482,11 @@ def test_npc_encounter_names_npc_without_inventing_history():
     assert 'Innkeeper Grosk <Innkeeper>' in scenario
     assert 'opinion' in scenario
     assert 'had not met' not in scenario and 'met before' not in scenario
+    # No ready-made verdict words for the model to copy.
+    lowered = scenario.lower()
+    for word in ('overpriced', 'worth a visit', 'worth the trip', 'gruff'):
+        assert word not in lowered, word
+    assert any(angle in scenario for angle in world.NPC_REMARK_ANGLES)
 
 
 def test_npc_encounter_posts_filler_guild_line():

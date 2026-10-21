@@ -40,6 +40,7 @@ from chatter_text import (
     parse_single_response,
     _sanitize_action,
     cleanup_message,
+    split_action_prefix,
     shorten_chat_message,
     shorten_chat_question,
     extract_conversation_msg_count,
@@ -1653,6 +1654,31 @@ def get_subzone_name(
     return None
 
 
+def find_subzone_id(zone_id: int, subzone_name: str) -> int:
+    """Area ID of a named subzone of zone_id, or 0.
+
+    For payloads that carry the subzone name but no area_id (an older
+    worldserver). Names are matched case-insensitively against the
+    English entries and every localized subzone-name table, within
+    this zone only, since subzone names repeat across zones.
+    """
+    wanted = str(subzone_name or '').strip().casefold()
+    if not zone_id or not wanted:
+        return 0
+    subzones = _load_subzone_lore().get("zones", {}).get(
+        str(zone_id), {}
+    ).get("subzones", {})
+    for area_id, entry in subzones.items():
+        if str(entry.get("name") or '').casefold() == wanted:
+            return int(area_id)
+    for localized_map in _SUBZONE_NAME_LOCALE_MAPS.values():
+        for area_id, name in localized_map.items():
+            if (str(area_id) in subzones
+                    and str(name or '').casefold() == wanted):
+                return int(area_id)
+    return 0
+
+
 def build_zone_metadata(
     zone_name: str = '',
     zone_flavor: str = '',
@@ -2744,8 +2770,13 @@ def brief_casual_response_fits(
     emote: Optional[str] = None,
     tier: Optional[str] = None,
 ) -> bool:
-    """Validate the hard output contract for a brief casual turn."""
-    text = str(message or '').strip()
+    """Validate the hard output contract for a brief casual turn.
+
+    Only the spoken words count. A leading *action* is delivered as
+    a separate text emote, so it never makes a short reply too long.
+    """
+    text, _ = split_action_prefix(str(message or '').strip())
+    text = (text or '').strip()
     if not text:
         return bool(emote)
     _, hi, chars = _brief_casual_limits(tier)

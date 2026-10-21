@@ -128,6 +128,21 @@ def _place_lore_lines(extra: Dict, mode: str) -> List[str]:
 # Guild NPC encounter
 # --------------------------------------------------------------------------
 
+# What the speaker's remark about a nearby NPC dwells on. One is picked
+# per post, so remarks vary in what they notice; none of them suggests
+# wording, because words given as examples get copied into every reply.
+NPC_REMARK_ANGLES = (
+    "the impression this person makes at a glance: how they look, "
+    "sound or carry themselves",
+    "their trade or what they offer, seen through the speaker's own "
+    "needs and habits",
+    "a brief exchange the speaker just had with them",
+    "how they fit into the place around them",
+    "something about them the speaker is unsure of or curious about",
+    "what they remind the speaker of from their own life or travels",
+)
+
+
 def _npc_scenario(extra: Dict, mode: str) -> List[str]:
     bot_name = str(extra.get('bot_name') or 'The speaker')
     zone = get_zone_name(safe_int(extra.get('zone_id'))) or ''
@@ -138,9 +153,12 @@ def _npc_scenario(extra: Dict, mode: str) -> List[str]:
     return [
         f"{bot_name} is standing near {npc} <{what}>"
         f"{' in ' + zone if zone else ''}.",
-        f"{bot_name} mentions this {what.lower()} to the guild with a "
-        "short opinion of them. Helpful, odd, overpriced, kind, gruff, "
-        "worth a visit or not worth the trip are all possible.",
+        f"{bot_name} mentions this {what.lower()} to the guild and shares "
+        "a short, personal opinion of them, focused on "
+        f"{random.choice(NPC_REMARK_ANGLES)}.",
+        f"Let {bot_name}'s personality and tone decide how the opinion "
+        "sounds, in their own words. React to one concrete detail rather "
+        "than giving a verdict, a rating or a recommendation.",
         f"Name {npc}{' and ' + zone if zone else ''} so guildmates know "
         "who and where. Do not invent quests or rewards.",
     ] + _place_lore_lines(extra, mode)

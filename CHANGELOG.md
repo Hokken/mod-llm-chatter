@@ -1,5 +1,28 @@
 # Changelog
 
+### 2026-10-21 - Chatter Fixes
+
+* **Replies to a player addressing an NPC by name are no longer lost**:
+  a short proximity reply that began with an action (`*wipes the bar*`)
+  was measured with the action included, failed the length check twice
+  and was dropped. The action does not count any more, since it is sent
+  as a separate emote, and a reply that is still too long after its
+  repair is shortened instead of dropped.
+* **Actions start lowercase**: the game shows the bot's name before an
+  emote, so "Giggles" read as "Veliana Giggles". Actions now always begin
+  with a lowercase letter, with or without asterisks.
+* **Proximity scenes describe the subzone**: `/say` scenes and replies now
+  carry both the zone and the subzone description. With a worldserver that
+  does not send `area_id` yet, the subzone is found by its name.
+* **PvP reactions know the enemy**: in roleplay mode, Guild and General
+  kill and death reactions include the other fighter's people-and-calling
+  lore note, not only the speaker's.
+* **Varied NPC opinions**: the Guild NPC-encounter prompt no longer lists
+  ready-made verdicts ("helpful, odd, overpriced, worth a visit") that the
+  model kept repeating. Each prompt picks one angle to react from.
+* **Single-line zone descriptions**: `ZONE_FLAVOR` texts in English and the
+  four translations are now single lines, like the subzone descriptions.
+
 ### 2026-10-21 - Rewritten Location Lore and Wider Place Context
 
 * **New zone and subzone descriptions**: all subzone texts were rewritten

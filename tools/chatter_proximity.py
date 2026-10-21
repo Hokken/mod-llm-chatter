@@ -35,6 +35,7 @@ from chatter_shared import (
     find_addressed_bot,
     should_reply_to_optional_casual,
     brief_casual_response_fits,
+    bound_brief_casual_response,
     build_brief_casual_repair_prompt,
     parse_conversation_response,
     parse_extra_data,
@@ -678,10 +679,15 @@ def _parse_brief_single_with_retry(
     label: str,
     metadata: Dict,
 ) -> Dict:
-    """Parse a single response and repair one oversized brief turn."""
+    """Parse a single response and repair one oversized brief turn.
+
+    If the repair still runs long, the reply is bounded rather than
+    dropped: the player addressed this speaker and is waiting.
+    """
     parsed = parse_single_response(response or '')
     if not brief_casual:
         return parsed
+    first = parsed
 
     rendered = cleanup_message(
         str(parsed.get('message') or ''),
@@ -707,11 +713,21 @@ def _parse_brief_single_with_retry(
         str(parsed.get('message') or ''),
         action=parsed.get('action'),
     )
-    if not brief_casual_response_fits(
+    if brief_casual_response_fits(
         rendered, parsed.get('emote')
     ):
+        return parsed
+    if not parsed.get('message') and not parsed.get('emote'):
+        parsed = first
+    message, emote = bound_brief_casual_response(
+        str(parsed.get('message') or ''),
+        parsed.get('emote'),
+        str(first.get('message') or ''),
+        first.get('emote'),
+    )
+    if not message and not emote:
         return {}
-    return parsed
+    return {**parsed, 'message': message, 'emote': emote}
 
 
 def _brief_conversation_fits(messages: List[Dict]) -> bool:
@@ -725,6 +741,19 @@ def _brief_conversation_fits(messages: List[Dict]) -> bool:
         )
         for message in messages
     )
+
+
+def _bound_brief_conversation(messages: List[Dict]) -> List[Dict]:
+    """Bound each overlong line of a brief exchange instead of dropping
+    the whole reply to the player."""
+    bounded = []
+    for line in messages or []:
+        message, emote = bound_brief_casual_response(
+            str(line.get('message') or ''), line.get('emote'),
+        )
+        if message or emote:
+            bounded.append({**line, 'message': message, 'emote': emote})
+    return bounded
 
 
 def _set_line_addressee(
@@ -2332,7 +2361,7 @@ def handle_proximity_player_conversation(
             allow_emote_only=True,
         )
         if not _brief_conversation_fits(parsed):
-            parsed = []
+            parsed = _bound_brief_conversation(parsed)
     line_delay = max(0, int(
         extra.get('line_delay_seconds', 4) or 4
     ))

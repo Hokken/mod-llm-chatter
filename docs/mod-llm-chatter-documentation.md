@@ -97,7 +97,9 @@ off by `split_action_prefix()` and stored in the row's `action` column (a
 line that is nothing but an action stays intact). With
 `LLMChatter.ActionAsEmote.Enable = 1` (default), delivery sends it as a
 `/e`-style emote (`CHAT_MSG_MONSTER_EMOTE`, so the bot's name shows) just
-before the speech, on every channel. The action goes out only once the send
+before the speech, on every channel. Because the name comes first, an
+action always starts with a lowercase letter ("giggles", never "Giggles");
+an acronym such as "SI:7" keeps its case. The action goes out only once the send
 is known to be valid — for party, after the bot's group has been confirmed —
 so it never plays ahead of speech that fails. If the speech is retried after
 the action has been shown, the action is dropped from the row so it is not
@@ -960,7 +962,11 @@ A configuration enabling only one band is honored. Chosen hints are kept
 through repair and recorded as `general_reply_length_tier` in request
 metadata. Existing sentence-aware delivery cleanup still caps messages
 at 255 characters. Truly brief casual turns keep their separate tier and
-repair rules and do not expand into extended conversations.
+repair rules and do not expand into extended conversations. Only the
+spoken words count toward a brief turn's limits; a leading `*action*` is
+delivered as a separate emote and does not count. A proximity reply to
+the player that is still too long after its one repair is shortened by
+`bound_brief_casual_response()`, never dropped.
 
 This policy does not change Party, Guild or autonomous General lengths.
 Both configuration settings require a chatter bridge restart. Prompt
@@ -2804,10 +2810,12 @@ Ancients and Isle of Conquest.
 
 - **Proximity** (`proximity_say`, `proximity_conversation`, replies,
   player say and emote scenes): `build_location_prompt_lines(extra,
-  describe=True)` adds the subzone description, or the zone description
-  when the subzone has none. It is added when any speaker is in-world: an
-  NPC in either mode, or a playerbot in roleplay mode. The payload carries
-  `area_id` for this.
+  describe=True)` adds the zone description and the subzone description,
+  each when it exists. It is added when any speaker is in-world: an NPC
+  in either mode, or a playerbot in roleplay mode. The payload carries
+  `area_id` for this; a payload from an older worldserver without it finds
+  the subzone by its `subzone_name` within the zone
+  (`find_subzone_id()`).
 - **Party reactions in the open world** (kill, death, wipe, corpse run,
   quest accept, quest objectives, quest complete and their conversation
   variants, join greeting): roleplay mode only, through
@@ -3961,6 +3969,9 @@ The prompts state what happened (who killed whom, where, the factions and
 how their levels compared) and let the bot's personality and tone decide
 the reaction. Death reactions list anger, grief, a shrug, a dry joke, a
 vow of revenge or a warning as possibilities, never as a required mood.
+In roleplay mode the other fighter (the victim of a kill, the killer of a
+death) gets the same people-and-calling lore note as the speaker, with a
+priest split into Light or Shadow by talents.
 
 ### Faction and enemy context in existing PvP prompts
 
@@ -4074,7 +4085,12 @@ The prompts describe what happened and let each bot's personality and
 tone decide how it reacts. Typical reactions are offered as options (a
 greeting, a nod, a dry remark, a question; congratulations, teasing,
 indifference or disdain for the guild), never as the required mood. The
-NPC encounter does not claim the bot has never met the NPC before.
+NPC encounter does not claim the bot has never met the NPC before. It
+offers no list of verdicts to pick from: each prompt draws one angle at
+random from `NPC_REMARK_ANGLES` (the NPC's look, their trade, a brief
+exchange, how they fit the place, something curious, a memory they stir)
+and asks the bot to react to one concrete detail instead of rating the
+NPC.
 
 ## 13w. Guild Member Events
 

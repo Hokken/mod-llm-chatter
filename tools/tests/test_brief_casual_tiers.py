@@ -5,6 +5,7 @@ import importlib
 import sys
 import types
 from pathlib import Path
+from unittest.mock import patch
 
 
 def _ensure_module(name):
@@ -113,3 +114,50 @@ def test_general_prompts_use_the_picked_tier():
         brief_casual=True, brief_tier='relaxed',
     ))
     assert 'Length: 5-14 words, no more than 85 characters.' in followup
+
+
+def test_action_prefix_does_not_count_toward_the_length():
+    """The action is sent as a separate emote; counting it dropped
+    replies to a player who had addressed an NPC by name."""
+    line = '*leans on the counter, eyeing the stranger slowly* Aye, friend.'
+    assert brief_casual_response_fits(line)
+    # An action alone stays inline as the spoken line.
+    assert brief_casual_response_fits('*shrugs*')
+
+
+def test_proximity_reply_survives_an_overlong_repair():
+    import chatter_proximity as prox
+
+    long = ('{"message": "Well now, that is a long story about the old '
+            'mill and the river and everything that happened there", '
+            '"action": "Wipes the bar"}')
+    with patch.object(prox, 'call_llm', return_value=long):
+        parsed = prox._parse_brief_single_with_retry(
+            None, {}, 'prompt', long, brief_casual=True,
+            max_tokens=50, label='test', metadata={},
+        )
+    assert parsed.get('message')
+    assert parsed.get('action') == 'wipes the bar'
+
+
+def test_proximity_brief_conversation_is_bounded_not_dropped():
+    import chatter_proximity as prox
+
+    lines = prox._bound_brief_conversation([
+        {'name': 'Brawn', 'message': 'Aye. That is a long tale about '
+         'the old mill and the river and the bridge over it.'},
+        {'name': 'Kragg', 'message': '', 'emote': None},
+    ])
+    assert [line['name'] for line in lines] == ['Brawn']
+    assert lines[0]['message']
+
+
+if __name__ == '__main__':
+    tests = [
+        value
+        for name, value in globals().items()
+        if name.startswith('test_') and callable(value)
+    ]
+    for test in tests:
+        test()
+    print(f"{len(tests)} brief casual tier tests passed")

@@ -181,11 +181,36 @@ def test_proximity_location_lines_describe_on_request():
     plain = build_location_prompt_lines(extra)
     assert plain == ['Zone: Elwynn Forest', 'Subzone: Goldshire']
     described = build_location_prompt_lines(extra, describe=True)
+    assert described[-2].startswith('Zone context: Elwynn Forest:')
     assert described[-1].startswith('About this place: Goldshire')
-    # Older payloads without an area fall back to the zone flavor.
-    no_area = dict(extra, area_id=0)
+    # Older payloads without an area find the subzone by its name.
+    no_area = dict(extra, area_id=0, subzone_name='goldshire')
     assert build_location_prompt_lines(
-        no_area, describe=True)[-1].startswith('Zone context: Elwynn')
+        no_area, describe=True)[-2:] == described[-2:]
+    # An unknown name leaves the zone description alone.
+    unknown = dict(extra, area_id=0, subzone_name='Nowhere Hollow')
+    assert build_location_prompt_lines(
+        unknown, describe=True)[-1].startswith('Zone context: Elwynn')
+
+
+def test_find_subzone_id_stays_inside_the_zone():
+    from chatter_shared import find_subzone_id
+
+    assert find_subzone_id(12, 'Goldshire') == 87
+    assert find_subzone_id(1519, 'Goldshire') == 0
+    assert find_subzone_id(12, '') == 0
+    assert find_subzone_id(0, 'Goldshire') == 0
+
+
+def test_zone_flavor_is_single_line():
+    from chatter_constants import ZONE_FLAVOR
+    from chatter_shared import _ZONE_FLAVOR_LOCALE_MAPS
+
+    tables = {'enUS': ZONE_FLAVOR, **_ZONE_FLAVOR_LOCALE_MAPS}
+    for locale, table in tables.items():
+        for zone_id, text in table.items():
+            assert '\n' not in text, (locale, zone_id)
+            assert '  ' not in text, (locale, zone_id)
 
 
 def test_proximity_describes_for_in_world_speakers():

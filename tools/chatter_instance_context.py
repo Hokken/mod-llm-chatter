@@ -3,6 +3,7 @@
 from typing import Dict, List
 
 from chatter_shared import (
+    find_subzone_id,
     get_dungeon_flavor,
     get_subzone_lore,
     get_zone_flavor,
@@ -59,8 +60,10 @@ def build_location_prompt_lines(
     """Return factual prompt lines without parsing names from lore prose.
 
     With ``describe``, an outdoor location also gets its curated
-    description: the subzone lore, or the zone flavor when the subzone
-    has none. Instances always carry their instance flavor.
+    descriptions: the zone flavor and the subzone lore, each when it
+    exists. Payloads without ``area_id`` (an older worldserver) find
+    the subzone by its name. Instances always carry their instance
+    flavor.
     """
     context = build_instance_context(extra)
     if context['is_instance']:
@@ -88,15 +91,15 @@ def build_location_prompt_lines(
         )
     if describe:
         zone_id = _safe_int(extra.get('zone_id'))
-        subzone_lore = get_subzone_lore(
-            zone_id, _safe_int(extra.get('area_id'))
+        area_id = _safe_int(extra.get('area_id')) or find_subzone_id(
+            zone_id, context['subzone_name']
         )
+        zone_flavor = get_zone_flavor(zone_id) if zone_id else None
+        if zone_flavor:
+            lines.append(f"Zone context: {zone_flavor}")
+        subzone_lore = get_subzone_lore(zone_id, area_id)
         if subzone_lore:
             lines.append(f"About this place: {subzone_lore}")
-        else:
-            zone_flavor = get_zone_flavor(zone_id) if zone_id else None
-            if zone_flavor:
-                lines.append(f"Zone context: {zone_flavor}")
     return lines
 
 

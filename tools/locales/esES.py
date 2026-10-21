@@ -462,1003 +462,228 @@ ZONE_FLAVOR = {
     # -------------------------------------------------------------------------
     # Eastern Kingdoms - Khaz Modan
     # -------------------------------------------------------------------------
-    1: """Dun Morogh: Unas tierras altas nevadas entre las cumbres de Khaz
-Modan, hogar de los enanos de Forjaz y de los gnomos exiliados de Gnomeregan.
-La nieve cubre las colinas rocosas, los lagos helados brillan bajo un sol
-pálido y bosques de pinos silenciosos se alzan bajo pesados ventisqueros. El
-aire huele a escarcha, a humo de leña y a forja. Las aldeas enanas mantienen
-sus fuegos encendidos contra el frío interminable, mientras troggs, trols de
-hielo, lobos y osos hacen peligrosas las tierras salvajes.""",
+    1: """Dun Morogh: Unas tierras altas nevadas entre las cumbres de Khaz Modan, hogar de los enanos de Forjaz y de los gnomos exiliados de Gnomeregan. La nieve cubre las colinas rocosas, los lagos helados brillan bajo un sol pálido y bosques de pinos silenciosos se alzan bajo pesados ventisqueros. El aire huele a escarcha, a humo de leña y a forja. Las aldeas enanas mantienen sus fuegos encendidos contra el frío interminable, mientras troggs, trols de hielo, lobos y osos hacen peligrosas las tierras salvajes.""",
 
-    1537: """Forjaz: La antigua capital de los enanos, una inmensa ciudad
-excavada en el corazón de una montaña de Dun Morogh. Salas iluminadas con
-antorchas y pasadizos de piedra rodean la Gran Fundición, alimentada por ríos
-de roca fundida, donde el rey Magni Barbabronce gobierna Khaz Modan desde el
-Alto Trono. Los gnomos exiliados de Gnomeregan viven en Ciudad Manitas, la Liga
-de Expedicionarios busca los secretos del origen de los enanos en la Sala de
-los Expedicionarios y el Tranvía Subterráneo viaja bajo tierra hasta
-Ventormenta. El aire es cálido, humeante y resuena de martillos y risas.""",
+    1537: """Forjaz: La antigua capital de los enanos, una inmensa ciudad excavada en el corazón de una montaña de Dun Morogh. Salas iluminadas con antorchas y pasadizos de piedra rodean la Gran Fundición, alimentada por ríos de roca fundida, donde el rey Magni Barbabronce gobierna Khaz Modan desde el Alto Trono. Los gnomos exiliados de Gnomeregan viven en Ciudad Manitas, la Liga de Expedicionarios busca los secretos del origen de los enanos en la Sala de los Expedicionarios y el Tranvía Subterráneo viaja bajo tierra hasta Ventormenta. El aire es cálido, humeante y resuena de martillos y risas.""",
 
-    38: """Loch Modan: Colinas agrestes y valles verdes en el este de Khaz
-Modan, alrededor de un gran lago contenido por una enorme presa, una maravilla
-de la ingeniería enana. El clima es fresco y húmedo, con niebla sobre el agua,
-lluvias frecuentes y mañanas heladas. Los enanos pescan en el lago, extraen
-mineral de los acantilados y talan madera alrededor de Thelsamar. Máquinas de
-asedio rotas de la Horda, restos de la Segunda Guerra, aún se oxidan en las
-islas. Los troggs infestan los valles, los kóbolds ocupan una mina, los ogros
-una fortaleza al nordeste y los enanos Hierro Negro amenazan la presa.""",
+    38: """Loch Modan: Colinas agrestes y valles verdes en el este de Khaz Modan, alrededor de un gran lago contenido por una enorme presa, una maravilla de la ingeniería enana. El clima es fresco y húmedo, con niebla sobre el agua, lluvias frecuentes y mañanas heladas. Los enanos pescan en el lago, extraen mineral de los acantilados y talan madera alrededor de Thelsamar. Máquinas de asedio rotas de la Horda, restos de la Segunda Guerra, aún se oxidan en las islas. Los troggs infestan los valles, los kóbolds ocupan una mina, los ogros una fortaleza al nordeste y los enanos Hierro Negro amenazan la presa.""",
 
-    330: """Puente Thandol: Un gigantesco puente enano sobre el profundo
-estrecho que separa Khaz Modan de Lordaeron, que une los Humedales con las
-Tierras Altas de Arathi. Durante siglos lo cruzaron ejércitos y mercancías
-entre los enanos y los reinos humanos del norte. La Plaga lo dañó en la Tercera
-Guerra, y un ataque de los enanos Hierro Negro casi destruyó uno de sus tramos,
-cuyos grandes fragmentos yacen ahora bajo las olas. Sigue siendo la única ruta
-terrestre entre Lordaeron y el sur. El viento y la espuma del mar azotan sus
-alturas.""",
+    330: """Puente Thandol: Un gigantesco puente enano sobre el profundo estrecho que separa Khaz Modan de Lordaeron, que une los Humedales con las Tierras Altas de Arathi. Durante siglos lo cruzaron ejércitos y mercancías entre los enanos y los reinos humanos del norte. La Plaga lo dañó en la Tercera Guerra, y un ataque de los enanos Hierro Negro casi destruyó uno de sus tramos, cuyos grandes fragmentos yacen ahora bajo las olas. Sigue siendo la única ruta terrestre entre Lordaeron y el sur. El viento y la espuma del mar azotan sus alturas.""",
 
-    269: """Dun Algaz: Un paso abierto a través de las montañas y una vieja
-fortaleza enana entre Loch Modan y los Humedales, custodiado al sur por la
-Puerta de Algaz. Durante la Segunda Guerra fue el último bastión de la Horda en
-Khaz Modan. Sigue siendo el camino principal entre las tierras enanas y el
-Puerto de Menethil, pero orcos del clan Faucedraco han tomado el puesto de
-avanzada en mitad del paso, y los guardias de montaña enanos solo mantienen el
-túnel superior. Los túneles son oscuros, fríos y resonantes, y el camino a
-través de ellos se ha vuelto peligroso.""",
+    269: """Dun Algaz: Un paso abierto a través de las montañas y una vieja fortaleza enana entre Loch Modan y los Humedales, custodiado al sur por la Puerta de Algaz. Durante la Segunda Guerra fue el último bastión de la Horda en Khaz Modan. Sigue siendo el camino principal entre las tierras enanas y el Puerto de Menethil, pero orcos del clan Faucedraco han tomado el puesto de avanzada en mitad del paso, y los guardias de montaña enanos solo mantienen el túnel superior. Los túneles son oscuros, fríos y resonantes, y el camino a través de ellos se ha vuelto peligroso.""",
 
-    11: """Los Humedales: Unos vastos y fríos pantanos al norte de Khaz Modan,
-surcados de ríos, ciénagas y canales ahogados por los juncos entre las montañas
-y la bahía de Baradin. La niebla cubre el suelo, el cielo es de un gris
-uniforme y llueve a menudo. Antaño tierra de fortalezas Martillo Salvaje, fue
-arrasada en la Segunda y la Tercera Guerra, cuando el clan Faucedraco ocupaba
-Grim Batol y esclavizaba a la Reina de los Dragones Alexstrasza. El Puerto de
-Menethil, en la costa oeste, une por mar Khaz Modan con Kalimdor y Rasganorte.
-Restos del clan Faucedraco, enanos Hierro Negro, gnolls, múrlocs, raptores y
-crocoliscos hacen peligrosos los pantanos.""",
+    11: """Los Humedales: Unos vastos y fríos pantanos al norte de Khaz Modan, surcados de ríos, ciénagas y canales ahogados por los juncos entre las montañas y la bahía de Baradin. La niebla cubre el suelo, el cielo es de un gris uniforme y llueve a menudo. Antaño tierra de fortalezas Martillo Salvaje, fue arrasada en la Segunda y la Tercera Guerra, cuando el clan Faucedraco ocupaba Grim Batol y esclavizaba a la Reina de los Dragones Alexstrasza. El Puerto de Menethil, en la costa oeste, une por mar Khaz Modan con Kalimdor y Rasganorte. Restos del clan Faucedraco, enanos Hierro Negro, gnolls, múrlocs, raptores y crocoliscos hacen peligrosos los pantanos.""",
 
-    3: """Tierras Inhóspitas: Un páramo abrasado por el sol, de tierra roja
-agrietada, mesetas y cañones sinuosos al sur de Khaz Modan. El agua escasea,
-los días son tórridos y las tormentas de polvo barren las llanuras desnudas,
-donde solo sobreviven coyotes, buitres, escórpidos, basiliscos y elementales de
-roca. Al norte se encuentra Uldaman, una cámara de los titanes desenterrada por
-excavaciones enanas y defendida ahora por los troggs que despertaron. Los
-enanos Hierro Negro excavan allí para su amo Ragnaros, los ogros recorren la
-región, dragones negros anidan en los cañones del este y la Horda mantiene la
-fortaleza de Kargath.""",
+    3: """Tierras Inhóspitas: Un páramo abrasado por el sol, de tierra roja agrietada, mesetas y cañones sinuosos al sur de Khaz Modan. El agua escasea, los días son tórridos y las tormentas de polvo barren las llanuras desnudas, donde solo sobreviven coyotes, buitres, escórpidos, basiliscos y elementales de roca. Al norte se encuentra Uldaman, una cámara de los titanes desenterrada por excavaciones enanas y defendida ahora por los troggs que despertaron. Los enanos Hierro Negro excavan allí para su amo Ragnaros, los ogros recorren la región, dragones negros anidan en los cañones del este y la Horda mantiene la fortaleza de Kargath.""",
 
-    51: """La Garganta de Fuego: Un páramo volcánico de ceniza, escoria y lava
-entre las Tierras Inhóspitas y la Montaña Roca Negra, antaño parte de las
-verdes Montañas Crestagrana, hasta que la invocación de Ragnaros por Thaurissan
-desgarró la tierra. El aire es caliente, seco y lleno de humo, y elementales de
-fuego vagan entre las rocas calcinadas. Los enanos Hierro Negro dominan la
-garganta y obligan a cautivos a trabajar en la gigantesca excavación del
-Caldero. En su borde norte, los artesanos de la Hermandad del Torio, que
-rompieron con su clan, mantienen el asentamiento neutral de Puesto del Torio.""",
+    51: """La Garganta de Fuego: Un páramo volcánico de ceniza, escoria y lava entre las Tierras Inhóspitas y la Montaña Roca Negra, antaño parte de las verdes Montañas Crestagrana, hasta que la invocación de Ragnaros por Thaurissan desgarró la tierra. El aire es caliente, seco y lleno de humo, y elementales de fuego vagan entre las rocas calcinadas. Los enanos Hierro Negro dominan la garganta y obligan a cautivos a trabajar en la gigantesca excavación del Caldero. En su borde norte, los artesanos de la Hermandad del Torio, que rompieron con su clan, mantienen el asentamiento neutral de Puesto del Torio.""",
 
-    25: """Montaña Roca Negra: Un volcán imponente y aún activo entre la
-Garganta de Fuego y las Estepas Ardientes, nacido cuando el thane hechicero
-Hierro Negro Thaurissan invocó a Ragnaros, el Señor del Fuego. Los enanos
-Hierro Negro excavaron una inmensa ciudad en sus profundidades, y sobre ella se
-alza la Cumbre de Roca Negra. La montaña está ferozmente disputada: Ragnaros y
-sus sirvientes Hierro Negro dominan las profundidades y el núcleo fundido,
-mientras el dragón negro Nefarian manda sobre orcos, ogros y dracónidos desde
-las alturas de la cumbre. Cadenas y plataformas cruzan una sala de roca
-fundida, y el calor, el humo y el rugido nunca cesan.""",
+    25: """Montaña Roca Negra: Un volcán imponente y aún activo entre la Garganta de Fuego y las Estepas Ardientes, nacido cuando el thane hechicero Hierro Negro Thaurissan invocó a Ragnaros, el Señor del Fuego. Los enanos Hierro Negro excavaron una inmensa ciudad en sus profundidades, y sobre ella se alza la Cumbre de Roca Negra. La montaña está ferozmente disputada: Ragnaros y sus sirvientes Hierro Negro dominan las profundidades y el núcleo fundido, mientras el dragón negro Nefarian manda sobre orcos, ogros y dracónidos desde las alturas de la cumbre. Cadenas y plataformas cruzan una sala de roca fundida, y el calor, el humo y el rugido nunca cesan.""",
 
-    46: """Las Estepas Ardientes: Una tierra volcánica calcinada al sur de la
-Montaña Roca Negra, el único paso terrestre entre Ventormenta y Khaz Modan.
-Tierra carbonizada, estribaciones escarpadas y ríos de lava se extienden bajo
-un cielo enrojecido por la montaña, y el aire caliente y seco arrastra ceniza.
-Abandonadas por Ventormenta, las estepas pertenecen a los siervos del Vuelo
-Negro y a los agentes de Ragnaros: orcos Roca Negra que rechazan a Thrall,
-ogros, dragones negros y enanos Hierro Negro. Aquí cayó Anduin Lothar al final
-de la Segunda Guerra. La Alianza se aferra a la Vigía de Morgan.""",
+    46: """Las Estepas Ardientes: Una tierra volcánica calcinada al sur de la Montaña Roca Negra, el único paso terrestre entre Ventormenta y Khaz Modan. Tierra carbonizada, estribaciones escarpadas y ríos de lava se extienden bajo un cielo enrojecido por la montaña, y el aire caliente y seco arrastra ceniza. Abandonadas por Ventormenta, las estepas pertenecen a los siervos del Vuelo Negro y a los agentes de Ragnaros: orcos Roca Negra que rechazan a Thrall, ogros, dragones negros y enanos Hierro Negro. Aquí cayó Anduin Lothar al final de la Segunda Guerra. La Alianza se aferra a la Vigía de Morgan.""",
 
     # -------------------------------------------------------------------------
     # Eastern Kingdoms - Azeroth
     # -------------------------------------------------------------------------
-    12: """Bosque de Elwynn: El corazón verde del reino de Ventormenta, una
-tierra apacible de bosques de robles y pinos, praderas, lagos y granjas al sur
-de la capital, con la aldea de Villadorada en su centro y la Abadía de
-Villanorte en un valle al norte. La Horda lo arrasó en la Primera Guerra, y los
-canteros no pagados que reconstruyeron Ventormenta se convirtieron en la
-Hermandad Defias. La paz es frágil: bandidos Defias ocupan granjas, los kóbolds
-infestan las minas, los gnolls acampan en la frontera oeste y los múrlocs
-habitan los lagos, mientras la guardia está agotada por guerras lejanas.""",
+    12: """Bosque de Elwynn: El corazón verde del reino de Ventormenta, una tierra apacible de bosques de robles y pinos, praderas, lagos y granjas al sur de la capital, con la aldea de Villadorada en su centro y la Abadía de Villanorte en un valle al norte. La Horda lo arrasó en la Primera Guerra, y los canteros no pagados que reconstruyeron Ventormenta se convirtieron en la Hermandad Defias. La paz es frágil: bandidos Defias ocupan granjas, los kóbolds infestan las minas, los gnolls acampan en la frontera oeste y los múrlocs habitan los lagos, mientras la guardia está agotada por guerras lejanas.""",
 
-    1519: """Ventormenta: La capital del reino de Ventormenta y la ciudad
-humana más grandiosa del mundo, reconstruida tras la Primera Guerra con
-murallas de piedra blanca, torres de tejados azules y distritos separados por
-canales. El rey Varian Wrynn gobierna desde el Castillo de Ventormenta tras su
-larga ausencia. La Catedral de la Luz es el corazón de la fe en la Luz Sagrada,
-y la ciudad alberga el Distrito de Mercaderes, el Casco Antiguo con el IV:7, el
-Barrio de los Magos, el Distrito de los Enanos con el Tranvía Subterráneo hacia
-Forjaz y el Parque con su pozo de la luna. Humanos, enanos, gnomos, elfos de la
-noche y draenei recorren sus calles.""",
+    1519: """Ventormenta: La capital del reino de Ventormenta y la ciudad humana más grandiosa del mundo, reconstruida tras la Primera Guerra con murallas de piedra blanca, torres de tejados azules y distritos separados por canales. El rey Varian Wrynn gobierna desde el Castillo de Ventormenta tras su larga ausencia. La Catedral de la Luz es el corazón de la fe en la Luz Sagrada, y la ciudad alberga el Distrito de Mercaderes, el Casco Antiguo con el IV:7, el Barrio de los Magos, el Distrito de los Enanos con el Tranvía Subterráneo hacia Forjaz y el Parque con su pozo de la luna. Humanos, enanos, gnomos, elfos de la noche y draenei recorren sus calles.""",
 
-    40: """Páramos de Poniente: Tierras de cultivo onduladas en la costa oeste
-de Ventormenta, antaño el granero del reino y hoy caídas en la ruina. Los
-campos están yermos, la hierba amarillea y el viento del mar arrastra polvo
-sobre granjas abandonadas. La Hermandad Defias, forajidos nacidos de los
-canteros no pagados de Ventormenta, ha expulsado a muchos granjeros, ocupa la
-aldea fantasma de Arroyoluna y ha soltado guardianes de cosechas descontrolados
-en los campos. Los gnolls asaltan desde el sur y los múrlocs merodean la costa.
-La Milicia del Pueblo resiste en la Colina del Centinela, y los granjeros se
-sienten olvidados por la corona.""",
+    40: """Páramos de Poniente: Tierras de cultivo onduladas en la costa oeste de Ventormenta, antaño el granero del reino y hoy caídas en la ruina. Los campos están yermos, la hierba amarillea y el viento del mar arrastra polvo sobre granjas abandonadas. La Hermandad Defias, forajidos nacidos de los canteros no pagados de Ventormenta, ha expulsado a muchos granjeros, ocupa la aldea fantasma de Arroyoluna y ha soltado guardianes de cosechas descontrolados en los campos. Los gnolls asaltan desde el sur y los múrlocs merodean la costa. La Milicia del Pueblo resiste en la Colina del Centinela, y los granjeros se sienten olvidados por la corona.""",
 
-    44: """Montañas Crestagrana: Picos rojizos, altos olmos y ríos caudalosos
-al este del Bosque de Elwynn, alrededor de las aguas azules del Lago Sempiterno
-y del viejo pueblo de Villa del Lago. Sus habitantes, recios y autónomos,
-abastecen a Ventormenta de madera, pescado y grano. La cordillera quedó
-destrozada hace mucho por la invocación de Ragnaros. Hoy es tierra fronteriza:
-orcos Roca Negra de las Estepas Ardientes han tomado la fortaleza de Petravista
-y acampan en las colinas, los gnolls reclaman los cañones, los múrlocs infestan
-el lago y crías de dragón negro recorren las alturas. Villa del Lago depende de
-su pequeña guardia.""",
+    44: """Montañas Crestagrana: Picos rojizos, altos olmos y ríos caudalosos al este del Bosque de Elwynn, alrededor de las aguas azules del Lago Sempiterno y del viejo pueblo de Villa del Lago. Sus habitantes, recios y autónomos, abastecen a Ventormenta de madera, pescado y grano. La cordillera quedó destrozada hace mucho por la invocación de Ragnaros. Hoy es tierra fronteriza: orcos Roca Negra de las Estepas Ardientes han tomado la fortaleza de Petravista y acampan en las colinas, los gnolls reclaman los cañones, los múrlocs infestan el lago y crías de dragón negro recorren las alturas. Villa del Lago depende de su pequeña guardia.""",
 
-    10: """Bosque del Ocaso: Un bosque oscuro y maldito al sur de Elwynn,
-antaño luminoso y hermoso, hoy engullido por un crepúsculo eterno y
-antinatural. Una niebla negra flota entre árboles retorcidos, y el aire es frío
-y huele a podredumbre. Unos culpan al mal de Karazhan, otros a un antiguo
-artefacto y a los huargen que llegaron con la maldición. Los muertos se
-levantan de los cementerios, huargen y arañas gigantes acechan en el bosque, y
-se dice que los Jinetes Negros surgen de la noche. Los tozudos habitantes de
-Villa Oscura, protegidos por la Guardia Nocturna, se sienten abandonados por
-Ventormenta.""",
+    10: """Bosque del Ocaso: Un bosque oscuro y maldito al sur de Elwynn, antaño luminoso y hermoso, hoy engullido por un crepúsculo eterno y antinatural. Una niebla negra flota entre árboles retorcidos, y el aire es frío y huele a podredumbre. Unos culpan al mal de Karazhan, otros a un antiguo artefacto y a los huargen que llegaron con la maldición. Los muertos se levantan de los cementerios, huargen y arañas gigantes acechan en el bosque, y se dice que los Jinetes Negros surgen de la noche. Los tozudos habitantes de Villa Oscura, protegidos por la Guardia Nocturna, se sienten abandonados por Ventormenta.""",
 
-    41: """Paso de la Muerte: Un cañón desolado y maldito entre el Bosque del
-Ocaso y el Pantano de las Penas, donde los árboles se alzan desnudos y
-petrificados, la hierba es gris y un viento fétido y aullante nunca cesa. Las
-tormentas amenazan sin descanso y los rayos golpean las rocas desnudas. Al sur
-se alza Karazhan, la torre de Medivh, el último Guardián de Tirisfal, que abrió
-el Portal Oscuro; una magia maligna aún emana de ella y drena la vida de la
-tierra. Ogros, espíritus sin descanso y aves carroñeras pueblan el paso, y se
-susurra que una nueva presencia oscura se ha adueñado de la torre.""",
+    41: """Paso de la Muerte: Un cañón desolado y maldito entre el Bosque del Ocaso y el Pantano de las Penas, donde los árboles se alzan desnudos y petrificados, la hierba es gris y un viento fétido y aullante nunca cesa. Las tormentas amenazan sin descanso y los rayos golpean las rocas desnudas. Al sur se alza Karazhan, la torre de Medivh, el último Guardián de Tirisfal, que abrió el Portal Oscuro; una magia maligna aún emana de ella y drena la vida de la tierra. Ogros, espíritus sin descanso y aves carroñeras pueblan el paso, y se susurra que una nueva presencia oscura se ha adueñado de la torre.""",
 
-    8: """Pantano de las Penas: Un pantano estancado y envuelto en niebla, de
-ciénagas, sauces llorones y charcas salobres al este del Paso de la Muerte,
-antaño la parte norte de la Ciénaga Negra. El aire es húmedo y pesado, y
-crocoliscos, jaguares, arañas y bestias del pantano acechan entre los juncos.
-Los Atal'ai erigieron aquí un templo al dios de la sangre Hakkar, y el Aspecto
-Ysera lo hundió bajo la ciénaga más grande, donde sus dragones aún montan
-guardia. La Horda ocupa Rocal, reconstruida. Los Perdidos y los Tábidos,
-draenei varados en Azeroth, viven en el pantano, y los múrlocs pueblan la
-costa.""",
+    8: """Pantano de las Penas: Un pantano estancado y envuelto en niebla, de ciénagas, sauces llorones y charcas salobres al este del Paso de la Muerte, antaño la parte norte de la Ciénaga Negra. El aire es húmedo y pesado, y crocoliscos, jaguares, arañas y bestias del pantano acechan entre los juncos. Los Atal'ai erigieron aquí un templo al dios de la sangre Hakkar, y el Aspecto Ysera lo hundió bajo la ciénaga más grande, donde sus dragones aún montan guardia. La Horda ocupa Rocal, reconstruida. Los Perdidos y los Tábidos, draenei varados en Azeroth, viven en el pantano, y los múrlocs pueblan la costa.""",
 
-    4: """Las Tierras Devastadas: Un desierto calcinado de arcilla carmesí al
-sur del Pantano de las Penas, antaño el sur de la Ciénaga Negra, deformado por
-la magia del Portal Oscuro. Los rayos caen a menudo, nada fértil crece, los
-días son calurosos y las noches gélidas. Basiliscos, escórpidos y hienas
-mutados vagan por la región. El Portal Oscuro se alza en un enorme cráter al
-sudeste, abierto de nuevo hacia Terrallende, y ejércitos de la Alianza y de la
-Horda custodian su base. El Castillo de Nethergarde, fundado por Khadgar,
-vigila desde el norte; ogros y restos de la Legión acechan en el páramo.""",
+    4: """Las Tierras Devastadas: Un desierto calcinado de arcilla carmesí al sur del Pantano de las Penas, antaño el sur de la Ciénaga Negra, deformado por la magia del Portal Oscuro. Los rayos caen a menudo, nada fértil crece, los días son calurosos y las noches gélidas. Basiliscos, escórpidos y hienas mutados vagan por la región. El Portal Oscuro se alza en un enorme cráter al sudeste, abierto de nuevo hacia Terrallende, y ejércitos de la Alianza y de la Horda custodian su base. El Castillo de Nethergarde, fundado por Khadgar, vigila desde el norte; ogros y restos de la Legión acechan en el páramo.""",
 
-    33: """Vega de Tuercespina: Una inmensa jungla humeante en la punta sur de
-los Reinos del Este, llena de árboles gigantescos, lianas y maleza espinosa,
-habitada por tigres, panteras, raptores, gorilas y crocoliscos. Fue el corazón
-del imperio trol Gurubashi hasta que la invocación de Hakkar lo desgarró; hoy
-las ruinas cubren la tierra, las tribus Sangrapellejo y Machacacráneos combaten
-a los forasteros y Zul'Gurub ha vuelto a caer bajo el dominio de Hakkar.
-Goblins, piratas, ogros, nagas y rebeldes reclaman su parte. Bahía del Botín es
-el bullicioso puerto neutral del cabo sur, y la Horda mantiene Grom'gol en la
-costa.""",
+    33: """Vega de Tuercespina: Una inmensa jungla humeante en la punta sur de los Reinos del Este, llena de árboles gigantescos, lianas y maleza espinosa, habitada por tigres, panteras, raptores, gorilas y crocoliscos. Fue el corazón del imperio trol Gurubashi hasta que la invocación de Hakkar lo desgarró; hoy las ruinas cubren la tierra, las tribus Sangrapellejo y Machacacráneos combaten a los forasteros y Zul'Gurub ha vuelto a caer bajo el dominio de Hakkar. Goblins, piratas, ogros, nagas y rebeldes reclaman su parte. Bahía del Botín es el bullicioso puerto neutral del cabo sur, y la Horda mantiene Grom'gol en la costa.""",
 
     # -------------------------------------------------------------------------
     # Eastern Kingdoms - Lordaeron
     # -------------------------------------------------------------------------
-    85: """Claros de Tirisfal: Colinas boscosas en la costa norte de Lordaeron,
-antaño el corazón del reino humano y hoy la patria de los Renegados de Sylvanas
-Brisaveloz. El cielo es lúgubre y teñido de verde, una niebla fría flota sobre
-granjas abandonadas, lagos silenciosos y molinos en ruinas, pero la tierra
-conserva una belleza melancólica, sobre todo alrededor de la aldea de Rémol.
-Aquí Kel'Thuzad propagó la peste por primera vez y Arthas mató a su padre. Bajo
-la capital en ruinas se extiende Entrañas. La Plaga aún ronda las granjas, la
-Cruzada Escarlata mantiene su monasterio y el Baluarte vigila las Tierras de la
-Peste.""",
+    85: """Claros de Tirisfal: Colinas boscosas en la costa norte de Lordaeron, antaño el corazón del reino humano y hoy la patria de los Renegados de Sylvanas Brisaveloz. El cielo es lúgubre y teñido de verde, una niebla fría flota sobre granjas abandonadas, lagos silenciosos y molinos en ruinas, pero la tierra conserva una belleza melancólica, sobre todo alrededor de la aldea de Rémol. Aquí Kel'Thuzad propagó la peste por primera vez y Arthas mató a su padre. Bajo la capital en ruinas se extiende Entrañas. La Plaga aún ronda las granjas, la Cruzada Escarlata mantiene su monasterio y el Baluarte vigila las Tierras de la Peste.""",
 
-    1497: """Entrañas: La capital de los Renegados, una inmensa ciudad
-subterránea bajo las ruinas de la capital real de Lordaeron, nacida de las
-antiguas criptas reales, mazmorras y alcantarillas. Arthas comenzó a ampliarla
-y Sylvanas terminó la obra tras expulsar a los señores del terror. La ciudad es
-oscura, fría y laberíntica, construida en anillos alrededor del Barrio
-Comercial, con los barrios de los Magos, de los Pícaros y de la Guerra y el
-Apothecarium, donde la Real Sociedad de Boticarios elabora pestes y venenos. Un
-limo verde corre por los canales, grandes elevadores llevan a los viajeros a
-las ruinas de la superficie y Sylvanas gobierna desde el Barrio Real.""",
+    1497: """Entrañas: La capital de los Renegados, una inmensa ciudad subterránea bajo las ruinas de la capital real de Lordaeron, nacida de las antiguas criptas reales, mazmorras y alcantarillas. Arthas comenzó a ampliarla y Sylvanas terminó la obra tras expulsar a los señores del terror. La ciudad es oscura, fría y laberíntica, construida en anillos alrededor del Barrio Comercial, con los barrios de los Magos, de los Pícaros y de la Guerra y el Apothecarium, donde la Real Sociedad de Boticarios elabora pestes y venenos. Un limo verde corre por los canales, grandes elevadores llevan a los viajeros a las ruinas de la superficie y Sylvanas gobierna desde el Barrio Real.""",
 
-    130: """Bosque de Argénteos: Un antiguo bosque de altos pinos de corteza
-plateada a lo largo de la costa oeste de Lordaeron, embrujado y enfermo desde
-que la Plaga lo atravesó a sangre y fuego en la Tercera Guerra. Nieblas
-fantasmales flotan entre los árboles, y granjas quemadas y minas abandonadas
-salpican la tierra. Los Renegados dominan el norte desde El Sepulcro y combaten
-a gnolls apestados. Al sur, los magos de Dalaran protegen una aldea molinera,
-los habitantes de Aldea Piroleña sufren una maldición que los convierte en
-huargen de noche, Arugal medita en el Castillo de Colmillo Oscuro y la Muralla
-de Cringris aísla Gilneas.""",
+    130: """Bosque de Argénteos: Un antiguo bosque de altos pinos de corteza plateada a lo largo de la costa oeste de Lordaeron, embrujado y enfermo desde que la Plaga lo atravesó a sangre y fuego en la Tercera Guerra. Nieblas fantasmales flotan entre los árboles, y granjas quemadas y minas abandonadas salpican la tierra. Los Renegados dominan el norte desde El Sepulcro y combaten a gnolls apestados. Al sur, los magos de Dalaran protegen una aldea molinera, los habitantes de Aldea Piroleña sufren una maldición que los convierte en huargen de noche, Arugal medita en el Castillo de Colmillo Oscuro y la Muralla de Cringris aísla Gilneas.""",
 
-    170: """Lago Lordamere: Uno de los mayores lagos de los Reinos del Este,
-una vasta extensión de agua fría y gris en el corazón del caído reino de
-Lordaeron, cuya capital se alzaba en la orilla norte. A su alrededor se
-extendían Lordaeron, Dalaran y Alterac, los grandes reinos de la antigua
-Alianza. Hoy separa las tierras de los Renegados de las Montañas de Alterac. La
-Isla de Fenris y su sombrío torreón ocupan el centro, las Islas del Alba forman
-el borde de un antiguo volcán y una vieja peste dejó sus aguas extrañamente
-vacías de vida. La niebla flota a menudo sobre el lago, y los múrlocs acampan
-en sus orillas.""",
+    170: """Lago Lordamere: Uno de los mayores lagos de los Reinos del Este, una vasta extensión de agua fría y gris en el corazón del caído reino de Lordaeron, cuya capital se alzaba en la orilla norte. A su alrededor se extendían Lordaeron, Dalaran y Alterac, los grandes reinos de la antigua Alianza. Hoy separa las tierras de los Renegados de las Montañas de Alterac. La Isla de Fenris y su sombrío torreón ocupan el centro, las Islas del Alba forman el borde de un antiguo volcán y una vieja peste dejó sus aguas extrañamente vacías de vida. La niebla flota a menudo sobre el lago, y los múrlocs acampan en sus orillas.""",
 
-    267: """Laderas de Trabalomas: Colinas verdes, praderas, pinares y tierras
-de cultivo al sur de Lordaeron, la región mejor conservada del reino caído. Un
-río que nace en el lago Darrowmere atraviesa las colinas, y pequeñas islas
-salpican la costa sur. Es también uno de los campos de batalla más sangrientos
-de Azeroth: aquí se libró la primera batalla de la Segunda Guerra, y en el
-Castillo de Durnholde estaban los campos de internamiento donde el joven Thrall
-vivió como esclavo. La ciudad humana de Costasur y los Renegados de Molino
-Tarren libran una lucha encarnizada, mientras el Sindicato ocupa las ruinas de
-Durnholde.""",
+    267: """Laderas de Trabalomas: Colinas verdes, praderas, pinares y tierras de cultivo al sur de Lordaeron, la región mejor conservada del reino caído. Un río que nace en el lago Darrowmere atraviesa las colinas, y pequeñas islas salpican la costa sur. Es también uno de los campos de batalla más sangrientos de Azeroth: aquí se libró la primera batalla de la Segunda Guerra, y en el Castillo de Durnholde estaban los campos de internamiento donde el joven Thrall vivió como esclavo. La ciudad humana de Costasur y los Renegados de Molino Tarren libran una lucha encarnizada, mientras el Sindicato ocupa las ruinas de Durnholde.""",
 
-    36: """Montañas de Alterac: Picos nevados al norte de Trabalomas, antaño el
-reino humano de Alterac, destruido por la Alianza después de que lord Perenolde
-lo entregara a la Horda. Los nobles exiliados fundaron el Sindicato, que ocupa
-las tierras altas y campamentos sobre Trabalomas, mientras los ogros ocupan las
-ruinas de la ciudad de Alterac. En la orilla del Lago Lordamere se abre el
-cráter donde se alzaba Dalaran antes de volar a Rasganorte. En un valle oculto,
-los orcos Lobo Gélido combaten a los enanos de la Expedición Pico Tormenta, y
-la misteriosa Mansión Ravenholdt se esconde entre las cumbres. Yetis y leones
-de montaña recorren la nieve.""",
+    36: """Montañas de Alterac: Picos nevados al norte de Trabalomas, antaño el reino humano de Alterac, destruido por la Alianza después de que lord Perenolde lo entregara a la Horda. Los nobles exiliados fundaron el Sindicato, que ocupa las tierras altas y campamentos sobre Trabalomas, mientras los ogros ocupan las ruinas de la ciudad de Alterac. En la orilla del Lago Lordamere se abre el cráter donde se alzaba Dalaran antes de volar a Rasganorte. En un valle oculto, los orcos Lobo Gélido combaten a los enanos de la Expedición Pico Tormenta, y la misteriosa Mansión Ravenholdt se esconde entre las cumbres. Yetis y leones de montaña recorren la nieve.""",
 
-    45: """Tierras Altas de Arathi: Tierras altas grises y ventosas de hierba
-ondulante y rocas al sudeste de Lordaeron, cuna de la civilización humana,
-donde Thoradin fundó el Imperio de Arathor y donde humanos y altos elfos se
-aliaron por primera vez contra los Amani. Más tarde nació aquí el reino de
-Stromgarde, pero el Sindicato y los ogros tomaron su capital, y su ejército
-resiste ahora en el Refugio de la Zaga. La Horda ocupa Sentencia, el antiguo
-campo de internamiento. Ogros, trols del bosque, raptores y kóbolds recorren la
-región, y antiguos círculos de piedra mantendrían algo prisionero.""",
+    45: """Tierras Altas de Arathi: Tierras altas grises y ventosas de hierba ondulante y rocas al sudeste de Lordaeron, cuna de la civilización humana, donde Thoradin fundó el Imperio de Arathor y donde humanos y altos elfos se aliaron por primera vez contra los Amani. Más tarde nació aquí el reino de Stromgarde, pero el Sindicato y los ogros tomaron su capital, y su ejército resiste ahora en el Refugio de la Zaga. La Horda ocupa Sentencia, el antiguo campo de internamiento. Ogros, trols del bosque, raptores y kóbolds recorren la región, y antiguos círculos de piedra mantendrían algo prisionero.""",
 
-    293: """Muralla de Thoradin: Una inmensa muralla de piedra en la frontera
-entre las Laderas de Trabalomas y las Tierras Altas de Arathi, levantada en
-tiempos antiguos por el rey Thoradin, fundador del Imperio de Arathor, contra
-los trols Amani. Más tarde protegió Stromgarde del avance de la Plaga. Hoy está
-derrumbada y abierta, su gran puerta está abierta y tramos enteros se han
-convertido en escombros. El camino principal entre Trabalomas y Arathi pasa a
-su sombra, recuerdo de la gloria del primer imperio humano y de lo bajo que han
-caído sus herederos.""",
+    293: """Muralla de Thoradin: Una inmensa muralla de piedra en la frontera entre las Laderas de Trabalomas y las Tierras Altas de Arathi, levantada en tiempos antiguos por el rey Thoradin, fundador del Imperio de Arathor, contra los trols Amani. Más tarde protegió Stromgarde del avance de la Plaga. Hoy está derrumbada y abierta, su gran puerta está abierta y tramos enteros se han convertido en escombros. El camino principal entre Trabalomas y Arathi pasa a su sombra, recuerdo de la gloria del primer imperio humano y de lo bajo que han caído sus herederos.""",
 
-    47: """Tierras del Interior: Una región salvaje y montañosa de bosques
-frondosos, valles profundos y acantilados escarpados al norte de los Reinos del
-Este, intacta por la peste y de clima suave. Fue el corazón del imperio de los
-trols del bosque Amani, cuyas ruinas colosales aún se alzan entre los árboles.
-Los enanos Martillo Salvaje del alto thane Falstad viven al aire libre en Pico
-Nidal, una ciudad tallada con forma de cabeza de grifo, y montan grifos
-salvajes en la batalla. Tribus trols rivales ocupan Jintha'Alor y Shadra'Alor,
-mientras los trols Sañadiente se han aliado con la Horda. Al norte, el árbol de
-Seradane es una puerta al Sueño Esmeralda.""",
+    47: """Tierras del Interior: Una región salvaje y montañosa de bosques frondosos, valles profundos y acantilados escarpados al norte de los Reinos del Este, intacta por la peste y de clima suave. Fue el corazón del imperio de los trols del bosque Amani, cuyas ruinas colosales aún se alzan entre los árboles. Los enanos Martillo Salvaje del alto thane Falstad viven al aire libre en Pico Nidal, una ciudad tallada con forma de cabeza de grifo, y montan grifos salvajes en la batalla. Tribus trols rivales ocupan Jintha'Alor y Shadra'Alor, mientras los trols Sañadiente se han aliado con la Horda. Al norte, el árbol de Seradane es una puerta al Sueño Esmeralda.""",
 
     # -------------------------------------------------------------------------
     # Eastern Kingdoms - Plaguelands, Quel'Thalas and southern isles
     # -------------------------------------------------------------------------
-    28: """Tierras de la Peste del Oeste: Una tierra infestada al norte de
-Lordaeron, antaño el granero boscoso del norte del reino. Aquí Kel'Thuzad y el
-Culto de los Malditos envenenaron el grano de Andorhal con la peste de la
-no-muerte. Una niebla gris y humeante flota sobre la tierra, los árboles tienen
-excrecencias tumorales y las bestias supervivientes están enfermas y feroces.
-Los no-muertos infestan Andorhal, los campos de calderos y los cementerios, y
-la Plaga forma nigromantes en Scholomance, en la isla de Caer Darrow. La
-Cruzada Escarlata ocupa la Vega del Amparo, el Alba Argenta el Campamento del
-Orvallo, y la tumba de Uther el Iluminado es uno de los pocos lugares en paz.""",
+    28: """Tierras de la Peste del Oeste: Una tierra infestada al norte de Lordaeron, antaño el granero boscoso del norte del reino. Aquí Kel'Thuzad y el Culto de los Malditos envenenaron el grano de Andorhal con la peste de la no-muerte. Una niebla gris y humeante flota sobre la tierra, los árboles tienen excrecencias tumorales y las bestias supervivientes están enfermas y feroces. Los no-muertos infestan Andorhal, los campos de calderos y los cementerios, y la Plaga forma nigromantes en Scholomance, en la isla de Caer Darrow. La Cruzada Escarlata ocupa la Vega del Amparo, el Alba Argenta el Campamento del Orvallo, y la tumba de Uther el Iluminado es uno de los pocos lugares en paz.""",
 
-    139: """Tierras de la Peste del Este: La mitad más devastada de las Tierras
-de la Peste, antaño tierra de granjas y aldeas gobernada desde Stratholme,
-donde se fundó la Orden de la Mano de Plata y donde Arthas llevó a cabo su
-purga. El dominio de la Plaga es aquí casi absoluto: el suelo es pardo y
-enfermo, los árboles se han retorcido en hongos gigantes y nieblas naranjas y
-verdes ahogan el aire. Stratholme arde como capital de la Plaga en Lordaeron, y
-el Bosque de la Plaga está lleno de zigurats. La Cruzada Escarlata ocupa la
-Mano de Tyr, el Alba Argenta mantiene la Capilla de la Esperanza de la Luz
-abierta a todos los que combaten a la Plaga, y al este flota Acherus, el hogar
-de los caballeros de la Muerte.""",
+    139: """Tierras de la Peste del Este: La mitad más devastada de las Tierras de la Peste, antaño tierra de granjas y aldeas gobernada desde Stratholme, donde se fundó la Orden de la Mano de Plata y donde Arthas llevó a cabo su purga. El dominio de la Plaga es aquí casi absoluto: el suelo es pardo y enfermo, los árboles se han retorcido en hongos gigantes y nieblas naranjas y verdes ahogan el aire. Stratholme arde como capital de la Plaga en Lordaeron, y el Bosque de la Plaga está lleno de zigurats. La Cruzada Escarlata ocupa la Mano de Tyr, el Alba Argenta mantiene la Capilla de la Esperanza de la Luz abierta a todos los que combaten a la Plaga, y al este flota Acherus, el hogar de los caballeros de la Muerte.""",
 
-    3430: """Bosque Canción Eterna: El bosque encantado en el corazón de
-Quel'Thalas, detenido en un otoño eterno bajo un follaje dorado y carmesí,
-salpicado de agujas elegantes, torres flotantes y cristales arcanos. En la
-Tercera Guerra, Arthas condujo a la Plaga a través del reino hasta la Fuente
-del Sol y dejó la Cicatriz Muerta, una franja de tierra sin vida que parte el
-bosque y la propia Lunargenta. Los supervivientes tomaron el nombre de elfos de
-sangre y, bajo el regente lord Lor'themar Theron, se unieron a la Horda y
-reconstruyeron gran parte. Pero los Desdichados rondan las ruinas, constructos
-arcanos escapan a todo control, los trols acechan en las colinas y las piedras
-rúnicas que contienen la corrupción se debilitan.""",
+    3430: """Bosque Canción Eterna: El bosque encantado en el corazón de Quel'Thalas, detenido en un otoño eterno bajo un follaje dorado y carmesí, salpicado de agujas elegantes, torres flotantes y cristales arcanos. En la Tercera Guerra, Arthas condujo a la Plaga a través del reino hasta la Fuente del Sol y dejó la Cicatriz Muerta, una franja de tierra sin vida que parte el bosque y la propia Lunargenta. Los supervivientes tomaron el nombre de elfos de sangre y, bajo el regente lord Lor'themar Theron, se unieron a la Horda y reconstruyeron gran parte. Pero los Desdichados rondan las ruinas, constructos arcanos escapan a todo control, los trols acechan en las colinas y las piedras rúnicas que contienen la corrupción se debilitan.""",
 
-    3487: """Ciudad de Lunargenta: La capital de los elfos de sangre en el
-Bosque Canción Eterna, fundada hace milenios y quizá la capital más antigua que
-sigue en pie. En la Tercera Guerra, Arthas condujo a la Plaga a través de sus
-puertas y mató al rey. Los elfos de sangre han reconstruido la mitad este casi
-con su antiguo esplendor, con agujas doradas, plataformas flotantes, cristales
-encadenados rebosantes de magia y jardines exuberantes, mientras la mitad oeste
-sigue en ruinas más allá de la Cicatriz Muerta. El regente lord Lor'themar
-Theron gobierna desde la Aguja Caminante del Sol, guardianes arcanos patrullan
-las calles y un orbe de traslación une la ciudad con Entrañas.""",
+    3487: """Ciudad de Lunargenta: La capital de los elfos de sangre en el Bosque Canción Eterna, fundada hace milenios y quizá la capital más antigua que sigue en pie. En la Tercera Guerra, Arthas condujo a la Plaga a través de sus puertas y mató al rey. Los elfos de sangre han reconstruido la mitad este casi con su antiguo esplendor, con agujas doradas, plataformas flotantes, cristales encadenados rebosantes de magia y jardines exuberantes, mientras la mitad oeste sigue en ruinas más allá de la Cicatriz Muerta. El regente lord Lor'themar Theron gobierna desde la Aguja Caminante del Sol, guardianes arcanos patrullan las calles y un orbe de traslación une la ciudad con Entrañas.""",
 
-    3433: """Tierras Fantasma: El sur de Quel'Thalas, una tierra sombría de
-árboles negros y secos, cielo plomizo y frío mortal, devastada por la marcha de
-la Plaga hacia la Fuente del Sol y nunca recuperada. La Cicatriz Muerta parte
-de la Ciudad de la Muerte, la ciudadela de la Plaga gobernada por el traidor
-Dar'Khan Drathir, que ayudó a Arthas a romper las defensas del reino. Los
-fantasmas de los elfos asesinados rondan las aldeas en ruinas. Los elfos de
-sangre y sus aliados Renegados ocupan Tranquilien y quieren recuperar la
-tierra, mientras los trols Amani acechan cerca de Zul'Aman, al este. El Paso
-Thalassiano lleva al sur, a través de una antigua puerta élfica, hasta las
-Tierras de la Peste.""",
+    3433: """Tierras Fantasma: El sur de Quel'Thalas, una tierra sombría de árboles negros y secos, cielo plomizo y frío mortal, devastada por la marcha de la Plaga hacia la Fuente del Sol y nunca recuperada. La Cicatriz Muerta parte de la Ciudad de la Muerte, la ciudadela de la Plaga gobernada por el traidor Dar'Khan Drathir, que ayudó a Arthas a romper las defensas del reino. Los fantasmas de los elfos asesinados rondan las aldeas en ruinas. Los elfos de sangre y sus aliados Renegados ocupan Tranquilien y quieren recuperar la tierra, mientras los trols Amani acechan cerca de Zul'Aman, al este. El Paso Thalassiano lleva al sur, a través de una antigua puerta élfica, hasta las Tierras de la Peste.""",
 
-    4080: """Isla de Quel'Danas: Una isla frente a la costa norte del Bosque
-Canción Eterna, donde los fundadores de Quel'Thalas crearon hace siete mil años
-la Fuente del Sol, un manantial de inmenso poder. Arthas la profanó para
-resucitar a Kel'Thuzad. Recientemente, la isla fue escenario de una lucha
-desesperada, cuando Kael'thas Caminante del Sol y la Legión Ardiente quisieron
-usar la Fuente como portal, y la Ofensiva Sol Devastado de los Aldor y los
-Arúspices estableció su base en el puerto del Tramo del Sol. Las cicatrices de
-la batalla marcan la tierra, pero sus bosques dorados, playas blancas y
-elegantes agujas siguen siendo hermosos, y en su corazón se alza la Meseta de
-la Fuente del Sol.""",
+    4080: """Isla de Quel'Danas: Una isla frente a la costa norte del Bosque Canción Eterna, donde los fundadores de Quel'Thalas crearon hace siete mil años la Fuente del Sol, un manantial de inmenso poder. Arthas la profanó para resucitar a Kel'Thuzad. Recientemente, la isla fue escenario de una lucha desesperada, cuando Kael'thas Caminante del Sol y la Legión Ardiente quisieron usar la Fuente como portal, y la Ofensiva Sol Devastado de los Aldor y los Arúspices estableció su base en el puerto del Tramo del Sol. Las cicatrices de la batalla marcan la tierra, pero sus bosques dorados, playas blancas y elegantes agujas siguen siendo hermosos, y en su corazón se alza la Meseta de la Fuente del Sol.""",
 
-    408: """Isla de Gillijim: Una remota isla selvática en los Mares del Sur,
-frente a la costa sur de la Vega de Tuercespina. Los viejos mapas la señalan
-como una antigua isla trol, pero pocos marinos vivos han pisado sus orillas, y
-está lejos de las rutas comerciales habituales. El mar que la rodea es cálido,
-profundo y azul, hogar de tiburones y otras criaturas de mar abierto, y las
-corrientes pueden arrastrar a los incautos lejos de tierra. Se habla de
-antiguas ruinas trols ocultas en sus selvas, pero sus secretos siguen siendo
-desconocidos para la mayor parte del mundo.""",
+    408: """Isla de Gillijim: Una remota isla selvática en los Mares del Sur, frente a la costa sur de la Vega de Tuercespina. Los viejos mapas la señalan como una antigua isla trol, pero pocos marinos vivos han pisado sus orillas, y está lejos de las rutas comerciales habituales. El mar que la rodea es cálido, profundo y azul, hogar de tiburones y otras criaturas de mar abierto, y las corrientes pueden arrastrar a los incautos lejos de tierra. Se habla de antiguas ruinas trols ocultas en sus selvas, pero sus secretos siguen siendo desconocidos para la mayor parte del mundo.""",
 
-    409: """Isla del Doctor Lapidis: Una remota isla selvática en los Mares del
-Sur, frente a la costa sudoeste de la Vega de Tuercespina. Los viejos mapas
-señalan allí las ruinas desmoronadas de los antiguos trols de la jungla, pero
-casi nadie la ha visitado en la memoria de los vivos, y pocos conocen el
-significado de su nombre. Las aguas que la rodean son profundas, cálidas y
-vacías de barcos, habitadas solo por tiburones y criaturas de mar abierto.
-Sigue siendo un misterio, una mancha oscura en el horizonte que la mayoría de
-los marinos prefieren evitar.""",
+    409: """Isla del Doctor Lapidis: Una remota isla selvática en los Mares del Sur, frente a la costa sudoeste de la Vega de Tuercespina. Los viejos mapas señalan allí las ruinas desmoronadas de los antiguos trols de la jungla, pero casi nadie la ha visitado en la memoria de los vivos, y pocos conocen el significado de su nombre. Las aguas que la rodean son profundas, cálidas y vacías de barcos, habitadas solo por tiburones y criaturas de mar abierto. Sigue siendo un misterio, una mancha oscura en el horizonte que la mayoría de los marinos prefieren evitar.""",
 
     # -------------------------------------------------------------------------
     # Kalimdor - North
     # -------------------------------------------------------------------------
-    141: """Teldrassil: Un Árbol del Mundo colosal que se alza del Mar de la
-Bruma frente al noroeste de Kalimdor, tan inmenso que sobre sus ramas, por
-encima de las nubes, crece una tierra de bosques, colinas y lagos. El
-archidruida Fandral Corzocelada lo hizo crecer después de que los elfos de la
-noche perdieran su inmortalidad, y su capital, Darnassus, se alza en sus ramas
-occidentales. La tierra vive en un eterno crepúsculo violeta, llena de árboles
-antiguos, pozos de la luna, fuegos fatuos y sables de la noche. Pero los
-Aspectos dragón nunca bendijeron el árbol, y una corrupción rastrera se
-extiende: los fúrbolgs se han vuelto salvajes, los arbolitos se enfurecen y los
-sátiros acechan en las cuevas. Rut'theran, a su pie, es el puerto hacia el
-mundo.""",
+    141: """Teldrassil: Un Árbol del Mundo colosal que se alza del Mar de la Bruma frente al noroeste de Kalimdor, tan inmenso que sobre sus ramas, por encima de las nubes, crece una tierra de bosques, colinas y lagos. El archidruida Fandral Corzocelada lo hizo crecer después de que los elfos de la noche perdieran su inmortalidad, y su capital, Darnassus, se alza en sus ramas occidentales. La tierra vive en un eterno crepúsculo violeta, llena de árboles antiguos, pozos de la luna, fuegos fatuos y sables de la noche. Pero los Aspectos dragón nunca bendijeron el árbol, y una corrupción rastrera se extiende: los fúrbolgs se han vuelto salvajes, los arbolitos se enfurecen y los sátiros acechan en las cuevas. Rut'theran, a su pie, es el puerto hacia el mundo.""",
 
-    1657: """Darnassus: La capital de los elfos de la noche, construida en las
-ramas occidentales de Teldrassil y bañada por un eterno crepúsculo violeta.
-Elegantes terrazas de madera viva y piedra blanca rodean un lago central,
-unidas por puentes arqueados. La suma sacerdotisa Tyrande Susurravientos guía a
-los elfos de la noche desde el Templo de la Luna, mientras el archidruida
-Fandral Corzocelada dirige el Círculo Cenarion desde el Enclave Cenarion, a
-menudo en desacuerdo con ella. Malfurion Tempestira sigue perdido en el Sueño
-Esmeralda. Centinelas y ancestros protegen la ciudad tranquila y algo
-melancólica, y un portal desciende hasta la aldea de Rut'theran.""",
+    1657: """Darnassus: La capital de los elfos de la noche, construida en las ramas occidentales de Teldrassil y bañada por un eterno crepúsculo violeta. Elegantes terrazas de madera viva y piedra blanca rodean un lago central, unidas por puentes arqueados. La suma sacerdotisa Tyrande Susurravientos guía a los elfos de la noche desde el Templo de la Luna, mientras el archidruida Fandral Corzocelada dirige el Círculo Cenarion desde el Enclave Cenarion, a menudo en desacuerdo con ella. Malfurion Tempestira sigue perdido en el Sueño Esmeralda. Centinelas y ancestros protegen la ciudad tranquila y algo melancólica, y un portal desciende hasta la aldea de Rut'theran.""",
 
-    148: """Costa Oscura: Una larga costa rocosa al noroeste de Kalimdor, de
-bosques sombríos, playas brumosas y ruinas desmoronadas, donde el tiempo es
-frío y tormentoso y la niebla es frecuente. Antaño una región próspera del
-antiguo imperio kaldorei, fue arrasada por la Gran Fractura, y sus ciudades
-llevan milenios vacías. Los elfos de la noche reconstruyeron el puerto de
-Auberdine, enlace con Teldrassil, las islas Bruma Azur y los Reinos del Este.
-Más allá, nagas, sátiros y fantasmas de los Altonato rondan las ruinas,
-sectarios se esconden en lugares secretos y los fúrbolgs han enloquecido por la
-corrupción que baja de Frondavil.""",
+    148: """Costa Oscura: Una larga costa rocosa al noroeste de Kalimdor, de bosques sombríos, playas brumosas y ruinas desmoronadas, donde el tiempo es frío y tormentoso y la niebla es frecuente. Antaño una región próspera del antiguo imperio kaldorei, fue arrasada por la Gran Fractura, y sus ciudades llevan milenios vacías. Los elfos de la noche reconstruyeron el puerto de Auberdine, enlace con Teldrassil, las islas Bruma Azur y los Reinos del Este. Más allá, nagas, sátiros y fantasmas de los Altonato rondan las ruinas, sectarios se esconden en lugares secretos y los fúrbolgs han enloquecido por la corrupción que baja de Frondavil.""",
 
-    3524: """Isla Bruma Azur: La mayor de las islas Bruma Azur, frente al oeste
-de Kalimdor, durante mucho tiempo hogar solo de fúrbolgs, lechúcicos y bestias
-salvajes, hasta que el Exodar, la nave dimensional de los draenei, se estrelló
-en sus orillas. Los supervivientes guiados por el profeta Velen construyeron su
-capital en la mayor sección intacta del pecio. La isla es una tierra de bosques
-perennes, flores violetas y colinas suaves, pero extraños cristales del pecio
-salpican el paisaje, tormentas arcanas cruzan el cielo y el impacto ha alterado
-algunas plantas y bestias. Los fúrbolgs amistosos viven en el norte, los nagas
-acechan en viejas ruinas y saboteadores elfos de sangre se esconden en las
-colinas.""",
+    3524: """Isla Bruma Azur: La mayor de las islas Bruma Azur, frente al oeste de Kalimdor, durante mucho tiempo hogar solo de fúrbolgs, lechúcicos y bestias salvajes, hasta que el Exodar, la nave dimensional de los draenei, se estrelló en sus orillas. Los supervivientes guiados por el profeta Velen construyeron su capital en la mayor sección intacta del pecio. La isla es una tierra de bosques perennes, flores violetas y colinas suaves, pero extraños cristales del pecio salpican el paisaje, tormentas arcanas cruzan el cielo y el impacto ha alterado algunas plantas y bestias. Los fúrbolgs amistosos viven en el norte, los nagas acechan en viejas ruinas y saboteadores elfos de sangre se esconden en las colinas.""",
 
-    3557: """El Exodar: La capital de los draenei, construida en la mayor
-sección intacta de la nave dimensional que se estrelló en la Isla Bruma Azur.
-Antaño satélite del Castillo de la Tempestad, fue capturada en Terrallende por
-el profeta Velen y sus seguidores con ayuda de los naaru, saboteada por elfos
-de sangre y lanzada a través del Vacío Abisal. Hoy es una ciudad de relucientes
-salas de cristal y conductos luminosos que llevan luz sagrada y calor. Velen
-reside en el Trono de los Naaru junto a un naaru, y la ciudad resuena con el
-canto de los naaru y la devoción serena de un pueblo que ha vagado durante
-milenios.""",
+    3557: """El Exodar: La capital de los draenei, construida en la mayor sección intacta de la nave dimensional que se estrelló en la Isla Bruma Azur. Antaño satélite del Castillo de la Tempestad, fue capturada en Terrallende por el profeta Velen y sus seguidores con ayuda de los naaru, saboteada por elfos de sangre y lanzada a través del Vacío Abisal. Hoy es una ciudad de relucientes salas de cristal y conductos luminosos que llevan luz sagrada y calor. Velen reside en el Trono de los Naaru junto a un naaru, y la ciudad resuena con el canto de los naaru y la devoción serena de un pueblo que ha vagado durante milenios.""",
 
-    3525: """Isla Bruma de Sangre: La más septentrional de las islas Bruma
-Azur, antaño llamada Vientoplata, corrompida cuando restos del Exodar
-estrellado esparcieron sobre ella cristales rojo sangre. Un líquido parecido a
-la sangre rezuma de los cristales al suelo, altera plantas y bestias y llena el
-aire de una inquietante bruma carmesí; hasta los pinos han enrojecido. Los
-draenei estudian y sanan la tierra desde la Atalaya de Sangre, enfrentados a
-elfos de sangre ávidos del poder de los cristales, sátiros, nagas, fúrbolgs
-corrompidos y criaturas escapadas de la nave. Antiguas ruinas elfas de la noche
-salpican la isla, y los espíritus de dragones verdes rondan la Cicatriz del
-Vermis.""",
+    3525: """Isla Bruma de Sangre: La más septentrional de las islas Bruma Azur, antaño llamada Vientoplata, corrompida cuando restos del Exodar estrellado esparcieron sobre ella cristales rojo sangre. Un líquido parecido a la sangre rezuma de los cristales al suelo, altera plantas y bestias y llena el aire de una inquietante bruma carmesí; hasta los pinos han enrojecido. Los draenei estudian y sanan la tierra desde la Atalaya de Sangre, enfrentados a elfos de sangre ávidos del poder de los cristales, sátiros, nagas, fúrbolgs corrompidos y criaturas escapadas de la nave. Antiguas ruinas elfas de la noche salpican la isla, y los espíritus de dragones verdes rondan la Cicatriz del Vermis.""",
 
-    331: """Vallefresno: Un vasto bosque antiguo al norte de Kalimdor y la
-patria ancestral de los elfos de la noche, una espesura primigenia de árboles
-gigantescos, claros profundos, lagos y ríos bajo un denso dosel. Durante
-milenios los elfos de la noche lo cuidaron sin talarlo, protegido por
-Centinelas, druidas y ancestros. En la Tercera Guerra, los orcos de Grom Grito
-Infernal llegaron por su madera y mataron al semidiós Cenarius. Desde entonces
-está ferozmente disputado: los elfos de la noche ocupan Astranaar al oeste, el
-clan Grito de Guerra tala al este, y las Centinelas Ala de Plata y los Escoltas
-Grito de Guerra chocan sin cesar. Demonios, sátiros y fúrbolgs corrompidos
-permanecen.""",
+    331: """Vallefresno: Un vasto bosque antiguo al norte de Kalimdor y la patria ancestral de los elfos de la noche, una espesura primigenia de árboles gigantescos, claros profundos, lagos y ríos bajo un denso dosel. Durante milenios los elfos de la noche lo cuidaron sin talarlo, protegido por Centinelas, druidas y ancestros. En la Tercera Guerra, los orcos de Grom Grito Infernal llegaron por su madera y mataron al semidiós Cenarius. Desde entonces está ferozmente disputado: los elfos de la noche ocupan Astranaar al oeste, el clan Grito de Guerra tala al este, y las Centinelas Ala de Plata y los Escoltas Grito de Guerra chocan sin cesar. Demonios, sátiros y fúrbolgs corrompidos permanecen.""",
 
-    361: """Frondavil: Un bosque corrompido al norte de Kalimdor, antaño un
-paraíso exuberante protegido por Cenarius, profanado por la Legión Ardiente con
-el Cráneo de Gul'dan en la Tercera Guerra. Árboles retorcidos, praderas
-calcinadas y arroyos que hierven de lodo tóxico llenan la tierra, y los
-ancestros que la protegían vagan ciegos sangrando veneno vil. Fúrbolgs
-corrompidos, sátiros, demonios y brujos del Concilio de la Sombra infestan el
-bosque, y las bestias hambrientas se atacan entre sí. Los druidas del Círculo
-Cenarion intentan purificarlo, y los fúrbolgs Fauces de Madera, aún puros,
-dominan los túneles del norte hacia el Claro de la Luna y Cuna del Invierno.""",
+    361: """Frondavil: Un bosque corrompido al norte de Kalimdor, antaño un paraíso exuberante protegido por Cenarius, profanado por la Legión Ardiente con el Cráneo de Gul'dan en la Tercera Guerra. Árboles retorcidos, praderas calcinadas y arroyos que hierven de lodo tóxico llenan la tierra, y los ancestros que la protegían vagan ciegos sangrando veneno vil. Fúrbolgs corrompidos, sátiros, demonios y brujos del Concilio de la Sombra infestan el bosque, y las bestias hambrientas se atacan entre sí. Los druidas del Círculo Cenarion intentan purificarlo, y los fúrbolgs Fauces de Madera, aún puros, dominan los túneles del norte hacia el Claro de la Luna y Cuna del Invierno.""",
 
-    493: """Claro de la Luna: Un valle sagrado en las laderas bajas del Monte
-Hyjal, protegido por altas montañas y envuelto en una noche eterna, donde la
-luna baña la tierra de plata y el aire es una tarde de verano cálida e
-interminable. Es el hogar del Círculo Cenarion, donde elfos de la noche y
-tauren viven en paz y no se toleran los conflictos entre razas. Durante
-milenios los druidas durmieron aquí en los Túmulos mientras sus espíritus
-recorrían el Sueño Esmeralda; Malfurion Tempestira sigue perdido allí. La aldea
-de Nighthaven se extiende a orillas del lago Elune'ara, bajo la vigilancia de
-los Guardianes del Bosque.""",
+    493: """Claro de la Luna: Un valle sagrado en las laderas bajas del Monte Hyjal, protegido por altas montañas y envuelto en una noche eterna, donde la luna baña la tierra de plata y el aire es una tarde de verano cálida e interminable. Es el hogar del Círculo Cenarion, donde elfos de la noche y tauren viven en paz y no se toleran los conflictos entre razas. Durante milenios los druidas durmieron aquí en los Túmulos mientras sus espíritus recorrían el Sueño Esmeralda; Malfurion Tempestira sigue perdido allí. La aldea de Nighthaven se extiende a orillas del lago Elune'ara, bajo la vigilancia de los Guardianes del Bosque.""",
 
-    618: """Cuna del Invierno: Un valle frío y nevado en lo alto del Monte
-Hyjal, en un invierno casi eterno por encima de las nubes del Claro de la Luna.
-La nieve cubre las colinas, los lagos helados resplandecen y el aire es limpio
-y puro. Los elfos de la noche se asentaron aquí tras la Gran Fractura, y sus
-ruinas aún se alzan en la nieve, mientras las raíces descubiertas del Árbol del
-Mundo se elevan como arcos sobre las cabezas. El Vuelo Azul de Mazthoril
-disputa desde hace mucho el valle a los elfos de la noche. La ciudad goblin de
-Vista Eterna está abierta a todos, fúrbolgs corrompidos, yetis y sables de
-hielo recorren la región y demonios ocupan la Garganta Negro Susurro al sur.""",
+    618: """Cuna del Invierno: Un valle frío y nevado en lo alto del Monte Hyjal, en un invierno casi eterno por encima de las nubes del Claro de la Luna. La nieve cubre las colinas, los lagos helados resplandecen y el aire es limpio y puro. Los elfos de la noche se asentaron aquí tras la Gran Fractura, y sus ruinas aún se alzan en la nieve, mientras las raíces descubiertas del Árbol del Mundo se elevan como arcos sobre las cabezas. El Vuelo Azul de Mazthoril disputa desde hace mucho el valle a los elfos de la noche. La ciudad goblin de Vista Eterna está abierta a todos, fúrbolgs corrompidos, yetis y sables de hielo recorren la región y demonios ocupan la Garganta Negro Susurro al sur.""",
 
     # -------------------------------------------------------------------------
     # Kalimdor - Center and East
     # -------------------------------------------------------------------------
-    14: """Durotar: Una tierra de suelo rojo cocido por el sol, cañones
-escarpados y colinas en la costa este de Kalimdor, cuya belleza áspera recuerda
-a Draenor. Thrall la convirtió en la nueva patria de los orcos y de los trols
-Lanza Negra tras la Tercera Guerra y la llamó así por su padre Durotan,
-fundando Orgrimmar en su límite norte. Es el corazón de la Horda, con Cerrotajo
-en la encrucijada y la aldea trol de Sen'jin en la costa sur. Los peligros
-persisten: los jabaespines asaltan desde el oeste, los centauros acechan en el
-sur, las arpías anidan en los cañones, el Filo Ardiente se esconde en cuevas y
-un fuerte de Kul Tiras aún se alza en la costa.""",
+    14: """Durotar: Una tierra de suelo rojo cocido por el sol, cañones escarpados y colinas en la costa este de Kalimdor, cuya belleza áspera recuerda a Draenor. Thrall la convirtió en la nueva patria de los orcos y de los trols Lanza Negra tras la Tercera Guerra y la llamó así por su padre Durotan, fundando Orgrimmar en su límite norte. Es el corazón de la Horda, con Cerrotajo en la encrucijada y la aldea trol de Sen'jin en la costa sur. Los peligros persisten: los jabaespines asaltan desde el oeste, los centauros acechan en el sur, las arpías anidan en los cañones, el Filo Ardiente se esconde en cuevas y un fuerte de Kul Tiras aún se alza en la costa.""",
 
-    1637: """Orgrimmar: La capital de los orcos y sede de la Horda, una
-poderosa ciudad fortaleza construida en un cañón en el límite norte de Durotar,
-fundada por el jefe de guerra Thrall tras la Tercera Guerra y llamada así por
-Orgrim Martillo Maldito. Recias murallas, puertas enormes y altas torres la
-protegen, y sus barrios son valles: el Valle de la Fuerza, corazón comercial;
-el Valle de los Espíritus, hogar de trols y chamanes; el Valle de la Sabiduría,
-donde se alza el Fuerte Grommash de Thrall; y el Valle del Honor. La Calle del
-Arrastre lleva a la sombría Grieta de las Sombras. Sus construcciones rústicas
-de madera, piel y piedra están adornadas con púas y estandartes, y los
-zepelines la unen a los Reinos del Este y Rasganorte.""",
+    1637: """Orgrimmar: La capital de los orcos y sede de la Horda, una poderosa ciudad fortaleza construida en un cañón en el límite norte de Durotar, fundada por el jefe de guerra Thrall tras la Tercera Guerra y llamada así por Orgrim Martillo Maldito. Recias murallas, puertas enormes y altas torres la protegen, y sus barrios son valles: el Valle de la Fuerza, corazón comercial; el Valle de los Espíritus, hogar de trols y chamanes; el Valle de la Sabiduría, donde se alza el Fuerte Grommash de Thrall; y el Valle del Honor. La Calle del Arrastre lleva a la sombría Grieta de las Sombras. Sus construcciones rústicas de madera, piel y piedra están adornadas con púas y estandartes, y los zepelines la unen a los Reinos del Este y Rasganorte.""",
 
-    2917: """Sala de las Leyendas: La gran sala de oficiales de la Horda en el
-Valle de la Fuerza de Orgrimmar, un edificio enorme de madera, piedra y pieles
-adornado con estandartes, trofeos y las armas de enemigos caídos. Sirve de
-cuartel y lugar de reunión de los guerreros más distinguidos de la Horda, y su
-arsenal secreto guarda armas de todos los continentes de Azeroth y de Draenor,
-muchas tomadas como botín de guerra y con una historia orgullosa. Es un lugar
-de honor y orgullo, donde se narra la gloria junto a grandes hogueras y se
-recuerdan las leyendas de la Horda.""",
+    2917: """Sala de las Leyendas: La gran sala de oficiales de la Horda en el Valle de la Fuerza de Orgrimmar, un edificio enorme de madera, piedra y pieles adornado con estandartes, trofeos y las armas de enemigos caídos. Sirve de cuartel y lugar de reunión de los guerreros más distinguidos de la Horda, y su arsenal secreto guarda armas de todos los continentes de Azeroth y de Draenor, muchas tomadas como botín de guerra y con una historia orgullosa. Es un lugar de honor y orgullo, donde se narra la gloria junto a grandes hogueras y se recuerdan las leyendas de la Horda.""",
 
-    377: """Río Furia del Sur: Uno de los grandes ríos de Kalimdor, que nace en
-las tierras altas del Monte Hyjal y fluye hacia el sur como un caudal ancho y
-rápido. Separa Vallefresno de Azshara y, más al sur, Los Baldíos de Durotar,
-pasando cerca de las murallas de Orgrimmar. Sus aguas son frías y veloces en el
-norte, cálidas y turbias en el sur, donde los crocoliscos acechan entre los
-juncos. Desemboca en Mare Magnum en una cascada cerca del puerto goblin de
-Trinquete. Solo unos pocos puentes lo cruzan, y viajeros de toda clase
-atraviesan sus aguas.""",
+    377: """Río Furia del Sur: Uno de los grandes ríos de Kalimdor, que nace en las tierras altas del Monte Hyjal y fluye hacia el sur como un caudal ancho y rápido. Separa Vallefresno de Azshara y, más al sur, Los Baldíos de Durotar, pasando cerca de las murallas de Orgrimmar. Sus aguas son frías y veloces en el norte, cálidas y turbias en el sur, donde los crocoliscos acechan entre los juncos. Desemboca en Mare Magnum en una cascada cerca del puerto goblin de Trinquete. Solo unos pocos puentes lo cruzan, y viajeros de toda clase atraviesan sus aguas.""",
 
-    16: """Azshara: Una tierra costera hermosa pero maldita al nordeste de
-Kalimdor, envuelta en un otoño eterno, con árboles de un naranja y rojo
-brillantes, grandes acantilados y playas blancas. Hace diez mil años formaba
-parte de Zin-Azshari, la capital de la reina Azshara, hasta que la Gran
-Fractura hundió gran parte de la ciudad. Los elfos de la noche la consideran
-maldita; las ruinas se alzan en los acantilados y yacen entre los corales, y
-las leyendas dicen que la reina gobierna ahora a los nagas bajo las olas.
-Fantasmas de los Altonato, sátiros, nagas y dragones azules rondan la tierra,
-los amistosos Fauces de Madera ocupan las montañas del oeste y a menudo llegan
-tormentas del mar.""",
+    16: """Azshara: Una tierra costera hermosa pero maldita al nordeste de Kalimdor, envuelta en un otoño eterno, con árboles de un naranja y rojo brillantes, grandes acantilados y playas blancas. Hace diez mil años formaba parte de Zin-Azshari, la capital de la reina Azshara, hasta que la Gran Fractura hundió gran parte de la ciudad. Los elfos de la noche la consideran maldita; las ruinas se alzan en los acantilados y yacen entre los corales, y las leyendas dicen que la reina gobierna ahora a los nagas bajo las olas. Fantasmas de los Altonato, sátiros, nagas y dragones azules rondan la tierra, los amistosos Fauces de Madera ocupan las montañas del oeste y a menudo llegan tormentas del mar.""",
 
-    17: """Los Baldíos: Una vasta sabana calurosa de hierba amarilla, árboles
-espinosos y llanuras polvorientas en el centro de Kalimdor, entre Vallefresno y
-Las Mil Agujas, con algunos oasis exuberantes en el norte. Antes de la Gran
-Fractura se alzaban aquí ciudades élficas, y el antiguo Camino del Oro aún guía
-caravanas entre Trinquete y el norte. El Cruce de la Horda es el gran centro,
-mientras la Alianza ocupa el Fuerte del Norte y la excavación de Bael Modan.
-Centauros y jabaespines asaltan las caravanas, las arpías anidan en las
-colinas, la Sociedad Ventura perfora en busca de petróleo y el Filo Ardiente se
-esconde en el Pico Nebuloso. Trinquete, en la costa, está abierto a todos.""",
+    17: """Los Baldíos: Una vasta sabana calurosa de hierba amarilla, árboles espinosos y llanuras polvorientas en el centro de Kalimdor, entre Vallefresno y Las Mil Agujas, con algunos oasis exuberantes en el norte. Antes de la Gran Fractura se alzaban aquí ciudades élficas, y el antiguo Camino del Oro aún guía caravanas entre Trinquete y el norte. El Cruce de la Horda es el gran centro, mientras la Alianza ocupa el Fuerte del Norte y la excavación de Bael Modan. Centauros y jabaespines asaltan las caravanas, las arpías anidan en las colinas, la Sociedad Ventura perfora en busca de petróleo y el Filo Ardiente se esconde en el Pico Nebuloso. Trinquete, en la costa, está abierto a todos.""",
 
-    215: """Mulgore: Llanuras verdes y mesetas azotadas por el viento en el
-centro de Kalimdor, la patria ancestral de los tauren, rodeada de montañas con
-un único paso hacia Los Baldíos al este. Durante siglos los tauren vivieron
-como nómadas luchando contra los centauros, hasta que la Horda de Thrall los
-ayudó a expulsarlos y Cairne Pezuña de Sangre construyó Cima del Trueno sobre
-las mesetas. Es una tierra pastoril y protegida de praderas, lagos claros y
-brisas con aroma a pino, con aldeas tauren, molinos de viento y tótems
-tallados. Los jabaespines ocupan las sagradas Rocas Rojas, la Sociedad Ventura
-se ha apoderado de los pozos sagrados y las arpías anidan en el norte.""",
+    215: """Mulgore: Llanuras verdes y mesetas azotadas por el viento en el centro de Kalimdor, la patria ancestral de los tauren, rodeada de montañas con un único paso hacia Los Baldíos al este. Durante siglos los tauren vivieron como nómadas luchando contra los centauros, hasta que la Horda de Thrall los ayudó a expulsarlos y Cairne Pezuña de Sangre construyó Cima del Trueno sobre las mesetas. Es una tierra pastoril y protegida de praderas, lagos claros y brisas con aroma a pino, con aldeas tauren, molinos de viento y tótems tallados. Los jabaespines ocupan las sagradas Rocas Rojas, la Sociedad Ventura se ha apoderado de los pozos sagrados y las arpías anidan en el norte.""",
 
-    1638: """Cima del Trueno: La capital de los tauren, construida sobre cuatro
-altas mesetas al norte de Mulgore, muy por encima de las Llanuras Doradas, la
-primera ciudad permanente de un pueblo que vagó durante siglos. Grandes
-tiendas, casas comunales y postes totémicos coronan las mesetas, unidas por
-puentes de cuerda que se balancean, y elevadores de madera suben a los
-visitantes desde las llanuras. El gran jefe Cairne Pezuña de Sangre gobierna
-desde la meseta central, los druidas se reúnen en el Alto de los Ancestros, los
-chamanes en el Alto de los Espíritus sobre los brumosos Estanques de la Visión
-y los cazadores en el Alto de los Cazadores. El clima es cálido y soleado, y la
-vista sobre Mulgore es impresionante.""",
+    1638: """Cima del Trueno: La capital de los tauren, construida sobre cuatro altas mesetas al norte de Mulgore, muy por encima de las Llanuras Doradas, la primera ciudad permanente de un pueblo que vagó durante siglos. Grandes tiendas, casas comunales y postes totémicos coronan las mesetas, unidas por puentes de cuerda que se balancean, y elevadores de madera suben a los visitantes desde las llanuras. El gran jefe Cairne Pezuña de Sangre gobierna desde la meseta central, los druidas se reúnen en el Alto de los Ancestros, los chamanes en el Alto de los Espíritus sobre los brumosos Estanques de la Visión y los cazadores en el Alto de los Cazadores. El clima es cálido y soleado, y la vista sobre Mulgore es impresionante.""",
 
-    406: """Sierra Espolón: Una cordillera escarpada en el centro de Kalimdor,
-alzada por la Gran Fractura y tallada por el río Lobonegro en cañones y
-acantilados. Las laderas bajas son calurosas, secas y ventosas, la lluvia rompe
-en las cumbres del oeste y violentos vientos azotan los cañones. El Pico
-Espolón, sagrado para elfos de la noche y tauren, fue antaño el hogar del
-Oráculo. Los goblins de la Sociedad Ventura talan los bosques antiguos y
-contaminan las aguas, el Valle Calcinado es una ruina quemada llena de
-elementales de fuego, las arpías ocupan fortalezas en los cañones y los tauren
-renegados Tótem Siniestro atacan a sus propios hermanos.""",
+    406: """Sierra Espolón: Una cordillera escarpada en el centro de Kalimdor, alzada por la Gran Fractura y tallada por el río Lobonegro en cañones y acantilados. Las laderas bajas son calurosas, secas y ventosas, la lluvia rompe en las cumbres del oeste y violentos vientos azotan los cañones. El Pico Espolón, sagrado para elfos de la noche y tauren, fue antaño el hogar del Oráculo. Los goblins de la Sociedad Ventura talan los bosques antiguos y contaminan las aguas, el Valle Calcinado es una ruina quemada llena de elementales de fuego, las arpías ocupan fortalezas en los cañones y los tauren renegados Tótem Siniestro atacan a sus propios hermanos.""",
 
     # -------------------------------------------------------------------------
     # Kalimdor - South
     # -------------------------------------------------------------------------
-    405: """Desolace: Un páramo gris y pedregoso al oeste de Kalimdor que
-parece sufrir una maldición: el cielo siempre está oscuro y tormentoso, rayos y
-fuertes vientos barren la tierra, charcas amarillas y contaminadas salpican la
-ceniza y los cráneos de antiguos kodos miran desde sus tumbas. Es la patria de
-los centauros, nacidos según la leyenda en las profundidades de Maraudon, y
-cuatro tribus enfrentadas luchan entre sí con la misma ferocidad que contra los
-forasteros. Ruinas de los Altonato yacen dispersas, los nagas rondan la costa
-noroeste y el Filo Ardiente ha invocado demonios aquí. En triste contraste, la
-costa oeste es soleada y exuberante.""",
+    405: """Desolace: Un páramo gris y pedregoso al oeste de Kalimdor que parece sufrir una maldición: el cielo siempre está oscuro y tormentoso, rayos y fuertes vientos barren la tierra, charcas amarillas y contaminadas salpican la ceniza y los cráneos de antiguos kodos miran desde sus tumbas. Es la patria de los centauros, nacidos según la leyenda en las profundidades de Maraudon, y cuatro tribus enfrentadas luchan entre sí con la misma ferocidad que contra los forasteros. Ruinas de los Altonato yacen dispersas, los nagas rondan la costa noroeste y el Filo Ardiente ha invocado demonios aquí. En triste contraste, la costa oeste es soleada y exuberante.""",
 
-    357: """Feralas: Una selva tropical antigua y exuberante al sudoeste de
-Kalimdor, de árboles enormes, valles brumosos, ríos caudalosos y lagos claros,
-protegida por altas montañas. Formó parte del imperio elfo de la noche, y la
-vasta ciudad Altonato de Eldre'Thalas, hoy llamada La Masacre, yace en ruinas
-entre los árboles. Los elfos de la noche ocupan el Bastión Plumaluna en la isla
-de Sardor, y los tauren el Campamento Mojache al este. Los sanguinarios ogros
-Gordunni controlan muchas ruinas, los renegados Tótem Siniestro tienen un
-campamento, los nagas infestan las islas del oeste y un gran árbol en el
-noroeste es un portal al Sueño Esmeralda.""",
+    357: """Feralas: Una selva tropical antigua y exuberante al sudoeste de Kalimdor, de árboles enormes, valles brumosos, ríos caudalosos y lagos claros, protegida por altas montañas. Formó parte del imperio elfo de la noche, y la vasta ciudad Altonato de Eldre'Thalas, hoy llamada La Masacre, yace en ruinas entre los árboles. Los elfos de la noche ocupan el Bastión Plumaluna en la isla de Sardor, y los tauren el Campamento Mojache al este. Los sanguinarios ogros Gordunni controlan muchas ruinas, los renegados Tótem Siniestro tienen un campamento, los nagas infestan las islas del oeste y un gran árbol en el noroeste es un portal al Sueño Esmeralda.""",
 
-    400: """Las Mil Agujas: Un inmenso cañón seco al sur de Kalimdor, lleno de
-altas agujas de arenisca que se alzan como un bosque de agujas, talladas por el
-agua antes de que la Gran Fractura elevara la tierra. Al este se abre a las
-Salinas Brillantes, una llanura de sal donde ingenieros goblin y gnomos corren
-con sus máquinas, y los amaneceres desde las mesetas son espectaculares. Tribus
-tauren vivieron mucho tiempo precariamente en lo alto de las mesetas y ahora
-contraatacan desde el Poblado Viento Libre. Los centauros Galak patrullan el
-fondo del cañón, los renegados Tótem Siniestro ocupan el Pináculo Nube Negra y
-puentes de cuerda unen las agujas por encima de los peligros.""",
+    400: """Las Mil Agujas: Un inmenso cañón seco al sur de Kalimdor, lleno de altas agujas de arenisca que se alzan como un bosque de agujas, talladas por el agua antes de que la Gran Fractura elevara la tierra. Al este se abre a las Salinas Brillantes, una llanura de sal donde ingenieros goblin y gnomos corren con sus máquinas, y los amaneceres desde las mesetas son espectaculares. Tribus tauren vivieron mucho tiempo precariamente en lo alto de las mesetas y ahora contraatacan desde el Poblado Viento Libre. Los centauros Galak patrullan el fondo del cañón, los renegados Tótem Siniestro ocupan el Pináculo Nube Negra y puentes de cuerda unen las agujas por encima de los peligros.""",
 
-    15: """Marjal Revolcafango: Un vasto pantano caluroso y fétido en la costa
-este del centro de Kalimdor, hundido en la Gran Fractura, donde zumban los
-mosquitos, los árboles hunden sus frondas en charcas estancadas y bancos de
-lodo separan canales ahogados de algas. Raptores, arañas, crocoliscos y múrlocs
-acechan por doquier, y en el sur se dice que la dragona negra Onyxia habita en
-la Ciénaga de los Dragones. Jaina Valiente fundó Theramore en una isla frente a
-la costa, los ogros Petrandis acogen a la Horda en Matojo, y aquí encontró su
-fin el almirante Daelin Valiente. Escaramuzas encubiertas continúan pese a la
-tregua, y los goblins de Fangoapestoso dan la bienvenida a todos.""",
+    15: """Marjal Revolcafango: Un vasto pantano caluroso y fétido en la costa este del centro de Kalimdor, hundido en la Gran Fractura, donde zumban los mosquitos, los árboles hunden sus frondas en charcas estancadas y bancos de lodo separan canales ahogados de algas. Raptores, arañas, crocoliscos y múrlocs acechan por doquier, y en el sur se dice que la dragona negra Onyxia habita en la Ciénaga de los Dragones. Jaina Valiente fundó Theramore en una isla frente a la costa, los ogros Petrandis acogen a la Horda en Matojo, y aquí encontró su fin el almirante Daelin Valiente. Escaramuzas encubiertas continúan pese a la tregua, y los goblins de Fangoapestoso dan la bienvenida a todos.""",
 
-    2159: """Guarida de Onyxia: Una cueva volcánica en la Ciénaga de los
-Dragones, al sur del Marjal Revolcafango, la guarida de Onyxia, la gran dragona
-negra e hija de Alamuerte, madre del Vuelo Negro. La cueva se adentra
-profundamente en la tierra cálida, y la sala principal guarda su enorme nidada,
-custodiada por crías y dracónidos. El suelo no es más que una fina costra sobre
-roca fundida, el aire está cargado de humo, azufre y el hedor de sus víctimas,
-y huesos y tesoros yacen entre las rocas. Los viajeros cuentan historias
-sombrías sobre los que se lleva su progenie, y pocos de los que entran
-regresan.""",
+    2159: """Guarida de Onyxia: Una cueva volcánica en la Ciénaga de los Dragones, al sur del Marjal Revolcafango, la guarida de Onyxia, la gran dragona negra e hija de Alamuerte, madre del Vuelo Negro. La cueva se adentra profundamente en la tierra cálida, y la sala principal guarda su enorme nidada, custodiada por crías y dracónidos. El suelo no es más que una fina costra sobre roca fundida, el aire está cargado de humo, azufre y el hedor de sus víctimas, y huesos y tesoros yacen entre las rocas. Los viajeros cuentan historias sombrías sobre los que se lleva su progenie, y pocos de los que entran regresan.""",
 
-    440: """Tanaris: Un inmenso desierto al sudeste de Kalimdor, un mar
-infinito de dunas bajo un cielo sin nubes, abrasador de día y barrido por
-peligrosas tormentas de arena, con montañas y cavernas profundas en el sur. Es
-el hogar ancestral del Vuelo Bronce, cuyo Aspecto Nozdormu reside en las
-Cavernas del Tiempo, y en el sur se encuentra la puerta sellada de la ciudad
-titánica de Uldum. Los goblins del Cártel Bonvapor mantienen la ciudad neutral
-de Gadgetzan y el puerto del cártel. Los trols Furiarena gobiernan desde
-Zul'Farrak, los ogros ocupan ruinas al sur, los bandidos se adueñan de las
-torres de agua y los piratas se esconden en la costa.""",
+    440: """Tanaris: Un inmenso desierto al sudeste de Kalimdor, un mar infinito de dunas bajo un cielo sin nubes, abrasador de día y barrido por peligrosas tormentas de arena, con montañas y cavernas profundas en el sur. Es el hogar ancestral del Vuelo Bronce, cuyo Aspecto Nozdormu reside en las Cavernas del Tiempo, y en el sur se encuentra la puerta sellada de la ciudad titánica de Uldum. Los goblins del Cártel Bonvapor mantienen la ciudad neutral de Gadgetzan y el puerto del cártel. Los trols Furiarena gobiernan desde Zul'Farrak, los ogros ocupan ruinas al sur, los bandidos se adueñan de las torres de agua y los piratas se esconden en la costa.""",
 
-    1941: """Cavernas del Tiempo: Una vasta red de cuevas al este de Tanaris,
-hogar del Vuelo Bronce y de su Aspecto Nozdormu, guardianes del curso del
-tiempo. Portales en su interior llevan a momentos clave de la historia del
-mundo, como la apertura del Portal Oscuro, la huida de Thrall de Durnholde, la
-batalla del Monte Hyjal y la purga de Stratholme. La arena da paso a una
-vegetación exuberante, grandes relojes de arena giran y colosales estatuas de
-dragones de bronce se alzan sobre todo. Recientemente, el Vuelo Infinito ha
-empezado a inmiscuirse en la historia, y los dragones de bronce buscan ayuda.
-Se dice que quienes entran sin permiso salen cambiados.""",
+    1941: """Cavernas del Tiempo: Una vasta red de cuevas al este de Tanaris, hogar del Vuelo Bronce y de su Aspecto Nozdormu, guardianes del curso del tiempo. Portales en su interior llevan a momentos clave de la historia del mundo, como la apertura del Portal Oscuro, la huida de Thrall de Durnholde, la batalla del Monte Hyjal y la purga de Stratholme. La arena da paso a una vegetación exuberante, grandes relojes de arena giran y colosales estatuas de dragones de bronce se alzan sobre todo. Recientemente, el Vuelo Infinito ha empezado a inmiscuirse en la historia, y los dragones de bronce buscan ayuda. Se dice que quienes entran sin permiso salen cambiados.""",
 
-    490: """Cráter de Un'Goro: Un inmenso cráter exuberante al sur de Kalimdor,
-entre Tanaris y Silithus, aislado por altas paredes. Una jungla humeante de
-plantas exóticas y criaturas gigantes lo llena: demosaurios, estegodontes y
-pterrordáctilos vagan libremente, los gorilas viven en las cuevas y los
-silítidos excavan colmenas en el sur. El volcán activo de la Cresta de Fuego se
-alza en su centro, fuentes termales y pozos de alquitrán burbujean, y extraños
-cristales y misteriosos pilones salpican la tierra. Muchos eruditos creen que
-fue un lugar de los titanes. Exploradores de todas las razas se reúnen en el
-Refugio de Marshal, en la pared norte, y la jungla nunca calla.""",
+    490: """Cráter de Un'Goro: Un inmenso cráter exuberante al sur de Kalimdor, entre Tanaris y Silithus, aislado por altas paredes. Una jungla humeante de plantas exóticas y criaturas gigantes lo llena: demosaurios, estegodontes y pterrordáctilos vagan libremente, los gorilas viven en las cuevas y los silítidos excavan colmenas en el sur. El volcán activo de la Cresta de Fuego se alza en su centro, fuentes termales y pozos de alquitrán burbujean, y extraños cristales y misteriosos pilones salpican la tierra. Muchos eruditos creen que fue un lugar de los titanes. Exploradores de todas las razas se reúnen en el Refugio de Marshal, en la pared norte, y la jungla nunca calla.""",
 
-    1377: """Silithus: Un desierto duro de roca y arena en la esquina sudoeste
-de Kalimdor, interrumpido por las altas colmenas de los silítidos insectoides.
-Hace mil años, sus amos qiraji libraron la Guerra de las Arenas Movedizas,
-hasta que los elfos de la noche y los Vuelos dragón los encerraron tras el Muro
-del Escarabajo, en Ahn'Qiraj. Recientemente las puertas se abrieron de nuevo, y
-los ejércitos de la Alianza y de la Horda marcharon contra los qiraji. El
-Círculo Cenarion vigila desde el Fuerte Cenarion, el Vuelo Bronce ha regresado
-y el Martillo Crepuscular acampa por toda la región. El calor es implacable y
-el viento arrastra una arena hiriente.""",
+    1377: """Silithus: Un desierto duro de roca y arena en la esquina sudoeste de Kalimdor, interrumpido por las altas colmenas de los silítidos insectoides. Hace mil años, sus amos qiraji libraron la Guerra de las Arenas Movedizas, hasta que los elfos de la noche y los Vuelos dragón los encerraron tras el Muro del Escarabajo, en Ahn'Qiraj. Recientemente las puertas se abrieron de nuevo, y los ejércitos de la Alianza y de la Horda marcharon contra los qiraji. El Círculo Cenarion vigila desde el Fuerte Cenarion, el Vuelo Bronce ha regresado y el Martillo Crepuscular acampa por toda la región. El calor es implacable y el viento arrastra una arena hiriente.""",
 
-    3478: """Puertas de Ahn'Qiraj: Las grandes puertas del Muro del Escarabajo
-en el límite sur de Silithus, que custodian Ahn'Qiraj, la antigua fortaleza de
-los qiraji y sus silítidos. Hace mil años, los elfos de la noche y los Vuelos
-dragón encerraron a los qiraji tras el muro; recientemente, las puertas se
-abrieron de nuevo con el Cetro de las Arenas Movedizas, y los ejércitos de la
-Alianza y de la Horda entraron. Más allá se extienden las Ruinas y el Templo de
-Ahn'Qiraj, donde se dice que moran los verdaderos amos de los qiraji. La arena
-ante las puertas está marcada por la batalla, y un silencio inquietante pesa
-sobre ellas.""",
+    3478: """Puertas de Ahn'Qiraj: Las grandes puertas del Muro del Escarabajo en el límite sur de Silithus, que custodian Ahn'Qiraj, la antigua fortaleza de los qiraji y sus silítidos. Hace mil años, los elfos de la noche y los Vuelos dragón encerraron a los qiraji tras el muro; recientemente, las puertas se abrieron de nuevo con el Cetro de las Arenas Movedizas, y los ejércitos de la Alianza y de la Horda entraron. Más allá se extienden las Ruinas y el Templo de Ahn'Qiraj, donde se dice que moran los verdaderos amos de los qiraji. La arena ante las puertas está marcada por la batalla, y un silencio inquietante pesa sobre ellas.""",
 
     # -------------------------------------------------------------------------
     # Outland
     # -------------------------------------------------------------------------
-    3483: """Península del Fuego Infernal: Un páramo árido y rojo sangre al
-este de Terrallende, un resto de Draenor y la primera tierra al otro lado del
-Portal Oscuro. Los brujos orcos drenaron su vida hace mucho, el suelo rojo y
-agrietado escupe géiseres de fuego, y fragmentos de tierra flotan en sus bordes
-contra el cielo arremolinado del Vacío. Aquí la expedición de la Alianza
-combatió a la Horda de Draenor y selló el Portal. Hoy la Ciudadela del Fuego
-Infernal es la fortaleza de los orcos viles, la Legión Ardiente asalta los
-Escalones del Destino desde sus forjas, la Alianza ocupa el Bastión del Honor y
-la Horda, Thrallmar.""",
+    3483: """Península del Fuego Infernal: Un páramo árido y rojo sangre al este de Terrallende, un resto de Draenor y la primera tierra al otro lado del Portal Oscuro. Los brujos orcos drenaron su vida hace mucho, el suelo rojo y agrietado escupe géiseres de fuego, y fragmentos de tierra flotan en sus bordes contra el cielo arremolinado del Vacío. Aquí la expedición de la Alianza combatió a la Horda de Draenor y selló el Portal. Hoy la Ciudadela del Fuego Infernal es la fortaleza de los orcos viles, la Legión Ardiente asalta los Escalones del Destino desde sus forjas, la Alianza ocupa el Bastión del Honor y la Horda, Thrallmar.""",
 
-    3521: """Marisma de Zangar: Un pantano de belleza inquietante al oeste de
-Terrallende, cubierto por un bosque de hongos gigantes que se alzan sobre sus
-lagos como grandes árboles. Hongos brillantes, esporas resplandecientes y
-criaturas bioluminiscentes llenan su crepúsculo eterno de luz azul y verde, y
-escapó en gran parte a la corrupción que arrasó Draenor. Ahora su equilibrio se
-tambalea: los nagas de lady Vashj drenan sus aguas con grandes bombas en la
-Reserva Colmillo Torcido, los ogros talan los hongos y la marisma se muere. La
-Expedición Cenarion la defiende desde el Refugio Cenarion, y los pacíficos
-esporiélagos, un pueblo de hongos racionales, viven en Esporaggar.""",
+    3521: """Marisma de Zangar: Un pantano de belleza inquietante al oeste de Terrallende, cubierto por un bosque de hongos gigantes que se alzan sobre sus lagos como grandes árboles. Hongos brillantes, esporas resplandecientes y criaturas bioluminiscentes llenan su crepúsculo eterno de luz azul y verde, y escapó en gran parte a la corrupción que arrasó Draenor. Ahora su equilibrio se tambalea: los nagas de lady Vashj drenan sus aguas con grandes bombas en la Reserva Colmillo Torcido, los ogros talan los hongos y la marisma se muere. La Expedición Cenarion la defiende desde el Refugio Cenarion, y los pacíficos esporiélagos, un pueblo de hongos racionales, viven en Esporaggar.""",
 
-    3519: """Bosque de Terokkar: Un bosque oscuro y antiguo al sur de
-Terrallende, de altos pinos de cristal, denso dosel verde y claros brumosos,
-hogar de los arakkoa de aspecto de ave, cuya capital oculta, Skettis, se halla
-en las montañas del sudeste. Al noroeste se alza Shattrath, refugio para
-exiliados de todas las razas. La mitad sur son los Páramos de Hueso, arrasados
-cuando el Concilio de la Sombra invocó una entidad terrible en la necrópolis
-draenei de Auchindoun y abrió una grieta que atrajo a los etéreos a
-Terrallende. La Alianza ocupa el Bastión de Allerian y la Horda el Bastión
-Rompepedras, mientras orcos viles y brujos del Concilio de la Sombra acechan en
-el bosque.""",
+    3519: """Bosque de Terokkar: Un bosque oscuro y antiguo al sur de Terrallende, de altos pinos de cristal, denso dosel verde y claros brumosos, hogar de los arakkoa de aspecto de ave, cuya capital oculta, Skettis, se halla en las montañas del sudeste. Al noroeste se alza Shattrath, refugio para exiliados de todas las razas. La mitad sur son los Páramos de Hueso, arrasados cuando el Concilio de la Sombra invocó una entidad terrible en la necrópolis draenei de Auchindoun y abrió una grieta que atrajo a los etéreos a Terrallende. La Alianza ocupa el Bastión de Allerian y la Horda el Bastión Rompepedras, mientras orcos viles y brujos del Concilio de la Sombra acechan en el bosque.""",
 
-    3703: """Ciudad de Shattrath: La Ciudad de la Luz, la antigua capital
-draenei al noroeste del Bosque de Terokkar, caída ante los orcos corrompidos
-por los demonios y reconstruida por los Sha'tar, naaru nacidos de la luz, junto
-a los sacerdotes draenei Aldor. Los elfos de sangre enviados por Kael'thas para
-destruirla depusieron las armas y se convirtieron en los Arúspices, rivales
-acérrimos de los Aldor en la misma ciudad. El naaru A'dal gobierna desde la
-Terraza de la Luz, donde también reside el archimago Khadgar. El Bajo Arrabal
-rebosa de refugiados de todas las razas, la violencia entre la Alianza y la
-Horda está prohibida y portales unen la ciudad con las capitales de Azeroth.""",
+    3703: """Ciudad de Shattrath: La Ciudad de la Luz, la antigua capital draenei al noroeste del Bosque de Terokkar, caída ante los orcos corrompidos por los demonios y reconstruida por los Sha'tar, naaru nacidos de la luz, junto a los sacerdotes draenei Aldor. Los elfos de sangre enviados por Kael'thas para destruirla depusieron las armas y se convirtieron en los Arúspices, rivales acérrimos de los Aldor en la misma ciudad. El naaru A'dal gobierna desde la Terraza de la Luz, donde también reside el archimago Khadgar. El Bajo Arrabal rebosa de refugiados de todas las razas, la violencia entre la Alianza y la Horda está prohibida y portales unen la ciudad con las capitales de Azeroth.""",
 
-    3917: """Auchindoun: La necrópolis destrozada de los draenei en el corazón
-de los Páramos de Hueso del Bosque de Terokkar, durante milenios su lugar más
-sagrado, donde enterraban a sus muertos honrados. Agentes del Concilio de la
-Sombra invocaron en su interior a un antiguo elemental del sonido, y el ritual
-hizo estallar el templo, arrasó el bosque y abrió una grieta que atrajo a los
-etéreos a Terrallende. Los muertos draenei vagan ahora por las ruinas como
-espíritus sin descanso. Sus salas son reclamadas por distintos poderes: etéreos
-en las Tumbas de Maná, demonios en las Criptas Auchenai, arakkoa en las Salas
-Sethekk y el Concilio de la Sombra en el Laberinto de las Sombras.""",
+    3917: """Auchindoun: La necrópolis destrozada de los draenei en el corazón de los Páramos de Hueso del Bosque de Terokkar, durante milenios su lugar más sagrado, donde enterraban a sus muertos honrados. Agentes del Concilio de la Sombra invocaron en su interior a un antiguo elemental del sonido, y el ritual hizo estallar el templo, arrasó el bosque y abrió una grieta que atrajo a los etéreos a Terrallende. Los muertos draenei vagan ahora por las ruinas como espíritus sin descanso. Sus salas son reclamadas por distintos poderes: etéreos en las Tumbas de Maná, demonios en las Criptas Auchenai, arakkoa en las Salas Sethekk y el Concilio de la Sombra en el Laberinto de las Sombras.""",
 
-    3518: """Nagrand: La última tierra intacta de Terrallende, praderas
-ondulantes verdes y doradas, lagos resplandecientes e islas flotantes bajo un
-cielo teñido de rosa. Su nombre significa Tierra de Vientos; fue la patria del
-clan Lobo Gélido y el lugar de reunión de los orcos al pie de la montaña
-sagrada de Oshu'gun. Los elementales hablan con los mortales en el Trono de los
-Elementos. Los orcos mag'har, aún puros, viven en Garadar bajo la guía de la
-Abuela Geyah, y los tábidos kurenai en Telaar. Los ogros amenazan la tierra, la
-Legión tiene forjas al oeste y la ciudad de Halaa es disputada por la Alianza y
-la Horda.""",
+    3518: """Nagrand: La última tierra intacta de Terrallende, praderas ondulantes verdes y doradas, lagos resplandecientes e islas flotantes bajo un cielo teñido de rosa. Su nombre significa Tierra de Vientos; fue la patria del clan Lobo Gélido y el lugar de reunión de los orcos al pie de la montaña sagrada de Oshu'gun. Los elementales hablan con los mortales en el Trono de los Elementos. Los orcos mag'har, aún puros, viven en Garadar bajo la guía de la Abuela Geyah, y los tábidos kurenai en Telaar. Los ogros amenazan la tierra, la Legión tiene forjas al oeste y la ciudad de Halaa es disputada por la Alianza y la Horda.""",
 
-    3522: """Montañas Filoespada: Crestas afiladas como cuchillas y valles
-cortados a hachazos al norte de Terrallende, desgastados por vientos feroces en
-púas semejantes a dagas bajo el resplandor verde del Vacío. Es la tierra de los
-ogros de los clanes Filoespada y Mazo Sangriento, que luchan entre sí por el
-favor de los gronn, gigantes dirigidos por Gruul el Asesino de Dragones desde
-su guarida en el norte; los huesos de dragones negros muertos cuelgan empalados
-en los picos. La Legión tiene forjas en las mesetas, y sectarios de los
-dragones negros acechan en el norte. Los elfos de la noche ocupan Sylvanaar, la
-Horda el Bastión Señor del Trueno, y los ogros iluminados de Ogri'la viven en
-una meseta del oeste.""",
+    3522: """Montañas Filoespada: Crestas afiladas como cuchillas y valles cortados a hachazos al norte de Terrallende, desgastados por vientos feroces en púas semejantes a dagas bajo el resplandor verde del Vacío. Es la tierra de los ogros de los clanes Filoespada y Mazo Sangriento, que luchan entre sí por el favor de los gronn, gigantes dirigidos por Gruul el Asesino de Dragones desde su guarida en el norte; los huesos de dragones negros muertos cuelgan empalados en los picos. La Legión tiene forjas en las mesetas, y sectarios de los dragones negros acechan en el norte. Los elfos de la noche ocupan Sylvanaar, la Horda el Bastión Señor del Trueno, y los ogros iluminados de Ogri'la viven en una meseta del oeste.""",
 
-    3523: """Tormenta Abisal: Grandes fragmentos de tierra e incontables
-esquirlas de roca que flotan en el Vacío Abisal al nordeste de Terrallende,
-antaño los campos de Farahlon. Una tormenta arcana incesante deforma la tierra:
-el suelo es de un violeta enfermizo, rayos mágicos cruzan una bruma violácea y
-franjas de energía se retuercen en el cielo mientras la región se desintegra
-lentamente. Elfos de sangre leales a Kael'thas extraen el Vacío con grandes
-forjas de maná construidas con la tecnología del Castillo de la Tempestad, que
-ocupan, y la Legión Ardiente tiene bases en las islas. Los etéreos del
-Consorcio ocupan la Flecha de la Tormenta y sus ecodomos, y los goblins dirigen
-el Área 52.""",
+    3523: """Tormenta Abisal: Grandes fragmentos de tierra e incontables esquirlas de roca que flotan en el Vacío Abisal al nordeste de Terrallende, antaño los campos de Farahlon. Una tormenta arcana incesante deforma la tierra: el suelo es de un violeta enfermizo, rayos mágicos cruzan una bruma violácea y franjas de energía se retuercen en el cielo mientras la región se desintegra lentamente. Elfos de sangre leales a Kael'thas extraen el Vacío con grandes forjas de maná construidas con la tecnología del Castillo de la Tempestad, que ocupan, y la Legión Ardiente tiene bases en las islas. Los etéreos del Consorcio ocupan la Flecha de la Tormenta y sus ecodomos, y los goblins dirigen el Área 52.""",
 
-    3520: """Valle Sombraluna: Una tierra sombría y arrasada al sudeste de
-Terrallende, donde día y noche brota energía vil fundida que ilumina el cielo
-con llamas verdes. Roca negra y ceniza cubren el suelo, y el volcán llamado
-Mano de Gul'dan escupe lava verde en su centro. Al este se alza el Templo
-Oscuro, antaño el templo de Karabor de los draenei, hoy la ciudadela de Illidan
-Tempestira, autoproclamado señor de Terrallende, y de sus Illidari, que
-contienen a la Legión Ardiente desde el Bastión de la Legión. Los orcos viles
-Faucedraco esclavizan a los dracos de Ala Abisal. El Bastión Martillo Salvaje,
-la Aldea Sombraluna y los campamentos de los Aldor y los Arúspices hacen la
-guerra a Illidan.""",
+    3520: """Valle Sombraluna: Una tierra sombría y arrasada al sudeste de Terrallende, donde día y noche brota energía vil fundida que ilumina el cielo con llamas verdes. Roca negra y ceniza cubren el suelo, y el volcán llamado Mano de Gul'dan escupe lava verde en su centro. Al este se alza el Templo Oscuro, antaño el templo de Karabor de los draenei, hoy la ciudadela de Illidan Tempestira, autoproclamado señor de Terrallende, y de sus Illidari, que contienen a la Legión Ardiente desde el Bastión de la Legión. Los orcos viles Faucedraco esclavizan a los dracos de Ala Abisal. El Bastión Martillo Salvaje, la Aldea Sombraluna y los campamentos de los Aldor y los Arúspices hacen la guerra a Illidan.""",
 
-    3540: """El Vacío Abisal: El caótico reino astral entre los mundos, una
-dimensión de magia salvaje que une los mundos del universo y es el hogar de los
-demonios de la Legión Ardiente. Cuando Draenor fue desgarrado, sus restos
-fueron arrastrados al Vacío, y en los bordes de Terrallende la tierra
-simplemente termina en un vacío infinito de nubes iridiscentes, cintas de
-energía de colores y rocas a la deriva. Mundos lejanos se adivinan en el cielo
-arremolinado, las leyes de la naturaleza parecen inciertas y la mente se
-esfuerza por comprender lo que ven los ojos. Quien se aventura demasiado lejos
-puede no regresar jamás.""",
+    3540: """El Vacío Abisal: El caótico reino astral entre los mundos, una dimensión de magia salvaje que une los mundos del universo y es el hogar de los demonios de la Legión Ardiente. Cuando Draenor fue desgarrado, sus restos fueron arrastrados al Vacío, y en los bordes de Terrallende la tierra simplemente termina en un vacío infinito de nubes iridiscentes, cintas de energía de colores y rocas a la deriva. Mundos lejanos se adivinan en el cielo arremolinado, las leyes de la naturaleza parecen inciertas y la mente se esfuerza por comprender lo que ven los ojos. Quien se aventura demasiado lejos puede no regresar jamás.""",
 
     # -------------------------------------------------------------------------
     # Northrend
     # -------------------------------------------------------------------------
-    3537: """Tundra Boreal: Una vasta llanura azotada por el viento en el borde
-sudoeste de Rasganorte, para muchos la primera tierra que ven en la guerra
-contra el Rey Exánime. Tierra pardo rojiza, líquenes y hielo se extienden bajo
-un viento capaz de arrancarle la barba a un enano; en el centro humean los
-géiseres, y el este nevado es el más duro. Mamuts y rinocerontes lanudos
-recorren las llanuras, y los pacíficos colmillarr pescan y cazan ballenas en la
-costa, con sus aldeas arrasadas por saqueadores kvaldir. Malygos y el Vuelo
-Azul dominan la isla de Gelidar, la Plaga ocupa En'kilah, y el Fuerte Denuedo
-de la Alianza y el Bastión Grito de Guerra de la Horda miran al norte.""",
+    3537: """Tundra Boreal: Una vasta llanura azotada por el viento en el borde sudoeste de Rasganorte, para muchos la primera tierra que ven en la guerra contra el Rey Exánime. Tierra pardo rojiza, líquenes y hielo se extienden bajo un viento capaz de arrancarle la barba a un enano; en el centro humean los géiseres, y el este nevado es el más duro. Mamuts y rinocerontes lanudos recorren las llanuras, y los pacíficos colmillarr pescan y cazan ballenas en la costa, con sus aldeas arrasadas por saqueadores kvaldir. Malygos y el Vuelo Azul dominan la isla de Gelidar, la Plaga ocupa En'kilah, y el Fuerte Denuedo de la Alianza y el Bastión Grito de Guerra de la Horda miran al norte.""",
 
-    495: """Fiordo Aquilonal: Una región agreste al sudeste de Rasganorte, de
-praderas verdes, ríos helados, oscuros bosques de pinos y altos fiordos cuyos
-acantilados caen al mar frío. Al fondo de la Bahía Garfaescarcha se alza el
-Castillo de Utgarde sobre el lago Cauldros. Fue la sede ancestral de los
-vrykul, guerreros gigantes despertados de un largo sueño; muchos sirven ahora
-al Rey Exánime y asaltan a quien se acerca. La Alianza ocupa el viejo puerto de
-Valgarde y la Atalaya Oeste, los Renegados de la Mano de la Venganza ocupan
-Bahía de la Venganza y Nuevo Agamand, y la Liga de Expedicionarios excava
-ruinas de los titanes donde han aparecido enanos férreos.""",
+    495: """Fiordo Aquilonal: Una región agreste al sudeste de Rasganorte, de praderas verdes, ríos helados, oscuros bosques de pinos y altos fiordos cuyos acantilados caen al mar frío. Al fondo de la Bahía Garfaescarcha se alza el Castillo de Utgarde sobre el lago Cauldros. Fue la sede ancestral de los vrykul, guerreros gigantes despertados de un largo sueño; muchos sirven ahora al Rey Exánime y asaltan a quien se acerca. La Alianza ocupa el viejo puerto de Valgarde y la Atalaya Oeste, los Renegados de la Mano de la Venganza ocupan Bahía de la Venganza y Nuevo Agamand, y la Liga de Expedicionarios excava ruinas de los titanes donde han aparecido enanos férreos.""",
 
-    65: """Cementerio de Dragones: El corazón del sur de Rasganorte, un páramo
-ártico de glaciares de un blanco cegador sembrado de huesos relucientes de
-dragones, el lugar adonde los dragones acuden a morir. Aquí los guardianes de
-los titanes crearon a los primeros Aspectos, y los huesos de Galakrond aún
-sobresalen del hielo. En su centro se alza el Templo del Reposo del Dragón,
-donde se reúnen los Vuelos dragón, rodeado por los cinco santuarios de dragón.
-La Plaga asedia los santuarios y alza vermis de escarcha con los huesos,
-Naxxramas flota sobre las llanuras del este y la Embestida Escarlata ocupa una
-fortaleza en la costa. La Alianza y la Horda han levantado fortalezas ante la
-Puerta de Cólera, la entrada cerrada a Corona de Hielo.""",
+    65: """Cementerio de Dragones: El corazón del sur de Rasganorte, un páramo ártico de glaciares de un blanco cegador sembrado de huesos relucientes de dragones, el lugar adonde los dragones acuden a morir. Aquí los guardianes de los titanes crearon a los primeros Aspectos, y los huesos de Galakrond aún sobresalen del hielo. En su centro se alza el Templo del Reposo del Dragón, donde se reúnen los Vuelos dragón, rodeado por los cinco santuarios de dragón. La Plaga asedia los santuarios y alza vermis de escarcha con los huesos, Naxxramas flota sobre las llanuras del este y la Embestida Escarlata ocupa una fortaleza en la costa. La Alianza y la Horda han levantado fortalezas ante la Puerta de Cólera, la entrada cerrada a Corona de Hielo.""",
 
-    394: """Colinas Pardas: Una región boscosa al sudeste de Rasganorte, suaves
-colinas verdes cubiertas de pinos que suben hacia montañas escarpadas, donde el
-espeso bosque frena el viento y las colinas parecen casi templadas. Osos,
-lobos, ciervos y búhos nivales llenan los bosques. Es la patria de los
-fúrbolgs, cuya ciudad de Fauceparda se alza en el tocón de Vordrassil, un Árbol
-del Mundo que los druidas destruyeron al hallarlo corrompido, y una locura
-rastrera se extiende entre sus tribus. Tramperos mantienen puestos comerciales
-en el bosque, la Plaga ocupa el Fuerte Drak'Tharon en el norte, y la Alianza y
-la Horda se disputan los campamentos madereros.""",
+    394: """Colinas Pardas: Una región boscosa al sudeste de Rasganorte, suaves colinas verdes cubiertas de pinos que suben hacia montañas escarpadas, donde el espeso bosque frena el viento y las colinas parecen casi templadas. Osos, lobos, ciervos y búhos nivales llenan los bosques. Es la patria de los fúrbolgs, cuya ciudad de Fauceparda se alza en el tocón de Vordrassil, un Árbol del Mundo que los druidas destruyeron al hallarlo corrompido, y una locura rastrera se extiende entre sus tribus. Tramperos mantienen puestos comerciales en el bosque, la Plaga ocupa el Fuerte Drak'Tharon en el norte, y la Alianza y la Horda se disputan los campamentos madereros.""",
 
-    4201: """Lágrimas de Vordrassil: Uno de los grandes fragmentos caídos del
-Árbol del Mundo Vordrassil, en las Colinas Pardas. Hace mucho, Fandral
-Corzocelada plantó ramas de Nordrassil por todo Rasganorte, y la mayor de
-ellas, Andrassil, la Corona de la Nieve, dominó estas colinas durante décadas.
-Pero sus raíces alcanzaron la prisión de un mal antiguo, y la locura se
-extendió entre las criaturas de la región, así que el Círculo Cenarion destruyó
-el árbol y lo llamó Vordrassil, la Corona Rota. Sus pedazos aún yacen en el
-bosque, y la tierra alrededor de este fragmento está cubierta de un limo vivo,
-señal de la corrupción que lo condenó.""",
+    4201: """Lágrimas de Vordrassil: Uno de los grandes fragmentos caídos del Árbol del Mundo Vordrassil, en las Colinas Pardas. Hace mucho, Fandral Corzocelada plantó ramas de Nordrassil por todo Rasganorte, y la mayor de ellas, Andrassil, la Corona de la Nieve, dominó estas colinas durante décadas. Pero sus raíces alcanzaron la prisión de un mal antiguo, y la locura se extendió entre las criaturas de la región, así que el Círculo Cenarion destruyó el árbol y lo llamó Vordrassil, la Corona Rota. Sus pedazos aún yacen en el bosque, y la tierra alrededor de este fragmento está cubierta de un limo vivo, señal de la corrupción que lo condenó.""",
 
-    3477: """Azjol-Nerub: Un inmenso reino subterráneo bajo la mitad de
-Rasganorte, el antiguo reino de los nerubianos arácnidos, un pueblo dedicado al
-saber, al arte y a la filosofía, de pasillos pulidos, salas talladas y grandes
-bibliotecas iluminadas por hongos luminosos. El Rey Exánime vio en ellos la
-mayor amenaza para su poder y arrasó el reino en la Guerra de la Araña; cada
-nerubiano caído se alzaba para luchar por la Plaga, y su propio rey Anub'arak
-le sirve ahora. Nerubianos no-muertos custodian nidadas en el Reino Superior,
-supervivientes vivos libran una guerra oculta y en el Reino Antiguo de
-Ahn'kahet se agitan los Sin Rostro.""",
+    3477: """Azjol-Nerub: Un inmenso reino subterráneo bajo la mitad de Rasganorte, el antiguo reino de los nerubianos arácnidos, un pueblo dedicado al saber, al arte y a la filosofía, de pasillos pulidos, salas talladas y grandes bibliotecas iluminadas por hongos luminosos. El Rey Exánime vio en ellos la mayor amenaza para su poder y arrasó el reino en la Guerra de la Araña; cada nerubiano caído se alzaba para luchar por la Plaga, y su propio rey Anub'arak le sirve ahora. Nerubianos no-muertos custodian nidadas en el Reino Superior, supervivientes vivos libran una guerra oculta y en el Reino Antiguo de Ahn'kahet se agitan los Sin Rostro.""",
 
-    66: """Zul'Drak: La patria de los trols de hielo Drakkari al este de
-Rasganorte, un valle que es en sí mismo una inmensa ciudad templo de plazas,
-zigurats, murallas y acueductos construidos en terrazas, con árboles espinosos,
-estanques helados y nieve entre las ruinas. Los Drakkari se cuentan entre las
-razas más antiguas de Azeroth y gobiernan desde Gundrak, pero su imperio se
-derrumba. La Plaga ocupa el Fuerte Drak'Tharon y sus necrópolis alzan a los
-trols caídos contra su propio pueblo. Desesperados, los profetas Drakkari han
-matado a sus propios dioses, los loas, y beben su sangre para obtener poder, lo
-que ha enloquecido a muchos. La Cruzada Argenta y los Zandalari han venido a
-intervenir.""",
+    66: """Zul'Drak: La patria de los trols de hielo Drakkari al este de Rasganorte, un valle que es en sí mismo una inmensa ciudad templo de plazas, zigurats, murallas y acueductos construidos en terrazas, con árboles espinosos, estanques helados y nieve entre las ruinas. Los Drakkari se cuentan entre las razas más antiguas de Azeroth y gobiernan desde Gundrak, pero su imperio se derrumba. La Plaga ocupa el Fuerte Drak'Tharon y sus necrópolis alzan a los trols caídos contra su propio pueblo. Desesperados, los profetas Drakkari han matado a sus propios dioses, los loas, y beben su sangre para obtener poder, lo que ha enloquecido a muchos. La Cruzada Argenta y los Zandalari han venido a intervenir.""",
 
-    3711: """Cuenca de Sholazar: Una cuenca de jungla tropical en medio de
-Rasganorte, rodeada de altas montañas, calurosa, húmeda y rebosante de vida
-tras el frío cortante del exterior. La guardiana Freya la convirtió en una cuna
-de vida, y pilones de los titanes coronados de cristales giratorios mantienen
-su calor y la protegen de criaturas impuras. Cuatro ríos se unen en el Corazón
-del Río, en el denso Manglar Silvestre. Rinocerontes, gorilas, crocoliscos e
-hidras pueblan la jungla, y los gorlocs del Oráculo combaten a los wolvar
-Corazón Frenético. La Plaga ha irrumpido en la cuenca por el este, y el Avatar
-de Freya lucha por contener la plaga que se extiende.""",
+    3711: """Cuenca de Sholazar: Una cuenca de jungla tropical en medio de Rasganorte, rodeada de altas montañas, calurosa, húmeda y rebosante de vida tras el frío cortante del exterior. La guardiana Freya la convirtió en una cuna de vida, y pilones de los titanes coronados de cristales giratorios mantienen su calor y la protegen de criaturas impuras. Cuatro ríos se unen en el Corazón del Río, en el denso Manglar Silvestre. Rinocerontes, gorilas, crocoliscos e hidras pueblan la jungla, y los gorlocs del Oráculo combaten a los wolvar Corazón Frenético. La Plaga ha irrumpido en la cuenca por el este, y el Avatar de Freya lucha por contener la plaga que se extiende.""",
 
-    2817: """Bosque Canto de Cristal: Una tierra en medio de Rasganorte donde
-cada árbol, cada brizna de hierba y gran parte del suelo se han convertido en
-cristal vivo y luminoso, que vibra con el viento de modo que el bosque toca una
-música suave e interminable. Antaño fue Canción de la Luna, donde los Altonato
-mantenían el puesto de Shandaral; cuando los dragones azules llegaron a
-vengarse por reliquias robadas, el hechizo imprudente de los hechiceros
-cristalizó todo el bosque, y sus espíritus aún vagan por él. Dalaran flota
-ahora sobre el oeste del bosque, el Pacto de Plata y los Atracasol ocupan
-torres en ruinas en lados opuestos, y el Vuelo Azul libra la Guerra del Nexo en
-el sur.""",
+    2817: """Bosque Canto de Cristal: Una tierra en medio de Rasganorte donde cada árbol, cada brizna de hierba y gran parte del suelo se han convertido en cristal vivo y luminoso, que vibra con el viento de modo que el bosque toca una música suave e interminable. Antaño fue Canción de la Luna, donde los Altonato mantenían el puesto de Shandaral; cuando los dragones azules llegaron a vengarse por reliquias robadas, el hechizo imprudente de los hechiceros cristalizó todo el bosque, y sus espíritus aún vagan por él. Dalaran flota ahora sobre el oeste del bosque, el Pacto de Plata y los Atracasol ocupan torres en ruinas en lados opuestos, y el Vuelo Azul libra la Guerra del Nexo en el sur.""",
 
-    4395: """Dalaran: La ciudad de los magos y hogar del Kirin Tor, cuyas
-agujas violetas se alzaban antaño junto al Lago Lordamere, hasta que la Plaga
-la destruyó en la Tercera Guerra. El Kirin Tor elevó la ciudad entera al cielo
-y la trasladó a Rasganorte, donde flota sobre el Bosque Canto de Cristal para
-enfrentarse al Rey Exánime y al Aspecto azul Malygos, cuya guerra contra los
-lanzadores de hechizos la convierte en objetivo principal. El Consejo de los
-Seis, dirigido por el archimago Rhonin, gobierna desde la Ciudadela Violeta.
-Dalaran acoge a la Alianza y a la Horda: el Pacto de Plata y los Atracasol
-mantienen sus propios enclaves y se vigilan con recelo.""",
+    4395: """Dalaran: La ciudad de los magos y hogar del Kirin Tor, cuyas agujas violetas se alzaban antaño junto al Lago Lordamere, hasta que la Plaga la destruyó en la Tercera Guerra. El Kirin Tor elevó la ciudad entera al cielo y la trasladó a Rasganorte, donde flota sobre el Bosque Canto de Cristal para enfrentarse al Rey Exánime y al Aspecto azul Malygos, cuya guerra contra los lanzadores de hechizos la convierte en objetivo principal. El Consejo de los Seis, dirigido por el archimago Rhonin, gobierna desde la Ciudadela Violeta. Dalaran acoge a la Alianza y a la Horda: el Pacto de Plata y los Atracasol mantienen sus propios enclaves y se vigilan con recelo.""",
 
-    4197: """Conquista del Invierno: Un valle helado en el centro de
-Rasganorte, elevado sobre las tierras vecinas, el lecho de un lago reducido que
-ha dejado al descubierto ruinas de los titanes, bosques oscuros, pantanos
-helados y un caldero volcánico. En su corazón se alza la Fortaleza de Conquista
-del Invierno, un complejo titánico que custodia la entrada a la Cámara de
-Archavon, donde reposan reliquias de los titanes de un poder inimaginable bajo
-la vigilancia de antiguos gigantes que detestan a todo intruso. Desde el inicio
-de la guerra contra el Rey Exánime, la Alianza y la Horda luchan sin fin por la
-fortaleza y la cámara, golpeando sus muros con máquinas de asedio mientras el
-control cambia de manos una y otra vez.""",
+    4197: """Conquista del Invierno: Un valle helado en el centro de Rasganorte, elevado sobre las tierras vecinas, el lecho de un lago reducido que ha dejado al descubierto ruinas de los titanes, bosques oscuros, pantanos helados y un caldero volcánico. En su corazón se alza la Fortaleza de Conquista del Invierno, un complejo titánico que custodia la entrada a la Cámara de Archavon, donde reposan reliquias de los titanes de un poder inimaginable bajo la vigilancia de antiguos gigantes que detestan a todo intruso. Desde el inicio de la guerra contra el Rey Exánime, la Alianza y la Horda luchan sin fin por la fortaleza y la cámara, golpeando sus muros con máquinas de asedio mientras el control cambia de manos una y otra vez.""",
 
-    67: """Las Cumbres Tormentosas: Una imponente cordillera al nordeste de
-Rasganorte, dura y peligrosa, donde vientos feroces pueden arrancar a un enano
-de un acantilado, las avalanchas retumban por las laderas y el brillo del hielo
-ciega a los incautos. Las cumbres fueron el hogar de los guardianes de los
-titanes, y casi cada montaña oculta templos, terrazas y máquinas inmensas; el
-Templo de las Tormentas corona el pico más alto, y al norte se extiende Ulduar,
-el mayor complejo de los titanes de Azeroth. Su guardián Loken se ha vuelto
-hacia la oscuridad, y sus enanos y gigantes férreos expulsan a los terráneos de
-su hogar. Los gigantes de escarcha de los Hijos de Hodir ocupan los valles del
-este.""",
+    67: """Las Cumbres Tormentosas: Una imponente cordillera al nordeste de Rasganorte, dura y peligrosa, donde vientos feroces pueden arrancar a un enano de un acantilado, las avalanchas retumban por las laderas y el brillo del hielo ciega a los incautos. Las cumbres fueron el hogar de los guardianes de los titanes, y casi cada montaña oculta templos, terrazas y máquinas inmensas; el Templo de las Tormentas corona el pico más alto, y al norte se extiende Ulduar, el mayor complejo de los titanes de Azeroth. Su guardián Loken se ha vuelto hacia la oscuridad, y sus enanos y gigantes férreos expulsan a los terráneos de su hogar. Los gigantes de escarcha de los Hijos de Hodir ocupan los valles del este.""",
 
-    210: """Corona de Hielo: El oscuro corazón de Rasganorte y sede del Rey
-Exánime, una tierra de montañas y glaciar donde el hielo se ha ennegrecido de
-corrupción. Desde el Trono Helado, el Rey Exánime esclavizó a los pueblos de
-Rasganorte y alzó la Plaga, y alrededor del trono se alza la Ciudadela de
-Corona de Hielo, una catedral de hojas de saronita visible desde casi cualquier
-lugar del continente. Murallas y pasarelas de saronita unen fortalezas,
-necrópolis y minas, y los no-muertos superan en número a todo lo demás. Ahora
-la guerra ha llegado a su puerta: la Cruzada Argenta y los Caballeros de la
-Espada de Ébano atacan desde fortalezas conquistadas, y las naves de guerra de
-la Alianza y de la Horda combaten en el cielo.""",
+    210: """Corona de Hielo: El oscuro corazón de Rasganorte y sede del Rey Exánime, una tierra de montañas y glaciar donde el hielo se ha ennegrecido de corrupción. Desde el Trono Helado, el Rey Exánime esclavizó a los pueblos de Rasganorte y alzó la Plaga, y alrededor del trono se alza la Ciudadela de Corona de Hielo, una catedral de hojas de saronita visible desde casi cualquier lugar del continente. Murallas y pasarelas de saronita unen fortalezas, necrópolis y minas, y los no-muertos superan en número a todo lo demás. Ahora la guerra ha llegado a su puerta: la Cruzada Argenta y los Caballeros de la Espada de Ébano atacan desde fortalezas conquistadas, y las naves de guerra de la Alianza y de la Horda combaten en el cielo.""",
 
-    4742: """Desembarco de Hrothgar: Una pequeña isla envuelta en niebla frente
-a la costa norte de Corona de Hielo, al otro lado del estrecho llamado Paso del
-Saqueador. Allí se alzaba una aldea colmillarr, hasta que llegaron los kvaldir,
-los malditos vrykul del mar, bajo su caudillo Hrothgar, mataron o expulsaron a
-sus habitantes y dieron a la isla su nombre. Ahora es una base para los asaltos
-kvaldir contra los barcos del estrecho, donde invocan grandes kraken de las
-profundidades, mientras las flotas del Pacto de Plata y de los Atracasol luchan
-por rechazarlos.""",
+    4742: """Desembarco de Hrothgar: Una pequeña isla envuelta en niebla frente a la costa norte de Corona de Hielo, al otro lado del estrecho llamado Paso del Saqueador. Allí se alzaba una aldea colmillarr, hasta que llegaron los kvaldir, los malditos vrykul del mar, bajo su caudillo Hrothgar, mataron o expulsaron a sus habitantes y dieron a la isla su nombre. Ahora es una base para los asaltos kvaldir contra los barcos del estrecho, donde invocan grandes kraken de las profundidades, mientras las flotas del Pacto de Plata y de los Atracasol luchan por rechazarlos.""",
 
     # -------------------------------------------------------------------------
     # Seas
     # -------------------------------------------------------------------------
-    308: """Mar Prohibido: Un mar vasto, frío y apenas cartografiado a lo largo
-de la costa este de los Reinos del Este, desde el Pantano de las Penas hasta el
-Bosque Canción Eterna. Sus aguas grises son bravas y a menudo envueltas en
-niebla, fuertes corrientes y tormentas repentinas hacen peligrosa la
-navegación, y gran parte de la costa está cerrada por acantilados y montañas.
-Pocos barcos se alejan de la orilla, y los marinos hablan de tierras
-desconocidas y criaturas terribles más allá del horizonte. Tiburones y
-serpientes marinas viven en sus profundidades, y múrlocs y nagas acechan en sus
-orillas.""",
+    308: """Mar Prohibido: Un mar vasto, frío y apenas cartografiado a lo largo de la costa este de los Reinos del Este, desde el Pantano de las Penas hasta el Bosque Canción Eterna. Sus aguas grises son bravas y a menudo envueltas en niebla, fuertes corrientes y tormentas repentinas hacen peligrosa la navegación, y gran parte de la costa está cerrada por acantilados y montañas. Pocos barcos se alejan de la orilla, y los marinos hablan de tierras desconocidas y criaturas terribles más allá del horizonte. Tiburones y serpientes marinas viven en sus profundidades, y múrlocs y nagas acechan en sus orillas.""",
 
-    214: """Mare Magnum: El inmenso océano entre los continentes de Azeroth,
-nacido cuando el Pozo de la Eternidad fue destruido y el antiguo Kalimdor se
-partió en la Gran Fractura; todos los mares del mundo se unen a él. Sus aguas
-de un azul profundo se extienden más allá del horizonte, y los marinos hablan
-de islas perdidas, ciudades hundidas y el gran remolino de la Vorágine en su
-corazón, donde estuvo el Pozo. Las tormentas se levantan de repente, y se dice
-que serpientes marinas, tiburones gigantes y nagas acechan en sus
-profundidades. Barcos de la Alianza, la Horda, los goblins y los piratas lo
-cruzan sin cesar entre los continentes.""",
+    214: """Mare Magnum: El inmenso océano entre los continentes de Azeroth, nacido cuando el Pozo de la Eternidad fue destruido y el antiguo Kalimdor se partió en la Gran Fractura; todos los mares del mundo se unen a él. Sus aguas de un azul profundo se extienden más allá del horizonte, y los marinos hablan de islas perdidas, ciudades hundidas y el gran remolino de la Vorágine en su corazón, donde estuvo el Pozo. Las tormentas se levantan de repente, y se dice que serpientes marinas, tiburones gigantes y nagas acechan en sus profundidades. Barcos de la Alianza, la Horda, los goblins y los piratas lo cruzan sin cesar entre los continentes.""",
 
-    332: """Mare Magnum: El mar abierto entre los continentes de Azeroth,
-nacido cuando el Pozo de la Eternidad implosionó en la Gran Fractura. Lejos de
-cualquier costa, solo se extiende un agua azul infinita en todas direcciones,
-rota por alguna isla lejana o un barco de paso. El oleaje sube y baja, las aves
-marinas vuelan en círculos muy alto y en las profundidades nadan criaturas que
-pocos han visto. Los marinos hablan con temor de la Vorágine, el colosal
-remolino en el centro del mar, y de los innumerables barcos perdidos en
-tormentas y abismos. Es un lugar de soledad y peligro, donde reinan el viento y
-las olas.""",
+    332: """Mare Magnum: El mar abierto entre los continentes de Azeroth, nacido cuando el Pozo de la Eternidad implosionó en la Gran Fractura. Lejos de cualquier costa, solo se extiende un agua azul infinita en todas direcciones, rota por alguna isla lejana o un barco de paso. El oleaje sube y baja, las aves marinas vuelan en círculos muy alto y en las profundidades nadan criaturas que pocos han visto. Los marinos hablan con temor de la Vorágine, el colosal remolino en el centro del mar, y de los innumerables barcos perdidos en tormentas y abismos. Es un lugar de soledad y peligro, donde reinan el viento y las olas.""",
 
-    457: """Mar de la Bruma: El gran océano frente a las costas oeste de
-Kalimdor, que se extiende desde Costa Oscura, Vallefresno, Desolace y Feralas
-hacia el oeste desconocido. A menudo está envuelto en bruma, de ahí su nombre;
-sus aguas son profundas, frías en el norte y más cálidas en el sur. Teldrassil
-se alza de él frente a la costa noroeste, y las islas Bruma Azur se encuentran
-en sus aguas. Nagas, gigantes marinos y serpientes marinas viven en sus
-profundidades, y las ruinas hundidas de antiguas ciudades elfas de la noche
-yacen bajo sus olas. Más allá de las costas conocidas apenas ha sido explorado.""",
+    457: """Mar de la Bruma: El gran océano frente a las costas oeste de Kalimdor, que se extiende desde Costa Oscura, Vallefresno, Desolace y Feralas hacia el oeste desconocido. A menudo está envuelto en bruma, de ahí su nombre; sus aguas son profundas, frías en el norte y más cálidas en el sur. Teldrassil se alza de él frente a la costa noroeste, y las islas Bruma Azur se encuentran en sus aguas. Nagas, gigantes marinos y serpientes marinas viven en sus profundidades, y las ruinas hundidas de antiguas ciudades elfas de la noche yacen bajo sus olas. Más allá de las costas conocidas apenas ha sido explorado.""",
 
-    3479: """Mar de la Bruma: Las aguas alrededor de las islas Bruma Azur,
-frente al noroeste de Kalimdor, donde se estrelló la nave draenei llamada el
-Exodar. El mar es profundo y a menudo velado por la bruma, y los restos y
-cristales de la nave caída dan a algunas aguas costeras un brillo extraño,
-sobre todo alrededor de la Isla Bruma de Sangre, cuyas orillas se tiñen de
-rojo. Múrlocs y nagas viven a lo largo de las costas, ruinas elfas de la noche
-hundidas yacen bajo las olas y los barcos navegan entre el Exodar y las tierras
-de los elfos de la noche, mientras al este Teldrassil se alza del mar.""",
+    3479: """Mar de la Bruma: Las aguas alrededor de las islas Bruma Azur, frente al noroeste de Kalimdor, donde se estrelló la nave draenei llamada el Exodar. El mar es profundo y a menudo velado por la bruma, y los restos y cristales de la nave caída dan a algunas aguas costeras un brillo extraño, sobre todo alrededor de la Isla Bruma de Sangre, cuyas orillas se tiñen de rojo. Múrlocs y nagas viven a lo largo de las costas, ruinas elfas de la noche hundidas yacen bajo las olas y los barcos navegan entre el Exodar y las tierras de los elfos de la noche, mientras al este Teldrassil se alza del mar.""",
 
-    3455: """Mar del Norte: Las aguas frías frente a las costas norte de
-Quel'Thalas, que se extienden desde el Bosque Canción Eterna hacia el norte, en
-dirección a Rasganorte. La Isla de Quel'Danas se alza de ellas frente a la
-costa norte, y los barcos élficos que las surcan unen desde hace mucho la
-patria de los elfos con el resto del mundo. Las aguas son frías y grises, y los
-vientos que las barren traen el frío del norte helado.""",
+    3455: """Mar del Norte: Las aguas frías frente a las costas norte de Quel'Thalas, que se extienden desde el Bosque Canción Eterna hacia el norte, en dirección a Rasganorte. La Isla de Quel'Danas se alza de ellas frente a la costa norte, y los barcos élficos que las surcan unen desde hace mucho la patria de los elfos con el resto del mundo. Las aguas son frías y grises, y los vientos que las barren traen el frío del norte helado.""",
 
-    4258: """Mar del Norte: Las aguas frías a lo largo de las costas sudeste de
-Rasganorte, frente a las Colinas Pardas y el Fiordo Aquilonal, que llegan al
-sur hasta las costas norte de Lordaeron. Islas como la Isla Luna de Sangre y
-las Ruinas de Tethys salpican el agua gris. Barcos de la Alianza y de los
-Renegados la cruzan rumbo a los puertos del fiordo, mientras drakkares vrykul y
-saqueadores kvaldir merodean entre la niebla.""",
+    4258: """Mar del Norte: Las aguas frías a lo largo de las costas sudeste de Rasganorte, frente a las Colinas Pardas y el Fiordo Aquilonal, que llegan al sur hasta las costas norte de Lordaeron. Islas como la Isla Luna de Sangre y las Ruinas de Tethys salpican el agua gris. Barcos de la Alianza y de los Renegados la cruzan rumbo a los puertos del fiordo, mientras drakkares vrykul y saqueadores kvaldir merodean entre la niebla.""",
 
-    4630: """Mar del Norte: Las aguas gélidas alrededor de las costas este y
-norte de Rasganorte, grises y llenas de hielo a la deriva bajo vientos
-cortantes. Pocos barcos se aventuran lejos en ellas, pues icebergs y niebla
-ocultan las costas, y se dice que los malditos kvaldir y otros saqueadores del
-mar surgen de las brumas.""",
+    4630: """Mar del Norte: Las aguas gélidas alrededor de las costas este y norte de Rasganorte, grises y llenas de hielo a la deriva bajo vientos cortantes. Pocos barcos se aventuran lejos en ellas, pues icebergs y niebla ocultan las costas, y se dice que los malditos kvaldir y otros saqueadores del mar surgen de las brumas.""",
 
-    3979: """Mar Gélido: El mar frío al sur de Rasganorte, parte de Mare
-Magnum, que se extiende desde las costas sur de la Tundra Boreal, el Cementerio
-de Dragones y el Fiordo Aquilonal hasta la Vorágine. Hielo flotante e icebergs
-derivan por sus aguas grises. Las flotas de la Alianza y de la Horda lo cruzan
-para llegar al continente, los colmillarr viajan en tortugas gigantes entre sus
-aldeas costeras y las columnas talladas del antiguo Sendero de los Titanes
-emergen de las olas. Saqueadores kvaldir y monstruos marinos rondan sus
-profundidades.""",
+    3979: """Mar Gélido: El mar frío al sur de Rasganorte, parte de Mare Magnum, que se extiende desde las costas sur de la Tundra Boreal, el Cementerio de Dragones y el Fiordo Aquilonal hasta la Vorágine. Hielo flotante e icebergs derivan por sus aguas grises. Las flotas de la Alianza y de la Horda lo cruzan para llegar al continente, los colmillarr viajan en tortugas gigantes entre sus aldeas costeras y las columnas talladas del antiguo Sendero de los Titanes emergen de las olas. Saqueadores kvaldir y monstruos marinos rondan sus profundidades.""",
 }
 
 BG_LORE = {
