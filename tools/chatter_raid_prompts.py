@@ -31,6 +31,8 @@ from chatter_prompts import (
     build_environmental_context_lines,
 )
 
+from chatter_location_topics import roll_location_topic
+
 LOG = logging.getLogger("chatter_raid_prompts")
 
 # -- Raid lore constants ---------------------------------
@@ -744,6 +746,26 @@ def build_raid_battle_cry_prompt(
     )
 
 
+def _raid_location_lines(extra_data):
+    """A topic tied to this raid, roleplay only, at
+    LocationTopics.Chance; it replaces the topic hint. The Lore
+    line already describes raids that have one; the others get
+    the raid's description."""
+    if not is_roleplay(get_chatter_mode(
+        extra_data.get('_config') or {}
+    )):
+        return []
+    location = roll_location_topic(
+        extra_data.get('zone_id'), extra_data.get('map_id'),
+    )
+    if location is None:
+        return []
+    has_lore = bool(
+        RAID_LORE.get(extra_data.get('raid_name'), {}).get('lore')
+    )
+    return location.lines(with_description=not has_lore)
+
+
 def build_raid_banter_prompt(
     extra_data, bot_data, is_raid_worker=True
 ):
@@ -780,7 +802,11 @@ def build_raid_banter_prompt(
         "for morale. This is just friends chatting "
         "in a dungeon.\n"
     )
-    ctx += f"Topic hint: {banter_topics}\n"
+    location_lines = _raid_location_lines(extra_data)
+    if location_lines:
+        ctx += "\n".join(location_lines) + "\n"
+    else:
+        ctx += f"Topic hint: {banter_topics}\n"
     ctx += (
         "ONE short sentence (10-25 words) in the configured chat mode. "
         "No asterisks."
@@ -829,7 +855,11 @@ def build_raid_morale_prompt(
         "commander voice. Casual and "
         "authoritative.\n"
     )
-    ctx += f"Topic hint: {topics}\n"
+    location_lines = _raid_location_lines(extra_data)
+    if location_lines:
+        ctx += "\n".join(location_lines) + "\n"
+    else:
+        ctx += f"Topic hint: {topics}\n"
     ctx += (
         "ONE short sentence in the configured chat mode. "
         "No asterisks."

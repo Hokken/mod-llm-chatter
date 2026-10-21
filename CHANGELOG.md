@@ -1,5 +1,29 @@
 # Changelog
 
+### 2026-10-21 - Location Topics and Universal Topic Pools
+
+* **No more talk about things that are not there**: the random topics
+  for in-world speech used to assume weather, places and lives the game
+  never tracks, so a bot could greet the first snow in a jungle, worry
+  about its garden fence in a forest camp, or mention the market and the
+  ruins outside a town that has neither. The roleplay, proximity, Guild
+  roleplay and bot-question pools now hold only subjects that fit any
+  speaker anywhere, and player-side subjects ("bio break", leveling,
+  professions) no longer reach roleplay bots.
+* **Topics tied to the place**: every open-world zone, dungeon and raid
+  has its own topic list (about 5,350 topics). The prompt names the place,
+  says the subject belongs to it and carries its description. Roleplay
+  party chatter and bot questions, roleplay General chatter, roleplay raid
+  idle chatter and proximity scenes (NPCs in both modes) use them. Party
+  topics need the player and every speaking bot in the same zone or
+  instance. Guild chat, battlegrounds and arenas do not use them.
+* **New settings**: `LLMChatter.LocationTopics.Enable`,
+  `LLMChatter.LocationTopics.Chance` (default 70, threads off) and
+  `LLMChatter.Threads.LocationTopicWeight` (default 70). Bridge restart
+  only; no worldserver rebuild.
+* **The Scarlet Enclave** (the death knight start area) now has a zone
+  name and description in all five languages.
+
 ### 2026-10-21 - Chatter Fixes
 
 * **Replies to a player addressing an NPC by name are no longer lost**:

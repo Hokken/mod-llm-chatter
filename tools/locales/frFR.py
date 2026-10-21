@@ -38,7 +38,7 @@ ZONE_NAMES = {
     495: "Fjord Hurlant",  # verified: official Blizzard fr-fr news source
     3537: "Toundra Boréenne",  # verified: official Blizzard fr-fr news source
     3711: "Bassin de Sholazar",  # verified: official Blizzard fr-fr news source
-    3525: "Île de Brume-Sang", 4080: "Île de Quel'Danas",
+    3525: "Île de Brume-Sang", 4080: "Île de Quel'Danas", 4298: "Maleterres : l'enclave Écarlate",
     3430: "Bois des Chants Éternels", 3524: "Île de Brume-Azur",
     3433: "Les Terres Fantômes", 4197: "Joug-d'Hiver",
     2817: "Forêt du Chant de Cristal", 3487: "Lune-d'Argent",
@@ -555,6 +555,7 @@ ZONE_FLAVOR = {
     3433: """Terres fantômes : Le sud de Quel'Thalas, une terre sombre d'arbres noirs et desséchés, de ciel morne et de froid mortel, dévastée par la marche du Fléau vers le Puits de soleil et jamais remise. La Malebrèche part de Mortholme, la citadelle du Fléau gouvernée par le traître Dar'Khan Drathir, qui aida Arthas à percer les défenses du royaume. Les fantômes des elfes massacrés hantent les villages en ruine. Les elfes de sang et leurs alliés réprouvés tiennent Tranquillien et veulent reconquérir la terre, tandis que des trolls Amani rôdent près de Zul'Aman, à l'est. Le col Thalassien mène au sud, par une antique porte elfique, jusqu'aux Maleterres.""",
 
     4080: """Île de Quel'Danas : Une île au large de la côte nord du bois des Chants éternels, où les fondateurs de Quel'Thalas créèrent il y a sept mille ans le Puits de soleil, une source d'une puissance immense. Arthas le souilla pour ressusciter Kel'Thuzad. Récemment, l'île fut le théâtre d'une lutte désespérée, quand Kael'thas Haut-Soleil et la Légion ardente voulurent faire du Puits une porte, et l'opération Soleil brisé, unissant Aldor et Clairvoyants, établit sa base au port des Confins du Soleil. Les cicatrices des combats marquent la terre, mais ses forêts dorées, ses plages blanches et ses flèches élégantes restent magnifiques, et en son cœur s'élève le plateau du Puits de soleil.""",
+    4298: """L'enclave Écarlate : L'extrême est des Maleterres, une enclave côtière que la Croisade écarlate tenait comme dernier refuge contre la peste, avec la ville de Nouvelle-Avalon, ses fermes et sa mine, la chapelle de la Flamme cramoisie et un mouillage sur la côte. Au-dessus flottait Achérus, la nécropole volante du roi-liche, d'où ses nouveaux chevaliers de la mort descendirent pour livrer l'enclave aux flammes. Après la bataille de la chapelle de l'Espoir de Lumière, ces chevaliers de la mort rompirent avec le roi-liche pour devenir les chevaliers de la Lame d'ébène, et Achérus devint le fort d'Ébène, leur bastion. Les champs brûlés et les chapelles silencieuses portent encore les marques de cet assaut.""",
 
     408: """Île de Gillijim : Une île de jungle reculée des mers du Sud, au large de la côte sud de la vallée de Strangleronce. Les vieilles cartes la signalent comme une ancienne île troll, mais rares sont les marins vivants à avoir foulé ses rivages, et elle se trouve loin des routes commerciales habituelles. La mer qui l'entoure est chaude, profonde et bleue, peuplée de requins et d'autres créatures du grand large, et les courants peuvent emporter les imprudents loin de toute terre. On parle de ruines trolles antiques cachées dans ses jungles, mais ses secrets restent inconnus de la plupart.""",
 

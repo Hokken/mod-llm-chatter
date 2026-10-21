@@ -4649,7 +4649,9 @@ def build_player_msg_conversation_prompt(
 # BOT-INITIATED QUESTION TO PLAYER
 # ============================================================
 
-# Question topic suggestions — creative and specific
+# Question topic suggestions — creative and specific. None may
+# assume a feature of the current place: the zone and dungeon
+# context describe it, and location topics cover it.
 BOT_QUESTION_TOPICS = [
     # Class / role curiosity
     'their class abilities or fighting style',
@@ -4660,11 +4662,11 @@ BOT_QUESTION_TOPICS = [
     'their homeland or racial background',
     'what life is like for their race',
     'traditions or customs of their people',
-    # Zone / location
-    'the current area and its history',
-    'something they noticed about this place',
+    # Places (subjects tied to where the party is come from
+    # location_topics.json; see chatter_location_topics)
     'whether they have been here before',
-    'rumors about this region',
+    'the place they would most like to see',
+    'a city or land they never want to visit again',
     # Adventure / party
     'their most memorable battle or adventure',
     'what they hope to find or accomplish today',
@@ -4851,9 +4853,13 @@ def build_bot_question_prompt(
     stored_tone=None,
     memories=None,
     player_context="",
+    location_topic=None,
 ):
     """Build prompt for a bot asking the player a
     creative, contextual question in party chat.
+
+    ``location_topic`` (roleplay, rolled by the caller) replaces
+    the pool topic with a subject tied to where they both are.
 
     Args:
         bot: dict with name, class, race, level, role
@@ -4999,7 +5005,14 @@ def build_bot_question_prompt(
     tone = _speaker_tone(stored_tone, bot, mode)
     twist = maybe_get_creative_twist(mode=mode)
     # Pick topic pool based on location context
-    if get_dungeon_flavor(map_id) is not None:
+    if location_topic is not None:
+        # The zone or dungeon context above describes
+        # the place.
+        topic = (
+            f"{location_topic.topic} (a subject tied to "
+            f"{location_topic.place}, where you both are now)"
+        )
+    elif get_dungeon_flavor(map_id) is not None:
         topic = random.choice(DUNGEON_QUESTION_TOPICS)
     elif map_id in BG_MAP_NAMES:
         topic = random.choice(BG_QUESTION_TOPICS)

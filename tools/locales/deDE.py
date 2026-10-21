@@ -32,7 +32,7 @@ ZONE_NAMES = {
     3521: "Zangarmarschen", 3522: "Schergrat", 3523: "Nethersturm",
     3524: "Azurmythosinsel", 3525: "Blutmythosinsel",
     3537: "Boreanische Tundra", 3703: "Shattrath", 3711: "Sholazarbecken",
-    4080: "Insel von Quel'Danas", 4197: "Tausendwintersee", 4395: "Dalaran",
+    4080: "Insel von Quel'Danas", 4298: "Pestländer: Die Scharlachrote Enklave", 4197: "Tausendwintersee", 4395: "Dalaran",
 }
 
 RACE_SPEECH_PROFILES = {
@@ -533,6 +533,7 @@ ZONE_FLAVOR = {
     3433: """Geisterlande: Der südliche Teil von Quel'Thalas, ein düsteres Land verdorrter schwarzer Bäume, trüben Himmels und tödlicher Kälte, verwüstet, als die Geißel zum Sonnenbrunnen zog, und nie erholt. Die Todesschneise beginnt an der Todesfestung, der Zitadelle der Geißel unter dem Verräter Dar'Khan Drathir, der Arthas half, die Verteidigung des Königreichs zu durchbrechen. Die Geister erschlagener Elfen spuken in den zerstörten Dörfern. Blutelfen und ihre verlassenen Verbündeten halten Tristessa und wollen das Land zurückgewinnen, während Amanitrolle nahe Zul'Aman im Osten lauern. Der Thalassische Pass führt durch ein uraltes Elfentor nach Süden zu den Pestländern.""",
 
     4080: """Insel von Quel'Danas: Eine Insel vor der Nordküste des Immersangwaldes, auf der die Gründer von Quel'Thalas vor siebentausend Jahren den Sonnenbrunnen schufen, eine Quelle gewaltiger Macht. Arthas schändete ihn, um Kel'Thuzad zu erwecken. In jüngerer Zeit wurde die Insel zum Schauplatz eines verzweifelten Kampfes, als Kael'thas Sonnenwanderer und die Brennende Legion den Brunnen als Tor nutzen wollten und die Offensive der Zerschmetterten Sonne aus Aldor und Sehern den Hafen von Sonnenweiten zu ihrer Basis machte. Kampfspuren zeichnen das Land, doch ihre goldenen Wälder, weißen Strände und anmutigen Türme sind noch immer schön, und in ihrem Herzen erhebt sich das Sonnenbrunnenplateau.""",
+    4298: """Die Scharlachrote Enklave: Der äußerste Osten der Pestländer, eine Küstenenklave, die der Scharlachrote Kreuzzug als letzte Zuflucht vor der Seuche hielt, mit der Stadt Neu-Avalon, ihren Höfen und ihrer Mine, der Kapelle der Purpurflamme und einem Ankerplatz an der Küste. Über ihr schwebte Acherus, die fliegende Nekropole des Lichkönigs, von der seine neuen Todesritter herabstiegen, um die Enklave in Brand zu setzen. Nach der Schlacht an der Kapelle des Hoffnungsvollen Lichts sagten sich diese Todesritter als Ritter der Schwarzen Klinge vom Lichkönig los, und Acherus wurde zur Schwarzen Festung, ihrer Hochburg. Verbrannte Felder und stille Kapellen tragen noch die Spuren jenes Angriffs.""",
 
     408: """Gillijims Insel: Eine abgelegene Dschungelinsel in der Südsee vor der Südküste des Schlingendorntals. Alte Karten verzeichnen sie als ehemalige Trollinsel, doch kaum ein lebender Seefahrer hat ihre Ufer betreten, und sie liegt fern der üblichen Handelswege. Das umgebende Meer ist warm, tief und blau, Heimat von Haien und anderen Geschöpfen des offenen Ozeans, und die Strömungen können Unvorsichtige weit vom Land forttragen. Erzählungen berichten von uralten Trollruinen in ihren Dschungeln, doch ihre Geheimnisse bleiben dem Großteil der Welt verborgen.""",
 

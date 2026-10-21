@@ -11,12 +11,12 @@ from chatter_constants import (
     PROXIMITY_CHAT_TOPICS,
     PROXIMITY_PLAYER_CHAT_TOPICS,
     PROXIMITY_PLAYER_WEATHER_TOPICS,
-    PROXIMITY_WEATHER_TOPICS,
     REACTION_TONES,
 )
 from chatter_proximity_pacing import proximity_line_delays
 from chatter_db import insert_chat_message
 from chatter_llm import call_llm
+from chatter_location_topics import roll_location_topic
 from chatter_guild_profile import (
     get_character_guild_name,
     same_guild_note,
@@ -316,14 +316,12 @@ def _apply_speaker_action_policy(
             line['action'] = None
 
 
-_OUTDOOR_ONLY_TOPICS = frozenset(
-    PROXIMITY_WEATHER_TOPICS + PROXIMITY_PLAYER_WEATHER_TOPICS
-)
+_OUTDOOR_ONLY_TOPICS = frozenset(PROXIMITY_PLAYER_WEATHER_TOPICS)
 
 
 def _pick_topic(pool, extra: Optional[Dict]) -> str:
-    """Random topic from pool; sky and weather topics are left
-    out inside instances, where no weather context exists."""
+    """Random topic from pool; the normal-mode weather topic is
+    left out inside instances, where no weather context exists."""
     if extra and build_instance_context(extra)['is_instance']:
         indoor = [t for t in pool if t not in _OUTDOOR_ONLY_TOPICS]
         if indoor:
@@ -331,16 +329,26 @@ def _pick_topic(pool, extra: Optional[Dict]) -> str:
     return random.choice(pool)
 
 
+def _in_world_topic(extra: Optional[Dict]) -> str:
+    """Topic for an in-world speaker (an NPC, or a roleplay
+    playerbot): one tied to this place at LocationTopics.Chance,
+    else the universal pool. The scene's location lines describe
+    the place."""
+    location = (
+        roll_location_topic(extra.get('zone_id'), extra.get('map_id'))
+        if extra else None
+    )
+    if location is not None:
+        return location.subject_line()
+    return _pick_topic(PROXIMITY_CHAT_TOPICS, extra)
+
+
 def _playerbot_topic(
     config: Optional[Dict], extra: Optional[Dict] = None,
 ) -> str:
-    mode = get_chatter_mode(config or {})
-    pool = (
-        PROXIMITY_CHAT_TOPICS
-        if is_roleplay(mode)
-        else PROXIMITY_PLAYER_CHAT_TOPICS
-    )
-    return _pick_topic(pool, extra)
+    if is_roleplay(get_chatter_mode(config or {})):
+        return _in_world_topic(extra)
+    return _pick_topic(PROXIMITY_PLAYER_CHAT_TOPICS, extra)
 
 
 def _describe_fighter(fighter: Dict) -> str:
@@ -1030,10 +1038,10 @@ def _conversation_prompt(
     elif fight_topic:
         topic = fight_topic
     elif is_roleplay(mode) or not has_playerbot:
-        topic = _pick_topic(PROXIMITY_CHAT_TOPICS, extra)
+        topic = _in_world_topic(extra)
     else:
         topic = (
-            "NPC angle: " + _pick_topic(PROXIMITY_CHAT_TOPICS, extra)
+            "NPC angle: " + _in_world_topic(extra)
             + "; playerbot angle: "
             + _pick_topic(PROXIMITY_PLAYER_CHAT_TOPICS, extra)
         )
@@ -1168,7 +1176,7 @@ def _generate_single_line(
     else:
         topic = topic or _fight_topic(extra, get_chatter_mode(config or {}))
         topic = topic or (
-            _pick_topic(PROXIMITY_CHAT_TOPICS, extra)
+            _in_world_topic(extra)
             if speaker.get('is_npc')
             else _playerbot_topic(config, extra)
         )

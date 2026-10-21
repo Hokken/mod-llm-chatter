@@ -78,12 +78,20 @@ def test_lore_texts_are_third_person_and_bounded():
             assert 60 <= len(text) <= 1700, (zone_id, len(text))
 
 
+# Zone 4298, the death knight start area, has its areas filed under the
+# Eastern Plaguelands in subzone_lore.json, so it has no zone entry
+# there; its ZONE_FLAVOR uses the short name "The Scarlet Enclave".
+NO_LORE_ENTRY = {4298}
+
+
 def test_every_described_zone_has_short_flavor():
     described = {int(k) for k, v in LORE.items() if v.get('description')}
-    assert described == set(constants.ZONE_FLAVOR), (
-        described ^ set(constants.ZONE_FLAVOR))
+    assert described | NO_LORE_ENTRY == set(constants.ZONE_FLAVOR), (
+        (described | NO_LORE_ENTRY) ^ set(constants.ZONE_FLAVOR))
     for zone_id, text in constants.ZONE_FLAVOR.items():
-        assert text.split(':')[0] == LORE[str(zone_id)]['name'], zone_id
+        if zone_id not in NO_LORE_ENTRY:
+            assert text.split(':')[0] == LORE[str(zone_id)]['name'], (
+                zone_id)
         assert 250 <= len(text) <= 700, (zone_id, len(text))
         assert not FIRST_PERSON.search(text), zone_id
 

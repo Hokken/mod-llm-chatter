@@ -162,7 +162,7 @@ ZONE_NAMES = {
     3523: "Netherstorm", 3524: "Azuremyst Isle", 3703: "Shattrath City",
     3430: "Eversong Woods", 3433: "Ghostlands", 3487: "Silvermoon City",
     3525: "Bloodmyst Isle", 3557: "The Exodar",
-    4080: "Isle of Quel'Danas",
+    4080: "Isle of Quel'Danas", 4298: "Plaguelands: The Scarlet Enclave",
     # Northrend
     3537: "Borean Tundra", 495: "Howling Fjord", 394: "Grizzly Hills",
     3711: "Sholazar Basin", 66: "Zul'Drak", 67: "The Storm Peaks",
@@ -1228,6 +1228,7 @@ ZONE_FLAVOR = {
     3433: """Ghostlands: The southern part of Quel'Thalas, a shadowy land of withered black trees, gloomy skies and deathly chill, devastated when the Scourge marched to the Sunwell and never recovered. The Dead Scar runs from Deatholme, the Scourge citadel ruled by the traitor Dar'Khan Drathir, who helped Arthas breach the kingdom. Ghosts of slain elves haunt the ruined villages. Blood elves and their Forsaken allies hold Tranquillien and strive to reclaim the land, while Amani trolls lurk near Zul'Aman in the east. The Thalassian Pass leads south through an ancient Elfgate to the Plaguelands.""",
 
     4080: """Isle of Quel'Danas: An island off the northern coast of Eversong Woods, where the founders of Quel'Thalas created the Sunwell, a fountain of immense power, seven thousand years ago. Arthas defiled it to raise Kel'Thuzad. In recent times the island became the stage of a desperate struggle, as Kael'thas Sunstrider and the Burning Legion sought to use the Sunwell as a gateway, and the Shattered Sun Offensive of the Aldor and Scryers made the harbor of Sun's Reach its base. Battle scars mark the land, yet its golden forests, white beaches and elegant spires remain beautiful, and the Sunwell Plateau rises at its heart.""",
+    4298: """The Scarlet Enclave: The far eastern corner of the Plaguelands, a coastal enclave the Scarlet Crusade held as its last refuge from the plague, with the town of New Avalon, the farms and mine of Havenshire, the Chapel of the Crimson Flame and the anchorage of King's Harbor. Above it hung Acherus, the Lich King's floating necropolis, from which his new death knights descended to put the enclave to the torch. After the battle at Light's Hope Chapel those death knights broke from the Lich King as the Knights of the Ebon Blade, and Acherus became the Ebon Hold, their stronghold. The burned fields and silent chapels still bear the marks of that assault.""",
 
     408: """Gillijim's Isle: A remote jungle island in the South Seas off the southern coast of Stranglethorn Vale. Old charts mark it as a former troll island, but few living sailors have set foot on its shores, and it lies far from the usual shipping lanes. The surrounding sea is warm, deep and blue, home to sharks and other creatures of the open ocean, and the currents can carry the unwary far from land. Tales speak of ancient troll ruins hidden in its jungles, but its secrets remain lost to most of the world.""",
 
@@ -1860,64 +1861,71 @@ CLASS_BITMASK = {
 # =============================================================================
 # AMBIENT CHAT TOPICS
 # =============================================================================
-# Topics for normal (out-of-character) mode.
-# MMO player talk: gear, levels, abilities, zone, humor.
-# Excluded: lore, faction history, world rumors (RP-only).
-# Also excluded: items, quests, quest rewards, spells, trade
+# Topics for party idle chatter and General ambient chatter.
+# Excluded: items, quests, quest rewards, spells, trade
 # (handled by dedicated message-type paths).
+#
+# Shared entries go to both modes, so they must make sense for a
+# player and for a character in the world alike. Nothing here may
+# assume a condition the prompt does not supply: weather, season,
+# time of day, a feature of the current place, or the speaker's
+# mount, profession or home. Place-bound subjects come from
+# location_topics.json (chatter_location_topics) instead.
 _AMBIENT_CHAT_TOPICS_SHARED = [
-    # Environment / Zone
-    'commenting on the scenery or surroundings',
-    'noticing something interesting in the zone',
-    'remarking on the local wildlife or creatures',
-    'observing the landscape or terrain',
-    # Weather / Time
-    'commenting on the weather',
-    'noticing the time of day',
-    'mentioning how the light looks',
     # Class / Race
     'mentioning something about their class abilities',
-    'mentioning something about their race or class perks',
     'comparing fighting styles or approaches',
-    'sharing class-specific knowledge or tips',
     # Food / Drink
     'asking if anyone has food or water',
     'complaining about being hungry or thirsty',
     'mentioning a favorite food or drink',
-    # Travel / Mounts
-    'talking about their mount',
+    # Travel
     'commenting on how far they have walked',
-    'wishing they had a faster mount',
-    # Professions
-    'mentioning their profession skill progress',
-    'talking about gathering or crafting',
-    'asking if anyone needs something crafted',
+    'wondering how long until the next rest stop',
     # Capital Cities / Inns
     'talking about a capital city or inn they like',
     'talking about what they do in town',
     'mentioning a favorite hangout spot',
     # Gear / Equipment
     'commenting on their own gear or armor',
-    'noticing a party member looks well-equipped',
-    'wishing they had better equipment',
-    # Level Progress
-    'mentioning how close they are to leveling',
-    'talking about what abilities they want next',
-    'reflecting on how far they have come',
-    # AFK / Bio / Humor
-    'joking about needing a bio break',
-    'wondering how long until the next rest stop',
-    'making a joke about falling asleep at the keys',
     # General banter
-    'making small talk with another player',
     'cracking a joke or making a witty observation',
     'complaining about something minor',
     'sharing a random thought',
 ]
 
-# Additional player-side topics used only in normal mode. Keep these out of
-# AMBIENT_CHAT_TOPICS_RP so expanding OOC variety cannot change RP behavior.
+# Player-side topics used only in normal mode. Keep these out of
+# AMBIENT_CHAT_TOPICS_RP so expanding OOC variety cannot change RP
+# behavior. The first block holds game and surroundings subjects
+# that read fine as player chatter but, in roleplay, either sound
+# out of world or invent weather and scenery the prompt never gave.
 AMBIENT_CHAT_TOPICS = _AMBIENT_CHAT_TOPICS_SHARED + [
+    # Surroundings, weather and time
+    'commenting on the scenery or surroundings',
+    'noticing something interesting in the zone',
+    'remarking on the local wildlife or creatures',
+    'observing the landscape or terrain',
+    'commenting on the weather',
+    'noticing the time of day',
+    'mentioning how the light looks',
+    # Class, mounts, professions, gear and levels
+    'mentioning something about their race or class perks',
+    'sharing class-specific knowledge or tips',
+    'talking about their mount',
+    'wishing they had a faster mount',
+    'mentioning their profession skill progress',
+    'talking about gathering or crafting',
+    'asking if anyone needs something crafted',
+    'noticing a party member looks well-equipped',
+    'wishing they had better equipment',
+    'mentioning how close they are to leveling',
+    'talking about what abilities they want next',
+    'reflecting on how far they have come',
+    # AFK / Bio / Humor
+    'joking about needing a bio break',
+    'making a joke about falling asleep at the keys',
+    'making small talk with another player',
+
     # Zone navigation and pacing
     'commenting on whether the current route feels efficient',
     'wondering if the group missed a turn or useful shortcut',
@@ -2022,7 +2030,6 @@ AMBIENT_CHAT_TOPICS = _AMBIENT_CHAT_TOPICS_SHARED + [
 AMBIENT_CHAT_TOPICS_RP = _AMBIENT_CHAT_TOPICS_SHARED + [
     # Lore / World
     'mentioning a rumor or piece of lore',
-    'wondering about the history of this place',
     'recalling something from their travels',
     'making an observation about the faction war',
     # Faith / Spirituality
@@ -2034,25 +2041,33 @@ AMBIENT_CHAT_TOPICS_RP = _AMBIENT_CHAT_TOPICS_SHARED + [
     'sharing a tradition or custom from their people',
     'comparing this land to their homeland',
     # Danger / Enemy
-    'expressing unease about a nearby threat',
     'mentioning something they heard about the Scourge or Burning Legion',
-    'wondering aloud about a powerful enemy nearby',
-    # Ancient Places
-    'musing about the ruins or ancient structures nearby',
-    'wondering who built this place and why it was abandoned',
-    'sensing something old and powerful about this area',
+    'recalling the most dangerous foe they ever faced',
     # War / Conflict
     'reflecting on a battle they witnessed or heard about',
     'sharing thoughts on the Alliance and Horde conflict',
     'honoring fallen soldiers or comrades',
-    # Nature / Magic
+    # Magic
     'musing about the nature of magic in this world',
-    'commenting on how the land feels corrupted or blessed',
-    'noticing something unusual about the local wildlife or plants',
     # Personal / Journey
     'reflecting on their purpose or destiny',
     'sharing a moment of doubt or resolve',
     'musing about what drives them to keep adventuring',
+    'recalling a lesson an old mentor taught them',
+    'remembering the first time they left home',
+    'speaking of a promise they mean to keep',
+    'naming something they would never do, whatever the cost',
+    'wondering what they would do with a year of peace',
+    'telling the story behind an old scar',
+    'admitting they once misjudged an enemy',
+    'remembering a kindness from a stranger',
+    'confessing a mistake they still regret',
+    'mentioning a keepsake they carry for luck or remembrance',
+    'talking about the people they fight for',
+    'wishing they had learned some skill when they had the chance',
+    'musing about what makes a good companion on the road',
+    'reflecting on how war has changed people they knew',
+    'repeating a saying their people use in hard times',
     # Mysticism
     'describing a dream or vision they had',
     'wondering about the meaning of a strange sign or portent',
@@ -2074,6 +2089,7 @@ AMBIENT_CHAT_TOPICS_RP = _AMBIENT_CHAT_TOPICS_SHARED + [
     'musing about whether good and evil are real or just convenient labels',
     'reflecting on the nature of power and those who seek it',
     'asking what legacy they will leave behind',
+    'wondering whether courage can be learned',
     # Spirituality
     'speaking quietly about death and what comes after',
     'reflecting on a moment when they felt something divine or holy',
@@ -2094,6 +2110,20 @@ AMBIENT_CHAT_TOPICS_RP = _AMBIENT_CHAT_TOPICS_SHARED + [
     'lamenting knowledge that was lost when a city fell',
     'debating whether some secrets are better left buried',
     'expressing admiration for a scholar or sage they once met',
+    # Companionship / Banter
+    'wondering what the people back home would think of them now',
+    'teasing a companion about a habit of theirs',
+    'arguing about the best way to spend a day of rest',
+    'recalling a feast they will never forget',
+    'talking about a friend they lost touch with',
+    'wondering which of them would last longest alone in the wild',
+    'boasting about a feat that may or may not be true',
+    'asking what the others miss most about home',
+    'sharing a piece of advice they were once given',
+    'mentioning a hero of their people they look up to',
+    'reflecting on how they have changed since they first took up arms',
+    'wondering whether peace between the factions could ever last',
+    'debating whether the fallen kingdoms will ever rise again',
 ]
 
 # =============================================================================
@@ -2104,295 +2134,197 @@ AMBIENT_CHAT_TOPICS_RP = _AMBIENT_CHAT_TOPICS_SHARED + [
 # fragments as the player walks through the world.  Distinct from
 # AMBIENT_CHAT_TOPICS which are party/group-focused.
 # Keep entries short and concrete so the LLM produces brief replies.
-# Sky and weather topics only make sense outdoors; proximity
-# chatter drops them inside instances, where no weather context
-# exists and speakers would each invent their own.
-PROXIMITY_WEATHER_TOPICS = [
-    'complaining about the rain',
-    'enjoying the sunshine',
-    'wondering if a storm is coming',
-    'commenting on the fog rolling in',
-    'remarking on the cold wind',
-    'noting the first snow of the season',
-    'wishing for warmer weather',
-    'complaining about the heat',
-    'admiring the sunset',
-    'commenting on the moonlight',
-    'noticing the stars are unusually bright tonight',
-    'remarking on the autumn leaves',
-    'talking about the river rising after rain',
-    'mentioning the harvest moon',
-]
+# Any speaker may draw any entry, anywhere: a guard, a vendor, a
+# traveler or an adventurer, in a city, a camp or a dungeon. So no
+# entry may assume the weather, the season or a holiday, a feature
+# of the place (a market, a port, ruins outside town), or the
+# speaker's job, home or age. Place-bound subjects come from
+# location_topics.json (chatter_location_topics) instead.
 
-# Normal-mode (player voice) counterpart of the weather topics.
+# Normal-mode (player voice) weather topic; outdoors only.
 PROXIMITY_PLAYER_WEATHER_TOPICS = [
     'reacting to the in-game weather or lighting',
 ]
 
 PROXIMITY_CHAT_TOPICS = [
-    # ── Weather & Nature ────────────────────────────────────────────
-    *PROXIMITY_WEATHER_TOPICS,
-
-    # ── Local News & Rumors ─────────────────────────────────────────
+    # ── Rumors & News ───────────────────────────────────────────────
     'sharing a rumor about trouble on the roads',
     'mentioning travelers arriving from far away',
-    'gossiping about a local official',
     'discussing news from the front lines',
-    'wondering about strange lights seen in the hills',
     'talking about a merchant caravan that went missing',
-    'speculating about troop movements nearby',
-    'repeating a rumor heard at the tavern last night',
-    'mentioning a wanted poster they just saw',
-    'discussing a bounty on a local bandit',
-    'wondering about a mysterious stranger in town',
-    'talking about a ship that arrived in port',
-    'mentioning a fire that broke out near the market',
-    'sharing news of a wedding or birth in the village',
+    'repeating a rumor heard at an inn',
+    'wondering about a mysterious stranger they passed',
     'gossiping about a noble who fell from favor',
+    'sharing news of a wedding or birth among friends',
+    'mentioning a bounty posted on some outlaw',
+    'passing on a warning someone gave them earlier',
+    'repeating news from one of the capital cities',
+    'wondering whether a rumor they heard is true',
+    'mentioning someone who came back from a long journey with strange tales',
+    'talking about what the war means for ordinary people',
+    'speculating about what the leaders of their faction are planning',
 
-    # ── Commerce & Trade ────────────────────────────────────────────
+    # ── Commerce & Coin ─────────────────────────────────────────────
     'complaining about rising prices',
-    'mentioning a new shop opening nearby',
-    'talking about a sale at the general goods store',
     'grumbling about the cost of repairs',
-    'discussing the quality of local goods',
-    'asking if anyone knows a good blacksmith',
-    'mentioning a shipment of rare fabrics',
-    'complaining about the auction house prices',
     'talking about a merchant who cheated them',
-    'wondering if the fishing has been good lately',
-    'discussing the price of ore or leather',
-    'mentioning a bargain they found at the market',
+    'mentioning a bargain they found',
     'talking about trade routes being disrupted',
     'complaining about taxes or tolls',
+    'counting how much coin they have left',
+    'wondering whether something they bought was worth it',
+    'recalling the best deal they ever struck',
+    'arguing about whether gold or reputation matters more',
 
     # ── Fashion & Appearance ────────────────────────────────────────
     'admiring someone passing by and their armor',
-    'commenting on a new cloak style from Dalaran',
-    'mentioning that gnomish goggles are in fashion',
-    'discussing the look of a new weapon design',
-    'talking about elven tailoring being the finest',
-    'wondering where to get boots like those',
     'remarking on the colors of a tabard',
-    'complaining that their armor is out of style',
-    'admiring dwarven craftsmanship on a shield',
+    'wondering where to get boots like those',
+    'admiring fine craftsmanship on a weapon or shield',
+    'talking about elven tailoring being the finest',
     'commenting on jewelry trends',
-
-    # ── Home & Daily Life ───────────────────────────────────────────
-    'talking about their garden not growing well',
-    'mentioning home repairs they need to do',
-    'complaining about a leaky roof',
-    'talking about redecorating their house',
-    'mentioning their neighbor is too loud',
-    'discussing the best wood for furniture',
-    'talking about getting new curtains',
-    'complaining about pests in the pantry',
-    'mentioning they need to fix the fence',
-    'talking about a recipe they want to try',
-    'discussing the best place to buy candles',
-    'mentioning they just cleaned the chimney',
+    'complaining that their own clothes have seen better days',
 
     # ── Food & Drink ────────────────────────────────────────────────
-    'recommending a tavern or inn nearby',
     'complaining about watered-down ale',
-    'praising a local baker or cook',
-    'discussing a new recipe they tried',
-    'arguing about the best pie in town',
-    'mentioning a cheese that pairs well with bread',
+    'praising a cook they once knew',
+    'discussing a recipe they want to try',
     'talking about a terrible meal they had',
-    'praising the stew at a particular inn',
     'discussing the merits of dwarven ale vs elven wine',
     'asking if anyone wants to grab a drink later',
     'complaining about bland rations',
     'mentioning a secret ingredient in their cooking',
-    'talking about seasonal fruit at the market',
-    'praising fresh bread from the bakery this morning',
-
-    # ── Petty Crime & Mischief ──────────────────────────────────────
-    'mentioning a pickpocket working the market',
-    'talking about a burglary on their street',
-    'complaining about vandals defacing a sign',
-    'discussing a drunk who caused a scene last night',
-    'mentioning someone was caught cheating at cards',
-    'talking about a stolen pie from a window ledge',
-    'gossiping about who broke the tavern window',
-    'mentioning a fight that broke out at the inn',
-    'complaining about rowdy sailors in port',
-    'discussing a con artist selling fake potions',
-    'mentioning graffiti found on the town hall',
-    'talking about a chicken thief in the neighborhood',
-    'wondering who keeps stealing apples from the cart',
-    'discussing a gambling ring behind the warehouse',
+    'arguing about the best pie they ever ate',
+    'mentioning a cheese that pairs well with bread',
+    'remembering the taste of food from home',
+    'debating what makes a proper hearty stew',
 
     # ── Travel & Roads ──────────────────────────────────────────────
-    'warning about bandits on the south road',
-    'recommending a shortcut through the hills',
+    'warning about bandits on the roads',
     'complaining about the road conditions',
-    'mentioning a bridge that was washed out',
-    'talking about a scenic route they discovered',
-    'discussing the best path to the next town',
-    'warning about wolves near the forest road',
-    'mentioning the flight master raised prices',
     'talking about a long journey they just returned from',
-    'recommending an inn along the trade road',
-    'complaining about how dusty the roads are',
-    'talking about a cart that broke an axle yesterday',
-    'mentioning a new road being built',
     'discussing whether it is safe to travel at night',
+    'recommending a good inn they once stayed at',
+    'talking about a cart that broke an axle on the road',
+    'complaining about the price of flight paths',
+    'mentioning a shortcut that turned out to be a mistake',
+    'arguing about the best way to pack for a long trip',
+    'wondering how long it would take to reach a place they want to see',
 
     # ── People & Gossip ─────────────────────────────────────────────
-    'gossiping about a neighbor',
-    'talking about someone who left town suddenly',
+    'gossiping about an acquaintance',
+    'talking about someone who vanished without a word',
     'mentioning a couple that just got engaged',
-    'discussing a local hero or adventurer',
-    'speculating about why the mayor looks worried',
+    'discussing a hero or adventurer everyone talks about',
     'talking about an old friend they lost touch with',
-    'mentioning a family feud between two households',
-    'gossiping about the innkeeper and the baker',
-    'wondering what happened to the old hermit',
-    'discussing a healer who just arrived in town',
+    'mentioning a family feud they heard about',
+    'wondering what happened to someone they used to know',
     'talking about a soldier who came home wounded',
-    'mentioning a child who ran away from home',
     'gossiping about a secret romance',
-
-    # ── Professions & Craft ─────────────────────────────────────────
-    'complaining about finding good ore',
-    'talking about a difficult smithing project',
-    'mentioning a new alchemy recipe they learned',
-    'discussing the best leather for armor',
-    'talking about enchanting costs being too high',
-    'mentioning a rare herb they found',
-    'discussing tailoring patterns from the east',
-    'complaining about failed crafting attempts',
-    'talking about engineering gone wrong',
-    'mentioning a jewel they are trying to cut',
-    'discussing the apprentice system',
-    'talking about training under a new master',
+    'discussing a healer whose skill everyone praises',
+    'mentioning someone who owes them money',
+    'talking about an argument they had earlier',
+    'wondering why a friend has been avoiding them',
 
     # ── Lore & History ──────────────────────────────────────────────
-    'wondering about the ruins outside town',
-    'mentioning a legend about this place',
+    'mentioning a legend they grew up with',
     'talking about the war and how things have changed',
-    'recalling a historical battle that happened nearby',
+    'recalling a historical battle from the old stories',
     'mentioning an old king or queen from stories',
-    'wondering about the origins of a local monument',
-    'talking about ancient magic felt in the area',
-    'mentioning a ghost story about a nearby tower',
-    'discussing a prophecy an elder once told them',
     'talking about the fall of a great city',
-    'wondering who built the old bridge',
     'mentioning a dragon sighting from years ago',
-
-    # ── Festivals & Holidays ────────────────────────────────────────
-    'looking forward to Brewfest',
-    'talking about last year\'s Hallow\'s End',
-    'mentioning the Darkmoon Faire is coming',
-    'discussing plans for Winter Veil gifts',
-    'reminiscing about the Midsummer Fire Festival',
-    'wondering if the Lunar Festival will be good',
-    'talking about festival food they love',
-    'mentioning a prize they won at a fair',
-    'discussing the best fireworks display',
-    'looking forward to the Pilgrim\'s Bounty feast',
-
-    # ── Children's Talk ─────────────────────────────────────────────
-    'wanting to be an adventurer when they grow up',
-    'asking if dragons are real',
-    'daring a friend to touch the graveyard gate',
-    'talking about a frog they caught by the pond',
-    'arguing about who is the strongest hero',
-    'pretending to cast a spell',
-    'talking about a scary noise they heard last night',
-    'asking why the sky is that color',
-    'wondering where the road goes',
-    'talking about a stray cat they want to keep',
-    'making up a story about a treasure map',
-    'complaining about chores they have to do',
-
-    # ── Guard & Military ────────────────────────────────────────────
-    'complaining about a long shift',
-    'discussing patrol routes',
-    'mentioning a suspicious person they saw earlier',
-    'talking about the night watch being short-staffed',
-    'grumbling about standing in the rain',
-    'discussing orders from the captain',
-    'mentioning they miss their family back home',
-    'talking about a close call on patrol last week',
-    'complaining about the quality of guard rations',
-    'mentioning a deserter who was caught',
-    'discussing new recruits and their readiness',
-    'wondering when their relief will arrive',
-    'talking about a skirmish at the border',
-    'mentioning armor that needs repair',
+    'discussing a prophecy an elder once told them',
+    'talking about the heroes of the Second War',
+    'recalling the stories told about the Third War',
+    'wondering what the world was like before the orcs came',
+    'mentioning a ghost story they once heard',
+    'arguing about which old tale is true',
 
     # ── Health & Ailments ───────────────────────────────────────────
     'complaining about a bad back',
     'mentioning a healer they should visit',
-    'talking about a cold going around town',
+    'talking about a cold going around',
     'discussing a potion that helped their aches',
     'complaining about not sleeping well',
     'mentioning an old wound acting up',
     'talking about the cost of healing these days',
     'asking if anyone knows a remedy for headaches',
-    'discussing the local herbalist\'s remedies',
-    'mentioning they feel better after rest',
+    'discussing herbal remedies that actually work',
+    'mentioning they feel better after a good rest',
 
     # ── Animals & Pets ──────────────────────────────────────────────
-    'talking about their dog or cat',
-    'mentioning a wild animal they saw near town',
+    'talking about a loyal animal they once owned',
     'discussing the best breed of horse',
-    'complaining about rats in the cellar',
-    'talking about a hawk circling overhead',
-    'mentioning stray dogs in the market',
-    'discussing whether wolves have been closer lately',
-    'talking about a fisherman\'s catch today',
-    'mentioning a bear spotted near the farm',
-    'wondering if the murlocs will bother the shore again',
+    'complaining about rats getting into the supplies',
+    'arguing about whether cats or dogs make better companions',
+    'mentioning a wild beast that nearly caught them once',
+    'wondering whether animals understand more than they let on',
+    'talking about a pet they would like to have',
 
     # ── Superstition & Omens ────────────────────────────────────────
     'mentioning a bad omen they noticed',
     'talking about a lucky charm they carry',
     'discussing an old wives\' tale about crows',
     'mentioning that full moons bring trouble',
-    'talking about a curse on an old house',
-    'wondering if stepping on a crack really matters',
+    'talking about a curse they half believe in',
     'mentioning a dream that felt like a warning',
-    'discussing a fortune teller at the market',
-    'talking about a strange feeling in the graveyard',
+    'discussing a fortune teller they once visited',
     'mentioning that spilling salt is bad luck',
+    'arguing about whether luck is real',
+    'telling a superstition from their homeland',
 
     # ── Leisure & Entertainment ─────────────────────────────────────
-    'talking about a bard performing at the inn tonight',
+    'talking about a bard they once heard perform',
     'mentioning a card game they played last night',
-    'discussing a fishing spot they like',
-    'talking about arm wrestling at the tavern',
+    'talking about arm wrestling at a tavern',
     'mentioning a book they just finished',
     'talking about a song stuck in their head',
-    'discussing a storyteller who visits the square',
-    'mentioning a swimming hole nearby',
+    'discussing a storyteller they once heard',
     'talking about a race between two riders they saw',
-    'discussing the best board game to pass time',
+    'discussing the best game to pass the time',
+    'mentioning a dice game they lost badly',
+    'talking about how they like to spend a free day',
 
     # ── Romantic & Social ───────────────────────────────────────────
     'mentioning someone they fancy',
-    'talking about a love letter they received',
+    'talking about an anonymous love letter they received',
     'discussing a wedding they attended',
-    'mentioning a breakup in the neighborhood',
+    'mentioning a breakup they heard about',
     'talking about courting customs in their culture',
     'wondering what to get someone as a gift',
-    'mentioning a dance at the town hall',
     'discussing a dinner invitation they are nervous about',
+    'talking about a dance they went to',
+
+    # ── Worries & Hopes ─────────────────────────────────────────────
+    'worrying about a loved one far away',
+    'hoping for better days ahead',
+    'talking about plans for when the war is over',
+    'mentioning a letter they need to write',
+    'wondering if they made the right choice coming here',
+    'talking about saving up for something special',
+    'sharing good news they just received',
+    'complaining about a promise someone broke',
+    'talking about a debt they need to repay',
+    'wondering what tomorrow will bring',
+    'talking about a skill they are trying to learn',
+    'mentioning a favor they owe someone',
+
+    # ── Faith ───────────────────────────────────────────────────────
+    'mentioning a prayer they say before a journey',
+    'talking about a priest or shaman whose words stayed with them',
+    'wondering whether the Light or the spirits really listen',
+    'discussing what their people believe happens after death',
+    'mentioning a blessing someone gave them',
+    'talking about a holy place they hope to visit',
 
     # ── Complaints & Grumbles ───────────────────────────────────────
     'complaining about the noise at night',
-    'grumbling about the early morning bell',
-    'talking about the smell from the tannery',
-    'complaining about crowded streets',
-    'mentioning that the well water tastes strange',
-    'grumbling about the cobblestones being uneven',
-    'complaining about the mail being slow',
-    'talking about mosquitoes near the canal',
-    'mentioning a rude merchant at the market',
+    'complaining about crowds',
+    'mentioning a rude merchant they dealt with',
+    'grumbling about being kept waiting',
+    'complaining that nobody listens to them',
+    'grumbling about too much work and too little pay',
+    'complaining about a letter that never arrived',
     'grumbling about the price of firewood',
 ]
 
@@ -3033,19 +2965,21 @@ RP_GOSSIP_CREATIVE_TWISTS = [
     "Avoid drama; make the rumor feel ordinary and lived-in",
 ]
 
+# Nothing here may assume what the prompt does not supply: the
+# weather, the time of day, ruins, a town nearby or a fight that
+# never happened. The zone description and nearby creatures are
+# supplied, so remarks about the area stay.
 RP_MESSAGE_CATEGORIES = [
     # Observations
     "commenting on the area around you",
     "noticing something about the wildlife or creatures",
-    "remarking on the weather or scenery",
     "observing other travelers",
     "noting something odd or out of place",
+    "remembering a place this one reminds you of",
     # Reactions
-    "reacting to a noise nearby",
-    "mentioning a fight you just had",
     "being relieved about something",
     "bracing for trouble ahead",
-    "complaining about the road or terrain",
+    "complaining about the long walk",
     # Social
     "greeting someone casually",
     "giving a warning or tip",
@@ -3057,28 +2991,29 @@ RP_MESSAGE_CATEGORIES = [
     "commenting on being tired or sore",
     "mentioning needing supplies",
     "talking about where you're headed next",
-    "wondering how far the next town is",
     # World and lore
     "mentioning something you heard about this place",
     "referencing your homeland briefly",
-    "wondering about some old ruins",
     "recalling a story or rumor",
     "commenting on the local people or culture",
     "tales of distant lands or adventures",
     "story heard in an inn or from a traveler",
     "mystical story or legend related to the area",
     # Atmospheric
-    "noticing the weather changing",
-    "commenting on the time of day",
-    "listening to the sounds around you",
-    "noticing a smell on the wind",
     "feeling uneasy about something nearby",
+    "sharing a hope for the days ahead",
+    "thinking about the war",
     # Personal
     "thinking about home",
     "remembering an old friend",
     "admitting you're not sure about something",
     "enjoying a quiet moment",
     "grumbling about something minor",
+    "mentioning a friend you hope to see again",
+    "mentioning something you're looking forward to",
+    "sharing a small joke",
+    "wondering what the day will bring",
+    "noting that your gear could use some mending",
 ]
 
 RP_LENGTH_HINTS = [
@@ -4226,17 +4161,18 @@ GUILD_CHAT_TOPICS = [
 ]
 
 
+# Guild speakers are in different places, so no entry may assume a
+# place, the weather, the season or the hour. The Guild zone and
+# subzone topics (chatter_guild) cover talk about where a speaker is.
 GUILD_CHAT_TOPICS_RP = [
-    "the dangers of the road you're traveling",
-    "a rumor overheard in the last town",
+    "the dangers of the roads these days",
+    "a rumor you overheard recently",
     "the code or philosophy you live by",
     "honoring a fallen comrade",
-    "the beauty or menace of the land around you",
     "a personal vow or quest you carry",
     "distrust of the opposing faction",
     "the burden of your calling",
     "a memory from your homeland",
-    "wariness of the local wildlife",
     "an omen or strange sight on your path",
     "gratitude for a guildmate's aid",
     "the toll of endless fighting",
@@ -4244,8 +4180,6 @@ GUILD_CHAT_TOPICS_RP = [
     "longing for a quieter life",
     "pride in your craft or lineage",
     "a warning about a place best avoided",
-    "the changing of the seasons or the hour",
-    "an old legend tied to this region",
     "resolve before a hard task ahead",
     # --- camaraderie & guild bonds ---
     "what the guild's banner means to you",
@@ -4273,19 +4207,14 @@ GUILD_CHAT_TOPICS_RP = [
     "an argument over the best ale in the land",
     "a cooking mishap around the campfire",
     # --- mood & reflection ---
-    "the quiet before a coming storm",
-    "homesickness creeping in at dusk",
+    "homesickness that creeps in when things go quiet",
     "gratitude for simply seeing another dawn",
     "doubts that visit in the dark hours",
     "the strange peace found in solitude",
     "weariness that sleep won't cure",
     "hope found in a small kindness",
     # --- lore & places ---
-    "ruins that hint at a forgotten people",
-    "a shrine or grave you passed on the road",
     "stories the elders told when you were young",
-    "a battlefield long since grown over with grass",
-    "spirits said to linger in this place",
     "a festival or holy day from your youth",
     # --- the calling & the blade ---
     "the weight of the weapon you carry",
@@ -4295,17 +4224,11 @@ GUILD_CHAT_TOPICS_RP = [
     "the first time you faced true danger",
     "the discipline your training demanded",
     # --- faction & war ---
-    "rumors of the enemy massing nearby",
     "the price the war has taken from your people",
     "an uneasy truce you doubt will hold",
     "tales of heroes who turned the tide",
     # --- nature, beasts & weather ---
-    "tracks of a great beast crossing your trail",
-    "birdsong, or its uneasy absence, at dawn",
-    "a sudden storm that caught you unready",
-    "the first frost, or the first thaw",
     "a loyal beast that once saved your life",
-    "the night sky far from any town",
     # --- craft & trade ---
     "the satisfaction of mending your own gear by hand",
     "the smell of a forge or a brewing pot",
@@ -4320,6 +4243,20 @@ GUILD_CHAT_TOPICS_RP = [
     "what you'd want remembered after you're gone",
     "a debt of honor still unpaid",
     "the names of those you've lost",
+    # --- roads & memories ---
+    "a place you swore never to return to",
+    "the strangest thing you ever saw on your travels",
+    "a landmark of your homeland you miss",
+    "the hardest journey you ever made",
+    "a night watch you will never forget",
+    "an animal companion you remember fondly",
+    "a lesson learned the hard way",
+    "a city you'd most like to see again",
+    # --- the guild at ease ---
+    "a song the guild should learn together",
+    "what you'd do with a month of rest",
+    "advice for a guildmate just starting out",
+    "a meal you'd cook for the whole guild",
 ]
 
 # Per-language tables (ZONE_NAMES, ZONE_FLAVOR, BG_LORE,

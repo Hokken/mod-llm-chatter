@@ -90,8 +90,14 @@ from chatter_guild_profile import (
 )
 from chatter_db import (
     get_character_info_by_name,
+    get_character_location,
     get_group_location,
     is_player_online,
+)
+from chatter_location_topics import (
+    configure_location_topics,
+    location_topic_for,
+    roll_location_topic,
 )
 from chatter_party_gate import should_defer_party_generation
 from chatter_player_context import player_context_text
@@ -271,6 +277,7 @@ def init_group_config(config):
     # live with their owners.
     configure_prompt_flavor(config)
     configure_threads(config)
+    configure_location_topics(config)
     # Keep shared group helper state in sync.
     set_group_chat_history_limit(_chat_history_limit)
 
@@ -3052,6 +3059,28 @@ def _ambient_topic_pool(mode):
         if mode == 'roleplay'
         else AMBIENT_CHAT_TOPICS
     )
+
+
+def _party_location_topic(
+    db, mode, player_name, bot_rows, zone_id, map_id,
+):
+    """A topic tied to the party's location, roleplay only.
+
+    Offered only when the real player and every speaking bot are in
+    that same zone and map: a bot elsewhere would be talking about a
+    place it is not in. No chance roll (see roll_location_topic).
+    """
+    if mode != 'roleplay' or not player_name or not zone_id:
+        return None
+    for row in bot_rows:
+        if (
+            int(row.get('zone') or 0) != zone_id
+            or int(row.get('map') or 0) != map_id
+        ):
+            return None
+    if get_character_location(db, player_name) != (zone_id, map_id):
+        return None
+    return location_topic_for(zone_id, map_id)
 _last_idle_chatter_lock = threading.Lock()
 
 
@@ -3074,6 +3103,7 @@ def build_idle_chatter_prompt(
     persona=None,
     thread_turn=None,
     themed_topic='',
+    location_topic=None,
 ):
     """Build prompt for idle party chat.
 
@@ -3235,6 +3265,10 @@ def build_idle_chatter_prompt(
     if thread_turn is not None:
         # The conversation thread carries the subject
         # (including any rare pool topic) instead.
+        topic = None
+    elif location_topic is not None:
+        # A subject tied to where the party is; the
+        # zone or dungeon context below describes it.
         topic = None
     elif in_dungeon_early or in_bg_early:
         topic = None  # instance/BG context drives tone
@@ -3406,6 +3440,10 @@ def build_idle_chatter_prompt(
         party_ctx = (
             "You're in a party. A possible subject, only if "
             f"it fits naturally: {themed_topic}"
+        )
+    if location_topic is not None:
+        party_ctx = (
+            f"You're in a party.\n{location_topic.subject_line()}"
         )
     continuing = bool(
         thread_turn and thread_turn.builds_on_subject
@@ -4507,21 +4545,33 @@ def _idle_single_statement(
     # see nor consume the thread.
     thread_turn = None
     themed = None
+    location = None
     if not idle_memories:
         if not _in_instance(map_id):
             themed = themed_candidate(
                 db, config, 'party', bot,
                 thread_key=group_id, mode=mode,
             )
+        location = _party_location_topic(
+            db, mode, player_name, [bot_row], zone_id, map_id,
+        )
         thread_turn = plan_idle_turn(
             group_id, [bot_name],
             in_instance=_in_instance(map_id),
             topic_pool=_ambient_topic_pool(mode),
             db=db,
             themed_topic=themed.render() if themed else None,
+            location_topic=location,
         )
         if not themed_used(themed, thread_turn):
             themed = None
+        # Threads weigh the location topic as a source;
+        # without them it replaces the pool topic at
+        # LocationTopics.Chance.
+        if thread_turn is not None or themed:
+            location = None
+        elif location is not None:
+            location = roll_location_topic(zone_id, map_id)
 
     try:
         speaker_talent = _maybe_talent_context(
@@ -4550,6 +4600,7 @@ def _idle_single_statement(
                 themed.render()
                 if themed and thread_turn is None else ''
             ),
+            location_topic=location,
         )
 
         _dflav = get_dungeon_flavor(map_id)
@@ -4844,12 +4895,16 @@ def _idle_conversation(
                 db, config, 'party', bots[0],
                 thread_key=group_id, mode=mode,
             )
+        location = _party_location_topic(
+            db, mode, player_name, selected_rows, zone_id, map_id,
+        )
         thread_turn = plan_idle_turn(
             group_id, bot_names,
             in_instance=_in_instance(map_id),
             topic_pool=_ambient_topic_pool(mode),
             db=db,
             themed_topic=themed.render() if themed else None,
+            location_topic=location,
         )
         if not themed_used(themed, thread_turn):
             themed = None
@@ -4860,6 +4915,12 @@ def _idle_conversation(
                 f"something {bots[0]['name']} might bring up, "
                 f"if it fits naturally: {themed.render()}"
             )
+        elif location is not None:
+            # Replaces the pool topic at LocationTopics.Chance;
+            # the zone or dungeon context describes the place.
+            location = roll_location_topic(zone_id, map_id)
+            if location is not None:
+                topic = location.subject_line()
 
     # RNG-gate backstory injection per bot
     conv_backstory_map = None
@@ -5384,6 +5445,12 @@ def check_bot_questions(db, client, config):
                 if not question_memories:
                     question_memories = None
 
+        location = None
+        if not question_memories and _party_location_topic(
+            db, mode, player_name, [bot_row], zone_id, map_id,
+        ):
+            location = roll_location_topic(zone_id, map_id)
+
         prompt = build_bot_question_prompt(
             bot, traits, mode,
             player_name=player_name,
@@ -5402,6 +5469,7 @@ def check_bot_questions(db, client, config):
             area_id=area_id,
             stored_tone=stored_tone,
             memories=question_memories or None,
+            location_topic=location,
             player_context=player_context_text(
                 db,
                 (get_character_info_by_name(db, player_name) or {}).get(

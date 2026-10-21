@@ -1091,6 +1091,7 @@ switched off separately (`Threads.GuildEnable`,
 | `LLMChatter.Threads.PersonaTopicWeight` | 60 | Fresh subjects from a bot's own interests |
 | `LLMChatter.Threads.SurroundingsTopicWeight` | 30 | Fresh subjects from the surroundings |
 | `LLMChatter.Threads.PoolTopicWeight` | 10 | Fresh subjects from the random topic pool |
+| `LLMChatter.Threads.LocationTopicWeight` | 70 | Fresh subjects tied to the place the speakers share (section 13za) |
 | `LLMChatter.Threads.SurpriseChance` | 12 | Percent of exchanges that explicitly allow a surprise |
 | `LLMChatter.Threads.HighEnergyThreshold` / `LowEnergyThreshold` | 60 / 30 | Energy bands for the move weights |
 | `LLMChatter.Threads.HighEnergyMoveWeights` | 70,20,5,5 | continue,drift,callback,new weights for a lively subject |
@@ -3274,14 +3275,16 @@ authoritative.
 
 ### Topic pools
 
-`PROXIMITY_CHAT_TOPICS` in `chatter_constants.py` provides 250+
-topics across 17 categories:
+`PROXIMITY_CHAT_TOPICS` in `chatter_constants.py` provides 150
+overheard daily-life topics: rumors and news, coin, appearance, food and
+drink, travel, people and gossip, lore, health, animals, omens, leisure,
+romance, worries and hopes, faith, and grumbles. Any speaker may draw any
+entry anywhere, so no entry assumes the weather, a season or holiday, a
+feature of the place, or the speaker's job, home or age.
 
-- weather, travel, local flavor, trade, rumors, daily life, military,
-  faction politics, wildlife, profession, food and drink, history,
-  adventure, philosophy, humor, seasonal, and general social
-
-That pool remains the source for NPCs and roleplay-mode playerbots.
+That pool is the universal source for NPCs and roleplay-mode playerbots.
+At `LocationTopics.Chance` they get a topic tied to the zone or instance
+instead (section 13za); the scene's location lines describe the place.
 `PROXIMITY_PLAYER_CHAT_TOPICS` supplies normal-mode playerbot `/say`
 subjects such as gameplay progress, interface/keybind observations,
 queues, routes, group needs, and light player banter. Mixed conversations
@@ -3369,7 +3372,8 @@ when changing these Python-owned settings.
 | `chatter_proximity_pacing.py` | Bounded length-aware gaps for nearby conversation sequences |
 | `chatter_instance_context.py` | Shared instance location/lore grounding |
 | `chatter_boss_dialogue.py` | Safe one-line boss prompt and `myell` insertion |
-| `chatter_constants.py` | `PROXIMITY_CHAT_TOPICS` (250+ entries) |
+| `chatter_constants.py` | `PROXIMITY_CHAT_TOPICS` (150 entries) |
+| `chatter_location_topics.py` | Topics tied to the zone or instance |
 | `chatter_db.py` | Speaker, player, drop, and explicit addressee message fields |
 | `chatter_event_registry.py` | Ordinary and boss event routing |
 
@@ -4542,6 +4546,65 @@ priests split into Light and Shadow by spec
 All keys are under `LLMChatter.`. Existing installations must apply
 `data/sql/characters/updates/20261002_themed_topic_audience.sql`, which
 adds `llm_chatter_queue.audience_context`.
+
+## 13za. Location Topics and Universal Topic Pools
+
+### Universal pools
+
+The random topic pools for in-world speech (`AMBIENT_CHAT_TOPICS_RP`,
+`PROXIMITY_CHAT_TOPICS`, `RP_MESSAGE_CATEGORIES`, `GUILD_CHAT_TOPICS_RP`
+and the roleplay `BOT_QUESTION_TOPICS`) hold only subjects that fit any
+speaker anywhere. No entry may assume something the prompt does not
+supply: the weather, the season or a holiday, the time of day, a feature
+of the current place (ruins, a market, a port), or the speaker's mount,
+profession, home or age. `_AMBIENT_CHAT_TOPICS_SHARED` keeps only entries
+that suit both modes; the game and surroundings subjects that read fine as
+player chatter live in the normal-only part of `AMBIENT_CHAT_TOPICS`.
+
+### Location topics
+
+`tools/location_topics.json` gives every open-world zone, dungeon and raid
+its own topic list (about 5,350 topics), keyed by zone ID (`zones`) or map
+ID (`maps`, with `kind` `dungeon` or `raid`). `chatter_location_topics.py`
+draws one:
+
+- inside a dungeon or raid map, from that instance's list, never the
+  zone's; in the open world, from the zone's list;
+- never in battlegrounds or arenas, and never for a place without a list
+  or a description (seas and connecting zones have none);
+- with the place's description: `ZONE_FLAVOR` for a zone, the
+  `DUNGEON_FLAVOR` text for an instance.
+
+The prompt line names the place and says the subject belongs to it ("A
+subject tied to Elwynn Forest, where the speakers are now: ..."). The
+description reaches the prompt once: builders that already carry the zone
+or instance description (party, General, proximity, raids with a `Lore`
+line) add only the subject line; the others add `Location description:`.
+
+| Channel | Who | Same place |
+|---------|-----|------------|
+| Party idle statement and conversation | Roleplay mode | The real player and every speaking bot in the same zone and map (`characters.zone`/`map` and each bot's `llm_group_bot_traits` row) |
+| Party bot question to the player | Roleplay mode | The player and the asking bot, as above |
+| General ambient statement and conversation | Roleplay mode | The channel's zone; its speakers are in it |
+| Proximity `/say` scenes and replies | NPCs in both modes, playerbots in roleplay | The event's zone or instance |
+| Raid idle morale and banter | Roleplay mode | The group's raid map |
+
+Guild chat never uses location topics: its speakers are elsewhere, and
+the Guild zone and subzone topics cover talk about where a speaker is.
+Normal-mode bots keep their player-talk pools. Memory recalls keep their
+own focus.
+
+With conversation threads on, a location topic is a fresh-subject source
+(`location`) weighted by `Threads.LocationTopicWeight`, offered in
+instances too. Without a thread, it replaces the universal topic at
+`LocationTopics.Chance`; a guild or themed subject that took the turn
+keeps it.
+
+| Key | Default | Quieter preset | Owner |
+|-----|---------|----------------|-------|
+| `LocationTopics.Enable` | 1 | 1 | Bridge |
+| `LocationTopics.Chance` (threads off only) | 70 | 70 | Bridge |
+| `Threads.LocationTopicWeight` | 70 | 70 | Bridge |
 
 ## 14. JSON and Queue Contracts
 

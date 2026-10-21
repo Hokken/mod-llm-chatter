@@ -44,7 +44,7 @@ ZONE_NAMES = {
     3433: "Tierras Fantasma", 3487: "Ciudad de Lunargenta",
     17: "Los Baldíos", 3703: "Ciudad de Shattrath",
     3557: "El Exodar", 4228: "El Oculus",
-    4080: "Isla de Quel'Danas",
+    4080: "Isla de Quel'Danas", 4298: "Tierras de la Peste: El Enclave Escarlata",
 }
 
 RACE_SPEECH_PROFILES = {
@@ -538,6 +538,7 @@ ZONE_FLAVOR = {
     3433: """Tierras Fantasma: El sur de Quel'Thalas, una tierra sombría de árboles negros y secos, cielo plomizo y frío mortal, devastada por la marcha de la Plaga hacia la Fuente del Sol y nunca recuperada. La Cicatriz Muerta parte de la Ciudad de la Muerte, la ciudadela de la Plaga gobernada por el traidor Dar'Khan Drathir, que ayudó a Arthas a romper las defensas del reino. Los fantasmas de los elfos asesinados rondan las aldeas en ruinas. Los elfos de sangre y sus aliados Renegados ocupan Tranquilien y quieren recuperar la tierra, mientras los trols Amani acechan cerca de Zul'Aman, al este. El Paso Thalassiano lleva al sur, a través de una antigua puerta élfica, hasta las Tierras de la Peste.""",
 
     4080: """Isla de Quel'Danas: Una isla frente a la costa norte del Bosque Canción Eterna, donde los fundadores de Quel'Thalas crearon hace siete mil años la Fuente del Sol, un manantial de inmenso poder. Arthas la profanó para resucitar a Kel'Thuzad. Recientemente, la isla fue escenario de una lucha desesperada, cuando Kael'thas Caminante del Sol y la Legión Ardiente quisieron usar la Fuente como portal, y la Ofensiva Sol Devastado de los Aldor y los Arúspices estableció su base en el puerto del Tramo del Sol. Las cicatrices de la batalla marcan la tierra, pero sus bosques dorados, playas blancas y elegantes agujas siguen siendo hermosos, y en su corazón se alza la Meseta de la Fuente del Sol.""",
+    4298: """El Enclave Escarlata: El extremo oriental de las Tierras de la Peste, un enclave costero que la Cruzada Escarlata mantenía como último refugio contra la plaga, con la ciudad de Nuevo Avalon, sus granjas y su mina, la Capilla de la Llama Carmesí y un fondeadero en la costa. Sobre él flotaba Acherus, la necrópolis voladora del Rey Exánime, desde donde sus nuevos caballeros de la Muerte descendieron para entregar el enclave a las llamas. Tras la batalla en la Capilla de la Esperanza de la Luz, esos caballeros de la Muerte rompieron con el Rey Exánime como Caballeros de la Espada de Ébano, y Acherus se convirtió en el Bastión de Ébano, su fortaleza. Los campos quemados y las capillas silenciosas aún llevan las huellas de aquel asalto.""",
 
     408: """Isla de Gillijim: Una remota isla selvática en los Mares del Sur, frente a la costa sur de la Vega de Tuercespina. Los viejos mapas la señalan como una antigua isla trol, pero pocos marinos vivos han pisado sus orillas, y está lejos de las rutas comerciales habituales. El mar que la rodea es cálido, profundo y azul, hogar de tiburones y otras criaturas de mar abierto, y las corrientes pueden arrastrar a los incautos lejos de tierra. Se habla de antiguas ruinas trols ocultas en sus selvas, pero sus secretos siguen siendo desconocidos para la mayor parte del mundo.""",
 

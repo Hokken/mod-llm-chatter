@@ -1269,6 +1269,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_identity_jobs.py` | Bounded Guild membership discovery and profile prewarming |
 | `tools/chatter_persona.py` | Bot persona resolution (identity + real event mood) and the shared persona/cast renderers for Party, Guild and General |
 | `tools/chatter_threads.py` | Party conversation threads: in-memory thread store, soft nudges for idle exchanges, thread prompt rendering, thread report parsing |
+| `tools/chatter_location_topics.py` | Topics tied to the speakers' zone, dungeon or raid, loaded from `tools/location_topics.json`; `location_topic_for()` draws one with the place's description, `roll_location_topic()` applies `LocationTopics.Chance`. Used by party idle chatter and bot questions, General, proximity and raid idle chatter, and as the `location` source of conversation threads |
 | `tools/chatter_themed_topics.py` | Themed idle subjects (faction, race, class, race+class) and rumors (expansions, dungeons, raids, locations, regions, profession and class trainers); `themed_candidate()` prepares one before a thread turn is planned |
 | `tools/chatter_progression.py` | Rumor gating per listener (level bands, faction, achievements) and the rotating rumor target |
 | `tools/chatter_lore_data.py` / `chatter_rumor_data.py` / `chatter_trainer_rumor_data.py` | Static themed topic, race+class note, rumor and trainer rumor data |
