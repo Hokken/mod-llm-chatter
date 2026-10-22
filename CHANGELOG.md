@@ -1,5 +1,18 @@
 # Changelog
 
+### 2026-10-22 - Dungeon Finder Entry Lines Fix
+
+* **Dungeon entry lines no longer go missing in new groups**: when a
+  Dungeon Finder group formed, the dungeon-entry reaction could reach
+  the bridge before the group's bots were set up and was dropped as if
+  the group had disbanded; the 5-minute entry cooldown then also hid
+  the line on re-entry. A group event that arrives during setup is now
+  retried for a short while instead. Events for groups that are really
+  gone are still dropped, now with a log line.
+* **New settings**: `LLMChatter.Bridge.GroupSetupGraceSeconds`
+  (default 30, 0 turns the retry off) and
+  `LLMChatter.Bridge.GroupSetupRetrySeconds` (default 3).
+
 ### 2026-10-22 - Dungeon Boss Names Fix
 
 * **Bots know the dungeon's bosses again**: since 2026-09-09 the boss
