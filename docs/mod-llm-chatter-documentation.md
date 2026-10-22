@@ -4134,7 +4134,9 @@ offers no list of verdicts to pick from: each prompt draws one angle at
 random from `NPC_REMARK_ANGLES` (the NPC's look, their trade, a brief
 exchange, how they fit the place, something curious, a memory they stir)
 and asks the bot to react to one concrete detail instead of rating the
-NPC.
+NPC. An NPC without a title of its own whose role is only a game term
+("Quest Giver", "NPC", "Rare Creature") is introduced as a local
+inhabitant.
 
 ## 13w. Guild Member Events
 

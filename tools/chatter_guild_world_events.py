@@ -143,16 +143,27 @@ NPC_REMARK_ANGLES = (
 )
 
 
+# Role labels from GetCreatureRoleName() that are game terms rather
+# than anything a character would call someone. Such an NPC, without a
+# title of its own, is introduced as a local inhabitant instead.
+NPC_GAME_ROLES = frozenset({'quest giver', 'npc', 'rare creature'})
+NPC_PLAIN_ROLE = 'local inhabitant'
+
+
 def _npc_scenario(extra: Dict, mode: str) -> List[str]:
     bot_name = str(extra.get('bot_name') or 'The speaker')
     zone = get_zone_name(safe_int(extra.get('zone_id'))) or ''
     npc = str(extra.get('npc_name') or 'someone')
     subname = str(extra.get('npc_subname') or '').strip()
     role = str(extra.get('npc_role') or '').strip()
-    what = subname or role or 'local'
+    if role.lower() in NPC_GAME_ROLES:
+        role = ''
+    title = subname or role
+    what = title or NPC_PLAIN_ROLE
     return [
-        f"{bot_name} is standing near {npc} <{what}>"
-        f"{' in ' + zone if zone else ''}.",
+        f"{bot_name} is standing near "
+        + (f"{npc} <{title}>" if title else f"{npc}, a {NPC_PLAIN_ROLE},")
+        + f"{' in ' + zone if zone else ''}.",
         f"{bot_name} mentions this {what.lower()} to the guild and shares "
         "a short, personal opinion of them, focused on "
         f"{random.choice(NPC_REMARK_ANGLES)}.",

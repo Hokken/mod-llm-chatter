@@ -489,6 +489,26 @@ def test_npc_encounter_names_npc_without_inventing_history():
     assert any(angle in scenario for angle in world.NPC_REMARK_ANGLES)
 
 
+def test_npc_encounter_hides_game_role_labels():
+    for role in ('Quest Giver', 'NPC', 'Rare Creature', ''):
+        scenario = " ".join(world._npc_scenario(
+            _guild_extra(npc_name='Vera Nightshade', npc_subname='',
+                         npc_role=role), 'roleplay'))
+        assert 'Vera Nightshade, a local inhabitant,' in scenario, role
+        assert 'mentions this local inhabitant' in scenario, role
+        assert 'quest giver' not in scenario.lower(), role
+        assert '<' not in scenario.split('Vera Nightshade')[1][:3], role
+    # A real title or an in-world role is kept.
+    titled = " ".join(world._npc_scenario(
+        _guild_extra(npc_name='Kordan', npc_subname='Herbalism Trainer',
+                     npc_role='Quest Giver'), 'roleplay'))
+    assert 'Kordan <Herbalism Trainer>' in titled
+    vendor = " ".join(world._npc_scenario(
+        _guild_extra(npc_name='Borl', npc_subname='', npc_role='Vendor'),
+        'roleplay'))
+    assert 'Borl <Vendor>' in vendor
+
+
 def test_npc_encounter_posts_filler_guild_line():
     capture = _Capture()
     ok = _run(world.process_guild_npc_encounter_event,
