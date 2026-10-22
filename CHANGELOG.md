@@ -1,5 +1,19 @@
 # Changelog
 
+### 2026-10-22 - Less Repetitive Boss Talk in Idle Chatter
+
+* **Boss names join only some idle party prompts**: in dungeons and
+  raids every idle party prompt used to list the same first six bosses
+  in alphabetical order, which invited bots to name-drop them again and
+  again. Now each idle prompt includes the list only on a roll, as a
+  random pick of up to six bosses, so large instances such as Blackrock
+  Depths show different bosses over time. The dungeon itself is always
+  in the prompt, and dungeon-entry and spell-reaction lines are
+  unchanged.
+* **New setting**: `LLMChatter.GroupChatter.IdleBossContextChance`
+  (default 40, quieter preset 25). It does not change how often bots
+  talk.
+
 ### 2026-10-22 - Dungeon Boss Names Fix
 
 * **Bots know the dungeon's bosses again**: since 2026-09-09 the boss

@@ -1738,6 +1738,18 @@ LLMChatter.GroupChatter.IdleChance = 15
 LLMChatter.GroupChatter.ConversationBias = 50
 
 #
+#   LLMChatter.GroupChatter.IdleBossContextChance
+#       Chance (0-100) that an idle party chatter prompt in a
+#       dungeon or raid also lists that instance's bosses (up
+#       to 6, picked at random). It does not change how often
+#       bots talk, and the dungeon itself is always in the
+#       prompt. Lower = fewer boss mentions. 0 = never,
+#       100 = every idle prompt.
+#       Default: 40
+#
+LLMChatter.GroupChatter.IdleBossContextChance = 40
+
+#
 #   LLMChatter.GroupChatter.IdleCooldown
 #       Minimum seconds between idle chatter triggers
 #       for the same group.
