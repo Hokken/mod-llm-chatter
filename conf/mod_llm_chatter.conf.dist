@@ -1870,6 +1870,25 @@ LLMChatter.GroupChatter.LootChanceOrange = 100
 LLMChatter.GroupChatter.LootCooldown = 60
 
 #
+#   LLMChatter.GroupChatter.LootRollComment.Enable
+#       When a party bot rolls Need or Greed on an item, it says
+#       in party chat why it wants it. The prompt names the item
+#       and its type and subtype (weapon type, armor piece, gem
+#       color, and so on). Pass and Disenchant rolls stay silent.
+#       Not used in battlegrounds or arenas.
+#       Default: 1
+#
+LLMChatter.GroupChatter.LootRollComment.Enable = 1
+
+#
+#   LLMChatter.GroupChatter.LootRollComment.MaxPerItem
+#       Most bots that explain their roll on one item. Need rolls
+#       are explained before Greed rolls cast at the same time.
+#       Default: 3
+#
+LLMChatter.GroupChatter.LootRollComment.MaxPerItem = 3
+
+#
 #   LLMChatter.GroupChatter.ResurrectChance
 #       Percent chance (0-100) that a resurrection event
 #       triggers a group reaction.

@@ -96,6 +96,7 @@ SUPPRESSED_IN_BG = {
     'bot_group_quest_objectives',
     'bot_group_quest_accept',
     'bot_group_loot',
+    'bot_group_loot_roll',
     'bot_group_corpse_run',
 }
 

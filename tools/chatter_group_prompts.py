@@ -27,6 +27,7 @@ from chatter_shared import (
     faction_war_line,
     get_class_name,
     get_race_name,
+    describe_item_type,
 )
 from chatter_prompts import (
     maybe_get_creative_twist,
@@ -1158,6 +1159,138 @@ def build_loot_reaction_prompt(
         f"already said in chat\n"
         f"- NEVER say the item will serve YOU "
         f"if someone else looted it"
+    )
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+
+def build_loot_roll_prompt(
+    bot, traits, item_name, item_quality, mode,
+    roll_vote, item_type,
+    chat_history="", extra_data=None,
+    allow_action=True,
+    speaker_talent_context=None,
+    stored_tone=None,
+    map_id=0,
+):
+    """Build prompt for a bot explaining in party chat
+    why it rolled on an item.
+
+    Need and Greed share the same subject: the bot wants
+    the item for itself. Playerbots roll Greed even on
+    items they would use, so a Greed prompt must not
+    suggest selling or other uses. A Need roll only adds
+    that the bot really needs it.
+
+    item_type is describe_item_type() output, such as
+    "weapon: two-handed sword" or "armor: plate chest
+    piece". The roll is still open when this is spoken.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = _speaker_tone(stored_tone, bot, mode)
+    twist = maybe_get_creative_twist(mode=mode)
+
+    state_ctx = ""
+    actual_role = None
+    if extra_data:
+        state_ctx = build_bot_state_context(
+            extra_data, mode
+        )
+        actual_role = (
+            extra_data.get('bot_state', {})
+            .get('role')
+        )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class'],
+            actual_role=actual_role
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    dungeon_flav = get_dungeon_flavor(map_id)
+    if is_rp and dungeon_flav:
+        rp_context += (
+            f"\nDungeon context: {dungeon_flav}"
+        )
+
+    quality_names = {
+        2: 'uncommon (green)',
+        3: 'rare (blue)',
+        4: 'epic (purple)',
+        5: 'legendary (orange)',
+    }
+    quality_label = quality_names.get(
+        item_quality, 'common'
+    )
+    need_line = (
+        "You rolled Need: you really need it, more than "
+        "a passing wish.\n"
+        if roll_vote == 'need' else ""
+    )
+    roll_context = (
+        f"An item dropped and the party is rolling for "
+        f"it: {item_name}, a {quality_label} item. Item "
+        f"type: {item_type}.\n"
+        f"You rolled on it because you want it for "
+        f"yourself: you would use it.\n"
+        f"{need_line}"
+        f"Say briefly, in your own words, why you want "
+        f"it for yourself."
+    )
+
+    if is_rp:
+        style = (
+            "Speak in-character, grounded in who you are "
+            "and how you fight."
+        )
+    else:
+        style = (
+            "Speak like a player explaining a roll in "
+            "party chat. Casual and brief."
+        )
+
+    prompt = (
+        f"{build_player_prompt_header_from_dict(bot, mode)}\n"
+        f"Your personality: {trait_str}\n"
+    )
+    if speaker_talent_context:
+        prompt += f"{speaker_talent_context}\n"
+    prompt += f"Your tone: {tone}\n"
+    if twist:
+        prompt += f"{TWIST_LABEL}: {twist}\n"
+    if state_ctx:
+        prompt += f"{state_ctx}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{roll_context}\n\n"
+        f"{style}\n\n"
+        f"Say it in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, no emojis\n"
+        f"- To refer to the item, write the token "
+        f"{{item}} exactly, braces included, instead "
+        f"of typing the item's name. It is replaced "
+        f"with a clickable link afterwards.\n"
+        f"- {{item}} already stands for the full item "
+        f"name, so do not add the name next to it, "
+        f"and do not inflect or translate the token "
+        f"itself. Phrase the sentence so the token "
+        f"reads naturally as-is.\n"
+        "- Let your personality show in how you say it, "
+        f"without naming your traits\n"
+        f"- The roll is not decided yet: never claim "
+        f"you won the item or already have it\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
     )
     return append_json_instruction(
         prompt, allow_action

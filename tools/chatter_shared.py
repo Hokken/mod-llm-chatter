@@ -32,6 +32,8 @@ from chatter_constants import (
     ITEM_QUALITY_COLORS, ITEM_QUALITY_NAMES,
     ITEM_CLASS_NAMES, WEAPON_SUBCLASS_NAMES,
     ARMOR_SUBCLASS_NAMES, CLASS_BITMASK,
+    ARMOR_KIND_SUBCLASS_NAMES, ARMOR_PIECE_NAMES,
+    ITEM_SUBCLASS_NAMES, WEAPON_HAND_NAMES,
     EMOTE_KEYWORDS,
     EMOTE_LIST_STR,
 )
@@ -4582,6 +4584,48 @@ def format_name_list(names) -> str:
     if len(names) <= 1:
         return names[0] if names else ''
     return ', '.join(names[:-1]) + ' and ' + names[-1]
+
+
+def describe_item_type(item_class, subclass, inventory_type) -> str:
+    """Readable item type with its subtype, from item_template's
+    class, subclass and InventoryType.
+
+    "weapon: two-handed sword", "armor: plate chest piece",
+    "armor: ring", "gem: red gem", "recipe: tailoring pattern".
+    Falls back to the class name alone when the subtype is unknown.
+    """
+    try:
+        item_class = int(item_class)
+        subclass = int(subclass)
+        inventory_type = int(inventory_type)
+    except (TypeError, ValueError):
+        return 'item'
+    category = ITEM_CLASS_NAMES.get(item_class, 'Item').lower()
+    if item_class == 2:
+        kind = WEAPON_SUBCLASS_NAMES.get(subclass)
+        if not kind:
+            return category
+        hand = WEAPON_HAND_NAMES.get(inventory_type)
+        kind = kind.lower()
+        return f"{category}: {kind} ({hand})" if hand else (
+            f"{category}: {kind}")
+    if item_class == 4:
+        kind = ARMOR_KIND_SUBCLASS_NAMES.get(subclass)
+        piece = ARMOR_PIECE_NAMES.get(inventory_type)
+        if kind:
+            return f"{category}: {kind}"
+        if not piece:
+            return category
+        material = ARMOR_SUBCLASS_NAMES.get(subclass, '').lower()
+        # Cloaks are cloth by rule and jewelry has no material.
+        if material in ('cloth', 'leather', 'mail', 'plate') and (
+                inventory_type != 16):
+            return f"{category}: {material} {piece}"
+        return f"{category}: {piece}"
+    kind = ITEM_SUBCLASS_NAMES.get(item_class, {}).get(subclass)
+    if kind and kind != category:
+        return f"{category}: {kind}"
+    return category
 
 
 def format_weapon_list(weapons) -> str:

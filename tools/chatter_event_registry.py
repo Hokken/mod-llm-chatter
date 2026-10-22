@@ -64,6 +64,23 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         },
     ),
 
+    'bot_group_loot_roll': EventSpec(
+        handler_module='chatter_group_handlers',
+        handler_func='process_group_loot_roll_event',
+        producer='LLMChatterGroupLootRoll.cpp',
+        description='Bot says why it rolled Need or Greed',
+        payload_fields={
+            'roll_vote': (str, True),
+            'item_name': (str, True),
+            'item_entry': (int, True),
+            'item_quality': (int, True),
+            'item_class': (int, True),
+            'item_subclass': (int, True),
+            'item_inventory_type': (int, True),
+            'is_bot': (int, True),
+        },
+    ),
+
     'bot_group_combat': EventSpec(
         handler_module='chatter_group_handlers',
         handler_func='process_group_combat_event',
