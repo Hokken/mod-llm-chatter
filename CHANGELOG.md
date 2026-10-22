@@ -1,5 +1,14 @@
 # Changelog
 
+### 2026-10-22 - Dungeon Boss Names Fix
+
+* **Bots know the dungeon's bosses again**: since 2026-09-09 the boss
+  lookup failed with a MySQL error (1250) in every dungeon and raid, so
+  group chatter, spell reactions and dungeon-entry lines never got the
+  boss names. The query is fixed, and bots once more mention bosses such
+  as Edwin VanCleef or King Gordok when the group is inside (#82, thanks
+  Vezajin).
+
 ### 2026-10-19 - Non-English Chatter Crash Fix
 
 * **No more worldserver crash with a non-English `LLMChatter.Language`**:
