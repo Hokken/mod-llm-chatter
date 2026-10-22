@@ -1706,7 +1706,7 @@ def get_dungeon_bosses(
                      OR ct.CreatureImmunitiesId > 0)
             GROUP BY ct.entry, ct.name, ct.`rank`
             HAVING ct.`rank` = 3 OR COUNT(*) = 1
-            ORDER BY ct.name
+            ORDER BY name
         """, (map_id, map_id))
         bosses = [
             row['name']
