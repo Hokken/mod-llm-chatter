@@ -3604,6 +3604,22 @@ LLMChatter.Bridge.InterSystemStaggerMin = 3
 LLMChatter.Bridge.InterSystemStaggerMax = 6
 
 #
+#   LLMChatter.Bridge.GroupSetupGraceSeconds
+#   LLMChatter.Bridge.GroupSetupRetrySeconds
+#       A group event (dungeon entry, combat, idle chatter...)
+#       can arrive before the bridge has set up the group's
+#       bots, most often right after a Dungeon Finder group
+#       forms. An event younger than GroupSetupGraceSeconds
+#       is retried every GroupSetupRetrySeconds until the
+#       group is ready; an older one is dropped, as for a
+#       group that has disbanded. GroupSetupGraceSeconds = 0
+#       disables the retry; RetrySeconds is at least 1.
+#       Default: GraceSeconds = 30, RetrySeconds = 3
+#
+LLMChatter.Bridge.GroupSetupGraceSeconds = 30
+LLMChatter.Bridge.GroupSetupRetrySeconds = 3
+
+#
 #   LLMChatter.MessageDelayMin
 #       Minimum delay (milliseconds) before a bot sends a
 #       message. Simulates "reading + typing" time. Applies

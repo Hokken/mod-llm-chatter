@@ -689,6 +689,63 @@ _ORPHAN_GUARD_EXEMPT = frozenset({
     'bot_group_emote_reaction',
 })
 
+# A group event can reach the orphan guard before the
+# join handler has written the group's traits: join_batch
+# runs in the urgent lane and most group events in the
+# filler lane, and a Dungeon Finder group can even queue
+# its dungeon entry before the join. Young events are
+# put back for a short retry instead of being dropped.
+_GROUP_SETUP_GRACE_DEFAULT = 30
+_GROUP_SETUP_RETRY_DEFAULT = 3
+
+
+def _defer_or_expire_orphan(
+    cursor, db, event, grace_seconds, retry_seconds
+):
+    """Handle a group event whose group has no traits.
+
+    Returns 'deferred' when the event is younger than
+    the grace window (DB clock) and was put back to
+    pending, otherwise 'expired'.
+    """
+    event_id = event['id']
+    if grace_seconds > 0:
+        cursor.execute(
+            "UPDATE llm_chatter_events"
+            " SET status = 'pending',"
+            " react_after = NOW()"
+            " + INTERVAL %s SECOND"
+            " WHERE id = %s"
+            " AND status = 'processing'"
+            " AND created_at > NOW()"
+            " - INTERVAL %s SECOND",
+            (retry_seconds, event_id, grace_seconds)
+        )
+        db.commit()
+        if cursor.rowcount == 1:
+            logger.debug(
+                "Group event %s (%s) waits for group %s"
+                " setup; retry in %ss",
+                event_id, event['event_type'],
+                event.get('_group_id'), retry_seconds,
+            )
+            return 'deferred'
+
+    cursor.execute(
+        "UPDATE llm_chatter_events"
+        " SET status = 'expired'"
+        " WHERE id = %s",
+        (event_id,)
+    )
+    db.commit()
+    logger.info(
+        "Group event %s (%s) expired: group %s has"
+        " no traits",
+        event_id, event['event_type'],
+        event.get('_group_id'),
+    )
+    return 'expired'
+
 # Handler map built from central event registry.
 # player_general_msg uses a local adapter, so we
 # inject it after registry-driven generation.
@@ -1019,6 +1076,8 @@ def process_single_event(event, client, config):
             # group has no traits rows (already
             # cleaned up after player logout /
             # group disband), mark expired and skip.
+            # A young event may only be racing the
+            # group's setup, so it is retried first.
             # Lifecycle events are exempt — see
             # _ORPHAN_GUARD_EXEMPT at module scope.
             if (event_type.startswith('bot_group_')
@@ -1034,13 +1093,23 @@ def process_single_event(event, client, config):
                         (gid,)
                     )
                     if not cursor.fetchone():
-                        cursor.execute(
-                            "UPDATE llm_chatter_events"
-                            " SET status = 'expired'"
-                            " WHERE id = %s",
-                            (event_id,)
+                        _defer_or_expire_orphan(
+                            cursor, db, event,
+                            _config_int(
+                                config,
+                                'LLMChatter.Bridge.'
+                                'GroupSetupGraceSeconds',
+                                _GROUP_SETUP_GRACE_DEFAULT,
+                                minimum=0,
+                            ),
+                            _config_int(
+                                config,
+                                'LLMChatter.Bridge.'
+                                'GroupSetupRetrySeconds',
+                                _GROUP_SETUP_RETRY_DEFAULT,
+                                minimum=1,
+                            ),
                         )
-                        db.commit()
                         return False
                 else:
                     logger.warning(
