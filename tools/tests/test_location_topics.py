@@ -120,6 +120,23 @@ def test_scarlet_enclave_has_name_and_description():
         assert 4298 in module.ZONE_NAMES and 4298 in module.ZONE_FLAVOR
 
 
+def test_scarlet_enclave_does_not_spoil_the_death_knight_story():
+    # A death knight starts here before the battle at Light's Hope, so
+    # the text must hold before and after it: no outcome, no Ebon Blade.
+    from locales import deDE, esES, frFR, ruRU
+    outcome = re.compile(
+        r"Ebon Blade|Schwarzen? Klinge|Lame d'ébène|Espada de Ébano|"
+        r"Черного Клинка|Light's Hope|Hoffnungsvollen Lichts|"
+        r"Espoir de Lumière|Esperanza de la Luz|Последней Надежды|"
+        r"torch|broke from|ruins|burned|verbrannt|brûlés|quemados|"
+        r"Выжженные", re.I)
+    for module in (constants, ruRU, deDE, frFR, esES):
+        text = module.ZONE_FLAVOR[4298]
+        assert not outcome.search(text), (
+            module.__name__, outcome.search(text).group(0))
+        assert re.search(r'Ach[eé]rus|Акерус', text), module.__name__
+
+
 # -- Drawing a topic ---------------------------------------------------
 
 def test_zone_topic_carries_place_and_description():

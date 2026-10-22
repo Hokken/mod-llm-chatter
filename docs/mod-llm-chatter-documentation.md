@@ -1334,6 +1334,7 @@ Examples include:
 - kill and wipe reactions
 - death and resurrection reactions
 - loot reactions
+- Need/Greed roll comments
 - spell cast reactions
 - quest accept/objective/complete reactions
 - zone transitions
@@ -1342,6 +1343,45 @@ Examples include:
 - overworld PvP against the opposing faction (engage, kill, death,
   wipe, offensive spells, low health/mana, enemy target switches)
 - duel start and duel end
+
+### Need/Greed roll comments
+
+When a party bot rolls Need or Greed on an item, it says in party chat
+why it wants it (`bot_group_loot_roll`). The core reports only a roll's
+winner, so `LLMChatterGroupLootRoll.cpp` reads the open rolls of groups
+with a real player (`Group::GetRolls()`) every two seconds from the
+world update, between map updates.
+
+- Every bot that votes Need or Greed comments, up to
+  `GroupChatter.LootRollComment.MaxPerItem` (default 3) per item. Need
+  votes found in the same scan go before Greed votes, and each further
+  comment on one item waits a few seconds longer. Pass and Disenchant
+  votes stay silent. Battlegrounds and arenas are skipped.
+- The payload carries the vote, the item's name, entry and quality, and
+  its `item_template` class, subclass and InventoryType.
+  `describe_item_type()` turns these into the type and subtype the
+  prompt states: "weapon: two-handed sword", "armor: plate chest piece",
+  "armor: ring", "gem: meta gem", "recipe: tailoring pattern".
+- Need and Greed get the same prompt: the bot rolled because it wants
+  the item for itself and would use it, and says why in its own words,
+  with no example reasons. Playerbots roll Greed even on items they would
+  use, so the prompt never frames Greed as wanting the item for something
+  else. A Need roll adds one line: the bot really needs the item. The roll
+  is still open,
+  so the bot must not claim it won. The item is written as `{item}` and
+  becomes a clickable link, as in loot reactions.
+- The event has high priority, so the reason arrives while the roll is
+  still open. `GroupChatter.ReactDelay.LootRoll` (default 2) is its base
+  delay when the priority system is off.
+
+| Key | Default | Owner |
+|-----|---------|-------|
+| `LLMChatter.GroupChatter.LootRollComment.Enable` | 1 | Worldserver |
+| `LLMChatter.GroupChatter.LootRollComment.MaxPerItem` | 3 | Worldserver |
+
+Existing installations must apply
+`data/sql/characters/updates/20261022_loot_roll_comments.sql`, which adds
+the event type, and rebuild the worldserver.
 
 Note: subzone discovery reactions (`OnPlayerGiveXP` with `XPSOURCE_EXPLORE`) have been
 removed. They caused duplicate messages alongside zone transition events. Discovery
@@ -1765,7 +1805,7 @@ payload fields, never map location alone. Group producer policy is:
 | kill, combat, death, achievement, spell_cast, player_msg, low_health, oom | BG-enriched producers use the guard; ordinary variants retain group policy |
 | join_batch | Dedicated BG arrival uses the guard; ordinary group arrival retains group policy |
 | join, farewell, resurrect, corpse_run, zone_transition, subzone_change | Ordinary group policy without BG context |
-| loot, levelup, quest_accept, quest_accept_batch, quest_complete, quest_objectives, dungeon_entry, wipe | Ordinary group policy without BG context |
+| loot, loot_roll, levelup, quest_accept, quest_accept_batch, quest_complete, quest_objectives, dungeon_entry, wipe | Ordinary group policy without BG context |
 | emote_reaction, emote_observer, nearby_object, aggro | Existing producer eligibility and ordinary group policy |
 
 The producer inventory is pinned in the transport regression tests. Any
@@ -2642,8 +2682,8 @@ groups the labels by family, which is what a `Labels` pattern such as
 | `ambient_*` | idle General chatter: `ambient_statement`, `ambient_conv` | `chatter_ambient.py` |
 | `general_*` | General replies and lines: `general_player_msg` (first reply to a player), `general_followup`, `general_conv`, `general_loot` | `chatter_general.py`, `chatter_loot.py` |
 | `group_*` | party chat: `group_greeting`, `group_welcome`, `group_player_msg`, `group_idle`, `group_idle_conv`, `group_bot_question` (each with a `_memory` variant when memories are recalled), `group_composition`, `group_farewell`, `group_nearby_obj`, `group_quest_conv`, `group_player_msg_conv`, `group_general_relay`, `group_general_relay_conv` | `chatter_group*.py` |
-| `bot_group_*` | party event lines: `bot_group_kill`, `bot_group_loot`, `bot_group_death`, `bot_group_levelup`, `bot_group_duel_start`, ... | `chatter_group_handlers.py`, `chatter_duel.py` |
-| `reaction_*` | reactions to events: `reaction_kill`, `reaction_loot`, `reaction_bg_*`, `reaction_emote`, `reaction_raid`, `reaction_zone_intrusion`, `reaction_world_event`, ... | `chatter_group_handlers.py`, `chatter_battlegrounds.py`, `chatter_emote_*.py`, `chatter_events.py`, `chatter_raid_base.py`, `chatter_world_events.py` |
+| `bot_group_*` | party event lines: `bot_group_kill`, `bot_group_loot`, `bot_group_loot_roll`, `bot_group_death`, `bot_group_levelup`, `bot_group_duel_start`, ... | `chatter_group_handlers.py`, `chatter_duel.py` |
+| `reaction_*` | reactions to events: `reaction_kill`, `reaction_loot`, `reaction_loot_roll`, `reaction_bg_*`, `reaction_emote`, `reaction_raid`, `reaction_zone_intrusion`, `reaction_world_event`, ... | `chatter_group_handlers.py`, `chatter_battlegrounds.py`, `chatter_emote_*.py`, `chatter_events.py`, `chatter_raid_base.py`, `chatter_world_events.py` |
 | `raid_battle_cry` | raid battle cries | `chatter_group_handlers.py` |
 | `guild_*` | Guild chat: `guild_idle_chatter`, `guild_login_greeting`, `guild_player_message`, `guild_session_summary`, and the event lines (`guild_member_join`, `guild_pvp_kill`, `guild_npc_encounter`, ...) | `chatter_guild*.py` |
 | `proximity_*` | nearby /say chatter: `proximity_say`, `proximity_conversation`, `proximity_reply`, `proximity_player_conversation`, `proximity_player_emote`, ... | `chatter_proximity.py` |

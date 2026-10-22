@@ -427,6 +427,18 @@ public:
             }
         }
 
+        {
+            // Bots vote within seconds of a drop and a
+            // roll lasts a minute, so a short cadence.
+            static time_t lastLootRollCheck = 0;
+            time_t nowSec = time(nullptr);
+            if (nowSec - lastLootRollCheck >= 2)
+            {
+                lastLootRollCheck = nowSec;
+                CheckGroupLootRolls();
+            }
+        }
+
         if (sLLMChatterConfig->_nearbyObjectEnable
             && sLLMChatterConfig->_useGroupChatter
             && now - _lastGoScanTime

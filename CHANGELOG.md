@@ -1,5 +1,18 @@
 # Changelog
 
+### 2026-10-22 - Roll Comments and a Spoiler-Free Scarlet Enclave
+
+* **Bots explain their loot rolls**: when a party bot rolls Need or Greed
+  on an item, it says in party chat why it wants it for itself. The prompt
+  names the item with its type and subtype (two-handed sword, plate chest
+  piece, ring, meta gem, tailoring pattern...). Bots roll Greed even on
+  items they would use, so a Greed roll is explained the same way; a Need
+  roll adds that the bot really needs the item. Up to three bots comment per
+  item (`LLMChatter.GroupChatter.LootRollComment.Enable` and
+  `.MaxPerItem`). Needs the
+  `data/sql/characters/updates/20261022_loot_roll_comments.sql` update
+  and a worldserver rebuild.
+
 ### 2026-10-21 - Location Topics and Universal Topic Pools
 
 * **No more talk about things that are not there**: the random topics
