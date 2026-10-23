@@ -153,6 +153,7 @@ from chatter_group_state import (
     get_group_members,
     get_group_player_name,
 )
+from chatter_identity import config_int
 from chatter_group_handlers import (
     _maybe_talent_context,
     process_group_kill_event,
@@ -4035,6 +4036,31 @@ def build_idle_conversation_prompt(
     )
 
 
+# Matches the idle builders' existing [:6] cap.
+_IDLE_BOSS_SAMPLE_SIZE = 6
+
+
+def pick_idle_boss_context(bosses, config):
+    """Boss names for one idle prompt, or [] when the roll fails.
+
+    The same full list in every idle prompt invites repetitive
+    name-dropping, so it joins only some prompts, and as a
+    random sample so large instances are not always the same
+    alphabetical few. The dungeon itself stays in the prompt.
+    The cached list is never mutated.
+    """
+    chance = config_int(
+        config,
+        'LLMChatter.GroupChatter.IdleBossContextChance',
+        40, minimum=0, maximum=100,
+    )
+    if not bosses or random.randint(1, 100) > chance:
+        return []
+    return random.sample(
+        bosses, min(_IDLE_BOSS_SAMPLE_SIZE, len(bosses))
+    )
+
+
 def check_idle_group_chatter(
     db, client, config
 ):
@@ -4306,11 +4332,16 @@ def check_idle_group_chatter(
         )
 
         # Get dungeon bosses if in a dungeon
+        # (only for some idle prompts, see
+        # pick_idle_boss_context)
         in_dungeon = (
             get_dungeon_flavor(map_id) is not None
         )
         dungeon_bosses = (
-            get_dungeon_bosses(db, map_id)
+            pick_idle_boss_context(
+                get_dungeon_bosses(db, map_id),
+                config,
+            )
             if in_dungeon else []
         )
 

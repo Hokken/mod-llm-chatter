@@ -1738,6 +1738,18 @@ LLMChatter.GroupChatter.IdleChance = 15
 LLMChatter.GroupChatter.ConversationBias = 50
 
 #
+#   LLMChatter.GroupChatter.IdleBossContextChance
+#       Chance (0-100) that an idle party chatter prompt in a
+#       dungeon or raid also lists that instance's bosses (up
+#       to 6, picked at random). It does not change how often
+#       bots talk, and the dungeon itself is always in the
+#       prompt. Lower = fewer boss mentions. 0 = never,
+#       100 = every idle prompt.
+#       Default: 40
+#
+LLMChatter.GroupChatter.IdleBossContextChance = 40
+
+#
 #   LLMChatter.GroupChatter.IdleCooldown
 #       Minimum seconds between idle chatter triggers
 #       for the same group.
@@ -3638,6 +3650,22 @@ LLMChatter.Bridge.MaxConcurrent = 5
 #
 LLMChatter.Bridge.InterSystemStaggerMin = 3
 LLMChatter.Bridge.InterSystemStaggerMax = 6
+
+#
+#   LLMChatter.Bridge.GroupSetupGraceSeconds
+#   LLMChatter.Bridge.GroupSetupRetrySeconds
+#       A group event (dungeon entry, combat, idle chatter...)
+#       can arrive before the bridge has set up the group's
+#       bots, most often right after a Dungeon Finder group
+#       forms. An event younger than GroupSetupGraceSeconds
+#       is retried every GroupSetupRetrySeconds until the
+#       group is ready; an older one is dropped, as for a
+#       group that has disbanded. GroupSetupGraceSeconds = 0
+#       disables the retry; RetrySeconds is at least 1.
+#       Default: GraceSeconds = 30, RetrySeconds = 3
+#
+LLMChatter.Bridge.GroupSetupGraceSeconds = 30
+LLMChatter.Bridge.GroupSetupRetrySeconds = 3
 
 #
 #   LLMChatter.MessageDelayMin
