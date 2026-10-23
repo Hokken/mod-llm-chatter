@@ -552,6 +552,14 @@ void LLMChatterConfig::LoadConfig()
     _groupKillCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.KillCooldown", 120);
     _groupDeathCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.DeathCooldown", 30);
     _groupLootCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.LootCooldown", 60);
+    _lootRollCommentEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GroupChatter."
+            "LootRollComment.Enable", true);
+    _lootRollCommentMaxPerItem =
+        GetChatterOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "LootRollComment.MaxPerItem", 3);
     _groupPlayerMsgCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.PlayerMsgCooldown", 0);
 
     // Group chatter - new event settings
@@ -594,6 +602,10 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<uint32>(
             "LLMChatter.GroupChatter."
             "ReactDelay.Loot", 3);
+    _reactDelayLootRoll =
+        GetChatterOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "ReactDelay.LootRoll", 2);
     _reactDelayCombat =
         GetChatterOption<uint32>(
             "LLMChatter.GroupChatter."

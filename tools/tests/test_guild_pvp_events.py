@@ -219,6 +219,30 @@ def test_guild_death_is_personality_led():
     assert "respawning" in prompt
 
 
+def test_opponent_people_and_calling_in_roleplay():
+    kill = "\n".join(pvp._pvp_kill_scenario(_kill_extra(), 'roleplay'))
+    assert "Aldric's people and calling (Human Paladin):" in kill
+    death = "\n".join(pvp._pvp_death_scenario(
+        _death_extra(), 'roleplay', 'the guild'))
+    assert "Aldric's people and calling (Human Paladin):" in death
+    zone = _text(pvp.build_zone_pvp_death_prompt(
+        {'name': 'Grom', 'zone_id': 17, 'speaker': dict(SPEAKER)},
+        _death_extra(), 'roleplay'))
+    assert "Aldric's people and calling (Human Paladin):" in zone
+    normal = "\n".join(pvp._pvp_kill_scenario(_kill_extra(), 'normal'))
+    assert "people and calling" not in normal
+
+
+def test_opponent_priest_style_follows_talents():
+    extra = _kill_extra(victim_class='Priest')
+    with patch.object(pvp, 'class_style', return_value='Light Priest'):
+        text = "\n".join(pvp._pvp_kill_scenario(extra, 'roleplay', object()))
+    assert "(Human Light Priest)" in text
+    # Without a database the note still appears, as a Light Priest.
+    text = "\n".join(pvp._pvp_kill_scenario(extra, 'roleplay'))
+    assert "(Human Light Priest)" in text
+
+
 def test_disabled_guild_events_are_skipped():
     for handler, event_type, key, extra in (
         (pvp.process_guild_pvp_kill_event, 'guild_pvp_kill',
@@ -524,6 +548,8 @@ def main() -> int:
     test_registry_routes_pvp_events()
     test_guild_kill_goes_to_guild_as_filler()
     test_guild_death_is_personality_led()
+    test_opponent_people_and_calling_in_roleplay()
+    test_opponent_priest_style_follows_talents()
     test_disabled_guild_events_are_skipped()
     test_zone_death_uses_general_persona_and_zone_pacing()
     test_zone_pacing_is_reserved_per_zone()

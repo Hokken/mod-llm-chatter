@@ -305,7 +305,7 @@ uint32 RollConfiguredDelay(
         sLLMChatterConfig->*maxMember);
 }
 
-constexpr std::array<EventPriorityRule, 47>
+constexpr std::array<EventPriorityRule, 48>
     kTierPriorityRules = {{
         {"bot_group_combat",        PRIORITY_CRITICAL},
         {"bot_group_spell_cast",    PRIORITY_CRITICAL},
@@ -331,6 +331,9 @@ constexpr std::array<EventPriorityRule, 47>
         {"bot_group_duel_end",      PRIORITY_HIGH},
         {"bot_group_join",          PRIORITY_HIGH},
         {"bot_group_join_batch",    PRIORITY_HIGH},
+        // A roll stays open for one minute; the reason
+        // must arrive while the others still decide.
+        {"bot_group_loot_roll",     PRIORITY_HIGH},
         {"bg_match_start",          PRIORITY_HIGH},
         {"bg_pvp_kill",             PRIORITY_HIGH},
         {"guild_pvp_kill",          PRIORITY_NORMAL},
@@ -468,7 +471,7 @@ constexpr std::array<PredicateRangeDelayRule, 2>
         },
     }};
 
-constexpr std::array<ExactFixedDelayRule, 18>
+constexpr std::array<ExactFixedDelayRule, 19>
     kLegacyExactFixedDelayRules = {{
         {"bot_group_join",             &LLMChatterConfig::_reactDelayJoin},
         {
@@ -479,6 +482,10 @@ constexpr std::array<ExactFixedDelayRule, 18>
         {"bot_group_wipe",             &LLMChatterConfig::_reactDelayWipe},
         {"bot_group_death",            &LLMChatterConfig::_reactDelayDeath},
         {"bot_group_loot",             &LLMChatterConfig::_reactDelayLoot},
+        {
+            "bot_group_loot_roll",
+            &LLMChatterConfig::_reactDelayLootRoll,
+        },
         {"bot_group_combat",           &LLMChatterConfig::_reactDelayCombat},
         {
             "bot_group_player_msg",

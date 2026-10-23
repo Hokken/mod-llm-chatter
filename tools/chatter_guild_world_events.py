@@ -14,6 +14,7 @@ tone decide how it reacts.
 
 import logging
 import random
+import re
 from typing import Dict, List, Optional
 
 from chatter_db import insert_chat_message
@@ -48,7 +49,9 @@ from chatter_shared import (
     append_conversation_json_instruction,
     append_json_instruction,
     get_chatter_mode,
+    get_subzone_lore,
     get_subzone_name,
+    get_zone_flavor,
     get_zone_name,
     parse_extra_data,
 )
@@ -109,9 +112,109 @@ def _place(extra: Dict) -> str:
     return subzone or zone
 
 
+def _place_lore_lines(
+    extra: Dict, mode: str, include_zone: bool = True,
+) -> List[str]:
+    """Roleplay description of where the bot stands: the zone flavor
+    and the subzone lore, each when it exists.
+
+    Guild posts built with ``name_location`` already carry the zone
+    flavor (``_guild_location_lines``), so they pass
+    ``include_zone=False``.
+    """
+    if not is_roleplay(mode):
+        return []
+    zone_id = safe_int(extra.get('zone_id'))
+    lines = []
+    zone_flavor = get_zone_flavor(zone_id) if zone_id else None
+    if include_zone and zone_flavor:
+        lines.append(f"Zone context: {zone_flavor}")
+    subzone_lore = get_subzone_lore(zone_id, safe_int(extra.get('area_id')))
+    if subzone_lore:
+        lines.append(f"About this place: {subzone_lore}")
+    return lines
+
+
 # --------------------------------------------------------------------------
 # Guild NPC encounter
 # --------------------------------------------------------------------------
+
+# What the speaker's remark about a nearby NPC dwells on. One is picked
+# per post, so remarks vary in what they notice; none of them suggests
+# wording, because words given as examples get copied into every reply.
+NPC_REMARK_ANGLES = (
+    "the impression this person makes at a glance: how they look, "
+    "sound or carry themselves",
+    "their trade or what they offer, seen through the speaker's own "
+    "needs and habits",
+    "a brief exchange the speaker just had with them",
+    "how they fit into the place around them",
+    "something about them the speaker is unsure of or curious about",
+    "what they remind the speaker of from their own life or travels",
+)
+
+
+# Role labels from GetCreatureRoleName() that are game terms rather
+# than anything a character would call someone. Such an NPC, without a
+# title of its own, is introduced as a local inhabitant instead.
+NPC_GAME_ROLES = frozenset({'quest giver', 'npc', 'rare creature'})
+NPC_PLAIN_ROLE = 'local inhabitant'
+
+# Whether an NPC title names a person ("Innkeeper", "Cloth & Leather
+# Armor Merchant", "King of Stormwind") or something else: the goods
+# sold ("Potions, Scrolls and Reagents", "Food & Drink") or a group
+# served ("Argent Dawn"). Only a person title reads as a noun
+# ("this innkeeper"). Decided by the head word: the last word, or the
+# last word before "of"/"in".
+_PERSON_SUFFIXES = (
+    'er', 'or', 'ist', 'smith', 'man', 'woman', 'maid', 'maiden',
+    'master', 'keeper', 'monger', 'crafter', 'ess', 'ian', 'ant', 'eer',
+)
+_NOT_PERSON_WORDS = frozenset({
+    'armor', 'leather', 'order', 'covenant', 'hammer', 'water', 'silver',
+    'weather', 'tower', 'power', 'river', 'thunder', 'flower', 'fur',
+    'tor', 'lothar',
+})
+_PERSON_WORDS = frozenset({
+    'guard', 'chef', 'cook', 'medic', 'squire', 'priest', 'captain',
+    'chieftain', 'knight', 'lord', 'overlord', 'lady', 'king', 'queen',
+    'princess', 'apprentice', 'mage', 'battle-mage', 'warlock', 'rogue',
+    'surgeon', 'apothecary', 'butler', 'barkeep', 'pilot', 'crone',
+    'seer', 'thane', 'matron', 'matriarch', 'mate', 'boy', 'noble',
+    'socialite', 'enthusiast', 'aficionado', 'mercenary', 'sentry',
+    'emissary', 'drunk', 'minion', 'hermit', 'witness', 'valiant',
+    'troll', 'bandit', 'agent', 'primus', 'general', 'warchief', 'pro',
+    'ex-chef', 'stablehand', 'shield-breaker', 'companion', 'twin',
+    'champion', 'disciple', 'ancient', 'doctor',
+})
+
+
+def _title_head(title: str) -> str:
+    """The part of a title that says what its bearer is: the text
+    before "of"/"in" ("King of Stormwind" -> "King"), without a
+    trailing "(Honored)"."""
+    head = re.sub(r"\s*\([^)]*\)\s*$", "", title).strip()
+    return re.split(r"\s+(?:of|in)\s+", head, maxsplit=1)[0]
+
+
+def _title_names_a_person(title: str) -> bool:
+    words = re.findall(r"[a-z][a-z'\-]*", _title_head(title).lower())
+    if not words:
+        return False
+    last = words[-1]
+    if last in _PERSON_WORDS:
+        return True
+    if last in _NOT_PERSON_WORDS:
+        return False
+    return last.endswith(_PERSON_SUFFIXES)
+
+
+def _title_as_noun(title: str) -> str:
+    """A person title used as a noun: its head lowercased, any
+    "of ..." tail kept as written ("this king of Stormwind")."""
+    head = _title_head(title)
+    return head.lower() + title[len(head):].split('(')[0].rstrip()
+
 
 def _npc_scenario(extra: Dict, mode: str) -> List[str]:
     bot_name = str(extra.get('bot_name') or 'The speaker')
@@ -119,16 +222,39 @@ def _npc_scenario(extra: Dict, mode: str) -> List[str]:
     npc = str(extra.get('npc_name') or 'someone')
     subname = str(extra.get('npc_subname') or '').strip()
     role = str(extra.get('npc_role') or '').strip()
-    what = subname or role or 'local'
+    if role.lower() in NPC_GAME_ROLES:
+        role = ''
+    title = subname or role
+    where = f" in {zone}" if zone else ""
+    if not title:
+        intro = (
+            f"{bot_name} is standing near {npc}, a {NPC_PLAIN_ROLE},"
+            f"{where}."
+        )
+        subject = f"this {NPC_PLAIN_ROLE}"
+    elif _title_names_a_person(title):
+        intro = f"{bot_name} is standing near {npc} <{title}>{where}."
+        subject = f"this {_title_as_noun(title)}"
+    else:
+        # A list of wares or the name of a group: shown as the title it
+        # is, never turned into "this potions, scrolls and reagents".
+        intro = (
+            f"{bot_name} is standing near {npc}{where}. The title under "
+            f"{npc}'s name reads <{title}>: what they trade in or whom "
+            "they serve."
+        )
+        subject = npc
     return [
-        f"{bot_name} is standing near {npc} <{what}>"
-        f"{' in ' + zone if zone else ''}.",
-        f"{bot_name} mentions this {what.lower()} to the guild with a "
-        "short opinion of them. Helpful, odd, overpriced, kind, gruff, "
-        "worth a visit or not worth the trip are all possible.",
+        intro,
+        f"{bot_name} mentions {subject} to the guild and shares "
+        "a short, personal opinion of them, focused on "
+        f"{random.choice(NPC_REMARK_ANGLES)}.",
+        f"Let {bot_name}'s personality and tone decide how the opinion "
+        "sounds, in their own words. React to one concrete detail rather "
+        "than giving a verdict, a rating or a recommendation.",
         f"Name {npc}{' and ' + zone if zone else ''} so guildmates know "
         "who and where. Do not invent quests or rewards.",
-    ]
+    ] + _place_lore_lines(extra, mode, include_zone=False)
 
 
 def process_guild_npc_encounter_event(db, client, config, event):
@@ -162,6 +288,7 @@ def process_guild_npc_encounter_event(db, client, config, event):
         guild_context,
         _npc_scenario(extra, mode),
         maximum,
+        name_location=True,
     )
     metadata = {
         'guild_id': safe_int(extra.get('guild_id')),
@@ -211,6 +338,7 @@ def build_meet_greeting_prompt(db, bot: Dict, extra: Dict, mode: str):
         class_name=str(extra.get('player_class') or ''),
         gender=str(extra.get('player_gender') or ''),
     ))
+    lines.extend(_place_lore_lines(extra, mode))
     lines.extend([
         f"{bot['name']} and {player_name} are both members of the "
         f"guild \"{guild_name}\" but are not travelling together.",
@@ -229,7 +357,9 @@ def build_meet_greeting_prompt(db, bot: Dict, extra: Dict, mode: str):
     )
 
 
-def _meet_guild_scenario(extra: Dict, greeting: str) -> List[str]:
+def _meet_guild_scenario(
+    extra: Dict, greeting: str, mode: str = '',
+) -> List[str]:
     bot_name = str(extra.get('bot_name') or 'The speaker')
     player = str(extra.get('player_name') or 'a guildmate')
     place = _place(extra)
@@ -242,7 +372,7 @@ def _meet_guild_scenario(extra: Dict, greeting: str) -> List[str]:
         f"Name {player}" + (f" and {place}" if place else "")
         + " so the guild knows who and where. Do not repeat the greeting "
         "and do not invent a long story.",
-    ]
+    ] + _place_lore_lines(extra, mode, include_zone=False)
 
 
 def _guild_post_wanted(config: Dict, extra: Dict) -> bool:
@@ -267,8 +397,9 @@ def _meet_follow_up_text(
         str(extra.get('team') or ''),
         mode,
         guild_context,
-        _meet_guild_scenario(extra, greeting),
+        _meet_guild_scenario(extra, greeting, mode),
         maximum,
+        name_location=True,
     )
     metadata = {
         'guild_id': safe_int(extra.get('guild_id')),
@@ -452,7 +583,7 @@ def _responder_count(config: Dict, available: int) -> int:
 
 def _announce_lines(
     participants: List[Dict], responders: List[Dict], announcer: Dict,
-    guild_name: str, zone: str, mode: str,
+    guild_name: str, zone: str, mode: str, zone_flavor: str = '',
 ) -> List[str]:
     lines = (
         ["Write natural in-character World of Warcraft General chat "
@@ -460,6 +591,8 @@ def _announce_lines(
         if is_roleplay(mode)
         else [build_player_chat_guidance(mode, 'general')]
     )
+    if is_roleplay(mode) and zone_flavor:
+        lines.append(f"Zone context: {zone_flavor}")
     for participant in participants:
         lines.extend(_participant_identity_lines(participant, mode))
     lines.append(
@@ -569,6 +702,7 @@ def process_guild_join_zone_announce_event(db, client, config, event):
     zone = get_zone_name(announcer['zone_id']) or 'this zone'
     lines = _announce_lines(
         participants, responders, announcer, guild_name, zone, mode,
+        get_zone_flavor(announcer['zone_id']) or '',
     )
     maximum = max_characters(config)
     metadata = {

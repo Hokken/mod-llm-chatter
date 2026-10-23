@@ -79,6 +79,7 @@ def base_lines(
     faction: str,
     mode: str,
     guild_context: List[str],
+    name_location: bool = False,
 ) -> List[str]:
     if is_roleplay(mode):
         lines = ["Write natural in-character World of Warcraft Guild Chat."]
@@ -93,7 +94,7 @@ def base_lines(
             f"They fight for the {faction}. Never insult or mock "
             f"the {faction}, their own faction."
         )
-    lines.extend(_guild_location_lines(participants, False, mode))
+    lines.extend(_guild_location_lines(participants, name_location, mode))
     return lines
 
 
@@ -127,11 +128,18 @@ def build_prompt(
     scenario: List[str],
     maximum: int,
     first_names: Optional[List[str]] = None,
+    name_location: bool = False,
 ):
-    """Return (prompt, names) for one or several independent lines."""
+    """Return (prompt, names) for one or several independent lines.
+
+    ``name_location`` lets the line name the first speaker's zone and,
+    in roleplay, gives its description; events about where the speaker
+    is (a meeting, a nearby NPC) set it.
+    """
     names = [participant['name'] for participant in participants]
     lines = base_lines(
         participants, guild_name, faction, mode, guild_context,
+        name_location,
     )
     lines.append("")
     lines.extend(scenario)

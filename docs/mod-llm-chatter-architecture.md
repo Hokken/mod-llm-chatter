@@ -270,7 +270,8 @@ NPCs, and real players as they move through the world:
    NPC spawn GUIDs and nearby entity names in `extra_data`.
 5. Python `chatter_proximity.py` claims the event and uses
    `chatter_instance_context.py` for canonical map name, current area,
-   and curated dungeon-lore grounding. NPC payloads also carry
+   and curated dungeon-lore grounding; outdoors it adds the subzone (or
+   zone) description when a speaker is in-world. NPC payloads also carry
    disposition, creature rank, creature type, and qualification reason.
 6. Messages are written to `llm_chatter_messages` with channel
    `"say"` (for bots) or `"msay"` (for NPCs). Ordinary, directed speech,
@@ -1166,6 +1167,7 @@ Session 69 added two scheduling controls around that model:
 | `src/LLMChatterGuildMembers.cpp` | ~660 | Guild news events: own `GuildScript` (join, promotion, demotion, MOTD) and `WorldScript` flush, join batching, rank-change debounce, MOTD delay, and event queueing |
 | `src/LLMChatterGroup.cpp` | ~1350 | Shared group state definitions, shared helpers (`GroupHasRealPlayer`, `GetRandomBotInGroup`, `CountBotsInGroup`, pre-cache helpers), disabled-by-default MultiBot-Chatless `MBOT` fallback handler, `CleanupGroupSession()` coordinator, thin `LLMChatterGroupPlayerScript` shell wrappers, registration |
 | `src/LLMChatterGroupCombat.cpp` | ~2550 | Remaining group PlayerScript implementation bodies (kill/death/loot/combat/chat/level/quest/achievement/spell/resurrect/corpse-run/dungeon-entry/emote dispatch), text-emote target classification and group gating, zone transition handling, combat state callouts, `MBOT` debug-log suppression, file-local `QueueStateCallout()` |
+| `src/LLMChatterGroupLootRoll.cpp` | ~210 | Need/Greed roll comments: `CheckGroupLootRolls()` polls open group loot rolls (`Group::GetRolls()`) from the world update, keeps the per-item comment cap, and queues `bot_group_loot_roll` with the item's class, subclass and InventoryType |
 | `src/LLMChatterGroupInternal.h` | ~235 | Shared group internal structs, cooldown/batch/mutex declarations, helper declarations, domain entry points, and `EmoteTargetType` |
 | `src/LLMChatterGroupJoin.cpp` | 877 | Group join batching: `QueueBotGreetingEvent()`, `EnsureGroupJoinQueued()`, `FlushGroupJoinBatches()`, `LLMChatterGroupScript` (GroupScript: `OnAddMember`, `OnRemoveMember` with farewell, `OnDisband`) |
 | `src/LLMChatterGroupEmote.cpp` | 780 | Emote reaction system: delayed bot/creature mirror events, emote static data, grouped and ungrouped playerbot mirroring, creature mirroring, observer reactions, and cooldown eviction |
@@ -1268,6 +1270,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_identity_jobs.py` | Bounded Guild membership discovery and profile prewarming |
 | `tools/chatter_persona.py` | Bot persona resolution (identity + real event mood) and the shared persona/cast renderers for Party, Guild and General |
 | `tools/chatter_threads.py` | Party conversation threads: in-memory thread store, soft nudges for idle exchanges, thread prompt rendering, thread report parsing |
+| `tools/chatter_location_topics.py` | Topics tied to the speakers' zone, dungeon or raid, loaded from `tools/location_topics.json`; `location_topic_for()` draws one with the place's description, `roll_location_topic()` applies `LocationTopics.Chance`. Used by party idle chatter and bot questions, General, proximity and raid idle chatter, and as the `location` source of conversation threads |
 | `tools/chatter_themed_topics.py` | Themed idle subjects (faction, race, class, race+class) and rumors (expansions, dungeons, raids, locations, regions, profession and class trainers); `themed_candidate()` prepares one before a thread turn is planned |
 | `tools/chatter_progression.py` | Rumor gating per listener (level bands, faction, achievements) and the rotating rumor target |
 | `tools/chatter_lore_data.py` / `chatter_rumor_data.py` / `chatter_trainer_rumor_data.py` | Static themed topic, race+class note, rumor and trainer rumor data |
@@ -2164,7 +2167,7 @@ source:
 | C++ ambient trade inventory snapshots | `src/LLMChatterTrade.cpp`, `src/LLMChatterTrade.h` |
 | C++ nearby scan logic | `src/LLMChatterNearby.cpp`, `src/LLMChatterNearby.h` |
 | C++ world transport/dispatcher logic | `src/LLMChatterWorld.cpp` |
-| C++ group batching/combat/state logic | `src/LLMChatterGroup.cpp`, `src/LLMChatterGroupCombat.cpp`, `src/LLMChatterGroupJoin.cpp`, `src/LLMChatterGroupEmote.cpp`, `src/LLMChatterGroupQuest.cpp`, `src/LLMChatterGroup.h`, `src/LLMChatterGroupInternal.h` |
+| C++ group batching/combat/state logic | `src/LLMChatterGroup.cpp`, `src/LLMChatterGroupCombat.cpp`, `src/LLMChatterGroupLootRoll.cpp`, `src/LLMChatterGroupJoin.cpp`, `src/LLMChatterGroupEmote.cpp`, `src/LLMChatterGroupQuest.cpp`, `src/LLMChatterGroup.h`, `src/LLMChatterGroupInternal.h` |
 | MultiBot-Chatless `MBOT` bridge coexistence and fallback | `src/LLMChatterGroup.cpp`; debug skip wording in `src/LLMChatterGroupCombat.cpp` |
 | C++ General-channel player logic | `src/LLMChatterPlayer.cpp` |
 | C++ BG logic | `src/LLMChatterBG.cpp`, `src/LLMChatterBG.h` |

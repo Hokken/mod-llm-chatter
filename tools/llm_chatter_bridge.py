@@ -889,6 +889,14 @@ def _event_summary(event):
             ('item',
              ed.get('item_name', '')),
         ]
+    elif et == 'bot_group_loot_roll':
+        parts = [
+            ('roller', subj),
+            ('vote',
+             ed.get('roll_vote', '')),
+            ('item',
+             ed.get('item_name', '')),
+        ]
     elif et == 'bot_group_spell_cast':
         parts = [
             ('caster', subj),

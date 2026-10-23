@@ -11,12 +11,12 @@ from chatter_constants import (
     PROXIMITY_CHAT_TOPICS,
     PROXIMITY_PLAYER_CHAT_TOPICS,
     PROXIMITY_PLAYER_WEATHER_TOPICS,
-    PROXIMITY_WEATHER_TOPICS,
     REACTION_TONES,
 )
 from chatter_proximity_pacing import proximity_line_delays
 from chatter_db import insert_chat_message
 from chatter_llm import call_llm
+from chatter_location_topics import roll_location_topic
 from chatter_guild_profile import (
     get_character_guild_name,
     same_guild_note,
@@ -35,6 +35,7 @@ from chatter_shared import (
     find_addressed_bot,
     should_reply_to_optional_casual,
     brief_casual_response_fits,
+    bound_brief_casual_response,
     build_brief_casual_repair_prompt,
     parse_conversation_response,
     parse_extra_data,
@@ -315,14 +316,12 @@ def _apply_speaker_action_policy(
             line['action'] = None
 
 
-_OUTDOOR_ONLY_TOPICS = frozenset(
-    PROXIMITY_WEATHER_TOPICS + PROXIMITY_PLAYER_WEATHER_TOPICS
-)
+_OUTDOOR_ONLY_TOPICS = frozenset(PROXIMITY_PLAYER_WEATHER_TOPICS)
 
 
 def _pick_topic(pool, extra: Optional[Dict]) -> str:
-    """Random topic from pool; sky and weather topics are left
-    out inside instances, where no weather context exists."""
+    """Random topic from pool; the normal-mode weather topic is
+    left out inside instances, where no weather context exists."""
     if extra and build_instance_context(extra)['is_instance']:
         indoor = [t for t in pool if t not in _OUTDOOR_ONLY_TOPICS]
         if indoor:
@@ -330,16 +329,26 @@ def _pick_topic(pool, extra: Optional[Dict]) -> str:
     return random.choice(pool)
 
 
+def _in_world_topic(extra: Optional[Dict]) -> str:
+    """Topic for an in-world speaker (an NPC, or a roleplay
+    playerbot): one tied to this place at LocationTopics.Chance,
+    else the universal pool. The scene's location lines describe
+    the place."""
+    location = (
+        roll_location_topic(extra.get('zone_id'), extra.get('map_id'))
+        if extra else None
+    )
+    if location is not None:
+        return location.subject_line()
+    return _pick_topic(PROXIMITY_CHAT_TOPICS, extra)
+
+
 def _playerbot_topic(
     config: Optional[Dict], extra: Optional[Dict] = None,
 ) -> str:
-    mode = get_chatter_mode(config or {})
-    pool = (
-        PROXIMITY_CHAT_TOPICS
-        if is_roleplay(mode)
-        else PROXIMITY_PLAYER_CHAT_TOPICS
-    )
-    return _pick_topic(pool, extra)
+    if is_roleplay(get_chatter_mode(config or {})):
+        return _in_world_topic(extra)
+    return _pick_topic(PROXIMITY_PLAYER_CHAT_TOPICS, extra)
 
 
 def _describe_fighter(fighter: Dict) -> str:
@@ -575,7 +584,14 @@ def _location_lines(
     speakers: List[Dict],
     db=None,
 ) -> List[str]:
-    lines = build_location_prompt_lines(extra)
+    # The place description is world lore, so it goes to scenes with
+    # an in-world speaker: any NPC, or playerbots in roleplay mode.
+    lines = build_location_prompt_lines(
+        extra,
+        describe=any(
+            _speaker_is_roleplay(speaker, mode) for speaker in speakers
+        ),
+    )
     context = build_instance_context(extra)
     observation = extra.get('screenshot_observation')
     if isinstance(observation, dict):
@@ -671,10 +687,15 @@ def _parse_brief_single_with_retry(
     label: str,
     metadata: Dict,
 ) -> Dict:
-    """Parse a single response and repair one oversized brief turn."""
+    """Parse a single response and repair one oversized brief turn.
+
+    If the repair still runs long, the reply is bounded rather than
+    dropped: the player addressed this speaker and is waiting.
+    """
     parsed = parse_single_response(response or '')
     if not brief_casual:
         return parsed
+    first = parsed
 
     rendered = cleanup_message(
         str(parsed.get('message') or ''),
@@ -700,11 +721,21 @@ def _parse_brief_single_with_retry(
         str(parsed.get('message') or ''),
         action=parsed.get('action'),
     )
-    if not brief_casual_response_fits(
+    if brief_casual_response_fits(
         rendered, parsed.get('emote')
     ):
+        return parsed
+    if not parsed.get('message') and not parsed.get('emote'):
+        parsed = first
+    message, emote = bound_brief_casual_response(
+        str(parsed.get('message') or ''),
+        parsed.get('emote'),
+        str(first.get('message') or ''),
+        first.get('emote'),
+    )
+    if not message and not emote:
         return {}
-    return parsed
+    return {**parsed, 'message': message, 'emote': emote}
 
 
 def _brief_conversation_fits(messages: List[Dict]) -> bool:
@@ -718,6 +749,19 @@ def _brief_conversation_fits(messages: List[Dict]) -> bool:
         )
         for message in messages
     )
+
+
+def _bound_brief_conversation(messages: List[Dict]) -> List[Dict]:
+    """Bound each overlong line of a brief exchange instead of dropping
+    the whole reply to the player."""
+    bounded = []
+    for line in messages or []:
+        message, emote = bound_brief_casual_response(
+            str(line.get('message') or ''), line.get('emote'),
+        )
+        if message or emote:
+            bounded.append({**line, 'message': message, 'emote': emote})
+    return bounded
 
 
 def _set_line_addressee(
@@ -994,10 +1038,10 @@ def _conversation_prompt(
     elif fight_topic:
         topic = fight_topic
     elif is_roleplay(mode) or not has_playerbot:
-        topic = _pick_topic(PROXIMITY_CHAT_TOPICS, extra)
+        topic = _in_world_topic(extra)
     else:
         topic = (
-            "NPC angle: " + _pick_topic(PROXIMITY_CHAT_TOPICS, extra)
+            "NPC angle: " + _in_world_topic(extra)
             + "; playerbot angle: "
             + _pick_topic(PROXIMITY_PLAYER_CHAT_TOPICS, extra)
         )
@@ -1132,7 +1176,7 @@ def _generate_single_line(
     else:
         topic = topic or _fight_topic(extra, get_chatter_mode(config or {}))
         topic = topic or (
-            _pick_topic(PROXIMITY_CHAT_TOPICS, extra)
+            _in_world_topic(extra)
             if speaker.get('is_npc')
             else _playerbot_topic(config, extra)
         )
@@ -2325,7 +2369,7 @@ def handle_proximity_player_conversation(
             allow_emote_only=True,
         )
         if not _brief_conversation_fits(parsed):
-            parsed = []
+            parsed = _bound_brief_conversation(parsed)
     line_delay = max(0, int(
         extra.get('line_delay_seconds', 4) or 4
     ))

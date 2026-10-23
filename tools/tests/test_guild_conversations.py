@@ -215,6 +215,7 @@ def test_legacy_payload_normalizes_to_statement():
         'guid': 101,
         'name': 'Aliss',
         'zone_id': 12,
+        'area_id': 0,
         'map_id': 0,
     }]
 
