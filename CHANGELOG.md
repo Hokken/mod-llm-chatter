@@ -12,6 +12,18 @@
   `.MaxPerItem`). Needs the
   `data/sql/characters/updates/20261022_loot_roll_comments.sql` update
   and a worldserver rebuild.
+* **Guild posts about NPCs read naturally**: an NPC whose title lists
+  its wares ("Potions, Scrolls and Reagents") or names a group ("Argent
+  Dawn") is no longer called "this potions, scrolls and reagents"; person
+  titles such as "Innkeeper" still read "this innkeeper", and an NPC known
+  only as a "Quest Giver" is a local inhabitant.
+* **Guild meetings and NPC posts know the place**: the meeting greeting,
+  its Guild follow-up and the NPC post carry both the zone and the subzone
+  description in roleplay mode, and the Guild posts are no longer told not
+  to name the place they are about.
+* **The party talks about a General speaker, not to them**: party reactions
+  to a bot's General line no longer answer its author, who cannot hear
+  party chat.
 
 ### 2026-10-21 - Location Topics and Universal Topic Pools
 

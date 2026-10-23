@@ -1313,7 +1313,11 @@ The relay chance is controlled by
 `LLMChatter.GroupChatter.GeneralRelayChance` and defaults to 10%. When a
 relay fires, the first party line is scheduled for 3-6 seconds after the
 General line's planned visible time. The first party line must reference
-the General speaker by name. Relay prompts limit every party line to 150
+the General speaker by name. The General speaker is not in the party and
+cannot hear party chat, so the prompts tell the bots to talk about what was
+said, in the third person, and never to answer or address its author; a
+conversation is the party members discussing those words among themselves.
+Relay prompts limit every party line to 150
 characters. If a provider still returns an overlong line, cleanup prefers a
 complete sentence and otherwise shortens at a word boundary instead of
 cutting through a word.
@@ -2868,8 +2872,12 @@ Ancients and Isle of Conquest.
   reactions, nearby objects and screenshots**: zone and subzone
   description in roleplay mode, names in normal mode.
 - **Guild world events** (`guild_meet_greeting`, `guild_npc_encounter`):
-  subzone or zone description in roleplay mode. `guild_join_zone_announce`
-  gets the zone description.
+  zone and subzone description in roleplay mode. The `/say` greeting adds
+  both itself; the Guild posts (the meet follow-up and the NPC encounter)
+  are built with `name_location`, which lets the line name the speaker's
+  zone and adds its description, and the scenario adds the subzone
+  description. Other Guild event lines still may not name where a speaker
+  is. `guild_join_zone_announce` gets the zone description.
 - **Transport arrivals**: `transport_arrives` sends `dock_area_id`, the
   area the boat or zeppelin is in as it arrives, so the arrival can
   describe the harbour. Other world events (weather, holidays, day and
@@ -4136,7 +4144,11 @@ exchange, how they fit the place, something curious, a memory they stir)
 and asks the bot to react to one concrete detail instead of rating the
 NPC. An NPC without a title of its own whose role is only a game term
 ("Quest Giver", "NPC", "Rare Creature") is introduced as a local
-inhabitant.
+inhabitant. A title is used as a noun ("this innkeeper", "this king of
+Stormwind") only when it names a person, judged by its head word. A title
+that lists wares ("Potions, Scrolls and Reagents", "Food & Drink") or names
+a group ("Argent Dawn") is shown as the title under the NPC's name, and the
+line mentions the NPC by name instead.
 
 ## 13w. Guild Member Events
 

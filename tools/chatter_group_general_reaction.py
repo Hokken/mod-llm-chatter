@@ -457,6 +457,17 @@ def _location_context(db, group_id: int) -> Dict:
     }
 
 
+def _out_of_earshot_rule(source_name: str) -> str:
+    """The General author is in another channel and never hears the
+    party, so the party talks about them, not to them."""
+    return (
+        f"{source_name} is not in your party and cannot hear party "
+        f"chat. Talk about what {source_name} said, never to "
+        f"{source_name}: do not answer, greet or question them, and "
+        f"refer to {source_name} in the third person.\n"
+    )
+
+
 def _build_statement_prompt(
     bot: Dict,
     source_bot: Dict,
@@ -518,7 +529,8 @@ def _build_statement_prompt(
         "General reply.\n"
         f"HARD RULE: The message text must mention "
         f"{source_bot['name']} by name.\n"
-        "HARD LIMIT: Never exceed 150 characters total.\n"
+        + _out_of_earshot_rule(source_bot['name'])
+        + "HARD LIMIT: Never exceed 150 characters total.\n"
     )
     if is_rp:
         prompt += (
@@ -559,6 +571,8 @@ def _build_conversation_prompt(
         f"\nThe first party line must mention "
         f"{source_bot['name']} by name. This is private "
         "party chat, not another General reply.\n"
+        + _out_of_earshot_rule(source_bot['name'])
+        + "The party members discuss those words among themselves.\n"
         "HARD LIMIT: Never exceed 150 characters in any message.\n"
     )
     if is_rp and loc.get('dungeon_flavor'):
@@ -606,6 +620,8 @@ def _build_conversation_prompt(
         f"- {names[0]} speaks first and mentions "
         f"{source_bot['name']} by name\n"
         "- Later speakers build on that party reaction\n"
+        f"- Nobody addresses {source_bot['name']}; the lines are "
+        "spoken to each other and the party\n"
         "- Each bot speaks exactly once\n"
         f"- {player_name} is listening in the party\n"
     )
