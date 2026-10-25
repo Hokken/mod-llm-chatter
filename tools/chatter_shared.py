@@ -933,10 +933,13 @@ def build_pvp_enemy_context(extra_data, mode='roleplay'):
         faction = str(
             extra_data.get('enemy_faction') or ''
         ).strip() or 'opposing faction'
+        # Local import: chatter_member_gender imports chatter_shared.
+        from chatter_member_gender import gender_from_id
+        gender = gender_from_id(extra_data.get('enemy_gender'))
         desc = ' '.join(
             p for p in (
                 f"level {level}" if level else '',
-                race, cls,
+                gender, race, cls,
             ) if p
         )
         who = f"{name}, a {desc}" if desc else name

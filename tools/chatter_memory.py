@@ -29,6 +29,10 @@ from chatter_shared import (
     build_bot_identity,
 )
 from chatter_llm import call_llm, get_llm_client
+from chatter_member_gender import (
+    get_character_genders,
+    get_genders_by_guid,
+)
 from chatter_structured import ResponseContract
 
 logger = logging.getLogger(__name__)
@@ -525,6 +529,18 @@ def _execute_generate_memory(
                     " for guid=%s", player_guid,
                 )
 
+        # Memories are stored and replayed, so the player's
+        # pronouns must be right from the start.
+        player_gender = ''
+        if player_guid:
+            player_gender = get_genders_by_guid(
+                conn, [player_guid]
+            ).get(int(player_guid), '')
+        elif player_name:
+            player_gender = get_character_genders(
+                conn, [player_name]
+            ).get(player_name, '')
+
         # Pick mood and expression style
         moods = MEMORY_MOODS.get(
             memory_type,
@@ -543,6 +559,7 @@ def _execute_generate_memory(
             bot_race=bot_race,
             bot_gender=bot_gender,
             player_name=player_name,
+            player_gender=player_gender,
             memory_type=memory_type,
             event_context=event_context,
             mood=mood,
@@ -613,6 +630,7 @@ def _call_llm_for_memory(
     bot_gender="",
     player_name="",
     memory_type="ambient", event_context="",
+    player_gender="",
     mood="contemplative", style="sincere",
     location="",
 ):
@@ -673,8 +691,11 @@ def _call_llm_for_memory(
     )
     prompt = f"{identity}\n"
     if player_name:
+        gender_note = (
+            f" ({player_gender})" if player_gender else ""
+        )
         prompt += (
-            f"Player companion: {player_name}\n"
+            f"Player companion: {player_name}{gender_note}\n"
         )
     if location:
         prompt += f"Location: {location}\n"

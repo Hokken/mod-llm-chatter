@@ -330,7 +330,8 @@ void HandleEmoteObserver(
     const std::string& npcSubName,
     std::vector<Player*> const& candidates,
     std::string const& customText = "",
-    Player* targetPlayer = nullptr);
+    Player* targetPlayer = nullptr,
+    std::string const& npcGender = "");
 // Contagious emotes (dance, cheer, laugh...) may spread to
 // other nearby party bots as a mirrored animation. Each
 // candidate rolls EmoteReactions.MoodSpreadChance and

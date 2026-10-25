@@ -24,6 +24,7 @@ from chatter_group_state import (
     get_group_player_name,
 )
 from chatter_guild_profile import get_character_guild_name, guild_suffix
+from chatter_member_gender import with_party_genders
 from chatter_mode import (
     build_player_chat_guidance,
     build_player_prompt_header_from_dict,
@@ -497,6 +498,7 @@ def _build_statement_prompt(
 
     source_desc = source_bot.get('name') or 'the bot'
     source_bits = [
+        source_bot.get('gender', ''),
         source_bot.get('race', ''),
         source_bot.get('class', ''),
     ]
@@ -544,6 +546,8 @@ def _build_conversation_prompt(
 ) -> str:
     is_rp = (mode == 'roleplay')
     names = [b['name'] for b in bots]
+    source_gender = source_bot.get('gender', '')
+    source_tag = f" ({source_gender})" if source_gender else ""
     prompt = (
         "Generate a short party chat exchange between "
         f"{len(bots)} grouped bots reacting to something "
@@ -552,7 +556,7 @@ def _build_conversation_prompt(
     if not is_rp:
         prompt += build_player_chat_guidance(mode, 'party') + "\n"
     prompt += (
-        f"\nA bot named {source_bot['name']} just said "
+        f"\nA bot named {source_bot['name']}{source_tag} just said "
         f"in General chat:\n\"{source_message}\"\n"
     )
     prompt += (
@@ -636,6 +640,9 @@ def _insert_statement(
         bot, source_bot, source_message,
         player_name, chat_hist, mode, loc,
     )
+    prompt = with_party_genders(
+        prompt, db, group_id, bot['name'],
+    )
     response = call_llm(
         client, prompt, config,
         context=(
@@ -696,6 +703,9 @@ def _insert_conversation(
     prompt = _build_conversation_prompt(
         bots, source_bot, source_message,
         player_name, chat_hist, mode, loc,
+    )
+    prompt = with_party_genders(
+        prompt, db, group_id,
     )
     max_tokens = int(config.get(
         'LLMChatter.MaxTokens', 200,

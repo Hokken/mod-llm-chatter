@@ -20,6 +20,11 @@ from chatter_guild import (
     _query_speaker,
     _speaker_faction,
 )
+from chatter_member_gender import (
+    format_gender_line,
+    genders_by_named_guid,
+    get_character_genders,
+)
 from chatter_guild_event_common import (
     PREFIX,
     build_prompt,
@@ -181,6 +186,13 @@ def _subject_reply(
         "own voice.",
         "Do not repeat what the others said.",
     ]
+    # Guildmates who spoke are player characters.
+    heard_line = format_gender_line(
+        get_character_genders(db, [m.get('name') for m in messages]),
+        exclude=(subject['name'],),
+    )
+    if heard_line:
+        scenario.append(heard_line)
     prompt, names = build_prompt(
         [subject],
         str(extra.get('guild_name') or 'the guild'),
@@ -371,6 +383,7 @@ def _join_scenario(db, extra: Dict, profile, mode: str):
 
 def _rank_scenario(db, extra: Dict, profile, mode: str):
     changes = []
+    actors = {}
     for raw in extra.get('changes') or []:
         subject = _load_subject(db, raw)
         if not subject:
@@ -386,11 +399,16 @@ def _rank_scenario(db, extra: Dict, profile, mode: str):
         )
         if actor and actor != subject['name']:
             news += f" by {actor}"
+            actors[actor] = raw.get('actor_guid')
         changes.append((subject, promoted, news + ".", old_rank, new_rank))
     if not changes:
         return [], [], None, '', {}
 
     scenario = ["Guild rank news: " + " ".join(c[2] for c in changes)]
+    # The officer is a guild member with a guid in the payload.
+    actor_line = format_gender_line(genders_by_named_guid(db, actors))
+    if actor_line:
+        scenario.append(actor_line)
     scenario.extend(_real_player_lines(db, [c[0] for c in changes], mode))
     if any(c[1] for c in changes):
         scenario.append(

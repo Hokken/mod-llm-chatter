@@ -27,6 +27,7 @@ from chatter_shared import (
     pick_emote_for_statement,
     parse_single_response,
     shorten_chat_message,
+    get_gender_label,
     get_race_name,
 )
 from chatter_constants import CLASS_NAMES
@@ -190,12 +191,13 @@ def _get_active_bots(db):
 def _get_bot_race_class(db, bot_guid):
     """Look up race and class names for a bot.
 
-    Returns (race_name, class_name, level, class_id)
-    or None if not found.
+    Returns (race_name, class_name, level, class_id,
+    gender) or None if not found; gender is
+    'female'/'male', or '' when unknown.
     """
     cursor = db.cursor(dictionary=True)
     cursor.execute(
-        "SELECT race, class, level "
+        "SELECT race, class, level, gender "
         "FROM characters WHERE guid = %s",
         (int(bot_guid),)
     )
@@ -209,7 +211,11 @@ def _get_bot_race_class(db, bot_guid):
         class_id, 'Adventurer'
     )
     level = int(row['level'])
-    return (race_name, class_name, level, class_id)
+    gender = (
+        get_gender_label(int(row['gender']))
+        if row.get('gender') is not None else ''
+    )
+    return (race_name, class_name, level, class_id, gender)
 
 
 def _get_ready_count(db, group_id, bot_guid, cat):
@@ -251,7 +257,7 @@ def _get_recent_cached(db, group_id, bot_guid, cat):
 def _build_prompt(
     cat, prompt_type, bot_name, race, class_name,
     level, traits, mood, stored_tone, role,
-    recent_cached, combat_style, mode,
+    recent_cached, combat_style, mode, gender='',
 ):
     """Dispatch to the correct prompt builder."""
     if prompt_type == 'state':
@@ -261,21 +267,21 @@ def _build_prompt(
             class_name, level, traits, mood,
             stored_tone,
             role=role, recent_cached=recent_cached,
-            mode=mode,
+            mode=mode, gender=gender,
         )
     elif prompt_type == 'combat':
         return build_precache_combat_pull_prompt(
             bot_name, race, class_name, level,
             traits, mood, stored_tone,
             role=role, recent_cached=recent_cached,
-            mode=mode,
+            mode=mode, gender=gender,
         )
     elif prompt_type == 'spell':
         return build_precache_spell_support_prompt(
             bot_name, race, class_name, level,
             traits, mood, stored_tone,
             role=role, recent_cached=recent_cached,
-            mode=mode,
+            mode=mode, gender=gender,
         )
     elif prompt_type == 'spell_offensive':
         return build_precache_spell_offensive_prompt(
@@ -283,7 +289,7 @@ def _build_prompt(
             traits, mood, stored_tone,
             role=role, recent_cached=recent_cached,
             combat_style=combat_style,
-            mode=mode,
+            mode=mode, gender=gender,
         )
     return None
 
@@ -364,7 +370,7 @@ def refill_precache_pool(db, client, config):
         )
         if not char_info:
             continue
-        race, class_name, level, class_id = char_info
+        race, class_name, level, class_id, gender = char_info
 
         # Get mood
         mood = get_bot_mood_label(
@@ -432,7 +438,7 @@ def refill_precache_pool(db, client, config):
                 race, class_name, level, traits,
                 mood, stored_tone, role,
                 recent_cached, combat_style,
-                mode,
+                mode, gender=gender,
             )
             if not prompt:
                 continue

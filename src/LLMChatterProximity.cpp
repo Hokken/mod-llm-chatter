@@ -37,6 +37,7 @@
 #include <random>
 #include <set>
 #include <string>
+#include <tuple>
 #include <vector>
 
 namespace
@@ -1226,11 +1227,8 @@ std::string BuildNPCParticipantJson(
 {
     CreatureTemplate const* creatureTemplate =
         cr->GetCreatureTemplate();
-    char const* gender = "unknown";
-    if (cr->getGender() == GENDER_MALE)
-        gender = "male";
-    else if (cr->getGender() == GENDER_FEMALE)
-        gender = "female";
+    // Empty for GENDER_NONE models, never the truthy "unknown".
+    std::string const gender = GetUnitGenderLabel(cr);
     return std::string("{")
         + "\"name\":\""
         + JsonEscape(GetLocalizedCreatureName(cr)) + "\","
@@ -1534,10 +1532,21 @@ void DeduplicateCandidates(
     candidates.swap(deduped);
 }
 
-std::string BuildNearbyNamesJson(
+struct NearbyEntry
+{
+    std::string name;
+    // Empty when unknown, or when several nearby candidates share
+    // this name, so one entity's gender never labels another.
+    std::string gender;
+};
+
+// The nearby (non-speaking) people a prompt may mention: speakers and
+// the excluded candidate skipped, names deduplicated, at most four.
+// Both nearby_names and nearby_genders are built from this list.
+std::vector<NearbyEntry> CollectNearbyEntries(
     std::vector<ProximityCandidate> const& allCandidates,
     std::vector<ProximityCandidate> const& speakers,
-    ProximityCandidate const* additionallyExcluded = nullptr)
+    ProximityCandidate const* additionallyExcluded)
 {
     std::set<std::pair<bool, uint32>> speakerIds;
     for (auto const& s : speakers)
@@ -1549,24 +1558,78 @@ std::string BuildNearbyNamesJson(
             additionallyExcluded->id);
     }
 
-    std::string json = "[";
-    size_t count = 0;
+    // Count distinct characters per name over everyone visible, speakers
+    // and the excluded character included: a bystander sharing a name
+    // with anyone in the scene gets no gender.
+    std::set<std::tuple<std::string, bool, uint32>> seen;
+    std::map<std::string, uint32> nameCounts;
+    auto countName = [&](ProximityCandidate const& c)
+    {
+        std::string const key = ToLowerAscii(c.name);
+        if (seen.emplace(key, c.isNPC, c.id).second)
+            ++nameCounts[key];
+    };
+    for (auto const& c : allCandidates)
+        countName(c);
+    for (auto const& s : speakers)
+        countName(s);
+    if (additionallyExcluded)
+        countName(*additionallyExcluded);
+
+    std::vector<NearbyEntry> entries;
     std::set<std::string> includedNames;
     for (auto const& c : allCandidates)
     {
         if (speakerIds.count({c.isNPC, c.id}))
             continue;
-        if (!includedNames.insert(
-                ToLowerAscii(c.name)).second)
+        std::string const key = ToLowerAscii(c.name);
+        if (!includedNames.insert(key).second)
             continue;
-        if (count >= 4)
+        if (entries.size() >= 4)
             break;
-        if (count > 0)
+        NearbyEntry entry;
+        entry.name = c.name;
+        if (nameCounts[key] == 1)
+        {
+            entry.gender = c.isNPC
+                ? GetUnitGenderLabel(c.npc)
+                : GetUnitGenderLabel(c.bot);
+        }
+        entries.push_back(entry);
+    }
+    return entries;
+}
+
+std::string BuildNearbyNamesJson(
+    std::vector<NearbyEntry> const& entries)
+{
+    std::string json = "[";
+    for (size_t i = 0; i < entries.size(); ++i)
+    {
+        if (i > 0)
             json += ",";
-        json += "\"" + JsonEscape(c.name) + "\"";
-        ++count;
+        json += "\"" + JsonEscape(entries[i].name) + "\"";
     }
     json += "]";
+    return json;
+}
+
+std::string BuildNearbyGendersJson(
+    std::vector<NearbyEntry> const& entries)
+{
+    std::string json = "{";
+    bool first = true;
+    for (auto const& entry : entries)
+    {
+        if (entry.gender.empty())
+            continue;
+        if (!first)
+            json += ",";
+        json += "\"" + JsonEscape(entry.name) + "\":\""
+            + entry.gender + "\"";
+        first = false;
+    }
+    json += "}";
     return json;
 }
 
@@ -1582,6 +1645,8 @@ std::string BuildBaseEventJson(
     uint32 instanceId = map ? map->GetInstanceId() : 0;
     char const* rawMapName =
         map ? map->GetMapName() : nullptr;
+    std::vector<NearbyEntry> const nearby = CollectNearbyEntries(
+        allCandidates, speakers, additionallyExcluded);
     return std::string("{")
         + "\"player_guid\":"
         + std::to_string(
@@ -1616,9 +1681,9 @@ std::string BuildBaseEventJson(
         + std::string(
             playerAddressed ? "true" : "false")
         + ",\"nearby_names\":"
-        + BuildNearbyNamesJson(
-            allCandidates, speakers,
-            additionallyExcluded)
+        + BuildNearbyNamesJson(nearby)
+        + ",\"nearby_genders\":"
+        + BuildNearbyGendersJson(nearby)
         + ",\"line_delay_seconds\":"
         + std::to_string(
             sLLMChatterConfig
@@ -2787,6 +2852,9 @@ void HandleProximityPlayerSay(
             scene->lastSpeakerIsNPC
                 ? "true"
                 : "false")
+        + ",\"responder_gender\":\""
+        + GetUnitGenderLabel(target->ToUnit())
+        + "\""
         + ",\"responder_bot_guid\":"
         + std::to_string(
             scene->lastSpeakerIsNPC

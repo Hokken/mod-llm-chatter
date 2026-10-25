@@ -62,6 +62,17 @@ from chatter_bg_prompts import (
 LOG = logging.getLogger("chatter_battlegrounds")
 
 
+def _victim_label(extra_data, victim_name):
+    """Victim name with the gender C++ sent ("Ana, a female Troll,"),
+    or the bare name when it is missing or invalid."""
+    gender = str(extra_data.get('victim_gender') or '')
+    race = str(extra_data.get('victim_race') or '')
+    if gender not in ('female', 'male'):
+        return victim_name
+    kind = f"{gender} {race}".strip()
+    return f"{victim_name}, a {kind},"
+
+
 def process_bg_match_start_event(
     db, client, config, event
 ):
@@ -489,7 +500,7 @@ def process_bg_pvp_kill_event(
                             memory_type='pvp_kill',
                             event_context=(
                                 f"Killed"
-                                f" {victim_name}"
+                                f" {_victim_label(extra_data, victim_name)}"
                                 f" in {bg_name}"
                             ),
                             bot_name=bot_data[

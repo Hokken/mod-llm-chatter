@@ -38,6 +38,7 @@ from chatter_group_state import (
     build_party_context,
     get_bot_traits,
 )
+from chatter_member_gender import format_gender_line, with_party_genders
 from chatter_persona import (
     build_cast_lines,
     build_persona_block,
@@ -183,6 +184,7 @@ def handle_emote_observer(db, client, config, event):
             party_context=party_context,
             guild_name=guild_name,
             guild_note=guild_note,
+            npc_gender=str(extra.get('target_npc_gender') or ''),
         )
     elif tgt == 'player_external':
         prompt = _build_player_prompt(
@@ -312,6 +314,8 @@ def _party_bot_exchange(
         '\n'.join(lines), [bot_name, t_name], 2,
         allow_action=False,
     )
+    # The cast lines carry no identity, so the speakers are listed too.
+    prompt = with_party_genders(prompt, db, group_id)
     response = call_llm(
         client, prompt, config,
         context=f"emote-obs-conv:#{event_id}:{bot_name}",
@@ -431,6 +435,7 @@ def _build_creature_prompt(
     party_context='',
     guild_name='',
     guild_note='',
+    npc_gender='',
 ):
     rank_str = NPC_RANK_NAMES.get(npc_rank, "")
     type_str = NPC_TYPE_NAMES.get(
@@ -465,6 +470,10 @@ def _build_creature_prompt(
         prompt += f"\n{party_context}"
     if guild_note:
         prompt += f"\n{guild_note}"
+    # The creature's live model gender (newer payloads); "" stays unknown.
+    npc_gender_line = format_gender_line({creature_label: npc_gender})
+    if npc_gender_line:
+        prompt += f"\n{npc_gender_line}"
     if is_custom:
         seen = (
             f"You witness {p_name} do this at "

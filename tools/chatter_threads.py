@@ -906,6 +906,29 @@ def _render_idle_block(state, current, energy, history, move, source,
     return '\n'.join(lines)
 
 
+def thread_names(group_id) -> List[str]:
+    """Names the thread blocks can mention: interruption speakers and
+    speakers with a live feeling. Copied under the lock; callers do any
+    lookups (e.g. genders) after it is released."""
+    key = _key(group_id)
+    if key is None or not threads_enabled(key):
+        return []
+    limit = _settings['feeling_turns']
+    with _lock:
+        state = _get(key, create=False)
+        if state is None:
+            return []
+        names = [
+            item.get('speaker') for item in state.interruptions
+            if item.get('speaker')
+        ]
+        names += [
+            name for name, (_text, turn) in state.feelings.items()
+            if name and state.turn - turn < limit
+        ]
+    return list(dict.fromkeys(names))
+
+
 def render_for_player_reply(group_id, db=None) -> str:
     """Read-only thread context for replies to the real player.
 

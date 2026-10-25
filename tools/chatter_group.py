@@ -117,6 +117,7 @@ from chatter_persona import (
     persona_from_fields,
     without_backstory,
 )
+from chatter_member_gender import gender_prefix, with_party_genders
 from chatter_threads import (
     THREAD_REPORT_FIELD,
     THREAD_REPORT_OBJECT,
@@ -900,6 +901,9 @@ def process_group_event(db, client, config, event):
                 db, extra_data.get('player_guid'), player_name, mode,
             ),
         )
+        prompt = with_party_genders(
+            prompt, db, group_id, bot['name'],
+        )
 
         # 3. Call LLM
         max_tokens = int(config.get(
@@ -1395,6 +1399,9 @@ def process_group_join_batch_event(
                         player_name, mode,
                     ),
                 )
+                prompt = with_party_genders(
+                    prompt, db, group_id, bot['name'],
+                )
 
             # 3. Call LLM
             _greet_label = (
@@ -1693,6 +1700,9 @@ def _batch_welcome(
         members=members,
         speaker_talent_context=speaker_talent,
         stored_tone=wb_tone,
+    )
+    prompt = with_party_genders(
+        prompt, db, group_id, wb['name'],
     )
 
     max_tokens = int(config.get(
@@ -2122,6 +2132,9 @@ def process_group_player_msg_event(
                 config, bot_row.get('backstory'), mode,
             ),
         )
+        prompt = with_party_genders(
+            prompt, db, group_id, bot['name'],
+        )
 
         max_tokens = pick_random_max_tokens(config)
         if msg_memories:
@@ -2542,6 +2555,9 @@ def _try_second_bot_response(
             config, second.get('backstory'), mode,
         ),
     )
+    prompt = with_party_genders(
+        prompt, db, group_id, bot2['name'],
+    )
 
     max_tokens = int(config.get(
         'LLMChatter.MaxTokens', 200
@@ -2660,6 +2676,9 @@ def _welcome_from_existing_bot(
         members=members,
         speaker_talent_context=speaker_talent,
         stored_tone=wb_tone,
+    )
+    prompt = with_party_genders(
+        prompt, db, group_id, wb['name'],
     )
 
     max_tokens = int(config.get(
@@ -3589,7 +3608,7 @@ def build_idle_conversation_prompt(
                 parts.append(
                     f"{bot['name']} is a level "
                     f"{bot['level']} "
-                    f"{bot['race']} "
+                    f"{gender_prefix(bot)}{bot['race']} "
                     f"{bot['class']}"
                     f"{dead_tag}"
                 )
@@ -3798,7 +3817,7 @@ def build_idle_conversation_prompt(
             )
         parts.append(
             f"{bot['name']} is a level "
-            f"{bot['level']} {bot['race']} "
+            f"{bot['level']} {gender_prefix(bot)}{bot['race']} "
             f"{bot['class']}"
             f"{dead_tag}"
         )
@@ -4576,6 +4595,9 @@ def _idle_single_statement(
                 if themed and thread_turn is None else ''
             ),
         )
+        prompt = with_party_genders(
+            prompt, db, group_id, bot['name'],
+        )
 
         _dflav = get_dungeon_flavor(map_id)
         _bg = BG_MAP_NAMES.get(map_id)
@@ -4955,6 +4977,9 @@ def _idle_conversation(
             backstory_map=conv_backstory_map,
             allow_action=allow_action,
             thread_turn=thread_turn,
+        )
+        prompt = with_party_genders(
+            prompt, db, group_id, '',
         )
         logger.info(
             "[IDLE] prompt snippet: %r",
@@ -5435,6 +5460,9 @@ def check_bot_questions(db, client, config):
                 race=player_race, class_name=player_class,
                 gender=player_gender,
             ),
+        )
+        prompt = with_party_genders(
+            prompt, db, group_id, bot['name'],
         )
 
         max_tokens = int(config.get(

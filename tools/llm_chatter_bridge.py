@@ -70,6 +70,7 @@ from chatter_shared import (
     stagger_if_needed,
 )
 from chatter_guild_profile import get_character_guild_name
+from chatter_member_gender import attach_bot_genders
 from chatter_events import (
     cleanup_expired_events,
     reset_stuck_processing_events,
@@ -426,6 +427,8 @@ def process_pending_requests(
                     db, request['bot1_guid']
                 ),
             }
+            # The queue row has no gender column.
+            attach_bot_genders(db, [bot])
             success = process_statement(
                 db, cursor, client,
                 config, request, bot
@@ -495,6 +498,7 @@ def process_pending_requests(
                     'bot4', request['bot1_zone']
                 ))
 
+            attach_bot_genders(db, bots)
             success = process_conversation(
                 db, cursor, client,
                 config, request, bots
