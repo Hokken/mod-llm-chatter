@@ -5,8 +5,10 @@
  *   - polling open group loot rolls for party bots that
  *     voted Need or Greed
  *   - the per-item comment cap and its bookkeeping
+ *   - the Need/Greed and equipment/other switches
  *   - the bot_group_loot_roll payload (item name, quality,
- *     class, subclass and inventory type)
+ *     class, subclass, inventory type and whether the item
+ *     is equipment)
  *
  * The core has no hook for a vote being cast; it only
  * reports the winner (OnPlayerGroupRollRewardItem, which
@@ -61,15 +63,25 @@ struct BotVote
     RollVote vote;
 };
 
+// Anything with an equipment slot counts as equipment:
+// armor, weapons, jewelry, shirts and tabards, and also
+// bags, quivers and ammunition.
+bool IsEquipment(ItemTemplate const* tmpl)
+{
+    return tmpl->InventoryType != INVTYPE_NON_EQUIP;
+}
+
+bool VoteCommentEnabled(RollVote vote)
+{
+    return vote == NEED
+        ? sLLMChatterConfig->_lootRollCommentNeedEnable
+        : sLLMChatterConfig->_lootRollCommentGreedEnable;
+}
+
 void QueueLootRollComment(
     Player* bot, Group* group, Roll const* roll,
-    RollVote vote, uint32 index)
+    ItemTemplate const* tmpl, RollVote vote, uint32 index)
 {
-    ItemTemplate const* tmpl =
-        sObjectMgr->GetItemTemplate(roll->itemid);
-    if (!tmpl)
-        return;
-
     std::string itemName = GetLocalizedItemName(tmpl);
     uint32 groupId = group->GetGUID().GetCounter();
 
@@ -88,6 +100,8 @@ void QueueLootRollComment(
             + std::to_string(tmpl->SubClass) + ","
         "\"item_inventory_type\":"
             + std::to_string(tmpl->InventoryType) + ","
+        "\"item_is_equipment\":"
+            + std::string(IsEquipment(tmpl) ? "1" : "0") + ","
         "\"group_id\":" + std::to_string(groupId)
         + "," + BuildBotStateJson(bot)
         + "}";
@@ -132,7 +146,19 @@ void ScanGroupRolls(
         openRolls.insert(key);
         RollComments& state = _rollComments[key];
 
+        ItemTemplate const* tmpl =
+            sObjectMgr->GetItemTemplate(roll->itemid);
+        // Equipment and other items have their own switch;
+        // a switched-off kind skips the whole roll.
+        bool kindEnabled = tmpl
+            && (IsEquipment(tmpl)
+                ? sLLMChatterConfig->_lootRollCommentEquipmentEnable
+                : sLLMChatterConfig->_lootRollCommentOtherEnable);
+
         // Need votes go first when one scan finds both.
+        // A vote is handled once, whether or not it is
+        // commented, so a switched-off kind is never
+        // reconsidered.
         std::vector<BotVote> needs;
         std::vector<BotVote> greeds;
         for (auto const& [voterGuid, vote] : roll->playerVote)
@@ -143,6 +169,8 @@ void ScanGroupRolls(
             if (state.handledVoters.count(rawGuid))
                 continue;
             state.handledVoters.insert(rawGuid);
+            if (!kindEnabled || !VoteCommentEnabled(vote))
+                continue;
 
             Player* voter =
                 ObjectAccessor::FindPlayer(voterGuid);
@@ -160,7 +188,8 @@ void ScanGroupRolls(
             if (state.queued >= maxPerItem)
                 break;
             QueueLootRollComment(
-                bv.bot, group, roll, bv.vote, state.queued);
+                bv.bot, group, roll, tmpl, bv.vote,
+                state.queued);
             ++state.queued;
         }
     }

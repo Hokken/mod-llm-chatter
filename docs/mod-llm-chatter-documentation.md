@@ -1350,18 +1350,34 @@ world update, between map updates.
   votes found in the same scan go before Greed votes, and each further
   comment on one item waits a few seconds longer. Pass and Disenchant
   votes stay silent. Battlegrounds and arenas are skipped.
-- The payload carries the vote, the item's name, entry and quality, and
-  its `item_template` class, subclass and InventoryType.
+- Four switches narrow it down: `NeedEnable` and `GreedEnable` for the
+  vote, `EquipmentEnable` and `OtherEnable` for the item. Equipment is
+  anything with an equipment slot (`InventoryType` not 0): armor,
+  weapons, shields, off-hand items, cloaks, jewelry, trinkets, relics,
+  shirts and tabards, and also bags, quivers and ammunition. A vote that
+  a switch turns off is marked handled and never commented, and does not
+  count toward `MaxPerItem`.
+- The payload carries the vote, the item's name, entry and quality, its
+  `item_template` class, subclass and InventoryType, and
+  `item_is_equipment`.
   `describe_item_type()` turns these into the type and subtype the
   prompt states: "weapon: two-handed sword", "armor: plate chest piece",
   "armor: ring", "gem: meta gem", "recipe: tailoring pattern".
-- Need and Greed get the same prompt: the bot rolled because it wants
-  the item for itself and would use it, and says why in its own words,
-  with no example reasons. Playerbots roll Greed even on items they would
-  use, so the prompt never frames Greed as wanting the item for something
-  else. A Need roll adds one line: the bot really needs the item. The roll
-  is still open,
-  so the bot must not claim it won. The item is written as `{item}` and
+- The prompt gives the bot one motive, chosen by the item kind
+  (`loot_roll_motive()`):
+  - **use** (equipment): the bot rolled because it wants the item for
+    itself and would use it;
+  - **beauty** (gems, and companion pets, holiday items, mounts and other
+    keepsake-like miscellaneous items): the bot finds it beautiful and
+    wants to keep it for how it looks;
+  - **sell** (everything else: trade goods, consumables, reagents,
+    recipes, glyphs, junk): the bot would like to sell it.
+
+  Need and Greed share the motive: playerbots roll Greed even on items
+  they would use, so the vote never changes why the bot wants the item. A
+  Need roll adds one line on how much it wants it. The bot says why in
+  its own words, with no example reasons. The roll is still open, so the
+  bot must not claim it won. The item is written as `{item}` and
   becomes a clickable link, as in loot reactions.
 - The event has high priority, so the reason arrives while the roll is
   still open. `GroupChatter.ReactDelay.LootRoll` (default 2) is its base
@@ -1370,6 +1386,8 @@ world update, between map updates.
 | Key | Default | Owner |
 |-----|---------|-------|
 | `LLMChatter.GroupChatter.LootRollComment.Enable` | 1 | Worldserver |
+| `LLMChatter.GroupChatter.LootRollComment.NeedEnable` / `GreedEnable` | 1 / 1 | Worldserver |
+| `LLMChatter.GroupChatter.LootRollComment.EquipmentEnable` / `OtherEnable` | 1 / 1 | Worldserver |
 | `LLMChatter.GroupChatter.LootRollComment.MaxPerItem` | 3 | Worldserver |
 
 Existing installations must apply

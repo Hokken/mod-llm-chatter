@@ -77,6 +77,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'item_class': (int, True),
             'item_subclass': (int, True),
             'item_inventory_type': (int, True),
+            'item_is_equipment': (int, False),
             'is_bot': (int, True),
         },
     ),

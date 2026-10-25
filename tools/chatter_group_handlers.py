@@ -35,6 +35,7 @@ from chatter_shared import (
     localize_creature_name,
     localize_item_name,
     describe_item_type,
+    loot_roll_motive,
     localize_quest_name,
     shorten_chat_message,
     brief_casual_response_fits,
@@ -478,6 +479,18 @@ def process_group_loot_event(
     )
 
 
+def _loot_roll_is_equipment(extra_data) -> bool:
+    """C++ sends item_is_equipment; older payloads lack it, and any
+    item with an equipment slot counts as equipment."""
+    flag = extra_data.get('item_is_equipment')
+    if flag is not None:
+        return bool(int(flag))
+    try:
+        return int(extra_data.get('item_inventory_type') or 0) != 0
+    except (TypeError, ValueError):
+        return False
+
+
 def process_group_loot_roll_event(
     db, client, config, event
 ):
@@ -508,6 +521,10 @@ def process_group_loot_roll_event(
                 ed.get('item_class', -1),
                 ed.get('item_subclass', 0),
                 ed.get('item_inventory_type', 0)),
+            'motive': loot_roll_motive(
+                ed.get('item_class', -1),
+                ed.get('item_subclass', 0),
+                _loot_roll_is_equipment(ed)),
         },
         build_prompt=lambda ctx: (
             build_loot_roll_prompt(
@@ -523,6 +540,7 @@ def process_group_loot_roll_event(
                     ctx['speaker_talent']),
                 stored_tone=ctx['stored_tone'],
                 map_id=ctx['map_id'],
+                motive=ctx['motive'],
             )
         ),
         needs_map_id=True,

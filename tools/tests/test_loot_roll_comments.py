@@ -50,7 +50,7 @@ _install_non_strict_stubs()
 import chatter_group_handlers as handlers  # noqa: E402
 from chatter_event_registry import EVENT_REGISTRY  # noqa: E402
 from chatter_group_prompts import build_loot_roll_prompt  # noqa: E402
-from chatter_shared import describe_item_type  # noqa: E402
+from chatter_shared import describe_item_type, loot_roll_motive  # noqa: E402
 
 BOT = {'name': 'Grom', 'class': 'Warrior', 'race': 'Orc',
        'level': 30, 'gender': 'male'}
@@ -60,9 +60,11 @@ def _src(name: str) -> str:
     return (MODULE_DIR / 'src' / name).read_text(encoding='utf-8')
 
 
-def _prompt(vote, mode='roleplay', item_type='weapon: two-handed sword'):
+def _prompt(vote, mode='roleplay', item_type='weapon: two-handed sword',
+            motive='use'):
     return str(build_loot_roll_prompt(
         BOT, ['blunt'], 'Ravager', 3, mode, vote, item_type,
+        motive=motive,
     ))
 
 
@@ -148,6 +150,46 @@ def test_prompt_follows_the_chat_mode():
     assert 'Speak in-character' not in normal
 
 
+def test_motive_follows_the_item_kind():
+    # Equipment (anything with a slot, bags included) is for use.
+    assert loot_roll_motive(4, 4, True) == 'use'
+    assert loot_roll_motive(1, 0, True) == 'use'
+    # Gems and keepsake-like miscellaneous items are for their looks.
+    for cls, sub in ((3, 0), (3, 6), (15, 2), (15, 3), (15, 4), (15, 5)):
+        assert loot_roll_motive(cls, sub, False) == 'beauty', (cls, sub)
+    # Everything else is for its price.
+    for cls, sub in ((7, 6), (0, 1), (9, 2), (5, 0), (16, 8), (15, 0)):
+        assert loot_roll_motive(cls, sub, False) == 'sell', (cls, sub)
+    assert loot_roll_motive('x', None, False) == 'sell'
+
+
+def test_sell_and_beauty_prompts():
+    sell = _prompt('greed', item_type='trade goods: leather', motive='sell')
+    assert ('You rolled on it because you would like to sell it: it '
+            'would fetch a fair price.') in sell
+    assert 'why you would like to sell it' in sell
+    assert 'you would use it' not in sell
+    assert 'how you fight' not in sell
+    beauty = _prompt('greed', item_type='gem: green gem', motive='beauty')
+    assert ('You rolled on it because it is beautiful and you would like '
+            'to keep it for how it looks.') in beauty
+    assert 'what you find beautiful about it' in beauty
+    assert 'sell' not in beauty
+    for text in (sell, beauty):
+        assert '{item}' in text
+        assert 'never claim you won the item' in text
+        assert 'You rolled Need' not in text
+        for phrase in ('for example', 'e.g.'):
+            assert phrase not in text.lower(), phrase
+    # Need adds how much, in the motive's own words.
+    assert ('You rolled Need: you really want the coin it would bring.'
+            in _prompt('need', motive='sell'))
+    assert ('You rolled Need: you really want it, more than a passing '
+            'wish.' in _prompt('need', motive='beauty'))
+    # Equipment keeps the fighting angle.
+    assert 'how you fight' in _prompt('greed')
+
+
 # -- Routing -----------------------------------------------------------
 
 def test_registry_routes_the_roll_event():
@@ -188,6 +230,23 @@ def test_handler_builds_the_prompt_from_the_payload():
     assert captured['item_type'] == 'armor: plate helm'
     assert 'Item type: armor: plate helm.' in captured['prompt']
     assert captured['label'] == 'reaction_loot_roll'
+    # No item_is_equipment (older payload): the slot decides.
+    assert captured['motive'] == 'use'
+
+    for flag, cls, sub, inv, motive in ((0, 7, 6, 0, 'sell'),
+                                        (0, 3, 0, 0, 'beauty'),
+                                        (1, 1, 0, 18, 'use')):
+        captured.clear()
+        payload = dict(extra, item_class=cls, item_subclass=sub,
+                       item_inventory_type=inv, item_is_equipment=flag)
+        with patch.object(handlers, 'run_group_handler',
+                          side_effect=fake_run), \
+                patch.object(handlers, 'localize_item_name',
+                             side_effect=lambda db, name, entry: name):
+            handlers.process_group_loot_roll_event(
+                None, None, {},
+                {'id': 1, 'extra_data': json.dumps(payload)})
+        assert captured['motive'] == motive, (cls, sub, motive)
 
 
 # -- C++, SQL and conf -------------------------------------------------
@@ -201,10 +260,23 @@ def test_cpp_polls_rolls_for_need_and_greed_only():
     assert 'state.queued >= maxPerItem' in source
     assert '_lootRollCommentMaxPerItem' in source
     for field in ('roll_vote', 'item_class', 'item_subclass',
-                  'item_inventory_type', 'item_quality'):
+                  'item_inventory_type', 'item_quality',
+                  'item_is_equipment'):
         assert f'\\"{field}\\":' in source, field
     world = _src('LLMChatterWorld.cpp')
     assert 'CheckGroupLootRolls();' in world
+
+
+def test_cpp_switches_filter_before_queueing():
+    source = _src('LLMChatterGroupLootRoll.cpp')
+    assert 'tmpl->InventoryType != INVTYPE_NON_EQUIP' in source
+    for field in ('_lootRollCommentNeedEnable', '_lootRollCommentGreedEnable',
+                  '_lootRollCommentEquipmentEnable',
+                  '_lootRollCommentOtherEnable'):
+        assert field in source, field
+    # A skipped vote is still marked handled, so it is not reconsidered.
+    loop = source[source.index('state.handledVoters.insert(rawGuid);'):]
+    assert loop.index('if (!kindEnabled || !VoteCommentEnabled(vote))') < 80
     shared = _src('LLMChatterShared.cpp')
     assert '{"bot_group_loot_roll",     PRIORITY_HIGH}' in shared
     assert '&LLMChatterConfig::_reactDelayLootRoll' in shared
@@ -231,7 +303,11 @@ def test_conf_keys_are_documented_and_loaded():
                  'conf/presets/mod_ll_chatter_quieter.conf.dist'):
         text = (MODULE_DIR / name).read_text(encoding='utf-8')
         for key, default in (('LootRollComment.Enable', '1'),
-                             ('LootRollComment.MaxPerItem', '3')):
+                             ('LootRollComment.MaxPerItem', '3'),
+                             ('LootRollComment.NeedEnable', '1'),
+                             ('LootRollComment.GreedEnable', '1'),
+                             ('LootRollComment.EquipmentEnable', '1'),
+                             ('LootRollComment.OtherEnable', '1')):
             full = f'LLMChatter.GroupChatter.{key}'
             assert re.search(rf'^{re.escape(full)} = {default}$', text,
                              re.M), (name, key)
