@@ -556,6 +556,22 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<bool>(
             "LLMChatter.GroupChatter."
             "LootRollComment.Enable", true);
+    _lootRollCommentNeedEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GroupChatter."
+            "LootRollComment.NeedEnable", true);
+    _lootRollCommentGreedEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GroupChatter."
+            "LootRollComment.GreedEnable", true);
+    _lootRollCommentEquipmentEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GroupChatter."
+            "LootRollComment.EquipmentEnable", true);
+    _lootRollCommentOtherEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.GroupChatter."
+            "LootRollComment.OtherEnable", true);
     _lootRollCommentMaxPerItem =
         GetChatterOption<uint32>(
             "LLMChatter.GroupChatter."

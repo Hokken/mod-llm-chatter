@@ -1180,6 +1180,32 @@ def build_loot_reaction_prompt(
     )
 
 
+# (reason, extra line for a Need roll, what to say) per motive.
+_LOOT_ROLL_MOTIVES = {
+    'use': (
+        "You rolled on it because you want it for yourself: "
+        "you would use it.",
+        "you really need it, more than a passing wish.",
+        "Say briefly, in your own words, why you want it for "
+        "yourself.",
+    ),
+    'sell': (
+        "You rolled on it because you would like to sell it: "
+        "it would fetch a fair price.",
+        "you really want the coin it would bring.",
+        "Say briefly, in your own words, why you would like "
+        "to sell it.",
+    ),
+    'beauty': (
+        "You rolled on it because it is beautiful and you "
+        "would like to keep it for how it looks.",
+        "you really want it, more than a passing wish.",
+        "Say briefly, in your own words, what you find "
+        "beautiful about it.",
+    ),
+}
+
+
 def build_loot_roll_prompt(
     bot, traits, item_name, item_quality, mode,
     roll_vote, item_type,
@@ -1188,9 +1214,15 @@ def build_loot_roll_prompt(
     speaker_talent_context=None,
     stored_tone=None,
     map_id=0,
+    motive='use',
 ):
     """Build prompt for a bot explaining in party chat
     why it rolled on an item.
+
+    motive (loot_roll_motive): 'use' for equipment, which
+    the bot would wear or wield; 'sell' for items it wants
+    for their price; 'beauty' for gems and keepsakes it
+    wants for their looks.
 
     Need and Greed share the same subject: the bot wants
     the item for itself. Playerbots roll Greed even on
@@ -1245,26 +1277,26 @@ def build_loot_roll_prompt(
     quality_label = quality_names.get(
         item_quality, 'common'
     )
+    # Why the bot wants it; Need only adds how much.
+    reason, need_text, ask = _LOOT_ROLL_MOTIVES.get(
+        motive, _LOOT_ROLL_MOTIVES['use'])
     need_line = (
-        "You rolled Need: you really need it, more than "
-        "a passing wish.\n"
+        f"You rolled Need: {need_text}\n"
         if roll_vote == 'need' else ""
     )
     roll_context = (
         f"An item dropped and the party is rolling for "
         f"it: {item_name}, a {quality_label} item. Item "
         f"type: {item_type}.\n"
-        f"You rolled on it because you want it for "
-        f"yourself: you would use it.\n"
+        f"{reason}\n"
         f"{need_line}"
-        f"Say briefly, in your own words, why you want "
-        f"it for yourself."
+        f"{ask}"
     )
 
     if is_rp:
         style = (
-            "Speak in-character, grounded in who you are "
-            "and how you fight."
+            "Speak in-character, grounded in who you are"
+            + (" and how you fight." if motive == 'use' else ".")
         )
     else:
         style = (

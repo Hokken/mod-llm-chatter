@@ -4694,6 +4694,29 @@ def describe_item_type(item_class, subclass, inventory_type) -> str:
     return category
 
 
+# Non-equipment kinds a bot keeps for their looks rather than their
+# price: gems (class 3) and the keepsake-like miscellaneous subclasses
+# (companion pets, holiday items, other, mounts).
+_BEAUTY_ITEM_KINDS = {3: None, 15: {2, 3, 4, 5}}
+
+
+def loot_roll_motive(item_class, item_subclass, is_equipment) -> str:
+    """Why a bot rolled on an item: 'use' for equipment, 'beauty' for
+    gems and keepsake-like miscellaneous items, 'sell' for everything
+    else (trade goods, consumables, reagents, recipes, junk...)."""
+    if is_equipment:
+        return 'use'
+    try:
+        item_class, item_subclass = int(item_class), int(item_subclass)
+    except (TypeError, ValueError):
+        return 'sell'
+    if item_class in _BEAUTY_ITEM_KINDS:
+        subclasses = _BEAUTY_ITEM_KINDS[item_class]
+        if subclasses is None or item_subclass in subclasses:
+            return 'beauty'
+    return 'sell'
+
+
 def format_weapon_list(weapons) -> str:
     """Render equipped weapons as "Name (type)" phrases."""
     parts = []
