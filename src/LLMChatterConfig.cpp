@@ -563,7 +563,7 @@ void LLMChatterConfig::LoadConfig()
     _lootRollCommentGreedEnable =
         GetChatterOption<bool>(
             "LLMChatter.GroupChatter."
-            "LootRollComment.GreedEnable", true);
+            "LootRollComment.GreedEnable", false);
     _lootRollCommentEquipmentEnable =
         GetChatterOption<bool>(
             "LLMChatter.GroupChatter."
@@ -575,7 +575,15 @@ void LLMChatterConfig::LoadConfig()
     _lootRollCommentMaxPerItem =
         GetChatterOption<uint32>(
             "LLMChatter.GroupChatter."
-            "LootRollComment.MaxPerItem", 3);
+            "LootRollComment.MaxPerItem", 2);
+    _lootRollCommentChance =
+        GetChatterOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "LootRollComment.Chance", 50);
+    _lootRollCommentCooldown =
+        GetChatterOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "LootRollComment.Cooldown", 90);
     _groupPlayerMsgCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.PlayerMsgCooldown", 0);
 
     // Group chatter - new event settings

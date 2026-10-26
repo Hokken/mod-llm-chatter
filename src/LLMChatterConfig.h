@@ -152,6 +152,8 @@ public:
     bool _lootRollCommentEquipmentEnable;
     bool _lootRollCommentOtherEnable;
     uint32 _lootRollCommentMaxPerItem;
+    uint32 _lootRollCommentChance;
+    uint32 _lootRollCommentCooldown;
     uint32 _groupPlayerMsgCooldown;
 
     // Group chatter - new event settings

@@ -50,7 +50,11 @@ _install_non_strict_stubs()
 import chatter_group_handlers as handlers  # noqa: E402
 from chatter_event_registry import EVENT_REGISTRY  # noqa: E402
 from chatter_group_prompts import build_loot_roll_prompt  # noqa: E402
-from chatter_shared import describe_item_type, loot_roll_motive  # noqa: E402
+from chatter_shared import (  # noqa: E402
+    describe_item_type,
+    loot_roll_states_use,
+    loot_roll_use_ideas,
+)
 
 BOT = {'name': 'Grom', 'class': 'Warrior', 'race': 'Orc',
        'level': 30, 'gender': 'male'}
@@ -61,10 +65,11 @@ def _src(name: str) -> str:
 
 
 def _prompt(vote, mode='roleplay', item_type='weapon: two-handed sword',
-            motive='use'):
+            item_use='yes', required_level=0, use_ideas=()):
     return str(build_loot_roll_prompt(
         BOT, ['blunt'], 'Ravager', 3, mode, vote, item_type,
-        motive=motive,
+        item_use=item_use, required_level=required_level,
+        use_ideas=use_ideas,
     ))
 
 
@@ -107,87 +112,90 @@ def test_item_type_falls_back_to_the_class():
 
 # -- Prompt ------------------------------------------------------------
 
-def test_need_and_greed_share_the_personal_subject():
-    # Playerbots roll Greed even on items they would use, so both
-    # votes say the bot wants the item for itself; Need only adds
-    # one line on top.
+def test_prompt_states_facts_not_a_motive():
+    # The persona decides why: no motive, no feeling, no claim about
+    # the roll's outcome; Need and Greed differ only in the vote fact.
     need = _prompt('need')
     greed = _prompt('greed')
-    shared = ('You rolled on it because you want it for yourself: '
-              'you would use it.')
-    for text in (need, greed):
+    for text, vote in ((need, 'Need'), (greed, 'Greed')):
         assert 'Ravager, a rare (blue) item' in text
         assert 'Item type: weapon: two-handed sword.' in text
-        assert shared in text
-        assert 'why you want it for yourself' in text
+        assert f'You voted {vote} on it.' in text
+        assert 'You can use it yourself.' in text
+        assert 'why, in your own words' in text
         assert '{item}' in text
-        assert 'never claim you won the item' in text
-    need_line = ('You rolled Need: you really need it, more than a '
-                 'passing wish.\n')
-    assert need_line in need and need_line not in greed
+        assert 'never claim you won it' in text
+        lowered = text.lower()
+        for phrase in ('because', 'really need', 'beautiful',
+                       'not decided', 'still open', 'fair price',
+                       'how you fight'):
+            assert phrase not in lowered, phrase
 
     def roll_section(text):
         start = text.index('An item dropped')
-        return text[start:text.index('for yourself.', start)]
+        return text[start:text.index('own words.', start)]
 
-    # The rest of the prompt has random parts (twist, length hint).
-    assert roll_section(need).replace(need_line, '') == roll_section(greed)
-    assert 'greed' not in greed.lower()
-    assert 'reason of your own' not in greed
+    assert roll_section(need).replace('Need', 'X') == (
+        roll_section(greed).replace('Greed', 'X'))
 
 
-def test_prompt_gives_no_ready_made_reasons():
-    lowered = (_prompt('need') + _prompt('greed')).lower()
-    for phrase in ('upgrade', 'vendor', 'sell it', 'disenchant',
-                   'for example', 'e.g.'):
-        assert phrase not in lowered, phrase
+def test_prompt_states_whether_the_bot_can_use_it():
+    cases = {
+        'class': 'it is not made for your class, race or faction',
+        'proficiency': 'not trained to wear or wield this kind',
+        'skill': 'lack the skill it requires',
+        'no': 'cannot use it yourself right now',
+    }
+    for item_use, fact in cases.items():
+        assert fact in _prompt('need', item_use=item_use), item_use
+    assert 'It requires level 42; you are below that.' in _prompt(
+        'need', item_use='level', required_level=42)
+    # Unknown (older payload or a kind where use means nothing).
+    plain = _prompt('need', item_use=None)
+    assert 'use it yourself' not in plain
+    assert 'cannot use' not in plain
+
+
+def test_ideas_are_offered_only_as_ideas():
+    text = _prompt('greed', use_ideas=['to sell it', 'for crafting'])
+    assert 'only as ideas:' in text
+    assert 'Your reason may be one of them or your own.' in text
+    assert 'to sell it' in text and 'for crafting' in text
+    assert 'only as ideas' not in _prompt('greed')
 
 
 def test_prompt_follows_the_chat_mode():
     assert 'Speak in-character' in _prompt('need', 'roleplay')
     normal = _prompt('need', 'normal')
-    assert 'Speak like a player explaining a roll' in normal
+    assert 'Speak like a player in party chat' in normal
     assert 'Speak in-character' not in normal
 
 
-def test_motive_follows_the_item_kind():
-    # Equipment (anything with a slot, bags included) is for use.
-    assert loot_roll_motive(4, 4, True) == 'use'
-    assert loot_roll_motive(1, 0, True) == 'use'
-    # Gems and keepsake-like miscellaneous items are for their looks.
-    for cls, sub in ((3, 0), (3, 6), (15, 2), (15, 3), (15, 4), (15, 5)):
-        assert loot_roll_motive(cls, sub, False) == 'beauty', (cls, sub)
-    # Everything else is for its price.
-    for cls, sub in ((7, 6), (0, 1), (9, 2), (5, 0), (16, 8), (15, 0)):
-        assert loot_roll_motive(cls, sub, False) == 'sell', (cls, sub)
-    assert loot_roll_motive('x', None, False) == 'sell'
+def test_use_ideas_follow_the_facts():
+    usable = loot_roll_use_ideas(4, 4, True, 'yes')
+    assert 'to wear or wield it yourself' in usable
+    for blocked in ('class', 'proficiency', 'skill', 'no'):
+        ideas = loot_roll_use_ideas(4, 4, True, blocked)
+        assert 'to wear or wield it yourself' not in ideas, blocked
+        assert 'to give it to a friend who can use it' in ideas
+    assert 'to use it once you reach level 45' in loot_roll_use_ideas(
+        2, 8, True, 'level', 45)
+    assert 'to carry more in it' in loot_roll_use_ideas(1, 0, True, 'yes')
+    assert 'to set it into your gear' in loot_roll_use_ideas(3, 2, False)
+    assert loot_roll_use_ideas(9, 2, False, 'yes')[0] == 'to learn it'
+    assert 'to learn it' not in loot_roll_use_ideas(9, 2, False, 'skill')
+    assert 'for crafting' in loot_roll_use_ideas(7, 6, False)
+    assert 'to keep it' in loot_roll_use_ideas(15, 2, False)
+    for ideas in (usable, loot_roll_use_ideas('x', None, False)):
+        assert 'to sell it' in ideas
 
 
-def test_sell_and_beauty_prompts():
-    sell = _prompt('greed', item_type='trade goods: leather', motive='sell')
-    assert ('You rolled on it because you would like to sell it: it '
-            'would fetch a fair price.') in sell
-    assert 'why you would like to sell it' in sell
-    assert 'you would use it' not in sell
-    assert 'how you fight' not in sell
-    beauty = _prompt('greed', item_type='gem: green gem', motive='beauty')
-    assert ('You rolled on it because it is beautiful and you would like '
-            'to keep it for how it looks.') in beauty
-    assert 'what you find beautiful about it' in beauty
-    assert 'sell' not in beauty
-    for text in (sell, beauty):
-        assert '{item}' in text
-        assert 'never claim you won the item' in text
-        assert 'You rolled Need' not in text
-        for phrase in ('for example', 'e.g.'):
-            assert phrase not in text.lower(), phrase
-    # Need adds how much, in the motive's own words.
-    assert ('You rolled Need: you really want the coin it would bring.'
-            in _prompt('need', motive='sell'))
-    assert ('You rolled Need: you really want it, more than a passing '
-            'wish.' in _prompt('need', motive='beauty'))
-    # Equipment keeps the fighting angle.
-    assert 'how you fight' in _prompt('greed')
+def test_use_is_stated_only_where_it_means_something():
+    assert loot_roll_states_use(4, 4, True)
+    for cls, sub in ((0, 1), (9, 2), (16, 8), (15, 2), (15, 5)):
+        assert loot_roll_states_use(cls, sub, False), (cls, sub)
+    for cls, sub in ((7, 6), (5, 0), (3, 2), (15, 0), (12, 0), (13, 0)):
+        assert not loot_roll_states_use(cls, sub, False), (cls, sub)
 
 
 # -- Routing -----------------------------------------------------------
@@ -198,11 +206,13 @@ def test_registry_routes_the_roll_event():
     assert spec.producer == 'LLMChatterGroupLootRoll.cpp'
     assert callable(getattr(handlers, spec.handler_func))
     for field in ('roll_vote', 'item_name', 'item_entry', 'item_quality',
-                  'item_class', 'item_subclass', 'item_inventory_type'):
+                  'item_class', 'item_subclass', 'item_inventory_type',
+                  'item_use', 'item_required_level', 'roll_source_guid',
+                  'roll_slot'):
         assert field in spec.payload_fields, field
 
 
-def test_handler_builds_the_prompt_from_the_payload():
+def _run_handler(payload):
     captured = {}
 
     def fake_run(db, client, config, event, **kwargs):
@@ -216,37 +226,48 @@ def test_handler_builds_the_prompt_from_the_payload():
         captured['label'] = kwargs['label']
         return True
 
-    extra = {'bot_guid': 5, 'bot_name': 'Grom', 'group_id': 9,
-             'roll_vote': 'greed', 'item_name': 'Lionheart Helm',
-             'item_entry': 12640, 'item_quality': 4, 'item_class': 4,
-             'item_subclass': 4, 'item_inventory_type': 1, 'is_bot': 1}
     with patch.object(handlers, 'run_group_handler',
                       side_effect=fake_run), \
             patch.object(handlers, 'localize_item_name',
                          side_effect=lambda db, name, entry: name):
         assert handlers.process_group_loot_roll_event(
-            None, None, {}, {'id': 1, 'extra_data': json.dumps(extra)})
+            None, None, {}, {'id': 1, 'extra_data': json.dumps(payload)})
+    return captured
+
+
+def test_handler_builds_the_prompt_from_the_payload():
+    extra = {'bot_guid': 5, 'bot_name': 'Grom', 'group_id': 9,
+             'roll_vote': 'greed', 'item_name': 'Lionheart Helm',
+             'item_entry': 12640, 'item_quality': 4, 'item_class': 4,
+             'item_subclass': 4, 'item_inventory_type': 1, 'is_bot': 1,
+             'item_use': 'level', 'item_required_level': 50,
+             'roll_source_guid': 17370386536034419712, 'roll_slot': 2}
+    captured = _run_handler(extra)
     assert captured['roll_vote'] == 'greed'
     assert captured['item_type'] == 'armor: plate helm'
+    assert captured['item_use'] == 'level'
+    assert captured['required_level'] == 50
+    assert 'to use it once you reach level 50' in captured['use_ideas']
     assert 'Item type: armor: plate helm.' in captured['prompt']
+    assert 'It requires level 50; you are below that.' in captured['prompt']
     assert captured['label'] == 'reaction_loot_roll'
-    # No item_is_equipment (older payload): the slot decides.
-    assert captured['motive'] == 'use'
 
-    for flag, cls, sub, inv, motive in ((0, 7, 6, 0, 'sell'),
-                                        (0, 3, 0, 0, 'beauty'),
-                                        (1, 1, 0, 18, 'use')):
-        captured.clear()
-        payload = dict(extra, item_class=cls, item_subclass=sub,
-                       item_inventory_type=inv, item_is_equipment=flag)
-        with patch.object(handlers, 'run_group_handler',
-                          side_effect=fake_run), \
-                patch.object(handlers, 'localize_item_name',
-                             side_effect=lambda db, name, entry: name):
-            handlers.process_group_loot_roll_event(
-                None, None, {},
-                {'id': 1, 'extra_data': json.dumps(payload)})
-        assert captured['motive'] == motive, (cls, sub, motive)
+    # Trade goods: usability means nothing, so it is not stated.
+    leather = _run_handler(dict(
+        extra, item_class=7, item_subclass=6, item_inventory_type=0,
+        item_is_equipment=0, item_use='yes'))
+    assert leather['item_use'] is None
+    assert 'use it yourself' not in leather['prompt']
+    assert 'for crafting' in leather['use_ideas']
+
+    # An older payload without item_use states nothing about use.
+    old = {k: v for k, v in extra.items()
+           if k not in ('item_use', 'item_required_level',
+                        'roll_source_guid', 'roll_slot')}
+    captured = _run_handler(old)
+    assert captured['item_use'] is None
+    assert 'use it yourself' not in captured['prompt']
+    assert 'requires level' not in captured['prompt']
 
 
 # -- C++, SQL and conf -------------------------------------------------
@@ -261,25 +282,64 @@ def test_cpp_polls_rolls_for_need_and_greed_only():
     assert '_lootRollCommentMaxPerItem' in source
     for field in ('roll_vote', 'item_class', 'item_subclass',
                   'item_inventory_type', 'item_quality',
-                  'item_is_equipment'):
+                  'item_is_equipment', 'item_use', 'item_required_level',
+                  'roll_source_guid', 'roll_slot'):
         assert f'\\"{field}\\":' in source, field
     world = _src('LLMChatterWorld.cpp')
     assert 'CheckGroupLootRolls();' in world
 
 
-def test_cpp_switches_filter_before_queueing():
+def test_cpp_switches_and_chance_filter_before_queueing():
     source = _src('LLMChatterGroupLootRoll.cpp')
     assert 'tmpl->InventoryType != INVTYPE_NON_EQUIP' in source
     for field in ('_lootRollCommentNeedEnable', '_lootRollCommentGreedEnable',
                   '_lootRollCommentEquipmentEnable',
-                  '_lootRollCommentOtherEnable'):
+                  '_lootRollCommentOtherEnable',
+                  '_lootRollCommentChance', '_lootRollCommentCooldown'):
         assert field in source, field
     # A skipped vote is still marked handled, so it is not reconsidered.
     loop = source[source.index('state.handledVoters.insert(rawGuid);'):]
     assert loop.index('if (!kindEnabled || !VoteCommentEnabled(vote))') < 80
+    assert loop.index('if (urand(1, 100) > chance)') < 200
     shared = _src('LLMChatterShared.cpp')
     assert '{"bot_group_loot_roll",     PRIORITY_HIGH}' in shared
     assert '&LLMChatterConfig::_reactDelayLootRoll' in shared
+
+
+def test_cpp_cooldown_holds_back_other_rolls_only():
+    source = _src('LLMChatterGroupLootRoll.cpp')
+    assert 'std::map<uint32, time_t> _lootRollCooldowns;' in source
+    gate = source[source.index('if (state.queued == 0)\n        {'):]
+    assert 'now - cd->second < cooldown' in gate[:300]
+    assert '_lootRollCooldowns[groupId] = now;' in source
+
+
+def test_cpp_checks_whether_the_bot_can_use_the_item():
+    source = _src('LLMChatterGroupLootRoll.cpp')
+    assert 'bot->CanUseItem(tmpl)' in source
+    assert 'tmpl->GetSkill()' in source
+    assert 'bot->GetSkillValue(skill) == 0' in source
+    for value in ('"yes"', '"class"', '"proficiency"', '"skill"',
+                  '"level"', '"no"'):
+        assert value in source, value
+
+
+def test_closed_rolls_are_never_commented_late():
+    source = _src('LLMChatterGroupLootRoll.cpp')
+    cleanup = source[source.index('// Forget rolls that have ended.'):]
+    assert "SET status = 'cancelled'" in cleanup
+    assert "event_type = 'bot_group_loot_roll'" in cleanup
+    assert "AND status = 'pending'" in cleanup
+    assert "'$.roll_source_guid'" in cleanup
+    assert 'bool IsLootRollCommentStillOpen(' in source
+    assert 'LLMChatterJson::ReadUInt64' in source
+    assert 'sGroupMgr->GetGroupByGUID' in source
+    header = _src('LLMChatterGroup.h')
+    assert 'bool IsLootRollCommentStillOpen(' in header
+    delivery = _src('LLMChatterDelivery.cpp')
+    assert 'eventType == "bot_group_loot_roll"' in delivery
+    assert '!IsLootRollCommentStillOpen(eventExtraData)' in delivery
+    assert '"loot_roll_closed"' in delivery
 
 
 def test_sql_adds_the_event_type_additively():
@@ -297,21 +357,43 @@ def test_sql_adds_the_event_type_additively():
     assert readme.count(name) == 2
 
 
+def _conf_value(text, key):
+    match = re.search(
+        rf'^LLMChatter\.GroupChatter\.{re.escape(key)} = (\d+)$',
+        text, re.M)
+    assert match, key
+    return int(match.group(1))
+
+
 def test_conf_keys_are_documented_and_loaded():
     loads = _src('LLMChatterConfig.cpp')
-    for name in ('conf/mod_llm_chatter.conf.dist',
-                 'conf/presets/mod_ll_chatter_quieter.conf.dist'):
-        text = (MODULE_DIR / name).read_text(encoding='utf-8')
-        for key, default in (('LootRollComment.Enable', '1'),
-                             ('LootRollComment.MaxPerItem', '3'),
-                             ('LootRollComment.NeedEnable', '1'),
-                             ('LootRollComment.GreedEnable', '1'),
-                             ('LootRollComment.EquipmentEnable', '1'),
-                             ('LootRollComment.OtherEnable', '1')):
-            full = f'LLMChatter.GroupChatter.{key}'
-            assert re.search(rf'^{re.escape(full)} = {default}$', text,
-                             re.M), (name, key)
-            assert f'"{key}"' in loads, key
+    default = (MODULE_DIR / 'conf/mod_llm_chatter.conf.dist').read_text(
+        encoding='utf-8')
+    quiet = (MODULE_DIR / 'conf/presets/mod_ll_chatter_quieter.conf.dist'
+             ).read_text(encoding='utf-8')
+    expected = {
+        'LootRollComment.Enable': (1, 1),
+        'LootRollComment.Chance': (50, 25),
+        'LootRollComment.Cooldown': (90, 180),
+        'LootRollComment.MaxPerItem': (2, 1),
+        'LootRollComment.NeedEnable': (1, 1),
+        'LootRollComment.GreedEnable': (0, 0),
+        'LootRollComment.EquipmentEnable': (1, 1),
+        'LootRollComment.OtherEnable': (1, 1),
+    }
+    for key, (value, quieter) in expected.items():
+        assert _conf_value(default, key) == value, key
+        assert _conf_value(quiet, key) == quieter, key
+        assert f'"{key}"' in loads, key
+    # The C++ defaults match the template.
+    assert '"LootRollComment.Chance", 50)' in loads
+    assert '"LootRollComment.Cooldown", 90)' in loads
+    assert '"LootRollComment.MaxPerItem", 2)' in loads
+    assert '"LootRollComment.GreedEnable", false)' in loads
+    # Coverage is described as bounded, not as every vote.
+    for text in (default, quiet):
+        assert 'Coverage is bounded' in text
+        assert 'while the roll is open' in text
 
 
 if __name__ == '__main__':

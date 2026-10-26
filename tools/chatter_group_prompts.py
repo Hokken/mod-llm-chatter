@@ -1165,30 +1165,30 @@ def build_loot_reaction_prompt(
     )
 
 
-# (reason, extra line for a Need roll, what to say) per motive.
-_LOOT_ROLL_MOTIVES = {
-    'use': (
-        "You rolled on it because you want it for yourself: "
-        "you would use it.",
-        "you really need it, more than a passing wish.",
-        "Say briefly, in your own words, why you want it for "
-        "yourself.",
-    ),
-    'sell': (
-        "You rolled on it because you would like to sell it: "
-        "it would fetch a fair price.",
-        "you really want the coin it would bring.",
-        "Say briefly, in your own words, why you would like "
-        "to sell it.",
-    ),
-    'beauty': (
-        "You rolled on it because it is beautiful and you "
-        "would like to keep it for how it looks.",
-        "you really want it, more than a passing wish.",
-        "Say briefly, in your own words, what you find "
-        "beautiful about it.",
-    ),
+# What the bot's item_use (LootRollUse() in C++) means, as a fact.
+_LOOT_ROLL_USE_FACTS = {
+    'yes': "You can use it yourself.",
+    'class': "You cannot use it yourself: it is not made for your "
+             "class, race or faction.",
+    'proficiency': "You are not trained to wear or wield this kind "
+                   "of item.",
+    'skill': "You lack the skill it requires, or your skill is too "
+             "low.",
+    'no': "You cannot use it yourself right now.",
 }
+
+
+def _loot_roll_use_fact(item_use, required_level) -> str:
+    if item_use == 'level':
+        try:
+            level = int(required_level or 0)
+        except (TypeError, ValueError):
+            level = 0
+        return (
+            f"It requires level {level}; you are below that."
+            if level else "You are too low in level to use it yet."
+        )
+    return _LOOT_ROLL_USE_FACTS.get(item_use, '')
 
 
 def build_loot_roll_prompt(
@@ -1199,25 +1199,25 @@ def build_loot_roll_prompt(
     speaker_talent_context=None,
     stored_tone=None,
     map_id=0,
-    motive='use',
+    item_use=None,
+    required_level=0,
+    use_ideas=(),
 ):
-    """Build prompt for a bot explaining in party chat
-    why it rolled on an item.
+    """Build prompt for a bot saying in party chat why it
+    rolled on an item.
 
-    motive (loot_roll_motive): 'use' for equipment, which
-    the bot would wear or wield; 'sell' for items it wants
-    for their price; 'beauty' for gems and keepsakes it
-    wants for their looks.
+    Facts only; the bot's traits and tone decide the
+    reason and how it feels. The prompt gives the item,
+    its type (describe_item_type() output, such as
+    "weapon: two-handed sword"), the vote, and, where it
+    means something, whether the bot can use the item
+    (item_use from C++; None for older payloads states
+    nothing). use_ideas (loot_roll_use_ideas) are offered
+    as ideas only, never as the bot's motive.
 
-    Need and Greed share the same subject: the bot wants
-    the item for itself. Playerbots roll Greed even on
-    items they would use, so a Greed prompt must not
-    suggest selling or other uses. A Need roll only adds
-    that the bot really needs it.
-
-    item_type is describe_item_type() output, such as
-    "weapon: two-handed sword" or "armor: plate chest
-    piece". The roll is still open when this is spoken.
+    The roll may already be decided when the line is
+    ready; C++ drops it then (loot_roll_closed), so the
+    prompt makes no claim either way.
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
@@ -1262,32 +1262,31 @@ def build_loot_roll_prompt(
     quality_label = quality_names.get(
         item_quality, 'common'
     )
-    # Why the bot wants it; Need only adds how much.
-    reason, need_text, ask = _LOOT_ROLL_MOTIVES.get(
-        motive, _LOOT_ROLL_MOTIVES['use'])
-    need_line = (
-        f"You rolled Need: {need_text}\n"
-        if roll_vote == 'need' else ""
-    )
+    vote = 'Need' if roll_vote == 'need' else 'Greed'
+    use_fact = _loot_roll_use_fact(item_use, required_level)
+    ideas = list(use_ideas or ())
+    random.shuffle(ideas)
+    article = 'an' if quality_label[0] in 'aeiou' else 'a'
     roll_context = (
-        f"An item dropped and the party is rolling for "
-        f"it: {item_name}, a {quality_label} item. Item "
+        f"An item dropped and the party is rolling on "
+        f"it: {item_name}, {article} {quality_label} item. Item "
         f"type: {item_type}.\n"
-        f"{reason}\n"
-        f"{need_line}"
-        f"{ask}"
+        f"You voted {vote} on it.\n"
+        + (f"{use_fact}\n" if use_fact else "")
+        + "You would like to have it. Say briefly in party "
+        "chat why, in your own words."
     )
+    if ideas:
+        roll_context += (
+            "\nSome reasons people roll on such an item, only "
+            f"as ideas: {'; '.join(ideas)}. Your reason may be "
+            "one of them or your own."
+        )
 
     if is_rp:
-        style = (
-            "Speak in-character, grounded in who you are"
-            + (" and how you fight." if motive == 'use' else ".")
-        )
+        style = "Speak in-character, grounded in who you are."
     else:
-        style = (
-            "Speak like a player explaining a roll in "
-            "party chat. Casual and brief."
-        )
+        style = "Speak like a player in party chat. Casual and brief."
 
     prompt = (
         f"{build_player_prompt_header_from_dict(bot, mode)}\n"
@@ -1319,8 +1318,8 @@ def build_loot_roll_prompt(
         f"reads naturally as-is.\n"
         "- Let your personality show in how you say it, "
         f"without naming your traits\n"
-        f"- The roll is not decided yet: never claim "
-        f"you won the item or already have it\n"
+        f"- Do not say who will get the item, and never "
+        f"claim you won it or already have it\n"
         f"- Don't repeat jokes or themes "
         f"already said in chat"
     )

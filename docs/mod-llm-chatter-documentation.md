@@ -1339,56 +1339,69 @@ Examples include:
 
 ### Need/Greed roll comments
 
-When a party bot rolls Need or Greed on an item, it says in party chat
+When a party bot rolls Need or Greed on an item, it may say in party chat
 why it wants it (`bot_group_loot_roll`). The core reports only a roll's
 winner, so `LLMChatterGroupLootRoll.cpp` reads the open rolls of groups
 with a real player (`Group::GetRolls()`) every two seconds from the
 world update, between map updates.
 
-- Every bot that votes Need or Greed comments, up to
-  `GroupChatter.LootRollComment.MaxPerItem` (default 3) per item. Need
-  votes found in the same scan go before Greed votes, and each further
-  comment on one item waits a few seconds longer. Pass and Disenchant
-  votes stay silent. Battlegrounds and arenas are skipped.
-- Four switches narrow it down: `NeedEnable` and `GreedEnable` for the
-  vote, `EquipmentEnable` and `OtherEnable` for the item. Equipment is
-  anything with an equipment slot (`InventoryType` not 0): armor,
-  weapons, shields, off-hand items, cloaks, jewelry, trinkets, relics,
-  shirts and tabards, and also bags, quivers and ammunition. A vote that
-  a switch turns off is marked handled and never commented, and does not
-  count toward `MaxPerItem`.
-- The payload carries the vote, the item's name, entry and quality, its
-  `item_template` class, subclass and InventoryType, and
-  `item_is_equipment`.
-  `describe_item_type()` turns these into the type and subtype the
-  prompt states: "weapon: two-handed sword", "armor: plate chest piece",
-  "armor: ring", "gem: meta gem", "recipe: tailoring pattern".
-- The prompt gives the bot one motive, chosen by the item kind
-  (`loot_roll_motive()`):
-  - **use** (equipment): the bot rolled because it wants the item for
-    itself and would use it;
-  - **beauty** (gems, and companion pets, holiday items, mounts and other
-    keepsake-like miscellaneous items): the bot finds it beautiful and
-    wants to keep it for how it looks;
-  - **sell** (everything else: trade goods, consumables, reagents,
-    recipes, glyphs, junk): the bot would like to sell it.
+- **Bounded coverage.** A vote is commented only when the scan sees it
+  while the roll is open. The last vote resolves and deletes the roll at
+  once (`Group::CountRollVote()`), so a vote cast just before that is
+  never seen, and a comment can be ready after the roll is decided. When
+  the scan finds a roll gone, it cancels that roll's events the bridge
+  has not picked up yet, and delivery drops any comment whose roll has
+  closed (`IsLootRollCommentStillOpen()`, drop reason
+  `loot_roll_closed`). A comment is never spoken after its roll ended.
+- **Flow controls.** Each new Need or Greed vote rolls
+  `LootRollComment.Chance` once. A roll that already has a comment can
+  get more, up to `MaxPerItem`; any other roll in the group waits out
+  `LootRollComment.Cooldown`, so when several items drop at once, one of
+  them is commented. Need votes found in the same scan go before Greed
+  votes, and each further comment on one item waits a few seconds longer.
+  Pass and Disenchant votes stay silent. Battlegrounds and arenas are
+  skipped.
+- **Switches.** `NeedEnable` and `GreedEnable` for the vote,
+  `EquipmentEnable` and `OtherEnable` for the item. Greed is off by
+  default: playerbots roll Greed on most items, even ones they would use.
+  Equipment is anything with an equipment slot (`InventoryType` not 0):
+  armor, weapons, shields, off-hand items, cloaks, jewelry, trinkets,
+  relics, shirts and tabards, and also bags, quivers and ammunition. A
+  vote that a switch or the chance turns away is marked handled and never
+  reconsidered.
+- **Payload.** The vote, the item's name, entry and quality, its
+  `item_template` class, subclass, InventoryType and RequiredLevel,
+  `item_is_equipment`, the roll's source GUID and slot, and `item_use`:
+  whether this bot can use the item (`LootRollUse()`: `yes`, `class` for
+  class, race or faction, `proficiency` for an armor or weapon type it is
+  not trained in, `skill` for a missing or low skill, `level`, or `no`).
+  It comes from `Player::CanUseItem()` plus the item's proficiency skill,
+  which that check leaves out. `describe_item_type()` turns the class,
+  subclass and InventoryType into the type the prompt states: "weapon:
+  two-handed sword", "armor: plate chest piece", "gem: meta gem",
+  "recipe: tailoring pattern".
+- **Facts only.** The prompt gives the item, its type, the vote and,
+  for equipment, consumables, recipes, glyphs, companion pets and mounts,
+  whether the bot can use it. It does not say why the bot rolled or how
+  it feels: the bot's personality and tone decide. A short list of
+  possible uses (`loot_roll_use_ideas()`, built from the same facts: wear
+  it, use it once it reaches the level, sell it, give it to a friend who
+  can use it, craft with it...) is offered only as ideas. The prompt makes
+  no claim about the roll's outcome, and the bot must not say who will get
+  the item or that it won it. The item is written as `{item}` and becomes
+  a clickable link, as in loot reactions.
+- The event has high priority, so the reason usually arrives while the
+  roll is open. `GroupChatter.ReactDelay.LootRoll` (default 2) is its
+  base delay when the priority system is off.
 
-  Need and Greed share the motive: playerbots roll Greed even on items
-  they would use, so the vote never changes why the bot wants the item. A
-  Need roll adds one line on how much it wants it. The bot says why in
-  its own words, with no example reasons. The roll is still open, so the
-  bot must not claim it won. The item is written as `{item}` and
-  becomes a clickable link, as in loot reactions.
-- The event has high priority, so the reason arrives while the roll is
-  still open. `GroupChatter.ReactDelay.LootRoll` (default 2) is its base
-  delay when the priority system is off.
-
-| Key | Default | Owner |
-|-----|---------|-------|
-| `LLMChatter.GroupChatter.LootRollComment.Enable` | 1 | Worldserver |
-| `LLMChatter.GroupChatter.LootRollComment.NeedEnable` / `GreedEnable` | 1 / 1 | Worldserver |
-| `LLMChatter.GroupChatter.LootRollComment.EquipmentEnable` / `OtherEnable` | 1 / 1 | Worldserver |
-| `LLMChatter.GroupChatter.LootRollComment.MaxPerItem` | 3 | Worldserver |
+| Key | Default | Quieter preset | Owner |
+|-----|---------|----------------|-------|
+| `LLMChatter.GroupChatter.LootRollComment.Enable` | 1 | 1 | Worldserver |
+| `LLMChatter.GroupChatter.LootRollComment.Chance` | 50 | 25 | Worldserver |
+| `LLMChatter.GroupChatter.LootRollComment.Cooldown` | 90 | 180 | Worldserver |
+| `LLMChatter.GroupChatter.LootRollComment.NeedEnable` / `GreedEnable` | 1 / 0 | 1 / 0 | Worldserver |
+| `LLMChatter.GroupChatter.LootRollComment.EquipmentEnable` / `OtherEnable` | 1 / 1 | 1 / 1 | Worldserver |
+| `LLMChatter.GroupChatter.LootRollComment.MaxPerItem` | 2 | 1 | Worldserver |
 
 Existing installations must apply
 `data/sql/characters/updates/20261022_loot_roll_comments.sql`, which adds

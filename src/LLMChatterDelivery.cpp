@@ -8,6 +8,7 @@
 #include "LLMChatterBossDialogue.h"
 #include "LLMChatterDelivery.h"
 #include "LLMChatterBGDelivery.h"
+#include "LLMChatterGroup.h"
 #include "LLMChatterGuild.h"
 #include "LLMChatterGuildPvP.h"
 #include "LLMChatterGuildWorld.h"
@@ -583,6 +584,18 @@ void DeliverPendingMessagesImpl()
                 eventType, "fight_scene_stale");
             return;
         }
+    }
+
+    // Need/Greed roll comments (LLMChatterGroupLootRoll.cpp)
+    // only make sense while their roll is open; the last vote
+    // closes it at once, often before the line is ready.
+    if (eventType == "bot_group_loot_roll"
+        && !IsLootRollCommentStillOpen(eventExtraData))
+    {
+        FinalizeDroppedMessage(
+            messageId, eventId, sequence,
+            eventType, "loot_roll_closed");
+        return;
     }
 
     // Master GuildChatter toggle. Consume already-queued

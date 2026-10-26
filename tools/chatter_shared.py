@@ -4631,24 +4631,81 @@ def describe_item_type(item_class, subclass, inventory_type) -> str:
 # Non-equipment kinds a bot keeps for their looks rather than their
 # price: gems (class 3) and the keepsake-like miscellaneous subclasses
 # (companion pets, holiday items, other, mounts).
-_BEAUTY_ITEM_KINDS = {3: None, 15: {2, 3, 4, 5}}
+# Items whose usability means something to a player (equipment is
+# handled separately): consumables, recipes, glyphs, and companion
+# pets and mounts.
+_USABLE_ITEM_KINDS = {0: None, 9: None, 16: None, 15: {2, 5}}
 
 
-def loot_roll_motive(item_class, item_subclass, is_equipment) -> str:
-    """Why a bot rolled on an item: 'use' for equipment, 'beauty' for
-    gems and keepsake-like miscellaneous items, 'sell' for everything
-    else (trade goods, consumables, reagents, recipes, junk...)."""
+def loot_roll_states_use(item_class, item_subclass, is_equipment) -> bool:
+    """Whether a roll prompt should state if the bot can use the
+    item. Trade goods, reagents, gems, junk, keys and quest items
+    are left out: "you can use it" means nothing for them."""
     if is_equipment:
-        return 'use'
+        return True
     try:
         item_class, item_subclass = int(item_class), int(item_subclass)
     except (TypeError, ValueError):
-        return 'sell'
-    if item_class in _BEAUTY_ITEM_KINDS:
-        subclasses = _BEAUTY_ITEM_KINDS[item_class]
-        if subclasses is None or item_subclass in subclasses:
-            return 'beauty'
-    return 'sell'
+        return False
+    if item_class not in _USABLE_ITEM_KINDS:
+        return False
+    subclasses = _USABLE_ITEM_KINDS[item_class]
+    return subclasses is None or item_subclass in subclasses
+
+
+def loot_roll_use_ideas(
+    item_class, item_subclass, is_equipment,
+    item_use=None, required_level=0,
+) -> List[str]:
+    """Possible reasons to roll on an item, offered to the bot only
+    as ideas, never as its motive. Built from facts: the item kind
+    and whether this bot can use it (item_use from C++: yes, class,
+    proficiency, skill, level or no; None for older payloads)."""
+    try:
+        item_class, item_subclass = int(item_class), int(item_subclass)
+    except (TypeError, ValueError):
+        item_class, item_subclass = -1, 0
+    try:
+        level = int(required_level or 0)
+    except (TypeError, ValueError):
+        level = 0
+    sell = "to sell it"
+    friend = "to give it to a friend who can use it"
+    if is_equipment:
+        if item_use == 'level':
+            later = (
+                f"to use it once you reach level {level}"
+                if level else "to use it once you are higher level"
+            )
+            return [later, sell]
+        if item_use in ('class', 'proficiency', 'skill', 'no'):
+            return [sell, friend]
+        if item_class in (2, 4):
+            ideas = ["to wear or wield it yourself", sell]
+            if item_class == 4:
+                ideas.append("for how it looks")
+            return ideas
+        if item_class in (1, 11):
+            return ["to carry more in it", sell]
+        return ["to use it yourself", sell]
+    if item_class == 3:
+        return ["to set it into your gear", sell,
+                "to keep it for its looks"]
+    if item_class == 9:
+        if item_use == 'yes':
+            return ["to learn it", sell]
+        return ["to pass it to someone with the right profession", sell]
+    if item_class == 16:
+        if item_use == 'yes':
+            return ["to use it yourself", sell]
+        return [friend, sell]
+    if item_class == 0:
+        return ["to keep it for a hard fight", sell]
+    if item_class in (5, 7):
+        return ["for crafting", sell]
+    if item_class == 15 and item_subclass in (2, 3, 5):
+        return ["to keep it", sell]
+    return [sell, "to keep it"]
 
 
 def format_weapon_list(weapons) -> str:

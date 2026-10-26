@@ -35,7 +35,8 @@ from chatter_shared import (
     localize_creature_name,
     localize_item_name,
     describe_item_type,
-    loot_roll_motive,
+    loot_roll_states_use,
+    loot_roll_use_ideas,
     localize_quest_name,
     shorten_chat_message,
     brief_casual_response_fits,
@@ -491,14 +492,41 @@ def _loot_roll_is_equipment(extra_data) -> bool:
         return False
 
 
+def _loot_roll_use_fields(extra_data) -> dict:
+    """Whether the bot can use the item (C++ item_use), stated only
+    for kinds where it means something, and the idea list built
+    from it. Older payloads without item_use state nothing."""
+    item_class = extra_data.get('item_class', -1)
+    item_subclass = extra_data.get('item_subclass', 0)
+    is_equipment = _loot_roll_is_equipment(extra_data)
+    item_use = extra_data.get('item_use') or None
+    try:
+        required_level = int(
+            extra_data.get('item_required_level') or 0)
+    except (TypeError, ValueError):
+        required_level = 0
+    return {
+        'item_use': (
+            item_use
+            if loot_roll_states_use(
+                item_class, item_subclass, is_equipment)
+            else None),
+        'required_level': required_level,
+        'use_ideas': loot_roll_use_ideas(
+            item_class, item_subclass, is_equipment,
+            item_use, required_level),
+    }
+
+
 def process_group_loot_roll_event(
     db, client, config, event
 ):
     """Handle a bot_group_loot_roll event.
 
     A party bot that rolled Need or Greed on an item
-    says why in party chat. C++ caps the comments per
-    item; the roll is still open when this runs.
+    says why in party chat. C++ applies the chance,
+    cooldown and per-item cap, and drops the line at
+    delivery if the roll has closed by then.
     """
     return run_group_handler(
         db, client, config, event,
@@ -521,10 +549,7 @@ def process_group_loot_roll_event(
                 ed.get('item_class', -1),
                 ed.get('item_subclass', 0),
                 ed.get('item_inventory_type', 0)),
-            'motive': loot_roll_motive(
-                ed.get('item_class', -1),
-                ed.get('item_subclass', 0),
-                _loot_roll_is_equipment(ed)),
+            **_loot_roll_use_fields(ed),
         },
         build_prompt=lambda ctx: (
             build_loot_roll_prompt(
@@ -540,7 +565,9 @@ def process_group_loot_roll_event(
                     ctx['speaker_talent']),
                 stored_tone=ctx['stored_tone'],
                 map_id=ctx['map_id'],
-                motive=ctx['motive'],
+                item_use=ctx['item_use'],
+                required_level=ctx['required_level'],
+                use_ideas=ctx['use_ideas'],
             )
         ),
         needs_map_id=True,

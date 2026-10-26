@@ -3,20 +3,25 @@
 ### 2026-10-26 - Bots Explain Their Loot Rolls
 
 * **Bots explain their loot rolls**: when a party bot rolls Need or Greed
-  on an item, it says in party chat why it wants it for itself. The prompt
-  names the item with its type and subtype (two-handed sword, plate chest
-  piece, ring, meta gem, tailoring pattern...). Bots roll Greed even on
-  items they would use, so a Greed roll is explained the same way; a Need
-  roll adds that the bot really needs the item. Equipment is explained as
-  something the bot would use; any other item as something it would sell,
-  or, for gems, companion pets, mounts and similar keepsakes, as something
-  beautiful it wants to keep. Up to three bots comment per item. Comments
-  on Need and Greed rolls, and on equipment and other items, can each be
-  turned off (`LLMChatter.GroupChatter.LootRollComment.Enable`,
-  `.NeedEnable`, `.GreedEnable`, `.EquipmentEnable`, `.OtherEnable`,
-  `.MaxPerItem`). Needs the
-  `data/sql/characters/updates/20261022_loot_roll_comments.sql` update
-  and a worldserver rebuild.
+  on an item, it may say in party chat why it wants it. The prompt gives
+  facts only: the item with its type and subtype (two-handed sword, plate
+  chest piece, ring, meta gem, tailoring pattern...), the vote, and
+  whether the bot can actually use the item (class, proficiency, skill or
+  level). Its personality decides the reason; possible uses are offered
+  only as ideas.
+* **Kept rare**: each vote has a chance to be commented
+  (`LootRollComment.Chance`, default 50), a group waits out a cooldown
+  between commented rolls (`LootRollComment.Cooldown`, default 90 s), and
+  at most two bots comment per item (`.MaxPerItem`). Comments on Need and
+  Greed rolls, and on equipment and other items, can each be turned off
+  (`.NeedEnable`, `.GreedEnable`, `.EquipmentEnable`, `.OtherEnable`);
+  Greed comments are off by default, since playerbots roll Greed on most
+  items. The quieter preset uses 25%, 180 s and one bot per item.
+* **Never late**: a vote is commented only when it is seen while the roll
+  is open, and a comment whose roll has closed is cancelled or dropped at
+  delivery instead of arriving after the roll was decided.
+* Needs the `data/sql/characters/updates/20261022_loot_roll_comments.sql`
+  update and a worldserver rebuild.
 
 ### 2026-10-25 - Correct Pronouns for Party Members
 

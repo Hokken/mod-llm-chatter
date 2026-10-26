@@ -4,11 +4,15 @@
  * Owns:
  *   - polling open group loot rolls for party bots that
  *     voted Need or Greed
- *   - the per-item comment cap and its bookkeeping
+ *   - the per-item comment cap, the per-vote chance and the
+ *     per-group cooldown, and their bookkeeping
  *   - the Need/Greed and equipment/other switches
  *   - the bot_group_loot_roll payload (item name, quality,
- *     class, subclass, inventory type and whether the item
- *     is equipment)
+ *     class, subclass, inventory type, whether the item is
+ *     equipment, whether the bot can use it, and the roll's
+ *     source and slot)
+ *   - closed rolls: cancelling their pending events and
+ *     IsLootRollCommentStillOpen() for delivery
  *
  * The core has no hook for a vote being cast; it only
  * reports the winner (OnPlayerGroupRollRewardItem, which
@@ -17,22 +21,33 @@
  * world update reads each roll's votes instead. It runs
  * between map updates, like CheckGroupCombatState().
  * Battlegrounds and arenas are excluded.
+ *
+ * Coverage is bounded: the last vote resolves and deletes a
+ * roll at once (Group::CountRollVote), so a vote cast just
+ * before that is never seen, and a comment can be ready
+ * after the roll has closed. Such comments are cancelled or
+ * dropped at delivery, never spoken late.
  */
 
 #include "LLMChatterConfig.h"
 #include "LLMChatterGroup.h"
 #include "LLMChatterGroupInternal.h"
+#include "LLMChatterJsonFields.h"
 #include "LLMChatterShared.h"
 
+#include "DatabaseEnv.h"
 #include "Group.h"
+#include "GroupMgr.h"
 #include "ItemTemplate.h"
 #include "Map.h"
 #include "ObjectAccessor.h"
 #include "ObjectMgr.h"
 #include "Player.h"
+#include "Random.h"
 #include "World.h"
 #include "WorldSessionMgr.h"
 
+#include <cstdint>
 #include <map>
 #include <set>
 #include <string>
@@ -52,6 +67,10 @@ struct RollComments
 };
 
 std::map<RollKey, RollComments> _rollComments;
+
+// Group -> when its last commented roll got its first
+// comment (LootRollComment.Cooldown).
+std::map<uint32, time_t> _lootRollCooldowns;
 
 // Extra seconds between comments on the same item, so the
 // lines do not land together.
@@ -78,6 +97,37 @@ bool VoteCommentEnabled(RollVote vote)
         : sLLMChatterConfig->_lootRollCommentGreedEnable;
 }
 
+// Whether this bot can use the item, as a fact for the
+// prompt: "yes", "class" (never, for its class, race or
+// faction), "proficiency" (not trained for this armor or
+// weapon type), "skill" (a profession or other skill is
+// missing or too low), "level" (RequiredLevel above the
+// bot's), or "no" (anything else).
+char const* LootRollUse(Player* bot, ItemTemplate const* tmpl)
+{
+    switch (bot->CanUseItem(tmpl))
+    {
+        case EQUIP_ERR_OK:
+            break;
+        case EQUIP_ERR_YOU_CAN_NEVER_USE_THAT_ITEM:
+            return "class";
+        case EQUIP_ERR_NO_REQUIRED_PROFICIENCY:
+        case EQUIP_ERR_CANT_EQUIP_SKILL:
+            return "skill";
+        case EQUIP_ERR_CANT_EQUIP_LEVEL_I:
+            return "level";
+        default:
+            return "no";
+    }
+    // CanUseItem(ItemTemplate) skips the armor and weapon
+    // proficiency that CanUseItem(Item*) checks, so plate
+    // would pass for a mage.
+    uint32 skill = tmpl->GetSkill();
+    if (skill && bot->GetSkillValue(skill) == 0)
+        return "proficiency";
+    return "yes";
+}
+
 void QueueLootRollComment(
     Player* bot, Group* group, Roll const* roll,
     ItemTemplate const* tmpl, RollVote vote, uint32 index)
@@ -102,6 +152,13 @@ void QueueLootRollComment(
             + std::to_string(tmpl->InventoryType) + ","
         "\"item_is_equipment\":"
             + std::string(IsEquipment(tmpl) ? "1" : "0") + ","
+        "\"item_use\":\""
+            + std::string(LootRollUse(bot, tmpl)) + "\","
+        "\"item_required_level\":"
+            + std::to_string(tmpl->RequiredLevel) + ","
+        "\"roll_source_guid\":"
+            + std::to_string(roll->itemGUID.GetRawValue()) + ","
+        "\"roll_slot\":" + std::to_string(roll->itemSlot) + ","
         "\"group_id\":" + std::to_string(groupId)
         + "," + BuildBotStateJson(bot)
         + "}";
@@ -134,6 +191,10 @@ void ScanGroupRolls(
     uint32 groupId = group->GetGUID().GetCounter();
     uint32 maxPerItem =
         sLLMChatterConfig->_lootRollCommentMaxPerItem;
+    uint32 chance = sLLMChatterConfig->_lootRollCommentChance;
+    time_t cooldown = static_cast<time_t>(
+        sLLMChatterConfig->_lootRollCommentCooldown);
+    time_t now = time(nullptr);
 
     for (Roll const* roll : group->GetRolls())
     {
@@ -157,8 +218,8 @@ void ScanGroupRolls(
 
         // Need votes go first when one scan finds both.
         // A vote is handled once, whether or not it is
-        // commented, so a switched-off kind is never
-        // reconsidered.
+        // commented, so a switched-off kind or a failed
+        // chance roll is never reconsidered.
         std::vector<BotVote> needs;
         std::vector<BotVote> greeds;
         for (auto const& [voterGuid, vote] : roll->playerVote)
@@ -171,6 +232,8 @@ void ScanGroupRolls(
             state.handledVoters.insert(rawGuid);
             if (!kindEnabled || !VoteCommentEnabled(vote))
                 continue;
+            if (urand(1, 100) > chance)
+                continue;
 
             Player* voter =
                 ObjectAccessor::FindPlayer(voterGuid);
@@ -182,11 +245,27 @@ void ScanGroupRolls(
                 .push_back({voter, vote});
         }
         needs.insert(needs.end(), greeds.begin(), greeds.end());
+        if (needs.empty())
+            continue;
+
+        // A roll that already has a comment may finish up to
+        // MaxPerItem; any other roll waits out the group's
+        // cooldown, so several items dropping at once get
+        // comments on one of them.
+        if (state.queued == 0)
+        {
+            auto cd = _lootRollCooldowns.find(groupId);
+            if (cd != _lootRollCooldowns.end()
+                && now - cd->second < cooldown)
+                continue;
+        }
 
         for (BotVote const& bv : needs)
         {
             if (state.queued >= maxPerItem)
                 break;
+            if (state.queued == 0)
+                _lootRollCooldowns[groupId] = now;
             QueueLootRollComment(
                 bv.bot, group, roll, tmpl, bv.vote,
                 state.queued);
@@ -205,6 +284,7 @@ void CheckGroupLootRolls()
         || !sLLMChatterConfig->_lootRollCommentEnable)
     {
         _rollComments.clear();
+        _lootRollCooldowns.clear();
         return;
     }
 
@@ -238,13 +318,75 @@ void CheckGroupLootRolls()
         ScanGroupRolls(group, openRolls);
     }
 
-    // Forget rolls that have ended.
+    // Forget rolls that have ended. Their comments that the
+    // bridge has not picked up yet are cancelled: the roll
+    // is decided, and its comment would arrive too late.
     for (auto it = _rollComments.begin();
          it != _rollComments.end();)
     {
         if (openRolls.count(it->first))
+        {
             ++it;
-        else
-            it = _rollComments.erase(it);
+            continue;
+        }
+        if (it->second.queued > 0)
+        {
+            auto const& [groupId, sourceGuid, slot] = it->first;
+            CharacterDatabase.Execute(
+                "UPDATE llm_chatter_events "
+                "SET status = 'cancelled' "
+                "WHERE event_type = 'bot_group_loot_roll' "
+                "AND status = 'pending' "
+                "AND JSON_EXTRACT(extra_data, '$.group_id') = {} "
+                "AND JSON_EXTRACT(extra_data, "
+                "'$.roll_source_guid') = {} "
+                "AND JSON_EXTRACT(extra_data, '$.roll_slot') = {}",
+                groupId, sourceGuid, uint32(slot));
+        }
+        it = _rollComments.erase(it);
     }
+
+    time_t now = time(nullptr);
+    time_t cooldown = static_cast<time_t>(
+        sLLMChatterConfig->_lootRollCommentCooldown);
+    for (auto it = _lootRollCooldowns.begin();
+         it != _lootRollCooldowns.end();)
+    {
+        if (now - it->second >= cooldown)
+            it = _lootRollCooldowns.erase(it);
+        else
+            ++it;
+    }
+}
+
+bool IsLootRollCommentStillOpen(std::string const& eventExtraData)
+{
+    // extra_data comes back from a MySQL JSON column, so use
+    // the whitespace-tolerant readers.
+    std::uint64_t groupId = 0;
+    std::uint64_t sourceGuid = 0;
+    std::uint64_t slot = 0;
+    if (!LLMChatterJson::ReadUInt64(
+            eventExtraData, "group_id", groupId)
+        || !LLMChatterJson::ReadUInt64(
+            eventExtraData, "roll_source_guid", sourceGuid)
+        || !LLMChatterJson::ReadUInt64(
+            eventExtraData, "roll_slot", slot))
+    {
+        // Payloads from before the roll fields cannot be
+        // checked; keep the old behaviour for them.
+        return true;
+    }
+
+    Group* group = sGroupMgr->GetGroupByGUID(
+        static_cast<ObjectGuid::LowType>(groupId));
+    if (!group)
+        return false;
+    for (Roll const* roll : group->GetRolls())
+    {
+        if (roll && roll->itemGUID.GetRawValue() == sourceGuid
+            && roll->itemSlot == slot)
+            return true;
+    }
+    return false;
 }
