@@ -356,7 +356,8 @@ def test_normal_dungeon_greeting_keeps_gameplay_location_context():
     prompt = build_bot_greeting_prompt(
         BOT, ['patient'], 'normal', map_id=33,
     )
-    assert 'Your character is currently in a dungeon' in prompt.user_prompt
+    assert ('Your character is currently in Shadowfang Keep'
+            in prompt.user_prompt)
     assert 'haunted fortress' not in prompt.user_prompt
 
 
@@ -829,6 +830,27 @@ def main():
         test()
     print(f'{len(tests)} normal-mode player-chat tests passed')
     return 0
+
+
+def test_general_relay_talks_about_the_author_not_to_them():
+    # The General author is in another channel and never hears the
+    # party, so the bots discuss the words among themselves.
+    source = {'name': 'Rytsen', 'race': 'Dwarf', 'class': 'Warrior'}
+    loc = {'dungeon_flavor': '', 'zone_flavor': '', 'subzone_lore': ''}
+    rule = ('Rytsen is not in your party and cannot hear party chat. '
+            'Talk about what Rytsen said, never to Rytsen')
+    for mode in ('normal', 'roleplay'):
+        statement = str(_general_relay_prompt(
+            BOT, source, 'anyone need this quest?', 'Player', '', mode,
+            loc))
+        conversation = str(_general_relay_conversation_prompt(
+            [BOT, {**BOT, 'guid': 43, 'name': 'Borin'}], source,
+            'anyone need this quest?', 'Player', '', mode, loc))
+        for text in (statement, conversation):
+            assert rule in text, mode
+            assert 'refer to Rytsen in the third person' in text
+        assert 'discuss those words among themselves' in conversation
+        assert 'Nobody addresses Rytsen' in conversation
 
 
 if __name__ == '__main__':

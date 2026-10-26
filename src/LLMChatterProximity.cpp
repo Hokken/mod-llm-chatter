@@ -1655,6 +1655,8 @@ std::string BuildBaseEventJson(
         + JsonEscape(player->GetName())
         + "\",\"zone_id\":"
         + std::to_string(player->GetZoneId())
+        + ",\"area_id\":"
+        + std::to_string(player->GetAreaId())
         + ",\"map_id\":"
         + std::to_string(player->GetMapId())
         + ",\"instance_id\":"
@@ -2818,6 +2820,8 @@ void HandleProximityPlayerSay(
         + JsonEscape(safeMsg)
         + "\",\"zone_id\":"
         + std::to_string(player->GetZoneId())
+        + ",\"area_id\":"
+        + std::to_string(player->GetAreaId())
         + ",\"map_id\":"
         + std::to_string(player->GetMapId())
         + ",\"instance_id\":"

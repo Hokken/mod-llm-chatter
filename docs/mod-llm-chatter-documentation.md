@@ -97,7 +97,9 @@ off by `split_action_prefix()` and stored in the row's `action` column (a
 line that is nothing but an action stays intact). With
 `LLMChatter.ActionAsEmote.Enable = 1` (default), delivery sends it as a
 `/e`-style emote (`CHAT_MSG_MONSTER_EMOTE`, so the bot's name shows) just
-before the speech, on every channel. The action goes out only once the send
+before the speech, on every channel. Because the name comes first, an
+action always starts with a lowercase letter ("giggles", never "Giggles");
+an acronym such as "SI:7" keeps its case. The action goes out only once the send
 is known to be valid — for party, after the bot's group has been confirmed —
 so it never plays ahead of speech that fails. If the speech is retried after
 the action has been shown, the action is dropped from the row so it is not
@@ -960,7 +962,11 @@ A configuration enabling only one band is honored. Chosen hints are kept
 through repair and recorded as `general_reply_length_tier` in request
 metadata. Existing sentence-aware delivery cleanup still caps messages
 at 255 characters. Truly brief casual turns keep their separate tier and
-repair rules and do not expand into extended conversations.
+repair rules and do not expand into extended conversations. Only the
+spoken words count toward a brief turn's limits; a leading `*action*` is
+delivered as a separate emote and does not count. A proximity reply to
+the player that is still too long after its one repair is shortened by
+`bound_brief_casual_response()`, never dropped.
 
 This policy does not change Party, Guild or autonomous General lengths.
 Both configuration settings require a chatter bridge restart. Prompt
@@ -1085,6 +1091,7 @@ switched off separately (`Threads.GuildEnable`,
 | `LLMChatter.Threads.PersonaTopicWeight` | 60 | Fresh subjects from a bot's own interests |
 | `LLMChatter.Threads.SurroundingsTopicWeight` | 30 | Fresh subjects from the surroundings |
 | `LLMChatter.Threads.PoolTopicWeight` | 10 | Fresh subjects from the random topic pool |
+| `LLMChatter.Threads.LocationTopicWeight` | 40 | Fresh subjects tied to the place the speakers share (section 13za) |
 | `LLMChatter.Threads.SurpriseChance` | 12 | Percent of exchanges that explicitly allow a surprise |
 | `LLMChatter.Threads.HighEnergyThreshold` / `LowEnergyThreshold` | 60 / 30 | Energy bands for the move weights |
 | `LLMChatter.Threads.HighEnergyMoveWeights` | 70,20,5,5 | continue,drift,callback,new weights for a lively subject |
@@ -1306,7 +1313,11 @@ The relay chance is controlled by
 `LLMChatter.GroupChatter.GeneralRelayChance` and defaults to 10%. When a
 relay fires, the first party line is scheduled for 3-6 seconds after the
 General line's planned visible time. The first party line must reference
-the General speaker by name. Relay prompts limit every party line to 150
+the General speaker by name. The General speaker is not in the party and
+cannot hear party chat, so the prompts tell the bots to talk about what was
+said, in the third person, and never to answer or address its author; a
+conversation is the party members discussing those words among themselves.
+Relay prompts limit every party line to 150
 characters. If a provider still returns an overlong line, cleanup prefers a
 complete sentence and otherwise shortens at a word boundary instead of
 cutting through a word.
@@ -2841,6 +2852,75 @@ Builders that intentionally do **not** receive dungeon context injection:
 - OOM / low-health callouts (state-focused, not location-flavored)
 - level-up (character milestone, independent of location)
 
+### Location lore sources
+
+| Text | Source | Key | Lookup |
+|------|--------|-----|--------|
+| Short zone description | `ZONE_FLAVOR` in `chatter_constants.py` | zone ID | `get_zone_flavor()` |
+| Full zone description | zone `description` in `subzone_lore.json` | zone ID | `get_zone_lore()` |
+| Subzone description | subzone `description` in `subzone_lore.json` | zone ID, then area ID | `get_subzone_lore()` |
+| Dungeon, raid and arena description | `DUNGEON_FLAVOR` in `chatter_constants.py` | map ID | `get_dungeon_flavor()` |
+| Raid chat lore | `RAID_LORE` in `chatter_raid_prompts.py` | raid name | direct |
+| Battleground lore | `BG_LORE` in `chatter_constants.py` | battleground type ID | `get_bg_lore()` |
+
+All texts are written in the world's voice for the WotLK 3.3.5 timeline:
+no game terms, no quest plots, neutral between the factions, and bosses
+described as present powers. `ZONE_FLAVOR`, `DUNGEON_FLAVOR` and `BG_LORE`
+have ruRU, frFR, deDE and esES copies in `tools/locales`. The full zone
+description and the subzone descriptions are English only;
+`get_zone_lore()` returns nothing when the configured language has a
+translated `ZONE_FLAVOR` entry, so callers fall back to it. Unreachable and
+never-built areas have an empty subzone description, which also falls back
+to the zone text.
+
+The full zone description is used only where the zone itself is the
+subject: arriving in a zone (`bot_group_zone_transition`) and the Guild
+zone topic. Everything else uses the short `ZONE_FLAVOR`.
+
+Arenas are in `DUNGEON_FLAVOR`, so every instance-aware path treats them
+as instances; the four open-air arenas are also in `OPEN_AIR_INSTANCES`.
+`BG_MAP_NAMES` lists all six battlegrounds, including Strand of the
+Ancients and Isle of Conquest.
+
+### Where open-world location lore is injected
+
+- **Proximity** (`proximity_say`, `proximity_conversation`, replies,
+  player say and emote scenes): `build_location_prompt_lines(extra,
+  describe=True)` adds the zone description and the subzone description,
+  each when it exists. It is added when any speaker is in-world (an NPC
+  in either mode, or a playerbot in roleplay mode) and the
+  `LLMChatter.LocationContext.EventChance` roll passes (default 50), like
+  the party reactions; the scene always names the zone and subzone. A
+  scene whose topic is a location topic (section 13za) skips the roll and
+  always carries both descriptions, because the topic only names the
+  place. The payload carries
+  `area_id` for this; a payload from an older worldserver without it finds
+  the subzone by its `subzone_name` within the zone
+  (`find_subzone_id()`).
+- **Party reactions in the open world** (kill, death, wipe, corpse run,
+  quest accept, quest objectives, quest complete and their conversation
+  variants, join greeting): roleplay mode only, through
+  `maybe_event_location_lines()`. The roll uses
+  `LLMChatter.LocationContext.EventChance` (default 50), because subzone
+  descriptions are long and these lines are short. Instances and
+  battlegrounds are skipped; they keep their own flavor.
+- **Party idle chatter, bot questions, player replies, General
+  reactions, nearby objects and screenshots**: zone and subzone
+  description in roleplay mode, names in normal mode.
+- **Guild world events** (`guild_meet_greeting`, `guild_npc_encounter`):
+  zone and subzone description in roleplay mode. The `/say` greeting adds
+  both itself; the Guild posts (the meet follow-up and the NPC encounter)
+  are built with `name_location`, which lets the line name the speaker's
+  zone and adds its description, and the scenario adds the subzone
+  description. Other Guild event lines still may not name where a speaker
+  is. `guild_join_zone_announce` gets the zone description.
+- **Transport arrivals**: `transport_arrives` sends `dock_area_id`, the
+  area the boat or zeppelin is in as it arrives, so the arrival can
+  describe the harbour. Other world events (weather, holidays, day and
+  night) are zone-wide General chat and get the zone description only.
+- **General ambient chatter and replies to players in General**: zone
+  description only. General is zone-wide, so no subzone is described.
+
 ---
 
 ## 13n. Persistent Bot–Player Memory
@@ -3279,14 +3359,18 @@ authoritative.
 
 ### Topic pools
 
-`PROXIMITY_CHAT_TOPICS` in `chatter_constants.py` provides 250+
-topics across 17 categories:
+`PROXIMITY_CHAT_TOPICS` in `chatter_constants.py` provides 150
+overheard daily-life topics: rumors and news, coin, appearance, food and
+drink, travel, people and gossip, lore, health, animals, omens, leisure,
+romance, worries and hopes, faith, and grumbles. Any speaker may draw any
+entry anywhere, so no entry assumes the weather, a season or holiday, a
+feature of the place, or the speaker's job, home or age.
 
-- weather, travel, local flavor, trade, rumors, daily life, military,
-  faction politics, wildlife, profession, food and drink, history,
-  adventure, philosophy, humor, seasonal, and general social
-
-That pool remains the source for NPCs and roleplay-mode playerbots.
+That pool is the universal source for NPCs and roleplay-mode playerbots.
+At `LocationTopics.Chance` they get a topic tied to the zone or instance
+instead (section 13za). The topic names the place, and such a scene always
+carries the zone and subzone descriptions; scenes with a pool topic get
+them at `LocationContext.EventChance`.
 `PROXIMITY_PLAYER_CHAT_TOPICS` supplies normal-mode playerbot `/say`
 subjects such as gameplay progress, interface/keybind observations,
 queues, routes, group needs, and light player banter. Mixed conversations
@@ -3374,7 +3458,8 @@ when changing these Python-owned settings.
 | `chatter_proximity_pacing.py` | Bounded length-aware gaps for nearby conversation sequences |
 | `chatter_instance_context.py` | Shared instance location/lore grounding |
 | `chatter_boss_dialogue.py` | Safe one-line boss prompt and `myell` insertion |
-| `chatter_constants.py` | `PROXIMITY_CHAT_TOPICS` (250+ entries) |
+| `chatter_constants.py` | `PROXIMITY_CHAT_TOPICS` (150 entries) |
+| `chatter_location_topics.py` | Topics tied to the zone or instance |
 | `chatter_db.py` | Speaker, player, drop, and explicit addressee message fields |
 | `chatter_event_registry.py` | Ordinary and boss event routing |
 
@@ -3974,6 +4059,9 @@ The prompts state what happened (who killed whom, where, the factions and
 how their levels compared) and let the bot's personality and tone decide
 the reaction. Death reactions list anger, grief, a shrug, a dry joke, a
 vow of revenge or a warning as possibilities, never as a required mood.
+In roleplay mode the other fighter (the victim of a kill, the killer of a
+death) gets the same people-and-calling lore note as the speaker, with a
+priest split into Light or Shadow by talents.
 
 ### Faction and enemy context in existing PvP prompts
 
@@ -4087,7 +4175,18 @@ The prompts describe what happened and let each bot's personality and
 tone decide how it reacts. Typical reactions are offered as options (a
 greeting, a nod, a dry remark, a question; congratulations, teasing,
 indifference or disdain for the guild), never as the required mood. The
-NPC encounter does not claim the bot has never met the NPC before.
+NPC encounter does not claim the bot has never met the NPC before. It
+offers no list of verdicts to pick from: each prompt draws one angle at
+random from `NPC_REMARK_ANGLES` (the NPC's look, their trade, a brief
+exchange, how they fit the place, something curious, a memory they stir)
+and asks the bot to react to one concrete detail instead of rating the
+NPC. An NPC without a title of its own whose role is only a game term
+("Quest Giver", "NPC", "Rare Creature") is introduced as a local
+inhabitant. A title is used as a noun ("this innkeeper", "this king of
+Stormwind") only when it names a person, judged by its head word. A title
+that lists wares ("Potions, Scrolls and Reagents", "Food & Drink") or names
+a group ("Argent Dawn") is shown as the title under the NPC's name, and the
+line mentions the NPC by name instead.
 
 ## 13w. Guild Member Events
 
@@ -4191,7 +4290,7 @@ prompt (idle statements and conversations, player replies and login
 greetings) quotes the Guild Information text when it is set, as background
 about the guild and never as instructions.
 
-### MOTD and zone topics in Guild chat
+### MOTD, subzone and zone topics in Guild chat
 
 An idle Guild statement or conversation can take a guild-specific subject
 instead of a generic one:
@@ -4199,6 +4298,7 @@ instead of a generic one:
 | Subject | Key | Default | Notes |
 |---------|-----|---------|-------|
 | Current MOTD | `GuildChatter.MotdChance` | 15 | Framed as a casual note, never instructions |
+| Speaker's opinion of its subzone | `GuildChatter.SubzoneTopicChance` | 10 | Names the subzone and zone; roleplay adds both descriptions |
 | Speaker's opinion of its zone | `GuildChatter.ZoneTopicChance` | 10 | Names the zone; others agree or argue |
 | Zone at this hour and in this weather | `GuildChatter.ZoneWeatherTopicChance` | 8 | Uses the cached zone weather sent by the server |
 
@@ -4212,6 +4312,12 @@ used. The zone weather comes from `GetZoneWeatherName()`, added to the
 has no observation for the zone (and absent from events queued before
 the upgrade); the zone-weather topic is then skipped rather than
 inventing a weather.
+
+The subzone topic is only rolled when the speaker stands inside a named
+subzone of its zone. `guild_idle_chatter` carries the speaker's `area_id`,
+and each participant object carries its own; events queued by an older
+worldserver have none, and the subzone topic is then skipped. The zone
+topic uses the full zone description from `get_zone_lore()`.
 
 #### MOTD tone
 
@@ -4416,6 +4522,7 @@ apply `data/sql/characters/updates/20261002_guild_world_events.sql`
 because `llm_chatter_events.event_type` is an SQL enum.
 
 | `GuildChatter.MotdChance` | 15 | 15 | Bridge |
+| `GuildChatter.SubzoneTopicChance` | 10 | 10 | Bridge |
 | `GuildChatter.ZoneTopicChance` | 10 | 10 | Bridge |
 | `GuildChatter.ZoneWeatherTopicChance` | 8 | 8 | Bridge |
 | `GuildChatter.GeneralDiscussionChance` | 10 | 5 | Bridge |
@@ -4648,6 +4755,66 @@ priests split into Light and Shadow by spec
 All keys are under `LLMChatter.`. Existing installations must apply
 `data/sql/characters/updates/20261002_themed_topic_audience.sql`, which
 adds `llm_chatter_queue.audience_context`.
+
+## 13za. Location Topics and Universal Topic Pools
+
+### Universal pools
+
+The random topic pools for in-world speech (`AMBIENT_CHAT_TOPICS_RP`,
+`PROXIMITY_CHAT_TOPICS`, `RP_MESSAGE_CATEGORIES`, `GUILD_CHAT_TOPICS_RP`
+and the roleplay `BOT_QUESTION_TOPICS`) hold only subjects that fit any
+speaker anywhere. No entry may assume something the prompt does not
+supply: the weather, the season or a holiday, the time of day, a feature
+of the current place (ruins, a market, a port), or the speaker's mount,
+profession, home or age. `_AMBIENT_CHAT_TOPICS_SHARED` keeps only entries
+that suit both modes; the game and surroundings subjects that read fine as
+player chatter live in the normal-only part of `AMBIENT_CHAT_TOPICS`.
+
+### Location topics
+
+`tools/location_topics.json` gives every open-world zone, dungeon and raid
+its own topic list (about 5,350 topics), keyed by zone ID (`zones`) or map
+ID (`maps`, with `kind` `dungeon` or `raid`). `chatter_location_topics.py`
+draws one:
+
+- inside a dungeon or raid map, from that instance's list, never the
+  zone's; in the open world, from the zone's list;
+- never in battlegrounds or arenas, and never for a place without a list
+  or a description (seas and connecting zones have none);
+- with the place's description: `ZONE_FLAVOR` for a zone, the
+  `DUNGEON_FLAVOR` text for an instance.
+
+The prompt line names the place and says the subject belongs to it ("A
+subject tied to Elwynn Forest, where the speakers are now: ..."). The
+description reaches the prompt once: builders that already carry the zone
+or instance description (party, General, proximity, raids with a `Lore`
+line) add only the subject line; the others add `Location description:`.
+
+| Channel | Who | Same place |
+|---------|-----|------------|
+| Party idle statement and conversation | Roleplay mode | The real player and every speaking bot in the same zone and map (`characters.zone`/`map` and each bot's `llm_group_bot_traits` row) |
+| Party bot question to the player | Roleplay mode | The player and the asking bot, as above |
+| General ambient statement and conversation | Roleplay mode | The channel's zone; its speakers are in it |
+| Proximity `/say` scenes and replies | NPCs in both modes, playerbots in roleplay | The event's zone or instance |
+| Raid idle morale and banter | Roleplay mode | The group's raid map |
+
+Guild chat never uses location topics: its speakers are elsewhere, and
+the Guild zone and subzone topics cover talk about where a speaker is.
+Normal-mode bots keep their player-talk pools. Memory recalls keep their
+own focus.
+
+With conversation threads on, a location topic is a fresh-subject source
+(`location`) weighted by `Threads.LocationTopicWeight`, offered in
+instances too. Its default (40) stays below `Threads.PersonaTopicWeight`
+(60), so fresh subjects remain mostly persona-driven. Without a thread, it replaces the universal topic at
+`LocationTopics.Chance`; a guild or themed subject that took the turn
+keeps it.
+
+| Key | Default | Quieter preset | Owner |
+|-----|---------|----------------|-------|
+| `LocationTopics.Enable` | 1 | 1 | Bridge |
+| `LocationTopics.Chance` (threads off only) | 40 | 40 | Bridge |
+| `Threads.LocationTopicWeight` | 40 | 40 | Bridge |
 
 ## 14. JSON and Queue Contracts
 

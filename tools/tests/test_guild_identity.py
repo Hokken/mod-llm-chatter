@@ -415,8 +415,10 @@ def test_zone_topics_name_the_zone():
               'LLMChatter.GuildChatter.ZoneTopicChance': 100}
     with patch.object(chatter_guild, 'get_zone_name',
                       return_value='Duskwood'), \
+            patch.object(chatter_guild, 'get_zone_lore',
+                         return_value='Endless night.'), \
             patch.object(chatter_guild, 'get_zone_flavor',
-                         return_value='Endless night.'):
+                         return_value='Short night.'):
         zone = chatter_guild._pick_guild_topic(
             config, 'roleplay', _profile(), zone_id=10)
         weather = chatter_guild._guild_zone_weather_topic(
@@ -429,6 +431,57 @@ def test_zone_topics_name_the_zone():
     assert any('the way a player would chat' in line
                for line in weather.lines)
     assert chatter_guild._guild_zone_topic(0, 'roleplay') is None
+
+
+def test_subzone_topic_names_the_subzone_and_zone():
+    config = {'LLMChatter.GuildChatter.MotdChance': 0,
+              'LLMChatter.GuildChatter.SubzoneTopicChance': 100}
+    with patch.object(chatter_guild, 'get_zone_name',
+                      return_value='Elwynn Forest'), \
+            patch.object(chatter_guild, 'get_subzone_name',
+                         return_value='Goldshire'), \
+            patch.object(chatter_guild, 'get_subzone_lore',
+                         return_value='A busy crossroads village.'), \
+            patch.object(chatter_guild, 'get_zone_flavor',
+                         return_value='Green farmland.'):
+        rp = chatter_guild._pick_guild_topic(
+            config, 'roleplay', _profile(), zone_id=12, area_id=87)
+        normal = chatter_guild._pick_guild_topic(
+            config, 'normal', _profile(), zone_id=12, area_id=87)
+    assert rp.kind == 'subzone' and rp.name_zone
+    assert 'opinion of Goldshire in Elwynn Forest' in rp.subject
+    assert 'What Goldshire is like: A busy crossroads village.' in rp.lines
+    assert 'The wider land of Elwynn Forest: Green farmland.' in rp.lines
+    assert any('may name Goldshire and Elwynn Forest' in line
+               for line in rp.lines)
+    assert not any('crossroads village' in line for line in normal.lines)
+    assert any('the way a player would chat' in line
+               for line in normal.lines)
+
+
+def test_subzone_topic_needs_a_real_subzone():
+    config = {'LLMChatter.GuildChatter.MotdChance': 0,
+              'LLMChatter.GuildChatter.SubzoneTopicChance': 100,
+              'LLMChatter.GuildChatter.ZoneTopicChance': 0,
+              'LLMChatter.GuildChatter.ZoneWeatherTopicChance': 0}
+    with patch.object(chatter_guild, 'get_zone_name',
+                      return_value='Elwynn Forest'):
+        # No area in the payload (older worldserver): never rolled.
+        assert chatter_guild._pick_guild_topic(
+            config, 'roleplay', _profile(), zone_id=12) is None
+        # The speaker stands in the zone itself, not a subzone.
+        with patch.object(chatter_guild, 'get_subzone_name',
+                          return_value=None):
+            assert chatter_guild._pick_guild_topic(
+                config, 'roleplay', _profile(), zone_id=12,
+                area_id=12) is None
+        with patch.object(chatter_guild, 'get_subzone_name',
+                          return_value='Goldshire'):
+            off = dict(config, **{
+                'LLMChatter.GuildChatter.SubzoneTopicChance': 0})
+            assert chatter_guild._pick_guild_topic(
+                off, 'roleplay', _profile(), zone_id=12,
+                area_id=87) is None
 
 
 def test_zero_chance_disables_a_guild_topic():

@@ -3465,6 +3465,23 @@ LLMChatter.ThemedTopics.OwnTrainerChance = 50
 LLMChatter.RaceClassNotes.Enable = 1
 
 #
+#   LLMChatter.GuildChatter.SubzoneTopicChance
+#       Percent chance (0-100) that an idle Guild line is the
+#       speaker's opinion of the subzone it is standing in
+#       (for example Goldshire in Elwynn Forest), with the
+#       subzone and zone descriptions in roleplay mode;
+#       others agree or argue. Only rolled when the speaker
+#       is inside a named subzone, and before the zone topic.
+#       When conversation threads are on for Guild chat
+#       (LLMChatter.Threads.GuildEnable), a hit only offers
+#       this topic to the thread's pool source, so
+#       LLMChatter.Threads.PoolTopicWeight decides how often
+#       it is actually used.
+#       Default: 10
+#
+LLMChatter.GuildChatter.SubzoneTopicChance = 10
+
+#
 #   LLMChatter.GuildChatter.ZoneTopicChance
 #       Percent chance (0-100) that an idle Guild line is the
 #       speaker's opinion of its current zone; others agree or
@@ -4265,6 +4282,56 @@ LLMChatter.Persona.SpiceChance = 30
 #
 LLMChatter.PersonalitySpiceCount = 2
 
+#
+#   LLMChatter.LocationContext.EventChance [BRIDGE]
+#       Percent chance (0-100) that a roleplay party reaction
+#       in the open world (kill, death, wipe, corpse run,
+#       quest accept/objectives/complete, join greeting)
+#       includes the description of the subzone the party
+#       is in, and the zone description where the reaction
+#       had none. Subzone descriptions are long, so short
+#       reactions do not carry them every time. Dungeon,
+#       raid and battleground reactions keep their own
+#       instance context. Outdoor proximity /say scenes with
+#       an NPC or a roleplay playerbot use the same roll for
+#       their zone and subzone descriptions; a scene with a
+#       location topic always carries them. 0 disables the
+#       extra context.
+#       Requires bridge restart to take effect.
+#       Default: 50
+#
+LLMChatter.LocationContext.EventChance = 50
+
+#
+#   LLMChatter.LocationTopics.Enable [BRIDGE]
+#       Topics tied to the place the speakers are in: every
+#       open-world zone, dungeon and raid has its own list
+#       (tools/location_topics.json). The prompt names the
+#       place, says the topic belongs to it and carries the
+#       place's description. Used by roleplay-mode party idle
+#       chatter and bot questions, roleplay General chatter,
+#       raid idle chatter in roleplay mode, and proximity
+#       scenes (NPCs in both modes, playerbots in roleplay).
+#       Party topics need the player and every speaking bot
+#       in the same zone or instance. Guild chat, battlegrounds
+#       and arenas never use them.
+#       1 = enabled, 0 = disabled (universal topics only)
+#       Requires bridge restart to take effect.
+#       Default: 1
+#
+LLMChatter.LocationTopics.Enable = 1
+
+#
+#   LLMChatter.LocationTopics.Chance [BRIDGE]
+#       Percent chance (0-100) that a location topic replaces
+#       the universal random topic, where conversation threads
+#       do not pick the subject. With threads on,
+#       LLMChatter.Threads.LocationTopicWeight decides instead.
+#       Requires bridge restart to take effect.
+#       Default: 40
+#
+LLMChatter.LocationTopics.Chance = 40
+
 ###############################################################################
 # CONVERSATION THREADS (party, guild and General chatter)
 ###############################################################################
@@ -4354,6 +4421,19 @@ LLMChatter.Threads.PoolTopicWeight = 10
 #       Default: 25
 #
 LLMChatter.Threads.ThemedTopicWeight = 25
+
+#
+#   LLMChatter.Threads.LocationTopicWeight [BRIDGE]
+#       Weight (0-100) of a topic tied to the place the speakers
+#       are in (see LLMChatter.LocationTopics.*) as a fresh
+#       subject, next to the weights above. Offered in dungeons
+#       and raids too, and only when the speakers share the
+#       place; 0 never picks one while threads are on. Kept
+#       below PersonaTopicWeight so fresh subjects stay mostly
+#       persona-driven.
+#       Default: 40
+#
+LLMChatter.Threads.LocationTopicWeight = 40
 
 #
 #   LLMChatter.Threads.SurpriseChance [BRIDGE]

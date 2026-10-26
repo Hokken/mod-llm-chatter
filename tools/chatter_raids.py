@@ -12,6 +12,7 @@ via dual_worker_dispatch, and mark event status.
 import logging
 import random
 
+from chatter_db import get_group_location
 from chatter_shared import parse_extra_data
 from chatter_group_state import _mark_event
 from chatter_raid_base import (
@@ -146,6 +147,18 @@ def process_raid_idle_morale_event(
             'raid_idle_morale', extra_data):
         _mark_event(db, event_id, 'skipped')
         return False
+
+    # The payload names the raid but not its map; the
+    # group's location gives the map for a topic tied
+    # to this raid.
+    if not extra_data.get('map_id'):
+        try:
+            group_id = int(extra_data.get('group_id') or 0)
+        except (TypeError, ValueError):
+            group_id = 0
+        if group_id:
+            extra_data['map_id'] = get_group_location(
+                db, group_id)[2]
 
     # 50/50 split between morale and banter
     if random.random() < 0.5:

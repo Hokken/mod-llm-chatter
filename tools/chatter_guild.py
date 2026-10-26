@@ -29,6 +29,9 @@ from chatter_shared import (
     get_race_name,
     get_zone_name,
     get_zone_flavor,
+    get_zone_lore,
+    get_subzone_name,
+    get_subzone_lore,
     parse_extra_data,
     parse_conversation_response,
     race_class_note,
@@ -516,7 +519,8 @@ def _build_guild_prompt(
 
 @dataclass
 class GuildTopic:
-    """A guild-specific idle subject: the MOTD or the speaker's zone."""
+    """A guild-specific idle subject: the MOTD, or the speaker's zone
+    or subzone."""
     kind: str
     subject: str
     lines: List[str] = field(default_factory=list)
@@ -553,7 +557,7 @@ def _guild_zone_topic(zone_id: int, mode: str) -> Optional[GuildTopic]:
     if not zone:
         return None
     lines = []
-    flavor = get_zone_flavor(zone_id)
+    flavor = get_zone_lore(zone_id) or get_zone_flavor(zone_id)
     if flavor and is_roleplay(mode):
         lines.append(f"What {zone} is like: {flavor}")
     lines.append("Others may agree or argue, drawing on their own time "
@@ -589,14 +593,53 @@ def _guild_zone_weather_topic(
     )
 
 
+def _guild_subzone_topic(
+    zone_id: int, area_id: int, mode: str,
+) -> Optional[GuildTopic]:
+    """The speaker's opinion of the subzone it stands in; None when
+    the speaker is not inside a named subzone of its zone."""
+    zone = get_zone_name(zone_id) if zone_id else ''
+    subzone = get_subzone_name(zone_id, area_id)
+    if not zone or not subzone or subzone == zone:
+        return None
+    lines = []
+    if is_roleplay(mode):
+        subzone_lore = get_subzone_lore(zone_id, area_id)
+        if subzone_lore:
+            lines.append(f"What {subzone} is like: {subzone_lore}")
+        flavor = get_zone_flavor(zone_id)
+        if flavor:
+            lines.append(f"The wider land of {zone}: {flavor}")
+    lines.append(
+        f"The speaker may name {subzone} and {zone} as where they are; "
+        "the other guildmates are elsewhere. Others may agree or argue, "
+        "drawing on their own time there."
+    )
+    lines += _normal_mode_lines(mode)
+    return GuildTopic(
+        'subzone',
+        f"the speaker's opinion of {subzone} in {zone}, where they are "
+        "right now",
+        lines, name_zone=True,
+    )
+
+
 def _pick_guild_topic(
     config: Dict, mode: str, profile, zone_id: int = 0, weather=None,
+    area_id: int = 0,
 ) -> Optional[GuildTopic]:
     """Sometimes an idle guild line is about the MOTD or the speaker's
-    zone instead of a generic topic; None keeps the generic topics."""
+    subzone or zone instead of a generic topic; None keeps the generic
+    topics."""
     motd = _motd_topic(config, profile, mode)
     if motd:
         return GuildTopic('motd', motd)
+    if area_id and random.randint(1, 100) <= _bounded_percent(
+        config, 'LLMChatter.GuildChatter.SubzoneTopicChance', 10,
+    ):
+        topic = _guild_subzone_topic(zone_id, area_id, mode)
+        if topic:
+            return topic
     if random.randint(1, 100) <= _bounded_percent(
         config, 'LLMChatter.GuildChatter.ZoneTopicChance', 10,
     ):
@@ -701,6 +744,7 @@ def _process_guild_statement_event(
     if thread_turn is None and not topic_override:
         special = _pick_guild_topic(
             config, chatter_mode, profile, zone_id, extra.get('weather'),
+            area_id=_safe_int(extra.get('area_id')),
         )
         themed = _guild_themed_candidate(
             db, config, extra,
@@ -1111,6 +1155,7 @@ def _normalize_guild_participants(
                 'guid': guid,
                 'name': name,
                 'zone_id': _safe_int(raw.get('zone_id')),
+                'area_id': _safe_int(raw.get('area_id')),
                 'map_id': _safe_int(raw.get('map_id')),
             })
 
@@ -1126,6 +1171,7 @@ def _normalize_guild_participants(
                 'guid': guid,
                 'name': name,
                 'zone_id': _safe_int(extra.get('zone_id')),
+                'area_id': _safe_int(extra.get('area_id')),
                 'map_id': _safe_int(event.get('map_id')),
             })
 
@@ -1965,11 +2011,19 @@ def process_guild_idle_chatter_event(
     )
     profile = get_guild_profile(db, extra.get('guild_id'))
     primary = loaded_participants[0]
+    # The area id only pairs with the zone it was read with.
+    topic_zone_id, topic_area_id = (
+        (_safe_int(primary.get('zone_id')),
+         _safe_int(primary.get('area_id')))
+        if _safe_int(primary.get('zone_id'))
+        else (_safe_int(extra.get('zone_id')),
+              _safe_int(extra.get('area_id')))
+    )
     special = _pick_guild_topic(
         config, chatter_mode, profile,
-        _safe_int(primary.get('zone_id')) or _safe_int(
-            extra.get('zone_id')),
+        topic_zone_id,
         extra.get('weather'),
+        area_id=topic_area_id,
     )
     themed = _guild_themed_candidate(
         db, config, extra, primary, chatter_mode,

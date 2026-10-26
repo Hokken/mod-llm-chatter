@@ -23,6 +23,119 @@
 * Needs the `data/sql/characters/updates/20261022_loot_roll_comments.sql`
   update and a worldserver rebuild.
 
+### 2026-10-26 - Guild Post Fixes and a Spoiler-Free Scarlet Enclave
+
+* **Guild posts about NPCs read naturally**: an NPC whose title lists
+  its wares ("Potions, Scrolls and Reagents") or names a group ("Argent
+  Dawn") is no longer called "this potions, scrolls and reagents"; person
+  titles such as "Innkeeper" still read "this innkeeper", and an NPC known
+  only as a "Quest Giver" is a local inhabitant.
+* **Guild meetings and NPC posts know the place**: the meeting greeting,
+  its Guild follow-up and the NPC post carry both the zone and the subzone
+  description in roleplay mode, and the Guild posts are no longer told not
+  to name the place they are about.
+* **The party talks about a General speaker, not to them**: party reactions
+  to a bot's General line no longer answer its author, who cannot hear
+  party chat (#84, thanks Vladimir37).
+
+### 2026-10-26 - Location Topics and Universal Topic Pools
+
+* **No more talk about things that are not there**: the random topics
+  for in-world speech used to assume weather, places and lives the game
+  never tracks, so a bot could greet the first snow in a jungle, worry
+  about its garden fence in a forest camp, or mention the market and the
+  ruins outside a town that has neither. The roleplay, proximity, Guild
+  roleplay and bot-question pools now hold only subjects that fit any
+  speaker anywhere, and player-side subjects ("bio break", leveling,
+  professions) no longer reach roleplay bots.
+* **Topics tied to the place**: every open-world zone, dungeon and raid
+  has its own topic list (about 5,350 topics). The prompt names the place,
+  says the subject belongs to it and carries its description. Roleplay
+  party chatter and bot questions, roleplay General chatter, roleplay raid
+  idle chatter and proximity scenes (NPCs in both modes) use them. Party
+  topics need the player and every speaking bot in the same zone or
+  instance. Guild chat, battlegrounds and arenas do not use them.
+* **New settings**: `LLMChatter.LocationTopics.Enable`,
+  `LLMChatter.LocationTopics.Chance` (default 40, threads off) and
+  `LLMChatter.Threads.LocationTopicWeight` (default 40, below the persona
+  weight of 60, so fresh subjects stay mostly persona-driven). Bridge restart
+  only; no worldserver rebuild. The module's built-in chance before the
+  config is read now matches the 40 default too.
+* **The Scarlet Enclave** (the death knight start area) now has a zone
+  name and description in all five languages (#84, thanks Vladimir37).
+
+### 2026-10-26 - Chatter Fixes
+
+* **Replies to a player addressing an NPC by name are no longer lost**:
+  a short proximity reply that began with an action (`*wipes the bar*`)
+  was measured with the action included, failed the length check twice
+  and was dropped. The action does not count any more, since it is sent
+  as a separate emote, and a reply that is still too long after its
+  repair is shortened instead of dropped.
+* **Actions start lowercase**: the game shows the bot's name before an
+  emote, so "Giggles" read as "Veliana Giggles". Actions now always begin
+  with a lowercase letter, with or without asterisks.
+* **Proximity scenes describe the subzone**: `/say` scenes and replies now
+  carry both the zone and the subzone description. With a worldserver that
+  does not send `area_id` yet, the subzone is found by its name.
+* **PvP reactions know the enemy**: in roleplay mode, Guild and General
+  kill and death reactions include the other fighter's people-and-calling
+  lore note, not only the speaker's.
+* **Varied NPC opinions**: the Guild NPC-encounter prompt no longer lists
+  ready-made verdicts ("helpful, odd, overpriced, worth a visit") that the
+  model kept repeating. Each prompt picks one angle to react from.
+* **Single-line zone descriptions**: `ZONE_FLAVOR` texts in English and the
+  four translations are now single lines, like the subzone descriptions
+  (#84, thanks Vladimir37).
+
+### 2026-10-26 - Rewritten Location Lore and Wider Place Context
+
+* **New zone and subzone descriptions**: all subzone texts were rewritten
+  from Wowpedia for the 3.3.5 timeline, in the world's voice and without
+  quest spoilers. The old texts were generated from the area name alone;
+  more than half were in the first person and many were simply wrong.
+  Unreachable and never-built areas now have no text, so their prompts
+  fall back to the zone description.
+* **Every real zone has a description**: `ZONE_FLAVOR` was rebuilt from the
+  new zone texts and grew from 64 to 98 zones, adding Alterac Mountains,
+  Dragonblight, Eversong Woods, Ghostlands, Stonetalon Mountains,
+  Wintergrasp, the seas and the small connecting zones. Arriving in a zone
+  and the Guild zone topic now use the full zone description.
+* **Higher prompt-token cost**: zone descriptions are about twice as long
+  as before (median about 270 to 590 characters), and more prompts now
+  carry a zone or subzone description, so prompts that include them cost
+  noticeably more input tokens. On a paid API, lowering
+  `LLMChatter.LocationContext.EventChance` reduces it for party reactions
+  and proximity scenes (0 leaves the descriptions out there, except in
+  proximity scenes with a location topic).
+* **Instance lore rewritten**: dungeon, raid and battleground descriptions
+  no longer carry game commentary ("the culmination of Wrath of the Lich
+  King", "loot-focused"). The five arenas, Strand of the Ancients and Isle
+  of Conquest now have lore, and party chatter in those battlegrounds is
+  treated as battleground chatter.
+* **Translations**: the new zone, instance and battleground texts are
+  translated into Russian, French, German and Spanish, with official
+  localized place names.
+* **More prompts know where they are**: proximity `/say` scenes, guild
+  meeting and NPC-encounter posts, boat and zeppelin arrivals, and
+  roleplay party reactions in the open world (kills, deaths, wipes, corpse
+  runs, quests, join greetings) now get the subzone or zone description.
+  The party reactions and outdoor proximity scenes roll
+  `LLMChatter.LocationContext.EventChance` so short lines do not always
+  carry long lore; a proximity scene whose topic is tied to the place
+  always gets both descriptions.
+* **Guild chat about the subzone**: an idle Guild line can now be the
+  speaker's opinion of the subzone it stands in, together with its zone
+  (`LLMChatter.GuildChatter.SubzoneTopicChance`).
+* **Fixes**: a normal-mode party reply no longer receives roleplay subzone
+  lore, a nearby-object comment falls back to the zone description when the
+  subzone has none, and normal-mode instance prompts name the instance
+  instead of calling every instance a dungeon.
+* **New settings**: `LLMChatter.LocationContext.EventChance` and
+  `LLMChatter.GuildChatter.SubzoneTopicChance`. The proximity, guild idle and
+  transport events carry new payload fields, so this needs a worldserver
+  rebuild as well as a bridge restart (#84, thanks Vladimir37).
+
 ### 2026-10-25 - Correct Pronouns for Party Members
 
 * **Bots no longer call everyone "he"**: party prompts gave the speaking
