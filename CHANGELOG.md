@@ -53,7 +53,7 @@
   to name the place they are about.
 * **The party talks about a General speaker, not to them**: party reactions
   to a bot's General line no longer answer its author, who cannot hear
-  party chat.
+  party chat (#84, thanks Vladimir37).
 
 ### 2026-10-22 - Less Repetitive Boss Talk in Idle Chatter
 
@@ -112,9 +112,10 @@
   `LLMChatter.LocationTopics.Chance` (default 40, threads off) and
   `LLMChatter.Threads.LocationTopicWeight` (default 40, below the persona
   weight of 60, so fresh subjects stay mostly persona-driven). Bridge restart
-  only; no worldserver rebuild.
+  only; no worldserver rebuild. The module's built-in chance before the
+  config is read now matches the 40 default too.
 * **The Scarlet Enclave** (the death knight start area) now has a zone
-  name and description in all five languages.
+  name and description in all five languages (#84, thanks Vladimir37).
 
 ### 2026-10-21 - Chatter Fixes
 
@@ -137,7 +138,8 @@
   ready-made verdicts ("helpful, odd, overpriced, worth a visit") that the
   model kept repeating. Each prompt picks one angle to react from.
 * **Single-line zone descriptions**: `ZONE_FLAVOR` texts in English and the
-  four translations are now single lines, like the subzone descriptions.
+  four translations are now single lines, like the subzone descriptions
+  (#84, thanks Vladimir37).
 
 ### 2026-10-21 - Rewritten Location Lore and Wider Place Context
 
@@ -185,7 +187,7 @@
 * **New settings**: `LLMChatter.LocationContext.EventChance` and
   `LLMChatter.GuildChatter.SubzoneTopicChance`. The proximity, guild idle and
   transport events carry new payload fields, so this needs a worldserver
-  rebuild as well as a bridge restart.
+  rebuild as well as a bridge restart (#84, thanks Vladimir37).
 
 ### 2026-10-19 - Non-English Chatter Crash Fix
 

@@ -28,7 +28,7 @@ from chatter_shared import (
 
 logger = logging.getLogger(__name__)
 
-_settings = {'enable': True, 'chance': 70}
+_settings = {'enable': True, 'chance': 40}
 _topics: Optional[Dict] = None
 
 
