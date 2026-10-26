@@ -1091,7 +1091,7 @@ switched off separately (`Threads.GuildEnable`,
 | `LLMChatter.Threads.PersonaTopicWeight` | 60 | Fresh subjects from a bot's own interests |
 | `LLMChatter.Threads.SurroundingsTopicWeight` | 30 | Fresh subjects from the surroundings |
 | `LLMChatter.Threads.PoolTopicWeight` | 10 | Fresh subjects from the random topic pool |
-| `LLMChatter.Threads.LocationTopicWeight` | 70 | Fresh subjects tied to the place the speakers share (section 13za) |
+| `LLMChatter.Threads.LocationTopicWeight` | 40 | Fresh subjects tied to the place the speakers share (section 13za) |
 | `LLMChatter.Threads.SurpriseChance` | 12 | Percent of exchanges that explicitly allow a surprise |
 | `LLMChatter.Threads.HighEnergyThreshold` / `LowEnergyThreshold` | 60 / 30 | Energy bands for the move weights |
 | `LLMChatter.Threads.HighEnergyMoveWeights` | 70,20,5,5 | continue,drift,callback,new weights for a lively subject |
@@ -2816,8 +2816,13 @@ Ancients and Isle of Conquest.
 - **Proximity** (`proximity_say`, `proximity_conversation`, replies,
   player say and emote scenes): `build_location_prompt_lines(extra,
   describe=True)` adds the zone description and the subzone description,
-  each when it exists. It is added when any speaker is in-world: an NPC
-  in either mode, or a playerbot in roleplay mode. The payload carries
+  each when it exists. It is added when any speaker is in-world (an NPC
+  in either mode, or a playerbot in roleplay mode) and the
+  `LLMChatter.LocationContext.EventChance` roll passes (default 50), like
+  the party reactions; the scene always names the zone and subzone. A
+  scene whose topic is a location topic (section 13za) skips the roll and
+  always carries both descriptions, because the topic only names the
+  place. The payload carries
   `area_id` for this; a payload from an older worldserver without it finds
   the subzone by its `subzone_name` within the zone
   (`find_subzone_id()`).
@@ -3292,7 +3297,9 @@ feature of the place, or the speaker's job, home or age.
 
 That pool is the universal source for NPCs and roleplay-mode playerbots.
 At `LocationTopics.Chance` they get a topic tied to the zone or instance
-instead (section 13za); the scene's location lines describe the place.
+instead (section 13za). The topic names the place, and such a scene always
+carries the zone and subzone descriptions; scenes with a pool topic get
+them at `LocationContext.EventChance`.
 `PROXIMITY_PLAYER_CHAT_TOPICS` supplies normal-mode playerbot `/say`
 subjects such as gameplay progress, interface/keybind observations,
 queues, routes, group needs, and light player banter. Mixed conversations
@@ -4727,15 +4734,16 @@ own focus.
 
 With conversation threads on, a location topic is a fresh-subject source
 (`location`) weighted by `Threads.LocationTopicWeight`, offered in
-instances too. Without a thread, it replaces the universal topic at
+instances too. Its default (40) stays below `Threads.PersonaTopicWeight`
+(60), so fresh subjects remain mostly persona-driven. Without a thread, it replaces the universal topic at
 `LocationTopics.Chance`; a guild or themed subject that took the turn
 keeps it.
 
 | Key | Default | Quieter preset | Owner |
 |-----|---------|----------------|-------|
 | `LocationTopics.Enable` | 1 | 1 | Bridge |
-| `LocationTopics.Chance` (threads off only) | 70 | 70 | Bridge |
-| `Threads.LocationTopicWeight` | 70 | 70 | Bridge |
+| `LocationTopics.Chance` (threads off only) | 40 | 40 | Bridge |
+| `Threads.LocationTopicWeight` | 40 | 40 | Bridge |
 
 ## 14. JSON and Queue Contracts
 

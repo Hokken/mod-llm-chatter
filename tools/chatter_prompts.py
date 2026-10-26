@@ -74,8 +74,8 @@ _recent_spices = collections.deque(maxlen=30)
 _spice_count = 2
 _spice_chance = 30
 _twist_chance = 25
-# Chance that an open-world party event reaction carries the
-# zone/subzone lore (LLMChatter.LocationContext.EventChance).
+# Chance that an open-world party event reaction or proximity scene
+# carries the zone/subzone lore (LLMChatter.LocationContext.EventChance).
 _event_location_chance = 50
 
 TWIST_LABEL = (
@@ -205,9 +205,15 @@ def maybe_event_location_lines(
         return []
     if get_dungeon_flavor(map_id) is not None or map_id in BG_MAP_NAMES:
         return []
-    if random.randint(1, 100) > _event_location_chance:
+    if not roll_event_location_chance():
         return []
     return location_lore_lines(zone_id, area_id, include_zone)
+
+
+def roll_event_location_chance() -> bool:
+    """One LocationContext.EventChance roll for an outdoor prompt that
+    may carry the zone/subzone descriptions."""
+    return random.randint(1, 100) <= _event_location_chance
 
 
 def format_spices_line(spices) -> str:

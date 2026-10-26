@@ -4224,7 +4224,11 @@ LLMChatter.PersonalitySpiceCount = 2
 #       had none. Subzone descriptions are long, so short
 #       reactions do not carry them every time. Dungeon,
 #       raid and battleground reactions keep their own
-#       instance context. 0 disables the extra context.
+#       instance context. Outdoor proximity /say scenes with
+#       an NPC or a roleplay playerbot use the same roll for
+#       their zone and subzone descriptions; a scene with a
+#       location topic always carries them. 0 disables the
+#       extra context.
 #       Requires bridge restart to take effect.
 #       Default: 50
 #
@@ -4256,9 +4260,9 @@ LLMChatter.LocationTopics.Enable = 1
 #       do not pick the subject. With threads on,
 #       LLMChatter.Threads.LocationTopicWeight decides instead.
 #       Requires bridge restart to take effect.
-#       Default: 70
+#       Default: 40
 #
-LLMChatter.LocationTopics.Chance = 70
+LLMChatter.LocationTopics.Chance = 40
 
 ###############################################################################
 # CONVERSATION THREADS (party, guild and General chatter)
@@ -4356,10 +4360,12 @@ LLMChatter.Threads.ThemedTopicWeight = 25
 #       are in (see LLMChatter.LocationTopics.*) as a fresh
 #       subject, next to the weights above. Offered in dungeons
 #       and raids too, and only when the speakers share the
-#       place; 0 never picks one while threads are on.
-#       Default: 70
+#       place; 0 never picks one while threads are on. Kept
+#       below PersonaTopicWeight so fresh subjects stay mostly
+#       persona-driven.
+#       Default: 40
 #
-LLMChatter.Threads.LocationTopicWeight = 70
+LLMChatter.Threads.LocationTopicWeight = 40
 
 #
 #   LLMChatter.Threads.SurpriseChance [BRIDGE]

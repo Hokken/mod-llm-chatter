@@ -48,7 +48,7 @@ def configure_location_topics(config) -> None:
         config, 'LLMChatter.LocationTopics.Enable', 1, 0, 1
     ) == 1
     _settings['chance'] = _clamped_int(
-        config, 'LLMChatter.LocationTopics.Chance', 70, 0, 100
+        config, 'LLMChatter.LocationTopics.Chance', 40, 0, 100
     )
 
 

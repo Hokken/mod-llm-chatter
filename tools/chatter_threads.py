@@ -68,7 +68,7 @@ def _default_settings() -> dict:
         'persona_weight': 60,
         'surroundings_weight': 30,
         'pool_weight': 10,
-        'location_weight': 70,
+        'location_weight': 40,
         'surprise_chance': 12,
         'high_threshold': 0.6,
         'low_threshold': 0.3,
@@ -168,7 +168,7 @@ def configure_threads(config) -> None:
         ),
         'location_weight': _int(
             config, 'LLMChatter.Threads.LocationTopicWeight',
-            70, 0, 100,
+            40, 0, 100,
         ),
         'surprise_chance': _int(
             config, 'LLMChatter.Threads.SurpriseChance', 12, 0, 100

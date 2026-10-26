@@ -35,7 +35,6 @@ from chatter_shared import (
     find_addressed_bot,
     should_reply_to_optional_casual,
     brief_casual_response_fits,
-    bound_brief_casual_response,
     build_brief_casual_repair_prompt,
     parse_conversation_response,
     parse_extra_data,
@@ -51,7 +50,10 @@ from chatter_member_gender import (
     get_character_genders,
     get_genders_by_guid,
 )
-from chatter_prompts import build_environmental_context_lines
+from chatter_prompts import (
+    build_environmental_context_lines,
+    roll_event_location_chance,
+)
 from chatter_mode import (
     build_npc_chat_guidance,
     build_player_chat_guidance,
@@ -365,17 +367,22 @@ def _pick_topic(pool, extra: Optional[Dict]) -> str:
     return random.choice(pool)
 
 
+class _PlaceSubject(str):
+    """A topic tied to the scene's place. The topic only names the
+    place, so the scene always carries its zone and subzone
+    descriptions, skipping the LocationContext.EventChance roll."""
+
+
 def _in_world_topic(extra: Optional[Dict]) -> str:
     """Topic for an in-world speaker (an NPC, or a roleplay
-    playerbot): one tied to this place at LocationTopics.Chance,
-    else the universal pool. The scene's location lines describe
-    the place."""
+    playerbot): one tied to this place at LocationTopics.Chance
+    (a _PlaceSubject), else the universal pool."""
     location = (
         roll_location_topic(extra.get('zone_id'), extra.get('map_id'))
         if extra else None
     )
     if location is not None:
-        return location.subject_line()
+        return _PlaceSubject(location.subject_line())
     return _pick_topic(PROXIMITY_CHAT_TOPICS, extra)
 
 
@@ -645,14 +652,17 @@ def _location_lines(
     mode: str,
     speakers: List[Dict],
     db=None,
+    place_topic: bool = False,
 ) -> List[str]:
     # The place description is world lore, so it goes to scenes with
-    # an in-world speaker: any NPC, or playerbots in roleplay mode.
+    # an in-world speaker: any NPC, or playerbots in roleplay mode. It
+    # is long, so like the party events only at LocationContext.EventChance,
+    # unless the scene's topic is tied to the place (place_topic).
     lines = build_location_prompt_lines(
         extra,
         describe=any(
             _speaker_is_roleplay(speaker, mode) for speaker in speakers
-        ),
+        ) and (place_topic or roll_event_location_chance()),
     )
     context = build_instance_context(extra)
     observation = extra.get('screenshot_observation')
@@ -759,8 +769,8 @@ def _parse_brief_single_with_retry(
 ) -> Dict:
     """Parse a single response and repair one oversized brief turn.
 
-    If the repair still runs long, the reply is bounded rather than
-    dropped: the player addressed this speaker and is waiting.
+    If the repair still runs long, the reply is delivered whole rather
+    than dropped: the player addressed this speaker and is waiting.
     """
     parsed = parse_single_response(response or '')
     if not brief_casual:
@@ -797,7 +807,7 @@ def _parse_brief_single_with_retry(
         return parsed
     if not parsed.get('message') and not parsed.get('emote'):
         parsed = first
-    message, emote = bound_brief_casual_response(
+    message, emote = _whole_reply(
         str(parsed.get('message') or ''),
         parsed.get('emote'),
         str(first.get('message') or ''),
@@ -821,17 +831,36 @@ def _brief_conversation_fits(messages: List[Dict]) -> bool:
     )
 
 
-def _bound_brief_conversation(messages: List[Dict]) -> List[Dict]:
-    """Bound each overlong line of a brief exchange instead of dropping
-    the whole reply to the player."""
-    bounded = []
+def _whole_reply(
+    message: str,
+    emote: Optional[str] = None,
+    fallback_message: str = '',
+    fallback_emote: Optional[str] = None,
+):
+    """An over-long brief reply, delivered whole.
+
+    The length band only steers the prompt; nothing is cut down to a
+    first sentence. Only the client chat limit applies, through
+    shorten_chat_message().
+    """
+    source = (
+        str(message or '').strip()
+        or str(fallback_message or '').strip()
+    )
+    return shorten_chat_message(source), emote or fallback_emote
+
+
+def _whole_brief_conversation(messages: List[Dict]) -> List[Dict]:
+    """Deliver each line of an over-long brief exchange whole instead
+    of dropping the whole reply to the player."""
+    delivered = []
     for line in messages or []:
-        message, emote = bound_brief_casual_response(
+        message, emote = _whole_reply(
             str(line.get('message') or ''), line.get('emote'),
         )
         if message or emote:
-            bounded.append({**line, 'message': message, 'emote': emote})
-    return bounded
+            delivered.append({**line, 'message': message, 'emote': emote})
+    return delivered
 
 
 def _set_line_addressee(
@@ -1020,6 +1049,7 @@ def _single_prompt(
     ])
     lines.extend(_location_lines(
         extra, mode, [speaker], db=db,
+        place_topic=isinstance(topic, _PlaceSubject),
     ))
     if player_message or player_addressed:
         _extend_new(lines, _player_lines(db, extra, mode, [speaker]))
@@ -1119,6 +1149,7 @@ def _conversation_prompt(
         speaker.get('is_npc')
         for speaker in participants
     )
+    place_topic = False
     fight_topic = _fight_topic(extra, mode, db=db, neutral=has_npc)
     if isinstance(extra.get('screenshot_observation'), dict):
         topic = None
@@ -1126,9 +1157,12 @@ def _conversation_prompt(
         topic = fight_topic
     elif is_roleplay(mode) or not has_playerbot:
         topic = _in_world_topic(extra)
+        place_topic = isinstance(topic, _PlaceSubject)
     else:
+        npc_topic = _in_world_topic(extra)
+        place_topic = isinstance(npc_topic, _PlaceSubject)
         topic = (
-            "NPC angle: " + _in_world_topic(extra)
+            "NPC angle: " + npc_topic
             + "; playerbot angle: "
             + _pick_topic(PROXIMITY_PLAYER_CHAT_TOPICS, extra)
         )
@@ -1211,7 +1245,7 @@ def _conversation_prompt(
         db, extra, participants, third_person=True
     ))
     lines.extend(_location_lines(
-        extra, mode, participants, db=db,
+        extra, mode, participants, db=db, place_topic=place_topic,
     ))
     if player_addressed and player_name:
         _extend_new(lines, _player_lines(db, extra, mode, participants))
@@ -2473,7 +2507,7 @@ def handle_proximity_player_conversation(
             allow_emote_only=True,
         )
         if not _brief_conversation_fits(parsed):
-            parsed = _bound_brief_conversation(parsed)
+            parsed = _whole_brief_conversation(parsed)
     line_delay = max(0, int(
         extra.get('line_delay_seconds', 4) or 4
     ))

@@ -201,6 +201,23 @@ def test_proximity_location_lines_describe_on_request():
         unknown, describe=True)[-1].startswith('Zone context: Elwynn')
 
 
+def test_proximity_scene_lore_follows_the_event_chance():
+    import chatter_proximity as prox
+
+    extra = {'zone_id': 12, 'area_id': 87, 'map_id': 0,
+             'zone_name': 'Elwynn Forest', 'subzone_name': 'Goldshire'}
+    npc = {'name': 'Tomas', 'is_npc': True}
+    with patch.object(chatter_prompts, '_event_location_chance', 100):
+        text = '\n'.join(prox._location_lines(extra, 'roleplay', [npc]))
+        assert 'Zone context: Elwynn Forest' in text
+        assert 'About this place: Goldshire' in text
+    with patch.object(chatter_prompts, '_event_location_chance', 0):
+        text = '\n'.join(prox._location_lines(extra, 'roleplay', [npc]))
+        assert 'Zone context:' not in text
+        assert 'About this place:' not in text
+        assert 'Subzone: Goldshire' in text
+
+
 def test_find_subzone_id_stays_inside_the_zone():
     from chatter_shared import find_subzone_id
 
@@ -233,7 +250,8 @@ def test_proximity_describes_for_in_world_speakers():
         return any(line.startswith('About this place') for line in lines)
 
     with patch.object(prox, '_environment_lines', return_value=[]), \
-            patch.object(prox, '_player_context_line', return_value=''):
+            patch.object(prox, '_player_context_line', return_value=''), \
+            patch.object(chatter_prompts, '_event_location_chance', 100):
         assert not has_lore(prox._location_lines(extra, 'normal', [bot]))
         assert has_lore(prox._location_lines(extra, 'normal', [bot, npc]))
         assert has_lore(prox._location_lines(extra, 'roleplay', [bot]))

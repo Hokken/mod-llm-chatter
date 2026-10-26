@@ -109,8 +109,9 @@
   topics need the player and every speaking bot in the same zone or
   instance. Guild chat, battlegrounds and arenas do not use them.
 * **New settings**: `LLMChatter.LocationTopics.Enable`,
-  `LLMChatter.LocationTopics.Chance` (default 70, threads off) and
-  `LLMChatter.Threads.LocationTopicWeight` (default 70). Bridge restart
+  `LLMChatter.LocationTopics.Chance` (default 40, threads off) and
+  `LLMChatter.Threads.LocationTopicWeight` (default 40, below the persona
+  weight of 60, so fresh subjects stay mostly persona-driven). Bridge restart
   only; no worldserver rebuild.
 * **The Scarlet Enclave** (the death knight start area) now has a zone
   name and description in all five languages.
@@ -151,6 +152,13 @@
   Dragonblight, Eversong Woods, Ghostlands, Stonetalon Mountains,
   Wintergrasp, the seas and the small connecting zones. Arriving in a zone
   and the Guild zone topic now use the full zone description.
+* **Higher prompt-token cost**: zone descriptions are about twice as long
+  as before (median about 270 to 590 characters), and more prompts now
+  carry a zone or subzone description, so prompts that include them cost
+  noticeably more input tokens. On a paid API, lowering
+  `LLMChatter.LocationContext.EventChance` reduces it for party reactions
+  and proximity scenes (0 leaves the descriptions out there, except in
+  proximity scenes with a location topic).
 * **Instance lore rewritten**: dungeon, raid and battleground descriptions
   no longer carry game commentary ("the culmination of Wrath of the Lich
   King", "loot-focused"). The five arenas, Strand of the Ancients and Isle
@@ -163,8 +171,10 @@
   meeting and NPC-encounter posts, boat and zeppelin arrivals, and
   roleplay party reactions in the open world (kills, deaths, wipes, corpse
   runs, quests, join greetings) now get the subzone or zone description.
-  The party reactions roll `LLMChatter.LocationContext.EventChance` so short
-  lines do not always carry long lore.
+  The party reactions and outdoor proximity scenes roll
+  `LLMChatter.LocationContext.EventChance` so short lines do not always
+  carry long lore; a proximity scene whose topic is tied to the place
+  always gets both descriptions.
 * **Guild chat about the subzone**: an idle Guild line can now be the
   speaker's opinion of the subzone it stands in, together with its zone
   (`LLMChatter.GuildChatter.SubzoneTopicChance`).

@@ -182,7 +182,7 @@ def test_chance_is_honored_and_clamped():
         {'LLMChatter.LocationTopics.Chance': '250'})
     assert lt._settings['chance'] == 100
     _reset()
-    assert lt._settings == {'enable': True, 'chance': 70}
+    assert lt._settings == {'enable': True, 'chance': 40}
 
 
 # -- Party -------------------------------------------------------------
@@ -325,6 +325,46 @@ def test_proximity_in_world_speakers_get_location_topics():
     ) in constants.PROXIMITY_PLAYER_CHAT_TOPICS
     lt.configure_location_topics(NEVER)
     assert prox._in_world_topic(extra) in constants.PROXIMITY_CHAT_TOPICS
+    _reset()
+
+
+def test_proximity_location_topic_always_carries_the_descriptions():
+    """A location topic only names the place, so the scene keeps the
+    zone and subzone descriptions even when the EventChance roll
+    would leave them out."""
+    import chatter_prompts
+    import chatter_proximity as prox
+
+    extra = {'zone_id': ELWYNN, 'area_id': 87, 'map_id': 0,
+             'zone_name': 'Elwynn Forest', 'subzone_name': 'Goldshire',
+             'player_name': 'Calwen', 'max_lines': 2}
+    npc = {'name': 'Tomas', 'is_npc': True, 'role': 'Cook'}
+    guard = {'name': 'Marshal Dughan', 'is_npc': True, 'role': 'Marshal'}
+    config = {'LLMChatter.ChatterMode': 'roleplay'}
+
+    def described(text):
+        return ('Zone context: Elwynn Forest' in text
+                and 'About this place: Goldshire' in text)
+
+    with patch.object(chatter_prompts, '_event_location_chance', 0):
+        lt.configure_location_topics(ALWAYS)
+        topic = prox._in_world_topic(extra)
+        assert isinstance(topic, prox._PlaceSubject)
+        single = prox._single_prompt(
+            None, extra, npc, topic, config=config).user_prompt
+        assert 'A subject tied to Elwynn Forest' in single
+        assert described(single)
+        convo = prox._conversation_prompt(
+            None, extra, [npc, guard], config=config).user_prompt
+        assert 'A subject tied to Elwynn Forest' in convo
+        assert described(convo)
+        # A pool topic still follows the roll.
+        lt.configure_location_topics(NEVER)
+        assert not described(prox._single_prompt(
+            None, extra, npc, prox._in_world_topic(extra),
+            config=config).user_prompt)
+        assert not described(prox._conversation_prompt(
+            None, extra, [npc, guard], config=config).user_prompt)
     _reset()
 
 
