@@ -1,46 +1,6 @@
 # Changelog
 
-### 2026-10-25 - Correct Pronouns for Party Members
-
-* **Bots no longer call everyone "he"**: party prompts gave the speaking
-  bot its own gender but named the other party members, the real player
-  and battleground players by name only, so bots defaulted to he/him
-  when talking about someone else. Party prompts (event reactions,
-  replies, conversations, emote, screenshot and General relay lines) now
-  state the gender of each party member and the player. Battleground
-  prompts state it for the flag carriers and node takers they name, and
-  multi-bot conversations describe each speaker as female or male. No
-  new settings and no rebuild needed.
-* **General channel genders**: ambient General chatter, world-event,
-  loot and cached party lines never knew the speaker's gender, and bots
-  talking in General had no gender for each other or for the player they
-  answered. Speakers now carry their gender, every General conversation
-  states who is female or male, and replies to a player state the
-  player's gender and that of the others in the exchange. Gossip about
-  another bot, zone intrusion yells and the Guild Master in guild-praise
-  topics include gender too.
-* **Guild chat genders**: in roleplay mode Guild prompts described every
-  speaker without gender. They now include it, and Guild prompts state
-  the genders of the online guildmates, recent Guild chat speakers,
-  people named in the session memory, the officer behind a rank change,
-  the guildmates a newcomer answers and the player met in the world.
-* **Proximity, emote, duel and event genders**: the bot an emote is
-  aimed at, nearby fighters and duellists, the open-world PvP enemy, the
-  adventurer a boss addresses, Arathi Basin node takers and the player
-  in stored memories now come with their gender. NPC-voiced proximity
-  lines describe the player in plain in-world terms, prompts listing
-  unnamed bystanders ask for names instead of pronouns, and cached heal
-  lines never guess their target's gender.
-* **NPC genders (needs a worldserver rebuild)**: the server now sends
-  the gender of nearby NPCs and bots, NPCs answering in /say, creatures
-  the player emotes at, NPCs met by guild members and bosses, so prompts
-  state it when the model has one. NPCs no longer show "gender:
-  unknown", and nearby characters sharing a name get no gender rather
-  than a wrong one. NPCs gossiped about in General use their world model
-  gender when it is unambiguous (no rebuild needed for that part). Guild
-  trainer rumors still name trainers without gender.
-
-### 2026-10-22 - Guild Post Fixes and a Spoiler-Free Scarlet Enclave
+### 2026-10-26 - Guild Post Fixes and a Spoiler-Free Scarlet Enclave
 
 * **Guild posts about NPCs read naturally**: an NPC whose title lists
   its wares ("Potions, Scrolls and Reagents") or names a group ("Argent
@@ -55,43 +15,7 @@
   to a bot's General line no longer answer its author, who cannot hear
   party chat (#84, thanks Vladimir37).
 
-### 2026-10-22 - Less Repetitive Boss Talk in Idle Chatter
-
-* **Boss names join only some idle party prompts**: in dungeons and
-  raids every idle party prompt used to list the same first six bosses
-  in alphabetical order, which invited bots to name-drop them again and
-  again. Now each idle prompt includes the list only on a roll, as a
-  random pick of up to six bosses, so large instances such as Blackrock
-  Depths show different bosses over time. The dungeon itself is always
-  in the prompt, and dungeon-entry and spell-reaction lines are
-  unchanged.
-* **New setting**: `LLMChatter.GroupChatter.IdleBossContextChance`
-  (default 40, quieter preset 25). It does not change how often bots
-  talk.
-
-### 2026-10-22 - Dungeon Finder Entry Lines Fix
-
-* **Dungeon entry lines no longer go missing in new groups**: when a
-  Dungeon Finder group formed, the dungeon-entry reaction could reach
-  the bridge before the group's bots were set up and was dropped as if
-  the group had disbanded; the 5-minute entry cooldown then also hid
-  the line on re-entry. A group event that arrives during setup is now
-  retried for a short while instead. Events for groups that are really
-  gone are still dropped, now with a log line.
-* **New settings**: `LLMChatter.Bridge.GroupSetupGraceSeconds`
-  (default 30, 0 turns the retry off) and
-  `LLMChatter.Bridge.GroupSetupRetrySeconds` (default 3).
-
-### 2026-10-22 - Dungeon Boss Names Fix
-
-* **Bots know the dungeon's bosses again**: since 2026-09-09 the boss
-  lookup failed with a MySQL error (1250) in every dungeon and raid, so
-  group chatter, spell reactions and dungeon-entry lines never got the
-  boss names. The query is fixed, and bots once more mention bosses such
-  as Edwin VanCleef or King Gordok when the group is inside (#82, thanks
-  Vezajin).
-
-### 2026-10-21 - Location Topics and Universal Topic Pools
+### 2026-10-26 - Location Topics and Universal Topic Pools
 
 * **No more talk about things that are not there**: the random topics
   for in-world speech used to assume weather, places and lives the game
@@ -117,7 +41,7 @@
 * **The Scarlet Enclave** (the death knight start area) now has a zone
   name and description in all five languages (#84, thanks Vladimir37).
 
-### 2026-10-21 - Chatter Fixes
+### 2026-10-26 - Chatter Fixes
 
 * **Replies to a player addressing an NPC by name are no longer lost**:
   a short proximity reply that began with an action (`*wipes the bar*`)
@@ -141,7 +65,7 @@
   four translations are now single lines, like the subzone descriptions
   (#84, thanks Vladimir37).
 
-### 2026-10-21 - Rewritten Location Lore and Wider Place Context
+### 2026-10-26 - Rewritten Location Lore and Wider Place Context
 
 * **New zone and subzone descriptions**: all subzone texts were rewritten
   from Wowpedia for the 3.3.5 timeline, in the world's voice and without
@@ -188,6 +112,82 @@
   `LLMChatter.GuildChatter.SubzoneTopicChance`. The proximity, guild idle and
   transport events carry new payload fields, so this needs a worldserver
   rebuild as well as a bridge restart (#84, thanks Vladimir37).
+
+### 2026-10-25 - Correct Pronouns for Party Members
+
+* **Bots no longer call everyone "he"**: party prompts gave the speaking
+  bot its own gender but named the other party members, the real player
+  and battleground players by name only, so bots defaulted to he/him
+  when talking about someone else. Party prompts (event reactions,
+  replies, conversations, emote, screenshot and General relay lines) now
+  state the gender of each party member and the player. Battleground
+  prompts state it for the flag carriers and node takers they name, and
+  multi-bot conversations describe each speaker as female or male. No
+  new settings and no rebuild needed.
+* **General channel genders**: ambient General chatter, world-event,
+  loot and cached party lines never knew the speaker's gender, and bots
+  talking in General had no gender for each other or for the player they
+  answered. Speakers now carry their gender, every General conversation
+  states who is female or male, and replies to a player state the
+  player's gender and that of the others in the exchange. Gossip about
+  another bot, zone intrusion yells and the Guild Master in guild-praise
+  topics include gender too.
+* **Guild chat genders**: in roleplay mode Guild prompts described every
+  speaker without gender. They now include it, and Guild prompts state
+  the genders of the online guildmates, recent Guild chat speakers,
+  people named in the session memory, the officer behind a rank change,
+  the guildmates a newcomer answers and the player met in the world.
+* **Proximity, emote, duel and event genders**: the bot an emote is
+  aimed at, nearby fighters and duellists, the open-world PvP enemy, the
+  adventurer a boss addresses, Arathi Basin node takers and the player
+  in stored memories now come with their gender. NPC-voiced proximity
+  lines describe the player in plain in-world terms, prompts listing
+  unnamed bystanders ask for names instead of pronouns, and cached heal
+  lines never guess their target's gender.
+* **NPC genders (needs a worldserver rebuild)**: the server now sends
+  the gender of nearby NPCs and bots, NPCs answering in /say, creatures
+  the player emotes at, NPCs met by guild members and bosses, so prompts
+  state it when the model has one. NPCs no longer show "gender:
+  unknown", and nearby characters sharing a name get no gender rather
+  than a wrong one. NPCs gossiped about in General use their world model
+  gender when it is unambiguous (no rebuild needed for that part). Guild
+  trainer rumors still name trainers without gender.
+
+### 2026-10-22 - Less Repetitive Boss Talk in Idle Chatter
+
+* **Boss names join only some idle party prompts**: in dungeons and
+  raids every idle party prompt used to list the same first six bosses
+  in alphabetical order, which invited bots to name-drop them again and
+  again. Now each idle prompt includes the list only on a roll, as a
+  random pick of up to six bosses, so large instances such as Blackrock
+  Depths show different bosses over time. The dungeon itself is always
+  in the prompt, and dungeon-entry and spell-reaction lines are
+  unchanged.
+* **New setting**: `LLMChatter.GroupChatter.IdleBossContextChance`
+  (default 40, quieter preset 25). It does not change how often bots
+  talk.
+
+### 2026-10-22 - Dungeon Finder Entry Lines Fix
+
+* **Dungeon entry lines no longer go missing in new groups**: when a
+  Dungeon Finder group formed, the dungeon-entry reaction could reach
+  the bridge before the group's bots were set up and was dropped as if
+  the group had disbanded; the 5-minute entry cooldown then also hid
+  the line on re-entry. A group event that arrives during setup is now
+  retried for a short while instead. Events for groups that are really
+  gone are still dropped, now with a log line.
+* **New settings**: `LLMChatter.Bridge.GroupSetupGraceSeconds`
+  (default 30, 0 turns the retry off) and
+  `LLMChatter.Bridge.GroupSetupRetrySeconds` (default 3).
+
+### 2026-10-22 - Dungeon Boss Names Fix
+
+* **Bots know the dungeon's bosses again**: since 2026-09-09 the boss
+  lookup failed with a MySQL error (1250) in every dungeon and raid, so
+  group chatter, spell reactions and dungeon-entry lines never got the
+  boss names. The query is fixed, and bots once more mention bosses such
+  as Edwin VanCleef or King Gordok when the group is inside (#82, thanks
+  Vezajin).
 
 ### 2026-10-19 - Non-English Chatter Crash Fix
 
