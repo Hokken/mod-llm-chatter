@@ -1888,6 +1888,21 @@ std::string GetLocalizedTitleName(
     return name ? name : "";
 }
 
+std::string GetUnitGenderLabel(Unit const* unit)
+{
+    if (!unit)
+        return "";
+    switch (unit->getGender())
+    {
+        case GENDER_FEMALE:
+            return "female";
+        case GENDER_MALE:
+            return "male";
+        default:
+            return "";
+    }
+}
+
 std::string BuildBotIdentityFields(
     Player* player, bool includeRoles)
 {

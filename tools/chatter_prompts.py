@@ -50,6 +50,7 @@ from chatter_persona import (
     persona_for_bot,
     persona_from_fields,
 )
+from chatter_member_gender import gender_prefix, speaker_gender_line
 
 logger = logging.getLogger(__name__)
 
@@ -1143,6 +1144,9 @@ def build_plain_conversation_prompt(
         append_environmental_context(parts, current_weather)
 
     parts.append(f"Speakers: {', '.join(bot_names)}")
+    gender_line = speaker_gender_line(bots)
+    if gender_line:
+        parts.append(gender_line)
     parts.append(
         "Names: Sometimes use their name when addressing "
         "directly (maybe 1-2 times in a conversation), but "
@@ -1172,7 +1176,7 @@ def build_plain_conversation_prompt(
             race = bot.get('race', '')
             cls = bot.get('class', '')
             parts.append(
-                f"{bot['name']} is a {race} {cls}"
+                f"{bot['name']} is a {gender_prefix(bot)}{race} {cls}"
                 f"{_guild_suffix(bot)}"
             )
             append_speaker_gear(parts, bot)
@@ -1333,6 +1337,8 @@ def _format_gossip_target(target: dict, target_type: str) -> str:
             f"name={target.get('name', 'Unknown NPC')}",
             f"function={target.get('function', 'local NPC')}",
         ]
+        if target.get('gender') in ('female', 'male'):
+            details.append(f"gender={target['gender']}")
         if target.get('subname'):
             details.append(f"title={target['subname']}")
         if target.get('kind'):
@@ -1352,12 +1358,15 @@ def _format_gossip_target(target: dict, target_type: str) -> str:
                 )
         return "; ".join(details)
 
-    return "; ".join([
-        f"name={target.get('name', 'Unknown bot')}",
+    details = [f"name={target.get('name', 'Unknown bot')}"]
+    if target.get('gender'):
+        details.append(f"gender={target['gender']}")
+    details += [
         f"race={target.get('race', 'Unknown')}",
         f"class={target.get('class', 'Adventurer')}",
         f"level={target.get('level', '?')}",
-    ])
+    ]
+    return "; ".join(details)
 
 
 def _append_gossip_context(
@@ -1515,6 +1524,9 @@ def build_gossip_conversation_prompt(
     )
 
     parts.append(f"Speakers: {', '.join(bot_names)}")
+    gender_line = speaker_gender_line(bots)
+    if gender_line:
+        parts.append(gender_line)
 
     seen_races = set()
     seen_classes = set()
@@ -1522,7 +1534,9 @@ def build_gossip_conversation_prompt(
         if is_rp or random.random() < 0.4:
             race = bot.get('race', '')
             cls = bot.get('class', '')
-            parts.append(f"{bot['name']} is a {race} {cls}")
+            parts.append(
+                f"{bot['name']} is a {gender_prefix(bot)}{race} {cls}"
+            )
             append_speaker_gear(parts, bot)
             if is_rp:
                 per_bot, shared_race, shared_class = (
@@ -1629,6 +1643,9 @@ def build_quest_conversation_prompt(
             f"a quest in {bots[0]['zone']}."
         )
     parts.append(f"Speakers: {', '.join(bot_names)}")
+    gender_line = speaker_gender_line(bots)
+    if gender_line:
+        parts.append(gender_line)
     parts.append(
         "Names: Sometimes use their name when addressing "
         "directly (maybe 1-2 times), but not every message."
@@ -1638,7 +1655,7 @@ def build_quest_conversation_prompt(
         for bot in bots:
             parts.append(
                 f"{bot['name']} is a "
-                f"{bot['race']} {bot['class']}"
+                f"{gender_prefix(bot)}{bot['race']} {bot['class']}"
                 f"{_guild_suffix(bot)}"
             )
             append_speaker_gear(parts, bot)
@@ -1777,6 +1794,9 @@ def build_event_conversation_prompt(
             f"roleplaying their characters."
         )
     parts.append(f"Speakers: {', '.join(bot_names)}")
+    gender_line = speaker_gender_line(bots)
+    if gender_line:
+        parts.append(gender_line)
     parts.append(
         "Names: Sometimes use their name when addressing "
         "directly (maybe once), but not every message."
@@ -1889,7 +1909,7 @@ def build_event_conversation_prompt(
             race = bot.get('race', '')
             cls = bot.get('class', '')
             parts.append(
-                f"{bot['name']} is a {race} {cls}"
+                f"{bot['name']} is a {gender_prefix(bot)}{race} {cls}"
                 f"{_guild_suffix(bot)}"
             )
             append_speaker_gear(parts, bot)
@@ -2109,6 +2129,7 @@ def build_event_statement_prompt(
         bot['bot1_race'],
         bot['bot1_class'],
         bot['bot1_level'],
+        gender=bot.get('bot1_gender') or '',
         mode=mode,
         channel='general',
     )
@@ -2315,6 +2336,9 @@ def build_spell_conversation_prompt(
     parts.append(
         f"Speakers: {', '.join(bot_names)}"
     )
+    gender_line = speaker_gender_line(bots)
+    if gender_line:
+        parts.append(gender_line)
     parts.append(
         "Names: Sometimes use their name when "
         "addressing directly (maybe once), but "
@@ -2347,7 +2371,7 @@ def build_spell_conversation_prompt(
     for bot in bots:
         parts.append(
             f"{bot['name']} is a "
-            f"{bot['race']} {bot['class']}"
+            f"{gender_prefix(bot)}{bot['race']} {bot['class']}"
             f"{_guild_suffix(bot)}"
         )
         append_speaker_gear(parts, bot)
@@ -2710,6 +2734,9 @@ def build_trade_conversation_prompt(
     parts.append(
         f"Speakers: {', '.join(bot_names)}"
     )
+    gender_line = speaker_gender_line(bots)
+    if gender_line:
+        parts.append(gender_line)
     parts.append(
         "Names: Sometimes use their name when "
         "addressing directly (maybe once), but "
@@ -2724,7 +2751,7 @@ def build_trade_conversation_prompt(
         for bot in bots:
             parts.append(
                 f"{bot['name']} is a "
-                f"{bot['race']} {bot['class']}"
+                f"{gender_prefix(bot)}{bot['race']} {bot['class']}"
                 f"{_guild_suffix(bot)}"
             )
             append_speaker_gear(parts, bot)
@@ -2940,6 +2967,7 @@ def build_zone_intrusion_prompt(
             defender_race,
             defender_class,
             defender_level,
+            gender=extra_data.get('defender_gender') or '',
             mode=mode,
             channel='general',
         )
@@ -2947,6 +2975,9 @@ def build_zone_intrusion_prompt(
     if rc_context:
         parts.append(rc_context)
 
+    intruder_gender = extra_data.get('intruder_gender') or ''
+    if intruder_gender:
+        intruder_race = f"{intruder_gender} {intruder_race}"
     parts.append(
         f"\nSITUATION: An enemy {intruder_race} "
         f"{intruder_class} named {intruder_name} "

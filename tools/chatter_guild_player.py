@@ -31,6 +31,13 @@ from chatter_threads import (
     guild_key,
     note_player_message,
     render_for_player_reply,
+    thread_names,
+)
+from chatter_member_gender import (
+    format_gender_line,
+    get_character_genders,
+    name_mentioned,
+    with_character_genders,
 )
 from chatter_persona import (
     CONVERSATION_EMOTION_RULE,
@@ -136,6 +143,38 @@ def _fetch_session_context(
     )
     recent = list(reversed(cursor.fetchall()))
     return summary, recent
+
+
+def _session_speaker_names(db, session_id, text: str) -> List[str]:
+    """Speakers recorded in this session whose names the given text
+    (the compact summary) mentions. Session rows outlive summarization
+    and Guild chat speakers are player characters, so no prose is parsed
+    and no NPC name is ever looked up."""
+    if not text or not session_id:
+        return []
+    cursor = None
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT DISTINCT speaker_name "
+            "FROM llm_guild_session_history "
+            "WHERE session_id = %s",
+            (session_id,),
+        )
+        names = [
+            str(row['speaker_name']) for row in cursor.fetchall()
+            if row.get('speaker_name')
+        ]
+    except Exception:
+        logger.debug("session speaker lookup failed", exc_info=True)
+        return []
+    finally:
+        if cursor is not None:
+            try:
+                cursor.close()
+            except Exception:
+                pass
+    return [name for name in names if name_mentioned(name, text)]
 
 
 def _format_session_context(
@@ -1148,6 +1187,13 @@ def _maybe_summarize_session(
         f"{transcript}\n\n"
         "Return the rewritten compact memory."
     )
+    # Pronouns in the stored memory: transcript speakers plus earlier
+    # session speakers the previous memory still names.
+    prompt = with_character_genders(
+        prompt, db,
+        [row.get('speaker_name') for row in candidates]
+        + _session_speaker_names(db, session_id, previous),
+    )
     prompt = append_json_instruction(
         prompt,
         allow_action=False,
@@ -1432,9 +1478,21 @@ def process_guild_player_message_event(
         '' if brief_casual
         else render_for_player_reply(thread_key, db)
     )
+    thread_people = thread_names(thread_key) if thread_note else []
     note_player_message(thread_key, player_name, player_message)
+    gender_line = format_gender_line(
+        get_character_genders(
+            db,
+            [row.get('speaker_name') for row in recent]
+            + _session_speaker_names(db, session_id, summary)
+            + thread_people + [player_name],
+        ),
+        player_name=player_name,
+        exclude=tuple(r['name'] for r in responders),
+    )
     session_context = '\n'.join(
-        part for part in (session_context, thread_note) if part
+        part for part in (session_context, thread_note, gender_line)
+        if part
     )
 
     if topology == 'single':

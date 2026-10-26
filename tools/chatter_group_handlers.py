@@ -78,6 +78,11 @@ from chatter_group_state import (
     get_bot_mood_label,
     update_bot_mood,
 )
+from chatter_member_gender import (
+    gender_from_id,
+    genders_by_named_guid,
+    with_party_genders,
+)
 from chatter_threads import render_for_player_reply
 from chatter_persona import (
     format_backstory_block,
@@ -190,6 +195,7 @@ def _pvp_kill_memory(db, ctx):
         return
     try:
         enemy_desc = ' '.join(p for p in (
+            gender_from_id(extra_data.get('enemy_gender')),
             get_race_name(
                 int(extra_data.get('enemy_race', 0))),
             get_class_name(
@@ -872,9 +878,16 @@ def _levelup_post_success(db, ctx, message):
     is_bot = ctx['is_bot']
     leveler_guid = ctx['leveler_guid']
     is_rp = ctx['mode'] == 'roleplay'
+    leveler_gender = genders_by_named_guid(
+        db, {leveler_name: leveler_guid},
+    ).get(leveler_name)
+    leveler = (
+        f"{leveler_name} ({leveler_gender})"
+        if leveler_gender else leveler_name
+    )
     other_context = (
-        f"{leveler_name} grew noticeably stronger"
-        if is_rp else f"{leveler_name} reached level {new_level}"
+        f"{leveler} grew noticeably stronger"
+        if is_rp else f"{leveler} reached level {new_level}"
     )
     self_context = (
         "I felt myself grow noticeably stronger"
@@ -1938,6 +1951,9 @@ def process_group_zone_transition_event(
             player_name=player_name,
             solo_bot=solo_bot,
         )
+        prompt = with_party_genders(
+            prompt, db, group_id, bot['name'],
+        )
         # Backstory (roleplay only, config-gated), as in
         # the shared reaction pipeline.
         zt_backstory = party_reaction_backstory(
@@ -2840,6 +2856,9 @@ def _nearby_object_conversation(
         map_id=map_id,
         zone_flavor=zone_flavor,
     )
+    prompt = with_party_genders(
+        prompt, db, group_id, '',
+    )
 
     # Scale tokens with number of bots
     max_tokens = int(config.get(
@@ -3131,6 +3150,9 @@ def execute_player_msg_conversation(
         ),
         bg_context=bg_context,
         thread_context=render_for_player_reply(group_id, db),
+    )
+    prompt = with_party_genders(
+        prompt, db, group_id, '',
     )
 
     # Token budget: max_tokens * (1 + num_bots),
@@ -3500,6 +3522,9 @@ def _quest_complete_conversation(
         zone_id=zone_id,
         area_id=area_id,
     )
+    prompt = with_party_genders(
+        prompt, db, group_id, '',
+    )
 
     num_bots = len(bots)
     bot_names = [b['name'] for b in bots]
@@ -3597,6 +3622,9 @@ def _quest_objectives_conversation(
             area_id=area_id,
         )
     )
+    prompt = with_party_genders(
+        prompt, db, group_id, '',
+    )
 
     num_bots = len(bots)
     bot_names = [b['name'] for b in bots]
@@ -3693,6 +3721,9 @@ def _quest_accept_conversation(
         speaker_talent_context=speaker_talent,
         zone_id=zone_id,
         area_id=area_id,
+    )
+    prompt = with_party_genders(
+        prompt, db, group_id, '',
     )
 
     num_bots = len(bots)

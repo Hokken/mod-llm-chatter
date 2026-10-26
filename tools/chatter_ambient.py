@@ -54,6 +54,7 @@ from chatter_group_general_reaction import (
 )
 from chatter_text import pick_statement_length
 from chatter_guild import _bounded_percent
+from chatter_member_gender import gender_prefix, with_character_genders
 from chatter_guild_profile import (
     get_character_guild,
     get_character_guild_name,
@@ -70,6 +71,7 @@ from chatter_threads import (
     plan_idle_turn,
     record_idle_exchange,
     report_tokens,
+    thread_names,
 )
 from chatter_shared import count_conversation_items, get_race_faction
 from chatter_progression import parse_audience
@@ -139,6 +141,16 @@ def _location_or_pool(location, topic_pool):
     if location is not None:
         return location.subject_line()
     return random.choice(topic_pool)
+
+
+def _with_thread_genders(prompt, db, request, zone_id, speakers):
+    """Genders of earlier General speakers the thread block may name
+    (lingering feelings, interruptions) who are not speaking now."""
+    return with_character_genders(
+        prompt, db,
+        thread_names(_general_thread_key(request, zone_id)),
+        exclude=tuple(speakers),
+    )
 
 
 def _general_thread_key(request, zone_id):
@@ -321,7 +333,9 @@ def _guild_praise_topic(db, config, bot: dict) -> str:
             50,
         )
     ):
-        leader_kind = f"{leader['race']} {leader['class']}"
+        leader_kind = (
+            f"{gender_prefix(leader)}{leader['race']} {leader['class']}"
+        )
         topic += (
             f", and its Guild Master {leader['name']}, "
             f"{indefinite_article(leader_kind)} {leader_kind}"
@@ -637,6 +651,9 @@ def process_statement(
         )
     if thread_turn is not None:
         zone_meta['thread_move'] = thread_turn.kind
+        prompt = _with_thread_genders(
+            prompt, db, request, zone_id, [bot['name']],
+        )
     if chosen_topic == "guild_praise":
         zone_meta['ambient_guild_topic'] = 'praise'
     response = call_llm(
@@ -945,6 +962,9 @@ def process_conversation(
     if thread_turn is not None:
         conversation_max_tokens += report_tokens()
         zone_meta['thread_move'] = thread_turn.kind
+        prompt = _with_thread_genders(
+            prompt, db, request, zone_id, bot_names,
+        )
     if chosen_topic == "guild_discussion":
         zone_meta['ambient_guild_topic'] = 'discussion'
     bot_names_ctx = ','.join(bot_names)

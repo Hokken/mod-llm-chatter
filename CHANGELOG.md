@@ -1,5 +1,45 @@
 # Changelog
 
+### 2026-10-25 - Correct Pronouns for Party Members
+
+* **Bots no longer call everyone "he"**: party prompts gave the speaking
+  bot its own gender but named the other party members, the real player
+  and battleground players by name only, so bots defaulted to he/him
+  when talking about someone else. Party prompts (event reactions,
+  replies, conversations, emote, screenshot and General relay lines) now
+  state the gender of each party member and the player. Battleground
+  prompts state it for the flag carriers and node takers they name, and
+  multi-bot conversations describe each speaker as female or male. No
+  new settings and no rebuild needed.
+* **General channel genders**: ambient General chatter, world-event,
+  loot and cached party lines never knew the speaker's gender, and bots
+  talking in General had no gender for each other or for the player they
+  answered. Speakers now carry their gender, every General conversation
+  states who is female or male, and replies to a player state the
+  player's gender and that of the others in the exchange. Gossip about
+  another bot, zone intrusion yells and the Guild Master in guild-praise
+  topics include gender too.
+* **Guild chat genders**: in roleplay mode Guild prompts described every
+  speaker without gender. They now include it, and Guild prompts state
+  the genders of the online guildmates, recent Guild chat speakers,
+  people named in the session memory, the officer behind a rank change,
+  the guildmates a newcomer answers and the player met in the world.
+* **Proximity, emote, duel and event genders**: the bot an emote is
+  aimed at, nearby fighters and duellists, the open-world PvP enemy, the
+  adventurer a boss addresses, Arathi Basin node takers and the player
+  in stored memories now come with their gender. NPC-voiced proximity
+  lines describe the player in plain in-world terms, prompts listing
+  unnamed bystanders ask for names instead of pronouns, and cached heal
+  lines never guess their target's gender.
+* **NPC genders (needs a worldserver rebuild)**: the server now sends
+  the gender of nearby NPCs and bots, NPCs answering in /say, creatures
+  the player emotes at, NPCs met by guild members and bosses, so prompts
+  state it when the model has one. NPCs no longer show "gender:
+  unknown", and nearby characters sharing a name get no gender rather
+  than a wrong one. NPCs gossiped about in General use their world model
+  gender when it is unambiguous (no rebuild needed for that part). Guild
+  trainer rumors still name trainers without gender.
+
 ### 2026-10-22 - Roll Comments and a Spoiler-Free Scarlet Enclave
 
 * **Bots explain their loot rolls**: when a party bot rolls Need or Greed

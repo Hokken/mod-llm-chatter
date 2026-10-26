@@ -57,6 +57,7 @@ from chatter_threads import (
     general_key,
     note_player_message,
     render_for_player_reply,
+    thread_names,
 )
 from chatter_general_length import (
     general_reply_length_line, pick_general_reply_tier,
@@ -68,6 +69,7 @@ from chatter_persona import (
     persona_from_fields,
 )
 from chatter_guild_profile import get_character_guild_name
+from chatter_member_gender import with_character_genders
 from chatter_mode import (
     build_player_chat_guidance,
     build_player_identity,
@@ -197,6 +199,14 @@ def _get_general_chat_history(
     """, (zone_id, limit))
     rows = cursor.fetchall()
     return list(reversed(rows))
+
+
+def _history_names(history):
+    """Speaker names in General history (always player characters)."""
+    return [
+        msg.get('speaker_name') for msg in history or ()
+        if msg.get('speaker_name')
+    ]
 
 
 def _format_general_history(history):
@@ -864,6 +874,8 @@ def process_general_player_msg_event(
     # joins it for the next ambient exchange.
     thread_key = general_key(zone_id, player_faction)
     thread_context = render_for_player_reply(thread_key, db)
+    # Earlier speakers the thread note may name (not just the cast).
+    thread_people = thread_names(thread_key) if thread_context else []
     note_player_message(thread_key, player_name, player_message)
 
     try:
@@ -996,6 +1008,10 @@ def process_general_player_msg_event(
             thread_context=thread_context,
             brief_tier=brief_tier1,
             reply_length_hint=general_reply_length_line(config, reply_tier1),
+        )
+        prompt1 = with_character_genders(
+            prompt1, db, _history_names(history) + thread_people,
+            player_name=player_name, exclude=(bot1_name,),
         )
 
         max_tokens = int(config.get(
@@ -1310,6 +1326,10 @@ def _general_followup(
         ),
         brief_tier=brief_tier2,
         reply_length_hint=general_reply_length_line(config, reply_tier2),
+    )
+    prompt2 = with_character_genders(
+        prompt2, db, _history_names(history) + [bot1_name],
+        player_name=player_name, exclude=(bot2_name,),
     )
 
     max_tokens = int(config.get(
@@ -1778,6 +1798,11 @@ def _general_extended_conversation(
             guild_name=get_character_guild_name(
                 db, speaker['guid']
             ),
+        )
+        prompt = with_character_genders(
+            prompt, db,
+            _history_names(history) + [t.get('name') for t in thread],
+            player_name=player_name, exclude=(speaker['name'],),
         )
 
         if zone_meta is None:

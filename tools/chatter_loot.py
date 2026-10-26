@@ -26,6 +26,7 @@ from chatter_shared import (
     cleanup_message,
     get_chatter_mode,
     get_class_name,
+    get_gender_label,
     get_race_name,
     get_zone_name,
     parse_extra_data,
@@ -107,6 +108,10 @@ def _resolve_looter(db, subject_guid):
         'class': bot_class,
         'race': bot_race,
         'level': int(row['bot1_level']),
+        'gender': (
+            get_gender_label(int(row['bot1_gender']))
+            if row.get('bot1_gender') is not None else ''
+        ),
     }
 
 

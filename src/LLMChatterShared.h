@@ -103,6 +103,9 @@ std::string GetLocalizedQuestObjectives(Quest const* quest);
 std::string GetLocalizedSpellName(SpellInfo const* spellInfo);
 std::string GetLocalizedAchievementName(AchievementEntry const* achievement);
 std::string GetLocalizedTitleName(CharTitlesEntry const* title, uint8 gender);
+// "female" / "male" for prompt payloads; "" when the unit is null or has
+// no gender (GENDER_NONE beasts, mechanicals), so it is never guessed.
+std::string GetUnitGenderLabel(Unit const* unit);
 uint32 GetTextEmoteId(const std::string& emoteName);
 bool IsBGAllowedEmote(const std::string& emoteName);
 void PlayUnitTextEmoteAnimation(Unit* unit, uint32 textEmoteId);

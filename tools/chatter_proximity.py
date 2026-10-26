@@ -46,6 +46,11 @@ from chatter_shared import (
     strip_conversation_actions,
 )
 from chatter_player_context import player_character_lines
+from chatter_member_gender import (
+    format_gender_line,
+    get_character_genders,
+    get_genders_by_guid,
+)
 from chatter_prompts import build_environmental_context_lines
 from chatter_mode import (
     build_npc_chat_guidance,
@@ -62,6 +67,36 @@ from chatter_text import (
 )
 
 logger = logging.getLogger(__name__)
+
+# nearby_names mix NPCs with bots. Older payloads carry no genders, so
+# prompts ask for names instead of pronouns; newer ones add
+# nearby_genders for the unambiguous entries with a known gender.
+_NEARBY_GENDER_RULE = (
+    "Use their names rather than guessing anyone's gender."
+)
+_NEARBY_UNSTATED_RULE = (
+    "For anyone whose gender is not stated, use their name rather "
+    "than guessing."
+)
+
+
+def _nearby_gender_text(extra: Dict, names) -> str:
+    """Pronoun guidance for the listed nearby people."""
+    genders = extra.get('nearby_genders')
+    if not isinstance(genders, dict):
+        return _NEARBY_GENDER_RULE
+    names = [str(n) for n in names or () if n]
+    known = {
+        name: genders.get(name) for name in names
+        if genders.get(name) in ('female', 'male')
+    }
+    parts = []
+    line = format_gender_line(known)
+    if line:
+        parts.append(line)
+    if any(name not in known for name in names):
+        parts.append(_NEARBY_UNSTATED_RULE)
+    return ' '.join(parts)
 
 _DEFAULT_EMOTE_TONES = [
     "briefly",
@@ -216,8 +251,9 @@ def _describe_speaker(
         parts = [speaker.get('name', 'NPC'), role]
         if sub_name:
             parts.append(sub_name)
+        # Older payloads send the literal "unknown"; never render it.
         gender = speaker.get('gender') or ''
-        if gender:
+        if gender in ('female', 'male'):
             parts.append(f"gender: {gender}")
         race = speaker.get('race') or ''
         if race:
@@ -351,9 +387,9 @@ def _playerbot_topic(
     return _pick_topic(PROXIMITY_PLAYER_CHAT_TOPICS, extra)
 
 
-def _describe_fighter(fighter: Dict) -> str:
-    """Name plus race/class/level; never labels anyone
-    as a bot."""
+def _describe_fighter(fighter: Dict, gender: str = '') -> str:
+    """Name plus race/class/level (and gender when known);
+    never labels anyone as a bot."""
     name = str(fighter.get('name') or '').strip()
     try:
         race = get_race_name(int(fighter.get('race', 0)))
@@ -362,17 +398,22 @@ def _describe_fighter(fighter: Dict) -> str:
     except (TypeError, ValueError):
         race, cls, level = '', '', 0
     desc = ' '.join(p for p in (
-        f"level {level}" if level else '', race, cls,
+        f"level {level}" if level else '', gender, race, cls,
     ) if p)
     return f"{name} ({desc})" if desc else name
 
 
-def _fight_topic(extra: Dict, mode: str) -> Optional[str]:
+def _fight_topic(
+    extra: Dict, mode: str, db=None, neutral: bool = False,
+) -> Optional[str]:
     """Topic seed for a nearby duel or open-world fight.
 
     C++ only includes fighters every speaker can perceive,
-    so an unseen fighter is never named. Returns None when
-    the event is not a fight scene.
+    so an unseen fighter is never named. Fighters are always
+    player characters, so their genders are looked up by
+    name. neutral (any NPC speaker) keeps the wording
+    in-world. Returns None when the event is not a fight
+    scene.
     """
     scene = extra.get('fight_scene')
     if not isinstance(scene, dict):
@@ -382,7 +423,13 @@ def _fight_topic(extra: Dict, mode: str) -> Optional[str]:
         f for f in (scene.get('fighters') or [])
         if isinstance(f, dict) and f.get('name')
     ]
-    names = [_describe_fighter(f) for f in fighters]
+    genders = get_character_genders(
+        db, [f.get('name') for f in fighters],
+    )
+    names = [
+        _describe_fighter(f, genders.get(f.get('name'), ''))
+        for f in fighters
+    ]
     who = ' and '.join(names) if names else 'two fighters'
     player = next(
         (f.get('name') for f in fighters
@@ -452,8 +499,16 @@ def _fight_topic(extra: Dict, mode: str) -> Optional[str]:
         )
 
     lines = [situation, tone]
+    # Duel results and kills print bare names, so every moment
+    # states the visible fighters' genders.
+    gender_line = format_gender_line(genders)
+    if gender_line:
+        lines.append(gender_line)
     if player:
         lines.append(
+            f"{player} is taking part; you may address them "
+            f"by name."
+            if neutral else
             f"{player} is the real player taking part; you "
             f"may address them by name."
         )
@@ -578,6 +633,13 @@ def _environment_lines(db, extra: Dict, is_instance: bool) -> List[str]:
     return build_environmental_context_lines(weather)
 
 
+def _extend_new(lines: List[str], new: List[str]) -> None:
+    """Append lines not already present (shared player description)."""
+    for line in new:
+        if line not in lines:
+            lines.append(line)
+
+
 def _location_lines(
     extra: Dict,
     mode: str,
@@ -599,9 +661,17 @@ def _location_lines(
         lines.extend(screenshot_context_lines(observation))
     else:
         lines.extend(_environment_lines(db, extra, context['is_instance']))
-    player_line = _player_context_line(db, extra)
-    if player_line:
-        lines.append(player_line)
+    if any(speaker.get('is_npc') for speaker in speakers):
+        # NPC voice rules: the neutral in-world description, never
+        # "the player".
+        _extend_new(lines, player_character_lines(
+            db, extra.get('player_guid'), extra.get('player_name', ''),
+            mode, neutral=True,
+        ))
+    else:
+        player_line = _player_context_line(db, extra)
+        if player_line:
+            lines.append(player_line)
     has_normal_playerbot = (
         not is_roleplay(mode)
         and any(
@@ -846,6 +916,24 @@ def _emote_addressed_participant(
     )
 
 
+def _addressed_gender_line(db, extra: Dict) -> str:
+    """Gender of the silent character an emote was aimed at: a bot by
+    its guid, an NPC by the gender C++ sent (dropped when unknown)."""
+    addressed = extra.get('addressed_participant')
+    if not isinstance(addressed, dict) or not addressed.get('name'):
+        return ''
+    name = str(addressed['name'])
+    if addressed.get('is_npc'):
+        gender = str(addressed.get('gender') or '')
+    else:
+        try:
+            guid = int(addressed.get('bot_guid', 0) or 0)
+        except (TypeError, ValueError):
+            guid = 0
+        gender = get_genders_by_guid(db, [guid]).get(guid, '')
+    return format_gender_line({name: gender})
+
+
 def _single_prompt(
     db,
     extra: Dict,
@@ -934,7 +1022,7 @@ def _single_prompt(
         extra, mode, [speaker], db=db,
     ))
     if player_message or player_addressed:
-        lines.extend(_player_lines(db, extra, mode, [speaker]))
+        _extend_new(lines, _player_lines(db, extra, mode, [speaker]))
     disposition_guidance = _npc_disposition_guidance(
         speaker
     )
@@ -997,15 +1085,14 @@ def _single_prompt(
                 "strangers and enemies to you; you share no past "
                 "with them. Keep the topic among your own kind, or "
                 "aim a wary, mocking or threatening remark at them. "
-                "Use their names rather than guessing anyone's gender."
+                + _nearby_gender_text(extra, nearby_names)
             )
         else:
             lines.append(
                 f"Nearby people you may address by name: {names}. "
                 "They are standing here with you right now: speak "
                 "to them, never about them as absent, missing or "
-                "elsewhere. Use their names rather than guessing "
-                "anyone's gender."
+                "elsewhere. " + _nearby_gender_text(extra, nearby_names)
             )
 
     # Use global EmoteChance / ActionChance gates
@@ -1032,7 +1119,7 @@ def _conversation_prompt(
         speaker.get('is_npc')
         for speaker in participants
     )
-    fight_topic = _fight_topic(extra, mode)
+    fight_topic = _fight_topic(extra, mode, db=db, neutral=has_npc)
     if isinstance(extra.get('screenshot_observation'), dict):
         topic = None
     elif fight_topic:
@@ -1127,7 +1214,7 @@ def _conversation_prompt(
         extra, mode, participants, db=db,
     ))
     if player_addressed and player_name:
-        lines.extend(_player_lines(db, extra, mode, participants))
+        _extend_new(lines, _player_lines(db, extra, mode, participants))
     lines.extend(_mixed_voice_guidance(mode))
 
     addressable = list(nearby_names)
@@ -1137,7 +1224,8 @@ def _conversation_prompt(
         lines.append(
             "Also nearby: "
             + ", ".join(addressable[:5])
-            + ". A speaker may address one of them."
+            + ". A speaker may address one of them. "
+            + _nearby_gender_text(extra, nearby_names)
         )
 
     lines.append("Speakers:")
@@ -1174,7 +1262,10 @@ def _generate_single_line(
     if isinstance(extra.get('screenshot_observation'), dict):
         topic = ''
     else:
-        topic = topic or _fight_topic(extra, get_chatter_mode(config or {}))
+        topic = topic or _fight_topic(
+            extra, get_chatter_mode(config or {}), db=db,
+            neutral=bool(speaker.get('is_npc')),
+        )
         topic = topic or (
             _in_world_topic(extra)
             if speaker.get('is_npc')
@@ -1408,6 +1499,11 @@ def handle_proximity_reply(db, client, config, event):
             'responder_qualification', ''
         ),
     }
+    # Newer payloads carry the responder's own gender; bots fall back
+    # to their guid lookup when it is missing.
+    responder_gender = str(extra.get('responder_gender') or '')
+    if responder_gender in ('female', 'male'):
+        responder['gender'] = responder_gender
     if (
         not responder['bot_guid']
         and not responder['npc_spawn_id']
@@ -1704,7 +1800,7 @@ def _player_say_single_prompt(
     if speech_guidance:
         lines.append(speech_guidance)
 
-    lines.extend(_player_lines(db, extra, mode, [speaker]))
+    _extend_new(lines, _player_lines(db, extra, mode, [speaker]))
     addressed = extra.get('addressed_name', '')
     if addressed:
         lines.append(
@@ -1731,7 +1827,8 @@ def _player_say_single_prompt(
         lines.append(
             "Reply to the player. Other nearby people may be mentioned "
             "but not addressed: "
-            + ", ".join(nearby_names[:5]) + "."
+            + ", ".join(nearby_names[:5]) + ". "
+            + _nearby_gender_text(extra, nearby_names)
         )
 
     return append_json_instruction(
@@ -1790,7 +1887,7 @@ def _player_say_conversation_prompt(
     ))
     lines.extend(_mixed_voice_guidance(mode))
 
-    lines.extend(_player_lines(db, extra, mode, participants))
+    _extend_new(lines, _player_lines(db, extra, mode, participants))
     addressed = extra.get('addressed_name', '')
     if addressed:
         lines.append(
@@ -1844,7 +1941,8 @@ def _player_say_conversation_prompt(
         lines.append(
             "Also nearby: "
             + ", ".join(nearby_names[:5])
-            + ". They may be mentioned but are not participants."
+            + ". They may be mentioned but are not participants. "
+            + _nearby_gender_text(extra, nearby_names)
         )
 
     lines.append("Speakers:")
@@ -1928,7 +2026,7 @@ def _player_emote_single_prompt(
         speech_guidance = _npc_speech_capability_guidance(speaker)
         if speech_guidance:
             lines.append(speech_guidance)
-    lines.extend(_player_lines(db, extra, mode, [speaker]))
+    _extend_new(lines, _player_lines(db, extra, mode, [speaker]))
     lines.extend([
         f"The player ({player_name}) "
         f"{_describe_player_emote(extra, player_emote, addressed)}.",
@@ -1948,6 +2046,9 @@ def _player_emote_single_prompt(
             f"{addressed} remains silent and is not the speaker. "
             "Do not invent dialogue or actions for them.",
         ])
+        addressed_gender = _addressed_gender_line(db, extra)
+        if addressed_gender:
+            lines.append(addressed_gender)
     mirror_emote = str(extra.get('mirror_emote', '')).strip()
     if mirror_emote:
         mirror_subject = (
@@ -2013,7 +2114,7 @@ def _player_emote_conversation_prompt(
     ))
     lines.extend(_location_lines(extra, mode, participants, db=db))
     lines.extend(_mixed_voice_guidance(mode))
-    lines.extend(_player_lines(db, extra, mode, participants))
+    _extend_new(lines, _player_lines(db, extra, mode, participants))
     lines.extend([
         f"The player ({player_name}) "
         f"{_describe_player_emote(extra, player_emote, addressed)}.",
@@ -2033,6 +2134,9 @@ def _player_emote_conversation_prompt(
             "The listed speakers witnessed the gesture and may comment "
             "on that same action.",
         ])
+        addressed_gender = _addressed_gender_line(db, extra)
+        if addressed_gender:
+            lines.append(addressed_gender)
     mirror_emote = str(extra.get('mirror_emote', '')).strip()
     if mirror_emote:
         lines.append(

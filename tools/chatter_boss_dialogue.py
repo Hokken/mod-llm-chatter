@@ -10,6 +10,7 @@ from chatter_instance_context import (
     build_location_prompt_lines,
 )
 from chatter_llm import call_llm
+from chatter_member_gender import genders_by_named_guid
 from chatter_mode import build_npc_chat_guidance
 from chatter_shared import (
     PromptParts,
@@ -132,7 +133,9 @@ def _build_prompt(extra: Dict) -> PromptParts:
     )
 
     lines = [
-        f"You are {boss_name}, {boss_title}.",
+        f"You are {boss_name}, {boss_title}."
+        + (f" You are {boss['gender']}."
+           if boss.get('gender') in ('female', 'male') else ""),
         build_npc_chat_guidance(),
         *build_location_prompt_lines(extra),
         "You are alive, hostile to the nearby adventurer, and not yet "
@@ -152,7 +155,9 @@ def _build_prompt(extra: Dict) -> PromptParts:
             if extra.get('brief_casual')
             else "Length: 5-22 words, at most 180 characters."
         ),
-        f"Nearby adventurer: {player_name}.",
+        f"Nearby adventurer: {player_name}"
+        + (f" ({extra['player_gender']})."
+           if extra.get('player_gender') in ('female', 'male') else "."),
     ]
     if previous_lines:
         lines.extend([
@@ -263,6 +268,11 @@ def handle_boss_dialogue(db, client, config, event):
             _mark_event(db, event_id, 'skipped')
             return False
 
+    player_gender = genders_by_named_guid(
+        db, {'player': extra.get('player_guid')},
+    ).get('player')
+    if player_gender:
+        extra['player_gender'] = player_gender
     prompt = _build_prompt(extra)
     max_tokens = _get_int(
         config, 'MaxTokensPerLine', 120

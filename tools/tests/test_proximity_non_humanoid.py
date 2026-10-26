@@ -187,8 +187,9 @@ def test_nearby_name_context_deduplicates_names_and_typed_ids():
     source = (
         MODULE_DIR / 'src' / 'LLMChatterProximity.cpp'
     ).read_text(encoding='utf-8')
+    # The shared collector feeds nearby_names and nearby_genders.
     nearby = source.split(
-        'std::string BuildNearbyNamesJson(', 1
+        'std::vector<NearbyEntry> CollectNearbyEntries(', 1
     )[1].split('std::string BuildProximityExtraJson(', 1)[0]
     assert 'std::set<std::pair<bool, uint32>> speakerIds' in nearby
     assert 'speakerIds.emplace(s.isNPC, s.id)' in nearby

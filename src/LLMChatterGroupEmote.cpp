@@ -590,7 +590,8 @@ void HandleEmoteObserver(
     const std::string& npcSubName,
     std::vector<Player*> const& candidates,
     std::string const& customText,
-    Player* targetPlayer)
+    Player* targetPlayer,
+    std::string const& npcGender)
 {
     if (candidates.empty()) return;
 
@@ -691,6 +692,11 @@ void HandleEmoteObserver(
             + ",\"target_guid\":"
             + std::to_string(
                 targetPlayer->GetGUID().GetCounter());
+
+    // Creature targets: the live model's gender, when it has one.
+    if (!npcGender.empty())
+        extraData +=
+            ",\"target_npc_gender\":\"" + npcGender + "\"";
 
     extraData += "}";
 

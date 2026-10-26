@@ -298,7 +298,9 @@ std::string BuildBossEventJson(
                 creatureTemplate
                     ? creatureTemplate->SubName : "")
          << "\",\"disposition\":\"hostile\""
-         << ",\"rank\":\""
+         << ",\"gender\":\""
+         << GetUnitGenderLabel(boss)
+         << "\",\"rank\":\""
          << JsonEscape(GetBossRank(boss))
          << "\"}}";
     std::ostringstream safetyMetadata;

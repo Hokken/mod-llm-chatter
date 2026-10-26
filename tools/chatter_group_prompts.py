@@ -61,6 +61,7 @@ from chatter_mode import (
     build_player_prompt_header_from_dict,
 )
 from chatter_player_context import character_lore_lines
+from chatter_member_gender import gender_prefix
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +250,7 @@ def _append_bots_with_rp(
         )
         parts.append(
             f"{bot['name']} is a level "
-            f"{bot['level']} {bot['race']} "
+            f"{bot['level']} {gender_prefix(bot)}{bot['race']} "
             f"{bot['class']}{guild_part}"
         )
         append_speaker_gear(parts, bot)
@@ -3831,6 +3832,7 @@ def build_precache_combat_pull_prompt(
     traits, mood, stored_tone=None,
     role=None, recent_cached=None,
     allow_action=False, mode='normal',
+    gender='',
 ):
     """Build prompt for a cached combat pull cry.
 
@@ -3853,7 +3855,7 @@ def build_precache_combat_pull_prompt(
     prompt = (
         build_player_prompt_header(
             bot_name, race, class_name, level,
-            mode=mode, channel='party',
+            gender=gender, mode=mode, channel='party',
         )
         +
         f"\nPersonality: {trait_str}"
@@ -3892,6 +3894,7 @@ def build_precache_state_prompt(
     traits, mood, stored_tone=None,
     role=None, recent_cached=None,
     allow_action=False, mode='normal',
+    gender='',
 ):
     """Build prompt for a cached state callout.
 
@@ -3915,7 +3918,7 @@ def build_precache_state_prompt(
     prompt = (
         build_player_prompt_header(
             bot_name, race, class_name, level,
-            mode=mode, channel='party',
+            gender=gender, mode=mode, channel='party',
         )
         +
         f"\nPersonality: {trait_str}"
@@ -4000,6 +4003,7 @@ def build_precache_spell_support_prompt(
     traits, mood, stored_tone=None,
     role=None, recent_cached=None,
     allow_action=False, mode='normal',
+    gender='',
 ):
     """Build prompt for a cached spell support
     reaction. Uses {target} and {spell} placeholders.
@@ -4025,7 +4029,7 @@ def build_precache_spell_support_prompt(
     prompt = (
         build_player_prompt_header(
             bot_name, race, class_name, level,
-            mode=mode, channel='party',
+            gender=gender, mode=mode, channel='party',
         )
         +
         f"\nPersonality: {trait_str}"
@@ -4055,6 +4059,9 @@ def build_precache_spell_support_prompt(
         "(with curly braces)\n"
         "- Do NOT invent spell names — use {spell} "
         "for the spell name\n"
+        "- {target} is filled in later, so their gender is "
+        "unknown here: never use he/she/him/her for {target}; "
+        "use {target} or 'you'\n"
         "- Let your personality show in how you say it, "
         "without naming your traits\n"
         "- No quotes, no emojis\n"
@@ -4074,6 +4081,7 @@ def build_precache_spell_offensive_prompt(
     role=None, recent_cached=None,
     allow_action=False, combat_style='hybrid',
     mode='normal',
+    gender='',
 ):
     """Build prompt for a cached offensive ability
     reaction. Uses {target} and {spell} placeholders.
@@ -4102,7 +4110,7 @@ def build_precache_spell_offensive_prompt(
     prompt = (
         build_player_prompt_header(
             bot_name, race, class_name, level,
-            mode=mode, channel='party',
+            gender=gender, mode=mode, channel='party',
         )
         +
         f"\nPersonality: {trait_str}"

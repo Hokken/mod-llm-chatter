@@ -36,6 +36,7 @@ from chatter_shared import (
     get_chatter_mode,
     get_zone_name,
     get_class_name,
+    get_gender_label,
     get_race_name,
     attach_speaker_gear,
     run_single_reaction,
@@ -66,6 +67,10 @@ def _normalize_bot(bot):
     if isinstance(bot.get('bot1_race'), int):
         bot['bot1_race'] = get_race_name(
             bot['bot1_race']
+        )
+    if isinstance(bot.get('bot1_gender'), int):
+        bot['bot1_gender'] = get_gender_label(
+            bot['bot1_gender']
         )
     return bot
 
@@ -197,6 +202,7 @@ def _deliver_conversation(
             'class': b['bot1_class'],
             'race': b['bot1_race'],
             'level': b['bot1_level'],
+            'gender': b.get('bot1_gender') or '',
             'zone': get_zone_name(
                 b.get('zone_id', zone_id)
             ),

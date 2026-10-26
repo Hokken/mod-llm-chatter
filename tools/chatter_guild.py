@@ -147,6 +147,12 @@ from chatter_threads import (
     plan_idle_turn,
     record_idle_exchange,
     report_tokens,
+    thread_names,
+)
+from chatter_member_gender import (
+    gender_prefix,
+    split_name_list,
+    with_character_genders,
 )
 from chatter_shared import count_conversation_items
 from chatter_class_style import class_style
@@ -269,12 +275,31 @@ def _resolve_name(name_fn, val, default: str) -> str:
     return default
 
 
+def _with_guild_genders(
+    prompt, db, extra: Dict, guildmates: str, history_metadata: Dict,
+    threaded: bool, speakers: List[str],
+):
+    """Genders of the other guild characters the prompt names: online
+    guildmates, history speakers and, when a thread note is shown, its
+    earlier speakers. The speakers' identity lines carry their own."""
+    names = split_name_list(guildmates)
+    names += list((history_metadata or {}).get('guild_history_speakers') or ())
+    if threaded:
+        names += thread_names(guild_key(extra.get('guild_id')))
+    return with_character_genders(
+        prompt, db, names, exclude=tuple(speakers),
+    )
+
+
 def _guild_identity(speaker_name: str, speaker: Dict) -> str:
     """Non-mechanical identity line for guild chat (no 'level N')."""
     race = _resolve_name(get_race_name, speaker.get('race'), 'wanderer')
     klass = _resolve_name(get_class_name, speaker.get('class'), 'adventurer')
     flavor = _level_flavor(speaker.get('level'))
-    base = f"You are {speaker_name}, a {race} {klass} of Azeroth"
+    base = (
+        f"You are {speaker_name}, a {gender_prefix(speaker)}{race} "
+        f"{klass} of Azeroth"
+    )
     if flavor:
         base += f" — {flavor}"
     base += "."
@@ -782,6 +807,10 @@ def _process_guild_statement_event(
         guild_context=guild_identity_lines(profile),
         topic_lines=special.lines if special else None,
     )
+    prompt = _with_guild_genders(
+        prompt, db, extra, guildmates, history_metadata,
+        thread_turn is not None, [speaker_name],
+    )
 
     max_tokens = int(config.get(
         'LLMChatter.GuildChatter.MaxTokens', 200
@@ -1041,6 +1070,12 @@ def _select_guild_history_context(
         if _safe_int(row.get('id'))
     ]
     metadata.update({
+        # Structured speaker names for the gender line (never NPCs:
+        # Guild chat speakers are player characters).
+        'guild_history_speakers': list(dict.fromkeys(
+            str(row.get('speaker_name'))
+            for row in rows if row.get('speaker_name')
+        )),
         'guild_history_context_selected': bool(context),
         'guild_history_context_lines': len(rows),
         'guild_history_session_id': session_id,
@@ -1729,6 +1764,10 @@ def _generate_guild_conversation(
         thread_turn=thread_turn,
         guild_context=guild_context,
         topic_lines=special.lines if special else None,
+    )
+    prompt = _with_guild_genders(
+        prompt, db, extra, guildmates, history_metadata,
+        thread_turn is not None, [p['name'] for p in participants],
     )
     metadata = _guild_request_metadata(
         extra,

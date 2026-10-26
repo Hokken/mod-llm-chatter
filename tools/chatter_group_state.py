@@ -31,6 +31,7 @@ from chatter_mode import (
 )
 from chatter_constants import PERSONALITY_TRAITS
 from chatter_db import mark_event
+from chatter_member_gender import party_gender_line
 
 logger = logging.getLogger(__name__)
 
@@ -845,6 +846,9 @@ def build_party_context(
         parts.append(
             f"Party members: {', '.join(others)}"
         )
+        gender_line = party_gender_line(db, group_id, speaker_name)
+        if gender_line:
+            parts.append(gender_line)
 
     if include_history:
         try:

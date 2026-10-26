@@ -4363,6 +4363,123 @@ the active spec, otherwise "Light Priest". It has no cache of its own;
 per (guid, spec), so a dual-spec switch changes the description on the
 next prompt.
 
+### Genders of other named characters
+
+`chatter_member_gender.py` states the genders of the other characters a
+prompt names, so bots use matching pronouns instead of defaulting to
+he/him. The line reads "Genders: Ana is female, Cat (the player) is
+female. Use matching pronouns when referring to them." and comes from one
+`characters` lookup by name. Names without a row or with no gender are
+left out, and the line is omitted when nothing is known, so a failed
+lookup leaves the prompt unchanged.
+
+- Party prompts (`party_gender_line()`, `with_party_genders()`): every
+  event reaction through `run_group_handler`, plus greetings, welcomes,
+  replies, the bot question, idle chatter and conversations, quest and
+  nearby-object conversations, zone transitions, emote reactions (via
+  `build_party_context()`), screenshot lines and General relays. The
+  party is the group's bots plus everyone in `group_member` (so a second
+  human is covered too), without the speaker; only the player found by
+  `get_group_player_name()` is tagged "(the player)".
+- Battleground and raid worker prompts (`bg_subject_gender_line()`): only
+  names held in player-only payload keys (`BG_PLAYER_NAME_KEYS`: flag
+  carriers, scorer, dropper, returner, node claimer, banner actor, spell
+  caster, fallen teammate and achievers, batched "A, B and C" too) and
+  the `real_players` team roster entries,
+  only when the prompt already shows that name, so a name withheld from
+  the prompt is not revealed. Kill, spell and callout targets can be
+  creatures or pets and are never looked up.
+- Multi-bot cast headers (`_append_bots_with_rp()` and the idle
+  conversation speaker lines) include each speaker's gender
+  (`gender_prefix()`); an unknown gender adds no word.
+- General channel and ambient chatter:
+  - Speakers carry their gender: queue requests via
+    `attach_bot_genders()` (the queue row has no gender column, so it is
+    looked up by guid), world-event and loot bots via the `bot1_gender`
+    column of `get_zone_bot_candidates()` / `get_bots_by_guid()`, and
+    precache headers via `_get_bot_race_class()`.
+  - Every multi-bot General conversation (plain, gossip, quest, event,
+    spell, trade) adds a speaker `Genders:` line in both modes
+    (`speaker_gender_line()`), and the roleplay "X is a ..." lines use
+    `gender_prefix()`.
+  - Gossip about another bot renders `gender=`; NPC gossip subjects are
+    creatures and stay without it.
+  - General replies, follow-ups and continuations add a `Genders:` line
+    for the player who spoke, the other bots in the exchange and the
+    recent General history speakers (`with_character_genders()`; General
+    speakers are always player characters, so a name lookup is safe).
+  - When a General conversation thread note is shown, the earlier
+    speakers it can name (interruptions, live feelings; read with
+    `chatter_threads.thread_names()` under the lock, looked up after it)
+    get a gender too, in ambient statements and conversations and in the
+    first reply to the player.
+  - Zone intrusion yells state the defender's gender (by guid) and the
+    intruder's (by name; intruders are always players).
+  - The Guild Master in a General guild-praise topic is described with
+    gender.
+- Guild chat:
+  - The roleplay identity line (`_guild_identity()`, also used for every
+    co-participant) states the gender, as normal mode already did.
+  - Idle Guild statements and conversations add a `Genders:` line for
+    the online guildmates, the Guild history speakers
+    (`guild_history_speakers` in the history metadata) and, when a thread
+    note is shown, its earlier speakers (`_with_guild_genders()`).
+  - Player replies add one line to the session context for the recent
+    session speakers, session speakers the compact summary names
+    (`_session_speaker_names()`: recorded session speakers only, no prose
+    parsing), thread speakers and the player; the summary update states
+    the genders of the transcript speakers and of session speakers the
+    previous summary names, so the stored memory keeps the right
+    pronouns.
+  - Rank changes state the officer's gender (by `actor_guid`), newcomer
+    replies the genders of the guildmates they answer, and the meet post
+    the player's gender (`player_gender` from the payload).
+  - NPC encounters and rumor trainers are creatures and are never looked
+    up.
+- Proximity, emotes, duels and other events:
+  - A silent character an emote is aimed at gets its gender (a bot by
+    guid, an NPC from the payload; "unknown" is dropped).
+  - Every prompt that lists `nearby_names` (names only, NPCs mixed with
+    bots) asks for names instead of pronouns (`_NEARBY_GENDER_RULE`).
+  - Nearby duels and open-world fights describe each listed fighter with
+    gender and state the fighters' genders in every moment, including
+    duel results and kills. With an NPC onlooker the wording stays
+    in-world (no "real player").
+  - Proximity prompts with an NPC speaker describe the player through the
+    neutral `player_character_lines(neutral=True)` path; bot-only casts
+    keep the existing line.
+  - The party bot exchange after an emote lists the party's genders.
+  - Duellists the reactor can see get their gender by guid
+    (`_attach_duellist_genders()`); unseen duellists stay unnamed.
+  - The open-world PvP enemy's `enemy_gender` is shown inside the
+    perceivable-identity gate. Numeric payload genders go through
+    `gender_from_id()`, so only 0/1 count and nothing defaults to male.
+  - Memory prompts state the player's gender, and PvP-kill, level-up and
+    battleground-kill memories name their subject's gender, since
+    memories are stored and replayed.
+  - NPC and nearby-character genders (C++ payloads; take effect after a
+    worldserver rebuild, older payloads keep working):
+    `GetUnitGenderLabel()` (`LLMChatterShared`) maps a live unit to
+    "female"/"male"/"" (GENDER_NONE beasts and mechanicals stay unknown).
+    Proximity NPC participants send "" instead of the old "unknown"
+    literal (Python never renders "unknown" either); `nearby_genders`
+    (`{name: gender}`, from the same `CollectNearbyEntries()` list as
+    `nearby_names`, with any name shared by several nearby candidates
+    left out) adds a `Genders:` line and keeps the name-only rule for
+    the rest; `proximity_reply` sends `responder_gender`; creature emote
+    targets send `target_npc_gender`; Guild NPC encounters send
+    `npc_gender`; the boss object carries `gender`.
+  - General NPC gossip subjects take their gender from world model data
+    (`NPC_MODEL_GENDER_SQL`): only when every template model has
+    `creature_model_info` metadata, none has a `DisplayID_Other_Gender`
+    alternate, and all agree on male or female; otherwise unknown.
+  - Guild trainer rumors stay without gender: the static rumor data has
+    no creature entry, and trainers are never resolved by name.
+  - Boss dialogue states the nearby adventurer's gender; batched Arathi
+    Basin node actors are covered by the BG line; cached spell-support
+    lines must not gender `{target}`, which is unknown when they are
+    generated.
+
 ### Configuration
 
 | Key | Default | Quieter preset | Owner |

@@ -22,6 +22,7 @@ from chatter_prompts import (
 from chatter_mode import build_player_prompt_header_from_dict
 from chatter_group_prompts import _pick_length_hint
 from chatter_handler_pipeline import run_group_handler
+from chatter_member_gender import genders_by_named_guid
 
 logger = logging.getLogger(__name__)
 
@@ -67,8 +68,11 @@ def _describe_duellist(extra_data, prefix, bot_guid):
     except (TypeError, ValueError):
         level, race, cls = 0, '', ''
 
+    gender = str(extra_data.get(f'{prefix}_gender') or '')
+    if gender not in ('female', 'male'):
+        gender = ''
     desc = ' '.join(p for p in (
-        f"level {level}" if level else '', race, cls,
+        f"level {level}" if level else '', gender, race, cls,
     ) if p)
     who = f"{name} ({desc})" if desc else name
     if _payload_flag(
@@ -263,6 +267,24 @@ def build_duel_end_prompt(
     )
 
 
+def _attach_duellist_genders(db, extra_data):
+    """Set <prefix>_gender for each duellist the reactor can see,
+    by the guid C++ always sends; unseen duellists stay unnamed."""
+    prefixes = sorted({
+        key[:-len('_guid')] for key in extra_data
+        if key.endswith('_guid') and key != 'bot_guid'
+        and f"{key[:-len('_guid')]}_identity_known" in extra_data
+    })
+    named = {
+        prefix: extra_data.get(f'{prefix}_guid') for prefix in prefixes
+        if _payload_flag(extra_data.get(f'{prefix}_identity_known'))
+    }
+    genders = genders_by_named_guid(db, named)
+    for prefix, gender in genders.items():
+        extra_data[f'{prefix}_gender'] = gender
+    return extra_data
+
+
 def process_duel_start_event(db, client, config, event):
     """Handle a bot_group_duel_start event."""
     return run_group_handler(
@@ -272,7 +294,9 @@ def process_duel_start_event(db, client, config, event):
         build_prompt=lambda ctx: (
             build_duel_start_prompt(
                 ctx['bot'], ctx['traits'],
-                ctx['extra_data'], ctx['mode'],
+                _attach_duellist_genders(
+                    ctx['db'], ctx['extra_data']),
+                ctx['mode'],
                 chat_history=ctx['chat_hist'],
                 speaker_talent_context=(
                     ctx['speaker_talent']),
@@ -293,7 +317,9 @@ def process_duel_end_event(db, client, config, event):
         build_prompt=lambda ctx: (
             build_duel_end_prompt(
                 ctx['bot'], ctx['traits'],
-                ctx['extra_data'], ctx['mode'],
+                _attach_duellist_genders(
+                    ctx['db'], ctx['extra_data']),
+                ctx['mode'],
                 chat_history=ctx['chat_hist'],
                 speaker_talent_context=(
                     ctx['speaker_talent']),

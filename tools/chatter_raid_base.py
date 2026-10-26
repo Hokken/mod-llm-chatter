@@ -22,6 +22,7 @@ from chatter_shared import (
 )
 from chatter_party_gate import policy_for_reason
 from chatter_group_state import get_bot_traits
+from chatter_member_gender import bg_subject_gender_line
 
 LOG = logging.getLogger("chatter_raid_base")
 
@@ -350,6 +351,10 @@ def fire_subgroup_worker(
     prompt = prompt_fn(
         extra_data, trait_data,
         is_raid_worker=False)
+    gender_line = bg_subject_gender_line(
+        db, extra_data, prompt, bot_name)
+    if gender_line:
+        prompt += f"\n{gender_line}"
     max_tokens = int(config.get(
         f'LLMChatter.{config_prefix}.MaxTokens',
         200,
@@ -466,6 +471,10 @@ def fire_raid_worker(
     prompt = prompt_fn(
         extra_data, bot_data,
         is_raid_worker=True)
+    gender_line = bg_subject_gender_line(
+        db, extra_data, prompt, bot_name)
+    if gender_line:
+        prompt += f"\n{gender_line}"
     max_tokens = int(config.get(
         f'LLMChatter.{config_prefix}.MaxTokens',
         200,

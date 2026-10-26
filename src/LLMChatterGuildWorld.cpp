@@ -382,13 +382,14 @@ bool TryNpcEncounter(
         CreatureTemplate const* tmpl = npc->GetCreatureTemplate();
         std::string json = fmt::format(
             R"({{{},{},"npc_name":"{}","npc_subname":"{}",)"
-            R"("npc_role":"{}","npc_entry":{},"zone_id":{},)"
-            R"("area_id":{}}})",
+            R"("npc_role":"{}","npc_gender":"{}","npc_entry":{},)"
+            R"("zone_id":{},"area_id":{}}})",
             GuildFields(guild, bot->GetTeamId()),
             PlayerJson(bot, "bot"),
             JsonEscape(npc->GetName()),
             JsonEscape(tmpl ? tmpl->SubName : ""),
             JsonEscape(GetCreatureRoleName(npc)),
+            GetUnitGenderLabel(npc),
             npc->GetEntry(),
             bot->GetZoneId(),
             bot->GetAreaId());

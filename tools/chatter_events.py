@@ -20,6 +20,10 @@ from chatter_shared import (
 from chatter_prompts import (
     build_zone_intrusion_prompt,
 )
+from chatter_member_gender import (
+    get_character_genders,
+    get_genders_by_guid,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -706,6 +710,21 @@ def process_zone_intrusion_event(
     )
     if not defender_guid:
         return True
+
+    # Genders: defender by guid; the intruder is always a player
+    # character, so a name lookup is safe.
+    defender_gender = get_genders_by_guid(
+        db, [defender_guid]
+    ).get(int(defender_guid))
+    if defender_gender:
+        extra_data['defender_gender'] = defender_gender
+    intruder_name = extra_data.get('intruder_name')
+    if intruder_name:
+        intruder_gender = get_character_genders(
+            db, [intruder_name]
+        ).get(intruder_name)
+        if intruder_gender:
+            extra_data['intruder_gender'] = intruder_gender
 
     # Build prompt
     prompt = build_zone_intrusion_prompt(

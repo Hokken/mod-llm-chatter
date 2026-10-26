@@ -35,6 +35,7 @@ from chatter_guild_event_common import (
     safe_int,
 )
 from chatter_guild_player import _config_enabled, _mark_event
+from chatter_member_gender import format_gender_line
 from chatter_guild_profile import (
     describe_character,
     get_character_guild_name,
@@ -244,6 +245,11 @@ def _npc_scenario(extra: Dict, mode: str) -> List[str]:
             "they serve."
         )
         subject = npc
+    # Live model gender from newer payloads; empty or missing stays
+    # unknown.
+    gender_line = format_gender_line(
+        {npc: str(extra.get('npc_gender') or '')}
+    )
     return [
         intro,
         f"{bot_name} mentions {subject} to the guild and shares "
@@ -254,7 +260,8 @@ def _npc_scenario(extra: Dict, mode: str) -> List[str]:
         "than giving a verdict, a rating or a recommendation.",
         f"Name {npc}{' and ' + zone if zone else ''} so guildmates know "
         "who and where. Do not invent quests or rewards.",
-    ] + _place_lore_lines(extra, mode, include_zone=False)
+    ] + _place_lore_lines(extra, mode, include_zone=False) + (
+        [gender_line] if gender_line else [])
 
 
 def process_guild_npc_encounter_event(db, client, config, event):
@@ -364,6 +371,9 @@ def _meet_guild_scenario(
     player = str(extra.get('player_name') or 'a guildmate')
     place = _place(extra)
     where = f" in {place}" if place else ""
+    gender_line = format_gender_line(
+        {player: str(extra.get('player_gender') or '')}
+    )
     return [
         f"{bot_name} has just run into their guildmate {player}{where} by "
         f"chance and greeted them in person: \"{greeting}\".",
@@ -372,7 +382,8 @@ def _meet_guild_scenario(
         f"Name {player}" + (f" and {place}" if place else "")
         + " so the guild knows who and where. Do not repeat the greeting "
         "and do not invent a long story.",
-    ] + _place_lore_lines(extra, mode, include_zone=False)
+    ] + _place_lore_lines(extra, mode, include_zone=False) + (
+        [gender_line] if gender_line else [])
 
 
 def _guild_post_wanted(config: Dict, extra: Dict) -> bool:
