@@ -40,23 +40,8 @@
   gender when it is unambiguous (no rebuild needed for that part). Guild
   trainer rumors still name trainers without gender.
 
-### 2026-10-22 - Roll Comments and a Spoiler-Free Scarlet Enclave
+### 2026-10-22 - Guild Post Fixes and a Spoiler-Free Scarlet Enclave
 
-* **Bots explain their loot rolls**: when a party bot rolls Need or Greed
-  on an item, it says in party chat why it wants it for itself. The prompt
-  names the item with its type and subtype (two-handed sword, plate chest
-  piece, ring, meta gem, tailoring pattern...). Bots roll Greed even on
-  items they would use, so a Greed roll is explained the same way; a Need
-  roll adds that the bot really needs the item. Equipment is explained as
-  something the bot would use; any other item as something it would sell,
-  or, for gems, companion pets, mounts and similar keepsakes, as something
-  beautiful it wants to keep. Up to three bots comment per item. Comments
-  on Need and Greed rolls, and on equipment and other items, can each be
-  turned off (`LLMChatter.GroupChatter.LootRollComment.Enable`,
-  `.NeedEnable`, `.GreedEnable`, `.EquipmentEnable`, `.OtherEnable`,
-  `.MaxPerItem`). Needs the
-  `data/sql/characters/updates/20261022_loot_roll_comments.sql` update
-  and a worldserver rebuild.
 * **Guild posts about NPCs read naturally**: an NPC whose title lists
   its wares ("Potions, Scrolls and Reagents") or names a group ("Argent
   Dawn") is no longer called "this potions, scrolls and reagents"; person

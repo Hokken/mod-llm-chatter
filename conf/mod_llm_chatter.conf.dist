@@ -1870,51 +1870,6 @@ LLMChatter.GroupChatter.LootChanceOrange = 100
 LLMChatter.GroupChatter.LootCooldown = 60
 
 #
-#   LLMChatter.GroupChatter.LootRollComment.Enable
-#       When a party bot rolls Need or Greed on an item, it says
-#       in party chat why it wants it. The prompt names the item
-#       and its type and subtype (weapon type, armor piece, gem
-#       color, and so on). Pass and Disenchant rolls stay silent.
-#       Not used in battlegrounds or arenas.
-#       Default: 1
-#
-LLMChatter.GroupChatter.LootRollComment.Enable = 1
-
-#
-#   LLMChatter.GroupChatter.LootRollComment.NeedEnable
-#   LLMChatter.GroupChatter.LootRollComment.GreedEnable
-#       Comments on Need rolls and on Greed rolls, each on its own.
-#       With one of them at 0, only the other kind is explained.
-#       Defaults: 1 / 1
-#
-LLMChatter.GroupChatter.LootRollComment.NeedEnable = 1
-LLMChatter.GroupChatter.LootRollComment.GreedEnable = 1
-
-#
-#   LLMChatter.GroupChatter.LootRollComment.EquipmentEnable
-#   LLMChatter.GroupChatter.LootRollComment.OtherEnable
-#       Comments on equipment rolls and on all other items, each on
-#       its own. Equipment is anything with an equipment slot:
-#       armor, weapons, shields, off-hand items, cloaks, rings,
-#       amulets, trinkets, relics, shirts and tabards, and also
-#       bags, quivers and ammunition. A bot wants equipment to use
-#       it; any other item it wants either to sell it or, for gems,
-#       companion pets, mounts and similar keepsakes, because it is
-#       beautiful.
-#       Defaults: 1 / 1
-#
-LLMChatter.GroupChatter.LootRollComment.EquipmentEnable = 1
-LLMChatter.GroupChatter.LootRollComment.OtherEnable = 1
-
-#
-#   LLMChatter.GroupChatter.LootRollComment.MaxPerItem
-#       Most bots that explain their roll on one item. Need rolls
-#       are explained before Greed rolls cast at the same time.
-#       Default: 3
-#
-LLMChatter.GroupChatter.LootRollComment.MaxPerItem = 3
-
-#
 #   LLMChatter.GroupChatter.ResurrectChance
 #       Percent chance (0-100) that a resurrection event
 #       triggers a group reaction.

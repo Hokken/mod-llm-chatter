@@ -34,8 +34,6 @@ from chatter_shared import (
     strip_conversation_actions,
     localize_creature_name,
     localize_item_name,
-    describe_item_type,
-    loot_roll_motive,
     localize_quest_name,
     shorten_chat_message,
     brief_casual_response_fits,
@@ -91,7 +89,6 @@ from chatter_persona import (
 from chatter_group_prompts import (
     build_kill_reaction_prompt,
     build_loot_reaction_prompt,
-    build_loot_roll_prompt,
     build_combat_reaction_prompt,
     build_death_reaction_prompt,
     build_levelup_reaction_prompt,
@@ -478,79 +475,6 @@ def process_group_loot_event(
             _loot_msg_xform(db, msg, event)
         ),
         label='reaction_loot',
-    )
-
-
-def _loot_roll_is_equipment(extra_data) -> bool:
-    """C++ sends item_is_equipment; older payloads lack it, and any
-    item with an equipment slot counts as equipment."""
-    flag = extra_data.get('item_is_equipment')
-    if flag is not None:
-        return bool(int(flag))
-    try:
-        return int(extra_data.get('item_inventory_type') or 0) != 0
-    except (TypeError, ValueError):
-        return False
-
-
-def process_group_loot_roll_event(
-    db, client, config, event
-):
-    """Handle a bot_group_loot_roll event.
-
-    A party bot that rolled Need or Greed on an item
-    says why in party chat. C++ caps the comments per
-    item; the roll is still open when this runs.
-    """
-    return run_group_handler(
-        db, client, config, event,
-        event_type_label='bot_group_loot_roll',
-        extract_fields=lambda ed: {
-            'item_name': localize_item_name(
-                db, ed.get(
-                    'item_name', 'something'),
-                ed.get('item_entry')),
-            'item_quality': int(
-                ed.get('item_quality', 2)),
-            'item_entry': int(
-                ed.get('item_entry', 0)),
-            'roll_vote': (
-                'need'
-                if str(ed.get('roll_vote', '')).lower()
-                    == 'need'
-                else 'greed'),
-            'item_type': describe_item_type(
-                ed.get('item_class', -1),
-                ed.get('item_subclass', 0),
-                ed.get('item_inventory_type', 0)),
-            'motive': loot_roll_motive(
-                ed.get('item_class', -1),
-                ed.get('item_subclass', 0),
-                _loot_roll_is_equipment(ed)),
-        },
-        build_prompt=lambda ctx: (
-            build_loot_roll_prompt(
-                ctx['bot'], ctx['traits'],
-                ctx['item_name'],
-                ctx['item_quality'],
-                ctx['mode'],
-                ctx['roll_vote'],
-                ctx['item_type'],
-                chat_history=ctx['chat_hist'],
-                extra_data=ctx['extra_data'],
-                speaker_talent_context=(
-                    ctx['speaker_talent']),
-                stored_tone=ctx['stored_tone'],
-                map_id=ctx['map_id'],
-                motive=ctx['motive'],
-            )
-        ),
-        needs_map_id=True,
-        mood_key=lambda ctx: 'loot',
-        message_transform=lambda msg: (
-            _loot_msg_xform(db, msg, event)
-        ),
-        label='reaction_loot_roll',
     )
 
 

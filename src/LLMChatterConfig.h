@@ -145,13 +145,6 @@ public:
     uint32 _groupKillCooldown;
     uint32 _groupDeathCooldown;
     uint32 _groupLootCooldown;
-    // Bot Need/Greed roll comments
-    bool _lootRollCommentEnable;
-    bool _lootRollCommentNeedEnable;
-    bool _lootRollCommentGreedEnable;
-    bool _lootRollCommentEquipmentEnable;
-    bool _lootRollCommentOtherEnable;
-    uint32 _lootRollCommentMaxPerItem;
     uint32 _groupPlayerMsgCooldown;
 
     // Group chatter - new event settings
@@ -175,7 +168,6 @@ public:
     uint32 _reactDelayWipe;
     uint32 _reactDelayDeath;
     uint32 _reactDelayLoot;
-    uint32 _reactDelayLootRoll;
     uint32 _reactDelayCombat;
     uint32 _reactDelayPlayerMsg;
     uint32 _reactDelayLevelUp;

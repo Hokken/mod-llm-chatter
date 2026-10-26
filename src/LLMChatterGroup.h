@@ -7,7 +7,6 @@ class Player;
 class Creature;
 
 void CheckGroupCombatState();
-void CheckGroupLootRolls();
 void FlushQuestAcceptBatches();
 void FlushGroupJoinBatches();
 void HandleGroupPlayerUpdateZone(
