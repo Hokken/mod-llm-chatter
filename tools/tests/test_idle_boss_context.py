@@ -187,8 +187,9 @@ def _prompts(bosses, mode):
 def test_failed_roll_keeps_the_dungeon_and_drops_only_bosses():
     for mode in ('roleplay', 'normal'):
         for prompt in _prompts([], mode):
+            # Normal mode names the instance ("inside The Deadmines").
             assert ('Dungeon context:' in prompt
-                    or 'inside a dungeon instance' in prompt), mode
+                    or 'inside The Deadmines' in prompt), mode
             assert 'Bosses here' not in prompt, mode
             assert '\n\n\n' not in prompt, mode
 

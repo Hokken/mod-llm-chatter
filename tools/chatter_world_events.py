@@ -171,6 +171,18 @@ def _check_zone_fatigue(
     )
 
 
+def _event_area_id(event, extra_data) -> int:
+    """Subzone for a world event prompt. Only a transport arrival is
+    tied to a place (its harbour); weather, holidays and day/night are
+    zone-wide General chat and get the zone context only."""
+    if event.get('event_type') != 'transport_arrives':
+        return 0
+    try:
+        return int((extra_data or {}).get('dock_area_id') or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _deliver_conversation(
     db, client, config, event, bots, extra_data,
     zone_id,
@@ -229,9 +241,7 @@ def _deliver_conversation(
         config,
         current_weather,
         recent_messages=recent_msgs,
-        area_id=int(
-            formatted[0].get('area_id', 0) or 0
-        ),
+        area_id=_event_area_id(event, extra_data),
     )
 
     evt_names = ','.join(bot_names)
@@ -352,8 +362,7 @@ def _deliver_statement(
         config=config,
         extra_data=extra_data,
         zone_id=use_zone_id,
-        # area_id not available from candidate query
-        area_id=0,
+        area_id=_event_area_id(event, extra_data),
     )
 
     delay_min = int(config.get(

@@ -68,6 +68,7 @@ def _default_settings() -> dict:
         'persona_weight': 60,
         'surroundings_weight': 30,
         'pool_weight': 10,
+        'location_weight': 40,
         'surprise_chance': 12,
         'high_threshold': 0.6,
         'low_threshold': 0.3,
@@ -164,6 +165,10 @@ def configure_threads(config) -> None:
         ),
         'themed_weight': _int(
             config, 'LLMChatter.Threads.ThemedTopicWeight', 25, 0, 100
+        ),
+        'location_weight': _int(
+            config, 'LLMChatter.Threads.LocationTopicWeight',
+            40, 0, 100,
         ),
         'surprise_chance': _int(
             config, 'LLMChatter.Threads.SurpriseChance', 12, 0, 100
@@ -342,8 +347,10 @@ class IdleTurn:
     session: int
     major_rev: int
     kind: str                       # continue|drift|callback|new
-    source: str = ''                # persona|surroundings|pool
+    source: str = ''        # persona|surroundings|pool|themed|location
     pool_topic: Optional[str] = None
+    # The place a 'location' topic belongs to.
+    location_place: str = ''
     callback_topic: str = ''
     surprise: bool = False
     # True when the exchange is meant to build on a live or an
@@ -682,7 +689,8 @@ def _pick_move(energy: Optional[float], has_history: bool) -> str:
 
 
 def _pick_source(in_instance: bool, has_pool: bool,
-                 has_themed: bool = False) -> str:
+                 has_themed: bool = False,
+                 has_location: bool = False) -> str:
     weights = {
         'persona': _settings['persona_weight'],
         'surroundings': _settings['surroundings_weight'],
@@ -690,6 +698,9 @@ def _pick_source(in_instance: bool, has_pool: bool,
             has_pool and not in_instance
         ) else 0,
         'themed': _settings['themed_weight'] if has_themed else 0,
+        'location': (
+            _settings['location_weight'] if has_location else 0
+        ),
     }
     if not any(weights.values()):
         return 'persona'
@@ -706,6 +717,7 @@ def plan_idle_turn(
     topic_pool: Optional[Sequence[str]] = None,
     db=None,
     themed_topic: Optional[str] = None,
+    location_topic=None,
 ) -> Optional[IdleTurn]:
     """Choose a soft direction for the next idle exchange.
 
@@ -716,6 +728,11 @@ def plan_idle_turn(
     ``themed_topic`` is a themed subject the caller prepared before
     planning (its lookups never run under the thread lock). It is one
     more fresh-subject source, weighted by ``ThemedTopicWeight``.
+
+    ``location_topic`` (a ``chatter_location_topics.LocationTopic``)
+    is a subject tied to the place every speaker is in, weighted by
+    ``LocationTopicWeight``. It is offered in instances too; the caller
+    passes one only when the speakers share the place.
     """
     key = _key(group_id)
     if key is None or not threads_enabled(key):
@@ -734,14 +751,19 @@ def plan_idle_turn(
         if current is None and move in ('continue', 'drift'):
             move = 'new'
         source, pool_topic, callback_topic = '', None, ''
+        place = ''
         if move == 'new':
             source = _pick_source(
                 in_instance, bool(topic_pool), bool(themed_topic),
+                location_topic is not None,
             )
             if source == 'pool':
                 pool_topic = random.choice(list(topic_pool))
             elif source == 'themed':
                 pool_topic = themed_topic
+            elif source == 'location':
+                pool_topic = location_topic.topic
+                place = location_topic.place
         elif move == 'callback':
             callback_topic = random.choice(history).topic
         surprise = (
@@ -750,6 +772,7 @@ def plan_idle_turn(
         block = _render_idle_block(
             state, current, energy, history, move, source,
             pool_topic, callback_topic, surprise, solo, now,
+            place,
         )
         return IdleTurn(
             group_id=key,
@@ -758,6 +781,7 @@ def plan_idle_turn(
             kind=move,
             source=source,
             pool_topic=pool_topic,
+            location_place=place,
             callback_topic=callback_topic,
             surprise=surprise,
             builds_on_subject=move in (
@@ -821,7 +845,7 @@ def _render_feelings(state: GroupThreads) -> str:
 
 
 def _nudge_sentence(move, source, pool_topic, callback_topic,
-                    solo) -> str:
+                    solo, place='') -> str:
     who = 'you' if solo else 'someone'
     if move == 'continue':
         return (
@@ -842,6 +866,12 @@ def _nudge_sentence(move, source, pool_topic, callback_topic,
         return f"A possible fresh subject: {pool_topic}."
     if source == 'themed' and pool_topic:
         return f"A possible fresh subject: {pool_topic.rstrip('.')}."
+    if source == 'location' and pool_topic:
+        return (
+            f"A possible fresh subject tied to {place}, where "
+            f"{'you are' if solo else 'the speakers are'} now: "
+            f"{pool_topic}. It belongs to {place} itself."
+        )
     if source == 'surroundings':
         return (
             "A fresh subject could come from the surroundings or "
@@ -860,7 +890,7 @@ def _nudge_sentence(move, source, pool_topic, callback_topic,
 
 def _render_idle_block(state, current, energy, history, move, source,
                        pool_topic, callback_topic, surprise, solo,
-                       now) -> str:
+                       now, place='') -> str:
     lines = ["<conversation_thread>"]
     if current is not None:
         lines.append(
@@ -886,7 +916,7 @@ def _render_idle_block(state, current, energy, history, move, source,
         "Where it might go (a nudge, not a script; follow the "
         "conversation if it wants to go elsewhere): "
         + _nudge_sentence(
-            move, source, pool_topic, callback_topic, solo
+            move, source, pool_topic, callback_topic, solo, place
         )
     )
     if surprise:

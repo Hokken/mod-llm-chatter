@@ -482,6 +482,99 @@ def test_npc_encounter_names_npc_without_inventing_history():
     assert 'Innkeeper Grosk <Innkeeper>' in scenario
     assert 'opinion' in scenario
     assert 'had not met' not in scenario and 'met before' not in scenario
+    # No ready-made verdict words for the model to copy.
+    lowered = scenario.lower()
+    for word in ('overpriced', 'worth a visit', 'worth the trip', 'gruff'):
+        assert word not in lowered, word
+    assert any(angle in scenario for angle in world.NPC_REMARK_ANGLES)
+
+
+def test_npc_encounter_hides_game_role_labels():
+    for role in ('Quest Giver', 'NPC', 'Rare Creature', ''):
+        scenario = " ".join(world._npc_scenario(
+            _guild_extra(npc_name='Vera Nightshade', npc_subname='',
+                         npc_role=role), 'roleplay'))
+        assert 'Vera Nightshade, a local inhabitant,' in scenario, role
+        assert 'mentions this local inhabitant' in scenario, role
+        assert 'quest giver' not in scenario.lower(), role
+        assert '<' not in scenario.split('Vera Nightshade')[1][:3], role
+    # A real title or an in-world role is kept.
+    titled = " ".join(world._npc_scenario(
+        _guild_extra(npc_name='Kordan', npc_subname='Herbalism Trainer',
+                     npc_role='Quest Giver'), 'roleplay'))
+    assert 'Kordan <Herbalism Trainer>' in titled
+    vendor = " ".join(world._npc_scenario(
+        _guild_extra(npc_name='Borl', npc_subname='', npc_role='Vendor'),
+        'roleplay'))
+    assert 'Borl <Vendor>' in vendor
+
+
+def test_npc_encounter_titles_that_are_not_people():
+    # A title listing wares (or naming a group) is shown as the title it
+    # is, never turned into "this potions, scrolls and reagents".
+    for title in ('Potions, Scrolls and Reagents', 'Food & Drink',
+                  'Argent Dawn', 'Blacksmithing Supplies'):
+        scenario = " ".join(world._npc_scenario(
+            _guild_extra(npc_name="Balai Lok'Wein", npc_subname=title,
+                         npc_role='Vendor'), 'roleplay'))
+        assert (f"The title under Balai Lok'Wein's name reads <{title}>: "
+                "what they trade in or whom they serve.") in scenario
+        assert "Grom mentions Balai Lok'Wein to the guild" in scenario
+        assert f"this {title.lower()}" not in scenario
+
+
+def test_npc_encounter_person_titles_read_as_nouns():
+    cases = {
+        'Innkeeper': ('<Innkeeper>', 'this innkeeper'),
+        'Cloth & Leather Armor Merchant': (
+            '<Cloth & Leather Armor Merchant>',
+            'this cloth & leather armor merchant'),
+        'King of Stormwind': ('<King of Stormwind>',
+                              'this king of Stormwind'),
+        'Warsong Supply Officer (Honored)': (
+            '<Warsong Supply Officer (Honored)>',
+            'this warsong supply officer to'),
+        'Brewmaiden': ('<Brewmaiden>', 'this brewmaiden'),
+    }
+    for title, (tag, noun) in cases.items():
+        scenario = " ".join(world._npc_scenario(
+            _guild_extra(npc_name='Kordan', npc_subname=title,
+                         npc_role='Vendor'), 'roleplay'))
+        assert f'Kordan {tag}' in scenario, title
+        assert f'Grom mentions {noun}' in scenario, title
+
+
+def test_npc_encounter_may_name_its_place():
+    capture = _Capture()
+    _run(world.process_guild_npc_encounter_event,
+         _event('guild_npc_encounter',
+                _guild_extra(npc_name='Innkeeper Grosk', area_id=380,
+                             npc_role='Innkeeper')),
+         capture, ['Grosk waters the ale.'])
+    prompt = capture.prompts[0]
+    assert 'Do not name or describe any speaker' not in prompt
+    assert 'The exchange may name The Barrens' in prompt
+    assert prompt.count('Curated The Barrens local color:') == 1
+    assert 'Zone context:' not in prompt
+    assert 'About this place: The Crossroads' in prompt
+
+
+def test_meet_greeting_and_post_describe_zone_and_subzone():
+    capture = _Capture()
+    _run(world.process_guild_meet_greeting_event,
+         _event('guild_meet_greeting', _meet_extra()), capture,
+         ['Vlad. Mind the raptors.', 'Ran into Vlad at the Crossroads.'],
+         config=dict(RP, **{
+             'LLMChatter.GuildChatter.MeetGreeting.GuildPostChance':
+             '100'}))
+    greeting, post = capture.prompts
+    assert 'Zone context: The Barrens:' in greeting
+    assert 'About this place: The Crossroads' in greeting
+    # The post may name the place, and carries each description once.
+    assert 'Do not name or describe any speaker' not in post
+    assert post.count('Curated The Barrens local color:') == 1
+    assert 'Zone context:' not in post
+    assert post.count('About this place: The Crossroads') == 1
 
 
 def test_npc_encounter_posts_filler_guild_line():

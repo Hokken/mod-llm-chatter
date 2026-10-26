@@ -19,6 +19,7 @@ from chatter_constants import (
     RP_MESSAGE_CATEGORIES, RP_LENGTH_HINTS,
     PERSONALITY_SPICES, RP_PERSONALITY_SPICES,
     CLASS_NAMES, CLASS_ROLE_MAP,
+    BG_MAP_NAMES,
 )
 from chatter_shared import (
     get_chatter_mode, get_race_name, build_race_class_context,
@@ -31,6 +32,7 @@ from chatter_shared import (
     select_conversation_message_count,
     get_subzone_name, get_subzone_lore,
     append_speaker_gear,
+    get_dungeon_flavor, location_lore_lines,
 )
 from chatter_mode import (
     RP_NO_PLAYER_SLANG,
@@ -72,6 +74,9 @@ _recent_spices = collections.deque(maxlen=30)
 _spice_count = 2
 _spice_chance = 30
 _twist_chance = 25
+# Chance that an open-world party event reaction or proximity scene
+# carries the zone/subzone lore (LLMChatter.LocationContext.EventChance).
+_event_location_chance = 50
 
 TWIST_LABEL = (
     "Optional angle (use only if it fits your "
@@ -93,9 +98,13 @@ def _clamped_int(config, key, default, low, high):
 
 
 def configure_prompt_flavor(config) -> None:
-    """Load spice/twist settings from the bridge config."""
+    """Load spice/twist/location settings from the bridge config."""
     global _spice_count, _spice_chance, _twist_chance
+    global _event_location_chance
     config = config or {}
+    _event_location_chance = _clamped_int(
+        config, 'LLMChatter.LocationContext.EventChance', 50, 0, 100
+    )
     _spice_count = _clamped_int(
         config, 'LLMChatter.PersonalitySpiceCount', 2, 0, 5
     )
@@ -180,6 +189,31 @@ def maybe_pick_personality_spices(mode='normal'):
     return pick_personality_spices(
         mode=mode, spice_count_override=_spice_count
     )
+
+
+def maybe_event_location_lines(
+    zone_id, area_id, map_id, mode, include_zone=True,
+) -> List[str]:
+    """Zone/subzone lore for an open-world party event reaction.
+
+    Roleplay only, never inside an instance or battleground (those
+    prompts carry their own flavor), and only when the
+    LocationContext.EventChance roll passes: subzone lore is long,
+    and short combat lines do not need it every time.
+    """
+    if mode != 'roleplay' or not zone_id:
+        return []
+    if get_dungeon_flavor(map_id) is not None or map_id in BG_MAP_NAMES:
+        return []
+    if not roll_event_location_chance():
+        return []
+    return location_lore_lines(zone_id, area_id, include_zone)
+
+
+def roll_event_location_chance() -> bool:
+    """One LocationContext.EventChance roll for an outdoor prompt that
+    may carry the zone/subzone descriptions."""
+    return random.randint(1, 100) <= _event_location_chance
 
 
 def format_spices_line(spices) -> str:
@@ -517,7 +551,6 @@ def build_plain_statement_prompt(
     allow_action: bool = True,
     speaker_talent_context=None,
     topic: str = None,
-    area_id: int = 0,
     length_hint: str = "",
     thread_turn=None,
 ) -> str:
@@ -563,19 +596,6 @@ def build_plain_statement_prompt(
     zone_flavor = get_zone_flavor(zone_id)
     if is_rp and zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
-
-    # Subzone context (matches group idle pattern)
-    sz_lore = get_subzone_lore(zone_id, area_id)
-    if is_rp and sz_lore:
-        parts.append(
-            f"Current subzone: {sz_lore}"
-        )
-    else:
-        sz_name = get_subzone_name(
-            zone_id, area_id
-        )
-        if sz_name:
-            parts.append(f"Subzone: {sz_name}")
 
     if is_rp:
         append_environmental_context(parts, current_weather)
@@ -1086,7 +1106,6 @@ def build_plain_conversation_prompt(
     allow_action: bool = True,
     speaker_talent_context=None,
     topic: str = None,
-    area_id: int = 0,
     thread_turn=None,
 ) -> str:
     """Build a prompt for a plain conversation with 2-4 bots."""
@@ -1126,19 +1145,6 @@ def build_plain_conversation_prompt(
     zone_flavor = get_zone_flavor(zone_id)
     if is_rp and zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
-
-    # Subzone context (matches group idle pattern)
-    sz_lore = get_subzone_lore(zone_id, area_id)
-    if is_rp and sz_lore:
-        parts.append(
-            f"Current subzone: {sz_lore}"
-        )
-    else:
-        sz_name = get_subzone_name(
-            zone_id, area_id
-        )
-        if sz_name:
-            parts.append(f"Subzone: {sz_name}")
 
     if is_rp:
         append_environmental_context(parts, current_weather)
@@ -1372,24 +1378,19 @@ def _format_gossip_target(target: dict, target_type: str) -> str:
 def _append_gossip_context(
     parts: list,
     zone_id: int,
-    area_id: int,
     current_weather: str,
     target: dict,
     target_type: str,
     is_rp: bool,
 ) -> None:
-    """Append shared local and target context for gossip prompts."""
+    """Append shared local and target context for gossip prompts.
+
+    General is zone-wide, so only the zone is described; the
+    ambient request carries no subzone.
+    """
     zone_flavor = get_zone_flavor(zone_id)
     if is_rp and zone_flavor:
         parts.append(f"Zone context: {zone_flavor}")
-
-    subzone_lore = get_subzone_lore(zone_id, area_id)
-    if is_rp and subzone_lore:
-        parts.append(f"Current subzone: {subzone_lore}")
-    else:
-        subzone_name = get_subzone_name(zone_id, area_id)
-        if subzone_name:
-            parts.append(f"Subzone: {subzone_name}")
 
     if is_rp:
         append_environmental_context(parts, current_weather)
@@ -1415,7 +1416,6 @@ def build_gossip_statement_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
-    area_id: int = 0,
     length_hint: str = "",
 ) -> str:
     """Build a General-channel gossip statement prompt."""
@@ -1446,7 +1446,7 @@ def build_gossip_statement_prompt(
         )
 
     _append_gossip_context(
-        parts, zone_id, area_id, current_weather,
+        parts, zone_id, current_weather,
         target, target_type, is_rp,
     )
 
@@ -1504,7 +1504,6 @@ def build_gossip_conversation_prompt(
     recent_messages: list = None,
     allow_action: bool = True,
     speaker_talent_context=None,
-    area_id: int = 0,
 ) -> str:
     """Build a General-channel gossip conversation prompt."""
     mode = get_chatter_mode(config) if config else 'normal'
@@ -1526,7 +1525,7 @@ def build_gossip_conversation_prompt(
         )
 
     _append_gossip_context(
-        parts, zone_id, area_id, current_weather,
+        parts, zone_id, current_weather,
         target, target_type, is_rp,
     )
 

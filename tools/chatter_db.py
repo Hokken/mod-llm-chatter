@@ -1167,6 +1167,33 @@ def is_player_online(
         return True  # assume online on error
 
 
+def get_character_location(db, char_name: str) -> tuple:
+    """(zone, map) of a character, or (0, 0).
+
+    Not cached: the worldserver writes a real player's zone and map
+    to characters as soon as they change zone, and callers compare
+    them with where the bots are right now.
+    """
+    if not char_name:
+        return (0, 0)
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT zone, map FROM characters "
+            "WHERE name = %s LIMIT 1",
+            (char_name,),
+        )
+        row = cursor.fetchone()
+        if row:
+            return (
+                int(row.get('zone') or 0),
+                int(row.get('map') or 0),
+            )
+    except Exception:
+        pass
+    return (0, 0)
+
+
 def get_character_talents(
     db, char_guid: int
 ) -> dict:

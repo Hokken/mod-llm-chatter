@@ -34,8 +34,6 @@ from chatter_shared import (
     _zone_delivery_delay,
     get_zone_name,
     get_zone_flavor,
-    get_subzone_name,
-    get_subzone_lore,
     build_conversation_json_repair_prompt,
     spell_out_trade_numbers,
     structured_output_enabled,
@@ -64,6 +62,10 @@ from chatter_guild_profile import (
     indefinite_article,
 )
 from chatter_identity import prepare_channel_persona
+from chatter_location_topics import (
+    location_topic_for,
+    roll_location_topic,
+)
 from chatter_threads import (
     general_key,
     plan_idle_turn,
@@ -102,22 +104,43 @@ _VALID_MESSAGE_TYPES = {
 }
 
 
-def _build_zone_metadata(zone_id, area_id=0):
+def _build_zone_metadata(zone_id):
     """Build zone metadata dict for request logging.
 
     Thin wrapper around build_zone_metadata() that
-    resolves zone/subzone names from IDs first.
+    resolves the zone name from its ID first. Ambient
+    General requests are zone-wide and carry no subzone.
     """
     return build_zone_metadata(
         zone_name=get_zone_name(zone_id) or '',
         zone_flavor=get_zone_flavor(zone_id) or '',
-        subzone_name=(
-            get_subzone_name(zone_id, area_id) or ''
-        ),
-        subzone_lore=(
-            get_subzone_lore(zone_id, area_id) or ''
-        ),
     )
+
+
+def _general_location_topic(mode, zone_id):
+    """A topic tied to the zone, for roleplay General speakers.
+
+    General is zone-wide and its speakers are bots in that zone, so a
+    subject about the zone fits each of them. No chance roll.
+    """
+    return location_topic_for(zone_id, 0) if mode == 'roleplay' else None
+
+
+def _rolled_location(location, thread_turn, other_topic, zone_id):
+    """The location topic for a turn without a thread: rolled at
+    LocationTopics.Chance, and only when no guild or themed subject
+    took the turn. With a thread, the thread weighs it instead."""
+    if location is None or thread_turn is not None or other_topic:
+        return None
+    return roll_location_topic(zone_id, 0)
+
+
+def _location_or_pool(location, topic_pool):
+    """The location subject line (the prompt's zone context
+    describes the place), else a universal pool topic."""
+    if location is not None:
+        return location.subject_line()
+    return random.choice(topic_pool)
 
 
 def _with_thread_genders(prompt, db, request, zone_id, speakers):
@@ -380,14 +403,11 @@ def process_statement(
 
     # Select message type
     zone_id = request.get('zone_id', 0)
-    area_id = request.get('area_id', zone_id)
     current_weather = request.get('weather') or None
     mode = get_chatter_mode(config)
 
     # Zone metadata for request logging
-    zone_meta = _build_zone_metadata(
-        zone_id, area_id
-    )
+    zone_meta = _build_zone_metadata(zone_id)
     msg_type = _request_message_type(request)
 
 
@@ -507,25 +527,32 @@ def process_statement(
             audience=parse_audience(request.get('audience_context')),
             mode=mode,
         )
+        location = _general_location_topic(mode, zone_id)
         thread_turn = plan_idle_turn(
             thread_key,
             [bot['name']],
             topic_pool=[guild_topic] if guild_topic else topic_pool,
             db=db,
             themed_topic=themed.render() if themed else None,
+            location_topic=location,
         )
         guild_used = _guild_topic_used(guild_topic, thread_turn)
         if guild_used or not themed_used(themed, thread_turn):
             themed = None
         zone_meta.update(themed_metadata(themed))
+        location = _rolled_location(
+            location, thread_turn, guild_topic or themed, zone_id,
+        )
         topic = (
             None if thread_turn is not None
             else (guild_topic or (themed.render() if themed
-                                  else random.choice(topic_pool)))
+                                  else _location_or_pool(
+                                      location, topic_pool)))
         )
         chosen_topic = (
             "guild_praise" if guild_used
             else f"themed:{themed.kind}" if themed
+            else f"location:{location.place}" if location
             else topic or f"thread:{thread_turn.kind}"
         )
         prompt = build_plain_statement_prompt(
@@ -534,7 +561,6 @@ def process_statement(
             recent_messages=recent_msgs,
             speaker_talent_context=speaker_talent,
             topic=topic,
-            area_id=area_id,
             length_hint=rng_length,
             thread_turn=thread_turn,
         )
@@ -588,7 +614,6 @@ def process_statement(
             zone_id, config, current_weather,
             recent_messages=recent_msgs,
             speaker_talent_context=speaker_talent,
-            area_id=area_id,
             length_hint=rng_length,
         )
     else:
@@ -597,13 +622,16 @@ def process_statement(
             if mode == 'roleplay'
             else AMBIENT_CHAT_TOPICS
         )
+        location = _general_location_topic(mode, zone_id)
         thread_turn = plan_idle_turn(
             _general_thread_key(request, zone_id),
             [bot['name']], topic_pool=topic_pool, db=db,
+            location_topic=location,
         )
+        location = _rolled_location(location, thread_turn, None, zone_id)
         topic = (
             None if thread_turn is not None
-            else random.choice(topic_pool)
+            else _location_or_pool(location, topic_pool)
         )
         prompt = build_plain_statement_prompt(
             bot, zone_id,
@@ -612,7 +640,6 @@ def process_statement(
             recent_messages=recent_msgs,
             speaker_talent_context=speaker_talent,
             topic=topic,
-            area_id=area_id,
             length_hint=rng_length,
             thread_turn=thread_turn,
         )
@@ -721,14 +748,11 @@ def process_conversation(
 
 
     zone_id = request.get('zone_id', 0)
-    area_id = request.get('area_id', zone_id)
     current_weather = request.get('weather') or None
     mode = get_chatter_mode(config)
 
     # Zone metadata for request logging
-    zone_meta = _build_zone_metadata(
-        zone_id, area_id
-    )
+    zone_meta = _build_zone_metadata(zone_id)
 
     # Fetch recent zone messages for anti-repetition
     recent_msgs = get_recent_zone_messages(
@@ -849,25 +873,32 @@ def process_conversation(
             audience=parse_audience(request.get('audience_context')),
             mode=mode,
         )
+        location = _general_location_topic(mode, zone_id)
         thread_turn = plan_idle_turn(
             thread_key,
             bot_names,
             topic_pool=[guild_topic] if guild_topic else topic_pool,
             db=db,
             themed_topic=themed.render() if themed else None,
+            location_topic=location,
         )
         guild_used = _guild_topic_used(guild_topic, thread_turn)
         if guild_used or not themed_used(themed, thread_turn):
             themed = None
         zone_meta.update(themed_metadata(themed))
+        location = _rolled_location(
+            location, thread_turn, guild_topic or themed, zone_id,
+        )
         topic = (
             None if thread_turn is not None
             else (guild_topic or (themed.render() if themed
-                                  else random.choice(topic_pool)))
+                                  else _location_or_pool(
+                                      location, topic_pool)))
         )
         chosen_topic = (
             "guild_discussion" if guild_used
             else f"themed:{themed.kind}" if themed
+            else f"location:{location.place}" if location
             else topic or f"thread:{thread_turn.kind}"
         )
         prompt = build_plain_conversation_prompt(
@@ -876,7 +907,6 @@ def process_conversation(
             recent_messages=recent_msgs,
             speaker_talent_context=speaker_talent,
             topic=topic,
-            area_id=area_id,
             thread_turn=thread_turn,
         )
     elif msg_type == "quest":
@@ -912,7 +942,6 @@ def process_conversation(
             zone_id, config, current_weather,
             recent_messages=recent_msgs,
             speaker_talent_context=speaker_talent,
-            area_id=area_id,
         )
     else:
         raise ValueError(

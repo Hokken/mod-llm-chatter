@@ -34,6 +34,7 @@ from chatter_guild_profile import (
     get_guild_profile,
     guild_identity_lines,
 )
+from chatter_class_style import class_style
 from chatter_identity import prepare_guild_speakers
 from chatter_mode import build_player_chat_guidance, is_roleplay
 from chatter_shared import (
@@ -43,6 +44,7 @@ from chatter_shared import (
     get_chatter_mode,
     get_zone_name,
     parse_extra_data,
+    race_class_note,
 )
 
 logger = logging.getLogger(__name__)
@@ -77,6 +79,23 @@ def _describe(extra: Dict, prefix: str, mode: str) -> str:
     )
 
 
+def _opponent_note(db, extra: Dict, prefix: str, mode: str) -> List[str]:
+    """The other fighter's people and calling, the same lore note the
+    speaker gets, so the line can draw on who the enemy is. Roleplay
+    only, like the speaker's note."""
+    if not is_roleplay(mode):
+        return []
+    race = str(extra.get(f'{prefix}_race') or '')
+    klass = str(extra.get(f'{prefix}_class') or '')
+    if not race or not klass:
+        return []
+    guid = safe_int(extra.get(f'{prefix}_guid'))
+    style = class_style(db, guid, klass) if db is not None and guid else ''
+    name = str(extra.get(f'{prefix}_name') or 'The enemy')
+    note = race_class_note(race, klass, style or None, subject=f"{name}'s")
+    return [note] if note else []
+
+
 def _single_guild_line(
     db, client, config, event, event_type: str, enable_key: str,
     scenario_fn,
@@ -108,7 +127,7 @@ def _single_guild_line(
         str(extra.get('team') or ''),
         mode,
         guild_context,
-        scenario_fn(extra, mode),
+        scenario_fn(extra, mode, db),
         maximum,
     )
     metadata = {
@@ -152,14 +171,14 @@ def _strength_note(own_level, victim_level) -> str:
     return "They were of similar experience."
 
 
-def _pvp_kill_scenario(extra: Dict, mode: str) -> List[str]:
+def _pvp_kill_scenario(extra: Dict, mode: str, db=None) -> List[str]:
     name = str(extra.get('bot_name') or 'The speaker')
     zone = get_zone_name(safe_int(extra.get('zone_id'))) or ''
     victim = _describe(extra, 'victim', mode)
     lines = [
         f"{name} has just killed an enemy of the opposing faction"
         f"{' in ' + zone if zone else ''}: {victim}.",
-    ]
+    ] + _opponent_note(db, extra, 'victim', mode)
     war = faction_war_line(
         name, extra.get('bot_team'),
         extra.get('victim_name') or 'the victim', extra.get('victim_team'),
@@ -198,7 +217,9 @@ def _death_strength_note(name, own_level, killer_level) -> str:
     return "They were of similar experience."
 
 
-def _pvp_death_scenario(extra: Dict, mode: str, audience: str) -> List[str]:
+def _pvp_death_scenario(
+    extra: Dict, mode: str, audience: str, db=None,
+) -> List[str]:
     name = str(extra.get('bot_name') or 'The speaker')
     killer_name = str(extra.get('killer_name') or 'the killer')
     zone = get_zone_name(safe_int(extra.get('zone_id'))) or ''
@@ -206,7 +227,7 @@ def _pvp_death_scenario(extra: Dict, mode: str, audience: str) -> List[str]:
         f"{name} has just been killed{' in ' + zone if zone else ''} by "
         f"an enemy of the opposing faction: "
         f"{_describe(extra, 'killer', mode)}.",
-    ]
+    ] + _opponent_note(db, extra, 'killer', mode)
     war = faction_war_line(
         name, extra.get('bot_team'), killer_name, extra.get('killer_team'),
     )
@@ -240,11 +261,14 @@ def process_guild_pvp_death_event(db, client, config, event):
     return _single_guild_line(
         db, client, config, event, 'guild_pvp_death',
         'PvpDeath.Enable',
-        lambda extra, mode: _pvp_death_scenario(extra, mode, 'the guild'),
+        lambda extra, mode, db: _pvp_death_scenario(
+            extra, mode, 'the guild', db),
     )
 
 
-def build_zone_pvp_death_prompt(bot: Dict, extra: Dict, mode: str) -> str:
+def build_zone_pvp_death_prompt(
+    bot: Dict, extra: Dict, mode: str, db=None,
+) -> str:
     zone = get_zone_name(bot['zone_id']) or 'this zone'
     lines = (
         ["Write one natural in-character World of Warcraft General chat "
@@ -258,7 +282,7 @@ def build_zone_pvp_death_prompt(bot: Dict, extra: Dict, mode: str) -> str:
         lines.append(f"They fight for the {team}. Never insult or mock "
                      f"the {team}, their own faction.")
     lines.extend(_pvp_death_scenario(
-        extra, mode, f"everyone in {zone} on General chat"))
+        extra, mode, f"everyone in {zone} on General chat", db))
     lines.extend([
         personality_rule([bot['name']]),
         "Spoken text only: no narrator text, emotes or name prefix.",
@@ -288,7 +312,7 @@ def process_zone_pvp_death_event(db, client, config, event):
     bot = _prepared(db, client, config, bot, channel='general')
 
     mode = get_chatter_mode(config)
-    prompt = build_zone_pvp_death_prompt(bot, extra, mode)
+    prompt = build_zone_pvp_death_prompt(bot, extra, mode, db)
     metadata = {
         'pvp_death_channel': 'general',
         'killer_name': str(extra.get('killer_name') or ''),

@@ -18,6 +18,7 @@ if str(TOOLS_DIR) not in sys.path:
 
 from chatter_text import (  # noqa: E402
     cleanup_message,
+    parse_single_response,
     split_action_prefix,
 )
 
@@ -74,6 +75,26 @@ def test_overlong_prefix_stays_inline():
     assert message == text
 
 
+def test_action_starts_lowercase():
+    """The game prepends the speaker's name to a text emote, so
+    "Giggles softly" would read "Veliana Giggles softly"."""
+    combined = cleanup_message("Oh, stop.", action="Giggles softly")
+    message, action = split_action_prefix(combined)
+    assert action == "giggles softly"
+    assert message == "Oh, stop."
+    _, action = split_action_prefix("*Giggles* Oh, stop.")
+    assert action == "giggles"
+    parsed = parse_single_response(
+        '{"message": "Oh, stop.", "action": "*Giggles softly*"}'
+    )
+    assert parsed['action'] == "giggles softly"
+
+
+def test_action_acronym_keeps_its_case():
+    _, action = split_action_prefix("*SI:7 badge glints* Move along.")
+    assert action == "SI:7 badge glints"
+
+
 def main() -> int:
     test_round_trip_matches_the_llm_fields()
     test_message_without_action_is_untouched()
@@ -81,6 +102,8 @@ def main() -> int:
     test_mid_message_asterisks_are_not_an_action()
     test_empty_and_non_string_inputs_are_safe()
     test_overlong_prefix_stays_inline()
+    test_action_starts_lowercase()
+    test_action_acronym_keeps_its_case()
     print("OK")
     return 0
 

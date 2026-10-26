@@ -5,6 +5,7 @@ import importlib
 import sys
 import types
 from pathlib import Path
+from unittest.mock import patch
 
 
 def _ensure_module(name):
@@ -113,3 +114,69 @@ def test_general_prompts_use_the_picked_tier():
         brief_casual=True, brief_tier='relaxed',
     ))
     assert 'Length: 5-14 words, no more than 85 characters.' in followup
+
+
+def test_action_prefix_does_not_count_toward_the_length():
+    """The action is sent as a separate emote; counting it dropped
+    replies to a player who had addressed an NPC by name."""
+    line = '*leans on the counter, eyeing the stranger slowly* Aye, friend.'
+    assert brief_casual_response_fits(line)
+    # An action alone stays inline as the spoken line.
+    assert brief_casual_response_fits('*shrugs*')
+
+
+def test_proximity_reply_survives_an_overlong_repair():
+    import chatter_proximity as prox
+
+    long = ('{"message": "Well now, that is a long story about the old '
+            'mill and the river and everything that happened there", '
+            '"action": "Wipes the bar"}')
+    with patch.object(prox, 'call_llm', return_value=long):
+        parsed = prox._parse_brief_single_with_retry(
+            None, {}, 'prompt', long, brief_casual=True,
+            max_tokens=50, label='test', metadata={},
+        )
+    assert parsed.get('message')
+    assert parsed.get('action') == 'wipes the bar'
+
+
+def test_proximity_overlong_reply_is_delivered_whole():
+    """The band only steers the prompt: an over-long reply is not cut
+    down to its first sentence ("Sure.")."""
+    import chatter_proximity as prox
+
+    text = 'Sure. Meet me by the inn when you return from your long journey.'
+    long = '{"message": "%s"}' % text
+    with patch.object(prox, 'call_llm', return_value=long):
+        parsed = prox._parse_brief_single_with_retry(
+            None, {}, 'prompt', long, brief_casual=True,
+            max_tokens=50, label='test', metadata={},
+        )
+    assert parsed['message'] == text
+    # Only the client chat limit applies.
+    huge = ('Sure. ' + 'Meet me by the inn at dusk, friend. ' * 12).strip()
+    message, _ = prox._whole_reply(huge)
+    assert message.startswith('Sure. Meet me') and len(message) <= 255
+
+
+def test_proximity_brief_conversation_is_delivered_whole():
+    import chatter_proximity as prox
+
+    tale = 'Aye. That is a long tale about the old mill and the river.'
+    lines = prox._whole_brief_conversation([
+        {'name': 'Brawn', 'message': tale},
+        {'name': 'Kragg', 'message': '', 'emote': None},
+    ])
+    assert [line['name'] for line in lines] == ['Brawn']
+    assert lines[0]['message'] == tale
+
+
+if __name__ == '__main__':
+    tests = [
+        value
+        for name, value in globals().items()
+        if name.startswith('test_') and callable(value)
+    ]
+    for test in tests:
+        test()
+    print(f"{len(tests)} brief casual tier tests passed")

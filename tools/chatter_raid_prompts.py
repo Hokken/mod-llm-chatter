@@ -31,6 +31,8 @@ from chatter_prompts import (
     build_environmental_context_lines,
 )
 
+from chatter_location_topics import roll_location_topic
+
 LOG = logging.getLogger("chatter_raid_prompts")
 
 # -- Raid lore constants ---------------------------------
@@ -39,306 +41,390 @@ RAID_LORE = {
     # ── WotLK ──────────────────────────────────────
     'Icecrown Citadel': {
         'lore': (
-            'The Lich King\'s throne atop '
-            'Icecrown. The Ashen Verdict leads '
-            'the final assault against Arthas '
-            'and his undead armies.'),
-        'tone': 'Dark, desperate, epic.',
+            'The Lich King\'s fortress, a '
+            'cathedral of saronite raised '
+            'around the Frozen Throne in the '
+            'black ice of Icecrown. The Ashen '
+            'Verdict, the union of the Argent '
+            'Crusade and the Knights of the '
+            'Ebon Blade, leads the assault '
+            'through its halls against Arthas '
+            'and his most loyal servants.'),
+        'tone': 'Dark, grim, desperate, momentous.',
         'landmarks': (
-            'Lower Spire, Plagueworks, '
-            'Crimson Hall, Frostwing Halls, '
-            'the Frozen Throne. Saronite and '
-            'ice architecture, oppressive cold.'),
+            'The Lower Spire, the Plagueworks, '
+            'the Crimson Hall and the Frostwing '
+            'Halls rising toward the Frozen '
+            'Throne. Saronite spires, bone and '
+            'black ice, and a cold that seeps '
+            'into the soul.'),
     },
     'Ulduar': {
         'lore': (
-            'Ancient titan city-prison in the '
-            'Storm Peaks. The corrupted keepers '
-            'guard Yogg-Saron\'s prison vault. '
-            'The grandest raid in Northrend.'),
-        'tone': 'Awe-inspiring, mysterious, grand.',
+            'The greatest titan city on '
+            'Azeroth, hidden in the Storm '
+            'Peaks, once home to the keepers '
+            'and their engines of creation. Its '
+            'guardians have turned against all '
+            'intruders, and whispers speak of a '
+            'great evil imprisoned in its '
+            'depths that has corrupted the '
+            'city.'),
+        'tone': (
+            'Awe-inspiring, ancient, '
+            'mysterious, foreboding.'),
         'landmarks': (
-            'Siege area, Antechamber, Keepers '
-            'of Ulduar, the Descent into '
-            'Madness, the Celestial Planetarium. '
-            'Gleaming titan metal and stone.'),
+            'Colossal gates and siege grounds, '
+            'the halls of the keepers, a '
+            'starlit observatory, and passages '
+            'descending into darkness. Gleaming '
+            'titan metal, carved stone and '
+            'humming machinery.'),
     },
     'Naxxramas': {
         'lore': (
-            'Floating necropolis of Kel\'Thuzad '
-            'over Dragonblight. Four themed '
-            'wings of undead horrors and the '
-            'lich\'s inner sanctum.'),
-        'tone': 'Creepy, tense, grim.',
+            'Kel\'Thuzad\'s necropolis, a '
+            'nerubian ziggurat torn from the '
+            'earth and raised into the sky by '
+            'the Lich King, now hovering over '
+            'the Dragonblight to besiege '
+            'Wintergarde. It holds the '
+            'Scourge\'s foulest laboratories and '
+            'its most dreaded commanders.'),
+        'tone': 'Creepy, grim, oppressive.',
         'landmarks': (
-            'Arachnid Quarter (giant spiders), '
-            'Plague Quarter (disease and '
-            'abominations), Military Quarter '
-            '(death knight commanders), '
-            'Construct Quarter (flesh golems), '
-            'Frostwyrm Lair. Green slime and '
-            'dark stone.'),
+            'Four quarters: webbed crypts of '
+            'the nerubians, plague-filled '
+            'laboratories, the halls of the '
+            'death knights and the stitched '
+            'constructs, and the frozen lair of '
+            'a great frost wyrm. Green slime, '
+            'rotting flesh and dark stone.'),
     },
     'Vault of Archavon': {
         'lore': (
-            'Titan vault beneath Wintergrasp '
-            'Fortress, accessible only to the '
-            'faction controlling Wintergrasp.'),
-        'tone': 'Quick, practical, loot-focused.',
+            'A titan vault beneath Wintergrasp '
+            'Fortress, holding relics of untold '
+            'power. Ancient stone watchers '
+            'guard it and resent every '
+            'intruder, and only those who hold '
+            'the fortress above may enter.'),
+        'tone': 'Ancient, solemn, watchful.',
         'landmarks': (
-            'Utilitarian titan chambers. Stone '
-            'giants and elemental constructs. '
-            'Massive but unadorned.'),
+            'Vast, bare titan chambers of '
+            'carved stone, guarded by giant '
+            'stone and elemental watchers. '
+            'Silence, dust and the faint hum of '
+            'old machinery.'),
     },
     'The Obsidian Sanctum': {
         'lore': (
-            'Volcanic chamber beneath Wyrmrest '
-            'Temple where Sartharion guards '
-            'black dragon eggs alongside '
-            'three drake lieutenants.'),
-        'tone': 'Intense, fiery, dragon-themed.',
+            'The black dragonflight\'s chamber '
+            'in the Chamber of the Aspects '
+            'beneath Wyrmrest Temple, where '
+            'Sartharion the Onyx Guardian '
+            'watches over a clutch of twilight '
+            'dragon eggs with three twilight '
+            'drakes at his side.'),
+        'tone': 'Fiery, intense, menacing.',
         'landmarks': (
-            'Lava rivers, obsidian platforms, '
-            'three drake islands. Orange and '
-            'red glow, heat shimmer.'),
+            'Obsidian islands between rivers of '
+            'lava, each drake on its own '
+            'island. An orange and red glow, '
+            'shimmering heat and the stench of '
+            'sulfur.'),
     },
     'The Eye of Eternity': {
         'lore': (
-            'Malygos\'s sanctum atop the Nexus '
-            'above Coldarra. A platform in raw '
-            'ley energy where the Spell-Weaver '
-            'wages war on all magic users.'),
-        'tone': 'Arcane, otherworldly, desperate.',
+            'The personal domain of Malygos, '
+            'the blue Aspect of Magic, above '
+            'the Nexus on Coldarra. From here '
+            'the Spell-Weaver wages his war to '
+            'reclaim dominion over all the '
+            'arcane energies of Azeroth, and he '
+            'will tolerate no mortal '
+            'spellcaster.'),
+        'tone': (
+            'Arcane, otherworldly, '
+            'overwhelming.'),
         'landmarks': (
-            'No ground or walls. A disc of '
-            'magical force over swirling blue '
-            'and violet arcana. The heart of '
-            'Azeroth\'s arcane storm.'),
+            'A disc of magical force floating '
+            'in an endless void of swirling '
+            'blue and violet arcane energy and '
+            'stars, where the ley lines of the '
+            'world converge.'),
     },
     'The Ruby Sanctum': {
         'lore': (
-            'Red dragon sanctum beneath Wyrmrest '
-            'Temple, invaded by the twilight '
-            'dragonflight. Halion phases between '
-            'physical and shadow realms.'),
-        'tone': 'Urgent, fiery, apocalyptic.',
+            'The red dragonflight\'s sanctum in '
+            'the Chamber of the Aspects beneath '
+            'Wyrmrest Temple, a refuge of the '
+            'red flight\'s eggs. Its guardians '
+            'have fallen silent, and a dark '
+            'power has broken in to strike at '
+            'the red dragonflight.'),
+        'tone': 'Urgent, fiery, ominous.',
         'landmarks': (
-            'Chamber shifts between warm ruby '
-            'light and cold purple shadow. '
-            'The last raid before the Cataclysm.'),
+            'Warm ruby light, green growth and '
+            'red dragon eggs, now scarred by '
+            'fire and shadow. Slain guardians '
+            'and shattered stones lie at the '
+            'portal.'),
     },
     'Trial of the Crusader': {
         'lore': (
-            'Argent Coliseum in Icecrown. '
-            'A tournament arena that collapses '
-            'into nerubian caverns below. '
-            'Festive competition above, '
-            'ancient terror below.'),
-        'tone': 'Competitive, tense, dramatic.',
+            'The Argent Coliseum in Icecrown, '
+            'built by the Argent Crusade under '
+            'Highlord Tirion Fordring to test '
+            'the champions worthy of the final '
+            'assault on the Lich King. The '
+            'Alliance and the Horde compete '
+            'before the crowds, their old '
+            'rivalry flaring in the stands.'),
+        'tone': 'Competitive, proud, tense.',
         'landmarks': (
-            'Tournament arena with banners and '
-            'crowds, underground nerubian '
-            'cavern. Anub\'arak lurks below.'),
+            'A grand tournament arena with '
+            'banners, cheering stands and the '
+            'crusade\'s leaders watching from '
+            'above, at the very doorstep of the '
+            'Lich King\'s fortress.'),
     },
     # ── TBC ────────────────────────────────────────
     'Karazhan': {
         'lore': (
-            'Medivh\'s haunted tower in '
-            'Deadwind Pass. Echoes of the Last '
-            'Guardian play out eternally in '
-            'rooms that shift and bend time.'),
+            'The ivory tower of Medivh, the '
+            'last Guardian of Tirisfal, in '
+            'Deadwind Pass, on a nexus of ley '
+            'lines where reality is weak. A '
+            'curse has lain over it since his '
+            'death, and now an evil presence '
+            'has claimed it, its halls full of '
+            'spirits, demons and echoes of the '
+            'past.'),
         'tone': 'Eerie, magical, surreal.',
         'landmarks': (
-            'Ballroom, Opera stage, Chess '
-            'event, Netherspace. '
-            'Spectral dinner party. The tower '
-            'exists partially outside reality.'),
+            'A ghostly ballroom feast, an opera '
+            'house where phantom actors '
+            'perform, a vast library and a '
+            'menagerie, all in dusty grandeur. '
+            'Rooms seem to shift, and the past '
+            'replays itself.'),
     },
     'Gruul\'s Lair': {
         'lore': (
-            'Rough cavern complex in Blade\'s '
-            'Edge Mountains. Home to Gruul the '
-            'Dragonkiller and his gronn sons. '
-            'Dragon bones litter the floor.'),
+            'A cavern in the northern Blade\'s '
+            'Edge Mountains, home of Gruul the '
+            'Dragonkiller, overlord of the '
+            'gronn, and his son, the ogre High '
+            'King Maulgar, who rule the ogres '
+            'of the mountains through fear and '
+            'brute strength.'),
         'tone': 'Brutal, primal, savage.',
         'landmarks': (
-            'Raw stone caves, ogre servants, '
-            'dragon bone trophies. No '
-            'architecture, just giant fists '
-            'and brute force.'),
+            'Raw stone caves, crude ogre '
+            'banners and the bones of slain '
+            'dragons as trophies. The ground '
+            'shakes under the steps of giants.'),
     },
     'Magtheridon\'s Lair': {
         'lore': (
-            'A single brutal chamber beneath '
-            'Hellfire Citadel where the pit '
-            'lord Magtheridon is chained. '
-            'Channelers maintain his prison.'),
-        'tone': 'Oppressive, demonic, punishing.',
+            'A chamber deep beneath Hellfire '
+            'Citadel where the pit lord '
+            'Magtheridon, once master of '
+            'Outland, lies chained since '
+            'Illidan defeated him. Fel orc '
+            'channelers keep his bonds in place '
+            'while his blood is harvested to '
+            'breed the Fel Horde.'),
+        'tone': 'Oppressive, demonic, furious.',
         'landmarks': (
-            'One deadly room. Hellfire energy, '
-            'demon blood and brimstone. '
-            'No room for error.'),
+            'A single great chamber of fel fire '
+            'and brimstone, the ceiling cracked '
+            'by the demon\'s rage, and the '
+            'chains and channelers around him.'),
     },
     'Serpentshrine Cavern': {
         'lore': (
-            'Lady Vashj\'s underwater palace '
-            'in Coilfang Reservoir. Naga '
-            'architecture meets the raw power '
-            'of a subterranean ocean.'),
-        'tone': (
-            'Elegant, aquatic, treacherous.'),
+            'The lair of Lady Vashj, the naga '
+            'sorceress who serves Illidan, deep '
+            'within Coilfang Reservoir, where '
+            'the waters drained from '
+            'Zangarmarsh collect. Her '
+            'lieutenants guard the shrine, and '
+            'her naga swarm its waters.'),
+        'tone': 'Elegant, aquatic, treacherous.',
         'landmarks': (
-            'Waterfalls, luminous pools, '
-            'bridges over underground lakes. '
-            'Naga, tidewalkers, colossal '
-            'hydras. Corrupted Zangarmarsh '
-            'waters.'),
+            'Waterfalls, luminous pools and '
+            'bridges over underground lakes, '
+            'coral pillars and naga '
+            'architecture, all bathed in an '
+            'eerie blue light.'),
     },
     'Tempest Keep': {
         'lore': (
-            'Kael\'thas Sunstrider\'s captured '
-            'naaru fortress floating above '
-            'Netherstorm. Crystalline draenei '
-            'technology repurposed by desperate '
-            'blood elves.'),
-        'tone': 'Arcane, alien, beautiful.',
+            'The naaru fortress floating above '
+            'Netherstorm, seized by the blood '
+            'elves of Kael\'thas Sunstrider, the '
+            'Sun King, who rule it with stolen '
+            'naaru technology and drain the '
+            'power of a captive naaru.'),
+        'tone': 'Arcane, alien, majestic.',
         'landmarks': (
-            'Shimmering crystal chambers. '
-            'Blood elf advisors, void '
-            'creatures. Stunning views of '
-            'shattered Netherstorm.'),
+            'Shimmering crystal halls, floating '
+            'platforms, phoenixes and arcane '
+            'machinery, with views over the '
+            'shattered, storm-wracked lands of '
+            'Netherstorm.'),
     },
     'Battle for Mount Hyjal': {
         'lore': (
-            'Caverns of Time raid during the '
-            'Battle of Mount Hyjal. Waves of '
-            'undead and demons assault three '
-            'bases in succession with legendary '
-            'heroes at your side.'),
+            'A journey through the Caverns of '
+            'Time to the Battle of Mount Hyjal '
+            'at the end of the Third War, when '
+            'humans, orcs and night elves stood '
+            'together against the Burning '
+            'Legion and the Scourge as '
+            'Archimonde marched on the World '
+            'Tree.'),
         'tone': 'Epic, heroic, desperate.',
         'landmarks': (
-            'Alliance base (Jaina), Horde base '
-            '(Thrall), night elf camp at '
-            'Nordrassil. The forest burns. '
-            'Archimonde approaches.'),
+            'The human base under Jaina '
+            'Proudmoore, the Horde base under '
+            'Thrall, and the night elf camp '
+            'beneath Nordrassil. Burning '
+            'forests and endless waves of '
+            'demons and undead.'),
     },
     'Black Temple': {
         'lore': (
-            'Illidan\'s fortress in Shadowmoon '
-            'Valley. A draenei temple corrupted '
-            'by demonic occupation. Fel orcs, '
-            'demons, naga, and blood elves '
-            'serve the Betrayer.'),
+            'Once the draenei Temple of '
+            'Karabor, conquered by Gul\'dan\'s '
+            'Shadow Council and later held by '
+            'the Burning Legion, now the '
+            'fortress of Illidan Stormrage, the '
+            'self-proclaimed Lord of Outland, '
+            'guarded by his naga, blood elves, '
+            'Broken, demons and fel orcs.'),
         'tone': 'Dark, grand, corrupted.',
         'landmarks': (
-            'Sprawling courtyards, sewer '
-            'systems, grand halls. Cracked '
-            'holy symbols, defiled altars, '
-            'green fel fire. Illidan\'s throne '
-            'awaits at the summit.'),
+            'Sprawling courtyards, sewers and '
+            'grand halls of the old temple, '
+            'defiled altars, cracked holy '
+            'symbols, green fel fire, and '
+            'Illidan\'s throne at the summit.'),
     },
     'Sunwell Plateau': {
         'lore': (
-            'The heart of the Sunwell on the '
-            'Isle of Quel\'Danas. The Burning '
-            'Legion attempts to summon '
-            'Kil\'jaeden through the Sunwell '
-            'itself.'),
+            'The holiest place of the elves on '
+            'the Isle of Quel\'Danas, where the '
+            'Sunwell sustained Quel\'Thalas for '
+            'millennia. In recent times the '
+            'Burning Legion has sought to use '
+            'it as a gateway for the eredar '
+            'lord Kil\'jaeden.'),
         'tone': 'Holy, desperate, climactic.',
         'landmarks': (
-            'Pristine elven architecture. '
-            'The Sunwell\'s holy light clashes '
-            'with demonic darkness. The final '
-            'stand of the Burning Crusade.'),
+            'Pristine elven courtyards and '
+            'golden spires, captured naaru, and '
+            'the Sunwell itself, its holy light '
+            'clashing with demonic darkness.'),
     },
     # ── Classic ────────────────────────────────────
     'Molten Core': {
         'lore': (
             'The burning heart of Blackrock '
-            'Mountain. Ragnaros the Firelord '
-            'rules this realm of pure fire. '
-            'The ultimate trial by fire.'),
-        'tone': 'Fiery, apocalyptic, primal.',
+            'Mountain, where Thaurissan '
+            'summoned Ragnaros the Firelord. A '
+            'lake of fire here is a rift to the '
+            'Elemental Plane, and the '
+            'Firelord\'s flamewakers command his '
+            'elementals and the enslaved Dark '
+            'Iron dwarves.'),
+        'tone': 'Fiery, primal, overwhelming.',
         'landmarks': (
-            'Lava rivers between obsidian '
-            'platforms. Core hounds, molten '
-            'giants, flamewakers. The heat '
-            'is overwhelming.'),
+            'Rivers of lava between obsidian '
+            'platforms, core hounds, molten '
+            'giants and fire elementals. The '
+            'heat is crushing.'),
     },
     'Blackwing Lair': {
         'lore': (
-            'Nefarian\'s dark laboratory atop '
-            'Blackrock Spire where the black '
-            'dragon experiments on other '
-            'dragonflights. Clinical and '
-            'sinister.'),
-        'tone': 'Sinister, experimental, draconic.',
+            'The lair of the black dragon '
+            'Nefarian atop Blackrock Spire, '
+            'where, like his father Deathwing, '
+            'he breeds a new army, '
+            'experimenting with the blood of '
+            'every dragonflight to create '
+            'unstoppable warriors.'),
+        'tone': 'Sinister, cruel, draconic.',
         'landmarks': (
-            'Dark iron and dragon bone halls. '
-            'Drakonid soldiers, chromatic '
-            'drakes, failed experiments. '
-            'A mad scientist\'s lair at '
-            'dragon scale.'),
+            'Halls of dark iron and dragon '
+            'bone, laboratories and hatcheries, '
+            'drakonid soldiers and the twisted '
+            'results of his experiments.'),
     },
     'Onyxia\'s Lair': {
         'lore': (
-            'A vast cavern in Dustwallow '
-            'Marsh, home to the broodmother '
-            'Onyxia. Whelps swarm, lava '
-            'bubbles, dragonfire fills the '
-            'chamber.'),
+            'A volcanic cave in the Wyrmbog of '
+            'Dustwallow Marsh, home of Onyxia, '
+            'the black dragon broodmother and '
+            'daughter of Deathwing, who guards '
+            'a vast clutch of eggs.'),
         'tone': 'Intense, claustrophobic, fiery.',
         'landmarks': (
-            'Narrow scorched tunnel opening '
-            'into enormous cavern. Bones, '
-            'egg clutches, lava edges.'),
+            'A narrow scorched tunnel opening '
+            'into an enormous cavern of bones '
+            'and egg clutches, its floor a thin '
+            'crust over molten rock.'),
     },
     'Ruins of Ahn\'Qiraj': {
         'lore': (
-            'Open-air battlefield in Silithus '
-            'where qiraji insectoid forces '
-            'mass for war. Sand-swept '
-            'courtyards and crumbling temple '
-            'ruins.'),
+            'The outer ruins of Ahn\'Qiraj '
+            'behind the Scarab Wall in '
+            'Silithus, where the Qiraji were '
+            'sealed a thousand years ago. The '
+            'gates have been opened, and their '
+            'generals and swarms defend the '
+            'ruins against the armies of the '
+            'Alliance and the Horde.'),
         'tone': 'Alien, harsh, warlike.',
         'landmarks': (
-            'Insectoid warriors, obsidian '
-            'destroyers. Architecture is '
-            'half Egyptian tomb, half insect '
-            'hive. Desert wind and clicking '
-            'of countless legs.'),
+            'Sand-swept courtyards and colossal '
+            'crumbling structures among '
+            'silithid hives. Desert wind and '
+            'the clicking of countless legs.'),
     },
     'Temple of Ahn\'Qiraj': {
         'lore': (
-            'Sealed inner sanctum of the '
-            'qiraji empire. The old god '
-            'C\'Thun lurks within. Walls '
-            'pulse with organic growth, '
-            'eyes watch from every surface.'),
-        'tone': (
-            'Alien, disturbing, oppressive.'),
+            'The great temple at the heart of '
+            'Ahn\'Qiraj, stronghold of the '
+            'Qiraji emperors. Dark whispers say '
+            'an Old God stirs in its depths, '
+            'regaining his strength after '
+            'thousands of years.'),
+        'tone': 'Alien, disturbing, oppressive.',
         'landmarks': (
-            'Twin emperors\' chamber, '
-            'organic corridors, C\'Thun\'s '
-            'stomach. Reality bends near '
-            'the old god\'s prison. The most '
-            'alien place in Azeroth.'),
+            'Insectile halls, pulsing hives and '
+            'twisted chambers leading ever '
+            'deeper, where the walls seem alive '
+            'and something unseen seems to '
+            'watch.'),
     },
     'Zul\'Gurub': {
         'lore': (
-            'Massive troll temple in '
-            'Stranglethorn jungle. The '
-            'Gurubashi have unleashed the '
-            'blood god Hakkar. Overgrown '
-            'courtyards and sacrificial '
-            'altars.'),
-        'tone': 'Primal, voodoo, tropical.',
+            'The ancient capital of the '
+            'Gurubashi trolls in the jungles of '
+            'Stranglethorn, where the blood god '
+            'Hakkar the Soulflayer has '
+            'returned. The high priests of the '
+            'Bat, Panther, Tiger, Spider and '
+            'Snake have fallen under his sway.'),
+        'tone': 'Primal, savage, blood-soaked.',
         'landmarks': (
-            'Snake priests, bat riders, '
-            'tiger cultists. Sacrificial '
-            'altars dripping with blood '
-            'magic. The jungle pulses with '
-            'primal voodoo energy.'),
+            'Overgrown temples and ziggurats, '
+            'sacrificial altars dripping with '
+            'blood magic, and the drums and '
+            'beasts of the jungle all around.'),
     },
 }
 
@@ -660,6 +746,26 @@ def build_raid_battle_cry_prompt(
     )
 
 
+def _raid_location_lines(extra_data):
+    """A topic tied to this raid, roleplay only, at
+    LocationTopics.Chance; it replaces the topic hint. The Lore
+    line already describes raids that have one; the others get
+    the raid's description."""
+    if not is_roleplay(get_chatter_mode(
+        extra_data.get('_config') or {}
+    )):
+        return []
+    location = roll_location_topic(
+        extra_data.get('zone_id'), extra_data.get('map_id'),
+    )
+    if location is None:
+        return []
+    has_lore = bool(
+        RAID_LORE.get(extra_data.get('raid_name'), {}).get('lore')
+    )
+    return location.lines(with_description=not has_lore)
+
+
 def build_raid_banter_prompt(
     extra_data, bot_data, is_raid_worker=True
 ):
@@ -696,7 +802,11 @@ def build_raid_banter_prompt(
         "for morale. This is just friends chatting "
         "in a dungeon.\n"
     )
-    ctx += f"Topic hint: {banter_topics}\n"
+    location_lines = _raid_location_lines(extra_data)
+    if location_lines:
+        ctx += "\n".join(location_lines) + "\n"
+    else:
+        ctx += f"Topic hint: {banter_topics}\n"
     ctx += (
         "ONE short sentence (10-25 words) in the configured chat mode. "
         "No asterisks."
@@ -745,7 +855,11 @@ def build_raid_morale_prompt(
         "commander voice. Casual and "
         "authoritative.\n"
     )
-    ctx += f"Topic hint: {topics}\n"
+    location_lines = _raid_location_lines(extra_data)
+    if location_lines:
+        ctx += "\n".join(location_lines) + "\n"
+    else:
+        ctx += f"Topic hint: {topics}\n"
     ctx += (
         "ONE short sentence in the configured chat mode. "
         "No asterisks."

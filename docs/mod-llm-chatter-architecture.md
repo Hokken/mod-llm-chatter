@@ -270,7 +270,8 @@ NPCs, and real players as they move through the world:
    NPC spawn GUIDs and nearby entity names in `extra_data`.
 5. Python `chatter_proximity.py` claims the event and uses
    `chatter_instance_context.py` for canonical map name, current area,
-   and curated dungeon-lore grounding. NPC payloads also carry
+   and curated dungeon-lore grounding; outdoors it adds the subzone (or
+   zone) description when a speaker is in-world. NPC payloads also carry
    disposition, creature rank, creature type, and qualification reason.
 6. Messages are written to `llm_chatter_messages` with channel
    `"say"` (for bots) or `"msay"` (for NPCs). Ordinary, directed speech,
@@ -1269,6 +1270,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_identity_jobs.py` | Bounded Guild membership discovery and profile prewarming |
 | `tools/chatter_persona.py` | Bot persona resolution (identity + real event mood) and the shared persona/cast renderers for Party, Guild and General |
 | `tools/chatter_threads.py` | Party conversation threads: in-memory thread store, soft nudges for idle exchanges, thread prompt rendering, thread report parsing |
+| `tools/chatter_location_topics.py` | Topics tied to the speakers' zone, dungeon or raid, loaded from `tools/location_topics.json`; `location_topic_for()` draws one with the place's description, `roll_location_topic()` applies `LocationTopics.Chance`. Used by party idle chatter and bot questions, General, proximity and raid idle chatter, and as the `location` source of conversation threads |
 | `tools/chatter_themed_topics.py` | Themed idle subjects (faction, race, class, race+class) and rumors (expansions, dungeons, raids, locations, regions, profession and class trainers); `themed_candidate()` prepares one before a thread turn is planned |
 | `tools/chatter_progression.py` | Rumor gating per listener (level bands, faction, achievements) and the rotating rumor target |
 | `tools/chatter_lore_data.py` / `chatter_rumor_data.py` / `chatter_trainer_rumor_data.py` | Static themed topic, race+class note, rumor and trainer rumor data |

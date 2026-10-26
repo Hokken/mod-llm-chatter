@@ -159,7 +159,7 @@ def test_known_instance_uses_canonical_name_and_existing_lore():
     context = build_instance_context(INSTANCE_EXTRA)
     assert context['instance_name'] == 'Shadowfang Keep'
     assert context['current_area'] == 'The Courtyard'
-    assert 'haunted fortress' in context['instance_flavor'].lower()
+    assert 'haunted keep' in context['instance_flavor'].lower()
 
     text = '\n'.join(build_location_prompt_lines(INSTANCE_EXTRA))
     assert 'Instance: Shadowfang Keep' in text
@@ -233,7 +233,7 @@ def test_all_proximity_prompt_shapes_receive_instance_context():
     ]
     for prompt in prompts:
         assert 'Instance: Shadowfang Keep' in prompt
-        assert 'haunted fortress' in prompt.lower()
+        assert 'haunted keep' in prompt.lower()
 
 
 def test_player_responsive_proximity_prompts_carry_purpose_scale_guidance():
@@ -1216,7 +1216,7 @@ def test_boss_prompt_is_grounded_directed_and_action_free():
     prompt = build_boss_prompt(BOSS_EXTRA).user_prompt
     assert 'Baron Silverlaine' in prompt
     assert 'Instance: Shadowfang Keep' in prompt
-    assert 'haunted fortress' in prompt.lower()
+    assert 'haunted keep' in prompt.lower()
     assert 'your keep is falling' in prompt
     assert 'respond to their meaning' in prompt.lower()
     assert 'never reproduce or paraphrase known scripted' in prompt.lower()

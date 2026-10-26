@@ -273,6 +273,23 @@ def parse_single_response(response: str) -> dict:
     }
 
 
+def _lowercase_action_start(action: str) -> str:
+    """Lowercase an action's first letter.
+
+    The client shows an action as "<Name> <action>", so it
+    must read as the middle of a sentence ("Veliana giggles"),
+    never "Veliana Giggles". Acronyms such as "SI:7" keep
+    their case.
+    """
+    if (
+        len(action) > 1
+        and action[0].isupper()
+        and not action[1].isupper()
+    ):
+        return action[0].lower() + action[1:]
+    return action
+
+
 def _sanitize_action(raw_action) -> Optional[str]:
     """Clean and validate an action string from
     LLM JSON output.
@@ -297,7 +314,7 @@ def _sanitize_action(raw_action) -> Optional[str]:
         return None
     if len(action) < 2 or len(action) > 80:
         return None
-    return action
+    return _lowercase_action_start(action)
 
 
 def split_action_prefix(
@@ -331,7 +348,7 @@ def split_action_prefix(
     if not action or not spoken:
         return message, None
 
-    return spoken, action
+    return spoken, _lowercase_action_start(action)
 
 
 def cleanup_message(
