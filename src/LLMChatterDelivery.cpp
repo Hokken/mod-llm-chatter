@@ -8,6 +8,7 @@
 #include "LLMChatterBossDialogue.h"
 #include "LLMChatterDelivery.h"
 #include "LLMChatterBGDelivery.h"
+#include "LLMChatterGroup.h"
 #include "LLMChatterGuild.h"
 #include "LLMChatterGuildPvP.h"
 #include "LLMChatterGuildWorld.h"
@@ -581,6 +582,22 @@ void DeliverPendingMessagesImpl()
             FinalizeDroppedMessage(
                 messageId, eventId, sequence,
                 eventType, "fight_scene_stale");
+            return;
+        }
+    }
+
+    // Need/Greed roll comments (LLMChatterGroupLootRoll.cpp)
+    // only make sense while their roll is open and the bot is
+    // still in that group with its vote; the last vote closes
+    // the roll at once, often before the line is ready.
+    if (eventType == "bot_group_loot_roll")
+    {
+        if (char const* reason =
+                LootRollCommentDropReason(eventExtraData, botGuid))
+        {
+            FinalizeDroppedMessage(
+                messageId, eventId, sequence,
+                eventType, reason);
             return;
         }
     }

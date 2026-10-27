@@ -29,6 +29,7 @@ from chatter_shared import (
     faction_war_line,
     get_class_name,
     get_race_name,
+    describe_item_type,
 )
 from chatter_prompts import (
     maybe_get_creative_twist,
@@ -1174,6 +1175,169 @@ def build_loot_reaction_prompt(
         f"already said in chat\n"
         f"- NEVER say the item will serve YOU "
         f"if someone else looted it"
+    )
+    return append_json_instruction(
+        prompt, allow_action
+    )
+
+
+# What the bot's item_use (LootRollUse() in C++) means, as a fact.
+_LOOT_ROLL_USE_FACTS = {
+    'yes': "You can use it yourself.",
+    'class': "You cannot use it yourself: it is not made for your "
+             "class, race or faction.",
+    'proficiency': "You are not trained to wear or wield this kind "
+                   "of item.",
+    'skill': "You lack the skill it requires, or your skill is too "
+             "low.",
+    'no': "You cannot use it yourself right now.",
+}
+
+
+def _loot_roll_use_fact(item_use, required_level) -> str:
+    if item_use == 'level':
+        try:
+            level = int(required_level or 0)
+        except (TypeError, ValueError):
+            level = 0
+        return (
+            f"It requires level {level}; you are below that."
+            if level else "You are too low in level to use it yet."
+        )
+    return _LOOT_ROLL_USE_FACTS.get(item_use, '')
+
+
+def build_loot_roll_prompt(
+    bot, traits, item_name, item_quality, mode,
+    roll_vote, item_type,
+    chat_history="", extra_data=None,
+    allow_action=True,
+    speaker_talent_context=None,
+    stored_tone=None,
+    map_id=0,
+    item_use=None,
+    required_level=0,
+    use_ideas=(),
+):
+    """Build prompt for a bot saying in party chat why it
+    rolled on an item.
+
+    Facts only; the bot's traits and tone decide the
+    reason and how it feels. The prompt gives the item,
+    its type (describe_item_type() output, such as
+    "weapon: two-handed sword"), the vote, and, where it
+    means something, whether the bot can use the item
+    (item_use from C++; None for older payloads states
+    nothing). use_ideas (loot_roll_use_ideas) are offered
+    as ideas only, never as the bot's motive.
+
+    The roll may already be decided when the line is
+    ready; C++ drops it then (loot_roll_closed), so the
+    prompt makes no claim either way.
+    """
+    is_rp = (mode == 'roleplay')
+    trait_str = ', '.join(traits)
+    tone = _speaker_tone(stored_tone, bot, mode)
+    twist = maybe_get_creative_twist(mode=mode)
+
+    state_ctx = ""
+    actual_role = None
+    if extra_data:
+        state_ctx = build_bot_state_context(
+            extra_data, mode
+        )
+        actual_role = (
+            extra_data.get('bot_state', {})
+            .get('role')
+        )
+
+    rp_context = ""
+    if is_rp:
+        ctx = build_race_class_context(
+            bot['race'], bot['class'],
+            actual_role=actual_role
+        )
+        if ctx:
+            rp_context = f"\n{ctx}"
+
+    if chat_history:
+        rp_context += f"{chat_history}\n"
+
+    dungeon_flav = get_dungeon_flavor(map_id)
+    if is_rp and dungeon_flav:
+        rp_context += (
+            f"\nDungeon context: {dungeon_flav}"
+        )
+
+    quality_names = {
+        2: 'uncommon (green)',
+        3: 'rare (blue)',
+        4: 'epic (purple)',
+        5: 'legendary (orange)',
+    }
+    quality_label = quality_names.get(
+        item_quality, 'common'
+    )
+    vote = 'Need' if roll_vote == 'need' else 'Greed'
+    use_fact = _loot_roll_use_fact(item_use, required_level)
+    ideas = list(use_ideas or ())
+    random.shuffle(ideas)
+    article = 'an' if quality_label[0] in 'aeiou' else 'a'
+    roll_context = (
+        f"An item dropped and the party is rolling on "
+        f"it: {item_name}, {article} {quality_label} item. Item "
+        f"type: {item_type}.\n"
+        f"You voted {vote} on it.\n"
+        + (f"{use_fact}\n" if use_fact else "")
+        + "You would like to have it. Say briefly in party "
+        "chat why, in your own words."
+    )
+    if ideas:
+        roll_context += (
+            "\nSome reasons people roll on such an item, only "
+            f"as ideas: {'; '.join(ideas)}. Your reason may be "
+            "one of them or your own."
+        )
+
+    if is_rp:
+        style = "Speak in-character, grounded in who you are."
+    else:
+        style = "Speak like a player in party chat. Casual and brief."
+
+    prompt = (
+        f"{build_player_prompt_header_from_dict(bot, mode)}\n"
+        f"Your personality: {trait_str}\n"
+    )
+    if speaker_talent_context:
+        prompt += f"{speaker_talent_context}\n"
+    prompt += f"Your tone: {tone}\n"
+    if twist:
+        prompt += f"{TWIST_LABEL}: {twist}\n"
+    if state_ctx:
+        prompt += f"{state_ctx}\n"
+    prompt += (
+        f"{rp_context}\n\n"
+        f"{roll_context}\n\n"
+        f"{style}\n\n"
+        f"Say it in party chat.\n"
+        f"{_pick_length_hint(mode)}\n"
+        f"Rules:\n"
+        f"- No quotes, no emojis\n"
+        f"- To refer to the item, write the token "
+        f"{{item}} exactly, braces included, instead "
+        f"of typing the item's name. It is replaced "
+        f"with a clickable link afterwards.\n"
+        f"- {{item}} already stands for the full item "
+        f"name, so do not add the name next to it, "
+        f"and do not inflect or translate the token "
+        f"itself. Phrase the sentence so the token "
+        f"reads naturally as-is.\n"
+        "- Let your personality show in how you say it, "
+        f"without naming your traits\n"
+        f"- Do not say who will get the item, and never "
+        f"claim you won it or already have it\n"
+        f"- Don't repeat jokes or themes "
+        f"already said in chat"
     )
     return append_json_instruction(
         prompt, allow_action

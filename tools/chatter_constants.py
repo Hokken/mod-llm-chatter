@@ -1823,7 +1823,8 @@ ITEM_CLASS_NAMES = {
     2: "Weapon", 3: "Gem", 4: "Armor",
     5: "Reagent", 6: "Projectile",
     7: "Trade Goods", 9: "Recipe",
-    12: "Quest Item", 15: "Miscellaneous",
+    11: "Quiver", 12: "Quest Item", 13: "Key",
+    15: "Miscellaneous", 16: "Glyph",
 }
 
 WEAPON_SUBCLASS_NAMES = {
@@ -1842,6 +1843,72 @@ ARMOR_SUBCLASS_NAMES = {
     2: "Leather", 3: "Mail", 4: "Plate",
     6: "Shield",
 }
+
+# What an armor-class item is, by equip slot (item_template
+# InventoryType), for describe_item_type().
+ARMOR_PIECE_NAMES = {
+    1: "helm", 2: "necklace", 3: "shoulders", 4: "shirt",
+    5: "chest piece", 6: "belt", 7: "leggings", 8: "boots",
+    9: "bracers", 10: "gloves", 11: "ring", 12: "trinket",
+    14: "shield", 16: "cloak", 19: "tabard", 20: "robe",
+    23: "off-hand item", 28: "relic",
+}
+
+# Armor subclasses that name the item themselves.
+ARMOR_KIND_SUBCLASS_NAMES = {
+    5: "shield", 6: "shield",
+    7: "libram", 8: "idol", 9: "totem", 10: "sigil",
+}
+
+# Subtypes of the other item classes (3.3.5 ItemSubClass.dbc),
+# keyed by class, then subclass.
+ITEM_SUBCLASS_NAMES = {
+    0: {
+        0: "consumable", 1: "potion", 2: "elixir", 3: "flask",
+        4: "scroll", 5: "food or drink", 6: "item enhancement",
+        7: "bandage", 8: "consumable",
+    },
+    1: {
+        0: "bag", 1: "soul bag", 2: "herb bag", 3: "enchanting bag",
+        4: "engineering bag", 5: "gem bag", 6: "mining bag",
+        7: "leatherworking bag", 8: "inscription bag",
+    },
+    3: {
+        0: "red gem", 1: "blue gem", 2: "yellow gem", 3: "purple gem",
+        4: "green gem", 5: "orange gem", 6: "meta gem",
+        7: "simple gem", 8: "prismatic gem",
+    },
+    6: {2: "arrows", 3: "bullets"},
+    7: {
+        0: "trade goods", 1: "parts", 2: "explosives", 3: "device",
+        4: "jewelcrafting material", 5: "cloth", 6: "leather",
+        7: "metal and stone", 8: "meat", 9: "herb", 10: "elemental",
+        11: "trade goods", 12: "enchanting material", 13: "material",
+        14: "armor enchantment", 15: "weapon enchantment",
+    },
+    9: {
+        0: "book", 1: "leatherworking pattern", 2: "tailoring pattern",
+        3: "engineering schematic", 4: "blacksmithing plans",
+        5: "cooking recipe", 6: "alchemy recipe",
+        7: "first aid manual", 8: "enchanting formula",
+        9: "fishing manual", 10: "jewelcrafting design",
+    },
+    11: {2: "quiver", 3: "ammo pouch"},
+    13: {0: "key", 1: "lockpick"},
+    15: {
+        0: "junk", 1: "reagent", 2: "companion pet", 3: "holiday item",
+        4: "miscellaneous", 5: "mount",
+    },
+    16: {
+        1: "warrior glyph", 2: "paladin glyph", 3: "hunter glyph",
+        4: "rogue glyph", 5: "priest glyph", 6: "death knight glyph",
+        7: "shaman glyph", 8: "mage glyph", 9: "warlock glyph",
+        11: "druid glyph",
+    },
+}
+
+# One-handed weapons that fit only one hand.
+WEAPON_HAND_NAMES = {21: "main hand", 22: "off hand"}
 
 # Class bitmask values for AllowableClass field in item_template
 # -1 means all classes can use, otherwise it's a bitmask

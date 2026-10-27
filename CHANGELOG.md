@@ -1,5 +1,30 @@
 # Changelog
 
+### 2026-10-26 - Bots Explain Their Loot Rolls
+
+* **Bots explain their loot rolls**: when a party bot rolls Need or Greed
+  on an item, it may say in party chat why it wants it. The prompt gives
+  facts only: the item with its type and subtype (two-handed sword, plate
+  chest piece, ring, meta gem, tailoring pattern...), the vote, and
+  whether the bot can actually use the item (class, proficiency, skill or
+  level). Its personality decides the reason; possible uses are offered
+  only as ideas.
+* **Kept rare**: each vote has a chance to be commented, and a group waits
+  out a cooldown between commented rolls, with separate values for Need
+  and Greed (`LootRollComment.NeedChance` 50 / `.GreedChance` 25,
+  `.NeedCooldown` 90 s / `.GreedCooldown` 180 s). Playerbots roll Greed on
+  most items, so Greed comments are rarer. At most two bots comment per
+  item (`.MaxPerItem`). Comments on Need and Greed rolls, and on equipment
+  and other items, can each be turned off (`.NeedEnable`, `.GreedEnable`,
+  `.EquipmentEnable`, `.OtherEnable`). The quieter preset uses 25% / 10%,
+  180 s / 360 s and one bot per item.
+* **Never late, never elsewhere**: a vote is commented only when it is
+  seen while the roll is open, and a comment whose roll has closed, or
+  whose bot has left the group, is cancelled or dropped at delivery
+  instead of arriving after the roll was decided or in another party.
+* Needs the `data/sql/characters/updates/20261022_loot_roll_comments.sql`
+  update and a worldserver rebuild.
+
 ### 2026-10-26 - Guild Post Fixes and a Spoiler-Free Scarlet Enclave
 
 * **Guild posts about NPCs read naturally**: an NPC whose title lists

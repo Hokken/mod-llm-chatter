@@ -95,7 +95,8 @@ CREATE TABLE IF NOT EXISTS `llm_chatter_events` (
         'guild_npc_encounter',
         'guild_member_join',
         'guild_rank_change',
-        'guild_motd_comment'
+        'guild_motd_comment',
+        'bot_group_loot_roll'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,

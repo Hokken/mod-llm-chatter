@@ -32,6 +32,8 @@ from chatter_constants import (
     ITEM_QUALITY_COLORS, ITEM_QUALITY_NAMES,
     ITEM_CLASS_NAMES, WEAPON_SUBCLASS_NAMES,
     ARMOR_SUBCLASS_NAMES, CLASS_BITMASK,
+    ARMOR_KIND_SUBCLASS_NAMES, ARMOR_PIECE_NAMES,
+    ITEM_SUBCLASS_NAMES, WEAPON_HAND_NAMES,
     EMOTE_KEYWORDS,
     EMOTE_LIST_STR,
 )
@@ -4651,6 +4653,125 @@ def format_name_list(names) -> str:
     if len(names) <= 1:
         return names[0] if names else ''
     return ', '.join(names[:-1]) + ' and ' + names[-1]
+
+
+def describe_item_type(item_class, subclass, inventory_type) -> str:
+    """Readable item type with its subtype, from item_template's
+    class, subclass and InventoryType.
+
+    "weapon: two-handed sword", "armor: plate chest piece",
+    "armor: ring", "gem: red gem", "recipe: tailoring pattern".
+    Falls back to the class name alone when the subtype is unknown.
+    """
+    try:
+        item_class = int(item_class)
+        subclass = int(subclass)
+        inventory_type = int(inventory_type)
+    except (TypeError, ValueError):
+        return 'item'
+    category = ITEM_CLASS_NAMES.get(item_class, 'Item').lower()
+    if item_class == 2:
+        kind = WEAPON_SUBCLASS_NAMES.get(subclass)
+        if not kind:
+            return category
+        hand = WEAPON_HAND_NAMES.get(inventory_type)
+        kind = kind.lower()
+        return f"{category}: {kind} ({hand})" if hand else (
+            f"{category}: {kind}")
+    if item_class == 4:
+        kind = ARMOR_KIND_SUBCLASS_NAMES.get(subclass)
+        piece = ARMOR_PIECE_NAMES.get(inventory_type)
+        if kind:
+            return f"{category}: {kind}"
+        if not piece:
+            return category
+        material = ARMOR_SUBCLASS_NAMES.get(subclass, '').lower()
+        # Cloaks are cloth by rule and jewelry has no material.
+        if material in ('cloth', 'leather', 'mail', 'plate') and (
+                inventory_type != 16):
+            return f"{category}: {material} {piece}"
+        return f"{category}: {piece}"
+    kind = ITEM_SUBCLASS_NAMES.get(item_class, {}).get(subclass)
+    if kind and kind != category:
+        return f"{category}: {kind}"
+    return category
+
+
+# Items whose usability means something to a player (equipment is
+# handled separately): consumables, recipes, glyphs, and companion
+# pets and mounts.
+_USABLE_ITEM_KINDS = {0: None, 9: None, 16: None, 15: {2, 5}}
+
+
+def loot_roll_states_use(item_class, item_subclass, is_equipment) -> bool:
+    """Whether a roll prompt should state if the bot can use the
+    item. Trade goods, reagents, gems, junk, keys and quest items
+    are left out: "you can use it" means nothing for them."""
+    if is_equipment:
+        return True
+    try:
+        item_class, item_subclass = int(item_class), int(item_subclass)
+    except (TypeError, ValueError):
+        return False
+    if item_class not in _USABLE_ITEM_KINDS:
+        return False
+    subclasses = _USABLE_ITEM_KINDS[item_class]
+    return subclasses is None or item_subclass in subclasses
+
+
+def loot_roll_use_ideas(
+    item_class, item_subclass, is_equipment,
+    item_use=None, required_level=0,
+) -> List[str]:
+    """Possible reasons to roll on an item, offered to the bot only
+    as ideas, never as its motive. Built from facts: the item kind
+    and whether this bot can use it (item_use from C++: yes, class,
+    proficiency, skill, level or no; None for older payloads)."""
+    try:
+        item_class, item_subclass = int(item_class), int(item_subclass)
+    except (TypeError, ValueError):
+        item_class, item_subclass = -1, 0
+    try:
+        level = int(required_level or 0)
+    except (TypeError, ValueError):
+        level = 0
+    sell = "to sell it"
+    friend = "to pass it to an ally or friend who can use it"
+    if is_equipment:
+        if item_use == 'level':
+            later = (
+                f"to use it once you reach level {level}"
+                if level else "to use it once you are higher level"
+            )
+            return [later, sell]
+        if item_use in ('class', 'proficiency', 'skill', 'no'):
+            return [sell, friend]
+        if item_class in (2, 4):
+            ideas = ["to wear or wield it yourself", sell]
+            if item_class == 4:
+                ideas.append("for how it looks")
+            return ideas
+        if item_class in (1, 11):
+            return ["to carry more in it", sell]
+        return ["to use it yourself", sell]
+    if item_class == 3:
+        return ["to set it into your gear", sell,
+                "to keep it for its looks"]
+    if item_class == 9:
+        if item_use == 'yes':
+            return ["to learn it", sell]
+        return ["to pass it to someone with the right profession", sell]
+    if item_class == 16:
+        if item_use == 'yes':
+            return ["to use it yourself", sell]
+        return [friend, sell]
+    if item_class == 0:
+        return ["to keep it for a hard fight", sell]
+    if item_class in (5, 7):
+        return ["for crafting", sell]
+    if item_class == 15 and item_subclass in (2, 3, 5):
+        return ["to keep it", sell]
+    return [sell, "to keep it"]
 
 
 def format_weapon_list(weapons) -> str:
