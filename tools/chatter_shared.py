@@ -4697,9 +4697,6 @@ def describe_item_type(item_class, subclass, inventory_type) -> str:
     return category
 
 
-# Non-equipment kinds a bot keeps for their looks rather than their
-# price: gems (class 3) and the keepsake-like miscellaneous subclasses
-# (companion pets, holiday items, other, mounts).
 # Items whose usability means something to a player (equipment is
 # handled separately): consumables, recipes, glyphs, and companion
 # pets and mounts.

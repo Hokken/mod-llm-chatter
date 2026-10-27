@@ -18,9 +18,10 @@
   and other items, can each be turned off (`.NeedEnable`, `.GreedEnable`,
   `.EquipmentEnable`, `.OtherEnable`). The quieter preset uses 25% / 10%,
   180 s / 360 s and one bot per item.
-* **Never late**: a vote is commented only when it is seen while the roll
-  is open, and a comment whose roll has closed is cancelled or dropped at
-  delivery instead of arriving after the roll was decided.
+* **Never late, never elsewhere**: a vote is commented only when it is
+  seen while the roll is open, and a comment whose roll has closed, or
+  whose bot has left the group, is cancelled or dropped at delivery
+  instead of arriving after the roll was decided or in another party.
 * Needs the `data/sql/characters/updates/20261022_loot_roll_comments.sql`
   update and a worldserver rebuild.
 

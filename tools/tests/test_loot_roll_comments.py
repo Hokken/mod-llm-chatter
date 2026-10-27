@@ -340,15 +340,56 @@ def test_closed_rolls_are_never_commented_late():
     assert "event_type = 'bot_group_loot_roll'" in cleanup
     assert "AND status = 'pending'" in cleanup
     assert "'$.roll_source_guid'" in cleanup
-    assert 'bool IsLootRollCommentStillOpen(' in source
+    assert 'char const* LootRollCommentDropReason(' in source
     assert 'LLMChatterJson::ReadUInt64' in source
     assert 'sGroupMgr->GetGroupByGUID' in source
     header = _src('LLMChatterGroup.h')
-    assert 'bool IsLootRollCommentStillOpen(' in header
+    assert 'char const* LootRollCommentDropReason(' in header
     delivery = _src('LLMChatterDelivery.cpp')
     assert 'eventType == "bot_group_loot_roll"' in delivery
-    assert '!IsLootRollCommentStillOpen(eventExtraData)' in delivery
-    assert '"loot_roll_closed"' in delivery
+    assert 'LootRollCommentDropReason(eventExtraData, botGuid)' in delivery
+    gate = delivery[delivery.index(
+        'LootRollCommentDropReason(eventExtraData, botGuid)'):][:300]
+    assert 'eventType, reason);' in gate
+
+
+def _drop_reason_body():
+    source = _src('LLMChatterGroupLootRoll.cpp')
+    start = source.index('char const* LootRollCommentDropReason(')
+    return source[start:source.index('\n}\n', start)]
+
+
+def test_comment_stays_with_its_group_and_vote():
+    # A bot that leaves keeps the roll open for the others (only its
+    # vote is removed), and party lines go to bot->GetGroup(), so the
+    # guard checks the speaker's group and its vote on the roll.
+    body = _drop_reason_body()
+    assert 'ReadString(\n            eventExtraData, "roll_vote", voteName)' in body
+    assert 'ObjectGuid::Create<HighGuid::Player>(botGuid)' in body
+    assert 'bot->GetGroup() != group' in body
+    assert 'roll->playerVote.find(bot->GetGUID())' in body
+    assert 'voted->second != vote' in body
+    assert body.count('return "loot_roll_speaker_left";') == 2
+    assert '"loot_roll_closed"' in body
+
+
+def test_guard_fails_closed():
+    body = _drop_reason_body()
+    fields = body[body.index('if (!LLMChatterJson::ReadUInt64('):]
+    assert fields[:fields.index(';')].endswith(
+        'voteName))\n        return "loot_roll_closed"')
+    assert 'keep the old behaviour' not in body
+    assert 'return true;' not in body
+    # The only success path is a matching roll with the bot's vote.
+    assert body.count('return nullptr;') == 1
+
+
+def test_a_vote_is_not_scored_like_a_win():
+    import inspect
+    source = inspect.getsource(handlers.process_group_loot_roll_event)
+    assert 'mood_key' not in source
+    shared = (TOOLS_DIR / 'chatter_shared.py').read_text(encoding='utf-8')
+    assert 'keeps for their looks' not in shared
 
 
 def test_sql_adds_the_event_type_additively():

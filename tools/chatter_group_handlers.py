@@ -573,7 +573,6 @@ def process_group_loot_roll_event(
             )
         ),
         needs_map_id=True,
-        mood_key=lambda ctx: 'loot',
         message_transform=lambda msg: (
             _loot_msg_xform(db, msg, event)
         ),

@@ -587,15 +587,19 @@ void DeliverPendingMessagesImpl()
     }
 
     // Need/Greed roll comments (LLMChatterGroupLootRoll.cpp)
-    // only make sense while their roll is open; the last vote
-    // closes it at once, often before the line is ready.
-    if (eventType == "bot_group_loot_roll"
-        && !IsLootRollCommentStillOpen(eventExtraData))
+    // only make sense while their roll is open and the bot is
+    // still in that group with its vote; the last vote closes
+    // the roll at once, often before the line is ready.
+    if (eventType == "bot_group_loot_roll")
     {
-        FinalizeDroppedMessage(
-            messageId, eventId, sequence,
-            eventType, "loot_roll_closed");
-        return;
+        if (char const* reason =
+                LootRollCommentDropReason(eventExtraData, botGuid))
+        {
+            FinalizeDroppedMessage(
+                messageId, eventId, sequence,
+                eventType, reason);
+            return;
+        }
     }
 
     // Master GuildChatter toggle. Consume already-queued

@@ -11,10 +11,11 @@ class Creature;
 void CheckGroupCombatState();
 void CheckGroupLootRolls();
 // Delivery-time check for a bot_group_loot_roll comment:
-// false once its roll has closed, so the line is dropped
-// instead of arriving after the roll was decided.
-bool IsLootRollCommentStillOpen(
-    std::string const& eventExtraData);
+// nullptr while its roll is open and the bot is still in
+// that group with its vote; otherwise the drop reason, so
+// the line never arrives late or in another party.
+char const* LootRollCommentDropReason(
+    std::string const& eventExtraData, uint32 botGuid);
 void FlushQuestAcceptBatches();
 void FlushGroupJoinBatches();
 void HandleGroupPlayerUpdateZone(

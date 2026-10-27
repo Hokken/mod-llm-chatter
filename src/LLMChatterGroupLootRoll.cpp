@@ -13,7 +13,7 @@
  *     equipment, whether the bot can use it, and the roll's
  *     source and slot)
  *   - closed rolls: cancelling their pending events and
- *     IsLootRollCommentStillOpen() for delivery
+ *     LootRollCommentDropReason() for delivery
  *
  * The core has no hook for a vote being cast; it only
  * reports the winner (OnPlayerGroupRollRewardItem, which
@@ -387,34 +387,58 @@ void CheckGroupLootRolls()
     PruneCommentCooldowns(GREED, now);
 }
 
-bool IsLootRollCommentStillOpen(std::string const& eventExtraData)
+char const* LootRollCommentDropReason(
+    std::string const& eventExtraData, uint32 botGuid)
 {
     // extra_data comes back from a MySQL JSON column, so use
-    // the whitespace-tolerant readers.
+    // the whitespace-tolerant readers. Every roll comment
+    // payload carries these fields; a row without them is
+    // dropped rather than spoken unchecked.
     std::uint64_t groupId = 0;
     std::uint64_t sourceGuid = 0;
     std::uint64_t slot = 0;
+    std::string voteName;
     if (!LLMChatterJson::ReadUInt64(
             eventExtraData, "group_id", groupId)
         || !LLMChatterJson::ReadUInt64(
             eventExtraData, "roll_source_guid", sourceGuid)
         || !LLMChatterJson::ReadUInt64(
-            eventExtraData, "roll_slot", slot))
-    {
-        // Payloads from before the roll fields cannot be
-        // checked; keep the old behaviour for them.
-        return true;
-    }
+            eventExtraData, "roll_slot", slot)
+        || !LLMChatterJson::ReadString(
+            eventExtraData, "roll_vote", voteName))
+        return "loot_roll_closed";
+    RollVote vote;
+    if (voteName == "need")
+        vote = NEED;
+    else if (voteName == "greed")
+        vote = GREED;
+    else
+        return "loot_roll_closed";
 
     Group* group = sGroupMgr->GetGroupByGUID(
         static_cast<ObjectGuid::LowType>(groupId));
     if (!group)
-        return false;
+        return "loot_roll_closed";
+
+    // Party lines go to bot->GetGroup(), so a bot that left
+    // (and maybe joined another party) must not speak: its
+    // roll stays open for the others.
+    Player* bot = ObjectAccessor::FindPlayer(
+        ObjectGuid::Create<HighGuid::Player>(botGuid));
+    if (!bot || bot->GetGroup() != group)
+        return "loot_roll_speaker_left";
+
     for (Roll const* roll : group->GetRolls())
     {
-        if (roll && roll->itemGUID.GetRawValue() == sourceGuid
-            && roll->itemSlot == slot)
-            return true;
+        if (!roll || roll->itemGUID.GetRawValue() != sourceGuid
+            || roll->itemSlot != slot)
+            continue;
+        // A leaving member's vote is removed from the roll.
+        auto voted = roll->playerVote.find(bot->GetGUID());
+        if (voted == roll->playerVote.end()
+            || voted->second != vote)
+            return "loot_roll_speaker_left";
+        return nullptr;
     }
-    return false;
+    return "loot_roll_closed";
 }

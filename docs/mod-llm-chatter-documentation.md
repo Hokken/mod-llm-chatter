@@ -1361,9 +1361,14 @@ world update, between map updates.
   once (`Group::CountRollVote()`), so a vote cast just before that is
   never seen, and a comment can be ready after the roll is decided. When
   the scan finds a roll gone, it cancels that roll's events the bridge
-  has not picked up yet, and delivery drops any comment whose roll has
-  closed (`IsLootRollCommentStillOpen()`, drop reason
-  `loot_roll_closed`). A comment is never spoken after its roll ended.
+  has not picked up yet. Delivery (`LootRollCommentDropReason()`) drops
+  any comment whose roll has closed or whose payload lacks the roll
+  fields (`loot_roll_closed`), and any comment whose bot has left the
+  group or no longer holds its vote on the roll
+  (`loot_roll_speaker_left`): leaving removes only that member's vote, so
+  the roll stays open for the others, while party lines go to the bot's
+  current group. A comment is never spoken after its roll ended, nor in
+  another party.
 - **Flow controls.** Each new vote rolls its own chance once:
   `LootRollComment.NeedChance` for Need, `GreedChance` for Greed. A roll
   that already has a comment can get more, up to `MaxPerItem`. The first
