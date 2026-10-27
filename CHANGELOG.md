@@ -1,6 +1,6 @@
 # Changelog
 
-### 2026-10-26 - Bots Explain Their Loot Rolls
+### 2026-10-27 - Bots Explain Their Loot Rolls
 
 * **Bots explain their loot rolls**: when a party bot rolls Need or Greed
   on an item, it may say in party chat why it wants it. The prompt gives
@@ -8,7 +8,7 @@
   chest piece, ring, meta gem, tailoring pattern...), the vote, and
   whether the bot can actually use the item (class, proficiency, skill or
   level). Its personality decides the reason; possible uses are offered
-  only as ideas.
+  only as ideas (#86, thanks Vladimir37).
 * **Kept rare**: each vote has a chance to be commented, and a group waits
   out a cooldown between commented rolls, with separate values for Need
   and Greed (`LootRollComment.NeedChance` 50 / `.GreedChance` 25,
