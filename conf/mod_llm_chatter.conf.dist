@@ -1888,33 +1888,40 @@ LLMChatter.GroupChatter.LootCooldown = 60
 LLMChatter.GroupChatter.LootRollComment.Enable = 1
 
 #
-#   LLMChatter.GroupChatter.LootRollComment.Chance
-#       Percent chance (0-100) that a bot's Need or Greed vote gets
-#       a comment, rolled once when the vote is seen.
-#       Default: 50
+#   LLMChatter.GroupChatter.LootRollComment.NeedChance
+#   LLMChatter.GroupChatter.LootRollComment.GreedChance
+#       Percent chance (0-100) that a bot's Need vote, or Greed
+#       vote, gets a comment, rolled once when the vote is seen.
+#       Playerbots roll Greed on most items, even ones they would
+#       use, so Greed comments are rarer by default.
+#       Defaults: 50 / 25
 #
-LLMChatter.GroupChatter.LootRollComment.Chance = 50
+LLMChatter.GroupChatter.LootRollComment.NeedChance = 50
+LLMChatter.GroupChatter.LootRollComment.GreedChance = 25
 
 #
-#   LLMChatter.GroupChatter.LootRollComment.Cooldown
-#       Seconds after a group's commented roll before another roll
-#       in that group can be commented. Further comments on the
-#       same item (up to MaxPerItem) are not held back, so when
-#       several items drop at once, one of them is commented.
-#       Default: 90
+#   LLMChatter.GroupChatter.LootRollComment.NeedCooldown
+#   LLMChatter.GroupChatter.LootRollComment.GreedCooldown
+#       Seconds after a group's roll got its first Need comment, or
+#       Greed comment, before another roll in that group can get a
+#       first comment of the same kind. Need and Greed keep separate
+#       cooldowns. Further comments on the same item (up to
+#       MaxPerItem) are not held back, so when several items drop
+#       at once, one of them is commented.
+#       Defaults: 90 / 180
 #
-LLMChatter.GroupChatter.LootRollComment.Cooldown = 90
+LLMChatter.GroupChatter.LootRollComment.NeedCooldown = 90
+LLMChatter.GroupChatter.LootRollComment.GreedCooldown = 180
 
 #
 #   LLMChatter.GroupChatter.LootRollComment.NeedEnable
 #   LLMChatter.GroupChatter.LootRollComment.GreedEnable
 #       Comments on Need rolls and on Greed rolls, each on its own.
-#       Playerbots roll Greed on most items, even ones they would
-#       use, so Greed comments are off by default.
-#       Defaults: 1 / 0
+#       With one of them at 0, only the other kind is explained.
+#       Defaults: 1 / 1
 #
 LLMChatter.GroupChatter.LootRollComment.NeedEnable = 1
-LLMChatter.GroupChatter.LootRollComment.GreedEnable = 0
+LLMChatter.GroupChatter.LootRollComment.GreedEnable = 1
 
 #
 #   LLMChatter.GroupChatter.LootRollComment.EquipmentEnable

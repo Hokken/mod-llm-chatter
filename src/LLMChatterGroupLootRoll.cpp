@@ -4,8 +4,9 @@
  * Owns:
  *   - polling open group loot rolls for party bots that
  *     voted Need or Greed
- *   - the per-item comment cap, the per-vote chance and the
- *     per-group cooldown, and their bookkeeping
+ *   - the per-item comment cap, and the per-vote chance and
+ *     per-group cooldown of Need and of Greed comments, and
+ *     their bookkeeping
  *   - the Need/Greed and equipment/other switches
  *   - the bot_group_loot_roll payload (item name, quality,
  *     class, subclass, inventory type, whether the item is
@@ -69,8 +70,10 @@ struct RollComments
 std::map<RollKey, RollComments> _rollComments;
 
 // Group -> when its last commented roll got its first
-// comment (LootRollComment.Cooldown).
-std::map<uint32, time_t> _lootRollCooldowns;
+// comment, per vote (LootRollComment.NeedCooldown and
+// .GreedCooldown).
+std::map<uint32, time_t> _needCommentCooldowns;
+std::map<uint32, time_t> _greedCommentCooldowns;
 
 // Extra seconds between comments on the same item, so the
 // lines do not land together.
@@ -95,6 +98,39 @@ bool VoteCommentEnabled(RollVote vote)
     return vote == NEED
         ? sLLMChatterConfig->_lootRollCommentNeedEnable
         : sLLMChatterConfig->_lootRollCommentGreedEnable;
+}
+
+uint32 VoteCommentChance(RollVote vote)
+{
+    return vote == NEED
+        ? sLLMChatterConfig->_lootRollCommentNeedChance
+        : sLLMChatterConfig->_lootRollCommentGreedChance;
+}
+
+time_t VoteCommentCooldown(RollVote vote)
+{
+    return static_cast<time_t>(vote == NEED
+        ? sLLMChatterConfig->_lootRollCommentNeedCooldown
+        : sLLMChatterConfig->_lootRollCommentGreedCooldown);
+}
+
+std::map<uint32, time_t>& VoteCommentCooldowns(RollVote vote)
+{
+    return vote == NEED
+        ? _needCommentCooldowns : _greedCommentCooldowns;
+}
+
+void PruneCommentCooldowns(RollVote vote, time_t now)
+{
+    std::map<uint32, time_t>& cooldowns = VoteCommentCooldowns(vote);
+    time_t cooldown = VoteCommentCooldown(vote);
+    for (auto it = cooldowns.begin(); it != cooldowns.end();)
+    {
+        if (now - it->second >= cooldown)
+            it = cooldowns.erase(it);
+        else
+            ++it;
+    }
 }
 
 // Whether this bot can use the item, as a fact for the
@@ -191,9 +227,6 @@ void ScanGroupRolls(
     uint32 groupId = group->GetGUID().GetCounter();
     uint32 maxPerItem =
         sLLMChatterConfig->_lootRollCommentMaxPerItem;
-    uint32 chance = sLLMChatterConfig->_lootRollCommentChance;
-    time_t cooldown = static_cast<time_t>(
-        sLLMChatterConfig->_lootRollCommentCooldown);
     time_t now = time(nullptr);
 
     for (Roll const* roll : group->GetRolls())
@@ -232,7 +265,7 @@ void ScanGroupRolls(
             state.handledVoters.insert(rawGuid);
             if (!kindEnabled || !VoteCommentEnabled(vote))
                 continue;
-            if (urand(1, 100) > chance)
+            if (urand(1, 100) > VoteCommentChance(vote))
                 continue;
 
             Player* voter =
@@ -249,23 +282,25 @@ void ScanGroupRolls(
             continue;
 
         // A roll that already has a comment may finish up to
-        // MaxPerItem; any other roll waits out the group's
-        // cooldown, so several items dropping at once get
-        // comments on one of them.
-        if (state.queued == 0)
-        {
-            auto cd = _lootRollCooldowns.find(groupId);
-            if (cd != _lootRollCooldowns.end()
-                && now - cd->second < cooldown)
-                continue;
-        }
-
+        // MaxPerItem. The first comment on any other roll
+        // waits out the group's cooldown for its vote, so
+        // several items dropping at once get comments on one
+        // of them; Need and Greed keep separate cooldowns.
         for (BotVote const& bv : needs)
         {
             if (state.queued >= maxPerItem)
                 break;
             if (state.queued == 0)
-                _lootRollCooldowns[groupId] = now;
+            {
+                std::map<uint32, time_t>& cooldowns =
+                    VoteCommentCooldowns(bv.vote);
+                auto cd = cooldowns.find(groupId);
+                if (cd != cooldowns.end()
+                    && now - cd->second
+                        < VoteCommentCooldown(bv.vote))
+                    continue;
+                cooldowns[groupId] = now;
+            }
             QueueLootRollComment(
                 bv.bot, group, roll, tmpl, bv.vote,
                 state.queued);
@@ -284,7 +319,8 @@ void CheckGroupLootRolls()
         || !sLLMChatterConfig->_lootRollCommentEnable)
     {
         _rollComments.clear();
-        _lootRollCooldowns.clear();
+        _needCommentCooldowns.clear();
+        _greedCommentCooldowns.clear();
         return;
     }
 
@@ -347,16 +383,8 @@ void CheckGroupLootRolls()
     }
 
     time_t now = time(nullptr);
-    time_t cooldown = static_cast<time_t>(
-        sLLMChatterConfig->_lootRollCommentCooldown);
-    for (auto it = _lootRollCooldowns.begin();
-         it != _lootRollCooldowns.end();)
-    {
-        if (now - it->second >= cooldown)
-            it = _lootRollCooldowns.erase(it);
-        else
-            ++it;
-    }
+    PruneCommentCooldowns(NEED, now);
+    PruneCommentCooldowns(GREED, now);
 }
 
 bool IsLootRollCommentStillOpen(std::string const& eventExtraData)

@@ -4739,7 +4739,7 @@ def loot_roll_use_ideas(
     except (TypeError, ValueError):
         level = 0
     sell = "to sell it"
-    friend = "to give it to a friend who can use it"
+    friend = "to pass it to an ally or friend who can use it"
     if is_equipment:
         if item_use == 'level':
             later = (

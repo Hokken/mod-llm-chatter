@@ -1364,18 +1364,19 @@ world update, between map updates.
   has not picked up yet, and delivery drops any comment whose roll has
   closed (`IsLootRollCommentStillOpen()`, drop reason
   `loot_roll_closed`). A comment is never spoken after its roll ended.
-- **Flow controls.** Each new Need or Greed vote rolls
-  `LootRollComment.Chance` once. A roll that already has a comment can
-  get more, up to `MaxPerItem`; any other roll in the group waits out
-  `LootRollComment.Cooldown`, so when several items drop at once, one of
-  them is commented. Need votes found in the same scan go before Greed
+- **Flow controls.** Each new vote rolls its own chance once:
+  `LootRollComment.NeedChance` for Need, `GreedChance` for Greed. A roll
+  that already has a comment can get more, up to `MaxPerItem`. The first
+  comment on any other roll in the group waits out the cooldown of its
+  vote (`NeedCooldown` or `GreedCooldown`; Need and Greed keep separate
+  cooldowns), so when several items drop at once, one of them is
+  commented. Playerbots roll Greed on most items, even ones they would
+  use, so Greed has the lower chance and the longer cooldown. Need votes found in the same scan go before Greed
   votes, and each further comment on one item waits a few seconds longer.
   Pass and Disenchant votes stay silent. Battlegrounds and arenas are
   skipped.
 - **Switches.** `NeedEnable` and `GreedEnable` for the vote,
-  `EquipmentEnable` and `OtherEnable` for the item. Greed is off by
-  default: playerbots roll Greed on most items, even ones they would use.
-  Equipment is anything with an equipment slot (`InventoryType` not 0):
+  `EquipmentEnable` and `OtherEnable` for the item. Equipment is anything with an equipment slot (`InventoryType` not 0):
   armor, weapons, shields, off-hand items, cloaks, jewelry, trinkets,
   relics, shirts and tabards, and also bags, quivers and ammunition. A
   vote that a switch or the chance turns away is marked handled and never
@@ -1396,8 +1397,8 @@ world update, between map updates.
   whether the bot can use it. It does not say why the bot rolled or how
   it feels: the bot's personality and tone decide. A short list of
   possible uses (`loot_roll_use_ideas()`, built from the same facts: wear
-  it, use it once it reaches the level, sell it, give it to a friend who
-  can use it, craft with it...) is offered only as ideas. The prompt makes
+  it, use it once it reaches the level, sell it, pass it to an ally or
+  friend who can use it, craft with it...) is offered only as ideas. The prompt makes
   no claim about the roll's outcome, and the bot must not say who will get
   the item or that it won it. The item is written as `{item}` and becomes
   a clickable link, as in loot reactions.
@@ -1408,9 +1409,9 @@ world update, between map updates.
 | Key | Default | Quieter preset | Owner |
 |-----|---------|----------------|-------|
 | `LLMChatter.GroupChatter.LootRollComment.Enable` | 1 | 1 | Worldserver |
-| `LLMChatter.GroupChatter.LootRollComment.Chance` | 50 | 25 | Worldserver |
-| `LLMChatter.GroupChatter.LootRollComment.Cooldown` | 90 | 180 | Worldserver |
-| `LLMChatter.GroupChatter.LootRollComment.NeedEnable` / `GreedEnable` | 1 / 0 | 1 / 0 | Worldserver |
+| `LLMChatter.GroupChatter.LootRollComment.NeedChance` / `GreedChance` | 50 / 25 | 25 / 10 | Worldserver |
+| `LLMChatter.GroupChatter.LootRollComment.NeedCooldown` / `GreedCooldown` | 90 / 180 | 180 / 360 | Worldserver |
+| `LLMChatter.GroupChatter.LootRollComment.NeedEnable` / `GreedEnable` | 1 / 1 | 1 / 1 | Worldserver |
 | `LLMChatter.GroupChatter.LootRollComment.EquipmentEnable` / `OtherEnable` | 1 / 1 | 1 / 1 | Worldserver |
 | `LLMChatter.GroupChatter.LootRollComment.MaxPerItem` | 2 | 1 | Worldserver |
 

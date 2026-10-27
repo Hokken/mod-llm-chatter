@@ -177,7 +177,7 @@ def test_use_ideas_follow_the_facts():
     for blocked in ('class', 'proficiency', 'skill', 'no'):
         ideas = loot_roll_use_ideas(4, 4, True, blocked)
         assert 'to wear or wield it yourself' not in ideas, blocked
-        assert 'to give it to a friend who can use it' in ideas
+        assert 'to pass it to an ally or friend who can use it' in ideas
     assert 'to use it once you reach level 45' in loot_roll_use_ideas(
         2, 8, True, 'level', 45)
     assert 'to carry more in it' in loot_roll_use_ideas(1, 0, True, 'yes')
@@ -295,23 +295,32 @@ def test_cpp_switches_and_chance_filter_before_queueing():
     for field in ('_lootRollCommentNeedEnable', '_lootRollCommentGreedEnable',
                   '_lootRollCommentEquipmentEnable',
                   '_lootRollCommentOtherEnable',
-                  '_lootRollCommentChance', '_lootRollCommentCooldown'):
+                  '_lootRollCommentNeedChance', '_lootRollCommentGreedChance',
+                  '_lootRollCommentNeedCooldown',
+                  '_lootRollCommentGreedCooldown'):
         assert field in source, field
     # A skipped vote is still marked handled, so it is not reconsidered.
     loop = source[source.index('state.handledVoters.insert(rawGuid);'):]
     assert loop.index('if (!kindEnabled || !VoteCommentEnabled(vote))') < 80
-    assert loop.index('if (urand(1, 100) > chance)') < 200
+    assert loop.index('if (urand(1, 100) > VoteCommentChance(vote))') < 200
     shared = _src('LLMChatterShared.cpp')
     assert '{"bot_group_loot_roll",     PRIORITY_HIGH}' in shared
     assert '&LLMChatterConfig::_reactDelayLootRoll' in shared
 
 
 def test_cpp_cooldown_holds_back_other_rolls_only():
+    # Need and Greed keep separate per-group cooldowns, checked only
+    # for the first comment on a roll.
     source = _src('LLMChatterGroupLootRoll.cpp')
-    assert 'std::map<uint32, time_t> _lootRollCooldowns;' in source
-    gate = source[source.index('if (state.queued == 0)\n        {'):]
-    assert 'now - cd->second < cooldown' in gate[:300]
-    assert '_lootRollCooldowns[groupId] = now;' in source
+    assert 'std::map<uint32, time_t> _needCommentCooldowns;' in source
+    assert 'std::map<uint32, time_t> _greedCommentCooldowns;' in source
+    gate = source[source.index('if (state.queued == 0)\n            {'):]
+    gate = gate[:500]
+    assert 'VoteCommentCooldowns(bv.vote)' in gate
+    assert '< VoteCommentCooldown(bv.vote)' in gate
+    assert 'cooldowns[groupId] = now;' in gate
+    assert 'PruneCommentCooldowns(NEED, now);' in source
+    assert 'PruneCommentCooldowns(GREED, now);' in source
 
 
 def test_cpp_checks_whether_the_bot_can_use_the_item():
@@ -373,11 +382,13 @@ def test_conf_keys_are_documented_and_loaded():
              ).read_text(encoding='utf-8')
     expected = {
         'LootRollComment.Enable': (1, 1),
-        'LootRollComment.Chance': (50, 25),
-        'LootRollComment.Cooldown': (90, 180),
+        'LootRollComment.NeedChance': (50, 25),
+        'LootRollComment.GreedChance': (25, 10),
+        'LootRollComment.NeedCooldown': (90, 180),
+        'LootRollComment.GreedCooldown': (180, 360),
         'LootRollComment.MaxPerItem': (2, 1),
         'LootRollComment.NeedEnable': (1, 1),
-        'LootRollComment.GreedEnable': (0, 0),
+        'LootRollComment.GreedEnable': (1, 1),
         'LootRollComment.EquipmentEnable': (1, 1),
         'LootRollComment.OtherEnable': (1, 1),
     }
@@ -386,10 +397,18 @@ def test_conf_keys_are_documented_and_loaded():
         assert _conf_value(quiet, key) == quieter, key
         assert f'"{key}"' in loads, key
     # The C++ defaults match the template.
-    assert '"LootRollComment.Chance", 50)' in loads
-    assert '"LootRollComment.Cooldown", 90)' in loads
+    assert '"LootRollComment.NeedChance", 50)' in loads
+    assert '"LootRollComment.GreedChance", 25)' in loads
+    assert '"LootRollComment.NeedCooldown", 90)' in loads
+    assert '"LootRollComment.GreedCooldown", 180)' in loads
     assert '"LootRollComment.MaxPerItem", 2)' in loads
-    assert '"LootRollComment.GreedEnable", false)' in loads
+    assert '"LootRollComment.GreedEnable", true)' in loads
+    # Greed is rarer than Need: lower chance, longer cooldown.
+    for text in (default, quiet):
+        assert (_conf_value(text, 'LootRollComment.GreedChance')
+                < _conf_value(text, 'LootRollComment.NeedChance'))
+        assert (_conf_value(text, 'LootRollComment.GreedCooldown')
+                > _conf_value(text, 'LootRollComment.NeedCooldown'))
     # Coverage is described as bounded, not as every vote.
     for text in (default, quiet):
         assert 'Coverage is bounded' in text

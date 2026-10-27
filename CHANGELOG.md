@@ -9,14 +9,15 @@
   whether the bot can actually use the item (class, proficiency, skill or
   level). Its personality decides the reason; possible uses are offered
   only as ideas.
-* **Kept rare**: each vote has a chance to be commented
-  (`LootRollComment.Chance`, default 50), a group waits out a cooldown
-  between commented rolls (`LootRollComment.Cooldown`, default 90 s), and
-  at most two bots comment per item (`.MaxPerItem`). Comments on Need and
-  Greed rolls, and on equipment and other items, can each be turned off
-  (`.NeedEnable`, `.GreedEnable`, `.EquipmentEnable`, `.OtherEnable`);
-  Greed comments are off by default, since playerbots roll Greed on most
-  items. The quieter preset uses 25%, 180 s and one bot per item.
+* **Kept rare**: each vote has a chance to be commented, and a group waits
+  out a cooldown between commented rolls, with separate values for Need
+  and Greed (`LootRollComment.NeedChance` 50 / `.GreedChance` 25,
+  `.NeedCooldown` 90 s / `.GreedCooldown` 180 s). Playerbots roll Greed on
+  most items, so Greed comments are rarer. At most two bots comment per
+  item (`.MaxPerItem`). Comments on Need and Greed rolls, and on equipment
+  and other items, can each be turned off (`.NeedEnable`, `.GreedEnable`,
+  `.EquipmentEnable`, `.OtherEnable`). The quieter preset uses 25% / 10%,
+  180 s / 360 s and one bot per item.
 * **Never late**: a vote is commented only when it is seen while the roll
   is open, and a comment whose roll has closed is cancelled or dropped at
   delivery instead of arriving after the roll was decided.
