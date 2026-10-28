@@ -3964,10 +3964,73 @@ LLMChatter.BGChatter.FlagCarryBGChannelChance = 70
 LLMChatter.BGChatter.RezChance = 20
 
 #
+#   LLMChatter.PrioritySystem.Enable
+#       [BOTH] Master switch for the event priority system. On,
+#       the worldserver gives each queued event a priority tier
+#       (critical, high, normal or filler) and draws its
+#       reaction delay from that tier's ReactRange below. Off,
+#       events use the legacy fixed priorities and reaction
+#       ranges, and DeliveryOrderEnable and BridgeYieldEnable
+#       have no effect.
+#       Default: 1
+#
+LLMChatter.PrioritySystem.Enable = 1
+
+#
+#   LLMChatter.PrioritySystem.DeliveryOrderEnable
+#       [SERVER] When several messages are due at once, deliver
+#       the one from the highest-priority event first, then the
+#       oldest. Ambient messages count as the lowest priority.
+#       Off, due messages are delivered oldest first only.
+#       Needs PrioritySystem.Enable = 1.
+#       Default: 1
+#
+LLMChatter.PrioritySystem.DeliveryOrderEnable = 1
+
+#
+#   LLMChatter.PrioritySystem.ReactRange.CriticalMin
+#   LLMChatter.PrioritySystem.ReactRange.CriticalMax
+#   LLMChatter.PrioritySystem.ReactRange.HighMin
+#   LLMChatter.PrioritySystem.ReactRange.HighMax
+#   LLMChatter.PrioritySystem.ReactRange.NormalMin
+#   LLMChatter.PrioritySystem.ReactRange.NormalMax
+#   LLMChatter.PrioritySystem.ReactRange.FillerMin
+#   LLMChatter.PrioritySystem.ReactRange.FillerMax
+#       [SERVER] Reaction delay range (seconds) for each
+#       priority tier: a new event waits a random time between
+#       its tier's Min and Max before the bridge may pick it
+#       up. A Min above its Max is lowered to the Max. Used
+#       only when PrioritySystem.Enable = 1.
+#       Default: Critical 0-1, High 0-2, Normal 2-5, Filler 5-15
+#
+LLMChatter.PrioritySystem.ReactRange.CriticalMin = 0
+LLMChatter.PrioritySystem.ReactRange.CriticalMax = 1
+LLMChatter.PrioritySystem.ReactRange.HighMin = 0
+LLMChatter.PrioritySystem.ReactRange.HighMax = 2
+LLMChatter.PrioritySystem.ReactRange.NormalMin = 2
+LLMChatter.PrioritySystem.ReactRange.NormalMax = 5
+LLMChatter.PrioritySystem.ReactRange.FillerMin = 5
+LLMChatter.PrioritySystem.ReactRange.FillerMax = 15
+
+#
+#   LLMChatter.PrioritySystem.BridgeYieldEnable
+#       [BRIDGE] Give each group two event lanes, one for high
+#       and critical events and one for everything else, so an
+#       urgent reaction does not wait for the same group's
+#       filler lock. It is not processed immediately: it still
+#       shares the bridge's worker pool with all other events.
+#       Events within one lane still run one at a time. Off,
+#       all events of a group share one lane. Needs
+#       PrioritySystem.Enable = 1.
+#       Default: 1
+#
+LLMChatter.PrioritySystem.BridgeYieldEnable = 1
+
+#
 #   LLMChatter.PrioritySystem.SafetyEnable
-#       Reserved for future use. Currently all chatter flows
-#       freely — the bridge handles load via per-system
-#       singleton workers and config-driven RNG/cooldowns.
+#       [BRIDGE] Reserved for a future provider-safety mode. The
+#       bridge reads and logs this key at startup, but nothing
+#       acts on it yet.
 #       Default: 1
 #
 LLMChatter.PrioritySystem.SafetyEnable = 1

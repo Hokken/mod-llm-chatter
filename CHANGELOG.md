@@ -9,6 +9,12 @@
   source file, Python module, script registration and database table is
   listed with its owner and current size. New short sections cover the
   startup health check, the group setup retry and per-label model routing.
+* **Priority settings are in the config template**: `PrioritySystem.Enable`,
+  `.DeliveryOrderEnable`, `.BridgeYieldEnable` and the eight per-tier
+  reaction delays (`.ReactRange.*`) were read by the module but missing
+  from `mod_llm_chatter.conf.dist`. They are now listed with their current
+  defaults, so nothing changes until you edit them. `.SafetyEnable` is
+  described honestly: it is read and logged, but nothing uses it yet.
 
 ### 2026-10-27 - Bots Explain Their Loot Rolls
 
