@@ -21,6 +21,17 @@
   backlog. They now describe the per-group lock lanes, the claim and
   delivery ordering, and the Guild profile scan that waits for urgent
   events.
+* **Logic documentation matches the code again**: the full
+  `mod-llm-chatter-documentation.md` was checked against the source.
+  Defaults now show the shipped template values (General relay, raid
+  morale, `EmoteChance`, request logging, memory and proximity cooldowns),
+  and descriptions follow the code: Arathi Basin node lines are retried
+  and sent to the whole battleground, raid lines go to raid chat, each
+  channel's reply timing is described separately, Guild topic choice and
+  its deliberate silence on casual messages are explained, and the login
+  cleanup grace is 5 minutes. The file maps, script registrations and the
+  14 database tables are complete, and removed functions and old
+  "Session" wording are gone.
 
 ### 2026-10-27 - Bots Explain Their Loot Rolls
 
