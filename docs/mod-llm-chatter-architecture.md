@@ -1,6 +1,8 @@
 # mod-llm-chatter Architecture
 
-Last updated: 2026-09-22 (transactional addon profile edits, custom emotes, action delivery, gear/pet context)
+Last updated: 2026-10-28 (Arathi Basin observation and delivery guard,
+location topics, module locale, character genders, per-label model routing,
+startup health check)
 
 ## Purpose
 
@@ -884,6 +886,12 @@ It carries the legacy prompt parts and optional response metadata:
      OpenAI-compatible endpoint has no per-request context parameter;
      disabling thinking sends `reasoning_effort = none` and retains the
      `/no_think` prompt fallback
+   - **Per-label model routing**: `label_model(label, config)` resolves the
+     call's `label=` against the comma-separated fnmatch patterns in
+     `LLMChatter.LabelModel.Labels` and, on a match, uses
+     `LLMChatter.LabelModel` instead of `LLMChatter.Model`. With either key
+     empty every call keeps `LLMChatter.Model`, and the resolved model then
+     drives the capability profile and the token multipliers as usual
 4. With structured output off, a plain string is sent as a single user
    message. With it on, a caller must provide an annotated or explicit
    contract, or explicitly opt into free text. Missing/conflicting contracts
@@ -1001,8 +1009,10 @@ There are two separate timing stages:
 
 `calculate_dynamic_delay()` in `chatter_shared.py` controls the second
 stage for most Python-generated messages. Player-directed replies use
-`responsive=True`; ambient/group conversations can also include reading
-time from the previous message length.
+`responsive=True`, a uniform draw between `ResponsiveDelayMin` and
+`ResponsiveDelayMax` (4-8 seconds by default) with no reading or typing
+simulation; ambient/group conversations can also include reading time from
+the previous message length.
 Player-triggered proximity say, active-scene reply, conversation, and emote
 events use the high priority tier (0-2 second reaction delay by default) and
 a short expiry, while ambient proximity events remain lower priority.
@@ -1050,7 +1060,7 @@ The bridge processes many events in parallel, but it uses a per-group
 lock so events sharing the same `group_id` do not run concurrently. This
 avoids cross-talk and state races inside a single party.
 
-Session 69 refined this with two lock lanes:
+Two lock lanes refine this:
 
 - urgent/high events and filler events for the same `group_id` no longer
   share the same queued lock lane
@@ -1077,8 +1087,9 @@ What is still limited:
 - same-executor saturation can still delay work even when claim order is
   correct
 - same-group serialization still exists inside each urgency lane
-- `GlobalMessageCap` and `TransportBypassGlobalCap` remain legacy config
-  values and are not the main protection mechanism anymore
+- the old global message caps (`GlobalMessageCap`,
+  `TransportBypassGlobalCap`) are gone; pacing and suppression now come
+  from the priority, yield and pacing settings above
 - provider-safety mode is bridge-side suppression logic, not a hard DB
   queue partitioning system
 
@@ -1089,6 +1100,19 @@ on inventing a first priority system from scratch.
 
 The bridge is **not** a single-threaded "process everything inline"
 loop. It is a coordinator loop plus a worker pool.
+
+### Startup health check
+
+Before the loop starts, `chatter_healthcheck.py` runs
+`run_all_checks()` when `LLMChatter.HealthCheck.Enable` is on. It reports
+PASS/FAIL for the config file, module enable, provider configuration, the
+QuickAnalyze target, database access and the module tables and, with
+`LLMChatter.HealthCheck.LLMProbe`, a live call to the configured model and
+to the `LLMChatter.LabelModel` target. The report goes to the bridge log
+and to `LLMChatter.HealthCheck.LogPath` (default
+`<RequestLog dir>/healthcheck.log`); a critical failure exits the bridge
+instead of letting it poll without a working provider. The same script can
+be run standalone against a conf file.
 
 ### Coordinator thread
 
@@ -1118,6 +1142,16 @@ Event processing is parallel by default, but group-scoped events are
 submitted through `_run_with_group_lock(...)` so only one event per
 `group_id` executes at a time.
 
+### Group-setup grace
+
+A group event can reach the orphan guard before the join handler has
+written the group's traits: join batches run in the urgent lane and most
+group events in the filler lane, and a Dungeon Finder group can queue its
+dungeon entry before the join. Such an event is put back to `pending` and
+retried after `LLMChatter.Bridge.GroupSetupRetrySeconds`, as long as it is
+younger than `LLMChatter.Bridge.GroupSetupGraceSeconds` from `created_at`;
+after that it expires as an orphan instead of being dispatched.
+
 ### Background timer-style tasks
 
 These are not processed inline in the same event loop body once due;
@@ -1134,7 +1168,7 @@ So the current architecture is:
 - multiple event workers
 - several interval-driven background jobs using the same executor
 
-Session 69 added two scheduling controls around that model:
+Two scheduling controls sit around that model:
 
 - **bridge yield mode**: legacy ambient requests, idle chatter, and bot
   questions can yield when urgent backlog exists
@@ -1143,51 +1177,60 @@ Session 69 added two scheduling controls around that model:
 
 ## Current C++ Module Map
 
+Line counts are approximate non-blank lines.
+
 | File | Approx lines | Primary ownership |
 |---|---:|---|
-| `src/LLMChatterScript.cpp` | 17 | Registration coordinator only |
-| `src/LLMChatterShared.cpp` | ~2500 | Shared helpers: SQL/JSON escaping, canonical lookups, queue insertion, cooldowns, priorities/delays, delivery helpers, spawn-GUID creature lookup, NPC role descriptions, and the shared named-boss cache/classifier |
-| `src/LLMChatterReplyHold.cpp` | ~185 | `HoldBotForReply()`: keeps a standing ungrouped bot that owes a player a reply in place for `ProximityChatter.ReplyHoldMs` (moving bots are left alone); raises the AI delay without shortening it and, when released on combat or on the delivery or terminal drop of its own reply (matched by the `reply_hold_id` in the event's extra data), takes back only what it added |
-| `src/LLMChatterShared.h` | 83 | Shared declarations still used across domains; `class Unit` forward-declared for `SendUnitTextEmote()`; currently also declares world/player registration |
-| `src/LLMChatterDelivery.cpp` | ~1000 | Outbound DB polling and channel dispatch, including instance-aware local revalidation for `say`/`msay`, screenshot snapshot/scan-radius checks, and safe boss `myell` delivery |
+| `src/LLMChatterScript.cpp` | 32 | Registration coordinator only |
+| `src/LLMChatterShared.cpp` | ~2900 | Shared helpers: SQL/JSON escaping, canonical lookups, queue insertion, cooldowns, priorities/delays, delivery helpers, spawn-GUID creature lookup, NPC role descriptions, and the shared named-boss cache/classifier |
+| `src/LLMChatterReplyHold.cpp` | ~160 | `HoldBotForReply()`: keeps a standing ungrouped bot that owes a player a reply in place for `ProximityChatter.ReplyHoldMs` (moving bots are left alone); raises the AI delay without shortening it and, when released on combat or on the delivery or terminal drop of its own reply (matched by the `reply_hold_id` in the event's extra data), takes back only what it added |
+| `src/LLMChatterReplyHold.h` | 50 | `AddLLMChatterReplyHoldScripts()` and the reply-hold entry points used by delivery and proximity |
+| `src/LLMChatterShared.h` | ~175 | Shared declarations still used across domains; `class Unit` forward-declared for `SendUnitTextEmote()`; currently also declares world/player registration |
+| `src/LLMChatterDelivery.cpp` | ~1600 | Outbound DB polling and channel dispatch, including instance-aware local revalidation for `say`/`msay`, screenshot snapshot/scan-radius checks, the BG final-send guard, and safe boss `myell` delivery |
 | `src/LLMChatterDelivery.h` | 4 | Narrow delivery extraction declaration used by `LLMChatterWorld.cpp` |
-| `src/LLMChatterAmbient.cpp` | 963 | Ambient world/event ownership: day/night transitions, holiday start/stop routing, weather state tracking, weather reactions, zone-level ambient chatter selection, ambient request queue writes |
+| `src/LLMChatterAmbient.cpp` | ~1030 | Ambient world/event ownership: day/night transitions, holiday start/stop routing, weather state tracking, weather reactions, zone-level ambient chatter selection, ambient request queue writes |
 | `src/LLMChatterAmbient.h` | 24 | Narrow ambient declarations consumed by `LLMChatterWorld.cpp` |
-| `src/LLMChatterThemedAudience.cpp/.h` | ~40 | Listener JSON for themed topics and rumors: guid, name, level, team, race and class, sent as `audience_context` on ambient General requests and as `audience` on guild idle events |
-| `src/LLMChatterAudience.cpp/.h` | ~75 | Online real players (never playerbots) in a zone or guild: `CollectRealPlayers*()` and `PickRealPlayerInZone()` / `PickRealGuildMember()` |
-| `src/LLMChatterLoot.cpp/.h` | Real ungrouped-playerbot loot capture, per-source reservoir sampling, bounded aggregation, audience/cooldown revalidation, and event queueing |
-| `src/LLMChatterTrade.cpp/.h` | Demand-driven quality-weighted selection and value snapshots of tradeable items from the selected ambient seller's live inventory |
-| `src/LLMChatterNearby.cpp` | 691 | Nearby-object and nearby-creature scanning, POI scoring, nearby direct event queueing, nearby-local cooldowns |
-| `src/LLMChatterNearby.h` | 6 | Narrow nearby scan declaration consumed by `LLMChatterWorld.cpp` |
-| `src/LLMChatterWorld.cpp` | ~1000 | WorldScript ownership, thin ambient/nearby/delivery/proximity/boss delegation, transport polling and route announcements, transport-private state, retained world-private `QueueEvent()` helper |
-| `src/LLMChatterGuildWorld.cpp/.h` | ~650 | Guild world events: own `GuildScript` (bot joins) and `WorldScript` (world scan), meet greetings with the reply hold, NPC encounters with visibility and line-of-sight checks, General join announcements, and the delivery-time meet checks and follow-up release used by `LLMChatterDelivery.cpp` |
-| `src/LLMChatterAudience.cpp/.h` | ~75 | Online real players (never playerbots) in a zone or guild: `CollectRealPlayers*()` and `PickRealPlayerInZone()` / `PickRealGuildMember()` |
-| `src/LLMChatterGuild.cpp` | ~750 | Player-driven Guild Chat capture, per-login session lifecycle, deferred login greetings, eligible-bot selection, stale-turn cancellation, recent-interaction suppression, and delivered-line history writes |
-| `src/LLMChatterGuild.h` | ~20 | Guild registration and delivery/world cross-call declarations |
+| `src/LLMChatterThemedAudience.cpp/.h` | ~50 | Listener JSON for themed topics and rumors: guid, name, level, team, race and class, sent as `audience_context` on ambient General requests and as `audience` on guild idle events |
+| `src/LLMChatterAudience.cpp/.h` | ~90 | Online real players (never playerbots) in a zone or guild: `CollectRealPlayers*()` and `PickRealPlayerInZone()` / `PickRealGuildMember()` |
+| `src/LLMChatterLoot.cpp/.h` | ~380 | Real ungrouped-playerbot loot capture, per-source reservoir sampling, bounded aggregation, audience/cooldown revalidation, and event queueing |
+| `src/LLMChatterTrade.cpp/.h` | ~120 | Demand-driven quality-weighted selection and value snapshots of tradeable items from the selected ambient seller's live inventory |
+| `src/LLMChatterNearby.cpp` | ~570 | Nearby-object and nearby-creature scanning, POI scoring, nearby direct event queueing, nearby-local cooldowns |
+| `src/LLMChatterNearby.h` | 4 | Narrow nearby scan declaration consumed by `LLMChatterWorld.cpp` |
+| `src/LLMChatterWorld.cpp` | ~980 | WorldScript ownership, thin ambient/nearby/delivery/proximity/boss delegation, transport polling and route announcements, transport-private state, retained world-private `QueueEvent()` helper |
+| `src/LLMChatterGuildWorld.cpp/.h` | ~620 | Guild world events: own `GuildScript` (bot joins) and `WorldScript` (world scan), meet greetings with the reply hold, NPC encounters with visibility and line-of-sight checks, General join announcements, and the delivery-time meet checks and follow-up release used by `LLMChatterDelivery.cpp` |
+| `src/LLMChatterGuild.cpp` | ~880 | Player-driven Guild Chat capture, per-login session lifecycle, deferred login greetings, eligible-bot selection, stale-turn cancellation, recent-interaction suppression, and delivered-line history writes |
+| `src/LLMChatterGuild.h` | ~35 | Guild registration and delivery/world cross-call declarations |
 | `src/LLMChatterGuildMembers.cpp` | ~660 | Guild news events: own `GuildScript` (join, promotion, demotion, MOTD) and `WorldScript` flush, join batching, rank-change debounce, MOTD delay, and event queueing |
-| `src/LLMChatterGroup.cpp` | ~1350 | Shared group state definitions, shared helpers (`GroupHasRealPlayer`, `GetRandomBotInGroup`, `CountBotsInGroup`, pre-cache helpers), disabled-by-default MultiBot-Chatless `MBOT` fallback handler, `CleanupGroupSession()` coordinator, thin `LLMChatterGroupPlayerScript` shell wrappers, registration |
-| `src/LLMChatterGroupCombat.cpp` | ~2550 | Remaining group PlayerScript implementation bodies (kill/death/loot/combat/chat/level/quest/achievement/spell/resurrect/corpse-run/dungeon-entry/emote dispatch), text-emote target classification and group gating, zone transition handling, combat state callouts, `MBOT` debug-log suppression, file-local `QueueStateCallout()` |
-| `src/LLMChatterGroupLootRoll.cpp` | ~390 | Need/Greed roll comments: `CheckGroupLootRolls()` polls open group loot rolls (`Group::GetRolls()`) from the world update, applies the Need/Greed and equipment/other switches, the Need and Greed chances and per-group cooldowns and the per-item cap, checks whether the bot can use the item (`LootRollUse()`), queues `bot_group_loot_roll`, cancels pending events of rolls that closed, and answers `LootRollCommentDropReason()` for delivery (roll closed, or the bot left the group or its vote) |
-| `src/LLMChatterGroupInternal.h` | ~235 | Shared group internal structs, cooldown/batch/mutex declarations, helper declarations, domain entry points, and `EmoteTargetType` |
-| `src/LLMChatterGroupJoin.cpp` | 877 | Group join batching: `QueueBotGreetingEvent()`, `EnsureGroupJoinQueued()`, `FlushGroupJoinBatches()`, `LLMChatterGroupScript` (GroupScript: `OnAddMember`, `OnRemoveMember` with farewell, `OnDisband`) |
-| `src/LLMChatterGroupEmote.cpp` | 780 | Emote reaction system: delayed bot/creature mirror events, emote static data, grouped and ungrouped playerbot mirroring, creature mirroring, observer reactions, and cooldown eviction |
-| `src/LLMChatterGroupQuest.cpp` | 530 | Quest accept batching: `FlushQuestAcceptBatches()`, `LLMChatterCreatureScript` (AllCreatureScript: `CanCreatureQuestAccept` with debounce/immediate paths) |
-| `src/LLMChatterGroupPvP.cpp` | ~630 | Overworld PvP: opposing-faction enemy resolution (players and their pets), the identity visibility gate, PvP reactor selection, enemy JSON fields, per-group and per-enemy PvP cooldowns, PvP pull, player-kill, and pet-kill entry points |
-| `src/LLMChatterGuildPvP.cpp/.h` | ~370 | Open-world PvP reactions outside the player's group: `OnPlayerPVPKill` only records the kill; the world update queues Guild kill comments for lone guild bots and Guild or zone General death reactions, gated on a real reader (`LLMChatterAudience.cpp`), skipped while the guild talks with a real player, with per-bot, per-guild and per-zone cooldowns; `CheckPvpReactionDelivery()` keeps each line in its original guild or zone at delivery |
+| `src/LLMChatterGroup.cpp` | ~1360 | Shared group state definitions, shared helpers (`GroupHasRealPlayer`, `GetRandomBotInGroup`, `CountBotsInGroup`, pre-cache helpers), disabled-by-default MultiBot-Chatless `MBOT` fallback handler, `CleanupGroupSession()` coordinator, thin `LLMChatterGroupPlayerScript` shell wrappers, group sub-registration, registration |
+| `src/LLMChatterGroupCombat.cpp` | ~2640 | Remaining group PlayerScript implementation bodies (kill/death/loot/combat/chat/level/quest/achievement/spell/resurrect/corpse-run/dungeon-entry/emote dispatch), text-emote target classification and group gating, zone transition handling, combat state callouts, `MBOT` debug-log suppression, file-local `QueueStateCallout()` |
+| `src/LLMChatterGroupLootRoll.cpp` | ~400 | Need/Greed roll comments: `CheckGroupLootRolls()` polls open group loot rolls (`Group::GetRolls()`) from the world update, applies the Need/Greed and equipment/other switches, the Need and Greed chances and per-group cooldowns and the per-item cap, checks whether the bot can use the item (`LootRollUse()`), queues `bot_group_loot_roll`, cancels pending events of rolls that closed, and answers `LootRollCommentDropReason()` for delivery (roll closed, or the bot left the group or its vote) |
+| `src/LLMChatterGroupInternal.h` | ~325 | Shared group internal structs, cooldown/batch/mutex declarations, helper declarations, domain entry points, and `EmoteTargetType` |
+| `src/LLMChatterGroupJoin.cpp` | 841 | Group join batching: `QueueBotGreetingEvent()`, `EnsureGroupJoinQueued()`, `FlushGroupJoinBatches()`, `LLMChatterGroupScript` (GroupScript: `OnAddMember`, `OnRemoveMember` with farewell, `OnDisband`) |
+| `src/LLMChatterGroupEmote.cpp` | ~810 | Emote reaction system: delayed bot/creature mirror events, emote static data, grouped and ungrouped playerbot mirroring, creature mirroring, observer reactions, and cooldown eviction |
+| `src/LLMChatterGroupQuest.cpp` | 480 | Quest accept batching: `FlushQuestAcceptBatches()`, `LLMChatterCreatureScript` (AllCreatureScript: `CanCreatureQuestAccept` with debounce/immediate paths) |
+| `src/LLMChatterGroupPvP.cpp` | ~550 | Overworld PvP: opposing-faction enemy resolution (players and their pets), the identity visibility gate, PvP reactor selection, enemy JSON fields, per-group and per-enemy PvP cooldowns, PvP pull, player-kill, and pet-kill entry points |
+| `src/LLMChatterGuildPvP.cpp/.h` | ~350 | Open-world PvP reactions outside the player's group: `OnPlayerPVPKill` only records the kill; the world update queues Guild kill comments for lone guild bots and Guild or zone General death reactions, gated on a real reader (`LLMChatterAudience.cpp`), skipped while the guild talks with a real player, with per-bot, per-guild and per-zone cooldowns; `CheckPvpReactionDelivery()` keeps each line in its original guild or zone at delivery |
 | `src/LLMChatterDuel.cpp` | ~300 | Duel start/end `PlayerScript`, duel reactor selection, duel cooldowns, and `bot_group_duel_start` / `bot_group_duel_end` queueing |
-| `src/LLMChatterGroup.h` | 18 | World-to-group cross-call surface plus group registration |
-| `src/LLMChatterPlayer.cpp` | 1105 | Player General-channel hooks, General cooldowns, subzone cooldowns, `EnsureBotInGeneralChannel()`, player registration |
-| `src/LLMChatterRaid.cpp` | 767 | Raid boss hooks (pull/kill/wipe), boss lookup table (80+ entries across Classic/TBC/WotLK), `IsDatabaseBound() override`, raid registration |
-| `src/LLMChatterProximity.cpp` | ~3400 | Ordinary outdoor/instance proximity scans, curated NPC/playerbot eligibility and compatibility, selected/named `/say` routing, mixed bot-directed reaction chains, map/instance-aware scenes and cooldowns, screenshot NPC preflight/queue exports, and event payload construction |
-| `src/LLMChatterScreenshot.cpp/.h` | ~225 | Account-bound screenshot mailbox polling, live session/map/instance/position snapshots, consume-once dispatch and delivery freshness validation |
-| `src/LLMChatterProximity.h` | ~75 | Proximity scan and player-say hook declarations consumed by `LLMChatterWorld.cpp` and `LLMChatterGroupCombat.cpp`, plus the narrow fight onlooker helpers used by `LLMChatterProximityFight.cpp` |
-| `src/LLMChatterProximityFight.cpp/.h` | ~1090 | Duel and overworld PvP onlooker reactions: own `PlayerScript` (duel request/start/end, PvP kill), duel-instance lifecycle and moment selection, one reaction per moment (proximity speech for same-faction bots, emotes for opposite-faction bots), staggered emote steps, and delivery-time revalidation |
-| `src/LLMChatterBossDialogue.cpp/.h` | ~850 | Separate boss-only pre-aggro scanning, safe-band eligibility, selected/named `/say` routing, denylist, and boss-instance presence scheduling |
-| `src/LLMChatterBG.cpp` | 1348 | Battleground hooks, BG state polling, BG queue helpers, BG registration |
+| `src/LLMChatterGroup.h` | 25 | World-to-group cross-call surface plus group registration |
+| `src/LLMChatterPlayer.cpp` | ~1400 | Player General-channel hooks, General cooldowns, subzone cooldowns, `EnsureBotInGeneralChannel()`, player registration |
+| `src/LLMChatterRaid.cpp` | 717 | Raid boss hooks (pull/kill/wipe), boss lookup table (80+ entries across Classic/TBC/WotLK), `IsDatabaseBound() override`, raid registration |
+| `src/LLMChatterRaid.h` | 4 | `AddLLMChatterRaidScripts()` declaration consumed by the registration coordinator |
+| `src/LLMChatterProximity.cpp` | ~3000 | Ordinary outdoor/instance proximity scans, curated NPC/playerbot eligibility and compatibility, selected/named `/say` routing, mixed bot-directed reaction chains, map/instance-aware scenes and cooldowns, screenshot NPC preflight/queue exports, and event payload construction |
+| `src/LLMChatterScreenshot.cpp/.h` | ~210 | Account-bound screenshot mailbox polling, live session/map/instance/position snapshots, consume-once dispatch and delivery freshness validation |
+| `src/LLMChatterProximity.h` | 91 | Proximity scan and player-say hook declarations consumed by `LLMChatterWorld.cpp` and `LLMChatterGroupCombat.cpp`, plus the narrow fight onlooker helpers used by `LLMChatterProximityFight.cpp` |
+| `src/LLMChatterProximityFight.cpp/.h` | ~1010 | Duel and overworld PvP onlooker reactions: own `PlayerScript` (duel request/start/end, PvP kill), duel-instance lifecycle and moment selection, one reaction per moment (proximity speech for same-faction bots, emotes for opposite-faction bots), staggered emote steps, and delivery-time revalidation |
+| `src/LLMChatterJsonFields.h` | ~310 | Whitespace-tolerant readers for JSON read back from the MySQL JSON column; standard-library only, with a standalone test (`tools/tests/cpp/test_json_fields.cpp`) |
+| `src/LLMChatterBossDialogue.cpp/.h` | ~800 | Separate boss-only pre-aggro scanning, safe-band eligibility, selected/named `/say` routing, denylist, and boss-instance presence scheduling |
+| `src/LLMChatterBG.cpp` | ~1290 | Battleground hooks, BG state polling, BG queue helpers, BG registration |
 | `src/LLMChatterBG.h` | 14 | BG registration declaration |
-| `src/LLMChatterCommand.cpp` | ~1620 | Player command bridge for the Chatter Companion addon. `.llmc` subcommands `roster`, `get`, `set`, `setbackstory`, `regenbackstory`, `forget`, plus the chunked upload `put` / `commit` / `cancel` (per-player staging, 200-character chunks, up to 64 per field). Percent-encoding protocol and UTF-8 character limits (64 per trait, 1,000 per backstory). Every profile edit is validated as a whole and written as one `CharacterDatabaseTransaction` (identity, session traits, cache invalidation, optional backstory, and the tone/backstory regeneration events via `AppendChatterEvent()`); the session-owned commit callback only sends the addon's reply. The addon sends traits only; `setbackstory` and `bs` chunks are a server-side path for manual use. See [`chatter-addon-reference.md`](chatter-addon-reference.md) |
-| `src/LLMChatterConfig.h/.cpp` | ~900 | Config loading, reload-safe creature-entry sets, and config struct |
-| `src/llm_chatter_loader.cpp` | 11 | Module entry point, calls `AddLLMChatterScripts()` |
+| `src/LLMChatterBGDelivery.cpp/.h` | ~270 | Transient BG match identities, explicit real-player recipients and the shared BG final-send guard described under *Battleground final-delivery contract* |
+| `src/LLMChatterAB.cpp/.h` | ~855 | AB observation, classification, pending node changes, revisions, match-target caching and value snapshots |
+| `src/LLMChatterABActor.h` | ~185 | Banner-click actor attribution: the `thread_local` cast ring and `ResolveActor()` |
+| `src/LLMChatterABPending.h` | ~125 | Value-only bounded pending policy for AB node changes |
+| `src/LLMChatterABScore.h` | ~130 | Value-only AB threshold, score-pending and status-clock policy |
+| `src/LLMChatterCommand.cpp` | ~1470 | Player command bridge for the Chatter Companion addon. `.llmc` subcommands `roster`, `get`, `set`, `setbackstory`, `regenbackstory`, `forget`, plus the chunked upload `put` / `commit` / `cancel` (per-player staging, 200-character chunks, up to 64 per field). Percent-encoding protocol and UTF-8 character limits (64 per trait, 1,000 per backstory). Every profile edit is validated as a whole and written as one `CharacterDatabaseTransaction` (identity, session traits, cache invalidation, optional backstory, and the tone/backstory regeneration events via `AppendChatterEvent()`); the session-owned commit callback only sends the addon's reply. The addon sends traits only; `setbackstory` and `bs` chunks are a server-side path for manual use. See [`chatter-addon-reference.md`](chatter-addon-reference.md) |
+| `src/LLMChatterConfig.h/.cpp` | ~2180 | Config loading, reload-safe creature-entry sets, and config struct |
+| `src/llm_chatter_loader.cpp` | 9 | Module entry point, calls `AddLLMChatterScripts()` |
 
 ## Current Registration Shape
 
@@ -1203,10 +1246,18 @@ Session 69 added two scheduling controls around that model:
 - `AddLLMChatterGroupScripts()`
 - `AddLLMChatterPlayerScripts()`
 - `AddLLMChatterGuildWorldScripts()`
+- `AddLLMChatterGuildPvPScripts()`
 - `AddLLMChatterLootScripts()`
 - `AddLLMChatterBGScripts()`
+- `AddLLMChatterABScripts()`
 - `AddLLMChatterRaidScripts()`
+- `AddLLMChatterProximityFightScripts()`
 - `AddLLMChatterCommandScripts()`
+- `AddLLMChatterReplyHoldScripts()`
+
+`AddLLMChatterGroupScripts()` in turn registers the group sub-domains:
+`AddLLMChatterGroupJoinScripts()`, `AddLLMChatterGroupQuestScripts()` and
+`AddLLMChatterDuelScripts()`.
 
 Current header topology is intentionally functional, not perfectly
 uniform:
@@ -1215,7 +1266,15 @@ uniform:
   `AddLLMChatterWorldScripts()` and `AddLLMChatterPlayerScripts()`
 - `LLMChatterGroup.h` declares `AddLLMChatterGroupScripts()` plus the
   explicit world-to-group cross-call surface
-- `LLMChatterBG.h` declares BG registration
+- `LLMChatterGuild.h` declares both Guild registrations
+  (`AddLLMChatterGuildScripts()`, `AddLLMChatterGuildMemberScripts()`)
+- the remaining subsystem headers declare their own registration next to
+  the code that uses it: `LLMChatterBG.h`, `LLMChatterAB.h`,
+  `LLMChatterLoot.h`, `LLMChatterRaid.h`, `LLMChatterGuildPvP.h`,
+  `LLMChatterGuildWorld.h`, `LLMChatterProximityFight.h`,
+  `LLMChatterReplyHold.h`
+- `AddLLMChatterCommandScripts()` has no header; `LLMChatterScript.cpp`
+  forward-declares it
 
 This asymmetry is known and acceptable in the shipped source state.
 
@@ -1228,6 +1287,8 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/llm_chatter_bridge.py` | Main loops, event claiming, registry-driven routing, worker orchestration |
 | `tools/chatter_event_registry.py` | Central Python event registry: handler module/function resolution, producer notes, payload field docs, dead-event tracking |
 | `tools/chatter_ambient.py` | Ambient statement/conversation generation |
+| `tools/chatter_world_events.py` | World event handlers served through the General channel: `transport_arrives`, `weather_change`, `weather_ambient`, `holiday_start`, `holiday_end`, `minor_event`, `day_night_transition` |
+| `tools/chatter_healthcheck.py` | Startup/preflight diagnostic (`run_all_checks()`) gated by `LLMChatter.HealthCheck.*`: PASS/FAIL report to the log and `healthcheck.log`, loud exit on a critical failure, optional live LabelModel probe; also runnable standalone |
 | `tools/chatter_loot.py` | Real `bot_loot_item` validation, exact-looter resolution, prompt generation, and General delivery |
 | `tools/chatter_guild.py` | Guild prompts and insert orchestration |
 | `tools/chatter_guild_events.py` | Join greetings, rank-change comments and MOTD comments |
@@ -1239,7 +1300,6 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_guild_profile.py` | Guild profile (Guild Information, MOTD, ranks, Guild Master), character guild lookups, guildmate notes and MOTD wording |
 | `tools/chatter_player_context.py` | Description of the real player (race outlook, class calling) for prompts that address them |
 | `tools/chatter_member_gender.py` | Character gender lookups (by name and guid) and the shared "Genders:" prompt line for party, battleground, General/ambient and Guild prompts; never used for NPC or creature names |
-| `tools/chatter_class_style.py` | Light/Shadow priest split from the active spec's talents |
 
 ### Group domain
 
@@ -1257,7 +1317,7 @@ This asymmetry is known and acceptable in the shipped source state.
 
 | File | Primary ownership |
 |---|---|
-| `tools/chatter_shared.py` | Shared prompt, parse, count, and delay helpers. Also owns gear/pet context: `build_gear_context()` describes a bot's equipped weapons and, for Hunters and Warlocks, its active pet (a stabled pet is ignored), second person for solo prompts; `attach_speaker_gear()` / `append_speaker_gear()` give multi-speaker prompts the third-person form. Gated by `LLMChatter.GearContext.Enable` |
+| `tools/chatter_shared.py` | Shared prompt, parse, count, and delay helpers; also the zone/subzone description helpers (`get_subzone_lore()`, `get_zone_lore()`, locale-aware subzone names) backed by `tools/subzone_lore.json` and `tools/subzone_names_ru.json`. Also owns gear/pet context: `build_gear_context()` describes a bot's equipped weapons and, for Hunters and Warlocks, its active pet (a stabled pet is ignored), second person for solo prompts; `attach_speaker_gear()` / `append_speaker_gear()` give multi-speaker prompts the third-person form. Gated by `LLMChatter.GearContext.Enable` |
 | `tools/llm_compat.py` | Declarative OpenAI-compatible model capability profiles plus narrowly scoped parameter-rejection recovery and process-local learned overrides |
 | `tools/chatter_mode.py` | Canonical normal/RP playerbot identity and channel voice rules, plus mode-invariant NPC guidance |
 | `tools/chatter_text.py` | Parsing, sanitization, anti-repetition, and chat length limiting. Never slice LLM chat output by hand; use `shorten_chat_message()` or `shorten_chat_question()` from this file. |
@@ -1267,6 +1327,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_links.py` | WoW link parsing and prompt-side link enrichment for player messages |
 | `tools/chatter_prompts.py` | Ambient/event prompt builders; twist and spice gating (`configure_prompt_flavor()`) |
 | `tools/chatter_general_length.py` | Configurable player-driven General reply length bands and adjacent-turn avoidance; no other channel length policy |
+| `tools/chatter_party_gate.py` | Party-chat pacing gate: DB-backed per-group delivery-slot reservation, the `urgent`/`responsive`/`contextual`/`filler`/`bypass` policies, and the activity refresh that lets C++ direct sends make later filler back off |
 | `tools/chatter_identity.py` | Shared persistent profile creation, guarded generation, explicit regeneration and selected-speaker preparation |
 | `tools/chatter_identity_jobs.py` | Bounded Guild membership discovery and profile prewarming |
 | `tools/chatter_persona.py` | Bot persona resolution (identity + real event mood) and the shared persona/cast renderers for Party, Guild and General |
@@ -1275,12 +1336,12 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_themed_topics.py` | Themed idle subjects (faction, race, class, race+class) and rumors (expansions, dungeons, raids, locations, regions, profession and class trainers); `themed_candidate()` prepares one before a thread turn is planned |
 | `tools/chatter_progression.py` | Rumor gating per listener (level bands, faction, achievements) and the rotating rumor target |
 | `tools/chatter_lore_data.py` / `chatter_rumor_data.py` / `chatter_trainer_rumor_data.py` | Static themed topic, race+class note, rumor and trainer rumor data |
-| `tools/chatter_class_style.py` | Light/Shadow priest split from the active spec's talents |
 | `tools/chatter_general.py` | `player_general_msg` Python path |
 | `tools/chatter_memory.py` | Persistent memory system: session tracking, background memory generation via `queue_memory()`, flush/activate on farewell, orphan recovery. Key helpers: `_resolve_location()`, `_ensure_cap_and_insert()`, `_count_active_memories()`, `_evict_one_used()`. Memory prompts thread `player_name` so the LLM references the player by name (DB fallback from `player_guid` when caller doesn't supply it). Memories are one plain, factual sentence (target 160 characters); `_clamp_memory_text()` bounds them at write time (hard cap 240, cut at a sentence or word boundary), so prompts carry the stored memory whole instead of cutting it at 200 characters |
 | `tools/chatter_cache.py` | Mode-aware pre-cache refill and startup removal of ready rows generated under a previous mode |
 | `tools/chatter_events.py` | Event context building and cleanup |
-| `tools/chatter_constants.py` | Static constants and lore data: zone names/levels/flavor, race/class speech profiles, personality traits (16 categories, 264 traits), BG lore, item/weapon/armor classification maps, item quality names/colors, raid map IDs, dungeon flavor, emote keywords |
+| `tools/chatter_constants.py` | Static constants and lore data: zone names/levels/flavor, race/class speech profiles, personality traits (16 categories, 264 traits), BG lore, item/weapon/armor classification maps, item quality names/colors, raid map IDs, dungeon flavor, emote keywords. English defaults only: per-language tables live in `tools/locales/` behind the registry described under *Locale Ownership* |
+| `tools/locales/` | One module per locale (`deDE`, `esES`, `frFR`, `koKR`, `ruRU`) plus `__init__.py`, which owns the registry and `dataset()` lookup used by the accessors in `chatter_shared.py` |
 | `tools/talent_catalog.py` | Talent description catalog used by prompt-side talent injection |
 | `tools/spell_names.py` | Spell name/description loader used by DB and link helpers |
 | `tools/talent_data.py` | Loader for `talent_data.json`: talent spell to tree, rank and name, used by `get_character_talents()` |
@@ -1303,6 +1364,9 @@ This asymmetry is known and acceptable in the shipped source state.
 |---|---|
 | `tools/chatter_request_logger.py` | Thread-safe JSONL logger; `init_request_logger(config)` + `log_request(label, prompt, response, model, provider, duration_ms, system_prompt)`; rotation at `MaxSizeMB`; writes to `/logs/llm_requests.jsonl` inside container |
 | `tools/chatter_log_viewer.py` | Zero-dependency stdlib web UI (`python chatter_log_viewer.py --log PATH --port 5555`); routes `/`, `/api/logs`, `/api/stats`; semantic prompt-section parser with colored sections; draggable column/row dividers |
+| `tools/import_smoke_check.py` | Import smoke/cycle guard for the tools package; stubs missing optional provider SDKs unless `--strict` |
+| `tools/populate_subzone_lore.py` | Maintainer script that fills empty `subzone_lore.json` descriptions through an LLM; resumable, skips populated entries |
+| `tools/tests/` | Python test suite (`test_*.py`, including the AB/BG contract tests) plus the standalone C++ harnesses and `test_json_fields` under `tools/tests/cpp/` |
 
 ### Emote reaction domain
 
@@ -1334,6 +1398,7 @@ instead of rendering it as a `/slash` command.
 |---|---|
 | `tools/chatter_proximity.py` | Ordinary proximity event handlers and prompt builders. Applies NPC in-world voice and configured playerbot voice independently in single or mixed-speaker scenes |
 | `tools/chatter_instance_context.py` | Shared canonical map/current-area and curated dungeon-lore context used by ordinary proximity and boss prompts |
+| `tools/chatter_proximity_pacing.py` | Bounded, length-aware pacing for nearby conversation lines; owns the `ProximityChatter.DynamicPacing.*` settings |
 | `tools/chatter_boss_dialogue.py` | Fail-closed, history-aware message-only generation and `myell` queue insertion for boss approach and directed boss events |
 
 ### Raid/BG domain
@@ -1344,6 +1409,8 @@ instead of rendering it as a `/slash` command.
 | `tools/chatter_raids.py` | PvE raid event handlers (boss, morale) |
 | `tools/chatter_raid_prompts.py` | Raid prompt builders (boss, morale, battle cry, banter) |
 | `tools/chatter_battlegrounds.py` | BG event handlers |
+| `tools/chatter_ab.py` | Bounded AB snapshot validation and factual base-control/income/verified-target rendering for idle and objective-status chatter; never renders internal contest estimates |
+| `tools/chatter_bg_delivery.py` | BG transport normalization: `raid_group_id` to `group_id`, conflicting-ID rejection, and stripping incidental `ab_state` without refreshing match identity, observation time or the stored event |
 | `tools/chatter_bg_prompts.py` | BG prompt builders (lore tables moved to `chatter_constants.py`) |
 | `tools/chatter_bg_flag_timeline.py` | Per-match WSG flag event timeline (drop/return/regrab/stale-carry decisions) |
 
@@ -1759,15 +1826,16 @@ action history or actor attribution. Ordinary spell cast time is not used
 as a timing bound. This relies on the current core ordering and timer
 semantics and must be rechecked if they change.
 
-One changed pair within `AB.TransitionMaxGapMs` uses `evidence=sampled`.
-Zero disables these labels. Long actual gaps, multiple pending changes or
-unknown pairs use `transition=state_update`, `evidence=ambiguous`. First
-baselines emit nothing. `chatter_bg_prompts.py` validates recognized
-pair/label shapes and renders team-relative observations. Legacy/ambiguous
-payloads render current state only; malformed explicit state becomes
-unknown. Legacy `claimer_name` is ignored for AB, including old Random
-rows identifiable by AB node name. These events use Party with an AB-only
-attempt budget, independent of the shared big-event cooldown.
+One changed pair within `BGChatter.AB.TransitionMaxGapMs` uses
+`evidence=sampled`. Zero disables these labels. Long actual gaps, multiple
+pending changes or unknown pairs use `transition=state_update`,
+`evidence=ambiguous`. First baselines emit nothing. `chatter_bg_prompts.py`
+validates recognized pair/label shapes and renders team-relative
+observations. Legacy/ambiguous payloads render current state only;
+malformed explicit state becomes unknown. Legacy `claimer_name` is ignored
+for AB, including old Random rows identifiable by AB node name. These
+events use Party with an AB-only attempt budget, independent of the shared
+big-event cooldown.
 
 #### AB node batches
 
@@ -1779,8 +1847,9 @@ the reversal becomes a newer fact. Expiry is measured from the latest
 change. Disable, status changes and destruction reset pending work.
 
 At each eligible polling opportunity, select oldest-pending-first with
-rotating ties, capped by `AB.MaxNodesPerBatch`. Spend
-`AB.NodeBatchCooldownSec` even when the one `NodeEventChance` roll fails.
+rotating ties, capped by `BGChatter.AB.MaxNodesPerBatch`. Spend
+`BGChatter.AB.NodeBatchCooldownSec` even when the one `NodeEventChance`
+roll fails.
 No listeners or failed insertion retains the pending facts until expiry.
 Score/start cooldowns cannot consume this AB attempt budget.
 
@@ -1823,8 +1892,9 @@ scores silently instead of replaying history.
 High-water scores record reached thresholds independently of speech.
 Only the newest crossing remains pending across both teams; when several
 cross in one observation the highest threshold wins. Pending score facts
-expire using `AB.PendingMaxAgeSec`. `AB.ScoreCooldownSec` budgets attempts,
-including chance failures, independently of node batches. All eligible
+expire using `BGChatter.AB.PendingMaxAgeSec`.
+`BGChatter.AB.ScoreCooldownSec` budgets attempts, including chance failures,
+independently of node batches. All eligible
 team/group/subgroup milestone rows are appended to one atomic transaction;
 failure retains the pending revision and successful acknowledgement clears
 only that exact revision. Outstanding score and node callbacks do not gate
@@ -1877,10 +1947,10 @@ not wall-clock countdowns. The lower remaining bound accounts for the BG
 advance on the observed transition and subsequent BG advances. The upper
 bound remains the full capture duration because an unseen same-state
 re-claim can reset the timer. Omit intervals containing expiry or wider than
-`AB.TimerEstimateMaxUncertaintySec`. Unknown baselines, ambiguous changes,
-large observation gaps, status/enable resets and occupied/neutral states
-have no estimate. These conservative bounds usually become unusable within
-a few updates. **No numerical timer wording is rendered.**
+`BGChatter.AB.TimerEstimateMaxUncertaintySec`. Unknown baselines, ambiguous
+changes, large observation gaps, status/enable resets and occupied/neutral
+states have no estimate. These conservative bounds usually become unusable
+within a few updates. **No numerical timer wording is rendered.**
 
 `tools/chatter_ab.py` validates the bounded snapshot and renders factual
 base-control/income/verified-target context for idle/objective-status
@@ -1923,8 +1993,8 @@ drop reason rather than retrying or retargeting it.
 
 The age budget is chosen by content, not by map: match-end rows use
 `MatchEndMaxAgeSec`; AB rows carrying `ab_state` (node, idle/objective
-status, score) use `AB.FactualMaxAgeSec`; every other BG row, including
-incidental AB replies and callouts, uses `FactualMaxAgeSec`.
+status, score) use `BGChatter.AB.FactualMaxAgeSec`; every other BG row,
+including incidental AB replies and callouts, uses `FactualMaxAgeSec`.
 
 AB snapshots include monotonic `observed_at_ms`. The AB owner validates all
 five live node states and captured bits, observed revisions, occupied
@@ -2120,8 +2190,9 @@ source:
    of 2-3 bot replies (Architecture B — single LLM call).
 4. `execute_player_msg_conversation()` in `chatter_group_handlers.py`
    dispatches the call and inserts the resulting messages.
-5. Delays use `calculate_dynamic_delay(responsive=True)` for faster
-   player-directed timing (2s floor vs 4s ambient).
+5. Delays use `calculate_dynamic_delay(responsive=True)`: a uniform draw
+   between `ResponsiveDelayMin` and `ResponsiveDelayMax` (4-8 seconds by
+   default), without the ambient reading and typing simulation.
 
 ## Where To Edit What
 
@@ -2157,7 +2228,14 @@ source:
 | C++ text-emote target classification / solo-vs-group pathing | `src/LLMChatterGroupCombat.cpp` |
 | Emote C++ hooks, mirror maps, cooldowns | `src/LLMChatterGroupEmote.cpp` |
 | BG event handling | `tools/chatter_battlegrounds.py` |
+| AB snapshot validation and factual rendering | `tools/chatter_ab.py` |
+| BG transport normalization / AB context stripping | `tools/chatter_bg_delivery.py` |
 | BG prompt wording/lore | `tools/chatter_bg_prompts.py` |
+| Party-chat pacing gate policies and slot reservation | `tools/chatter_party_gate.py` |
+| Proximity line pacing | `tools/chatter_proximity_pacing.py` |
+| Transport/weather/holiday/day-night General events | `tools/chatter_world_events.py` |
+| Bridge startup health check and its probes | `tools/chatter_healthcheck.py` |
+| Per-label model routing | `tools/chatter_llm.py` (`LLMChatter.LabelModel*`) |
 | Raid event handling | `tools/chatter_raids.py` |
 | Raid prompt wording | `tools/chatter_raid_prompts.py` |
 | C++ raid boss hooks | `src/LLMChatterRaid.cpp` |
@@ -2172,6 +2250,8 @@ source:
 | MultiBot-Chatless `MBOT` bridge coexistence and fallback | `src/LLMChatterGroup.cpp`; debug skip wording in `src/LLMChatterGroupCombat.cpp` |
 | C++ General-channel player logic | `src/LLMChatterPlayer.cpp` |
 | C++ BG logic | `src/LLMChatterBG.cpp`, `src/LLMChatterBG.h` |
+| C++ AB observation, pending/score policy and actor attribution | `src/LLMChatterAB.cpp`, `src/LLMChatterAB.h`, `src/LLMChatterABPending.h`, `src/LLMChatterABScore.h`, `src/LLMChatterABActor.h` |
+| C++ BG match identity and final-send guard | `src/LLMChatterBGDelivery.cpp`, `src/LLMChatterBGDelivery.h` |
 | Screenshot vision capture agent (host-side) | `tools/screenshot_agent.py` |
 | Screenshot vision bridge handler | `tools/chatter_screenshot_handler.py` |
 | C++ registration wiring | `src/LLMChatterScript.cpp`, `src/llm_chatter_loader.cpp` |
@@ -2255,10 +2335,16 @@ Generation failures do not reassign later greetings to another channel.
 | `llm_chatter_events` | C++ / screenshot agent | Python | Event queue, including value-only real-loot payloads |
 | `llm_chatter_queue` | C++ | Python | Ambient statement/conversation queue; C++-selected type and optional trade item snapshot |
 | `llm_chatter_messages` | Python | C++ | Outbound message delivery queue |
+| `llm_party_chat_pacing` | Python (bridge) + C++ direct sends | Python + C++ | Per-group party-chat pacing state (reservation endpoint, policy activity) |
 | `llm_group_cached_responses` | Python | C++ | Instant reaction pre-cache |
 | `llm_group_bot_traits` | Python + C++ travel refresh | Python | Group traits/state, location, and live travel context |
 | `llm_group_chat_history` | Python | Python | Group anti-repetition history |
 | `llm_general_chat_history` | C++/Python read path | Python/C++ | General-channel history |
+| `llm_guild_chat_sessions` | C++ + Python | Python + C++ | Per-login Guild session, turn counter and compact interaction summary |
+| `llm_guild_session_history` | C++/Python | Python | Visible Guild transcript copied into every active session for that Guild |
+| `llm_bot_identities` | Python + C++ `.llmc` profile edits | Python + C++ | Persistent traits, tone and roleplay backstory profiles |
+| `llm_bot_memories` | Python; C++ `.llmc forget` deletes | Python + C++ | Persistent episodic memories, flushed on farewell |
+| `llm_screenshot_proximity` | Host screenshot agent + C++ state updates | C++ + agent | Account-bound screenshot mailbox (ticket, token, state, expiry, visual JSON) | Account-bound screenshot mailbox (ticket, token, state, expiry, visual JSON) |
 | `llm_chatter_race_names` | C++ (startup) | Python | Race names from `ChrRaces`, for races outside `RACE_NAMES` |
 
 ## Known Gaps

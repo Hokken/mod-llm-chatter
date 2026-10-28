@@ -1,5 +1,15 @@
 # Changelog
 
+### 2026-10-28 - Architecture Guide and Priority Settings Brought Up to Date
+
+* **Architecture guide matches the code again**: the battleground node
+  settings carry their real `BGChatter.AB.*` names, the removed global
+  message caps and the old "2 second floor" reply delay are gone (replies
+  to players wait 4-8 seconds, `ResponsiveDelayMin`/`Max`), and every
+  source file, Python module, script registration and database table is
+  listed with its owner and current size. New short sections cover the
+  startup health check, the group setup retry and per-label model routing.
+
 ### 2026-10-27 - Bots Explain Their Loot Rolls
 
 * **Bots explain their loot rolls**: when a party bot rolls Need or Greed
