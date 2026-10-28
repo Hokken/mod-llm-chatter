@@ -2023,7 +2023,7 @@ _action_chance = 0.10
 _action_disabled = True
 
 # Module-level emote chance (set from config at startup)
-_emote_chance = 0.50
+_emote_chance = 0.20
 
 # Module-level response language (set from config at startup).
 # Empty string = English default (no extra instruction emitted).
@@ -3357,7 +3357,7 @@ def get_effective_speaker_cooldown(
     where 5 = reference full party size.
     """
     base = int(config.get(
-        'LLMChatter.BotSpeakerCooldownSeconds', 900
+        'LLMChatter.BotSpeakerCooldownSeconds', 120
     ))
     return max(60, min(base, base * num_bots // 5))
 

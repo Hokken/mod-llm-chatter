@@ -187,7 +187,7 @@ def _pvp_kill_memory(db, ctx):
     config = ctx['config']
     mem_chance = int(config.get(
         'LLMChatter.Memory'
-        '.PvPKillGenerationChance', 10
+        '.PvPKillGenerationChance', 30
     ))
     if random.random() * 100 >= mem_chance:
         return
@@ -241,7 +241,7 @@ def _kill_post_success(db, ctx, message):
     creature_name = ctx['creature_name']
     boss_mem_chance = int(config.get(
         'LLMChatter.Memory'
-        '.BossKillGenerationChance', 60
+        '.BossKillGenerationChance', 70
     ))
     mc = db.cursor(dictionary=True)
     mc.execute(
@@ -922,7 +922,7 @@ def _levelup_post_success(db, ctx, message):
 
     mem_chance = int(config.get(
         'LLMChatter.Memory'
-        '.LevelUpGenerationChance', 50
+        '.LevelUpGenerationChance', 60
     ))
     if random.random() * 100 < mem_chance:
         queue_memory(
@@ -1513,7 +1513,7 @@ def _achievement_post_success(db, ctx, message):
     achievement_name = ctx['achievement_name']
     achv_chance = int(config.get(
         'LLMChatter.Memory'
-        '.AchievementGenerationChance', 35
+        '.AchievementGenerationChance', 60
     ))
     mc = db.cursor(dictionary=True)
     mc.execute(
@@ -2033,7 +2033,7 @@ def process_group_zone_transition_event(
         try:
             ambient_chance = int(config.get(
                 'LLMChatter.Memory.AmbientChance',
-                15,
+                20,
             ))
             if (
                 ambient_chance > 0
@@ -2888,7 +2888,7 @@ def _nearby_object_conversation(
 
     # Scale tokens with number of bots
     max_tokens = int(config.get(
-        'LLMChatter.MaxTokens', 200
+        'LLMChatter.MaxTokens', 350
     ))
     conv_tokens = min(
         max_tokens * (1 + num_bots), 1000
@@ -3184,7 +3184,7 @@ def execute_player_msg_conversation(
     # Token budget: max_tokens * (1 + num_bots),
     # capped at 1000
     max_tokens = int(config.get(
-        'LLMChatter.MaxTokens', 200
+        'LLMChatter.MaxTokens', 350
     ))
     conv_tokens = min(
         max_tokens * (1 + num_bots), 1000
@@ -3555,7 +3555,7 @@ def _quest_complete_conversation(
     num_bots = len(bots)
     bot_names = [b['name'] for b in bots]
     max_tokens = int(config.get(
-        'LLMChatter.MaxTokens', 200
+        'LLMChatter.MaxTokens', 350
     ))
     conv_tokens = min(
         max_tokens * (1 + num_bots), 1000
@@ -3655,7 +3655,7 @@ def _quest_objectives_conversation(
     num_bots = len(bots)
     bot_names = [b['name'] for b in bots]
     max_tokens = int(config.get(
-        'LLMChatter.MaxTokens', 200
+        'LLMChatter.MaxTokens', 350
     ))
     conv_tokens = min(
         max_tokens * (1 + num_bots), 1000
@@ -3755,7 +3755,7 @@ def _quest_accept_conversation(
     num_bots = len(bots)
     bot_names = [b['name'] for b in bots]
     max_tokens = int(config.get(
-        'LLMChatter.MaxTokens', 200
+        'LLMChatter.MaxTokens', 350
     ))
     conv_tokens = min(
         max_tokens * (1 + num_bots), 1000

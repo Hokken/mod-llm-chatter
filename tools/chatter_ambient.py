@@ -659,7 +659,7 @@ def process_statement(
     response = call_llm(
         client, prompt, config,
         max_tokens_override=(
-            int(config.get('LLMChatter.MaxTokens', 200))
+            int(config.get('LLMChatter.MaxTokens', 350))
             + report_tokens()
             if thread_turn is not None else None
         ),
@@ -952,7 +952,7 @@ def process_conversation(
     conversation_max_tokens = int(
         config.get(
             'LLMChatter.ConversationMaxTokens',
-            config.get('LLMChatter.MaxTokens', 200)
+            config.get('LLMChatter.MaxTokens', 350)
         )
     )
     if speaker_talent:

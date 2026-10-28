@@ -16,6 +16,7 @@ import random
 _chat_history_limit = 10
 _extended_conv_chance = 40
 _extended_max_messages = 3
+_first_reply_max_delay = 5.0
 
 from chatter_shared import (
     call_llm, cleanup_message, strip_speaker_prefix,
@@ -128,6 +129,13 @@ def init_general_config(config):
     except (ValueError, TypeError):
         _extended_max_messages = 3
 
+    global _first_reply_max_delay
+    try:
+        _first_reply_max_delay = max(0.0, float(config.get(
+            'LLMChatter.GeneralChat.FirstReplyMaxDelay', 5
+        )))
+    except (ValueError, TypeError):
+        _first_reply_max_delay = 5.0
 
 
 def _as_persona(persona, bot_name, mode):
@@ -1015,7 +1023,7 @@ def process_general_player_msg_event(
         )
 
         max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
+            'LLMChatter.MaxTokens', 350
         ))
         if speaker_talent:
             zone_meta['speaker_talent'] = (
@@ -1091,14 +1099,14 @@ def process_general_player_msg_event(
         # Queue first bot's message — responsive
         # since player is waiting for a reply.
         # Skip zone gap: the player asked a direct
-        # question and is actively waiting. Cap at
-        # 5s so the reply feels conversational.
-        delay1 = min(
-            calculate_dynamic_delay(
-                len(msg1), config, responsive=True,
-            ),
-            5.0,
+        # question and is actively waiting. Capped by
+        # GeneralChat.FirstReplyMaxDelay (0 = no cap)
+        # so the reply feels conversational.
+        delay1 = calculate_dynamic_delay(
+            len(msg1), config, responsive=True,
         )
+        if _first_reply_max_delay > 0:
+            delay1 = min(delay1, _first_reply_max_delay)
         conv_label = "conv" if is_conversation else "stmt"
         logger.info(
             "[GEN-FLOW] player-react %s | "
@@ -1333,7 +1341,7 @@ def _general_followup(
     )
 
     max_tokens = int(config.get(
-        'LLMChatter.MaxTokens', 200
+        'LLMChatter.MaxTokens', 350
     ))
     if zone_meta is None:
         zone_meta = {}
@@ -1696,7 +1704,7 @@ def _general_extended_conversation(
     max_msgs = _extended_max_messages
 
     max_tokens = int(config.get(
-        'LLMChatter.MaxTokens', 200
+        'LLMChatter.MaxTokens', 350
     ))
 
     # cont_turn tracks how many continuation

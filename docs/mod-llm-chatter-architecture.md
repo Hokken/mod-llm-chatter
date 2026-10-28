@@ -1093,8 +1093,7 @@ What is still limited:
 - the old global message caps (`GlobalMessageCap`,
   `TransportBypassGlobalCap`) are gone; pacing now comes from the
   priority tiers, lock lanes and pacing settings above
-- there is no provider-safety mode yet: `PrioritySystem.SafetyEnable` is
-  read and logged at startup, but no code acts on it
+- there is no provider-safety mode
 - ambient requests, idle chatter and bot questions do not yield to an
   urgent backlog; they share the worker pool on equal terms
 
@@ -1181,9 +1180,6 @@ Two scheduling controls sit around that model:
   filler lock; it still shares the worker pool with everything else
 - **urgent-backlog gate**: the Guild profile scan is not started while
   urgent events are ready
-
-`PrioritySystem.SafetyEnable` is reserved for a future provider-safety
-mode; the bridge only reads and logs it.
 
 ## Current C++ Module Map
 

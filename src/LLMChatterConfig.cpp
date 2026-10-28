@@ -355,7 +355,7 @@ void LLMChatterConfig::LoadConfig()
     ResetScreenshotProximity();
 
     // General settings
-    _triggerIntervalSeconds = GetChatterOption<uint32>("LLMChatter.TriggerIntervalSeconds", 60);
+    _triggerIntervalSeconds = GetChatterOption<uint32>("LLMChatter.TriggerIntervalSeconds", 30);
     _conversationChance = GetChatterOption<uint32>(
         "LLMChatter.ConversationChance", 40);
     _triggerChance = GetChatterOption<uint32>("LLMChatter.TriggerChance", 15);
@@ -393,15 +393,15 @@ void LLMChatterConfig::LoadConfig()
     _partyGateFillerMinGapSeconds =
         GetChatterOption<uint32>(
             "LLMChatter.PartyGate."
-            "FillerMinGapSeconds", 8);
+            "FillerMinGapSeconds", 12);
     _partyGateContextualMinGapSeconds =
         GetChatterOption<uint32>(
             "LLMChatter.PartyGate."
-            "ContextualMinGapSeconds", 6);
+            "ContextualMinGapSeconds", 10);
     _partyGateResponsiveMinGapSeconds =
         GetChatterOption<uint32>(
             "LLMChatter.PartyGate."
-            "ResponsiveMinGapSeconds", 2);
+            "ResponsiveMinGapSeconds", 4);
     _partyGateUrgentMinGapSeconds =
         GetChatterOption<uint32>(
             "LLMChatter.PartyGate."
@@ -417,13 +417,13 @@ void LLMChatterConfig::LoadConfig()
             "LLMChatter.PrioritySystem."
             "DeliveryOrderEnable", true);
     _environmentCheckSeconds = GetChatterOption<uint32>("LLMChatter.EnvironmentCheckSeconds", 60);
-    _eventReactionChance = GetChatterOption<uint32>("LLMChatter.EventReactionChance", 15);
+    _eventReactionChance = GetChatterOption<uint32>("LLMChatter.EventReactionChance", 25);
     _transportEventChance = GetChatterOption<uint32>("LLMChatter.TransportEventChance", 0);
     _weatherAmbientChance = GetChatterOption<uint32>("LLMChatter.WeatherAmbientChance", 0);
     _transportCooldownSeconds = GetChatterOption<uint32>("LLMChatter.TransportCooldownSeconds", 600);
     _transportCheckSeconds = GetChatterOption<uint32>("LLMChatter.TransportCheckSeconds", 5);
     _eventExpirationSeconds = GetChatterOption<uint32>("LLMChatter.EventExpirationSeconds", 600);
-    _weatherCooldownSeconds = GetChatterOption<uint32>("LLMChatter.WeatherCooldownSeconds", 1800);
+    _weatherCooldownSeconds = GetChatterOption<uint32>("LLMChatter.WeatherCooldownSeconds", 300);
     _weatherAmbientCooldownSeconds =
         GetChatterOption<uint32>(
             "LLMChatter."
@@ -431,9 +431,9 @@ void LLMChatterConfig::LoadConfig()
             120);
     _dayNightCooldownSeconds = GetChatterOption<uint32>("LLMChatter.DayNightCooldownSeconds", 7200);
     _holidayCooldownSeconds = GetChatterOption<uint32>("LLMChatter.HolidayCooldownSeconds", 1800);
-    _holidayCityChance = GetChatterOption<uint32>("LLMChatter.HolidayCityChance", 10);
-    _holidayZoneChance = GetChatterOption<uint32>("LLMChatter.HolidayZoneChance", 5);
-    _botSpeakerCooldownSeconds = GetChatterOption<uint32>("LLMChatter.BotSpeakerCooldownSeconds", 900);
+    _holidayCityChance = GetChatterOption<uint32>("LLMChatter.HolidayCityChance", 20);
+    _holidayZoneChance = GetChatterOption<uint32>("LLMChatter.HolidayZoneChance", 15);
+    _botSpeakerCooldownSeconds = GetChatterOption<uint32>("LLMChatter.BotSpeakerCooldownSeconds", 120);
     _zoneFatigueThreshold = GetChatterOption<uint32>("LLMChatter.ZoneFatigueThreshold", 3);
     _zoneFatigueCooldownSeconds = GetChatterOption<uint32>("LLMChatter.ZoneFatigueCooldownSeconds", 900);
     _priorityReactRangeCriticalMin =
@@ -535,13 +535,13 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<uint32>(
             "LLMChatter.GroupChatter."
             "LootChanceOrange", 100);
-    _groupQuestObjectiveChance = GetChatterOption<uint32>("LLMChatter.GroupChatter.QuestObjectiveChance", 100);
-    _groupQuestCompleteChance = GetChatterOption<uint32>("LLMChatter.GroupChatter.QuestCompleteChance", 100);
+    _groupQuestObjectiveChance = GetChatterOption<uint32>("LLMChatter.GroupChatter.QuestObjectiveChance", 50);
+    _groupQuestCompleteChance = GetChatterOption<uint32>("LLMChatter.GroupChatter.QuestCompleteChance", 50);
     _groupQuestObjectiveCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.QuestObjectiveCooldown", 30);
-    _groupQuestAcceptChance = GetChatterOption<uint32>("LLMChatter.GroupChatter.QuestAcceptChance", 100);
+    _groupQuestAcceptChance = GetChatterOption<uint32>("LLMChatter.GroupChatter.QuestAcceptChance", 50);
     _groupQuestAcceptCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.QuestAcceptCooldown", 30);
     _groupQuestAcceptDebounceSec = GetChatterOption<uint32>("LLMChatter.GroupChatter.QuestAcceptDebounceSec", 5);
-    _groupSpellCastChance = GetChatterOption<uint32>("LLMChatter.GroupChatter.SpellCastChance", 10);
+    _groupSpellCastChance = GetChatterOption<uint32>("LLMChatter.GroupChatter.SpellCastChance", 30);
     _groupSpellCastCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.SpellCastCooldown", 10);
     _groupJoinDebounceSec =
         GetChatterOption<uint32>(
@@ -613,7 +613,7 @@ void LLMChatterConfig::LoadConfig()
     _reactDelayJoin =
         GetChatterOption<uint32>(
             "LLMChatter.GroupChatter."
-            "ReactDelay.Join", 3);
+            "ReactDelay.Join", 1);
     _reactDelayJoinBatch =
         GetChatterOption<uint32>(
             "LLMChatter.GroupChatter."
@@ -796,11 +796,11 @@ void LLMChatterConfig::LoadConfig()
     _nearbyObjectCheckInterval =
         GetChatterOption<uint32>(
             "LLMChatter.GroupChatter."
-            "NearbyObjectCheckInterval", 45);
+            "NearbyObjectCheckInterval", 30);
     _nearbyObjectChance =
         GetChatterOption<uint32>(
             "LLMChatter.GroupChatter."
-            "NearbyObjectChance", 30);
+            "NearbyObjectChance", 20);
     _nearbyObjectCooldown =
         GetChatterOption<uint32>(
             "LLMChatter.GroupChatter."
@@ -841,7 +841,7 @@ void LLMChatterConfig::LoadConfig()
     _stateCalloutChance =
         GetChatterOption<uint32>(
             "LLMChatter.GroupChatter."
-            "StateCalloutChance", 60);
+            "StateCalloutChance", 100);
     _stateCalloutCooldown =
         GetChatterOption<uint32>(
             "LLMChatter.GroupChatter."
@@ -970,7 +970,7 @@ void LLMChatterConfig::LoadConfig()
         MAX_ITEM_QUALITY - 1);
 
     // RP enrichment
-    _raceLoreChance = GetChatterOption<uint32>("LLMChatter.RaceLoreChance", 20);
+    _raceLoreChance = GetChatterOption<uint32>("LLMChatter.RaceLoreChance", 15);
 
     // Battleground chatter
     _bgChatterEnable = GetChatterOption<bool>(
@@ -1024,7 +1024,7 @@ void LLMChatterConfig::LoadConfig()
     _bgIdleChatterChance =
         GetChatterOption<uint32>(
             "LLMChatter.BGChatter."
-            "IdleChatterChance", 25);
+            "IdleChatterChance", 15);
     _bgIdleChatterCooldownSec =
         GetChatterOption<uint32>(
             "LLMChatter.BGChatter."
@@ -1064,11 +1064,11 @@ void LLMChatterConfig::LoadConfig()
     _raidMoraleChance =
         GetChatterOption<uint32>(
             "LLMChatter.RaidChatter."
-            "MoraleChance", 15);
+            "MoraleChance", 30);
     _raidMoraleCooldown =
         GetChatterOption<uint32>(
             "LLMChatter.RaidChatter."
-            "MoraleCooldown", 120);
+            "MoraleCooldown", 60);
 
     // Guild chatter (ambient guild-channel banter)
     _guildChatterEnable = GetChatterOption<bool>(

@@ -747,7 +747,7 @@ def process_group_event(db, client, config, event):
                 player_name_known = bool(memories)
                 recall_chance = int(config.get(
                     'LLMChatter.Memory.RecallChance',
-                    30,
+                    20,
                 )) / 100.0
                 if (
                     player_name_known
@@ -842,7 +842,7 @@ def process_group_event(db, client, config, event):
             dn = get_dungeon_flavor(pm)
             dng_chance = int(config.get(
                 'LLMChatter.Memory'
-                '.DungeonGenerationChance', 50
+                '.DungeonGenerationChance', 60
             ))
             if (dn and random.random() * 100
                     < dng_chance):
@@ -915,7 +915,7 @@ def process_group_event(db, client, config, event):
 
         # 3. Call LLM
         max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
+            'LLMChatter.MaxTokens', 350
         ))
         _greet_label = (
             'group_greeting_memory'
@@ -1072,7 +1072,7 @@ def process_group_join_batch_event(
 
     mode = get_chatter_mode(config)
     max_tokens = int(config.get(
-        'LLMChatter.MaxTokens', 200
+        'LLMChatter.MaxTokens', 350
     ))
 
     # Look up player_guid once for memory system
@@ -1238,7 +1238,7 @@ def process_group_join_batch_event(
                     )
                     recall_chance = int(config.get(
                         'LLMChatter.Memory'
-                        '.RecallChance', 30,
+                        '.RecallChance', 20,
                     )) / 100.0
                     if (
                         bot_player_known
@@ -1521,7 +1521,7 @@ def process_group_join_batch_event(
                 dungeon_name = get_dungeon_flavor(pm)
                 dng_chance = int(config.get(
                     'LLMChatter.Memory'
-                    '.DungeonGenerationChance', 50
+                    '.DungeonGenerationChance', 60
                 ))
                 if dungeon_name:
                     dungeon_name = (
@@ -1715,7 +1715,7 @@ def _batch_welcome(
     )
 
     max_tokens = int(config.get(
-        'LLMChatter.MaxTokens', 200
+        'LLMChatter.MaxTokens', 350
     ))
     response = call_llm(
         client, prompt, config,
@@ -2088,7 +2088,7 @@ def process_group_player_msg_event(
         ):
             recall_chance = int(config.get(
                 'LLMChatter.Memory'
-                '.IdleRecallChance', 30,
+                '.IdleRecallChance', 20,
             )) / 100.0
             player_guid = int(
                 player_info['guid']
@@ -2569,7 +2569,7 @@ def _try_second_bot_response(
     )
 
     max_tokens = int(config.get(
-        'LLMChatter.MaxTokens', 200
+        'LLMChatter.MaxTokens', 350
     ))
     response = call_llm(
         client, prompt, config,
@@ -2691,7 +2691,7 @@ def _welcome_from_existing_bot(
     )
 
     max_tokens = int(config.get(
-        'LLMChatter.MaxTokens', 200
+        'LLMChatter.MaxTokens', 350
     ))
     response = call_llm(
         client, prompt, config,
@@ -2940,7 +2940,7 @@ def _maybe_comment_on_composition(
     )
 
     max_tokens = int(config.get(
-        'LLMChatter.MaxTokens', 200
+        'LLMChatter.MaxTokens', 350
     ))
     response = call_llm(
         client, prompt, config,
@@ -4383,7 +4383,7 @@ def check_idle_group_chatter(
         # systems delivering in the same bucket).
         poll_iv = int(config.get(
             'LLMChatter.Bridge.PollIntervalSeconds',
-            3
+            1
         ))
         stagger_min = float(config.get(
             'LLMChatter.Bridge.InterSystemStaggerMin',
@@ -4558,7 +4558,7 @@ def _idle_single_statement(
     if memory_enabled and player_name:
         recall_chance = int(config.get(
             'LLMChatter.Memory.IdleRecallChance',
-            30,
+            20,
         )) / 100.0
         if random.random() < recall_chance:
             p_info = get_character_info_by_name(
@@ -4912,7 +4912,7 @@ def _idle_conversation(
     if memory_enabled and player_name:
         recall_chance = int(config.get(
             'LLMChatter.Memory.IdleRecallChance',
-            30,
+            20,
         )) / 100.0
         if random.random() < recall_chance:
             p_info = get_character_info_by_name(
@@ -5055,7 +5055,7 @@ def _idle_conversation(
 
         # Scale tokens with number of bots
         max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
+            'LLMChatter.MaxTokens', 350
         ))
         conv_tokens = min(
             max_tokens * (1 + num_bots), 1000
@@ -5480,7 +5480,7 @@ def check_bot_questions(db, client, config):
         if memory_enabled and player_info:
             recall_chance = int(config.get(
                 'LLMChatter.Memory'
-                '.IdleRecallChance', 30,
+                '.IdleRecallChance', 20,
             )) / 100.0
             p_guid = int(
                 player_info['guid']
@@ -5540,7 +5540,7 @@ def check_bot_questions(db, client, config):
         )
 
         max_tokens = int(config.get(
-            'LLMChatter.MaxTokens', 200
+            'LLMChatter.MaxTokens', 350
         ))
         bq_meta = {
             'channel': 'party',

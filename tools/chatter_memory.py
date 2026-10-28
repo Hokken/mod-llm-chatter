@@ -826,7 +826,7 @@ def flush_session_memories(
         return
 
     session_minutes = int(config.get(
-        'LLMChatter.Memory.SessionMinutes', 15
+        'LLMChatter.Memory.SessionMinutes', 3
     ))
     max_per = int(config.get(
         'LLMChatter.Memory.MaxPerBotPlayer', 30

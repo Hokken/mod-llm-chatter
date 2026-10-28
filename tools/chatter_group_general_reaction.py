@@ -724,7 +724,7 @@ def _insert_conversation(
         prompt, db, group_id,
     )
     max_tokens = int(config.get(
-        'LLMChatter.MaxTokens', 200,
+        'LLMChatter.MaxTokens', 350,
     ))
     response = call_llm(
         client, prompt, config,

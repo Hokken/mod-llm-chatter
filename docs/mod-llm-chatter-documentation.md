@@ -277,10 +277,8 @@ What the priority system provides:
 - priority-aware final delivery ordering
   (`PrioritySystem.DeliveryOrderEnable`)
 
-There is no provider-safety mode yet: `PrioritySystem.SafetyEnable` is
-read and logged at startup, but no code acts on it. The old
-`GlobalMessageCap` and `TransportBypassGlobalCap` settings have been
-removed.
+There is no provider-safety mode. The old `GlobalMessageCap` and
+`TransportBypassGlobalCap` settings have been removed.
 
 ### Timing layers
 
@@ -2278,7 +2276,7 @@ and `[DEAD]` tags in conversation participant lists.
 | Key | Default | Purpose |
 |---|---|---|
 | `MoraleEnable` | 1 | Enable/disable morale chatter |
-| `MoraleCooldown` | 60 | Per-group cooldown (seconds); 120 if the key is absent |
+| `MoraleCooldown` | 60 | Per-group cooldown (seconds) |
 | `MoraleChance` | 30 | % chance per check |
 | `BattleCryChance` | 70 | % chance for raid battle cry on combat |
 
@@ -2599,8 +2597,7 @@ instead of only reacting to their own output length.
 
 ### EmoteChance
 
-`LLMChatter.EmoteChance` (template value 20; 50 when the key is absent)
-is an RNG gate that controls
+`LLMChatter.EmoteChance` (default 20) is an RNG gate that controls
 whether the emote list is included in prompts. When the roll fails,
 the emote instruction block is omitted entirely, saving ~500 tokens
 per LLM call. Applied centrally in `append_json_instruction()` and
@@ -2632,7 +2629,7 @@ conversation paths (no wasted tokens).
 
 | Key | Default | Purpose |
 |---|---|---|
-| `LLMChatter.EmoteChance` | 20 (50 if absent) | % chance emote list is included in prompt (not applied to General channel — emotes are proximity-based) |
+| `LLMChatter.EmoteChance` | 20 | % chance emote list is included in prompt (not applied to General channel — emotes are proximity-based) |
 | `LLMChatter.ActionChance` | 10 | % chance eligible responses retain/include an action after action gating |
 | `LLMChatter.ActionAsEmote.Enable` | 1 | Deliver a line's action as a separate emote before the speech instead of inline `*action*` text (see Delivery in section 2) |
 
@@ -2934,7 +2931,8 @@ Party player-message paths (single reply, conversation, multi-addressed)
 use responsive delays. Other channels own their reply timing:
 
 - General: the first reply to a player uses the responsive draw capped at
-  5 seconds (`chatter_general.py`)
+  `GeneralChat.FirstReplyMaxDelay` (default 5 seconds; `0` removes the
+  cap) in `chatter_general.py`
 - Guild player replies: a first delay of
   `GuildChatter.PlayerReplies.FirstDelayMin`-`FirstDelayMax` (8-20
   seconds), then standard timing for later lines (`_reply_delays()` in
@@ -3140,9 +3138,9 @@ experiences rather than treating the player as a stranger.
 | Key | Default | Purpose |
 |-----|---------|---------|
 | `LLMChatter.Memory.Enable` | `1` | Master toggle |
-| `LLMChatter.Memory.SessionMinutes` | `3` (`15` if absent) | Minimum session length to activate memories |
+| `LLMChatter.Memory.SessionMinutes` | `3` | Minimum session length to activate memories |
 | `LLMChatter.Memory.MaxPerBotPlayer` | `30` | Cap on active memories per bot–player pair |
-| `LLMChatter.Memory.RecallChance` | `20` (`30` if absent) | % chance a specific memory is highlighted in reunion greeting |
+| `LLMChatter.Memory.RecallChance` | `20` | % chance a specific memory is highlighted in reunion greeting |
 | `LLMChatter.Memory.RecallCount` | `3` | Memories retrieved for a greeting, a reply to the player or a bot question (1-10) |
 | `LLMChatter.Memory.IdleRecallCount` | `2` | Memories retrieved for idle chatter (1-10) |
 | `LLMChatter.Memory.IdentityVersion` | `1` | Bump to force personality regeneration for all bots |

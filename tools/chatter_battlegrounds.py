@@ -137,7 +137,7 @@ def process_bg_match_end_event(
         try:
             mem_chance = int(config.get(
                 'LLMChatter.Memory'
-                '.BGMatchGenerationChance', 25
+                '.BGMatchGenerationChance', 45
             ))
             if random.random() * 100 < mem_chance:
                 won = extra_data.get('won', False)
@@ -261,7 +261,7 @@ def _try_carrier_self_message(
         extra_data, bot_data, action)
     bg_max_tokens = int(config.get(
         'LLMChatter.BGChatter.MaxTokens',
-        32,
+        300,
     ))
 
     fc_meta = {}
@@ -465,7 +465,7 @@ def process_bg_pvp_kill_event(
         try:
             mem_chance = int(config.get(
                 'LLMChatter.Memory'
-                '.PvPKillGenerationChance', 10
+                '.PvPKillGenerationChance', 30
             ))
             if random.random() * 100 < mem_chance:
                 victim_name = extra_data.get(

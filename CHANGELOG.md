@@ -1,5 +1,29 @@
 # Changelog
 
+### 2026-10-28 - Settings Behave the Same With or Without Every Key
+
+* **Missing keys now mean the shipped defaults**: when a setting was absent
+  from a config, the module used its own built-in value, which often
+  differed from the template (for example `MaxTokens` 200 instead of 350,
+  `BotSpeakerCooldownSeconds` 900 instead of 120, the quest reaction
+  chances 100 instead of 50, the party chat gaps, the memory chances and
+  the screenshot intervals). Every built-in value now matches
+  `mod_llm_chatter.conf.dist`, and template comments that named a different
+  default were corrected. Configured values are unaffected. A config
+  without `GuildChatter.Enable` no longer has the bridge skip the Guild
+  events the server queues.
+* **General's first reply cap is a setting**: the 5-second limit on the
+  first bot reply to a player's General message is now
+  `GeneralChat.FirstReplyMaxDelay` (default 5; `0` removes it, so
+  `ResponsiveDelayMin/Max` apply unchanged).
+* **Every setting is in both templates**: `GroupChatter.BotQuestionCooldown`
+  and `TalentInjectionChance` are now listed, and the quieter preset gained
+  the priority, group-setup retry and OpenAI-compatible settings it was
+  missing, so both files list the same keys.
+* **Removed**: `PrioritySystem.SafetyEnable`, which nothing used.
+* The server-side defaults need a worldserver rebuild; restart the chatter
+  bridge (and the screenshot agent, if used) for the rest.
+
 ### 2026-10-28 - Architecture Guide and Priority Settings Brought Up to Date
 
 * **Architecture guide matches the code again**: the battleground node

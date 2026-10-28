@@ -560,7 +560,7 @@ def _probe_token_budget(config):
     """Bounded probe budget that leaves room for model overhead."""
     try:
         return max(128, min(int(config.get(
-            'LLMChatter.MaxTokens', 256
+            'LLMChatter.MaxTokens', 350
         )), 512))
     except (TypeError, ValueError):
         return 256
@@ -584,7 +584,7 @@ def _probe_anthropic(config, model, client=None):
     kwargs = build_anthropic_request(
         model, config, _probe_token_budget(config),
         'Reply with the single word: OK',
-        temperature=float(config.get('LLMChatter.Temperature', 0.85)),
+        temperature=float(config.get('LLMChatter.Temperature', 0.8)),
     )
     resp = create_anthropic_message(client.messages.create, kwargs, model)
     return extract_anthropic_text(resp)
@@ -609,7 +609,7 @@ def _probe_openai_compatible(client, model, provider, config):
         config,
         _probe_token_budget(config),
         temperature=float(config.get(
-            'LLMChatter.Temperature', 0.85
+            'LLMChatter.Temperature', 0.8
         )),
     )
     resp = create_chat_completion(

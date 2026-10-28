@@ -135,12 +135,12 @@ def load_screenshot_config(raw: dict) -> dict:
             'LLMChatter.Screenshot.Enable', '0') == '1',
         'interval_min_seconds': int(raw.get(
             'LLMChatter.Screenshot.IntervalMinSeconds',
-            '300')),
+            '45')),
         'interval_max_seconds': int(raw.get(
             'LLMChatter.Screenshot.IntervalMaxSeconds',
-            '600')),
+            '120')),
         'chance': int(raw.get(
-            'LLMChatter.Screenshot.Chance', '30')),
+            'LLMChatter.Screenshot.Chance', '90')),
         'vision_provider': raw.get(
             'LLMChatter.Screenshot.VisionProvider',
             'openai').lower(),
@@ -156,7 +156,7 @@ def load_screenshot_config(raw: dict) -> dict:
         'proximity_request_timeout': max(1, min(30, int(raw.get(
             'LLMChatter.Screenshot.Proximity.RequestTimeoutSeconds', '5')))),
         'max_width_px': int(raw.get(
-            'LLMChatter.Screenshot.MaxWidthPx', '640')),
+            'LLMChatter.Screenshot.MaxWidthPx', '1024')),
         'jpeg_quality': int(raw.get(
             'LLMChatter.Screenshot.JpegQuality', '75')),
         'anthropic_api_key': raw.get(

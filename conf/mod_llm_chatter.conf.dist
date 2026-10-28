@@ -1117,7 +1117,7 @@ LLMChatter.HolidayCooldownSeconds = 1800
 #   LLMChatter.HolidayCityChance
 #       Chance (0-100) per environment check that a holiday
 #       mention triggers in a capital city.
-#       Default: 10
+#       Default: 20
 #
 LLMChatter.HolidayCityChance = 20
 
@@ -1964,7 +1964,7 @@ LLMChatter.GroupChatter.ResurrectCooldown = 30
 #   LLMChatter.GroupChatter.SpellCastChance
 #       Percent chance (0-100) that any spell cast
 #       triggers a group reaction.
-#       Default: 20
+#       Default: 30
 #
 LLMChatter.GroupChatter.SpellCastChance = 30
 
@@ -2045,7 +2045,7 @@ LLMChatter.GroupChatter.NearbyObjectEnable = 1
 #       Percent chance (0-100) that a nearby point of interest
 #       (moonwell, forge, rare creature, quest giver, etc.)
 #       triggers a comment. Scanned periodically per group.
-#       Default: 15
+#       Default: 20
 #
 LLMChatter.GroupChatter.NearbyObjectChance = 20
 
@@ -2053,7 +2053,7 @@ LLMChatter.GroupChatter.NearbyObjectChance = 20
 #   LLMChatter.GroupChatter.NearbyObjectCheckInterval
 #       How often (in seconds) the system scans for
 #       nearby points of interest per group.
-#       Default: 45
+#       Default: 30
 #
 LLMChatter.GroupChatter.NearbyObjectCheckInterval = 30
 
@@ -2320,11 +2320,20 @@ LLMChatter.GroupChatter.BotQuestionEnable = 1
 #   LLMChatter.GroupChatter.BotQuestionChance
 #       Chance (0-100) per check that a bot spontaneously
 #       asks the player a contextual question during downtime.
-#       Checked every ~30 seconds. Has a 10-minute per-group
-#       cooldown to prevent question fatigue.
+#       Checked every ~30 seconds. BotQuestionCooldown sets
+#       the per-group wait between questions.
 #       Default: 1
 #
 LLMChatter.GroupChatter.BotQuestionChance = 1
+
+#
+#   LLMChatter.GroupChatter.BotQuestionCooldown
+#       Minimum seconds between bot-initiated questions in the
+#       same group.
+#       Default: 600
+#       [BRIDGE]
+#
+LLMChatter.GroupChatter.BotQuestionCooldown = 600
 
 #
 #   LLMChatter.GroupChatter.BotQuestionCheckInterval
@@ -2339,7 +2348,7 @@ LLMChatter.GroupChatter.BotQuestionCheckInterval = 30
 #   LLMChatter.GroupChatter.QuestAcceptChance
 #       Percent chance (0-100) that accepting a quest
 #       triggers a group reaction.
-#       Default: 70
+#       Default: 50
 #
 LLMChatter.GroupChatter.QuestAcceptChance = 50
 
@@ -2363,7 +2372,7 @@ LLMChatter.GroupChatter.QuestAcceptDebounceSec = 5
 #   LLMChatter.GroupChatter.QuestObjectiveChance
 #       Percent chance (0-100) that completing quest
 #       objectives triggers a group reaction.
-#       Default: 70
+#       Default: 50
 #
 LLMChatter.GroupChatter.QuestObjectiveChance = 50
 
@@ -2391,7 +2400,7 @@ LLMChatter.GroupChatter.QuestObjSuppressWindow = 10
 #   LLMChatter.GroupChatter.QuestCompleteChance
 #       Percent chance (0-100) that turning in a quest
 #       triggers a group reaction.
-#       Default: 70
+#       Default: 50
 #
 LLMChatter.GroupChatter.QuestCompleteChance = 50
 
@@ -2551,6 +2560,18 @@ LLMChatter.GeneralChat.ReactDelay = 5
 LLMChatter.GeneralChat.MinZoneGap = 15
 
 #
+#   LLMChatter.GeneralChat.FirstReplyMaxDelay
+#       Maximum seconds before the first bot reply to a real
+#       player's General message. The reply first draws its
+#       delay from ResponsiveDelayMin/Max, then this caps it
+#       so the answer feels conversational. 0 removes the cap,
+#       so ResponsiveDelayMin/Max apply unchanged.
+#       Default: 5
+#       [BRIDGE]
+#
+LLMChatter.GeneralChat.FirstReplyMaxDelay = 5
+
+#
 #   LLMChatter.GeneralChat.ConversationChance
 #       Player reaction conversations — chance (0-100)
 #       that when a player speaks in General channel,
@@ -2659,7 +2680,7 @@ LLMChatter.RaidChatter.MoraleChance = 30
 #   LLMChatter.RaidChatter.MoraleCooldown
 #       Minimum seconds between raid morale chatter triggers
 #       for the same raid instance.
-#       Default: 120
+#       Default: 60
 #
 LLMChatter.RaidChatter.MoraleCooldown = 60
 
@@ -3578,7 +3599,7 @@ LLMChatter.ActionAsEmote.Enable = 1
 #       prompts. When skipped, the model returns null for
 #       the emote field, saving ~500 tokens per call.
 #       Lower values improve speed on smaller models.
-#       Default: 30
+#       Default: 20
 #
 LLMChatter.EmoteChance = 20
 
@@ -3663,7 +3684,7 @@ LLMChatter.MaxBotsPerZone = 8
 #
 #   LLMChatter.Bridge.PollIntervalSeconds
 #       How often the Python bridge checks for new requests
-#       Default: 3
+#       Default: 1
 #
 LLMChatter.Bridge.PollIntervalSeconds = 1
 
@@ -3691,7 +3712,7 @@ LLMChatter.GroupChatter.ReactDelay.Join = 1
 #   LLMChatter.Bridge.MaxConcurrent
 #       Maximum events processed in parallel. Higher = faster
 #       throughput but more simultaneous API calls.
-#       Default: 3
+#       Default: 5
 #
 LLMChatter.Bridge.MaxConcurrent = 5
 
@@ -3841,7 +3862,7 @@ LLMChatter.DistanceUnit = yards
 #       until this cooldown expires. Spreads voices across
 #       different bots so the same one doesn't dominate.
 #       Does NOT affect party chat or event reactions.
-#       Default: 900 (15 minutes)
+#       Default: 120 (2 minutes)
 #
 LLMChatter.BotSpeakerCooldownSeconds = 120
 
@@ -3911,7 +3932,7 @@ LLMChatter.BGChatter.AchievementRepeatWindowSec = 300
 #       Percent chance (0-100) that bots chat during quiet
 #       stretches in a battleground. Checked each poll cycle
 #       after the idle cooldown expires.
-#       Default: 25
+#       Default: 15
 #
 LLMChatter.BGChatter.IdleChatterChance = 15
 
@@ -4025,15 +4046,6 @@ LLMChatter.PrioritySystem.ReactRange.FillerMax = 15
 #       Default: 1
 #
 LLMChatter.PrioritySystem.BridgeYieldEnable = 1
-
-#
-#   LLMChatter.PrioritySystem.SafetyEnable
-#       [BRIDGE] Reserved for a future provider-safety mode. The
-#       bridge reads and logs this key at startup, but nothing
-#       acts on it yet.
-#       Default: 1
-#
-LLMChatter.PrioritySystem.SafetyEnable = 1
 
 ###############################################################################
 # BOT PERSISTENT MEMORY & PERSONALITIES [BRIDGE]
@@ -4784,6 +4796,18 @@ LLMChatter.EmoteReactions.CxxScriptExclusionEntries = 620,25305,33211,33224,6626
 #
 LLMChatter.GearContext.Enable = 1
 
+#
+#   LLMChatter.TalentInjectionChance
+#       Chance (0-100) that a prompt describes one of the
+#       speaker's talents, so the bot sounds like its build
+#       without naming the talent. Used by party reactions,
+#       party and General replies, ambient General chatter,
+#       and battleground/raid prompts. 0 disables it.
+#       Default: 40
+#       [BRIDGE]
+#
+LLMChatter.TalentInjectionChance = 40
+
 ###############################################
 # Screenshot Vision Feature (Experimental)
 # Requires screenshot_agent.py running on host
@@ -4870,7 +4894,7 @@ LLMChatter.Screenshot.ConversationChance = 40
 #       sending to the vision API. Lower values reduce
 #       upload time and cost, higher values improve detail.
 #       1280 is a good balance.
-#       Default: 1280
+#       Default: 1024
 #
 LLMChatter.Screenshot.MaxWidthPx = 1024
 

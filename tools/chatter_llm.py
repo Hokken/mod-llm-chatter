@@ -867,7 +867,7 @@ def call_llm(
             config.get('LLMChatter.MaxTokens', 350)
         )
     temperature = float(
-        config.get('LLMChatter.Temperature', 0.85)
+        config.get('LLMChatter.Temperature', 0.8)
     )
 
     return _call_target(
