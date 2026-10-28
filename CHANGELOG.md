@@ -15,6 +15,12 @@
   from `mod_llm_chatter.conf.dist`. They are now listed with their current
   defaults, so nothing changes until you edit them. `.SafetyEnable` is
   described honestly: it is read and logged, but nothing uses it yet.
+* **Priority behavior described as it works**: the architecture guide and
+  the documentation no longer promise a bridge "yield mode" for ambient
+  and idle work, a provider-safety mode or pre-cache fairness under urgent
+  backlog. They now describe the per-group lock lanes, the claim and
+  delivery ordering, and the Guild profile scan that waits for urgent
+  events.
 
 ### 2026-10-27 - Bots Explain Their Loot Rolls
 

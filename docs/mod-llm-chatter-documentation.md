@@ -263,18 +263,19 @@ is still not a single perfect global scheduler across:
 - background timer jobs
 - final delivery
 
-What Session 69 added:
+What the priority system provides:
 
 - centralized C++ event priority bands
-- config-backed react ranges per tier
-- bridge urgent-backlog yield for filler jobs
+- config-backed react ranges per tier (`PrioritySystem.ReactRange.*`)
+- separate per-group lock lanes for urgent and other events in the
+  bridge (`PrioritySystem.BridgeYieldEnable`)
 - priority-aware final delivery ordering
-- bridge safety mode that suppresses filler first under overload
+  (`PrioritySystem.DeliveryOrderEnable`)
 
-Also, `GlobalMessageCap` and `TransportBypassGlobalCap` are currently
-legacy config values. They are no longer the intended main control path;
-the active design direction is priority tiers plus provider-safety
-suppression.
+There is no provider-safety mode yet: `PrioritySystem.SafetyEnable` is
+read and logged at startup, but no code acts on it. The old
+`GlobalMessageCap` and `TransportBypassGlobalCap` settings have been
+removed.
 
 ### Timing layers
 

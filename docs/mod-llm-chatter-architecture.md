@@ -1075,11 +1075,14 @@ worker lane.
 
 What priority now affects:
 
-- event claim order from `llm_chatter_events`
-- bridge scheduling, where urgent backlog suppresses or defers filler
-  jobs
-- pre-cache fairness during urgent backlog
-- final in-game delivery ordering when priority delivery is enabled
+- event claim order from `llm_chatter_events` (`priority DESC`, then
+  `created_at`)
+- per-group lock lanes when `PrioritySystem.BridgeYieldEnable` is on
+  (see above)
+- the Guild profile scan, which waits while urgent (high or critical)
+  events are ready
+- final in-game delivery ordering when
+  `PrioritySystem.DeliveryOrderEnable` is on
 
 What is still limited:
 
@@ -1088,10 +1091,12 @@ What is still limited:
   correct
 - same-group serialization still exists inside each urgency lane
 - the old global message caps (`GlobalMessageCap`,
-  `TransportBypassGlobalCap`) are gone; pacing and suppression now come
-  from the priority, yield and pacing settings above
-- provider-safety mode is bridge-side suppression logic, not a hard DB
-  queue partitioning system
+  `TransportBypassGlobalCap`) are gone; pacing now comes from the
+  priority tiers, lock lanes and pacing settings above
+- there is no provider-safety mode yet: `PrioritySystem.SafetyEnable` is
+  read and logged at startup, but no code acts on it
+- ambient requests, idle chatter and bot questions do not yield to an
+  urgent backlog; they share the worker pool on equal terms
 
 This is why future work should focus on validation and tuning more than
 on inventing a first priority system from scratch.
@@ -1170,10 +1175,15 @@ So the current architecture is:
 
 Two scheduling controls sit around that model:
 
-- **bridge yield mode**: legacy ambient requests, idle chatter, and bot
-  questions can yield when urgent backlog exists
-- **safety mode**: under sustained backlog, the bridge suppresses
-  filler-first launches before sacrificing urgent work
+- **group lock lanes** (`PrioritySystem.BridgeYieldEnable`): each group
+  gets one lock for high and critical events (priority 20 and above) and
+  one for the rest, so an urgent event does not wait for the same group's
+  filler lock; it still shares the worker pool with everything else
+- **urgent-backlog gate**: the Guild profile scan is not started while
+  urgent events are ready
+
+`PrioritySystem.SafetyEnable` is reserved for a future provider-safety
+mode; the bridge only reads and logs it.
 
 ## Current C++ Module Map
 
