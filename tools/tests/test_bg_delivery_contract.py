@@ -19,7 +19,8 @@ ROOT = Path(__file__).resolve().parents[2]
 # With BG metadata it is guarded; without it ordinary delivery is preserved.
 # A new event requires this inventory to be reviewed explicitly.
 PARTY_PRODUCERS = {
-    'achievement', 'combat', 'corpse_run', 'death', 'dungeon_entry',
+    'achievement', 'combat', 'corpse_run', 'death', 'discovery',
+    'dungeon_entry',
     'emote_observer', 'emote_reaction', 'farewell', 'join', 'join_batch',
     'kill', 'levelup', 'loot', 'loot_roll', 'nearby_object', 'player_msg',
     'quest_accept', 'quest_accept_batch', 'quest_complete',

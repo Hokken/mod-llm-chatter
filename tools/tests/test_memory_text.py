@@ -99,11 +99,19 @@ def test_clamp_cuts_on_a_sentence_boundary():
         "I have not seen the road that quiet since the "
         "harvest golems first went silent."
     )
-    memory = f"{first} {second} {third}"
+    fourth = (
+        "Vladimir kept watch on the farmhouse while I mended "
+        "the torn straps of my shield by the fire."
+    )
+    fifth = (
+        "By dawn the patrols were back and the Defias had "
+        "pulled away toward the Dead Mines."
+    )
+    memory = f"{first} {second} {third} {fourth} {fifth}"
     assert len(memory) > MEMORY_HARD_CHARS
 
     clamped = _clamp_memory_text(memory)
-    assert clamped == f"{first} {second}"
+    assert clamped == f"{first} {second} {third} {fourth}"
     assert len(clamped) <= MEMORY_HARD_CHARS
 
 

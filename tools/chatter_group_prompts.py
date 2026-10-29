@@ -471,6 +471,7 @@ def build_bot_greeting_prompt(
     )
     if is_reunion:
         from chatter_memory import (
+            memory_block_notes,
             sanitize_memory_for_prompt,
         )
         sanitized = [
@@ -489,6 +490,7 @@ def build_bot_greeting_prompt(
                 f"Use them as passive context only "
                 f"— do not recite them.\n"
                 f"{mem_lines}\n"
+                f"{memory_block_notes(mode)}"
                 f"</past_memories>\n"
             )
         if recall_memory:
@@ -2645,6 +2647,7 @@ def build_player_response_prompt(
     # Inject memories if available
     if memories:
         from chatter_memory import (
+            memory_block_notes,
             sanitize_memory_for_prompt,
         )
         sanitized = [
@@ -2672,14 +2675,11 @@ def build_player_response_prompt(
                 f"adventures with "
                 f"{player_name}:\n"
                 f"{mem_lines}\n"
-                f"Reference one of these "
-                f"memories clearly enough "
-                f"that {player_name} would "
-                f"recognise the callback — "
-                f"mention the place, the "
-                f"creature, or the moment "
-                f"by name. Keep it natural "
-                f"(not a full retelling).\n"
+                f"If one of these fits what "
+                f"{player_name} just said, you may "
+                f"mention it briefly; otherwise "
+                f"ignore them and simply answer.\n"
+                f"{memory_block_notes(mode)}"
                 f"</past_memories>"
             )
             if solo_bot:
@@ -5072,6 +5072,7 @@ def build_bot_question_prompt(
     # --------------------------------------------------
     if memories:
         from chatter_memory import (
+            memory_block_notes,
             sanitize_memory_for_prompt,
         )
         sanitized = [
@@ -5110,12 +5111,7 @@ def build_bot_question_prompt(
                 f"Past shared context with "
                 f"{player_name}:\n"
                 f"{mem_lines}\n"
-                + (
-                    "In normal mode, treat these as past gameplay "
-                    "events and paraphrase them as a player; never copy "
-                    "in-character journal wording.\n"
-                    if not is_rp else ""
-                )
+                + memory_block_notes(mode)
                 + f"Ask {player_name} a question "
                 f"about one of these memories. "
                 f"Mention the place, creature, or "

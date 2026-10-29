@@ -8,7 +8,9 @@ Owns:
 - Memory flush on farewell (activate or discard)
 - Orphan recovery and session rehydration on
   bridge restart
-- Memory retrieval for reunion greetings
+- Memory retrieval and relevance scoring for
+  greetings, replies, idle chatter and bot questions
+- The shared notes that frame recalled memories
 """
 
 import json
@@ -18,7 +20,8 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from typing import Dict, Optional
+from datetime import datetime
+from typing import Dict, List, Optional
 
 from chatter_db import (
     get_db_connection, get_group_location,
@@ -27,6 +30,7 @@ from chatter_shared import (
     get_zone_name, get_dungeon_flavor,
     format_location_label,
     build_bot_identity,
+    get_chatter_mode,
 )
 from chatter_llm import call_llm, get_llm_client
 from chatter_member_gender import (
@@ -91,13 +95,17 @@ MEMORY_MOODS = {
         'rueful', 'determined', 'humbled',
         'stoic', 'resilient',
     ],
+    'pvp_kill': [
+        'fierce', 'satisfied', 'exhilarated',
+        'proud', 'ruthless',
+    ],
     'discovery': [
         'awed', 'curious', 'wistful',
         'adventurous', 'reflective',
     ],
-    'pvp_kill': [
-        'fierce', 'satisfied', 'exhilarated',
-        'proud', 'ruthless',
+    'duel': [
+        'playful', 'competitive', 'good_humoured',
+        'determined', 'respectful',
     ],
 }
 
@@ -106,8 +114,96 @@ MEMORY_EXPRESSION_STYLES = [
     'wry', 'observational',
 ]
 
-MEMORY_TARGET_CHARS = 160
-MEMORY_HARD_CHARS = 240
+MEMORY_TARGET_CHARS = 250
+MEMORY_HARD_CHARS = 400
+
+# How much a memory type weighs in recall scoring: shared
+# milestones over passing moments.
+MEMORY_TYPE_WEIGHTS = {
+    'boss_kill': 3.0, 'dungeon': 2.5, 'wipe': 2.5,
+    'rare_kill': 2.0, 'quest_complete': 2.0,
+    'achievement': 2.0, 'bg_win': 2.0, 'bg_loss': 2.0,
+    'pvp_kill': 1.5, 'level_up': 1.5,
+    'discovery': 2.0, 'duel': 1.5,
+    'player_message': 1.5, 'party_member': 1.5,
+    'first_meeting': 1.0, 'ambient': 1.0,
+}
+
+# A memory shown in a prompt this recently is held back, so
+# the same few do not come back in a row.
+RECENTLY_SHOWN_SECONDS = 30 * 60
+
+# Achievements that only count or mark a level ("Level 30",
+# "50 Quests Completed", "100 Mounts") carry a number and no
+# deed; in roleplay they are skipped before the LLM call.
+_MILESTONE_ACHIEVEMENT = re.compile(r'\d')
+
+
+def is_milestone_achievement(name: str) -> bool:
+    """True for achievements that only count or mark a
+    level, with no deed behind them."""
+    return bool(_MILESTONE_ACHIEVEMENT.search(str(name or '')))
+
+
+def memory_age_label(created_at, now=None) -> str:
+    """How long ago a memory was made, in plain words, so
+    recall never presents an old moment as new."""
+    if not isinstance(created_at, datetime):
+        return ''
+    now = now or datetime.now()
+    seconds = max(0.0, (now - created_at).total_seconds())
+    hours = seconds / 3600
+    days = hours / 24
+    if hours < 1:
+        return 'less than an hour ago'
+    if hours < 24:
+        return 'earlier today'
+    if days < 2:
+        return 'yesterday'
+    if days < 7:
+        return 'a few days ago'
+    if days < 14:
+        return 'about a week ago'
+    if days < 30:
+        return 'a few weeks ago'
+    if days < 60:
+        return 'about a month ago'
+    if days < 365:
+        return 'a few months ago'
+    return 'over a year ago'
+
+
+def pick_event_bots(config, bots):
+    """At most LLMChatter.Memory.MaxBotsPerEvent bots write
+    a memory of one group event (boss, rare, achievement),
+    so a party does not store five copies of it."""
+    try:
+        limit = int(config.get(
+            'LLMChatter.Memory.MaxBotsPerEvent', 2))
+    except (TypeError, ValueError):
+        limit = 2
+    bots = list(bots or [])
+    if limit <= 0:
+        return []
+    if len(bots) <= limit:
+        return bots
+    return random.sample(bots, limit)
+
+
+def memory_block_notes(mode) -> str:
+    """Notes that frame any block of recalled memories."""
+    notes = (
+        "The time in brackets is how long ago it happened. "
+        "People named in a memory may not be with you now; "
+        "never speak as if they are here unless they are.\n"
+    )
+    if mode != 'roleplay':
+        notes += (
+            "Treat these as remembered gameplay events. "
+            "Paraphrase them as a player and never copy "
+            "in-character journal wording.\n"
+        )
+    return notes
 
 
 def _clamp_memory_text(text: str) -> str:
@@ -154,6 +250,7 @@ _active_sessions: Dict[int, dict] = {}
 #   "members": dict,       # {guid: {name, class, race, gender}}
 #   "msg_count": int,      # player_message count
 #   "party_memories_generated": bool,
+#   "dungeons": set(),     # (bot_guid, map_id) remembered
 # }}
 
 _group_locks: Dict[int, threading.Lock] = {}
@@ -207,6 +304,7 @@ def start_session(
                 "members": members or {},
                 "msg_count": 0,
                 "party_memories_generated": False,
+                "dungeons": set(),
             }
         _active_sessions[group_id]["bots"].add(
             bot_guid
@@ -216,6 +314,25 @@ def start_session(
             _active_sessions[group_id][
                 "members"
             ].update(members)
+
+
+def claim_dungeon_memory(group_id, bot_guid, map_id) -> bool:
+    """True the first time this bot may remember entering
+    this instance in the current session. Joining inside a
+    dungeon and the dungeon-entry event can both fire."""
+    lock = _get_group_lock(group_id, create=False)
+    if lock is None:
+        return False
+    with lock:
+        session = _active_sessions.get(group_id)
+        if not session:
+            return False
+        key = (int(bot_guid), int(map_id or 0))
+        dungeons = session.setdefault("dungeons", set())
+        if key in dungeons:
+            return False
+        dungeons.add(key)
+        return True
 
 
 def teardown_group_session(group_id):
@@ -252,6 +369,7 @@ def queue_memory(
     bot_gender="",
     player_name="",
     db=None,
+    background=None,
 ):
     """Validate eligibility and submit a memory
     generation task to the background executor.
@@ -272,6 +390,10 @@ def queue_memory(
         bot_race: bot's race name
         db: optional DB connection for location
             lookup (avoids opening a new one)
+        background: short labelled lines of fact
+            (zone and subzone descriptions, what a
+            quest-giver said) that keep the memory
+            accurate; never events of their own
     """
     if not int(config.get(
         'LLMChatter.Memory.Enable', 1
@@ -318,9 +440,10 @@ def queue_memory(
     if not player_guid:
         return  # can't create orphaned memory
 
-    # Resolve location NOW while traits exist
-    location = _resolve_location(
-        db, config, group_id
+    # Resolve place, persona and companions NOW, while
+    # the group's trait rows still exist.
+    context = _resolve_memory_context(
+        db, config, group_id, bot_guid
     )
 
     memory_executor.submit(
@@ -336,7 +459,8 @@ def queue_memory(
         bot_race=bot_race,
         bot_gender=bot_gender,
         player_name=player_name,
-        location=location,
+        context=context,
+        background=background,
         session_start=session_start,
         insert_active=False,
     )
@@ -346,49 +470,92 @@ def queue_memory(
 # MEMORY GENERATION (runs in background thread)
 # ============================================================
 
-def _resolve_location(db, config, group_id):
-    """Resolve player-centric location label.
+def _location_label(zone_id, area_id, map_id):
+    """ "Teldrassil > Dolanaar", "The Deadmines", or ''."""
+    dungeon = get_dungeon_flavor(map_id)
+    if dungeon:
+        return dungeon.split(':')[0]
+    if zone_id:
+        return format_location_label(zone_id, area_id)
+    return ""
 
-    Uses get_group_location() for zone/area/map,
-    then get_dungeon_flavor() for instances or
-    format_location_label() for open world.
 
-    Must be called while llm_group_bot_traits
-    rows still exist (before group cleanup).
+def _read_persona(cursor, group_id, bot_guid):
+    """The bot's traits, tone and backstory: this session's
+    row first, then the persistent identity."""
+    cursor.execute(
+        "SELECT trait1, trait2, trait3, tone, backstory"
+        " FROM llm_group_bot_traits"
+        " WHERE group_id = %s AND bot_guid = %s",
+        (group_id, bot_guid),
+    )
+    row = cursor.fetchone()
+    if not row:
+        cursor.execute(
+            "SELECT trait1, trait2, trait3, tone, backstory"
+            " FROM llm_bot_identities WHERE bot_guid = %s",
+            (bot_guid,),
+        )
+        row = cursor.fetchone()
+    if not row:
+        return {}
+    return {
+        'traits': [t for t in (
+            row.get('trait1'), row.get('trait2'),
+            row.get('trait3'),
+        ) if t],
+        'tone': row.get('tone') or '',
+        'backstory': row.get('backstory') or '',
+    }
 
-    Args:
-        db: DB connection (None = open one)
-        config: bridge config dict
-        group_id: group identifier
 
-    Returns a human-readable string like
-    "Teldrassil > Dolanaar" or "The Deadmines",
-    or empty string on failure.
+def _resolve_memory_context(db, config, group_id, bot_guid):
+    """Everything a memory prompt needs from the live group,
+    resolved at queue time while llm_group_bot_traits rows
+    still exist: place, mode, the bot's persona and the
+    other bots present.
+
+    Returns a dict; missing parts are empty, never raised.
     """
+    context = {
+        'location': '', 'zone_id': 0, 'map_id': 0,
+        'mode': get_chatter_mode(config or {}),
+        'persona': {}, 'companions': [],
+    }
     own_db = False
     try:
         if db is None:
             db = get_db_connection(config)
             own_db = True
         z, a, m = get_group_location(db, group_id)
-        if not z and not m:
-            return ""
-        # Dungeons/raids: use flavour name
-        df = get_dungeon_flavor(m)
-        if df:
-            return df.split(':')[0]
-        # Open world: "Zone > Subzone" or "Zone"
-        if z:
-            return format_location_label(z, a)
-        return ""
+        context['zone_id'] = int(z or 0)
+        context['map_id'] = int(m or 0)
+        context['location'] = _location_label(z, a, m)
+        cursor = db.cursor(dictionary=True)
+        context['persona'] = _read_persona(
+            cursor, group_id, bot_guid)
+        cursor.execute(
+            "SELECT bot_name FROM llm_group_bot_traits"
+            " WHERE group_id = %s AND bot_guid != %s",
+            (group_id, bot_guid),
+        )
+        context['companions'] = [
+            r['bot_name'] for r in cursor.fetchall()
+            if r.get('bot_name')
+        ]
+        cursor.close()
     except Exception:
-        return ""
+        logger.debug(
+            "memory context lookup failed for group %s",
+            group_id, exc_info=True,
+        )
     finally:
         if own_db and db:
             try:
                 db.close()
             except Exception:
                 pass
+    return context
 
 
 def _count_active_memories(cursor, bot_guid, player_guid):
@@ -404,15 +571,14 @@ def _count_active_memories(cursor, bot_guid, player_guid):
     return row[0] if row else 0
 
 
-def _evict_one_used(cursor, conn, bot_guid, player_guid):
-    """Evict one random used memory.
+def _evict_one(cursor, conn, bot_guid, player_guid):
+    """Evict the least valuable active memory: a referenced
+    one first, the longest unseen first, then the oldest.
 
-    first_meeting rows are never evicted: they are documented as immune to
-    prune (they are the templated "Met X in Zone" anchor of the whole
-    remembers-you premise) and they become used=1 the first time the bot
-    greets a returning player, which would otherwise make them eviction-
-    eligible. When only first_meeting rows remain, this deletes nothing and
-    returns False, i.e. it fails closed rather than dropping the anchor.
+    first_meeting rows are never evicted: they are the
+    templated "Met X in Zone" anchor of the whole
+    remembers-you premise. When only first_meeting rows
+    remain, this deletes nothing and returns False.
 
     Returns True if a row was deleted.
     """
@@ -421,55 +587,78 @@ def _evict_one_used(cursor, conn, bot_guid, player_guid):
         " WHERE bot_guid = %s"
         "   AND player_guid = %s"
         "   AND active = 1"
-        "   AND used = 1"
         "   AND memory_type != 'first_meeting'"
-        " ORDER BY RAND() LIMIT 1",
+        " ORDER BY used DESC,"
+        "   COALESCE(last_used_at, created_at) ASC"
+        " LIMIT 1",
         (bot_guid, player_guid),
     )
     conn.commit()
     return cursor.rowcount > 0
 
 
+def _prune_to_cap(cursor, conn, bot_guid, player_guid, max_per):
+    """Evict until the pair holds at most max_per active
+    memories (first_meeting rows aside)."""
+    cnt = _count_active_memories(cursor, bot_guid, player_guid)
+    while cnt > max_per:
+        if not _evict_one(cursor, conn, bot_guid, player_guid):
+            break
+        cnt -= 1
+
+
 def _ensure_cap_and_insert(
     conn, bot_guid, player_guid, group_id,
     memory_type, memory_text, mood, emote,
-    session_start, active, max_per,
+    session_start, active, max_per, context=None,
 ):
-    """Check memory cap, evict if needed, insert.
+    """Insert a memory, keeping the pair within its cap on
+    every path (pending rows are pruned at activation).
 
-    Returns True if inserted, False if pool full.
+    Returns True if inserted.
     """
+    context = context or {}
     cursor = conn.cursor()
-    cnt = _count_active_memories(
-        cursor, bot_guid, player_guid
-    )
-    if cnt >= max_per:
-        if not _evict_one_used(
-            cursor, conn, bot_guid, player_guid
-        ):
-            logger.debug(
-                "Memory pool full, no used"
-                " memories to evict for"
-                " bot %s", bot_guid,
-            )
-            return False
+    if active:
+        _prune_to_cap(
+            cursor, conn, bot_guid, player_guid,
+            max(0, max_per - 1),
+        )
+    companions = ', '.join(context.get('companions') or [])
     cursor.execute(
         "INSERT INTO llm_bot_memories"
         " (bot_guid, player_guid,"
         "  group_id, memory_type,"
         "  memory, mood, emote,"
-        "  active, session_start)"
+        "  active, session_start,"
+        "  zone_id, map_id, companions)"
         " VALUES"
-        " (%s,%s,%s,%s,%s,%s,%s,%s,%s)",
+        " (%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)",
         (
             bot_guid, player_guid,
             group_id, memory_type,
             memory_text, mood, emote,
             active, session_start,
+            context.get('zone_id') or None,
+            context.get('map_id') or None,
+            companions[:255] or None,
         ),
     )
     conn.commit()
     return True
+
+
+def _session_alive(group_id, bot_guid, session_start):
+    lock = _get_group_lock(group_id, create=False)
+    if lock is None:
+        return False
+    with lock:
+        session = _active_sessions.get(group_id)
+        return bool(
+            session is not None
+            and session["start"] == session_start
+            and bot_guid in session["bots"]
+        )
 
 
 def _execute_generate_memory(
@@ -478,7 +667,8 @@ def _execute_generate_memory(
     bot_name="", bot_class="", bot_race="",
     bot_gender="",
     player_name="",
-    location="",
+    context=None,
+    background=None,
     session_start=0.0, insert_active=False,
 ):
     """Generate a memory via LLM and insert it.
@@ -487,23 +677,13 @@ def _execute_generate_memory(
       - Fast bailout before LLM call
       - Re-check + INSERT under per-group lock
     For insert_active=True (party_member at flush):
-      - INSERT as active=1, then self-prune
+      - INSERT as active=1 within the cap
     """
+    context = context or {}
     # Fast bailout before expensive LLM call
-    if not insert_active:
-        lock = _get_group_lock(
-            group_id, create=False
-        )
-        if lock is None:
-            return
-        with lock:
-            session = _active_sessions.get(group_id)
-            if (
-                session is None
-                or session["start"] != session_start
-                or bot_guid not in session["bots"]
-            ):
-                return
+    if not insert_active and not _session_alive(
+            group_id, bot_guid, session_start):
+        return
 
     conn = None
     try:
@@ -564,7 +744,11 @@ def _execute_generate_memory(
             event_context=event_context,
             mood=mood,
             style=style,
-            location=location,
+            location=context.get('location', ''),
+            mode=context.get('mode', 'normal'),
+            persona=context.get('persona'),
+            companions=context.get('companions'),
+            background=background,
         )
 
         if not memory_text:
@@ -598,7 +782,7 @@ def _execute_generate_memory(
                     group_id, memory_type,
                     memory_text, mood, emote,
                     session_start, active=0,
-                    max_per=max_per,
+                    max_per=max_per, context=context,
                 )
         else:
             _ensure_cap_and_insert(
@@ -606,7 +790,7 @@ def _execute_generate_memory(
                 group_id, memory_type,
                 memory_text, mood, emote,
                 session_start, active=1,
-                max_per=max_per,
+                max_per=max_per, context=context,
             )
 
     except Exception:
@@ -624,72 +808,73 @@ def _execute_generate_memory(
                 pass
 
 
-def _call_llm_for_memory(
-    config,
+_MEMORY_TYPE_DESC = {
+    'ambient': "a quiet moment during travel",
+    'boss_kill': "defeating a powerful enemy together",
+    'wipe': "the whole party falling in battle",
+    'rare_kill': "finding and slaying a rare creature",
+    'dungeon': "entering a dungeon or raid",
+    'party_member': "adventuring alongside companions",
+    'player_message': "something the player told you",
+    'quest_complete': "finishing a task together",
+    'achievement': "a notable deed",
+    'level_up': "growing noticeably stronger",
+    'bg_win': "winning a battle",
+    'bg_loss': "losing a battle",
+    'pvp_kill': "defeating an enemy in combat",
+    'discovery': "discovering a new place together",
+    'duel': "a friendly training spar",
+}
+
+# Short background excerpt: enough to keep the memory true
+# to the character without spending the whole backstory.
+_BACKSTORY_EXCERPT_CHARS = 300
+
+
+def _backstory_excerpt(backstory: str) -> str:
+    text = ' '.join(str(backstory or '').split())
+    if len(text) <= _BACKSTORY_EXCERPT_CHARS:
+        return text
+    head = text[:_BACKSTORY_EXCERPT_CHARS]
+    cut = max(head.rfind('. '), head.rfind('! '), head.rfind('? '))
+    return head[:cut + 1] if cut > 80 else head.rsplit(' ', 1)[0] + '...'
+
+
+def build_memory_prompt(
     bot_name="", bot_class="", bot_race="",
     bot_gender="",
-    player_name="",
+    player_name="", player_gender="",
     memory_type="ambient", event_context="",
-    player_gender="",
-    mood="contemplative", style="sincere",
-    location="",
+    mood="contemplative", style="plain",
+    location="", mode="normal",
+    persona=None, companions=None,
+    background=None,
 ):
-    """Call LLM to generate a memory entry.
+    """The memory-writing prompt: facts only, in the bot's
+    voice and the chat mode's register.
 
-    Returns (memory_text, emote) or (None, None).
-    """
-    client = get_llm_client(config)
-
-    type_desc = {
-        'ambient': (
-            "a quiet moment during travel"
-        ),
-        'boss_kill': (
-            "defeating a powerful enemy together"
-        ),
-        'wipe': (
-            "a total party wipe"
-        ),
-        'rare_kill': (
-            "finding and slaying a rare creature"
-        ),
-        'dungeon': (
-            "entering a dungeon or raid"
-        ),
-        'party_member': (
-            "adventuring alongside a companion"
-        ),
-        'player_message': (
-            "something the player said in chat"
-        ),
-        'quest_complete': (
-            "completing a quest together"
-        ),
-        'achievement': (
-            "earning an achievement"
-        ),
-        'level_up': (
-            "growing noticeably stronger"
-        ),
-        'bg_win': (
-            "winning a battleground"
-        ),
-        'bg_loss': (
-            "losing a battleground"
-        ),
-        'discovery': (
-            "discovering a new area"
-        ),
-        'pvp_kill': (
-            "defeating an enemy player in combat"
-        ),
-    }.get(memory_type, "a shared moment")
+    background: labelled lines of fact (place descriptions,
+    a quest-giver's words) that keep the memory accurate;
+    "What happened" stays the only source of events."""
+    is_rp = mode == 'roleplay'
+    persona = persona or {}
+    companions = [c for c in (companions or []) if c]
+    type_desc = _MEMORY_TYPE_DESC.get(memory_type, "a shared moment")
 
     identity = build_bot_identity(
         bot_name, bot_race, bot_class, bot_gender,
         suffix=' in World of Warcraft.',
     )
     prompt = f"{identity}\n"
+    if persona.get('traits'):
+        prompt += f"Your personality: {', '.join(persona['traits'])}\n"
+    if persona.get('tone'):
+        prompt += f"Your voice: {persona['tone']}\n"
+    if is_rp and persona.get('backstory'):
+        prompt += (
+            "Your background (never contradict it): "
+            f"{_backstory_excerpt(persona['backstory'])}\n"
+        )
     if player_name:
         gender_note = (
             f" ({player_gender})" if player_gender else ""
@@ -697,61 +882,130 @@ def _call_llm_for_memory(
         prompt += (
             f"Player companion: {player_name}{gender_note}\n"
         )
+    if companions:
+        prompt += f"Also in the party: {', '.join(companions)}\n"
     if location:
         prompt += f"Location: {location}\n"
-    prompt += (
-        f"\nContext: {type_desc}\n"
-    )
+    prompt += f"\nContext: {type_desc}\n"
     if event_context:
         prompt += f"What happened: {event_context}\n"
+    background = [b for b in (background or []) if b]
+    if background:
+        prompt += (
+            "Background (facts to keep the memory accurate; "
+            "not events that happened now):\n"
+            + ''.join(f"- {b}\n" for b in background)
+        )
     prompt += (
         f"Underlying feeling, keep it subtle: {mood}\n"
         f"Register: {style}\n\n"
-        f"Write a one-sentence first-person note "
-        f"recording this moment. This is a terse "
-        f"private log entry — not spoken aloud, not "
-        f"a story. Record what actually happened: "
-        f"who was involved, what was done, where.\n\n"
-        f"Respond in JSON:\n"
-        f'{{"memory": "your memory text", '
-        f'"emote": "one_word_emote"}}\n\n'
-        f"Rules:\n"
-        f"- One sentence, at most "
-        f"{MEMORY_TARGET_CHARS} characters\n"
-        f"- Plain concrete language — state the facts\n"
-        f"- No metaphors, no dramatic or flowery "
-        f"wording\n"
-        f"- At most a short clause about how you felt\n"
-        f"- First person perspective\n"
-        f"- No quotes inside the memory text\n"
-        f"- Only reference the location given above"
-        f" — never invent or guess a location\n"
-        f"- Emote is optional (null if none)\n"
     )
+    if is_rp:
+        prompt += (
+            "Write a first-person note of one or two sentences "
+            "recording this moment, in your own in-world voice. "
+            "This is a private log entry, not spoken aloud, not "
+            "a story.\n\n"
+        )
+    else:
+        prompt += (
+            "Write a first-person note of one or two sentences "
+            "recording this moment, as a player keeping a log "
+            "of the session. Not spoken aloud, not a story.\n\n"
+        )
+    prompt += (
+        "Respond in JSON:\n"
+        '{"memory": "your memory text", '
+        '"emote": "one_word_emote"}\n\n'
+        "Rules:\n"
+        f"- One or two sentences, about {MEMORY_TARGET_CHARS} "
+        "characters\n"
+        "- Record only what \"What happened\" states; add no "
+        "incidents, conversations or details of your own\n"
+        "- Background facts may shape your wording, but never "
+        "retell them as something that happened now\n"
+        "- Never describe the player's feelings, motives, words "
+        "or actions beyond what is given\n"
+        "- No outcomes or decisions that are not stated\n"
+        "- If others took part, name them or say \"the party\"; "
+        "never make it sound like only you and the player were "
+        "there\n"
+        "- Never contradict your background; invent no "
+        "childhood, family or past events\n"
+        "- Never write today, yesterday, just now or other words "
+        "tied to when you write it\n"
+        "- Plain concrete language; no metaphors or flowery "
+        "wording\n"
+        "- At most a short clause about how you felt\n"
+        "- First person perspective\n"
+        "- No quotes inside the memory text\n"
+        "- Only reference the location given above; never "
+        "invent or guess a location\n"
+        "- Emote is optional (null if none)\n"
+        "- If there is nothing true to record, return an empty "
+        "memory (\"\")\n"
+    )
+    if is_rp:
+        prompt += (
+            "- Stay in the world: never mention levels, "
+            "achievements, quests, experience, loot rarity or "
+            "anything from the game interface; describe the deed "
+            "itself, or return an empty memory if you cannot\n"
+        )
     if player_name:
         prompt += (
             f"- When the memory involves the player,"
             f" refer to them by name"
-            f" ({player_name}) — never use generic"
+            f" ({player_name}); never use generic"
             f" terms like 'a traveler' or 'someone'"
             f" or 'a stranger'\n"
         )
-    prompt += (
-        f"- Just the JSON, nothing else"
-    )
+    prompt += "- Just the JSON, nothing else"
 
-    # Plain-string prompt path — not routed through
+    # Plain-string prompt path, not routed through
     # append_json_instruction, so inject the language
     # rule directly.
     from chatter_shared import get_language_rule
     lang_rule = get_language_rule()
     if lang_rule:
         prompt += lang_rule
+    return prompt
+
+
+def _call_llm_for_memory(
+    config,
+    bot_name="", bot_class="", bot_race="",
+    bot_gender="",
+    player_name="",
+    memory_type="ambient", event_context="",
+    player_gender="",
+    mood="contemplative", style="plain",
+    location="", mode="normal",
+    persona=None, companions=None,
+    background=None,
+):
+    """Call LLM to generate a memory entry.
+
+    Returns (memory_text, emote) or (None, None); an empty
+    memory means the model found nothing true to record.
+    """
+    client = get_llm_client(config)
+    prompt = build_memory_prompt(
+        bot_name=bot_name, bot_class=bot_class,
+        bot_race=bot_race, bot_gender=bot_gender,
+        player_name=player_name,
+        player_gender=player_gender,
+        memory_type=memory_type,
+        event_context=event_context,
+        mood=mood, style=style, location=location,
+        mode=mode, persona=persona, companions=companions,
+        background=background,
+    )
 
     try:
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=120,
+            max_tokens_override=200,
             context=f"memory:{bot_name}:{memory_type}",
             label='memory_generation',
             response_contract=ResponseContract('memory'),
@@ -895,9 +1149,11 @@ def flush_session_memories(
                 '.PartyMemberGenerationChance',
                 50
             ))
-            flush_loc = _resolve_location(
-                db, config, group_id
-            )
+            minutes = max(1, int(elapsed // 60))
+            names = {
+                guid: members_snapshot.get(guid, {}).get('name', '')
+                for guid in all_bots_snapshot
+            }
             for target_guid in all_bots_snapshot:
                 if (random.random() * 100
                         >= party_chance):
@@ -905,9 +1161,16 @@ def flush_session_memories(
                 member = members_snapshot.get(
                     target_guid, {}
                 )
+                mem_context = _resolve_memory_context(
+                    db, config, group_id, target_guid
+                )
+                mem_context['companions'] = [
+                    n for g, n in names.items()
+                    if n and g != target_guid
+                ]
                 context = (
-                    "Reflecting on time spent with "
-                    "party companions"
+                    f"Spent about {minutes} minutes adventuring "
+                    "together as a party"
                 )
                 memory_executor.submit(
                     _execute_generate_memory,
@@ -923,7 +1186,7 @@ def flush_session_memories(
                     bot_gender=member.get(
                         'gender', ''
                     ),
-                    location=flush_loc,
+                    context=mem_context,
                     session_start=session_start,
                     insert_active=True,
                 )
@@ -950,17 +1213,9 @@ def flush_session_memories(
                     player_guid,
                 )
 
-            # Prune to cap
-            cnt = _count_active_memories(
-                cursor, bot_guid, player_guid
+            _prune_to_cap(
+                cursor, db, bot_guid, player_guid, max_per,
             )
-            while cnt > max_per:
-                if not _evict_one_used(
-                    cursor, db,
-                    bot_guid, player_guid,
-                ):
-                    break  # no used left
-                cnt -= 1
         except Exception:
             logger.error(
                 "Memory activation failed for "
@@ -1000,11 +1255,12 @@ def flush_session_memories(
 # ============================================================
 
 def activate_orphaned_memories(
-    db, session_minutes,
+    db, session_minutes, max_per=30,
 ):
     """Promote orphaned inactive memories from
     sessions that ended without a clean farewell
-    (bridge crash, server restart).
+    (bridge crash, server restart, player logout).
+    Runs at startup and on every bridge cleanup tick.
 
     Skips group_ids that still exist in
     llm_group_bot_traits — those are live sessions
@@ -1068,6 +1324,10 @@ def activate_orphaned_memories(
                     (g_id, b_guid, p_guid),
                 )
                 promoted += cursor.rowcount
+                _prune_to_cap(
+                    db.cursor(), db, b_guid, p_guid,
+                    int(max_per),
+                )
             else:
                 cursor.execute(
                     "DELETE FROM llm_bot_memories"
@@ -1095,39 +1355,79 @@ def rehydrate_active_sessions(db):
     """Rebuild _active_sessions from live groups
     after a bridge restart.
 
+    The session clock resumes from the group's pending
+    memories (or its trait rows), so rows written before
+    the restart still activate at farewell. The player and
+    the members are resolved again, so player messages and
+    party memories keep working.
+
     No lock needed: runs synchronously at startup
     before event loop and background executor.
     """
     try:
         cursor = db.cursor(dictionary=True)
         cursor.execute("""
-            SELECT DISTINCT group_id, bot_guid
-            FROM llm_group_bot_traits
+            SELECT t.group_id, t.bot_guid, t.bot_name,
+                UNIX_TIMESTAMP(t.assigned_at) AS assigned,
+                c.class, c.race, c.gender
+            FROM llm_group_bot_traits t
+            LEFT JOIN characters c ON c.guid = t.bot_guid
         """)
         rows = cursor.fetchall()
         if not rows:
             return
 
+        from chatter_db import get_real_player_guid_for_group
+        from chatter_shared import (
+            get_class_name, get_race_name, get_gender_label,
+        )
+
+        groups = {}
         for row in rows:
-            g_id = int(row['group_id'])
-            b_guid = int(row['bot_guid'])
-            if g_id not in _active_sessions:
-                _active_sessions[g_id] = {
-                    "start": time.time(),
-                    "player_guid": 0,
-                    "bots": set(),
-                    "members": {},
-                    "msg_count": 0,
-                    "party_memories_generated": True,
-                }
-                # Create the per-group lock so that
-                # queue_memory() and flush_session_memories()
-                # (which use create=False) can find it
-                # immediately after restart
-                _get_group_lock(g_id, create=True)
-            _active_sessions[g_id]["bots"].add(
-                b_guid
+            groups.setdefault(int(row['group_id']), []).append(row)
+
+        for g_id, bots in groups.items():
+            cursor.execute(
+                "SELECT MIN(session_start) AS start"
+                " FROM llm_bot_memories"
+                " WHERE group_id = %s AND active = 0",
+                (g_id,),
             )
+            pending = cursor.fetchone() or {}
+            assigned = [
+                float(b['assigned']) for b in bots
+                if b.get('assigned')
+            ]
+            start = (
+                float(pending['start'])
+                if pending.get('start')
+                else (min(assigned) if assigned else time.time())
+            )
+            player_guid = get_real_player_guid_for_group(db, g_id)
+            members = {}
+            for b in bots:
+                members[int(b['bot_guid'])] = {
+                    'name': b.get('bot_name') or '',
+                    'class': get_class_name(b['class'])
+                    if b.get('class') is not None else '',
+                    'race': get_race_name(b['race'])
+                    if b.get('race') is not None else '',
+                    'gender': get_gender_label(b.get('gender') or 0),
+                }
+            _active_sessions[g_id] = {
+                "start": start,
+                "player_guid": int(player_guid or 0),
+                "bots": set(members),
+                "members": members,
+                "msg_count": 0,
+                "party_memories_generated": not player_guid,
+                "dungeons": set(),
+            }
+            # Create the per-group lock so that
+            # queue_memory() and flush_session_memories()
+            # (which use create=False) can find it
+            # immediately after restart
+            _get_group_lock(g_id, create=True)
 
         if _active_sessions:
             logger.info(
@@ -1139,6 +1439,60 @@ def rehydrate_active_sessions(db):
             "Session rehydration failed",
             exc_info=True,
         )
+
+
+def insert_first_meeting(
+    db, bot_guid, player_guid, group_id, player_name,
+    zone_id=0, map_id=0,
+):
+    """Write the templated first_meeting memory once per
+    bot-player pair, with where it happened. It is active
+    at once and never pruned or discarded."""
+    zone_name = get_zone_name(zone_id) if zone_id else None
+    where = f" in {zone_name}" if zone_name else ""
+    text = f"Met {player_name} and began adventuring together{where}."
+    cursor = db.cursor()
+    try:
+        cursor.execute(
+            "INSERT INTO llm_bot_memories"
+            " (bot_guid, player_guid, group_id, memory_type,"
+            "  memory, mood, emote, active, session_start,"
+            "  zone_id, map_id)"
+            " SELECT %s,%s,%s,'first_meeting',%s,'warm',NULL,1,%s,"
+            "  %s,%s"
+            " WHERE NOT EXISTS ("
+            "  SELECT 1 FROM llm_bot_memories"
+            "  WHERE bot_guid=%s AND player_guid=%s"
+            "    AND memory_type='first_meeting')",
+            (
+                bot_guid, player_guid, group_id, text, time.time(),
+                zone_id or None, map_id or None,
+                bot_guid, player_guid,
+            ),
+        )
+        db.commit()
+    finally:
+        cursor.close()
+
+
+def reset_bot_memories(db, bot_guid) -> int:
+    """Delete a bot's memories except first_meeting, for
+    LLMChatter.Memory.ResetOnIdentityChange: a bot with a
+    new personality should not keep a journal written in
+    its old voice. Returns the number of rows deleted."""
+    cursor = db.cursor()
+    try:
+        cursor.execute(
+            "DELETE FROM llm_bot_memories"
+            " WHERE bot_guid = %s"
+            "   AND memory_type != 'first_meeting'",
+            (bot_guid,),
+        )
+        deleted = cursor.rowcount
+        db.commit()
+        return deleted
+    finally:
+        cursor.close()
 
 
 # ============================================================
@@ -1163,48 +1517,150 @@ def memory_recall_count(config, idle=False):
     return max(1, min(10, count))
 
 
+class RecalledMemory(str):
+    """A memory as shown in a prompt ("(about a week ago)
+    text"), carrying its row id so a caller that really
+    used it can mark it with mark_memories_used()."""
+
+    memory_id = 0
+
+
+# Short words that say nothing about a topic.
+_STOPWORDS = frozenset(
+    "that this with have your what were they there about would "
+    "from just then them when will been into more some than "
+    "only also very over here like well back want need know "
+    "going still even much make sure dont cant youre thats "
+    "where which while again could should after before".split()
+)
+
+
+def _topic_words(text: str) -> set:
+    words = re.findall(r"[^\W\d_]{4,}", str(text or '').lower())
+    return {w for w in words if w not in _STOPWORDS}
+
+
+def _relevant(row, zone_id, map_id, words) -> bool:
+    """A memory fits a reply when it happened in the same
+    place or shares a topic word with the message."""
+    if map_id and row.get('map_id') == map_id and (
+            get_dungeon_flavor(map_id)):
+        return True
+    if zone_id and row.get('zone_id') == zone_id:
+        return True
+    return bool(words & _topic_words(row.get('memory')))
+
+
+def _score_memory(row, zone_id, map_id, present, now):
+    score = MEMORY_TYPE_WEIGHTS.get(row.get('memory_type'), 1.0)
+    if map_id and row.get('map_id') == map_id and (
+            get_dungeon_flavor(map_id)):
+        score += 2.0
+    elif zone_id and row.get('zone_id') == zone_id:
+        score += 1.5
+    companions = [
+        c.strip() for c in str(row.get('companions') or '').split(',')
+        if c.strip()
+    ]
+    if companions and present is not None:
+        if all(c in present for c in companions):
+            score += 1.0
+        else:
+            score -= 1.0
+    created = row.get('created_at')
+    if isinstance(created, datetime):
+        age_days = max(0.0, (now - created).total_seconds() / 86400)
+        score += 1.5 / (1.0 + age_days / 14.0)
+    shown = row.get('last_used_at')
+    if isinstance(shown, datetime) and (
+            (now - shown).total_seconds() < RECENTLY_SHOWN_SECONDS):
+        score -= 3.0
+    return score + random.uniform(0, 1.5)
+
+
 def get_bot_memories(
     db, bot_guid, player_guid, count=3,
     exclude_first_meeting=False,
+    mark_used=False,
+    zone_id=0, map_id=0,
+    present=None,
+    relevant_to=None,
 ):
-    """Retrieve random active memories for a
-    bot-player pair.
+    """Retrieve the active memories that best fit the
+    moment for a bot-player pair.
 
-    Returns list of memory strings (may be empty).
+    Scoring prefers the current place (map_id, zone_id),
+    memories whose companions are present (present: names
+    of the bots in the party now), recent memories and
+    weighty types, and holds back ones shown in the last
+    30 minutes. relevant_to (a player message) keeps only
+    memories of the same place or topic, so a reply is not
+    handed unrelated memories.
+
+    Every returned row gets last_used_at (last shown);
+    mark_used=True also marks it as referenced, for callers
+    whose prompt is about the memory.
+
+    Returns RecalledMemory strings with the age in front
+    (may be empty).
     """
     try:
+        zone_id = int(zone_id or 0)
+        map_id = int(map_id or 0)
         extra = (
             " AND memory_type != 'first_meeting'"
             if exclude_first_meeting else ""
         )
         cursor = db.cursor(dictionary=True)
         cursor.execute(
-            "SELECT id, memory"
+            "SELECT id, memory, memory_type, zone_id, map_id,"
+            " companions, created_at, last_used_at"
             " FROM llm_bot_memories"
             " WHERE bot_guid = %s"
             "   AND player_guid = %s"
             "   AND active = 1"
-            + extra +
-            " ORDER BY RAND()"
-            " LIMIT %s",
-            (bot_guid, player_guid, count),
+            + extra,
+            (bot_guid, player_guid),
         )
         rows = cursor.fetchall()
+        if relevant_to is not None:
+            words = _topic_words(relevant_to)
+            rows = [
+                r for r in rows
+                if _relevant(r, zone_id, map_id, words)
+            ]
+        if not rows:
+            return []
+        present_set = (
+            {str(n) for n in present if n}
+            if present is not None else None
+        )
+        now = datetime.now()
+        rows.sort(
+            key=lambda r: _score_memory(
+                r, zone_id, map_id, present_set, now),
+            reverse=True,
+        )
+        rows = rows[:max(0, int(count))]
         if rows:
             ids = [row['id'] for row in rows]
-            placeholders = ','.join(
-                ['%s'] * len(ids)
-            )
+            placeholders = ','.join(['%s'] * len(ids))
             cursor.execute(
                 "UPDATE llm_bot_memories"
-                " SET used = 1,"
-                " last_used_at = NOW()"
-                " WHERE id IN (%s)"
-                % placeholders,
+                " SET last_used_at = NOW()"
+                + (", used = 1" if mark_used else "")
+                + " WHERE id IN (%s)" % placeholders,
                 tuple(ids),
             )
             db.commit()
-        return [row['memory'] for row in rows]
+        result = []
+        for row in rows:
+            age = memory_age_label(row.get('created_at'), now)
+            text = str(row.get('memory') or '')
+            item = RecalledMemory(f"({age}) {text}" if age else text)
+            item.memory_id = int(row['id'])
+            result.append(item)
+        return result
     except Exception:
         logger.error(
             f"Memory retrieval failed for "
@@ -1212,6 +1668,27 @@ def get_bot_memories(
             exc_info=True,
         )
         return []
+
+
+def mark_memories_used(db, memories) -> None:
+    """Mark recalled memories as referenced (used = 1)."""
+    ids = [
+        int(getattr(m, 'memory_id', 0) or 0)
+        for m in (memories or [])
+    ]
+    ids = [i for i in ids if i]
+    if not ids:
+        return
+    try:
+        cursor = db.cursor()
+        cursor.execute(
+            "UPDATE llm_bot_memories SET used = 1"
+            " WHERE id IN (%s)" % ','.join(['%s'] * len(ids)),
+            tuple(ids),
+        )
+        db.commit()
+    except Exception:
+        logger.error("mark_memories_used failed", exc_info=True)
 
 
 # ============================================================

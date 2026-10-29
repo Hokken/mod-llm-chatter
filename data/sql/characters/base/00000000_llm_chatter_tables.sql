@@ -96,7 +96,8 @@ CREATE TABLE IF NOT EXISTS `llm_chatter_events` (
         'guild_member_join',
         'guild_rank_change',
         'guild_motd_comment',
-        'bot_group_loot_roll'
+        'bot_group_loot_roll',
+        'bot_group_discovery'
     ) NOT NULL,
     `event_scope` ENUM('global', 'zone', 'player') NOT NULL DEFAULT 'zone',
     `zone_id` INT UNSIGNED DEFAULT NULL,
@@ -361,7 +362,7 @@ CREATE TABLE IF NOT EXISTS `llm_bot_memories` (
         'dungeon', 'party_member', 'player_message',
         'first_meeting', 'quest_complete', 'achievement',
         'level_up', 'bg_win', 'bg_loss',
-        'discovery', 'pvp_kill'
+        'discovery', 'pvp_kill', 'duel'
     ) NOT NULL,
     `memory`        TEXT         NOT NULL,
     `mood`          VARCHAR(32)  NOT NULL,
@@ -370,6 +371,9 @@ CREATE TABLE IF NOT EXISTS `llm_bot_memories` (
     `used`          TINYINT(1)   NOT NULL DEFAULT 0,
     `last_used_at`  TIMESTAMP    NULL DEFAULT NULL,
     `session_start` DOUBLE       NOT NULL,
+    `zone_id`       INT UNSIGNED DEFAULT NULL,
+    `map_id`        INT UNSIGNED DEFAULT NULL,
+    `companions`    VARCHAR(255) DEFAULT NULL,
     `created_at`    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_bot_player`        (`bot_guid`, `player_guid`),
     INDEX `idx_bot_player_active` (`bot_guid`, `player_guid`, `active`),

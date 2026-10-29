@@ -331,6 +331,26 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         },
     ),
 
+    'bot_group_discovery': EventSpec(
+        handler_module='chatter_group_handlers',
+        handler_func='process_group_discovery_event',
+        producer='LLMChatterGroupDiscovery.cpp',
+        priority='filler',
+        description='Party bots remember a subzone the player '
+                    'discovered (memory only, no chat line)',
+        payload_fields={
+            'group_id': (int, True),
+            'player_guid': (int, True),
+            'player_name': (str, True),
+            'player_level': (int, True),
+            'zone_id': (int, True),
+            'area_id': (int, True),
+            'map_id': (int, True),
+            'area_name': (str, False),
+            'nearby_bot_guids': (list, True),
+        },
+    ),
+
     'bot_group_corpse_run': EventSpec(
         handler_module='chatter_group_handlers',
         handler_func=(
@@ -1478,7 +1498,6 @@ DEAD_EVENTS: frozenset = frozenset({
     'world_boss_spawn',
     'rare_spawn',
     'enemy_player_near',
-    'bot_group_discovery',
     'bg_player_arrival',
 })
 

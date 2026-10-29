@@ -44,6 +44,10 @@ from chatter_shared import (
     build_brief_casual_repair_prompt,
     is_pvp_enemy,
     is_pvp_identity_known,
+    format_location_label,
+    instance_has_sky,
+    get_quest_memory_texts,
+    quest_memory_background,
 )
 from chatter_guild_profile import (
     get_character_guild_name,
@@ -60,7 +64,9 @@ from chatter_party_gate import (
     defer_event_for_party_gate,
     should_defer_party_generation,
 )
-from chatter_constants import BG_MAP_NAMES, RAID_MAP_IDS
+from chatter_constants import (
+    BG_MAP_NAMES, CAPITAL_CITY_ZONES, RAID_MAP_IDS,
+)
 from chatter_text import (
     strip_speaker_prefix,
     cleanup_message,
@@ -130,7 +136,12 @@ from chatter_handler_pipeline import (
     _maybe_talent_context,
 )
 from chatter_class_style import class_style
-from chatter_memory import queue_memory
+from chatter_memory import (
+    claim_dungeon_memory,
+    is_milestone_achievement,
+    pick_event_bots,
+    queue_memory,
+)
 from chatter_bg_prompts import (
     build_bg_achievement_prompt,
     build_bg_spell_cast_prompt,
@@ -254,7 +265,7 @@ def _kill_post_success(db, ctx, message):
         (group_id,),
     )
     all_bots = mc.fetchall()
-    for ab in all_bots:
+    for ab in pick_event_bots(config, all_bots):
         if (random.random() * 100
                 >= boss_mem_chance):
             continue
@@ -1027,9 +1038,34 @@ def process_group_levelup_event(
         post_success=_levelup_post_success,
     )
 
+def _quest_background(db, quest_id, player_name):
+    """The quest-giver's words for a quest memory, with the
+    quest-text placeholders filled in for the player."""
+    race = cls = gender = ''
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT race, class, gender FROM characters"
+            " WHERE name = %s",
+            (player_name,),
+        )
+        row = cursor.fetchone()
+        cursor.close()
+        if row:
+            race = get_race_name(row['race'])
+            cls = get_class_name(row['class'])
+            gender = get_gender_label(row.get('gender') or 0)
+    except Exception:
+        logger.debug("quest player lookup failed", exc_info=True)
+    return quest_memory_background(get_quest_memory_texts(
+        db, quest_id, player_name, race, cls, gender,
+    ))
+
+
 def _quest_complete_memory(db, ctx, message):
     """Post-success: queue memory for quest
-    completion."""
+    completion, with how the quest-giver described the
+    task and what they said when it was done."""
     mem_chance = int(ctx['config'].get(
         'LLMChatter.Memory'
         '.QuestGenerationChance', 40,
@@ -1040,8 +1076,12 @@ def _quest_complete_memory(db, ctx, message):
             ctx['bot_guid'], 0,
             memory_type='quest_complete',
             event_context=(
-                f"Completed quest:"
-                f" {ctx['quest_name']}"
+                f"Finished the task"
+                f" \"{ctx['quest_name']}\" together"
+            ),
+            background=_quest_background(
+                db, ctx.get('quest_id'),
+                ctx.get('completer_name', ''),
             ),
             bot_name=ctx['bot_name'],
             bot_class=ctx['bot']['class'],
@@ -1158,8 +1198,14 @@ def process_group_quest_complete_event(
                                 'quest_complete'
                             ),
                             event_context=(
-                                f"Completed quest:"
-                                f" {quest_name}"
+                                f"Finished the task"
+                                f" \"{quest_name}\""
+                                f" together"
+                            ),
+                            background=_quest_background(
+                                db,
+                                extra_data.get('quest_id'),
+                                completer_name,
                             ),
                             bot_name=reactor_name,
                             bot_class=bot_class,
@@ -1503,14 +1549,22 @@ def _check_achievement_batch(
 
 
 def _achievement_post_success(db, ctx, message):
-    """Memory: ALL bots remember the achievement.
-    Skip in BG (achievements fire constantly).
+    """Memory: up to MaxBotsPerEvent bots remember the
+    deed, each knowing who earned it. Skip in BG
+    (achievements fire constantly) and, in roleplay,
+    pure milestones ("Level 30", "50 Quests") that have
+    no deed to remember.
     """
     if ctx['extra_data'].get('is_battleground'):
         return
     config = ctx['config']
     group_id = ctx['group_id']
     achievement_name = ctx['achievement_name']
+    if ctx['mode'] == 'roleplay' and is_milestone_achievement(
+            achievement_name):
+        return
+    achiever_guid = int(ctx.get('achiever_guid') or 0)
+    achiever_name = ctx.get('achiever_name') or "someone"
     achv_chance = int(config.get(
         'LLMChatter.Memory'
         '.AchievementGenerationChance', 60
@@ -1526,16 +1580,20 @@ def _achievement_post_success(db, ctx, message):
         (group_id,),
     )
     all_bots = mc.fetchall()
-    for ab in all_bots:
+    for ab in pick_event_bots(config, all_bots):
         if random.random() * 100 >= achv_chance:
             continue
+        earner = (
+            "I" if int(ab['bot_guid']) == achiever_guid
+            else achiever_name
+        )
         try:
             queue_memory(
                 config, group_id,
                 ab['bot_guid'], 0,
                 memory_type='achievement',
                 event_context=(
-                    f"Earned achievement:"
+                    f"{earner} earned recognition for:"
                     f" {achievement_name}"
                 ),
                 bot_name=ab['bot_name'],
@@ -1707,6 +1765,7 @@ def process_group_achievement_event(
         event_type_label='bot_group_achievement',
         extract_fields=lambda ed: {
             'achiever_name': achiever_name,
+            'achiever_guid': achiever_guid,
             'achievement_name': achievement_name,
             'is_bot': is_bot,
             'batched_names': batched_names,
@@ -1824,6 +1883,40 @@ def process_group_resurrect_event(
         mood_key='resurrect',
         label='reaction_rez',
     )
+
+def _ambient_memory_context(db, zone_id, area_id, map_id, zone_name):
+    """The facts an ambient memory may record: where the
+    party travels, and the time of day, season and live
+    weather. Nothing else happened, so the memory prompt
+    must not invent an incident."""
+    from chatter_group import get_recent_weather
+    from chatter_prompts import (
+        get_season_context, get_time_of_day_context,
+    )
+    place = format_location_label(zone_id, area_id) or zone_name
+    in_instance = get_dungeon_flavor(map_id) is not None
+    facts = []
+    # Indoor instances have no sky; open-air ones keep time
+    # and season but never weather, as in the other prompts.
+    # Unlike the chat prompts, every known fact goes in: the
+    # memory may record nothing else.
+    if not in_instance or instance_has_sky(map_id):
+        facts.append(f"Time of day: {get_time_of_day_context()[1]}")
+        facts.append(f"Season: {get_season_context()[1]}")
+        if zone_id and not in_instance:
+            try:
+                weather = get_recent_weather(db, zone_id)
+            except Exception:
+                weather = None
+                logger.debug(
+                    "ambient weather lookup failed", exc_info=True)
+            if weather:
+                facts.append(f"Current weather: {weather}")
+    context = f"Travelling through {place}; nothing else happened"
+    if facts:
+        context += ". " + "; ".join(facts)
+    return context
+
 
 def process_group_zone_transition_event(
     db, client, config, event
@@ -2043,9 +2136,9 @@ def process_group_zone_transition_event(
                 queue_memory(
                     config, group_id, bot_guid, 0,
                     memory_type='ambient',
-                    event_context=(
-                        f"Traveling through "
-                        f"{zone_name}"
+                    event_context=_ambient_memory_context(
+                        db, zone_id, area_id, map_id,
+                        zone_name,
                     ),
                     bot_name=bot_name,
                     bot_class=bot['class'],
@@ -2322,6 +2415,116 @@ def _pick_group_speaker(db, group_id):
     return random.choice(rows) if rows else None
 
 
+def process_group_discovery_event(db, client, config, event):
+    """Handle a bot_group_discovery event: the real player
+    discovered a new subzone while grouped with bots.
+
+    Memory only, no chat line. Bots that were near the
+    player at that moment (C++ nearby_bot_guids, within
+    about 100 yards), when both they and the player are at
+    least DiscoveryMinLevel, remember discovering the place
+    together, with the zone and subzone descriptions as
+    background. Capital cities and subzones without a
+    description are skipped.
+    """
+    event_id = event['id']
+    extra_data = parse_extra_data(
+        event.get('extra_data'), event_id,
+        'bot_group_discovery',
+    ) or {}
+    try:
+        queue_discovery_memories(db, config, extra_data)
+    except Exception:
+        logger.error(
+            "discovery memory failed event=%s", event_id,
+            exc_info=True,
+        )
+    _mark_event(db, event_id, 'completed')
+    return True
+
+
+def queue_discovery_memories(db, config, extra_data) -> int:
+    """Queue discovery memories; returns how many bots got
+    one queued."""
+    if not int(config.get('LLMChatter.Memory.Enable', 1)):
+        return 0
+    try:
+        group_id = int(extra_data.get('group_id') or 0)
+        zone_id = int(extra_data.get('zone_id') or 0)
+        area_id = int(extra_data.get('area_id') or 0)
+        player_level = int(extra_data.get('player_level') or 0)
+        player_guid = int(extra_data.get('player_guid') or 0)
+    except (TypeError, ValueError):
+        return 0
+    min_level = int(config.get(
+        'LLMChatter.Memory.DiscoveryMinLevel', 15))
+    if not group_id or not zone_id or not area_id:
+        return 0
+    if player_level < min_level or zone_id in CAPITAL_CITY_ZONES:
+        return 0
+    try:
+        nearby = {
+            int(g) for g in (extra_data.get('nearby_bot_guids') or [])
+        }
+    except (TypeError, ValueError):
+        nearby = set()
+    if not nearby:
+        return 0
+    subzone_lore = get_subzone_lore(zone_id, area_id)
+    if not subzone_lore:
+        return 0
+    subzone = (
+        get_subzone_name(zone_id, area_id)
+        or extra_data.get('area_name') or 'a new place'
+    )
+    zone = get_zone_name(zone_id) or 'the region'
+    player_name = extra_data.get('player_name') or 'the player'
+    background = []
+    zone_flavor = get_zone_flavor(zone_id)
+    if zone_flavor:
+        background.append(f"About {zone}: {zone_flavor}")
+    background.append(f"About {subzone}: {subzone_lore}")
+
+    cursor = db.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT t.bot_guid, t.bot_name,"
+        " c.class, c.race, c.gender, c.level"
+        " FROM llm_group_bot_traits t"
+        " JOIN characters c ON c.guid = t.bot_guid"
+        " WHERE t.group_id = %s",
+        (group_id,),
+    )
+    bots = [
+        b for b in cursor.fetchall()
+        if int(b['bot_guid']) in nearby
+        and int(b.get('level') or 0) >= min_level
+    ]
+    cursor.close()
+    chance = int(config.get(
+        'LLMChatter.Memory.DiscoveryGenerationChance', 60))
+    queued = 0
+    for bot in pick_event_bots(config, bots):
+        if random.random() * 100 >= chance:
+            continue
+        queue_memory(
+            config, group_id, bot['bot_guid'], player_guid,
+            memory_type='discovery',
+            event_context=(
+                f"{player_name} and I discovered {subzone} in "
+                f"{zone} together, a place neither of us had "
+                f"seen before"
+            ),
+            bot_name=bot['bot_name'],
+            bot_class=get_class_name(bot['class']),
+            bot_race=get_race_name(bot['race']),
+            bot_gender=get_gender_label(bot.get('gender') or 0),
+            player_name=player_name,
+            background=background,
+        )
+        queued += 1
+    return queued
+
+
 def process_group_dungeon_entry_event(
     db, client, config, event
 ):
@@ -2373,7 +2576,36 @@ def process_group_dungeon_entry_event(
         delay_seconds=lambda ctx: random.randint(
             2, 4),
         inject_mood=False,
+        post_success=_dungeon_entry_memory,
         label='reaction_dungeon_entry',
+    )
+
+
+def _dungeon_entry_memory(db, ctx, message):
+    """Memory: the reacting bot remembers entering the
+    instance, once per session (joining inside one may
+    already have recorded it)."""
+    config = ctx['config']
+    map_id = int(ctx.get('dungeon_map_id') or 0)
+    dungeon = get_dungeon_flavor(map_id)
+    if not dungeon:
+        return
+    chance = int(config.get(
+        'LLMChatter.Memory.DungeonGenerationChance', 60
+    ))
+    if random.random() * 100 >= chance:
+        return
+    if not claim_dungeon_memory(
+            ctx['group_id'], ctx['bot_guid'], map_id):
+        return
+    queue_memory(
+        config, ctx['group_id'], ctx['bot_guid'], 0,
+        memory_type='dungeon',
+        event_context=f"Entered {dungeon.split(':')[0]}",
+        bot_name=ctx['bot_name'],
+        bot_class=ctx['bot']['class'],
+        bot_race=ctx['bot']['race'],
+        bot_gender=ctx['bot'].get('gender', ''),
     )
 
 def _wipe_post_success(db, ctx, message):

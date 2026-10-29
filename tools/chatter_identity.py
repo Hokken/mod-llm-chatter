@@ -181,6 +181,14 @@ def check_or_create_bot_identity(db, config, bot_guid, bot_name):
                      bot_guid, *_snapshot(row)),
                 )
                 changed = cursor.rowcount > 0
+                if bump and changed and config_int(
+                        config,
+                        'LLMChatter.Memory.ResetOnIdentityChange',
+                        0):
+                    # A new personality should not keep a
+                    # journal written in its old voice.
+                    from chatter_memory import reset_bot_memories
+                    reset_bot_memories(db, bot_guid)
                 if bump and changed:
                     cursor.execute(
                         'UPDATE llm_group_bot_traits SET trait1=%s, '

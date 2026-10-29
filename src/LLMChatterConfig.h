@@ -147,6 +147,7 @@ public:
     uint32 _groupLootCooldown;
     // Bot Need/Greed roll comments
     bool _lootRollCommentEnable;
+    bool _memoryDiscoveryEnable;
     bool _lootRollCommentNeedEnable;
     bool _lootRollCommentGreedEnable;
     bool _lootRollCommentEquipmentEnable;

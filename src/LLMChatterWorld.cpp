@@ -436,6 +436,10 @@ public:
             {
                 lastLootRollCheck = nowSec;
                 CheckGroupLootRolls();
+                // Subzone discoveries for bot memories;
+                // the explore flag is set as the player
+                // moves, so the same cadence suffices.
+                CheckGroupDiscoveries();
             }
         }
 

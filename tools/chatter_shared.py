@@ -2506,6 +2506,116 @@ def localize_quest_name(
     return localized or name
 
 
+# Quest texts carry client placeholders: $N name, $R race,
+# $C class, $B line break, $G male:female; gender forms.
+_QUEST_GENDER_TOKEN = re.compile(r'\$[Gg]\s*([^:;]*):([^;]*);')
+_QUEST_SIMPLE_TOKEN = re.compile(r'\$([NnRrCcBb])')
+
+
+def clean_quest_text(
+    text, player_name='', player_race='', player_class='',
+    player_gender='', limit=0,
+) -> str:
+    """Quest text with client placeholders filled in for the
+    player, whitespace collapsed, and cut to `limit`
+    characters at a sentence boundary (0 = no cut)."""
+    text = str(text or '')
+    if not text.strip():
+        return ''
+    female = str(player_gender or '').lower().startswith('f')
+    text = _QUEST_GENDER_TOKEN.sub(
+        lambda m: (m.group(2) if female else m.group(1)).strip(), text)
+    values = {
+        'n': player_name or 'friend',
+        'r': player_race or 'traveller',
+        'c': player_class or 'adventurer',
+        'b': ' ',
+    }
+    text = _QUEST_SIMPLE_TOKEN.sub(
+        lambda m: values[m.group(1).lower()], text)
+    text = ' '.join(text.split())
+    if limit and len(text) > limit:
+        head = text[:limit]
+        cut = max(head.rfind('. '), head.rfind('! '), head.rfind('? '))
+        text = head[:cut + 1] if cut > limit // 3 else (
+            head.rsplit(' ', 1)[0] + '...')
+    return text
+
+
+def get_quest_memory_texts(
+    db, quest_id, player_name='', player_race='',
+    player_class='', player_gender='',
+) -> Dict[str, str]:
+    """The quest-giver's words for a quest, for memories:
+    'brief' (the quest-log summary, LogDescription), 'full'
+    (QuestDescription) and 'completion' (what the giver says
+    on turn-in, quest_offer_reward.RewardText). Uses the
+    module locale when the quest is localized; placeholders
+    are filled in. Missing texts are ''; never raises."""
+    texts = {'brief': '', 'full': '', 'completion': ''}
+    try:
+        quest_id = int(quest_id or 0)
+    except (TypeError, ValueError):
+        return texts
+    if not quest_id or db is None:
+        return texts
+    locale = get_language_locale_code()
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute(
+            "SELECT t.LogDescription AS brief,"
+            " t.QuestDescription AS full,"
+            " r.RewardText AS completion"
+            " FROM acore_world.quest_template t"
+            " LEFT JOIN acore_world.quest_offer_reward r"
+            "   ON r.ID = t.ID"
+            " WHERE t.ID = %s",
+            (quest_id,),
+        )
+        row = cursor.fetchone() or {}
+        if locale:
+            cursor.execute(
+                "SELECT l.Objectives AS brief, l.Details AS full,"
+                " rl.RewardText AS completion"
+                " FROM acore_world.quest_template_locale l"
+                " LEFT JOIN acore_world.quest_offer_reward_locale rl"
+                "   ON rl.ID = l.ID AND rl.locale = l.locale"
+                " WHERE l.ID = %s AND l.locale = %s",
+                (quest_id, locale),
+            )
+            localized = cursor.fetchone() or {}
+            row = {k: localized.get(k) or row.get(k)
+                   for k in texts}
+        cursor.close()
+    except Exception:
+        logger.error(
+            "get_quest_memory_texts failed for quest %s",
+            quest_id, exc_info=True,
+        )
+        return texts
+    limits = {'brief': 300, 'full': 700, 'completion': 500}
+    for key in texts:
+        texts[key] = clean_quest_text(
+            row.get(key), player_name, player_race,
+            player_class, player_gender, limits[key],
+        )
+    return texts
+
+
+def quest_memory_background(texts) -> List[str]:
+    """Background lines for a quest memory, labelled as the
+    quest-giver's words."""
+    labels = (
+        ('brief', "How the quest-giver summed up the task"),
+        ('full', "How the quest-giver described the task"),
+        ('completion', "What the quest-giver said when it was done"),
+    )
+    return [
+        f"{label}: {texts[key]}"
+        for key, label in labels if (texts or {}).get(key)
+    ]
+
+
 # Cache for Blizzard-localized creature/NPC titles
 # (SubName), keyed by (entry, locale). Mirrors
 # _creature_name_locale_cache -- a parallel lookup since
