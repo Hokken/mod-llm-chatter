@@ -1,5 +1,16 @@
 # Changelog
 
+### 2026-10-30 - Party Group Replies Work With Structured Output
+
+* **Party messages answered by several bots get a reply again**: with
+  `StructuredOutput.Enable = 1`, a party-chat message from the player that
+  drew a reply from more than one bot was rejected before it reached the
+  LLM (`contract_error`, label `group_player_msg_conv`), so nobody
+  answered. That prompt now declares its JSON shape like the other
+  conversation prompts: emotes always offered, actions optional, and an
+  emote-only reaction allowed for brief casual replies. Restart the
+  chatter bridge to apply.
+
 ### 2026-10-28 - Settings Behave the Same With or Without Every Key
 
 * **Missing keys now mean the shipped defaults**: when a setting was absent
