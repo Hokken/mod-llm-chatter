@@ -108,12 +108,16 @@ def statement_contract(*, message_only=False, emote=False,
 
 def conversation_contract(speaker_names, message_count, *,
                           message_only=False, emote=False, action=False,
+                          optional_action=False,
                           addressee_names=(), emote_only=False,
                           thread=False, thread_speaker_names=()):
+    # Conversations mandate an action unless the caller offers it as
+    # optional (party replies to a real player).
     return ResponseContract(
         'conversation', message_only=message_only,
         emote=emote and not message_only,
-        action='required' if action and not message_only else 'none',
+        action=('none' if not action or message_only
+                else 'optional' if optional_action else 'required'),
         addressee=bool(addressee_names) and not message_only,
         emote_only=emote_only and emote and not message_only,
         thread=thread, speaker_names=speaker_names,

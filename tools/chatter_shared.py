@@ -164,6 +164,18 @@ def _annotated_prompt(prompt, block, factory, semantic_rules, **options):
                        structured_system_prompt=structured)
 
 
+def annotate_conversation_prompt(prompt, block, semantic_rules, **options):
+    """Attach a conversation contract to a caller-built JSON block.
+
+    For builders whose legacy JSON block differs from
+    append_conversation_json_instruction(); options go to
+    conversation_contract().
+    """
+    return _annotated_prompt(
+        prompt, block, conversation_contract, semantic_rules, **options
+    )
+
+
 # N12 decomposition scaffold note:
 # chatter_shared.py remains the stable facade.
 # Target modules (chatter_text/chatter_llm/chatter_db)
