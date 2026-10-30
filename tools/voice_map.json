@@ -1,0 +1,35 @@
+{
+  "_readme": "Fill every voice_id from your own ElevenLabs account: run tts_agent.py --config <conf> --list-voices (free, no credits). Empty ids are never synthesized; races fall back to defaults, and the agent will not start until defaults.male is set. Race ids: 1 Human, 2 Orc, 3 Dwarf, 4 Night Elf, 5 Undead, 6 Tauren, 7 Gnome, 8 Troll, 10 Blood Elf, 11 Draenei. Gender 0 male, 1 female; unknown gender uses unknown_gender.",
+  "unknown_gender": "male",
+  "defaults": {
+    "male": {"voice_id": "", "hint": "neutral adult male, clear"},
+    "female": {"voice_id": "", "hint": "neutral adult female, clear"}
+  },
+  "archetypes": {
+    "human": {
+      "races": [1, 5, 11],
+      "male": {"voice_id": "", "hint": "steady, warm adult male"},
+      "female": {"voice_id": "", "hint": "confident adult female"}
+    },
+    "elven": {
+      "races": [4, 10],
+      "male": {"voice_id": "", "hint": "calm, refined, airy male"},
+      "female": {"voice_id": "", "hint": "soft, elegant female"}
+    },
+    "dwarf": {
+      "races": [3],
+      "male": {"voice_id": "", "hint": "gruff, older, hearty male"},
+      "female": {"voice_id": "", "hint": "sturdy, warm, earthy female"}
+    },
+    "gnome": {
+      "races": [7],
+      "male": {"voice_id": "", "hint": "quick, bright, slightly high male"},
+      "female": {"voice_id": "", "hint": "energetic, high, playful female"}
+    },
+    "brute": {
+      "races": [2, 6, 8],
+      "male": {"voice_id": "", "hint": "deep, gravelly, forceful male"},
+      "female": {"voice_id": "", "hint": "strong, low, commanding female"}
+    }
+  }
+}

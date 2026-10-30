@@ -18,6 +18,7 @@
 #include "Log.h"
 #include "Map.h"
 #include "MotionMaster.h"
+#include "ObjectAccessor.h"
 #include "ObjectMgr.h"
 #include "Player.h"
 #include "Playerbots.h"
@@ -1888,11 +1889,21 @@ std::string GetLocalizedTitleName(
     return name ? name : "";
 }
 
+uint8 GetTrueGender(Unit const* unit)
+{
+    if (!unit)
+        return GENDER_NONE;
+    if (Player const* player = unit->ToPlayer())
+        return player->GetByteValue(PLAYER_BYTES_3,
+            PLAYER_BYTES_3_OFFSET_GENDER);
+    return unit->getGender();
+}
+
 std::string GetUnitGenderLabel(Unit const* unit)
 {
     if (!unit)
         return "";
-    switch (unit->getGender())
+    switch (GetTrueGender(unit))
     {
         case GENDER_FEMALE:
             return "female";
@@ -1937,7 +1948,7 @@ std::string BuildBotIdentityFields(
         + ",\"bot_race\":"
         + std::to_string(player->getRace())
         + ",\"bot_gender\":"
-        + std::to_string(player->getGender())
+        + std::to_string(GetTrueGender(player))
         + ",\"bot_level\":"
         + std::to_string(player->GetLevel());
 
@@ -2536,8 +2547,12 @@ std::string GetBotTravelContext(Player* player)
 
 namespace
 {
+// followerOk: playerbots follow their master with MoveFollow, and that
+// generator stays current while they stand beside the master. A stopped
+// follower may turn; its follow movement re-faces it once it moves
+// again. NPCs never get this allowance.
 bool IsSafeChatterFacingMotionType(
-    MovementGeneratorType type)
+    MovementGeneratorType type, bool followerOk)
 {
     switch (type)
     {
@@ -2545,6 +2560,8 @@ bool IsSafeChatterFacingMotionType(
         case RANDOM_MOTION_TYPE:
         case ANIMAL_RANDOM_MOTION_TYPE:
             return true;
+        case FOLLOW_MOTION_TYPE:
+            return followerOk;
         default:
             return false;
     }
@@ -2578,14 +2595,18 @@ bool HasUnsafeChatterFacingMotion(Unit* unit)
         != NULL_MOTION_TYPE)
         return true;
 
+    // Only a follower that is not travelling right now.
+    bool followerOk = unit->IsPlayer()
+        && !unit->HasUnitState(UNIT_STATE_FOLLOW_MOVE)
+        && !unit->isMoving();
     if (!IsSafeChatterFacingMotionType(
-            motion->GetCurrentMovementGeneratorType()))
+            motion->GetCurrentMovementGeneratorType(), followerOk))
         return true;
 
     MovementGeneratorType activeType =
         motion->GetMotionSlotType(MOTION_SLOT_ACTIVE);
     if (activeType != NULL_MOTION_TYPE
-        && !IsSafeChatterFacingMotionType(activeType))
+        && !IsSafeChatterFacingMotionType(activeType, followerOk))
         return true;
 
     if (Creature* creature = unit->ToCreature())
@@ -2614,6 +2635,23 @@ bool IsSafeForChatterFacing(Unit* unit)
     return unit && unit->IsAlive()
         && unit->IsStopped()
         && !HasUnsafeChatterFacingMotion(unit);
+}
+
+bool FaceTargetIfSafe(Player* bot, ObjectGuid target, float* facing)
+{
+    if (!bot || !bot->IsInWorld() || bot->IsInCombat()
+        || !IsSafeForChatterFacing(bot) || target.IsEmpty())
+        return false;
+    WorldObject* object = ObjectAccessor::GetWorldObject(*bot, target);
+    if (!object || !object->IsInWorld() || object == bot
+        || object->GetMapId() != bot->GetMapId()
+        || object->GetInstanceId() != bot->GetInstanceId()
+        || !bot->InSamePhase(object))
+        return false;
+    if (facing)
+        *facing = bot->GetAngle(object);
+    bot->SetFacingToObject(object);
+    return true;
 }
 
 std::string BuildBotTravelStateJson(Player* player)

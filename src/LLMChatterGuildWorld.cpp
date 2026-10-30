@@ -169,7 +169,7 @@ std::string PlayerJson(Player* player, char const* prefix)
         JsonEscape(player->GetName()),
         GetRaceName(player->getRace()),
         GetChatterClassName(player->getClass()),
-        player->getGender() == GENDER_FEMALE ? "female" : "male",
+        GetTrueGender(player) == GENDER_FEMALE ? "female" : "male",
         player->GetLevel(),
         IsPlayerBot(player) ? "true" : "false",
         TeamName(player->GetTeamId()));

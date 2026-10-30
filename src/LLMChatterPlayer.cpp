@@ -707,7 +707,7 @@ void ProcessPendingRejoins()
                     ","
                 "\"bot_gender\":" +
                     std::to_string(
-                        member->getGender()) +
+                        GetTrueGender(member)) +
                     ","
                 "\"bot_level\":" +
                     std::to_string(
@@ -1161,7 +1161,7 @@ public:
             "\"player_name\":\"" +
                 JsonEscape(playerName) + "\","
             "\"player_gender\":" +
-                std::to_string(player->getGender()) + ","
+                std::to_string(GetTrueGender(player)) + ","
             "\"player_message\":\"" +
                 JsonEscape(safeMsg) + "\","
             "\"zone_id\":" +
@@ -1246,7 +1246,7 @@ public:
                 GetRaceName(killed->getRace()) +
                 "\",\"victim_gender\":\"" +
                 std::string(
-                    killed->getGender() == GENDER_FEMALE
+                    GetTrueGender(killed) == GENDER_FEMALE
                     ? "female" : "male") +
                 "\",\"victim_level\":" +
                 std::to_string(killed->GetLevel()) +
@@ -1430,7 +1430,7 @@ public:
                     bot->getRace()) + ","
             "\"bot_gender\":" +
                 std::to_string(
-                    bot->getGender()) + ","
+                    GetTrueGender(bot)) + ","
             "\"bot_level\":" +
                 std::to_string(
                     bot->GetLevel()) + ","

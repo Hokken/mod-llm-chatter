@@ -351,7 +351,7 @@ public:
                         reactor->getRace()) + ","
                 "\"bot_gender\":" +
                     std::to_string(
-                        reactor->getGender()) + ","
+                        GetTrueGender(reactor)) + ","
                 "\"bot_level\":" +
                     std::to_string(
                         reactor->GetLevel()) + ","
@@ -497,7 +497,7 @@ public:
             batch.reactorName = rName;
             batch.reactorClass = rClass;
             batch.reactorRace = rRace;
-            batch.reactorGender = reactor->getGender();
+            batch.reactorGender = GetTrueGender(reactor);
             batch.reactorLevel = rLevel;
             batch.acceptorName = playerName;
             batch.zoneId = pZoneId;

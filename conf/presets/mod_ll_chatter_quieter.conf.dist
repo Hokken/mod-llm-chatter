@@ -2027,6 +2027,16 @@ LLMChatter.GroupChatter.OOMThreshold = 20
 LLMChatter.GroupChatter.EmoteReactDelay = 2
 
 #
+#   LLMChatter.GroupChatter.FacingPartyChance
+#       Percent chance (0-100) that a speaking bot turns toward its target
+#       when that target is you or another party member. People often talk
+#       to companions without turning to face them. NPCs, objects and other
+#       targets are always faced. 100 = always turn, 0 = never.
+#       Default: 50
+#
+LLMChatter.GroupChatter.FacingPartyChance = 50
+
+#
 #   LLMChatter.GroupChatter.NearbyObjectEnable
 #       Enable ambient comments about nearby objects/creatures
 #       Default: 1
@@ -4919,3 +4929,427 @@ LLMChatter.Screenshot.Proximity.RequestTimeoutSeconds = 5
 #       Default: 60
 #
 LLMChatter.Screenshot.Proximity.MaxAgeSeconds = 60
+
+###############################################
+# Voice (TTS) Feature (Experimental PoC)
+# Requires tts_agent.py running on the host
+# See README.md > Voice (PoC) for setup
+#
+# The worldserver records each line the bound
+# player actually received; the host voice agent
+# speaks it with distance volume and stereo pan.
+# Keys marked [SERVER] take effect after a
+# worldserver restart or .reload config. Keys
+# marked [AGENT] are read only by tts_agent.py:
+# restart the agent after changing them. The
+# chatter bridge reads none of these keys.
+###############################################
+
+#
+#   LLMChatter.Voice.Enable
+#       Master switch. The worldserver records nothing while 0 (zero
+#       cost), and the agent refuses to start.
+#       Requires the 20261029_voice_mailbox characters migration.
+#       Default: 0
+#       [SERVER] [AGENT]
+#
+LLMChatter.Voice.Enable = 0
+
+#
+#   LLMChatter.Voice.BoundAccountId
+#       Account id of the real player who hears the voices (the one
+#       running the agent). 0 records nothing.
+#       Default: 0
+#       [SERVER] [AGENT]
+#
+LLMChatter.Voice.BoundAccountId = 0
+
+#
+#   LLMChatter.Voice.MaxLagSeconds
+#       How long after a line is sent its audio may still start,
+#       including time spent waiting for its turn; later clips are
+#       dropped, never played late. Clamped to 1-30.
+#       Default: 8
+#       [SERVER]
+#
+LLMChatter.Voice.MaxLagSeconds = 8
+
+#
+#   LLMChatter.Voice.Channels
+#       Comma-separated channels to voice: say, yell, msay (NPC say),
+#       party. General, guild, raid and battleground are never voiced.
+#       Default: say,yell,msay,party
+#       [SERVER]
+#
+LLMChatter.Voice.Channels = say,yell,msay,party
+
+#
+#   LLMChatter.Voice.SayRadius
+#   LLMChatter.Voice.YellRadius
+#   LLMChatter.Voice.PartyRadius
+#       Maximum listener distance (yards) for a voiced line. Say/msay
+#       and yell are further capped by the core ListenRange.Say and
+#       ListenRange.Yell. The agent also uses them as the falloff range.
+#       Clamped to 1-300, 1-1000 and 1-1000.
+#       Default: 40, 300, 100
+#       [SERVER] [AGENT]
+#
+LLMChatter.Voice.SayRadius = 40
+LLMChatter.Voice.YellRadius = 300
+LLMChatter.Voice.PartyRadius = 100
+
+#
+#   LLMChatter.Voice.DBHost
+#       MySQL host for the agent, which runs on the host machine (not in
+#       Docker). If unset, falls back to LLMChatter.Screenshot.DBHost,
+#       then LLMChatter.Database.Host (usually a Docker-internal name).
+#       Port, user, password and database come from LLMChatter.Database.*.
+#       Default: 127.0.0.1
+#       [AGENT]
+#
+LLMChatter.Voice.DBHost = 127.0.0.1
+
+#
+#   LLMChatter.Voice.Provider
+#       TTS provider. Only elevenlabs is supported in this PoC.
+#       Default: elevenlabs
+#       [AGENT]
+#
+LLMChatter.Voice.Provider = elevenlabs
+
+#
+#   LLMChatter.Voice.ElevenLabs.ApiKey
+#       Your ElevenLabs API key. Put it only in your active
+#       mod_llm_chatter.conf, never in a shared or committed file.
+#       Default: (empty)
+#       [AGENT]
+#
+LLMChatter.Voice.ElevenLabs.ApiKey =
+
+#
+#   LLMChatter.Voice.ElevenLabs.Model
+#       ElevenLabs model id. Flash is the low-latency, lower-cost model.
+#       Default: eleven_flash_v2_5
+#       [AGENT]
+#
+LLMChatter.Voice.ElevenLabs.Model = eleven_flash_v2_5
+
+#
+#   LLMChatter.Voice.ElevenLabs.OutputFormat
+#       Raw PCM format requested from ElevenLabs (no decoding needed).
+#       Accepted: pcm_16000, pcm_22050, pcm_24000. 44.1 kHz PCM needs
+#       the Pro plan and is not offered.
+#       Default: pcm_22050
+#       [AGENT]
+#
+LLMChatter.Voice.ElevenLabs.OutputFormat = pcm_22050
+
+#
+#   LLMChatter.Voice.VoiceMapFile
+#       Race/gender voice map. Relative paths are resolved from the
+#       module's tools/ directory. Point this at your own copy so module
+#       updates never overwrite your voice ids.
+#       Default: voice_map.json
+#       [AGENT]
+#
+LLMChatter.Voice.VoiceMapFile = voice_map.json
+
+#
+#   LLMChatter.Voice.MasterVolume
+#       Overall voice volume, 0-100.
+#       Default: 80
+#       [AGENT]
+#
+LLMChatter.Voice.MasterVolume = 80
+
+#
+#   LLMChatter.Voice.Falloff
+#   LLMChatter.Voice.RefDistance
+#   LLMChatter.Voice.Rolloff
+#   LLMChatter.Voice.MinGain
+#       Distance volume. inverse: full volume within RefDistance yards,
+#       then RefDistance / (RefDistance + Rolloff * extra distance).
+#       linear: fades to the channel radius. Volume never drops below
+#       MinGain (0-1), so distant party members stay faintly audible.
+#       RefDistance 0.1-100, Rolloff 0-10. Falloff and MinGain apply to
+#       party voices; say, yell and NPC say use the Proximity keys below.
+#       RefDistance and Rolloff shape whichever curve is inverse.
+#       Default: inverse, 5, 1.0, 0.15
+#       [AGENT]
+#
+LLMChatter.Voice.Falloff = inverse
+LLMChatter.Voice.RefDistance = 5
+LLMChatter.Voice.Rolloff = 1.0
+LLMChatter.Voice.MinGain = 0.15
+
+#
+#   LLMChatter.Voice.Proximity.Falloff
+#   LLMChatter.Voice.Proximity.MinGain
+#       Volume curve for say, yell and NPC say (inverse or linear, see
+#       Falloff above) and its floor (0-1). The default fades these
+#       voices to silence at the channel radius, so you never hear a
+#       speaker too far away to place. Party voices are not affected.
+#       Default: linear, 0
+#       [AGENT]
+#
+LLMChatter.Voice.Proximity.Falloff = linear
+LLMChatter.Voice.Proximity.MinGain = 0
+
+#
+#   LLMChatter.Voice.Pan.Enable
+#   LLMChatter.Voice.Pan.Width
+#       Stereo position from the speaker's bearing relative to your
+#       character's facing (not the camera). Width 0 = centred,
+#       1 = hard left/right.
+#       Default: 1, 0.8
+#       [AGENT]
+#
+LLMChatter.Voice.Pan.Enable = 1
+LLMChatter.Voice.Pan.Width = 0.8
+
+#
+#   LLMChatter.Voice.Pan.Source
+#       character: left/right follow your character's facing.
+#       camera: left/right follow the game camera, read read-only from
+#       your own WoW client (Windows, 3.3.5a build 12340). It is used only
+#       while that client shows your bound character on the server's
+#       current map; otherwise character panning is used. Volume always
+#       follows the distance to your character. Check your client first
+#       with tts_agent.py --camera-probe (see README).
+#       Default: character
+#       [AGENT]
+#
+LLMChatter.Voice.Pan.Source = character
+
+#
+#   LLMChatter.Voice.Camera.ProcessName
+#   LLMChatter.Voice.Camera.ProcessId
+#       The game client process. ProcessId 0 = find it by name; set it when
+#       several clients run and you want a specific one. Either way the
+#       client must show your bound character on the current map.
+#       Default: Wow.exe, 0
+#       [AGENT]
+#
+LLMChatter.Voice.Camera.ProcessName = Wow.exe
+LLMChatter.Voice.Camera.ProcessId = 0
+
+#
+#   LLMChatter.Voice.Camera.PollMs
+#   LLMChatter.Voice.Camera.MaxAgeMs
+#   LLMChatter.Voice.Camera.FailTicks
+#       How often the camera is read while a voice plays (20-500 ms; never
+#       while idle), how old a reading may be and still be used (50-2000
+#       ms), and how many failed reads in a row (1-100) count as
+#       "camera unavailable" (logged once).
+#       Default: 50, 200, 5
+#       [AGENT]
+#
+LLMChatter.Voice.Camera.PollMs = 50
+LLMChatter.Voice.Camera.MaxAgeMs = 200
+LLMChatter.Voice.Camera.FailTicks = 5
+
+#
+#   LLMChatter.Voice.Camera.MaxJumpYards
+#   LLMChatter.Voice.Camera.RebaselineTicks
+#   LLMChatter.Voice.Camera.RescanSeconds
+#       A camera reading further than MaxJumpYards (5-500) from the last
+#       one is ignored until RebaselineTicks (1-20) consistent readings
+#       confirm it (a teleport). Without a matching client, look for one
+#       at most every RescanSeconds (1-60).
+#       Default: 50, 3, 5
+#       [AGENT]
+#
+LLMChatter.Voice.Camera.MaxJumpYards = 50
+LLMChatter.Voice.Camera.RebaselineTicks = 3
+LLMChatter.Voice.Camera.RescanSeconds = 5
+
+#
+#   LLMChatter.Voice.Camera.YawOffsetDeg
+#   LLMChatter.Voice.Camera.WorldFrame
+#   LLMChatter.Voice.Camera.ActiveOffset
+#   LLMChatter.Voice.Camera.Type
+#   LLMChatter.Voice.Camera.PlayerGuid
+#   LLMChatter.Voice.Camera.MapId
+#   LLMChatter.Voice.Camera.WorldLoaded
+#       Advanced: client memory addresses for build 12340 (verified with
+#       --camera-probe) and a yaw correction (-180 to 180). Change only
+#       for a different client build.
+#       Default: 0, 0xB7436C, 0x7E20, 0xA1EA54, 0xCA1238, 0xADFBC4,
+#                0xBEBA40
+#       [AGENT]
+#
+LLMChatter.Voice.Camera.YawOffsetDeg = 0
+LLMChatter.Voice.Camera.WorldFrame = 0xB7436C
+LLMChatter.Voice.Camera.ActiveOffset = 0x7E20
+LLMChatter.Voice.Camera.Type = 0xA1EA54
+LLMChatter.Voice.Camera.PlayerGuid = 0xCA1238
+LLMChatter.Voice.Camera.MapId = 0xADFBC4
+LLMChatter.Voice.Camera.WorldLoaded = 0xBEBA40
+
+#
+#   LLMChatter.Voice.MaxConcurrent
+#       Clips that may play at once (1-4) when TurnTaking is 0. A new
+#       clip from a speaker who is already talking, or beyond this
+#       limit, is dropped. The server also uses it to cap how many
+#       playing clips it follows (live position, talk emote).
+#       Default: 2
+#       [SERVER] [AGENT]
+#
+LLMChatter.Voice.MaxConcurrent = 2
+
+#
+#   LLMChatter.Voice.TurnTaking
+#   LLMChatter.Voice.MaxWaiting
+#       1 = voices take turns: a line that would overlap waits for the
+#       current one to finish, then plays (as long as it is still within
+#       MaxLagSeconds). At most MaxWaiting lines (0-4) wait; any further
+#       line is dropped. 0 = up to MaxConcurrent voices at once.
+#       Default: 1, 2
+#       [AGENT]
+#
+LLMChatter.Voice.TurnTaking = 1
+LLMChatter.Voice.MaxWaiting = 2
+
+#
+#   LLMChatter.Voice.Live.Enable
+#       1 = while a line plays, its volume and left/right placement
+#       follow the speaker's and your movement and facing. 0 = both stay
+#       as they were when the line was sent (no live updates, no cost).
+#       Default: 1
+#       [SERVER] [AGENT]
+#
+LLMChatter.Voice.Live.Enable = 1
+
+#
+#   LLMChatter.Voice.Live.IntervalMs
+#   LLMChatter.Voice.Live.MinDistanceChange
+#   LLMChatter.Voice.Live.MinAngleChangeDeg
+#       How often the server checks the position of speakers whose line
+#       is playing (100-2000 ms), and the smallest move in yards (0-5)
+#       or turn in degrees (0-30) worth publishing. The server does no
+#       work while nobody is speaking.
+#       Default: 150, 0.25, 1
+#       [SERVER]
+#
+LLMChatter.Voice.Live.IntervalMs = 150
+LLMChatter.Voice.Live.MinDistanceChange = 0.25
+LLMChatter.Voice.Live.MinAngleChangeDeg = 1
+
+#
+#   LLMChatter.Voice.Live.FreshSeconds
+#   LLMChatter.Voice.Live.RampMs
+#       Position updates older than FreshSeconds (1-10) are ignored.
+#       RampMs (0-1000) is the smoothing time: volume and placement ease
+#       toward each new position over about this long, so successive
+#       updates blend into one continuous glide. Lower reacts faster,
+#       higher is smoother; 0 jumps at once.
+#       Default: 2, 200
+#       [AGENT]
+#
+LLMChatter.Voice.Live.FreshSeconds = 2
+LLMChatter.Voice.Live.RampMs = 200
+
+#
+#   LLMChatter.Voice.Audio.StallMs
+#   LLMChatter.Voice.Audio.ReopenSeconds
+#       If the sound output stops asking for audio for StallMs (200-10000)
+#       while a voice is playing (for example after a device or game
+#       restart), the helper reopens it on the current default device,
+#       drops the stuck line and logs a warning. A failed reopen is retried
+#       every ReopenSeconds (1-60).
+#       Default: 1000, 5
+#       [AGENT]
+#
+LLMChatter.Voice.Audio.StallMs = 1000
+LLMChatter.Voice.Audio.ReopenSeconds = 5
+
+#
+#   LLMChatter.Voice.TalkEmote.Enable
+#   LLMChatter.Voice.TalkEmote.RepeatMs
+#       1 = a bot or NPC plays the talk animation while its voice is
+#       actually playing, repeated every RepeatMs (1000-10000). Skipped
+#       while the speaker is dead, in combat or casting.
+#       Default: 1, 2000
+#       [SERVER]
+#
+LLMChatter.Voice.TalkEmote.Enable = 1
+LLMChatter.Voice.TalkEmote.RepeatMs = 2000
+
+#
+#   LLMChatter.Voice.TurnAway.Enable
+#   LLMChatter.Voice.TurnAway.Chance
+#   LLMChatter.Voice.TurnAway.MinDeg
+#   LLMChatter.Voice.TurnAway.MaxDeg
+#       1 = a bot that turned toward someone to speak looks away once
+#       its voiced line has finished playing, as people often do. With
+#       Chance percent (0-100) it turns MinDeg to MaxDeg degrees (0-180)
+#       to a random side. Only when the bot stands idle (not moving,
+#       following, fighting or casting) and still faces where it turned
+#       to speak. NPCs already return to their own facing.
+#       Default: 1, 70, 40, 120
+#       [SERVER]
+#
+LLMChatter.Voice.TurnAway.Enable = 1
+LLMChatter.Voice.TurnAway.Chance = 70
+LLMChatter.Voice.TurnAway.MinDeg = 40
+LLMChatter.Voice.TurnAway.MaxDeg = 120
+
+#
+#   LLMChatter.Voice.TurnAway.ToleranceDeg
+#   LLMChatter.Voice.TurnAway.MaxWaitSeconds
+#   LLMChatter.Voice.TurnAway.MaxNotes
+#       A bot that turned more than ToleranceDeg (0-45) since it spoke is
+#       left alone. A pending turn is forgotten after MaxLagSeconds plus
+#       MaxWaitSeconds (5-120), and at most MaxNotes (1-32) bots wait to
+#       turn at once.
+#       Default: 3, 30, 8
+#       [SERVER]
+#
+LLMChatter.Voice.TurnAway.ToleranceDeg = 3
+LLMChatter.Voice.TurnAway.MaxWaitSeconds = 30
+LLMChatter.Voice.TurnAway.MaxNotes = 8
+
+#
+#   LLMChatter.Voice.FaceAtVoice.Enable
+#   LLMChatter.Voice.FaceAtVoice.MaxPending
+#       1 = a bot turns toward who it speaks to when you start hearing
+#       its voice, not when the text appears (voices can wait their turn
+#       for a few seconds). Lines that are not voiced turn at once, as
+#       before. If the voice helper is not running, voiced lines make no
+#       turn; set 0 to always turn when the text appears. At most
+#       MaxPending (1-32) turns wait for their audio at once.
+#       Default: 1, 8
+#       [SERVER]
+#
+LLMChatter.Voice.FaceAtVoice.Enable = 1
+LLMChatter.Voice.FaceAtVoice.MaxPending = 8
+
+#
+#   LLMChatter.Voice.MaxInFlight
+#       Synthesis requests running at once (1-2). Lines beyond it are
+#       dropped, never queued.
+#       Default: 2
+#       [AGENT]
+#
+LLMChatter.Voice.MaxInFlight = 2
+
+#
+#   LLMChatter.Voice.PollIntervalMs
+#   LLMChatter.Voice.IdlePollIntervalMs
+#       How often the agent checks for new lines after activity, and
+#       the slowest rate it backs off to when idle.
+#       Clamped to 50-5000 and 100-10000.
+#       Default: 150, 1000
+#       [AGENT]
+#
+LLMChatter.Voice.PollIntervalMs = 150
+LLMChatter.Voice.IdlePollIntervalMs = 1000
+
+#
+#   LLMChatter.Voice.CacheMB
+#       Memory cap (MB) for reusing audio of identical lines in the
+#       same voice; repeats cost no credits. 0 disables it. Max 1024.
+#       Default: 32
+#       [AGENT]
+#
+LLMChatter.Voice.CacheMB = 32

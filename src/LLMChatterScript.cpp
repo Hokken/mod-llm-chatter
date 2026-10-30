@@ -13,6 +13,7 @@
 #include "LLMChatterRaid.h"
 #include "LLMChatterReplyHold.h"
 #include "LLMChatterShared.h"
+#include "LLMChatterVoice.h"
 
 void AddLLMChatterCommandScripts();
 
@@ -32,4 +33,5 @@ void AddLLMChatterScripts()
     AddLLMChatterProximityFightScripts();
     AddLLMChatterCommandScripts();
     AddLLMChatterReplyHoldScripts();
+    AddLLMChatterVoiceScripts();
 }

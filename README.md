@@ -640,6 +640,94 @@ Make sure WoW is in the foreground (the agent only captures when WoW is the acti
 
 ---
 
+## Voice (PoC)
+
+> This feature is an **experimental proof of concept** and **optional**. Everything else works without it, and it is off by default.
+
+Voice lets you *hear* your bots. When a bot (or a nearby NPC) says something you actually receive in game, a small helper program on your PC speaks it with an ElevenLabs voice matched to the speaker's race and gender. It is quieter the further away they stand, and placed left or right of you. Text chat is never delayed or changed by it.
+
+Only the player whose account is bound to the feature hears voices, on the PC running the helper. Voiced channels are say, yell, NPC say and party. General, guild, raid and battleground stay silent.
+
+### What you need
+
+- **Windows** (the helper runs on the same machine as your WoW client)
+- **Python 3.10+** installed on your machine (not inside Docker)
+- **An ElevenLabs account and API key.** The Starter plan's 30,000 monthly credits cover only a few hours of voiced play. When the credits run out, voicing stops cleanly for that session and text chat carries on. A line repeated in the same voice reuses its cached audio at no cost while it is still in the cache (`CacheMB`; the cache is cleared when the helper restarts).
+- MySQL reachable from Windows (the same requirement as Screenshot Vision)
+
+### Step-by-step setup
+
+Steps 1 and 4 change your server (database and build); do them when you are ready to update it.
+
+**1. Run the database migration**
+
+```bash
+# Docker
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20261029_voice_mailbox.sql
+```
+
+**2. Install the helper's Python packages** (on Windows, not in Docker)
+
+```
+python -m pip install -r modules/mod-llm-chatter/tools/requirements.txt
+python -m pip install -r modules/mod-llm-chatter/tools/requirements-voice.txt
+```
+
+**3. Add the voice settings to your config**
+
+Copy the `Voice (TTS) Feature` section from `mod_llm_chatter.conf.dist` into your active `mod_llm_chatter.conf` and set at least:
+
+```ini
+LLMChatter.Voice.Enable = 1
+# Your own account id (the account you play on)
+LLMChatter.Voice.BoundAccountId = 1
+# Windows can't resolve the Docker hostname; use the exposed MySQL port
+LLMChatter.Voice.DBHost = 127.0.0.1
+# Only ever in your active config, never in a shared or committed file
+LLMChatter.Voice.ElevenLabs.ApiKey = your-key-here
+```
+
+**4. Rebuild and restart the worldserver**
+
+The server side of this feature is C++, so it needs a worldserver build that includes it. After that, changes to the `[SERVER]` voice keys only need `.reload config`. The chatter bridge does not use these keys.
+
+**5. Choose your voices** (required; the helper will not start without it)
+
+The shipped `tools/voice_map.json` has empty voice ids on purpose. Copy it somewhere you own, point `LLMChatter.Voice.VoiceMapFile` at the copy (an absolute path, or a path relative to `tools/`), then list the voices your account can use. This is free and uses no credits:
+
+```
+python modules/mod-llm-chatter/tools/tts_agent.py --config env/dist/etc/modules/mod_llm_chatter.conf --list-voices
+```
+
+Fill each `voice_id` in your copy. Each `hint` describes the kind of voice that suits the slot. Five voice types (human, elven, dwarf, gnome, brute) × male/female cover every playable race, so ten saved voices fit the Starter plan's slots. `defaults.male` must be set. Any slot left empty, or holding an id your account doesn't have, falls back to the default for that gender.
+
+**6. Start the helper**
+
+```
+python modules/mod-llm-chatter/tools/tts_agent.py --config env/dist/etc/modules/mod_llm_chatter.conf
+```
+
+At startup it checks every voice id against your account (`OK`, `EMPTY` or `UNSUPPORTED`) and logs your remaining credits. Keep the window open while you play. It runs below normal priority to reduce competition with the game.
+
+### What to expect
+
+- Voices start shortly after the line appears in chat. Each voiced line logs one timing line, e.g. `Voice row 42 played: claim=180 synth=190-420 play=440 ms after creation`, so you can see the delay on your machine.
+- Voices take turns: when a reply arrives while someone is still speaking, it waits and plays right after (`TurnTaking`, at most `MaxWaiting` lines wait). A line that would start more than `MaxLagSeconds` (default 8) after it was sent is skipped rather than played out of step. Skipped lines log their reason, e.g. `expired (turn queue full)`.
+- While a line plays, its volume and left/right placement follow the speaker's movement and yours, gliding rather than jumping (`Live.*` keys).
+- The speaking bot or NPC plays its talk animation while you hear it, not when the text appears (`TalkEmote.*` keys). It is skipped while the speaker is dead, in combat or casting.
+- A bot that turned to face someone while speaking often looks away once its voice has finished, as people do (`TurnAway.*` keys). It only does so while standing idle.
+- Stopping the helper (Ctrl+C) just stops the voices; the server keeps working normally.
+
+### Limitations of the PoC
+
+- Left/right placement follows your **character's** facing by default. Optional camera mode (`LLMChatter.Voice.Pan.Source = camera`, Windows, client 3.3.5a build 12340) follows the game camera instead: the helper reads the camera from your own client, read only, and only while that client shows your character on the current map. Check your client first with `python modules/mod-llm-chatter/tools/tts_agent.py --config <conf> --camera-probe` while logged in (rotate the camera; the yaw should change and your character and map should match the server). Volume always follows the distance to your character.
+- Summoned NPCs (no spawn id) keep the volume and placement they had when they spoke, and get no talk animation.
+- ElevenLabs is the only provider for now.
+- If another server module also filters say/yell chat after this one, bot say/yell lines are left unvoiced (a warning is logged) rather than risk speaking text you never saw.
+
+---
+
 ## Upgrading
 
 > **First-time installing the module? Skip this section.**
@@ -764,6 +852,9 @@ docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
 docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20261022_loot_roll_comments.sql
 
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20261029_voice_mailbox.sql
+
 # Non-Docker
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260320_bot_memory_system.sql
@@ -845,6 +936,9 @@ mysql -uroot -ppassword acore_characters < \
 
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20261022_loot_roll_comments.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20261029_voice_mailbox.sql
 ```
 
 Migrations are idempotent — safe to run on an already

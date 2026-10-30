@@ -53,7 +53,7 @@ void QueueBotGreetingEvent(
     // Get bot info
     uint8 botClass = bot->getClass();
     uint8 botRace = bot->getRace();
-    uint8 botGender = bot->getGender();
+    uint8 botGender = GetTrueGender(bot);
     uint8 botLevel = bot->GetLevel();
 
     // Find real player name and area
@@ -277,7 +277,7 @@ void EnsureGroupJoinQueued(
             entry.botName = bot->GetName();
             entry.botClass = bot->getClass();
             entry.botRace = bot->getRace();
-            entry.botGender = bot->getGender();
+            entry.botGender = GetTrueGender(bot);
             entry.botLevel = bot->GetLevel();
             entry.role = "dps";
             PlayerbotAI* ai =
@@ -353,7 +353,7 @@ void EnsureGroupJoinQueued(
         entry.botName = member->GetName();
         entry.botClass = member->getClass();
         entry.botRace = member->getRace();
-        entry.botGender = member->getGender();
+        entry.botGender = GetTrueGender(member);
         entry.botLevel = member->GetLevel();
 
         entry.role = "dps";

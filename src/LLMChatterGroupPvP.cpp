@@ -294,7 +294,7 @@ std::string BuildPvPEnemyFields(
         + ",\"enemy_class\":"
         + std::to_string(enemy->getClass())
         + ",\"enemy_gender\":"
-        + std::to_string(enemy->getGender())
+        + std::to_string(GetTrueGender(enemy))
         + ",\"enemy_level\":"
         + std::to_string(enemyLevel)
         + ",\"enemy_faction\":\""

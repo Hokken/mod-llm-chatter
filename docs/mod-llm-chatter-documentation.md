@@ -34,6 +34,9 @@ High-level behavior:
   (plus one per zone) injected into prompts
 - screenshot vision: host-side agent captures the game window, sends
   to a vision LLM, and bots react to what the player sees on screen
+- voice (TTS, PoC): a host-side agent speaks the say, yell, NPC say
+  and party lines the bound player received, with a race/gender
+  voice, distance volume and stereo pan (section 13zb)
 - proximity chatter: ambient `/say` conversations between bots, NPCs,
   and the player as they move through the world, with NPC speech bubbles
   and natural player reply detection
@@ -72,6 +75,15 @@ The screenshot agent runs on the host machine (outside Docker):
 - captures the WoW game window at configurable intervals
 - sends screenshots to a vision LLM for structured analysis
 - inserts `bot_group_screenshot_observation` events directly into MySQL
+
+### Host-side voice agent (optional)
+
+The voice agent (`tools/tts_agent.py`) also runs on the host machine:
+
+- polls `llm_chatter_voice`, which the worldserver fills only with
+  lines the bound player actually received
+- synthesizes them through ElevenLabs and plays them locally with
+  distance volume and stereo pan; the bridge is not involved
 
 ### Python side
 
@@ -571,6 +583,9 @@ The remaining units, with their full ownership in the C++ module map of
 - `LLMChatterReplyHold.cpp/.h` - keeps a standing bot in place while its
   reply to a player is pending
 - `LLMChatterScreenshot.cpp/.h` - screenshot mailbox polling (section 13p)
+- `LLMChatterVoice.cpp/.h`, `LLMChatterVoiceCapture.h` - voice (TTS)
+  mailbox records, listener presence and the say/yell broadcast capture
+  (section 13zb)
 - `LLMChatterGuild.cpp/.h` - player-driven Guild chat sessions and login
   greetings (sections 13s and 13t)
 - `LLMChatterGuildMembers.cpp` - Guild join, rank and MOTD events
@@ -709,6 +724,12 @@ handler map.
 - `tools/screenshot_proximity.py`
 - `tools/chatter_screenshot_handler.py`
 - `tools/chatter_screenshot_context.py`
+
+### Voice (TTS)
+
+- `tools/tts_agent.py`
+- `tools/tts_engines.py`
+- `tools/voice_map.json`
 
 ### Development tools
 
@@ -3373,10 +3394,24 @@ Three local delivery channels are handled by
 | `myell` | monster yell | Extended-range boss line |
 
 Ordinary-scene facing is best effort. A bot with idle or random movement,
-or an NPC whose spawn never moves, may rotate via `SetFacingToObject()`.
-NPCs that wander or patrol, and any scripted or controlled movement, speak
-or emote without rotation: turning them replaces their own movement and
-the core may not resume it. Directed rows can identify the real
+a playerbot that follows its master but is standing still at that moment
+(follow movement, not travelling), or an NPC whose spawn never moves, may
+rotate via `SetFacingToObject()`. A follower that is walking or running is
+never turned; its follow movement re-faces it once it moves again. NPCs
+that wander or patrol, and any scripted or controlled movement, speak or
+emote without rotation: turning them replaces their own movement and the
+core may not resume it. When a speaking bot's facing target is the real
+player or a member of its own group, it turns only with
+`GroupChatter.FacingPartyChance` (default 50; 100 always turns, 0 never),
+rolled once per line. A roll against turning is final for that line: the
+bot keeps its current facing and does not turn toward another target
+instead. NPCs, objects and other targets are always faced when safe.
+With voice on (`Voice.FaceAtVoice.Enable`), a bot line that may be voiced
+decides its facing at send but turns when its audio starts: the decided
+target waits per message and is applied once the line is playing (after
+revalidating bot, target, map, instance, phase and session), or dropped if
+it never plays. Lines that end up unvoiced turn right after the send.
+Directed rows can identify the real
 player, bot, or NPC addressee explicitly, so NPC asides face the other NPC
 while player-inclusive lines face the player when appropriate. One facing
 lease is kept through the final queued line before the original orientation
@@ -4984,6 +5019,121 @@ or themed subject that took the turn keeps it.
 | `LocationTopics.Chance` (callers without a conversation thread) | 40 | 40 | Bridge |
 | `Threads.LocationTopicWeight` | 40 | 40 | Bridge |
 
+## 13zb. Voice (TTS) PoC
+
+Optional, off by default (`LLMChatter.Voice.Enable = 0`). Lines the bound
+real player receives in game are spoken on that player's PC by
+`tools/tts_agent.py`. Text chat is never delayed, reordered or changed.
+
+### What is voiced
+
+- channels: `say`, `yell` (bots), `msay` (NPCs) and `party`, filtered by
+  `LLMChatter.Voice.Channels`; General, guild, raid and battleground are
+  never voiced
+- only mod-llm-chatter lines: queued delivery plus the instant cached
+  combat reactions; playerbots' own chat is not voiced
+- only for the account in `LLMChatter.Voice.BoundAccountId`, and only when
+  that player actually received the line (see the audience predicate in
+  the architecture guide's voice data flow)
+- bot say/yell are voiced with the text as broadcast after the chat hooks
+  and filter; if another `OnPlayerCanUseChat` script runs after the voice
+  capture, bot say/yell are not voiced and a warning is logged
+
+### Server contract
+
+- one `llm_chatter_voice` row per voiced line per listener, written by an
+  async insert after the send; `expires_at` is fixed at the send from
+  `MaxLagSeconds`
+- `llm_chatter_voice_listener` carries a monotonic generation per bound
+  account, republished on config load, login, logout and map change
+- disabled costs one check per line; no synchronous query; rows older
+  than 10 minutes are pruned every 256 inserts and on config load
+- live follow: while a line may still start (`MaxLagSeconds` after the
+  last one) or a playback lease is running, the world update reads the
+  leases asynchronously every `Live.IntervalMs`; for each speaker being
+  heard it publishes distance and relative angle to
+  `llm_chatter_voice_live` when they changed enough, and plays the talk
+  animation every `TalkEmote.RepeatMs` (not while dead, in combat or
+  casting). Otherwise the world update returns at once
+
+### Agent contract
+
+- plays a row only when its generation and listener match the presence
+  row (listener non-zero), it is unexpired and still claimed by this
+  agent; lower generations are expired, higher ones wait
+- claims by compare-and-set; at most two synthesis requests
+  (`MaxInFlight`, capped at 2); lines beyond that are dropped
+- turn-taking (`TurnTaking`, default on): a synthesized clip waits in
+  arrival order for the current voice to finish, at most `MaxWaiting`
+  clips and only until its deadline; without it a speaker already
+  talking, or more than `MaxConcurrent` clips, is dropped
+- revalidates right before the actual start (after any wait) and drops
+  late results; at the start it takes a playback lease (`state =
+  'playing'`, `play_until`), expired at once if the mixer refuses
+- while clips play, applies live rows whose generation and listener
+  match both the clip and current presence, easing gains toward
+  them with a `Live.RampMs` smoothing time; skipped lines log their reason
+- when a started clip finishes, moves its row `playing -> played` (proof
+  of completion); abandoned leases are expired by the prune, never played
+- turn away: a bot that queued delivery turned toward a target looks away
+  by a random angle once its voiced line completed (`TurnAway.*`), only
+  when idle and still facing that target; NPCs restore their own facing
+- volume: `inverse` (`RefDistance`, `Rolloff`) or `linear` falloff over the
+  channel radius, scaled by `MasterVolume`. Party voices use `Falloff` and
+  `MinGain` (default inverse, floor 0.15: distant party members stay
+  faintly audible); say, yell and NPC say use `Proximity.Falloff` and
+  `Proximity.MinGain` (default linear, floor 0: silent at the radius, so a
+  voice is never heard from a speaker too far to place). `RefDistance` and
+  `Rolloff` apply to whichever curve is inverse. Pan from the bearing
+  relative to the character's facing (`Pan.Width`)
+- voice: race to archetype (human 1/5/11, elven 4/10, dwarf 3, gnome 7,
+  brute 2/6/8) to gender; empty or unsupported ids fall back to the gender
+  default, then the male default; the agent will not start without a valid
+  male default
+- quota: logged at startup and every 100 clips; exhaustion (an API quota
+  error, or used >= limit) stops new requests for the session
+- one timing log line per row: claim, synthesis and play start in
+  milliseconds after the server recorded the line
+
+### Configuration
+
+| Key | Read by | Default |
+|---|---|---|
+| `Voice.Enable` | server, agent | 0 |
+| `Voice.BoundAccountId` | server, agent | 0 |
+| `Voice.MaxLagSeconds` | server | 8 (1-30) |
+| `Voice.Channels` | server | say,yell,msay,party |
+| `Voice.SayRadius` / `YellRadius` / `PartyRadius` | server, agent | 40 / 300 / 100 |
+| `Voice.DBHost` | agent | 127.0.0.1 |
+| `Voice.Provider` | agent | elevenlabs |
+| `Voice.ElevenLabs.ApiKey` / `Model` / `OutputFormat` | agent | empty / eleven_flash_v2_5 / pcm_22050 |
+| `Voice.VoiceMapFile` | agent | voice_map.json |
+| `Voice.MasterVolume` | agent | 80 |
+| `Voice.Falloff` / `RefDistance` / `Rolloff` / `MinGain` | agent | inverse / 5 / 1.0 / 0.15 (Falloff and MinGain: party) |
+| `Voice.Proximity.Falloff` / `Proximity.MinGain` | agent | linear / 0 (say, yell, NPC say) |
+| `Voice.Pan.Enable` / `Pan.Width` | agent | 1 / 0.8 |
+| `Voice.Audio.StallMs` / `Audio.ReopenSeconds` | agent | 1000 / 5 (stalled output is reopened; stuck clips expired) |
+| `Voice.Pan.Source` | agent | character (`camera`: read-only client camera, identity-matched) |
+| `Voice.Camera.ProcessName` / `ProcessId` / `PollMs` / `MaxAgeMs` / `FailTicks` | agent | Wow.exe / 0 / 50 / 200 / 5 |
+| `Voice.Camera.MaxJumpYards` / `RebaselineTicks` / `RescanSeconds` / `YawOffsetDeg` | agent | 50 / 3 / 5 / 0 |
+| `Voice.Camera.WorldFrame` / `ActiveOffset` / `Type` / `PlayerGuid` / `MapId` / `WorldLoaded` | agent | 0xB7436C / 0x7E20 / 0xA1EA54 / 0xCA1238 / 0xADFBC4 / 0xBEBA40 |
+| `Voice.MaxConcurrent` | server, agent | 2 (1-4) |
+| `Voice.MaxInFlight` | agent | 2 (1-2) |
+| `Voice.TurnTaking` / `MaxWaiting` | agent | 1 / 2 (0-4) |
+| `Voice.Live.Enable` | server, agent | 1 |
+| `Voice.Live.IntervalMs` / `MinDistanceChange` / `MinAngleChangeDeg` | server | 150 / 0.25 / 1 |
+| `Voice.Live.FreshSeconds` / `RampMs` | agent | 2 / 200 |
+| `Voice.TalkEmote.Enable` / `TalkEmote.RepeatMs` | server | 1 / 2000 |
+| `Voice.TurnAway.Enable` / `Chance` / `MinDeg` / `MaxDeg` | server | 1 / 70 / 40 / 120 |
+| `Voice.TurnAway.ToleranceDeg` / `MaxWaitSeconds` / `MaxNotes` | server | 3 / 30 / 8 |
+| `Voice.PollIntervalMs` / `IdlePollIntervalMs` | agent | 150 / 1000 |
+| `Voice.CacheMB` | agent | 32 |
+
+All keys are prefixed `LLMChatter.`. Server keys apply after a worldserver
+restart or `.reload config`; agent keys after restarting the agent.
+
+---
+
 ## 14. JSON and Queue Contracts
 
 ### `QueueChatterEvent()`
@@ -5167,6 +5317,9 @@ its original format-reliability limitations.
 | `llm_bot_identities` | Python + C++ `.llmc` profile edits | Python + C++ | Persistent bot traits, tone and backstory; regenerated on IdentityVersion bump |
 | `llm_screenshot_proximity` | Host screenshot agent + C++ state updates | C++ + agent | Account-bound screenshot mailbox for the NPC route (section 13p) |
 | `llm_chatter_race_names` | C++ (startup) | Python | Every race in `ChrRaces` with its `GetRaceName()` name; the bridge names races outside `RACE_NAMES` from it |
+| `llm_chatter_voice` | C++ (delivery, combat reactions) | Host voice agent | One row per voiced line per listener (section 13zb) |
+| `llm_chatter_voice_listener` | C++ (config load, login, logout, map change) | Host voice agent | Monotonic listener generation per bound account |
+| `llm_chatter_voice_live` | C++ (live follow, while a voice plays) | Host voice agent | Live distance/angle per speaker being heard (section 13zb) |
 
 ---
 

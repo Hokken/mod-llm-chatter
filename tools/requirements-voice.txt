@@ -1,0 +1,4 @@
+# Host-side voice agent (tts_agent.py) only; the bridge does not need these.
+sounddevice>=0.4.6,<1.0.0
+numpy>=1.24
+httpx>=0.27,<1.0

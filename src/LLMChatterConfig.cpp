@@ -5,6 +5,7 @@
 
 #include "LLMChatterConfig.h"
 #include "LLMChatterScreenshot.h"
+#include "LLMChatterVoice.h"
 #include "LLMChatterABScore.h"
 #include "Config.h"
 #include "Log.h"
@@ -353,6 +354,84 @@ void LLMChatterConfig::LoadConfig()
             "LLMChatter.Screenshot.Proximity.MaxAgeSeconds", 60),
         5, 300);
     ResetScreenshotProximity();
+
+    _voiceEnable = GetChatterOption<bool>(
+        "LLMChatter.Voice.Enable", false);
+    _voiceBoundAccountId = GetChatterOption<uint32>(
+        "LLMChatter.Voice.BoundAccountId", 0);
+    _voiceMaxLagSeconds = std::clamp<uint32>(
+        GetChatterOption<uint32>(
+            "LLMChatter.Voice.MaxLagSeconds", 8),
+        1, 30);
+    _voiceMaxConcurrent = std::clamp<uint32>(
+        GetChatterOption<uint32>(
+            "LLMChatter.Voice.MaxConcurrent", 2),
+        1, 4);
+    _voiceChannelMask = ParseVoiceChannels(
+        GetChatterOption<std::string>(
+            "LLMChatter.Voice.Channels", "say,yell,msay,party"));
+    _voiceSayRadius = std::clamp(
+        GetChatterOption<float>("LLMChatter.Voice.SayRadius", 40.0f),
+        1.0f, 300.0f);
+    _voiceYellRadius = std::clamp(
+        GetChatterOption<float>("LLMChatter.Voice.YellRadius", 300.0f),
+        1.0f, 1000.0f);
+    _voicePartyRadius = std::clamp(
+        GetChatterOption<float>("LLMChatter.Voice.PartyRadius", 100.0f),
+        1.0f, 1000.0f);
+    _voiceLiveEnable = GetChatterOption<bool>(
+        "LLMChatter.Voice.Live.Enable", true);
+    _voiceLiveIntervalMs = std::clamp<uint32>(
+        GetChatterOption<uint32>(
+            "LLMChatter.Voice.Live.IntervalMs", 150),
+        100, 2000);
+    _voiceLiveMinDistanceChange = std::clamp(
+        GetChatterOption<float>(
+            "LLMChatter.Voice.Live.MinDistanceChange", 0.25f),
+        0.0f, 5.0f);
+    _voiceLiveMinAngleChangeDeg = std::clamp(
+        GetChatterOption<float>(
+            "LLMChatter.Voice.Live.MinAngleChangeDeg", 1.0f),
+        0.0f, 30.0f);
+    _voiceTalkEmoteEnable = GetChatterOption<bool>(
+        "LLMChatter.Voice.TalkEmote.Enable", true);
+    _voiceTalkEmoteRepeatMs = std::clamp<uint32>(
+        GetChatterOption<uint32>(
+            "LLMChatter.Voice.TalkEmote.RepeatMs", 2000),
+        1000, 10000);
+    _voiceTurnAwayEnable = GetChatterOption<bool>(
+        "LLMChatter.Voice.TurnAway.Enable", true);
+    _voiceTurnAwayChance = std::clamp<uint32>(
+        GetChatterOption<uint32>(
+            "LLMChatter.Voice.TurnAway.Chance", 70),
+        0, 100);
+    _voiceTurnAwayMinDeg = std::clamp(
+        GetChatterOption<float>(
+            "LLMChatter.Voice.TurnAway.MinDeg", 40.0f),
+        0.0f, 180.0f);
+    _voiceTurnAwayMaxDeg = std::clamp(
+        GetChatterOption<float>(
+            "LLMChatter.Voice.TurnAway.MaxDeg", 120.0f),
+        0.0f, 180.0f);
+    _voiceTurnAwayToleranceDeg = std::clamp(
+        GetChatterOption<float>(
+            "LLMChatter.Voice.TurnAway.ToleranceDeg", 3.0f),
+        0.0f, 45.0f);
+    _voiceTurnAwayMaxWaitSeconds = std::clamp<uint32>(
+        GetChatterOption<uint32>(
+            "LLMChatter.Voice.TurnAway.MaxWaitSeconds", 30),
+        5, 120);
+    _voiceTurnAwayMaxNotes = std::clamp<uint32>(
+        GetChatterOption<uint32>(
+            "LLMChatter.Voice.TurnAway.MaxNotes", 8),
+        1, 32);
+    _voiceFaceAtVoiceEnable = GetChatterOption<bool>(
+        "LLMChatter.Voice.FaceAtVoice.Enable", true);
+    _voiceFaceAtVoiceMaxPending = std::clamp<uint32>(
+        GetChatterOption<uint32>(
+            "LLMChatter.Voice.FaceAtVoice.MaxPending", 8),
+        1, 32);
+    ResetVoice();
 
     // General settings
     _triggerIntervalSeconds = GetChatterOption<uint32>("LLMChatter.TriggerIntervalSeconds", 30);
@@ -821,6 +900,11 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<bool>(
             "LLMChatter.GroupChatter."
             "FacingEnable", true);
+    _facingPartyChance = std::clamp<uint32>(
+        GetChatterOption<uint32>(
+            "LLMChatter.GroupChatter."
+            "FacingPartyChance", 50),
+        0, 100);
     _actionAsEmote =
         GetChatterOption<bool>(
             "LLMChatter.ActionAsEmote.Enable", true);

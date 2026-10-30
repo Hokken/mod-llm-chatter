@@ -357,7 +357,7 @@ namespace
             return "";
 
         std::string const gender =
-            static_cast<uint8>(bot->getGender()) == 1
+            static_cast<uint8>(GetTrueGender(bot)) == 1
                 ? "Female" : "Male";
 
         std::ostringstream out;

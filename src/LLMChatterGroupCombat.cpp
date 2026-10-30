@@ -13,6 +13,7 @@
 #include "LLMChatterGroupInternal.h"
 #include "LLMChatterProximity.h"
 #include "LLMChatterShared.h"
+#include "LLMChatterVoice.h"
 
 #include "AchievementMgr.h"
 #include "Battleground.h"
@@ -129,6 +130,8 @@ void QueueStateCallout(
                 SendPartyMessageInstant(
                     bot, group,
                     cachedMsg, cachedEmote);
+                RecordVoiceLine(bot, VOICE_CHANNEL_PARTY,
+                    cachedMsg, 0);
                 RecordPartyChatGateActivity(
                     groupId, "urgent", eventType);
                 RecordCachedChatHistory(
@@ -835,6 +838,8 @@ void HandleGroupPlayerEnterCombatImpl(
             SendPartyMessageInstant(
                 player, group,
                 cachedMsg, cachedEmote);
+            RecordVoiceLine(player, VOICE_CHANNEL_PARTY,
+                cachedMsg, 0);
             RecordPartyChatGateActivity(
                 groupId, "urgent",
                 "bot_group_combat");
@@ -1066,7 +1071,7 @@ void HandleGroupPlayerBeforeSendChatMessageImpl(
         "\"player_name\":\"" +
             JsonEscape(playerName) + "\","
         "\"player_gender\":" +
-            std::to_string(player->getGender()) + ","
+            std::to_string(GetTrueGender(player)) + ","
         "\"player_message\":\"" +
             JsonEscape(safeMsg) + "\","
         "\"group_id\":" +
@@ -1171,7 +1176,7 @@ void HandleGroupPlayerLevelChangedImpl(
                 reactor->getRace()) + ","
         "\"bot_gender\":" +
             std::to_string(
-                reactor->getGender()) + ","
+                GetTrueGender(reactor)) + ","
         "\"bot_level\":" +
             std::to_string(newLevel) + ","
         "\"old_level\":" +
@@ -1939,6 +1944,8 @@ void HandleGroupPlayerSpellCastImpl(
             SendPartyMessageInstant(
                 reactor, group,
                 cachedMsg, cachedEmote);
+            RecordVoiceLine(reactor, VOICE_CHANNEL_PARTY,
+                cachedMsg, 0);
             RecordPartyChatGateActivity(
                 groupId, "urgent",
                 "bot_group_spell_cast");

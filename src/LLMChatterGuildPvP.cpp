@@ -104,7 +104,7 @@ PvpFighter CaptureFighter(Player* player)
     fighter.name = player->GetName();
     fighter.race = GetRaceName(player->getRace());
     fighter.className = GetChatterClassName(player->getClass());
-    fighter.female = player->getGender() == GENDER_FEMALE;
+    fighter.female = GetTrueGender(player) == GENDER_FEMALE;
     fighter.level = player->GetLevel();
     fighter.team = player->GetTeamId();
     fighter.guildId = player->GetGuildId();

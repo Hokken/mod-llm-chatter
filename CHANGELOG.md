@@ -1,5 +1,67 @@
 # Changelog
 
+### 2026-10-29 - Hear Your Bots Speak (Voice PoC)
+
+* **Bots can speak aloud (experimental, off by default)**: a new host-side
+  helper, `tools/tts_agent.py`, speaks the say, yell, NPC say and party
+  lines you actually receive. It uses an ElevenLabs voice chosen by the
+  speaker's race and gender, and it is quieter with distance and placed
+  left or right of your character. Text chat is never delayed or
+  changed, and General, guild, raid and battleground stay silent.
+* **Voices that move and take turns**: while a line plays, its volume
+  and placement glide with the speaker's movement and your own turning.
+  Replies wait for the previous voice to finish instead of talking over
+  it, and the speaker plays its talk animation while you hear it. A bot
+  that turned to face someone usually looks away once it has finished
+  speaking.
+* **Bots don't always turn to face you**: when a bot speaks to you or to
+  another party member, it now turns toward them only some of the time
+  (`GroupChatter.FacingPartyChance`, default 50%), as people often do.
+  NPCs and objects it talks about are still faced.
+* **Voices recover by themselves**: if the sound output stops (for example
+  after restarting the game or switching audio device), the helper reopens
+  it and carries on, instead of going silent until restarted. Lines that
+  were cut off are skipped, never counted as heard.
+* **Optional camera panning**: voices can follow your game camera instead
+  of your character's facing (`Voice.Pan.Source = camera`, Windows). The
+  helper reads the camera from your own client, read only, and only while
+  it shows your character on the current map; otherwise nothing changes.
+  Check your client first with `tts_agent.py --camera-probe`.
+* **Bots turn when you hear them**: with voice on, a bot now turns toward
+  who it is speaking to when its voice starts, not when the text appears,
+  so the turn matches what you hear (`Voice.FaceAtVoice.Enable`).
+* **Distant voices fade out**: say, yell and NPC say voices now fade to
+  silence at the edge of their range (`Voice.Proximity.Falloff`,
+  `Voice.Proximity.MinGain`), so you never hear someone too far away to
+  find. Party members stay faintly audible at any distance.
+* **Shapeshifted druids keep their gender**: a druid in cat, bear or
+  travel form was treated as the form's gender (often male), both for her
+  voice and in what the bots say about her. Chatter now always uses the
+  character's own gender.
+* **Party bots turn to talk again**: bots following you were treated as
+  "moving" even while standing still beside you, so they almost never
+  turned toward anyone they spoke to. A follower that is standing still
+  may now turn; walking or running bots, and wandering or patrolling NPCs,
+  still never do.
+* **Only what reached you is voiced**: the worldserver records a line for
+  the bound account only after it was really sent to that player, with
+  the text as broadcast. A logout, relog or map change invalidates lines
+  still waiting, and late audio is skipped rather than played out of step.
+* **Light on the server and your PC**: with the feature off, each line
+  costs a single check. With it on, the server adds a few in-memory
+  checks and one background database write per voiced line, plus a few
+  small background reads and writes per second only while a voice is
+  playing. The helper
+  runs at low priority, makes at most two voice requests at a time, and
+  reuses cached audio for repeated lines, which then cost no ElevenLabs
+  credits while they stay in the cache.
+* **Setup**: apply `20261029_voice_mailbox.sql` to the characters
+  database and rebuild the worldserver. Then install
+  `tools/requirements-voice.txt` on Windows and fill your own copy of
+  `tools/voice_map.json` using `tts_agent.py --list-voices` (free). See
+  README > Voice (PoC). The new `LLMChatter.Voice.*` keys are in both
+  config templates. The chatter bridge needs no restart.
+
 ### 2026-10-28 - Settings Behave the Same With or Without Every Key
 
 * **Missing keys now mean the shipped defaults**: when a setting was absent

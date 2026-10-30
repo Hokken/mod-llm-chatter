@@ -16,6 +16,7 @@
 #include "LLMChatterProximityFight.h"
 #include "LLMChatterReplyHold.h"
 #include "LLMChatterShared.h"
+#include "LLMChatterVoice.h"
 
 #include "Channel.h"
 #include "ChannelMgr.h"
@@ -677,6 +678,20 @@ void DeliverPendingMessagesImpl()
     // send (or if the bot is unavailable and
     // retrying would not help).
     bool sent = false;
+    // Set only where spoken text actually went out; voiced once
+    // below. Emote-only sends and unvoiced channels leave it unset.
+    Unit* voiceSpeaker = nullptr;
+    std::string voiceText;
+    LLMChatterVoiceChannel voiceChannel = VOICE_CHANNEL_NONE;
+    // Delivery turned the bot toward a target for this line; once
+    // the voiced line completed, it may look away (NoteVoiceFacing).
+    bool botFacedForLine = false;
+    // With voice on, a bot's facing for a line that may be voiced is
+    // decided here but applied when its audio starts (FaceAtVoice).
+    ObjectGuid deferredFaceTarget;
+    // Orientation the immediate turn asked for (the spline applies it
+    // on a later tick, so the bot's own orientation is still the old).
+    float botFacedOrientation = 0.0f;
     // Whether the free-text action has already been acted
     // out. A row that goes back on the queue must not play
     // it a second time on the next attempt.
@@ -860,16 +875,43 @@ void DeliverPendingMessagesImpl()
                 && !bot->IsInCombat()
                 && IsSafeForChatterFacing(bot))
             {
+                // faced: a facing decision was made for this line;
+                // turned: the bot really rotated. People often speak
+                // to the player or a party member without turning to
+                // them, so those targets are faced only with
+                // FacingPartyChance (one roll per line).
                 bool faced = false;
+                bool turned = false;
+                bool facePeople = roll_chance_i(int32(
+                    sLLMChatterConfig->_facingPartyChance));
+                bool deferToVoice = IsVoiceFacingDeferred(
+                    VoiceChannelForDelivery(channel));
+                auto face = [&](WorldObject* target)
+                {
+                    Player* person = target->ToPlayer();
+                    bool companion = person
+                        && (!IsPlayerBot(person)
+                            || person->IsInSameGroupWith(bot));
+                    if (!companion || facePeople)
+                    {
+                        // Exactly one path rotates: now, or at the
+                        // audio start (or after the send if unvoiced).
+                        if (deferToVoice)
+                            deferredFaceTarget = target->GetGUID();
+                        else
+                        {
+                            botFacedOrientation = bot->GetAngle(target);
+                            bot->SetFacingToObject(target);
+                            turned = true;
+                        }
+                    }
+                    return true;
+                };
 
                 if (explicitAddressee
                     && explicitAddressee != bot
                     && explicitAddressee->IsAlive())
-                {
-                    bot->SetFacingToObject(
-                        explicitAddressee);
-                    faced = true;
-                }
+                    faced = face(explicitAddressee);
 
                 if (!faced && eventId > 0)
                 {
@@ -911,11 +953,7 @@ void DeliverPendingMessagesImpl()
                                         tEntry,
                                         range));
                             if (target)
-                            {
-                                bot->SetFacingToObject(
-                                    target);
-                                faced = true;
-                            }
+                                faced = face(target);
                         }
                     }
                 }
@@ -954,11 +992,7 @@ void DeliverPendingMessagesImpl()
                                         anchorPlayer->GetMap(),
                                         prevNpcSpawnId);
                                 if (prevCreature)
-                                {
-                                    bot->SetFacingToObject(
-                                        prevCreature);
-                                    faced = true;
-                                }
+                                    faced = face(prevCreature);
                             }
                             else if (prevBotGuid)
                             {
@@ -972,21 +1006,13 @@ void DeliverPendingMessagesImpl()
                                             prevGuid);
                                 if (prevBot
                                     && prevBot->IsInWorld())
-                                {
-                                    bot->SetFacingToObject(
-                                        prevBot);
-                                    faced = true;
-                                }
+                                    faced = face(prevBot);
                             }
                         }
                     }
 
                     if (!faced)
-                    {
-                        bot->SetFacingToObject(
-                            anchorPlayer);
-                        faced = true;
-                    }
+                        faced = face(anchorPlayer);
                 }
 
                 if (!faced
@@ -994,11 +1020,7 @@ void DeliverPendingMessagesImpl()
                         || channel == "raid"))
                 {
                     if (emoteTarget)
-                    {
-                        bot->SetFacingToObject(
-                            emoteTarget);
-                        faced = true;
-                    }
+                        faced = face(emoteTarget);
                 }
 
                 if (!faced
@@ -1038,13 +1060,11 @@ void DeliverPendingMessagesImpl()
                         }
 
                         if (nearest)
-                        {
-                            bot->SetFacingToObject(
-                                nearest);
-                            faced = true;
-                        }
+                            faced = face(nearest);
                     }
                 }
+
+                botFacedForLine = turned;
             }
 
             std::string processedMessage =
@@ -1158,6 +1178,15 @@ void DeliverPendingMessagesImpl()
                     sent = ai->SayToParty(
                         processedMessage);
                 }
+                // Both party sends have no veto: sent means
+                // processedMessage went out as is.
+                if (sent
+                    && IsVoiceChannelWanted(VOICE_CHANNEL_PARTY))
+                {
+                    voiceSpeaker = bot;
+                    voiceText = processedMessage;
+                    voiceChannel = VOICE_CHANNEL_PARTY;
+                }
             }
             else if (channel == "raid")
             {
@@ -1206,7 +1235,16 @@ void DeliverPendingMessagesImpl()
             else if (channel == "say")
             {
                 emitAction();
+                bool voiceArmed = ArmVoiceChatCapture(
+                    bot, VOICE_CHANNEL_SAY, processedMessage);
                 sent = ai->Say(processedMessage);
+                // Player::Say may veto or rewrite; voice only
+                // the text that actually went out.
+                if (voiceArmed && TakeVoiceChatCapture(voiceText))
+                {
+                    voiceSpeaker = bot;
+                    voiceChannel = VOICE_CHANNEL_SAY;
+                }
             }
             else if (channel == "guild")
             {
@@ -1257,8 +1295,17 @@ void DeliverPendingMessagesImpl()
                 else
                 {
                     emitAction();
+                    bool voiceArmed = ArmVoiceChatCapture(
+                        bot, VOICE_CHANNEL_YELL,
+                        processedMessage);
                     sent = ai->Yell(
                         processedMessage);
+                    if (voiceArmed
+                        && TakeVoiceChatCapture(voiceText))
+                    {
+                        voiceSpeaker = bot;
+                        voiceChannel = VOICE_CHANNEL_YELL;
+                    }
                 }
             }
             else
@@ -1496,6 +1543,13 @@ void DeliverPendingMessagesImpl()
                 speaker->Say(
                     msayMessage, LANG_UNIVERSAL);
                 sent = true;
+                // Unit::Say has no veto: the text went out as is.
+                if (IsVoiceChannelWanted(VOICE_CHANNEL_MSAY))
+                {
+                    voiceSpeaker = speaker;
+                    voiceText = msayMessage;
+                    voiceChannel = VOICE_CHANNEL_MSAY;
+                }
             }
 
             if (!emoteName.empty())
@@ -1667,6 +1721,22 @@ void DeliverPendingMessagesImpl()
             "drop_reason = NULL "
             "WHERE id = {}",
             messageId);
+        // The single voice owner for queued lines.
+        bool recorded = voiceSpeaker
+            && RecordVoiceLine(voiceSpeaker, voiceChannel,
+                voiceText, messageId);
+        if (recorded && botFacedForLine)
+            NoteVoiceFacing(voiceSpeaker->ToPlayer(), messageId,
+                botFacedOrientation);
+        // A deferred facing turns at the audio start; a line that
+        // was not voiced after all turns now, as without voice.
+        if (!deferredFaceTarget.IsEmpty() && bot)
+        {
+            if (recorded && voiceSpeaker == bot)
+                NotePendingFacing(bot, messageId, deferredFaceTarget);
+            else
+                FaceTargetIfSafe(bot, deferredFaceTarget);
+        }
     }
     else if (botUnavailable)
     {

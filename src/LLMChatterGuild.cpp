@@ -510,7 +510,7 @@ void HandleGuildPlayerMessage(
         turnId,
         player->GetGUID().GetCounter(),
         JsonEscape(player->GetName()),
-        player->getGender(),
+        GetTrueGender(player),
         JsonEscape(message),
         teamName,
         candidates);

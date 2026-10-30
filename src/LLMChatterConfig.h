@@ -44,6 +44,35 @@ public:
     uint32 _screenshotBoundAccountId = 0;
     uint32 _screenshotProximityPollMs = 1000;
     uint32 _screenshotProximityMaxAge = 60;
+
+    // Voice (TTS) mailbox; playback lives in the host agent.
+    bool _voiceEnable = false;
+    uint32 _voiceBoundAccountId = 0;
+    uint32 _voiceMaxLagSeconds = 8;
+    // Playback cap shared with the agent; bounds tracked leases.
+    uint32 _voiceMaxConcurrent = 2;
+    uint32 _voiceChannelMask = 0;
+    float _voiceSayRadius = 40.0f;
+    float _voiceYellRadius = 300.0f;
+    float _voicePartyRadius = 100.0f;
+    // Live geometry and talk emote for clips the agent is playing.
+    bool _voiceLiveEnable = true;
+    uint32 _voiceLiveIntervalMs = 150;
+    float _voiceLiveMinDistanceChange = 0.25f;
+    float _voiceLiveMinAngleChangeDeg = 1.0f;
+    bool _voiceTalkEmoteEnable = true;
+    uint32 _voiceTalkEmoteRepeatMs = 2000;
+    // A bot turned toward a target looks away once its voice ended.
+    bool _voiceTurnAwayEnable = true;
+    uint32 _voiceTurnAwayChance = 70;
+    float _voiceTurnAwayMinDeg = 40.0f;
+    float _voiceTurnAwayMaxDeg = 120.0f;
+    float _voiceTurnAwayToleranceDeg = 3.0f;
+    uint32 _voiceTurnAwayMaxWaitSeconds = 30;
+    uint32 _voiceTurnAwayMaxNotes = 8;
+    // A voiced bot line turns the bot when its audio starts, not at send.
+    bool _voiceFaceAtVoiceEnable = true;
+    uint32 _voiceFaceAtVoiceMaxPending = 8;
     bool IsEnabled() const { return _enabled; }
     bool IsDebugLog() const { return _debugLog; }
     bool IsProximitySpeakerAllowed(uint32 creatureEntry) const;
@@ -234,6 +263,9 @@ public:
     uint32   _nearbyObjectNameCooldown;
     uint32   _nearbyObjectMaxObjects;
     bool     _facingEnable;
+    // Chance a speaking bot turns toward the player or a party
+    // member it addresses (other targets are always faced).
+    uint32   _facingPartyChance = 50;
 
     // Send the LLM's action field as a /e text emote just
     // before the spoken line. When false the action stays

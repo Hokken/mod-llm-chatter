@@ -417,7 +417,7 @@ void HandleEmoteAtGroupBot(
                       targetBot->getRace())
                 + ",\"bot_gender\":"
                 + std::to_string(
-                      targetBot->getGender())
+                      GetTrueGender(targetBot))
                 + ",\"bot_level\":"
                 + std::to_string(
                       targetBot->GetLevel())
@@ -650,7 +650,7 @@ void HandleEmoteObserver(
         + ",\"bot_race\":"
         + std::to_string(reactor->getRace())
         + ",\"bot_gender\":"
-        + std::to_string(reactor->getGender())
+        + std::to_string(GetTrueGender(reactor))
         + ",\"bot_level\":"
         + std::to_string(reactor->GetLevel())
         + ",\"emote_name\":\""
@@ -688,7 +688,7 @@ void HandleEmoteObserver(
             + ",\"target_level\":"
             + std::to_string(targetPlayer->GetLevel())
             + ",\"target_gender\":"
-            + std::to_string(targetPlayer->getGender())
+            + std::to_string(GetTrueGender(targetPlayer))
             + ",\"target_guid\":"
             + std::to_string(
                 targetPlayer->GetGUID().GetCounter());

@@ -3,6 +3,7 @@
 
 #include "DatabaseEnvFwd.h"
 #include "Define.h"
+#include "ObjectGuid.h"
 #include "SharedDefines.h"
 #include <ctime>
 #include <map>
@@ -81,6 +82,11 @@ std::string GetBotTravelContext(Player* player);
 std::string GetBotTravelMode(Player* player);
 bool HasUnsafeChatterFacingMotion(Unit* unit);
 bool IsSafeForChatterFacing(Unit* unit);
+// Turns bot toward target if both are still where facing makes sense
+// (in world, same map, instance and phase; bot safe to rotate). On
+// success *facing (if given) gets the requested orientation.
+bool FaceTargetIfSafe(Player* bot, ObjectGuid target,
+    float* facing = nullptr);
 void UpdateGroupBotTravelState(Player* player, uint32 groupId = 0);
 std::string ConvertAllLinks(const std::string& text);
 std::string GetZoneName(uint32 zoneId);
@@ -106,6 +112,10 @@ std::string GetLocalizedTitleName(CharTitlesEntry const* title, uint8 gender);
 // "female" / "male" for prompt payloads; "" when the unit is null or has
 // no gender (GENDER_NONE beasts, mechanicals), so it is never guessed.
 std::string GetUnitGenderLabel(Unit const* unit);
+// A unit's real gender. Shapeshift and other model changes rewrite the
+// unit gender byte to the model's (a druid in cat form reads male); a
+// player's own gender stays in PLAYER_BYTES_3.
+uint8 GetTrueGender(Unit const* unit);
 uint32 GetTextEmoteId(const std::string& emoteName);
 bool IsBGAllowedEmote(const std::string& emoteName);
 void PlayUnitTextEmoteAnimation(Unit* unit, uint32 textEmoteId);
@@ -116,6 +126,8 @@ void SendBotTextEmote(Player* bot, uint32 textEmoteId,
                       const std::string& targetName);
 
 std::string GetTextEmoteName(uint32 emoteId);
+// Transport only: callers own voice recording (RecordVoiceLine), so a
+// queued line routed through here is never voiced twice.
 void SendPartyMessageInstant(
     Player* bot, Group* group,
     const std::string& message,
