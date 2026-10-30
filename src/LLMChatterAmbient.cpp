@@ -19,6 +19,7 @@
 #include "RandomPlayerbotMgr.h"
 #include "Timer.h"
 #include "Weather.h"
+#include "WeatherMgr.h"
 #include "World.h"
 #include "WorldSession.h"
 #include "WorldSessionMgr.h"
@@ -393,13 +394,23 @@ void HandleAmbientPlayerUpdateZone(
         return;
     }
 
+    // No weather change seen here yet. A zone without weather
+    // data (e.g. Durotar) is fine: the core sends fine weather
+    // there. Otherwise the state is unknown until the next
+    // change, so drop the context. Never keep the previous
+    // zone's weather.
+    if (!sWorld->getBoolConfig(CONFIG_WEATHER)
+        || !WeatherMgr::GetWeatherData(newZone))
+    {
+        SetPlayerWeatherContext(
+            player, WEATHER_STATE_FINE, newZone, newZone);
+        return;
+    }
+
     std::lock_guard<std::mutex> lock(
         _playerWeatherContextMutex);
-    auto contextIt =
-        _playerWeatherContext.find(
-            player->GetGUID().GetCounter());
-    if (contextIt != _playerWeatherContext.end())
-        contextIt->second.currentZoneId = newZone;
+    _playerWeatherContext.erase(
+        player->GetGUID().GetCounter());
 }
 
 static std::string GetWeatherCategory(
