@@ -1177,7 +1177,9 @@ switched off separately (`Threads.GuildEnable`,
   subject in when it relates, then may drift back to it later.
 - Events interrupt: after a fight or loot, the talk can resume if the
   subject still has life in it. A wipe or a death takes over the
-  conversation.
+  conversation. Events are named in-world ("a task finished and handed
+  in", "someone grew stronger", "something found"), never by their game
+  terms.
 - Nothing is scripted. Each exchange gets a soft nudge the model may
   ignore, and every kind of move stays possible. Now and then a bot is
   explicitly allowed a believable surprise: changing its mind, going
@@ -3144,8 +3146,8 @@ register of the chat mode.
 | `discovery` | the player discovers a new subzone (C++ watches the explored-area flags, at every level) | bots within about 100 yards of the player at that moment (C++ `nearby_bot_guids`; with none near, no event), up to `MaxBotsPerEvent`, at `DiscoveryGenerationChance` | "<player> and I discovered <subzone> in <zone> together", with the zone and subzone descriptions as background; only when the player and the bot are at least `DiscoveryMinLevel`, never in a capital city, never for a subzone without a description |
 | `duel` | a settled duel fought by a bot of the group or by its real player, whoever the opponent (`bot_group_duel_end`) | the duelling bots, and up to `MaxBotsPerEvent` bots who watched, at `DuelGenerationChance` | "I won / <winner> won a friendly training spar against …", or "…; I watched"; an opponent from outside the party is named with gender, race and class ("Torvald, a male Dwarf Warrior from outside the party"), one that could not be identified as "a stranger"; interrupted duels are skipped |
 | `achievement` | achievement (not in BGs) | up to `MaxBotsPerEvent` bots | "<earner, or I> earned recognition for: <name>"; in roleplay, achievements with a number in the name ("Level 30", "50 Quests") are skipped without an LLM call |
-| `level_up` | a level gained | the reacting bot, and the levelling bot | roleplay: "grew noticeably stronger"; normal: "reached level N" |
-| `ambient` | zone transition (`AmbientChance`) | the reacting bot | the place, plus time of day, season and live weather (indoor instances: none; open-air ones: no weather); "nothing else happened" |
+| `level_up` | a level gained | the reacting bot, and the levelling bot | roleplay: "grew noticeably stronger" in what the calling grows (`CLASS_GROWTH`, as in the party reaction: "a paladin's devotion to the Light and skill at arms"), with the leveler's race and calling; normal: "reached level N" |
+| `ambient` | zone transition (`AmbientChance`) | the reacting bot | the place, plus time of day, season and live weather (indoor instances: none; open-air ones: no weather); "nothing else happened". Background: the zone (or instance) and subzone descriptions; with neither, no memory |
 | `player_message` | the player's party message (≤ `PlayerMsgMaxLength`, first `PlayerMsgMaxPerSession` per session) | only the bot that answered; never for brief casual lines, bot commands, URLs, OOC (`((...))`, "ooc") or test lines | "<player> told me: <message>", recorded as a topic, never a guessed intent |
 | `pvp_kill` | open-world or BG kill | the bot | the enemy's name, race, class and faction |
 | `bg_win` / `bg_loss` | BG match end | party bots | "Won/Lost <BG>" |
@@ -3477,6 +3479,11 @@ NPCs are identified by spawn GUID (`Creature::GetSpawnId()`) rather
 than entry ID. Map and instance IDs scope cooldowns, active scenes, and
 reply history so separate copies of the same dungeon cannot share
 context. Mutually hostile candidates cannot join one ambient scene.
+
+A `proximity_conversation` with only NPC speakers is overheard talk among
+them: the prompt carries no description of the player, and only nearby
+NPCs (`nearby_npc_names` in the payload) may be addressed, never the
+player or the bots. A payload without that list offers nobody.
 
 ### Delivery channels
 
@@ -5017,9 +5024,13 @@ happened. The other speakers get a list of possible reactions.
 
 `race_class_note()` (`chatter_shared.py`, data in `chatter_lore_data.py`)
 adds a short lore note for the speaker's race and calling to the
-speaker's identity in Guild chat prompts (and nowhere else), with
-priests split into Light and Shadow by spec
-(`chatter_class_style.py`). `RaceClassNotes.Enable` turns it off.
+speaker's identity in Guild chat prompts, with priests split into Light
+and Shadow by spec (`chatter_class_style.py`). The same note follows
+every other race and calling description: the player's description
+(`player_character_lines`, including the neutral one for NPC scenes)
+and other characters' lore (`character_lore_lines`, e.g. an enemy
+player), as "<name>'s people and calling (<race> <calling>): …".
+`RaceClassNotes.Enable` turns it off everywhere.
 
 ### Configuration
 

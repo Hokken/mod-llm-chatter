@@ -51,6 +51,7 @@ from chatter_shared import (
 )
 from chatter_guild_profile import (
     get_character_guild_name,
+    indefinite_article,
     same_guild_note,
 )
 from chatter_player_context import player_context_text
@@ -102,6 +103,7 @@ from chatter_group_prompts import (
     build_combat_reaction_prompt,
     build_death_reaction_prompt,
     build_levelup_reaction_prompt,
+    levelup_growth,
     build_quest_complete_reaction_prompt,
     build_quest_objectives_reaction_prompt,
     build_achievement_reaction_prompt,
@@ -922,12 +924,28 @@ def _levelup_post_success(db, ctx, message):
         f"{leveler_name} ({leveler_gender})"
         if leveler_gender else leveler_name
     )
+    # Roleplay says what grew, by calling, as the party
+    # reaction does: a warrior's strength, a hunter's aim.
+    calling, growth = ('', '')
+    if is_rp:
+        calling, growth = levelup_growth(
+            ctx.get('leveler_race', ''),
+            ctx.get('leveler_class', ''),
+            class_style(
+                db, leveler_guid, ctx.get('leveler_class', ''),
+            ) if ctx.get('leveler_class') else '',
+        )
+    in_growth = f" in {growth}" if growth else ""
+    as_calling = (
+        f", {indefinite_article(calling)} {calling},"
+        if calling else ""
+    )
     other_context = (
-        f"{leveler} grew noticeably stronger"
+        f"{leveler}{as_calling} grew noticeably stronger{in_growth}"
         if is_rp else f"{leveler} reached level {new_level}"
     )
     self_context = (
-        "I felt myself grow noticeably stronger"
+        f"I felt myself grow noticeably stronger{in_growth}"
         if is_rp else f"I reached level {new_level}"
     )
 
@@ -1884,6 +1902,23 @@ def process_group_resurrect_event(
         label='reaction_rez',
     )
 
+def _place_background(zone_id, area_id, map_id, zone_name=''):
+    """Descriptions of the zone (the instance, inside one) and
+    the subzone for a memory's background block; empty when
+    none is known."""
+    zone = get_zone_name(zone_id) or zone_name or 'the region'
+    lines = []
+    zone_desc = get_dungeon_flavor(map_id) or get_zone_flavor(zone_id)
+    if zone_desc:
+        lines.append(f"About {zone}: {zone_desc}")
+    if area_id and area_id != zone_id:
+        subzone_lore = get_subzone_lore(zone_id, area_id)
+        if subzone_lore:
+            subzone = get_subzone_name(zone_id, area_id) or 'this place'
+            lines.append(f"About {subzone}: {subzone_lore}")
+    return lines
+
+
 def _ambient_memory_context(db, zone_id, area_id, map_id, zone_name):
     """The facts an ambient memory may record: where the
     party travels, and the time of day, season and live
@@ -2128,8 +2163,14 @@ def process_group_zone_transition_event(
                 'LLMChatter.Memory.AmbientChance',
                 20,
             ))
+            # A travel memory needs to know the place it
+            # records; with no description, none is kept.
+            place_background = _place_background(
+                zone_id, area_id, map_id, zone_name,
+            )
             if (
                 ambient_chance > 0
+                and place_background
                 and random.randint(1, 100)
                     <= ambient_chance
             ):
@@ -2146,6 +2187,7 @@ def process_group_zone_transition_event(
                     bot_gender=bot.get(
                         'gender', ''
                     ),
+                    background=place_background,
                 )
         except Exception:
             logger.error(
@@ -2479,11 +2521,9 @@ def queue_discovery_memories(db, config, extra_data) -> int:
     )
     zone = get_zone_name(zone_id) or 'the region'
     player_name = extra_data.get('player_name') or 'the player'
-    background = []
-    zone_flavor = get_zone_flavor(zone_id)
-    if zone_flavor:
-        background.append(f"About {zone}: {zone_flavor}")
-    background.append(f"About {subzone}: {subzone_lore}")
+    background = _place_background(
+        zone_id, area_id, int(extra_data.get('map_id') or 0),
+    )
 
     cursor = db.cursor(dictionary=True)
     cursor.execute(

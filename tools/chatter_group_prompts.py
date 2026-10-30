@@ -1617,6 +1617,18 @@ def _article(phrase: str) -> str:
     return "an" if phrase[:1].lower() in "aeiou" else "a"
 
 
+def levelup_growth(leveler_race="", leveler_class="", leveler_style=""):
+    """(calling, growth) for a roleplay level-up: "Dwarf Paladin" and
+    what grew ("a paladin's devotion to the Light ..."). Priests
+    without a known spec count as Light Priests. Either part is empty
+    when unknown."""
+    style_key = leveler_style or leveler_class
+    if style_key == 'Priest':
+        style_key = 'Light Priest'
+    calling = " ".join(p for p in (leveler_race, style_key) if p)
+    return calling, CLASS_GROWTH.get(style_key, "")
+
+
 def build_levelup_reaction_prompt(
     bot, traits, leveler_name, new_level, is_bot,
     mode, chat_history="", allow_action=True,
@@ -1658,12 +1670,8 @@ def build_levelup_reaction_prompt(
     if not is_bot:
         who = f"{leveler_name} (the real player)"
     if is_rp:
-        style_key = leveler_style or leveler_class
-        if style_key == 'Priest':
-            style_key = 'Light Priest'
-        growth = CLASS_GROWTH.get(style_key, "")
-        calling = " ".join(
-            p for p in (leveler_race, style_key) if p
+        calling, growth = levelup_growth(
+            leveler_race, leveler_class, leveler_style,
         )
         levelup_context = (
             f"{who}"

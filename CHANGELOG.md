@@ -25,7 +25,11 @@
   in the module language with the player's name filled in.
 * **Right actor, real facts**: achievement memories say who earned them,
   and number milestones ("Level 30") are skipped in roleplay. Ambient
-  memories record only the place, time of day, season and weather. A
+  memories record only the place, time of day, season and weather, and
+  carry the zone and subzone descriptions as background; a place with no
+  description gets no travel memory. Level-up memories say what grew,
+  by calling, as the party reaction does (a warrior's strength, a
+  hunter's aim). A
   player's message is remembered only by the bot that answered, and never
   for greetings, commands, OOC or test lines.
 * **Better recall**: memories of the current place and of companions who
@@ -41,6 +45,14 @@
   restart pending memories still settle and player-message memories keep
   working; sessions that end without a farewell settle within one cleanup
   tick instead of at the next bridge start.
+* **Roleplay fixes elsewhere**: wherever a character's race and class are
+  described, the race+class lore note follows too (for example the
+  Farstriders for a Blood Elf Hunter; `LLMChatter.RaceClassNotes.Enable`).
+  NPCs overheard talking among themselves no longer turn to the player or
+  the bots: they get no player description and may only address nearby
+  NPCs. Party events in the conversation thread are named in-world ("a
+  task finished and handed in", not "quest complete"), so idle chatter no
+  longer says "Quest done".
 * **New settings**: `LLMChatter.Memory.MaxBotsPerEvent` (default 2,
   quieter 1) limits how many bots record one boss, rare or achievement;
   `LLMChatter.Memory.ResetOnIdentityChange` (default 0) clears a bot's

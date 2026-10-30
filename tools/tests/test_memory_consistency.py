@@ -162,6 +162,48 @@ class MemoryPromptTests(unittest.TestCase):
 
 
 class EventContextTests(unittest.TestCase):
+    def _levelup(self, mode, leveler_class='Paladin', style='Paladin'):
+        # Reactor Veliana (guid 5); leveler Erodora (guid 6), a bot.
+        ctx = {
+            'config': {}, 'group_id': 1, 'bot_guid': 5,
+            'bot_name': 'Veliana',
+            'bot': {'class': 'Priest', 'race': 'Blood Elf',
+                    'gender': 'female'},
+            'leveler_name': 'Erodora', 'leveler_guid': 6,
+            'new_level': 36, 'is_bot': True, 'mode': mode,
+            'leveler_race': 'Blood Elf', 'leveler_class': leveler_class,
+        }
+        db = _DB(results=[{'class': 2, 'race': 10, 'gender': 1}])
+        with patch.object(handlers, 'genders_by_named_guid',
+                          return_value={'Erodora': 'female'}), \
+                patch.object(handlers, 'class_style',
+                             return_value=style), \
+                patch.object(handlers.random, 'random', return_value=0), \
+                patch.object(handlers, 'queue_memory') as queued:
+            handlers._levelup_post_success(db, ctx, 'Well done.')
+        return {c.args[2]: c.kwargs['event_context']
+                for c in queued.call_args_list}
+
+    def test_levelup_memory_names_class_growth(self):
+        contexts = self._levelup('roleplay')
+        growth = handlers.levelup_growth('', 'Paladin')[1]
+        self.assertEqual(
+            contexts[5],
+            'Erodora (female), a Blood Elf Paladin, grew noticeably '
+            f'stronger in {growth}')
+        self.assertEqual(
+            contexts[6], f'I felt myself grow noticeably stronger in {growth}')
+        shadow = self._levelup('roleplay', 'Priest', 'Shadow Priest')
+        self.assertIn("a priest's command of shadow magic", shadow[6])
+        self.assertIn('a Blood Elf Shadow Priest,', shadow[5])
+        # Unknown class: no growth phrase, as in the party reaction.
+        unknown = self._levelup('roleplay', '', '')
+        self.assertEqual(unknown[5], 'Erodora (female), a Blood Elf, grew '
+                         'noticeably stronger')
+        self.assertEqual(unknown[6], 'I felt myself grow noticeably stronger')
+        normal = self._levelup('normal')
+        self.assertEqual(normal[6], 'I reached level 36')
+
     def test_milestones_are_recognised(self):
         for name in ('Level 30', '50 Quests Completed', '100 Mounts'):
             self.assertTrue(memory.is_milestone_achievement(name), name)
@@ -227,6 +269,21 @@ class EventContextTests(unittest.TestCase):
         # Indoor instance: no sky, so no time, season or weather.
         self.assertNotIn('Time of day', indoor)
         self.assertNotIn('weather', indoor)
+
+    def test_travel_memory_carries_place_background(self):
+        outdoor = handlers._place_background(12, 87, 0, 'Elwynn Forest')
+        self.assertTrue(outdoor[0].startswith('About Elwynn Forest: '))
+        self.assertTrue(outdoor[1].startswith('About Goldshire: '))
+        self.assertEqual(
+            len(handlers._place_background(12, 12, 0)), 1)
+        indoor = handlers._place_background(1581, 0, 36, 'The Deadmines')
+        self.assertEqual(len(indoor), 1)
+        self.assertIn(handlers.get_dungeon_flavor(36), indoor[0])
+        # No description at all: the travel memory is not queued.
+        self.assertEqual(handlers._place_background(99999, 0, 0), [])
+        source = _read('tools/chatter_group_handlers.py')
+        self.assertIn('and place_background\n', source)
+        self.assertIn('background=place_background,', source)
 
     def test_quest_context_avoids_the_word_quest(self):
         source = _read('tools/chatter_group_handlers.py')

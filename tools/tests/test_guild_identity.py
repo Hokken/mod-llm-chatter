@@ -341,6 +341,31 @@ def test_player_description_roleplay_and_normal():
     assert pc.player_context_text(None, 0, '', 'roleplay') == ''
 
 
+def test_player_description_carries_race_class_note():
+    import chatter_shared
+    rp = '\n'.join(pc.player_character_lines(
+        None, 0, 'Lyn', 'roleplay',
+        race='Blood Elf', class_name='Hunter', gender='female'))
+    assert "Lyn's people and calling (Blood Elf Hunter):" in rp
+    assert 'Farstriders' in rp
+    neutral = '\n'.join(pc.player_character_lines(
+        None, 0, 'Lyn', 'roleplay', race='Blood Elf',
+        class_name='Hunter', neutral=True))
+    assert "Lyn's people and calling (Blood Elf Hunter):" in neutral
+    enemy = '\n'.join(pc.character_lore_lines(
+        None, 0, '', 'Blood Elf', 'Hunter'))
+    assert 'Their people and calling (Blood Elf Hunter):' in enemy
+    chatter_shared.set_race_class_notes_enabled(False)
+    try:
+        off = '\n'.join(pc.player_character_lines(
+            None, 0, 'Lyn', 'roleplay',
+            race='Blood Elf', class_name='Hunter'))
+    finally:
+        chatter_shared.set_race_class_notes_enabled(True)
+    assert 'people and calling' not in off
+    assert 'Hunter calling:' in off
+
+
 def test_player_description_splits_priests():
     with patch.object(pc, 'class_style',
                       lambda db, guid, cls: 'Shadow Priest'):

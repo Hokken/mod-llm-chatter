@@ -656,6 +656,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
         priority='filler',
         description='Ambient nearby multi-speaker scene',
         payload_fields={
+            'nearby_npc_names': (list, False),
             'player_guid': (int, True),
             'zone_name': (str, True),
             'subzone_name': (str, False),

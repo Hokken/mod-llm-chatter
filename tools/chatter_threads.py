@@ -564,11 +564,26 @@ def _reconcile(db, state: GroupThreads, now: float) -> None:
 # ------------------------------------------------------------------
 # Recording interruptions
 # ------------------------------------------------------------------
+# Event types named in game terms get an in-world label, so a thread
+# never feeds "quest complete" or "levelup" back into party chat.
+_IN_WORLD_LABELS = {
+    'quest_complete': 'a task finished and handed in',
+    'quest_objectives': "a task's goals met",
+    'quest_accept': 'a new task taken on',
+    'quest_accept_batch': 'a new task taken on',
+    'levelup': 'someone grew stronger',
+    'achievement': 'a notable deed',
+    'loot': 'something found',
+    'loot_roll': 'spoils shared out',
+    'aggro_loss': 'a foe turned on someone',
+}
+
+
 def _event_label(event_type: str) -> str:
     label = str(event_type or 'event')
     if label.startswith('bot_group_'):
         label = label[len('bot_group_'):]
-    return label.replace('_', ' ')
+    return _IN_WORLD_LABELS.get(label, label.replace('_', ' '))
 
 
 _ANY_SESSION = object()
