@@ -6,6 +6,7 @@ import random
 from chatter_shared import (
     get_zone_flavor,
     get_race_speech_profile,
+    race_class_note,
     get_bg_lore,
     get_language_rule,
     get_zone_name,
@@ -309,6 +310,7 @@ def build_bot_greeting_prompt(
     bg_context=None,
     player_context="",
     area_id=0,
+    class_style=None,
 ):
     """Build the LLM prompt for a group greeting.
 
@@ -332,6 +334,8 @@ def build_bot_greeting_prompt(
         player_name_known: True if bot has memories
             with this player
         recall_memory: specific memory to reference
+        class_style: calling for the race+class note
+            ('Light Priest' / 'Shadow Priest' for priests)
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
@@ -345,6 +349,13 @@ def build_bot_greeting_prompt(
         ctx = build_race_class_context(
             bot['race'], bot['class']
         )
+        # The race+class pairing (Blood Elf Hunter: the
+        # Farstriders); empty when notes are off.
+        note = race_class_note(
+            bot['race'], bot['class'], class_style,
+        )
+        if note:
+            ctx = f"{ctx} {note}".strip()
         if ctx:
             rp_context = f"\n{ctx}"
 

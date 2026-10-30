@@ -155,6 +155,7 @@ from chatter_group_state import (
     get_group_members,
     get_group_player_name,
 )
+from chatter_class_style import class_style
 from chatter_identity import config_int
 from chatter_group_handlers import (
     _maybe_talent_context,
@@ -879,6 +880,7 @@ def process_group_event(db, client, config, event):
             player_context=player_context_text(
                 db, extra_data.get('player_guid'), player_name, mode,
             ),
+            class_style=class_style(db, bot_guid, bot['class']),
         )
         prompt = with_party_genders(
             prompt, db, group_id, bot['name'],
@@ -1332,6 +1334,9 @@ def process_group_join_batch_event(
                     player_context=player_context_text(
                         db, extra_data.get('player_guid'),
                         player_name, mode,
+                    ),
+                    class_style=class_style(
+                        db, bot['guid'], bot['class'],
                     ),
                 )
                 prompt = with_party_genders(

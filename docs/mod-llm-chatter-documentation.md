@@ -1119,6 +1119,10 @@ are reused, including manual edits. The first use can take longer because
 it may require tone and backstory generation before the speech request.
 Generation failures leave a stable fallback voice and retry missing fields
 after `LLMChatter.Profile.RetrySeconds` (default 300).
+Both generators see the bot's name, gender, race and class, the race
+outlook and history, the class calling (Light or Shadow for priests) and
+the race+class note (when `LLMChatter.RaceClassNotes.Enable` is on), so
+the tone and backstory fit the character's people and calling.
 
 Persistent roleplay profiles are independent of journal memory. With
 `Memory.Enable=0`, Party retains its existing random session traits;
@@ -5030,6 +5034,9 @@ every other race and calling description: the player's description
 (`player_character_lines`, including the neutral one for NPC scenes)
 and other characters' lore (`character_lore_lines`, e.g. an enemy
 player), as "<name>'s people and calling (<race> <calling>): …".
+The bot's tone and backstory generation and its roleplay party greeting
+(`build_bot_greeting_prompt`) and farewell (`_generate_farewell`), as
+"Your people and calling …", carry it too.
 `RaceClassNotes.Enable` turns it off everywhere.
 
 ### Configuration

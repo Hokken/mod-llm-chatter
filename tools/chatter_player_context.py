@@ -95,11 +95,16 @@ def _calling_style(db, guid: int, class_name: str) -> str:
             if db is not None and guid else 'Light Priest')
 
 
-def _lore_lines(name: str, race: str, style: str) -> List[str]:
+def _lore_lines(
+    name: str, race: str, style: str, race_lore: bool = False,
+) -> List[str]:
     lines = []
-    worldview = (get_race_speech_profile(race) or {}).get('worldview')
+    profile = get_race_speech_profile(race) or {}
+    worldview = profile.get('worldview')
     if worldview:
         lines.append(f"{race} outlook: {worldview}")
+    if race_lore and profile.get('lore'):
+        lines.append(f"{race} history: {' '.join(profile['lore'])}")
     calling = CLASS_CALLINGS.get(style)
     if calling:
         lines.append(f"{style} calling: {calling}")
@@ -115,16 +120,20 @@ def _lore_lines(name: str, race: str, style: str) -> List[str]:
 
 def character_lore_lines(
     db, guid, name: str, race: str, class_name: str,
+    race_lore: bool = False,
 ) -> List[str]:
     """Race outlook, class calling and race+class note for any
-    character; empty when the race or class is unknown."""
+    character (race_lore adds the race's history); empty when
+    the race or class is unknown."""
     name = str(name or '').strip()
     race = '' if race == 'Unknown' else str(race or '')
     class_name = '' if class_name == 'Adventurer' else str(class_name or '')
     if not race or not class_name:
         return []
     guid = _safe_int(guid)
-    return _lore_lines(name, race, _calling_style(db, guid, class_name))
+    return _lore_lines(
+        name, race, _calling_style(db, guid, class_name), race_lore,
+    )
 
 
 def player_character_lines(

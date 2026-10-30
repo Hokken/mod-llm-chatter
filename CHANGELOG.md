@@ -70,6 +70,10 @@
   Weather no longer follows the player into zones without weather:
   after leaving a rainy zone for Durotar or Orgrimmar, prompts there no
   longer say it is raining.
+  Tone and backstory generation now see the bot's gender, its race's
+  outlook and history, its class calling and the race+class note.
+  A bot's roleplay greeting and farewell now carry its race+class note
+  too.
 * **New settings**: `LLMChatter.Memory.MaxBotsPerEvent` (default 2,
   quieter 1) limits how many bots record one boss, rare or achievement;
   `LLMChatter.Memory.ResetOnIdentityChange` (default 0) clears a bot's
