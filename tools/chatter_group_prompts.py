@@ -23,6 +23,7 @@ from chatter_shared import (
     build_conversational_scale_guidance,
     append_json_instruction,
     append_conversation_json_instruction,
+    annotate_conversation_prompt,
     build_anti_repetition_context,
     format_distance,
     append_speaker_gear,
@@ -4787,23 +4788,26 @@ def build_player_msg_conversation_prompt(
     )
 
     lang_rule = get_language_rule()
+    emote_only_rule = (
+        "For a brief casual reaction, an empty message with one "
+        "non-null emote is valid. Never leave both empty.\n"
+        if brief_casual
+        else ""
+    )
+    no_narrator_rule = (
+        "IMPORTANT: do NOT put *narrator text* "
+        "or *physical actions* inside any "
+        "\"message\" field.\n"
+    )
 
-    prompt += (
+    block = (
         f"\n\nEmotes: Each message may include "
         f"an optional \"emote\" field (one of: "
         f"{EMOTE_LIST_STR}). Pick an emote that "
         f"fits the message mood, or omit it.\n"
-        + (
-            "For a brief casual reaction, an empty message with one "
-            "non-null emote is valid. Never leave both empty.\n"
-            if brief_casual
-            else ""
-        )
-        +
+        f"{emote_only_rule}"
         f"{action_text}\n"
-        "IMPORTANT: do NOT put *narrator text* "
-        "or *physical actions* inside any "
-        "\"message\" field.\n"
+        f"{no_narrator_rule}"
         f"JSON rules: Use double quotes, escape "
         f"quotes/newlines, no trailing commas, "
         f"no code fences.\n"
@@ -4814,7 +4818,16 @@ def build_player_msg_conversation_prompt(
         f"{lang_rule}"
     )
 
-    return prompt
+    # Emotes are always offered here and actions stay optional, unlike
+    # append_conversation_json_instruction(), so the block is kept as is.
+    return annotate_conversation_prompt(
+        prompt, block,
+        emote_only_rule + action_text + '\n' + no_narrator_rule
+        + lang_rule,
+        speaker_names=bot_names, message_count=msg_count,
+        emote=True, action=allow_action, optional_action=True,
+        emote_only=brief_casual,
+    )
 
 
 # ============================================================
