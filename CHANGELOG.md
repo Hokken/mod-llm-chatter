@@ -72,6 +72,9 @@
   `tools/voice_map.json` using `tts_agent.py --list-voices` (free). See
   README > Voice (PoC). The new `LLMChatter.Voice.*` keys are in both
   config templates. The chatter bridge needs no restart.
+* **Quick start guide**: `docs/voices-quick-start-guide.md` walks testers
+  through the branch, an ElevenLabs key, designing race voices with Voice
+  Design (with screenshots), the voice map and starting the helper.
 
 ### 2026-10-28 - Settings Behave the Same With or Without Every Key
 
