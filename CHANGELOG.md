@@ -64,6 +64,9 @@
   NPCs. Party events in the conversation thread are named in-world ("a
   task finished and handed in", not "quest complete"), so idle chatter no
   longer says "Quest done".
+  Quest reactions and conversations get the quest text with its
+  placeholders filled in (no more "$B$B" or "$N") and cut at a whole
+  sentence, instead of stopping mid-sentence at 200 characters.
 * **New settings**: `LLMChatter.Memory.MaxBotsPerEvent` (default 2,
   quieter 1) limits how many bots record one boss, rare or achievement;
   `LLMChatter.Memory.ResetOnIdentityChange` (default 0) clears a bot's

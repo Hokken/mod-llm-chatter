@@ -375,12 +375,12 @@ public:
                 "\"quest_details\":\"" +
                     JsonEscape(
                         NormalizeChatTextForDb(
-                            GetLocalizedQuestDetails(quest), 200))
+                            GetLocalizedQuestDetails(quest), 600))
                     + "\","
                 "\"quest_objectives\":\"" +
                     JsonEscape(
                         NormalizeChatTextForDb(
-                            GetLocalizedQuestObjectives(quest), 150))
+                            GetLocalizedQuestObjectives(quest), 300))
                     + "\","
                 "\"group_id\":" +
                     std::to_string(groupId) +
@@ -424,10 +424,10 @@ public:
         int32 questLevel = quest->GetQuestLevel();
         std::string questDetails =
             NormalizeChatTextForDb(
-                GetLocalizedQuestDetails(quest), 200);
+                GetLocalizedQuestDetails(quest), 600);
         std::string questObjectives =
             NormalizeChatTextForDb(
-                GetLocalizedQuestObjectives(quest), 150);
+                GetLocalizedQuestObjectives(quest), 300);
         std::string playerName = player->GetName();
 
         // Pre-select reactor outside lock (only

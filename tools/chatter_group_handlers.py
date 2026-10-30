@@ -47,6 +47,7 @@ from chatter_shared import (
     format_location_label,
     instance_has_sky,
     get_quest_memory_texts,
+    clean_quest_text,
     quest_memory_background,
 )
 from chatter_guild_profile import (
@@ -1056,9 +1057,9 @@ def process_group_levelup_event(
         post_success=_levelup_post_success,
     )
 
-def _quest_background(db, quest_id, player_name):
-    """The quest-giver's words for a quest memory, with the
-    quest-text placeholders filled in for the player."""
+def _quest_player(db, player_name):
+    """(race, class, gender) labels of a character, for
+    filling quest-text placeholders; '' when unknown."""
     race = cls = gender = ''
     try:
         cursor = db.cursor(dictionary=True)
@@ -1075,9 +1076,41 @@ def _quest_background(db, quest_id, player_name):
             gender = get_gender_label(row.get('gender') or 0)
     except Exception:
         logger.debug("quest player lookup failed", exc_info=True)
+    return race, cls, gender
+
+
+def _quest_background(db, quest_id, player_name):
+    """The quest-giver's words for a quest memory, with the
+    quest-text placeholders filled in for the player."""
     return quest_memory_background(get_quest_memory_texts(
-        db, quest_id, player_name, race, cls, gender,
+        db, quest_id, player_name, *_quest_player(db, player_name),
     ))
+
+
+# Prompt length of the quest texts; the worldserver sends
+# longer raw text so the cut lands on a sentence.
+_QUEST_DETAILS_CHARS = 350
+_QUEST_OBJECTIVES_CHARS = 200
+
+
+def _quest_prompt_texts(db, extra_data, player_name):
+    """(details, objectives) of a quest event for prompts:
+    client placeholders ($N, $B, $G...) filled in for the
+    character who took the quest, and cut at a sentence."""
+    details = extra_data.get('quest_details', '')
+    objectives = extra_data.get('quest_objectives', '')
+    if not (details or objectives):
+        return '', ''
+    who = _quest_player(db, player_name) if '$' in (
+        details + objectives) else ('', '', '')
+    return (
+        clean_quest_text(
+            details, player_name, *who,
+            limit=_QUEST_DETAILS_CHARS),
+        clean_quest_text(
+            objectives, player_name, *who,
+            limit=_QUEST_OBJECTIVES_CHARS),
+    )
 
 
 def _quest_complete_memory(db, ctx, message):
@@ -1252,22 +1285,22 @@ def process_group_quest_complete_event(
             turnin_npc = query_quest_turnin_npc(
                 config, quest_id,
             )
+        completer = ed.get(
+            'completer_name',
+            ed.get('bot_name', 'someone'),
+        )
+        details, objectives = _quest_prompt_texts(
+            db, ed, completer,
+        )
         return {
-            'completer_name': ed.get(
-                'completer_name',
-                ed.get('bot_name', 'someone'),
-            ),
+            'completer_name': completer,
             'quest_name': ed.get(
                 'quest_name', 'a quest',
             ),
             'quest_id': quest_id,
             'turnin_npc': turnin_npc,
-            'quest_details': ed.get(
-                'quest_details', '',
-            ),
-            'quest_objectives': ed.get(
-                'quest_objectives', '',
-            ),
+            'quest_details': details,
+            'quest_objectives': objectives,
         }
 
     def _build(ctx):
@@ -1406,20 +1439,20 @@ def process_group_quest_objectives_event(
             )
 
     def _extract(ed):
+        completer = ed.get(
+            'completer_name',
+            ed.get('bot_name', 'someone'),
+        )
+        details, objectives = _quest_prompt_texts(
+            db, ed, completer,
+        )
         return {
-            'completer_name': ed.get(
-                'completer_name',
-                ed.get('bot_name', 'someone'),
-            ),
+            'completer_name': completer,
             'quest_name': ed.get(
                 'quest_name', 'a quest',
             ),
-            'quest_details': ed.get(
-                'quest_details', '',
-            ),
-            'quest_objectives': ed.get(
-                'quest_objectives', '',
-            ),
+            'quest_details': details,
+            'quest_objectives': objectives,
         }
 
     def _build(ctx):
@@ -2302,11 +2335,15 @@ def process_group_quest_accept_event(
 
     # -- Fall through to statement via pipeline --
     def _extract(ed):
+        acceptor = ed.get(
+            'acceptor_name',
+            ed.get('bot_name', 'someone'),
+        )
+        details, objectives = _quest_prompt_texts(
+            db, ed, acceptor,
+        )
         return {
-            'acceptor_name': ed.get(
-                'acceptor_name',
-                ed.get('bot_name', 'someone'),
-            ),
+            'acceptor_name': acceptor,
             'quest_name': ed.get(
                 'quest_name', 'a quest',
             ),
@@ -2314,12 +2351,8 @@ def process_group_quest_accept_event(
                 ed.get('quest_level', 0)
             ),
             'zone_name': zone_name,
-            'quest_details': ed.get(
-                'quest_details', '',
-            ),
-            'quest_objectives': ed.get(
-                'quest_objectives', '',
-            ),
+            'quest_details': details,
+            'quest_objectives': objectives,
         }
 
     def _build(ctx):
@@ -3789,11 +3822,8 @@ def _quest_complete_conversation(
             config, quest_id
         )
 
-    quest_details = extra_data.get(
-        'quest_details', ''
-    )
-    quest_objectives = extra_data.get(
-        'quest_objectives', ''
+    quest_details, quest_objectives = _quest_prompt_texts(
+        db, extra_data, completer_name,
     )
 
     msg_count = max(
@@ -3888,11 +3918,8 @@ def _quest_objectives_conversation(
         db, group_id
     )
 
-    quest_details = extra_data.get(
-        'quest_details', ''
-    )
-    quest_objectives = extra_data.get(
-        'quest_objectives', ''
+    quest_details, quest_objectives = _quest_prompt_texts(
+        db, extra_data, completer_name,
     )
 
     msg_count = max(
@@ -3985,11 +4012,8 @@ def _quest_accept_conversation(
     history = _get_recent_chat(db, group_id)
     chat_hist = format_chat_history(history)
 
-    quest_details = extra_data.get(
-        'quest_details', ''
-    )
-    quest_objectives = extra_data.get(
-        'quest_objectives', ''
+    quest_details, quest_objectives = _quest_prompt_texts(
+        db, extra_data, acceptor_name,
     )
 
     msg_count = max(

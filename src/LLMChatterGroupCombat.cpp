@@ -1305,11 +1305,11 @@ bool HandleGroupPlayerBeforeQuestCompleteImpl(
         "\"quest_details\":\"" +
             JsonEscape(
                 NormalizeChatTextForDb(
-                    GetLocalizedQuestDetails(quest), 200)) + "\","
+                    GetLocalizedQuestDetails(quest), 600)) + "\","
         "\"quest_objectives\":\"" +
             JsonEscape(
                 NormalizeChatTextForDb(
-                    GetLocalizedQuestObjectives(quest), 150)) + "\","
+                    GetLocalizedQuestObjectives(quest), 300)) + "\","
         "\"group_id\":" +
             std::to_string(groupId) +
         "}";
@@ -1424,11 +1424,11 @@ void HandleGroupPlayerCompleteQuestImpl(
         "\"quest_details\":\"" +
             JsonEscape(
                 NormalizeChatTextForDb(
-                    GetLocalizedQuestDetails(quest), 200)) + "\","
+                    GetLocalizedQuestDetails(quest), 600)) + "\","
         "\"quest_objectives\":\"" +
             JsonEscape(
                 NormalizeChatTextForDb(
-                    GetLocalizedQuestObjectives(quest), 150)) + "\","
+                    GetLocalizedQuestObjectives(quest), 300)) + "\","
         "\"group_id\":" +
             std::to_string(groupId) +
         "}";

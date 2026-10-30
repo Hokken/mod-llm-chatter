@@ -490,6 +490,39 @@ class QuestTextTests(unittest.TestCase):
         self.assertLessEqual(len(long), 100)
         self.assertTrue(long.endswith('.'))
 
+    def test_prompt_quest_texts_are_filled_and_cut_at_a_sentence(self):
+        zanzil = (
+            'Zanzil the Outcast dwells with his followers in the Jubuwal'
+            ' and Aboraz Ruins, northeast of Booty Bay.  He is exiled'
+            ' from his tribe.  Why? Well...$B$BZanzil has methods of'
+            ' bending the minds of others, $N. ' + 'He is dangerous. ' * 30)
+        db = _DB(results=[{'race': 10, 'class': 3, 'gender': 1}])
+        details, objectives = handlers._quest_prompt_texts(db, {
+            'quest_details': zanzil,
+            'quest_objectives': 'Bring 12 samples to Crank Fizzlebub.',
+        }, 'Melindra')
+        self.assertNotIn('$', details)
+        self.assertIn('Well... Zanzil has methods', details)
+        self.assertIn('minds of others, Melindra.', details)
+        self.assertLessEqual(len(details), handlers._QUEST_DETAILS_CHARS)
+        self.assertTrue(details.endswith('.'))
+        self.assertEqual(objectives, 'Bring 12 samples to Crank Fizzlebub.')
+        # No placeholders: no character lookup at all.
+        self.assertEqual(
+            handlers._quest_prompt_texts(None, {'quest_details': 'Go.'},
+                                         'Melindra'), ('Go.', ''))
+
+    def test_quest_prompt_paths_clean_long_worldserver_text(self):
+        source = _read('tools/chatter_group_handlers.py')
+        self.assertEqual(source.count('_quest_prompt_texts('), 7)
+        self.assertNotIn("ed.get(\n                'quest_details'", source)
+        for rel in ('src/LLMChatterGroupQuest.cpp',
+                    'src/LLMChatterGroupCombat.cpp'):
+            cpp = _read(rel)
+            self.assertNotIn('GetLocalizedQuestDetails(quest), 200', cpp)
+            self.assertIn('GetLocalizedQuestDetails(quest), 600', cpp)
+            self.assertIn('GetLocalizedQuestObjectives(quest), 300', cpp)
+
     def test_texts_use_the_locale_and_all_three_labels(self):
         db = _DB(results=[
             {'brief': 'Kill trolls.', 'full': 'Hello $N.',
