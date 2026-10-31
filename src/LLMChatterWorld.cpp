@@ -678,12 +678,12 @@ private:
                         "\"transport_entry\":"
                         + std::to_string(entry) + ","
                         "\"transport_name\":\""
-                        + JsonEscape(info.fullName) + "\","
+                        + ChatterJsonEscape(info.fullName) + "\","
                         "\"destination\":\""
-                        + JsonEscape(info.destination)
+                        + ChatterJsonEscape(info.destination)
                         + "\","
                         "\"transport_type\":\""
-                        + JsonEscape(info.transportType)
+                        + ChatterJsonEscape(info.transportType)
                         + "\","
                         "\"dock_area_id\":"
                         + std::to_string(dockArea) + ","
@@ -863,7 +863,7 @@ private:
                     R"({{"guid":{},"name":"{}",)"
                     R"("zone_id":{},"area_id":{},"map_id":{}}})",
                     participant->GetGUID().GetCounter(),
-                    JsonEscape(participant->GetName()),
+                    ChatterJsonEscape(participant->GetName()),
                     participant->GetZoneId(),
                     participant->GetAreaId(),
                     participant->GetMapId());
@@ -884,17 +884,17 @@ private:
                 // Online real members, so rumors rotate between readers.
                 R"("audience":{}}})",
                 guildId,
-                JsonEscape(guildName),
-                JsonEscape(speaker->GetName()),
+                ChatterJsonEscape(guildName),
+                ChatterJsonEscape(speaker->GetName()),
                 isConversation
                     ? "conversation"
                     : "statement",
                 participantsJson,
-                JsonEscape(mates),
+                ChatterJsonEscape(mates),
                 teamName,
                 speaker->GetZoneId(),
                 speaker->GetAreaId(),
-                JsonEscape(GetZoneWeatherName(
+                ChatterJsonEscape(GetZoneWeatherName(
                     speaker->GetZoneId())),
                 BuildAudienceListJson(
                     CollectRealGuildMembers(guildId, 10)));
@@ -1027,8 +1027,8 @@ private:
                 R"("zone_id":{},)"
                 R"("difficulty":"{}"}})",
                 groupId,
-                JsonEscape(player->GetName()),
-                JsonEscape(map->GetMapName()),
+                ChatterJsonEscape(player->GetName()),
+                ChatterJsonEscape(map->GetMapName()),
                 player->GetZoneId(),
                 diffStr);
 

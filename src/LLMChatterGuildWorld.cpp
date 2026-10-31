@@ -166,7 +166,7 @@ std::string PlayerJson(Player* player, char const* prefix)
         R"("{0}_is_bot":{7},"{0}_team":"{8}")",
         prefix,
         player->GetGUID().GetCounter(),
-        JsonEscape(player->GetName()),
+        ChatterJsonEscape(player->GetName()),
         GetRaceName(player->getRace()),
         GetChatterClassName(player->getClass()),
         player->getGender() == GENDER_FEMALE ? "female" : "male",
@@ -180,7 +180,7 @@ std::string GuildFields(Guild* guild, TeamId team)
     return fmt::format(
         R"("guild_id":{},"guild_name":"{}","team":"{}")",
         guild->GetId(),
-        JsonEscape(guild->GetName()),
+        ChatterJsonEscape(guild->GetName()),
         TeamName(team));
 }
 
@@ -386,9 +386,9 @@ bool TryNpcEncounter(
             R"("zone_id":{},"area_id":{}}})",
             GuildFields(guild, bot->GetTeamId()),
             PlayerJson(bot, "bot"),
-            JsonEscape(npc->GetName()),
-            JsonEscape(tmpl ? tmpl->SubName : ""),
-            JsonEscape(GetCreatureRoleName(npc)),
+            ChatterJsonEscape(npc->GetName()),
+            ChatterJsonEscape(tmpl ? tmpl->SubName : ""),
+            ChatterJsonEscape(GetCreatureRoleName(npc)),
             GetUnitGenderLabel(npc),
             npc->GetEntry(),
             bot->GetZoneId(),
@@ -459,7 +459,7 @@ void FlushJoinAnnounce(PendingJoinAnnounce const& pending)
             R"({}{{"guid":{},"name":"{}","guild_id":{}}})",
             candidates.empty() ? "" : ",",
             other->GetGUID().GetCounter(),
-            JsonEscape(other->GetName()),
+            ChatterJsonEscape(other->GetName()),
             other->GetGuildId());
     }
     std::string json = fmt::format(

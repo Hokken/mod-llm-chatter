@@ -321,7 +321,7 @@ std::string BuildFightersJson(
             json += ",";
         first = false;
         json += "{\"name\":\""
-            + JsonEscape(fighter->GetName())
+            + ChatterJsonEscape(fighter->GetName())
             + "\",\"race\":"
             + std::to_string(fighter->getRace())
             + ",\"class\":"
@@ -504,18 +504,18 @@ std::string BuildFightFields(
     if (scene.isDuel && scene.moment == MOMENT_AFTER)
     {
         json += ",\"outcome\":\""
-            + JsonEscape(scene.outcome) + "\""
+            + ChatterJsonEscape(scene.outcome) + "\""
             + ",\"winner_name\":\""
-            + JsonEscape(nameOf(scene.winnerGuid)) + "\""
+            + ChatterJsonEscape(nameOf(scene.winnerGuid)) + "\""
             + ",\"loser_name\":\""
-            + JsonEscape(nameOf(scene.loserGuid)) + "\"";
+            + ChatterJsonEscape(nameOf(scene.loserGuid)) + "\"";
     }
     if (!scene.isDuel)
     {
         json += ",\"victor_name\":\""
-            + JsonEscape(nameOf(scene.winnerGuid)) + "\""
+            + ChatterJsonEscape(nameOf(scene.winnerGuid)) + "\""
             + ",\"fallen_name\":\""
-            + JsonEscape(nameOf(scene.loserGuid)) + "\""
+            + ChatterJsonEscape(nameOf(scene.loserGuid)) + "\""
             + ",\"onlooker_side_won\":"
             + std::string(sideWon ? "true" : "false");
     }
