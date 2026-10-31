@@ -1538,11 +1538,14 @@ struct NearbyEntry
     // Empty when unknown, or when several nearby candidates share
     // this name, so one entity's gender never labels another.
     std::string gender;
+    // NPC scenes may only turn to other NPCs, never to bots.
+    bool isNPC = false;
 };
 
 // The nearby (non-speaking) people a prompt may mention: speakers and
 // the excluded candidate skipped, names deduplicated, at most four.
-// Both nearby_names and nearby_genders are built from this list.
+// nearby_names, nearby_npc_names and nearby_genders are all built
+// from this list.
 std::vector<NearbyEntry> CollectNearbyEntries(
     std::vector<ProximityCandidate> const& allCandidates,
     std::vector<ProximityCandidate> const& speakers,
@@ -1589,6 +1592,7 @@ std::vector<NearbyEntry> CollectNearbyEntries(
             break;
         NearbyEntry entry;
         entry.name = c.name;
+        entry.isNPC = c.isNPC;
         if (nameCounts[key] == 1)
         {
             entry.gender = c.isNPC
@@ -1609,6 +1613,24 @@ std::string BuildNearbyNamesJson(
         if (i > 0)
             json += ",";
         json += "\"" + ChatterJsonEscape(entries[i].name) + "\"";
+    }
+    json += "]";
+    return json;
+}
+
+std::string BuildNearbyNpcNamesJson(
+    std::vector<NearbyEntry> const& entries)
+{
+    std::string json = "[";
+    bool first = true;
+    for (auto const& entry : entries)
+    {
+        if (!entry.isNPC)
+            continue;
+        if (!first)
+            json += ",";
+        json += "\"" + JsonEscape(entry.name) + "\"";
+        first = false;
     }
     json += "]";
     return json;
@@ -1684,6 +1706,8 @@ std::string BuildBaseEventJson(
             playerAddressed ? "true" : "false")
         + ",\"nearby_names\":"
         + BuildNearbyNamesJson(nearby)
+        + ",\"nearby_npc_names\":"
+        + BuildNearbyNpcNamesJson(nearby)
         + ",\"nearby_genders\":"
         + BuildNearbyGendersJson(nearby)
         + ",\"line_delay_seconds\":"

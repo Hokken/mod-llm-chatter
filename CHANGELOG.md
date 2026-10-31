@@ -19,6 +19,84 @@
   emote-only reaction allowed for brief casual replies. Restart the
   chatter bridge to apply.
 
+### 2026-10-28 - Truer Bot Memories
+
+* **Memories stay true to the character and the world**: the memory
+  prompt now sees the bot's personality, voice and (in roleplay) a short
+  backstory excerpt it must never contradict, and the other party members.
+  It records only what happened: no invented incidents, no words, feelings
+  or decisions written for the player, no outcomes that did not happen, no
+  "today". In roleplay it never mentions levels, achievements, quests or
+  other game terms; a memory with nothing true to record is not stored.
+  Memories are one or two sentences of about 250 characters again, as
+  before the one-sentence limit.
+* **New memories**: when the player discovers a new subzone with the
+  party, bots within about 100 yards remember finding it together, with
+  the zone and subzone descriptions (both at level 15 or higher, never in
+  capital cities, never for a subzone without a description; detected at
+  every level, including the cap). A settled duel fought by a party bot or
+  by the player, whoever the opponent, is remembered as a friendly
+  training spar by the duellists and by up to two bots who watched; an
+  opponent from outside the party is described by gender, race and
+  class.
+* **Quest memories know the task**: they now carry how the quest-giver
+  summed up and described the task, and what they said when it was done,
+  in the module language with the player's name filled in.
+* **Right actor, real facts**: achievement memories say who earned them,
+  and number milestones ("Level 30") are skipped in roleplay. Ambient
+  memories record only the place, time of day, season and weather, and
+  carry the zone and subzone descriptions as background; a place with no
+  description gets no travel memory. Level-up memories say what grew,
+  by calling, as the party reaction does (a warrior's strength, a
+  hunter's aim). A
+  player's message is remembered only by the bot that answered, and never
+  for greetings, commands, OOC or test lines.
+* **Better recall**: memories of the current place and of companions who
+  are present come first, recent and weighty ones rank higher, and ones
+  shown in the last half hour wait. Each memory shows how long ago it
+  happened. Replies only get memories of the same place or topic, and
+  greetings, replies and idle chatter may mention one instead of being told
+  to; normal-mode prompts always ask for a player's paraphrase.
+* **Fixes**: the per-pair cap now holds on every path, and eviction drops
+  referenced and long-unseen memories first instead of random ones; only
+  memories a prompt actually used count as used; entering a dungeon with
+  the party now records a dungeon memory (once per session); after a bridge
+  restart pending memories still settle and player-message memories keep
+  working; sessions that end without a farewell settle within one cleanup
+  tick instead of at the next bridge start.
+* **Roleplay fixes elsewhere**: wherever a character's race and class are
+  described, the race+class lore note follows too (for example the
+  Farstriders for a Blood Elf Hunter; `LLMChatter.RaceClassNotes.Enable`).
+  NPCs overheard talking among themselves no longer turn to the player or
+  the bots: they get no player description and may only address nearby
+  NPCs. Party events in the conversation thread are named in-world ("a
+  task finished and handed in", not "quest complete"), so idle chatter no
+  longer says "Quest done".
+  Quest reactions and conversations get the quest text with its
+  placeholders filled in (no more "$B$B" or "$N") and cut at a whole
+  sentence, instead of stopping mid-sentence at 200 characters.
+  Weather no longer follows the player into zones without weather:
+  after leaving a rainy zone for Durotar or Orgrimmar, prompts there no
+  longer say it is raining.
+  Tone and backstory generation now see the bot's gender, its race's
+  outlook and history, its class calling and the race+class note.
+  A bot's roleplay greeting and farewell now carry its race+class note
+  too. New backstories are no longer cut off mid-sentence: they get
+  twice the room, and a story that still runs out is trimmed to its last
+  full sentence.
+* **New settings**: `LLMChatter.Memory.MaxBotsPerEvent` (default 2,
+  quieter 1) limits how many bots record one boss, rare or achievement;
+  `LLMChatter.Memory.ResetOnIdentityChange` (default 0) clears a bot's
+  memories when its personality is regenerated;
+  `LLMChatter.Memory.DiscoveryEnable` (worldserver, default 1),
+  `.DiscoveryGenerationChance` (60, quieter 40), `.DiscoveryMinLevel` (15)
+  and `.DuelGenerationChance` (60, quieter 40).
+* Needs the `data/sql/characters/updates/20261028_memory_context.sql` and
+  `20261028_memory_events.sql` updates, a worldserver rebuild and a bridge
+  restart. The optional `data/sql/characters/optional/memory_cleanup.sql`
+  removes older memories with game terms, "today" or over 400 characters;
+  it is never applied automatically.
+
 ### 2026-10-28 - Settings Behave the Same With or Without Every Key
 
 * **Missing keys now mean the shipped defaults**: when a setting was absent

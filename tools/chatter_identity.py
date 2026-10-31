@@ -7,6 +7,7 @@ Conditional writes protect addon edits made while the provider is running.
 import functools
 import logging
 import random
+import re
 import threading
 import time
 from collections import OrderedDict
@@ -26,6 +27,8 @@ _failures = OrderedDict()
 _failures_lock = threading.Lock()
 _FAILURE_CACHE_MAX = 2048
 _FIELDS = ('trait1', 'trait2', 'trait3', 'tone', 'backstory')
+# A sentence end, with any closing quote or bracket after it.
+_SENTENCE_END = re.compile(r'[.!?\u2026]["\'\u201d\u00bb)\]]*(?=\s|$)')
 
 
 def config_int(config, key, default, minimum=0, maximum=None):
@@ -35,6 +38,29 @@ def config_int(config, key, default, minimum=0, maximum=None):
         value = default
     value = max(minimum, value)
     return min(maximum, value) if maximum is not None else value
+
+
+def _whole_sentences(text):
+    """Text up to its last complete sentence; '' when no
+    sentence ends in it (a reply cut off by the token limit)."""
+    ends = list(_SENTENCE_END.finditer(text))
+    return text[:ends[-1].end()].strip() if ends else ''
+
+
+def _identity_lore(db, bot_guid, bot_name, bot_race, bot_class):
+    """Race outlook and history, class calling and race+class
+    note, as prompt lines for tone and backstory generation."""
+    from chatter_player_context import character_lore_lines
+    lines = character_lore_lines(
+        db, bot_guid, bot_name, bot_race, bot_class, race_lore=True,
+    )
+    if not lines:
+        return ''
+    return (
+        "Lore of this character's people and calling (stay "
+        "consistent with it):\n"
+        + ''.join(f"- {line}\n" for line in lines)
+    )
 
 
 def _serialized(fn):
@@ -181,6 +207,14 @@ def check_or_create_bot_identity(db, config, bot_guid, bot_name):
                      bot_guid, *_snapshot(row)),
                 )
                 changed = cursor.rowcount > 0
+                if bump and changed and config_int(
+                        config,
+                        'LLMChatter.Memory.ResetOnIdentityChange',
+                        0):
+                    # A new personality should not keep a
+                    # journal written in its old voice.
+                    from chatter_memory import reset_bot_memories
+                    reset_bot_memories(db, bot_guid)
                 if bump and changed:
                     cursor.execute(
                         'UPDATE llm_group_bot_traits SET trait1=%s, '
@@ -260,10 +294,13 @@ def _generate_field(db, config, bot_guid, group_id, bot_name, field,
         value = str(value or '').strip().strip('"').strip()
         if field == 'tone':
             value = value.rstrip('.')
+        value = value[:char_limit]
+        if field == 'backstory':
+            # Never store a story that stops mid-sentence.
+            value = _whole_sentences(value)
         if not value:
             _failed(key, config)
             return fallback
-        value = value[:char_limit]
         # Lock only for the short persistence transaction, never the LLM call.
         cursor = db.cursor(dictionary=True)
         try:
@@ -362,7 +399,8 @@ def ensure_bot_profile(db, client, config, bot_guid, bot_name=''):
                         if needs_tone:
                             tone = _generate_bot_tone(
                                 db, config, bot_guid, (group or {}).get('group_id'),
-                                name, klass, race, traits)
+                                name, klass, race, traits,
+                                get_gender_label(info.get('gender', 0)))
                         if needs_story:
                             _generate_bot_backstory(
                                 db, config, bot_guid, (group or {}).get('group_id'),
@@ -407,15 +445,17 @@ def prepare_guild_speakers(db, client, config, participants, prepared=None,
 @_serialized
 def _generate_bot_tone(
     db, config, bot_guid, group_id,
-    bot_name, bot_class, bot_race, traits,
+    bot_name, bot_class, bot_race, traits, bot_gender='',
 ):
     # Build LLM prompt
     trait_str = ', '.join(traits)
+    gender_str = f"{bot_gender} " if bot_gender else ""
     prompt = (
         "You are helping define the communication "
         "style of a WoW bot character.\n\n"
-        f"Bot: {bot_name} ({bot_race} {bot_class})\n"
-        f"Personality traits: {trait_str}\n\n"
+        f"Bot: {bot_name} ({gender_str}{bot_race} {bot_class})\n"
+        f"Personality traits: {trait_str}\n"
+        f"{_identity_lore(db, bot_guid, bot_name, bot_race, bot_class)}\n"
         "Write a short tone description (5-8 words) "
         "that captures how this character speaks.\n"
         "It must be consistent with ALL three traits "
@@ -463,7 +503,8 @@ def _generate_bot_backstory(
         f"Character: {bot_name}, a {gender_str}"
         f"{bot_race} {bot_class}.\n"
         f"Personality traits: {trait_str}\n"
-        f"{tone_line}\n\n"
+        f"{tone_line}\n"
+        f"{_identity_lore(db, bot_guid, bot_name, bot_race, bot_class)}\n"
         "Write a 3-4 sentence background story for "
         "this character. Include:\n"
         "- A birthplace appropriate to their race "
@@ -489,7 +530,7 @@ def _generate_bot_backstory(
 
     return _generate_field(
         db, config, bot_guid, group_id, bot_name, 'backstory',
-        traits, prompt, 200, 1000, expected_tone=tone,
+        traits, prompt, 400, 1000, expected_tone=tone,
     )
 
 
@@ -518,7 +559,7 @@ def regenerate_missing_identity_tones(
         SELECT i.bot_guid,
                COALESCE(i.bot_name, c.name) AS bot_name,
                i.trait1, i.trait2, i.trait3,
-               c.class, c.race
+               c.class, c.race, c.gender
         FROM llm_bot_identities i
         JOIN characters c
           ON c.guid = i.bot_guid
@@ -571,6 +612,9 @@ def regenerate_missing_identity_tones(
             db, config, bot_guid, None,
             bot_name, bot_class, bot_race,
             traits,
+            bot_gender=get_gender_label(
+                int(row.get('gender') or 0)
+            ),
         )
         if tone:
             generated += 1
@@ -738,7 +782,7 @@ def regenerate_bot_tone(db, config, bot_guid):
                COALESCE(i.bot_name, c.name)
                    AS bot_name,
                i.trait1, i.trait2, i.trait3,
-               c.class, c.race
+               c.class, c.race, c.gender
         FROM llm_bot_identities i
         JOIN characters c
           ON c.guid = i.bot_guid
@@ -751,7 +795,7 @@ def regenerate_bot_tone(db, config, bot_guid):
                    COALESCE(t.bot_name, c.name)
                        AS bot_name,
                    t.trait1, t.trait2, t.trait3,
-                   c.class, c.race
+                   c.class, c.race, c.gender
             FROM llm_group_bot_traits t
             JOIN characters c
               ON c.guid = t.bot_guid
@@ -784,6 +828,9 @@ def regenerate_bot_tone(db, config, bot_guid):
     tone = _generate_bot_tone(
         db, config, bot_guid, None,
         bot_name, bot_class, bot_race, traits,
+        bot_gender=get_gender_label(
+            int(row.get('gender') or 0)
+        ),
     )
     if tone:
         logger.info(

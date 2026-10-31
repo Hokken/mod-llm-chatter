@@ -3,10 +3,13 @@
 Handles bot_group_duel_start and bot_group_duel_end,
 queued by src/LLMChatterDuel.cpp. The reactor is
 either one of the duellists (a group bot) or a group
-bot watching the duel.
+bot watching the duel. A settled duel fought by a group
+bot or by the group's real player may also become a
+memory, always as a friendly training spar.
 """
 
 import logging
+import random
 
 from chatter_shared import (
     build_race_class_context,
@@ -14,6 +17,7 @@ from chatter_shared import (
     append_json_instruction,
     get_class_name,
     get_race_name,
+    get_gender_label,
 )
 from chatter_prompts import (
     pick_random_tone,
@@ -23,6 +27,7 @@ from chatter_mode import build_player_prompt_header_from_dict
 from chatter_group_prompts import _pick_length_hint
 from chatter_handler_pipeline import run_group_handler
 from chatter_member_gender import genders_by_named_guid
+from chatter_memory import pick_event_bots, queue_memory
 
 logger = logging.getLogger(__name__)
 
@@ -285,6 +290,139 @@ def _attach_duellist_genders(db, extra_data):
     return extra_data
 
 
+def _duellist_bot_guid(extra_data, prefix):
+    """The duellist's guid when it is a bot of this group,
+    else 0 (the real player, or someone outside)."""
+    if not _payload_flag(extra_data.get(f'{prefix}_in_group')):
+        return 0
+    if _payload_flag(extra_data.get(f'{prefix}_is_real_player')):
+        return 0
+    try:
+        return int(extra_data.get(f'{prefix}_guid') or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _duellist_in_party(extra_data, prefix):
+    """True when the duellist is the group's real player or
+    one of its bots."""
+    return _payload_flag(extra_data.get(f'{prefix}_in_group'))
+
+
+def _duellist_name(extra_data, prefix):
+    """How a memory names a duellist: party members by name;
+    someone from outside the party by name with gender, race
+    and class; an opponent who could not be identified as a
+    stranger."""
+    if not _payload_flag(extra_data.get(f'{prefix}_identity_known')):
+        return 'a stranger'
+    name = str(extra_data.get(f'{prefix}_name') or '').strip()
+    if not name:
+        return 'a stranger'
+    if _duellist_in_party(extra_data, prefix):
+        return name
+    try:
+        race = get_race_name(int(extra_data.get(f'{prefix}_race', 0)))
+        cls = get_class_name(int(extra_data.get(f'{prefix}_class', 0)))
+    except (TypeError, ValueError):
+        race, cls = '', ''
+    gender = str(extra_data.get(f'{prefix}_gender') or '')
+    if gender not in ('female', 'male'):
+        gender = ''
+    desc = ' '.join(p for p in (gender, race, cls) if p)
+    article = 'an' if desc[:1].lower() in 'aeiou' and desc else 'a'
+    who = f"{name}, {article} {desc}" if desc else name
+    return f"{who} from outside the party"
+
+
+def duel_memory_context(extra_data, bot_guid):
+    """What a bot remembers of a settled duel: its own win or
+    loss, or one it watched; always a friendly training
+    spar. None for an unsettled (interrupted) duel."""
+    outcome = extra_data.get('outcome', 'won')
+    if outcome == 'interrupted':
+        return None
+    winner = _duellist_name(extra_data, 'winner')
+    loser = _duellist_name(extra_data, 'loser')
+    winner_guid = _duellist_bot_guid(extra_data, 'winner')
+    loser_guid = _duellist_bot_guid(extra_data, 'loser')
+    if bot_guid and bot_guid == winner_guid:
+        text = f"I won a friendly training spar against {loser}"
+        fled = f" after {loser} left the sparring ground"
+    elif bot_guid and bot_guid == loser_guid:
+        text = f"{winner} won a friendly training spar against me"
+        fled = " after I left the sparring ground"
+    else:
+        text = (
+            f"{winner} won a friendly training spar against {loser}"
+        )
+        fled = f" after {loser} left the sparring ground"
+    if outcome == 'fled':
+        text += fled
+    if bot_guid not in (winner_guid, loser_guid):
+        text += "; I watched"
+    return text
+
+
+def _duel_end_memory(db, ctx, message):
+    """Memory: a settled duel fought by a bot of this group or
+    by its real player, whoever the opponent was. The
+    duelling bots remember it, and up to MaxBotsPerEvent
+    other bots who watched."""
+    config = ctx['config']
+    extra_data = ctx['extra_data']
+    if extra_data.get('outcome', 'won') == 'interrupted':
+        return
+    if not (_duellist_in_party(extra_data, 'winner')
+            or _duellist_in_party(extra_data, 'loser')):
+        return
+    # Genders of identifiable duellists, outsiders included.
+    _attach_duellist_genders(db, extra_data)
+    duellists = {
+        g for g in (
+            _duellist_bot_guid(extra_data, 'winner'),
+            _duellist_bot_guid(extra_data, 'loser'),
+        ) if g
+    }
+    chance = int(config.get(
+        'LLMChatter.Memory.DuelGenerationChance', 60
+    ))
+    group_id = ctx['group_id']
+    cursor = db.cursor(dictionary=True)
+    cursor.execute(
+        "SELECT t.bot_guid, t.bot_name,"
+        " c.class, c.race, c.gender"
+        " FROM llm_group_bot_traits t"
+        " JOIN characters c ON c.guid = t.bot_guid"
+        " WHERE t.group_id = %s",
+        (group_id,),
+    )
+    bots = cursor.fetchall()
+    cursor.close()
+    fighters = [b for b in bots if int(b['bot_guid']) in duellists]
+    watchers = pick_event_bots(config, [
+        b for b in bots if int(b['bot_guid']) not in duellists
+    ])
+    for bot in fighters + watchers:
+        if random.random() * 100 >= chance:
+            continue
+        context = duel_memory_context(extra_data, int(bot['bot_guid']))
+        if not context:
+            continue
+        try:
+            queue_memory(
+                config, group_id, bot['bot_guid'], 0,
+                memory_type='duel',
+                event_context=context,
+                bot_name=bot['bot_name'],
+                bot_class=get_class_name(bot['class']),
+                bot_race=get_race_name(bot['race']),
+                bot_gender=get_gender_label(bot.get('gender') or 0),
+            )
+        except Exception:
+            logger.error("duel memory queue failed", exc_info=True)
+
+
 def process_duel_start_event(db, client, config, event):
     """Handle a bot_group_duel_start event."""
     return run_group_handler(
@@ -327,5 +465,6 @@ def process_duel_end_event(db, client, config, event):
             )
         ),
         delay_seconds=2,
+        post_success=_duel_end_memory,
         label='reaction_duel_end',
     )

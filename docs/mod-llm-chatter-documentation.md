@@ -1119,6 +1119,10 @@ are reused, including manual edits. The first use can take longer because
 it may require tone and backstory generation before the speech request.
 Generation failures leave a stable fallback voice and retry missing fields
 after `LLMChatter.Profile.RetrySeconds` (default 300).
+Both generators see the bot's name, gender, race and class, the race
+outlook and history, the class calling (Light or Shadow for priests) and
+the race+class note (when `LLMChatter.RaceClassNotes.Enable` is on), so
+the tone and backstory fit the character's people and calling.
 
 Persistent roleplay profiles are independent of journal memory. With
 `Memory.Enable=0`, Party retains its existing random session traits;
@@ -1177,7 +1181,9 @@ switched off separately (`Threads.GuildEnable`,
   subject in when it relates, then may drift back to it later.
 - Events interrupt: after a fight or loot, the talk can resume if the
   subject still has life in it. A wipe or a death takes over the
-  conversation.
+  conversation. Events are named in-world ("a task finished and handed
+  in", "someone grew stronger", "something found"), never by their game
+  terms.
 - Nothing is scripted. Each exchange gets a soft nudge the model may
   ignore, and every kind of move stays possible. Now and then a bot is
   explicitly allowed a believable surprise: changing its mind, going
@@ -1532,9 +1538,9 @@ Existing installations must apply
 `data/sql/characters/updates/20261022_loot_roll_comments.sql`, which adds
 the event type, and rebuild the worldserver.
 
-Note: subzone discovery reactions (`OnPlayerGiveXP` with `XPSOURCE_EXPLORE`) have been
-removed. They caused duplicate messages alongside zone transition events. Discovery
-context is now covered by zone transition events instead.
+Note: there are no spoken subzone discovery reactions; the old ones (`OnPlayerGiveXP`
+with `XPSOURCE_EXPLORE`) duplicated zone transition lines and were removed. A discovery
+now only becomes a bot memory (`bot_group_discovery`, section 13n).
 
 ### C++ ownership
 
@@ -1964,6 +1970,7 @@ payload fields, never map location alone. Group producer policy is:
 | join_batch | Dedicated BG arrival uses the guard; ordinary group arrival retains group policy |
 | join, farewell, resurrect, corpse_run, zone_transition, subzone_change | Ordinary group policy without BG context |
 | loot, loot_roll, levelup, quest_accept, quest_accept_batch, quest_complete, quest_objectives, dungeon_entry, wipe | Ordinary group policy without BG context |
+| discovery | Memory only (no party message); never produced in battlegrounds or arenas |
 | emote_reaction, emote_observer, nearby_object, aggro | Existing producer eligibility and ordinary group policy |
 
 The producer inventory is pinned in the transport regression tests. Any
@@ -3072,78 +3079,194 @@ Ancients and Isle of Conquest.
 
 ### Overview
 
-Bots accumulate a bounded journal of shared moments with real players.
-On re-invite, the bot delivers a reunion greeting that references past
-experiences rather than treating the player as a stranger.
+Bots keep a bounded journal of moments shared with each real player
+(`llm_bot_memories`, one row per memory, keyed by `bot_guid` +
+`player_guid`). On re-invite the bot greets the player as someone it
+knows, and later prompts may draw on the journal. A memory is one plain
+first-person sentence: facts only, in the bot's own voice and in the
+register of the chat mode.
 
 ### Memory lifecycle
 
-1. **Group join** (`process_group_join_event` / `process_group_join_batch_event`)
-   - `start_session()` registers the bot in the in-memory session tracker
-   - `get_bot_memories()` fetches up to 3 random `active=1` memories for this
-     bot–player pair
-   - If memories exist: `player_name_known=True` → reunion greeting mode
-   - If no memories (first meeting): a `first_meeting` memory is inserted
-     directly with `active=1` and `memory_type='first_meeting'`, guarded by
-     `INSERT...SELECT...WHERE NOT EXISTS` to prevent duplicates on re-join.
-     This memory is immune to both short-session discard and cap pruning.
-   - A normal join generates the visible greeting and then pre-generates the
-     farewell stored in `llm_group_bot_traits`. A player-session rejoin skips
-     the duplicate greeting but still prepares the farewell. An existing
-     persistent farewell is reused without an LLM call; a missing farewell is
-     generated before the rejoin event completes.
+1. **Group join** (`process_group_join_event` /
+   `process_group_join_batch_event`)
+   - `start_session()` registers the bot in the in-memory session tracker.
+   - `get_bot_memories()` fetches the best-fitting memories for the
+     greeting (see Recall). If any exist, the greeting is a reunion; at
+     `RecallChance` one of them is picked out to mention and marked used.
+   - A first meeting writes the templated `first_meeting` memory through
+     `insert_first_meeting()` ("Met X and began adventuring together in
+     <zone>.", with zone and map), once per pair. It is active at once and
+     never discarded or evicted.
+   - Joining while the player is inside a dungeon may record a `dungeon`
+     memory.
+   - A normal join generates the visible greeting and then pre-generates
+     the farewell stored in `llm_group_bot_traits`. A player-session rejoin
+     skips the duplicate greeting but still prepares the farewell. An
+     existing persistent farewell is reused without an LLM call; a missing
+     farewell is generated before the rejoin event completes.
+2. **During the session.** Event handlers call `queue_memory()`.
+   - It resolves, while the trait rows still exist: the place (zone,
+     area, map), the chat mode, the bot's persona (traits, tone,
+     backstory: this session's row, else `llm_bot_identities`) and the
+     other bots present.
+   - The LLM call runs on a two-thread pool, and the row is inserted with
+     `active = 0`, `zone_id`, `map_id` and `companions`.
+   - A memory is one or two sentences of about 250 characters;
+     `_clamp_memory_text()` enforces a 400-character hard cap at write
+     time.
+3. **Group farewell** (`process_group_farewell_event` →
+   `flush_session_memories()`)
+   - C++ sends the prepared `llm_group_bot_traits.farewell_msg`
+     synchronously during `OnRemoveMember`, before deleting the trait row.
+     The Python farewell event does not generate the visible message.
+   - **Session at least `SessionMinutes`:** the bot's pending rows become
+     active and the pair is pruned to the cap. On the first such farewell
+     in a group with two or more bots, each bot may record a
+     `party_member` memory (`PartyMemberGenerationChance`) stating how long
+     the party adventured together and who was there.
+   - **Shorter session:** the pending rows are deleted.
+4. **Sessions that end without a farewell** (logout, crash).
+   `activate_orphaned_memories()` runs at bridge start and on every bridge
+   cleanup tick. It promotes the pending rows of dead groups whose session
+   was long enough, deletes the rest, prunes to the cap and skips live
+   groups.
+5. **Bridge restart.** `rehydrate_active_sessions()` rebuilds live sessions:
+   - it resolves the real player (`get_real_player_guid_for_group()`) and
+     the members;
+   - it resumes the session clock from the group's pending rows, or its
+     trait rows, so memories written before the restart still activate at
+     farewell.
 
-2. **During the session** — event handlers may call `queue_memory()`
-   to produce LLM-generated memories (boss kills, notable events). These are
-   inserted with `active=0` until flush. Each memory is one plain, factual
-   first-person sentence (target 160 characters, no flowery wording).
-   `_clamp_memory_text()` enforces a 240-character hard cap at write time,
-   cutting at a sentence or word boundary, so prompts include stored
-   memories whole rather than truncating them at 200 characters.
+### What is stored, and when
 
-3. **Group farewell** (`process_group_farewell_event` → `flush_session_memories()`)
-   - C++ sends the prepared `llm_group_bot_traits.farewell_msg` synchronously
-     during `OnRemoveMember`, before deleting the trait row. The Python
-     farewell event does not generate the visible message.
-   - If session was long enough (`SessionMinutes` threshold): activates `active=0`
-     rows and prunes oldest memories to the `MaxPerBotPlayer` cap.
-     `first_meeting` rows are excluded from the prune DELETE.
-   - If session was too short: deletes all `active=0` rows for this session.
-     `first_meeting` rows are `active=1` and unaffected.
+| Type | Trigger | Who records it | What the prompt is told |
+|------|---------|----------------|-------------------------|
+| `first_meeting` | first join of a pair | the joining bot | fixed template, no LLM |
+| `dungeon` | joining inside an instance, or the dungeon-entry event; once per bot and instance per session | the joining or reacting bot | "Entered <instance>" |
+| `boss_kill` / `rare_kill` | boss or rare kill | up to `MaxBotsPerEvent` bots | "Killed <creature>" |
+| `wipe` | party wipe | the reacting bot | "Wiped to <killer>" |
+| `quest_complete` | quest completed | the reacting bot | "Finished the task "<name>" together", with background: how the quest-giver summed up and described the task (`LogDescription`, `QuestDescription`) and what they said on turn-in (`quest_offer_reward.RewardText`); localized, placeholders (`$N`, `$R`, `$C`, `$B`, `$G`) filled in |
+| `discovery` | the player discovers a new subzone (C++ watches the explored-area flags, at every level) | bots within about 100 yards of the player at that moment (C++ `nearby_bot_guids`; with none near, no event), up to `MaxBotsPerEvent`, at `DiscoveryGenerationChance` | "<player> and I discovered <subzone> in <zone> together", with the zone and subzone descriptions as background; only when the player and the bot are at least `DiscoveryMinLevel`, never in a capital city, never for a subzone without a description |
+| `duel` | a settled duel fought by a bot of the group or by its real player, whoever the opponent (`bot_group_duel_end`) | the duelling bots, and up to `MaxBotsPerEvent` bots who watched, at `DuelGenerationChance` | "I won / <winner> won a friendly training spar against …", or "…; I watched"; an opponent from outside the party is named with gender, race and class ("Torvald, a male Dwarf Warrior from outside the party"), one that could not be identified as "a stranger"; interrupted duels are skipped |
+| `achievement` | achievement (not in BGs) | up to `MaxBotsPerEvent` bots | "<earner, or I> earned recognition for: <name>"; in roleplay, achievements with a number in the name ("Level 30", "50 Quests") are skipped without an LLM call |
+| `level_up` | a level gained | the reacting bot, and the levelling bot | roleplay: "grew noticeably stronger" in what the calling grows (`CLASS_GROWTH`, as in the party reaction: "a paladin's devotion to the Light and skill at arms"), with the leveler's race and calling; normal: "reached level N" |
+| `ambient` | zone transition (`AmbientChance`) | the reacting bot | the place, plus time of day, season and live weather (indoor instances: none; open-air ones: no weather); "nothing else happened". Background: the zone (or instance) and subzone descriptions; with neither, no memory |
+| `player_message` | the player's party message (≤ `PlayerMsgMaxLength`, first `PlayerMsgMaxPerSession` per session) | only the bot that answered; never for brief casual lines, bot commands, URLs, OOC (`((...))`, "ooc") or test lines | "<player> told me: <message>", recorded as a topic, never a guessed intent |
+| `pvp_kill` | open-world or BG kill | the bot | the enemy's name, race, class and faction |
+| `bg_win` / `bg_loss` | BG match end | party bots | "Won/Lost <BG>" |
+| `party_member` | first qualifying farewell, 2+ bots | each bot | duration and companions |
 
-4. **Reunion greeting** — when `get_bot_memories()` returns a non-empty list,
-   the greeting prompt enters reunion mode: injects `<past_memories>` block,
-   uses familiar tone, optionally recalls a specific memory (`recall_memory`).
-   The `is_reunion` flag is `bool(memories and player_name_known)`, so a first
-   meeting (where `memories=[]`) always produces a fresh greeting even though
-   `player_name_known` is set to `True` for internal tracking.
+
+### Generation rules (`build_memory_prompt()`)
+
+- **Inputs:**
+  - the bot's identity, personality and voice;
+  - in roleplay, a backstory excerpt of about 300 characters marked
+    "never contradict it";
+  - the player and their gender;
+  - the other bots in the party, the location, the event context, and a
+    subtle mood and register;
+  - optional background lines (place descriptions, a quest-giver's words)
+    that keep the memory accurate but are never retold as events.
+- **Every mode:**
+  - record only what the context states;
+  - nothing about the player's feelings, motives, words or actions beyond
+    what is given;
+  - no outcomes that are not stated;
+  - others who took part are named, or called "the party", never erased
+    into a duo;
+  - no invented childhood, family or past;
+  - no "today", "yesterday" or "just now";
+  - an empty memory when there is nothing true to record (it is then not
+    stored).
+- **Roleplay:** an in-world voice; never levels, achievements, quests,
+  experience, loot rarity or interface terms.
+- **Normal mode:** a player's short session log; game terms are allowed.
+
+### Recall (`get_bot_memories()`)
+
+- **Scoring:** every active memory of the pair is scored:
+  - **plus:** the current instance or zone; companions who are present
+    now; recency; type weight (`MEMORY_TYPE_WEIGHTS`: boss, dungeon and
+    wipe above ambient);
+  - **minus:** shown within the last 30 minutes; names a companion who
+    is absent;
+  - a small random jitter; then the top `RecallCount` (or
+    `IdleRecallCount`) are returned.
+- **Replies** (`relevant_to`) keep only memories of the same place or
+  sharing a topic word with the player's message.
+- **Rendering:** each memory is prefixed with its age ("(about a week
+  ago)"). `memory_block_notes()` adds that the times are how long ago it
+  happened and that people named may not be present; in normal mode it
+  adds the paraphrase-as-a-player rule.
+- **Framing:**
+  - the greeting uses memories as passive context;
+  - replies may mention one if it fits, otherwise ignore them;
+  - idle lines and idle conversations are a chance-gated moment to look
+    back, in the bot's own words;
+  - only the bot question is built around one memory.
+- **Shown and used:** every returned row gets `last_used_at` (last
+  shown). `used = 1` is set only where a memory is actually referenced:
+  the greeting's picked memory and bot questions (`mark_used=True`,
+  `mark_memories_used()`).
+
+### Cap and eviction
+
+`MaxPerBotPlayer` is enforced on every insert path and after activation.
+`_evict_one()` deletes the least valuable active row:
+- referenced rows first, then the one unseen the longest, then the
+  oldest;
+- never `first_meeting`.
+
+### Identity changes
+
+With `ResetOnIdentityChange = 1`, an `IdentityVersion` bump that
+regenerates a bot's personality also deletes its memories, except
+`first_meeting`, through `reset_bot_memories()`.
 
 ### Files
 
 | File | Role |
 |------|------|
-| `chatter_memory.py` | Session tracking, memory generation (with `player_name` threading and DB fallback), flush, retrieval |
-| `chatter_group.py` | Calls `start_session`, `get_bot_memories`, first-meeting insert |
-| `chatter_group_prompts.py` | `build_bot_greeting_prompt` — reunion mode and `<past_memories>` injection |
+| `chatter_memory.py` | Session tracking, context resolution, generation prompt, insert/cap/eviction, flush, orphan recovery, rehydration, scored recall, age labels, recall notes, identity reset |
+| `chatter_group.py` | Join recall and first meeting, reply/idle/question recall, player-message memories |
+| `chatter_group_handlers.py` | Event memories (kill, achievement, quest with the quest-giver's words, level, ambient, wipe, PvP, dungeon entry, discovery) |
+| `chatter_duel.py` | Duel memories (`duel_memory_context()`) |
+| `chatter_shared.py` | `get_quest_memory_texts()`, `clean_quest_text()`, `quest_memory_background()` |
+| `src/LLMChatterGroupDiscovery.cpp` | Explored-flag watch that queues `bot_group_discovery` |
+| `chatter_group_prompts.py` | `<past_memories>` blocks in greeting, reply and bot question |
+| `chatter_identity.py` | `ResetOnIdentityChange` on a version bump |
 
-### Database tables
+### Database
 
-| Table | Purpose |
-|-------|---------|
-| `llm_bot_memories` | Per-bot-per-player memory journal. `memory_type` includes `first_meeting`, `boss_kill`, `party_member`, etc. |
-| `llm_bot_identities` | Persistent personality traits keyed by `bot_guid`. Regenerated only on `IdentityVersion` bump. |
+| Table / file | Purpose |
+|--------------|---------|
+| `llm_bot_memories` | The journal. Columns of note: `memory_type`, `memory`, `active`, `used`, `last_used_at`, `session_start`, `zone_id`, `map_id`, `companions`, `created_at` |
+| `llm_bot_identities` | Persistent personality keyed by `bot_guid`; regenerated only on `IdentityVersion` bump |
+| `updates/20261028_memory_context.sql` | Adds `zone_id`, `map_id`, `companions` |
+| `updates/20261028_memory_events.sql` | Adds the `bot_group_discovery` event type and the `duel` memory type |
+| `optional/memory_cleanup.sql` | Not applied automatically: previews and deletes pre-2026-10-28 rows with game terms, "today", over 400 characters, or stale pending state; never `first_meeting` |
 
 ### Config keys
 
-| Key | Default | Purpose |
-|-----|---------|---------|
-| `LLMChatter.Memory.Enable` | `1` | Master toggle |
-| `LLMChatter.Memory.SessionMinutes` | `3` | Minimum session length to activate memories |
-| `LLMChatter.Memory.MaxPerBotPlayer` | `30` | Cap on active memories per bot–player pair |
-| `LLMChatter.Memory.RecallChance` | `20` | % chance a specific memory is highlighted in reunion greeting |
-| `LLMChatter.Memory.RecallCount` | `3` | Memories retrieved for a greeting, a reply to the player or a bot question (1-10) |
-| `LLMChatter.Memory.IdleRecallCount` | `2` | Memories retrieved for idle chatter (1-10) |
-| `LLMChatter.Memory.IdentityVersion` | `1` | Bump to force personality regeneration for all bots |
+| Key | Default | Quieter | Purpose |
+|-----|---------|---------|---------|
+| `LLMChatter.Memory.Enable` | `1` | `1` | Master toggle |
+| `LLMChatter.Memory.SessionMinutes` | `3` | `3` | Minimum session length to keep pending memories |
+| `LLMChatter.Memory.MaxPerBotPlayer` | `30` | `30` | Cap on active memories per bot–player pair |
+| `LLMChatter.Memory.RecallChance` | `20` | `20` | % chance the reunion greeting picks one memory to mention |
+| `LLMChatter.Memory.RecallCount` | `3` | `3` | Memories for a greeting, a reply or a bot question (1-10) |
+| `LLMChatter.Memory.IdleRecallChance` | `20` | `20` | % chance idle chatter, a bot question or a reply draws on memories |
+| `LLMChatter.Memory.IdleRecallCount` | `2` | `2` | Memories for idle chatter (1-10) |
+| `LLMChatter.Memory.MaxBotsPerEvent` | `2` | `1` | Most bots that record one boss, rare or achievement memory |
+| `LLMChatter.Memory.ResetOnIdentityChange` | `0` | `0` | Delete a bot's memories when its personality is regenerated |
+| `LLMChatter.Memory.DiscoveryEnable` | `1` | `1` | Worldserver: watch for subzone discoveries |
+| `LLMChatter.Memory.DiscoveryGenerationChance` | `60` | `40` | % chance a bot records a discovery |
+| `LLMChatter.Memory.DiscoveryMinLevel` | `15` | `15` | Minimum level of player and bot for a discovery memory |
+| `LLMChatter.Memory.DuelGenerationChance` | `60` | `40` | % chance a bot remembers a settled duel |
+| `LLMChatter.Memory.IdentityVersion` | `1` | `1` | Bump to force personality regeneration for all bots |
+| `LLMChatter.Memory.*GenerationChance`, `AmbientChance`, `PlayerMsg*` | see conf | see conf | Per-type generation chances and player-message limits |
 
 ---
 
@@ -3360,6 +3483,11 @@ NPCs are identified by spawn GUID (`Creature::GetSpawnId()`) rather
 than entry ID. Map and instance IDs scope cooldowns, active scenes, and
 reply history so separate copies of the same dungeon cannot share
 context. Mutually hostile candidates cannot join one ambient scene.
+
+A `proximity_conversation` with only NPC speakers is overheard talk among
+them: the prompt carries no description of the player, and only nearby
+NPCs (`nearby_npc_names` in the payload) may be addressed, never the
+player or the bots. A payload without that list offers nobody.
 
 ### Delivery channels
 
@@ -4900,9 +5028,16 @@ happened. The other speakers get a list of possible reactions.
 
 `race_class_note()` (`chatter_shared.py`, data in `chatter_lore_data.py`)
 adds a short lore note for the speaker's race and calling to the
-speaker's identity in Guild chat prompts (and nowhere else), with
-priests split into Light and Shadow by spec
-(`chatter_class_style.py`). `RaceClassNotes.Enable` turns it off.
+speaker's identity in Guild chat prompts, with priests split into Light
+and Shadow by spec (`chatter_class_style.py`). The same note follows
+every other race and calling description: the player's description
+(`player_character_lines`, including the neutral one for NPC scenes)
+and other characters' lore (`character_lore_lines`, e.g. an enemy
+player), as "<name>'s people and calling (<race> <calling>): …".
+The bot's tone and backstory generation and its roleplay party greeting
+(`build_bot_greeting_prompt`) and farewell (`_generate_farewell`), as
+"Your people and calling …", carry it too.
+`RaceClassNotes.Enable` turns it off everywhere.
 
 ### Configuration
 

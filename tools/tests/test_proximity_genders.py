@@ -193,6 +193,39 @@ def test_npc_casts_use_neutral_player_description():
     assert single.count('Calwen is a female Human') == 1
 
 
+def test_npc_only_conversation_leaves_player_and_bots_out():
+    rp = {'LLMChatter.ChatterMode': 'roleplay'}
+    extra = {'player_name': 'Calwen', 'player_guid': 7,
+             'player_addressed': True,
+             'nearby_names': ['Hogger', 'Ana'],
+             'nearby_npc_names': ['Hogger']}
+    npcs = [dict(NPC), dict(NPC, name='Guard Ellis')]
+    text = _text(prox._conversation_prompt(DB(), extra, npcs, config=rp))
+    assert 'Calwen' not in text
+    assert 'Let this colour' not in text
+    assert 'Also nearby: Hogger. A speaker' in text
+    assert 'never address, mention or tell stories about any passing ' \
+        'traveller' in text
+    # An older payload without the NPC list offers nobody.
+    old = {k: v for k, v in extra.items() if k != 'nearby_npc_names'}
+    text = _text(prox._conversation_prompt(DB(), old, npcs, config=rp))
+    assert 'Also nearby' not in text and 'Hogger' not in text
+    assert 'named below' not in text
+    # A scene with a playerbot speaker keeps the player and every name.
+    mixed = _text(prox._conversation_prompt(
+        DB(), extra, [dict(NPC), dict(BOT)], config=rp))
+    assert 'Also nearby: Calwen, Hogger, Ana. A speaker' in mixed
+    assert 'passing traveller' not in mixed
+
+
+def test_proximity_payload_marks_nearby_npcs():
+    src = (Path(__file__).resolve().parents[2] / 'src'
+           / 'LLMChatterProximity.cpp').read_text()
+    assert 'entry.isNPC = c.isNPC;' in src
+    assert '",\\"nearby_npc_names\\":"' in src
+    assert 'BuildNearbyNpcNamesJson(nearby)' in src
+
+
 # ------------------------------------------------------------
 # Emotes and duels
 # ------------------------------------------------------------

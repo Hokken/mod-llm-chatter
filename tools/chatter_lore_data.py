@@ -980,6 +980,7 @@ CLASS_TOPICS = {'Warrior': ['Recall their first real battle.',
                    'Talk about visions of the tormented souls of ancestors clinging to the living',
                    'Talk about memories that may be dreams, such as a gigantic cave whose walls '
                    'swarm with carnivorous insects',
+                   'Talk about the whispers that are so easy to confuse with the speech of others',
                    'Talk about dreams of grand black granite halls without light or mercy, only '
                    'emptiness and fear'],
  'Death Knight': ['Recall who they were in life before becoming a death knight.',

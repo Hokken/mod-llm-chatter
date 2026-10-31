@@ -20,6 +20,7 @@ from chatter_shared import (
     get_class_name,
     get_gender_label,
     get_race_name,
+    race_class_note,
     shorten_chat_message,
     strip_speaker_prefix,
 )
@@ -29,6 +30,7 @@ from chatter_mode import (
     normalize_chatter_mode,
     resolve_player_personality,
 )
+from chatter_class_style import class_style
 from chatter_constants import PERSONALITY_TRAITS
 from chatter_db import mark_event
 from chatter_member_gender import party_gender_line
@@ -358,6 +360,7 @@ def assign_bot_traits(
                 db, config, bot_guid, group_id,
                 bot_name, bot_class, bot_race,
                 traits,
+                bot_gender=bot_gender,
             )
         except Exception:
             pass
@@ -557,6 +560,14 @@ def _generate_farewell(
         rp_ctx = build_race_class_context(
             bot_race, bot_class
         )
+        # The race+class pairing (Orc Warlock, Blood Elf
+        # Hunter: the Farstriders); empty when notes are off.
+        note = race_class_note(
+            bot_race, bot_class,
+            class_style(db, bot_guid, bot_class),
+        )
+        if note:
+            rp_ctx = f"{rp_ctx} {note}".strip()
         if rp_ctx:
             rp_ctx = f"\n{rp_ctx}"
 

@@ -6,6 +6,7 @@ import random
 from chatter_shared import (
     get_zone_flavor,
     get_race_speech_profile,
+    race_class_note,
     get_bg_lore,
     get_language_rule,
     get_zone_name,
@@ -309,6 +310,7 @@ def build_bot_greeting_prompt(
     bg_context=None,
     player_context="",
     area_id=0,
+    class_style=None,
 ):
     """Build the LLM prompt for a group greeting.
 
@@ -332,6 +334,8 @@ def build_bot_greeting_prompt(
         player_name_known: True if bot has memories
             with this player
         recall_memory: specific memory to reference
+        class_style: calling for the race+class note
+            ('Light Priest' / 'Shadow Priest' for priests)
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
@@ -345,6 +349,13 @@ def build_bot_greeting_prompt(
         ctx = build_race_class_context(
             bot['race'], bot['class']
         )
+        # The race+class pairing (Blood Elf Hunter: the
+        # Farstriders); empty when notes are off.
+        note = race_class_note(
+            bot['race'], bot['class'], class_style,
+        )
+        if note:
+            ctx = f"{ctx} {note}".strip()
         if ctx:
             rp_context = f"\n{ctx}"
 
@@ -472,6 +483,7 @@ def build_bot_greeting_prompt(
     )
     if is_reunion:
         from chatter_memory import (
+            memory_block_notes,
             sanitize_memory_for_prompt,
         )
         sanitized = [
@@ -490,6 +502,7 @@ def build_bot_greeting_prompt(
                 f"Use them as passive context only "
                 f"— do not recite them.\n"
                 f"{mem_lines}\n"
+                f"{memory_block_notes(mode)}"
                 f"</past_memories>\n"
             )
         if recall_memory:
@@ -1616,6 +1629,18 @@ def _article(phrase: str) -> str:
     return "an" if phrase[:1].lower() in "aeiou" else "a"
 
 
+def levelup_growth(leveler_race="", leveler_class="", leveler_style=""):
+    """(calling, growth) for a roleplay level-up: "Dwarf Paladin" and
+    what grew ("a paladin's devotion to the Light ..."). Priests
+    without a known spec count as Light Priests. Either part is empty
+    when unknown."""
+    style_key = leveler_style or leveler_class
+    if style_key == 'Priest':
+        style_key = 'Light Priest'
+    calling = " ".join(p for p in (leveler_race, style_key) if p)
+    return calling, CLASS_GROWTH.get(style_key, "")
+
+
 def build_levelup_reaction_prompt(
     bot, traits, leveler_name, new_level, is_bot,
     mode, chat_history="", allow_action=True,
@@ -1657,12 +1682,8 @@ def build_levelup_reaction_prompt(
     if not is_bot:
         who = f"{leveler_name} (the real player)"
     if is_rp:
-        style_key = leveler_style or leveler_class
-        if style_key == 'Priest':
-            style_key = 'Light Priest'
-        growth = CLASS_GROWTH.get(style_key, "")
-        calling = " ".join(
-            p for p in (leveler_race, style_key) if p
+        calling, growth = levelup_growth(
+            leveler_race, leveler_class, leveler_style,
         )
         levelup_context = (
             f"{who}"
@@ -2646,6 +2667,7 @@ def build_player_response_prompt(
     # Inject memories if available
     if memories:
         from chatter_memory import (
+            memory_block_notes,
             sanitize_memory_for_prompt,
         )
         sanitized = [
@@ -2673,14 +2695,11 @@ def build_player_response_prompt(
                 f"adventures with "
                 f"{player_name}:\n"
                 f"{mem_lines}\n"
-                f"Reference one of these "
-                f"memories clearly enough "
-                f"that {player_name} would "
-                f"recognise the callback — "
-                f"mention the place, the "
-                f"creature, or the moment "
-                f"by name. Keep it natural "
-                f"(not a full retelling).\n"
+                f"If one of these fits what "
+                f"{player_name} just said, you may "
+                f"mention it briefly; otherwise "
+                f"ignore them and simply answer.\n"
+                f"{memory_block_notes(mode)}"
                 f"</past_memories>"
             )
             if solo_bot:
@@ -5085,6 +5104,7 @@ def build_bot_question_prompt(
     # --------------------------------------------------
     if memories:
         from chatter_memory import (
+            memory_block_notes,
             sanitize_memory_for_prompt,
         )
         sanitized = [
@@ -5123,12 +5143,7 @@ def build_bot_question_prompt(
                 f"Past shared context with "
                 f"{player_name}:\n"
                 f"{mem_lines}\n"
-                + (
-                    "In normal mode, treat these as past gameplay "
-                    "events and paraphrase them as a player; never copy "
-                    "in-character journal wording.\n"
-                    if not is_rp else ""
-                )
+                + memory_block_notes(mode)
                 + f"Ask {player_name} a question "
                 f"about one of these memories. "
                 f"Mention the place, creature, or "
