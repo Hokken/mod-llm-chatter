@@ -133,7 +133,7 @@ std::string FighterJson(PvpFighter const& fighter, char const* prefix)
         R"("{0}_is_bot":true,"{0}_team":"{7}")",
         prefix,
         fighter.guid,
-        JsonEscape(fighter.name),
+        ChatterJsonEscape(fighter.name),
         fighter.race,
         fighter.className,
         fighter.female ? "female" : "male",
@@ -146,7 +146,7 @@ std::string GuildFields(Guild* guild, TeamId team)
     return fmt::format(
         R"("guild_id":{},"guild_name":"{}","team":"{}")",
         guild->GetId(),
-        JsonEscape(guild->GetName()),
+        ChatterJsonEscape(guild->GetName()),
         TeamName(team));
 }
 

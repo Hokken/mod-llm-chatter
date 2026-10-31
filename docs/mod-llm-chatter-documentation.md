@@ -363,7 +363,7 @@ The shared timing logic now uses table-driven priority and reaction-delay
 registries instead of a single long conditional block.
 
 - `EscapeString()`
-- `JsonEscape()`
+- `ChatterJsonEscape()`
 - `GetZoneName()`
 - `GetAreaNameForLocale()` — zone or subzone name in the module locale,
   enUS fallback, empty when absent

@@ -1,5 +1,13 @@
 # Changelog
 
+### 2026-10-31 - Builds Again With the Latest mod-playerbots
+
+* **Worldserver links again**: recent mod-playerbots added its own global
+  `JsonEscape()` helper, so linking worldserver failed with "multiple
+  definition of `JsonEscape`" (issue #89). The module's helper is now
+  `ChatterJsonEscape()`; escaping behaviour is unchanged. Recompile to
+  apply.
+
 ### 2026-10-30 - Party Group Replies Work With Structured Output
 
 * **Party messages answered by several bots get a reply again**: with

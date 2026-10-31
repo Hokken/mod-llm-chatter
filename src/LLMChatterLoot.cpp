@@ -192,7 +192,7 @@ void QueueFinalizedLoot(PendingLootSource const& source)
     LootItemSnapshot const& item = *source.selectedItem;
     std::string extraData = "{"
         "\"item_id\":" + std::to_string(item.entry) + ","
-        "\"item_name\":\"" + JsonEscape(item.name) + "\","
+        "\"item_name\":\"" + ChatterJsonEscape(item.name) + "\","
         "\"item_quality\":" + std::to_string(item.quality) + ","
         "\"item_count\":" + std::to_string(item.count) + ","
         "\"allowable_class\":"
@@ -200,7 +200,7 @@ void QueueFinalizedLoot(PendingLootSource const& source)
         "\"required_level\":"
             + std::to_string(item.requiredLevel) + ","
         "\"loot_source_guid\":\""
-            + JsonEscape(source.lootGuid.ToString()) + "\","
+            + ChatterJsonEscape(source.lootGuid.ToString()) + "\","
         "\"zone_id\":" + std::to_string(source.zoneId) + ","
         "\"area_id\":" + std::to_string(source.areaId)
         + "}";

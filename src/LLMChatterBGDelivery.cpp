@@ -138,7 +138,7 @@ void AppendBGDeliveryContext(Battleground* bg, Player* subject,
     {
         if (json.size() > 1)
             json += ",";
-        json += "\"" + JsonEscape(key) + "\":" + value;
+        json += "\"" + ChatterJsonEscape(key) + "\":" + value;
     }
     json += "}";
 }

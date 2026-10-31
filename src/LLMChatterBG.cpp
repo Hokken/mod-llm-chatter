@@ -156,9 +156,9 @@ void AppendBGContext(
                 continue;
             if (!first) json += ",";
             json += "{\"name\":\""
-                + JsonEscape(rp->GetName())
+                + ChatterJsonEscape(rp->GetName())
                 + "\",\"race\":\""
-                + JsonEscape(
+                + ChatterJsonEscape(
                     GetRaceName(rp->getRace()))
                 + "\"}";
             first = false;
@@ -210,7 +210,7 @@ void AppendBGContext(
             {
                 json += ","
                     "\"friendly_flag_carrier\":\""
-                    + JsonEscape(
+                    + ChatterJsonEscape(
                         carrier->GetName())
                     + "\"";
             }
@@ -228,7 +228,7 @@ void AppendBGContext(
             {
                 json += ","
                     "\"enemy_flag_carrier\":\""
-                    + JsonEscape(
+                    + ChatterJsonEscape(
                         eCarrier->GetName())
                     + "\"";
             }
@@ -336,7 +336,7 @@ static void DetectScoreEvents(
                 {
                     capJson +=
                         ",\"scorer_name\":"
-                        "\"" + JsonEscape(
+                        "\"" + ChatterJsonEscape(
                             sp->GetName())
                         + "\","
                         "\"scorer_is_real_"
@@ -372,7 +372,7 @@ static void DetectScoreEvents(
                 {
                     capJson +=
                         ",\"scorer_name\":"
-                        "\"" + JsonEscape(
+                        "\"" + ChatterJsonEscape(
                             sp->GetName())
                         + "\","
                         "\"scorer_is_real_"
@@ -485,7 +485,7 @@ static void PollWSGState(
             {
                 pickJson +=
                     ",\"carrier_name\":\""
-                    + JsonEscape(
+                    + ChatterJsonEscape(
                         cp->GetName())
                     + "\","
                     "\"carrier_is_real_"
@@ -527,7 +527,7 @@ static void PollWSGState(
             {
                 dropJson +=
                     ",\"dropper_name\":\""
-                    + JsonEscape(
+                    + ChatterJsonEscape(
                         dp->GetName())
                     + "\","
                     "\"dropper_is_real_"
@@ -570,7 +570,7 @@ static void PollWSGState(
             {
                 pickJson +=
                     ",\"carrier_name\":\""
-                    + JsonEscape(
+                    + ChatterJsonEscape(
                         cp->GetName())
                     + "\","
                     "\"carrier_is_real_"
@@ -612,7 +612,7 @@ static void PollWSGState(
             {
                 dropJson +=
                     ",\"dropper_name\":\""
-                    + JsonEscape(
+                    + ChatterJsonEscape(
                         dp->GetName())
                     + "\","
                     "\"dropper_is_real_"
@@ -781,7 +781,7 @@ static void PollEYState(
             {
                 nodeJson +=
                     ",\"claimer_name\":\""
-                    + JsonEscape(
+                    + ChatterJsonEscape(
                         claimer->GetName())
                     + "\","
                     "\"claimer_is_real_"
@@ -1085,7 +1085,7 @@ public:
                         std::to_string(groupId) +
                     ","
                     "\"player_name\":\"" +
-                        JsonEscape(
+                        ChatterJsonEscape(
                             arrPlayer->GetName()) +
                     "\","
                     "\"zone\":" +
@@ -1259,7 +1259,7 @@ public:
                                 - 1)];
                     std::string extra =
                         "{\"player_name\":\""
-                        + JsonEscape(
+                        + ChatterJsonEscape(
                             chosen->GetName())
                         + "\"}";
                     if (objectiveStatus)
@@ -1375,7 +1375,7 @@ public:
             "{\"flag_team\":\"" + flagTeam +
             "\","
             "\"returner_name\":\"" +
-            JsonEscape(player->GetName()) +
+            ChatterJsonEscape(player->GetName()) +
             "\","
             "\"returner_is_real_player\":"
             + std::string(

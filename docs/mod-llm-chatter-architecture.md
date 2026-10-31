@@ -1427,7 +1427,7 @@ instead of rendering it as a `/slash` command.
 `LLMChatterShared.cpp` owns cross-domain helpers such as:
 
 - `EscapeString()`
-- `JsonEscape()`
+- `ChatterJsonEscape()`
 - `GetZoneName()`
 - `GetAreaNameForLocale()` — zone or subzone name in the module locale,
   enUS fallback, empty when absent
