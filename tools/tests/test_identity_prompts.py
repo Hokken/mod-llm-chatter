@@ -77,6 +77,27 @@ class IdentityPromptTests(unittest.TestCase):
                 self.assertIn('gender', call.split(')\n')[0], rel)
 
 
+class BackstoryLengthTests(unittest.TestCase):
+    def test_cut_off_story_keeps_whole_sentences(self):
+        story = ('Kratumm was born near the Dark Portal. His father fell'
+                 ' in the camps. As a youth, rather than be execut')
+        self.assertEqual(
+            identity._whole_sentences(story),
+            'Kratumm was born near the Dark Portal. His father fell'
+            ' in the camps.')
+        self.assertEqual(
+            identity._whole_sentences('He said "Run!" and fled. Then'),
+            'He said "Run!" and fled.')
+        self.assertEqual(identity._whole_sentences('No end here'), '')
+        whole = 'One. Two? Three!'
+        self.assertEqual(identity._whole_sentences(whole), whole)
+
+    def test_backstory_has_room_and_is_trimmed(self):
+        source = Path(identity.__file__).read_text(encoding='utf-8')
+        self.assertIn('traits, prompt, 400, 1000, expected_tone=tone', source)
+        self.assertIn('value = _whole_sentences(value)', source)
+
+
 class FarewellPromptTests(unittest.TestCase):
     def _prompt(self, mode='roleplay'):
         with patch.object(group_state, 'call_llm',

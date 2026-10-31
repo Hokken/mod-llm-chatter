@@ -7,6 +7,7 @@ Conditional writes protect addon edits made while the provider is running.
 import functools
 import logging
 import random
+import re
 import threading
 import time
 from collections import OrderedDict
@@ -26,6 +27,8 @@ _failures = OrderedDict()
 _failures_lock = threading.Lock()
 _FAILURE_CACHE_MAX = 2048
 _FIELDS = ('trait1', 'trait2', 'trait3', 'tone', 'backstory')
+# A sentence end, with any closing quote or bracket after it.
+_SENTENCE_END = re.compile(r'[.!?\u2026]["\'\u201d\u00bb)\]]*(?=\s|$)')
 
 
 def config_int(config, key, default, minimum=0, maximum=None):
@@ -35,6 +38,13 @@ def config_int(config, key, default, minimum=0, maximum=None):
         value = default
     value = max(minimum, value)
     return min(maximum, value) if maximum is not None else value
+
+
+def _whole_sentences(text):
+    """Text up to its last complete sentence; '' when no
+    sentence ends in it (a reply cut off by the token limit)."""
+    ends = list(_SENTENCE_END.finditer(text))
+    return text[:ends[-1].end()].strip() if ends else ''
 
 
 def _identity_lore(db, bot_guid, bot_name, bot_race, bot_class):
@@ -284,10 +294,13 @@ def _generate_field(db, config, bot_guid, group_id, bot_name, field,
         value = str(value or '').strip().strip('"').strip()
         if field == 'tone':
             value = value.rstrip('.')
+        value = value[:char_limit]
+        if field == 'backstory':
+            # Never store a story that stops mid-sentence.
+            value = _whole_sentences(value)
         if not value:
             _failed(key, config)
             return fallback
-        value = value[:char_limit]
         # Lock only for the short persistence transaction, never the LLM call.
         cursor = db.cursor(dictionary=True)
         try:
@@ -517,7 +530,7 @@ def _generate_bot_backstory(
 
     return _generate_field(
         db, config, bot_guid, group_id, bot_name, 'backstory',
-        traits, prompt, 200, 1000, expected_tone=tone,
+        traits, prompt, 400, 1000, expected_tone=tone,
     )
 
 
