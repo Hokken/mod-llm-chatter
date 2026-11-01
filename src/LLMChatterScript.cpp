@@ -3,6 +3,7 @@
  */
 
 #include "LLMChatterAB.h"
+#include "LLMChatterAmbient.h"
 #include "LLMChatterBG.h"
 #include "LLMChatterGuild.h"
 #include "LLMChatterGuildPvP.h"
@@ -32,4 +33,5 @@ void AddLLMChatterScripts()
     AddLLMChatterProximityFightScripts();
     AddLLMChatterCommandScripts();
     AddLLMChatterReplyHoldScripts();
+    AddLLMChatterAmbientScripts();
 }

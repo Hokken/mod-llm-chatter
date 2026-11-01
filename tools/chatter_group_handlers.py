@@ -140,6 +140,7 @@ from chatter_handler_pipeline import (
 )
 from chatter_class_style import class_style
 from chatter_memory import (
+    claim_discovery,
     claim_dungeon_memory,
     is_milestone_achievement,
     pick_event_bots,
@@ -1116,7 +1117,11 @@ def _quest_prompt_texts(db, extra_data, player_name):
 def _quest_complete_memory(db, ctx, message):
     """Post-success: queue memory for quest
     completion, with how the quest-giver described the
-    task and what they said when it was done."""
+    task and what they said when it was done.
+    Memory.Enable and the chance come before the quest
+    text lookups."""
+    if not int(ctx['config'].get('LLMChatter.Memory.Enable', 1)):
+        return
     mem_chance = int(ctx['config'].get(
         'LLMChatter.Memory'
         '.QuestGenerationChance', 40,
@@ -1239,7 +1244,10 @@ def process_group_quest_complete_event(
                         40,
                     ))
                     if (
-                        random.random() * 100
+                        int(config.get(
+                            'LLMChatter.Memory.Enable', 1
+                        ))
+                        and random.random() * 100
                         < mem_ch
                     ):
                         queue_memory(
@@ -2558,34 +2566,46 @@ def queue_discovery_memories(db, config, extra_data) -> int:
         zone_id, area_id, int(extra_data.get('map_id') or 0),
     )
 
+    # Rolls first: no DB work unless a bot will remember.
+    chance = int(config.get(
+        'LLMChatter.Memory.DiscoveryGenerationChance', 60))
+    chosen = [
+        g for g in pick_event_bots(config, sorted(nearby))
+        if random.random() * 100 < chance
+    ]
+    if not chosen:
+        return 0
     cursor = db.cursor(dictionary=True)
     cursor.execute(
         "SELECT t.bot_guid, t.bot_name,"
         " c.class, c.race, c.gender, c.level"
         " FROM llm_group_bot_traits t"
         " JOIN characters c ON c.guid = t.bot_guid"
-        " WHERE t.group_id = %s",
-        (group_id,),
+        " WHERE t.group_id = %s AND t.bot_guid IN ("
+        + ','.join(['%s'] * len(chosen)) + ")",
+        (group_id, *chosen),
     )
+    # The worldserver already sends only bots of the minimum
+    # level; an older payload may not.
     bots = [
         b for b in cursor.fetchall()
-        if int(b['bot_guid']) in nearby
-        and int(b.get('level') or 0) >= min_level
+        if int(b.get('level') or 0) >= min_level
     ]
     cursor.close()
-    chance = int(config.get(
-        'LLMChatter.Memory.DiscoveryGenerationChance', 60))
+    if not bots:
+        return 0
+    # One per discovery, not per bot, against the session cap.
+    if not claim_discovery(group_id, int(config.get(
+            'LLMChatter.Memory.MaxDiscoveriesPerSession', 3))):
+        return 0
     queued = 0
-    for bot in pick_event_bots(config, bots):
-        if random.random() * 100 >= chance:
-            continue
+    for bot in bots:
         queue_memory(
             config, group_id, bot['bot_guid'], player_guid,
             memory_type='discovery',
             event_context=(
-                f"{player_name} and I discovered {subzone} in "
-                f"{zone} together, a place neither of us had "
-                f"seen before"
+                f"{player_name} discovered {subzone} in {zone}, "
+                f"and I was there with them"
             ),
             bot_name=bot['bot_name'],
             bot_class=get_class_name(bot['class']),

@@ -1629,7 +1629,7 @@ std::string BuildNearbyNpcNamesJson(
             continue;
         if (!first)
             json += ",";
-        json += "\"" + JsonEscape(entry.name) + "\"";
+        json += "\"" + ChatterJsonEscape(entry.name) + "\"";
         first = false;
     }
     json += "]";

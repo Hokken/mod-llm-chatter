@@ -377,7 +377,8 @@ CREATE TABLE IF NOT EXISTS `llm_bot_memories` (
     `created_at`    TIMESTAMP    DEFAULT CURRENT_TIMESTAMP,
     INDEX `idx_bot_player`        (`bot_guid`, `player_guid`),
     INDEX `idx_bot_player_active` (`bot_guid`, `player_guid`, `active`),
-    INDEX `idx_group`             (`group_id`, `active`)
+    INDEX `idx_group`             (`group_id`, `active`),
+    INDEX `idx_active_group`      (`active`, `group_id`, `bot_guid`, `player_guid`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
 -- One outstanding screenshot preflight per explicitly bound account.

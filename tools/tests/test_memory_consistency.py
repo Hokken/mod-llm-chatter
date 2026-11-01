@@ -12,9 +12,9 @@ Run directly from the module root:
 """
 
 import re
+import threading
 import time
 import unittest
-from datetime import datetime, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
@@ -133,15 +133,35 @@ class MemoryPromptTests(unittest.TestCase):
         self.assertEqual(
             memory._MEMORY_TYPE_DESC['duel'], 'a friendly training spar')
 
-    def test_length_is_about_250(self):
+    def test_length_is_about_the_target(self):
         self.assertEqual(memory.MEMORY_TARGET_CHARS, 250)
-        self.assertEqual(memory.MEMORY_HARD_CHARS, 400)
+        self.assertEqual(memory.MEMORY_MAX_CHARS, 400)
         text = _prompt('roleplay')
         self.assertIn('one or two sentences', text)
         self.assertIn('about 250 characters', text)
         self.assertNotIn('One sentence, at most', text)
+        self.assertIn('about 180 characters',
+                      _prompt('roleplay', target_chars=180))
         clamped = memory._clamp_memory_text('Word ' * 120)
         self.assertLessEqual(len(clamped), 400)
+
+    def _generate(self, reply, config):
+        with patch.object(memory, 'call_llm', return_value=reply), \
+                patch.object(memory, 'get_llm_client', return_value=None):
+            return memory._call_llm_for_memory(config, bot_name='Deryna')
+
+    def test_reply_length_follows_the_cap(self):
+        config = {'LLMChatter.Memory.MaxChars': 200}
+        # A little over the cap is trimmed under it ...
+        text, _ = self._generate(
+            '{"memory": "%s", "emote": null}' % ('Held fast. ' * 22),
+            config)
+        self.assertLessEqual(len(text), 200)
+        # ... far over it (more than a quarter) is discarded.
+        text, _ = self._generate(
+            '{"memory": "%s", "emote": null}' % ('Held fast. ' * 30),
+            config)
+        self.assertIsNone(text)
 
     def test_background_is_facts_not_events(self):
         text = _prompt('roleplay', background=['About X: a ruined keep'])
@@ -301,16 +321,32 @@ class DiscoveryTests(unittest.TestCase):
          'class': 5, 'race': 1, 'gender': 1, 'level': 40},
     ]
 
-    def _run(self, **payload):
+    def _run(self, config=None, claim=True, db=None, **payload):
         data = {'group_id': 4, 'player_guid': 900,
                 'player_name': 'Melindra', 'player_level': 30,
                 'zone_id': 33, 'area_id': 99, 'map_id': 0,
                 'nearby_bot_guids': [101, 102]}
         data.update(payload)
-        config = {'LLMChatter.Memory.DiscoveryGenerationChance': 100,
-                  'LLMChatter.Memory.MaxBotsPerEvent': 5}
+        cfg = {'LLMChatter.Memory.DiscoveryGenerationChance': 100,
+               'LLMChatter.Memory.MaxBotsPerEvent': 5}
+        cfg.update(config or {})
+        nearby = set(data.get('nearby_bot_guids') or [])
+        # The roster SELECT asks only for the chosen nearby bots.
+        if db is None:
+            db = _DB(results=[
+                [b for b in self.BOTS if b['bot_guid'] in nearby]])
+        self.db = db
         calls = []
-        with patch.object(handlers, 'get_subzone_lore',
+        claims = []
+
+        def claim_discovery(group_id, cap):
+            claims.append((group_id, cap))
+            return claim if not callable(claim) else claim(group_id, cap)
+
+        self.claims = claims
+        with patch.object(handlers, 'claim_discovery',
+                          side_effect=claim_discovery), \
+                patch.object(handlers, 'get_subzone_lore',
                           side_effect=lambda z, a: (
                               'Old troll ruins.' if a == 99 else None)), \
                 patch.object(handlers, 'get_subzone_name',
@@ -322,8 +358,7 @@ class DiscoveryTests(unittest.TestCase):
                 patch.object(handlers, 'queue_memory',
                              side_effect=lambda *a, **k: calls.append(
                                  (a, k))):
-            handlers.queue_discovery_memories(
-                _DB(results=[list(self.BOTS)]), config, data)
+            handlers.queue_discovery_memories(db, cfg, data)
         return calls
 
     def test_nearby_bots_of_level_remember_together(self):
@@ -332,8 +367,13 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual([c[0][2] for c in calls], [101])
         kw = calls[0][1]
         self.assertEqual(kw['memory_type'], 'discovery')
-        self.assertIn("Melindra and I discovered Zul'Kunda in "
-                      "Stranglethorn Vale together", kw['event_context'])
+        # Only the player's explored flags are known, so the bot
+        # was there with them; it never claims the place was new
+        # to itself.
+        self.assertEqual(
+            kw['event_context'],
+            "Melindra discovered Zul'Kunda in Stranglethorn Vale, "
+            "and I was there with them")
         self.assertEqual(kw['background'], [
             'About Stranglethorn Vale: A jungle.',
             "About Zul'Kunda: Old troll ruins.",
@@ -350,6 +390,37 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(self._run(zone_id=1519), [])  # Stormwind
         self.assertEqual(self._run(area_id=5), [])     # no description
 
+    def test_cap_counts_one_per_discovery(self):
+        # Two bots remember one discovery: one claim, cap from config.
+        calls = self._run(
+            config={'LLMChatter.Memory.MaxDiscoveriesPerSession': 1},
+            nearby_bot_guids=[101, 103])
+        self.assertEqual(len(calls), 2)
+        self.assertEqual(self.claims, [(4, 1)])
+        # The session is full: nothing is queued.
+        self.assertEqual(self._run(claim=False), [])
+
+    def test_cap_is_not_spent_when_every_roll_fails(self):
+        calls = self._run(
+            config={'LLMChatter.Memory.DiscoveryGenerationChance': 0})
+        self.assertEqual(calls, [])
+        self.assertEqual(self.claims, [])
+        self.assertEqual(self.db.statements, [])  # no DB work either
+
+    def test_session_cap_holds(self):
+        memory.clear_all_sessions()
+        memory.start_session(4, 101, 900, time.time(), {})
+        try:
+            got = [memory.claim_discovery(4, 3) for _ in range(5)]
+            self.assertEqual(got, [True, True, True, False, False])
+            self.assertFalse(memory.claim_discovery(5, 3))  # no session
+            memory.start_session(6, 101, 900, time.time(), {})
+            self.assertEqual(
+                [memory.claim_discovery(6, 1) for _ in range(2)],
+                [True, False])
+        finally:
+            memory.clear_all_sessions()
+
     def test_event_is_live_and_memory_only(self):
         self.assertNotIn('bot_group_discovery', DEAD_EVENTS)
         spec = EVENT_REGISTRY['bot_group_discovery']
@@ -365,17 +436,22 @@ class DiscoveryTests(unittest.TestCase):
                       source)
         self.assertIn('IsBattlegroundOrArena()', source)
         self.assertIn('"bot_group_discovery"', source)
-        self.assertIn('constexpr float kDiscoveryBotRange = 100.0f;', source)
-        self.assertIn('IsWithinDistInMap(member, kDiscoveryBotRange)',
+        self.assertIn('IsWithinDistInMap(member, range)', source)
+        self.assertIn('member->GetLevel() < minLevel', source)
+        self.assertIn('< sLLMChatterConfig->_memoryDiscoveryMinLevel',
                       source)
+        self.assertIn('|| !sLLMChatterConfig->_memoryEnable', source)
         self.assertIn('if (nearby.empty())\n        return;', source)
         self.assertIn('nearby_bot_guids', source)
         self.assertIn('nearby_bot_guids',
                       EVENT_REGISTRY['bot_group_discovery'].payload_fields)
         world = _read('src/LLMChatterWorld.cpp')
         self.assertIn('CheckGroupDiscoveries();', world)
-        self.assertIn('"LLMChatter.Memory.DiscoveryEnable", true',
-                      _read('src/LLMChatterConfig.cpp'))
+        config = _read('src/LLMChatterConfig.cpp')
+        self.assertIn('"LLMChatter.Memory.DiscoveryEnable", true', config)
+        self.assertIn('"LLMChatter.Memory.Enable", true', config)
+        self.assertIn('"LLMChatter.Memory.DiscoveryMinLevel", 15', config)
+        self.assertIn('"LLMChatter.Memory.DiscoveryRange", 100', config)
 
 
 class DuelTests(unittest.TestCase):
@@ -409,32 +485,75 @@ class DuelTests(unittest.TestCase):
                       ctx(fled, 101))
         self.assertIsNone(ctx(dict(self.DUEL, outcome='interrupted'), 101))
 
-    def _memories(self, duel, bots):
-        ctx = {'config': {'LLMChatter.Memory.DuelGenerationChance': 100,
-                          'LLMChatter.Memory.MaxBotsPerEvent': 1},
-               'group_id': 4, 'extra_data': duel}
+    def _memories(self, duel, bots, config=None, db=None):
+        cfg = {'LLMChatter.Memory.DuelGenerationChance': 100,
+               'LLMChatter.Memory.MaxBotsPerEvent': 1}
+        cfg.update(config or {})
+        ctx = {'config': cfg, 'group_id': 4, 'extra_data': duel}
         calls = []
+        self.gender_lookups = []
 
         def genders(db, named):
+            self.gender_lookups.append(named)
             return {p: 'male' for p in named}
 
+        self.db = db if db is not None else _DB(results=[bots])
         with patch.object(chatter_duel, 'queue_memory',
                           side_effect=lambda *a, **k: calls.append(
                               (a, k))), \
                 patch.object(chatter_duel, 'genders_by_named_guid',
                              side_effect=genders):
-            chatter_duel._duel_end_memory(_DB(results=[bots]), ctx, 'm')
+            chatter_duel._duel_end_memory(self.db, ctx, 'm')
         return calls
 
-    def test_duellist_and_capped_watchers_remember(self):
-        bots = [{'bot_guid': g, 'bot_name': n, 'class': 1, 'race': 1,
-                 'gender': 0} for g, n in
-                ((101, 'Aliss'), (102, 'Brom'), (103, 'Caro'))]
-        calls = self._memories(self.DUEL, bots)
+    BOTS = [{'bot_guid': g, 'bot_name': n, 'class': 1, 'race': 1,
+             'gender': 0} for g, n in
+            ((101, 'Aliss'), (102, 'Brom'), (103, 'Caro'))]
+
+    def test_duellist_and_capped_witnesses_remember(self):
+        duel = dict(self.DUEL, witness_bot_guids=[101, 102, 103])
+        calls = self._memories(duel, self.BOTS)
         guids = [c[0][2] for c in calls]
         self.assertEqual(guids[0], 101)
         self.assertEqual(len(guids), 2)  # duellist + one watcher
+        self.assertIn(guids[1], (102, 103))
         self.assertTrue(all(c[1]['memory_type'] == 'duel' for c in calls))
+        # The roster asks only for the chosen bots.
+        sql, params = self.db.statements[0]
+        self.assertIn('t.bot_guid IN (%s,%s)', sql)
+        self.assertEqual(params, (4, *guids))
+
+    def test_only_witnesses_watch(self):
+        # 103 is in the party but could not see the duel.
+        duel = dict(self.DUEL, witness_bot_guids=[101, 102])
+        calls = self._memories(
+            duel, self.BOTS[:2],
+            config={'LLMChatter.Memory.MaxBotsPerEvent': 5})
+        self.assertEqual(sorted(c[0][2] for c in calls), [101, 102])
+
+    def test_old_payload_gives_the_duellists_only(self):
+        calls = self._memories(dict(self.DUEL), self.BOTS[:1])
+        self.assertEqual([c[0][2] for c in calls], [101])
+        self.assertNotIn('I watched', calls[0][1]['event_context'])
+
+    def test_disabled_or_unlucky_does_no_db_work(self):
+        duel = dict(self.DUEL, witness_bot_guids=[101, 102])
+        for config in ({'LLMChatter.Memory.Enable': 0},
+                       {'LLMChatter.Memory.DuelGenerationChance': 0}):
+            db = _DB()
+            self.assertEqual(
+                self._memories(duel, [], config=config, db=db), [])
+            self.assertEqual(db.statements, [])
+            self.assertEqual(self.gender_lookups, [])
+
+    def test_cpp_sends_the_witnesses(self):
+        source = _read('src/LLMChatterDuel.cpp')
+        self.assertIn('std::vector<Player*> DuelWitnesses(', source)
+        self.assertIn('SelectDuelReactor(witnesses)', source)
+        self.assertIn('"\\"witness_bot_guids\\":"', source)
+        self.assertIn(
+            'witness_bot_guids',
+            EVENT_REGISTRY['bot_group_duel_end'].payload_fields)
 
     OUTSIDER_DUEL = {
         'group_id': 4, 'outcome': 'won',
@@ -450,7 +569,8 @@ class DuelTests(unittest.TestCase):
     def test_players_duel_with_an_outsider_is_remembered(self):
         bots = [{'bot_guid': 102, 'bot_name': 'Brom', 'class': 1,
                  'race': 1, 'gender': 0}]
-        calls = self._memories(dict(self.OUTSIDER_DUEL), bots)
+        calls = self._memories(
+            dict(self.OUTSIDER_DUEL, witness_bot_guids=[102]), bots)
         self.assertEqual([c[0][2] for c in calls], [102])
         self.assertEqual(
             calls[0][1]['event_context'],
@@ -536,12 +656,39 @@ class QuestTextTests(unittest.TestCase):
         self.assertEqual(texts, {'brief': 'Töte Trolle.',
                                  'full': 'Hello Melindra.',
                                  'completion': 'Well done.'})
+        # The full description only when there is no summary.
         lines = chatter_shared.quest_memory_background(texts)
         self.assertEqual(lines, [
             'How the quest-giver summed up the task: Töte Trolle.',
-            'How the quest-giver described the task: Hello Melindra.',
             'What the quest-giver said when it was done: Well done.',
         ])
+        self.assertEqual(
+            chatter_shared.quest_memory_background(
+                dict(texts, brief='')),
+            ['How the quest-giver described the task: Hello Melindra.',
+             'What the quest-giver said when it was done: Well done.'])
+
+    def test_turn_in_words_are_capped(self):
+        db = _DB(results=[{'brief': '', 'full': '',
+                           'completion': 'Well done, friend. ' * 40}])
+        with patch.object(chatter_shared, 'get_language_locale_code',
+                          return_value=''):
+            texts = chatter_shared.get_quest_memory_texts(db, 42)
+        self.assertLessEqual(len(texts['completion']), 300)
+
+    def test_disabled_quest_memory_does_no_db_work(self):
+        ctx = {'group_id': 4, 'bot_guid': 101, 'bot_name': 'Aliss',
+               'bot': {'class': 'Mage', 'race': 'Human'},
+               'quest_name': 'Q', 'quest_id': 42,
+               'completer_name': 'Melindra'}
+        for config in ({'LLMChatter.Memory.Enable': 0},
+                       {'LLMChatter.Memory.QuestGenerationChance': 0}):
+            db = _DB()
+            with patch.object(handlers, 'queue_memory') as queued:
+                handlers._quest_complete_memory(
+                    db, dict(ctx, config=config), 'Done.')
+            self.assertEqual(db.statements, [])
+            queued.assert_not_called()
 
     def test_quest_memories_pass_the_background(self):
         source = _read('tools/chatter_group_handlers.py')
@@ -576,16 +723,22 @@ class PlayerMessageTests(unittest.TestCase):
 
     def test_trivial_lines_are_skipped(self):
         self.assertEqual(self._queue('hello', brief=True), [])
-        for line in ('((brb))', 'ooc: lag', 'test', '???'):
+        for line in ('((brb))', '[ooc] lag', '???'):
             self.assertEqual(self._queue(line), [], line)
         self.assertEqual(self._queue('A real question?', responders=()), [])
 
+    def test_no_word_list_on_natural_language(self):
+        # Only chat conventions mark a line OOC, never words.
+        for line in ('testing the waters at the lake later?',
+                     'ooc is what the old guard called it'):
+            self.assertEqual(len(self._queue(line)), 1, line)
+
 
 def _row(i, **kw):
+    # Ages come from SQL (TIMESTAMPDIFF in seconds).
     row = {'id': i, 'memory': f'memory {i}', 'memory_type': 'ambient',
            'zone_id': None, 'map_id': None, 'companions': None,
-           'created_at': datetime.now() - timedelta(days=20),
-           'last_used_at': None}
+           'age_seconds': 20 * 86400, 'shown_seconds': None}
     row.update(kw)
     return row
 
@@ -598,24 +751,30 @@ class RecallTests(unittest.TestCase):
         return result, db
 
     def test_age_labels(self):
-        now = datetime(2026, 10, 28, 12, 0)
+        hour, day = 3600, 86400
         cases = {
-            timedelta(minutes=10): 'less than an hour ago',
-            timedelta(hours=5): 'earlier today',
-            timedelta(days=1, hours=2): 'yesterday',
-            timedelta(days=10): 'about a week ago',
-            timedelta(days=20): 'a few weeks ago',
-            timedelta(days=45): 'about a month ago',
-            timedelta(days=200): 'a few months ago',
+            10 * 60: 'less than an hour ago',
+            5 * hour: 'earlier today',
+            day + 2 * hour: 'yesterday',
+            10 * day: 'about a week ago',
+            20 * day: 'a few weeks ago',
+            45 * day: 'about a month ago',
+            200 * day: 'a few months ago',
         }
-        for delta, label in cases.items():
-            self.assertEqual(
-                memory.memory_age_label(now - delta, now), label)
+        for seconds, label in cases.items():
+            self.assertEqual(memory.memory_age_label(seconds), label)
+        self.assertEqual(memory.memory_age_label(None), '')
 
-    def test_memories_carry_their_age(self):
-        result, _ = self._recall([_row(1)], count=1)
-        self.assertEqual(result[0], '(a few weeks ago) memory 1')
-        self.assertEqual(result[0].memory_id, 1)
+    def test_ages_are_computed_in_sql(self):
+        result, db = self._recall([_row(1)], count=1)
+        self.assertEqual(result, ['(a few weeks ago) memory 1'])
+        select = db.statements[0][0]
+        self.assertIn(
+            'TIMESTAMPDIFF(SECOND, created_at, NOW()) AS age_seconds',
+            select)
+        self.assertIn(
+            'TIMESTAMPDIFF(SECOND, last_used_at, NOW()) AS shown_seconds',
+            select)
 
     def test_same_place_and_present_companions_come_first(self):
         rows = [
@@ -626,36 +785,53 @@ class RecallTests(unittest.TestCase):
         ]
         result, _ = self._recall(
             rows, count=4, zone_id=40, present=['Zaneon'])
-        ids = [r.memory_id for r in result]
-        self.assertEqual(ids[0], 2)
-        self.assertLess(ids.index(3), ids.index(1))
-        self.assertEqual(ids[-1], 4)
+        order = [int(r.rsplit(' ', 1)[1]) for r in result]
+        self.assertEqual(order[0], 2)
+        self.assertLess(order.index(3), order.index(1))
+        self.assertEqual(order[-1], 4)
 
-    def test_recently_shown_waits(self):
+    def test_recently_shown_waits_for_the_holdoff(self):
         rows = [
-            _row(1, memory_type='boss_kill',
-                 last_used_at=datetime.now() - timedelta(minutes=5)),
+            _row(1, memory_type='boss_kill', shown_seconds=5 * 60),
             _row(2),
         ]
         result, _ = self._recall(rows, count=1)
-        self.assertEqual(result[0].memory_id, 2)
+        self.assertEqual(result, ['(a few weeks ago) memory 2'])
+        # A shorter holdoff from config lets it back.
+        result, _ = self._recall(
+            rows, count=1,
+            config={'LLMChatter.Memory.RecallHoldoffMinutes': 2})
+        self.assertEqual(result, ['(a few weeks ago) memory 1'])
 
-    def test_reply_gets_only_relevant_memories(self):
+    def test_no_topic_filter(self):
+        # A reply from anywhere may recall the Deadmines; relevance
+        # is left to the prompt.
         rows = [
             _row(1, memory='We cleared the Deadmines foundry'),
             _row(2, memory='Rested at Sun Rock Retreat'),
         ]
-        result, _ = self._recall(
-            rows, count=3, relevant_to='Remember the foundry fight?')
-        self.assertEqual([r.memory_id for r in result], [1])
+        result, _ = self._recall(rows, count=3)
+        self.assertEqual(len(result), 2)
+        self.assertFalse(hasattr(memory, '_topic_words'))
+        self.assertNotIn('relevant_to', _read('tools/chatter_group.py'))
 
-    def test_shown_is_not_used(self):
-        _, db = self._recall([_row(1)], count=1)
-        update = db.statements[-1][0]
-        self.assertIn('last_used_at = NOW()', update)
-        self.assertNotIn('used = 1', update)
-        _, db = self._recall([_row(1)], count=1, mark_used=True)
-        self.assertIn('used = 1', db.statements[-1][0])
+    def test_used_means_shown(self):
+        _, db = self._recall([_row(1), _row(2)], count=2)
+        sql, params = db.statements[-1]
+        self.assertIn('SET last_used_at = NOW(), used = 1', sql)
+        self.assertEqual(sorted(params), [1, 2])
+        # An existence check (rejoin, battleground arrival) writes
+        # nothing.
+        result, db = self._recall([_row(1)], count=1, shown=False)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(len(db.statements), 1)
+        self.assertFalse(hasattr(memory, 'mark_memories_used'))
+        self.assertFalse(hasattr(memory, 'RecalledMemory'))
+
+    def test_rejoin_and_bg_arrival_only_check(self):
+        source = _read('tools/chatter_group.py')
+        self.assertIn('shown=not is_rejoin,', source)
+        self.assertIn('shown=not (is_rejoin or in_bg_arrival),', source)
 
     def test_block_notes_follow_the_mode(self):
         self.assertIn('how long ago', memory.memory_block_notes('roleplay'))
@@ -686,19 +862,124 @@ class CapTests(unittest.TestCase):
         self.assertNotIn('RAND()', sql)
 
     def test_active_insert_keeps_the_cap(self):
-        # COUNT returns the cap: one eviction before the insert.
-        db = _DB(results=[(30,), []])
-        memory._ensure_cap_and_insert(
+        # COUNT returns the cap: one eviction, a recount, the insert.
+        db = _DB(results=[(30,), [], (29,), []])
+        self.assertTrue(memory._ensure_cap_and_insert(
             db, 1, 2, 3, 'party_member', 'text', 'warm', None,
             1.0, active=1, max_per=30,
             context={'zone_id': 40, 'map_id': 1,
                      'companions': ['Zaneon']},
-        )
+        ))
         kinds = [s[0].split()[0] for s in db.statements]
-        self.assertEqual(kinds, ['SELECT', 'DELETE', 'INSERT'])
+        self.assertEqual(kinds, ['SELECT', 'DELETE', 'SELECT', 'INSERT'])
         insert = db.statements[-1]
         self.assertIn('zone_id, map_id, companions', insert[0])
         self.assertEqual(insert[1][-3:], (40, 1, 'Zaneon'))
+
+    def test_full_of_first_meetings_refuses(self):
+        journal = _Journal(first_meetings=2)
+        self.assertFalse(memory._ensure_cap_and_insert(
+            _JournalConn(journal), 1, 2, 3, 'party_member', 'text',
+            'warm', None, 1.0, active=1, max_per=2))
+        self.assertEqual(journal.active(), 2)
+
+    def test_concurrent_writers_never_pass_the_cap(self):
+        # Eight active inserts and a farewell activation race on one
+        # journal; every statement yields, so without the journal
+        # lock they interleave count -> prune -> insert and overshoot.
+        cap = 6
+        journal = _Journal(first_meetings=1, active=cap - 1, pending=3)
+        memory.clear_all_sessions()
+        memory.start_session(3, 1, 2, 1.0, {})
+        memory._active_sessions[3]['party_memories_generated'] = True
+        config = {'LLMChatter.Memory.SessionMinutes': 0,
+                  'LLMChatter.Memory.MaxPerBotPlayer': cap}
+
+        def insert():
+            memory._ensure_cap_and_insert(
+                _JournalConn(journal), 1, 2, 3, 'party_member', 'text',
+                'warm', None, 1.0, active=1, max_per=cap)
+
+        def flush():
+            memory.flush_session_memories(
+                _JournalConn(journal), 3, 2, 1, config)
+
+        threads = [threading.Thread(target=insert) for _ in range(8)]
+        threads.append(threading.Thread(target=flush))
+        try:
+            for t in threads:
+                t.start()
+            for t in threads:
+                t.join()
+        finally:
+            memory.clear_all_sessions()
+        self.assertEqual(journal.pending(), 0)
+        self.assertLessEqual(journal.active(), cap)
+
+
+class _Journal:
+    """One pair's rows in memory, shared by several connections."""
+
+    def __init__(self, first_meetings=0, active=0, pending=0):
+        self.rows = (
+            [{'type': 'first_meeting', 'active': 1}] * first_meetings
+            + [{'type': 'ambient', 'active': 1}] * active
+            + [{'type': 'ambient', 'active': 0}] * pending)
+        self.rows = [dict(r) for r in self.rows]
+        self.lock = threading.Lock()
+
+    def active(self):
+        return sum(r['active'] for r in self.rows)
+
+    def pending(self):
+        return sum(1 for r in self.rows if not r['active'])
+
+
+class _JournalCursor:
+    def __init__(self, journal):
+        self.journal = journal
+        self.rowcount = 0
+        self._one = None
+
+    def execute(self, sql, params=()):
+        time.sleep(0.003)  # let other writers run between statements
+        sql = ' '.join(sql.split())
+        rows = self.journal.rows
+        with self.journal.lock:
+            if sql.startswith('SELECT COUNT(*)'):
+                self._one = (sum(r['active'] for r in rows),)
+            elif sql.startswith('DELETE'):
+                victims = [r for r in rows if r['active']
+                           and r['type'] != 'first_meeting']
+                if victims:
+                    rows.remove(victims[0])
+                self.rowcount = 1 if victims else 0
+            elif sql.startswith('INSERT'):
+                rows.append({'type': 'party_member',
+                             'active': params[7]})
+                self.rowcount = 1
+            elif sql.startswith('UPDATE') and 'SET active = 1' in sql:
+                pending = [r for r in rows if not r['active']]
+                for r in pending:
+                    r['active'] = 1
+                self.rowcount = len(pending)
+
+    def fetchone(self):
+        return self._one
+
+    def close(self):
+        pass
+
+
+class _JournalConn:
+    def __init__(self, journal):
+        self.journal = journal
+
+    def cursor(self, *args, **kwargs):
+        return _JournalCursor(self.journal)
+
+    def commit(self):
+        time.sleep(0.001)
 
 
 class SessionTests(unittest.TestCase):
@@ -734,17 +1015,12 @@ class SessionTests(unittest.TestCase):
 
 
 class IdentityResetTests(unittest.TestCase):
-    def test_reset_spares_first_meeting(self):
-        db = _DB()
-        memory.reset_bot_memories(db, 55)
-        sql, params = db.statements[0]
-        self.assertIn("memory_type != 'first_meeting'", sql)
-        self.assertEqual(params, (55,))
-
-    def test_reset_is_opt_in_on_version_bump(self):
-        source = _read('tools/chatter_identity.py')
-        self.assertIn("'LLMChatter.Memory.ResetOnIdentityChange'", source)
-        self.assertIn('reset_bot_memories(db, bot_guid)', source)
+    def test_reset_key_is_gone(self):
+        # Dropped: a reset could not be fenced against a memory
+        # still being written for the old personality.
+        self.assertFalse(hasattr(memory, 'reset_bot_memories'))
+        self.assertNotIn('ResetOnIdentityChange',
+                         _read('tools/chatter_identity.py'))
 
 
 class SqlAndConfTests(unittest.TestCase):
@@ -759,6 +1035,25 @@ class SqlAndConfTests(unittest.TestCase):
             self.assertIn(f'`{column}`', table)
         self.assertIn('20261028_memory_context.sql', _read('README.md'))
 
+    def test_orphan_scan_index(self):
+        migration = _read(
+            'data/sql/characters/updates/20261101_memory_active_index.sql')
+        self.assertIn('INFORMATION_SCHEMA.STATISTICS', migration)
+        self.assertIn("INDEX_NAME = 'idx_active_group'", migration)
+        self.assertIn(
+            '(`active`, `group_id`, `bot_guid`, `player_guid`)', migration)
+        base = _read('data/sql/characters/base/00000000_llm_chatter_tables.sql')
+        self.assertIn(
+            'INDEX `idx_active_group`      '
+            '(`active`, `group_id`, `bot_guid`, `player_guid`)', base)
+        self.assertEqual(
+            _read('README.md').count('20261101_memory_active_index.sql'), 2)
+
+    def test_cleanup_script_scope(self):
+        header = _read('data/sql/characters/optional/memory_cleanup.sql')[:900]
+        self.assertIn('Meant for roleplay journals', header)
+        self.assertIn('English text only', header)
+
     def test_cleanup_script_never_touches_first_meeting(self):
         script = _read('data/sql/characters/optional/memory_cleanup.sql')
         statements = [s for s in script.split(';') if re.search(
@@ -768,13 +1063,24 @@ class SqlAndConfTests(unittest.TestCase):
             self.assertIn("memory_type != 'first_meeting'", statement)
 
     def test_new_keys_are_documented(self):
-        for rel, maxbots in (('conf/mod_llm_chatter.conf.dist', 2),
-                             ('conf/presets/mod_ll_chatter_quieter.conf.dist',
-                              1)):
+        for rel, quiet in (('conf/mod_llm_chatter.conf.dist', False),
+                           ('conf/presets/mod_ll_chatter_quieter.conf.dist',
+                            True)):
             text = _read(rel)
-            self.assertIn(
-                f'LLMChatter.Memory.MaxBotsPerEvent = {maxbots}', text)
-            self.assertIn('LLMChatter.Memory.ResetOnIdentityChange = 0', text)
+            expected = {
+                'MaxBotsPerEvent': 1 if quiet else 2,
+                'MaxDiscoveriesPerSession': 1 if quiet else 3,
+                'DiscoveryRange': 100,
+                'TargetChars': 250,
+                'MaxChars': 400,
+                'RecallHoldoffMinutes': 30,
+            }
+            for key, value in expected.items():
+                self.assertRegex(
+                    text, rf'(?m)^LLMChatter\.Memory\.{key} = {value}$',
+                    (rel, key))
+            self.assertNotIn('ResetOnIdentityChange', text)
+            self.assertIn('LLMChatter.Memory.Enable [SERVER]', text)
             self.assertIn('LLMChatter.Memory.DiscoveryEnable = 1', text)
             self.assertIn('LLMChatter.Memory.DiscoveryMinLevel = 15', text)
             for key in ('DiscoveryGenerationChance', 'DuelGenerationChance'):

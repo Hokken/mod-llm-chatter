@@ -1489,9 +1489,6 @@ public:
         if (!player)
             return;
 
-        HandleAmbientPlayerUpdateZone(
-            player, newZone);
-
         // Eviction sweep + cleanup under mutex
         {
             std::lock_guard<std::mutex> guard(

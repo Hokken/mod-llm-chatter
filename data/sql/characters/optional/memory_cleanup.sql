@@ -1,6 +1,11 @@
 -- Optional cleanup of bot memories written before the 2026-10-28 memory
 -- fixes. NEVER applied automatically.
 --
+-- Meant for roleplay journals: in normal chat mode, memories that mention
+-- a quest or a level are valid and should be kept. The patterns match
+-- English text only; memories in other languages are left alone, apart
+-- from the length and pending-row rules.
+--
 -- It removes memories that break immersion or can no longer be trusted:
 --   * rows longer than 400 characters (over the memory length limit);
 --   * rows naming game mechanics: "achievement", "level <number>", "quest";

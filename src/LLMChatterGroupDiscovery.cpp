@@ -16,10 +16,13 @@
  * snapshot instead. A player seen for the first time only
  * sets the baseline. Only areas the client announces
  * ("Discovered: ...", area_level > 0) inside a zone count.
- * Only bots within kDiscoveryBotRange of the player found
- * the place with them; with none near, nothing is queued.
- * The bridge decides whether those bots remember the place
- * (levels, capital cities, subzone description). Battlegrounds and arenas are
+ * Only bots within LLMChatter.Memory.DiscoveryRange of the
+ * player found the place with them; with none near, nothing
+ * is queued. Players and bots below DiscoveryMinLevel queue
+ * nothing, and with Memory.Enable or DiscoveryEnable off no
+ * scan runs at all. The bridge decides whether those bots
+ * remember the place (capital cities, subzone description,
+ * the per-session cap). Battlegrounds and arenas are
  * excluded.
  */
 
@@ -47,10 +50,6 @@ namespace
 
 using ExploredFlags =
     std::array<uint32, PLAYER_EXPLORED_ZONES_SIZE>;
-
-// Yards: a bot this close to the player discovered the place
-// with them; one across the zone did not.
-constexpr float kDiscoveryBotRange = 100.0f;
 
 // Real player guid -> explored flags at the last scan.
 std::map<uint64, ExploredFlags> _exploredSnapshots;
@@ -83,17 +82,23 @@ ExploredFlags ReadExploredFlags(Player* player)
     return flags;
 }
 
+// Bots of the minimum level within DiscoveryRange yards of the
+// player discovered the place with them; one across the zone
+// did not.
 std::vector<uint32> NearbyBotGuids(Player* player, Group* group)
 {
+    float range =
+        float(sLLMChatterConfig->_memoryDiscoveryRange);
+    uint32 minLevel = sLLMChatterConfig->_memoryDiscoveryMinLevel;
     std::vector<uint32> guids;
     for (GroupReference* itr = group->GetFirstMember();
          itr != nullptr; itr = itr->next())
     {
         Player* member = itr->GetSource();
         if (!member || member == player || !member->IsInWorld()
-            || !IsPlayerBot(member))
+            || !IsPlayerBot(member) || member->GetLevel() < minLevel)
             continue;
-        if (player->IsWithinDistInMap(member, kDiscoveryBotRange))
+        if (player->IsWithinDistInMap(member, range))
             guids.push_back(member->GetGUID().GetCounter());
     }
     return guids;
@@ -120,13 +125,13 @@ void QueueDiscovery(
             + std::to_string(group->GetGUID().GetCounter()) + ","
         "\"player_guid\":"
             + std::to_string(player->GetGUID().GetCounter()) + ","
-        "\"player_name\":\"" + JsonEscape(player->GetName()) + "\","
+        "\"player_name\":\"" + ChatterJsonEscape(player->GetName()) + "\","
         "\"player_level\":"
             + std::to_string(player->GetLevel()) + ","
         "\"zone_id\":" + std::to_string(area->zone) + ","
         "\"area_id\":" + std::to_string(area->ID) + ","
         "\"map_id\":" + std::to_string(player->GetMapId()) + ","
-        "\"area_name\":\"" + JsonEscape(areaName) + "\","
+        "\"area_name\":\"" + ChatterJsonEscape(areaName) + "\","
         "\"nearby_bot_guids\":[" + nearbyJson + "]"
         "}";
 
@@ -164,6 +169,15 @@ void ScanPlayer(
         return;
     }
 
+    // Below the minimum level nothing is queued; the baseline
+    // still moves on, so these places never count as new later.
+    if (player->GetLevel()
+        < sLLMChatterConfig->_memoryDiscoveryMinLevel)
+    {
+        it->second = current;
+        return;
+    }
+
     auto const& areas = DiscoverableAreas();
     for (uint32 i = 0; i < PLAYER_EXPLORED_ZONES_SIZE; ++i)
     {
@@ -188,6 +202,7 @@ void CheckGroupDiscoveries()
     if (!sLLMChatterConfig
         || !sLLMChatterConfig->IsEnabled()
         || !sLLMChatterConfig->_useGroupChatter
+        || !sLLMChatterConfig->_memoryEnable
         || !sLLMChatterConfig->_memoryDiscoveryEnable)
     {
         _exploredSnapshots.clear();

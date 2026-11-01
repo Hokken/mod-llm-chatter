@@ -8,7 +8,6 @@
 #include <vector>
 
 class Weather;
-class Player;
 enum WeatherState : uint32;
 
 std::vector<uint32> GetZonesWithRealPlayers();
@@ -18,12 +17,11 @@ void HandleAmbientGameEventStop(uint16 eventId);
 void HandleWeatherChange(
     Weather* weather, WeatherState state,
     float grade);
-void HandleAmbientPlayerUpdateZone(
-    Player* player, uint32 newZone);
 void CheckDayNightTransition(
     std::string& lastTimePeriod);
 void CheckAmbientWeather();
 void CheckActiveHolidays();
 void TryTriggerChatter();
+void AddLLMChatterAmbientScripts();
 
 #endif

@@ -2605,7 +2605,7 @@ def get_quest_memory_texts(
             quest_id, exc_info=True,
         )
         return texts
-    limits = {'brief': 300, 'full': 700, 'completion': 500}
+    limits = {'brief': 300, 'full': 700, 'completion': 300}
     for key in texts:
         texts[key] = clean_quest_text(
             row.get(key), player_name, player_race,
@@ -2616,7 +2616,13 @@ def get_quest_memory_texts(
 
 def quest_memory_background(texts) -> List[str]:
     """Background lines for a quest memory, labelled as the
-    quest-giver's words."""
+    quest-giver's words. The full description is sent only
+    when there is no quest-log summary: they mostly say the
+    same thing, and a one- or two-sentence memory needs
+    little background."""
+    texts = dict(texts or {})
+    if texts.get('brief'):
+        texts.pop('full', None)
     labels = (
         ('brief', "How the quest-giver summed up the task"),
         ('full', "How the quest-giver described the task"),
@@ -2624,7 +2630,7 @@ def quest_memory_background(texts) -> List[str]:
     )
     return [
         f"{label}: {texts[key]}"
-        for key, label in labels if (texts or {}).get(key)
+        for key, label in labels if texts.get(key)
     ]
 
 

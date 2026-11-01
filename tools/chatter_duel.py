@@ -364,29 +364,54 @@ def duel_memory_context(extra_data, bot_guid):
     return text
 
 
+def _witness_guids(extra_data):
+    """Bots the worldserver saw able to watch the duel
+    (witness_bot_guids); an older payload without the list
+    gives none."""
+    guids = []
+    for guid in extra_data.get('witness_bot_guids') or []:
+        try:
+            guids.append(int(guid))
+        except (TypeError, ValueError):
+            continue
+    return guids
+
+
 def _duel_end_memory(db, ctx, message):
     """Memory: a settled duel fought by a bot of this group or
     by its real player, whoever the opponent was. The
     duelling bots remember it, and up to MaxBotsPerEvent
-    other bots who watched."""
+    bots the worldserver saw watching. Memory.Enable and the
+    chance rolls come before any DB work."""
     config = ctx['config']
     extra_data = ctx['extra_data']
+    if not int(config.get('LLMChatter.Memory.Enable', 1)):
+        return
     if extra_data.get('outcome', 'won') == 'interrupted':
         return
     if not (_duellist_in_party(extra_data, 'winner')
             or _duellist_in_party(extra_data, 'loser')):
         return
-    # Genders of identifiable duellists, outsiders included.
-    _attach_duellist_genders(db, extra_data)
-    duellists = {
+    duellists = [
         g for g in (
             _duellist_bot_guid(extra_data, 'winner'),
             _duellist_bot_guid(extra_data, 'loser'),
         ) if g
-    }
+    ]
+    watchers = pick_event_bots(config, [
+        g for g in _witness_guids(extra_data) if g not in duellists
+    ])
     chance = int(config.get(
         'LLMChatter.Memory.DuelGenerationChance', 60
     ))
+    chosen = [
+        g for g in duellists + watchers
+        if random.random() * 100 < chance
+    ]
+    if not chosen:
+        return
+    # Genders of identifiable duellists, outsiders included.
+    _attach_duellist_genders(db, extra_data)
     group_id = ctx['group_id']
     cursor = db.cursor(dictionary=True)
     cursor.execute(
@@ -394,19 +419,17 @@ def _duel_end_memory(db, ctx, message):
         " c.class, c.race, c.gender"
         " FROM llm_group_bot_traits t"
         " JOIN characters c ON c.guid = t.bot_guid"
-        " WHERE t.group_id = %s",
-        (group_id,),
+        " WHERE t.group_id = %s AND t.bot_guid IN ("
+        + ','.join(['%s'] * len(chosen)) + ")",
+        (group_id, *chosen),
     )
-    bots = cursor.fetchall()
+    rows = {int(r['bot_guid']): r for r in cursor.fetchall()}
     cursor.close()
-    fighters = [b for b in bots if int(b['bot_guid']) in duellists]
-    watchers = pick_event_bots(config, [
-        b for b in bots if int(b['bot_guid']) not in duellists
-    ])
-    for bot in fighters + watchers:
-        if random.random() * 100 >= chance:
+    for guid in chosen:
+        bot = rows.get(guid)
+        if not bot:
             continue
-        context = duel_memory_context(extra_data, int(bot['bot_guid']))
+        context = duel_memory_context(extra_data, guid)
         if not context:
             continue
         try:

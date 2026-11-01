@@ -20,7 +20,6 @@ import re
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime
 from typing import Dict, List, Optional
 
 from chatter_db import (
@@ -114,8 +113,9 @@ MEMORY_EXPRESSION_STYLES = [
     'wry', 'observational',
 ]
 
+# Memory length (LLMChatter.Memory.TargetChars / MaxChars).
 MEMORY_TARGET_CHARS = 250
-MEMORY_HARD_CHARS = 400
+MEMORY_MAX_CHARS = 400
 
 # How much a memory type weighs in recall scoring: shared
 # milestones over passing moments.
@@ -130,8 +130,9 @@ MEMORY_TYPE_WEIGHTS = {
 }
 
 # A memory shown in a prompt this recently is held back, so
-# the same few do not come back in a row.
-RECENTLY_SHOWN_SECONDS = 30 * 60
+# the same few do not come back in a row
+# (LLMChatter.Memory.RecallHoldoffMinutes).
+RECALL_HOLDOFF_MINUTES = 30
 
 # Achievements that only count or mark a level ("Level 30",
 # "50 Quests Completed", "100 Mounts") carry a number and no
@@ -145,13 +146,35 @@ def is_milestone_achievement(name: str) -> bool:
     return bool(_MILESTONE_ACHIEVEMENT.search(str(name or '')))
 
 
-def memory_age_label(created_at, now=None) -> str:
+def _config_int(config, key, default, minimum=0):
+    try:
+        value = int((config or {}).get(key, default))
+    except (TypeError, ValueError):
+        value = default
+    return max(minimum, value)
+
+
+def memory_lengths(config):
+    """(target, cap) in characters: the prompt asks for about
+    the target; stored memories never exceed the cap."""
+    cap = _config_int(
+        config, 'LLMChatter.Memory.MaxChars', MEMORY_MAX_CHARS, 40)
+    target = _config_int(
+        config, 'LLMChatter.Memory.TargetChars',
+        MEMORY_TARGET_CHARS, 20)
+    return min(target, cap), cap
+
+
+def memory_age_label(age_seconds) -> str:
     """How long ago a memory was made, in plain words, so
-    recall never presents an old moment as new."""
-    if not isinstance(created_at, datetime):
+    recall never presents an old moment as new. The age comes
+    from SQL (TIMESTAMPDIFF against the DB clock)."""
+    if age_seconds is None:
         return ''
-    now = now or datetime.now()
-    seconds = max(0.0, (now - created_at).total_seconds())
+    try:
+        seconds = max(0.0, float(age_seconds))
+    except (TypeError, ValueError):
+        return ''
     hours = seconds / 3600
     days = hours / 24
     if hours < 1:
@@ -206,25 +229,27 @@ def memory_block_notes(mode) -> str:
     return notes
 
 
-def _clamp_memory_text(text: str) -> str:
-    """Trim an over-long memory at a sentence boundary.
+def _clamp_memory_text(text: str, cap: int = MEMORY_MAX_CHARS) -> str:
+    """Trim an over-long memory at a sentence boundary; the
+    result is never longer than cap characters.
 
     Bounding length here rather than at prompt build
     time lets prompts carry the stored memory whole.
     """
-    if len(text) <= MEMORY_HARD_CHARS:
+    if len(text) <= cap:
         return text
-    head = text[:MEMORY_HARD_CHARS]
+    head = text[:cap]
     cut = max(
         head.rfind('. '), head.rfind('! '),
         head.rfind('? '),
     )
-    if cut > 60:
+    if cut > cap // 6:
         return head[:cut + 1]
-    # No usable sentence break — fall back to the last
-    # word boundary so the memory never ends mid-word.
+    # No usable sentence break: fall back to the last word
+    # boundary, keeping room for the closing period.
+    head = text[:cap - 1]
     word = head.rfind(' ')
-    if word > 60:
+    if word > cap // 6:
         head = head[:word]
     return head.rstrip(' ,;:-') + '.'
 
@@ -251,10 +276,23 @@ _active_sessions: Dict[int, dict] = {}
 #   "msg_count": int,      # player_message count
 #   "party_memories_generated": bool,
 #   "dungeons": set(),     # (bot_guid, map_id) remembered
+#   "discoveries": int,    # discovery memories this session
 # }}
 
 _group_locks: Dict[int, threading.Lock] = {}
 _group_locks_meta = threading.Lock()
+
+# One owner per (bot, player) journal: count, prune and insert
+# (and activation or orphan promotion with its prune) run under
+# this lock, so concurrent writers never leave the pair over
+# its cap. A fixed set of stripes keeps memory bounded. Never
+# taken while holding a group lock.
+_journal_locks = tuple(threading.Lock() for _ in range(64))
+
+
+def _journal_lock(bot_guid, player_guid) -> threading.Lock:
+    key = hash((int(bot_guid or 0), int(player_guid or 0)))
+    return _journal_locks[key % len(_journal_locks)]
 
 
 def _get_group_lock(
@@ -305,6 +343,7 @@ def start_session(
                 "msg_count": 0,
                 "party_memories_generated": False,
                 "dungeons": set(),
+                "discoveries": 0,
             }
         _active_sessions[group_id]["bots"].add(
             bot_guid
@@ -332,6 +371,26 @@ def claim_dungeon_memory(group_id, bot_guid, map_id) -> bool:
         if key in dungeons:
             return False
         dungeons.add(key)
+        return True
+
+
+def claim_discovery(group_id, cap) -> bool:
+    """True while the session is under
+    LLMChatter.Memory.MaxDiscoveriesPerSession; counts one
+    discovery (not one per bot). A levelling player finds a
+    subzone every few minutes, so the journal and the LLM
+    calls stay bounded."""
+    lock = _get_group_lock(group_id, create=False)
+    if lock is None:
+        return False
+    with lock:
+        session = _active_sessions.get(group_id)
+        if not session:
+            return False
+        count = session.get("discoveries", 0)
+        if count >= max(0, int(cap)):
+            return False
+        session["discoveries"] = count + 1
         return True
 
 
@@ -615,15 +674,44 @@ def _ensure_cap_and_insert(
     """Insert a memory, keeping the pair within its cap on
     every path (pending rows are pruned at activation).
 
+    An active insert counts, prunes and inserts under the
+    pair's journal lock. When only protected first_meeting
+    rows fill the cap, it is refused rather than going over.
+
     Returns True if inserted.
     """
-    context = context or {}
-    cursor = conn.cursor()
-    if active:
+    if not active:
+        return _insert_memory(
+            conn, bot_guid, player_guid, group_id,
+            memory_type, memory_text, mood, emote,
+            session_start, 0, context,
+        )
+    with _journal_lock(bot_guid, player_guid):
+        # The worker's connection was opened before the LLM
+        # call: end its read snapshot before counting.
+        conn.commit()
+        cursor = conn.cursor()
         _prune_to_cap(
             cursor, conn, bot_guid, player_guid,
             max(0, max_per - 1),
         )
+        if _count_active_memories(
+                cursor, bot_guid, player_guid) >= max_per:
+            return False
+        return _insert_memory(
+            conn, bot_guid, player_guid, group_id,
+            memory_type, memory_text, mood, emote,
+            session_start, 1, context,
+        )
+
+
+def _insert_memory(
+    conn, bot_guid, player_guid, group_id,
+    memory_type, memory_text, mood, emote,
+    session_start, active, context,
+):
+    context = context or {}
+    cursor = conn.cursor()
     companions = ', '.join(context.get('companions') or [])
     cursor.execute(
         "INSERT INTO llm_bot_memories"
@@ -849,6 +937,7 @@ def build_memory_prompt(
     location="", mode="normal",
     persona=None, companions=None,
     background=None,
+    target_chars=MEMORY_TARGET_CHARS,
 ):
     """The memory-writing prompt: facts only, in the bot's
     voice and the chat mode's register.
@@ -918,7 +1007,7 @@ def build_memory_prompt(
         '{"memory": "your memory text", '
         '"emote": "one_word_emote"}\n\n'
         "Rules:\n"
-        f"- One or two sentences, about {MEMORY_TARGET_CHARS} "
+        f"- One or two sentences, about {target_chars} "
         "characters\n"
         "- Record only what \"What happened\" states; add no "
         "incidents, conversations or details of your own\n"
@@ -990,6 +1079,7 @@ def _call_llm_for_memory(
     memory means the model found nothing true to record.
     """
     client = get_llm_client(config)
+    target, cap = memory_lengths(config)
     prompt = build_memory_prompt(
         bot_name=bot_name, bot_class=bot_class,
         bot_race=bot_race, bot_gender=bot_gender,
@@ -1000,12 +1090,13 @@ def _call_llm_for_memory(
         mood=mood, style=style, location=location,
         mode=mode, persona=persona, companions=companions,
         background=background,
+        target_chars=target,
     )
 
     try:
         response = call_llm(
             client, prompt, config,
-            max_tokens_override=200,
+            max_tokens_override=max(200, cap // 2),
             context=f"memory:{bot_name}:{memory_type}",
             label='memory_generation',
             response_contract=ResponseContract('memory'),
@@ -1032,10 +1123,12 @@ def _call_llm_for_memory(
         else:
             return None, None
 
-        if not memory or len(memory) > 500:
+        # Far over the cap means the model ignored the rules;
+        # a little over is trimmed.
+        if not memory or len(memory) > cap + cap // 4:
             return None, None
 
-        memory = _clamp_memory_text(memory)
+        memory = _clamp_memory_text(memory, cap)
 
         emote = data.get('emote')
         if isinstance(emote, str):
@@ -1191,20 +1284,25 @@ def flush_session_memories(
                     insert_active=True,
                 )
 
-        # Activate rows from THIS session
+        # Activate rows from THIS session, then prune, as
+        # one owner of the pair's journal.
         try:
-            cursor = db.cursor()
-            cursor.execute(
-                "UPDATE llm_bot_memories"
-                " SET active = 1"
-                " WHERE group_id = %s"
-                "   AND bot_guid = %s"
-                "   AND active = 0"
-                "   AND session_start = %s",
-                (group_id, bot_guid, session_start),
-            )
-            rows_activated = cursor.rowcount
-            db.commit()
+            with _journal_lock(bot_guid, player_guid):
+                cursor = db.cursor()
+                cursor.execute(
+                    "UPDATE llm_bot_memories"
+                    " SET active = 1"
+                    " WHERE group_id = %s"
+                    "   AND bot_guid = %s"
+                    "   AND active = 0"
+                    "   AND session_start = %s",
+                    (group_id, bot_guid, session_start),
+                )
+                rows_activated = cursor.rowcount
+                db.commit()
+                _prune_to_cap(
+                    cursor, db, bot_guid, player_guid, max_per,
+                )
             if rows_activated > 0:
                 logger.debug(
                     "Activated %d memories for"
@@ -1212,10 +1310,6 @@ def flush_session_memories(
                     rows_activated, bot_guid,
                     player_guid,
                 )
-
-            _prune_to_cap(
-                cursor, db, bot_guid, player_guid, max_per,
-            )
         except Exception:
             logger.error(
                 "Memory activation failed for "
@@ -1314,20 +1408,22 @@ def activate_orphaned_memories(
             )
             elapsed = max_created - min_start
             if elapsed >= session_seconds:
-                cursor.execute(
-                    "UPDATE llm_bot_memories"
-                    " SET active = 1"
-                    " WHERE group_id = %s"
-                    "   AND bot_guid = %s"
-                    "   AND player_guid = %s"
-                    "   AND active = 0",
-                    (g_id, b_guid, p_guid),
-                )
-                promoted += cursor.rowcount
-                _prune_to_cap(
-                    db.cursor(), db, b_guid, p_guid,
-                    int(max_per),
-                )
+                with _journal_lock(b_guid, p_guid):
+                    cursor.execute(
+                        "UPDATE llm_bot_memories"
+                        " SET active = 1"
+                        " WHERE group_id = %s"
+                        "   AND bot_guid = %s"
+                        "   AND player_guid = %s"
+                        "   AND active = 0",
+                        (g_id, b_guid, p_guid),
+                    )
+                    promoted += cursor.rowcount
+                    db.commit()
+                    _prune_to_cap(
+                        db.cursor(), db, b_guid, p_guid,
+                        int(max_per),
+                    )
             else:
                 cursor.execute(
                     "DELETE FROM llm_bot_memories"
@@ -1422,6 +1518,7 @@ def rehydrate_active_sessions(db):
                 "msg_count": 0,
                 "party_memories_generated": not player_guid,
                 "dungeons": set(),
+                "discoveries": 0,
             }
             # Create the per-group lock so that
             # queue_memory() and flush_session_memories()
@@ -1475,26 +1572,6 @@ def insert_first_meeting(
         cursor.close()
 
 
-def reset_bot_memories(db, bot_guid) -> int:
-    """Delete a bot's memories except first_meeting, for
-    LLMChatter.Memory.ResetOnIdentityChange: a bot with a
-    new personality should not keep a journal written in
-    its old voice. Returns the number of rows deleted."""
-    cursor = db.cursor()
-    try:
-        cursor.execute(
-            "DELETE FROM llm_bot_memories"
-            " WHERE bot_guid = %s"
-            "   AND memory_type != 'first_meeting'",
-            (bot_guid,),
-        )
-        deleted = cursor.rowcount
-        db.commit()
-        return deleted
-    finally:
-        cursor.close()
-
-
 # ============================================================
 # MEMORY RETRIEVAL
 # ============================================================
@@ -1517,41 +1594,7 @@ def memory_recall_count(config, idle=False):
     return max(1, min(10, count))
 
 
-class RecalledMemory(str):
-    """A memory as shown in a prompt ("(about a week ago)
-    text"), carrying its row id so a caller that really
-    used it can mark it with mark_memories_used()."""
-
-    memory_id = 0
-
-
-# Short words that say nothing about a topic.
-_STOPWORDS = frozenset(
-    "that this with have your what were they there about would "
-    "from just then them when will been into more some than "
-    "only also very over here like well back want need know "
-    "going still even much make sure dont cant youre thats "
-    "where which while again could should after before".split()
-)
-
-
-def _topic_words(text: str) -> set:
-    words = re.findall(r"[^\W\d_]{4,}", str(text or '').lower())
-    return {w for w in words if w not in _STOPWORDS}
-
-
-def _relevant(row, zone_id, map_id, words) -> bool:
-    """A memory fits a reply when it happened in the same
-    place or shares a topic word with the message."""
-    if map_id and row.get('map_id') == map_id and (
-            get_dungeon_flavor(map_id)):
-        return True
-    if zone_id and row.get('zone_id') == zone_id:
-        return True
-    return bool(words & _topic_words(row.get('memory')))
-
-
-def _score_memory(row, zone_id, map_id, present, now):
+def _score_memory(row, zone_id, map_id, present, holdoff_seconds):
     score = MEMORY_TYPE_WEIGHTS.get(row.get('memory_type'), 1.0)
     if map_id and row.get('map_id') == map_id and (
             get_dungeon_flavor(map_id)):
@@ -1567,13 +1610,12 @@ def _score_memory(row, zone_id, map_id, present, now):
             score += 1.0
         else:
             score -= 1.0
-    created = row.get('created_at')
-    if isinstance(created, datetime):
-        age_days = max(0.0, (now - created).total_seconds() / 86400)
+    age = row.get('age_seconds')
+    if age is not None:
+        age_days = max(0.0, float(age) / 86400)
         score += 1.5 / (1.0 + age_days / 14.0)
-    shown = row.get('last_used_at')
-    if isinstance(shown, datetime) and (
-            (now - shown).total_seconds() < RECENTLY_SHOWN_SECONDS):
+    shown = row.get('shown_seconds')
+    if shown is not None and float(shown) < holdoff_seconds:
         score -= 3.0
     return score + random.uniform(0, 1.5)
 
@@ -1581,10 +1623,10 @@ def _score_memory(row, zone_id, map_id, present, now):
 def get_bot_memories(
     db, bot_guid, player_guid, count=3,
     exclude_first_meeting=False,
-    mark_used=False,
     zone_id=0, map_id=0,
     present=None,
-    relevant_to=None,
+    shown=True,
+    config=None,
 ):
     """Retrieve the active memories that best fit the
     moment for a bot-player pair.
@@ -1593,20 +1635,24 @@ def get_bot_memories(
     memories whose companions are present (present: names
     of the bots in the party now), recent memories and
     weighty types, and holds back ones shown in the last
-    30 minutes. relevant_to (a player message) keeps only
-    memories of the same place or topic, so a reply is not
-    handed unrelated memories.
+    LLMChatter.Memory.RecallHoldoffMinutes. Relevance to the
+    moment is left to the prompt and the LLM.
 
-    Every returned row gets last_used_at (last shown);
-    mark_used=True also marks it as referenced, for callers
-    whose prompt is about the memory.
+    used means shown: every returned row is marked used with
+    last_used_at, because every caller puts all the memories
+    it fetches into its prompt. shown=False is for lookups
+    that only check whether memories exist (a rejoin, a
+    battleground arrival) and writes nothing.
 
-    Returns RecalledMemory strings with the age in front
-    (may be empty).
+    Ages are computed in SQL against the DB clock. Returns
+    strings with the age in front (may be empty).
     """
     try:
         zone_id = int(zone_id or 0)
         map_id = int(map_id or 0)
+        holdoff = _config_int(
+            config, 'LLMChatter.Memory.RecallHoldoffMinutes',
+            RECALL_HOLDOFF_MINUTES) * 60
         extra = (
             " AND memory_type != 'first_meeting'"
             if exclude_first_meeting else ""
@@ -1614,7 +1660,11 @@ def get_bot_memories(
         cursor = db.cursor(dictionary=True)
         cursor.execute(
             "SELECT id, memory, memory_type, zone_id, map_id,"
-            " companions, created_at, last_used_at"
+            " companions,"
+            " TIMESTAMPDIFF(SECOND, created_at, NOW())"
+            "   AS age_seconds,"
+            " TIMESTAMPDIFF(SECOND, last_used_at, NOW())"
+            "   AS shown_seconds"
             " FROM llm_bot_memories"
             " WHERE bot_guid = %s"
             "   AND player_guid = %s"
@@ -1623,43 +1673,33 @@ def get_bot_memories(
             (bot_guid, player_guid),
         )
         rows = cursor.fetchall()
-        if relevant_to is not None:
-            words = _topic_words(relevant_to)
-            rows = [
-                r for r in rows
-                if _relevant(r, zone_id, map_id, words)
-            ]
         if not rows:
             return []
         present_set = (
             {str(n) for n in present if n}
             if present is not None else None
         )
-        now = datetime.now()
         rows.sort(
             key=lambda r: _score_memory(
-                r, zone_id, map_id, present_set, now),
+                r, zone_id, map_id, present_set, holdoff),
             reverse=True,
         )
         rows = rows[:max(0, int(count))]
-        if rows:
+        if rows and shown:
             ids = [row['id'] for row in rows]
             placeholders = ','.join(['%s'] * len(ids))
             cursor.execute(
                 "UPDATE llm_bot_memories"
-                " SET last_used_at = NOW()"
-                + (", used = 1" if mark_used else "")
-                + " WHERE id IN (%s)" % placeholders,
+                " SET last_used_at = NOW(), used = 1"
+                " WHERE id IN (%s)" % placeholders,
                 tuple(ids),
             )
             db.commit()
         result = []
         for row in rows:
-            age = memory_age_label(row.get('created_at'), now)
+            age = memory_age_label(row.get('age_seconds'))
             text = str(row.get('memory') or '')
-            item = RecalledMemory(f"({age}) {text}" if age else text)
-            item.memory_id = int(row['id'])
-            result.append(item)
+            result.append(f"({age}) {text}" if age else text)
         return result
     except Exception:
         logger.error(
@@ -1668,27 +1708,6 @@ def get_bot_memories(
             exc_info=True,
         )
         return []
-
-
-def mark_memories_used(db, memories) -> None:
-    """Mark recalled memories as referenced (used = 1)."""
-    ids = [
-        int(getattr(m, 'memory_id', 0) or 0)
-        for m in (memories or [])
-    ]
-    ids = [i for i in ids if i]
-    if not ids:
-        return
-    try:
-        cursor = db.cursor()
-        cursor.execute(
-            "UPDATE llm_bot_memories SET used = 1"
-            " WHERE id IN (%s)" % ','.join(['%s'] * len(ids)),
-            tuple(ids),
-        )
-        db.commit()
-    except Exception:
-        logger.error("mark_memories_used failed", exc_info=True)
 
 
 # ============================================================

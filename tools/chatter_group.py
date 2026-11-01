@@ -186,7 +186,6 @@ from chatter_memory import (
     start_session,
     queue_memory,
     get_bot_memories,
-    mark_memories_used,
     claim_dungeon_memory,
     insert_first_meeting,
     memory_recall_count,
@@ -749,11 +748,15 @@ def process_group_event(db, client, config, event):
                 mem_zone, mem_map = get_player_zone(
                     db, player_name
                 )
+                # A rejoin skips the greeting, so it only
+                # checks whether memories exist.
                 memories = get_bot_memories(
                     db, bot_guid, player_guid,
                     count=memory_recall_count(config),
                     zone_id=mem_zone, map_id=mem_map,
                     present=get_group_members(db, group_id),
+                    shown=not is_rejoin,
+                    config=config,
                 )
                 player_name_known = bool(memories)
                 recall_chance = int(config.get(
@@ -766,7 +769,6 @@ def process_group_event(db, client, config, event):
                         < recall_chance
                 ):
                     recall_memory = memories[0]
-                    mark_memories_used(db, [recall_memory])
 
                 # First meeting: write a factual
                 # memory so the bot always remembers
@@ -1204,6 +1206,9 @@ def process_group_join_batch_event(
                     mem_zone, mem_map = get_player_zone(
                         db, player_name
                     )
+                    # A rejoin or a battleground arrival
+                    # shows no memories; it only checks
+                    # whether any exist.
                     bot_memories = get_bot_memories(
                         db, bot_guid,
                         batch_player_guid,
@@ -1211,6 +1216,8 @@ def process_group_join_batch_event(
                         zone_id=mem_zone, map_id=mem_map,
                         present=get_group_members(
                             db, group_id),
+                        shown=not (is_rejoin or in_bg_arrival),
+                        config=config,
                     )
                     bot_player_known = bool(
                         bot_memories
@@ -1225,7 +1232,6 @@ def process_group_join_batch_event(
                             < recall_chance
                     ):
                         bot_recall = bot_memories[0]
-                        mark_memories_used(db, [bot_recall])
 
                     # First meeting: write a factual
                     # memory so the bot remembers
@@ -2040,7 +2046,7 @@ def process_group_player_msg_event(
                     exclude_first_meeting=True,
                     zone_id=zone_id, map_id=map_id,
                     present=all_names,
-                    relevant_to=player_message,
+                    config=config,
                 )
                 if not msg_memories:
                     msg_memories = None
@@ -2263,10 +2269,10 @@ def process_group_player_msg_event(
         return False
 
 
-# Out-of-character or test lines that are not part of the
-# shared story: ((...)), "ooc ...", "test", bare punctuation.
+# Out-of-character lines by chat convention, not words:
+# ((...)), [ooc] ..., or bare punctuation.
 _OOC_MESSAGE = re.compile(
-    r'^\s*(\(\(.*\)\)|\[ooc\].*|ooc\b.*|test(ing)?\b.*'
+    r'^\s*(\(\(.*\)\)|\[ooc\].*'
     r'|[\W_]+)\s*$',
     re.IGNORECASE | re.DOTALL,
 )
@@ -2285,7 +2291,7 @@ def _maybe_queue_player_msg_memory(
     Eligibility filters:
     - A bot answered (responders)
     - Not a brief casual line (greetings, thanks...)
-    - Not a playerbot command, OOC or test line
+    - Not a playerbot command or an OOC-marked line
     - Not over max length
     - Session msg_count < max per session
     - Not whitespace-only or URL-only
@@ -3138,10 +3144,9 @@ def build_idle_chatter_prompt(
                 f"Your memories from past "
                 f"adventures with {p_label}:\n"
                 f"{mem_lines}\n"
-                f"A moment to look back: if one of "
-                f"these is on your mind, bring it up "
-                f"in your own words, briefly, not as "
-                f"a retelling.\n"
+                f"A moment to look back: bring one "
+                f"of these up in your own words, "
+                f"briefly, not as a retelling.\n"
                 f"{memory_block_notes(mode)}"
                 f"</past_memories>\n\n"
             )
@@ -3610,7 +3615,7 @@ def build_idle_conversation_prompt(
                         f"{b['name']}'s memories "
                         f"with {p_label}:\n"
                         f"{mem_lines}\n"
-                        f"{b['name']} may bring one of "
+                        f"{b['name']} brings one of "
                         f"these up in their own words, "
                         f"briefly, not as a retelling."
                         f"\n</past_memories>"
@@ -3624,7 +3629,7 @@ def build_idle_conversation_prompt(
 
             parts.append(
                 "This is a moment to look back together: "
-                "bots with memories may share one; bots "
+                "bots with memories share one; bots "
                 "without react naturally."
             )
             parts.append(memory_block_notes(mode).strip())
@@ -4489,6 +4494,7 @@ def _idle_single_statement(
                         present=[
                             b['bot_name'] for b in all_bots
                         ],
+                        config=config,
                     )
                     if not idle_memories:
                         idle_memories = None
@@ -4850,6 +4856,7 @@ def _idle_conversation(
                             map_id=map_id,
                             present=get_group_members(
                                 db, group_id),
+                            config=config,
                         )
                         if mems:
                             memories_map[
@@ -5415,9 +5422,9 @@ def check_bot_questions(db, client, config):
                         p_guid,
                         count=memory_recall_count(config),
                         exclude_first_meeting=True,
-                        mark_used=True,
                         zone_id=zone_id, map_id=map_id,
                         present=members,
+                        config=config,
                     )
                 )
                 if not question_memories:

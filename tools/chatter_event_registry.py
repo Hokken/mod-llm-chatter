@@ -328,6 +328,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'loser_name': (str, True),
             'outcome': (str, True),
             'reactor_role': (str, True),
+            'witness_bot_guids': (list, False),
         },
     ),
 
