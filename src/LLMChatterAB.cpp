@@ -241,7 +241,7 @@ static std::string ActorJson(ABNodeObservation const& node)
 {
     if (node.actorKind == LLMChatterAB::ACTOR_NONE || node.actor.name.empty())
         return {};
-    return ",\"actor_name\":\"" + JsonEscape(node.actor.name) + "\","
+    return ",\"actor_name\":\"" + ChatterJsonEscape(node.actor.name) + "\","
         "\"actor_is_real_player\":"
         + std::string(node.actor.isReal ? "true" : "false") + ","
         "\"actor_role\":\"" + LLMChatterAB::ActorRole(node.actorKind) + "\"";

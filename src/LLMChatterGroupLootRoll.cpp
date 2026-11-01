@@ -177,7 +177,7 @@ void QueueLootRollComment(
         "\"roll_vote\":\""
             + std::string(vote == NEED ? "need" : "greed")
             + "\","
-        "\"item_name\":\"" + JsonEscape(itemName) + "\","
+        "\"item_name\":\"" + ChatterJsonEscape(itemName) + "\","
         "\"item_entry\":" + std::to_string(roll->itemid) + ","
         "\"item_quality\":"
             + std::to_string(tmpl->Quality) + ","

@@ -18,7 +18,7 @@ std::string BuildAudienceJson(Player* player)
         R"({{"guid":{},"name":"{}","level":{},"team":"{}",)"
         R"("race":"{}","class":"{}"}})",
         player->GetGUID().GetCounter(),
-        JsonEscape(player->GetName()),
+        ChatterJsonEscape(player->GetName()),
         player->GetLevel(),
         player->GetTeamId() == TEAM_ALLIANCE ? "Alliance" : "Horde",
         GetRaceName(player->getRace()),

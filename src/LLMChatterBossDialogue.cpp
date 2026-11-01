@@ -266,42 +266,42 @@ std::string BuildBossEventJson(
     json << "{\"player_guid\":"
          << player->GetGUID().GetCounter()
          << ",\"player_name\":\""
-         << JsonEscape(player->GetName())
+         << ChatterJsonEscape(player->GetName())
          << "\",\"zone_id\":" << player->GetZoneId()
          << ",\"zone_name\":\""
-         << JsonEscape(GetZoneName(player->GetZoneId()))
+         << ChatterJsonEscape(GetZoneName(player->GetZoneId()))
          << "\",\"subzone_name\":\""
-         << JsonEscape(GetZoneName(player->GetAreaId()))
+         << ChatterJsonEscape(GetZoneName(player->GetAreaId()))
          << "\",\"map_id\":" << player->GetMapId()
          << ",\"instance_id\":"
          << (map ? map->GetInstanceId() : 0)
          << ",\"map_name\":\""
-         << JsonEscape(rawMapName ? rawMapName : "")
+         << ChatterJsonEscape(rawMapName ? rawMapName : "")
          << "\",\"is_dungeon\":"
          << (map && map->IsDungeon() ? "true" : "false")
          << ",\"is_raid\":"
          << (map && map->IsRaid() ? "true" : "false")
          << ",\"encounter_state\":\"pre_aggro\""
-         << ",\"trigger\":\"" << JsonEscape(trigger)
+         << ",\"trigger\":\"" << ChatterJsonEscape(trigger)
          << "\",\"player_message\":\""
-         << JsonEscape(playerMessage)
+         << ChatterJsonEscape(playerMessage)
          << "\",\"distance\":" << distance
          << ",\"safe_distance\":" << safeDistance
          << ",\"boss\":{\"name\":\""
-         << JsonEscape(boss->GetName())
+         << ChatterJsonEscape(boss->GetName())
          << "\",\"entry\":" << boss->GetEntry()
          << ",\"spawn_id\":" << boss->GetSpawnId()
          << ",\"role\":\""
-         << JsonEscape(GetCreatureRoleName(boss))
+         << ChatterJsonEscape(GetCreatureRoleName(boss))
          << "\",\"sub_name\":\""
-         << JsonEscape(
+         << ChatterJsonEscape(
                 creatureTemplate
                     ? creatureTemplate->SubName : "")
          << "\",\"disposition\":\"hostile\""
          << ",\"gender\":\""
          << GetUnitGenderLabel(boss)
          << "\",\"rank\":\""
-         << JsonEscape(GetBossRank(boss))
+         << ChatterJsonEscape(GetBossRank(boss))
          << "\"}}";
     std::ostringstream safetyMetadata;
     safetyMetadata

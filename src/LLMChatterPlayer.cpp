@@ -305,7 +305,7 @@ static void HandleEnemyZoneIntrusion(
 
     std::string extraData = "{"
         "\"intruder_name\":\"" +
-            JsonEscape(player->GetName()) + "\","
+            ChatterJsonEscape(player->GetName()) + "\","
         "\"intruder_class\":" +
             std::to_string(intruderClass) + ","
         "\"intruder_race\":" +
@@ -317,11 +317,11 @@ static void HandleEnemyZoneIntrusion(
             std::string(
                 isCapital ? "true" : "false") + ","
         "\"zone_name\":\"" +
-            JsonEscape(zoneName) + "\","
+            ChatterJsonEscape(zoneName) + "\","
         "\"defender_guid\":" +
             std::to_string(defGuid) + ","
         "\"defender_name\":\"" +
-            JsonEscape(defender->GetName()) + "\","
+            ChatterJsonEscape(defender->GetName()) + "\","
         "\"defender_class\":" +
             std::to_string(defClass) + ","
         "\"defender_race\":" +
@@ -455,7 +455,7 @@ static void HandleBotEntersEnemyTerritory(
 
     std::string extraData = "{"
         "\"intruder_name\":\"" +
-            JsonEscape(player->GetName()) + "\","
+            ChatterJsonEscape(player->GetName()) + "\","
         "\"intruder_class\":" +
             std::to_string(intruderClass) + ","
         "\"intruder_race\":" +
@@ -465,11 +465,11 @@ static void HandleBotEntersEnemyTerritory(
         "\"intruder_is_bot\":true,"
         "\"is_capital\":true,"
         "\"zone_name\":\"" +
-            JsonEscape(zoneName) + "\","
+            ChatterJsonEscape(zoneName) + "\","
         "\"defender_guid\":" +
             std::to_string(defGuid) + ","
         "\"defender_name\":\"" +
-            JsonEscape(defender->GetName()) + "\","
+            ChatterJsonEscape(defender->GetName()) + "\","
         "\"defender_class\":" +
             std::to_string(
                 defender->getClass()) + ","
@@ -694,7 +694,7 @@ void ProcessPendingRejoins()
                 "\"bot_guid\":" +
                     std::to_string(bguid) + ","
                 "\"bot_name\":\"" +
-                    JsonEscape(
+                    ChatterJsonEscape(
                         member->GetName()) +
                     "\","
                 "\"bot_class\":" +
@@ -730,7 +730,7 @@ void ProcessPendingRejoins()
             "\"group_id\":" +
                 std::to_string(groupId) + ","
             "\"player_name\":\"" +
-                JsonEscape(player->GetName()) +
+                ChatterJsonEscape(player->GetName()) +
                 "\","
             "\"player_guid\":" +
                 std::to_string(
@@ -1152,22 +1152,22 @@ public:
             botGuids += std::to_string(
                 bot->GetGUID().GetCounter());
             botNames += "\"" +
-                JsonEscape(bot->GetName()) + "\"";
+                ChatterJsonEscape(bot->GetName()) + "\"";
         }
         botGuids += "]";
         botNames += "]";
 
         std::string extraData = "{"
             "\"player_name\":\"" +
-                JsonEscape(playerName) + "\","
+                ChatterJsonEscape(playerName) + "\","
             "\"player_gender\":" +
                 std::to_string(player->getGender()) + ","
             "\"player_message\":\"" +
-                JsonEscape(safeMsg) + "\","
+                ChatterJsonEscape(safeMsg) + "\","
             "\"zone_id\":" +
                 std::to_string(zoneId) + ","
             "\"zone_name\":\"" +
-                JsonEscape(zoneName) + "\","
+                ChatterJsonEscape(zoneName) + "\","
             "\"bot_guids\":" + botGuids + ","
             "\"bot_names\":" + botNames +
             "}";
@@ -1237,7 +1237,7 @@ public:
 
         std::string extraBase = "{"
             "\"victim_name\":\"" +
-                JsonEscape(killed->GetName()) +
+                ChatterJsonEscape(killed->GetName()) +
                 "\","
             "\"victim_class\":" +
                 std::to_string(
@@ -1251,7 +1251,7 @@ public:
                 "\",\"victim_level\":" +
                 std::to_string(killed->GetLevel()) +
             ",\"killer_name\":\"" +
-                JsonEscape(killer->GetName()) +
+                ChatterJsonEscape(killer->GetName()) +
                 "\","
             "\"killer_team\":\"" +
                 std::string(
@@ -1421,7 +1421,7 @@ public:
             "\"bot_guid\":" +
                 std::to_string(botGuid) + ","
             "\"bot_name\":\"" +
-                JsonEscape(bot->GetName()) + "\","
+                ChatterJsonEscape(bot->GetName()) + "\","
             "\"bot_class\":" +
                 std::to_string(
                     bot->getClass()) + ","
@@ -1440,11 +1440,11 @@ public:
             "\"zone_id\":" +
                 std::to_string(curZone) + ","
             "\"zone_name\":\"" +
-                JsonEscape(zoneName) + "\","
+                ChatterJsonEscape(zoneName) + "\","
             "\"area_id\":" +
                 std::to_string(newArea) + ","
             "\"area_name\":\"" +
-                JsonEscape(areaName) + "\""
+                ChatterJsonEscape(areaName) + "\""
             "}";
 
         extraData = EscapeString(extraData);

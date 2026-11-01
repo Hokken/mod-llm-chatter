@@ -145,7 +145,7 @@ std::string BuildDuellistFields(
     return json
         + ",\"" + p + "_identity_known\":true"
         + ",\"" + p + "_name\":\""
-        + JsonEscape(duellist->GetName()) + "\""
+        + ChatterJsonEscape(duellist->GetName()) + "\""
         + ",\"" + p + "_race\":"
         + std::to_string(duellist->getRace())
         + ",\"" + p + "_class\":"
@@ -217,7 +217,7 @@ void QueueDuelEvent(
     if (initiator
         && IsDuellistKnownTo(reactor, initiator, group))
         extraData += "\"initiator_name\":\""
-            + JsonEscape(initiator->GetName())
+            + ChatterJsonEscape(initiator->GetName())
             + "\",";
     extraData += BuildBotStateJson(reactor) + "}";
 

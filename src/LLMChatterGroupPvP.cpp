@@ -258,7 +258,7 @@ std::string BuildPvPEnemyFields(
         && IsPvPEnemyPerceivable(reactor, ref.unit))
     {
         json += ",\"enemy_pet_name\":\""
-            + JsonEscape(ref.unit->GetName()) + "\"";
+            + ChatterJsonEscape(ref.unit->GetName()) + "\"";
     }
 
     if (!ref.enemy
@@ -288,7 +288,7 @@ std::string BuildPvPEnemyFields(
         + std::to_string(
             enemy->GetGUID().GetCounter())
         + ",\"enemy_name\":\""
-        + JsonEscape(enemy->GetName()) + "\""
+        + ChatterJsonEscape(enemy->GetName()) + "\""
         + ",\"enemy_race\":"
         + std::to_string(enemy->getRace())
         + ",\"enemy_class\":"
@@ -428,7 +428,7 @@ bool HandleGroupPvPEnterCombat(
     std::string extraData = "{"
         + BuildBotIdentityFields(reactor) + ","
         "\"creature_name\":\"" +
-            JsonEscape(enemyName) + "\","
+            ChatterJsonEscape(enemyName) + "\","
         "\"creature_entry\":0,"
         "\"is_boss\":0,"
         "\"is_elite\":0,"
@@ -514,13 +514,13 @@ void QueueGroupPvPKill(
     std::string extraData = "{"
         + BuildBotIdentityFields(reactor) + ","
         "\"creature_name\":\"" +
-            JsonEscape(enemyName) + "\","
+            ChatterJsonEscape(enemyName) + "\","
         "\"creature_entry\":0,"
         "\"is_boss\":false,"
         "\"is_rare\":false,"
         "\"is_normal\":false,"
         "\"killer_name\":\"" +
-            JsonEscape(groupKiller->GetName()) + "\","
+            ChatterJsonEscape(groupKiller->GetName()) + "\","
         "\"killer_is_pet\":" +
             std::string(
                 killerIsPet ? "true" : "false") + ","

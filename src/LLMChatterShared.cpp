@@ -1490,7 +1490,7 @@ std::string EscapeString(const std::string& str)
     return result;
 }
 
-std::string JsonEscape(const std::string& str)
+std::string ChatterJsonEscape(std::string const& str)
 {
     // Universal guard: invalid UTF-8 must never reach a
     // MySQL JSON column (errno 3140).
@@ -1933,7 +1933,7 @@ std::string BuildBotIdentityFields(
             std::to_string(
                 player->GetGUID().GetCounter())
         + ",\"bot_name\":\""
-        + JsonEscape(player->GetName()) + "\","
+        + ChatterJsonEscape(player->GetName()) + "\","
         + "\"bot_class\":"
         + std::to_string(player->getClass())
         + ",\"bot_race\":"
@@ -2396,7 +2396,7 @@ std::string BuildBotStateJson(Player* player)
                 inCombat ? "true" : "false")
             + ","
         "\"target\":\"" +
-            JsonEscape(targetName) + "\","
+            ChatterJsonEscape(targetName) + "\","
         "\"bot_ai_state\":\"" + botState + "\","
         + BuildBotTravelStateJson(player) + "}";
 }
@@ -2649,7 +2649,7 @@ std::string BuildBotTravelStateJson(Player* player)
         "\"travel_state\":{"
         "\"mode\":\"" + GetBotTravelMode(player) + "\","
         "\"context\":\"" +
-            JsonEscape(GetBotTravelContext(player)) + "\","
+            ChatterJsonEscape(GetBotTravelContext(player)) + "\","
         "\"mounted\":" +
             std::string(isMounted ? "true" : "false")
             + ","
@@ -2665,7 +2665,7 @@ std::string BuildBotTravelStateJson(Player* player)
         "\"mount_display_id\":" +
             std::to_string(player->GetMountID()) + ","
         "\"transport_name\":\"" +
-            JsonEscape(transportName) + "\""
+            ChatterJsonEscape(transportName) + "\""
         "}";
 }
 

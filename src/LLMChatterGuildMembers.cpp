@@ -268,7 +268,7 @@ std::string BuildGuildMemberJson(uint32 memberGuid)
         R"("guid":{},"name":"{}","online":{},)"
         R"("is_bot":{},"zone_id":{},"map_id":{})",
         memberGuid,
-        JsonEscape(name),
+        ChatterJsonEscape(name),
         online ? "true" : "false",
         (member && IsPlayerBot(member)) ? "true" : "false",
         online ? member->GetZoneId() : 0,
@@ -318,7 +318,7 @@ void QueueGuildMemberEvent(
         R"({{"guild_id":{},"guild_name":"{}",)"
         R"("team":"{}",{},"candidates":{}}})",
         guild->GetId(),
-        JsonEscape(guild->GetName()),
+        ChatterJsonEscape(guild->GetName()),
         anchor->GetTeamId() == TEAM_ALLIANCE
             ? "Alliance" : "Horde",
         payloadFields,
@@ -440,7 +440,7 @@ void FlushGuildRankBatch(
             change.currentRank < change.originalRank
                 ? "promotion" : "demotion",
             change.actorGuid,
-            JsonEscape(GuildMemberName(change.actorGuid)));
+            ChatterJsonEscape(GuildMemberName(change.actorGuid)));
         subjects.push_back(change.memberGuid);
     }
     if (subjects.empty())
@@ -486,7 +486,7 @@ void FlushGuildMotd(uint32 guildId, std::string const& motd)
         bots,
         fmt::format(
             R"("motd":"{}")",
-            JsonEscape(NormalizeChatTextForDb(
+            ChatterJsonEscape(NormalizeChatTextForDb(
                 motd,
                 sLLMChatterConfig->_maxMessageLength))),
         0,

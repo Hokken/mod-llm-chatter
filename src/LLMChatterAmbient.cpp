@@ -249,7 +249,7 @@ static void QueueHolidayForZones(
             + ":zone:" + std::to_string(zoneId);
         std::string extraData =
             "{\"event_name\":\""
-            + JsonEscape(eventData.Description)
+            + ChatterJsonEscape(eventData.Description)
             + "\",\"zone_id\":"
             + std::to_string(zoneId) + "}";
 
@@ -645,7 +645,7 @@ void CheckDayNightTransition(
         + ",\"time_period\":\"" + timePeriod
         + "\",\"previous_period\":\""
         + previousPeriod + "\",\"description\":\""
-        + JsonEscape(description) + "\",\"season\":\""
+        + ChatterJsonEscape(description) + "\",\"season\":\""
         + season + "\"}";
 
     std::vector<uint32> playerZones =
@@ -889,7 +889,7 @@ static std::string BuildTradeItemContext(
         "\"suffix_factor\":{}}}",
         item.itemInstanceGuid,
         item.itemEntry,
-        JsonEscape(item.itemName),
+        ChatterJsonEscape(item.itemName),
         item.quality,
         item.count,
         item.sellPrice,

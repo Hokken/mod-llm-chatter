@@ -63,7 +63,8 @@ std::string NormalizeChatTextForDb(
     const std::string& str, size_t maxChars = 0);
 
 std::string EscapeString(const std::string& str);
-std::string JsonEscape(const std::string& str);
+// Module-prefixed: mod-playerbots defines a global JsonEscape.
+std::string ChatterJsonEscape(std::string const& str);
 std::string GetCreatureRoleName(Creature* creature);
 std::string GetChatterClassName(uint8 classId);
 // Name of any race in ChrRaces, playable or not, in the
