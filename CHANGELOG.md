@@ -1,25 +1,6 @@
 # Changelog
 
-### 2026-10-31 - Builds Again With the Latest mod-playerbots
-
-* **Worldserver links again**: recent mod-playerbots added its own global
-  `JsonEscape()` helper, so linking worldserver failed with "multiple
-  definition of `JsonEscape`" (issue #89). The module's helper is now
-  `ChatterJsonEscape()`; escaping behaviour is unchanged. Recompile to
-  apply.
-
-### 2026-10-30 - Party Group Replies Work With Structured Output
-
-* **Party messages answered by several bots get a reply again**: with
-  `StructuredOutput.Enable = 1`, a party-chat message from the player that
-  drew a reply from more than one bot was rejected before it reached the
-  LLM (`contract_error`, label `group_player_msg_conv`), so nobody
-  answered. That prompt now declares its JSON shape like the other
-  conversation prompts: emotes always offered, actions optional, and an
-  emote-only reaction allowed for brief casual replies. Restart the
-  chatter bridge to apply.
-
-### 2026-10-28 - Truer Bot Memories
+### 2026-11-02 - Truer Bot Memories
 
 * **Memories stay true to the character and the world**: the memory
   prompt now sees the bot's personality, voice and (in roleplay) a short
@@ -101,6 +82,25 @@
   updates, a worldserver rebuild and a bridge restart. The optional `data/sql/characters/optional/memory_cleanup.sql`
   removes older roleplay memories with game terms (English only), "today"
   or over 350 characters; it is never applied automatically.
+
+### 2026-10-31 - Builds Again With the Latest mod-playerbots
+
+* **Worldserver links again**: recent mod-playerbots added its own global
+  `JsonEscape()` helper, so linking worldserver failed with "multiple
+  definition of `JsonEscape`" (issue #89). The module's helper is now
+  `ChatterJsonEscape()`; escaping behaviour is unchanged. Recompile to
+  apply.
+
+### 2026-10-30 - Party Group Replies Work With Structured Output
+
+* **Party messages answered by several bots get a reply again**: with
+  `StructuredOutput.Enable = 1`, a party-chat message from the player that
+  drew a reply from more than one bot was rejected before it reached the
+  LLM (`contract_error`, label `group_player_msg_conv`), so nobody
+  answered. That prompt now declares its JSON shape like the other
+  conversation prompts: emotes always offered, actions optional, and an
+  emote-only reaction allowed for brief casual replies. Restart the
+  chatter bridge to apply.
 
 ### 2026-10-28 - Settings Behave the Same With or Without Every Key
 
