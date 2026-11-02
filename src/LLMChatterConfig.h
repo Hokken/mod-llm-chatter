@@ -147,6 +147,11 @@ public:
     uint32 _groupLootCooldown;
     // Bot Need/Greed roll comments
     bool _lootRollCommentEnable;
+    // Bot memories: discovery is scanned in the worldserver
+    bool _memoryEnable;
+    bool _memoryDiscoveryEnable;
+    uint32 _memoryDiscoveryMinLevel;
+    uint32 _memoryDiscoveryRange;
     bool _lootRollCommentNeedEnable;
     bool _lootRollCommentGreedEnable;
     bool _lootRollCommentEquipmentEnable;

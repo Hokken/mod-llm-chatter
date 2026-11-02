@@ -19,7 +19,9 @@
 #include "RandomPlayerbotMgr.h"
 #include "Timer.h"
 #include "Weather.h"
+#include "ScriptMgr.h"
 #include "World.h"
+#include "WorldPacket.h"
 #include "WorldSession.h"
 #include "WorldSessionMgr.h"
 
@@ -37,11 +39,13 @@ static std::map<std::string, time_t> _ambientCooldownCache;
 static std::map<uint32, WeatherState> _zoneWeatherState;
 static std::mutex _zoneWeatherStateMutex;
 
+// The weather each real player's client was last sent
+// (SMSG_WEATHER). On a zone change the core sends the zone's
+// weather, or fine weather when the zone has none, so this is
+// what the player actually sees.
 struct PlayerWeatherContext
 {
     WeatherState state;
-    uint32 sourceZoneId;
-    uint32 currentZoneId;
     time_t updatedAt;
 };
 
@@ -312,8 +316,7 @@ static bool GetCachedWeatherState(
 }
 
 static void SetPlayerWeatherContext(
-    Player* player, WeatherState state,
-    uint32 sourceZoneId, uint32 currentZoneId)
+    Player* player, WeatherState state)
 {
     if (!player || IsPlayerBot(player))
         return;
@@ -322,22 +325,17 @@ static void SetPlayerWeatherContext(
         _playerWeatherContextMutex);
     _playerWeatherContext[
         player->GetGUID().GetCounter()] = {
-            state,
-            sourceZoneId,
-            currentZoneId,
-            time(nullptr)};
+            state, time(nullptr)};
 }
 
+// What the real players in the zone were last sent; the zone
+// cache (weather changes seen by OnWeatherChange) otherwise.
 static std::string GetCachedWeatherName(
     uint32 zoneId)
 {
-    WeatherState state = WEATHER_STATE_FINE;
-    if (GetCachedWeatherState(zoneId, state))
-        return GetWeatherStateName(state);
-
     time_t bestUpdatedAt = 0;
     WeatherState bestState = WEATHER_STATE_FINE;
-    bool foundCarriedWeather = false;
+    bool foundPlayerWeather = false;
     auto const& sessions =
         sWorldSessionMgr->GetAllSessions();
     for (auto const& pair : sessions)
@@ -369,37 +367,47 @@ static std::string GetCachedWeatherName(
             bestState = contextIt->second.state;
             bestUpdatedAt =
                 contextIt->second.updatedAt;
-            foundCarriedWeather = true;
+            foundPlayerWeather = true;
         }
     }
 
-    if (foundCarriedWeather)
+    if (foundPlayerWeather)
         return GetWeatherStateName(bestState);
+
+    WeatherState state = WEATHER_STATE_FINE;
+    if (GetCachedWeatherState(zoneId, state))
+        return GetWeatherStateName(state);
 
     return "";
 }
 
-void HandleAmbientPlayerUpdateZone(
-    Player* player, uint32 newZone)
+class LLMChatterWeatherPacketScript : public ServerScript
 {
-    if (!player || IsPlayerBot(player))
-        return;
+public:
+    LLMChatterWeatherPacketScript()
+        : ServerScript("LLMChatterWeatherPacketScript",
+              {SERVERHOOK_CAN_PACKET_SEND}) {}
 
-    WeatherState state = WEATHER_STATE_FINE;
-    if (GetCachedWeatherState(newZone, state))
+    // Only sessions with a client get here, so bots never do.
+    bool CanPacketSend(
+        WorldSession* session, WorldPacket const& packet) override
     {
-        SetPlayerWeatherContext(
-            player, state, newZone, newZone);
-        return;
-    }
+        if (packet.GetOpcode() != SMSG_WEATHER || !session
+            || packet.size() < sizeof(uint32)
+            || !sLLMChatterConfig
+            || !sLLMChatterConfig->IsEnabled())
+            return true;
 
-    std::lock_guard<std::mutex> lock(
-        _playerWeatherContextMutex);
-    auto contextIt =
-        _playerWeatherContext.find(
-            player->GetGUID().GetCounter());
-    if (contextIt != _playerWeatherContext.end())
-        contextIt->second.currentZoneId = newZone;
+        SetPlayerWeatherContext(
+            session->GetPlayer(),
+            WeatherState(packet.read<uint32>(0)));
+        return true;
+    }
+};
+
+void AddLLMChatterAmbientScripts()
+{
+    new LLMChatterWeatherPacketScript();
 }
 
 static std::string GetWeatherCategory(
@@ -478,8 +486,6 @@ void HandleWeatherChange(
             && player->GetZoneId() == zoneId
             && IsInOverworld(player))
         {
-            SetPlayerWeatherContext(
-                player, state, zoneId, zoneId);
             hasRealPlayer = true;
         }
     }

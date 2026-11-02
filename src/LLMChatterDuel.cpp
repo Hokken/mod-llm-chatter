@@ -7,7 +7,9 @@
  *
  * A duel qualifies when at least one duellist is in a
  * group with a real player and bots. Group bots that
- * watch the duel react as well as bot duellists.
+ * watch the duel react as well as bot duellists. The end
+ * payload lists every bot that could see the duel
+ * (witness_bot_guids); only those may remember it.
  */
 
 #include "LLMChatterConfig.h"
@@ -84,12 +86,12 @@ Group* GetQualifyingDuelGroup(Player* player)
     return group;
 }
 
-// A group bot that can see at least one duellist.
-// Bot duellists are candidates too.
-Player* SelectDuelReactor(
+// The group bots that can see at least one duellist.
+// Bot duellists are included.
+std::vector<Player*> DuelWitnesses(
     Group* group, Player* a, Player* b)
 {
-    std::vector<Player*> candidates;
+    std::vector<Player*> witnesses;
     for (GroupReference* itr =
              group->GetFirstMember();
          itr != nullptr; itr = itr->next())
@@ -100,11 +102,34 @@ Player* SelectDuelReactor(
             continue;
         if (IsPvPEnemyPerceivable(member, a)
             || IsPvPEnemyPerceivable(member, b))
-            candidates.push_back(member);
+            witnesses.push_back(member);
     }
-    if (candidates.empty())
+    return witnesses;
+}
+
+// A group bot that can see at least one duellist.
+Player* SelectDuelReactor(
+    std::vector<Player*> const& witnesses)
+{
+    if (witnesses.empty())
         return nullptr;
-    return candidates[urand(0, candidates.size() - 1)];
+    return witnesses[urand(0, witnesses.size() - 1)];
+}
+
+// JSON array of witness guids: only these bots may
+// remember watching the spar.
+std::string BuildWitnessGuidsJson(
+    std::vector<Player*> const& witnesses)
+{
+    std::string json = "[";
+    for (size_t i = 0; i < witnesses.size(); ++i)
+    {
+        if (i)
+            json += ",";
+        json += std::to_string(
+            witnesses[i]->GetGUID().GetCounter());
+    }
+    return json + "]";
 }
 
 // The reactor knows itself and its own party members.
@@ -177,8 +202,9 @@ void QueueDuelEvent(
     if (urand(1, 100) > chance)
         return;
 
-    Player* reactor =
-        SelectDuelReactor(group, first, second);
+    std::vector<Player*> witnesses =
+        DuelWitnesses(group, first, second);
+    Player* reactor = SelectDuelReactor(witnesses);
     if (!reactor)
         return;
 
@@ -213,7 +239,9 @@ void QueueDuelEvent(
         "\"reactor_role\":\"" + role + "\",";
     if (isEnd)
         extraData += "\"outcome\":\"" + outcome
-            + "\",";
+            + "\","
+            "\"witness_bot_guids\":"
+            + BuildWitnessGuidsJson(witnesses) + ",";
     if (initiator
         && IsDuellistKnownTo(reactor, initiator, group))
         extraData += "\"initiator_name\":\""

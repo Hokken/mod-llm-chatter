@@ -7,27 +7,32 @@ from chatter_memory import get_bot_memories, memory_recall_count
 
 
 class _Cursor:
-    def __init__(self):
+    def __init__(self, rows=()):
         self.params = None
+        self.rows = list(rows)
 
     def execute(self, sql, params):
         if self.params is None:
             self.params = params
 
     def fetchall(self):
-        return []
+        return self.rows
 
     def close(self):
         pass
 
 
 class _DB:
-    def __init__(self):
+    def __init__(self, rows=()):
+        self.rows = rows
         self.last = _Cursor()
 
     def cursor(self, *args, **kwargs):
-        self.last = _Cursor()
+        self.last = _Cursor(self.rows)
         return self.last
+
+    def commit(self):
+        pass
 
 
 class MemoryRecallCountTests(unittest.TestCase):
@@ -58,15 +63,24 @@ class MemoryRecallCountTests(unittest.TestCase):
             2,
         )
 
-    def test_count_reaches_the_query_limit(self):
-        db = _DB()
-        get_bot_memories(
+    def test_count_limits_the_result(self):
+        # Recall scores every active memory, then keeps `count`.
+        rows = [
+            {'id': i, 'memory': f'memory {i}',
+             'memory_type': 'ambient', 'zone_id': None,
+             'map_id': None, 'companions': None,
+             'created_at': None, 'last_used_at': None}
+            for i in range(1, 7)
+        ]
+        db = _DB(rows)
+        result = get_bot_memories(
             db, 11, 22,
             count=memory_recall_count(
                 {'LLMChatter.Memory.RecallCount': '4'}
             ),
         )
-        self.assertEqual(db.last.params, (11, 22, 4))
+        self.assertEqual(len(result), 4)
+        self.assertEqual(db.last.params[:2], (11, 22))
 
 
 if __name__ == '__main__':

@@ -4046,9 +4046,11 @@ LLMChatter.PrioritySystem.BridgeYieldEnable = 1
 ###############################################################################
 
 #
-#   LLMChatter.Memory.Enable
+#   LLMChatter.Memory.Enable [SERVER]
 #       Master toggle for the persistent memory system.
-#       When disabled, no memories are generated or surfaced.
+#       When disabled, no memories are generated or surfaced,
+#       and the worldserver skips the discovery watch. Changing
+#       it requires a worldserver restart as well.
 #       Default: 1 (enabled)
 #
 LLMChatter.Memory.Enable = 1
@@ -4056,15 +4058,19 @@ LLMChatter.Memory.Enable = 1
 #
 #   LLMChatter.Memory.AmbientChance
 #       Percent chance (0-100) per zone/subzone transition that
-#       an ambient memory is generated for a random bot.
+#       the reacting bot records an ambient memory. It holds
+#       only real facts: where the party travels, and the time
+#       of day, season and live weather; no invented incidents.
 #       Default: 20
 #
 LLMChatter.Memory.AmbientChance = 20
 
 #
 #   LLMChatter.Memory.RecallChance
-#       Percent chance (0-100) that a returning bot references
-#       a specific past memory in its reunion greeting.
+#       Percent chance (0-100) that a returning bot's reunion
+#       greeting picks out one past memory to mention. Recall
+#       prefers memories of the current place and of the
+#       companions present, and shows how long ago each was.
 #       Default: 20
 #
 LLMChatter.Memory.RecallChance = 20
@@ -4091,11 +4097,39 @@ LLMChatter.Memory.SessionMinutes = 3
 
 #
 #   LLMChatter.Memory.MaxPerBotPlayer
-#       Maximum active memories per bot-player pair. Used
-#       memories are evicted to make room for new ones.
+#       Maximum active memories per bot-player pair, enforced
+#       on every insert. Memories already referenced and those
+#       unseen the longest are evicted first; first_meeting is
+#       never evicted.
 #       Default: 30
 #
 LLMChatter.Memory.MaxPerBotPlayer = 30
+
+#
+#   LLMChatter.Memory.TargetChars
+#       Length the memory prompt asks for, in characters
+#       ("one or two sentences, about N characters").
+#       Default: 250
+#
+LLMChatter.Memory.TargetChars = 250
+
+#
+#   LLMChatter.Memory.MaxChars
+#       Longest stored memory, in characters. Longer replies are
+#       trimmed at a sentence or word boundary; replies far
+#       over it (more than a quarter longer) are discarded.
+#       Default: 350
+#
+LLMChatter.Memory.MaxChars = 350
+
+#
+#   LLMChatter.Memory.RecallHoldoffMinutes
+#       A memory shown in a prompt is held back from recall for
+#       this many minutes, so the same few do not come back in
+#       a row.
+#       Default: 30
+#
+LLMChatter.Memory.RecallHoldoffMinutes = 30
 
 #
 #   LLMChatter.Memory.IdentityVersion
@@ -4198,8 +4232,11 @@ LLMChatter.Memory.PartyMemberGenerationChance = 50
 
 #
 #   LLMChatter.Memory.IdleRecallChance
-#       Percent chance (0-100) that idle chatter or bot
-#       questions surface a past memory for context.
+#       Percent chance (0-100) that idle chatter, a bot question
+#       or a reply to the player draws on past memories. A reply
+#       only gets memories of the same place or topic, and the
+#       bot may ignore them; only a bot question is built around
+#       one.
 #       Default: 20
 #
 LLMChatter.Memory.IdleRecallChance = 20
@@ -4211,6 +4248,84 @@ LLMChatter.Memory.IdleRecallChance = 20
 #       Default: 2
 #
 LLMChatter.Memory.IdleRecallCount = 2
+
+#
+#   LLMChatter.Memory.MaxBotsPerEvent
+#       Most bots that record a memory of one group event (a
+#       boss or rare kill, an achievement), so a party does not
+#       store the same moment once per bot. Each picked bot
+#       still rolls its own generation chance. 0 disables these
+#       memories.
+#       Default: 2
+#
+LLMChatter.Memory.MaxBotsPerEvent = 1
+
+#
+#   LLMChatter.Memory.DiscoveryEnable [SERVER]
+#       Watch real players grouped with bots for newly discovered
+#       subzones (at every level, max level included) and let the
+#       party bots remember being there. 0 (or Memory.Enable = 0)
+#       stops the watch. Requires a worldserver restart.
+#       Default: 1
+#
+LLMChatter.Memory.DiscoveryEnable = 1
+
+#
+#   LLMChatter.Memory.DiscoveryGenerationChance
+#       Percent chance (0-100) that a bot records a discovery
+#       memory. Only bots within DiscoveryRange of the player at
+#       that moment, at most MaxBotsPerEvent of them; capital
+#       cities and subzones without a description never produce
+#       one. The memory carries the zone and subzone
+#       descriptions.
+#       Default: 60
+#
+LLMChatter.Memory.DiscoveryGenerationChance = 40
+
+#
+#   LLMChatter.Memory.DiscoveryMinLevel [SERVER]
+#       Minimum level of both the player and the bot for a
+#       discovery memory, so starting areas are left out. The
+#       worldserver queues nothing below it. Requires a
+#       worldserver restart.
+#       Default: 15
+#
+LLMChatter.Memory.DiscoveryMinLevel = 15
+
+#
+#   LLMChatter.Memory.DiscoveryRange [SERVER]
+#       Yards: a bot this close to the player at the moment of a
+#       discovery was there with them; one farther away was not.
+#       Requires a worldserver restart.
+#       Default: 100
+#
+LLMChatter.Memory.DiscoveryRange = 100
+
+#
+#   LLMChatter.Memory.MaxDiscoveriesPerSession
+#       Most discoveries remembered per party session. One
+#       discovery counts once, however many bots remember it,
+#       and only when at least one bot passed its chance roll.
+#       A levelling player discovers a subzone every few
+#       minutes, so this keeps the journal and the LLM calls
+#       bounded.
+#       Default: 3
+#
+LLMChatter.Memory.MaxDiscoveriesPerSession = 1
+
+#
+#   LLMChatter.Memory.DuelGenerationChance
+#       Percent chance (0-100) that a bot remembers a settled
+#       duel fought by a bot of its group or by the player, won
+#       or lost and whoever the opponent, as a friendly training
+#       spar. An opponent from outside the party is described
+#       by gender, race and class. The duelling bots roll it, and
+#       up to MaxBotsPerEvent other bots the worldserver saw able
+#       to watch the duel.
+#       Interrupted duels are never remembered.
+#       Default: 60
+#
+LLMChatter.Memory.DuelGenerationChance = 40
 
 ###############################################################################
 # BACKSTORY

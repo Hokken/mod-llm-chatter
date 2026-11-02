@@ -14,6 +14,7 @@ from chatter_shared import (
     get_class_name,
     get_gender_label,
     get_race_name,
+    race_class_note,
 )
 
 logger = logging.getLogger(__name__)
@@ -94,29 +95,45 @@ def _calling_style(db, guid: int, class_name: str) -> str:
             if db is not None and guid else 'Light Priest')
 
 
-def _lore_lines(race: str, style: str) -> List[str]:
+def _lore_lines(
+    name: str, race: str, style: str, race_lore: bool = False,
+) -> List[str]:
     lines = []
-    worldview = (get_race_speech_profile(race) or {}).get('worldview')
+    profile = get_race_speech_profile(race) or {}
+    worldview = profile.get('worldview')
     if worldview:
         lines.append(f"{race} outlook: {worldview}")
+    if race_lore and profile.get('lore'):
+        lines.append(f"{race} history: {' '.join(profile['lore'])}")
     calling = CLASS_CALLINGS.get(style)
     if calling:
         lines.append(f"{style} calling: {calling}")
+    # The race+class pairing (Blood Elf Hunter: the Farstriders);
+    # empty when notes are off or the pair has none.
+    note = race_class_note(
+        race, style, style, subject=f"{name}'s" if name else "Their",
+    )
+    if note:
+        lines.append(note)
     return lines
 
 
 def character_lore_lines(
     db, guid, name: str, race: str, class_name: str,
+    race_lore: bool = False,
 ) -> List[str]:
-    """Race outlook and class calling for any character; empty when the
-    race or class is unknown."""
-    name = str(name or '').strip() or 'They'
+    """Race outlook, class calling and race+class note for any
+    character (race_lore adds the race's history); empty when
+    the race or class is unknown."""
+    name = str(name or '').strip()
     race = '' if race == 'Unknown' else str(race or '')
     class_name = '' if class_name == 'Adventurer' else str(class_name or '')
     if not race or not class_name:
         return []
     guid = _safe_int(guid)
-    return _lore_lines(race, _calling_style(db, guid, class_name))
+    return _lore_lines(
+        name, race, _calling_style(db, guid, class_name), race_lore,
+    )
 
 
 def player_character_lines(
@@ -158,7 +175,7 @@ def player_character_lines(
             f"About {name}, the real player you are talking to: {a} {who} "
             f"{style}."
         ]
-    lines.extend(_lore_lines(race, style))
+    lines.extend(_lore_lines(name, race, style))
     lines.append(
         "Let this colour your words (a fitting greeting, a nod to their "
         "people or calling); never recite it or explain it back to them."

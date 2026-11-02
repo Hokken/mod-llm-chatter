@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Focused bot memory length checks.
+"""Focused bot memory length checks: the configurable target and
+cap, and a clamp that never returns more than the cap.
 
 Run directly from the module root:
   python tools/tests/test_memory_text.py
@@ -57,8 +58,9 @@ if str(TOOLS_DIR) not in sys.path:
 _install_non_strict_stubs()
 
 from chatter_memory import (  # noqa: E402
-    MEMORY_HARD_CHARS,
+    MEMORY_MAX_CHARS,
     _clamp_memory_text,
+    memory_lengths,
     sanitize_memory_for_prompt,
 )
 
@@ -99,19 +101,57 @@ def test_clamp_cuts_on_a_sentence_boundary():
         "I have not seen the road that quiet since the "
         "harvest golems first went silent."
     )
-    memory = f"{first} {second} {third}"
-    assert len(memory) > MEMORY_HARD_CHARS
+    fourth = (
+        "Vladimir kept watch on the farmhouse while I mended "
+        "the torn straps of my shield by the fire."
+    )
+    fifth = (
+        "By dawn the patrols were back and the Defias had "
+        "pulled away toward the Dead Mines."
+    )
+    memory = f"{first} {second} {third} {fourth} {fifth}"
+    assert len(memory) > MEMORY_MAX_CHARS
 
     clamped = _clamp_memory_text(memory)
-    assert clamped == f"{first} {second}"
-    assert len(clamped) <= MEMORY_HARD_CHARS
+    assert clamped == f"{first} {second} {third} {fourth}"
+    assert len(clamped) <= MEMORY_MAX_CHARS
 
 
 def test_clamp_never_splits_a_word():
     memory = "Vladimir " * 60
     clamped = _clamp_memory_text(memory.strip())
-    assert len(clamped) <= MEMORY_HARD_CHARS + 1
+    assert len(clamped) <= MEMORY_MAX_CHARS
     assert clamped.endswith("Vladimir.")
+
+
+def test_clamp_never_exceeds_the_cap():
+    # No sentence break, words of every length, and a text that
+    # ends exactly on the cap: the result never exceeds it.
+    texts = [
+        "Vladimir " * 80,
+        " ".join("w" * (n % 9 + 1) for n in range(200)),
+        "x" * 1000,
+        "Held the line. " * 60,
+    ]
+    for cap in (40, 120, 250, 350, 351, 400):
+        for text in texts:
+            clamped = _clamp_memory_text(text.strip(), cap)
+            assert 0 < len(clamped) <= cap, (cap, len(clamped))
+        exact = ("a" * (cap - 1)) + "."
+        assert _clamp_memory_text(exact, cap) == exact
+
+
+def test_lengths_come_from_config():
+    assert memory_lengths({}) == (250, 350)
+    assert memory_lengths({
+        "LLMChatter.Memory.TargetChars": "180",
+        "LLMChatter.Memory.MaxChars": "300",
+    }) == (180, 300)
+    # The target never exceeds the cap.
+    assert memory_lengths({
+        "LLMChatter.Memory.TargetChars": "500",
+        "LLMChatter.Memory.MaxChars": "300",
+    }) == (300, 300)
 
 
 def main() -> int:
@@ -120,6 +160,8 @@ def main() -> int:
     test_short_memory_is_not_clamped()
     test_clamp_cuts_on_a_sentence_boundary()
     test_clamp_never_splits_a_word()
+    test_clamp_never_exceeds_the_cap()
+    test_lengths_come_from_config()
     print("OK")
     return 0
 

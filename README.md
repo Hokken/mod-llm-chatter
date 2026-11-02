@@ -764,6 +764,15 @@ docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
 docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20261022_loot_roll_comments.sql
 
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20261028_memory_context.sql
+
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20261028_memory_events.sql
+
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20261101_memory_active_index.sql
+
 # Non-Docker
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260320_bot_memory_system.sql
@@ -845,11 +854,28 @@ mysql -uroot -ppassword acore_characters < \
 
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20261022_loot_roll_comments.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20261028_memory_context.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20261028_memory_events.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20261101_memory_active_index.sql
 ```
 
 Migrations are idempotent — safe to run on an already
 up-to-date database. Run them in date order after each
 `git pull` that includes new migration files.
+
+**Optional memory cleanup.** Bot memories written before 2026-10-28 can
+carry game terms ("level 30", "achievement", "quest") or relative times
+("today"), or run past the 400-character memory limit.
+`data/sql/characters/optional/memory_cleanup.sql` previews and deletes
+those rows and stale pending rows; `first_meeting` memories are never
+touched. It is never applied automatically: back up
+`llm_bot_memories` first, read the preview, then run it by hand.
 
 ---
 

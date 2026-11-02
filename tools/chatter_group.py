@@ -28,6 +28,7 @@ and chatter_prompts.
 
 import logging
 import random
+import re
 import threading
 import time
 
@@ -154,6 +155,7 @@ from chatter_group_state import (
     get_group_members,
     get_group_player_name,
 )
+from chatter_class_style import class_style
 from chatter_identity import config_int
 from chatter_group_handlers import (
     _maybe_talent_context,
@@ -184,9 +186,12 @@ from chatter_memory import (
     start_session,
     queue_memory,
     get_bot_memories,
+    claim_dungeon_memory,
+    insert_first_meeting,
     memory_recall_count,
     flush_session_memories,
     sanitize_memory_for_prompt,
+    memory_block_notes,
     _get_group_lock,
     _active_sessions,
 )
@@ -740,9 +745,18 @@ def process_group_event(db, client, config, event):
                 member_data,
             )
             if player_guid:
+                mem_zone, mem_map = get_player_zone(
+                    db, player_name
+                )
+                # A rejoin skips the greeting, so it only
+                # checks whether memories exist.
                 memories = get_bot_memories(
                     db, bot_guid, player_guid,
                     count=memory_recall_count(config),
+                    zone_id=mem_zone, map_id=mem_map,
+                    present=get_group_members(db, group_id),
+                    shown=not is_rejoin,
+                    config=config,
                 )
                 player_name_known = bool(memories)
                 recall_chance = int(config.get(
@@ -759,53 +773,11 @@ def process_group_event(db, client, config, event):
                 # First meeting: write a factual
                 # memory so the bot always remembers
                 if not player_name_known:
-                    pz_mem, _ = get_player_zone(
-                        db, player_name
+                    insert_first_meeting(
+                        db, bot_guid, player_guid,
+                        group_id, player_name,
+                        mem_zone, mem_map,
                     )
-                    zone_name = (
-                        get_zone_name(pz_mem)
-                        if pz_mem else None
-                    )
-                    if zone_name:
-                        mem_text = (
-                            f"Met {player_name} and"
-                            f" began adventuring"
-                            f" together in"
-                            f" {zone_name}."
-                        )
-                    else:
-                        mem_text = (
-                            f"Met {player_name} and"
-                            f" began adventuring"
-                            f" together."
-                        )
-                    mc = db.cursor()
-                    mc.execute(
-                        "INSERT INTO llm_bot_memories"
-                        " (bot_guid, player_guid,"
-                        "  group_id, memory_type,"
-                        "  memory, mood, emote,"
-                        "  active, session_start)"
-                        " SELECT"
-                        "  %s,%s,%s,"
-                        "  'first_meeting',"
-                        "  %s,'warm',NULL,1,%s"
-                        " WHERE NOT EXISTS ("
-                        "  SELECT 1 FROM"
-                        "  llm_bot_memories"
-                        "  WHERE bot_guid=%s"
-                        "    AND player_guid=%s"
-                        "    AND memory_type="
-                        "    'first_meeting')",
-                        (
-                            bot_guid, player_guid,
-                            group_id,
-                            mem_text, time.time(),
-                            bot_guid, player_guid,
-                        ),
-                    )
-                    db.commit()
-                    mc.close()
                     player_name_known = True
 
         # 1c. Normalize this bot's trait row to the
@@ -845,7 +817,9 @@ def process_group_event(db, client, config, event):
                 '.DungeonGenerationChance', 60
             ))
             if (dn and random.random() * 100
-                    < dng_chance):
+                    < dng_chance
+                    and claim_dungeon_memory(
+                        group_id, bot_guid, pm)):
                 try:
                     queue_memory(
                         config, group_id,
@@ -908,6 +882,7 @@ def process_group_event(db, client, config, event):
             player_context=player_context_text(
                 db, extra_data.get('player_guid'), player_name, mode,
             ),
+            class_style=class_style(db, bot_guid, bot['class']),
         )
         prompt = with_party_genders(
             prompt, db, group_id, bot['name'],
@@ -1228,10 +1203,21 @@ def process_group_join_batch_event(
                     time.time(), member_data,
                 )
                 if batch_player_guid:
+                    mem_zone, mem_map = get_player_zone(
+                        db, player_name
+                    )
+                    # A rejoin or a battleground arrival
+                    # shows no memories; it only checks
+                    # whether any exist.
                     bot_memories = get_bot_memories(
                         db, bot_guid,
                         batch_player_guid,
                         count=memory_recall_count(config),
+                        zone_id=mem_zone, map_id=mem_map,
+                        present=get_group_members(
+                            db, group_id),
+                        shown=not (is_rejoin or in_bg_arrival),
+                        config=config,
                     )
                     bot_player_known = bool(
                         bot_memories
@@ -1251,63 +1237,11 @@ def process_group_join_batch_event(
                     # memory so the bot remembers
                     if (not bot_player_known
                             and not in_bg_arrival):
-                        pz_mem, _ = get_player_zone(
-                            db, player_name
+                        insert_first_meeting(
+                            db, bot_guid,
+                            batch_player_guid, group_id,
+                            player_name, mem_zone, mem_map,
                         )
-                        zone_name = (
-                            get_zone_name(pz_mem)
-                            if pz_mem else None
-                        )
-                        if zone_name:
-                            mem_text = (
-                                f"Met {player_name}"
-                                f" and began"
-                                f" adventuring"
-                                f" together in"
-                                f" {zone_name}."
-                            )
-                        else:
-                            mem_text = (
-                                f"Met {player_name}"
-                                f" and began"
-                                f" adventuring"
-                                f" together."
-                            )
-                        mc = db.cursor()
-                        mc.execute(
-                            "INSERT INTO"
-                            " llm_bot_memories"
-                            " (bot_guid,"
-                            "  player_guid,"
-                            "  group_id,"
-                            "  memory_type,"
-                            "  memory, mood,"
-                            "  emote, active,"
-                            "  session_start)"
-                            " SELECT"
-                            "  %s,%s,%s,"
-                            "  'first_meeting',"
-                            "  %s,'warm',"
-                            "  NULL,1,%s"
-                            " WHERE NOT EXISTS ("
-                            "  SELECT 1 FROM"
-                            "  llm_bot_memories"
-                            "  WHERE bot_guid=%s"
-                            "    AND player_guid=%s"
-                            "    AND memory_type="
-                            "    'first_meeting')",
-                            (
-                                bot_guid,
-                                batch_player_guid,
-                                group_id,
-                                mem_text,
-                                time.time(),
-                                bot_guid,
-                                batch_player_guid,
-                            ),
-                        )
-                        db.commit()
-                        mc.close()
                         bot_player_known = True
 
             # On rejoin, prepare the hidden farewell,
@@ -1406,6 +1340,9 @@ def process_group_join_batch_event(
                     player_context=player_context_text(
                         db, extra_data.get('player_guid'),
                         player_name, mode,
+                    ),
+                    class_style=class_style(
+                        db, bot['guid'], bot['class'],
                     ),
                 )
                 prompt = with_party_genders(
@@ -1530,6 +1467,9 @@ def process_group_join_batch_event(
                     for b in greeted_bots:
                         if (random.random() * 100
                                 >= dng_chance):
+                            continue
+                        if not claim_dungeon_memory(
+                                group_id, b['guid'], pm):
                             continue
                         try:
                             queue_memory(
@@ -2076,7 +2016,8 @@ def process_group_player_msg_event(
             )
 
         # Fetch memories for player message
-        # response — RNG-gated like idle recall
+        # response — RNG-gated like idle recall, and
+        # only memories of this place or topic
         msg_memories = None
         memory_enabled = int(config.get(
             'LLMChatter.Memory.Enable', 1
@@ -2103,6 +2044,9 @@ def process_group_player_msg_event(
                     player_guid,
                     count=memory_recall_count(config),
                     exclude_first_meeting=True,
+                    zone_id=zone_id, map_id=map_id,
+                    present=all_names,
+                    config=config,
                 )
                 if not msg_memories:
                     msg_memories = None
@@ -2304,6 +2248,8 @@ def process_group_player_msg_event(
                     config, group_id,
                     player_message, all_bots,
                     player_name=player_name,
+                    responders=[bot_guid],
+                    brief_casual=brief_casual,
                 )
         except Exception:
             logger.error(
@@ -2323,15 +2269,29 @@ def process_group_player_msg_event(
         return False
 
 
+# Out-of-character lines by chat convention, not words:
+# ((...)), [ooc] ..., or bare punctuation.
+_OOC_MESSAGE = re.compile(
+    r'^\s*(\(\(.*\)\)|\[ooc\].*'
+    r'|[\W_]+)\s*$',
+    re.IGNORECASE | re.DOTALL,
+)
+
+
 def _maybe_queue_player_msg_memory(
     config, group_id, player_message, all_bots,
-    player_name="",
+    player_name="", responders=None, brief_casual=False,
 ):
-    """Queue player_message memory generation for
-    random bots in the group.
+    """Queue a player_message memory for the bot(s) that
+    answered the player.
+
+    Only a bot the player was talking with remembers what
+    was said, as a topic, never a guessed intent.
 
     Eligibility filters:
-    - Not a playerbot command
+    - A bot answered (responders)
+    - Not a brief casual line (greetings, thanks...)
+    - Not a playerbot command or an OOC-marked line
     - Not over max length
     - Session msg_count < max per session
     - Not whitespace-only or URL-only
@@ -2344,16 +2304,17 @@ def _maybe_queue_player_msg_memory(
     ))
 
     msg = player_message.strip()
-    if not msg:
+    if not msg or brief_casual:
         return
     if len(msg) > max_len:
         return
     if _is_playerbot_command(msg):
         return
+    if _OOC_MESSAGE.match(msg):
+        return
     # Skip URL-only messages
-    import re as _re
-    if _re.match(
-        r'^https?://\S+$', msg, _re.IGNORECASE
+    if re.match(
+        r'^https?://\S+$', msg, re.IGNORECASE
     ):
         return
 
@@ -2367,25 +2328,19 @@ def _maybe_queue_player_msg_memory(
         if session["msg_count"] >= max_per_session:
             return
         player_guid = session["player_guid"]
-        bots_in_session = list(session["bots"])
-        # Guard before incrementing: rehydrated
-        # sessions have player_guid=0 and cannot
-        # generate memories — don't burn quota
-        if not bots_in_session or not player_guid:
+        picked = [
+            int(g) for g in (responders or [])
+            if int(g) in session["bots"]
+        ]
+        # Guard before incrementing: a session without
+        # a known player cannot store memories, so it
+        # must not burn quota
+        if not picked or not player_guid:
             return
         # Increment atomically inside the lock so
         # concurrent player messages can't both
         # slip past the max_per_session check
         session["msg_count"] += 1
-
-    # Select 1-min(4, bot_count) random bots
-    num_to_pick = min(
-        random.randint(1, 4),
-        len(bots_in_session),
-    )
-    picked = random.sample(
-        bots_in_session, num_to_pick
-    )
 
     # Find bot data for context
     bot_map = {}
@@ -2401,8 +2356,9 @@ def _maybe_queue_player_msg_memory(
                 config, group_id, bg, player_guid,
                 memory_type='player_message',
                 event_context=(
-                    f"{player_name or 'Player'}"
-                    f" said: {msg[:100]}"
+                    f"{player_name or 'The player'}"
+                    f" told me: {msg[:100]} (record the "
+                    f"topic only, never a guessed intent)"
                 ),
                 bot_name=bd.get('bot_name', ''),
                 bot_class=bd.get('class', ''),
@@ -2415,28 +2371,6 @@ def _maybe_queue_player_msg_memory(
                 "player_message memory failed",
                 exc_info=True,
             )
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
 
 # ============================================================
@@ -3210,20 +3144,12 @@ def build_idle_chatter_prompt(
                 f"Your memories from past "
                 f"adventures with {p_label}:\n"
                 f"{mem_lines}\n"
-                f"Reference one of these memories "
-                f"clearly — mention the place, "
-                f"creature, or moment by name so "
-                f"{p_label} would recognise the "
-                f"callback. Keep it natural "
-                f"(not a full retelling).\n"
+                f"A moment to look back: bring one "
+                f"of these up in your own words, "
+                f"briefly, not as a retelling.\n"
+                f"{memory_block_notes(mode)}"
                 f"</past_memories>\n\n"
             )
-            if not is_rp:
-                prompt += (
-                    "Treat these as remembered gameplay events. Paraphrase "
-                    "them as a player and never copy in-character journal "
-                    "wording.\n\n"
-                )
             if solo_bot and player_name:
                 prompt += (
                     f"IMPORTANT: You are the ONLY "
@@ -3689,13 +3615,9 @@ def build_idle_conversation_prompt(
                         f"{b['name']}'s memories "
                         f"with {p_label}:\n"
                         f"{mem_lines}\n"
-                        f"Have {b['name']} "
-                        f"reference one of these "
-                        f"memories clearly — "
-                        f"mention the place, "
-                        f"creature, or moment by "
-                        f"name so {p_label} "
-                        f"recognises the callback."
+                        f"{b['name']} brings one of "
+                        f"these up in their own words, "
+                        f"briefly, not as a retelling."
                         f"\n</past_memories>"
                     )
                 else:
@@ -3706,17 +3628,11 @@ def build_idle_conversation_prompt(
                     )
 
             parts.append(
-                "The memories should be the main "
-                "point of the conversation, not "
-                "side notes. Bots with memories "
-                "share them; bots without react "
-                "naturally."
+                "This is a moment to look back together: "
+                "bots with memories share one; bots "
+                "without react naturally."
             )
-            if not is_rp:
-                parts.append(
-                    "Treat every memory as a gameplay event. Paraphrase it "
-                    "as a player and do not copy in-character wording."
-                )
+            parts.append(memory_block_notes(mode).strip())
 
             if chat_history:
                 parts.append(
@@ -4574,6 +4490,11 @@ def _idle_single_statement(
                             config, idle=True
                         ),
                         exclude_first_meeting=True,
+                        zone_id=zone_id, map_id=map_id,
+                        present=[
+                            b['bot_name'] for b in all_bots
+                        ],
+                        config=config,
                     )
                     if not idle_memories:
                         idle_memories = None
@@ -4931,6 +4852,11 @@ def _idle_conversation(
                             exclude_first_meeting=(
                                 True
                             ),
+                            zone_id=zone_id,
+                            map_id=map_id,
+                            present=get_group_members(
+                                db, group_id),
+                            config=config,
                         )
                         if mems:
                             memories_map[
@@ -5496,6 +5422,9 @@ def check_bot_questions(db, client, config):
                         p_guid,
                         count=memory_recall_count(config),
                         exclude_first_meeting=True,
+                        zone_id=zone_id, map_id=map_id,
+                        present=members,
+                        config=config,
                     )
                 )
                 if not question_memories:

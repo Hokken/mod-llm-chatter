@@ -317,6 +317,29 @@ def test_event_quote_only_after_delivery():
     assert 'Shiny' not in turn.prompt_block
 
 
+
+def test_event_labels_stay_in_world_in_roleplay():
+    _reset(**{'LLMChatter.ChatterMode': 'roleplay'})
+    db = _DB()
+    _exchange(db, _report(topic='Dalaran'))
+    th.note_event(GID, 'bot_group_quest_complete', 'Mira', 'Done.')
+    th.note_event(GID, 'bot_group_levelup', 'Mira', 'Stronger.')
+    turn = th.plan_idle_turn(GID, NAMES, db=db)
+    assert 'Event: a task finished and handed in' in turn.prompt_block
+    assert 'Event: someone grew stronger' in turn.prompt_block
+    assert 'quest' not in turn.prompt_block.lower()
+    assert 'levelup' not in turn.prompt_block
+
+
+def test_event_labels_keep_game_names_in_normal_mode():
+    _reset(**{'LLMChatter.ChatterMode': 'normal'})
+    db = _DB()
+    _exchange(db, _report(topic='Dalaran'))
+    th.note_event(GID, 'bot_group_quest_complete', 'Mira', 'Done.')
+    turn = th.plan_idle_turn(GID, NAMES, db=db)
+    assert 'Event: quest complete' in turn.prompt_block
+    assert 'handed in' not in turn.prompt_block
+
 # ------------------------------------------------------------
 # Stale completions
 # ------------------------------------------------------------

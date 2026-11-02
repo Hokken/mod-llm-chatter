@@ -1194,7 +1194,7 @@ Line counts are approximate non-blank lines.
 | `src/LLMChatterShared.h` | ~175 | Shared declarations still used across domains; `class Unit` forward-declared for `SendUnitTextEmote()`; currently also declares world/player registration |
 | `src/LLMChatterDelivery.cpp` | ~1600 | Outbound DB polling and channel dispatch, including instance-aware local revalidation for `say`/`msay`, screenshot snapshot/scan-radius checks, the BG final-send guard, and safe boss `myell` delivery |
 | `src/LLMChatterDelivery.h` | 4 | Narrow delivery extraction declaration used by `LLMChatterWorld.cpp` |
-| `src/LLMChatterAmbient.cpp` | ~1030 | Ambient world/event ownership: day/night transitions, holiday start/stop routing, weather state tracking, weather reactions, zone-level ambient chatter selection, ambient request queue writes |
+| `src/LLMChatterAmbient.cpp` | ~1030 | Ambient world/event ownership: day/night transitions, holiday start/stop routing, weather state tracking (per zone, and per real player from the `SMSG_WEATHER` packets their client is sent, `LLMChatterWeatherPacketScript`), weather reactions, zone-level ambient chatter selection, ambient request queue writes |
 | `src/LLMChatterAmbient.h` | 24 | Narrow ambient declarations consumed by `LLMChatterWorld.cpp` |
 | `src/LLMChatterThemedAudience.cpp/.h` | ~50 | Listener JSON for themed topics and rumors: guid, name, level, team, race and class, sent as `audience_context` on ambient General requests and as `audience` on guild idle events |
 | `src/LLMChatterAudience.cpp/.h` | ~90 | Online real players (never playerbots) in a zone or guild: `CollectRealPlayers*()` and `PickRealPlayerInZone()` / `PickRealGuildMember()` |
@@ -1210,6 +1210,7 @@ Line counts are approximate non-blank lines.
 | `src/LLMChatterGroup.cpp` | ~1360 | Shared group state definitions, shared helpers (`GroupHasRealPlayer`, `GetRandomBotInGroup`, `CountBotsInGroup`, pre-cache helpers), disabled-by-default MultiBot-Chatless `MBOT` fallback handler, `CleanupGroupSession()` coordinator, thin `LLMChatterGroupPlayerScript` shell wrappers, group sub-registration, registration |
 | `src/LLMChatterGroupCombat.cpp` | ~2640 | Remaining group PlayerScript implementation bodies (kill/death/loot/combat/chat/level/quest/achievement/spell/resurrect/corpse-run/dungeon-entry/emote dispatch), text-emote target classification and group gating, zone transition handling, combat state callouts, `MBOT` debug-log suppression, file-local `QueueStateCallout()` |
 | `src/LLMChatterGroupLootRoll.cpp` | ~400 | Need/Greed roll comments: `CheckGroupLootRolls()` polls open group loot rolls (`Group::GetRolls()`) from the world update, applies the Need/Greed and equipment/other switches, the Need and Greed chances and per-group cooldowns and the per-item cap, checks whether the bot can use the item (`LootRollUse()`), queues `bot_group_loot_roll`, cancels pending events of rolls that closed, and answers `LootRollCommentDropReason()` for delivery (roll closed, or the bot left the group or its vote) |
+| `src/LLMChatterGroupDiscovery.cpp` | ~190 | Subzone discoveries for bot memories: `CheckGroupDiscoveries()` (world update, every 2 s) compares grouped real players' `PLAYER_EXPLORED_ZONES_*` flags with the last snapshot, maps new flags to announced subzones (`area_level > 0`) and queues `bot_group_discovery` with the party bots of at least `DiscoveryMinLevel` within `DiscoveryRange` yards of the player (`nearby_bot_guids`; none near, or a player below the level, no event); first sight only sets the baseline; skips battlegrounds and arenas; no scan with `Memory.Enable` or `DiscoveryEnable` off |
 | `src/LLMChatterGroupInternal.h` | ~325 | Shared group internal structs, cooldown/batch/mutex declarations, helper declarations, domain entry points, and `EmoteTargetType` |
 | `src/LLMChatterGroupJoin.cpp` | 841 | Group join batching: `QueueBotGreetingEvent()`, `EnsureGroupJoinQueued()`, `FlushGroupJoinBatches()`, `LLMChatterGroupScript` (GroupScript: `OnAddMember`, `OnRemoveMember` with farewell, `OnDisband`) |
 | `src/LLMChatterGroupEmote.cpp` | ~810 | Emote reaction system: delayed bot/creature mirror events, emote static data, grouped and ungrouped playerbot mirroring, creature mirroring, observer reactions, and cooldown eviction |
@@ -1343,7 +1344,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_progression.py` | Rumor gating per listener (level bands, faction, achievements) and the rotating rumor target |
 | `tools/chatter_lore_data.py` / `chatter_rumor_data.py` / `chatter_trainer_rumor_data.py` | Static themed topic, race+class note, rumor and trainer rumor data |
 | `tools/chatter_general.py` | `player_general_msg` Python path |
-| `tools/chatter_memory.py` | Persistent memory system: session tracking, background memory generation via `queue_memory()`, flush/activate on farewell, orphan recovery. Key helpers: `_resolve_location()`, `_ensure_cap_and_insert()`, `_count_active_memories()`, `_evict_one_used()`. Memory prompts thread `player_name` so the LLM references the player by name (DB fallback from `player_guid` when caller doesn't supply it). Memories are one plain, factual sentence (target 160 characters); `_clamp_memory_text()` bounds them at write time (hard cap 240, cut at a sentence or word boundary), so prompts carry the stored memory whole instead of cutting it at 200 characters |
+| `tools/chatter_memory.py` | Persistent memory system: session tracking, background generation via `queue_memory()` (place, mode, persona and companions resolved at queue time by `_resolve_memory_context()`), the facts-only, mode-aware prompt `build_memory_prompt()`, cap-safe insert and `_evict_one()`, flush/activate on farewell, periodic orphan recovery, rehydration that resumes the session clock and player, scored recall `get_bot_memories()` with age labels and `memory_block_notes()`, `insert_first_meeting()`, `claim_dungeon_memory()`, `claim_discovery()` and `pick_event_bots()`. Writers of one (bot, player) journal are serialized by striped `_journal_lock()`s. Memories are one or two plain sentences (`TargetChars`, 250); `_clamp_memory_text()` bounds them at write time (`MaxChars`, 350). An optional `background` (place descriptions, a quest-giver's words) keeps them accurate |
 | `tools/chatter_cache.py` | Mode-aware pre-cache refill and startup removal of ready rows generated under a previous mode |
 | `tools/chatter_events.py` | Event context building and cleanup |
 | `tools/chatter_constants.py` | Static constants and lore data: zone names/levels/flavor, race/class speech profiles, personality traits (16 categories, 264 traits), BG lore, item/weapon/armor classification maps, item quality names/colors, raid map IDs, dungeon flavor, emote keywords. English defaults only: per-language tables live in `tools/locales/` behind the registry described under *Locale Ownership* |
@@ -1498,7 +1499,8 @@ system.
 
 - holiday processing
 - day/night processing
-- weather state and transitions
+- weather state and transitions, including the weather each real
+  player was last sent (`SMSG_WEATHER`)
 - ambient zone discovery and faction selection
 - ambient message-family selection
 - demand-driven live inventory snapshots when the selected family is
@@ -1771,8 +1773,10 @@ with `LLMChatterBG.cpp`.
 
 `LLMChatterDuel.cpp` owns duel reactions. It queues
 `bot_group_duel_start` and `bot_group_duel_end` for each distinct group
-with a real player that contains a duellist. The reactor is a bot
-duellist or a group bot that can see the duel.
+with a real player that contains a duellist. `DuelWitnesses()` lists the
+group bots that can see the duel (bot duellists included); the reactor
+is one of them, and the end payload sends them all as
+`witness_bot_guids`, the only bots that may remember watching.
 
 ### Player ownership
 
@@ -2252,7 +2256,7 @@ source:
 | C++ ambient trade inventory snapshots | `src/LLMChatterTrade.cpp`, `src/LLMChatterTrade.h` |
 | C++ nearby scan logic | `src/LLMChatterNearby.cpp`, `src/LLMChatterNearby.h` |
 | C++ world transport/dispatcher logic | `src/LLMChatterWorld.cpp` |
-| C++ group batching/combat/state logic | `src/LLMChatterGroup.cpp`, `src/LLMChatterGroupCombat.cpp`, `src/LLMChatterGroupLootRoll.cpp`, `src/LLMChatterGroupJoin.cpp`, `src/LLMChatterGroupEmote.cpp`, `src/LLMChatterGroupQuest.cpp`, `src/LLMChatterGroup.h`, `src/LLMChatterGroupInternal.h` |
+| C++ group batching/combat/state logic | `src/LLMChatterGroup.cpp`, `src/LLMChatterGroupCombat.cpp`, `src/LLMChatterGroupLootRoll.cpp`, `src/LLMChatterGroupDiscovery.cpp`, `src/LLMChatterGroupJoin.cpp`, `src/LLMChatterGroupEmote.cpp`, `src/LLMChatterGroupQuest.cpp`, `src/LLMChatterGroup.h`, `src/LLMChatterGroupInternal.h` |
 | MultiBot-Chatless `MBOT` bridge coexistence and fallback | `src/LLMChatterGroup.cpp`; debug skip wording in `src/LLMChatterGroupCombat.cpp` |
 | C++ General-channel player logic | `src/LLMChatterPlayer.cpp` |
 | C++ BG logic | `src/LLMChatterBG.cpp`, `src/LLMChatterBG.h` |

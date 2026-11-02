@@ -552,6 +552,17 @@ void LLMChatterConfig::LoadConfig()
     _groupKillCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.KillCooldown", 120);
     _groupDeathCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.DeathCooldown", 30);
     _groupLootCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.LootCooldown", 60);
+    _memoryEnable =
+        GetChatterOption<bool>("LLMChatter.Memory.Enable", true);
+    _memoryDiscoveryEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.Memory.DiscoveryEnable", true);
+    _memoryDiscoveryMinLevel =
+        GetChatterOption<uint32>(
+            "LLMChatter.Memory.DiscoveryMinLevel", 15);
+    _memoryDiscoveryRange =
+        GetChatterOption<uint32>(
+            "LLMChatter.Memory.DiscoveryRange", 100);
     _lootRollCommentEnable =
         GetChatterOption<bool>(
             "LLMChatter.GroupChatter."

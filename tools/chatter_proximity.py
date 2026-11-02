@@ -653,6 +653,7 @@ def _location_lines(
     speakers: List[Dict],
     db=None,
     place_topic: bool = False,
+    include_player: bool = True,
 ) -> List[str]:
     # The place description is world lore, so it goes to scenes with
     # an in-world speaker: any NPC, or playerbots in roleplay mode. It
@@ -671,7 +672,11 @@ def _location_lines(
         lines.extend(screenshot_context_lines(observation))
     else:
         lines.extend(_environment_lines(db, extra, context['is_instance']))
-    if any(speaker.get('is_npc') for speaker in speakers):
+    if not include_player:
+        # An NPC-only scene: the player is a passer-by they never
+        # speak to, so they get no description to talk about.
+        pass
+    elif any(speaker.get('is_npc') for speaker in speakers):
         # NPC voice rules: the neutral in-world description, never
         # "the player".
         _extend_new(lines, player_character_lines(
@@ -1227,6 +1232,14 @@ def _conversation_prompt(
     player_addressed = bool(
         extra.get('player_addressed', False)
     )
+    if not has_playerbot:
+        # NPCs talking among themselves: no line goes to the player or
+        # the bots with them. Only nearby NPCs stay addressable; a
+        # payload without nearby_npc_names offers nobody.
+        player_addressed = False
+        npc_names = extra.get('nearby_npc_names')
+        npc_names = set(npc_names) if isinstance(npc_names, list) else set()
+        nearby_names = [n for n in nearby_names if n in npc_names]
 
     lines = [
         "You write short World of Warcraft ambient "
@@ -1246,7 +1259,16 @@ def _conversation_prompt(
     ))
     lines.extend(_location_lines(
         extra, mode, participants, db=db, place_topic=place_topic,
+        include_player=has_playerbot,
     ))
+    if not has_playerbot:
+        lines.append(
+            "The speakers talk only among themselves"
+            + (" (or to the nearby people named below)"
+               if nearby_names else "")
+            + "; they never address, mention or tell stories about any "
+            "passing traveller."
+        )
     if player_addressed and player_name:
         _extend_new(lines, _player_lines(db, extra, mode, participants))
     lines.extend(_mixed_voice_guidance(mode))

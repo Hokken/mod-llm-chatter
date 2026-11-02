@@ -2292,7 +2292,11 @@ def main():
                     '.SessionMinutes', 3
                 ))
                 activate_orphaned_memories(
-                    db, session_min
+                    db, session_min,
+                    int(config.get(
+                        'LLMChatter.Memory'
+                        '.MaxPerBotPlayer', 30
+                    )),
                 )
                 rehydrate_active_sessions(db)
         except Exception:
@@ -2492,6 +2496,27 @@ def main():
                     # player went offline (runs
                     # regardless of UseEventSystem)
                     cleanup_stale_groups(db)
+                    # Settle the memories of sessions
+                    # that ended without a farewell
+                    # (logout, crash), not only at the
+                    # next bridge start.
+                    if int(config.get(
+                        'LLMChatter.Memory.Enable', 1
+                    )):
+                        from chatter_memory import (
+                            activate_orphaned_memories,
+                        )
+                        activate_orphaned_memories(
+                            db,
+                            int(config.get(
+                                'LLMChatter.Memory'
+                                '.SessionMinutes', 3
+                            )),
+                            int(config.get(
+                                'LLMChatter.Memory'
+                                '.MaxPerBotPlayer', 30
+                            )),
+                        )
                     # Race names the worldserver
                     # wrote at its last startup
                     load_race_names(db)
