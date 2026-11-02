@@ -4129,9 +4129,9 @@ LLMChatter.Memory.TargetChars = 250
 #       Longest stored memory, in characters. Longer replies are
 #       trimmed at a sentence or word boundary; replies far
 #       over it (more than a quarter longer) are discarded.
-#       Default: 400
+#       Default: 350
 #
-LLMChatter.Memory.MaxChars = 400
+LLMChatter.Memory.MaxChars = 350
 
 #
 #   LLMChatter.Memory.RecallHoldoffMinutes

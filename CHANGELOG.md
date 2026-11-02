@@ -93,14 +93,14 @@
   also checked by the worldserver), `.DiscoveryRange` (worldserver, 100
   yards), `.MaxDiscoveriesPerSession` (3, quieter 1) and
   `.DuelGenerationChance` (60, quieter 40); `.TargetChars` (250) and
-  `.MaxChars` (400) for the memory length; `.RecallHoldoffMinutes` (30).
+  `.MaxChars` (350) for the memory length; `.RecallHoldoffMinutes` (30).
   `LLMChatter.Memory.Enable` is now read by the worldserver too: with
   memories off it skips the discovery watch.
 * Needs the `data/sql/characters/updates/20261028_memory_context.sql`,
   `20261028_memory_events.sql` and `20261101_memory_active_index.sql`
   updates, a worldserver rebuild and a bridge restart. The optional `data/sql/characters/optional/memory_cleanup.sql`
   removes older roleplay memories with game terms (English only), "today"
-  or over 400 characters; it is never applied automatically.
+  or over 350 characters; it is never applied automatically.
 
 ### 2026-10-28 - Settings Behave the Same With or Without Every Key
 

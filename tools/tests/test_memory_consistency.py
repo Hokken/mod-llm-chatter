@@ -135,7 +135,7 @@ class MemoryPromptTests(unittest.TestCase):
 
     def test_length_is_about_the_target(self):
         self.assertEqual(memory.MEMORY_TARGET_CHARS, 250)
-        self.assertEqual(memory.MEMORY_MAX_CHARS, 400)
+        self.assertEqual(memory.MEMORY_MAX_CHARS, 350)
         text = _prompt('roleplay')
         self.assertIn('one or two sentences', text)
         self.assertIn('about 250 characters', text)
@@ -143,7 +143,7 @@ class MemoryPromptTests(unittest.TestCase):
         self.assertIn('about 180 characters',
                       _prompt('roleplay', target_chars=180))
         clamped = memory._clamp_memory_text('Word ' * 120)
-        self.assertLessEqual(len(clamped), 400)
+        self.assertLessEqual(len(clamped), 350)
 
     def _generate(self, reply, config):
         with patch.object(memory, 'call_llm', return_value=reply), \
@@ -1072,7 +1072,7 @@ class SqlAndConfTests(unittest.TestCase):
                 'MaxDiscoveriesPerSession': 1 if quiet else 3,
                 'DiscoveryRange': 100,
                 'TargetChars': 250,
-                'MaxChars': 400,
+                'MaxChars': 350,
                 'RecallHoldoffMinutes': 30,
             }
             for key, value in expected.items():

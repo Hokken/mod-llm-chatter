@@ -3124,7 +3124,7 @@ register of the chat mode.
    - The LLM call runs on a two-thread pool, and the row is inserted with
      `active = 0`, `zone_id`, `map_id` and `companions`.
    - A memory is one or two sentences of about `TargetChars` (250)
-     characters; `_clamp_memory_text()` keeps it within `MaxChars` (400)
+     characters; `_clamp_memory_text()` keeps it within `MaxChars` (350)
      at write time, and a reply more than a quarter over the cap is
      discarded.
 3. **Group farewell** (`process_group_farewell_event` →
@@ -3263,7 +3263,7 @@ rows fill the cap, the insert is refused instead of going over.
 | `updates/20261028_memory_context.sql` | Adds `zone_id`, `map_id`, `companions` |
 | `updates/20261028_memory_events.sql` | Adds the `bot_group_discovery` event type and the `duel` memory type |
 | `updates/20261101_memory_active_index.sql` | Adds `idx_active_group (active, group_id, bot_guid, player_guid)` for the orphan scan |
-| `optional/memory_cleanup.sql` | Not applied automatically; for roleplay journals, English text only: previews and deletes pre-2026-10-28 rows with game terms, "today", over 400 characters, or stale pending state; never `first_meeting` |
+| `optional/memory_cleanup.sql` | Not applied automatically; for roleplay journals, English text only: previews and deletes pre-2026-10-28 rows with game terms, "today", over 350 characters, or stale pending state; never `first_meeting` |
 
 ### Config keys
 
@@ -3273,7 +3273,7 @@ rows fill the cap, the insert is refused instead of going over.
 | `LLMChatter.Memory.SessionMinutes` | `3` | `3` | Minimum session length to keep pending memories |
 | `LLMChatter.Memory.MaxPerBotPlayer` | `30` | `30` | Cap on active memories per bot–player pair |
 | `LLMChatter.Memory.TargetChars` | `250` | `250` | Length the memory prompt asks for |
-| `LLMChatter.Memory.MaxChars` | `400` | `400` | Longest stored memory |
+| `LLMChatter.Memory.MaxChars` | `350` | `350` | Longest stored memory |
 | `LLMChatter.Memory.RecallHoldoffMinutes` | `30` | `30` | A shown memory waits this long before it is recalled again |
 | `LLMChatter.Memory.RecallChance` | `20` | `20` | % chance the reunion greeting picks one memory to mention |
 | `LLMChatter.Memory.RecallCount` | `3` | `3` | Memories for a greeting, a reply or a bot question (1-10) |

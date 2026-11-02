@@ -115,7 +115,7 @@ MEMORY_EXPRESSION_STYLES = [
 
 # Memory length (LLMChatter.Memory.TargetChars / MaxChars).
 MEMORY_TARGET_CHARS = 250
-MEMORY_MAX_CHARS = 400
+MEMORY_MAX_CHARS = 350
 
 # How much a memory type weighs in recall scoring: shared
 # milestones over passing moments.

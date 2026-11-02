@@ -7,7 +7,7 @@
 -- from the length and pending-row rules.
 --
 -- It removes memories that break immersion or can no longer be trusted:
---   * rows longer than 400 characters (over the memory length limit);
+--   * rows longer than 350 characters (over the memory length limit);
 --   * rows naming game mechanics: "achievement", "level <number>", "quest";
 --   * rows starting with "Today"/"today" (they read as new when recalled
 --     weeks later);
@@ -24,7 +24,7 @@
 
 -- ---------------------------------------------------------------- PREVIEW
 SELECT
-    SUM(CHAR_LENGTH(memory) > 400)                    AS too_long,
+    SUM(CHAR_LENGTH(memory) > 350)                    AS too_long,
     SUM(memory REGEXP '(^|[^[:alpha:]])achievement')  AS achievement,
     SUM(memory REGEXP '(^|[^[:alpha:]])level [0-9]+') AS level_number,
     SUM(memory REGEXP '(^|[^[:alpha:]])quest')        AS quest,
@@ -37,7 +37,7 @@ WHERE memory_type != 'first_meeting';
 DELETE FROM llm_bot_memories
 WHERE memory_type != 'first_meeting'
   AND (
-        CHAR_LENGTH(memory) > 400
+        CHAR_LENGTH(memory) > 350
      OR memory REGEXP '(^|[^[:alpha:]])achievement'
      OR memory REGEXP '(^|[^[:alpha:]])level [0-9]+'
      OR memory REGEXP '(^|[^[:alpha:]])quest'

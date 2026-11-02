@@ -133,7 +133,7 @@ def test_clamp_never_exceeds_the_cap():
         "x" * 1000,
         "Held the line. " * 60,
     ]
-    for cap in (40, 120, 250, 400, 401):
+    for cap in (40, 120, 250, 350, 351, 400):
         for text in texts:
             clamped = _clamp_memory_text(text.strip(), cap)
             assert 0 < len(clamped) <= cap, (cap, len(clamped))
@@ -142,7 +142,7 @@ def test_clamp_never_exceeds_the_cap():
 
 
 def test_lengths_come_from_config():
-    assert memory_lengths({}) == (250, 400)
+    assert memory_lengths({}) == (250, 350)
     assert memory_lengths({
         "LLMChatter.Memory.TargetChars": "180",
         "LLMChatter.Memory.MaxChars": "300",
