@@ -915,7 +915,7 @@ def _load_config_tolerantly(config_path):
         sys.exit(2)
     config = {}
     try:
-        with open(config_path, 'r') as fh:
+        with open(config_path, 'r', encoding='utf-8') as fh:
             for line in fh:
                 line = line.strip()
                 if not line or line.startswith('#'):
