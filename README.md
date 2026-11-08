@@ -400,14 +400,22 @@ lines; they are not long-term memory or rolling summaries.
 This module **replaces** built-in playerbot chat. Add to `playerbots.conf`:
 
 ```ini
-AiPlayerbot.EnableBroadcasts = 0
-AiPlayerbot.RandomBotTalk = 0
-AiPlayerbot.RandomBotEmote = 0
-AiPlayerbot.RandomBotSuggestDungeons = 0
-AiPlayerbot.EnableGreet = 0
-AiPlayerbot.GuildFeedback = 0
-AiPlayerbot.RandomBotSayWithoutMaster = 0
+Playerbots.EnableBroadcasts = 0
+Playerbots.RandomBotTalk = 0
+Playerbots.RandomBotEmote = 0
+Playerbots.RandomBotSuggestDungeons = 0
+Playerbots.EnableGreet = 0
+Playerbots.RandomBotSayWithoutMaster = 0
 ```
+
+> **Config prefix:** mod-playerbots renamed its settings from
+> `AiPlayerbot.*` to `Playerbots.*` in October 2026. If your
+> `playerbots.conf` still uses `AiPlayerbot.` keys, the module ignores all
+> of them and runs on its defaults. Signs of this include bots greeting
+> everyone with "a hearty hello" and canned broadcast lines in chat.
+> Rebuild your `playerbots.conf` from the current `playerbots.conf.dist`,
+> or rename the prefix on your existing keys. Builds older than that rename
+> still use the `AiPlayerbot.` prefix for the settings above.
 
 ### Docker
 

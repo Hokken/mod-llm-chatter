@@ -4958,7 +4958,8 @@ The canned mod-playerbots lines in General and Guild ("money money money
 [item]", "[item] is hunter bis") come from mod-playerbots' own broadcasts,
 not from this module. Turn them off in `playerbots.conf` as described in
 the README section "Important: Disable Default Bot Chat"
-(`AiPlayerbot.EnableBroadcasts = 0`).
+(`Playerbots.EnableBroadcasts = 0`; older mod-playerbots builds use the
+`AiPlayerbot.` prefix).
 
 ---
 

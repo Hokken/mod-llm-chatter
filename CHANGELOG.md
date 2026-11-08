@@ -1,5 +1,16 @@
 # Changelog
 
+### 2026-11-08 - Playerbots Config Prefix
+
+* **Disable Default Bot Chat uses the new key names**: mod-playerbots
+  renamed its settings from `AiPlayerbot.*` to `Playerbots.*` in October
+  2026, so the README's recommended settings now use the new prefix.
+  `GuildFeedback` was dropped because mod-playerbots no longer reads it. A
+  note explains that a `playerbots.conf` still using `AiPlayerbot.` keys is
+  ignored entirely, which shows up as bots greeting everyone with "a hearty
+  hello" and as canned broadcast lines. The broadcast tip in the
+  documentation now uses the new name too.
+
 ### 2026-11-02 - Truer Bot Memories
 
 * **Memories stay true to the character and the world**: the memory
