@@ -1960,6 +1960,16 @@ def _place_background(zone_id, area_id, map_id, zone_name=''):
     return lines
 
 
+def _travelled_as_ghost(extra_data, bot_guid):
+    """True when the player or the bot keeping the memory is dead:
+    a ghost running back to its body is not travelling with the
+    party, and a quiet moment on the road never happened."""
+    if extra_data.get('player_dead'):
+        return True
+    dead = extra_data.get('dead_bot_guids') or []
+    return int(bot_guid) in {int(guid) for guid in dead}
+
+
 def _ambient_memory_context(db, zone_id, area_id, map_id, zone_name):
     """The facts an ambient memory may record: where the
     party travels, and the time of day, season and live
@@ -2212,6 +2222,7 @@ def process_group_zone_transition_event(
             if (
                 ambient_chance > 0
                 and place_background
+                and not _travelled_as_ghost(extra_data, bot_guid)
                 and random.randint(1, 100)
                     <= ambient_chance
             ):

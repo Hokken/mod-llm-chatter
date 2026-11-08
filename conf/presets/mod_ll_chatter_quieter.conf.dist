@@ -4061,6 +4061,8 @@ LLMChatter.Memory.Enable = 1
 #       the reacting bot records an ambient memory. It holds
 #       only real facts: where the party travels, and the time
 #       of day, season and live weather; no invented incidents.
+#       None is recorded while the player or that bot is dead or
+#       a ghost.
 #       Default: 20
 #
 LLMChatter.Memory.AmbientChance = 20

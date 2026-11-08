@@ -1435,6 +1435,7 @@ public:
                 std::to_string(
                     bot->GetLevel()) + ","
             + BuildBotStateJson(bot) + ","
+            + BuildGroupDeathJson(player) + ","
             "\"group_id\":" +
                 std::to_string(gId) + ","
             "\"zone_id\":" +
