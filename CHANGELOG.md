@@ -1,5 +1,16 @@
 # Changelog
 
+### 2026-11-08 - Quieter General in Capital Cities
+
+* **New setting `LLMChatter.CityChatterMultiplier`**: capital cities have
+  always doubled the ambient General chance, but this was hidden. It is now
+  a documented setting (default 2, unchanged).
+* **The quieter preset is quieter in capitals**: it sets the multiplier to 1,
+  so a capital is no busier than any other zone, and returns
+  `ConversationChance` to the default 40 (it was 50, above the default).
+  In Darnassus this took ambient General from about six lines every five
+  minutes to an occasional line.
+
 ### 2026-11-08 - Playerbots Config Prefix
 
 * **Disable Default Bot Chat uses the new key names**: mod-playerbots

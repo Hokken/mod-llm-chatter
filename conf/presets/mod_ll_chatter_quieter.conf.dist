@@ -17,7 +17,8 @@
 # This preset keeps important combat, dungeon, raid, boss, and player-directed
 # reactions lively while reducing cumulative ambient chatter. Outdoor
 # proximity uses a 5% chance per 30-second scan; ambient General uses 15% per
-# 30-second zone check. Dungeon and raid proximity remain highly available.
+# 30-second zone check, capital cities included. Dungeon and raid proximity
+# remain highly available.
 #
 # LLM Chatter Module Configuration
 #
@@ -941,11 +942,20 @@ LLMChatter.TriggerIntervalSeconds = 30
 #   LLMChatter.TriggerChance
 #       Chance (0-100) per zone per interval that ambient General
 #       channel chatter fires. Bots talk unprompted about their
-#       surroundings, lore, or mood. Doubled in capital cities
-#       (via internal CityChatterMultiplier).
+#       surroundings, lore, or mood. Multiplied in capital cities
+#       by CityChatterMultiplier.
 #       Default: 15
 #
 LLMChatter.TriggerChance = 15
+
+#
+#   LLMChatter.CityChatterMultiplier
+#       Multiplier applied to TriggerChance in capital cities
+#       (result capped at 100). 1 = capitals behave like any
+#       other zone.
+#       Default: 2
+#
+LLMChatter.CityChatterMultiplier = 1
 
 #
 #   LLMChatter.ConversationChance
@@ -954,7 +964,7 @@ LLMChatter.TriggerChance = 15
 #       statement. Requires 2+ bots in the zone.
 #       Default: 40
 #
-LLMChatter.ConversationChance = 50
+LLMChatter.ConversationChance = 40
 
 #
 #   LLMChatter.AmbientNpcGossipChance
