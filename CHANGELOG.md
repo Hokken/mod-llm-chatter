@@ -1,5 +1,17 @@
 # Changelog
 
+### 2026-11-09 - Party Replies Without Repeats
+
+* **No more repeated or copied lines in party replies**: when several
+  bots answer a player's party message together, each bot now speaks
+  once. A line that repeats an earlier one word for word, ignoring a
+  leading action, is dropped. Lines are dropped whole, never cut. If only
+  one line is left it is sent as a single reply, and if none is left the
+  usual single-bot reply answers instead (#93).
+* **A message to the whole party goes to someone new**: when the player
+  speaks to the group rather than one bot, the first reply no longer goes
+  to the bot that just spoke, as long as the party has another bot.
+
 ### 2026-11-08 - Quieter General in Capital Cities
 
 * **New setting `LLMChatter.CityChatterMultiplier`**: capital cities have

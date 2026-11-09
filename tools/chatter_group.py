@@ -1698,6 +1698,29 @@ def _batch_welcome(
     )
 
 
+def _fallback_responder_pool(all_bots, history):
+    """Bots eligible when no bot was addressed.
+
+    Leaves out the bot that spoke last in party chat, so a message to
+    the group does not hand the first line straight back to it. Keeps
+    every bot when only one is available or no bot has spoken yet.
+    """
+    if len(all_bots) < 2:
+        return all_bots
+    last_bot = next(
+        (
+            row.get('speaker_name')
+            for row in reversed(history or [])
+            if row.get('is_bot')
+        ),
+        None,
+    )
+    if not last_bot:
+        return all_bots
+    pool = [b for b in all_bots if b['bot_name'] != last_bot]
+    return pool or all_bots
+
+
 def process_group_player_msg_event(
     db, client, config, event
 ):
@@ -1807,7 +1830,9 @@ def process_group_player_msg_event(
                 bot_row = b
                 break
     if not bot_row:
-        bot_row = random.choice(all_bots)
+        bot_row = random.choice(
+            _fallback_responder_pool(all_bots, history)
+        )
 
     bot_guid = bot_row['bot_guid']
     bot_name = bot_row['bot_name']

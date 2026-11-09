@@ -72,6 +72,7 @@ from chatter_constants import (
 from chatter_text import (
     strip_speaker_prefix,
     cleanup_message,
+    split_action_prefix,
 )
 from chatter_llm import call_llm
 from chatter_group_state import (
@@ -3327,6 +3328,43 @@ def _bound_brief_player_conversation(
     return bounded
 
 
+def _first_line_per_speaker(messages):
+    """Keep each speaker's first parsed line, in order.
+
+    The prompt asks every bot to speak exactly once; this enforces it
+    on the parsed reply before any repair or bounding, so the line that
+    survives is always the speaker's first one. Lines are dropped
+    whole, never cut.
+    """
+    seen = set()
+    kept = []
+    for message in messages:
+        name = message.get('name')
+        if name in seen:
+            continue
+        seen.add(name)
+        kept.append(message)
+    if len(kept) < len(messages):
+        logger.info(
+            "player_msg_conv: dropped %d extra line(s) "
+            "from repeated speakers",
+            len(messages) - len(kept),
+        )
+    return kept
+
+
+def _delivered_speech_key(text):
+    """Normalised spoken text of a final, cleaned line.
+
+    Compares what players will read: the leading *action* that
+    delivery sends as a separate /e is ignored, as are case,
+    punctuation and spacing. Returns '' when there is no speech.
+    """
+    spoken, _ = split_action_prefix(text or '')
+    words = re.sub(r'[^\w\s]', '', (spoken or '').lower()).split()
+    return ' '.join(words)
+
+
 def execute_player_msg_conversation(
     db, client, config, event_id,
     group_id, addressed_bot, all_bots,
@@ -3556,10 +3594,10 @@ def execute_player_msg_conversation(
     if not response:
         return False
 
-    messages = parse_conversation_response(
+    messages = _first_line_per_speaker(parse_conversation_response(
         response, bot_names,
         allow_emote_only=brief_casual,
-    )
+    ))
     if not messages:
         return False
     brief_fallback_messages = messages
@@ -3581,11 +3619,11 @@ def execute_player_msg_conversation(
             label='group_player_msg_conv',
             metadata=repair_meta,
         )
-        messages = parse_conversation_response(
+        messages = _first_line_per_speaker(parse_conversation_response(
             response or '',
             bot_names,
             allow_emote_only=True,
-        )
+        ))
     if brief_casual:
         messages = _bound_brief_player_conversation(
             messages, brief_fallback_messages
@@ -3599,19 +3637,17 @@ def execute_player_msg_conversation(
         ):
             return False
 
-
-    # Insert messages with staggered delivery.
-    # Player msg conversations use responsive
-    # timing — player is actively waiting.
     strip_conversation_actions(
         messages, label='player_msg_conv'
     )
-    cumulative_delay = 2.0
-    prev_len = 0
-    for seq, msg in enumerate(messages):
-        msg_text = msg['message']
+    # Build the final lines first so a word-for-word copy of an
+    # earlier line is judged on what players would actually read.
+    # Copies are dropped whole; emote-only lines are never compared.
+    prepared = []
+    seen_speech = set()
+    for msg in messages:
         text = strip_speaker_prefix(
-            msg_text, msg['name']
+            msg['message'], msg['name']
         )
         text = cleanup_message(
             text, action=msg.get('action')
@@ -3628,6 +3664,27 @@ def execute_player_msg_conversation(
         if not speaker_guid:
             continue
 
+        speech_key = _delivered_speech_key(text)
+        if speech_key and speech_key in seen_speech:
+            logger.info(
+                "player_msg_conv: dropped copied line from %s",
+                msg['name'],
+            )
+            continue
+        if speech_key:
+            seen_speech.add(speech_key)
+        prepared.append((msg['name'], speaker_guid, text, emote))
+
+    # A lone survivor is delivered as a single reply; nothing left
+    # falls back to the single-bot path.
+    if not prepared:
+        return False
+
+    # Insert messages with staggered delivery.
+    # Player msg conversations use responsive
+    # timing — player is actively waiting.
+    cumulative_delay = 2.0
+    for seq, (name, speaker_guid, text, emote) in enumerate(prepared):
         if seq > 0:
             # Skip prev_message_length — all msgs
             # were generated in one LLM call, no
@@ -3639,7 +3696,7 @@ def execute_player_msg_conversation(
             cumulative_delay += delay
 
         insert_chat_message(
-            db, speaker_guid, msg['name'],
+            db, speaker_guid, name,
             text, channel='party',
             delay_seconds=cumulative_delay,
             event_id=event_id, sequence=seq,
@@ -3651,10 +3708,9 @@ def execute_player_msg_conversation(
         )
         _store_chat(
             db, group_id, speaker_guid,
-            msg['name'], True,
+            name, True,
             text or f"[performed /{emote}]",
         )
-        prev_len = len(text)
 
     return True
 
