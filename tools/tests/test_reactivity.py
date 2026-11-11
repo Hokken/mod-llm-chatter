@@ -132,7 +132,6 @@ class ContentTables(unittest.TestCase):
         self.assertEqual(len(data.letters()['quests']), 70)
         self.assertEqual(len(data.rumors()['quests']), 70)
         self.assertEqual(len(data.rumors()['dungeons']), 77)
-        self.assertEqual(len(data.expected_gift_items()), 99)
 
     def test_any_achievement_of_a_dungeon_finds_one_letter(self):
         first = data.letter_for_achievement(647)
@@ -515,39 +514,57 @@ class Gifts(unittest.TestCase):
                 self.assertNotIn(item['entry'], pets)
 
 
-class ItemLocales(unittest.TestCase):
-    LOCALES = ('deDE', 'esES', 'esMX', 'frFR', 'koKR', 'ruRU')
+class GiftItems(unittest.TestCase):
+    # The client takes bag icons from its own Item.dbc, which ends here:
+    # an item past it shows a question mark once it leaves the mailbox.
+    LAST_CLIENT_ITEM = 56806
+    STOCK_ITEMS = (
+        TOOLS_DIR.parents[2] / 'data' / 'sql' / 'base' / 'db_world'
+        / 'item_template.sql'
+    )
 
-    def test_every_item_has_text_in_every_locale(self):
-        sql = (
-            TOOLS_DIR.parent / 'data' / 'sql' / 'world' / 'updates'
-            / '20261103_reactivity_items_locale.sql'
-        ).read_text(encoding='utf-8')
-        rows = set(re.findall(
-            r"^\((\d+), '(\w{4})', '", sql, flags=re.MULTILINE
-        ))
-        expected = {
-            (str(entry), locale)
-            for entry in data.expected_gift_items()
-            if entry >= data.FIRST_GIFT_ITEM
-            for locale in self.LOCALES
-        }
-        self.assertEqual(rows, expected)
-        self.assertEqual(sql.count(';'), 3)
+    def letter_gifts(self):
+        return [
+            item
+            for table in data.letters().values()
+            for row in table
+            for item in row['gift']['items']
+        ]
+
+    def test_every_gift_is_an_item_the_client_knows(self):
+        for item in self.letter_gifts():
+            self.assertLessEqual(
+                item['entry'], self.LAST_CLIENT_ITEM, item['name']
+            )
+
+    def test_every_gift_matches_the_stock_item(self):
+        if not self.STOCK_ITEMS.exists():
+            self.skipTest('core item_template.sql not available')
+        names = {}
+        sql = self.STOCK_ITEMS.read_text(encoding='utf-8', errors='replace')
+        for entry, name in re.findall(
+            r"^\((\d+),\d+,\d+,-?\d+,'((?:[^'\\]|\\.)*)'", sql,
+            flags=re.MULTILINE,
+        ):
+            names[int(entry)] = name.replace("\\'", "'")
+        for item in self.letter_gifts():
+            self.assertEqual(
+                names.get(item['entry']), item['name'], item['entry']
+            )
 
     def test_prompt_names_are_localized_and_stored_ones_kept(self):
-        items = [{'entry': 7770000, 'name': 'Searing Blade Badge',
-                  'count': 1}]
+        items = [{'entry': 2454, 'name': "Elixir of Lion's Strength",
+                  'count': 3}]
         with patch.object(
             letters, 'localize_item_name',
             side_effect=lambda db, name, entry: f'{name}/{entry}',
         ):
             named = letters._localized_gifts(FakeDb(), items)
         self.assertEqual(
-            named[0]['name'], 'Searing Blade Badge/7770000'
+            named[0]['name'], "Elixir of Lion's Strength/2454"
         )
-        self.assertEqual(named[0]['count'], 1)
-        self.assertEqual(items[0]['name'], 'Searing Blade Badge')
+        self.assertEqual(named[0]['count'], 3)
+        self.assertEqual(items[0]['name'], "Elixir of Lion's Strength")
 
 
 class Rumors(unittest.TestCase):

@@ -780,12 +780,6 @@ docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
 docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20261103_world_reactivity.sql
 
-docker exec -i ac-database mysql -uroot -ppassword acore_world < \
-  modules/mod-llm-chatter/data/sql/world/updates/20261103_reactivity_items.sql
-
-docker exec -i ac-database mysql -uroot -ppassword acore_world < \
-  modules/mod-llm-chatter/data/sql/world/updates/20261103_reactivity_items_locale.sql
-
 # Non-Docker
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260320_bot_memory_system.sql
@@ -879,12 +873,6 @@ mysql -uroot -ppassword acore_characters < \
 
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20261103_world_reactivity.sql
-
-mysql -uroot -ppassword acore_world < \
-  data/sql/world/updates/20261103_reactivity_items.sql
-
-mysql -uroot -ppassword acore_world < \
-  data/sql/world/updates/20261103_reactivity_items_locale.sql
 ```
 
 Migrations are idempotent — safe to run on an already

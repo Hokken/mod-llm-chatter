@@ -22,9 +22,7 @@ from chatter_reactive_rumors import (
     unlock_rumor,
 )
 from chatter_reactivity_data import (
-    FIRST_GIFT_ITEM,
     PROFESSION_SKILLS,
-    expected_gift_items,
     faction_allows,
     gifts,
     letter_by_key,
@@ -995,29 +993,6 @@ def _recover_stuck_letters(db) -> None:
         (STUCK_SENDING_MINUTES,),
     )
     db.commit()
-
-
-def check_gift_items(db) -> None:
-    """Warn when another mod holds an entry in this module's block."""
-    expected = expected_gift_items()
-    cursor = db.cursor()
-    cursor.execute(
-        "SELECT entry, name FROM acore_world.item_template "
-        "WHERE entry BETWEEN %s AND %s",
-        (FIRST_GIFT_ITEM, max(expected)),
-    )
-    found = {int(row[0]): row[1] for row in cursor.fetchall()}
-    wrong = [
-        entry for entry, name in expected.items()
-        if found.get(entry) != name
-    ]
-    if wrong:
-        logger.warning(
-            "Reactivity gift items missing or replaced: %d of %d. "
-            "Apply data/sql/world/updates or move the item block. "
-            "First: %s",
-            len(wrong), len(expected), wrong[:5],
-        )
 
 
 def process_reactivity(db, client, config) -> None:

@@ -103,7 +103,6 @@ from chatter_llm import (
     openai_compatible_client_kwargs, openai_compatible_target_error,
 )
 from chatter_letters import (
-    check_gift_items,
     letters_enabled,
     process_reactivity,
     rumors_enabled,
@@ -2284,8 +2283,6 @@ def main():
             reset_stuck_processing_events(db)
             discard_ready_precache(db)
             normalize_active_group_personalities(db, config)
-            if letters_enabled(config):
-                check_gift_items(db)
 
             # Memory system startup recovery
             if int(config.get(

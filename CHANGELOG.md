@@ -15,13 +15,13 @@
   reached you twice. Quest and dungeon rumors stay in their regions;
   achievement rumors travel and come up by how rare the deed is. An NPC
   either recognises you or passes it on as local news.
-* **New items**: 99 sale-only keepsakes, Rare from raids and Uncommon
-  otherwise, in a reserved entry block. Their names and descriptions are
-  translated into German, Spanish, French, Korean and Russian, and letters
-  name every gift the way the mailbox shows it.
+* **Gifts** are ordinary existing items, chosen to fit the place and the
+  sender: food, potions, herbs, gems, trade goods, and for raids the
+  valuable goods of their tier. Letters name every gift the way the
+  mailbox shows it.
 * **Settings**: `LLMChatter.Letters.*` and `LLMChatter.Rumors.*`, with
   every letter and rumor type switchable alone and quieter values in the
-  quieter preset. Apply the new characters and world SQL.
+  quieter preset. Apply the new characters SQL.
 
 ### 2026-11-02 - Truer Bot Memories
 

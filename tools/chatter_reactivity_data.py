@@ -33,9 +33,6 @@ PROFESSION_SKILLS = {
     356: 'Fishing',
 }
 
-# The first ID of the block reserved for this module's items.
-FIRST_GIFT_ITEM = 7770000
-
 
 @lru_cache(maxsize=None)
 def _load(name: str) -> Dict:
@@ -139,18 +136,6 @@ def sender_for(
 
 def trainer_entry(name: str) -> int:
     return int(gifts()['trainers'].get(name, 0))
-
-
-def expected_gift_items() -> Dict[int, str]:
-    """Every item this module added, by entry."""
-    expected = {}
-    tables = letters()
-    for table in tables.values():
-        for row in table:
-            if row['gift']['new']:
-                for item in row['gift']['items']:
-                    expected[item['entry']] = item['name']
-    return expected
 
 
 def weighted_choice(options: List[Tuple[object, int]]):

@@ -439,13 +439,10 @@ Letters and rumors make the world answer what a real player did:
    player. `settle_voicings()` counts only delivered message rows, so a
    dropped line does not use up a rumor.
 
-New gift items live in `data/sql/world/updates`, in the entry block from
-7770000, far above the stock range. They bind on pickup, which keeps
-them out of the auction house and away from auction bots. The bridge
-checks their names at startup and warns if another mod holds an entry.
-`20261103_reactivity_items_locale.sql` holds their names and descriptions
-for deDE, esES, esMX, frFR, koKR and ruRU. Letter prompts name every gift
-through `localize_item_name()`, so the text matches the attachment.
+Every gift is an existing stock item: the 3.3.5 client takes bag icons
+from its own `Item.dbc`, so an item it does not know shows a question
+mark once it leaves the mailbox. Letter prompts name every gift through
+`localize_item_name()`, so the text matches the attachment.
 
 Progression gating follows the existing add-on boundary:
 `chatter_progression.profession_available()` is always true here, and an

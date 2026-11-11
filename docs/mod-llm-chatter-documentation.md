@@ -5203,8 +5203,9 @@ NPCs never do.
 ### Editing the content
 
 The tables are `tools/reactivity_letters.json`,
-`tools/reactivity_gifts.json` and `tools/reactivity_rumors.json`. New gift
-items also need a row in the world SQL, with a matching name.
+`tools/reactivity_gifts.json` and `tools/reactivity_rumors.json`. Gifts
+are existing items only: the client shows a question mark in the bags
+for any item missing from its own `Item.dbc` (entries above 56806).
 
 The tables hold stock 3.3.5 values and work with or without
 `mod-individual-progression`. Where the mod raises an item's required
