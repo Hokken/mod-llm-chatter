@@ -948,11 +948,20 @@ LLMChatter.TriggerIntervalSeconds = 30
 #   LLMChatter.TriggerChance
 #       Chance (0-100) per zone per interval that ambient General
 #       channel chatter fires. Bots talk unprompted about their
-#       surroundings, lore, or mood. Doubled in capital cities
-#       (via internal CityChatterMultiplier).
+#       surroundings, lore, or mood. Multiplied in capital cities
+#       by CityChatterMultiplier.
 #       Default: 15
 #
 LLMChatter.TriggerChance = 15
+
+#
+#   LLMChatter.CityChatterMultiplier
+#       Multiplier applied to TriggerChance in capital cities
+#       (result capped at 100). 1 = capitals behave like any
+#       other zone.
+#       Default: 2
+#
+LLMChatter.CityChatterMultiplier = 2
 
 #
 #   LLMChatter.ConversationChance

@@ -1,5 +1,39 @@
 # Changelog
 
+### 2026-11-09 - Party Replies Without Repeats
+
+* **No more repeated or copied lines in party replies**: when several
+  bots answer a player's party message together, each bot now speaks
+  once. A line that repeats an earlier one word for word, ignoring a
+  leading action, is dropped. Lines are dropped whole, never cut. If only
+  one line is left it is sent as a single reply, and if none is left the
+  usual single-bot reply answers instead (#93).
+* **A message to the whole party goes to someone new**: when the player
+  speaks to the group rather than one bot, the first reply no longer goes
+  to the bot that just spoke, as long as the party has another bot.
+
+### 2026-11-08 - Quieter General in Capital Cities
+
+* **New setting `LLMChatter.CityChatterMultiplier`**: capital cities have
+  always doubled the ambient General chance, but this was hidden. It is now
+  a documented setting (default 2, unchanged).
+* **The quieter preset is quieter in capitals**: it sets the multiplier to 1,
+  so a capital is no busier than any other zone, and returns
+  `ConversationChance` to the default 40 (it was 50, above the default).
+  In Darnassus this took ambient General from about six lines every five
+  minutes to an occasional line.
+
+### 2026-11-08 - Playerbots Config Prefix
+
+* **Disable Default Bot Chat uses the new key names**: mod-playerbots
+  renamed its settings from `AiPlayerbot.*` to `Playerbots.*` in October
+  2026, so the README's recommended settings now use the new prefix.
+  `GuildFeedback` was dropped because mod-playerbots no longer reads it. A
+  note explains that a `playerbots.conf` still using `AiPlayerbot.` keys is
+  ignored entirely, which shows up as bots greeting everyone with "a hearty
+  hello" and as canned broadcast lines. The broadcast tip in the
+  documentation now uses the new name too.
+
 ### 2026-11-03 - World Reactivity: Letters and Rumors
 
 * **Letters**: the world now writes to the player. Each letter is written

@@ -2346,6 +2346,20 @@ The LLM intent check detects plural pronouns ("you guys", "everyone",
 mentioning multiple bot names. This ensures group-directed speech
 gets multi-bot replies without relying on RNG.
 
+When no bot is resolved, the first responder is drawn at random from
+the bots other than the most recent bot speaker in party chat (all bots
+when only one is available or none has spoken yet).
+
+### Reply guard
+
+A player-message conversation keeps only the first line of each
+speaker, as parsed from the reply (also after a brief-casual repair).
+Before delivery it drops a line whose final spoken text (ignoring case,
+punctuation, spacing and a leading `*action*`) exactly repeats an
+earlier line; emote-only lines are not compared. Lines are dropped
+whole, never cut. If one line survives it is delivered as a
+single reply; if none survive the single-bot path runs instead.
+
 ### Architecture
 
 Uses Architecture B: a single LLM call returns a JSON array of 2-3
@@ -4958,7 +4972,8 @@ The canned mod-playerbots lines in General and Guild ("money money money
 [item]", "[item] is hunter bis") come from mod-playerbots' own broadcasts,
 not from this module. Turn them off in `playerbots.conf` as described in
 the README section "Important: Disable Default Bot Chat"
-(`AiPlayerbot.EnableBroadcasts = 0`).
+(`Playerbots.EnableBroadcasts = 0`; older mod-playerbots builds use the
+`AiPlayerbot.` prefix).
 
 ---
 
