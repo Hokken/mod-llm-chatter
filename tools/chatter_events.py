@@ -11,12 +11,18 @@ import re
 
 from chatter_constants import (
     EVENT_DESCRIPTIONS, CLASS_NAMES, RACE_NAMES,
+    CAPITAL_CITY_ZONES,
 )
 from chatter_shared import (
     parse_extra_data, get_zone_name,
     run_single_reaction,
     localize_creature_name,
+    get_chatter_mode,
+    get_race_name,
 )
+from chatter_identity import prepare_channel_persona
+from chatter_persona import build_persona_block
+from chatter_player_context import character_lore_lines
 from chatter_prompts import (
     build_zone_intrusion_prompt,
 )
@@ -658,17 +664,18 @@ def build_event_context(
         zone = extra_data.get(
             'zone_name', 'the area'
         )
-        is_capital = extra_data.get(
-            'is_capital', False
-        )
-        capital_str = (
-            " (a capital city)" if is_capital
+        # Only a real city is a city: a bot intruder's
+        # payload always claimed a capital.
+        city_str = (
+            " (a city)"
+            if int(event.get('zone_id') or 0)
+            in CAPITAL_CITY_ZONES
             else ""
         )
         context_parts.append(
             f"An enemy player ({intruder}, "
             f"level {level}) has entered "
-            f"{zone}{capital_str}."
+            f"{zone}{city_str}."
         )
 
     else:
@@ -685,6 +692,27 @@ def build_event_context(
 # =============================================================================
 # ZONE INTRUSION HANDLER
 # =============================================================================
+def _intrusion_lore(db, guid, name, race_id, class_id, outlook=True):
+    """Third-person race and class lines for one side of an
+    intrusion; empty when either is unknown.
+
+    outlook=False drops the race outlook line: the speaker's
+    race flavour already carries the same worldview.
+    """
+    try:
+        race = get_race_name(int(race_id or 0))
+        class_name = CLASS_NAMES.get(int(class_id or 0), '')
+    except (TypeError, ValueError):
+        return []
+    lines = character_lore_lines(db, guid, name, race, class_name)
+    if not outlook:
+        lines = [
+            line for line in lines
+            if not line.startswith(f"{race} outlook:")
+        ]
+    return lines
+
+
 def process_zone_intrusion_event(
     db, client, config, event
 ):
@@ -726,9 +754,43 @@ def process_zone_intrusion_event(
         if intruder_gender:
             extra_data['intruder_gender'] = intruder_gender
 
+    # The defender's own voice, as in General chat.
+    persona_block = ''
+    try:
+        persona = prepare_channel_persona(
+            db, client, config, int(defender_guid),
+            defender_name, 'general',
+        )
+        persona_block = build_persona_block(
+            persona, get_chatter_mode(config)
+        )
+    except Exception:
+        logger.error(
+            "zone intrusion persona failed", exc_info=True
+        )
+
+    # Who both characters are: race outlook, class
+    # calling and their pairing.
+    lore = {
+        'defender': _intrusion_lore(
+            db, defender_guid, defender_name,
+            extra_data.get('defender_race'),
+            extra_data.get('defender_class'),
+            outlook=False,
+        ),
+        'intruder': _intrusion_lore(
+            db, event.get('subject_guid'), intruder_name,
+            extra_data.get('intruder_race'),
+            extra_data.get('intruder_class'),
+        ),
+    }
+
     # Build prompt
     prompt = build_zone_intrusion_prompt(
-        extra_data, config
+        extra_data, config,
+        zone_id=int(event.get('zone_id') or 0),
+        persona_block=persona_block,
+        lore=lore,
     )
     if not prompt:
         return True
@@ -743,7 +805,9 @@ def process_zone_intrusion_event(
         channel='yell',
         delay_seconds=2,
         event_id=event.get('id'),
-        max_tokens_override=60,
+        # Room to finish the sentence: a reply cut at the token
+        # limit would be yelled mid-word.
+        max_tokens_override=100,
         allow_emote_fallback=False,
         label='reaction_zone_intrusion',
     )

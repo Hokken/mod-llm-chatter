@@ -292,6 +292,9 @@ static void HandleEnemyZoneIntrusion(
     std::string zoneName = GetZoneName(newZone);
     if (zoneName.empty())
         zoneName = "Unknown";
+    uint32 areaId = player->GetAreaId();
+    std::string subzoneName = areaId != newZone
+        ? GetAreaNameForLocale(areaId) : "";
 
     uint8 intruderClass = player->getClass();
     uint8 intruderRace = player->getRace();
@@ -318,6 +321,10 @@ static void HandleEnemyZoneIntrusion(
                 isCapital ? "true" : "false") + ","
         "\"zone_name\":\"" +
             ChatterJsonEscape(zoneName) + "\","
+        "\"area_id\":" +
+            std::to_string(areaId) + ","
+        "\"subzone_name\":\"" +
+            ChatterJsonEscape(subzoneName) + "\","
         "\"defender_guid\":" +
             std::to_string(defGuid) + ","
         "\"defender_name\":\"" +
@@ -442,9 +449,15 @@ static void HandleBotEntersEnemyTerritory(
         CommitIntrusionState(guid, newZone, now);
     }
 
+    bool isCapital =
+        (area->flags & AREA_FLAG_CAPITAL) != 0;
+
     std::string zoneName = GetZoneName(newZone);
     if (zoneName.empty())
         zoneName = "Unknown";
+    uint32 areaId = player->GetAreaId();
+    std::string subzoneName = areaId != newZone
+        ? GetAreaNameForLocale(areaId) : "";
 
     uint8 intruderClass = player->getClass();
     uint8 intruderRace = player->getRace();
@@ -463,9 +476,15 @@ static void HandleBotEntersEnemyTerritory(
         "\"intruder_level\":" +
             std::to_string(intruderLevel) + ","
         "\"intruder_is_bot\":true,"
-        "\"is_capital\":true,"
+        "\"is_capital\":" +
+            std::string(
+                isCapital ? "true" : "false") + ","
         "\"zone_name\":\"" +
             ChatterJsonEscape(zoneName) + "\","
+        "\"area_id\":" +
+            std::to_string(areaId) + ","
+        "\"subzone_name\":\"" +
+            ChatterJsonEscape(subzoneName) + "\","
         "\"defender_guid\":" +
             std::to_string(defGuid) + ","
         "\"defender_name\":\"" +

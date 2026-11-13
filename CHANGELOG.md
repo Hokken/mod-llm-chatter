@@ -1,5 +1,18 @@
 # Changelog
 
+### 2026-11-14 - Zone Intrusion Yells in Character
+
+* **A defender's warning fits the place and the people**: when an enemy
+  enters faction territory, the defending bot now knows where it is (the
+  zone and the part of it, described in roleplay), who it is and who the
+  enemy is (their people and calling), and yells in its own voice and
+  personality. In roleplay the yell no longer mentions the enemy's level.
+* **Only cities are called cities**: a yell about Durotar or the Barrens
+  no longer calls them "your faction's capital city". Real cities are
+  "your faction's city", anywhere else is "your faction's territory".
+* **Yells finish their sentence**: they are kept to one or two short
+  sentences and are no longer cut off mid-word.
+
 ### 2026-11-09 - Party Replies Without Repeats
 
 * **No more repeated or copied lines in party replies**: when several

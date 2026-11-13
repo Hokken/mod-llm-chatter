@@ -1617,6 +1617,29 @@ which `build_bot_state_context()` appends for every combat prompt. The
 kill, combat, and aggro-loss builders also switch their situation line
 for PvP.
 
+### Zone intrusion yells
+
+When an enemy enters a zone owned by the other faction and a real player
+is there to hear it, a nearby defending bot yells a warning
+(`player_enters_zone`, `process_zone_intrusion_event()` in
+`chatter_events.py`, gated by `LLMChatter.ZoneIntrusion.Enable`). The
+prompt (`build_zone_intrusion_prompt()`) carries:
+
+- the defender's persona from `prepare_channel_persona()`, as in General
+  chat, so the yell is in the bot's own voice (normal mode gets the
+  player-style profile);
+- in roleplay, the race outlook, class calling and race+class note of
+  both characters (`character_lore_lines()`), and the zone and subzone
+  descriptions; normal mode keeps the names;
+- the enemy's level in normal mode only: a level is a game term, so
+  roleplay never hears it;
+- "your faction's city" only for a zone in `CAPITAL_CITY_ZONES`, and
+  "your faction's territory" for any other zone. The payload's
+  `is_capital` is not used for this.
+
+The yell is one or two short sentences, with a 100-token reply limit so
+it is never cut off mid-sentence.
+
 ### Duels
 
 `LLMChatterDuel.cpp` queues `bot_group_duel_start` and
@@ -3095,6 +3118,9 @@ Ancients and Isle of Conquest.
   night) are zone-wide General chat and get the zone description only.
 - **General ambient chatter and replies to players in General**: zone
   description only. General is zone-wide, so no subzone is described.
+- **Zone intrusion yells** (`player_enters_zone`): zone and subzone
+  description in roleplay mode, names in normal mode. The payload carries
+  `area_id` and `subzone_name`; an older payload gets the zone only.
 
 ---
 

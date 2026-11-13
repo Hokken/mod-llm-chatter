@@ -622,6 +622,8 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'intruder_is_bot': (int, True),
             'is_capital': (int, True),
             'zone_name': (str, True),
+            'area_id': (int, False),
+            'subzone_name': (str, False),
             'defender_guid': (int, True),
             'defender_name': (str, True),
             'defender_class': (int, True),
