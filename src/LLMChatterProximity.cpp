@@ -2927,7 +2927,7 @@ void HandleProximityPlayerSay(
                 ? GetProximityNPCQualificationLabel(
                     GetProximityNPCQualification(
                         responderCreature)) : "")
-        + "}";
+        + "\"}";
 
     QueueChatterEvent(
         "proximity_reply",

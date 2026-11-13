@@ -1,5 +1,13 @@
 # Changelog
 
+### 2026-11-13 - Proximity Replies Delivered Again
+
+* **Replies in proximity scenes are no longer lost**: when the player
+  answered a nearby bot or NPC, the reply event was written with a
+  missing closing quote, so MySQL rejected it as invalid JSON
+  (errno 3140) and no reply came. The event is now valid and the
+  speaker answers again (#95).
+
 ### 2026-11-09 - Party Replies Without Repeats
 
 * **No more repeated or copied lines in party replies**: when several
