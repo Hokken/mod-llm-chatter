@@ -51,6 +51,10 @@ from chatter_shared import (
     strip_conversation_actions,
 )
 from chatter_player_context import player_character_lines
+from chatter_party_presence import (
+    build_presence_lines,
+    tag_companions,
+)
 from chatter_member_gender import (
     format_gender_line,
     get_character_genders,
@@ -343,6 +347,18 @@ def _same_guild_lines(
         if note:
             lines.append(note)
     return lines
+
+
+def _party_presence_lines(
+    db, extra: Dict, speakers: List[Dict],
+    config: Optional[Dict],
+) -> List[str]:
+    """Each grouped speaker's knowledge of its own group (issue
+    #94); empty when no speaker is grouped."""
+    return build_presence_lines(
+        db, speakers, config, 'open /say',
+        player_name=str(extra.get('player_name') or ''),
+    )
 
 
 def _apply_speaker_action_policy(
@@ -1045,6 +1061,7 @@ def _single_prompt(
             guild_name=info.get('guild_name', ''),
         )]
     lines.extend(_same_guild_lines(db, extra, [speaker]))
+    lines.extend(_party_presence_lines(db, extra, [speaker], config))
     brief_casual = bool(extra.get('brief_casual'))
     lines.extend([
         (
@@ -1120,7 +1137,8 @@ def _single_prompt(
     if player_addressed:
         addressable.insert(0, player_name)
     if addressable:
-        names = ", ".join(addressable[:5])
+        names = ", ".join(tag_companions(
+            addressable[:5], [speaker], config))
         if str(speaker.get('disposition') or '').lower() == 'hostile':
             # To a hostile NPC these are intruders, not friends:
             # never let a friendly topic seed turn them into
@@ -1275,6 +1293,7 @@ def _conversation_prompt(
     lines.extend(_same_guild_lines(
         db, extra, participants, third_person=True
     ))
+    lines.extend(_party_presence_lines(db, extra, participants, config))
     lines.extend(_location_lines(
         extra, mode, participants, db=db, place_topic=place_topic,
         include_player=has_playerbot,
@@ -1297,7 +1316,8 @@ def _conversation_prompt(
     if addressable:
         lines.append(
             "Also nearby: "
-            + ", ".join(addressable[:5])
+            + ", ".join(tag_companions(
+                addressable[:5], participants, config))
             + ". A speaker may address one of them. "
             + _nearby_gender_text(extra, nearby_names)
         )
@@ -1585,6 +1605,7 @@ def handle_proximity_reply(db, client, config, event):
         'qualification': extra.get(
             'responder_qualification', ''
         ),
+        'group': extra.get('responder_group') or {},
     }
     # Newer payloads carry the responder's own gender; bots fall back
     # to their guid lookup when it is missing.
@@ -1861,6 +1882,7 @@ def _player_say_single_prompt(
             guild_name=info.get('guild_name', ''),
         )]
     lines.extend(_same_guild_lines(db, extra, [speaker]))
+    lines.extend(_party_presence_lines(db, extra, [speaker], config))
     brief_casual = bool(extra.get('brief_casual'))
     lines.extend([
         (
@@ -1914,7 +1936,9 @@ def _player_say_single_prompt(
         lines.append(
             "Reply to the player. Other nearby people may be mentioned "
             "but not addressed: "
-            + ", ".join(nearby_names[:5]) + ". "
+            + ", ".join(tag_companions(
+                nearby_names[:5], [speaker], config))
+            + ". "
             + _nearby_gender_text(extra, nearby_names)
         )
 
@@ -1969,6 +1993,7 @@ def _player_say_conversation_prompt(
     lines.extend(_same_guild_lines(
         db, extra, participants, third_person=True
     ))
+    lines.extend(_party_presence_lines(db, extra, participants, config))
     lines.extend(_location_lines(
         extra, mode, participants, db=db,
     ))
@@ -2027,7 +2052,8 @@ def _player_say_conversation_prompt(
     if nearby_names:
         lines.append(
             "Also nearby: "
-            + ", ".join(nearby_names[:5])
+            + ", ".join(tag_companions(
+                nearby_names[:5], participants, config))
             + ". They may be mentioned but are not participants. "
             + _nearby_gender_text(extra, nearby_names)
         )
@@ -2106,6 +2132,7 @@ def _player_emote_single_prompt(
         ]
         lines.extend(_same_guild_lines(db, extra, [speaker]))
     lines.extend(_location_lines(extra, mode, [speaker], db=db))
+    lines.extend(_party_presence_lines(db, extra, [speaker], config))
     if speaker_is_npc:
         disposition = _npc_disposition_guidance(speaker)
         if disposition:
@@ -2199,6 +2226,7 @@ def _player_emote_conversation_prompt(
     lines.extend(_same_guild_lines(
         db, extra, participants, third_person=True
     ))
+    lines.extend(_party_presence_lines(db, extra, participants, config))
     lines.extend(_location_lines(extra, mode, participants, db=db))
     lines.extend(_mixed_voice_guidance(mode))
     _extend_new(lines, _player_lines(db, extra, mode, participants))

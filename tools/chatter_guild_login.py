@@ -27,6 +27,10 @@ from chatter_guild_player import (
 )
 from chatter_guild_profile import get_guild_profile, guild_identity_lines
 from chatter_llm import call_llm
+from chatter_party_presence import (
+    GUILD_PRESENCE_CHANNEL,
+    with_group_presence,
+)
 from chatter_mode import build_player_chat_guidance, is_roleplay
 from chatter_player_context import player_character_lines
 from chatter_shared import (
@@ -333,6 +337,8 @@ def _generate_single(
     metadata: Dict,
     guild_context: Optional[List[str]] = None,
     player_lines: Optional[List[str]] = None,
+    db=None,
+    presence_extra: Optional[Dict] = None,
 ) -> List[Dict]:
     prompt = _build_single_prompt(
         participant,
@@ -344,6 +350,12 @@ def _generate_single(
         get_chatter_mode(config),
         guild_context=guild_context,
         player_lines=player_lines,
+    )
+    # Group awareness (issue #94): unchanged without a grouped speaker.
+    prompt = with_group_presence(
+        prompt, db, config, presence_extra,
+        [(participant['guid'], participant['name'])],
+        GUILD_PRESENCE_CHANNEL, player_name=player_name,
     )
     token_budget = max(80, _safe_int(config.get(
         'LLMChatter.GuildChatter.MaxTokens',
@@ -415,6 +427,8 @@ def _generate_multi(
     metadata: Dict,
     guild_context: Optional[List[str]] = None,
     player_lines: Optional[List[str]] = None,
+    db=None,
+    presence_extra: Optional[Dict] = None,
 ) -> List[Dict]:
     prompt, names = _build_multi_prompt(
         participants,
@@ -426,6 +440,11 @@ def _generate_multi(
         get_chatter_mode(config),
         guild_context=guild_context,
         player_lines=player_lines,
+    )
+    prompt = with_group_presence(
+        prompt, db, config, presence_extra,
+        [(p['guid'], p['name']) for p in participants],
+        GUILD_PRESENCE_CHANNEL, player_name=player_name,
     )
     base_tokens = max(100, _safe_int(config.get(
         'LLMChatter.GuildChatter.MaxTokens',
@@ -629,6 +648,8 @@ def process_guild_login_greeting_event(
             metadata,
             guild_context=guild_context,
             player_lines=player_lines,
+            db=db,
+            presence_extra=extra,
         )
         topology = 'single'
     else:
@@ -645,6 +666,8 @@ def process_guild_login_greeting_event(
             metadata,
             guild_context=guild_context,
             player_lines=player_lines,
+            db=db,
+            presence_extra=extra,
         )
         topology = 'multi_reply'
 
@@ -667,6 +690,8 @@ def process_guild_login_greeting_event(
             metadata,
             guild_context=guild_context,
             player_lines=player_lines,
+            db=db,
+            presence_extra=extra,
         )
         responders = responders[:1]
 

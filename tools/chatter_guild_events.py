@@ -61,7 +61,22 @@ from chatter_shared import (
     parse_extra_data,
 )
 
+from chatter_party_presence import (
+    GUILD_PRESENCE_CHANNEL,
+    with_group_presence,
+)
+
 logger = logging.getLogger(__name__)
+
+
+def _with_presence(prompt, db, config, extra, speakers):
+    """Each grouped speaker's knowledge of its own group (issue
+    #94); the prompt is unchanged when none is grouped."""
+    return with_group_presence(
+        prompt, db, config, extra,
+        [(s['guid'], s['name']) for s in speakers],
+        GUILD_PRESENCE_CHANNEL,
+    )
 
 
 def _responder_count(
@@ -202,6 +217,7 @@ def _subject_reply(
         scenario,
         maximum,
     )
+    prompt = _with_presence(prompt, db, config, extra, [subject])
     reply_metadata = dict(metadata)
     reply_metadata['guild_subject_reply'] = True
     return generate(
@@ -284,6 +300,7 @@ def _run_event(
         responders, guild_name, faction, mode, guild_context,
         scenario, maximum, first_names=address,
     )
+    prompt = _with_presence(prompt, db, config, extra, responders)
     messages = generate(
         client, config, event_id, event_type,
         prompt, names, maximum, metadata,
@@ -296,6 +313,7 @@ def _run_event(
             responders, guild_name, faction, mode, guild_context,
             scenario, maximum, first_names=address,
         )
+        prompt = _with_presence(prompt, db, config, extra, responders)
         messages = generate(
             client, config, event_id, event_type,
             prompt, names, maximum, metadata,

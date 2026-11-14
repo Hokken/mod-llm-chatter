@@ -32,6 +32,7 @@ from chatter_prompts import (
     build_event_statement_prompt,
 )
 from chatter_identity import prepare_channel_persona
+from chatter_party_presence import with_group_presence
 from chatter_shared import (
     get_chatter_mode,
     get_zone_name,
@@ -52,6 +53,11 @@ from chatter_shared import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Channel name used by the group-awareness block (issue #94). Only
+# transport arrivals carry bot_groups; other world events are
+# unchanged.
+_PRESENCE_CHANNEL = 'the public General channel'
 
 
 # ------------------------------------------------------------------
@@ -243,6 +249,11 @@ def _deliver_conversation(
         recent_messages=recent_msgs,
         area_id=_event_area_id(event, extra_data),
     )
+    prompt = with_group_presence(
+        prompt, db, config, extra_data,
+        [(b['guid'], b['name']) for b in formatted],
+        _PRESENCE_CHANNEL,
+    )
 
     evt_names = ','.join(bot_names)
     response = call_llm(
@@ -363,6 +374,11 @@ def _deliver_statement(
         extra_data=extra_data,
         zone_id=use_zone_id,
         area_id=_event_area_id(event, extra_data),
+    )
+    event_prompt = with_group_presence(
+        event_prompt, db, config, extra_data,
+        [(bot['bot1_guid'], bot['bot1_name'])],
+        _PRESENCE_CHANNEL,
     )
 
     delay_min = int(config.get(

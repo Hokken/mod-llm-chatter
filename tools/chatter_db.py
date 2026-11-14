@@ -1590,6 +1590,13 @@ def cleanup_stale_groups(db) -> int:
                 clear_group(gid)
             except Exception:
                 pass
+            try:
+                from chatter_party_presence import (
+                    clear_group as clear_presence,
+                )
+                clear_presence(gid)
+            except Exception:
+                pass
             cleaned += 1
 
         db.commit()
@@ -1808,6 +1815,13 @@ def cleanup_all_session_data(db):
     """
     try:
         cursor = db.cursor()
+        try:
+            from chatter_party_presence import (
+                end_all_sessions as end_presence_sessions,
+            )
+            end_presence_sessions()
+        except Exception:
+            pass
         cursor.execute(
             "DELETE FROM llm_group_bot_traits"
         )

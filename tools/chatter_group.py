@@ -137,6 +137,9 @@ from chatter_threads import (
     render_for_player_reply,
     report_tokens,
 )
+from chatter_party_presence import (
+    reconcile_active_groups as reconcile_presence_groups,
+)
 from chatter_themed_topics import (
     themed_candidate,
     themed_metadata,
@@ -4053,6 +4056,8 @@ def check_idle_group_chatter(
     # Forget conversation threads of parties that ended
     # through any path (last bot removed, disband, logout).
     reconcile_active_groups(g['group_id'] for g in groups)
+    reconcile_presence_groups(
+        [g['group_id'] for g in groups])
 
     if not groups:
         return False

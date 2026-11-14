@@ -10,6 +10,7 @@
 #include "LLMChatterGuild.h"
 
 #include "LLMChatterConfig.h"
+#include "LLMChatterGroupAwareness.h"
 #include "LLMChatterShared.h"
 
 #include "CharacterCache.h"
@@ -312,7 +313,8 @@ void QueueGuildMemberEvent(
     std::vector<Player*> const& bots,
     std::string const& payloadFields,
     uint32 subjectGuid,
-    std::string const& subjectName)
+    std::string const& subjectName,
+    std::vector<uint32> const& subjectGuids = {})
 {
     std::string extraData = fmt::format(
         R"({{"guild_id":{},"guild_name":"{}",)"
@@ -323,6 +325,21 @@ void QueueGuildMemberEvent(
             ? "Alliance" : "Horde",
         payloadFields,
         BuildGuildEventCandidatesJson(bots));
+
+    // Group facts and guards (issue #94) for every bot that may
+    // speak: the commenters and an online bot subject, who may
+    // answer once (chatter_guild_events._subject_reply).
+    std::vector<Player*> speakers = bots;
+    for (uint32 guid : subjectGuids)
+    {
+        Player* subject = ObjectAccessor::FindConnectedPlayer(
+            ObjectGuid::Create<HighGuid::Player>(guid));
+        if (subject && subject->IsInWorld() && IsPlayerBot(subject)
+            && std::find(speakers.begin(), speakers.end(), subject)
+                == speakers.end())
+            speakers.push_back(subject);
+    }
+    AppendCandidateGroups(extraData, speakers);
 
     QueueChatterEvent(
         eventType,
@@ -392,7 +409,8 @@ void FlushGuildJoinBatch(
         bots,
         fmt::format(R"("members":[{}])", members),
         present.front(),
-        GuildMemberName(present.front()));
+        GuildMemberName(present.front()),
+        present);
 }
 
 void FlushGuildRankBatch(
@@ -458,7 +476,8 @@ void FlushGuildRankBatch(
         bots,
         fmt::format(R"("changes":[{}])", entries),
         subjects.front(),
-        GuildMemberName(subjects.front()));
+        GuildMemberName(subjects.front()),
+        subjects);
 }
 
 void FlushGuildMotd(uint32 guildId, std::string const& motd)

@@ -71,6 +71,7 @@ from chatter_persona import (
 )
 from chatter_guild_profile import get_character_guild_name
 from chatter_member_gender import with_character_genders
+from chatter_party_presence import with_group_presence
 from chatter_mode import (
     build_player_chat_guidance,
     build_player_identity,
@@ -90,6 +91,9 @@ from chatter_group_general_reaction import (
 )
 
 logger = logging.getLogger(__name__)
+
+# Channel name used by the group-awareness block (issue #94).
+_GENERAL_PRESENCE_CHANNEL = 'the public General channel'
 
 
 def init_general_config(config):
@@ -364,8 +368,15 @@ def _resolve_zone_context(db, player_name, extra_data):
     }
 
 
+def _speaker_guards(extra_data):
+    """The event's speaker_groups map, or None for older payloads."""
+    guards = (extra_data or {}).get('speaker_groups')
+    return guards if isinstance(guards, dict) else None
+
+
 def _add_recent_general_speakers(
     db, history, bot_guids, bot_names, zone_id, player_faction,
+    guarded=None,
 ):
     """Add recent General speakers missing from the capped zone sample.
 
@@ -376,6 +387,13 @@ def _add_recent_general_speakers(
     is a playerbot (is_bot history rows; real players never are),
     online, recorded in this zone, and of the player's faction.
     Extends the lists in place.
+
+    `guarded` is the event's speaker_groups map when C++ sent one
+    (issue #94). C++ then covers every bot that can speak in this
+    zone's General right now, so a speaker missing from it is not
+    live here and is not added: every added speaker has its group
+    snapshot and membership guard. Older payloads (None) keep the
+    previous behaviour.
     """
     if not player_faction or not zone_id:
         return
@@ -401,6 +419,8 @@ def _add_recent_general_speakers(
     cursor.close()
     for row in rows:
         if get_race_faction(row.get('race')) != player_faction:
+            continue
+        if guarded is not None and str(int(row['guid'])) not in guarded:
             continue
         bot_guids.append(int(row['guid']))
         bot_names.append(row['name'])
@@ -902,6 +922,7 @@ def process_general_player_msg_event(
         _add_recent_general_speakers(
             db, history, bot_guids, bot_names,
             zone_id, player_faction,
+            guarded=_speaker_guards(extra_data),
         )
 
         # Pick primary bot and decide conv vs stmt
@@ -1020,6 +1041,11 @@ def process_general_player_msg_event(
         prompt1 = with_character_genders(
             prompt1, db, _history_names(history) + thread_people,
             player_name=player_name, exclude=(bot1_name,),
+        )
+        prompt1 = with_group_presence(
+            prompt1, db, config, extra_data,
+            [(bot1_guid, bot1_name)], _GENERAL_PRESENCE_CHANNEL,
+            player_name=player_name,
         )
 
         max_tokens = int(config.get(
@@ -1164,6 +1190,7 @@ def process_general_player_msg_event(
                     reply_tier_avoid=reply_tier1,
                     zone_meta=zone_meta,
                     faction=player_faction,
+                    extra_data=extra_data,
                 )
                 # Extended conversation chance
                 if (
@@ -1205,6 +1232,7 @@ def process_general_player_msg_event(
                             subzone_lore=subzone_lore,
                             zone_meta=zone_meta,
                             faction=player_faction,
+                            extra_data=extra_data,
                         )
                     except Exception as e3:
                         logger.error(
@@ -1252,6 +1280,7 @@ def _general_followup(
     faction="",
     brief_tier_avoid=None,
     reply_tier_avoid=None,
+    extra_data=None,
 ):
     """Generate a second bot's followup response
     in General channel conversation mode.
@@ -1338,6 +1367,11 @@ def _general_followup(
     prompt2 = with_character_genders(
         prompt2, db, _history_names(history) + [bot1_name],
         player_name=player_name, exclude=(bot2_name,),
+    )
+    prompt2 = with_group_presence(
+        prompt2, db, config, extra_data,
+        [(bot2_guid, bot2_name)], _GENERAL_PRESENCE_CHANNEL,
+        player_name=player_name,
     )
 
     max_tokens = int(config.get(
@@ -1638,6 +1672,7 @@ def _general_extended_conversation(
     zone_meta=None,
     faction="",
     previous_reply_tier=None,
+    extra_data=None,
 ):
     """Generate additional messages beyond the
     initial 2-message conversation in General
@@ -1811,6 +1846,11 @@ def _general_extended_conversation(
             prompt, db,
             _history_names(history) + [t.get('name') for t in thread],
             player_name=player_name, exclude=(speaker['name'],),
+        )
+        prompt = with_group_presence(
+            prompt, db, config, extra_data,
+            [(speaker['guid'], speaker['name'])],
+            _GENERAL_PRESENCE_CHANNEL, player_name=player_name,
         )
 
         if zone_meta is None:

@@ -5,6 +5,7 @@
 #include "LLMChatterGuild.h"
 
 #include "LLMChatterConfig.h"
+#include "LLMChatterGroupAwareness.h"
 #include "LLMChatterShared.h"
 
 #include "DatabaseEnv.h"
@@ -514,6 +515,8 @@ void HandleGuildPlayerMessage(
         ChatterJsonEscape(message),
         teamName,
         candidates);
+    // Group facts and guards for every candidate (issue #94).
+    AppendCandidateGroups(extraData, bots);
 
     QueueChatterEvent(
         "guild_player_message",
@@ -670,6 +673,8 @@ bool QueueGuildLoginGreeting(
         pending.initialDelaySeconds,
         pending.initialDelayBand,
         candidates);
+    // Group facts and guards for every candidate (issue #94).
+    AppendCandidateGroups(extraData, bots);
 
     QueueChatterEvent(
         "guild_login_greeting",

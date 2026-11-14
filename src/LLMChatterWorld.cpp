@@ -11,6 +11,7 @@
 #include "LLMChatterReactivity.h"
 #include "LLMChatterGuild.h"
 #include "LLMChatterGroup.h"
+#include "LLMChatterGroupAwareness.h"
 #include "LLMChatterGroupInternal.h"
 #include "LLMChatterNearby.h"
 #include "LLMChatterProximity.h"
@@ -703,6 +704,9 @@ private:
                         + std::to_string(dockArea) + ","
                         "\"verified_bots\":"
                         + verifiedJson + "}";
+                    // Grouped dockside bots know their own group
+                    // (issue #94); every speaker is guarded.
+                    AppendCandidateGroups(extraData, verifiedBots);
 
                     QueueEvent(
                         "transport_arrives",
@@ -912,6 +916,8 @@ private:
                     speaker->GetZoneId())),
                 BuildAudienceListJson(
                     CollectRealGuildMembers(guildId, 10)));
+            // Group facts and guards for the speakers (issue #94).
+            AppendCandidateGroups(json, participants);
 
             std::string cooldownKey =
                 "guild_idle_"

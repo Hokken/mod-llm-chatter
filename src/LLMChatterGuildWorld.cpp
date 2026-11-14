@@ -10,6 +10,7 @@
 
 #include "LLMChatterAudience.h"
 #include "LLMChatterConfig.h"
+#include "LLMChatterGroupAwareness.h"
 #include "LLMChatterGuild.h"
 #include "LLMChatterReplyHold.h"
 #include "LLMChatterShared.h"
@@ -280,6 +281,9 @@ void ScanMeetGreetings(Player* player, time_t now)
             bot->GetAreaId(),
             GuildConversationActive(guildId) ? "false" : "true",
             ReplyHoldJsonField(replyHoldId));
+        // The greeter's own group facts and guard (issue #94); it is
+        // never in the player's group (InSameGroup above).
+        AppendCandidateGroups(json, {bot});
         QueueGuildWorldEvent(
             "guild_meet_greeting", bot,
             player->GetGUID().GetCounter(), player->GetName(), 0,
