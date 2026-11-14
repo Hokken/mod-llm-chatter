@@ -515,7 +515,23 @@ Owns join batching and GroupScript:
 - `EnsureGroupJoinQueued()`
 - `FlushGroupJoinBatches()`
 - `LLMChatterGroupScript` (GroupScript: `OnAddMember`, `OnRemoveMember`
-  with farewell, `OnDisband`)
+  with farewell, `OnDisband`). Each hook first calls the group awareness
+  bookkeeping (`NoteGroupMemberAdded` / `NoteGroupMemberRemoved` /
+  `NoteGroupDisbanded`), before any feature gate.
+
+### `src/LLMChatterGroupAwareness.cpp`
+
+Owns group awareness for bots speaking outside party chat (see 13q2):
+
+- the process epoch, per-group membership revisions from one global,
+  never-reset counter, and per-membership `member_since` times
+- `BuildSpeakerGroupJson()`: the `group` object of a bot speaker
+- `BuildSpeakerGroupsField()` / `AppendSpeakerGroups()`: the
+  `speaker_groups` delivery guard in event `extra_data`
+- `BuildBotGroupsField()` / `AppendCandidateGroups()`: `bot_groups`
+  plus the guard for guid-list payloads (General replies, transport)
+- `SpeakerGroupDropReason()`: the delivery check; the pure comparison is
+  in `src/LLMChatterGroupGuard.h` (standalone-tested)
 
 ### `src/LLMChatterGroupEmote.cpp`
 
@@ -699,6 +715,7 @@ handler map.
 ### Proximity chatter
 
 - `tools/chatter_proximity.py`
+- `tools/chatter_party_presence.py` (group awareness, see 13q2)
 - `tools/chatter_proximity_pacing.py`
 - `tools/chatter_instance_context.py`
 - `tools/chatter_boss_dialogue.py`
@@ -3893,6 +3910,145 @@ restraint:
   a cancelled challenge, a finished duel, or a rematch is dropped.
 
 Settings live under `LLMChatter.ProximityChatter.FightReactions.*`.
+
+## 13q2. Group Awareness Outside Party Chat
+
+A bot grouped with others can be chosen to speak outside party chat,
+for example as a co-speaker in a proximity `/say` scene or as the bot
+answering a player in General. Without help it would not know who it
+travels with, and could offer to group with its own party (issue #94).
+Group awareness gives each grouped speaker the facts about **its own**
+group. Selection is unchanged.
+
+Covered outlets:
+- proximity `/say` scenes, conversations, directed lines, emotes and
+  replies (`group` per participant, `responder_group` for a reply);
+- General replies to a player (first reply, follow-up and extended
+  conversation) and transport arrival statements and conversations.
+  These payloads carry guid lists instead of per-bot objects, so C++
+  sends `bot_groups: {"<bot_guid>": <group>}` for the grouped
+  candidates only (`AppendCandidateGroups`). For a General reply the
+  snapshot and guard cover every bot that can speak in that zone's
+  General right now, uncapped (`CollectGeneralGuardBots`), not only the
+  `MaxBotsPerZone` sample. A recent General speaker the bridge adds
+  from the channel history is therefore covered too; on a payload
+  with `speaker_groups`, one that C++ did not guard (not live in the
+  zone) is not added. The block is appended to
+  the speaker's prompt and names the channel as the public General
+  channel. Other world events (weather, holidays, day/night) carry no
+  `bot_groups` and are unchanged;
+- Guild chat: player replies (single and multi), login greetings,
+  member join / rank change / MOTD comments (the commenters, plus an
+  online bot subject that answers once), and idle statements and
+  conversations. The guild meet greeting covers the greeter's `/say`
+  line and its optional guild post. Each of these payloads carries
+  `bot_groups` and `speaker_groups` for every bot that may speak
+  (`AppendCandidateGroups`). The block names the channel as guild chat,
+  or open `/say` for the greeting;
+- the zone-intrusion defender's yell (both intrusion paths).
+
+Other guild world events (NPC encounters, join announcements) already
+exclude bots grouped with a real player and are unchanged.
+
+### What a grouped speaker is told
+
+C++ attaches a `group` object to every bot speaker (`BuildSpeakerGroupJson`,
+live when the event is queued). For a proximity reply it is
+`responder_group`; for General and transport candidates it is the
+`bot_groups` entry. The object holds:
+
+- the roster of the speaker's party, or of its own subgroup in a raid
+  (at most four online members). Each member carries `near` (same map
+  and instance, within `GroupAwareness.NearbyRadius`) and `same_zone`.
+- `self`: the speaker's own zone, area and instance.
+- `member_since`: when this membership began. Unknown memberships (a
+  saved group after a relog or a restart) start at first observation.
+
+The bridge (`tools/chatter_party_presence.py`) renders one block, with
+each speaker's knowledge attributed to that speaker. NPCs and ungrouped
+speakers are named as knowing none of it, and no speaker gets another
+group's private context. A companion is called present only when it is
+`near`; otherwise it is "elsewhere in this zone" or "elsewhere". The
+group's plans are never inferred.
+
+Private context goes only to a party with a real player, and only
+strictly after `member_since` (the join second itself is excluded):
+
+| Context | Party | Raid | Bot-only group |
+|---|---|---|---|
+| Delivered bot lines (`llm_chatter_messages`, `delivered_at` set, no drop reason) | `party` channel | `raid` channel | none |
+| Real player party lines (`llm_group_chat_history`, `is_bot = 0`) | yes | none (subgroup-only speech) | none |
+| Recent activity (quest accepted / turned in, dungeon entered, boss defeated, zone reached) | yes | none | none |
+| Conversation thread topic | never | never | never |
+
+The thread topic is never used: its start time is when the bridge
+adopted it, not when the lines were heard.
+
+Recent activity is an in-memory ring per group, fed by the bridge for
+`bot_group_quest_accept` / `_accept_batch` / `_quest_complete` /
+`_dungeon_entry` / `_zone_transition` and boss `bot_group_kill` events.
+Feeding happens once the orphan guard passes, and uses the event row's
+`created_at`, never the processing time.
+- **Quest facts** are keyed by name. A completion later than the accept
+  reads "turned in"; anything else reads "picked up". Wording is past
+  tense only.
+- **Bounds:** the ring holds `ActivityMaxEntries` entries per group and
+  is guarded by one lock.
+- **Clearing:** a group's ring is cleared when its session ends
+  (`cleanup_stale_groups`, the active-group reconcile, or the
+  all-session cleanup). A tombstone makes later events from before that
+  moment ignored. The ring is lost on bridge restart; unknown facts are
+  left out.
+
+With no grouped speaker, prompts are unchanged.
+
+### Stale lines are never spoken
+
+Every event with bot speakers carries
+`speaker_groups: {"<bot_guid>": {"e", "g", "rev", "fp"}}`, where:
+- `e` is the worldserver process epoch;
+- `g` is the group id, 0 when ungrouped;
+- `rev` is the group's membership revision;
+- `fp` is a fingerprint of the group's (member, subgroup) slots.
+
+Delivery recomputes these values live. On any difference the row drops
+with `speaker_group_changed`, which happens on:
+- leave, join or disband;
+- leaving and rejoining the same group;
+- a companion joining or leaving;
+- a subgroup move;
+- a worldserver restart.
+
+When a row drops this way:
+- the later lines of the same event are cancelled
+  (`cancelled_after_group_drop`), with their reply holds released and
+  facing reset;
+- a proximity scene the row belongs to is closed (`CloseProximityScene`),
+  so the player's next `/say` is not routed to it;
+- any later row of a closed scene drops with `scene_closed`, including
+  an NPC line or an unchanged speaker's line the bridge commits after the
+  drop, and so does a reply continuing it. Delivering a row never
+  recreates a closed scene;
+- for every outlet, the event row records the lowest dropped sequence
+  in `extra_data.group_drop_seq` (written before the cancel above). A
+  row the bridge commits later with a higher sequence, such as a
+  General follow-up or extended turn generated meanwhile, or a
+  transport line, drops with `cancelled_after_group_drop` at delivery
+  (`RowFollowsGroupDrop`). Earlier, already heard lines are kept.
+
+Rows without the key (older events) are unaffected.
+
+### Config keys
+
+All under `LLMChatter.GroupAwareness.*`:
+
+| Key | Default | Read by | Purpose |
+|-----|---------|---------|---------|
+| `Enable` | 1 | bridge | Pass group knowledge; 0 keeps the old prompts (the delivery guard stays active) |
+| `HistoryLines` | 4 | bridge | Delivered party lines a speaker may know (0-8) |
+| `WindowSeconds` | 600 | bridge | How far back lines and activity count (30-7200) |
+| `ActivityMaxEntries` | 5 | bridge | Activity facts kept per group (1-10) |
+| `NearbyRadius` | 60 | worldserver | Yards within which a member counts as present (5-200) |
 
 ## 13r. Guild Chat Statements and Conversations
 

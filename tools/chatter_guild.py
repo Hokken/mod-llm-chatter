@@ -149,6 +149,10 @@ from chatter_threads import (
     report_tokens,
     thread_names,
 )
+from chatter_party_presence import (
+    GUILD_PRESENCE_CHANNEL,
+    with_group_presence,
+)
 from chatter_member_gender import (
     gender_prefix,
     split_name_list,
@@ -810,6 +814,10 @@ def _process_guild_statement_event(
     prompt = _with_guild_genders(
         prompt, db, extra, guildmates, history_metadata,
         thread_turn is not None, [speaker_name],
+    )
+    prompt = with_group_presence(
+        prompt, db, config, extra, [(speaker_guid, speaker_name)],
+        GUILD_PRESENCE_CHANNEL,
     )
 
     max_tokens = int(config.get(
@@ -1768,6 +1776,11 @@ def _generate_guild_conversation(
     prompt = _with_guild_genders(
         prompt, db, extra, guildmates, history_metadata,
         thread_turn is not None, [p['name'] for p in participants],
+    )
+    prompt = with_group_presence(
+        prompt, db, config, extra,
+        [(p['guid'], p['name']) for p in participants],
+        GUILD_PRESENCE_CHANNEL,
     )
     metadata = _guild_request_metadata(
         extra,

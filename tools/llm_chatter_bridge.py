@@ -71,6 +71,7 @@ from chatter_shared import (
 )
 from chatter_guild_profile import get_character_guild_name
 from chatter_member_gender import attach_bot_genders
+from chatter_party_presence import note_group_event
 from chatter_events import (
     cleanup_expired_events,
     reset_stuck_processing_events,
@@ -1129,6 +1130,22 @@ def process_single_event(event, client, config):
                         " no _group_id — orphan"
                         " guard skipped",
                         event_type,
+                    )
+            # Group awareness (issue #94): remember the
+            # facts of quest / dungeon / boss / zone events
+            # once the orphan guard passed and
+            # before the handler runs, so grouped bots know
+            # them when they speak outside party chat.
+            if event_type.startswith('bot_group_'):
+                try:
+                    _extra = event.get('extra_data')
+                    if isinstance(_extra, (str, bytes)):
+                        _extra = json.loads(_extra)
+                    note_group_event(db, event, _extra, config)
+                except Exception:
+                    logger.error(
+                        "group awareness feed failed",
+                        exc_info=True,
                     )
             # Log location context for group events
             if (event_type.startswith('bot_group_')

@@ -1426,6 +1426,11 @@ void LLMChatterConfig::LoadConfig()
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."
             "PlayerSayScanRadius", 40);
+    _groupAwarenessNearbyRadius = std::clamp<uint32>(
+        GetChatterOption<uint32>(
+            "LLMChatter.GroupAwareness."
+            "NearbyRadius", 60),
+        5, 200);
     _proxChatterChance =
         GetChatterOption<uint32>(
             "LLMChatter.ProximityChatter."

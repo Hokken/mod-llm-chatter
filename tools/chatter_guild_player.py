@@ -21,6 +21,10 @@ from chatter_guild import (
     _valid_guild_conversation,
 )
 from chatter_llm import call_llm
+from chatter_party_presence import (
+    GUILD_PRESENCE_CHANNEL,
+    with_group_presence,
+)
 from chatter_guild_profile import get_guild_profile, guild_identity_lines
 from chatter_mode import build_player_chat_guidance, is_roleplay
 from chatter_player_context import player_character_lines
@@ -817,6 +821,7 @@ def _generate_single_reply(
     metadata: Dict,
     guild_context: Optional[List[str]] = None,
     player_lines: Optional[List[str]] = None,
+    presence_extra: Optional[Dict] = None,
 ) -> List[Dict]:
     brief_casual = bool(
         metadata.get('guild_brief_casual')
@@ -835,6 +840,13 @@ def _generate_single_reply(
         brief_casual=brief_casual,
         guild_context=guild_context,
         player_lines=player_lines,
+    )
+    # Group awareness (issue #94): a grouped responder knows its own
+    # group; the prompt is unchanged otherwise.
+    prompt = with_group_presence(
+        prompt, db, config, presence_extra,
+        [(participant['guid'], participant['name'])],
+        GUILD_PRESENCE_CHANNEL, player_name=player_name,
     )
     response = call_llm(
         client,
@@ -925,6 +937,7 @@ def _generate_multi_reply(
     metadata: Dict,
     guild_context: Optional[List[str]] = None,
     player_lines: Optional[List[str]] = None,
+    presence_extra: Optional[Dict] = None,
 ) -> List[Dict]:
     brief_casual = bool(
         metadata.get('guild_brief_casual')
@@ -946,6 +959,11 @@ def _generate_multi_reply(
             guild_context=guild_context,
             player_lines=player_lines,
         )
+    )
+    prompt = with_group_presence(
+        prompt, db, config, presence_extra,
+        [(p['guid'], p['name']) for p in participants],
+        GUILD_PRESENCE_CHANNEL, player_name=player_name,
     )
     names = [
         participant['name']
@@ -1513,6 +1531,7 @@ def process_guild_player_message_event(
             metadata,
             guild_context=guild_context,
             player_lines=player_lines,
+            presence_extra=extra,
         )
     else:
         messages = _generate_multi_reply(
@@ -1533,6 +1552,7 @@ def process_guild_player_message_event(
             metadata,
             guild_context=guild_context,
             player_lines=player_lines,
+            presence_extra=extra,
         )
 
     if not messages and len(responders) > 0:
@@ -1555,6 +1575,7 @@ def process_guild_player_message_event(
             metadata,
             guild_context=guild_context,
             player_lines=player_lines,
+            presence_extra=extra,
         )
 
     if (

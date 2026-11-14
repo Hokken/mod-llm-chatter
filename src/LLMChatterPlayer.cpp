@@ -6,6 +6,7 @@
 #include "LLMChatterAmbient.h"
 #include "LLMChatterBG.h"
 #include "LLMChatterGroup.h"
+#include "LLMChatterGroupAwareness.h"
 #include "LLMChatterGroupInternal.h"
 #include "LLMChatterGuildPvP.h"
 #include "LLMChatterShared.h"
@@ -36,6 +37,7 @@
 #include <map>
 #include <mutex>
 #include <random>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -329,6 +331,8 @@ static void HandleEnemyZoneIntrusion(
         "\"defender_level\":" +
             std::to_string(defLevel) +
         "}";
+    // The defender's own group facts and guard (issue #94).
+    AppendCandidateGroups(extraData, {defender});
 
     extraData = EscapeString(extraData);
 
@@ -480,6 +484,8 @@ static void HandleBotEntersEnemyTerritory(
             std::to_string(
                 defender->GetLevel()) +
         "}";
+    // The defender's own group facts and guard (issue #94).
+    AppendCandidateGroups(extraData, {defender});
 
     extraData = EscapeString(extraData);
 
@@ -512,6 +518,35 @@ static void HandleBotEntersEnemyTerritory(
 
 std::mutex _rejoinMutex;
 std::vector<PendingRejoin> _pendingRejoins;
+
+// Every bot that could answer a General message in this zone, with no
+// cap: the capped reply sample plus the recent General speakers the
+// bridge may add (chatter_general._add_recent_general_speakers). Each
+// gets a group snapshot and a membership guard (issue #94), so no
+// General speaker escapes either. Selection itself is unchanged.
+static std::vector<Player*> CollectGeneralGuardBots(
+    uint32 zoneId, TeamId teamId)
+{
+    std::vector<Player*> bots;
+    std::set<ObjectGuid> seen;
+    auto consider = [&](Player* bot)
+    {
+        if (!bot || !bot->IsInWorld() || !IsPlayerBot(bot)
+            || bot->GetZoneId() != zoneId
+            || bot->GetTeamId() != teamId
+            || !seen.insert(bot->GetGUID()).second
+            || !CanSpeakInGeneralChannel(bot))
+            return;
+        bots.push_back(bot);
+    };
+
+    for (auto const& pair : sWorldSessionMgr->GetAllSessions())
+        if (pair.second)
+            consider(pair.second->GetPlayer());
+    for (auto const& pair : sRandomPlayerbotMgr.GetAllBots())
+        consider(pair.second);
+    return bots;
+}
 
 // A bot that logs in after its real player's rejoin window (120s) closed
 // would otherwise never get traits: OnAddMember does not fire for a saved
@@ -1171,6 +1206,11 @@ public:
             "\"bot_guids\":" + botGuids + ","
             "\"bot_names\":" + botNames +
             "}";
+        // Group facts and membership guards (issue #94) for every bot
+        // that may answer: the sample above and any recent General
+        // speaker the bridge adds. Selection above is unchanged.
+        AppendCandidateGroups(extraData,
+            CollectGeneralGuardBots(zoneId, player->GetTeamId()));
 
         extraData = EscapeString(extraData);
 

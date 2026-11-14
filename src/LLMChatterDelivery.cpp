@@ -9,6 +9,8 @@
 #include "LLMChatterDelivery.h"
 #include "LLMChatterBGDelivery.h"
 #include "LLMChatterGroup.h"
+#include "LLMChatterGroupAwareness.h"
+#include "LLMChatterGroupGuard.h"
 #include "LLMChatterGuild.h"
 #include "LLMChatterGuildPvP.h"
 #include "LLMChatterGuildWorld.h"
@@ -242,11 +244,34 @@ void FinalizeDroppedMessage(
         EscapeString(reason ? reason : "delivery_failed"),
         messageId);
 
-    if (!eventId || !IsDirectedProximityEvent(eventType))
+    // A line whose speaker's group changed is unheard: nothing
+    // later in the same event may answer it, whatever the event.
+    bool groupDrop = reason
+        && (std::string(reason) == "speaker_group_changed"
+            || std::string(reason) == "scene_closed"
+            || std::string(reason) == "cancelled_after_group_drop");
+    if (!eventId
+        || (!IsDirectedProximityEvent(eventType) && !groupDrop))
         return;
 
+    // Record the drop on the event row first: a row the bridge
+    // commits after the cancel below (General follow-up, extended
+    // turn, transport line) is then dropped at delivery
+    // (RowFollowsGroupDrop). The lowest dropped sequence is kept.
+    if (groupDrop)
+        CharacterDatabase.DirectExecute(
+            "UPDATE llm_chatter_events "
+            "SET extra_data = JSON_SET(extra_data, '$.{}', "
+            "LEAST(COALESCE(CAST(JSON_UNQUOTE(JSON_EXTRACT("
+            "extra_data, '$.{}')) AS UNSIGNED), {}), {})) "
+            "WHERE id = {} AND JSON_TYPE(extra_data) = 'OBJECT'",
+            LLMChatterGroupGuard::kGroupDropSeqKey,
+            LLMChatterGroupGuard::kGroupDropSeqKey,
+            sequence, sequence, eventId);
+
     LOG_INFO("module",
-        "LLMChatter: directed {} message {} (event {}) dropped: {}",
+        "LLMChatter: {} {} message {} (event {}) dropped: {}",
+        groupDrop ? "group-guarded" : "directed",
         eventType, messageId, eventId,
         reason ? reason : "delivery_failed");
 
@@ -272,9 +297,11 @@ void FinalizeDroppedMessage(
     CharacterDatabase.DirectExecute(
         "UPDATE llm_chatter_messages "
         "SET delivered = 1, delivered_at = NOW(), "
-        "drop_reason = 'cancelled_after_directed_drop' "
+        "drop_reason = '{}' "
         "WHERE event_id = {} AND sequence > {} "
         "AND delivered = 0",
+        groupDrop ? "cancelled_after_group_drop"
+                  : "cancelled_after_directed_drop",
         eventId, sequence);
 
     ScheduleSceneFacingResets(
@@ -638,6 +665,47 @@ void DeliverPendingMessagesImpl()
     {
         FinalizeDroppedMessage(messageId, eventId, sequence,
             eventType, bgDrop.c_str());
+        return;
+    }
+
+    // Group awareness (LLMChatterGroupAwareness.cpp): a line written
+    // for a grouped (or ungrouped) speaker is never spoken after that
+    // speaker's group membership changed. The rest of the event is
+    // cancelled, and a proximity scene it belongs to is closed so the
+    // player's next /say is not routed to it.
+    // Every proximity row checks its scene: a row of a closed scene
+    // (an NPC line or an unchanged speaker's line committed after the
+    // drop), or a reply continuing one, is never spoken.
+    uint32 originSceneId = ownerSubsystem == "proximity"
+            && eventType == "proximity_reply"
+        ? ExtractJsonUInt(eventExtraData, "scene_id") : 0;
+    if (ownerSubsystem == "proximity"
+        && IsProximityRowInClosedScene(eventId, originSceneId))
+    {
+        FinalizeDroppedMessage(messageId, eventId, sequence,
+            eventType, "scene_closed");
+        return;
+    }
+    // Any event (General, transport, guild, proximity): a row
+    // committed after an earlier line of its event was dropped for a
+    // group change would answer an unheard line.
+    if (eventId && LLMChatterGroupGuard::RowFollowsGroupDrop(
+            eventExtraData, sequence))
+    {
+        FinalizeDroppedMessage(messageId, eventId, sequence,
+            eventType, "cancelled_after_group_drop");
+        return;
+    }
+    if (char const* groupDropReason =
+            SpeakerGroupDropReason(eventExtraData, botGuid, bot))
+    {
+        FinalizeDroppedMessage(messageId, eventId, sequence,
+            eventType, groupDropReason);
+        if (ownerSubsystem == "proximity")
+        {
+            CloseProximityScene(eventId);
+            CloseProximityScene(originSceneId);
+        }
         return;
     }
 

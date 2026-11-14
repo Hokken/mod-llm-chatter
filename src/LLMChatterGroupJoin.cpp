@@ -10,6 +10,7 @@
 
 #include "LLMChatterConfig.h"
 #include "LLMChatterGroup.h"
+#include "LLMChatterGroupAwareness.h"
 #include "LLMChatterGroupInternal.h"
 #include "LLMChatterShared.h"
 
@@ -667,6 +668,11 @@ public:
     void OnAddMember(
         Group* group, ObjectGuid guid) override
     {
+        // Membership bookkeeping runs before every gate, so
+        // bot-only groups and disabled party chatter still
+        // invalidate queued lines.
+        NoteGroupMemberAdded(group, guid);
+
         if (!sLLMChatterConfig->IsEnabled()
             || !sLLMChatterConfig->_useGroupChatter)
             return;
@@ -701,6 +707,8 @@ public:
         RemoveMethod /*method*/, ObjectGuid /*kicker*/,
         const char* /*reason*/) override
     {
+        NoteGroupMemberRemoved(group, guid);
+
         if (!sLLMChatterConfig->IsEnabled()
             || !sLLMChatterConfig->_useGroupChatter)
             return;
@@ -901,6 +909,8 @@ public:
 
     void OnDisband(Group* group) override
     {
+        NoteGroupDisbanded(group);
+
         if (!sLLMChatterConfig->IsEnabled()
             || !sLLMChatterConfig->_useGroupChatter)
             return;

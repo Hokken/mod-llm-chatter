@@ -24,6 +24,7 @@ from chatter_member_gender import (
     get_character_genders,
     get_genders_by_guid,
 )
+from chatter_party_presence import with_group_presence
 
 logger = logging.getLogger(__name__)
 
@@ -732,6 +733,12 @@ def process_zone_intrusion_event(
     )
     if not prompt:
         return True
+    # Group awareness (issue #94): a grouped defender knows its own
+    # group; the prompt is unchanged otherwise.
+    prompt = with_group_presence(
+        prompt, db, config, extra_data,
+        [(defender_guid, defender_name)], 'a yell across the zone',
+    )
 
     result = run_single_reaction(
         db,

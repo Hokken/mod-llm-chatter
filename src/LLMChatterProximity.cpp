@@ -7,7 +7,9 @@
 #include "LLMChatterBossDialogue.h"
 #include "LLMChatterConfig.h"
 #include "LLMChatterGroup.h"
+#include "LLMChatterGroupAwareness.h"
 #include "LLMChatterReplyHold.h"
+#include "LLMChatterSceneClosure.h"
 #include "LLMChatterShared.h"
 
 #include "CellImpl.h"
@@ -1120,29 +1122,44 @@ NamedCandidateMatch FindNamedCandidate(
     return findBest(false);
 }
 
+// Scenes closed because a speaker's group changed. Kept while a
+// reply queued for one could still be delivered (the reply event's
+// configured lifetime plus the delivery window), so it is dropped
+// instead of spoken.
+static LLMChatterSceneClosure::ClosedScenes _closedScenes;
+// Matches the expired_before_delivery cutoff in LLMChatterDelivery.cpp.
+constexpr time_t kMessageDeliveryWindowSeconds = 60;
+
+time_t ClosedSceneMemorySeconds()
+{
+    return static_cast<time_t>(std::max<uint32>(
+               sLLMChatterConfig->_proxDirectedExpirySeconds,
+               sLLMChatterConfig->_eventExpirationSeconds))
+        + kMessageDeliveryWindowSeconds;
+}
+
+void EraseSceneAt(std::map<uint32, ProximityScene>::iterator& it)
+{
+    auto pit = _playerScenes.find(it->second.playerGuid);
+    if (pit != _playerScenes.end())
+    {
+        auto& ids = pit->second;
+        ids.erase(
+            std::remove(ids.begin(), ids.end(), it->first),
+            ids.end());
+        if (ids.empty())
+            _playerScenes.erase(pit);
+    }
+    it = _activeScenes.erase(it);
+}
+
 void EvictExpiredScenes()
 {
     for (auto it = _activeScenes.begin();
          it != _activeScenes.end();)
     {
         if (it->second.IsExpired())
-        {
-            auto pit =
-                _playerScenes.find(
-                    it->second.playerGuid);
-            if (pit != _playerScenes.end())
-            {
-                auto& ids = pit->second;
-                ids.erase(
-                    std::remove(
-                        ids.begin(), ids.end(),
-                        it->first),
-                    ids.end());
-                if (ids.empty())
-                    _playerScenes.erase(pit);
-            }
-            it = _activeScenes.erase(it);
-        }
+            EraseSceneAt(it);
         else
             ++it;
     }
@@ -1180,7 +1197,9 @@ std::string BuildBotParticipantJson(Player* bot)
         + ChatterJsonEscape(GetChatterClassName(bot->getClass()))
         + "\",\"race\":\""
         + ChatterJsonEscape(GetRaceName(bot->getRace()))
-        + "\",\"role\":\"bot\"}";
+        + "\",\"role\":\"bot\""
+        + ",\"group\":" + BuildSpeakerGroupJson(bot)
+        + "}";
 }
 
 // A creature has no race of its own; humanoid NPCs take one
@@ -1655,6 +1674,19 @@ std::string BuildNearbyGendersJson(
     return json;
 }
 
+// The playerbot speakers of a scene, for the speaker_groups guard.
+std::vector<Player*> SpeakerBots(
+    std::vector<ProximityCandidate> const& speakers)
+{
+    std::vector<Player*> bots;
+    for (ProximityCandidate const& speaker : speakers)
+    {
+        if (!speaker.isNPC && speaker.bot)
+            bots.push_back(speaker.bot);
+    }
+    return bots;
+}
+
 std::string BuildBaseEventJson(
     Player* player,
     std::vector<ProximityCandidate> const& speakers,
@@ -1718,6 +1750,7 @@ std::string BuildBaseEventJson(
         + std::to_string(maxLines)
         + ",\"participants\":"
         + BuildParticipantsJson(speakers, player)
+        + "," + BuildSpeakerGroupsField(SpeakerBots(speakers))
         + "}";
 }
 
@@ -2927,7 +2960,18 @@ void HandleProximityPlayerSay(
                 ? GetProximityNPCQualificationLabel(
                     GetProximityNPCQualification(
                         responderCreature)) : "")
-        + "\"}";
+        + "\"";
+    Player* responderBot =
+        scene->lastSpeakerIsNPC ? nullptr : target->ToPlayer();
+    if (responderBot)
+    {
+        json += ",\"responder_group\":"
+            + BuildSpeakerGroupJson(responderBot);
+    }
+    json += "," + BuildSpeakerGroupsField(
+        responderBot ? std::vector<Player*>{responderBot}
+                     : std::vector<Player*>{});
+    json += "}";
 
     QueueChatterEvent(
         "proximity_reply",
@@ -3278,6 +3322,27 @@ bool HandleProximityPartyBotEmoteWitness(
         "player_inclusive", false, isCustom);
 }
 
+void CloseProximityScene(uint32 sceneId)
+{
+    if (!sceneId)
+        return;
+
+    _closedScenes.Close(
+        sceneId, time(nullptr), ClosedSceneMemorySeconds());
+
+    auto it = _activeScenes.find(sceneId);
+    if (it != _activeScenes.end())
+        EraseSceneAt(it);
+}
+
+bool IsProximityRowInClosedScene(
+    uint32 eventId, uint32 originSceneId)
+{
+    _closedScenes.Prune(time(nullptr), ClosedSceneMemorySeconds());
+    return LLMChatterSceneClosure::RowBelongsToClosedScene(
+        _closedScenes, eventId, originSceneId);
+}
+
 void RecordDeliveredProximityLine(
     uint32 eventId, uint32 playerGuid,
     uint32 zoneId, uint32 mapId,
@@ -3287,6 +3352,11 @@ void RecordDeliveredProximityLine(
     std::string const& message)
 {
     if (!eventId || !playerGuid)
+        return;
+
+    // A scene closed because a speaker's group changed is never
+    // recreated by a late row of it.
+    if (_closedScenes.IsClosed(eventId))
         return;
 
     EvictExpiredScenes();

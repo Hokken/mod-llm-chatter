@@ -408,6 +408,9 @@ public:
     uint32 _proxChatterInstanceScanInterval;
     uint32 _proxChatterScanRadius;
     uint32 _proxChatterPlayerSayScanRadius;
+    // Group awareness: a group member within this many yards of
+    // a speaking bot (same map and instance) counts as present.
+    uint32 _groupAwarenessNearbyRadius;
     uint32 _proxChatterChance;
     uint32 _proxChatterOutdoorChance;
     uint32 _proxChatterInstanceChance;

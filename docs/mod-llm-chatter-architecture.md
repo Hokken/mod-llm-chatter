@@ -1213,6 +1213,10 @@ Line counts are approximate non-blank lines.
 | `src/LLMChatterGroupDiscovery.cpp` | ~190 | Subzone discoveries for bot memories: `CheckGroupDiscoveries()` (world update, every 2 s) compares grouped real players' `PLAYER_EXPLORED_ZONES_*` flags with the last snapshot, maps new flags to announced subzones (`area_level > 0`) and queues `bot_group_discovery` with the party bots of at least `DiscoveryMinLevel` within `DiscoveryRange` yards of the player (`nearby_bot_guids`; none near, or a player below the level, no event); first sight only sets the baseline; skips battlegrounds and arenas; no scan with `Memory.Enable` or `DiscoveryEnable` off |
 | `src/LLMChatterGroupInternal.h` | ~325 | Shared group internal structs, cooldown/batch/mutex declarations, helper declarations, domain entry points, and `EmoteTargetType` |
 | `src/LLMChatterGroupJoin.cpp` | 841 | Group join batching: `QueueBotGreetingEvent()`, `EnsureGroupJoinQueued()`, `FlushGroupJoinBatches()`, `LLMChatterGroupScript` (GroupScript: `OnAddMember`, `OnRemoveMember` with farewell, `OnDisband`) |
+| `src/LLMChatterGroupAwareness.cpp` | ~320 | Group awareness for bots speaking outside party chat: process epoch, never-reused membership revisions, `member_since`, the `group` speaker object, `bot_groups` for guid-list payloads (General, transport), the `speaker_groups` guard and `SpeakerGroupDropReason()` (delivery) |
+| `src/LLMChatterGroupAwareness.h` | ~60 | Group awareness API used by `LLMChatterGroupJoin.cpp` (hooks), `LLMChatterProximity.cpp` (payloads) and `LLMChatterDelivery.cpp` (guard) |
+| `src/LLMChatterSceneClosure.h` | ~80 | Pure closed-proximity-scene set and the row-in-closed-scene decision; standard-library only, tested in `tools/tests/cpp/test_group_guard.cpp` |
+| `src/LLMChatterGroupGuard.h` | ~160 | Pure speaker group guard: `extra_data` reader, comparison, fingerprint and the event-row `group_drop_seq` check (`RowFollowsGroupDrop`); standard-library only, with a standalone test (`tools/tests/cpp/test_group_guard.cpp`) |
 | `src/LLMChatterGroupEmote.cpp` | ~810 | Emote reaction system: delayed bot/creature mirror events, emote static data, grouped and ungrouped playerbot mirroring, creature mirroring, observer reactions, and cooldown eviction |
 | `src/LLMChatterGroupQuest.cpp` | 480 | Quest accept batching: `FlushQuestAcceptBatches()`, `LLMChatterCreatureScript` (AllCreatureScript: `CanCreatureQuestAccept` with debounce/immediate paths) |
 | `src/LLMChatterGroupPvP.cpp` | ~550 | Overworld PvP: opposing-faction enemy resolution (players and their pets), the identity visibility gate, PvP reactor selection, enemy JSON fields, per-group and per-enemy PvP cooldowns, PvP pull, player-kill, and pet-kill entry points |
@@ -1306,6 +1310,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_guild_login.py` | Real-player login greetings, responder selection, short-message prompts, and greeting pacing |
 | `tools/chatter_guild_profile.py` | Guild profile (Guild Information, MOTD, ranks, Guild Master), character guild lookups, guildmate notes and MOTD wording |
 | `tools/chatter_player_context.py` | Description of the real player (race outlook, class calling) for prompts that address them |
+| `tools/chatter_party_presence.py` | Group awareness for grouped speakers outside party chat: per-speaker presence block, delivered party lines after `member_since`, the in-memory activity ring (lock, tombstones, bounds) nearby companion tags and the `bot_groups` reader (`with_group_presence`); used by the proximity prompt builders, General player replies, transport arrivals, the Guild handlers and the zone-intrusion yell |
 | `tools/chatter_member_gender.py` | Character gender lookups (by name and guid) and the shared "Genders:" prompt line for party, battleground, General/ambient and Guild prompts; never used for NPC or creature names |
 
 ### Group domain
@@ -1601,6 +1606,12 @@ PvP reactions stay in `LLMChatterDuel.cpp` and `LLMChatterGroupPvP.cpp`.
   addressed `/say` target is not throttled and no per-candidate persisted
   cooldown query runs inside the hook
 - strict full-name/unique-token resolution and vocative detection
+- the `group` object on every bot participant and the reply's
+  `responder_group`, plus the `speaker_groups` guard on every event
+  (`LLMChatterGroupAwareness.cpp`), and `CloseProximityScene()` /
+  `IsProximityRowInClosedScene()` for scenes whose speaker's group
+  changed (closure state in the standalone-tested
+  `src/LLMChatterSceneClosure.h`)
 
 `LLMChatterGroupEmote.cpp` owns animation mirroring for grouped bots,
 ungrouped bots, and creatures. It also owns the mirror-map availability

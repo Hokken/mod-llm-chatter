@@ -1,5 +1,28 @@
 # Changelog
 
+### 2026-11-14 - Grouped Bots Remember Their Group Outside Party Chat
+
+* **Party bots no longer meet their own party as strangers**: a bot in
+  your group that joins a nearby `/say` scene now knows who it travels
+  with, who is actually here, where it is, what was recently said in
+  party chat and what the party recently did. It no longer asks its own
+  companions to group up (#94). It only knows party lines that were
+  really delivered after it joined. Raid members know only raid chat.
+  Other speakers, NPCs included, know none of it.
+* **The same in General**: a party bot that answers a player in General,
+  or remarks on an arriving boat or zeppelin, also knows its own group
+  and no longer treats its party members as strangers there.
+* **And in Guild chat**: guild replies, login greetings, member news,
+  idle guild chatter and the guild meet greeting all know a grouped
+  bot's own group, and so does a bot yelling at an enemy intruder.
+* **Lines from a changed group are not spoken**: a line written for a bot
+  is dropped if the bot's group changed before delivery. This covers
+  leave, join, rejoin, a companion coming or going, a subgroup move,
+  disband and a server restart. The rest of that scene is cancelled, and
+  the scene stops taking replies.
+* **New settings** `LLMChatter.GroupAwareness.Enable`, `HistoryLines`,
+  `WindowSeconds`, `ActivityMaxEntries` and `NearbyRadius`.
+
 ### 2026-11-13 - Proximity Replies Delivered Again
 
 * **Replies in proximity scenes are no longer lost**: when the player

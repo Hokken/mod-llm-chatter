@@ -36,6 +36,10 @@ from chatter_guild_event_common import (
 )
 from chatter_guild_player import _config_enabled, _mark_event
 from chatter_member_gender import format_gender_line
+from chatter_party_presence import (
+    GUILD_PRESENCE_CHANNEL,
+    with_group_presence,
+)
 from chatter_guild_profile import (
     describe_character,
     get_character_guild_name,
@@ -412,6 +416,11 @@ def _meet_follow_up_text(
         maximum,
         name_location=True,
     )
+    prompt = with_group_presence(
+        prompt, db, config, extra, [(bot['guid'], bot['name'])],
+        GUILD_PRESENCE_CHANNEL,
+        player_name=str(extra.get('player_name') or ''),
+    )
     metadata = {
         'guild_id': safe_int(extra.get('guild_id')),
         'guild_event': 'guild_meet_post',
@@ -540,6 +549,11 @@ def process_guild_meet_greeting_event(db, client, config, event):
 
     mode = get_chatter_mode(config)
     prompt = build_meet_greeting_prompt(db, bot, extra, mode)
+    # Group awareness (issue #94): the greeter's own group, if any.
+    prompt = with_group_presence(
+        prompt, db, config, extra, [(bot['guid'], bot['name'])],
+        'open /say', player_name=str(extra.get('player_name') or ''),
+    )
     maximum = min(max_characters(config), 100)
     metadata = {
         'guild_id': safe_int(extra.get('guild_id')),

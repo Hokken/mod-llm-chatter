@@ -87,6 +87,13 @@ bool HandleProximityPartyBotEmoteWitness(
     Player* player, Player* partyBot,
     uint32 textEmote,
     std::string const& customText = "");
+// Ends a scene whose speaker's group changed: player replies are no
+// longer routed to it, and no later row of it (or reply to it) is
+// spoken.
+void CloseProximityScene(uint32 sceneId);
+// True when a proximity row's own event scene, or the scene a reply
+// continues (originSceneId, 0 for non-replies), is closed.
+bool IsProximityRowInClosedScene(uint32 eventId, uint32 originSceneId);
 void RecordDeliveredProximityLine(
     uint32 eventId, uint32 playerGuid,
     uint32 zoneId, uint32 mapId,
