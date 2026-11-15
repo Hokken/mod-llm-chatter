@@ -7,7 +7,9 @@
  *   - llm_reactivity_inbox writes
  *   - delivery of llm_reactivity_letters rows through the mail
  *     system, online or offline
- *   - the fresh-rumor lookup used by proximity scans
+ *   - the fresh-rumor lookup used by proximity scans: an
+ *     in-memory set refreshed by one async query, so the world
+ *     thread never waits on the database
  *
  * Triggers live in their own table rather than
  * llm_chatter_events: startup expires every pending event, and
@@ -20,6 +22,7 @@
 #include "LLMChatterShared.h"
 
 #include "AchievementMgr.h"
+#include "AsyncCallbackProcessor.h"
 #include "CharacterCache.h"
 #include "DatabaseEnv.h"
 #include "Item.h"
@@ -29,6 +32,7 @@
 #include "ObjectGuid.h"
 #include "ObjectMgr.h"
 #include "Player.h"
+#include "QueryCallback.h"
 #include "QuestDef.h"
 #include "ScriptMgr.h"
 #include "SharedDefines.h"
@@ -38,6 +42,7 @@
 #include <cstdlib>
 #include <sstream>
 #include <string>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -313,21 +318,77 @@ void DeliverPendingReactivityLetters()
     } while (result->NextRow());
 }
 
+namespace
+{
+
+// How often the fresh-rumor set is reloaded. A rumor the bridge has
+// just unlocked waits at most this long, plus the bridge's own pass.
+constexpr uint32 FRESH_RUMOR_REFRESH_MS = 10 * IN_MILLISECONDS;
+
+// (player guid << 32) | zone id; zone 0 means anywhere. Read and
+// written only on the world thread: the async callback runs from
+// ProcessReadyCallbacks() in the world update.
+std::unordered_set<uint64> _freshRumorZones;
+QueryCallbackProcessor _freshRumorQueries;
+bool _freshRumorQueryPending = false;
+uint32 _lastFreshRumorRefresh = 0;
+
+uint64 FreshRumorKey(uint32 playerGuid, uint32 zoneId)
+{
+    return (static_cast<uint64>(playerGuid) << 32) | zoneId;
+}
+
+} // namespace
+
+void UpdateFreshRumorZones(uint32 now)
+{
+    _freshRumorQueries.ProcessReadyCallbacks();
+
+    if (!sLLMChatterConfig || !sLLMChatterConfig->_rumorsEnable)
+    {
+        _freshRumorZones.clear();
+        return;
+    }
+    if (_freshRumorQueryPending
+        || now - _lastFreshRumorRefresh < FRESH_RUMOR_REFRESH_MS)
+        return;
+
+    _lastFreshRumorRefresh = now;
+    _freshRumorQueryPending = true;
+    _freshRumorQueries.AddCallback(
+        CharacterDatabase.AsyncQuery(
+            "SELECT player_guid, zone_id "
+            "FROM llm_reactivity_fresh_rumor_zones")
+        .WithCallback([](QueryResult result)
+        {
+            std::unordered_set<uint64> zones;
+            if (result)
+            {
+                do
+                {
+                    Field* fields = result->Fetch();
+                    zones.insert(FreshRumorKey(
+                        fields[0].Get<uint32>(),
+                        fields[1].Get<uint32>()));
+                } while (result->NextRow());
+            }
+            _freshRumorZones.swap(zones);
+            _freshRumorQueryPending = false;
+        }));
+}
+
 bool HasFreshRumorHere(Player* player)
 {
     if (!sLLMChatterConfig
         || !sLLMChatterConfig->_rumorsEnable
-        || !player)
+        || !player || _freshRumorZones.empty())
         return false;
 
     // Zone 0 marks a rumor that may be told anywhere.
-    return static_cast<bool>(CharacterDatabase.Query(
-        "SELECT 1 FROM llm_reactivity_fresh_rumor_zones "
-        "WHERE player_guid = "
-        + std::to_string(player->GetGUID().GetCounter())
-        + " AND zone_id IN (0, "
-        + std::to_string(player->GetZoneId())
-        + ") LIMIT 1"));
+    uint32 guid = player->GetGUID().GetCounter();
+    return _freshRumorZones.count(FreshRumorKey(guid, 0))
+        || _freshRumorZones.count(
+            FreshRumorKey(guid, player->GetZoneId()));
 }
 
 void AddLLMChatterReactivityScripts()

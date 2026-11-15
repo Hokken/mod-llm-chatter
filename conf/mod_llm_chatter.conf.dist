@@ -5151,6 +5151,11 @@ LLMChatter.Screenshot.Proximity.MaxAgeSeconds = 60
 #   what the player did. Most settings are read by the bridge; restart
 #   it after edits. Requires the 20261103 migrations in data/sql.
 #
+#   Turning a letter type off stops new deeds and new letters of that
+#   type once the process has loaded the config: restart the bridge,
+#   and use .reload config for the keys the worldserver reads. Letters
+#   already scheduled or written are not cancelled.
+#
 #   LLMChatter.Letters.Enable
 #       Master switch for letters. Also read by the worldserver.
 #       Default: 1 (enabled)
@@ -5181,16 +5186,17 @@ LLMChatter.Letters.BatchSize = 3
 
 #
 #   LLMChatter.Letters.MaxChars
-#       Longest letter body. The server sets no limit of its own. The
-#       model is asked for one word per 8 of these, and anything over
-#       is cut at a full sentence, keeping the sign-off.
+#       Target letter length. It only steers the prompt: the model is
+#       asked for one word per 8 of these, and the letter it writes is
+#       delivered whole.
 #       Default: 900
 #
 LLMChatter.Letters.MaxChars = 900
 
 #
 #   LLMChatter.Letters.MaxSubjectChars
-#       Longest letter subject.
+#       Target subject length, in the prompt only. A subject is cut
+#       only past its 128-character column, at a whole word.
 #       Default: 60
 #
 LLMChatter.Letters.MaxSubjectChars = 60
@@ -5211,6 +5217,14 @@ LLMChatter.Letters.Memories.Enable = 1
 #
 LLMChatter.Letters.Memories.CooldownMinDays = 7
 LLMChatter.Letters.Memories.CooldownMaxDays = 10
+
+#
+#   LLMChatter.Letters.Memories.PreciousChance
+#       Percent chance (0-100) that a memory letter's gift may be one
+#       of the rare treats in the common gift table.
+#       Default: 10
+#
+LLMChatter.Letters.Memories.PreciousChance = 10
 
 #
 #   LLMChatter.Letters.Dungeons.Enable
@@ -5292,6 +5306,11 @@ LLMChatter.Letters.Professions.IntervalMaxLevels = 16
 #   did. Rumors replace the topic of an ordinary proximity scene, so
 #   they need LLMChatter.ProximityChatter.Enable.
 #
+#   Turning a rumor type off stops new rumors of that type once the
+#   bridge has restarted; .reload config applies Rumors.Enable to the
+#   worldserver. Rumors already fresh and lines already queued are not
+#   cancelled.
+#
 #   LLMChatter.Rumors.Enable
 #       Master switch for rumors. Also read by the worldserver.
 #       Default: 1 (enabled)
@@ -5329,3 +5348,12 @@ LLMChatter.Rumors.FreshVoicings = 2
 #       Default: 180
 #
 LLMChatter.Rumors.RepeatCooldownMinutes = 180
+
+#
+#   LLMChatter.Rumors.AddressedChance
+#       Percent chance (0-100) that a quest or dungeon rumor is spoken
+#       to the player, recognising them; otherwise it is passed on as
+#       local news. Achievement rumors are always spoken to the player.
+#       Default: 50
+#
+LLMChatter.Rumors.AddressedChance = 50

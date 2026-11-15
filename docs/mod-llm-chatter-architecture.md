@@ -403,7 +403,10 @@ Letters and rumors make the world answer what a real player did:
 2. The bridge runs `process_reactivity()` on the worker pool every
    `Letters.PollSeconds`, whether or not anyone is online. It drains the
    inbox and looks each deed up by game ID, so a deed with no content
-   costs a dictionary miss.
+   costs a dictionary miss. A deed is deleted only once handled; a
+   failure raises its `attempts`, and a row at the limit (5) is kept for
+   inspection but no longer picked up. Each deed also refreshes the
+   stored team, so a faction change carries over.
 3. A matching letter becomes a `scheduled` row with a random
    `not_before`. The `(player_guid, kind, letter_key)` unique key makes a
    letter once-only however many achievements lead to it. A failed
@@ -411,9 +414,12 @@ Letters and rumors make the world answer what a real player did:
    a normal clear's chance.
 4. When a row comes due the pass writes it (structured `letter`
    response: subject and body), strips `|` because the core blanks text
-   holding `| |`, clamps it to `Letters.MaxChars` at a sentence end while
-   keeping the sign-off, and marks it `ready`. Failed writes retry and
-   then become `failed`.
+   holding `| |`, and marks it `ready`. `Letters.MaxChars` and
+   `MaxSubjectChars` only steer the prompt: the body is delivered whole,
+   and a subject is cut only past its 128-character column, at a word.
+   Failed writes retry and then become `failed`. Senders and trainers
+   may carry a curated race, gender and faction, which the prompt shows
+   when present.
 5. C++ polls `ready` rows every `Letters.DeliveryPollSeconds`, marks one
    `sending` with a direct write, then commits the items, the mail and
    `sent` in one transaction. The direct write stops the next poll seeing
@@ -426,27 +432,32 @@ Letters and rumors make the world answer what a real player did:
    and the prompt carries the role.
 7. A matching rumor is recorded as fresh, with its zones (zone 0 means
    anywhere) in `llm_reactivity_fresh_rumor_zones`.
-   `MaybeQueueProximityScene` reads that table, skips its ambient roll
-   when a fresh rumor applies here and narrows the speakers to friendly
-   and neutral NPCs. Entity cooldowns still apply.
+   The worldserver keeps those rows in memory, reloaded by one async
+   query every 10 seconds (`UpdateFreshRumorZones()`, gated by
+   `Rumors.Enable`), so `HasFreshRumorHere()` is a lookup and the world
+   thread never waits on the database. Outside instances,
+   `MaybeQueueProximityScene` skips its ambient roll when a fresh rumor
+   applies here and narrows the speakers to friendly and neutral NPCs.
+   A scene that exists only for the rumor carries `rumor_forced`, and the
+   bridge skips it when it cannot tell the rumor there. Entity cooldowns
+   still apply.
 8. Python `pick_rumor()` runs in the ordinary `proximity_say` and
    `proximity_conversation` handlers, and only when every speaker is such
    an NPC. A fresh rumor always wins. Otherwise `Rumors.Chance` applies
    and the character's own achievement and quest records supply the
    candidates, so deeds from before the feature count at normal priority.
    Instances, fight scenes and screenshot scenes keep their own subject.
+   An addressed rumor in an NPC-only conversation lets the speakers turn
+   to the player for that scene.
 9. A rumor stops being fresh after `Rumors.FreshVoicings` lines reach the
-   player. `settle_voicings()` counts only delivered message rows, so a
-   dropped line does not use up a rumor.
+   player. `settle_voicings()` counts only message rows actually sent
+   (`delivered = 1`, `delivered_at` set, no `drop_reason`), so a dropped
+   or claimed-but-unsent line does not use up a rumor.
 
 Every gift is an existing stock item: the 3.3.5 client takes bag icons
 from its own `Item.dbc`, so an item it does not know shows a question
 mark once it leaves the mailbox. Letter prompts name every gift through
 `localize_item_name()`, so the text matches the attachment.
-
-Progression gating follows the existing add-on boundary:
-`chatter_progression.profession_available()` is always true here, and an
-add-on may wrap it, so call it through the module.
 
 ### Guild chatter data flow
 

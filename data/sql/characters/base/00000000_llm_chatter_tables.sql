@@ -413,6 +413,9 @@ CREATE TABLE IF NOT EXISTS `llm_reactivity_inbox` (
     `player_guid` INT UNSIGNED NOT NULL,
     `trigger_id`  INT UNSIGNED NOT NULL DEFAULT 0,
     `extra_data`  TEXT,
+    -- Failed handling attempts; a row at the bridge's limit is kept
+    -- for inspection but no longer picked up.
+    `attempts`    TINYINT UNSIGNED NOT NULL DEFAULT 0,
     `created_at`  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 

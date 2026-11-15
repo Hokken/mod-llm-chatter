@@ -189,36 +189,29 @@ class LetterText(unittest.TestCase):
     def test_pipes_are_removed(self):
         self.assertNotIn('|', letters.clean_text('a | | b|'))
 
-    def test_body_ends_on_a_sentence(self):
-        text = 'First sentence here. Second one is rather long indeed.'
-        self.assertEqual(
-            letters.clamp_body(text, 30), 'First sentence here.',
-        )
+    def test_body_is_delivered_whole(self):
+        body = ('One sentence. ' * 120 + '\n\nFrom the Isle,\nMolthor')
+        response = json.dumps({'subject': 'News', 'body': body})
+        with patch.object(letters, 'call_llm', return_value=response):
+            subject, text = letters._query_letter(
+                None, {'LLMChatter.Letters.MaxChars': 300}, 'prompt', 'x',
+            )
+        self.assertEqual(text, letters.clean_text(body))
+        self.assertTrue(text.endswith('Molthor'))
 
-    def test_cut_keeps_the_sign_off(self):
-        text = 'One sentence. Two sentence. Three.\n\nFrom the Isle,\nMolthor'
-        self.assertEqual(
-            letters.clamp_body(text, 45),
-            'One sentence.\n\nFrom the Isle,\nMolthor',
-        )
-
-    def test_long_last_paragraph_is_not_a_sign_off(self):
-        tail = 'word ' * 30 + 'end.'
-        text = f'Opening line here.\n\n{tail}'
-        clamped = letters.clamp_body(text, 60)
-        self.assertLessEqual(len(clamped), 60)
-        self.assertTrue(clamped.startswith('Opening line here.'))
+    def test_long_subject_is_cut_only_at_its_column_on_a_word(self):
+        subject = letters.clamp_subject('word ' * 40)
+        self.assertLessEqual(len(subject), letters.SUBJECT_STORAGE_CHARS)
+        self.assertTrue(subject.endswith('word'))
+        self.assertEqual(letters.clamp_subject('A' * 70), 'A' * 70)
 
     def test_length_is_asked_for_in_words_from_the_limit(self):
         limits = letters._limits({'LLMChatter.Letters.MaxChars': 700})
         self.assertEqual(limits['target_words'], 87)
 
-    def test_short_body_is_untouched(self):
-        self.assertEqual(letters.clamp_body('Hi.', 30), 'Hi.')
-
-    def test_subject_is_one_short_line(self):
+    def test_subject_is_one_line(self):
         self.assertEqual(
-            letters.clamp_subject('News\nfrom  Elwynn', 9), 'News from',
+            letters.clamp_subject('News\nfrom  Elwynn'), 'News from Elwynn',
         )
 
     def test_items_spec(self):
@@ -446,16 +439,6 @@ class Scheduling(unittest.TestCase):
         )
         self.assertEqual(offered, 'Tailoring')
 
-    def test_locked_profession_is_not_offered(self):
-        with patch(
-            'chatter_letters.chatter_progression.profession_available',
-            lambda db, guid, name: name == 'Cooking',
-        ):
-            offered, _db = self._starter(
-                {'team': 'Alliance', 'starter_one_skill': None},
-            )
-        self.assertEqual(offered, 'Cooking')
-
     def test_custom_race_falls_back_to_the_faction(self):
         trainer = letters._trainer_for('Mining', 'Horde', 'Goblin')
         self.assertTrue(trainer)
@@ -473,10 +456,39 @@ class Gifts(unittest.TestCase):
         mana = {'cat': 'mana', 'name': 'Mana Potion', 'note': ''}
         self.assertTrue(letters.fits_class(mana, 'Mage'))
         self.assertFalse(letters.fits_class(mana, 'Warrior'))
-        scroll = {'cat': 'scroll', 'name': 'Scroll of Strength'}
+        scroll = {'cat': 'scroll', 'name': 'Scroll', 'stat': 'strength'}
         self.assertFalse(letters.fits_class(scroll, 'Mage'))
-        stone = {'cat': 'weapon', 'name': 'Stone', 'note': 'Blade'}
+        self.assertTrue(letters.fits_class(scroll, 'Warrior'))
+        stone = {'cat': 'weapon', 'name': 'Stone', 'stat': 'physical'}
         self.assertFalse(letters.fits_class(stone, 'Mage'))
+        oil = {'cat': 'weapon', 'name': 'Oil', 'stat': 'caster'}
+        self.assertTrue(letters.fits_class(oil, 'Mage'))
+        self.assertFalse(letters.fits_class(oil, 'Rogue'))
+
+    def test_fit_reads_the_stat_field_not_the_name(self):
+        # The name is free text; only the explicit field decides.
+        scroll = {'cat': 'scroll', 'name': 'Scroll of Strength'}
+        self.assertTrue(letters.fits_class(scroll, 'Mage'))
+        stats = {g.get('stat', '') for g in data.gifts()['common']}
+        self.assertLessEqual(
+            stats, {'', 'strength', 'agility', 'caster', 'physical'},
+        )
+
+    def test_precious_gifts_follow_their_chance(self):
+        table = {'common': [
+            {'cat': 'food', 'id': 1, 'name': 'Bread', 'note': '',
+             'min': 1, 'until': 80},
+            {'cat': 'food', 'id': 2, 'name': 'Cake',
+             'note': 'a generous gift', 'min': 1, 'until': 80},
+        ]}
+        db = FakeDb({'SELECT RequiredLevel': [(1,)]})
+        with patch.object(letters, 'gifts', return_value=table), \
+                patch.object(letters, '_pick_green', return_value=None):
+            never = {
+                letters.pick_common_gift(db, 1, 30, 'Mage', 0)[0]['entry']
+                for _ in range(100)
+            }
+        self.assertEqual(never, {1})
 
     def test_gift_suits_level_and_class(self):
         by_id = {g['id']: g for g in data.gifts()['common']}
@@ -515,6 +527,7 @@ class Gifts(unittest.TestCase):
 
 
 class GiftItems(unittest.TestCase):
+    ALL_CLASSES = {'-1', '0', '1535', '2047', '4095', '32767', '262143'}
     # The client takes bag icons from its own Item.dbc, which ends here:
     # an item past it shows a question mark once it leaves the mailbox.
     LAST_CLIENT_ITEM = 56806
@@ -551,6 +564,34 @@ class GiftItems(unittest.TestCase):
             self.assertEqual(
                 names.get(item['entry']), item['name'], item['entry']
             )
+
+    def test_every_gift_can_be_taken_and_used_by_anyone(self):
+        """No gift is unique, class-locked or needs a profession to use:
+        trade goods need one only to be worked, and the profession
+        tables go to players who have it."""
+        if not self.STOCK_ITEMS.exists():
+            self.skipTest('core item_template.sql not available')
+        sql = self.STOCK_ITEMS.read_text(encoding='utf-8', errors='replace')
+        cols = re.findall(
+            r'^  `(\w+)`', sql[:sql.index('PRIMARY KEY')], re.MULTILINE,
+        )
+        at = {c: cols.index(c) for c in (
+            'class', 'AllowableClass', 'RequiredSkill', 'maxcount',
+        )}
+        items = {}
+        for line in re.findall(r'^\((.*)\),?;?$', sql, re.MULTILINE):
+            vals = re.findall(r"'(?:[^'\\]|\\.)*'|NULL|-?[\d.e+-]+", line)
+            if len(vals) == len(cols):
+                items[int(vals[0])] = {c: vals[i] for c, i in at.items()}
+        tables = data.gifts()
+        gifts = [(g['id'], 'common') for g in tables['common']]
+        gifts += [(item['entry'], 'letter') for item in self.letter_gifts()]
+        for entry, source in gifts:
+            item = items[entry]
+            self.assertIn(item['AllowableClass'], self.ALL_CLASSES, entry)
+            self.assertEqual(item['maxcount'], '0', entry)
+            if item['class'] != '7':
+                self.assertEqual(item['RequiredSkill'], '0', (entry, source))
 
     def test_prompt_names_are_localized_and_stored_ones_kept(self):
         items = [{'entry': 2454, 'name': "Elixir of Lion's Strength",
@@ -715,6 +756,22 @@ class Rumors(unittest.TestCase):
             db, winds, 1, 'Horde',
         ))
 
+    def test_a_claimed_but_unsent_line_is_not_heard(self):
+        db = FakeDb({'FROM llm_reactivity_rumor_voicings v': []})
+        rumors.settle_voicings(db, {})
+        query = db.log[0][0]
+        self.assertIn('m.delivered_at IS NOT NULL', query)
+        self.assertIn('m.drop_reason IS NULL', query)
+
+    def test_addressed_share_comes_from_config(self):
+        row = data.rumor_by_key('quest', 'q14')
+        for chance, addressed in ((0, False), (100, True)):
+            for _ in range(20):
+                topic = rumors._render(
+                    None, 'quest', row, 1, 'Alliance', 'Ana', chance,
+                )
+                self.assertEqual(topic.addressed, addressed)
+
     def _settle(self, row, config=None):
         db = FakeDb({'FROM llm_reactivity_rumor_voicings v': [row]})
         rumors.settle_voicings(db, config or {})
@@ -748,6 +805,108 @@ class Rumors(unittest.TestCase):
             'DELETE FROM llm_reactivity_fresh_rumor_zones' in s
             for s in sql
         ))
+
+
+class Inbox(unittest.TestCase):
+    ROW = {'id': 9, 'kind': 'quest', 'player_guid': 1, 'trigger_id': 14,
+           'extra_data': '{}', 'attempts': 0}
+
+    def _drain(self, handler):
+        db = FakeDb({'FROM llm_reactivity_inbox': [dict(self.ROW)]})
+        with patch.object(letters, '_handle_deed', side_effect=handler):
+            letters._drain_inbox(db, {})
+        return [(sql, params) for sql, params in db.log]
+
+    def test_a_failed_deed_is_kept_and_counted(self):
+        def fail(*_):
+            raise RuntimeError('db away')
+        log = self._drain(fail)
+        self.assertFalse(any(sql.startswith('DELETE') for sql, _ in log))
+        self.assertIn(
+            (1, 9),
+            [p for sql, p in log if 'SET attempts' in sql],
+        )
+
+    def test_a_handled_deed_is_deleted(self):
+        log = self._drain(lambda *_: None)
+        self.assertTrue(any(
+            sql.startswith('DELETE FROM llm_reactivity_inbox')
+            for sql, _ in log
+        ))
+
+    def test_rows_past_the_limit_are_not_picked_up(self):
+        log = self._drain(lambda *_: None)
+        select, params = log[0]
+        self.assertIn('attempts < %s', select)
+        self.assertEqual(params[0], letters.INBOX_MAX_ATTEMPTS)
+
+    def test_a_faction_change_follows_the_deed(self):
+        db = FakeDb({'FROM llm_reactivity_player_state': [
+            {'player_guid': 1, 'team': 'Alliance'},
+        ]})
+        state = letters._ensure_state(db, {}, 1, {'team': 'Horde'})
+        self.assertEqual(state['team'], 'Horde')
+        self.assertTrue(any(
+            'SET team' in sql for sql, _ in db.log
+        ))
+
+
+class SenderIdentity(unittest.TestCase):
+    RACES = {
+        'Human', 'Dwarf', 'Night Elf', 'Gnome', 'Draenei', 'Orc',
+        'Undead', 'Tauren', 'Troll', 'Blood Elf', 'Goblin', 'Broken',
+        'Taunka',
+    }
+
+    def identities(self):
+        for table in data.letters().values():
+            for row in table:
+                yield from row['senders'].values()
+        yield from data.gifts()['trainers'].values()
+
+    def test_values_are_curated_or_absent(self):
+        for who in self.identities():
+            self.assertIn(who.get('gender', 'male'), ('male', 'female'))
+            self.assertIn(who.get('race', 'Human'), self.RACES)
+            self.assertNotIn('unknown', str(who).lower())
+
+    def test_known_values_render_and_missing_ones_are_left_out(self):
+        from chatter_letter_prompts import identity_line
+        self.assertEqual(
+            identity_line({'gender': 'female', 'race': 'Night Elf',
+                           'faction': 'Darnassus'}),
+            'About you: gender: female | race: Night Elf | '
+            'affiliation: Darnassus.',
+        )
+        self.assertEqual(identity_line({'race': 'Orc'}),
+                         'About you: race: Orc.')
+        self.assertEqual(identity_line({}), '')
+
+    def test_trainer_letters_carry_the_trainer_identity(self):
+        trainer = letters._with_identity(
+            {'name': 'Eladriel', 'place': 'x', 'skill': 'Skinning'},
+        )
+        prompt = profession_letter_prompt(
+            trainer, 'Skinning', RECIPIENT,
+            {'items': [{'name': 'Light Leather', 'count': 5}],
+             'what': 'Armor.'},
+            LIMITS,
+        )
+        self.assertIn('race: Night Elf', prompt)
+        self.assertNotIn('warm', prompt)
+
+
+class QuieterPreset(unittest.TestCase):
+    def test_flow_keys_are_lower(self):
+        text = (
+            TOOLS_DIR.parent / 'conf' / 'presets'
+            / 'mod_ll_chatter_quieter.conf.dist'
+        ).read_text(encoding='utf-8')
+        self.assertIn('LLMChatter.Rumors.FreshVoicings = 1', text)
+        raids = re.search(
+            r'^LLMChatter.Letters.Raids.Chance = (\d+)', text, re.MULTILINE,
+        )
+        self.assertLess(int(raids.group(1)), 100)
 
 
 class Json(unittest.TestCase):

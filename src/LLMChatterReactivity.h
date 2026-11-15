@@ -16,7 +16,12 @@ void AddLLMChatterReactivityScripts();
 void DeliverPendingReactivityLetters();
 
 // True when the bridge has a rumor about this player that is
-// still fresh and may be told in the player's current zone.
+// still fresh and may be told in the player's current zone. An
+// in-memory lookup: no database work on the world thread.
 bool HasFreshRumorHere(Player* player);
+
+// Runs the async refresh of the fresh-rumor set; call from the
+// world update. Gated by Rumors.Enable alone.
+void UpdateFreshRumorZones(uint32 now);
 
 #endif

@@ -13,7 +13,6 @@ import re
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
-import chatter_progression
 from chatter_db import get_race_name
 from chatter_llm import call_llm
 from chatter_mode import build_player_identity, is_roleplay
@@ -32,6 +31,7 @@ from chatter_reactivity_data import (
     rumor_for_quest,
     sender_for,
     trainer_entry,
+    trainer_identity,
 )
 from chatter_letter_prompts import (
     deed_letter_prompt,
@@ -51,14 +51,19 @@ from chatter_trainer_rumor_data import PROFESSION_TRAINERS
 logger = logging.getLogger(__name__)
 
 INBOX_BATCH = 100
+# A deed that keeps failing is kept for inspection after this many
+# attempts, and no longer picked up, so it never blocks the batch.
+INBOX_MAX_ATTEMPTS = 5
 MAX_ATTEMPTS = 3
 RETRY_MINUTES = 10
 NO_BOT_RETRY_HOURS = 24
 STUCK_SENDING_MINUTES = 30
-# The model counts words far better than characters, and overruns
-# either. This many characters per word it is asked for leaves room.
+# MaxChars only steers the prompt: the model counts words far better
+# than characters, so it is asked for one word per this many.
 CHARS_PER_TARGET_WORD = 8
-MAX_SIGNOFF_CHARS = 100
+# llm_reactivity_letters.subject is VARCHAR(128); the body is TEXT and
+# is never cut.
+SUBJECT_STORAGE_CHARS = 128
 
 MANA_CLASSES = {
     'Paladin', 'Hunter', 'Priest', 'Shaman', 'Mage', 'Warlock', 'Druid',
@@ -66,6 +71,11 @@ MANA_CLASSES = {
 _STRENGTH_CLASSES = {'Warrior', 'Paladin', 'Death Knight'}
 _AGILITY_CLASSES = {'Rogue', 'Hunter', 'Shaman', 'Druid'}
 _CASTERS = {'Priest', 'Mage', 'Warlock', 'Shaman', 'Druid', 'Paladin'}
+_STAT_CLASSES = {
+    'strength': _STRENGTH_CLASSES,
+    'agility': _AGILITY_CLASSES,
+    'caster': _CASTERS,
+}
 
 # Stack sizes follow the Stacks rule of the gift tables.
 _STACKS = {
@@ -81,8 +91,6 @@ _ARMOR_SUBCLASSES = {
     'Warrior': (4,), 'Paladin': (4,), 'Death Knight': (4,),
 }
 
-# A rare treat among gifts: kept, but seldom picked.
-_PRECIOUS_CHANCE = 0.1
 
 
 def _int(config, key, default) -> int:
@@ -149,29 +157,18 @@ def clean_text(text: str) -> str:
     return text.strip()
 
 
-def _cut_at_sentence(text: str, limit: int) -> str:
-    cut = text[:limit]
-    end = max(cut.rfind(mark) for mark in ('.', '!', '?', '\n'))
-    if end >= limit // 2:
-        return cut[:end + 1].rstrip()
-    return cut.rstrip()
-
-
-def clamp_body(text: str, limit: int) -> str:
-    """Cut at the last full sentence inside the limit, keeping the
-    sign-off: a letter must still say who it is from."""
-    if len(text) <= limit:
-        return text
-    head, separator, tail = text.rpartition('\n\n')
-    if not head or len(tail) > MAX_SIGNOFF_CHARS:
-        return _cut_at_sentence(text, limit)
-    kept = _cut_at_sentence(head, limit - len(tail) - len(separator))
-    return f'{kept}{separator}{tail}'
-
-
-def clamp_subject(text: str, limit: int) -> str:
+def clamp_subject(text: str) -> str:
+    """One line. Delivered whole unless it overflows its column, and
+    then cut at the last whole sentence, else the last whole word."""
     text = ' '.join(clean_text(text).split())
-    return text[:limit].rstrip()
+    if len(text) <= SUBJECT_STORAGE_CHARS:
+        return text
+    cut = text[:SUBJECT_STORAGE_CHARS + 1]
+    end = max(cut.rfind(mark) for mark in ('.', '!', '?'))
+    if end >= SUBJECT_STORAGE_CHARS // 2:
+        return cut[:end + 1]
+    space = cut.rfind(' ')
+    return (cut[:space] if space > 0 else cut[:-1]).rstrip()
 
 
 def _limits(config) -> Dict:
@@ -242,6 +239,17 @@ def _ensure_state(db, config, guid: int, facts: Dict) -> Dict:
     )
     state = cursor.fetchone()
     if state:
+        # A faction change: every deed carries the live team, so the
+        # stored one follows it.
+        team = facts.get('team')
+        if team in ('Alliance', 'Horde') and team != state['team']:
+            cursor.execute(
+                "UPDATE llm_reactivity_player_state SET team = %s "
+                "WHERE player_guid = %s",
+                (team, guid),
+            )
+            db.commit()
+            state['team'] = team
         return state
 
     level = int(facts.get('level', 1) or 1)
@@ -383,7 +391,6 @@ def _schedule_starter(
         name for name in gifts()['starters']
         if name not in known
         and name != state.get('starter_one_skill')
-        and chatter_progression.profession_available(db, guid, name)
     ]
     random.shuffle(choices)
     for profession in choices:
@@ -511,26 +518,48 @@ def _handle_deed(db, config, row: Dict) -> None:
 
 
 def _drain_inbox(db, config) -> None:
+    """Handle recorded deeds. A deed is deleted only once handled; a
+    failure (a transient DB error, say) leaves it for the next pass."""
     cursor = db.cursor(dictionary=True)
     cursor.execute(
-        "SELECT id, kind, player_guid, trigger_id, extra_data "
-        "FROM llm_reactivity_inbox ORDER BY id LIMIT %s",
-        (INBOX_BATCH,),
+        "SELECT id, kind, player_guid, trigger_id, extra_data, attempts "
+        "FROM llm_reactivity_inbox WHERE attempts < %s "
+        "ORDER BY id LIMIT %s",
+        (INBOX_MAX_ATTEMPTS, INBOX_BATCH),
     )
     rows = cursor.fetchall()
     for row in rows:
         try:
             _handle_deed(db, config, row)
         except Exception:
+            _rollback(db)
+            attempts = int(row.get('attempts') or 0) + 1
             logger.error(
-                "reactivity inbox row %s failed", row['id'],
+                "reactivity inbox row %s failed (attempt %d of %d%s)",
+                row['id'], attempts, INBOX_MAX_ATTEMPTS,
+                ", kept for inspection"
+                if attempts >= INBOX_MAX_ATTEMPTS else "",
                 exc_info=True,
             )
+            cursor.execute(
+                "UPDATE llm_reactivity_inbox SET attempts = %s "
+                "WHERE id = %s",
+                (attempts, row['id']),
+            )
+            db.commit()
+            continue
         cursor.execute(
             "DELETE FROM llm_reactivity_inbox WHERE id = %s",
             (row['id'],),
         )
         db.commit()
+
+
+def _rollback(db) -> None:
+    try:
+        db.rollback()
+    except Exception:
+        logger.debug("rollback failed", exc_info=True)
 
 
 def _group_mates(db, guid: int) -> set:
@@ -594,37 +623,16 @@ def _schedule_memory_letters(db, config) -> None:
 # ------------------------------------------------------------
 
 def fits_class(item: Dict, class_name: str) -> bool:
-    """Class fit from the gift tables: mana items for mana users, stats
-    and weapon boosts for the classes that use them."""
-    category = item['cat']
-    note = item.get('note', '')
-    name = item['name']
-    if category == 'mana':
+    """Class fit from the gift tables: mana items for mana users, and
+    the item's explicit `stat` (strength, agility, caster or physical)
+    for the classes that use it."""
+    if item['cat'] == 'mana':
         return class_name in MANA_CLASSES
-    if category == 'scroll':
-        if 'Strength' in name:
-            return class_name in _STRENGTH_CLASSES
-        if 'Agility' in name:
-            return class_name in _AGILITY_CLASSES
-        if 'Intellect' in name or 'Spirit' in name:
-            return class_name in _CASTERS
-        return True
-    if category == 'elixir':
-        if 'Strength' in note:
-            return class_name in _STRENGTH_CLASSES
-        if 'Agility' in note:
-            return class_name in _AGILITY_CLASSES
-        if any(
-            word in note for word in (
-                'Intellect', 'Spell power', 'Mana regeneration', 'Spirit',
-            )
-        ):
-            return class_name in _CASTERS
-        return True
-    if category == 'weapon':
-        if note in ('Spell power', 'Mana regeneration'):
-            return class_name in _CASTERS
+    stat = item.get('stat', '')
+    if stat == 'physical':
         return class_name not in ('Mage', 'Warlock', 'Priest')
+    if stat in _STAT_CLASSES:
+        return class_name in _STAT_CLASSES[stat]
     return True
 
 
@@ -675,10 +683,13 @@ def _usable_at(db, entry: int, level: int) -> bool:
 
 
 def pick_common_gift(
-    db, guid: int, level: int, class_name: str
+    db, guid: int, level: int, class_name: str,
+    precious_chance: int = 10,
 ) -> Tuple[Optional[Dict], str, bool]:
     """A gift for this level and class: (item, note, is_pet). Each kind
-    of gift is equally likely, however long its table."""
+    of gift is equally likely, however long its table. A rare treat
+    (a "gift" in its note) is kept in the pool only precious_chance
+    percent of the time."""
     by_category = {}
     for item in gifts()['common']:
         if item['min'] <= level <= item['until'] and fits_class(
@@ -697,7 +708,7 @@ def pick_common_gift(
             continue
         pool = by_category[category]
         common = [i for i in pool if 'gift' not in i.get('note', '')]
-        if common and random.random() >= _PRECIOUS_CHANCE:
+        if common and random.random() >= precious_chance / 100:
             pool = common
         random.shuffle(pool)
         for item in pool:
@@ -741,12 +752,10 @@ def _query_letter(
         return None
     if not isinstance(data, dict):
         return None
-    subject = clamp_subject(
-        data.get('subject'), limits['subject_chars']
-    )
-    body = clamp_body(
-        clean_text(data.get('body')), limits['body_chars']
-    )
+    # MaxChars and MaxSubjectChars steer the prompt; the text the
+    # model writes is delivered whole.
+    subject = clamp_subject(data.get('subject'))
+    body = clean_text(data.get('body'))
     if not subject or not body:
         return None
     return subject, body
@@ -848,7 +857,10 @@ def _write_memory_letter(db, client, config, letter, recipient):
     if not memories or not profile:
         return None
     item, note, is_pet = pick_common_gift(
-        db, recipient['guid'], recipient['level'], recipient['class']
+        db, recipient['guid'], recipient['level'], recipient['class'],
+        max(0, min(100, _int(
+            config, 'LLMChatter.Letters.Memories.PreciousChance', 10
+        ))),
     )
     if not item:
         return None
@@ -864,6 +876,17 @@ def _write_memory_letter(db, client, config, letter, recipient):
     return (*text, 'bot', bot_guid, [item])
 
 
+def _with_identity(trainer: Dict) -> Dict:
+    """The stored trainer with its curated race, gender and faction,
+    read now so a letter scheduled earlier still gets them."""
+    identity = trainer_identity(trainer.get('name', ''))
+    return {
+        **trainer,
+        **{key: identity[key] for key in ('race', 'gender', 'faction')
+           if identity.get(key)},
+    }
+
+
 def _write_starter_letter(db, client, config, letter, recipient):
     context = json.loads(letter['context'])
     profession = context['profession']
@@ -872,8 +895,8 @@ def _write_starter_letter(db, client, config, letter, recipient):
         **starter, 'items': _localized_gifts(db, starter['items']),
     }
     prompt = starter_letter_prompt(
-        context['trainer'], profession, recipient, named,
-        _limits(config),
+        _with_identity(context['trainer']), profession, recipient,
+        named, _limits(config),
     )
     text = _query_letter(client, config, prompt, 'letter_starter')
     if not text:
@@ -888,8 +911,8 @@ def _write_profession_letter(db, client, config, letter, recipient):
     bundle = context['bundle']
     named = {**bundle, 'items': _localized_gifts(db, bundle['items'])}
     prompt = profession_letter_prompt(
-        context['trainer'], context['profession'], recipient, named,
-        _limits(config),
+        _with_identity(context['trainer']), context['profession'],
+        recipient, named, _limits(config),
     )
     text = _query_letter(client, config, prompt, 'letter_profession')
     if not text:

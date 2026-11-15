@@ -5344,17 +5344,26 @@ systems: `LLMChatter.Letters.Enable` and `LLMChatter.Rumors.Enable`.
 The flow and ownership are in the architecture doc. This section covers
 behavior.
 
+Each letter and rumor type also has its own `Enable` key. Turning a type
+off stops new deeds and new generation of that type once the relevant
+process has loaded the config: the bridge reads its keys at start, so it
+needs a restart, and the worldserver's keys take effect after
+`.reload config`. Work already in flight is not cancelled: letters
+already scheduled or written, rumors already fresh and lines already
+queued play out.
+
 ### Letters
 
 Each letter is written by the LLM from facts and arrives with a gift.
-Limits are `Letters.MaxChars` and `Letters.MaxSubjectChars`. The server
-has no body limit of its own, only the packet size.
+`Letters.MaxChars` and `Letters.MaxSubjectChars` steer the length in the
+prompt; the text is delivered whole. Only a subject past its
+128-character column is cut, at a whole word.
 
 | Type | Trigger | Sender | Gift |
 |---|---|---|---|
 | Memories | Every 7-10 days, while the player is online | A bot with active memories of the player, outside their group | Common gift for level and class |
 | Dungeons | Achievement, 50%, 2-4 days later | From the table, by faction | From the table |
-| Raids | Achievement, 100%, 4-6 days later | From the table, by faction | New Rare item |
+| Raids | Achievement, 100%, 4-6 days later | From the table, by faction | From the table, the tier's valuable goods |
 | Quests | Turn-in, 100%, 4-6 days later | From the table, by faction or clan | From the table |
 | Starters | Random level in 5-15, then in 15-25 | A trainer for the player's race | Starter kit |
 | Professions | Level 25, then every 10-16 levels | A trainer for the player's race | Bundle for the player's skill |
@@ -5365,7 +5374,11 @@ has no body limit of its own, only the packet size.
   background to the prompt, and one random memory.
 - Common gifts respect level range, class fit and stack size, and skip a
   companion pet the character already knows. Each kind of gift is equally
-  likely, so long tables do not dominate.
+  likely, so long tables do not dominate. A rare treat stays in the pool
+  only `Letters.Memories.PreciousChance` percent of the time (10).
+- A deed is removed from the inbox only once it is handled. A failure
+  keeps it for the next pass; after 5 failed attempts it stays in the
+  table for inspection and is no longer picked up.
 - Starters need a free primary profession point and are about different
   professions. A character past a level window skips that letter. A race
   outside the trainer table gets a trainer of its faction.
@@ -5384,8 +5397,9 @@ NPCs never do.
 | Quests | Quest turn-in | The quest's regions |
 | Dungeons (and raids) | Achievement | The regions listed per faction |
 
-- Quest and dungeon rumors choose "addressed" or "recounted" at random,
-  then a phrasing. Addressed: the speaker recognises the player and
+- Quest and dungeon rumors are "addressed" `Rumors.AddressedChance`
+  percent of the time (50) and "recounted" otherwise, then pick a
+  phrasing. Addressed: the speaker recognises the player and
   "The hero" becomes their name. Recounted: local news not linked to the
   player.
 - Achievement rumors are addressed, use the Description and Notes, and
@@ -5393,7 +5407,16 @@ NPCs never do.
   or Scryers from reputation, the city from the achievement earned, the
   faction's people by team.
 - A new rumor is fresh: it skips the ambient roll and wins over everything
-  else until `Rumors.FreshVoicings` lines have reached the player.
+  else until `Rumors.FreshVoicings` lines have reached the player. A line
+  counts only once it was actually sent. The worldserver keeps the fresh
+  rumors in memory, refreshed by an async query every 10 seconds, so a
+  new rumor can take that long to be noticed. No rumor skips the roll
+  inside an instance. A scene queued only for a fresh rumor carries
+  `rumor_forced`; when the bridge will not tell the rumor there (a fight,
+  a screenshot, a hostile speaker), the scene is skipped rather than
+  becoming ordinary small talk.
+- In an NPC-only conversation, an addressed rumor lets the speakers turn
+  to the player; otherwise NPC-only scenes stay among themselves.
 - Older rumors, including deeds from before the feature, use
   `Rumors.Chance` and rest for `Rumors.RepeatCooldownMinutes`.
 
@@ -5403,6 +5426,17 @@ The tables are `tools/reactivity_letters.json`,
 `tools/reactivity_gifts.json` and `tools/reactivity_rumors.json`. Gifts
 are existing items only: the client shows a question mark in the bags
 for any item missing from its own `Item.dbc` (entries above 56806).
+A gift must also be one anyone can take and use: not unique, not
+class-locked, and not needing a profession to use (trade goods and the
+profession tables excepted). Common gifts that suit only some classes
+say so in an explicit `stat` field (`strength`, `agility`, `caster` or
+`physical`).
+
+Letter senders and the trainers (`trainers` in the gift table) may carry
+optional, curated `race`, `gender` and `faction` fields. Leave a value
+out when it is not clear: dragons in mortal form, ghosts and other
+creatures whose model does not show who they are. Never take them from
+the row's `faction`, which says who can earn the letter.
 
 The tables hold stock 3.3.5 values and work with or without
 `mod-individual-progression`. Where the mod raises an item's required

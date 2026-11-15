@@ -8,6 +8,7 @@ players who did the same thing still read different letters.
 import random
 from typing import Dict, List
 
+from chatter_guild_profile import indefinite_article
 from chatter_shared import get_language_rule
 
 _FORMAT = (
@@ -76,17 +77,34 @@ def gift_text(items: List[Dict]) -> str:
     )
 
 
+def identity_line(sender: Dict) -> str:
+    """Curated facts about the writer, like a proximity speaker's:
+    only the values the table holds, never a guess."""
+    parts = [
+        f"{label}: {sender[key]}"
+        for key, label in (
+            ('gender', 'gender'), ('race', 'race'),
+            ('faction', 'affiliation'),
+        )
+        if sender.get(key)
+    ]
+    return f"About you: {' | '.join(parts)}." if parts else ''
+
+
 def _sender_line(sender: Dict) -> str:
     if sender.get('role'):
-        return (
+        line = (
             f"You are {sender['role']}, writing a letter in World of "
             f"Warcraft. It goes out under the name {sender['name']}, "
             "but sign it as who you are."
         )
-    return (
-        f"You are {sender['name']}, writing a letter in World of "
-        "Warcraft."
-    )
+    else:
+        line = (
+            f"You are {sender['name']}, writing a letter in World of "
+            "Warcraft."
+        )
+    identity = identity_line(sender)
+    return f"{line}\n{identity}" if identity else line
 
 
 def _finish(lines: List[str], limits: Dict) -> str:
@@ -172,8 +190,9 @@ def starter_letter_prompt(
 ) -> str:
     """A trainer looking for an apprentice."""
     lines = [
-        f"You are {trainer['name']}, a {profession} trainer, writing a "
-        "letter in World of Warcraft.",
+        f"You are {trainer['name']}, {indefinite_article(profession)} "
+        f"{profession} trainer, writing a letter in World of Warcraft.",
+        *([identity_line(trainer)] if identity_line(trainer) else []),
         recipient_line(recipient),
         "You are looking for an apprentice. You have heard of the "
         "reader and are inviting them to become yours.",
@@ -195,11 +214,12 @@ def profession_letter_prompt(
 ) -> str:
     """A trainer sharing surplus materials with a known craftsman."""
     lines = [
-        f"You are {trainer['name']}, a {profession} trainer, writing a "
-        "letter in World of Warcraft.",
+        f"You are {trainer['name']}, {indefinite_article(profession)} "
+        f"{profession} trainer, writing a letter in World of Warcraft.",
+        *([identity_line(trainer)] if identity_line(trainer) else []),
         recipient_line(recipient),
-        f"You think well of the reader's skill at {profession} and want "
-        f"to say so. {random.choice(_PROFESSION_PRAISE_SOURCES)} You live "
+        f"You have heard good things of the reader's skill at "
+        f"{profession}. {random.choice(_PROFESSION_PRAISE_SOURCES)} You live "
         "far from them and have never seen them at work, so never say "
         "you watched them.",
         "You have more supplies than you need and have put some of your "
@@ -208,8 +228,7 @@ def profession_letter_prompt(
         "come for them or to call on you.",
         f"What they are good for: {bundle['what']}",
         random.choice(_PROFESSION_OPENINGS),
-        "Praise them and say what you have enclosed and why. Keep it "
-        "warm and brief.",
+        "Say what you have enclosed and why.",
         _IN_WORLD_RULES,
     ]
     return _finish(lines, limits)

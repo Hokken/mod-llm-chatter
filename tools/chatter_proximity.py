@@ -1263,11 +1263,15 @@ def _conversation_prompt(
     player_addressed = bool(
         extra.get('player_addressed', False)
     )
+    # An addressed rumor is spoken to the player: it lifts the
+    # NPC-only rule for this scene instead of contradicting it.
+    rumor_addressed = bool(rumor is not None and rumor.addressed)
     if not has_playerbot:
         # NPCs talking among themselves: no line goes to the player or
         # the bots with them. Only nearby NPCs stay addressable; a
         # payload without nearby_npc_names offers nobody.
-        player_addressed = False
+        if not rumor_addressed:
+            player_addressed = False
         npc_names = extra.get('nearby_npc_names')
         npc_names = set(npc_names) if isinstance(npc_names, list) else set()
         nearby_names = [n for n in nearby_names if n in npc_names]
@@ -1298,7 +1302,7 @@ def _conversation_prompt(
         extra, mode, participants, db=db, place_topic=place_topic,
         include_player=has_playerbot,
     ))
-    if not has_playerbot:
+    if not has_playerbot and not rumor_addressed:
         lines.append(
             "The speakers talk only among themselves"
             + (" (or to the nearby people named below)"
@@ -1417,6 +1421,17 @@ def _generate_single_line(
     )
 
 
+def _rumor_refused(db, event_id: int, extra: Dict) -> bool:
+    """A scene the worldserver queued only for a fresh rumor, which
+    the bridge will not tell here (an instance, a fight, a screenshot
+    or a hostile speaker): skip it rather than turn it into small talk
+    that skipped the ambient roll."""
+    if not extra.get('rumor_forced'):
+        return False
+    _mark_event(db, event_id, 'skipped')
+    return True
+
+
 def handle_proximity_say(db, client, config, event):
     event_id = int(event['id'])
     extra = parse_extra_data(
@@ -1430,6 +1445,8 @@ def handle_proximity_say(db, client, config, event):
         return False
 
     rumor = pick_rumor(db, config, extra, participants[:1])
+    if rumor is None and _rumor_refused(db, event_id, extra):
+        return False
     if rumor is not None and rumor.addressed:
         extra = {**extra, 'player_addressed': True}
     ok = _generate_single_line(
@@ -1469,6 +1486,8 @@ def handle_proximity_conversation(
         return False
 
     rumor = pick_rumor(db, config, extra, participants)
+    if rumor is None and _rumor_refused(db, event_id, extra):
+        return False
     if rumor is not None and rumor.addressed:
         extra = {**extra, 'player_addressed': True}
     prompt = _conversation_prompt(

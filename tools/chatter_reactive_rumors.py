@@ -249,13 +249,16 @@ def _name_hero(text: str, player_name: str) -> str:
     )
 
 
-def _render(db, kind: str, row: Dict, guid, team, player_name):
+def _render(
+    db, kind: str, row: Dict, guid, team, player_name,
+    addressed_chance: int = 50,
+):
     if kind == 'achievement':
         addressed = True
         text = row['description']
         notes = _achievement_notes(db, row, guid, team)
     else:
-        addressed = random.random() < 0.5
+        addressed = random.random() < addressed_chance / 100
         text = random.choice(
             row['addressed'] if addressed else row['recounted']
         )
@@ -317,6 +320,9 @@ def pick_rumor(
         return _render(
             db, chosen[0], chosen[1], guid, team,
             extra.get('player_name') or 'the stranger',
+            max(0, min(100, _int(
+                config, 'LLMChatter.Rumors.AddressedChance', 50
+            ))),
         )
     except Exception:
         logger.error("rumor selection failed", exc_info=True)
@@ -395,7 +401,10 @@ def settle_voicings(db, config) -> None:
     cursor.execute(
         "SELECT v.id, v.player_guid, v.kind, v.rumor_key, "
         "v.created_at < NOW() - INTERVAL %s MINUTE AS expired, "
-        "COALESCE(SUM(m.delivered = 1 AND m.drop_reason IS NULL), 0) "
+        # A claimed row is delivered = 1 before it is sent; only
+        # delivered_at marks a line that reached the player.
+        "COALESCE(SUM(m.delivered = 1 AND m.delivered_at IS NOT NULL "
+        "AND m.drop_reason IS NULL), 0) "
         "AS heard "
         "FROM llm_reactivity_rumor_voicings v "
         "LEFT JOIN llm_chatter_messages m ON m.event_id = v.event_id "

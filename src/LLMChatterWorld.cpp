@@ -391,6 +391,8 @@ public:
             DeliverPendingReactivityLetters();
         }
 
+        UpdateFreshRumorZones(now);
+
         if (now - _lastTriggerTime
             >= sLLMChatterConfig->_triggerIntervalSeconds
                 * 1000)

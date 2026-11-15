@@ -378,22 +378,6 @@
   },
   {
    "cat": "toy",
-   "id": 10684,
-   "min": 1,
-   "name": "Colossal Parachute",
-   "note": "Slow fall; handy anywhere",
-   "until": 80
-  },
-  {
-   "cat": "toy",
-   "id": 31337,
-   "min": 61,
-   "name": "Orb of the Blackwhelp",
-   "note": "Summons a tiny whelp for a while",
-   "until": 80
-  },
-  {
-   "cat": "toy",
    "id": 44482,
    "min": 71,
    "name": "Trusty Copper Racer",
@@ -426,14 +410,6 @@
   },
   {
    "cat": "toy",
-   "id": 44435,
-   "min": 71,
-   "name": "Windle's Lighter",
-   "note": "Dalaran toy shop",
-   "until": 80
-  },
-  {
-   "cat": "toy",
    "id": 37431,
    "min": 71,
    "name": "Fetch Ball",
@@ -458,50 +434,10 @@
   },
   {
    "cat": "toy",
-   "id": 46725,
-   "min": 71,
-   "name": "Red Rider Air Rifle",
-   "note": "Dalaran toy shop",
-   "until": 80
-  },
-  {
-   "cat": "toy",
-   "id": 54437,
-   "min": 71,
-   "name": "Tiny Green Ragdoll",
-   "note": "Dalaran toy shop",
-   "until": 80
-  },
-  {
-   "cat": "toy",
-   "id": 54438,
-   "min": 71,
-   "name": "Tiny Blue Ragdoll",
-   "note": "Dalaran toy shop",
-   "until": 80
-  },
-  {
-   "cat": "toy",
    "id": 34498,
    "min": 71,
    "name": "Paper Zeppelin Kit",
    "note": "Paper toy",
-   "until": 80
-  },
-  {
-   "cat": "toy",
-   "id": 44606,
-   "min": 78,
-   "name": "Toy Train Set",
-   "note": "Dalaran toy shop; a special gift",
-   "until": 80
-  },
-  {
-   "cat": "toy",
-   "id": 45057,
-   "min": 78,
-   "name": "Wind-Up Train Wrecker",
-   "note": "Dalaran toy shop; a special gift",
    "until": 80
   },
   {
@@ -830,14 +766,6 @@
    "min": 45,
    "name": "Kreeg's Stout Beatdown",
    "note": "Dire Maul brew",
-   "until": 80
-  },
-  {
-   "cat": "drink",
-   "id": 30615,
-   "min": 61,
-   "name": "Halaani Whiskey",
-   "note": "Whiskey, Outland",
    "until": 80
   },
   {
@@ -1938,10 +1866,10 @@
   },
   {
    "cat": "food",
-   "id": 43015,
-   "min": 78,
-   "name": "Fish Feast",
-   "note": "Feast for the party; a generous gift",
+   "id": 34768,
+   "min": 70,
+   "name": "Spicy Blue Nettlefish",
+   "note": "",
    "until": 80
   },
   {
@@ -1950,7 +1878,8 @@
    "min": 1,
    "name": "Scroll of Spirit",
    "note": "",
-   "until": 20
+   "until": 20,
+   "stat": "caster"
   },
   {
    "cat": "scroll",
@@ -1966,7 +1895,8 @@
    "min": 1,
    "name": "Scroll of Intellect",
    "note": "",
-   "until": 20
+   "until": 20,
+   "stat": "caster"
   },
   {
    "cat": "scroll",
@@ -1982,7 +1912,8 @@
    "min": 1,
    "name": "Scroll of Strength",
    "note": "",
-   "until": 20
+   "until": 20,
+   "stat": "strength"
   },
   {
    "cat": "scroll",
@@ -1990,7 +1921,8 @@
    "min": 1,
    "name": "Scroll of Agility",
    "note": "",
-   "until": 20
+   "until": 20,
+   "stat": "agility"
   },
   {
    "cat": "scroll",
@@ -2006,7 +1938,8 @@
    "min": 15,
    "name": "Scroll of Spirit II",
    "note": "",
-   "until": 35
+   "until": 35,
+   "stat": "caster"
   },
   {
    "cat": "scroll",
@@ -2022,7 +1955,8 @@
    "min": 15,
    "name": "Scroll of Intellect II",
    "note": "",
-   "until": 35
+   "until": 35,
+   "stat": "caster"
   },
   {
    "cat": "scroll",
@@ -2030,7 +1964,8 @@
    "min": 15,
    "name": "Scroll of Agility II",
    "note": "",
-   "until": 35
+   "until": 35,
+   "stat": "agility"
   },
   {
    "cat": "scroll",
@@ -2038,7 +1973,8 @@
    "min": 15,
    "name": "Scroll of Strength II",
    "note": "",
-   "until": 35
+   "until": 35,
+   "stat": "strength"
   },
   {
    "cat": "scroll",
@@ -2046,7 +1982,8 @@
    "min": 30,
    "name": "Scroll of Spirit III",
    "note": "",
-   "until": 45
+   "until": 45,
+   "stat": "caster"
   },
   {
    "cat": "scroll",
@@ -2070,7 +2007,8 @@
    "min": 30,
    "name": "Scroll of Intellect III",
    "note": "",
-   "until": 45
+   "until": 45,
+   "stat": "caster"
   },
   {
    "cat": "scroll",
@@ -2078,7 +2016,8 @@
    "min": 30,
    "name": "Scroll of Agility III",
    "note": "",
-   "until": 45
+   "until": 45,
+   "stat": "agility"
   },
   {
    "cat": "scroll",
@@ -2086,7 +2025,8 @@
    "min": 30,
    "name": "Scroll of Strength III",
    "note": "",
-   "until": 45
+   "until": 45,
+   "stat": "strength"
   },
   {
    "cat": "scroll",
@@ -2102,7 +2042,8 @@
    "min": 40,
    "name": "Scroll of Spirit IV",
    "note": "",
-   "until": 55
+   "until": 55,
+   "stat": "caster"
   },
   {
    "cat": "scroll",
@@ -2118,7 +2059,8 @@
    "min": 40,
    "name": "Scroll of Intellect IV",
    "note": "",
-   "until": 55
+   "until": 55,
+   "stat": "caster"
   },
   {
    "cat": "scroll",
@@ -2126,7 +2068,8 @@
    "min": 40,
    "name": "Scroll of Agility IV",
    "note": "",
-   "until": 55
+   "until": 55,
+   "stat": "agility"
   },
   {
    "cat": "scroll",
@@ -2134,7 +2077,8 @@
    "min": 40,
    "name": "Scroll of Strength IV",
    "note": "",
-   "until": 55
+   "until": 55,
+   "stat": "strength"
   },
   {
    "cat": "scroll",
@@ -2142,7 +2086,8 @@
    "min": 50,
    "name": "Scroll of Intellect V",
    "note": "",
-   "until": 65
+   "until": 65,
+   "stat": "caster"
   },
   {
    "cat": "scroll",
@@ -2150,7 +2095,8 @@
    "min": 50,
    "name": "Scroll of Agility V",
    "note": "",
-   "until": 65
+   "until": 65,
+   "stat": "agility"
   },
   {
    "cat": "scroll",
@@ -2166,7 +2112,8 @@
    "min": 50,
    "name": "Scroll of Spirit V",
    "note": "",
-   "until": 65
+   "until": 65,
+   "stat": "caster"
   },
   {
    "cat": "scroll",
@@ -2182,7 +2129,8 @@
    "min": 50,
    "name": "Scroll of Strength V",
    "note": "",
-   "until": 65
+   "until": 65,
+   "stat": "strength"
   },
   {
    "cat": "scroll",
@@ -2190,7 +2138,8 @@
    "min": 60,
    "name": "Scroll of Agility VI",
    "note": "",
-   "until": 75
+   "until": 75,
+   "stat": "agility"
   },
   {
    "cat": "scroll",
@@ -2198,7 +2147,8 @@
    "min": 60,
    "name": "Scroll of Intellect VI",
    "note": "",
-   "until": 75
+   "until": 75,
+   "stat": "caster"
   },
   {
    "cat": "scroll",
@@ -2214,7 +2164,8 @@
    "min": 60,
    "name": "Scroll of Spirit VI",
    "note": "",
-   "until": 75
+   "until": 75,
+   "stat": "caster"
   },
   {
    "cat": "scroll",
@@ -2230,7 +2181,8 @@
    "min": 60,
    "name": "Scroll of Strength VI",
    "note": "",
-   "until": 75
+   "until": 75,
+   "stat": "strength"
   },
   {
    "cat": "scroll",
@@ -2238,7 +2190,8 @@
    "min": 70,
    "name": "Scroll of Intellect VII",
    "note": "",
-   "until": 80
+   "until": 80,
+   "stat": "caster"
   },
   {
    "cat": "scroll",
@@ -2254,7 +2207,8 @@
    "min": 70,
    "name": "Scroll of Spirit VII",
    "note": "",
-   "until": 80
+   "until": 80,
+   "stat": "caster"
   },
   {
    "cat": "scroll",
@@ -2270,7 +2224,8 @@
    "min": 70,
    "name": "Scroll of Agility VII",
    "note": "",
-   "until": 80
+   "until": 80,
+   "stat": "agility"
   },
   {
    "cat": "scroll",
@@ -2278,7 +2233,8 @@
    "min": 70,
    "name": "Scroll of Strength VII",
    "note": "",
-   "until": 80
+   "until": 80,
+   "stat": "strength"
   },
   {
    "cat": "scroll",
@@ -2286,7 +2242,8 @@
    "min": 80,
    "name": "Scroll of Intellect VIII",
    "note": "",
-   "until": 80
+   "until": 80,
+   "stat": "caster"
   },
   {
    "cat": "scroll",
@@ -2310,7 +2267,8 @@
    "min": 80,
    "name": "Scroll of Spirit VIII",
    "note": "",
-   "until": 80
+   "until": 80,
+   "stat": "caster"
   },
   {
    "cat": "scroll",
@@ -2318,7 +2276,8 @@
    "min": 80,
    "name": "Scroll of Agility VIII",
    "note": "",
-   "until": 80
+   "until": 80,
+   "stat": "agility"
   },
   {
    "cat": "scroll",
@@ -2326,7 +2285,8 @@
    "min": 80,
    "name": "Scroll of Strength VIII",
    "note": "",
-   "until": 80
+   "until": 80,
+   "stat": "strength"
   },
   {
    "cat": "elixir",
@@ -2342,7 +2302,8 @@
    "min": 1,
    "name": "Elixir of Lion's Strength",
    "note": "Strength",
-   "until": 25
+   "until": 25,
+   "stat": "strength"
   },
   {
    "cat": "elixir",
@@ -2358,7 +2319,8 @@
    "min": 2,
    "name": "Elixir of Minor Agility",
    "note": "Agility",
-   "until": 23
+   "until": 23,
+   "stat": "agility"
   },
   {
    "cat": "elixir",
@@ -2366,7 +2328,8 @@
    "min": 10,
    "name": "Elixir of Wisdom",
    "note": "Intellect",
-   "until": 42
+   "until": 42,
+   "stat": "caster"
   },
   {
    "cat": "elixir",
@@ -2382,7 +2345,8 @@
    "min": 18,
    "name": "Elixir of Lesser Agility",
    "note": "Agility",
-   "until": 32
+   "until": 32,
+   "stat": "agility"
   },
   {
    "cat": "elixir",
@@ -2390,7 +2354,8 @@
    "min": 20,
    "name": "Elixir of Ogre's Strength",
    "note": "Strength",
-   "until": 43
+   "until": 43,
+   "stat": "strength"
   },
   {
    "cat": "elixir",
@@ -2406,7 +2371,8 @@
    "min": 27,
    "name": "Elixir of Agility",
    "note": "Agility",
-   "until": 43
+   "until": 43,
+   "stat": "agility"
   },
   {
    "cat": "elixir",
@@ -2422,7 +2388,8 @@
    "min": 37,
    "name": "Elixir of Greater Intellect",
    "note": "Intellect",
-   "until": 55
+   "until": 55,
+   "stat": "caster"
   },
   {
    "cat": "elixir",
@@ -2430,7 +2397,8 @@
    "min": 38,
    "name": "Elixir of Giants",
    "note": "Strength",
-   "until": 50
+   "until": 50,
+   "stat": "strength"
   },
   {
    "cat": "elixir",
@@ -2438,7 +2406,8 @@
    "min": 38,
    "name": "Elixir of Greater Agility",
    "note": "Agility",
-   "until": 51
+   "until": 51,
+   "stat": "agility"
   },
   {
    "cat": "elixir",
@@ -2454,7 +2423,8 @@
    "min": 44,
    "name": "Elixir of the Sages",
    "note": "Intellect and Spirit",
-   "until": 55
+   "until": 55,
+   "stat": "caster"
   },
   {
    "cat": "elixir",
@@ -2462,7 +2432,8 @@
    "min": 45,
    "name": "Elixir of Brute Force",
    "note": "Strength and Stamina",
-   "until": 55
+   "until": 55,
+   "stat": "strength"
   },
   {
    "cat": "elixir",
@@ -2470,7 +2441,8 @@
    "min": 46,
    "name": "Elixir of the Mongoose",
    "note": "Agility and critical strike",
-   "until": 55
+   "until": 55,
+   "stat": "agility"
   },
   {
    "cat": "elixir",
@@ -2478,7 +2450,8 @@
    "min": 50,
    "name": "Elixir of Draenic Wisdom",
    "note": "Intellect and Spirit",
-   "until": 60
+   "until": 60,
+   "stat": "caster"
   },
   {
    "cat": "elixir",
@@ -2486,7 +2459,8 @@
    "min": 50,
    "name": "Elixir of Major Strength",
    "note": "Strength",
-   "until": 75
+   "until": 75,
+   "stat": "strength"
   },
   {
    "cat": "elixir",
@@ -2502,7 +2476,8 @@
    "min": 50,
    "name": "Elixir of Healing Power",
    "note": "Spell power",
-   "until": 75
+   "until": 75,
+   "stat": "caster"
   },
   {
    "cat": "elixir",
@@ -2526,7 +2501,8 @@
    "min": 55,
    "name": "Elixir of Major Agility",
    "note": "Agility",
-   "until": 75
+   "until": 75,
+   "stat": "agility"
   },
   {
    "cat": "elixir",
@@ -2534,7 +2510,8 @@
    "min": 60,
    "name": "Elixir of Major Mageblood",
    "note": "Mana regeneration",
-   "until": 75
+   "until": 75,
+   "stat": "caster"
   },
   {
    "cat": "elixir",
@@ -2542,7 +2519,8 @@
    "min": 70,
    "name": "Elixir of Spirit",
    "note": "Spirit",
-   "until": 80
+   "until": 80,
+   "stat": "caster"
   },
   {
    "cat": "elixir",
@@ -2566,7 +2544,8 @@
    "min": 70,
    "name": "Elixir of Mighty Strength",
    "note": "Strength",
-   "until": 80
+   "until": 80,
+   "stat": "strength"
   },
   {
    "cat": "elixir",
@@ -2582,7 +2561,8 @@
    "min": 70,
    "name": "Elixir of Mighty Agility",
    "note": "Agility",
-   "until": 80
+   "until": 80,
+   "stat": "agility"
   },
   {
    "cat": "elixir",
@@ -2598,7 +2578,8 @@
    "min": 70,
    "name": "Elixir of Mighty Thoughts",
    "note": "Spell power",
-   "until": 80
+   "until": 80,
+   "stat": "caster"
   },
   {
    "cat": "weapon",
@@ -2606,7 +2587,8 @@
    "min": 1,
    "name": "Rough Sharpening Stone",
    "note": "Blade",
-   "until": 10
+   "until": 10,
+   "stat": "physical"
   },
   {
    "cat": "weapon",
@@ -2614,7 +2596,8 @@
    "min": 1,
    "name": "Rough Weightstone",
    "note": "Blunt",
-   "until": 10
+   "until": 10,
+   "stat": "physical"
   },
   {
    "cat": "weapon",
@@ -2622,7 +2605,8 @@
    "min": 5,
    "name": "Coarse Sharpening Stone",
    "note": "Blade",
-   "until": 20
+   "until": 20,
+   "stat": "physical"
   },
   {
    "cat": "weapon",
@@ -2630,7 +2614,8 @@
    "min": 5,
    "name": "Coarse Weightstone",
    "note": "Blunt",
-   "until": 20
+   "until": 20,
+   "stat": "physical"
   },
   {
    "cat": "weapon",
@@ -2638,7 +2623,8 @@
    "min": 15,
    "name": "Heavy Sharpening Stone",
    "note": "Blade",
-   "until": 30
+   "until": 30,
+   "stat": "physical"
   },
   {
    "cat": "weapon",
@@ -2646,7 +2632,8 @@
    "min": 15,
    "name": "Heavy Weightstone",
    "note": "Blunt",
-   "until": 30
+   "until": 30,
+   "stat": "physical"
   },
   {
    "cat": "weapon",
@@ -2654,7 +2641,8 @@
    "min": 25,
    "name": "Solid Sharpening Stone",
    "note": "Blade",
-   "until": 40
+   "until": 40,
+   "stat": "physical"
   },
   {
    "cat": "weapon",
@@ -2662,7 +2650,8 @@
    "min": 25,
    "name": "Solid Weightstone",
    "note": "Blunt",
-   "until": 40
+   "until": 40,
+   "stat": "physical"
   },
   {
    "cat": "weapon",
@@ -2670,7 +2659,8 @@
    "min": 35,
    "name": "Dense Sharpening Stone",
    "note": "Blade",
-   "until": 55
+   "until": 55,
+   "stat": "physical"
   },
   {
    "cat": "weapon",
@@ -2678,7 +2668,8 @@
    "min": 35,
    "name": "Dense Weightstone",
    "note": "Blunt",
-   "until": 55
+   "until": 55,
+   "stat": "physical"
   },
   {
    "cat": "weapon",
@@ -2686,7 +2677,8 @@
    "min": 50,
    "name": "Fel Sharpening Stone",
    "note": "Blade",
-   "until": 65
+   "until": 65,
+   "stat": "physical"
   },
   {
    "cat": "weapon",
@@ -2694,7 +2686,8 @@
    "min": 50,
    "name": "Fel Weightstone",
    "note": "Blunt",
-   "until": 65
+   "until": 65,
+   "stat": "physical"
   },
   {
    "cat": "weapon",
@@ -2702,7 +2695,8 @@
    "min": 60,
    "name": "Adamantite Sharpening Stone",
    "note": "Blade",
-   "until": 80
+   "until": 80,
+   "stat": "physical"
   },
   {
    "cat": "weapon",
@@ -2710,7 +2704,8 @@
    "min": 60,
    "name": "Adamantite Weightstone",
    "note": "Blunt",
-   "until": 80
+   "until": 80,
+   "stat": "physical"
   },
   {
    "cat": "weapon",
@@ -2718,7 +2713,8 @@
    "min": 5,
    "name": "Minor Wizard Oil",
    "note": "Spell power",
-   "until": 35
+   "until": 35,
+   "stat": "caster"
   },
   {
    "cat": "weapon",
@@ -2726,7 +2722,8 @@
    "min": 30,
    "name": "Lesser Wizard Oil",
    "note": "Spell power",
-   "until": 45
+   "until": 45,
+   "stat": "caster"
   },
   {
    "cat": "weapon",
@@ -2734,7 +2731,8 @@
    "min": 40,
    "name": "Wizard Oil",
    "note": "Spell power",
-   "until": 50
+   "until": 50,
+   "stat": "caster"
   },
   {
    "cat": "weapon",
@@ -2742,7 +2740,8 @@
    "min": 45,
    "name": "Brilliant Wizard Oil",
    "note": "Spell power",
-   "until": 63
+   "until": 63,
+   "stat": "caster"
   },
   {
    "cat": "weapon",
@@ -2750,7 +2749,8 @@
    "min": 58,
    "name": "Superior Wizard Oil",
    "note": "Spell power",
-   "until": 80
+   "until": 80,
+   "stat": "caster"
   },
   {
    "cat": "weapon",
@@ -2758,7 +2758,8 @@
    "min": 20,
    "name": "Minor Mana Oil",
    "note": "Mana regeneration",
-   "until": 45
+   "until": 45,
+   "stat": "caster"
   },
   {
    "cat": "weapon",
@@ -2766,7 +2767,8 @@
    "min": 40,
    "name": "Lesser Mana Oil",
    "note": "Mana regeneration",
-   "until": 50
+   "until": 50,
+   "stat": "caster"
   },
   {
    "cat": "weapon",
@@ -2774,7 +2776,8 @@
    "min": 45,
    "name": "Brilliant Mana Oil",
    "note": "Mana regeneration",
-   "until": 57
+   "until": 57,
+   "stat": "caster"
   },
   {
    "cat": "weapon",
@@ -2782,7 +2785,8 @@
    "min": 52,
    "name": "Superior Mana Oil",
    "note": "Mana regeneration",
-   "until": 80
+   "until": 80,
+   "stat": "caster"
   },
   {
    "cat": "bag",
@@ -5546,110 +5550,633 @@
   }
  },
  "trainers": {
-  "\"Cookie\" McWeaksauce": 17246,
-  "Adele Fielder": 1632,
-  "Akham": 16728,
-  "Alchemist Mallory": 1215,
-  "Alestus": 16662,
-  "Androl Oakhand": 3607,
-  "Arnok": 3373,
-  "Balthus Stoneflayer": 6291,
-  "Belil": 16663,
-  "Bemarrin": 16669,
-  "Bena Winterhoof": 3009,
-  "Botanist Tyniarrel": 16367,
-  "Brek Stonehoof": 3001,
-  "Brom Killian": 4598,
-  "Bronk Guzzlegear": 1702,
-  "Byancie": 6094,
-  "Camberon": 16642,
-  "Carolai Anise": 2132,
-  "Catarina Stanford": 30713,
-  "Chaw Stronghide": 3069,
-  "Clyde Kellen": 5690,
-  "Cyndra Kindwhisper": 3603,
-  "Danwe": 16667,
-  "Delfrum Flintbeard": 6299,
-  "Diktynna": 17101,
-  "Drathen": 16780,
-  "Dulvi": 17488,
-  "Dwukk": 3174,
-  "Eladriel": 6292,
-  "Eldrin": 1103,
-  "Elise Brightletter": 30717,
-  "Eunice Burch": 4552,
-  "Farii": 19778,
-  "Feyden Darkin": 30715,
-  "Firodren Mooncaller": 4204,
-  "Franklin Lloyd": 11031,
-  "Gelman Stonehand": 5513,
-  "Gimble Thistlefuzz": 5157,
-  "Godan": 3345,
-  "Gremlock Pilsnor": 1699,
-  "Grimnur Stonebrand": 5161,
-  "Gurf": 17441,
-  "Helene Peltskinner": 6306,
-  "Herbalist Pomeroy": 1218,
-  "Heur": 17983,
-  "James Van Brunt": 4596,
-  "Jenna Lemkenilli": 11037,
-  "Jo'mah": 30706,
-  "Jormund Stonebrow": 5153,
-  "Josef Gregorian": 4576,
-  "Kah Mistrunner": 3028,
-  "Kalinda": 19775,
-  "Karn Stonehoof": 2998,
-  "Karolek": 3365,
-  "Keelen Sheets": 16640,
-  "Killian Hagey": 7087,
-  "Kitta Firewind": 11072,
-  "Komin Winterhoof": 3013,
-  "Krunn": 3175,
-  "Kurdram Stonehammer": 6297,
-  "Lau'Tiki": 5941,
-  "Lavinia Crowe": 4616,
-  "Lee Brown": 1651,
-  "Lilliam Sparkspindle": 5518,
-  "Lucc": 16723,
-  "Lynalis": 16688,
-  "Magar": 3363,
-  "Margaux Parchley": 30711,
-  "Martha Alliestar": 4614,
-  "Me'lynn": 4159,
-  "Miall": 16724,
-  "Miao'zan": 3184,
-  "Michelle Belle": 2329,
-  "Mishiki": 3185,
-  "Nadyia Maneweaver": 3605,
-  "Nahogg": 16725,
-  "Nissa Firestone": 5150,
-  "Nurse Neela": 5759,
-  "Nus": 16731,
-  "Ockil": 16726,
-  "Pand Stonebinder": 2798,
-  "Poshken Hardbinder": 30709,
-  "Pyall Silentstride": 3067,
-  "Quarelestra": 16277,
-  "Rawrk": 5943,
-  "Refik": 16729,
-  "Reyna Stonebranch": 5137,
-  "Roxxik": 11017,
-  "Sedana": 16633,
-  "Shelene Rhobart": 3549,
-  "Smith Argus": 514,
-  "Taladan": 4213,
-  "Tally Berryfizz": 5177,
-  "Teg Dawnstrider": 3011,
-  "Tepa": 3004,
-  "Thoth": 30716,
-  "Thuwd": 7088,
-  "Tognus Flintfire": 1241,
-  "Tomas": 1430,
-  "Tyn": 16692,
-  "Yarr Hammerstone": 5392,
-  "Yonn Deepcut": 6290,
-  "Zamja": 3399,
-  "Zantasia": 30710,
-  "Zarrin": 6286
+  "\"Cookie\" McWeaksauce": {
+   "entry": 17246,
+   "faction": "Stormwind",
+   "gender": "male",
+   "race": "Human"
+  },
+  "Adele Fielder": {
+   "entry": 1632,
+   "faction": "Stormwind",
+   "gender": "female",
+   "race": "Human"
+  },
+  "Akham": {
+   "entry": 16728,
+   "faction": "Exodar",
+   "gender": "male",
+   "race": "Draenei"
+  },
+  "Alchemist Mallory": {
+   "entry": 1215,
+   "faction": "Stormwind",
+   "gender": "male",
+   "race": "Human"
+  },
+  "Alestus": {
+   "entry": 16662,
+   "faction": "Silvermoon City",
+   "gender": "male",
+   "race": "Blood Elf"
+  },
+  "Androl Oakhand": {
+   "entry": 3607,
+   "faction": "Darnassus",
+   "gender": "male",
+   "race": "Night Elf"
+  },
+  "Arnok": {
+   "entry": 3373,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Orc"
+  },
+  "Balthus Stoneflayer": {
+   "entry": 6291,
+   "faction": "Ironforge",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Belil": {
+   "entry": 16663,
+   "faction": "Silvermoon City",
+   "gender": "male",
+   "race": "Blood Elf"
+  },
+  "Bemarrin": {
+   "entry": 16669,
+   "faction": "Silvermoon City",
+   "gender": "male",
+   "race": "Blood Elf"
+  },
+  "Bena Winterhoof": {
+   "entry": 3009,
+   "faction": "Thunder Bluff",
+   "gender": "female",
+   "race": "Tauren"
+  },
+  "Botanist Tyniarrel": {
+   "entry": 16367,
+   "faction": "Silvermoon City",
+   "gender": "male",
+   "race": "Blood Elf"
+  },
+  "Brek Stonehoof": {
+   "entry": 3001,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Brom Killian": {
+   "entry": 4598,
+   "faction": "Undercity",
+   "gender": "male",
+   "race": "Undead"
+  },
+  "Bronk Guzzlegear": {
+   "entry": 1702,
+   "faction": "Ironforge",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Byancie": {
+   "entry": 6094,
+   "faction": "Darnassus",
+   "gender": "female",
+   "race": "Night Elf"
+  },
+  "Camberon": {
+   "entry": 16642,
+   "faction": "Silvermoon City",
+   "gender": "male",
+   "race": "Blood Elf"
+  },
+  "Carolai Anise": {
+   "entry": 2132,
+   "faction": "Undercity",
+   "gender": "female",
+   "race": "Undead"
+  },
+  "Catarina Stanford": {
+   "entry": 30713,
+   "faction": "Stormwind",
+   "gender": "female",
+   "race": "Human"
+  },
+  "Chaw Stronghide": {
+   "entry": 3069,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Clyde Kellen": {
+   "entry": 5690,
+   "faction": "Undercity",
+   "gender": "male",
+   "race": "Undead"
+  },
+  "Cyndra Kindwhisper": {
+   "entry": 3603,
+   "faction": "Darnassus",
+   "gender": "female",
+   "race": "Night Elf"
+  },
+  "Danwe": {
+   "entry": 16667,
+   "faction": "Silvermoon City",
+   "gender": "female",
+   "race": "Blood Elf"
+  },
+  "Delfrum Flintbeard": {
+   "entry": 6299,
+   "faction": "Darnassus",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Diktynna": {
+   "entry": 17101,
+   "faction": "Exodar",
+   "gender": "female",
+   "race": "Draenei"
+  },
+  "Drathen": {
+   "entry": 16780,
+   "faction": "Silvermoon City",
+   "gender": "male",
+   "race": "Blood Elf"
+  },
+  "Dulvi": {
+   "entry": 17488,
+   "faction": "Exodar",
+   "gender": "female",
+   "race": "Draenei"
+  },
+  "Dwukk": {
+   "entry": 3174,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Orc"
+  },
+  "Eladriel": {
+   "entry": 6292,
+   "faction": "Darnassus",
+   "gender": "female",
+   "race": "Night Elf"
+  },
+  "Eldrin": {
+   "entry": 1103,
+   "faction": "Stormwind",
+   "gender": "male",
+   "race": "Human"
+  },
+  "Elise Brightletter": {
+   "entry": 30717,
+   "faction": "Ironforge",
+   "gender": "female",
+   "race": "Dwarf"
+  },
+  "Eunice Burch": {
+   "entry": 4552,
+   "faction": "Undercity",
+   "gender": "female",
+   "race": "Undead"
+  },
+  "Farii": {
+   "entry": 19778,
+   "faction": "Exodar",
+   "gender": "female",
+   "race": "Draenei"
+  },
+  "Feyden Darkin": {
+   "entry": 30715,
+   "faction": "Darnassus",
+   "gender": "male",
+   "race": "Night Elf"
+  },
+  "Firodren Mooncaller": {
+   "entry": 4204,
+   "faction": "Darnassus",
+   "gender": "male",
+   "race": "Night Elf"
+  },
+  "Franklin Lloyd": {
+   "entry": 11031,
+   "faction": "Undercity",
+   "gender": "male",
+   "race": "Undead"
+  },
+  "Gelman Stonehand": {
+   "entry": 5513,
+   "faction": "Stormwind",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Gimble Thistlefuzz": {
+   "entry": 5157,
+   "faction": "Gnomeregan Exiles",
+   "gender": "male",
+   "race": "Gnome"
+  },
+  "Godan": {
+   "entry": 3345,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Orc"
+  },
+  "Gremlock Pilsnor": {
+   "entry": 1699,
+   "faction": "Ironforge",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Grimnur Stonebrand": {
+   "entry": 5161,
+   "faction": "Ironforge",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Gurf": {
+   "entry": 17441,
+   "faction": "Stillpine Furbolg"
+  },
+  "Helene Peltskinner": {
+   "entry": 6306,
+   "faction": "Stormwind",
+   "gender": "female",
+   "race": "Human"
+  },
+  "Herbalist Pomeroy": {
+   "entry": 1218,
+   "faction": "Stormwind",
+   "gender": "female",
+   "race": "Human"
+  },
+  "Heur": {
+   "entry": 17983,
+   "faction": "Exodar",
+   "gender": "male",
+   "race": "Draenei"
+  },
+  "James Van Brunt": {
+   "entry": 4596,
+   "faction": "Undercity",
+   "gender": "male",
+   "race": "Undead"
+  },
+  "Jenna Lemkenilli": {
+   "entry": 11037,
+   "faction": "Gnomeregan Exiles",
+   "gender": "female",
+   "race": "Gnome"
+  },
+  "Jo'mah": {
+   "entry": 30706,
+   "faction": "Darkspear Trolls",
+   "gender": "male",
+   "race": "Troll"
+  },
+  "Jormund Stonebrow": {
+   "entry": 5153,
+   "faction": "Ironforge",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Josef Gregorian": {
+   "entry": 4576,
+   "faction": "Undercity",
+   "gender": "male",
+   "race": "Undead"
+  },
+  "Kah Mistrunner": {
+   "entry": 3028,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Kalinda": {
+   "entry": 19775,
+   "faction": "Silvermoon City",
+   "gender": "female",
+   "race": "Blood Elf"
+  },
+  "Karn Stonehoof": {
+   "entry": 2998,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Karolek": {
+   "entry": 3365,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Orc"
+  },
+  "Keelen Sheets": {
+   "entry": 16640,
+   "faction": "Silvermoon City",
+   "gender": "male",
+   "race": "Blood Elf"
+  },
+  "Killian Hagey": {
+   "entry": 7087,
+   "faction": "Undercity",
+   "gender": "male",
+   "race": "Undead"
+  },
+  "Kitta Firewind": {
+   "entry": 11072,
+   "faction": "Stormwind",
+   "gender": "female",
+   "race": "Human"
+  },
+  "Komin Winterhoof": {
+   "entry": 3013,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Krunn": {
+   "entry": 3175,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Orc"
+  },
+  "Kurdram Stonehammer": {
+   "entry": 6297,
+   "faction": "Darnassus",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Lau'Tiki": {
+   "entry": 5941,
+   "faction": "Darkspear Trolls",
+   "gender": "male",
+   "race": "Troll"
+  },
+  "Lavinia Crowe": {
+   "entry": 4616,
+   "faction": "Undercity",
+   "gender": "female",
+   "race": "Undead"
+  },
+  "Lee Brown": {
+   "entry": 1651,
+   "faction": "Stormwind",
+   "gender": "male",
+   "race": "Human"
+  },
+  "Lilliam Sparkspindle": {
+   "entry": 5518,
+   "faction": "Gnomeregan Exiles",
+   "gender": "male",
+   "race": "Gnome"
+  },
+  "Lucc": {
+   "entry": 16723,
+   "faction": "Exodar",
+   "gender": "male",
+   "race": "Draenei"
+  },
+  "Lynalis": {
+   "entry": 16688,
+   "faction": "Silvermoon City",
+   "gender": "female",
+   "race": "Blood Elf"
+  },
+  "Magar": {
+   "entry": 3363,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Orc"
+  },
+  "Margaux Parchley": {
+   "entry": 30711,
+   "faction": "Undercity",
+   "gender": "female",
+   "race": "Undead"
+  },
+  "Martha Alliestar": {
+   "entry": 4614,
+   "faction": "Undercity",
+   "gender": "female",
+   "race": "Undead"
+  },
+  "Me'lynn": {
+   "entry": 4159,
+   "faction": "Darnassus",
+   "gender": "female",
+   "race": "Night Elf"
+  },
+  "Miall": {
+   "entry": 16724,
+   "faction": "Exodar",
+   "gender": "female",
+   "race": "Draenei"
+  },
+  "Miao'zan": {
+   "entry": 3184,
+   "faction": "Darkspear Trolls",
+   "gender": "male",
+   "race": "Troll"
+  },
+  "Michelle Belle": {
+   "entry": 2329,
+   "faction": "Stormwind",
+   "gender": "female",
+   "race": "Human"
+  },
+  "Mishiki": {
+   "entry": 3185,
+   "faction": "Darkspear Trolls",
+   "gender": "female",
+   "race": "Troll"
+  },
+  "Nadyia Maneweaver": {
+   "entry": 3605,
+   "faction": "Darnassus",
+   "gender": "female",
+   "race": "Night Elf"
+  },
+  "Nahogg": {
+   "entry": 16725,
+   "faction": "Exodar",
+   "gender": "male",
+   "race": "Draenei"
+  },
+  "Nissa Firestone": {
+   "entry": 5150,
+   "faction": "Ironforge",
+   "gender": "female",
+   "race": "Dwarf"
+  },
+  "Nurse Neela": {
+   "entry": 5759,
+   "faction": "Undercity",
+   "gender": "female",
+   "race": "Undead"
+  },
+  "Nus": {
+   "entry": 16731,
+   "faction": "Exodar",
+   "gender": "female",
+   "race": "Draenei"
+  },
+  "Ockil": {
+   "entry": 16726,
+   "faction": "Exodar",
+   "gender": "male",
+   "race": "Draenei"
+  },
+  "Pand Stonebinder": {
+   "entry": 2798,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Poshken Hardbinder": {
+   "entry": 30709,
+   "faction": "Undercity",
+   "gender": "male",
+   "race": "Undead"
+  },
+  "Pyall Silentstride": {
+   "entry": 3067,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Quarelestra": {
+   "entry": 16277,
+   "faction": "Silvermoon City",
+   "gender": "female",
+   "race": "Blood Elf"
+  },
+  "Rawrk": {
+   "entry": 5943,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Orc"
+  },
+  "Refik": {
+   "entry": 16729,
+   "faction": "Exodar",
+   "gender": "male",
+   "race": "Draenei"
+  },
+  "Reyna Stonebranch": {
+   "entry": 5137,
+   "faction": "Ironforge",
+   "gender": "female",
+   "race": "Dwarf"
+  },
+  "Roxxik": {
+   "entry": 11017,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Goblin"
+  },
+  "Sedana": {
+   "entry": 16633,
+   "faction": "Silvermoon City",
+   "gender": "female",
+   "race": "Blood Elf"
+  },
+  "Shelene Rhobart": {
+   "entry": 3549,
+   "faction": "Undercity",
+   "gender": "female",
+   "race": "Undead"
+  },
+  "Smith Argus": {
+   "entry": 514,
+   "faction": "Stormwind",
+   "gender": "male",
+   "race": "Human"
+  },
+  "Taladan": {
+   "entry": 4213,
+   "faction": "Darnassus",
+   "gender": "male",
+   "race": "Night Elf"
+  },
+  "Tally Berryfizz": {
+   "entry": 5177,
+   "faction": "Gnomeregan Exiles",
+   "gender": "female",
+   "race": "Gnome"
+  },
+  "Teg Dawnstrider": {
+   "entry": 3011,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Tepa": {
+   "entry": 3004,
+   "faction": "Thunder Bluff",
+   "gender": "female",
+   "race": "Tauren"
+  },
+  "Thoth": {
+   "entry": 30716,
+   "faction": "Exodar",
+   "gender": "male",
+   "race": "Draenei"
+  },
+  "Thuwd": {
+   "entry": 7088,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Orc"
+  },
+  "Tognus Flintfire": {
+   "entry": 1241,
+   "faction": "Ironforge",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Tomas": {
+   "entry": 1430,
+   "faction": "Stormwind",
+   "gender": "male",
+   "race": "Human"
+  },
+  "Tyn": {
+   "entry": 16692,
+   "faction": "Silvermoon City",
+   "gender": "male",
+   "race": "Blood Elf"
+  },
+  "Yarr Hammerstone": {
+   "entry": 5392,
+   "faction": "Ironforge",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Yonn Deepcut": {
+   "entry": 6290,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Zamja": {
+   "entry": 3399,
+   "faction": "Darkspear Trolls",
+   "gender": "female",
+   "race": "Troll"
+  },
+  "Zantasia": {
+   "entry": 30710,
+   "faction": "Silvermoon City",
+   "gender": "female",
+   "race": "Blood Elf"
+  },
+  "Zarrin": {
+   "entry": 6286,
+   "faction": "Darnassus",
+   "gender": "male",
+   "race": "Night Elf"
+  }
  }
 }

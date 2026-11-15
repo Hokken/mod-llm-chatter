@@ -21,8 +21,11 @@
    "senders": {
     "any": {
      "entry": 14304,
+     "faction": "Orgrimmar",
+     "gender": "male",
      "location": "the Cleft of Shadow, Orgrimmar",
      "name": "Kor'kron Elite",
+     "race": "Orc",
      "role": "a Kor'kron guard of the Cleft of Shadow"
     }
    }
@@ -44,12 +47,14 @@
    "key": "wailing_caverns",
    "letter": "Naralex is awake. He is weak, and the Nightmare still clings to the deepest caves, but the Druids of the Fang have lost their purpose and Mutanus is dead. The wailing from the fissures has softened, and at the Lushwater Oasis I found new grass growing at the water's edge.",
    "name": "Wailing Caverns",
-   "origin": "Caught by Nalpak in the pools of the Wailing Caverns, which have grown calmer since the Disciples of Naralex were stopped. He sends a few to the one who woke Naralex, insisting they are safe to cook.",
+   "origin": "Caught by Nalpak in the pools of the Wailing Caverns, which have grown calmer since the Druids of the Fang were stopped. He sends a few to the one who woke Naralex, insisting they are safe to cook.",
    "senders": {
     "any": {
      "entry": 5767,
+     "gender": "male",
      "location": "Wailing Caverns",
      "name": "Nalpak",
+     "race": "Tauren",
      "role": ""
     }
    }
@@ -75,14 +80,20 @@
    "senders": {
     "alliance": {
      "entry": 234,
+     "faction": "Stormwind",
+     "gender": "male",
      "location": "Sentinel Hill",
      "name": "Gryan Stoutmantle",
+     "race": "Human",
      "role": ""
     },
     "horde": {
      "entry": 2496,
+     "faction": "Booty Bay",
+     "gender": "male",
      "location": "Booty Bay",
      "name": "Baron Revilgaz",
+     "race": "Goblin",
      "role": "a shipping agent of Booty Bay, writing on the baron's behalf"
     }
    }
@@ -108,14 +119,20 @@
    "senders": {
     "alliance": {
      "entry": 2543,
+     "faction": "Dalaran",
+     "gender": "male",
      "location": "the Dalaran crater",
      "name": "Archmage Ansirem Runeweaver",
+     "race": "Human",
      "role": "a Kirin Tor mage"
     },
     "horde": {
      "entry": 1938,
+     "faction": "Undercity",
+     "gender": "male",
      "location": "the Sepulcher",
      "name": "Dalar Dawnweaver",
+     "race": "Undead",
      "role": ""
     }
    }
@@ -141,14 +158,20 @@
    "senders": {
     "alliance": {
      "entry": 3845,
+     "faction": "Darnassus",
+     "gender": "female",
      "location": "Astranaar",
      "name": "Shindrell Swiftfire",
+     "race": "Night Elf",
      "role": "a priestess of Elune"
     },
     "horde": {
      "entry": 12736,
+     "faction": "Darkspear Trolls",
+     "gender": "male",
      "location": "Zoram'gar Outpost",
      "name": "Je'neu Sancrea",
+     "race": "Troll",
      "role": ""
     }
    }
@@ -162,20 +185,23 @@
     "items": [
      {
       "count": 3,
-      "entry": 7676,
-      "name": "Thistle Tea"
+      "entry": 2594,
+      "name": "Flagon of Mead"
      }
     ]
    },
    "key": "stormwind_stockade",
    "letter": "With Bazil Thredd and the other ringleaders of the riot dealt with, my guards have retaken the Stockade cell by cell. The prisoners are back behind bars where they belong, and the folk of the Canal District no longer bar their doors at night.",
    "name": "Stormwind Stockade",
-   "origin": "Confiscated from a Defias prisoner's cell by the guards after the riot in the Stockade was put down. Warden Thelwater sends them from the prison stores to the one who ended the riot, since no guard of his will be drinking a thief's tea.",
+   "origin": "Confiscated from a Defias prisoner's cell by the guards after the riot in the Stockade was put down. Warden Thelwater sends them from the prison stores to the one who ended the riot, since no guard of his will be drinking a prisoner's mead.",
    "senders": {
     "any": {
      "entry": 1719,
+     "faction": "Stormwind",
+     "gender": "male",
      "location": "Stormwind",
      "name": "Warden Thelwater",
+     "race": "Human",
      "role": ""
     }
    }
@@ -201,8 +227,11 @@
    "senders": {
     "any": {
      "entry": 4508,
+     "faction": "Ratchet",
+     "gender": "male",
      "location": "",
      "name": "Willix the Importer",
+     "race": "Goblin",
      "role": ""
     }
    }
@@ -228,14 +257,20 @@
    "senders": {
     "alliance": {
      "entry": 1268,
+     "faction": "Gnomeregan Exiles",
+     "gender": "male",
      "location": "Kharanos",
      "name": "Ozzie Togglevolt",
+     "race": "Gnome",
      "role": ""
     },
     "horde": {
      "entry": 3412,
+     "faction": "Orgrimmar",
+     "gender": "male",
      "location": "Orgrimmar",
      "name": "Nogg",
+     "race": "Goblin",
      "role": ""
     }
    }
@@ -261,8 +296,10 @@
    "senders": {
     "any": {
      "entry": 12866,
+     "gender": "female",
      "location": "near the Razorfen Downs",
      "name": "Myriam Moonsinger",
+     "race": "Night Elf",
      "role": ""
     }
    }
@@ -288,12 +325,17 @@
    "senders": {
     "alliance": {
      "entry": 3980,
+     "faction": "Stormwind",
+     "gender": "male",
      "location": "Southshore",
      "name": "Raleigh the Devout",
+     "race": "Human",
      "role": ""
     },
     "horde": {
      "entry": 1515,
+     "faction": "Undercity",
+     "gender": "male",
      "location": "Brill",
      "name": "Executor Zygand",
      "role": ""
@@ -321,14 +363,20 @@
    "senders": {
     "alliance": {
      "entry": 2916,
+     "faction": "Ironforge",
+     "gender": "male",
      "location": "Ironforge",
      "name": "Historian Karnik",
+     "race": "Dwarf",
      "role": ""
     },
     "horde": {
      "entry": 6868,
+     "faction": "Darkspear Trolls",
+     "gender": "male",
      "location": "Kargath",
      "name": "Jarkal Mossmeld",
+     "race": "Troll",
      "role": ""
     }
    }
@@ -354,8 +402,11 @@
    "senders": {
     "any": {
      "entry": 7876,
+     "faction": "Gadgetzan",
+     "gender": "male",
      "location": "Gadgetzan",
      "name": "Tran'rek",
+     "race": "Goblin",
      "role": ""
     }
    }
@@ -381,14 +432,19 @@
    "senders": {
     "alliance": {
      "entry": 13698,
+     "faction": "Cenarion Circle",
+     "gender": "male",
      "location": "Nijel's Point",
      "name": "Keeper Marandis",
      "role": ""
     },
     "horde": {
      "entry": 11823,
+     "faction": "Thunder Bluff",
+     "gender": "male",
      "location": "Shadowprey Village",
      "name": "Vark Battlescar",
+     "race": "Tauren",
      "role": ""
     }
    }
@@ -414,6 +470,7 @@
    "senders": {
     "any": {
      "entry": 5353,
+     "gender": "male",
      "location": "Swamp of Sorrows",
      "name": "Itharius",
      "role": ""
@@ -441,8 +498,11 @@
    "senders": {
     "any": {
      "entry": 12944,
+     "faction": "Thorium Brotherhood",
+     "gender": "male",
      "location": "the Grim Guzzler",
      "name": "Lokhtos Darkbargainer",
+     "race": "Dwarf",
      "role": ""
     }
    }
@@ -468,14 +528,19 @@
    "senders": {
     "alliance": {
      "entry": 9560,
+     "faction": "Stormwind",
+     "gender": "male",
      "location": "Morgan's Vigil",
      "name": "Marshal Maxwell",
+     "race": "Human",
      "role": ""
     },
     "horde": {
      "entry": 9077,
+     "gender": "male",
      "location": "Kargath",
      "name": "Warlord Goretooth",
+     "race": "Orc",
      "role": ""
     }
    }
@@ -501,8 +566,11 @@
    "senders": {
     "any": {
      "entry": 14368,
+     "faction": "Shen'dralar",
+     "gender": "male",
      "location": "Dire Maul",
      "name": "Lorekeeper Lydros",
+     "race": "Night Elf",
      "role": ""
     }
    }
@@ -528,6 +596,7 @@
    "senders": {
     "any": {
      "entry": 11216,
+     "gender": "female",
      "location": "Caer Darrow",
      "name": "Eva Sarkhoff",
      "role": ""
@@ -555,8 +624,11 @@
    "senders": {
     "any": {
      "entry": 11039,
+     "faction": "Argent Dawn",
+     "gender": "male",
      "location": "Light's Hope Chapel",
      "name": "Duke Nicholas Zverenhoff",
+     "race": "Human",
      "role": ""
     }
    }
@@ -582,14 +654,19 @@
    "senders": {
     "alliance": {
      "entry": 9560,
+     "faction": "Stormwind",
+     "gender": "male",
      "location": "Morgan's Vigil",
      "name": "Marshal Maxwell",
+     "race": "Human",
      "role": ""
     },
     "horde": {
      "entry": 4949,
+     "gender": "male",
      "location": "Orgrimmar",
      "name": "Thrall",
+     "race": "Orc",
      "role": ""
     }
    }
@@ -616,14 +693,20 @@
    "senders": {
     "alliance": {
      "entry": 17557,
+     "faction": "Honor Hold",
+     "gender": "male",
      "location": "Honor Hold",
      "name": "Lieutenant Chadwick",
+     "race": "Human",
      "role": ""
     },
     "horde": {
      "entry": 17493,
+     "faction": "Thrallmar",
+     "gender": "male",
      "location": "Thrallmar",
      "name": "Stone Guard Stok'ton",
+     "race": "Orc",
      "role": ""
     }
    }
@@ -650,14 +733,20 @@
    "senders": {
     "alliance": {
      "entry": 17479,
+     "faction": "Honor Hold",
+     "gender": "male",
      "location": "Honor Hold",
      "name": "Gunny",
+     "race": "Dwarf",
      "role": ""
     },
     "horde": {
      "entry": 17558,
+     "faction": "Thrallmar",
+     "gender": "male",
      "location": "Thrallmar",
      "name": "Caza'rez",
+     "race": "Orc",
      "role": ""
     }
    }
@@ -684,8 +773,11 @@
    "senders": {
     "any": {
      "entry": 17884,
+     "faction": "Cenarion Expedition",
+     "gender": "female",
      "location": "Coilfang Reservoir",
      "name": "Watcher Jhang",
+     "race": "Night Elf",
      "role": ""
     }
    }
@@ -712,6 +804,8 @@
    "senders": {
     "any": {
      "entry": 17866,
+     "faction": "Sporeggar",
+     "gender": "male",
      "location": "Sporeggar",
      "name": "Khn'nix",
      "role": ""
@@ -740,6 +834,8 @@
    "senders": {
     "any": {
      "entry": 19674,
+     "faction": "The Consortium",
+     "gender": "male",
      "location": "Bone Wastes",
      "name": "Nexus-Prince Haramad",
      "role": ""
@@ -768,8 +864,11 @@
    "senders": {
     "any": {
      "entry": 18675,
+     "faction": "Lower City",
+     "gender": "male",
      "location": "Refugee Caravan",
      "name": "Soolaveen",
+     "race": "Broken",
      "role": ""
     }
    }
@@ -796,6 +895,8 @@
    "senders": {
     "any": {
      "entry": 19932,
+     "faction": "Keepers of Time",
+     "gender": "male",
      "location": "Caverns of Time",
      "name": "Andormu",
      "role": ""
@@ -824,6 +925,7 @@
    "senders": {
     "any": {
      "entry": 18933,
+     "faction": "Lower City",
      "location": "Bone Wastes",
      "name": "Isfar",
      "role": ""
@@ -852,8 +954,11 @@
    "senders": {
     "any": {
      "entry": 18893,
+     "faction": "Lower City",
+     "gender": "female",
      "location": "Lower City",
      "name": "Spymistress Mehlisah Highcrown",
+     "race": "Human",
      "role": ""
     }
    }
@@ -880,6 +985,8 @@
    "senders": {
     "any": {
      "entry": 20201,
+     "faction": "Keepers of Time",
+     "gender": "male",
      "location": "the Black Morass",
      "name": "Sa'at",
      "role": ""
@@ -908,8 +1015,11 @@
    "senders": {
     "any": {
      "entry": 17884,
+     "faction": "Cenarion Expedition",
+     "gender": "female",
      "location": "Coilfang Reservoir",
      "name": "Watcher Jhang",
+     "race": "Night Elf",
      "role": ""
     }
    }
@@ -936,14 +1046,20 @@
    "senders": {
     "alliance": {
      "entry": 16819,
+     "faction": "Honor Hold",
+     "gender": "male",
      "location": "Honor Hold",
      "name": "Force Commander Danath Trollbane",
+     "race": "Human",
      "role": ""
     },
     "horde": {
      "entry": 3230,
+     "faction": "Orgrimmar",
+     "gender": "male",
      "location": "Thrallmar",
      "name": "Nazgrel",
+     "race": "Orc",
      "role": ""
     }
    }
@@ -970,6 +1086,8 @@
    "senders": {
     "any": {
      "entry": 19880,
+     "faction": "The Consortium",
+     "gender": "male",
      "location": "Area 52",
      "name": "Nether-Stalker Khay'ji",
      "role": ""
@@ -998,8 +1116,10 @@
    "senders": {
     "any": {
      "entry": 19481,
+     "gender": "male",
      "location": "the Violet Tower",
      "name": "Archmage Vargoth",
+     "race": "Human",
      "role": ""
     }
    }
@@ -1026,8 +1146,10 @@
    "senders": {
     "any": {
      "entry": 20977,
+     "gender": "male",
      "location": "",
      "name": "Millhouse Manastorm",
+     "race": "Gnome",
      "role": ""
     }
    }
@@ -1054,8 +1176,11 @@
    "senders": {
     "any": {
      "entry": 24967,
+     "faction": "Shattered Sun Offensive",
+     "gender": "male",
      "location": "Sun's Reach",
      "name": "Captain Theris Dawnhearth",
+     "race": "Blood Elf",
      "role": ""
     }
    }
@@ -1082,14 +1207,20 @@
    "senders": {
     "alliance": {
      "entry": 24111,
+     "faction": "Valiance Expedition",
+     "gender": "male",
      "location": "Valgarde",
      "name": "Defender Mordun",
+     "race": "Dwarf",
      "role": ""
     },
     "horde": {
      "entry": 23780,
+     "faction": "The Hand of Vengeance",
+     "gender": "male",
      "location": "Vengeance Landing",
      "name": "High Executor Anselm",
+     "race": "Undead",
      "role": ""
     }
    }
@@ -1116,6 +1247,7 @@
    "senders": {
     "any": {
      "entry": 26117,
+     "gender": "male",
      "location": "Transitus Shield",
      "name": "Raelorasz",
      "role": ""
@@ -1144,6 +1276,8 @@
    "senders": {
     "any": {
      "entry": 26653,
+     "faction": "Azjol-Nerub",
+     "gender": "male",
      "location": "Pit of Narjun",
      "name": "Kilix the Unraveler",
      "role": ""
@@ -1172,6 +1306,8 @@
    "senders": {
     "any": {
      "entry": 26653,
+     "faction": "Azjol-Nerub",
+     "gender": "male",
      "location": "Pit of Narjun",
      "name": "Kilix the Unraveler",
      "role": ""
@@ -1200,8 +1336,10 @@
    "senders": {
     "any": {
      "entry": 26604,
+     "gender": "male",
      "location": "Grizzly Hills",
      "name": "Mack Fearsen",
+     "race": "Human",
      "role": ""
     }
    }
@@ -1228,8 +1366,10 @@
    "senders": {
     "any": {
      "entry": 30658,
+     "gender": "female",
      "location": "the Violet Hold",
      "name": "Lieutenant Sinclari",
+     "race": "Human",
      "role": ""
     }
    }
@@ -1252,12 +1392,13 @@
    "key": "gundrak",
    "letter": "Gal'darah is dead, and with him the Drakkari's last hope of feeding on the power of their gods in Gundrak. The trolls still fight in Zul'Drak, but they are fighting for their lives now, not for conquest.",
    "name": "Gundrak",
-   "origin": "Gathered around the shrines of Gundrak after Gal'darah fell, where Chronicler Bah'Kini can finally work. Bah'Kini sends them to the one who cleared the way for his studies.",
+   "origin": "Gathered around the shrines of Gundrak after Gal'darah fell, where Chronicler Bah'Kini can finally work. Bah'Kini sends them to the one who cleared the way for Bah'Kini's studies.",
    "senders": {
     "any": {
      "entry": 30676,
      "location": "Zul'Drak",
      "name": "Chronicler Bah'Kini",
+     "race": "Troll",
      "role": ""
     }
    }
@@ -1284,8 +1425,10 @@
    "senders": {
     "any": {
      "entry": 28070,
+     "gender": "male",
      "location": "Ulduar",
      "name": "Brann Bronzebeard",
+     "race": "Dwarf",
      "role": ""
     }
    }
@@ -1312,8 +1455,10 @@
    "senders": {
     "any": {
      "entry": 30871,
+     "gender": "male",
      "location": "Utgarde Pinnacle",
      "name": "Brigg Smallshanks",
+     "race": "Dwarf",
      "role": ""
     }
    }
@@ -1340,6 +1485,7 @@
    "senders": {
     "any": {
      "entry": 27658,
+     "gender": "male",
      "location": "the Oculus",
      "name": "Belgaristrasz",
      "role": ""
@@ -1368,6 +1514,8 @@
    "senders": {
     "any": {
      "entry": 30105,
+     "faction": "The Sons of Hodir",
+     "gender": "male",
      "location": "Dun Niffelem",
      "name": "King Jokkum",
      "role": ""
@@ -1395,7 +1543,8 @@
    "origin": "Dust from the infinite dragonflight, gathered by Chromie after the culling of Stratholme was kept on its course. She sends it to the one who helped guard it, and insists it is perfectly safe.",
    "senders": {
     "any": {
-     "entry": 10667,
+     "entry": 26527,
+     "gender": "female",
      "location": "Caverns of Time",
      "name": "Chromie",
      "role": ""
@@ -1426,8 +1575,11 @@
    "senders": {
     "any": {
      "entry": 33817,
+     "faction": "Argent Crusade",
+     "gender": "female",
      "location": "Argent Tournament Grounds",
      "name": "Justicar Mariel Trueheart",
+     "race": "Human",
      "role": ""
     }
    }
@@ -1454,14 +1606,20 @@
    "senders": {
     "alliance": {
      "entry": 4968,
+     "faction": "Theramore",
+     "gender": "female",
      "location": "",
      "name": "Lady Jaina Proudmoore",
+     "race": "Human",
      "role": ""
     },
     "horde": {
      "entry": 10181,
+     "faction": "Undercity",
+     "gender": "female",
      "location": "",
      "name": "Lady Sylvanas Windrunner",
+     "race": "Undead",
      "role": ""
     }
    }
@@ -1488,14 +1646,18 @@
    "senders": {
     "alliance": {
      "entry": 37580,
+     "gender": "male",
      "location": "",
      "name": "Martin Victus",
+     "race": "Human",
      "role": ""
     },
     "horde": {
      "entry": 37581,
+     "gender": "male",
      "location": "",
      "name": "Gorkun Ironskull",
+     "race": "Orc",
      "role": ""
     }
    }
@@ -1522,14 +1684,20 @@
    "senders": {
     "alliance": {
      "entry": 4968,
+     "faction": "Theramore",
+     "gender": "female",
      "location": "",
      "name": "Lady Jaina Proudmoore",
+     "race": "Human",
      "role": ""
     },
     "horde": {
      "entry": 10181,
+     "faction": "Undercity",
+     "gender": "female",
      "location": "",
      "name": "Lady Sylvanas Windrunner",
+     "race": "Undead",
      "role": ""
     }
    }
@@ -1556,8 +1724,11 @@
    "senders": {
     "any": {
      "entry": 1252,
+     "faction": "Ironforge",
+     "gender": "male",
      "location": "Kharanos",
      "name": "Senir Whitebeard",
+     "race": "Dwarf",
      "role": ""
     }
    },
@@ -1584,8 +1755,11 @@
    "senders": {
     "any": {
      "entry": 261,
+     "faction": "Stormwind",
+     "gender": "male",
      "location": "Eastvale",
      "name": "Guard Thomas",
+     "race": "Human",
      "role": ""
     }
    },
@@ -1612,6 +1786,8 @@
    "senders": {
     "any": {
      "entry": 1515,
+     "faction": "Undercity",
+     "gender": "male",
      "location": "Brill",
      "name": "Executor Zygand",
      "role": ""
@@ -1640,8 +1816,11 @@
    "senders": {
     "any": {
      "entry": 233,
+     "faction": "Stormwind",
+     "gender": "male",
      "location": "Saldean's Farm",
      "name": "Farmer Saldean",
+     "race": "Human",
      "role": ""
     }
    },
@@ -1668,8 +1847,11 @@
    "senders": {
     "any": {
      "entry": 1093,
+     "faction": "Ironforge",
+     "gender": "male",
      "location": "Stonewrought Dam",
      "name": "Chief Engineer Hinderweir VII",
+     "race": "Dwarf",
      "role": ""
     }
    },
@@ -1696,8 +1878,11 @@
    "senders": {
     "any": {
      "entry": 2121,
+     "faction": "Undercity",
+     "gender": "male",
      "location": "the Sepulcher",
      "name": "Shadow Priest Allister",
+     "race": "Undead",
      "role": ""
     }
    },
@@ -1724,8 +1909,11 @@
    "senders": {
     "any": {
      "entry": 382,
+     "faction": "Stormwind",
+     "gender": "male",
      "location": "Lakeshire",
      "name": "Marshal Marris",
+     "race": "Human",
      "role": ""
     }
    },
@@ -1752,8 +1940,11 @@
    "senders": {
     "any": {
      "entry": 2215,
+     "faction": "Undercity",
+     "gender": "female",
      "location": "Tarren Mill",
      "name": "High Executor Darthalia",
+     "race": "Undead",
      "role": ""
     }
    },
@@ -1780,8 +1971,11 @@
    "senders": {
     "any": {
      "entry": 2228,
+     "faction": "Stormwind",
+     "gender": "male",
      "location": "Southshore",
      "name": "Lieutenant Farren Orinelle",
+     "race": "Human",
      "role": ""
     }
    },
@@ -1808,8 +2002,11 @@
    "senders": {
     "any": {
      "entry": 311,
+     "faction": "Stormwind",
+     "gender": "male",
      "location": "Sven's Camp",
      "name": "Sven Yorgen",
+     "race": "Human",
      "role": ""
     }
    },
@@ -1836,8 +2033,11 @@
    "senders": {
     "any": {
      "entry": 2104,
+     "faction": "Ironforge",
+     "gender": "male",
      "location": "Menethil Harbor",
      "name": "Captain Stoutfist",
+     "race": "Dwarf",
      "role": ""
     }
    },
@@ -1864,8 +2064,11 @@
    "senders": {
     "any": {
      "entry": 2789,
+     "faction": "Ironforge",
+     "gender": "male",
      "location": "Refuge Pointe",
      "name": "Skuerto",
+     "race": "Dwarf",
      "role": ""
     }
    },
@@ -1892,8 +2095,11 @@
    "senders": {
     "any": {
      "entry": 2771,
+     "faction": "Orgrimmar",
+     "gender": "male",
      "location": "Hammerfall",
      "name": "Drum Fel",
+     "race": "Orc",
      "role": ""
     }
    },
@@ -1920,8 +2126,10 @@
    "senders": {
     "any": {
      "entry": 2276,
+     "gender": "male",
      "location": "Southshore",
      "name": "Magistrate Henry Maleb",
+     "race": "Human",
      "role": ""
     }
    },
@@ -1948,8 +2156,11 @@
    "senders": {
     "any": {
      "entry": 5476,
+     "faction": "Stormwind",
+     "gender": "male",
      "location": "",
      "name": "Watcher Biggs",
+     "race": "Human",
      "role": ""
     }
    },
@@ -1976,8 +2187,11 @@
    "senders": {
     "any": {
      "entry": 2487,
+     "faction": "Booty Bay",
+     "gender": "male",
      "location": "Booty Bay",
      "name": "Fleet Master Seahorn",
+     "race": "Tauren",
      "role": ""
     }
    },
@@ -2004,8 +2218,11 @@
    "senders": {
     "any": {
      "entry": 5593,
+     "faction": "Orgrimmar",
+     "gender": "male",
      "location": "Stonard",
      "name": "Katar",
+     "race": "Orc",
      "role": ""
     }
    },
@@ -2033,14 +2250,18 @@
    "senders": {
     "alliance": {
      "entry": 2888,
+     "gender": "male",
      "location": "",
      "name": "Garek",
      "role": ""
     },
     "horde": {
      "entry": 1068,
+     "faction": "Orgrimmar",
+     "gender": "male",
      "location": "Kargath",
      "name": "Gorn",
+     "race": "Orc",
      "role": ""
     }
    },
@@ -2067,8 +2288,10 @@
    "senders": {
     "any": {
      "entry": 5636,
+     "gender": "male",
      "location": "Aerie Peak",
      "name": "Gryphon Master Talonaxe",
+     "race": "Dwarf",
      "role": ""
     }
    },
@@ -2095,8 +2318,10 @@
    "senders": {
     "any": {
      "entry": 14736,
+     "gender": "female",
      "location": "Revantusk Village",
      "name": "Primal Torntusk",
+     "race": "Troll",
      "role": ""
     }
    },
@@ -2123,6 +2348,7 @@
    "senders": {
     "any": {
      "entry": 8479,
+     "gender": "male",
      "location": "",
      "name": "Kalaran Windblade",
      "role": ""
@@ -2151,8 +2377,11 @@
    "senders": {
     "any": {
      "entry": 9177,
+     "faction": "Ironforge",
+     "gender": "male",
      "location": "Morgan's Vigil",
      "name": "Oralius",
+     "race": "Dwarf",
      "role": ""
     }
    },
@@ -2179,8 +2408,11 @@
    "senders": {
     "any": {
      "entry": 9082,
+     "faction": "Orgrimmar",
+     "gender": "male",
      "location": "Kargath",
      "name": "Thal'trak Proudtusk",
+     "race": "Troll",
      "role": ""
     }
    },
@@ -2207,8 +2439,11 @@
    "senders": {
     "any": {
      "entry": 11063,
+     "faction": "Argent Dawn",
+     "gender": "male",
      "location": "Light's Hope Chapel",
      "name": "Carlin Redpath",
+     "race": "Human",
      "role": ""
     }
    },
@@ -2228,16 +2463,25 @@
    },
    "key": "q2681",
    "letter": "Word is that the servants bound to the old stones are gone. I can't say the Blasted Lands look any different, but the air near the Altar of Storms feels less heavy, and the red dust no longer swirls against the wind. Small things. In this land, small things are all we get.",
-   "origin": "Found by a Nethergarde watchman near one of the binding stones, where nothing had grown in years. The watchman sends it to the player as proof that the stones are holding.",
+   "origin": "Found near one of the binding stones, where nothing had grown in years, by a Nethergarde watchman (Alliance) or by the Fallen Hero of the Horde, who keeps watch over the stones (Horde). It is sent to the player as proof that the stones are holding.",
    "quests": [
     2681
    ],
    "senders": {
-    "any": {
+    "alliance": {
      "entry": 5385,
+     "gender": "male",
      "location": "Nethergarde Keep",
      "name": "Watcher Mahar Ba",
      "role": "a watchman of Nethergarde Keep"
+    },
+    "horde": {
+     "entry": 7572,
+     "gender": "male",
+     "location": "the Blasted Lands",
+     "name": "Fallen Hero of the Horde",
+     "race": "Orc",
+     "role": ""
     }
    },
    "zone": "Blasted Lands",
@@ -2264,14 +2508,20 @@
    "senders": {
     "alliance": {
      "entry": 10838,
+     "faction": "Stormwind",
+     "gender": "male",
      "location": "Chillwind Camp",
      "name": "Commander Ashlam Valorfist",
+     "race": "Human",
      "role": ""
     },
     "horde": {
      "entry": 10837,
+     "faction": "Undercity",
+     "gender": "male",
      "location": "the Bulwark",
      "name": "High Executor Derrington",
+     "race": "Undead",
      "role": ""
     }
    },
@@ -2298,8 +2548,11 @@
    "senders": {
     "any": {
      "entry": 3188,
+     "faction": "Darkspear Trolls",
+     "gender": "male",
      "location": "Sen'jin Village",
      "name": "Master Gadrin",
+     "race": "Troll",
      "role": ""
     }
    },
@@ -2326,8 +2579,11 @@
    "senders": {
     "any": {
      "entry": 2948,
+     "faction": "Thunder Bluff",
+     "gender": "male",
      "location": "Bloodhoof Village",
      "name": "Mull Thunderhorn",
+     "race": "Tauren",
      "role": ""
     }
    },
@@ -2354,8 +2610,11 @@
    "senders": {
     "any": {
      "entry": 2078,
+     "faction": "Darnassus",
+     "gender": "male",
      "location": "Dolanaar",
      "name": "Athridas Bearmantle",
+     "race": "Night Elf",
      "role": ""
     }
    },
@@ -2382,8 +2641,11 @@
    "senders": {
     "any": {
      "entry": 3649,
+     "faction": "Darnassus",
+     "gender": "male",
      "location": "Auberdine",
      "name": "Thundris Windweaver",
+     "race": "Night Elf",
      "role": ""
     }
    },
@@ -2410,8 +2672,11 @@
    "senders": {
     "any": {
      "entry": 3389,
+     "faction": "Orgrimmar",
+     "gender": "male",
      "location": "",
      "name": "Regthar Deathgate",
+     "race": "Orc",
      "role": ""
     }
    },
@@ -2438,8 +2703,11 @@
    "senders": {
     "any": {
      "entry": 12757,
+     "faction": "Orgrimmar",
+     "gender": "male",
      "location": "Zoram'gar Outpost",
      "name": "Karang Amakkar",
+     "race": "Orc",
      "role": ""
     }
    },
@@ -2466,8 +2734,10 @@
    "senders": {
     "any": {
      "entry": 4201,
+     "gender": "male",
      "location": "Windshear Crag",
      "name": "Ziz Fizziks",
+     "race": "Goblin",
      "role": ""
     }
    },
@@ -2494,8 +2764,11 @@
    "senders": {
     "any": {
      "entry": 10638,
+     "faction": "Thunder Bluff",
+     "gender": "male",
      "location": "",
      "name": "Kanati Greycloud",
+     "race": "Tauren",
      "role": ""
     }
    },
@@ -2522,8 +2795,11 @@
    "senders": {
     "any": {
      "entry": 3691,
+     "faction": "Darnassus",
+     "gender": "female",
      "location": "Astranaar",
      "name": "Raene Wolfrunner",
+     "race": "Night Elf",
      "role": ""
     }
    },
@@ -2550,8 +2826,11 @@
    "senders": {
     "any": {
      "entry": 23905,
+     "faction": "Theramore",
+     "gender": "male",
      "location": "Theramore docks",
      "name": "Major Mills",
+     "race": "Human",
      "role": ""
     }
    },
@@ -2578,8 +2857,10 @@
    "senders": {
     "any": {
      "entry": 4926,
+     "gender": "male",
      "location": "Brackenwall Village",
      "name": "Krog",
+     "race": "Orc",
      "role": ""
     }
    },
@@ -2606,8 +2887,10 @@
    "senders": {
     "any": {
      "entry": 4706,
+     "gender": "male",
      "location": "Mirage Raceway",
      "name": "Razzeric",
+     "race": "Goblin",
      "role": ""
     }
    },
@@ -2635,12 +2918,14 @@
    "senders": {
     "1380": {
      "entry": 5397,
+     "gender": "female",
      "location": "Gelkis Village",
      "name": "Uthek the Wise",
      "role": ""
     },
     "1381": {
      "entry": 5398,
+     "gender": "male",
      "location": "Magram Village",
      "name": "Warug",
      "role": ""
@@ -2669,8 +2954,11 @@
    "senders": {
     "any": {
      "entry": 7407,
+     "faction": "Gadgetzan",
+     "gender": "male",
      "location": "Gadgetzan",
      "name": "Chief Engineer Bilgewhizzle",
+     "race": "Goblin",
      "role": ""
     }
    },
@@ -2697,8 +2985,11 @@
    "senders": {
     "any": {
      "entry": 7777,
+     "faction": "Orgrimmar",
+     "gender": "female",
      "location": "Camp Mojache",
      "name": "Rok Orhan",
+     "race": "Orc",
      "role": ""
     }
    },
@@ -2725,8 +3016,11 @@
    "senders": {
     "any": {
      "entry": 7877,
+     "faction": "Darnassus",
+     "gender": "male",
      "location": "Feathermoon Stronghold",
      "name": "Latronicus Moonspear",
+     "race": "Night Elf",
      "role": ""
     }
    },
@@ -2746,7 +3040,7 @@
    },
    "key": "q5536",
    "letter": "The satyr in the forests of Azshara have grown fewer since you came. The trees near the old Highborne ruins look a little less twisted, and I heard birdsong there yesterday. Cenarius would be glad.",
-   "origin": "Found by Loh'atu in a glade of Azshara where the satyr no longer gather. She sends it to the one who drove them out.",
+   "origin": "Found by Loh'atu in a glade of Azshara where the satyr no longer gather. Loh'atu sends it to the one who drove them out.",
    "quests": [
     5536
    ],
@@ -2755,6 +3049,7 @@
      "entry": 11548,
      "location": "",
      "name": "Loh'atu",
+     "race": "Tauren",
      "role": ""
     }
    },
@@ -2781,8 +3076,10 @@
    "senders": {
     "any": {
      "entry": 9619,
+     "gender": "male",
      "location": "",
      "name": "Torwa Pathfinder",
+     "race": "Tauren",
      "role": ""
     }
    },
@@ -2809,8 +3106,10 @@
    "senders": {
     "any": {
      "entry": 10922,
+     "gender": "female",
      "location": "Emerald Sanctuary",
      "name": "Greta Mosshoof",
+     "race": "Tauren",
      "role": ""
     }
    },
@@ -2837,8 +3136,10 @@
    "senders": {
     "any": {
      "entry": 9298,
+     "gender": "female",
      "location": "",
      "name": "Donova Snowden",
+     "race": "Dwarf",
      "role": ""
     }
    },
@@ -2865,8 +3166,11 @@
    "senders": {
     "any": {
      "entry": 15270,
+     "faction": "Cenarion Circle",
+     "gender": "male",
      "location": "Cenarion Hold",
      "name": "Huum Wildmane",
+     "race": "Tauren",
      "role": ""
     }
    },
@@ -2893,8 +3197,11 @@
    "senders": {
     "any": {
      "entry": 15399,
+     "faction": "Silvermoon City",
+     "gender": "female",
      "location": "Farstrider Retreat",
      "name": "Lieutenant Dawnrunner",
+     "race": "Blood Elf",
      "role": ""
     }
    },
@@ -2921,6 +3228,7 @@
    "senders": {
     "any": {
      "entry": 17445,
+     "faction": "Stillpine Furbolg",
      "location": "Stillpine Hold",
      "name": "Stillpine the Younger",
      "role": ""
@@ -2949,8 +3257,11 @@
    "senders": {
     "any": {
      "entry": 17658,
+     "faction": "Exodar",
+     "gender": "male",
      "location": "Blood Watch",
      "name": "Exarch Admetius",
+     "race": "Draenei",
      "role": ""
     }
    },
@@ -2977,8 +3288,11 @@
    "senders": {
     "any": {
      "entry": 16239,
+     "faction": "Silvermoon City",
+     "gender": "male",
      "location": "Sanctum of the Sun",
      "name": "Magister Kaendris",
+     "race": "Blood Elf",
      "role": ""
     }
    },
@@ -3005,8 +3319,11 @@
    "senders": {
     "any": {
      "entry": 20793,
+     "faction": "Honor Hold",
+     "gender": "male",
      "location": "Honor Hold",
      "name": "Field Marshal Brock",
+     "race": "Human",
      "role": ""
     }
    },
@@ -3033,8 +3350,11 @@
    "senders": {
     "any": {
      "entry": 21175,
+     "faction": "Orgrimmar",
+     "gender": "male",
      "location": "Thrallmar",
      "name": "Magister Bloodhawk",
+     "race": "Blood Elf",
      "role": ""
     }
    },
@@ -3061,8 +3381,11 @@
    "senders": {
     "any": {
      "entry": 17841,
+     "faction": "Cenarion Expedition",
+     "gender": "female",
      "location": "Cenarion Refuge",
      "name": "Ysiel Windsinger",
+     "race": "Night Elf",
      "role": ""
     }
    },
@@ -3090,14 +3413,18 @@
    "senders": {
     "alliance": {
      "entry": 18713,
+     "gender": "male",
      "location": "Allerian Stronghold",
      "name": "Lieutenant Gravelhammer",
+     "race": "Dwarf",
      "role": ""
     },
     "horde": {
      "entry": 18712,
+     "gender": "female",
      "location": "Stonebreaker Hold",
      "name": "Advisor Faila",
+     "race": "Blood Elf",
      "role": ""
     }
    },
@@ -3125,14 +3452,20 @@
    "senders": {
     "alliance": {
      "entry": 18183,
+     "faction": "Kurenai",
+     "gender": "male",
      "location": "Telaar",
      "name": "Arechron",
+     "race": "Broken",
      "role": ""
     },
     "horde": {
      "entry": 18407,
+     "faction": "The Mag'har",
+     "gender": "male",
      "location": "Garadar",
      "name": "Warden Bullrok",
+     "race": "Orc",
      "role": "a scout of Garadar, writing for the warden"
     }
    },
@@ -3160,14 +3493,18 @@
    "senders": {
     "alliance": {
      "entry": 22150,
+     "gender": "female",
      "location": "Sylvanaar",
      "name": "Lieutenant Fairweather",
+     "race": "Human",
      "role": ""
     },
     "horde": {
      "entry": 21147,
+     "gender": "male",
      "location": "Thunderlord Stronghold",
      "name": "Tor'chunk Twoclaws",
+     "race": "Orc",
      "role": ""
     }
    },
@@ -3194,6 +3531,7 @@
    "senders": {
     "any": {
      "entry": 19489,
+     "gender": "male",
      "location": "Kirin'Var Village",
      "name": "Lieutenant-Sorcerer Morran",
      "role": ""
@@ -3223,14 +3561,18 @@
    "senders": {
     "alliance": {
      "entry": 21330,
+     "gender": "male",
      "location": "Wildhammer Stronghold",
      "name": "Kurdran Wildhammer",
+     "race": "Dwarf",
      "role": ""
     },
     "horde": {
      "entry": 21769,
+     "gender": "male",
      "location": "Shadowmoon Village",
      "name": "Overlord Or'barokh",
+     "race": "Orc",
      "role": ""
     }
    },
@@ -3257,8 +3599,11 @@
    "senders": {
     "any": {
      "entry": 25780,
+     "faction": "Valiance Expedition",
+     "gender": "male",
      "location": "Fizzcrank Airstrip",
      "name": "Abner Fizzletorque",
+     "race": "Gnome",
      "role": ""
     }
    },
@@ -3278,15 +3623,17 @@
    },
    "key": "q11285",
    "letter": "Baleheim burn good! Winterskorn not come down to Camp Winterhoof since. Taunka go fishing, nobody get eaten. Gorth very happy.",
-   "origin": "Cooked by Sergeant Gorth at Camp Winterhoof. He sends it to the one who burned Baleheim, and admits it is mostly cooked.",
+   "origin": "Cooked by Sergeant Gorth at Camp Winterhoof. Gorth sends it to the one who burned Baleheim, and admits it is mostly cooked.",
    "quests": [
     11285
    ],
    "senders": {
     "any": {
      "entry": 24027,
+     "faction": "The Hand of Vengeance",
      "location": "Camp Winterhoof",
      "name": "Sergeant Gorth",
+     "race": "Undead",
      "role": ""
     }
    },
@@ -3313,8 +3660,11 @@
    "senders": {
     "any": {
      "entry": 24709,
+     "faction": "The Taunka",
+     "gender": "female",
      "location": "Taunka'le Village",
      "name": "Sage Aeire",
+     "race": "Tauren",
      "role": ""
     }
    },
@@ -3341,8 +3691,11 @@
    "senders": {
     "any": {
      "entry": 24038,
+     "faction": "Valiance Expedition",
+     "gender": "male",
      "location": "Westguard Keep",
      "name": "Father Levariol",
+     "race": "Human",
      "role": ""
     }
    },
@@ -3369,8 +3722,11 @@
    "senders": {
     "any": {
      "entry": 27318,
+     "faction": "Valiance Expedition",
+     "gender": "male",
      "location": "Wintergarde Keep",
      "name": "Cavalier Durkon",
+     "race": "Dwarf",
      "role": ""
     }
    },
@@ -3397,8 +3753,11 @@
    "senders": {
     "any": {
      "entry": 26379,
+     "faction": "Warsong Offensive",
+     "gender": "male",
      "location": "Agmar's Hammer",
      "name": "Overlord Agmar",
+     "race": "Orc",
      "role": ""
     }
    },
@@ -3426,14 +3785,20 @@
    "senders": {
     "alliance": {
      "entry": 26883,
+     "faction": "Valiance Expedition",
+     "gender": "male",
      "location": "Prospector's Point",
      "name": "Raegar Breakbrow",
+     "race": "Dwarf",
      "role": ""
     },
     "horde": {
      "entry": 27221,
+     "faction": "The Taunka",
+     "gender": "male",
      "location": "Camp Oneqwah",
      "name": "Tormak the Scarred",
+     "race": "Taunka",
      "role": ""
     }
    },
@@ -3460,8 +3825,11 @@
    "senders": {
     "any": {
      "entry": 28518,
+     "faction": "Knights of the Ebon Blade",
+     "gender": "male",
      "location": "Ebon Watch",
      "name": "Stefan Vadu",
+     "race": "Human",
      "role": ""
     }
    },
@@ -3488,6 +3856,7 @@
    "senders": {
     "any": {
      "entry": 27801,
+     "gender": "female",
      "location": "",
      "name": "Avatar of Freya",
      "role": ""
@@ -3516,6 +3885,7 @@
    "senders": {
     "any": {
      "entry": 29445,
+     "gender": "male",
      "location": "Temple of Storms",
      "name": "Thorim",
      "role": ""
@@ -3544,8 +3914,11 @@
    "senders": {
     "any": {
      "entry": 30002,
+     "faction": "Knights of the Ebon Blade",
+     "gender": "male",
      "location": "the Shadow Vault",
      "name": "Duke Lankral",
+     "race": "Human",
      "role": ""
     }
    },
@@ -3575,8 +3948,11 @@
    "senders": {
     "any": {
      "entry": 14875,
+     "faction": "Zandalar Tribe",
+     "gender": "male",
      "location": "Yojamba Isle",
      "name": "Molthor",
+     "race": "Troll",
      "role": ""
     }
    }
@@ -3602,8 +3978,11 @@
    "senders": {
     "any": {
      "entry": 15181,
+     "faction": "Cenarion Circle",
+     "gender": "male",
      "location": "Cenarion Hold",
      "name": "Commander Mar'alith",
+     "race": "Night Elf",
      "role": ""
     }
    }
@@ -3661,14 +4040,20 @@
    "senders": {
     "alliance": {
      "entry": 14394,
+     "faction": "Stormwind",
+     "gender": "male",
      "location": "Stormwind",
      "name": "Major Mattingly",
+     "race": "Human",
      "role": ""
     },
     "horde": {
      "entry": 14392,
+     "faction": "Orgrimmar",
+     "gender": "male",
      "location": "Orgrimmar",
      "name": "Overlord Runthak",
+     "race": "Orc",
      "role": ""
     }
    }
@@ -3694,14 +4079,20 @@
    "senders": {
     "alliance": {
      "entry": 14721,
+     "faction": "Stormwind",
+     "gender": "male",
      "location": "Stormwind",
      "name": "Field Marshal Afrasiabi",
+     "race": "Human",
      "role": ""
     },
     "horde": {
      "entry": 14720,
+     "faction": "Orgrimmar",
+     "gender": "male",
      "location": "Orgrimmar",
      "name": "High Overlord Saurfang",
+     "race": "Orc",
      "role": ""
     }
    }
@@ -3727,6 +4118,7 @@
    "senders": {
     "any": {
      "entry": 15192,
+     "faction": "Brood of Nozdormu",
      "location": "Caverns of Time",
      "name": "Anachronos",
      "role": ""
@@ -3754,8 +4146,11 @@
    "senders": {
     "any": {
      "entry": 16115,
+     "faction": "Argent Dawn",
+     "gender": "male",
      "location": "Light's Hope Chapel",
      "name": "Commander Eligor Dawnbringer",
+     "race": "Human",
      "role": ""
     }
    }
@@ -3781,8 +4176,11 @@
    "senders": {
     "any": {
      "entry": 17613,
+     "faction": "The Violet Eye",
+     "gender": "male",
      "location": "Deadwind Pass",
      "name": "Archmage Alturus",
+     "race": "Human",
      "role": ""
     }
    }
@@ -3808,6 +4206,8 @@
    "senders": {
     "any": {
      "entry": 23233,
+     "faction": "Ogri'la",
+     "gender": "male",
      "location": "Ogri'la",
      "name": "Chu'a'lor",
      "role": ""
@@ -3835,14 +4235,20 @@
    "senders": {
     "alliance": {
      "entry": 16819,
+     "faction": "Honor Hold",
+     "gender": "male",
      "location": "Honor Hold",
      "name": "Force Commander Danath Trollbane",
+     "race": "Human",
      "role": ""
     },
     "horde": {
      "entry": 3230,
+     "faction": "Orgrimmar",
+     "gender": "male",
      "location": "Thrallmar",
      "name": "Nazgrel",
+     "race": "Orc",
      "role": ""
     }
    }
@@ -3868,8 +4274,10 @@
    "senders": {
     "any": {
      "entry": 24358,
+     "gender": "male",
      "location": "",
      "name": "Harrison Jones",
+     "race": "Human",
      "role": ""
     }
    }
@@ -3895,8 +4303,11 @@
    "senders": {
     "any": {
      "entry": 17841,
+     "faction": "Cenarion Expedition",
+     "gender": "female",
      "location": "Cenarion Refuge",
      "name": "Ysiel Windsinger",
+     "race": "Night Elf",
      "role": ""
     }
    }
@@ -3922,8 +4333,10 @@
    "senders": {
     "any": {
      "entry": 18166,
+     "gender": "male",
      "location": "Shattrath City",
      "name": "Khadgar",
+     "race": "Human",
      "role": ""
     }
    }
@@ -3949,6 +4362,8 @@
    "senders": {
     "any": {
      "entry": 19935,
+     "faction": "The Scale of the Sands",
+     "gender": "female",
      "location": "Caverns of Time",
      "name": "Soridormi",
      "role": ""
@@ -3976,8 +4391,11 @@
    "senders": {
     "any": {
      "entry": 21700,
+     "faction": "Ashtongue Deathsworn",
+     "gender": "male",
      "location": "the Black Temple",
      "name": "Akama",
+     "race": "Broken",
      "role": ""
     }
    }
@@ -4003,8 +4421,10 @@
    "senders": {
     "any": {
      "entry": 17076,
+     "gender": "female",
      "location": "Isle of Quel'Danas",
      "name": "Lady Liadrin",
+     "race": "Blood Elf",
      "role": ""
     }
    }
@@ -4037,14 +4457,20 @@
    "senders": {
     "alliance": {
      "entry": 31036,
+     "faction": "Valiance Expedition",
+     "gender": "male",
      "location": "Wintergrasp",
      "name": "Commander Zanneth",
+     "race": "Human",
      "role": ""
     },
     "horde": {
      "entry": 31091,
+     "faction": "Warsong Offensive",
+     "gender": "male",
      "location": "Wintergrasp",
      "name": "Commander Dardosh",
+     "race": "Orc",
      "role": ""
     }
    }
@@ -4071,6 +4497,8 @@
    "senders": {
     "any": {
      "entry": 27575,
+     "faction": "The Wyrmrest Accord",
+     "gender": "male",
      "location": "Wyrmrest Temple",
      "name": "Lord Afrasastrasz",
      "role": ""
@@ -4099,6 +4527,8 @@
    "senders": {
     "any": {
      "entry": 26949,
+     "faction": "The Wyrmrest Accord",
+     "gender": "female",
      "location": "Wyrmrest Temple",
      "name": "Torastrasza",
      "role": ""
@@ -4127,14 +4557,20 @@
    "senders": {
     "alliance": {
      "entry": 4968,
+     "faction": "Theramore",
+     "gender": "female",
      "location": "Theramore",
      "name": "Lady Jaina Proudmoore",
+     "race": "Human",
      "role": ""
     },
     "horde": {
      "entry": 4501,
+     "faction": "Orgrimmar",
+     "gender": "male",
      "location": "Brackenwall Village",
      "name": "Draz'Zilb",
+     "race": "Goblin",
      "role": ""
     }
    }
@@ -4161,6 +4597,8 @@
    "senders": {
     "any": {
      "entry": 26917,
+     "faction": "The Wyrmrest Accord",
+     "gender": "female",
      "location": "Wyrmrest Temple",
      "name": "Alexstrasza the Life-Binder",
      "role": ""
@@ -4189,8 +4627,10 @@
    "senders": {
     "any": {
      "entry": 33696,
+     "faction": "Kirin Tor",
      "location": "Ulduar",
      "name": "Archmage Rhydian",
+     "race": "Human",
      "role": ""
     }
    }
@@ -4219,8 +4659,10 @@
    "senders": {
     "any": {
      "entry": 34816,
+     "gender": "male",
      "location": "Argent Coliseum",
      "name": "Barrett Ramsey",
+     "race": "Human",
      "role": ""
     }
    }
@@ -4249,8 +4691,11 @@
    "senders": {
     "any": {
      "entry": 28179,
+     "faction": "Argent Crusade",
+     "gender": "male",
      "location": "Icecrown Citadel",
      "name": "Highlord Tirion Fordring",
+     "race": "Human",
      "role": ""
     }
    }
@@ -4279,6 +4724,8 @@
    "senders": {
     "any": {
      "entry": 27990,
+     "faction": "The Wyrmrest Accord",
+     "gender": "male",
      "location": "Dalaran",
      "name": "Krasus",
      "role": ""

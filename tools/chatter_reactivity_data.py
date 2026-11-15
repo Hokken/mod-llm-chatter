@@ -135,7 +135,13 @@ def sender_for(
 
 
 def trainer_entry(name: str) -> int:
-    return int(gifts()['trainers'].get(name, 0))
+    return int(trainer_identity(name).get('entry', 0))
+
+
+def trainer_identity(name: str) -> Dict:
+    """A trainer's creature entry and any curated race, gender and
+    faction; {} for a trainer the table does not know."""
+    return dict(gifts()['trainers'].get(name) or {})
 
 
 def weighted_choice(options: List[Tuple[object, int]]):

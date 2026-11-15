@@ -649,6 +649,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'is_dungeon': (bool, False),
             'is_raid': (bool, False),
             'participants': (list, True),
+            'rumor_forced': (bool, False),
         },
     ),
 
@@ -671,6 +672,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'is_raid': (bool, False),
             'participants': (list, True),
             'max_lines': (int, True),
+            'rumor_forced': (bool, False),
         },
     ),
 

@@ -88,18 +88,27 @@
   for an apprentice (twice, at levels 5-25, with a starter kit), and from
   a trainer sharing surplus materials for your skill (from level 25,
   every 10-16 levels). Each dungeon, raid or quest writes to you once.
+  The writer knows who they are (their people and allegiance where the
+  table records them), and a letter arrives whole, never cut short.
 * **Rumors**: friendly and neutral NPCs talk about what you did. A new
   rumor is told at the first chance, then joins the rest once it has
   reached you twice. Quest and dungeon rumors stay in their regions;
   achievement rumors travel and come up by how rare the deed is. An NPC
-  either recognises you or passes it on as local news.
+  either recognises you and speaks to you, even in a conversation
+  between NPCs, or passes it on as local news.
 * **Gifts** are ordinary existing items, chosen to fit the place and the
   sender: food, potions, herbs, gems, trade goods, and for raids the
   valuable goods of their tier. Letters name every gift the way the
   mailbox shows it.
 * **Settings**: `LLMChatter.Letters.*` and `LLMChatter.Rumors.*`, with
   every letter and rumor type switchable alone and quieter values in the
-  quieter preset. Apply the new characters SQL.
+  quieter preset. Turning a type off stops new deeds and new letters or
+  rumors of that type once the bridge has restarted (and, for the
+  worldserver's keys, after `.reload config`); what is already in flight
+  plays out. Apply the new characters SQL.
+* **No travel memories as a ghost**: a bot no longer records a quiet
+  moment on the road while it or the player is dead or running back as a
+  ghost.
 
 ### 2026-11-02 - Truer Bot Memories
 
