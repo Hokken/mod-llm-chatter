@@ -5354,7 +5354,7 @@
      "name": "Chunk of Boar Meat"
     }
    ],
-   "what": "Raw meat for the first recipes (Charred Wolf Meat, Spiced Wolf Meat, Roasted Boar Meat). In 3.3.5 the Basic Campfire needs no Flint and Tinder or wood, and these recipes need no spices.",
+   "what": "Raw meat for the first recipes. Cooking requires a heat source, such as a campfire or a stove.",
    "why": "A good cook turns plain meat and fish into hearty meals that leave a traveller well fed and stronger for hours on the road. Cooks are welcome at every campfire, and their dishes always find a buyer."
   },
   "Enchanting": {
