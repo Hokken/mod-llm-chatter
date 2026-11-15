@@ -90,10 +90,8 @@
     "horde": {
      "entry": 2496,
      "faction": "Booty Bay",
-     "gender": "male",
      "location": "Booty Bay",
      "name": "Baron Revilgaz",
-     "race": "Goblin",
      "role": "a shipping agent of Booty Bay, writing on the baron's behalf"
     }
    }
@@ -3462,10 +3460,8 @@
     "horde": {
      "entry": 18407,
      "faction": "The Mag'har",
-     "gender": "male",
      "location": "Garadar",
      "name": "Warden Bullrok",
-     "race": "Orc",
      "role": "a scout of Garadar, writing for the warden"
     }
    },

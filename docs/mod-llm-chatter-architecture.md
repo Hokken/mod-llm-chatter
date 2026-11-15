@@ -433,8 +433,8 @@ Letters and rumors make the world answer what a real player did:
 7. A matching rumor is recorded as fresh, with its zones (zone 0 means
    anywhere) in `llm_reactivity_fresh_rumor_zones`.
    The worldserver keeps those rows in memory, reloaded by one async
-   query every 10 seconds (`UpdateFreshRumorZones()`, gated by
-   `Rumors.Enable`), so `HasFreshRumorHere()` is a lookup and the world
+   query every `Rumors.RefreshSeconds` (`UpdateFreshRumorZones()`,
+   gated by `Rumors.Enable`), so `HasFreshRumorHere()` is a lookup and the world
    thread never waits on the database. Outside instances,
    `MaybeQueueProximityScene` skips its ambient roll when a fresh rumor
    applies here and narrows the speakers to friendly and neutral NPCs.

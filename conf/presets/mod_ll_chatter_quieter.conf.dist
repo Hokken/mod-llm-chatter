@@ -5278,6 +5278,16 @@ LLMChatter.Letters.Professions.IntervalMaxLevels = 20
 LLMChatter.Rumors.Enable = 1
 
 #
+#   LLMChatter.Rumors.RefreshSeconds
+#       How often the worldserver reloads the fresh rumors it keeps in
+#       memory (one async query). A new rumor can wait this long before
+#       it skips the ambient roll. Read by the worldserver: apply with
+#       .reload config. Minimum 1.
+#       Default: 10
+#
+LLMChatter.Rumors.RefreshSeconds = 10
+
+#
 #   LLMChatter.Rumors.Achievements.Enable
 #   LLMChatter.Rumors.Quests.Enable
 #   LLMChatter.Rumors.Dungeons.Enable

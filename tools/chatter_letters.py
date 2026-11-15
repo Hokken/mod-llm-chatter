@@ -163,8 +163,13 @@ def clamp_subject(text: str) -> str:
     text = ' '.join(clean_text(text).split())
     if len(text) <= SUBJECT_STORAGE_CHARS:
         return text
+    # One character past the column shows whether the last word ends
+    # there; a sentence end is only looked for inside the column.
     cut = text[:SUBJECT_STORAGE_CHARS + 1]
-    end = max(cut.rfind(mark) for mark in ('.', '!', '?'))
+    end = max(
+        cut.rfind(mark, 0, SUBJECT_STORAGE_CHARS)
+        for mark in ('.', '!', '?')
+    )
     if end >= SUBJECT_STORAGE_CHARS // 2:
         return cut[:end + 1]
     space = cut.rfind(' ')
@@ -988,16 +993,26 @@ def _write_due_letters(db, client, config) -> None:
             _letter_failed(db, letter)
             continue
         subject, body, sender_type, sender_id, items = written
-        cursor.execute(
-            "UPDATE llm_reactivity_letters SET status = 'ready', "
-            "subject = %s, body = %s, sender_type = %s, "
-            "sender_id = %s, items = %s WHERE id = %s",
-            (
-                subject, body, sender_type, sender_id,
-                items_spec(items), letter['id'],
-            ),
-        )
-        db.commit()
+        try:
+            cursor.execute(
+                "UPDATE llm_reactivity_letters SET status = 'ready', "
+                "subject = %s, body = %s, sender_type = %s, "
+                "sender_id = %s, items = %s WHERE id = %s",
+                (
+                    subject, body, sender_type, sender_id,
+                    items_spec(items), letter['id'],
+                ),
+            )
+            db.commit()
+        except Exception:
+            # A save that fails counts as a failed attempt, so a letter
+            # is never written again past MAX_ATTEMPTS.
+            _rollback(db)
+            logger.error(
+                "reactivity letter %s could not be saved",
+                letter['id'], exc_info=True,
+            )
+            _letter_failed(db, letter)
 
 
 def _recover_stuck_letters(db) -> None:
@@ -1005,6 +1020,12 @@ def _recover_stuck_letters(db) -> None:
     stopped bridge. One left sending may have reached the mailbox, so
     it is retired, never resent."""
     cursor = db.cursor()
+    # A row that has used its attempts is not written again.
+    cursor.execute(
+        "UPDATE llm_reactivity_letters SET status = 'failed' "
+        "WHERE status = 'generating' AND attempts >= %s",
+        (MAX_ATTEMPTS,),
+    )
     cursor.execute(
         "UPDATE llm_reactivity_letters SET status = 'scheduled' "
         "WHERE status = 'generating'"

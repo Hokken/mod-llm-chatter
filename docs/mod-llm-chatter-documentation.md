@@ -5409,8 +5409,9 @@ NPCs never do.
 - A new rumor is fresh: it skips the ambient roll and wins over everything
   else until `Rumors.FreshVoicings` lines have reached the player. A line
   counts only once it was actually sent. The worldserver keeps the fresh
-  rumors in memory, refreshed by an async query every 10 seconds, so a
-  new rumor can take that long to be noticed. No rumor skips the roll
+  rumors in memory, refreshed by an async query every
+  `Rumors.RefreshSeconds` (10, minimum 1), so a new rumor can take that
+  long to be noticed. No rumor skips the roll
   inside an instance. A scene queued only for a fresh rumor carries
   `rumor_forced`; when the bridge will not tell the rumor there (a fight,
   a screenshot, a hostile speaker), the scene is skipped rather than

@@ -562,6 +562,10 @@ void LLMChatterConfig::LoadConfig()
     _rumorsEnable =
         GetChatterOption<bool>(
             "LLMChatter.Rumors.Enable", true);
+    _rumorsRefreshSeconds = std::max<uint32>(
+        1,
+        GetChatterOption<uint32>(
+            "LLMChatter.Rumors.RefreshSeconds", 10));
     _memoryEnable =
         GetChatterOption<bool>("LLMChatter.Memory.Enable", true);
     _memoryDiscoveryEnable =

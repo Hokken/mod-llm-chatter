@@ -321,10 +321,6 @@ void DeliverPendingReactivityLetters()
 namespace
 {
 
-// How often the fresh-rumor set is reloaded. A rumor the bridge has
-// just unlocked waits at most this long, plus the bridge's own pass.
-constexpr uint32 FRESH_RUMOR_REFRESH_MS = 10 * IN_MILLISECONDS;
-
 // (player guid << 32) | zone id; zone 0 means anywhere. Read and
 // written only on the world thread: the async callback runs from
 // ProcessReadyCallbacks() in the world update.
@@ -350,7 +346,9 @@ void UpdateFreshRumorZones(uint32 now)
         return;
     }
     if (_freshRumorQueryPending
-        || now - _lastFreshRumorRefresh < FRESH_RUMOR_REFRESH_MS)
+        || now - _lastFreshRumorRefresh
+            < sLLMChatterConfig->_rumorsRefreshSeconds
+                * IN_MILLISECONDS)
         return;
 
     _lastFreshRumorRefresh = now;

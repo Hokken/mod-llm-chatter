@@ -152,6 +152,7 @@ public:
     bool _lettersEnable;
     uint32 _lettersPollSeconds;
     bool _rumorsEnable;
+    uint32 _rumorsRefreshSeconds;
     bool _memoryDiscoveryEnable;
     uint32 _memoryDiscoveryMinLevel;
     uint32 _memoryDiscoveryRange;

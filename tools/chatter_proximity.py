@@ -1567,6 +1567,8 @@ def handle_proximity_conversation(
             "to single-line output after parse failure",
             event_id,
         )
+        # The rumor stays the subject: a scene queued for it must not
+        # turn into small talk, and a told rumor is counted.
         fallback = _generate_single_line(
             db,
             client,
@@ -1574,8 +1576,11 @@ def handle_proximity_conversation(
             event_id,
             extra,
             participants[0],
+            topic=rumor,
             label='proximity_conversation_fallback',
         )
+        if fallback:
+            record_voicing(db, event_id, player_guid, rumor)
         _mark_event(
             db, event_id,
             'completed' if fallback else 'skipped',

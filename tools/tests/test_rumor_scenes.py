@@ -101,6 +101,65 @@ def test_unforced_scene_still_chats_without_a_rumor():
     assert marks == ['completed']
 
 
+def _conversation_event():
+    extra = {
+        'player_guid': 7, 'player_name': 'Calwen', 'zone_id': 12,
+        'participants': [dict(NPC), dict(NPC, name='Guard Ellis')],
+        'max_lines': 2, 'rumor_forced': True,
+    }
+    return {'id': 6, 'extra_data': extra}
+
+
+def test_failed_conversation_keeps_the_rumor_in_its_fallback():
+    rumor = _rumor(False)
+    voicings, marks = [], []
+    with patch.object(prox, 'parse_extra_data',
+                      side_effect=lambda raw, *a: raw), \
+            patch.object(prox, 'pick_rumor', return_value=rumor), \
+            patch.object(prox, 'call_llm', return_value='not json'), \
+            patch.object(prox, 'parse_conversation_response',
+                         return_value=[]), \
+            patch.object(prox, 'record_voicing',
+                         side_effect=lambda *a: voicings.append(a[-1])), \
+            patch.object(prox, '_mark_event',
+                         side_effect=lambda db, i, s: marks.append(s)), \
+            patch.object(prox, '_generate_single_line',
+                         return_value=True) as fallback:
+        assert prox.handle_proximity_conversation(
+            DB(), None, RP, _conversation_event(),
+        )
+    assert fallback.call_args.kwargs['topic'] is rumor
+    assert voicings == [rumor]
+    assert marks == ['completed']
+
+
+def test_say_records_a_rumor_only_when_it_was_spoken():
+    rumor = _rumor(False)
+    for spoken, expected_mark in ((False, 'skipped'), (True, 'completed')):
+        voicings, marks = [], []
+        with patch.object(prox, 'parse_extra_data',
+                          side_effect=lambda raw, *a: raw), \
+                patch.object(prox, 'pick_rumor', return_value=rumor), \
+                patch.object(prox, 'record_voicing',
+                             side_effect=lambda *a: voicings.append(a[-1])), \
+                patch.object(prox, '_mark_event',
+                             side_effect=lambda db, i, s: marks.append(s)), \
+                patch.object(prox, '_generate_single_line',
+                             return_value=spoken) as generate:
+            prox.handle_proximity_say(DB(), None, RP, _say_event(True))
+        assert generate.call_args.kwargs['topic'] is rumor
+        assert voicings == ([rumor] if spoken else [])
+        assert marks == [expected_mark]
+
+
+def test_rumor_refresh_interval_is_a_config_key():
+    config = (SRC / 'LLMChatterConfig.cpp').read_text()
+    assert '"LLMChatter.Rumors.RefreshSeconds", 10' in config
+    reactivity = (SRC / 'LLMChatterReactivity.cpp').read_text()
+    assert 'FRESH_RUMOR_REFRESH_MS' not in reactivity
+    assert '_rumorsRefreshSeconds' in reactivity
+
+
 def test_worldserver_never_waits_on_the_database_for_rumors():
     src = (SRC / 'LLMChatterReactivity.cpp').read_text()
     body = src[src.index('bool HasFreshRumorHere'):]

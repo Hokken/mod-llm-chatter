@@ -205,6 +205,16 @@ class LetterText(unittest.TestCase):
         self.assertTrue(subject.endswith('word'))
         self.assertEqual(letters.clamp_subject('A' * 70), 'A' * 70)
 
+    def test_subject_never_overflows_its_column(self):
+        limit = letters.SUBJECT_STORAGE_CHARS
+        for end in (limit - 2, limit - 1, limit, 60):
+            text = 'a' * end + 'b. tail words here'
+            subject = letters.clamp_subject(text)
+            self.assertLessEqual(len(subject), limit, end)
+        # A sentence ending inside the column is kept whole.
+        whole = letters.clamp_subject('a' * 120 + '. ' + 'b' * 40)
+        self.assertEqual(whole, 'a' * 120 + '.')
+
     def test_length_is_asked_for_in_words_from_the_limit(self):
         limits = letters._limits({'LLMChatter.Letters.MaxChars': 700})
         self.assertEqual(limits['target_words'], 87)
@@ -807,6 +817,48 @@ class Rumors(unittest.TestCase):
         ))
 
 
+class LetterSaving(unittest.TestCase):
+    LETTER = {'id': 4, 'kind': 'quest', 'player_guid': 1, 'attempts': 0}
+
+    def test_a_failed_save_counts_as_a_failed_attempt(self):
+        class SaveFails(FakeDb):
+            def cursor(self, dictionary=False):
+                cursor = FakeCursor(self)
+                plain = cursor.execute
+
+                def execute(sql, params=()):
+                    if "SET status = 'ready'" in sql:
+                        raise RuntimeError('Data too long for subject')
+                    plain(sql, params)
+                cursor.execute = execute
+                return cursor
+
+        db = SaveFails({
+            'FROM llm_reactivity_letters': [dict(self.LETTER)],
+            'FROM characters': [{
+                'name': 'Ana', 'race': 1, 'class': 8, 'gender': 1,
+                'level': 30, 'online': 0,
+            }],
+        })
+        written = ('Subject', 'Body', 'creature', 7, [
+            {'entry': 2454, 'name': 'Elixir', 'count': 1},
+        ])
+        with patch.dict(letters._WRITERS,
+                        {'quest': lambda *a: written}), \
+                patch.object(letters, '_letter_failed') as failed:
+            letters._write_due_letters(db, None, {})
+        failed.assert_called_once()
+
+    def test_recovery_fails_a_row_out_of_attempts(self):
+        db = FakeDb()
+        letters._recover_stuck_letters(db)
+        sql = [(q, p) for q, p in db.log]
+        self.assertIn("SET status = 'failed'", sql[0][0])
+        self.assertIn("status = 'generating' AND attempts >= %s", sql[0][0])
+        self.assertEqual(sql[0][1], (letters.MAX_ATTEMPTS,))
+        self.assertIn("SET status = 'scheduled'", sql[1][0])
+
+
 class Inbox(unittest.TestCase):
     ROW = {'id': 9, 'kind': 'quest', 'player_guid': 1, 'trigger_id': 14,
            'extra_data': '{}', 'attempts': 0}
@@ -869,6 +921,19 @@ class SenderIdentity(unittest.TestCase):
             self.assertIn(who.get('gender', 'male'), ('male', 'female'))
             self.assertIn(who.get('race', 'Human'), self.RACES)
             self.assertNotIn('unknown', str(who).lower())
+
+    def test_proxy_writers_do_not_take_the_named_npcs_identity(self):
+        proxies = [
+            sender for table in data.letters().values()
+            for row in table for sender in row['senders'].values()
+            if sender.get('role', '').startswith((
+                'a shipping agent of Booty Bay', 'a scout of Garadar',
+            ))
+        ]
+        self.assertEqual(len(proxies), 2)
+        for sender in proxies:
+            self.assertNotIn('gender', sender)
+            self.assertNotIn('race', sender)
 
     def test_known_values_render_and_missing_ones_are_left_out(self):
         from chatter_letter_prompts import identity_line
