@@ -1,5 +1,20 @@
 # Changelog
 
+### 2026-11-16 - Every Guild Join Is Welcomed and Answered
+
+* **Every newcomer is welcomed**: the quieter preset rolled
+  `LLMChatter.GuildChatter.JoinGreeting.Chance = 70`, so about 3 in 10
+  guild joins got no welcome in Guild chat. It is now 100, the same as
+  the default template. The preset still limits the welcome to 2 bots.
+* **A bot newcomer always answers**: after the welcome, a bot or alt bot
+  that just joined now always replies once.
+  `LLMChatter.GuildChatter.JoinGreeting.SubjectReplyChance` is 100 in
+  the default template (was 70) and in the quieter preset (was 50), and
+  100 when the key is missing. Rank-change replies are unchanged.
+* To get both on an existing config, set the two keys to 100, run
+  `.reload config` and restart the chatter bridge. No rebuild or
+  database migration.
+
 ### 2026-11-16 - Saved Backstories Survive a Pending Regeneration
 
 * **A story you save is not erased by an older regeneration**: asking for

@@ -3030,7 +3030,7 @@ LLMChatter.GuildChatter.JoinGreeting.Enable = 1
 #       Chance (0-100) that a batch of joins is greeted.
 #       Default: 100
 #
-LLMChatter.GuildChatter.JoinGreeting.Chance = 70
+LLMChatter.GuildChatter.JoinGreeting.Chance = 100
 
 #
 #   LLMChatter.GuildChatter.JoinGreeting.BatchSeconds
@@ -3144,9 +3144,9 @@ LLMChatter.GuildChatter.MotdComment.MaxResponders = 1
 #   LLMChatter.GuildChatter.RankChange.SubjectReplyChance
 #       Chance (0-100) that a newcomer or changed member
 #       who is an online bot answers the comments once.
-#       Defaults: 70
+#       Defaults: JoinGreeting = 100, RankChange = 70
 #
-LLMChatter.GuildChatter.JoinGreeting.SubjectReplyChance = 50
+LLMChatter.GuildChatter.JoinGreeting.SubjectReplyChance = 100
 LLMChatter.GuildChatter.RankChange.SubjectReplyChance = 50
 
 #

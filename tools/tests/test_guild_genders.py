@@ -378,7 +378,7 @@ def test_newcomer_reply_states_heard_speakers():
         chatter_guild_events._subject_reply(
             GenderDB(), None, {}, 1, 'guild_member_join',
             {'team': 'Horde'}, subject, 'Bran joined.', messages, [],
-            'JoinReplyChance', {},
+            'JoinReplyChance', 100, {},
         )
     assert any('Aliss is female' in line for line in captured['scenario'])
     assert not any('Bran is' in line for line in captured['scenario'])

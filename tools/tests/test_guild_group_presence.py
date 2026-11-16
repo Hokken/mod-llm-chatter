@@ -200,7 +200,7 @@ def test_guild_member_event_helper_and_subject_reply():
             chatter_guild_events._subject_reply(
                 GenderDB(), None, {}, 1, 'guild_member_join', extra,
                 dict(subject), 'Bran joined.', messages, [],
-                'JoinReplyChance', {},
+                'JoinReplyChance', 100, {},
             )
     assert captured[0] == 'SUBJECT PROMPT'
     _assert_block_tail(captured[0], captured[1], 'Bran')

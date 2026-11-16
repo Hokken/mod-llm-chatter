@@ -4772,8 +4772,8 @@ them in the bridge, with the prompt, validation and delivery helpers in
 
 When a guild with an online real player gains a member, one to three
 Guild bots react to the newcomer. Joins within `JoinGreeting.BatchSeconds`
-share one event. A newcomer who is an online bot may answer once
-(`JoinGreeting.SubjectReplyChance`). A real player who joins while online
+share one event. A newcomer who is an online bot answers once
+(`JoinGreeting.SubjectReplyChance`, default 100). A real player who joins while online
 gets a Guild conversation session at once.
 
 ### Rank changes
@@ -4814,7 +4814,7 @@ bots must not invent details beyond it.
 | `JoinGreeting.Chance` | 100 | Server | Chance per join batch |
 | `JoinGreeting.BatchSeconds` | 10 | Server | Join batching window |
 | `JoinGreeting.MaxResponders` | 3 | Bridge | Reacting bots (1-3) |
-| `JoinGreeting.SubjectReplyChance` | 70 | Bridge | Bot newcomer answers |
+| `JoinGreeting.SubjectReplyChance` | 100 | Bridge | Bot newcomer answers |
 | `RankChange.Enable` | 1 | Server/Bridge | Rank-change toggle |
 | `RankChange.Chance` | 100 | Server | Chance per batch |
 | `RankChange.DebounceSeconds` | 30 | Server | Quiet time before commenting |
@@ -4829,7 +4829,10 @@ bots must not invent details beyond it.
 | `MemberEvents.MaxCharacters` | 120 | Bridge | Length the prompt asks for |
 | `MemberEvents.MaxDeferSeconds` | 300 | Server | Longest wait behind a player conversation |
 
-The quieter preset reacts to 70% of joins, rank changes and MOTD changes, with at most 2 / 2 / 1 bots and a 50% chance of a reply from the newcomer or the promoted bot.
+The quieter preset greets every join and lets a bot newcomer always
+answer, like the default. It reacts to 70% of rank changes and MOTD
+changes, with at most 2 / 2 / 1 bots and a 50% chance of a reply from
+the promoted or demoted bot.
 
 Guild news never lands in a real player's Guild conversation. While a
 player has spoken in Guild within `PlayerReplies.IdleSuppressionSeconds`

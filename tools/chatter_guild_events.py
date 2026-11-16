@@ -168,6 +168,7 @@ def _subject_reply(
     messages: List[Dict],
     guild_context: List[str],
     chance_key: str,
+    chance_default: int,
     metadata: Dict,
 ) -> List[Dict]:
     """Let an online bot newcomer or changed member answer once."""
@@ -183,7 +184,7 @@ def _subject_reply(
     if _speaker_faction(subject['speaker']) != faction:
         return []
     if random.randint(1, 100) > _bounded_percent(
-        config, PREFIX + chance_key, 70,
+        config, PREFIX + chance_key, chance_default,
     ):
         return []
     subject = prepare_guild_speakers(db, client, config, [subject])[0]
@@ -237,6 +238,7 @@ def _run_event(
     responders_default: int,
     build_scenario,
     chance_key: str = '',
+    chance_default: int = 70,
 ) -> bool:
     event_id = safe_int(event.get('id'))
     if not _config_enabled(config, PREFIX + enable_key):
@@ -328,7 +330,7 @@ def _run_event(
         reply = _subject_reply(
             db, client, config, event_id, event_type, extra,
             subject, situation, messages, guild_context,
-            chance_key, metadata,
+            chance_key, chance_default, metadata,
         )
 
     guid_by_name = {
@@ -479,6 +481,7 @@ def process_guild_member_join_event(db, client, config, event):
         'JoinGreeting.MaxResponders', 3,
         _join_scenario,
         chance_key='JoinGreeting.SubjectReplyChance',
+        chance_default=100,
     )
 
 

@@ -3153,9 +3153,9 @@ LLMChatter.GuildChatter.MotdComment.MaxResponders = 2
 #   LLMChatter.GuildChatter.RankChange.SubjectReplyChance
 #       Chance (0-100) that a newcomer or changed member
 #       who is an online bot answers the comments once.
-#       Defaults: 70
+#       Defaults: JoinGreeting = 100, RankChange = 70
 #
-LLMChatter.GuildChatter.JoinGreeting.SubjectReplyChance = 70
+LLMChatter.GuildChatter.JoinGreeting.SubjectReplyChance = 100
 LLMChatter.GuildChatter.RankChange.SubjectReplyChance = 70
 
 #
