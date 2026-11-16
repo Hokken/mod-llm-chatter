@@ -748,6 +748,66 @@ def get_group_members(db, group_id):
     ]
 
 
+def get_group_roster(db, group_id):
+    """Current group membership for role-aware prompts.
+
+    Returns {'members': [...], 'unconfirmed': [...]} or None when
+    the lookup fails. 'members' are the group_member rows, the only
+    confirmed current members: dicts with guid, name, class_id,
+    level, tracked (has a traits row) and role (the stored traits
+    role, else None). 'unconfirmed' lists the guids that have a
+    traits row but no group_member row: a pending join (the DB write
+    is async) or a departed member whose cleanup is still queued.
+    They are never promoted to members.
+    """
+    if not group_id:
+        return None
+    try:
+        cursor = db.cursor(dictionary=True)
+        cursor.execute("""
+            SELECT gm.memberGuid AS guid, c.name,
+                   c.class AS class_id, c.level,
+                   t.bot_guid AS traits_guid, t.role
+            FROM group_member gm
+            JOIN characters c
+              ON c.guid = gm.memberGuid
+            LEFT JOIN llm_group_bot_traits t
+              ON t.group_id = gm.guid
+             AND t.bot_guid = gm.memberGuid
+            WHERE gm.guid = %s
+        """, (group_id,))
+        rows = cursor.fetchall()
+        cursor.execute("""
+            SELECT t.bot_guid
+            FROM llm_group_bot_traits t
+            LEFT JOIN group_member gm
+              ON gm.guid = t.group_id
+             AND gm.memberGuid = t.bot_guid
+            WHERE t.group_id = %s
+              AND gm.memberGuid IS NULL
+        """, (group_id,))
+        unconfirmed = [
+            int(row['bot_guid']) for row in cursor.fetchall()
+        ]
+    except Exception:
+        logger.error(
+            "Group roster lookup failed", exc_info=True,
+        )
+        return None
+    members = [
+        {
+            'guid': int(row['guid']),
+            'name': row.get('name') or '',
+            'class_id': int(row.get('class_id') or 0),
+            'level': int(row.get('level') or 0),
+            'tracked': row.get('traits_guid') is not None,
+            'role': row.get('role'),
+        }
+        for row in rows
+    ]
+    return {'members': members, 'unconfirmed': unconfirmed}
+
+
 def get_group_player_name(db, group_id):
     """Get the real player's name from chat history
     or player_msg events. Returns name or None.

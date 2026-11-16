@@ -157,8 +157,9 @@ from chatter_group_state import (
     format_chat_history,
     get_group_members,
     get_group_player_name,
+    get_group_roster,
 )
-from chatter_class_style import class_style
+from chatter_class_style import class_style, talent_spec_role
 from chatter_identity import config_int
 from chatter_group_handlers import (
     _maybe_talent_context,
@@ -957,6 +958,9 @@ def process_group_event(db, client, config, event):
                 bot, traits, mode, event_id,
                 player_name=player_name,
                 stored_tone=stored_tone,
+                player_guid=extra_data.get('player_guid'),
+                bot_guids=(bot_guid,),
+                speaker_role=bot_role,
             )
         except Exception as e:
             logger.error(
@@ -1415,6 +1419,7 @@ def process_group_join_batch_event(
                 'bot_class': bot_class,
                 'bot_race': bot_race,
                 'stored_tone': stored_tone,
+                'role': bot_role,
             }
 
             # 5. Pre-generate farewell (C++ never
@@ -1543,6 +1548,15 @@ def process_group_join_batch_event(
                         stored_tone=last_bot.get(
                             'stored_tone'
                         ),
+                        player_guid=extra_data.get(
+                            'player_guid'
+                        ),
+                        bot_guids=[
+                            b.get('bot_guid')
+                            for b in bots_raw
+                            if isinstance(b, dict)
+                        ],
+                        speaker_role=last_bot.get('role'),
                     )
                 except Exception as e:
                     logger.error(
@@ -2695,78 +2709,124 @@ def _welcome_from_existing_bot(
     )
 
 
-def _get_group_role_summary(db, group_id):
-    """Query all bots in the group, look up their
-    classes from the characters table, and return a
-    role summary string like:
-    "1 tank (Warrior), 1 healer (Priest),
-     2 DPS (Mage, Rogue)"
+# Stored playerbot role (llm_group_bot_traits.role) -> prompt label.
+_ASSIGNED_ROLE_LABELS = {
+    'tank': 'tank',
+    'healer': 'healer',
+    'melee_dps': 'DPS',
+    'ranged_dps': 'DPS',
+    'dps': 'DPS',
+}
 
-    Returns (summary_str, role_counts_dict) or
-    (None, None) if no data.
+# Talent-inferred role -> spec wording. A spec is not an assigned
+# role, so the prompt names it as a spec.
+_SPEC_ROLE_LABELS = {
+    'tank': 'tanking spec',
+    'healer': 'healing spec',
+    'dps': 'damage spec',
+}
+
+
+def _guid_set(values):
+    """Positive integer guids from payload values; malformed or
+    empty entries are dropped."""
+    guids = set()
+    for value in values or ():
+        try:
+            guid = int(value or 0)
+        except (TypeError, ValueError):
+            continue
+        if guid > 0:
+            guids.add(guid)
+    return guids
+
+
+def _get_group_role_summary(
+    db, group_id, player_guid=0, bot_guids=(),
+):
+    """Role summary of the current group for the composition
+    comment (issue #97).
+
+    Bots use their stored playerbot role; every other member (each
+    human, or a bot with no traits row yet) uses the role its talent
+    spec points to. Returns (summary_str, info) or (None, None) when
+    the roster cannot be read. info:
+    - has_tank / has_healer: a confirmed member fills the role
+    - roles_known: the roster is complete and every role is known;
+      only then may a prompt say a role is missing
+    - total: bots with a traits row (the 2+ bot gate)
+
+    player_guid / bot_guids: the event's player and joining bots.
+    The roster is complete only when the player guid is given and
+    every one of them is a current group_member, no traits row is
+    unconfirmed, and at least one member is untracked (a human).
     """
-    cursor = db.cursor(dictionary=True)
-    cursor.execute("""
-        SELECT t.bot_guid, t.bot_name,
-               c.class AS class_id
-        FROM llm_group_bot_traits t
-        JOIN characters c ON c.guid = t.bot_guid
-        WHERE t.group_id = %s
-    """, (group_id,))
-    rows = cursor.fetchall()
-    if not rows:
+    roster = get_group_roster(db, group_id)
+    if not roster:
+        return None, None
+    members = roster['members']
+    unconfirmed = roster['unconfirmed']
+    tracked = sum(1 for m in members if m['tracked'])
+    total = tracked + len(unconfirmed)
+    if not members:
         return None, None
 
-    # Map to roles
-    role_labels = {
-        'tank': 'tank',
-        'healer': 'healer',
-        'melee_dps': 'DPS',
-        'ranged_dps': 'DPS',
-        'hybrid_tank': 'hybrid',
-        'hybrid_healer': 'hybrid',
-    }
-    role_members = {}
-    for row in rows:
-        cls = get_class_name(row['class_id'])
-        role_key = CLASS_ROLE_MAP.get(cls, 'DPS')
-        label = role_labels.get(role_key, 'DPS')
-        if label not in role_members:
-            role_members[label] = []
-        role_members[label].append(cls)
+    member_guids = {m['guid'] for m in members}
+    player = _guid_set([player_guid])
+    expected = player | _guid_set(bot_guids)
+    complete = (
+        not unconfirmed
+        and bool(player)
+        and expected <= member_guids
+        and tracked < len(members)
+    )
 
-    # Build readable summary
     parts = []
-    for label in ['tank', 'healer', 'DPS', 'hybrid']:
-        members = role_members.get(label, [])
-        if members:
-            n = len(members)
-            classes = ', '.join(members)
-            parts.append(
-                f"{n} {label} ({classes})"
+    has_tank = has_healer = False
+    all_known = True
+    for m in members:
+        cls = get_class_name(m['class_id'])
+        if m['tracked']:
+            role = (
+                m['role']
+                if m['role'] in _ASSIGNED_ROLE_LABELS
+                else None
             )
+            label = _ASSIGNED_ROLE_LABELS.get(role, 'role unknown')
+            desc = cls
+        else:
+            role = talent_spec_role(db, m['guid'], cls)
+            label = _SPEC_ROLE_LABELS.get(role, 'spec unknown')
+            desc = class_style(db, m['guid'], cls)
+        if role is None:
+            all_known = False
+        has_tank = has_tank or role == 'tank'
+        has_healer = has_healer or role == 'healer'
+        parts.append(f"{m['name']} ({desc}, {label})")
 
-    has_tank = bool(role_members.get('tank'))
-    has_healer = bool(role_members.get('healer'))
-
-    summary = ', '.join(parts)
-    return summary, {
+    return ', '.join(parts), {
         'has_tank': has_tank,
         'has_healer': has_healer,
-        'total': len(rows),
+        'roles_known': complete and all_known,
+        'total': total,
     }
 
 
 def _build_composition_comment_prompt(
     bot, traits, mode, role_summary,
     role_info, player_name="",
-    player_class="",
     allow_action=True,
     speaker_talent_context=None,
     stored_tone=None,
+    speaker_role=None,
 ):
     """Build a short prompt for a bot to comment
     on the group's composition after joining.
+
+    role_summary lists every confirmed member with
+    a role (bots) or spec (others). A missing tank
+    or healer is stated only when role_info says
+    every role is known.
     """
     is_rp = (mode == 'roleplay')
     trait_str = ', '.join(traits)
@@ -2775,7 +2835,8 @@ def _build_composition_comment_prompt(
     if is_rp:
         ctx = build_race_class_context(
             bot.get('race', ''),
-            bot.get('class', '')
+            bot.get('class', ''),
+            actual_role=speaker_role or None,
         )
         if ctx:
             rp_context = f"\n{ctx}"
@@ -2797,21 +2858,23 @@ def _build_composition_comment_prompt(
     )
     if player_name:
         prompt += f" with {player_name}"
-    player_desc = (
-        f" (plus {player_name} the {player_class})"
-        if player_name and player_class
-        else " (plus the player)"
-    )
     prompt += (
-        f".\nGroup composition: {role_summary}"
-        f"{player_desc}.\n"
+        f".\nGroup composition: {role_summary}.\n"
     )
 
-    # Add pointed observations
-    if not role_info.get('has_tank'):
-        prompt += "There is no dedicated tank.\n"
-    if not role_info.get('has_healer'):
-        prompt += "There is no dedicated healer.\n"
+    # Pointed observations only from a complete,
+    # fully known roster (issue #97).
+    if role_info.get('roles_known'):
+        if not role_info.get('has_tank'):
+            prompt += "There is no dedicated tank.\n"
+        if not role_info.get('has_healer'):
+            prompt += "There is no dedicated healer.\n"
+    else:
+        prompt += (
+            "Not every member's role is known, so do "
+            "not claim the group has or lacks a tank "
+            "or healer.\n"
+        )
 
     if is_rp:
         style = (
@@ -2847,11 +2910,18 @@ def _maybe_comment_on_composition(
     player_name="",
     delay_seconds=8,
     stored_tone=None,
+    player_guid=0,
+    bot_guids=(),
+    speaker_role=None,
 ):
     """Optionally generate a composition comment
     after the bot joins a group. Chance controlled
     by CompositionCommentChance config (default 10%).
     Only fires if group has 2+ bots.
+
+    player_guid / bot_guids: the event's player and
+    joining bots, checked against the current roster.
+    speaker_role: the speaker's stored playerbot role.
     """
     chance = int(config.get(
         'LLMChatter.GroupChatter'
@@ -2861,29 +2931,10 @@ def _maybe_comment_on_composition(
         return
 
     role_summary, role_info = (
-        _get_group_role_summary(db, group_id)
+        _get_group_role_summary(
+            db, group_id, player_guid, bot_guids
+        )
     )
-
-    # Look up the player's class for composition
-    player_class = ""
-    if player_name:
-        try:
-            cur = db.cursor(dictionary=True)
-            cur.execute(
-                "SELECT class FROM characters "
-                "WHERE name = %s LIMIT 1",
-                (player_name,)
-            )
-            row = cur.fetchone()
-            if row:
-                player_class = get_class_name(
-                    row['class']
-                )
-        except Exception:
-            logger.error(
-                "Player class lookup failed",
-                exc_info=True,
-            )
     if not role_summary or not role_info:
         return
     if role_info.get('total', 0) < 2:
@@ -2896,9 +2947,9 @@ def _maybe_comment_on_composition(
     prompt = _build_composition_comment_prompt(
         bot, traits, mode, role_summary,
         role_info, player_name,
-        player_class=player_class,
         speaker_talent_context=speaker_talent,
         stored_tone=stored_tone,
+        speaker_role=speaker_role,
     )
 
     max_tokens = int(config.get(

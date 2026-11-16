@@ -1391,7 +1391,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/chatter_group_handlers.py` | `bot_group_*` reaction handlers, `execute_player_msg_conversation()`, thin wrappers around the shared handler pipeline for most single-reaction group events |
 | `tools/chatter_handler_pipeline.py` | Shared `run_group_handler()` pipeline: extra_data parsing, guard checks, traits lookup, context assembly, prompt dispatch, chat storage, mood update, event completion/failure handling |
 | `tools/chatter_group_prompts.py` | Group prompt builders, nearby-object prompts, pre-cache prompt builders, `build_player_msg_conversation_prompt()`. All major party chatter builders accept `map_id=0` and inject `get_dungeon_flavor(map_id)` as location context when inside a dungeon instance, replacing zone/subzone lore. Excluded: OOM, low-health, level-up. |
-| `tools/chatter_group_state.py` | Group mood/traits/history state; owns the event mood store, including the cross-channel `get_bot_mood_label_by_guid()` lookup |
+| `tools/chatter_group_state.py` | Group mood/traits/history state; owns the event mood store, including the cross-channel `get_bot_mood_label_by_guid()` lookup, and the current-roster lookup `get_group_roster()` |
 | `tools/chatter_duel.py` | Duel start/end handlers and prompt builders for `bot_group_duel_start` and `bot_group_duel_end` |
 | `tools/chatter_group_general_reaction.py` | General-to-party relay: queues and handles `bot_group_general_reaction` events when grouped bots react in party chat to bot-authored General lines |
 
@@ -1428,7 +1428,7 @@ This asymmetry is known and acceptable in the shipped source state.
 | `tools/spell_names.py` | Spell name/description loader used by DB and link helpers |
 | `tools/talent_data.py` | Loader for `talent_data.json`: talent spell to tree, rank and name, used by `get_character_talents()` |
 | `tools/generate_talent_data.py` | Regenerates `talent_data.json` from the client `Talent.dbc` and `TalentTab.dbc` |
-| `tools/chatter_class_style.py` | `class_style()`: class name with priests split into Light and Shadow by `get_character_talents()` (active spec aware) |
+| `tools/chatter_class_style.py` | `class_style()`: class name with priests split into Light and Shadow by `get_character_talents()` (active spec aware); `talent_spec_role()`: tank/healer/dps from the dominant tree, or unknown |
 
 ### Screenshot vision domain
 

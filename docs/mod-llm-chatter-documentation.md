@@ -1480,6 +1480,34 @@ Examples include:
   wipe, offensive spells, low health/mana, enemy target switches)
 - duel start and duel end
 
+### Group composition comment
+
+After a join, one bot may comment on the group's makeup
+(`group_composition`, `GroupChatter.CompositionCommentChance`, groups
+with 2+ bots, never on rejoin or BG arrival). The summary comes from
+the current `group_member` roster (`get_group_roster()`), which is the
+only source of confirmed members. Every member counts, the player
+included:
+
+- **Bots** use their stored playerbot role (`llm_group_bot_traits.role`).
+- **Everyone else** (each human, or a bot without a traits row) uses
+  `talent_spec_role()`: the tree with the most talent points. This is
+  worded as a spec ("healing spec"), not as a role. It is unknown when
+  the talents cannot tell: any Death Knight tree, Feral Combat, a tie,
+  no talents, or an unrecognised tree.
+
+The prompt says "There is no dedicated tank/healer" only when the
+roster is complete and every role is known:
+
+- the roster lookup succeeded;
+- every traits row matches a current member;
+- the event's player and joining bots are all current members;
+- at least one member is a human;
+- no member's role is unknown.
+
+Otherwise the prompt tells the bot not to claim the group has or lacks
+a tank or healer.
+
 ### Need/Greed roll comments
 
 When a party bot rolls Need or Greed on an item, it may say in party chat

@@ -1,5 +1,17 @@
 # Changelog
 
+### 2026-11-16 - Group Composition Includes the Player
+
+* **The player counts in group composition comments**: after bots join,
+  the comment now considers every current group member. Bots use their
+  stored playerbot roles instead of class guesses; human players use
+  conservative talent-spec inference, so a Holy Priest player is no
+  longer omitted from the healer count (#97).
+* **Unknown roles stay unknown**: ambiguous specs, failed lookups and
+  incomplete membership no longer produce definite claims that the group
+  has or lacks a tank or healer. The speaking bot's role also informs its
+  roleplay perspective in the composition comment.
+
 ### 2026-11-16 - World Reactivity: Letters and Rumors
 
 * **Letters**: the world now writes to the player. Each letter is written
