@@ -1,7 +1,8 @@
 # Chunked Upload — Manual Verification Matrix
 
-There is no automated harness for the C++ `.llmc` commands or for addon Lua,
-so the profile-upload path (`Chatter-Companion` client, `put` / `commit` /
+There is no automated harness for the C++ `.llmc` commands, and the addon's
+own Lua tests run against a stubbed client rather than a server, so the
+profile-upload path (`Chatter-Companion` client, `put` / `commit` /
 `cancel` on the server — see [`chatter-addon-reference.md`](chatter-addon-reference.md))
 is checked by hand against this matrix instead. Each row exercises one axis
 that can fail independently of the others: payload size decides which code
@@ -20,9 +21,10 @@ upload from a previous row cannot mask the one under test.
 | Three short English traits (well under 64 chars each) | Single-line `set` | One `.llmc set` line in the chat log; save completes immediately; no `put`/`commit` traffic |
 | Three traits at exactly 64 characters | Chunked (`put` × N, `commit`) | Save button disables, `put` lines stream at one every 0.3 s, `commit` follows, then tone/backstory regenerate |
 | One trait at 64 chars, two short | Chunked | Only the long trait's field produces `put` chunks; the short fields still ride in the same `commit` |
-| A 1,000-character backstory of 4-byte UTF-8 characters, typed as `.llmc put <guid> bs <seq> 61 <chunk>` lines and a `.llmc commit <guid>` | Chunked, 61 chunks of at most 198 characters, since no chunk splits a `%XX` or `~FX` escape (server-side only: the addon never sends `bs`) | Every chunk is accepted (the cap is 64); `commit` saves the whole story and `get` returns it intact |
+| A 1,000-character backstory of 4-byte UTF-8 characters, saved from the addon's story box (or typed as `.llmc put <guid> bs <seq> 61 <chunk>` lines and a `.llmc commit <guid>`) | Chunked, 61 chunks of at most 198 characters, since no chunk splits a `%XX` or `~FX` escape | Every chunk is accepted (the cap is 64); `commit` saves the whole story and `get` returns it intact |
 | A 1,100-character 4-byte backstory (67 chunks) | Rejected | `ERROR chunk Malformed chunk header`; nothing is staged past the cap |
-| In the addon, open the story box and try to type in it | Addon contract | The box takes no input; the only ways to change a story are Save Traits with changed traits or Regenerate Story |
+| In the addon (1.2.0 or later), type a short story and click Save Story | Single-line `setbackstory` | One `.llmc setbackstory` line; "Story saved for <name>."; `get` returns the typed text; traits and tone are unchanged and nothing regenerates |
+| Click Regenerate Story, and save a typed story before the new one arrives (older addon, or by hand) | Regeneration keeps a saved story | The saved text is still there after the job has run; the bridge log says the saved backstory was kept |
 
 The boundary for traits is the assembled `.llmc set <guid> <t1> <t2> <t3>`
 line against the client's 255-character chat limit, not the 64-character

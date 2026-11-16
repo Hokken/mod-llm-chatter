@@ -28,7 +28,24 @@ def test_regeneration_jobs_are_part_of_the_transaction():
     assert regen.count('AppendChatterEvent(') == 2
     assert '"bot_tone_regen"' in regen
     assert '"bot_backstory_regen"' in regen
-    assert 'if (!edit.hasBackstory)' in regen
+    assert 'if (!edit.hasBackstory && BackstoriesEnabled())' in regen
+
+
+def test_disabled_backstories_are_reported_not_queued():
+    # With LLMChatter.Backstory.Enable = 0 the bridge writes no
+    # story, so the addon must hear that instead of waiting.
+    regen = _function_body(COMMAND, 'bool HandleRegenBackstoryCommand(')
+    refuse_at = regen.index('if (!BackstoriesEnabled())')
+    assert '"ERROR disabled "' in regen[refuse_at:]
+    # Refused before the stored story is cleared or a job queued.
+    assert refuse_at < regen.index('SET backstory = NULL')
+    assert refuse_at < regen.index('QueueChatterEvent(')
+
+    report = _function_body(COMMAND, 'void ReportProfileEdit(')
+    assert '(noStory ? " nostory" : "")' in report
+
+    enabled = _function_body(COMMAND, 'bool BackstoriesEnabled()')
+    assert '"LLMChatter.Backstory.Enable", true' in enabled
 
 
 def test_session_callback_only_replies_to_the_addon():

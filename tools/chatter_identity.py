@@ -720,8 +720,9 @@ def handle_backstory_regen_event(
     """Event handler for bot_backstory_regen.
 
     Called when a player requests backstory
-    regeneration via the addon. Clears and
-    regenerates the backstory, then marks the
+    regeneration via the addon, or changes a bot's
+    traits. Generates the backstory unless one was
+    saved since the job was queued, then marks the
     event completed.
     """
     import json

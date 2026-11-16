@@ -12,6 +12,24 @@
 * Restart only the chatter bridge. No worldserver rebuild or database
   migration is needed.
 
+### 2026-11-16 - No Waiting for a Story That Is Switched Off
+
+* **The addon is told when stories are off**: with
+  `LLMChatter.Backstory.Enable = 0`, Regenerate Story used to clear the
+  stored story and leave the Chatter Companion addon waiting two minutes
+  for one that was never written. The worldserver now answers
+  `ERROR disabled` at once and leaves the stored story in place.
+* **Trait changes say so too**: the reply to a trait change that only
+  regenerates the tone is `UPDATED <guid> <name> changed nostory`, and no
+  story job is queued. Addons that predate the extra word ignore it.
+* `LLMChatter.Backstory.Enable` is now read by the worldserver as well as
+  the bridge (`.reload config` for the worldserver, a restart for the
+  bridge).
+* **Addon reference brought up to date**: `docs/chatter-addon-reference.md`
+  and the related notes describe Chatter Companion 1.2.0: the bot list,
+  story editing, the shared poll and the save lifecycle.
+* Needs a worldserver rebuild. No database migration.
+
 ### 2026-11-16 - Alt Bots in General and Guild Chat
 
 * **Alt bots join General and Guild chat**: bots a real player logged in

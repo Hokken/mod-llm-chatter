@@ -65,6 +65,16 @@ struct BotProfile
     std::string backstory;
 };
 
+// The bridge owns backstory generation and reads the same
+// switch. The worldserver only needs it to tell the addon up
+// front that no story will be written, instead of queueing a
+// job the bridge would drop and leaving the addon to wait.
+bool BackstoriesEnabled()
+{
+    return sConfigMgr->GetOption<bool>(
+        "LLMChatter.Backstory.Enable", true);
+}
+
 void SendAddonLine(
     ChatHandler* handler, std::string const& payload)
 {
@@ -792,10 +802,9 @@ void AppendRegenerationEvents(
         5, 120, true);
 
     // Queue backstory regen for new traits, unless this
-    // edit brought a story of its own. The worker starts
-    // by clearing whatever is stored, so scheduling it
-    // here would discard the supplied text minutes later.
-    if (!edit.hasBackstory)
+    // edit brought a story of its own, which the new traits
+    // must not replace, or stories are switched off.
+    if (!edit.hasBackstory && BackstoriesEnabled())
     {
         AppendChatterEvent(
             trans,
@@ -822,6 +831,11 @@ void ReportProfileEdit(
 
     if (edit.hasTraits)
     {
+        // "nostory" after "changed" tells the addon that only
+        // the tone is being regenerated, so it does not wait
+        // for a story. Addons that predate it ignore the word.
+        bool noStory = edit.traitsChanged
+            && !edit.hasBackstory && !BackstoriesEnabled();
         SendAddonLine(
             handler,
             "UPDATED "
@@ -830,7 +844,8 @@ void ReportProfileEdit(
             + PercentEncode(profile.name)
             + " "
             + (edit.traitsChanged
-                ? "changed" : "unchanged"));
+                ? "changed" : "unchanged")
+            + (noStory ? " nostory" : ""));
         SendAddonLine(
             handler,
             "PROFILE "
@@ -1066,6 +1081,19 @@ bool HandleRegenBackstoryCommand(
             + PercentEncode(
                 "That bot is not in your "
                 "Chatter roster"));
+        return true;
+    }
+
+    // Nothing would write the new story, so the old one is
+    // left in place and the addon is told now.
+    if (!BackstoriesEnabled())
+    {
+        SendAddonLine(
+            handler,
+            "ERROR disabled "
+            + PercentEncode(
+                "Background stories are switched off "
+                "on this server"));
         return true;
     }
 
