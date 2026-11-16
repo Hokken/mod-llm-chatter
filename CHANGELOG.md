@@ -1,5 +1,21 @@
 # Changelog
 
+### 2026-11-16 - Alt Bots in General and Guild Chat
+
+* **Alt bots join General and Guild chat**: bots a real player logged in
+  (for example with `.playerbots bot add`) can now speak in General and
+  Guild chat, not only in party chat (#98). Each feature keeps its rule
+  for bots grouped with you: ambient General chatter and loot brags still
+  skip them.
+* **New switch**: `LLMChatter.AltBots.Enable` (default 1). Set it to 0
+  to keep random-bot-only General and Guild speakers.
+* **Fairer General replies**: the bots that may answer a player in
+  General are now drawn at random from every eligible bot in the zone,
+  so the same few bots no longer get every reply.
+* **Safer delivery**: a queued General or Guild line is dropped if its
+  speaker is no longer a bot by the time it is sent, for example after
+  the character was logged back in on a client.
+
 ### 2026-11-16 - Group Composition Includes the Player
 
 * **The player counts in group composition comments**: after bots join,

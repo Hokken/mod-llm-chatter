@@ -956,6 +956,10 @@ void LLMChatterConfig::LoadConfig()
     _generalChannelEnable = GetChatterOption<bool>(
         "LLMChatter.GeneralChannel.Enable", true);
 
+    // Alt bots as General and Guild speakers (issue #98)
+    _altBotsEnable = GetChatterOption<bool>(
+        "LLMChatter.AltBots.Enable", true);
+
     // General chat reactions
     _useGeneralChatReact = GetChatterOption<bool>(
         "LLMChatter.GeneralChat.PlayerReplyEnable", true);

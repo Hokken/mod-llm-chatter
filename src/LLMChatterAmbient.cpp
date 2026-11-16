@@ -770,12 +770,8 @@ static std::vector<Player*> GetBotsInZone(
     uint32 zoneId, uint32 faction)
 {
     std::vector<Player*> bots;
-    PlayerBotMap allBots =
-        sRandomPlayerbotMgr.GetAllBots();
-
-    for (auto const& pair : allBots)
+    for (Player* player : GetChatterBots())
     {
-        Player* player = pair.second;
         if (!player)
             continue;
 

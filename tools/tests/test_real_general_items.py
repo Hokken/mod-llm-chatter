@@ -338,7 +338,9 @@ def test_cpp_source_contracts_for_hot_path_and_bounded_state():
         loot.index('void CaptureLoot(')
     ]
     assert 'IsLootOnCooldown(source.zoneId)' in queue_finalized
-    assert 'sRandomPlayerbotMgr.IsRandomBot(bot)' in queue_finalized
+    # Random bots, or alt bots while enabled (issue #98).
+    assert 'IsChatterSpeakerAllowed(bot)' in queue_finalized
+    assert 'IsGroupedWithRealPlayer(bot)' in queue_finalized
 
     assert 'RefreshGeneralAudienceSnapshot();' not in loot
     assert 'RefreshGeneralAudienceSnapshot();' in world

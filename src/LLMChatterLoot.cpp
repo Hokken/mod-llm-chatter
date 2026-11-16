@@ -173,8 +173,7 @@ void QueueFinalizedLoot(PendingLootSource const& source)
         ObjectGuid::Create<HighGuid::Player>(source.botGuid);
     Player* bot = ObjectAccessor::FindPlayer(botGuid);
     if (!bot || !bot->IsInWorld() || !bot->IsAlive()
-        || !IsPlayerBot(bot)
-        || !sRandomPlayerbotMgr.IsRandomBot(bot)
+        || !IsChatterSpeakerAllowed(bot)
         || !IsInOverworld(bot)
         || IsGroupedWithRealPlayer(bot))
         return;

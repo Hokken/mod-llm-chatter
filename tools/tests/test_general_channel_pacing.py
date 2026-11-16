@@ -344,9 +344,18 @@ def test_cpp_general_roster_matches_player_team():
     source = (
         TOOLS_DIR.parent / 'src' / 'LLMChatterPlayer.cpp'
     ).read_text(encoding='utf-8')
-    assert source.count(
-        '!= player->GetTeamId()'
-    ) >= 2
+    # Both roster sources (world sessions and chatter bots) go through
+    # one filter that requires the player's team.
+    roster = source[
+        source.index('std::vector<Player*> zoneBots;'):
+        source.index('if (zoneBots.empty())')
+    ]
+    filter_body = roster[
+        roster.index('auto considerBot'):
+        roster.index('for (auto const& pair')
+    ]
+    assert 'bot->GetTeamId() != player->GetTeamId()' in filter_body
+    assert roster.count('considerBot(') == 2  # one call per source
 
 
 def test_cpp_player_reply_delivery_rechecks_faction():

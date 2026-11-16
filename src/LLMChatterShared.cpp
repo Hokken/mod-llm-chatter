@@ -5,6 +5,7 @@
 #include "LLMChatterShared.h"
 
 #include "LLMChatterConfig.h"
+#include "LLMChatterBotSource.h"
 #include "Channel.h"
 #include "ChannelMgr.h"
 #include "Chat.h"
@@ -1199,6 +1200,57 @@ bool IsGroupedWithRealPlayer(Player* player)
     }
 
     return false;
+}
+
+std::vector<Player*> GetChatterBots()
+{
+    std::vector<Player*> bots;
+    std::set<ObjectGuid> seen;
+    for (auto const& pair : sRandomPlayerbotMgr.GetAllBots())
+    {
+        LLMChatterBotSource::AppendUniqueBot(
+            bots, seen, pair.first, pair.second);
+    }
+
+    if (!sLLMChatterConfig || !sLLMChatterConfig->_altBotsEnable)
+        return bots;
+
+    // Alt bots live in their owner's holder; bot sessions are not
+    // registered with sWorldSessionMgr, so walk the owners.
+    for (auto const& pair : sWorldSessionMgr->GetAllSessions())
+    {
+        WorldSession* session = pair.second;
+        Player* owner = session ? session->GetPlayer() : nullptr;
+        if (!owner || !owner->IsInWorld() || IsPlayerBot(owner))
+            continue;
+
+        PlayerbotMgr* mgr = GET_PLAYERBOT_MGR(owner);
+        if (!mgr)
+            continue;
+
+        for (auto it = mgr->GetPlayerBotsBegin();
+             it != mgr->GetPlayerBotsEnd(); ++it)
+        {
+            if (it->second && IsPlayerBot(it->second))
+            {
+                LLMChatterBotSource::AppendUniqueBot(
+                    bots, seen, it->first, it->second);
+            }
+        }
+    }
+    return bots;
+}
+
+bool IsChatterSpeakerAllowed(Player* bot, char const** dropReason)
+{
+    LLMChatterBotSource::SpeakerVerdict verdict =
+        LLMChatterBotSource::ClassifySpeaker(
+            IsPlayerBot(bot),
+            bot && sRandomPlayerbotMgr.IsRandomBot(bot),
+            sLLMChatterConfig && sLLMChatterConfig->_altBotsEnable);
+    if (dropReason)
+        *dropReason = LLMChatterBotSource::SpeakerDropReason(verdict);
+    return verdict == LLMChatterBotSource::SpeakerVerdict::Ok;
 }
 
 void RefreshGeneralAudienceSnapshot()
@@ -3019,11 +3071,8 @@ Player* FindNearbyDefenderBot(
 
     std::vector<Player*> candidates;
 
-    auto allBots =
-        sRandomPlayerbotMgr.GetAllBots();
-    for (auto& pair : allBots)
+    for (Player* bot : GetChatterBots())
     {
-        Player* bot = pair.second;
         if (!bot || !bot->IsInWorld()
             || !bot->IsAlive())
             continue;

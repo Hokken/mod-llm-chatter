@@ -756,6 +756,20 @@ void DeliverPendingMessagesImpl()
     std::string dropReason = botUnavailable
         ? "speaker_unavailable" : "";
 
+    // A General or Guild line can outlive its speaker's bot session
+    // (an alt relogged under client control, or as a self-bot) or
+    // LLMChatter.AltBots.Enable (.reload config). Re-check the
+    // speaker rule so a line never goes out in a real player's name.
+    char const* speakerDrop = nullptr;
+    if (!botUnavailable
+        && (channel == "general" || channel == "guild")
+        && !IsChatterSpeakerAllowed(bot, &speakerDrop))
+    {
+        bot = nullptr;
+        botUnavailable = true;
+        dropReason = speakerDrop;
+    }
+
     // A meet greeting is only spoken while the guildmate is still
     // close, visible and in line of sight, and both are still in the
     // guild they met as.

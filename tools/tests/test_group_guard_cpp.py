@@ -111,7 +111,9 @@ def test_general_guards_cover_every_eligible_speaker():
     # Uncapped, both bot sources, same filters as the reply sample.
     assert "_maxBotsPerZone" not in collect
     assert "GetAllSessions()" in collect
-    assert "GetAllBots()" in collect
+    # Random and alt bots (issue #98), so every selectable
+    # General speaker is also guarded.
+    assert "GetChatterBots()" in collect
     for gate in ("IsPlayerBot(bot)", "GetZoneId() != zoneId",
                  "GetTeamId() != teamId", "CanSpeakInGeneralChannel(bot)"):
         assert gate in collect, gate

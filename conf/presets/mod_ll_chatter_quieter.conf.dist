@@ -749,6 +749,23 @@ LLMChatter.ChatHistoryLimit = 10
 LLMChatter.GeneralChannel.Enable = 1
 
 #
+#   LLMChatter.AltBots.Enable
+#       Let alt bots (playerbots that a real player logged in, for
+#       example with .playerbots bot add) speak in General and Guild
+#       chat alongside random bots. Party and raid chatter always
+#       includes alt bots and is not affected by this switch.
+#       Each General feature keeps its own rule for bots grouped with
+#       a real player: ambient chatter and loot brags skip them, while
+#       replies to player messages, transport arrivals and Guild chat
+#       may use them.
+#       A queued General or Guild line is dropped at delivery if its
+#       speaker is no longer a bot or alt bots were turned off.
+#       0 keeps the random-bot-only speaker selection.
+#       Default: 1
+#
+LLMChatter.AltBots.Enable = 1
+
+#
 #   LLMChatter.GeneralChat.PlayerReplyEnable
 #       Enable bot reactions/replies to PLAYER messages in the General
 #       channel. This only governs responses to what players type; it

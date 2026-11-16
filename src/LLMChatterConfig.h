@@ -288,6 +288,10 @@ public:
     // ambient, world events, and player-message replies)
     bool _generalChannelEnable;
 
+    // Alt bots (bots a real player logged in) as General and
+    // Guild speakers alongside random bots (issue #98)
+    bool _altBotsEnable;
+
     // General chat reactions
     bool _useGeneralChatReact;
     uint32 _generalChatChance;

@@ -1287,6 +1287,7 @@ Line counts are approximate non-blank lines.
 | `src/LLMChatterGroupAwareness.h` | ~60 | Group awareness API used by `LLMChatterGroupJoin.cpp` (hooks), `LLMChatterProximity.cpp` (payloads) and `LLMChatterDelivery.cpp` (guard) |
 | `src/LLMChatterSceneClosure.h` | ~80 | Pure closed-proximity-scene set and the row-in-closed-scene decision; standard-library only, tested in `tools/tests/cpp/test_group_guard.cpp` |
 | `src/LLMChatterGroupGuard.h` | ~160 | Pure speaker group guard: `extra_data` reader, comparison, fingerprint and the event-row `group_drop_seq` check (`RowFollowsGroupDrop`); standard-library only, with a standalone test (`tools/tests/cpp/test_group_guard.cpp`) |
+| `src/LLMChatterBotSource.h` | ~75 | Pure General/Guild speaker policy: GUID-unique registry merge (`AppendUniqueBot`) and the speaker rule (`ClassifySpeaker`, `SpeakerDropReason`); standard-library only, with a standalone test (`tools/tests/cpp/test_bot_source.cpp`) |
 | `src/LLMChatterGroupEmote.cpp` | ~810 | Emote reaction system: delayed bot/creature mirror events, emote static data, grouped and ungrouped playerbot mirroring, creature mirroring, observer reactions, and cooldown eviction |
 | `src/LLMChatterGroupQuest.cpp` | 480 | Quest accept batching: `FlushQuestAcceptBatches()`, `LLMChatterCreatureScript` (AllCreatureScript: `CanCreatureQuestAccept` with debounce/immediate paths) |
 | `src/LLMChatterGroupPvP.cpp` | ~550 | Overworld PvP: opposing-faction enemy resolution (players and their pets), the identity visibility gate, PvP reactor selection, enemy JSON fields, per-group and per-enemy PvP cooldowns, PvP pull, player-kill, and pet-kill entry points |
@@ -1527,6 +1528,8 @@ instead of rendering it as a `/slash` command.
 - `BuildBotStateJson()`
 - `AppendRaidContext()`
 - `GroupHasBots()`
+- `GetChatterBots()` / `IsChatterSpeakerAllowed()` — General and Guild
+  speaker sourcing (see Chatter Bot Sourcing)
 - `CanSpeakInGeneralChannel()`
 - `IsPlayerInChannel()` checks exact channel membership for General
   eligibility and delivery. Core exposes no public membership accessor;
@@ -1591,6 +1594,35 @@ system.
   trade
 - ambient chatter request queue writes
 
+### Chatter Bot Sourcing
+
+mod-playerbots keeps random bots in `RandomPlayerbotMgr` and each real
+player's alt bots in that player's own `PlayerbotMgr`. Bot sessions are
+not registered with `sWorldSessionMgr`. General and Guild speaker
+selection reads both through `GetChatterBots()` in
+`LLMChatterShared.cpp`. The alt-bot part walks the online real players'
+holders and is skipped when `LLMChatter.AltBots.Enable` is off. The
+GUID-unique merge and the speaker rule are pure code in
+`LLMChatterBotSource.h`.
+
+Callers: ambient General (`GetBotsInZone`), General player replies and
+their membership guard set (`CollectGeneralGuardBots`), transport
+arrivals, zone defender reactions, Guild player replies
+(`GetEligibleGuildBots`) and Guild idle chatter. Each caller keeps its own
+filters, including whether bots grouped with a real player may speak.
+Party and raid chatter read the `Group` and are unaffected.
+
+`IsChatterSpeakerAllowed()` is the shared speaker rule: the speaker must
+pass `IsPlayerBot()` (so never a real player or a self-bot), and a
+non-random bot needs alt bots enabled. The General loot flush uses it,
+and `LLMChatterDelivery.cpp` re-checks it for every `general` and `guild`
+row. A queued line whose speaker relogged under client control, or whose
+alt speaker was disabled by `.reload config`, is finalized as
+`speaker_not_bot` or `alt_bots_disabled`.
+
+Python trusts these C++-verified GUIDs: `get_bots_by_guid()` filters on
+`online` only, not on the account name.
+
 ### Real General loot ownership
 
 `LLMChatterLoot.cpp` owns `OnPlayerLootItem` capture for ungrouped
@@ -1602,8 +1634,9 @@ plus one completed source per bot. It never queries the database or reads
 when a source yields multiple callbacks. Because a stacked item can already
 have been freed by the callback, `Item::IsInWorld()` is checked before any
 template or entry access. The world-thread flush restricts delivery to
-random bots and revalidates the bot, audience, General membership, and
-persisted zone cooldown before queueing `bot_loot_item`.
+random bots, plus alt bots while `LLMChatter.AltBots.Enable` is on
+(`IsChatterSpeakerAllowed()`), and revalidates the bot, audience, General
+membership, and persisted zone cooldown before queueing `bot_loot_item`.
 
 The main world script rebuilds the audience snapshot independently of the
 General-channel toggle and publishes it through a `shared_mutex`-protected

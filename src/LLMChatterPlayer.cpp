@@ -5,6 +5,7 @@
 #include "LLMChatterConfig.h"
 #include "LLMChatterAmbient.h"
 #include "LLMChatterBG.h"
+#include "LLMChatterBotSource.h"
 #include "LLMChatterGroup.h"
 #include "LLMChatterGroupAwareness.h"
 #include "LLMChatterGroupInternal.h"
@@ -562,8 +563,8 @@ static std::vector<Player*> CollectGeneralGuardBots(
     for (auto const& pair : sWorldSessionMgr->GetAllSessions())
         if (pair.second)
             consider(pair.second->GetPlayer());
-    for (auto const& pair : sRandomPlayerbotMgr.GetAllBots())
-        consider(pair.second);
+    for (Player* bot : GetChatterBots())
+        consider(bot);
     return bots;
 }
 
@@ -1112,70 +1113,34 @@ public:
         if (zoneName.empty())
             zoneName = "Unknown";
 
+        // Collect every bot of the zone and faction first, then take a
+        // uniform sample of _maxBotsPerZone, so neither registry order
+        // nor GUID order decides who can answer (issue #98).
         std::vector<Player*> zoneBots;
-        zoneBots.reserve(8);
-
+        std::set<ObjectGuid> seenBots;
+        auto considerBot = [&](Player* bot)
         {
-            WorldSessionMgr::SessionMap const& sessions =
-                sWorldSessionMgr->GetAllSessions();
-            for (auto const& pair : sessions)
-            {
-                WorldSession* session = pair.second;
-                if (!session)
-                    continue;
-                Player* p = session->GetPlayer();
-                if (!p || !p->IsInWorld())
-                    continue;
-                if (!IsPlayerBot(p))
-                    continue;
-                if (p->GetZoneId() != zoneId)
-                    continue;
-                if (p->GetTeamId()
-                    != player->GetTeamId())
-                    continue;
-                zoneBots.push_back(p);
-                if (zoneBots.size()
-                    >= sLLMChatterConfig
-                        ->_maxBotsPerZone)
-                    break;
-            }
-        }
+            if (!bot || !bot->IsInWorld()
+                || bot->GetZoneId() != zoneId
+                || bot->GetTeamId() != player->GetTeamId())
+                return;
+            LLMChatterBotSource::AppendUniqueBot(
+                zoneBots, seenBots, bot->GetGUID(), bot);
+        };
 
-        if (zoneBots.size()
-            < sLLMChatterConfig->_maxBotsPerZone)
+        for (auto const& pair : sWorldSessionMgr->GetAllSessions())
         {
-            auto allBots =
-                sRandomPlayerbotMgr.GetAllBots();
-            for (auto& pair : allBots)
-            {
-                Player* bot = pair.second;
-                if (!bot || !bot->IsInWorld())
-                    continue;
-                if (bot->GetZoneId() != zoneId)
-                    continue;
-                if (bot->GetTeamId()
-                    != player->GetTeamId())
-                    continue;
-
-                bool found = false;
-                for (Player* b : zoneBots)
-                {
-                    if (b->GetGUID() == bot->GetGUID())
-                    {
-                        found = true;
-                        break;
-                    }
-                }
-                if (!found)
-                {
-                    zoneBots.push_back(bot);
-                    if (zoneBots.size()
-                        >= sLLMChatterConfig
-                            ->_maxBotsPerZone)
-                        break;
-                }
-            }
+            Player* p = pair.second
+                ? pair.second->GetPlayer() : nullptr;
+            if (p && IsPlayerBot(p))
+                considerBot(p);
         }
+        for (Player* bot : GetChatterBots())
+            considerBot(bot);
+
+        std::mt19937 sampleRng{std::random_device{}()};
+        LLMChatterBotSource::SampleBots(
+            zoneBots, sLLMChatterConfig->_maxBotsPerZone, sampleRng);
 
         zoneBots.erase(
             std::remove_if(

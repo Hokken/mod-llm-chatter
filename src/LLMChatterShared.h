@@ -40,6 +40,15 @@ bool IsPlayerBot(Player* player);
 bool IsUnitPerceivableBy(Player* viewer, Unit* unit);
 bool IsInOverworld(Player* player);
 bool IsGroupedWithRealPlayer(Player* player);
+// Every bot that may speak in General or Guild: random bots,
+// plus the alt bots of every online real player while
+// LLMChatter.AltBots.Enable is on. Each bot appears once.
+std::vector<Player*> GetChatterBots();
+// The General/Guild speaker rule (LLMChatterBotSource.h):
+// true when `bot` is a bot and, for an alt bot, alt bots are
+// enabled. On false, `dropReason` names the reason.
+bool IsChatterSpeakerAllowed(
+    Player* bot, char const** dropReason = nullptr);
 void RefreshGeneralAudienceSnapshot();
 bool HasCachedGeneralAudience(
     uint32 mapId, uint32 zoneId, TeamId teamId);

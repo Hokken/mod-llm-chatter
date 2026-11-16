@@ -767,11 +767,8 @@ private:
         // Bucket online, idle bot members of those guilds.
         std::unordered_map<uint32,
             std::vector<Player*>> byGuild;
-        PlayerBotMap allBots =
-            sRandomPlayerbotMgr.GetAllBots();
-        for (auto const& pair : allBots)
+        for (Player* bot : GetChatterBots())
         {
-            Player* bot = pair.second;
             if (!bot || !bot->IsInWorld()
                 || !bot->IsAlive())
                 continue;
@@ -1086,12 +1083,8 @@ private:
         uint32 zoneId, TeamId teamId)
     {
         std::vector<Player*> bots;
-        PlayerBotMap allBots =
-            sRandomPlayerbotMgr.GetAllBots();
-
-        for (auto const& pair : allBots)
+        for (Player* bot : GetChatterBots())
         {
-            Player* bot = pair.second;
             if (!bot)
                 continue;
 

@@ -1697,8 +1697,13 @@ def get_zone_bot_candidates(
 
 def get_bots_by_guid(cursor, guid_list):
     """Return bot rows for a list of GUIDs, preserving
-    caller order. Used by transport_arrives verified
-    bots.
+    caller order. Used for bots C++ already verified
+    (transport_arrives, loot, world events).
+
+    No RNDBOT account filter: C++ selection includes
+    alt bots (issue #98), whose accounts are ordinary
+    player accounts, and delivery re-checks that the
+    speaker is still a bot.
 
     Returns list of dicts with bot1_guid, bot1_name,
     bot1_class, bot1_race, bot1_level, zone_id keys.
@@ -1718,10 +1723,7 @@ def get_bots_by_guid(cursor, guid_list):
             c.gender as bot1_gender,
             c.zone as zone_id
         FROM characters c
-        JOIN acore_auth.account a
-            ON c.account = a.id
         WHERE c.online = 1
-          AND a.username LIKE 'RNDBOT%%%%'
           AND c.guid IN ({placeholders})
     """, tuple(guid_list))
     rows = cursor.fetchall()

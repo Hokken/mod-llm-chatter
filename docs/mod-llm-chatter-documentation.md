@@ -386,6 +386,11 @@ registries instead of a single long conditional block.
 - `BuildBotStateJson()`
 - `AppendRaidContext()`
 - `GroupHasBots()`
+- `GetChatterBots()` — General and Guild speaker pool: random bots plus
+  online real players' alt bots while `LLMChatter.AltBots.Enable` is on
+- `IsChatterSpeakerAllowed()` — the speaker rule used by loot and by
+  General/Guild delivery (pure part in `src/LLMChatterBotSource.h`,
+  standalone-tested)
 - `CanSpeakInGeneralChannel()`
 - `GetTextEmoteName()` — reverse emote ID-to-name lookup (170+ entries)
 - `SendUnitTextEmote(Unit*, uint32, const std::string&)` — unified text emote
@@ -1327,9 +1332,10 @@ manager's shared containers. Per-bot state is bounded to one active source
 and one completed source awaiting the next world tick. It also checks
 `Item::IsInWorld()` before reading the item entry or template because a
 stacked callback item may already have been freed. The world-thread flush
-restricts delivery to random bots and revalidates location, audience,
+restricts delivery to random bots, plus alt bots while
+`LLMChatter.AltBots.Enable` is on, and revalidates location, audience,
 channel eligibility, and the persisted zone cooldown before queueing the
-event. Python resolves exactly the recorded online random-bot GUID. It
+event. Python resolves exactly the recorded online bot GUID. It
 trusts the live zone captured and revalidated by C++ rather than the
 save-time `characters.zone` value.
 Ambient loot is no longer invented from zone loot-table queries, and no
@@ -1346,6 +1352,31 @@ short-lived values.
 Existing installations must apply
 `data/sql/characters/updates/20260919_real_general_items.sql` before
 starting a server built with this queue contract.
+
+### Alt bots in General and Guild
+
+General and Guild speakers include alt bots, meaning the playerbots a
+real player logged in (for example with `.playerbots bot add`), alongside
+random bots. Party and raid chatter always includes them.
+
+| Config key | Default | Purpose |
+|---|---:|---|
+| `LLMChatter.AltBots.Enable` | 1 | Let alt bots speak in General and Guild |
+
+Each feature keeps its own rule for bots grouped with a real player.
+Ambient General chatter and loot brags skip them. General replies to
+player messages, transport arrivals, zone defender reactions and Guild
+chat may use them. Existing pacing caps are unchanged. Zones or guilds
+that only have alt bots now get chatter, and larger speaker pools make
+multi-bot conversations more frequent.
+
+Before a General or Guild line is sent, delivery re-checks its speaker.
+If the character is no longer a bot (logged back in on a client, or
+running as a self-bot), the line is dropped as `speaker_not_bot`. If
+alt bots were turned off with `.reload config`, an alt bot's line is
+dropped as `alt_bots_disabled`. Setting the key to 0 keeps random-bot-only
+speaker selection; the check against real players and self-bots applies
+in both settings.
 
 ---
 
