@@ -622,30 +622,18 @@ def regenerate_missing_identity_tones(
 def regenerate_bot_backstory(
     db, config, bot_guid,
 ):
-    """Clear and regenerate backstory for a bot.
+    """Generate the backstory a regeneration job was queued for.
 
     Called by the bot_backstory_regen event handler
-    when the player requests a new backstory via addon.
-    """
-    # Clear existing backstory
-    try:
-        cursor = db.cursor()
-        cursor.execute(
-            "UPDATE llm_bot_identities"
-            " SET backstory = NULL"
-            " WHERE bot_guid = %s",
-            (bot_guid,),
-        )
-        cursor.execute(
-            "UPDATE llm_group_bot_traits"
-            " SET backstory = NULL"
-            " WHERE bot_guid = %s",
-            (bot_guid,),
-        )
-        db.commit()
-    except Exception:
-        pass
+    when the player requests a new backstory via addon
+    or changes the bot's traits.
 
+    The worldserver clears the stored story in the same
+    step that queues the job, so this never clears it
+    again: a story found here was written after the job
+    was queued, by the player saving their own text or
+    by another generation, and it is kept.
+    """
     # Fetch bot info for generation — try identity
     # table first, fall back to session traits
     cursor = db.cursor(dictionary=True)
@@ -654,7 +642,7 @@ def regenerate_bot_backstory(
                COALESCE(i.bot_name, c.name)
                    AS bot_name,
                i.trait1, i.trait2, i.trait3,
-               i.tone,
+               i.tone, i.backstory,
                c.class, c.race, c.gender
         FROM llm_bot_identities i
         JOIN characters c
@@ -669,7 +657,7 @@ def regenerate_bot_backstory(
                    COALESCE(t.bot_name, c.name)
                        AS bot_name,
                    t.trait1, t.trait2, t.trait3,
-                   t.tone,
+                   t.tone, t.backstory,
                    c.class, c.race, c.gender
             FROM llm_group_bot_traits t
             JOIN characters c
@@ -681,6 +669,14 @@ def regenerate_bot_backstory(
         row = cursor.fetchone()
     if not row:
         return None
+
+    if _has(row.get('backstory')):
+        logger.info(
+            "Kept the backstory saved for %s (%s) since"
+            " its regeneration was queued",
+            row.get('bot_name') or '', bot_guid,
+        )
+        return row['backstory']
 
     bot_name = row.get('bot_name', '') or ''
     bot_class = get_class_name(

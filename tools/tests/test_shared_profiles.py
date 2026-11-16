@@ -221,6 +221,49 @@ class Profiles(unittest.TestCase):
         self.assertEqual(p.tone, 'manually edited')
         self.assertEqual(p.traits[0], 'stern')
 
+    def stored_backstory(self):
+        return self.db.connection.execute(
+            'SELECT backstory FROM llm_bot_identities WHERE bot_guid=101'
+        ).fetchone()[0]
+
+    def test_regeneration_writes_a_story_cleared_when_it_was_queued(self):
+        # The worldserver clears the story as it queues the job.
+        self.save(backstory=None)
+        story = identity.regenerate_bot_backstory(self.db, self.config, 101)
+        self.assertEqual(story, 'Raised in Durotar.')
+        self.assertEqual(self.stored_backstory(), 'Raised in Durotar.')
+        self.assertEqual(self.llm.call_count, 1)
+
+    def test_regeneration_keeps_a_story_saved_after_it_was_queued(self):
+        # Cleared at queue time, then the player saved their own text
+        # before the job ran (.llmc setbackstory / bs commit).
+        self.save(backstory='My own story.')
+        self.db.connection.execute(
+            'INSERT INTO llm_group_bot_traits VALUES '
+            "(7, 101, 'loyal', 'curious', 'patient', 'dry and warm',"
+            " 'My own story.', 1)")
+        self.db.commit()
+        story = identity.regenerate_bot_backstory(self.db, self.config, 101)
+        self.assertEqual(story, 'My own story.')
+        self.assertEqual(self.stored_backstory(), 'My own story.')
+        self.assertEqual(
+            self.db.connection.execute(
+                'SELECT backstory FROM llm_group_bot_traits '
+                'WHERE bot_guid=101').fetchone()[0],
+            'My own story.')
+        self.llm.assert_not_called()
+
+    def test_story_saved_while_regeneration_runs_wins(self):
+        self.save(backstory=None)
+
+        def save_meanwhile(*args, **kwargs):
+            self.save(backstory='My own story.')
+            return 'An obsolete generated story.'
+
+        self.llm.side_effect = save_meanwhile
+        identity.regenerate_bot_backstory(self.db, self.config, 101)
+        self.assertEqual(self.stored_backstory(), 'My own story.')
+
     def test_version_bump_updates_matching_group(self):
         self.save()
         self.db.connection.execute(

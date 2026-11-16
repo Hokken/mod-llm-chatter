@@ -1,5 +1,17 @@
 # Changelog
 
+### 2026-11-16 - Saved Backstories Survive a Pending Regeneration
+
+* **A story you save is not erased by an older regeneration**: asking for
+  a new backstory, or changing a bot's traits, queues a regeneration job.
+  The job used to begin by clearing the stored story, so a story saved
+  with `.llmc setbackstory` (or a chunked `bs` upload) before the job ran
+  was wiped and replaced. The worldserver already clears the story when
+  it queues the job, so the job no longer clears it again: a story it
+  finds was written after it was queued, and is kept.
+* Restart only the chatter bridge. No worldserver rebuild or database
+  migration is needed.
+
 ### 2026-11-16 - Alt Bots in General and Guild Chat
 
 * **Alt bots join General and Guild chat**: bots a real player logged in
