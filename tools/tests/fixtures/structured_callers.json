@@ -64,6 +64,7 @@
   "chatter_llm.py:_call_target:structured_completion:1": "transport",
   "chatter_llm.py:_call_target:create_chat_completion:1": "transport",
   "chatter_loot.py:process_general_loot_event:call_llm:1": "annotated",
+  "chatter_letters.py:_query_letter:call_llm:1": "explicit",
   "chatter_memory.py:_call_llm_for_memory:call_llm:1": "explicit",
   "chatter_prompts.py:build_plain_statement_prompt:append_json_instruction:1": "thread",
   "chatter_prompts.py:build_plain_conversation_prompt:append_conversation_json_instruction:1": "thread",

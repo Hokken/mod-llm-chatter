@@ -12,6 +12,7 @@
 #include "LLMChatterLoot.h"
 #include "LLMChatterProximityFight.h"
 #include "LLMChatterRaid.h"
+#include "LLMChatterReactivity.h"
 #include "LLMChatterReplyHold.h"
 #include "LLMChatterShared.h"
 
@@ -34,4 +35,5 @@ void AddLLMChatterScripts()
     AddLLMChatterCommandScripts();
     AddLLMChatterReplyHoldScripts();
     AddLLMChatterAmbientScripts();
+    AddLLMChatterReactivityScripts();
 }

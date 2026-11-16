@@ -390,6 +390,75 @@ hooks, but persistent event queries run outside that mutex. The parsed
 denylist is published as an immutable configuration snapshot on load or
 reload.
 
+### World reactivity data flow
+
+Letters and rumors make the world answer what a real player did:
+
+1. C++ `LLMChatterReactivity.cpp` writes achievements, quest turn-ins,
+   level changes and logins to `llm_reactivity_inbox`, with the live
+   facts saved rows may not hold yet: free profession points, profession
+   skills, level and team. Triggers do not use `llm_chatter_events`,
+   because startup expires every pending event there and a letter earned
+   just before a restart must survive it. Playerbots are never recorded.
+2. The bridge runs `process_reactivity()` on the worker pool every
+   `Letters.PollSeconds`, whether or not anyone is online. It drains the
+   inbox and looks each deed up by game ID, so a deed with no content
+   costs a dictionary miss. A deed is deleted only once handled; a
+   failure raises its `attempts`, and a row at the limit (5) is kept for
+   inspection but no longer picked up. Each deed also refreshes the
+   stored team, so a faction change carries over.
+3. A matching letter becomes a `scheduled` row with a random
+   `not_before`. The `(player_guid, kind, letter_key)` unique key makes a
+   letter once-only however many achievements lead to it. A failed
+   chance roll is stored as `skipped`, so a heroic clear does not reroll
+   a normal clear's chance.
+4. When a row comes due the pass writes it (structured `letter`
+   response: subject and body), strips `|` because the core blanks text
+   holding `| |`, and marks it `ready`. `Letters.MaxChars` and
+   `MaxSubjectChars` only steer the prompt: the body is delivered whole,
+   and a subject is cut only past its 128-character column, at a word.
+   Failed writes retry and then become `failed`. Senders and trainers
+   may carry a curated race, gender and faction, which the prompt shows
+   when present.
+5. C++ polls `ready` rows every `Letters.DeliveryPollSeconds`, marks one
+   `sending` with a direct write, then commits the items, the mail and
+   `sent` in one transaction. The direct write stops the next poll seeing
+   the row while the asynchronous commit is queued. A row left `sending`
+   by a crash is retired as `failed` and never resent. A letter with no
+   valid item is `failed`: every letter carries a gift.
+6. Mail needs a real sender: `MAIL_CREATURE` with a creature entry, or
+   `MAIL_NORMAL` with a bot's guid. Table senders with no name of their
+   own (a watchman of Nethergarde Keep) map to a real NPC of that place,
+   and the prompt carries the role.
+7. A matching rumor is recorded as fresh, with its zones (zone 0 means
+   anywhere) in `llm_reactivity_fresh_rumor_zones`.
+   The worldserver keeps those rows in memory, reloaded by one async
+   query every `Rumors.RefreshSeconds` (`UpdateFreshRumorZones()`,
+   gated by `Rumors.Enable`), so `HasFreshRumorHere()` is a lookup and the world
+   thread never waits on the database. Outside instances,
+   `MaybeQueueProximityScene` skips its ambient roll when a fresh rumor
+   applies here and narrows the speakers to friendly and neutral NPCs.
+   A scene that exists only for the rumor carries `rumor_forced`, and the
+   bridge skips it when it cannot tell the rumor there. Entity cooldowns
+   still apply.
+8. Python `pick_rumor()` runs in the ordinary `proximity_say` and
+   `proximity_conversation` handlers, and only when every speaker is such
+   an NPC. A fresh rumor always wins. Otherwise `Rumors.Chance` applies
+   and the character's own achievement and quest records supply the
+   candidates, so deeds from before the feature count at normal priority.
+   Instances, fight scenes and screenshot scenes keep their own subject.
+   An addressed rumor in an NPC-only conversation lets the speakers turn
+   to the player for that scene.
+9. A rumor stops being fresh after `Rumors.FreshVoicings` lines reach the
+   player. `settle_voicings()` counts only message rows actually sent
+   (`delivered = 1`, `delivered_at` set, no `drop_reason`), so a dropped
+   or claimed-but-unsent line does not use up a rumor.
+
+Every gift is an existing stock item: the 3.3.5 client takes bag icons
+from its own `Item.dbc`, so an item it does not know shows a question
+mark once it leaves the mailbox. Letter prompts name every gift through
+`localize_item_name()`, so the text matches the attachment.
+
 ### Guild chatter data flow
 
 Guild chatter reuses shared conversation mechanics while keeping
@@ -1196,6 +1265,7 @@ Line counts are approximate non-blank lines.
 | `src/LLMChatterDelivery.h` | 4 | Narrow delivery extraction declaration used by `LLMChatterWorld.cpp` |
 | `src/LLMChatterAmbient.cpp` | ~1030 | Ambient world/event ownership: day/night transitions, holiday start/stop routing, weather state tracking (per zone, and per real player from the `SMSG_WEATHER` packets their client is sent, `LLMChatterWeatherPacketScript`), weather reactions, zone-level ambient chatter selection, ambient request queue writes |
 | `src/LLMChatterAmbient.h` | 24 | Narrow ambient declarations consumed by `LLMChatterWorld.cpp` |
+| `src/LLMChatterReactivity.cpp/.h` | ~300 | World reactivity, live side: records real players' achievements, turn-ins, level-ups and logins in `llm_reactivity_inbox`, sends `llm_reactivity_letters` rows through the mail system (online or offline, one transaction per letter), and answers the fresh-rumor lookup for proximity scans |
 | `src/LLMChatterThemedAudience.cpp/.h` | ~50 | Listener JSON for themed topics and rumors: guid, name, level, team, race and class, sent as `audience_context` on ambient General requests and as `audience` on guild idle events |
 | `src/LLMChatterAudience.cpp/.h` | ~90 | Online real players (never playerbots) in a zone or guild: `CollectRealPlayers*()` and `PickRealPlayerInZone()` / `PickRealGuildMember()` |
 | `src/LLMChatterLoot.cpp/.h` | ~380 | Real ungrouped-playerbot loot capture, per-source reservoir sampling, bounded aggregation, audience/cooldown revalidation, and event queueing |
@@ -1412,6 +1482,15 @@ instead of rendering it as a `/slash` command.
 | `tools/chatter_instance_context.py` | Shared canonical map/current-area and curated dungeon-lore context used by ordinary proximity and boss prompts |
 | `tools/chatter_proximity_pacing.py` | Bounded, length-aware pacing for nearby conversation lines; owns the `ProximityChatter.DynamicPacing.*` settings |
 | `tools/chatter_boss_dialogue.py` | Fail-closed, history-aware message-only generation and `myell` queue insertion for boss approach and directed boss events |
+
+### World reactivity domain
+
+| File | Primary ownership |
+|---|---|
+| `tools/chatter_letters.py` | The background pass: reads the inbox, schedules letters, paces Memories, Starters and Professions, picks gifts, writes due letters and marks them ready |
+| `tools/chatter_letter_prompts.py` | Letter prompt builders. Facts in, one prompt out; no database access |
+| `tools/chatter_reactive_rumors.py` | Rumor unlocking, selection for proximity scenes, prompt lines, and counting voicings against delivered messages |
+| `tools/chatter_reactivity_data.py` | Loads `reactivity_letters.json`, `reactivity_gifts.json` and `reactivity_rumors.json` and looks rows up by game ID |
 
 ### Raid/BG domain
 
@@ -2367,6 +2446,12 @@ Generation failures do not reassign later greetings to another channel.
 | `llm_bot_memories` | Python; C++ `.llmc forget` deletes | Python + C++ | Persistent episodic memories, flushed on farewell |
 | `llm_screenshot_proximity` | Host screenshot agent + C++ state updates | C++ + agent | Account-bound screenshot mailbox (ticket, token, state, expiry, visual JSON) | Account-bound screenshot mailbox (ticket, token, state, expiry, visual JSON) |
 | `llm_chatter_race_names` | C++ (startup) | Python | Race names from `ChrRaces`, for races outside `RACE_NAMES` |
+| `llm_reactivity_inbox` | C++ | Python | Real players' deeds waiting for the bridge; survives restarts |
+| `llm_reactivity_letters` | Python | C++ + Python | One row per letter from scheduling to delivery; unique per player, kind and key |
+| `llm_reactivity_player_state` | Python | Python | Per-character letter pacing and team |
+| `llm_reactivity_rumors` | Python | Python | Rumors unlocked or told, freshness and voiced count |
+| `llm_reactivity_rumor_voicings` | Python | Python | Rumor lines queued, waiting to be counted against delivery |
+| `llm_reactivity_fresh_rumor_zones` | Python | C++ + Python | Where a fresh rumor may be told; zone 0 means anywhere |
 
 ## Known Gaps
 

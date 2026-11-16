@@ -1,0 +1,4776 @@
+{
+ "achievements": [
+  {
+   "description": "The hero walks about clad from head to toe in arms and armour of legendary make, the kind most soldiers only hear about in stories.",
+   "faction": "Both",
+   "frequency": 5,
+   "ids": [
+    556
+   ],
+   "key": "epic",
+   "name": "Epic",
+   "notes": ""
+  },
+  {
+   "description": "The hero keeps a whole stable of fine mounts gathered from across the world, and stablemasters speak of the collection with envy.",
+   "faction": "Both",
+   "frequency": 2,
+   "ids": [
+    2143
+   ],
+   "key": "leading_the_cavalry",
+   "name": "Leading the Cavalry",
+   "notes": ""
+  },
+  {
+   "description": "The hero has collected a whole menagerie of companion creatures from every corner of the world, and children love to hear about the strangest of them.",
+   "faction": "Both",
+   "frequency": 2,
+   "ids": [
+    1250
+   ],
+   "key": "shop_smart_shop_pet_smart",
+   "name": "Shop Smart, Shop Pet...Smart",
+   "notes": ""
+  },
+  {
+   "description": "The hero has answered more calls for help than anyone can count, and townsfolk across the world say there is no task too small or too dangerous for them.",
+   "faction": "Both",
+   "frequency": 3,
+   "ids": [
+    507
+   ],
+   "key": "1000_quests_completed",
+   "name": "1000 Quests Completed",
+   "notes": ""
+  },
+  {
+   "description": "The hero turns up day after day to do the work that keeps outposts supplied and borders safe, and the quartermasters know them by name.",
+   "faction": "Both",
+   "frequency": 3,
+   "ids": [
+    976
+   ],
+   "key": "500_daily_quests_complete",
+   "name": "500 Daily Quests Complete",
+   "notes": ""
+  },
+  {
+   "description": "The hero has helped the people of the Eastern Kingdoms from the Plaguelands of the north to the jungles of Stranglethorn, and knows the troubles of nearly every village there.",
+   "faction": "Both",
+   "frequency": 6,
+   "ids": [
+    1676,
+    1677
+   ],
+   "key": "loremaster_of_eastern_kingdoms",
+   "name": "Loremaster of Eastern Kingdoms",
+   "notes": ""
+  },
+  {
+   "description": "The hero has travelled the length of Kalimdor, from the forests of the north to the deserts of the south, taking up the cause of nearly every settlement along the way.",
+   "faction": "Both",
+   "frequency": 6,
+   "ids": [
+    1678,
+    1680
+   ],
+   "key": "loremaster_of_kalimdor",
+   "name": "Loremaster of Kalimdor",
+   "notes": ""
+  },
+  {
+   "description": "The hero has fought for nearly every camp and stronghold in Outland, from Hellfire Peninsula to the edge of the Twisting Nether.",
+   "faction": "Both",
+   "frequency": 6,
+   "ids": [
+    1262,
+    1274
+   ],
+   "key": "loremaster_of_outland",
+   "name": "Loremaster of Outland",
+   "notes": ""
+  },
+  {
+   "description": "The hero has fought across all of Northrend, from the fjords and the tundra to the shadow of Icecrown, and the frozen continent's people know them well.",
+   "faction": "Both",
+   "frequency": 6,
+   "ids": [
+    41,
+    1360
+   ],
+   "key": "loremaster_of_northrend",
+   "name": "Loremaster of Northrend",
+   "notes": ""
+  },
+  {
+   "description": "The hero has learned the stories of every land in the world, and scholars say no living adventurer knows more about the troubles of Azeroth and Outland.",
+   "faction": "Both",
+   "frequency": 9,
+   "ids": [
+    1681,
+    1682
+   ],
+   "key": "the_loremaster",
+   "name": "The Loremaster",
+   "notes": ""
+  },
+  {
+   "description": "The hero joined Hemet Nesingwary's great hunt in Stranglethorn Vale and brought down the jungle's most fearsome beasts.",
+   "faction": "Both",
+   "frequency": 4,
+   "ids": [
+    940
+   ],
+   "key": "the_green_hills_of_stranglethorn",
+   "name": "The Green Hills of Stranglethorn",
+   "notes": ""
+  },
+  {
+   "description": "The hero hunted the great beasts of Nagrand for Hemet Nesingwary and earned a place among the finest hunters of Outland.",
+   "faction": "Both",
+   "frequency": 4,
+   "ids": [
+    939
+   ],
+   "key": "hills_like_white_elekk",
+   "name": "Hills Like White Elekk",
+   "notes": ""
+  },
+  {
+   "description": "The hero hunted the wild beasts of Sholazar Basin with Hemet Nesingwary's expedition and lived to tell about it.",
+   "faction": "Both",
+   "frequency": 4,
+   "ids": [
+    938
+   ],
+   "key": "the_snows_of_northrend",
+   "name": "The Snows of Northrend",
+   "notes": ""
+  },
+  {
+   "description": "The hero stood in the Dragonblight through the battle at the Wrathgate and what followed, and saw the betrayal at Angrathar with their own eyes.",
+   "faction": "Both",
+   "frequency": 6,
+   "ids": [
+    547
+   ],
+   "key": "veteran_of_the_wrathgate",
+   "name": "Veteran of the Wrathgate",
+   "notes": ""
+  },
+  {
+   "description": "The hero sided with the druids of D.E.H.T.A. in the Borean Tundra, protecting the tundra's beasts from the Nesingwary hunters and their men.",
+   "faction": "Both",
+   "frequency": 4,
+   "ids": [
+    561
+   ],
+   "key": "d_e_h_t_as_little_p_i_t_a",
+   "name": "D.E.H.T.A's Little P.I.T.A.",
+   "notes": ""
+  },
+  {
+   "description": "The hero saw the troll Drakuru's schemes in Zul'Drak through to the end and brought the traitor down at Voltarus.",
+   "faction": "Both",
+   "frequency": 5,
+   "ids": [
+    1596
+   ],
+   "key": "guru_of_drakuru",
+   "name": "Guru of Drakuru",
+   "notes": ""
+  },
+  {
+   "description": "The hero fought and won in the Ring of Blood in Nagrand and the Amphitheater of Anguish in Zul'Drak, two of the most brutal arenas in the world.",
+   "faction": "Both",
+   "frequency": 6,
+   "ids": [
+    1576
+   ],
+   "key": "of_blood_and_anguish",
+   "name": "Of Blood and Anguish",
+   "notes": ""
+  },
+  {
+   "description": "The hero has walked every region of the Eastern Kingdoms, from the ruins of Quel'Thalas to the Blasted Lands.",
+   "faction": "Both",
+   "frequency": 3,
+   "ids": [
+    42
+   ],
+   "key": "explore_eastern_kingdoms",
+   "name": "Explore Eastern Kingdoms",
+   "notes": ""
+  },
+  {
+   "description": "The hero has explored every corner of Kalimdor, from the forests of Ashenvale to the sands of Silithus.",
+   "faction": "Both",
+   "frequency": 3,
+   "ids": [
+    43
+   ],
+   "key": "explore_kalimdor",
+   "name": "Explore Kalimdor",
+   "notes": ""
+  },
+  {
+   "description": "The hero has explored every region of shattered Outland, from Hellfire Peninsula to the floating isles of Netherstorm.",
+   "faction": "Both",
+   "frequency": 3,
+   "ids": [
+    44
+   ],
+   "key": "explore_outland",
+   "name": "Explore Outland",
+   "notes": ""
+  },
+  {
+   "description": "The hero has explored every region of Northrend, from the Howling Fjord to the foot of Icecrown Citadel.",
+   "faction": "Both",
+   "frequency": 3,
+   "ids": [
+    45
+   ],
+   "key": "explore_northrend",
+   "name": "Explore Northrend",
+   "notes": ""
+  },
+  {
+   "description": "The hero has seen every land of Azeroth and Outland, and travellers say there is no road anywhere they haven't walked.",
+   "faction": "Both",
+   "frequency": 7,
+   "ids": [
+    46
+   ],
+   "key": "world_explorer",
+   "name": "World Explorer",
+   "notes": ""
+  },
+  {
+   "description": "The hero has tracked down and killed every one of the rare and dangerous beasts that roam Outland, creatures most hunters never even see.",
+   "faction": "Both",
+   "frequency": 8,
+   "ids": [
+    1312
+   ],
+   "key": "bloody_rare",
+   "name": "Bloody Rare",
+   "notes": ""
+  },
+  {
+   "description": "The hero has hunted down every one of Northrend's rarest and most dangerous creatures, the kind trappers only speak of around the fire.",
+   "faction": "Both",
+   "frequency": 8,
+   "ids": [
+    2257
+   ],
+   "key": "frostbitten",
+   "name": "Frostbitten",
+   "notes": ""
+  },
+  {
+   "description": "The hero is said to be one of the finest cooks in the world, able to turn the strangest Northrend game into a feast.",
+   "faction": "Both",
+   "frequency": 4,
+   "ids": [
+    125
+   ],
+   "key": "grand_master_cook",
+   "name": "Grand Master Cook",
+   "notes": ""
+  },
+  {
+   "description": "The hero can pull fish from any water in the world, and old anglers grumble that the fish practically jump onto their line.",
+   "faction": "Both",
+   "frequency": 4,
+   "ids": [
+    130
+   ],
+   "key": "grand_master_fisherman",
+   "name": "Grand Master Fisherman",
+   "notes": ""
+  },
+  {
+   "description": "The hero has become a master healer of wounds, and soldiers say a bandage from their hands has saved more than one life on the battlefield.",
+   "faction": "Both",
+   "frequency": 3,
+   "ids": [
+    135
+   ],
+   "key": "grand_master_in_first_aid",
+   "name": "Grand Master in First Aid",
+   "notes": ""
+  },
+  {
+   "description": "The hero has cooked dishes from every corner of the world, won awards in Dalaran's kitchens and is spoken of as a true master chef.",
+   "faction": "Both",
+   "frequency": 7,
+   "ids": [
+    1563,
+    1784
+   ],
+   "key": "hail_to_the_chef",
+   "name": "Hail to the Chef",
+   "notes": ""
+  },
+  {
+   "description": "The hero won one of the great fishing contests, either at Booty Bay or the Kalu'ak Fishing Derby, beating every other angler there.",
+   "faction": "Both",
+   "frequency": 7,
+   "ids": [
+    306
+   ],
+   "key": "master_angler_of_azeroth",
+   "name": "Master Angler of Azeroth",
+   "notes": "The achievement doesn't say which contest was won, so don't name one."
+  },
+  {
+   "description": "The hero finally caught Old Crafty, the cunning fish that had escaped every angler in Orgrimmar for years.",
+   "faction": "Both",
+   "frequency": 6,
+   "ids": [
+    1836
+   ],
+   "key": "old_crafty",
+   "name": "Old Crafty",
+   "notes": ""
+  },
+  {
+   "description": "The hero finally landed Old Ironjaw, the legendary fish of Ironforge's waters that no angler had ever managed to catch.",
+   "faction": "Both",
+   "frequency": 6,
+   "ids": [
+    1837
+   ],
+   "key": "old_ironjaw",
+   "name": "Old Ironjaw",
+   "notes": ""
+  },
+  {
+   "description": "The hero fished a great sea turtle out of the waters of Northrend and now rides it, which the anglers of the north can hardly believe.",
+   "faction": "Both",
+   "frequency": 8,
+   "ids": [
+    3218
+   ],
+   "key": "turtles_all_the_way_down",
+   "name": "Turtles All the Way Down",
+   "notes": ""
+  },
+  {
+   "description": "The hero has earned the deepest trust of many peoples and orders across the world, and is welcomed as a friend in places strangers are turned away.",
+   "faction": "Both",
+   "frequency": 5,
+   "ids": [
+    524
+   ],
+   "key": "10_exalted_reputations",
+   "name": "10 Exalted Reputations",
+   "notes": ""
+  },
+  {
+   "description": "The hero is honoured in every great city of the Alliance, from Stormwind to the Exodar, and is greeted as a true ambassador of its peoples.",
+   "faction": "Alliance",
+   "frequency": 6,
+   "ids": [
+    948
+   ],
+   "key": "ambassador_of_the_alliance",
+   "name": "Ambassador of the Alliance",
+   "notes": ""
+  },
+  {
+   "description": "The hero is honoured in every great city of the Horde, from Orgrimmar to Silvermoon, and is greeted as a true ambassador of its peoples.",
+   "faction": "Horde",
+   "frequency": 6,
+   "ids": [
+    762
+   ],
+   "key": "ambassador_of_the_horde",
+   "name": "Ambassador of the Horde",
+   "notes": ""
+  },
+  {
+   "description": "The hero won over the Timbermaw furbolgs, the sporelings of Sporeggar and the Kurenai or the Mag'har, peoples who once met outsiders with suspicion or hostility.",
+   "faction": "Both",
+   "frequency": 7,
+   "ids": [
+    942,
+    943
+   ],
+   "key": "the_diplomat",
+   "name": "The Diplomat",
+   "notes": "Alliance players won over the Kurenai, Horde players the Mag'har. Name the right one."
+  },
+  {
+   "description": "The hero has become a trusted friend of the Timbermaw furbolgs, who let them pass through their tunnels as one of their own.",
+   "faction": "Both",
+   "frequency": 4,
+   "ids": [
+    944
+   ],
+   "key": "they_love_me_in_that_tunnel",
+   "name": "They Love Me In That Tunnel",
+   "notes": ""
+  },
+  {
+   "description": "The hero has earned the highest honour of the Argent Dawn for their long fight against the Scourge in the Plaguelands.",
+   "faction": "Both",
+   "frequency": 5,
+   "ids": [
+    946
+   ],
+   "key": "the_argent_dawn",
+   "name": "The Argent Dawn",
+   "notes": ""
+  },
+  {
+   "description": "The hero is honoured by both the Cenarion Circle and the Cenarion Expedition as a true guardian of the natural world.",
+   "faction": "Both",
+   "frequency": 5,
+   "ids": [
+    953
+   ],
+   "key": "guardian_of_cenarius",
+   "name": "Guardian of Cenarius",
+   "notes": ""
+  },
+  {
+   "description": "The hero rides with the Sha'tari Skyguard and has earned their full trust in the battle against the arakkoa of Skettis.",
+   "faction": "Both",
+   "frequency": 5,
+   "ids": [
+    894
+   ],
+   "key": "flying_high_over_skettis",
+   "name": "Flying High Over Skettis",
+   "notes": ""
+  },
+  {
+   "description": "The hero is a hero of Ogri'la, trusted by the ogres of Blade's Edge for defending their mountain home from demons and worse.",
+   "faction": "Both",
+   "frequency": 4,
+   "ids": [
+    896
+   ],
+   "key": "a_quest_a_day_keeps_the_ogres_at_bay",
+   "name": "A Quest a Day Keeps the Ogres at Bay",
+   "notes": ""
+  },
+  {
+   "description": "The hero has earned the highest honour of the Shattered Sun Offensive for their part in the battle for the Isle of Quel'Danas.",
+   "faction": "Both",
+   "frequency": 4,
+   "ids": [
+    897
+   ],
+   "key": "youre_so_offensive",
+   "name": "You're So Offensive",
+   "notes": ""
+  },
+  {
+   "description": "The hero has won the trust of the Netherwing dragons and rides one of them, after secretly working among the Dragonmaw who enslaved them.",
+   "faction": "Both",
+   "frequency": 7,
+   "ids": [
+    898
+   ],
+   "key": "on_wings_of_nether",
+   "name": "On Wings of Nether",
+   "notes": ""
+  },
+  {
+   "description": "The hero is revered by the Kurenai, the free Broken of Nagrand, for helping them rebuild their lives in Telaar.",
+   "faction": "Alliance",
+   "frequency": 4,
+   "ids": [
+    899
+   ],
+   "key": "oh_my_kurenai",
+   "name": "Oh My, Kurenai",
+   "notes": ""
+  },
+  {
+   "description": "The hero is revered by the Mag'har, the uncorrupted orcs of Nagrand, as a true friend of Garadar.",
+   "faction": "Horde",
+   "frequency": 4,
+   "ids": [
+    901
+   ],
+   "key": "maghar_of_draenor",
+   "name": "Mag'har of Draenor",
+   "notes": ""
+  },
+  {
+   "description": "The sporelings of Sporeggar treat the hero almost as royalty for all they have done for the little mushroom-folk of Zangarmarsh.",
+   "faction": "Both",
+   "frequency": 4,
+   "ids": [
+    900
+   ],
+   "key": "the_czar_of_sporeggar",
+   "name": "The Czar of Sporeggar",
+   "notes": ""
+  },
+  {
+   "description": "The hero is one of the Consortium's most valued partners, and the ethereal traders of Outland offer them their best deals.",
+   "faction": "Both",
+   "frequency": 4,
+   "ids": [
+    902
+   ],
+   "key": "chief_exalted_officer",
+   "name": "Chief Exalted Officer",
+   "notes": ""
+  },
+  {
+   "description": "The hero has earned the highest honour of the Aldor or the Scryers, one of the two rival orders that share Shattrath City.",
+   "faction": "Both",
+   "frequency": 3,
+   "ids": [
+    903
+   ],
+   "key": "shattrath_divided",
+   "name": "Shattrath Divided",
+   "notes": "Check the player's reputation to see whether they serve the Aldor or the Scryers, and name that order. The two orders are bitter rivals, so a member of the other order would speak of it coldly."
+  },
+  {
+   "description": "The hero has earned the highest honour of the Argent Crusade for their part in the war against the Lich King.",
+   "faction": "Both",
+   "frequency": 3,
+   "ids": [
+    947
+   ],
+   "key": "the_argent_crusade",
+   "name": "The Argent Crusade",
+   "notes": ""
+  },
+  {
+   "description": "The hero is a beloved friend of the Kalu'ak, the walrus-folk of Northrend's coasts, for protecting their villages from pirates and beasts.",
+   "faction": "Both",
+   "frequency": 4,
+   "ids": [
+    949
+   ],
+   "key": "tuskarrmageddon",
+   "name": "Tuskarrmageddon",
+   "notes": ""
+  },
+  {
+   "description": "The hero has fought alongside the Frenzyheart wolvar of Sholazar Basin and earned their full trust in their war with the Oracles.",
+   "faction": "Both",
+   "frequency": 4,
+   "ids": [
+    950
+   ],
+   "key": "frenzyheart_tribe",
+   "name": "Frenzyheart Tribe",
+   "notes": "The Frenzyheart and the Oracles are at war, and siding with one makes the other hostile."
+  },
+  {
+   "description": "The hero has stood with the Oracles of Sholazar Basin and earned the full trust of the gorloc tribe in their war with the Frenzyheart.",
+   "faction": "Both",
+   "frequency": 4,
+   "ids": [
+    951
+   ],
+   "key": "the_oracles",
+   "name": "The Oracles",
+   "notes": "The Oracles and the Frenzyheart are at war, and siding with one makes the other hostile."
+  },
+  {
+   "description": "The hero is honoured by the Wyrmrest Accord, the union of dragonflights at Wyrmrest Temple, for their help in the war against Malygos and the Scourge.",
+   "faction": "Both",
+   "frequency": 3,
+   "ids": [
+    1007
+   ],
+   "key": "the_wyrmrest_accord",
+   "name": "The Wyrmrest Accord",
+   "notes": ""
+  },
+  {
+   "description": "The hero has earned the highest honour of the Kirin Tor, and the mages of Dalaran treat them as one of their own.",
+   "faction": "Both",
+   "frequency": 3,
+   "ids": [
+    1008
+   ],
+   "key": "the_kirin_tor",
+   "name": "The Kirin Tor",
+   "notes": ""
+  },
+  {
+   "description": "The hero has earned the respect of the Knights of the Ebon Blade, the death knights who turned against the Lich King.",
+   "faction": "Both",
+   "frequency": 3,
+   "ids": [
+    1009
+   ],
+   "key": "knights_of_the_ebon_blade",
+   "name": "Knights of the Ebon Blade",
+   "notes": ""
+  },
+  {
+   "description": "The hero is a hero of the Alliance Vanguard or the Horde Expedition, honoured for leading their faction's war effort across Northrend.",
+   "faction": "Both",
+   "frequency": 4,
+   "ids": [
+    1012,
+    1011
+   ],
+   "key": "the_winds_of_the_north",
+   "name": "The Winds of the North",
+   "notes": "Alliance players serve the Alliance Vanguard, Horde players the Horde Expedition. Name the right one."
+  },
+  {
+   "description": "The hero is a friend of the Bloodsail pirates, the Steamwheedle goblins, the rogues of Ravenholdt and the Darkmoon Faire, a combination people find hard to believe.",
+   "faction": "Both",
+   "frequency": 9,
+   "ids": [
+    2336
+   ],
+   "key": "insane_in_the_membrane",
+   "name": "Insane in the Membrane",
+   "notes": "Being friendly with the Bloodsail pirates means Booty Bay's goblins once counted the hero an enemy."
+  },
+  {
+   "description": "The hero has cut down a great many enemy soldiers on the battlefields and in the wild lands, and the enemy knows their name.",
+   "faction": "Both",
+   "frequency": 2,
+   "ids": [
+    516
+   ],
+   "key": "1000_honorable_kills",
+   "name": "1000 Honorable Kills",
+   "notes": ""
+  },
+  {
+   "description": "The hero has fought off many enemy raiders who dared to attack their own home cities.",
+   "faction": "Both",
+   "frequency": 5,
+   "ids": [
+    388,
+    1006
+   ],
+   "key": "city_defender",
+   "name": "City Defender",
+   "notes": "The home cities are the player's own faction's capitals."
+  },
+  {
+   "description": "The hero struck at the enemy in the hearts of all the great Horde cities and came back alive.",
+   "faction": "Alliance",
+   "frequency": 7,
+   "ids": [
+    604
+   ],
+   "key": "wrath_of_the_alliance",
+   "name": "Wrath of the Alliance",
+   "notes": ""
+  },
+  {
+   "description": "The hero struck at the enemy in the hearts of all the great Alliance cities and came back alive.",
+   "faction": "Horde",
+   "frequency": 7,
+   "ids": [
+    603
+   ],
+   "key": "wrath_of_the_horde",
+   "name": "Wrath of the Horde",
+   "notes": ""
+  },
+  {
+   "description": "The hero fought their way into Orgrimmar and defeated Thrall, the Warchief of the Horde.",
+   "faction": "Alliance",
+   "frequency": 9,
+   "ids": [
+    610
+   ],
+   "key": "death_to_the_warchief",
+   "name": "Death to the Warchief!",
+   "notes": "The leader isn't dead for good. Speak of it as a defeat in battle during a raid on the city, not as a death."
+  },
+  {
+   "description": "The hero fought their way to the top of Thunder Bluff and defeated Cairne Bloodhoof, the high chieftain of the tauren.",
+   "faction": "Alliance",
+   "frequency": 9,
+   "ids": [
+    611
+   ],
+   "key": "bleeding_bloodhoof",
+   "name": "Bleeding Bloodhoof",
+   "notes": "The leader isn't dead for good. Speak of it as a defeat in battle during a raid on the city, not as a death."
+  },
+  {
+   "description": "The hero fought their way into the Undercity and defeated Lady Sylvanas Windrunner, queen of the Forsaken.",
+   "faction": "Alliance",
+   "frequency": 9,
+   "ids": [
+    612
+   ],
+   "key": "downing_the_dark_lady",
+   "name": "Downing the Dark Lady",
+   "notes": "The leader isn't dead for good. Speak of it as a defeat in battle during a raid on the city, not as a death."
+  },
+  {
+   "description": "The hero fought their way into Silvermoon City and defeated Lor'themar Theron, regent lord of the blood elves.",
+   "faction": "Alliance",
+   "frequency": 9,
+   "ids": [
+    613
+   ],
+   "key": "killed_in_quelthalas",
+   "name": "Killed in Quel'Thalas",
+   "notes": "The leader isn't dead for good. Speak of it as a defeat in battle during a raid on the city, not as a death."
+  },
+  {
+   "description": "The hero fought their way into Stormwind Keep and defeated King Varian Wrynn.",
+   "faction": "Horde",
+   "frequency": 9,
+   "ids": [
+    615
+   ],
+   "key": "storming_stormwind",
+   "name": "Storming Stormwind",
+   "notes": "The leader isn't dead for good. Speak of it as a defeat in battle during a raid on the city, not as a death."
+  },
+  {
+   "description": "The hero fought their way into Ironforge and defeated King Magni Bronzebeard.",
+   "faction": "Horde",
+   "frequency": 9,
+   "ids": [
+    616
+   ],
+   "key": "death_to_the_king",
+   "name": "Death to the King!",
+   "notes": "The leader isn't dead for good. Speak of it as a defeat in battle during a raid on the city, not as a death."
+  },
+  {
+   "description": "The hero fought their way into Darnassus and defeated High Priestess Tyrande Whisperwind.",
+   "faction": "Horde",
+   "frequency": 9,
+   "ids": [
+    617
+   ],
+   "key": "immortal_no_more",
+   "name": "Immortal No More",
+   "notes": "The leader isn't dead for good. Speak of it as a defeat in battle during a raid on the city, not as a death."
+  },
+  {
+   "description": "The hero fought their way into the Exodar and defeated the Prophet Velen.",
+   "faction": "Horde",
+   "frequency": 9,
+   "ids": [
+    618
+   ],
+   "key": "putting_out_the_light",
+   "name": "Putting Out the Light",
+   "notes": "The leader isn't dead for good. Speak of it as a defeat in battle during a raid on the city, not as a death."
+  },
+  {
+   "description": "The hero is honoured by the Stormpike Guard, the League of Arathor and the Silverwing Sentinels as one of the Alliance's finest battlefield veterans.",
+   "faction": "Alliance",
+   "frequency": 7,
+   "ids": [
+    907
+   ],
+   "key": "the_justicar",
+   "name": "The Justicar",
+   "notes": ""
+  },
+  {
+   "description": "The hero is honoured by the Frostwolf Clan, the Defilers and the Warsong Outriders as one of the Horde's finest battlefield veterans.",
+   "faction": "Horde",
+   "frequency": 7,
+   "ids": [
+    714
+   ],
+   "key": "the_conqueror",
+   "name": "The Conqueror",
+   "notes": ""
+  },
+  {
+   "description": "The hero has proven themselves on every major battlefield, and the battlemasters of the capitals speak of them with respect.",
+   "faction": "Both",
+   "frequency": 9,
+   "ids": [
+    230,
+    1175
+   ],
+   "key": "battlemaster",
+   "name": "Battlemaster",
+   "notes": ""
+  },
+  {
+   "description": "The hero fought in the war for Alterac Valley and helped carry the day against the enemy.",
+   "faction": "Both",
+   "frequency": 1,
+   "ids": [
+    218
+   ],
+   "key": "alterac_valley_victory",
+   "name": "Alterac Valley Victory",
+   "notes": ""
+  },
+  {
+   "description": "The hero fought for the farms and mines of Arathi Basin and helped win the battle.",
+   "faction": "Both",
+   "frequency": 1,
+   "ids": [
+    154
+   ],
+   "key": "arathi_basin_victory",
+   "name": "Arathi Basin Victory",
+   "notes": ""
+  },
+  {
+   "description": "The hero fought for the towers of the Eye of the Storm in Netherstorm and helped win the battle.",
+   "faction": "Both",
+   "frequency": 1,
+   "ids": [
+    208
+   ],
+   "key": "eye_of_the_storm_victory",
+   "name": "Eye of the Storm Victory",
+   "notes": ""
+  },
+  {
+   "description": "The hero fought in the struggle for Warsong Gulch in Ashenvale and helped win the battle.",
+   "faction": "Both",
+   "frequency": 1,
+   "ids": [
+    166
+   ],
+   "key": "warsong_gulch_victory",
+   "name": "Warsong Gulch Victory",
+   "notes": ""
+  },
+  {
+   "description": "The hero fought on the Strand of the Ancients for the titan relic and helped win the battle.",
+   "faction": "Both",
+   "frequency": 1,
+   "ids": [
+    1308
+   ],
+   "key": "strand_of_the_ancients_victory",
+   "name": "Strand of the Ancients Victory",
+   "notes": ""
+  },
+  {
+   "description": "The hero fought on the Isle of Conquest off the coast of Icecrown and helped win the battle for it.",
+   "faction": "Both",
+   "frequency": 1,
+   "ids": [
+    3776
+   ],
+   "key": "isle_of_conquest_victory",
+   "name": "Isle of Conquest Victory",
+   "notes": ""
+  },
+  {
+   "description": "The hero fought in the battle for Wintergrasp Fortress and helped win it for their side.",
+   "faction": "Both",
+   "frequency": 2,
+   "ids": [
+    1717
+   ],
+   "key": "wintergrasp_victory",
+   "name": "Wintergrasp Victory",
+   "notes": ""
+  },
+  {
+   "description": "The hero won the brutal free-for-all in the Gurubashi Arena of Stranglethorn and claimed the arena master's prize.",
+   "faction": "Both",
+   "frequency": 6,
+   "ids": [
+    389
+   ],
+   "key": "gurubashi_arena_master",
+   "name": "Gurubashi Arena Master",
+   "notes": ""
+  },
+  {
+   "description": "The hero has won a ranked match in the arenas, fighting before crowds in places like the Ring of Valor and the Dalaran sewers.",
+   "faction": "Both",
+   "frequency": 3,
+   "ids": [
+    397
+   ],
+   "key": "step_into_the_arena",
+   "name": "Step Into The Arena",
+   "notes": ""
+  },
+  {
+   "description": "The hero ended an arena season among the very best fighters in the world and earned the title of Gladiator.",
+   "faction": "Both",
+   "frequency": 10,
+   "ids": [
+    2091
+   ],
+   "key": "gladiator",
+   "name": "Gladiator",
+   "notes": "Season titles may never be awarded on a server with few human arena teams."
+  },
+  {
+   "description": "The hero has earned the right to ride for their people as a champion at the Argent Tournament in Icecrown.",
+   "faction": "Both",
+   "frequency": 3,
+   "ids": [
+    2777,
+    2778,
+    2779,
+    2780,
+    2781,
+    2783,
+    2784,
+    2785,
+    2786,
+    2787
+   ],
+   "key": "champion_of_a_city",
+   "name": "Champion of a city",
+   "notes": "Name the city from the ID earned: 2777 Darnassus, 2778 the Exodar, 2779 Gnomeregan, 2780 Ironforge, 2781 Stormwind, 2783 Orgrimmar, 2784 Sen'jin, 2785 Silvermoon City, 2786 Thunder Bluff, 2787 the Undercity."
+  },
+  {
+   "description": "The hero unmasked and defeated the Black Knight, the mysterious rider who struck at the Argent Tournament.",
+   "faction": "Both",
+   "frequency": 5,
+   "ids": [
+    2773
+   ],
+   "key": "its_just_a_flesh_wound",
+   "name": "It's Just a Flesh Wound",
+   "notes": ""
+  },
+  {
+   "description": "The hero is trusted by the Silver Covenant, the high elves of Dalaran, and rides as a champion of the Argent Tournament.",
+   "faction": "Alliance",
+   "frequency": 4,
+   "ids": [
+    3676
+   ],
+   "key": "a_silver_confidant",
+   "name": "A Silver Confidant",
+   "notes": ""
+  },
+  {
+   "description": "The hero is trusted by the Sunreavers, the blood elves of Dalaran, and rides as a champion of the Argent Tournament.",
+   "faction": "Horde",
+   "frequency": 4,
+   "ids": [
+    3677
+   ],
+   "key": "the_sunreavers",
+   "name": "The Sunreavers",
+   "notes": ""
+  },
+  {
+   "description": "The hero is so well liked by the Bloodsail pirates that they have made them an admiral, hat and all, though the sailors of Booty Bay curse their name.",
+   "faction": "Both",
+   "frequency": 8,
+   "ids": [
+    871
+   ],
+   "key": "avast_ye_admiral",
+   "name": "Avast Ye, Admiral!",
+   "notes": "Earning the Bloodsail's favour meant fighting Booty Bay, so Steamwheedle goblins may speak of it sourly."
+  }
+ ],
+ "dungeons": [
+  {
+   "achievements": [
+    629
+   ],
+   "addressed": [
+    "The hero killed Taragaman the Hungerer in Ragefire Chasm.",
+    "The hero broke the Searing Blade cult hiding beneath Orgrimmar.",
+    "The hero slew Jergosh the Invoker and Bazzalan, leaders of the Searing Blade cult.",
+    "The hero drove the troglodytes back from the tunnels under Orgrimmar.",
+    "The hero made the Cleft of Shadow safer for the people of Orgrimmar."
+   ],
+   "key": "ragefire_chasm",
+   "name": "Ragefire Chasm",
+   "recounted": [
+    "Someone went down into Ragefire Chasm and killed the demon Taragaman.",
+    "The Searing Blade cultists who skulked in the Cleft of Shadow haven't been seen for days.",
+    "The Kor'kron say the tunnels under Orgrimmar have gone quiet; nothing scratches at the walls at night anymore.",
+    "Fewer young orcs of the Cleft of Shadow are being lured into demon worship.",
+    "The Burning Blade has lost its hiding place under Orgrimmar, and the Kor'kron are counting the badges they took."
+   ],
+   "zones": {
+    "alliance": [],
+    "horde": [
+     1637
+    ]
+   }
+  },
+  {
+   "achievements": [
+    630
+   ],
+   "addressed": [
+    "The hero woke Naralex from his nightmare in the Wailing Caverns.",
+    "The hero slew Mutanus the Devourer, the beast that fed on Naralex's dreams.",
+    "The hero defeated the Fanglords, the druids twisted by the Nightmare.",
+    "The hero guarded the Disciple of Naralex through the Wailing Caverns.",
+    "The hero has begun to heal the oases of the Barrens."
+   ],
+   "key": "wailing_caverns",
+   "name": "Wailing Caverns",
+   "recounted": [
+    "Someone woke the druid Naralex deep in the Wailing Caverns.",
+    "The water at the Barrens' oases tastes a little cleaner, travellers say.",
+    "Fewer deviate creatures crawl out of the Wailing Caverns at night.",
+    "The moaning that gave the Wailing Caverns its name has softened.",
+    "The Druids of the Fang have lost their leaders, and the ones left wander the caves confused."
+   ],
+   "zones": {
+    "alliance": [
+     17
+    ],
+    "horde": [
+     17
+    ]
+   }
+  },
+  {
+   "achievements": [
+    628
+   ],
+   "addressed": [
+    "The hero killed Edwin VanCleef, leader of the Defias Brotherhood.",
+    "The hero stormed the Defias juggernaut hidden in the Deadmines.",
+    "The hero defeated Mr. Smite and Captain Greenskin.",
+    "The hero destroyed the Defias Brotherhood's hideout beneath Moonbrook.",
+    "The hero made the roads of Westfall safer for farmers and travellers."
+   ],
+   "key": "deadmines",
+   "name": "Deadmines",
+   "recounted": [
+    "Someone went into the Deadmines and killed Edwin VanCleef.",
+    "The great ship the Defias were building under Moonbrook will never sail.",
+    "The Defias left in Westfall have no leader and are starting to fight each other.",
+    "Farmers are coming back to the abandoned fields around Moonbrook.",
+    "Ship captains say fewer Defias raiders are seen along the coast."
+   ],
+   "zones": {
+    "alliance": [
+     40
+    ],
+    "horde": []
+   }
+  },
+  {
+   "achievements": [
+    631
+   ],
+   "addressed": [
+    "The hero killed Archmage Arugal in Shadowfang Keep.",
+    "The hero cut down the worgen packs that roamed the halls of Shadowfang Keep.",
+    "The hero defeated Wolf Master Nandos and Fenrus the Devourer.",
+    "The hero freed the prisoners held in the dungeon of Shadowfang Keep.",
+    "The hero struck a blow against the curse that haunts Silverpine Forest."
+   ],
+   "key": "shadowfang_keep",
+   "name": "Shadowfang Keep",
+   "recounted": [
+    "Someone killed the mad archmage Arugal in Shadowfang Keep.",
+    "Worgen howls are heard less often from Shadowfang Keep above Pyrewood.",
+    "Travellers on the Silverpine road report fewer worgen attacks.",
+    "The ghosts of Baron Silverlaine's household are said to rest a little easier.",
+    "The lights in the tower of Shadowfang Keep have finally gone out."
+   ],
+   "zones": {
+    "alliance": [],
+    "horde": [
+     130
+    ]
+   }
+  },
+  {
+   "achievements": [
+    632
+   ],
+   "addressed": [
+    "The hero slew Aku'mai, the Old Gods' beast in Blackfathom Deeps.",
+    "The hero killed Twilight Lord Kelris and scattered the Twilight's Hammer.",
+    "The hero defeated Lady Sarevess and her naga.",
+    "The hero took the sunken temple of Elune in Blackfathom Deeps back from the cultists.",
+    "The hero made the Zoram Strand safer."
+   ],
+   "key": "blackfathom_deeps",
+   "name": "Blackfathom Deeps",
+   "recounted": [
+    "Someone slew the beast Aku'mai in the depths of Blackfathom.",
+    "The Twilight's Hammer cultists on the Zoram Strand have gone quiet.",
+    "The naga have pulled back from the ruined temple on the Zoram Strand.",
+    "Priestesses say the old temple of Elune feels less heavy with shadow.",
+    "Fishermen are working the Zoram Strand at night again."
+   ],
+   "zones": {
+    "alliance": [
+     331
+    ],
+    "horde": [
+     331
+    ]
+   }
+  },
+  {
+   "achievements": [
+    633
+   ],
+   "addressed": [
+    "The hero put down the riot in the Stormwind Stockade.",
+    "The hero defeated Bazil Thredd, the Defias who led the riot in the Stockade.",
+    "The hero dealt with Targorr the Dread, Kam Deepfury and Hamhock.",
+    "The hero helped the guards take back the Stormwind Stockade.",
+    "The hero kept the Stockade riot from spilling into the streets of Stormwind."
+   ],
+   "key": "stormwind_stockade",
+   "name": "Stormwind Stockade",
+   "recounted": [
+    "Someone went into the Stockade and ended the prison riot.",
+    "The guards are back in control of the Stockade's cell blocks.",
+    "Bazil Thredd won't be organizing any more Defias inside the prison.",
+    "The shouting from the Stockade has stopped, and the neighbours sleep better.",
+    "The warden of the Stockade has asked for more guards, but says the worst of the riot is over."
+   ],
+   "zones": {
+    "alliance": [
+     1519
+    ],
+    "horde": []
+   }
+  },
+  {
+   "achievements": [
+    635
+   ],
+   "addressed": [
+    "The hero killed Charlga Razorflank, the crone who ruled the Kraul.",
+    "The hero slew Agathelos the Raging.",
+    "The hero defeated Overlord Ramtusk and the quilboar warbands.",
+    "The hero led Willix the Importer out of the Kraul alive.",
+    "The hero weakened the quilboar's hold on the southern Barrens."
+   ],
+   "key": "razorfen_kraul",
+   "name": "Razorfen Kraul",
+   "recounted": [
+    "Someone killed Charlga Razorflank deep in the Razorfen Kraul.",
+    "The quilboar of the Kraul are quarrelling over who will lead them now.",
+    "Fewer quilboar raids hit the caravans on the southern road.",
+    "The great thorns of the Razorfen seem to have stopped creeping toward the road.",
+    "Willix the Importer is telling everyone who will listen about his escape from Razorfen Kraul."
+   ],
+   "zones": {
+    "alliance": [
+     17
+    ],
+    "horde": [
+     17
+    ]
+   }
+  },
+  {
+   "achievements": [
+    634
+   ],
+   "addressed": [
+    "The hero defeated Mekgineer Thermaplugg in Gnomeregan.",
+    "The hero fought through the troggs and leper gnomes that hold Gnomeregan.",
+    "The hero destroyed the Electrocutioner 6000 and the Crowd Pummeler 9-60.",
+    "The hero went deeper into Gnomeregan than anyone has dared in years.",
+    "The hero gave the gnomes new hope of taking back their city."
+   ],
+   "key": "gnomeregan",
+   "name": "Gnomeregan",
+   "recounted": [
+    "Someone went into Gnomeregan and dealt with the traitor Thermaplugg.",
+    "The leper gnomes of Gnomeregan have no one left to give them orders.",
+    "Fewer troggs are crawling out of fallen Gnomeregan.",
+    "Gnome engineers are already arguing about how to clear the radiation from Gnomeregan.",
+    "Scouts went deeper into Gnomeregan this week and came back with all their limbs."
+   ],
+   "zones": {
+    "alliance": [
+     1
+    ],
+    "horde": []
+   }
+  },
+  {
+   "achievements": [
+    636
+   ],
+   "addressed": [
+    "The hero destroyed Amnennar the Coldbringer, the lich of Razorfen Downs.",
+    "The hero helped Belnistrasz put out the idol the Scourge were using.",
+    "The hero slew Mordresh Fire Eye and Tuten'kash.",
+    "The hero drove the Scourge out of the quilboar burial grounds.",
+    "The hero stopped the Scourge from spreading into the Barrens."
+   ],
+   "key": "razorfen_downs",
+   "name": "Razorfen Downs",
+   "recounted": [
+    "Someone destroyed the lich Amnennar in Razorfen Downs.",
+    "The unnatural cold over Razorfen Downs is fading.",
+    "The Scourge's plans for the southern Barrens have come to nothing.",
+    "The dead quilboar of Razorfen Downs no longer rise to walk.",
+    "Fewer undead are seen on the road south to Thousand Needles."
+   ],
+   "zones": {
+    "alliance": [
+     17
+    ],
+    "horde": [
+     17
+    ]
+   }
+  },
+  {
+   "achievements": [
+    637
+   ],
+   "addressed": [
+    "The hero defeated High Inquisitor Whitemane and Scarlet Commander Mograine.",
+    "The hero slew Herod, the Scarlet Champion, in the Armory.",
+    "The hero defeated Arcanist Doan in the monastery library.",
+    "The hero laid Bloodmage Thalnos to rest in the graveyard.",
+    "The hero broke the Scarlet Crusade's hold on its monastery."
+   ],
+   "key": "scarlet_monastery",
+   "name": "Scarlet Monastery",
+   "recounted": [
+    "Someone killed the leaders of the Scarlet Monastery.",
+    "Scarlet patrols rarely leave the monastery walls now.",
+    "The Crusaders in the monastery are arguing over who will lead them.",
+    "The roads of northern Tirisfal are quieter than they have been in years.",
+    "Prisoners brought to the monastery's inquisitors may finally be spared."
+   ],
+   "zones": {
+    "alliance": [],
+    "horde": [
+     85
+    ]
+   }
+  },
+  {
+   "achievements": [
+    638
+   ],
+   "addressed": [
+    "The hero defeated Archaedas, the ancient stone keeper of Uldaman.",
+    "The hero recovered the Discs of Norgannon from the titan vault of Uldaman.",
+    "The hero drove the Dark Iron diggers out of the excavation at Uldaman.",
+    "The hero slew Grimlok and the troggs who infest the halls of Uldaman.",
+    "The hero opened the way for scholars to study Uldaman."
+   ],
+   "key": "uldaman",
+   "name": "Uldaman",
+   "recounted": [
+    "Someone woke the stone keeper Archaedas in Uldaman and defeated him.",
+    "The Shadowforge diggers have abandoned part of their excavation.",
+    "Scholars are excited about records from Uldaman that speak of the titans and the first dwarves.",
+    "Fewer troggs come up out of the Badlands' tunnels.",
+    "Prospectors are going back to the old dig sites near Uldaman."
+   ],
+   "zones": {
+    "alliance": [
+     38
+    ],
+    "horde": [
+     3
+    ]
+   }
+  },
+  {
+   "achievements": [
+    639
+   ],
+   "addressed": [
+    "The hero killed Chief Ukorz Sandscalp, ruler of Zul'Farrak.",
+    "The hero called up the great hydra Gahz'rilla and slew it.",
+    "The hero survived the battle on the temple stairs of Zul'Farrak.",
+    "The hero defeated Witch Doctor Zum'rah and his risen dead.",
+    "The hero made the northern desert safer for Gadgetzan's caravans."
+   ],
+   "key": "zulfarrak",
+   "name": "Zul'Farrak",
+   "recounted": [
+    "Someone killed Chief Ukorz Sandscalp in Zul'Farrak.",
+    "The Sandfury trolls raid the desert roads less often.",
+    "The great hydra of Zul'Farrak's sacred pool is dead.",
+    "Gadgetzan's water caravans are travelling north again.",
+    "The Sandfury have shut themselves in behind their walls."
+   ],
+   "zones": {
+    "alliance": [
+     440
+    ],
+    "horde": [
+     440
+    ]
+   }
+  },
+  {
+   "achievements": [
+    640
+   ],
+   "addressed": [
+    "The hero defeated Princess Theradras in Maraudon.",
+    "The hero purged Maraudon of satyrs and centaurs.",
+    "The hero made the area around Maraudon safe.",
+    "The hero helped free the spirit of Celebras from his curse.",
+    "The hero slew Noxxion and Lord Vyletongue in the caves of Maraudon."
+   ],
+   "key": "maraudon",
+   "name": "Maraudon",
+   "recounted": [
+    "Someone defeated Princess Theradras in Maraudon.",
+    "In the barren wastes around Maraudon, greenery has suddenly begun to bloom, something that hasn't happened in a very long time.",
+    "The centaurs around Maraudon have scattered in chaos, as if they no longer have anyone to take orders from.",
+    "The poisoned water in Maraudon's caves has begun to run clear.",
+    "Druids say the earth of Desolace feels a little less angry."
+   ],
+   "zones": {
+    "alliance": [
+     405
+    ],
+    "horde": [
+     405
+    ]
+   }
+  },
+  {
+   "achievements": [
+    641
+   ],
+   "addressed": [
+    "The hero slew the Shade of Eranikus in the Temple of Atal'Hakkar.",
+    "The hero stopped the Atal'ai from calling the Avatar of Hakkar into the world.",
+    "The hero killed Jammal'an the Prophet.",
+    "The hero put the corrupted green dragons of the Temple of Atal'Hakkar to rest.",
+    "The hero eased the shadow that lies over the Swamp of Sorrows."
+   ],
+   "key": "sunken_temple",
+   "name": "Sunken Temple",
+   "recounted": [
+    "Someone went down into the sunken temple and stopped the Atal'ai.",
+    "The Blood God's priests at the Pool of Tears have fallen silent.",
+    "The green dragons that guarded the sunken Temple of Atal'Hakkar are said to be at rest at last.",
+    "The mists over the Pool of Tears seem lighter at dawn.",
+    "Fewer Atal'ai trolls are seen around the sunken temple."
+   ],
+   "zones": {
+    "alliance": [
+     1519
+    ],
+    "horde": [
+     8
+    ]
+   }
+  },
+  {
+   "achievements": [
+    642
+   ],
+   "addressed": [
+    "The hero killed Emperor Dagran Thaurissan in Blackrock Depths.",
+    "The hero survived the Ring of Law in the Dark Iron arena.",
+    "The hero defeated General Angerforge and Golem Lord Argelmach.",
+    "The hero slew Ambassador Flamelash and Lord Incendius at the Black Anvil.",
+    "The hero left Shadowforge City without its emperor."
+   ],
+   "key": "blackrock_depths",
+   "name": "Blackrock Depths",
+   "recounted": [
+    "Someone killed Emperor Thaurissan in the depths of Blackrock Mountain.",
+    "The Dark Iron dwarves of Shadowforge City have no ruler.",
+    "Everyone is wondering what will become of Princess Moira Bronzebeard now that Emperor Thaurissan is dead.",
+    "The forges of the Black Anvil have gone cold, at least for a while.",
+    "The Grim Guzzler is still pouring, and its brewers say business has never been better."
+   ],
+   "zones": {
+    "alliance": [
+     46
+    ],
+    "horde": [
+     46
+    ]
+   }
+  },
+  {
+   "achievements": [
+    643
+   ],
+   "addressed": [
+    "The hero killed Overlord Wyrmthalak in Lower Blackrock Spire.",
+    "The hero defeated Highlord Omokk and the Spirestone ogres.",
+    "The hero slew Shadow Hunter Vosh'gajin and War Master Voone of the Smolderthorn.",
+    "The hero wrecked the Scarshield Legion's quartermaster and stores.",
+    "The hero struck a heavy blow against the Dark Horde."
+   ],
+   "key": "lower_blackrock_spire",
+   "name": "Lower Blackrock Spire",
+   "recounted": [
+    "Someone killed Overlord Wyrmthalak in Blackrock Spire.",
+    "The Dark Horde's ogre and troll allies are fighting among themselves.",
+    "Fewer Blackrock orcs come down from the mountain to raid the Steppes.",
+    "The Scarshield Legion has lost its supplies and its nerve.",
+    "Scouts reach the slopes of Blackrock Mountain without meeting a war party."
+   ],
+   "zones": {
+    "alliance": [
+     46
+    ],
+    "horde": [
+     46
+    ]
+   }
+  },
+  {
+   "achievements": [
+    644
+   ],
+   "addressed": [
+    "The hero killed King Gordok and was hailed as the new king of the Gordok ogres.",
+    "The hero destroyed Immol'thar, the demon the Highborne kept imprisoned.",
+    "The hero killed Prince Tortheldrin, who fed on Immol'thar's power.",
+    "The hero slew Alzzin the Wildshaper and drove the satyrs from the Warpwood Quarter.",
+    "The hero opened the way to the old Highborne library of Eldre'Thalas."
+   ],
+   "key": "dire_maul",
+   "name": "Dire Maul",
+   "recounted": [
+    "Someone killed King Gordok in Dire Maul, and the ogres now bow to whoever did it.",
+    "The satyrs of the Warpwood Quarter are fewer, and the forest around it looks less sick.",
+    "The Gordok ogres are sending tribute to their new king.",
+    "Scholars are talking about the books brought out of Dire Maul's library.",
+    "The magical barriers in western Dire Maul have gone dark."
+   ],
+   "zones": {
+    "alliance": [
+     357
+    ],
+    "horde": [
+     357
+    ]
+   }
+  },
+  {
+   "achievements": [
+    645
+   ],
+   "addressed": [
+    "The hero killed Darkmaster Gandling, headmaster of the Scholomance.",
+    "The hero destroyed the lich Ras Frostwhisper.",
+    "The hero defeated Kirtonos the Herald and the ghosts of the Barov family.",
+    "The hero emptied the classrooms where the Cult of the Damned trained its necromancers.",
+    "The hero brought hope to the restless spirits of Caer Darrow."
+   ],
+   "key": "scholomance",
+   "name": "Scholomance",
+   "recounted": [
+    "Someone killed Darkmaster Gandling in the Scholomance.",
+    "The Cult of the Damned has lost its school, and few new students come to Caer Darrow.",
+    "The ghosts of Caer Darrow seem calmer.",
+    "The Barov heirs are said to be quarrelling over what is left of their family's lands.",
+    "Fewer plagued creatures wander the shores of Darrowmere Lake."
+   ],
+   "zones": {
+    "alliance": [
+     28
+    ],
+    "horde": [
+     85
+    ]
+   }
+  },
+  {
+   "achievements": [
+    646
+   ],
+   "addressed": [
+    "The hero killed Baron Rivendare, master of the Scourge in Stratholme.",
+    "The hero unmasked the dreadlord Balnazzar, who led the Scarlet Crusade in disguise, and slew him.",
+    "The hero destroyed the three ziggurats that guarded the Slaughterhouse.",
+    "The hero cleared the Scarlet Bastion and the market square.",
+    "The hero brought a moment of peace to the ruined city of Stratholme."
+   ],
+   "key": "stratholme",
+   "name": "Stratholme",
+   "recounted": [
+    "Someone killed Baron Rivendare in the ruins of Stratholme.",
+    "They say the Scarlet Crusade's Grand Crusader was a dreadlord all along.",
+    "The undead of Stratholme have lost one of their generals.",
+    "The Argent Dawn has begun to talk of taking Stratholme back one day.",
+    "Fewer Scourge patrols come out of Stratholme's gates."
+   ],
+   "zones": {
+    "alliance": [
+     139
+    ],
+    "horde": [
+     139
+    ]
+   }
+  },
+  {
+   "achievements": [
+    1307
+   ],
+   "addressed": [
+    "The hero killed General Drakkisath, commander of the black dragonflight's forces in Blackrock Spire.",
+    "The hero slew Warchief Rend Blackhand and his dragon Gyth.",
+    "The hero defeated Pyroguard Emberseer and The Beast.",
+    "The hero destroyed the black dragon eggs in the Rookery of Blackrock Spire.",
+    "The hero broke the Blackhand Legion, the Dark Horde's elite."
+   ],
+   "key": "upper_blackrock_spire",
+   "name": "Upper Blackrock Spire",
+   "recounted": [
+    "Someone killed Rend Blackhand, warchief of the Dark Horde.",
+    "General Drakkisath is dead, and the way to Nefarian's lair lies open.",
+    "The Dark Horde has lost its warchief and quarrels over who will lead it.",
+    "Fewer black dragonspawn are seen around Blackrock Mountain.",
+    "The Blackrock orcs are said to be pulling back deeper into Blackrock Mountain."
+   ],
+   "zones": {
+    "alliance": [
+     46
+    ],
+    "horde": [
+     46
+    ]
+   }
+  },
+  {
+   "achievements": [
+    647,
+    667
+   ],
+   "addressed": [
+    "The hero slew Vazruden the Herald and his fel dragon Nazan.",
+    "The hero defeated Omor the Unscarred and Watchkeeper Gargolmar.",
+    "The hero broke through the ramparts of Hellfire Citadel.",
+    "The hero cut down the Bonechewer fel orcs on the walls of Hellfire Citadel.",
+    "The hero won the Hellfire Peninsula garrisons a foothold against Hellfire Citadel."
+   ],
+   "key": "hellfire_ramparts",
+   "name": "Hellfire Ramparts",
+   "recounted": [
+    "Someone took the ramparts of Hellfire Citadel and killed Nazan.",
+    "The fel orcs on the walls of Hellfire Citadel watch the plain less closely now.",
+    "Fewer fel orc raiding parties come down from Hellfire Citadel.",
+    "Nazan, the fel dragon that circled Hellfire Citadel, hasn't been seen for days.",
+    "Garrison scouts can reach the walls of Hellfire Citadel without being spotted."
+   ],
+   "zones": {
+    "alliance": [
+     3483
+    ],
+    "horde": [
+     3483
+    ]
+   }
+  },
+  {
+   "achievements": [
+    648,
+    668
+   ],
+   "addressed": [
+    "The hero killed Keli'dan the Breaker in the Blood Furnace.",
+    "The hero slew The Maker and Broggok.",
+    "The hero stopped the fel orcs from making new warriors with Magtheridon's blood.",
+    "The hero smashed the Blood Furnace's channelers and their work.",
+    "The hero slowed the growth of the Fel Horde."
+   ],
+   "key": "the_blood_furnace",
+   "name": "The Blood Furnace",
+   "recounted": [
+    "Someone killed Keli'dan in the Blood Furnace.",
+    "The fel orcs are making fewer new warriors since the Blood Furnace went quiet.",
+    "The red glow over the furnaces of Hellfire Citadel has dimmed.",
+    "The Fel Horde's ranks on the walls of Hellfire Citadel look thinner.",
+    "Garrison scouts say fewer fel orcs march out of the gates of Hellfire Citadel."
+   ],
+   "zones": {
+    "alliance": [
+     3483
+    ],
+    "horde": [
+     3483
+    ]
+   }
+  },
+  {
+   "achievements": [
+    649,
+    669
+   ],
+   "addressed": [
+    "The hero killed Quagmirran in the Slave Pens.",
+    "The hero slew Mennu the Betrayer, who sold his own people to the naga.",
+    "The hero freed slaves held by the naga in Coilfang Reservoir.",
+    "The hero defeated Rokmar the Crackler.",
+    "The hero struck the first blow against Lady Vashj's hold on Coilfang."
+   ],
+   "key": "the_slave_pens",
+   "name": "The Slave Pens",
+   "recounted": [
+    "Someone freed the slaves in Coilfang Reservoir.",
+    "Broken and Lost Ones freed from the Slave Pens are making their way home.",
+    "The naga in Coilfang are short of workers.",
+    "Mennu the Betrayer won't be selling any more of his people.",
+    "The Cenarion Expedition says the naga pumps are running a little slower."
+   ],
+   "zones": {
+    "alliance": [
+     3521
+    ],
+    "horde": [
+     3521
+    ]
+   }
+  },
+  {
+   "achievements": [
+    650,
+    670
+   ],
+   "addressed": [
+    "The hero killed the Black Stalker in the Underbog.",
+    "The hero slew Hungarfen and the hydra Ghaz'an.",
+    "The hero defeated Swamplord Musel'ek.",
+    "The hero did the sporelings of Sporeggar a great service.",
+    "The hero thinned the naga's hold on the Underbog."
+   ],
+   "key": "the_underbog",
+   "name": "The Underbog",
+   "recounted": [
+    "Someone killed the Black Stalker deep in the Underbog.",
+    "The sporelings of Sporeggar are celebrating the Black Stalker's death in their own odd way.",
+    "The naga keep fewer guards in the Underbog.",
+    "The mushrooms of the Underbog are growing back.",
+    "The sporelings are trading their glowcaps more freely."
+   ],
+   "zones": {
+    "alliance": [
+     3521
+    ],
+    "horde": [
+     3521
+    ]
+   }
+  },
+  {
+   "achievements": [
+    651,
+    671
+   ],
+   "addressed": [
+    "The hero killed Nexus-Prince Shaffar in the Mana-Tombs.",
+    "The hero defeated Pandemonius and Tavarok.",
+    "The hero helped the Consortium against Shaffar's ethereals.",
+    "The hero cleared a path through the tombs of Auchindoun.",
+    "The hero stopped the looting of the Mana-Tombs."
+   ],
+   "key": "mana_tombs",
+   "name": "Mana-Tombs",
+   "recounted": [
+    "Someone killed Nexus-Prince Shaffar in the Mana-Tombs.",
+    "The Consortium's traders are smiling again since Nexus-Prince Shaffar died.",
+    "Shaffar's ethereals no longer loot the tombs of Auchindoun.",
+    "The Bone Wastes are a little quieter.",
+    "Consortium agents say a rival's business has closed for good."
+   ],
+   "zones": {
+    "alliance": [
+     3519
+    ],
+    "horde": [
+     3519
+    ]
+   }
+  },
+  {
+   "achievements": [
+    666,
+    672
+   ],
+   "addressed": [
+    "The hero defeated Exarch Maladaar in the Auchenai Crypts.",
+    "The hero slew Shirrak the Dead Watcher.",
+    "The hero laid the restless spirits of the Auchenai Crypts to rest.",
+    "The hero ended the dark rites of the Auchenai in the crypts.",
+    "The hero brought peace to the draenei dead of Auchindoun."
+   ],
+   "key": "auchenai_crypts",
+   "name": "Auchenai Crypts",
+   "recounted": [
+    "Someone defeated Exarch Maladaar in the Auchenai Crypts.",
+    "The spirits of the Bone Wastes are said to rest a little easier.",
+    "Draenei refugees pray for their dead without fear.",
+    "Fewer ghosts wander out of the Auchenai Crypts at night.",
+    "The elders of the Refugee Caravan have blessed the Auchenai Crypts again."
+   ],
+   "zones": {
+    "alliance": [
+     3519
+    ],
+    "horde": [
+     3519
+    ]
+   }
+  },
+  {
+   "achievements": [
+    652,
+    673
+   ],
+   "addressed": [
+    "The hero protected Thrall during his escape from Durnholde Keep.",
+    "The hero defeated the Epoch Hunter of the infinite dragonflight.",
+    "The hero slew Lieutenant Drake and Captain Skarloc.",
+    "The hero kept history on its course in Old Hillsbrad.",
+    "The hero earned the gratitude of the bronze dragonflight."
+   ],
+   "key": "the_escape_from_durnholde",
+   "name": "The Escape From Durnholde",
+   "recounted": [
+    "Someone went back to Old Hillsbrad and made sure Thrall escaped.",
+    "The bronze dragons say the timeway of Durnholde is safe again.",
+    "The infinite dragonflight has failed in Old Hillsbrad.",
+    "Old soldiers swear they remember a stranger at Durnholde on the night Thrall escaped.",
+    "The Keepers of Time are watching for the infinite dragonflight's next move."
+   ],
+   "zones": {
+    "alliance": [
+     440
+    ],
+    "horde": [
+     440
+    ]
+   }
+  },
+  {
+   "achievements": [
+    653,
+    674
+   ],
+   "addressed": [
+    "The hero killed Talon King Ikiss in the Sethekk Halls.",
+    "The hero defeated Darkweaver Syth.",
+    "The hero broke the Sethekk's hold on their halls in Auchindoun.",
+    "The hero helped the arakkoa of the Lower City.",
+    "The hero struck a blow against the arakkoa who serve shadow."
+   ],
+   "key": "sethekk_halls",
+   "name": "Sethekk Halls",
+   "recounted": [
+    "Someone killed Talon King Ikiss.",
+    "The Sethekk raven-priests are scattered.",
+    "The arakkoa of Shattrath's Lower City speak of the Sethekk with less fear.",
+    "Fewer Sethekk are seen in the forests of Terokkar.",
+    "The cawing from the Sethekk Halls has quieted."
+   ],
+   "zones": {
+    "alliance": [
+     3519
+    ],
+    "horde": [
+     3519
+    ]
+   }
+  },
+  {
+   "achievements": [
+    654,
+    675
+   ],
+   "addressed": [
+    "The hero defeated Murmur, the sound elemental bound in the Shadow Labyrinth.",
+    "The hero slew Grandmaster Vorpil and Blackheart the Inciter.",
+    "The hero killed Ambassador Hellmaw.",
+    "The hero struck at the Cabal beneath Auchindoun.",
+    "The hero did the Lower City a great service."
+   ],
+   "key": "shadow_labyrinth",
+   "name": "Shadow Labyrinth",
+   "recounted": [
+    "Someone defeated Murmur in the Shadow Labyrinth.",
+    "The Cabal's rituals beneath Auchindoun have stopped.",
+    "The whispers heard near the Shadow Labyrinth have fallen silent.",
+    "The Lower City's spies say the Shadow Council has lost a stronghold.",
+    "Fewer Cabal cultists walk the Bone Wastes."
+   ],
+   "zones": {
+    "alliance": [
+     3519
+    ],
+    "horde": [
+     3519
+    ]
+   }
+  },
+  {
+   "achievements": [
+    655,
+    676
+   ],
+   "addressed": [
+    "The hero protected Medivh while he opened the Dark Portal.",
+    "The hero slew Aeonus of the infinite dragonflight.",
+    "The hero defeated Chrono Lord Deja and Temporus.",
+    "The hero closed the time rifts in the Black Morass.",
+    "The hero kept history on its course."
+   ],
+   "key": "the_black_morass",
+   "name": "The Black Morass",
+   "recounted": [
+    "Someone made sure the Dark Portal opened as history requires.",
+    "The infinite dragonflight's attack on the Black Morass has failed.",
+    "The bronze dragons say the timeways have grown calmer.",
+    "Time rifts open less often in the Caverns of Time.",
+    "Some say the past still remembers a stranger who stood beside Medivh."
+   ],
+   "zones": {
+    "alliance": [
+     440
+    ],
+    "horde": [
+     440
+    ]
+   }
+  },
+  {
+   "achievements": [
+    656,
+    677
+   ],
+   "addressed": [
+    "The hero killed Warlord Kalithresh in the Steamvault.",
+    "The hero defeated Hydromancer Thespia and Mekgineer Steamrigger.",
+    "The hero shut down the naga pumps draining Zangarmarsh.",
+    "The hero struck a blow against Lady Vashj's plans.",
+    "The hero helped the Cenarion Expedition save Zangarmarsh."
+   ],
+   "key": "the_steamvault",
+   "name": "The Steamvault",
+   "recounted": [
+    "Someone shut down the naga pumps in the Steamvault.",
+    "The water in the lakes of Zangarmarsh is rising again.",
+    "The naga machines in Coilfang have fallen silent.",
+    "The Cenarion Expedition is hopeful about Zangarmarsh for the first time in months.",
+    "The giant mushrooms near the lakes of Zangarmarsh are putting out new caps."
+   ],
+   "zones": {
+    "alliance": [
+     3521
+    ],
+    "horde": [
+     3521
+    ]
+   }
+  },
+  {
+   "achievements": [
+    657,
+    678
+   ],
+   "addressed": [
+    "The hero killed Warchief Kargath Bladefist, leader of the Fel Horde.",
+    "The hero defeated Grand Warlock Nethekurse.",
+    "The hero slew the two-headed ogre Warbringer O'mrogg.",
+    "The hero fought through the gauntlet of the Shattered Halls.",
+    "The hero struck at the heart of Hellfire Citadel."
+   ],
+   "key": "the_shattered_halls",
+   "name": "The Shattered Halls",
+   "recounted": [
+    "Someone killed Kargath Bladefist.",
+    "The Fel Horde has no warchief.",
+    "Fel orc warbands are starting to fight among themselves.",
+    "The garrisons of Hellfire Peninsula are sending more patrols toward Hellfire Citadel.",
+    "The drums of the Shattered Halls have quieted."
+   ],
+   "zones": {
+    "alliance": [
+     3483
+    ],
+    "horde": [
+     3483
+    ]
+   }
+  },
+  {
+   "achievements": [
+    658,
+    679
+   ],
+   "addressed": [
+    "The hero defeated Pathaleon the Calculator in the Mechanar.",
+    "The hero destroyed Mechano-Lord Capacitus.",
+    "The hero slew Nethermancer Sepethrea.",
+    "The hero struck at Kael'thas's machinery in Tempest Keep.",
+    "The hero cut off part of the power Kael'thas's forces draw from Tempest Keep."
+   ],
+   "key": "the_mechanar",
+   "name": "The Mechanar",
+   "recounted": [
+    "Someone defeated Pathaleon the Calculator in Tempest Keep.",
+    "The Mechanar's machines have gone silent.",
+    "Kael'thas's engineers are short of parts.",
+    "The goblins of Area 52 are delighted that the Mechanar has gone silent.",
+    "Blood elf supply runs out of Tempest Keep have slowed."
+   ],
+   "zones": {
+    "alliance": [
+     3523
+    ],
+    "horde": [
+     3523
+    ]
+   }
+  },
+  {
+   "achievements": [
+    659,
+    680
+   ],
+   "addressed": [
+    "The hero defeated Warp Splinter in the Botanica.",
+    "The hero slew High Botanist Freywinn and Commander Sarannis.",
+    "The hero defeated Thorngrin the Tender and Laj.",
+    "The hero freed the Botanica's plants from Kael'thas's experiments.",
+    "The hero did Archmage Vargoth a great service."
+   ],
+   "key": "the_botanica",
+   "name": "The Botanica",
+   "recounted": [
+    "Someone defeated Warp Splinter in the Botanica.",
+    "The blood elf botanists of the Botanica have abandoned their experiments.",
+    "The Botanica's plants are growing wild and free.",
+    "Kael'thas has lost his gardens in Tempest Keep.",
+    "Archmage Vargoth has been seen tending a strange violet flower."
+   ],
+   "zones": {
+    "alliance": [
+     3523
+    ],
+    "horde": [
+     3523
+    ]
+   }
+  },
+  {
+   "achievements": [
+    660,
+    681
+   ],
+   "addressed": [
+    "The hero defeated Harbinger Skyriss in the Arcatraz.",
+    "The hero freed Millhouse Manastorm.",
+    "The hero slew Dalliah the Doomsayer and Wrath-Scryer Soccothrates.",
+    "The hero defeated Zereketh the Unbound.",
+    "The hero kept the Arcatraz's worst prisoners from escaping."
+   ],
+   "key": "the_arcatraz",
+   "name": "The Arcatraz",
+   "recounted": [
+    "Someone went into the Arcatraz and stopped Harbinger Skyriss.",
+    "Millhouse Manastorm is free of the Arcatraz and won't stop boasting about it.",
+    "The most dangerous inmates of the Arcatraz remain locked up.",
+    "The Sha'tar breathe a little easier since Harbinger Skyriss fell.",
+    "Kael'thas's plans for the Arcatraz prisoners have come to nothing."
+   ],
+   "zones": {
+    "alliance": [
+     3523
+    ],
+    "horde": [
+     3523
+    ]
+   }
+  },
+  {
+   "achievements": [
+    661,
+    682
+   ],
+   "addressed": [
+    "The hero defeated Kael'thas Sunstrider in Magisters' Terrace.",
+    "The hero slew Selin Fireheart and Vexallus.",
+    "The hero defeated Priestess Delrissa and her companions.",
+    "The hero struck a blow against the Legion's plans for the Sunwell.",
+    "The hero helped the Shattered Sun Offensive."
+   ],
+   "key": "magisters_terrace",
+   "name": "Magisters' Terrace",
+   "recounted": [
+    "Someone put an end to Kael'thas Sunstrider.",
+    "The blood elves who followed Kael'thas have lost their prince.",
+    "The Shattered Sun Offensive is pushing further across Quel'Danas.",
+    "Artisans are returning to Sun's Reach.",
+    "The Legion's hold on the Isle of Quel'Danas is weakening."
+   ],
+   "zones": {
+    "alliance": [
+     4080
+    ],
+    "horde": [
+     4080
+    ]
+   }
+  },
+  {
+   "achievements": [
+    477,
+    489
+   ],
+   "addressed": [
+    "The hero killed Ingvar the Plunderer in Utgarde Keep.",
+    "The hero defeated Prince Keleseth of the San'layn.",
+    "The hero slew Skarvald the Constructor and Dalronn the Controller.",
+    "The hero left the forges of Utgarde Keep cold.",
+    "The hero struck a blow against the Dragonflayer vrykul."
+   ],
+   "key": "utgarde_keep",
+   "name": "Utgarde Keep",
+   "recounted": [
+    "Someone killed Ingvar the Plunderer.",
+    "The Dragonflayer vrykul have stopped raiding the coast for now.",
+    "The forges of Utgarde Keep have gone cold.",
+    "Ships unload at the harbours of the Howling Fjord without lookouts on every mast.",
+    "The proto-drakes of Utgarde fly less often over the fjord."
+   ],
+   "zones": {
+    "alliance": [
+     495
+    ],
+    "horde": [
+     495
+    ]
+   }
+  },
+  {
+   "achievements": [
+    478,
+    490
+   ],
+   "addressed": [
+    "The hero ended Keristrasza's torment in the Nexus.",
+    "The hero defeated Grand Magus Telestra.",
+    "The hero slew Anomalus and Ormorok the Tree-Shaper.",
+    "The hero struck a blow against Malygos's blue dragonflight.",
+    "The hero helped the red dragonflight in Coldarra."
+   ],
+   "key": "the_nexus",
+   "name": "The Nexus",
+   "recounted": [
+    "Someone ended Keristrasza's suffering in the Nexus.",
+    "The blue dragonflight's hold on Coldarra is weakening.",
+    "The Kirin Tor are more hopeful about the Nexus.",
+    "Fewer blue dragons fly over Coldarra.",
+    "The red dragonflight mourns Keristrasza, but honours those who set her free."
+   ],
+   "zones": {
+    "alliance": [
+     3537
+    ],
+    "horde": [
+     3537
+    ]
+   }
+  },
+  {
+   "achievements": [
+    480,
+    491
+   ],
+   "addressed": [
+    "The hero drove Anub'arak from the depths of Azjol-Nerub.",
+    "The hero slew Krik'thir the Gatewatcher.",
+    "The hero defeated Hadronox.",
+    "The hero struck a blow against the Scourge's nerubians.",
+    "The hero helped the free nerubians of the Pit of Narjun."
+   ],
+   "key": "azjol_nerub",
+   "name": "Azjol-Nerub",
+   "recounted": [
+    "Someone drove Anub'arak out of the depths of Azjol-Nerub.",
+    "The free nerubians are gathering at the Pit of Narjun.",
+    "The Scourge's grip on the old kingdom of Azjol-Nerub has weakened.",
+    "The webs of upper Azjol-Nerub are quiet.",
+    "Fewer Scourge nerubians burrow up out of the ground in Dragonblight."
+   ],
+   "zones": {
+    "alliance": [
+     65
+    ],
+    "horde": [
+     65
+    ]
+   }
+  },
+  {
+   "achievements": [
+    481,
+    492
+   ],
+   "addressed": [
+    "The hero defeated Herald Volazj in Ahn'kahet.",
+    "The hero slew Jedoga Shadowseeker and her Twilight cultists.",
+    "The hero defeated Prince Taldaram and Elder Nadox.",
+    "The hero stopped the Twilight cult's work in the Old Kingdom.",
+    "The hero helped the free nerubians."
+   ],
+   "key": "ahnkahet_the_old_kingdom",
+   "name": "Ahn'kahet: The Old Kingdom",
+   "recounted": [
+    "Someone defeated Herald Volazj in Ahn'kahet.",
+    "The Twilight's Hammer cultists in the Old Kingdom have gone quiet.",
+    "The whispers rising from Ahn'kahet have faded.",
+    "The nerubians of the Pit of Narjun are grateful to whoever cleared Ahn'kahet.",
+    "Fewer Scourge creatures come up from the Old Kingdom."
+   ],
+   "zones": {
+    "alliance": [
+     65
+    ],
+    "horde": [
+     65
+    ]
+   }
+  },
+  {
+   "achievements": [
+    482,
+    493
+   ],
+   "addressed": [
+    "The hero killed The Prophet Tharon'ja.",
+    "The hero defeated Trollgore and King Dred.",
+    "The hero slew Novos the Summoner.",
+    "The hero cut the Scourge's road from Zul'Drak into the Grizzly Hills.",
+    "The hero took Drak'Tharon Keep from the last Drakkari who held it."
+   ],
+   "key": "draktharon_keep",
+   "name": "Drak'Tharon Keep",
+   "recounted": [
+    "Someone killed The Prophet Tharon'ja.",
+    "Fewer undead come down through the pass from Zul'Drak.",
+    "Drak'Tharon Keep is no longer held by the Drakkari.",
+    "The Scourge's road through Drak'Tharon Keep is cut.",
+    "Travellers in the northern Grizzly Hills breathe easier."
+   ],
+   "zones": {
+    "alliance": [
+     394
+    ],
+    "horde": [
+     394
+    ]
+   }
+  },
+  {
+   "achievements": [
+    483,
+    494
+   ],
+   "addressed": [
+    "The hero held the Violet Hold against the blue dragonflight's attack.",
+    "The hero slew Cyanigosa, the blue dragon who led the attack on the Violet Hold.",
+    "The hero kept the Violet Hold's prisoners from breaking loose.",
+    "The hero stood at the gates of the Violet Hold until the last portal closed.",
+    "The hero protected Dalaran from the inside."
+   ],
+   "key": "the_violet_hold",
+   "name": "The Violet Hold",
+   "recounted": [
+    "Someone held the Violet Hold when the blue dragonflight broke in.",
+    "The blue dragonflight's attack on Dalaran has failed, and Cyanigosa is dead.",
+    "The prisoners of the Violet Hold are still behind their wards.",
+    "Lieutenant Sinclari has been praising the defenders of the Violet Hold to anyone who will listen.",
+    "The streets around the Violet Hold have stopped rattling with strange magic at night."
+   ],
+   "zones": {
+    "alliance": [
+     4395
+    ],
+    "horde": [
+     4395
+    ]
+   }
+  },
+  {
+   "achievements": [
+    484,
+    495
+   ],
+   "addressed": [
+    "The hero killed Gal'darah, high prophet of Akali.",
+    "The hero slew Slad'ran and Moorabi.",
+    "The hero destroyed the Drakkari Colossus.",
+    "The hero stopped the Drakkari from draining their own gods.",
+    "The hero helped the Argent Crusade in Zul'Drak."
+   ],
+   "key": "gundrak",
+   "name": "Gundrak",
+   "recounted": [
+    "Someone killed Gal'darah in Gundrak.",
+    "The Drakkari of Gundrak have lost their leaders.",
+    "The Drakkari's blood rituals have stopped.",
+    "Chronicler Bah'Kini is busy studying Gundrak's shrines.",
+    "The Argent Crusade's hold on Zul'Drak is stronger."
+   ],
+   "zones": {
+    "alliance": [
+     66
+    ],
+    "horde": [
+     66
+    ]
+   }
+  },
+  {
+   "achievements": [
+    485,
+    496
+   ],
+   "addressed": [
+    "The hero defeated Sjonnir the Ironshaper in the Halls of Stone.",
+    "The hero protected Brann Bronzebeard at the Tribunal of Ages.",
+    "The hero slew the Maiden of Grief and Krystallus.",
+    "The hero helped uncover the titans' records.",
+    "The hero struck a blow against the iron dwarves."
+   ],
+   "key": "halls_of_stone",
+   "name": "Halls of Stone",
+   "recounted": [
+    "Someone defeated Sjonnir the Ironshaper.",
+    "Brann Bronzebeard has learned the secrets of the Tribunal of Ages.",
+    "Iron dwarves raid the Storm Peaks less often.",
+    "The titans' records speak of the earthen and the curse of flesh.",
+    "Brann is already planning to go deeper into Ulduar."
+   ],
+   "zones": {
+    "alliance": [
+     67
+    ],
+    "horde": [
+     67
+    ]
+   }
+  },
+  {
+   "achievements": [
+    488,
+    499
+   ],
+   "addressed": [
+    "The hero killed King Ymiron.",
+    "The hero defeated Svala Sorrowgrave and Skadi the Ruthless.",
+    "The hero slew Gortok Palehoof.",
+    "The hero shattered the vrykul's hold on Utgarde Pinnacle.",
+    "The hero struck a blow against the Lich King's vrykul allies."
+   ],
+   "key": "utgarde_pinnacle",
+   "name": "Utgarde Pinnacle",
+   "recounted": [
+    "Someone killed King Ymiron.",
+    "The vrykul of Utgarde are without their king.",
+    "Fewer proto-drakes fly over Utgarde.",
+    "The vrykul raids on the Howling Fjord have stopped for now.",
+    "The Lich King has lost an ally with King Ymiron's death."
+   ],
+   "zones": {
+    "alliance": [
+     495
+    ],
+    "horde": [
+     495
+    ]
+   }
+  },
+  {
+   "achievements": [
+    487,
+    498
+   ],
+   "addressed": [
+    "The hero defeated Ley-Guardian Eregos.",
+    "The hero slew Drakos the Interrogator and Mage-Lord Urom.",
+    "The hero defeated Varos Cloudstrider.",
+    "The hero freed captured red drakes.",
+    "The hero struck a blow against Malygos's flight."
+   ],
+   "key": "the_oculus",
+   "name": "The Oculus",
+   "recounted": [
+    "Someone defeated Eregos in the Oculus.",
+    "The blue dragonflight's patrols over Coldarra are thinner.",
+    "The red drakes captured in the Oculus are free.",
+    "The rings of the Oculus are quiet.",
+    "The red dragonflight honours those who rode with them."
+   ],
+   "zones": {
+    "alliance": [
+     3537
+    ],
+    "horde": [
+     3537
+    ]
+   }
+  },
+  {
+   "achievements": [
+    486,
+    497
+   ],
+   "addressed": [
+    "The hero killed Loken.",
+    "The hero defeated General Bjarngrim.",
+    "The hero slew Volkhan and Ionar.",
+    "The hero brought down the treacherous keeper of Ulduar.",
+    "The hero helped the Sons of Hodir."
+   ],
+   "key": "halls_of_lightning",
+   "name": "Halls of Lightning",
+   "recounted": [
+    "Someone killed Loken.",
+    "The iron dwarves are without their master since Loken died.",
+    "The storms over the Storm Peaks rage a little less.",
+    "The Sons of Hodir are celebrating Loken's death.",
+    "The halls of Ulduar are quieter."
+   ],
+   "zones": {
+    "alliance": [
+     67
+    ],
+    "horde": [
+     67
+    ]
+   }
+  },
+  {
+   "achievements": [
+    479,
+    500
+   ],
+   "addressed": [
+    "The hero fought beside Prince Arthas at Stratholme.",
+    "The hero defeated Mal'Ganis.",
+    "The hero slew Chrono-Lord Epoch and the infinite dragonflight.",
+    "The hero defeated Meathook and Salramm the Fleshcrafter.",
+    "The hero kept history on its course."
+   ],
+   "key": "the_culling_of_stratholme",
+   "name": "The Culling of Stratholme",
+   "recounted": [
+    "Someone went back to Stratholme and made sure history stayed as it was.",
+    "The bronze dragons say the infinite dragonflight has failed again at Stratholme.",
+    "Chromie has been praising the timewalkers.",
+    "Some say they saw Arthas's darkest hour with their own eyes.",
+    "The Caverns of Time are calmer."
+   ],
+   "zones": {
+    "alliance": [
+     440
+    ],
+    "horde": [
+     440
+    ]
+   }
+  },
+  {
+   "achievements": [
+    3778,
+    4296,
+    4297,
+    4298
+   ],
+   "addressed": [
+    "The hero defeated the Black Knight.",
+    "The hero defeated the Grand Champions in the arena.",
+    "The hero won against Eadric the Pure or Argent Confessor Paletress.",
+    "The hero proved their worth in the Argent Tournament.",
+    "The hero earned the respect of the Argent Crusade."
+   ],
+   "key": "trial_of_the_champion",
+   "name": "Trial of the Champion",
+   "recounted": [
+    "Someone defeated the Black Knight.",
+    "The Argent Tournament has a new champion.",
+    "The crowds of the Coliseum are still cheering.",
+    "The Argent Crusade has examined the Black Knight's visor and declared it inert.",
+    "The Tournament grounds are buzzing with news of the Black Knight's defeat."
+   ],
+   "zones": {
+    "alliance": [
+     210
+    ],
+    "horde": [
+     210
+    ]
+   }
+  },
+  {
+   "achievements": [
+    4516,
+    4519
+   ],
+   "addressed": [
+    "The hero destroyed the Devourer of Souls.",
+    "The hero slew Bronjahm, master of the soul forge.",
+    "The hero freed the souls trapped in the Forge.",
+    "The hero opened a way into Icecrown Citadel.",
+    "The hero fought beside Jaina Proudmoore or Sylvanas Windrunner."
+   ],
+   "key": "the_forge_of_souls",
+   "name": "The Forge of Souls",
+   "recounted": [
+    "Someone destroyed the Devourer of Souls in the Forge of Souls.",
+    "The Forge of Souls has fallen silent.",
+    "The souls trapped in the Forge have been set free.",
+    "A way into Icecrown Citadel has been opened.",
+    "The Lich King's defences are starting to crack."
+   ],
+   "zones": {
+    "alliance": [
+     210
+    ],
+    "horde": [
+     210
+    ]
+   }
+  },
+  {
+   "achievements": [
+    4517,
+    4520
+   ],
+   "addressed": [
+    "The hero killed Scourgelord Tyrannus.",
+    "The hero defeated Forgemaster Garfrost.",
+    "The hero defeated Ick and Krick.",
+    "The hero freed the slaves of the Pit of Saron.",
+    "The hero cleared the way for the assault on Icecrown Citadel."
+   ],
+   "key": "pit_of_saron",
+   "name": "Pit of Saron",
+   "recounted": [
+    "Someone killed Scourgelord Tyrannus and his frost wyrm Rimefang.",
+    "The slaves of the Pit of Saron are free.",
+    "The saronite pits below Icecrown have stopped working.",
+    "Slaves freed from the Pit of Saron are telling their stories in every camp in Icecrown.",
+    "The Lich King has lost one of his generals with Scourgelord Tyrannus's death."
+   ],
+   "zones": {
+    "alliance": [
+     210
+    ],
+    "horde": [
+     210
+    ]
+   }
+  },
+  {
+   "achievements": [
+    4518,
+    4521
+   ],
+   "addressed": [
+    "The hero escaped the Lich King himself.",
+    "The hero defeated Falric and Marwyn.",
+    "The hero protected Jaina Proudmoore or Sylvanas Windrunner during the escape from the Lich King.",
+    "The hero learned what waits at the top of Icecrown Citadel.",
+    "The hero opened the way to the Frozen Throne."
+   ],
+   "key": "halls_of_reflection",
+   "name": "Halls of Reflection",
+   "recounted": [
+    "Someone came face to face with the Lich King in the Halls of Reflection and lived.",
+    "Falric and Marwyn, Arthas's old captains, are dead.",
+    "Those who were in the Halls of Reflection speak of the spirits trapped in Frostmourne.",
+    "The way to the Frozen Throne is known now.",
+    "The assault on Icecrown Citadel is gathering strength."
+   ],
+   "zones": {
+    "alliance": [
+     210
+    ],
+    "horde": [
+     210
+    ]
+   }
+  },
+  {
+   "achievements": [
+    688
+   ],
+   "addressed": [
+    "The hero slew Hakkar the Soulflayer and cast the Blood God out of the world.",
+    "The hero killed Jin'do the Hexxer, the high priest who helped call Hakkar back.",
+    "The hero broke the hold of the Blood God's cult on the Gurubashi.",
+    "The hero stood with the Zandalar Tribe when they called for help.",
+    "The hero lifted the blood-red shadow from northern Stranglethorn."
+   ],
+   "key": "zulgurub",
+   "name": "Zul'Gurub",
+   "recounted": [
+    "Someone killed Hakkar the Soulflayer in Zul'Gurub.",
+    "The red haze over northern Stranglethorn is lifting.",
+    "The surviving Gurubashi wander Zul'Gurub without masters.",
+    "The Zandalari on Yojamba Isle are celebrating Hakkar's fall, though they keep their guard up.",
+    "Hunters say the jungle beasts near Zul'Gurub are less maddened."
+   ],
+   "zones": {
+    "alliance": [
+     33
+    ],
+    "horde": [
+     33
+    ]
+   }
+  },
+  {
+   "achievements": [
+    689
+   ],
+   "addressed": [
+    "The hero slew Ossirian the Unscarred, the Qiraji general.",
+    "The hero avenged Valstann Staghelm by killing General Rajaxx, the Qiraji who slew him a thousand years ago.",
+    "The hero fought beside Lieutenant General Andorov in the Ruins of Ahn'Qiraj.",
+    "The hero broke the Qiraji army gathering in the Ruins of Ahn'Qiraj.",
+    "The hero pushed the Qiraji back behind the walls of Ahn'Qiraj."
+   ],
+   "key": "ruins_of_ahnqiraj",
+   "name": "Ruins of Ahn'Qiraj",
+   "recounted": [
+    "Someone killed Ossirian in the Ruins of Ahn'Qiraj.",
+    "The Qiraji have pulled back behind the walls of Ahn'Qiraj.",
+    "The attacks on Cenarion Hold have grown weaker.",
+    "Silithid still boil out of the hives, but with less purpose.",
+    "The druids say Valstann Staghelm has been avenged at last."
+   ],
+   "zones": {
+    "alliance": [
+     1377
+    ],
+    "horde": [
+     1377
+    ]
+   }
+  },
+  {
+   "achievements": [
+    686
+   ],
+   "addressed": [
+    "The hero banished Ragnaros the Firelord from Azeroth.",
+    "The hero forced Majordomo Executus to summon his master, then stood against the Firelord himself.",
+    "The hero fought into the burning heart of Blackrock Mountain.",
+    "The hero doused the fire runes of the Molten Core.",
+    "The hero earned the thanks of the Hydraxian Waterlords."
+   ],
+   "key": "molten_core",
+   "name": "Molten Core",
+   "recounted": [
+    "Someone banished Ragnaros from the depths of Blackrock Mountain.",
+    "The heat deep beneath Blackrock Mountain is falling.",
+    "The springs on the slopes of Blackrock Mountain run cooler.",
+    "The Dark Iron dwarves have lost Ragnaros, the master they summoned.",
+    "Fewer fire elementals stalk the land around Blackrock Mountain."
+   ],
+   "zones": {
+    "alliance": [
+     1537,
+     46
+    ],
+    "horde": [
+     1637,
+     46
+    ]
+   }
+  },
+  {
+   "achievements": [
+    684
+   ],
+   "addressed": [
+    "The hero slew Onyxia, daughter of Deathwing, in her lair.",
+    "The hero brought Onyxia's head back to the city.",
+    "The hero survived Onyxia's flames and her swarming whelps.",
+    "The hero ended Onyxia's scheming against the kingdoms of the living.",
+    "The hero made the skies over Dustwallow Marsh safer."
+   ],
+   "key": "onyxias_lair_level_60",
+   "name": "Onyxia's Lair (level 60)",
+   "recounted": [
+    "Someone killed Onyxia, and her head hangs at the city gates.",
+    "Onyxia's brood has scattered from Dustwallow Marsh.",
+    "People say Onyxia hid at the court of Stormwind for years as Lady Katrana Prestor.",
+    "The marsh-folk say black dragons are rarely seen over the wetlands now.",
+    "Everyone who passes the gates stops to stare at Onyxia's head."
+   ],
+   "zones": {
+    "alliance": [
+     1519,
+     15
+    ],
+    "horde": [
+     1637,
+     15
+    ]
+   }
+  },
+  {
+   "achievements": [
+    685
+   ],
+   "addressed": [
+    "The hero slew Nefarian, lord of Blackrock Spire.",
+    "The hero ended Nefarian's experiments on the chromatic dragonflight.",
+    "The hero freed the red dragon Vaelastrasz from Nefarian's torment.",
+    "The hero fought through Blackwing Lair to the top of Blackrock Spire.",
+    "The hero brought Nefarian's head back to the city."
+   ],
+   "key": "blackwing_lair",
+   "name": "Blackwing Lair",
+   "recounted": [
+    "Someone killed Nefarian, and his head was brought back to the city.",
+    "Nefarian's chromatic drakes have no master.",
+    "The black dragonflight has lost its lord in Blackrock Spire.",
+    "The Dark Horde has lost its last protector with Nefarian's death.",
+    "People gather to look at Nefarian's head, and the soldiers walk taller."
+   ],
+   "zones": {
+    "alliance": [
+     1519,
+     46
+    ],
+    "horde": [
+     1637,
+     46
+    ]
+   }
+  },
+  {
+   "achievements": [
+    687
+   ],
+   "addressed": [
+    "The hero defeated C'Thun, the Old God imprisoned in the Temple of Ahn'Qiraj.",
+    "The hero slew the Twin Emperors, Vek'lor and Vek'nilash, who ruled the Qiraji.",
+    "The hero went deeper into Ahn'Qiraj than any army of the War of the Shifting Sands.",
+    "The hero ended the Qiraji threat to Kalimdor.",
+    "The hero earned the thanks of the bronze dragonflight."
+   ],
+   "key": "temple_of_ahnqiraj",
+   "name": "Temple of Ahn'Qiraj",
+   "recounted": [
+    "Someone defeated C'Thun deep inside the Temple of Ahn'Qiraj.",
+    "The Qiraji armies have lost their god.",
+    "The silithid swarms in Silithus are fewer and confused.",
+    "Those who gave to the Ahn'Qiraj war effort say it was worth every crate.",
+    "Prospectors in Silithus say the ground trembles less at night."
+   ],
+   "zones": {
+    "alliance": [
+     1537,
+     1377
+    ],
+    "horde": [
+     1637,
+     1377
+    ]
+   }
+  },
+  {
+   "achievements": [
+    533
+   ],
+   "addressed": [
+    "The hero destroyed the archlich Kel'Thuzad in Naxxramas.",
+    "The hero slew Sapphiron, the frost wyrm that guarded Kel'Thuzad.",
+    "The hero fought through all four quarters of the floating necropolis.",
+    "The hero dealt the Scourge in the Plaguelands its heaviest defeat.",
+    "The hero earned the thanks of the Argent Dawn."
+   ],
+   "key": "naxxramas_level_60",
+   "name": "Naxxramas (level 60)",
+   "recounted": [
+    "Someone destroyed Kel'Thuzad in the floating necropolis.",
+    "The Scourge armies in the Plaguelands are in disarray.",
+    "The Argent Dawn says the shadow of Naxxramas over the Plaguelands has grown lighter.",
+    "Fewer plague-bearers come out of Naxxramas.",
+    "The Argent Dawn warns that a lich can return, and is watching for Kel'Thuzad's phylactery."
+   ],
+   "zones": {
+    "alliance": [
+     1537,
+     139
+    ],
+    "horde": [
+     1497,
+     139
+    ]
+   }
+  },
+  {
+   "achievements": [
+    690
+   ],
+   "addressed": [
+    "The hero defeated Prince Malchezaar in the tower of Karazhan.",
+    "The hero laid to rest the Shade of Aran, Medivh's father, who still haunted the tower's library.",
+    "The hero climbed Medivh's tower from the stables to its highest terrace.",
+    "The hero survived the strange memories and illusions of Karazhan.",
+    "The hero cleared Medivh's tower for the Violet Eye."
+   ],
+   "key": "karazhan",
+   "name": "Karazhan",
+   "recounted": [
+    "Someone defeated the demon prince in Karazhan.",
+    "The lights in Medivh's tower flicker less wildly at night.",
+    "The ghosts of Karazhan's servants are calmer.",
+    "The Violet Eye has begun to study the library of Karazhan.",
+    "The road through Deadwind Pass is quieter."
+   ],
+   "zones": {
+    "alliance": [
+     1519
+    ],
+    "horde": [
+     1497
+    ]
+   }
+  },
+  {
+   "achievements": [
+    692
+   ],
+   "addressed": [
+    "The hero killed Gruul the Dragonkiller.",
+    "The hero ended Gruul's rule over the ogres of Blade's Edge.",
+    "The hero avenged the dragons Gruul hunted.",
+    "The hero broke the gronn's hold on Blade's Edge Mountains.",
+    "The hero did the ogres of Ogri'la a great service."
+   ],
+   "key": "gruuls_lair",
+   "name": "Gruul's Lair",
+   "recounted": [
+    "Someone killed Gruul the Dragonkiller.",
+    "Gruul's ogres have no master and are fighting among themselves.",
+    "The dragons of Blade's Edge fly a little more freely.",
+    "The ogres of Ogri'la are celebrating loudly.",
+    "Fewer gronn tracks are found near the dragon roosts of Blade's Edge."
+   ],
+   "zones": {
+    "alliance": [
+     3522
+    ],
+    "horde": [
+     3522
+    ]
+   }
+  },
+  {
+   "achievements": [
+    693
+   ],
+   "addressed": [
+    "The hero slew Magtheridon, the pit lord chained beneath Hellfire Citadel.",
+    "The hero destroyed the source of the fel orcs' corruption.",
+    "The hero went down into the deepest prison of Hellfire Citadel.",
+    "The hero lifted the pit lord's shadow from Hellfire Peninsula.",
+    "The hero earned the gratitude of the Hellfire Peninsula garrisons."
+   ],
+   "key": "magtheridons_lair",
+   "name": "Magtheridon's Lair",
+   "recounted": [
+    "Someone killed Magtheridon.",
+    "The fel orcs no longer have Magtheridon's blood to drink.",
+    "The red glow over Hellfire Citadel is dimming.",
+    "The garrisons of Hellfire Peninsula are celebrating the victory over Magtheridon.",
+    "The air over Hellfire Peninsula feels a little less foul."
+   ],
+   "zones": {
+    "alliance": [
+     3483
+    ],
+    "horde": [
+     3483
+    ]
+   }
+  },
+  {
+   "achievements": [
+    691
+   ],
+   "addressed": [
+    "The hero killed Zul'jin, warlord of the Amani.",
+    "The hero broke the power of the four loa the Amani called upon.",
+    "The hero freed the prisoners held in Zul'Aman.",
+    "The hero ended the Amani's plans for a new war.",
+    "The hero made the forests of southern Quel'Thalas safer from troll raids."
+   ],
+   "key": "zulaman",
+   "name": "Zul'Aman",
+   "recounted": [
+    "Someone killed Zul'jin in Zul'Aman.",
+    "The Amani trolls have lost their warlord.",
+    "The Amani's loa have turned away from them.",
+    "Harrison Jones is boasting about the treasure he brought back from Zul'Aman.",
+    "The forest roads near Zul'Aman are safer."
+   ],
+   "zones": {
+    "alliance": [],
+    "horde": [
+     3433,
+     3487
+    ]
+   }
+  },
+  {
+   "achievements": [
+    694
+   ],
+   "addressed": [
+    "The hero slew Lady Vashj in Serpentshrine Cavern.",
+    "The hero ended the naga's plot to drain Zangarmarsh.",
+    "The hero went down into the flooded halls beneath Coilfang Reservoir.",
+    "The hero struck a heavy blow against Illidan.",
+    "The hero earned the thanks of the Cenarion Expedition."
+   ],
+   "key": "serpentshrine_cavern",
+   "name": "Serpentshrine Cavern",
+   "recounted": [
+    "Someone killed Lady Vashj.",
+    "The naga of Coilfang have lost their queen.",
+    "The lakes of Zangarmarsh are rising again.",
+    "The Cenarion Expedition is celebrating Lady Vashj's death.",
+    "Illidan has lost one of his closest allies."
+   ],
+   "zones": {
+    "alliance": [
+     3703,
+     3521
+    ],
+    "horde": [
+     3703,
+     3521
+    ]
+   }
+  },
+  {
+   "achievements": [
+    696
+   ],
+   "addressed": [
+    "The hero defeated Kael'thas Sunstrider in Tempest Keep.",
+    "The hero slew Al'ar, the phoenix god who served Kael'thas.",
+    "The hero broke Kael'thas's hold on Tempest Keep.",
+    "The hero stopped Kael'thas from drawing on the power of the naaru fortress.",
+    "The hero earned the gratitude of the Sha'tar."
+   ],
+   "key": "tempest_keep",
+   "name": "Tempest Keep",
+   "recounted": [
+    "Someone defeated Kael'thas in Tempest Keep.",
+    "The blood elves in Netherstorm are pulling back.",
+    "The Sha'tar are celebrating Kael'thas's defeat.",
+    "Some say Kael'thas escaped and isn't finished yet.",
+    "The naaru light of the Eye in Tempest Keep shines again."
+   ],
+   "zones": {
+    "alliance": [
+     3703,
+     3523
+    ],
+    "horde": [
+     3703,
+     3523,
+     3487
+    ]
+   }
+  },
+  {
+   "achievements": [
+    695
+   ],
+   "addressed": [
+    "The hero defended Mount Hyjal and saw Archimonde fall.",
+    "The hero held the lines at Mount Hyjal beside Jaina Proudmoore and Thrall.",
+    "The hero stood with Tyrande Whisperwind's night elves before the World Tree.",
+    "The hero helped keep history on its course.",
+    "The hero earned the gratitude of the bronze dragonflight."
+   ],
+   "key": "the_battle_for_mount_hyjal",
+   "name": "The Battle for Mount Hyjal",
+   "recounted": [
+    "Someone went back in time and fought in the Battle of Mount Hyjal.",
+    "The infinite dragonflight has failed at Hyjal.",
+    "The bronze dragons say history at Hyjal remains as it was.",
+    "Veterans of the Third War listen with wide eyes to the story of a stranger at the Battle of Mount Hyjal.",
+    "The Caverns of Time feel calmer."
+   ],
+   "zones": {
+    "alliance": [
+     440,
+     1657
+    ],
+    "horde": [
+     440,
+     1637
+    ]
+   }
+  },
+  {
+   "achievements": [
+    697
+   ],
+   "addressed": [
+    "The hero defeated Illidan Stormrage in the Black Temple.",
+    "The hero fought beside Akama and Maiev Shadowsong.",
+    "The hero helped Akama and the Ashtongue take back the temple of Karabor.",
+    "The hero broke Illidan's hold on Shadowmoon Valley.",
+    "The hero ended the Betrayer's rule over Outland."
+   ],
+   "key": "black_temple",
+   "name": "Black Temple",
+   "recounted": [
+    "Someone defeated Illidan in the Black Temple.",
+    "Akama and the Ashtongue have taken back the Black Temple.",
+    "The skies over Shadowmoon Valley seem lighter.",
+    "Illidan's forces in Outland are scattering.",
+    "Maiev Shadowsong's long hunt is over."
+   ],
+   "zones": {
+    "alliance": [
+     3703,
+     3520
+    ],
+    "horde": [
+     3703,
+     3520
+    ]
+   }
+  },
+  {
+   "achievements": [
+    698
+   ],
+   "addressed": [
+    "The hero drove Kil'jaeden back at the Sunwell.",
+    "The hero freed Kalecgos from the demon Sathrovarr.",
+    "The hero defeated M'uru, whose light Velen used to rekindle the Sunwell.",
+    "The hero saved the Sunwell from the Burning Legion.",
+    "The hero fought for the Shattered Sun Offensive on Quel'Danas."
+   ],
+   "key": "sunwell_plateau",
+   "name": "Sunwell Plateau",
+   "recounted": [
+    "Someone stopped Kil'jaeden at the Sunwell.",
+    "The Sunwell has been restored.",
+    "The Shattered Sun Offensive is celebrating victory at the Sunwell.",
+    "The blood elves feel the Sunwell's light again.",
+    "Prophet Velen is said to have rekindled the Sunwell with the light of a naaru."
+   ],
+   "zones": {
+    "alliance": [
+     3703,
+     3557
+    ],
+    "horde": [
+     3703,
+     3487
+    ]
+   }
+  },
+  {
+   "achievements": [
+    1722,
+    1721,
+    3136,
+    3137,
+    3836,
+    3837,
+    4585,
+    4586
+   ],
+   "addressed": [
+    "The hero defeated one of the titan watchers in the Vault of Archavon.",
+    "The hero went into the ancient vault beneath Wintergrasp.",
+    "The hero made the most of their side's hold on Wintergrasp.",
+    "The hero brought back word of what lies in the Vault of Archavon.",
+    "The hero earned the thanks of the Wintergrasp commander."
+   ],
+   "key": "vault_of_archavon",
+   "name": "Vault of Archavon",
+   "recounted": [
+    "Someone went into the Vault of Archavon and defeated one of its watchers.",
+    "The titan vault beneath Wintergrasp has been opened.",
+    "Archaeologists from Ironforge and Silvermoon both want to study the titan vault beneath Wintergrasp.",
+    "The fight for Wintergrasp goes on.",
+    "Some say the watchers of the Vault of Archavon will rise again."
+   ],
+   "zones": {
+    "alliance": [
+     4197
+    ],
+    "horde": [
+     4197
+    ]
+   }
+  },
+  {
+   "achievements": [
+    574,
+    575
+   ],
+   "addressed": [
+    "The hero destroyed Kel'Thuzad in Naxxramas for a second time.",
+    "The hero slew Sapphiron, the frost wyrm that guarded Kel'Thuzad.",
+    "The hero fought through all four quarters of Naxxramas.",
+    "The hero stopped the armies of Naxxramas before they could march on Dragonblight.",
+    "The hero struck a heavy blow against the Lich King."
+   ],
+   "key": "naxxramas",
+   "name": "Naxxramas",
+   "recounted": [
+    "Someone destroyed Kel'Thuzad in Naxxramas.",
+    "The necropolis over Dragonblight has lost its master.",
+    "The Scourge armies in Dragonblight are in disarray.",
+    "The red dragonflight at Wyrmrest Temple is celebrating the fall of Naxxramas.",
+    "Fewer plague-bearers come out of Naxxramas."
+   ],
+   "zones": {
+    "alliance": [
+     4395,
+     65
+    ],
+    "horde": [
+     4395,
+     65
+    ]
+   }
+  },
+  {
+   "achievements": [
+    1876,
+    625
+   ],
+   "addressed": [
+    "The hero killed Sartharion the Onyx Guardian.",
+    "The hero destroyed the twilight dragon eggs in the Obsidian Sanctum.",
+    "The hero stopped the black dragonflight from breeding twilight dragons.",
+    "The hero struck a blow against Deathwing's brood beneath Wyrmrest Temple.",
+    "The hero did the red dragonflight a great service."
+   ],
+   "key": "the_obsidian_sanctum",
+   "name": "The Obsidian Sanctum",
+   "recounted": [
+    "Someone killed Sartharion.",
+    "The twilight eggs beneath Wyrmrest Temple have been destroyed.",
+    "The black dragonflight has lost its guardian, Sartharion.",
+    "The red dragonflight is celebrating Sartharion's death.",
+    "The Obsidian Sanctum is quieter."
+   ],
+   "zones": {
+    "alliance": [
+     65
+    ],
+    "horde": [
+     65
+    ]
+   }
+  },
+  {
+   "achievements": [
+    4396,
+    4397
+   ],
+   "addressed": [
+    "The hero slew Onyxia once more.",
+    "The hero brought Onyxia's head back to the city.",
+    "The hero survived Onyxia's flames and her whelps.",
+    "The hero put an end to Onyxia's return.",
+    "The hero made the skies over Dustwallow Marsh safe again."
+   ],
+   "key": "onyxias_lair_level_80",
+   "name": "Onyxia's Lair (level 80)",
+   "recounted": [
+    "Someone killed Onyxia again.",
+    "Onyxia's head hangs at the city gates once more.",
+    "Black dragons have fled Dustwallow Marsh again.",
+    "Veterans remember the first time Onyxia fell.",
+    "Dustwallow Marsh is quieter."
+   ],
+   "zones": {
+    "alliance": [
+     1519,
+     15
+    ],
+    "horde": [
+     1637,
+     15
+    ]
+   }
+  },
+  {
+   "achievements": [
+    622,
+    623
+   ],
+   "addressed": [
+    "The hero defeated Malygos, Aspect of Magic.",
+    "The hero rode Alexstrasza's red drakes into battle.",
+    "The hero ended the Nexus War.",
+    "The hero saved the world's magic from Malygos's war.",
+    "The hero earned Alexstrasza's gratitude."
+   ],
+   "key": "the_eye_of_eternity",
+   "name": "The Eye of Eternity",
+   "recounted": [
+    "Someone defeated Malygos in the Eye of Eternity.",
+    "The Nexus War is over.",
+    "The blue dragonflight is without its Aspect.",
+    "The Kirin Tor are celebrating Malygos's defeat.",
+    "The ley lines feel calmer, the mages say."
+   ],
+   "zones": {
+    "alliance": [
+     4395,
+     65
+    ],
+    "horde": [
+     4395,
+     65
+    ]
+   }
+  },
+  {
+   "achievements": [
+    2892,
+    2893
+   ],
+   "addressed": [
+    "The hero defeated Yogg-Saron deep beneath Ulduar.",
+    "The hero freed the keepers Freya, Hodir, Thorim and Mimiron from the Old God's grip.",
+    "The hero fought through the titan city of Ulduar.",
+    "The hero kept Yogg-Saron from breaking out of his prison.",
+    "The hero saved Azeroth from the Old God."
+   ],
+   "key": "ulduar",
+   "name": "Ulduar",
+   "recounted": [
+    "Someone defeated Yogg-Saron deep in Ulduar.",
+    "The keepers of Ulduar are free.",
+    "The whispers in the Storm Peaks have faded.",
+    "Brann Bronzebeard and the Kirin Tor are studying Ulduar.",
+    "The titan city of Ulduar is quieter."
+   ],
+   "zones": {
+    "alliance": [
+     4395,
+     67
+    ],
+    "horde": [
+     4395,
+     67
+    ]
+   }
+  },
+  {
+   "achievements": [
+    3917,
+    3916,
+    3918,
+    3812
+   ],
+   "addressed": [
+    "The hero defeated Anub'arak beneath the Argent Coliseum.",
+    "The hero slew Lord Jaraxxus, the eredar lord summoned into the Argent Coliseum.",
+    "The hero won every trial of the Argent Coliseum.",
+    "The hero turned the Lich King's trap beneath the Coliseum against him.",
+    "The hero proved their worth before Tirion Fordring."
+   ],
+   "key": "trial_of_the_crusader",
+   "name": "Trial of the Crusader",
+   "recounted": [
+    "Someone defeated Anub'arak beneath the Coliseum.",
+    "The Argent Crusade's champions are ready for Icecrown Citadel.",
+    "The crowds of the Argent Coliseum are still cheering.",
+    "The Lich King's trap beneath the Coliseum has failed.",
+    "The Argent Tournament has new champions."
+   ],
+   "zones": {
+    "alliance": [
+     210,
+     4395
+    ],
+    "horde": [
+     210,
+     4395
+    ]
+   }
+  },
+  {
+   "achievements": [
+    4530,
+    4597,
+    4636,
+    4637
+   ],
+   "addressed": [
+    "The hero defeated Arthas Menethil, the Lich King, at the Frozen Throne.",
+    "The hero fought beside Tirion Fordring.",
+    "The hero struck down Deathbringer Saurfang, High Overlord Saurfang's fallen son.",
+    "The hero fought their way to the top of Icecrown Citadel.",
+    "The hero ended the Scourge's war on the living."
+   ],
+   "key": "icecrown_citadel",
+   "name": "Icecrown Citadel",
+   "recounted": [
+    "Someone defeated the Lich King.",
+    "The Scourge armies stand still since the Lich King fell.",
+    "The Argent Crusade is celebrating the Lich King's defeat.",
+    "High Overlord Saurfang has carried his son's body home from Icecrown Citadel.",
+    "Some wonder who watches over the Frozen Throne now."
+   ],
+   "zones": {
+    "alliance": [
+     4395,
+     210,
+     1519
+    ],
+    "horde": [
+     4395,
+     210,
+     1637,
+     1497
+    ]
+   }
+  },
+  {
+   "achievements": [
+    4817,
+    4815,
+    4818,
+    4816
+   ],
+   "addressed": [
+    "The hero defeated Halion, the Twilight Destroyer.",
+    "The hero saved the Ruby Sanctum from the twilight dragonflight.",
+    "The hero protected the red dragonflight's eggs.",
+    "The hero struck a blow against the forces gathering in the twilight realm.",
+    "The hero earned the red dragonflight's gratitude."
+   ],
+   "key": "the_ruby_sanctum",
+   "name": "The Ruby Sanctum",
+   "recounted": [
+    "Someone defeated Halion.",
+    "The Ruby Sanctum is safe.",
+    "The red dragonflight is celebrating Halion's defeat.",
+    "The twilight dragonflight's attack on the Ruby Sanctum has failed.",
+    "The burned grove of the Ruby Sanctum is starting to grow again."
+   ],
+   "zones": {
+    "alliance": [
+     65
+    ],
+    "horde": [
+     65
+    ]
+   }
+  }
+ ],
+ "quests": [
+  {
+   "addressed": [
+    "The hero scouted Frostmane Hold and thinned out the trolls who threatened Kharanos.",
+    "The hero carried a report on the Frostmane trolls all the way to Ironforge.",
+    "The hero made the road to Brewnall Village safer."
+   ],
+   "faction": "Alliance",
+   "key": "q287",
+   "quests": [
+    287
+   ],
+   "recounted": [
+    "Someone went into Frostmane Hold and came back with a report for Ironforge.",
+    "The Mountaineers have begun patrolling the road to Brewnall Village.",
+    "The Brewnall folk went down to fish on Iceflow Lake this week without an escort."
+   ],
+   "zone": "Dun Morogh",
+   "zones": [
+    1
+   ]
+  },
+  {
+   "addressed": [
+    "The hero found out what happened to the guards lost at Stone Cairn Lake.",
+    "The hero drove the murlocs of Stone Cairn Lake back from the road.",
+    "The hero brought Guard Thomas's report to Marshal Dughan in Goldshire."
+   ],
+   "faction": "Alliance",
+   "key": "q39",
+   "quests": [
+    39
+   ],
+   "recounted": [
+    "Someone learned the fate of the guards who went missing at Stone Cairn Lake.",
+    "Marshal Dughan has sent more men to guard the shore of Stone Cairn Lake.",
+    "The loggers of Eastvale have stopped carrying their axes everywhere they go."
+   ],
+   "zone": "Elwynn Forest",
+   "zones": [
+    12
+   ]
+  },
+  {
+   "addressed": [
+    "The hero killed Captain Melrache and his bodyguards in the Scarlet tower north of Brill.",
+    "The hero struck back at the Scarlet Crusade for its raids on Tirisfal.",
+    "The hero made the road past Faol's Rest safe for the Forsaken."
+   ],
+   "faction": "Horde",
+   "key": "q372",
+   "quests": [
+    372
+   ],
+   "recounted": [
+    "Someone killed Captain Melrache, the Scarlet commander who raided the fields of Tirisfal.",
+    "Deathguards now walk the road past Faol's Rest without waiting for an escort.",
+    "The fields north of Brill are being turned over again."
+   ],
+   "zone": "Tirisfal Glades",
+   "zones": [
+    85
+   ]
+  },
+  {
+   "addressed": [
+    "The hero thinned out the Defias gangs hiding in the Dagger Hills for the People's Militia.",
+    "The hero was inducted into the People's Militia by Gryan Stoutmantle.",
+    "The hero made Westfall safer for its farmers."
+   ],
+   "faction": "Alliance",
+   "key": "q14",
+   "quests": [
+    14
+   ],
+   "recounted": [
+    "Someone hunted down the Defias who were looting southern Westfall from the Dagger Hills.",
+    "Farmers who fled Westfall for Elwynn Forest are coming back to their abandoned farms.",
+    "More caravans travel between Westfall and Stormwind now."
+   ],
+   "zone": "Westfall",
+   "zones": [
+    40
+   ]
+  },
+  {
+   "addressed": [
+    "The hero uncovered a Dark Iron plot to blow up the Stonewrought Dam.",
+    "The hero disarmed the powder keg hidden at the Stonewrought Dam.",
+    "The hero saved Loch Modan from a flood."
+   ],
+   "faction": "Alliance",
+   "key": "q283",
+   "quests": [
+    283
+   ],
+   "recounted": [
+    "Someone found the Dark Iron keg at the Stonewrought Dam just in time.",
+    "The engineers of the Stonewrought Dam sleep at night again.",
+    "The fishermen below the Stonewrought Dam have stopped glancing up at its wall every few minutes."
+   ],
+   "zone": "Loch Modan",
+   "zones": [
+    38
+   ]
+  },
+  {
+   "addressed": [
+    "The hero killed the archmage who led the Dalaran mages at Ambermill.",
+    "The hero stopped the Dalaran mages from reawakening the ley node at Ambermill.",
+    "The hero did the Forsaken of the Sepulcher a great service."
+   ],
+   "faction": "Horde",
+   "key": "q480",
+   "quests": [
+    480
+   ],
+   "recounted": [
+    "Someone killed the archmage leading the Dalaran mages at Ambermill.",
+    "The hum of the Ambermill ley node, once felt as far as the Sepulcher, has faded.",
+    "Scouts say the Dalaran mages at Ambermill spend more time packing than casting."
+   ],
+   "zone": "Silverpine Forest",
+   "zones": [
+    130
+   ]
+  },
+  {
+   "addressed": [
+    "The hero brought Corporal Keeshan, the last survivor of his regiment, out of Render's Valley alive.",
+    "The hero fought through the Blackrock orcs of Render's Valley.",
+    "The hero gave Lakeshire new heart."
+   ],
+   "faction": "Alliance",
+   "key": "q219",
+   "quests": [
+    219
+   ],
+   "recounted": [
+    "Someone walked Corporal Keeshan out of Render's Valley alive.",
+    "The story of Corporal Keeshan's escape from Render's Valley is told at every table in the Lakeshire Inn.",
+    "More young men have volunteered at the Lakeshire town hall than in years."
+   ],
+   "zone": "Redridge Mountains",
+   "zones": [
+    44
+   ]
+  },
+  {
+   "addressed": [
+    "The hero fought in the Battle of Hillsbrad and laid siege to Dun Garok.",
+    "The hero drove the dwarves of Dun Garok back behind their walls.",
+    "The hero won the Forsaken of Tarren Mill the southern road."
+   ],
+   "faction": "Horde",
+   "key": "q541",
+   "quests": [
+    541
+   ],
+   "recounted": [
+    "Someone led the attack on Dun Garok in the Battle of Hillsbrad.",
+    "The dwarves of Dun Garok no longer march out to harry Forsaken patrols.",
+    "Deathguards walk the southern road of Hillsbrad for the first time since the Alliance built its barracks."
+   ],
+   "zone": "Hillsbrad Foothills",
+   "zones": [
+    267
+   ]
+  },
+  {
+   "addressed": [
+    "The hero drove the Daggerspine naga and Torn Fin murlocs from the beaches south of Southshore.",
+    "The hero did Lieutenant Farren Orinelle a great service.",
+    "The hero made the Southshore coast safe for fishermen again."
+   ],
+   "faction": "Alliance",
+   "key": "q562",
+   "quests": [
+    562
+   ],
+   "recounted": [
+    "Someone cleared the naga and murlocs from the beaches south of Southshore.",
+    "Southshore's fishermen are mending their nets on the sand again.",
+    "Lieutenant Farren Orinelle still hopes the High Command will reward him with a transfer."
+   ],
+   "zone": "Hillsbrad Foothills",
+   "zones": [
+    267
+   ]
+  },
+  {
+   "addressed": [
+    "The hero destroyed the necromancer Morbent Fel.",
+    "The hero ended the curse that raised the dead of Raven Hill Cemetery.",
+    "The hero finished the long hunt Sven Yorgen began."
+   ],
+   "faction": "Alliance",
+   "key": "q55",
+   "quests": [
+    55
+   ],
+   "recounted": [
+    "Someone destroyed Morbent Fel, the necromancer of Raven Hill.",
+    "Fewer dead walk out of Raven Hill Cemetery each night.",
+    "A few families of Duskwood have started tending the graves of their kin again."
+   ],
+   "zone": "Duskwood",
+   "zones": [
+    10
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew Nek'rosh, chieftain of the Dragonmaw orcs.",
+    "The hero burned the Dragonmaw catapults.",
+    "The hero made the road between Menethil Harbor and Dun Algaz safer."
+   ],
+   "faction": "Alliance",
+   "key": "q474",
+   "quests": [
+    474
+   ],
+   "recounted": [
+    "Someone killed Nek'rosh, the Dragonmaw chieftain.",
+    "The Dragonmaw are bickering over who will lead them now.",
+    "Convoys from Menethil Harbor to Ironforge are getting through with fewer losses."
+   ],
+   "zone": "Wetlands",
+   "zones": [
+    11
+   ]
+  },
+  {
+   "addressed": [
+    "The hero took Trelane's phylactery, orb and agate back from the ogres.",
+    "The hero brought the wards of the Tower of Arathor back to life.",
+    "The hero did Refuge Pointe a great service."
+   ],
+   "faction": "Alliance",
+   "key": "q696",
+   "quests": [
+    696
+   ],
+   "recounted": [
+    "Someone recovered Archmage Trelane's relics from the Tower of Arathor.",
+    "The lights of the Tower of Arathor can be seen from Refuge Pointe again at night.",
+    "The ogres of Arathi give the Tower of Arathor a wide berth now."
+   ],
+   "zone": "Arathi Highlands",
+   "zones": [
+    45
+   ]
+  },
+  {
+   "addressed": [
+    "The hero killed the Boulderfist ogre lords in the ruins of Stromgarde.",
+    "The hero answered Drum Fel's call to arms for Hammerfall.",
+    "The hero made the Arathi Highlands safer for the orcs of Hammerfall."
+   ],
+   "faction": "Horde",
+   "key": "q679",
+   "quests": [
+    679
+   ],
+   "recounted": [
+    "Someone killed the Boulderfist lords and their shamans in Stromgarde.",
+    "The ogres of Stromgarde have stopped testing the walls of Hammerfall.",
+    "Hammerfall's grunts hunt in the Arathi hills without watching their backs."
+   ],
+   "zone": "Arathi Highlands",
+   "zones": [
+    45
+   ]
+  },
+  {
+   "addressed": [
+    "The hero killed Baron Vardus, the Syndicate's leader in Strahnbrad.",
+    "The hero broke the Syndicate's grip on Strahnbrad.",
+    "The hero made the road through Alterac a little safer."
+   ],
+   "faction": "Alliance",
+   "key": "q523",
+   "quests": [
+    523
+   ],
+   "recounted": [
+    "Someone killed Baron Vardus of the Syndicate.",
+    "The Syndicate is quarrelling over who will take Baron Vardus's place.",
+    "A few old Alterac families have asked whether it might be safe to return to their land."
+   ],
+   "zone": "Alterac Mountains",
+   "zones": [
+    36,
+    267
+   ]
+  },
+  {
+   "addressed": [
+    "The hero found the lost Nethergarde caravan in the Swamp of Sorrows.",
+    "The hero brought Watcher Biggs the driftwood to mend his wagon.",
+    "The hero got the wizards' reagents through to Nethergarde Keep."
+   ],
+   "faction": "Alliance",
+   "key": "q1398",
+   "quests": [
+    1398
+   ],
+   "recounted": [
+    "Someone helped Watcher Biggs save the lost Nethergarde caravan.",
+    "Nethergarde Keep is sending its next supply train along the swamp road.",
+    "The Lost Ones haven't troubled travellers on the Nethergarde road lately."
+   ],
+   "zone": "Swamp of Sorrows",
+   "zones": [
+    8
+   ]
+  },
+  {
+   "addressed": [
+    "The hero killed the Bloodsail captains before their attack on Booty Bay.",
+    "The hero did Fleet Master Seahorn a great service.",
+    "The hero scattered the Bloodsail fleet along the Stranglethorn coast."
+   ],
+   "faction": "Both",
+   "key": "q608",
+   "quests": [
+    608
+   ],
+   "recounted": [
+    "Someone killed Captain Firallon and the other Bloodsail captains.",
+    "No ship has been lost at the mouth of Booty Bay this month.",
+    "Baron Revilgaz is in such a good mood he lowered the harbor fees, for a week."
+   ],
+   "zone": "Stranglethorn Vale",
+   "zones": [
+    33
+   ]
+  },
+  {
+   "addressed": [
+    "The hero drove the murlocs from the beaches of the Swamp of Sorrows.",
+    "The hero did Katar of Stonard a great service.",
+    "The hero made the shallows south of Stonard safe for the orcs."
+   ],
+   "faction": "Horde",
+   "key": "q1428",
+   "quests": [
+    1428
+   ],
+   "recounted": [
+    "Someone drove the murlocs back from the eastern beaches of the Swamp of Sorrows.",
+    "Stonard's hunters fish the shallows south of the town without fear now.",
+    "Tok'Kar of Stonard spends more time at his forge than mending broken spears."
+   ],
+   "zone": "Swamp of Sorrows",
+   "zones": [
+    8
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew Blacklash and Hematus, Deathwing's lieutenants in Lethlor Ravine.",
+    "The hero stopped the black dragonflight's plan in the Badlands.",
+    "The hero made the canyons of the Badlands safer for prospectors."
+   ],
+   "faction": "Both",
+   "key": "q717",
+   "quests": [
+    717,
+    793
+   ],
+   "recounted": [
+    "Someone killed the black dragons Blacklash and Hematus in Lethlor Ravine.",
+    "The black drakes of Lethlor Ravine circle less boldly now.",
+    "Prospectors have been seen in the eastern canyons of the Badlands for the first time in years."
+   ],
+   "zone": "Badlands",
+   "zones": [
+    3
+   ]
+  },
+  {
+   "addressed": [
+    "The hero rescued the young gryphon Sharpbeak from the trolls of Jintha'Alor.",
+    "The hero broke into Jintha'Alor, the Vilebranch stronghold.",
+    "The hero did Gryphon Master Talonaxe of Aerie Peak a great service."
+   ],
+   "faction": "Alliance",
+   "key": "q2994",
+   "quests": [
+    2994
+   ],
+   "recounted": [
+    "Someone brought the young gryphon Sharpbeak home to Aerie Peak.",
+    "The Vilebranch trolls have grown cautious since their stronghold of Jintha'Alor was broken into.",
+    "Wildhammer riders fly patrols over the Vilebranch lands again."
+   ],
+   "zone": "The Hinterlands",
+   "zones": [
+    47
+   ]
+  },
+  {
+   "addressed": [
+    "The hero rescued Elder Torntusk from the Vilebranch at Jintha'Alor.",
+    "The hero did the Revantusk tribe a great service.",
+    "The hero broke into Jintha'Alor, the Vilebranch stronghold."
+   ],
+   "faction": "Horde",
+   "key": "q7847",
+   "quests": [
+    7847
+   ],
+   "recounted": [
+    "Someone brought Elder Torntusk home to Revantusk Village.",
+    "The Revantusk sing by the fires again at night.",
+    "Revantusk boats go out to fish without guards now."
+   ],
+   "zone": "The Hinterlands",
+   "zones": [
+    47
+   ]
+  },
+  {
+   "addressed": [
+    "The hero burned the Dark Iron sentry towers of the Searing Gorge.",
+    "The hero did the Thorium Brotherhood a great service.",
+    "The hero left the Dark Iron dwarves blind in the Searing Gorge."
+   ],
+   "faction": "Both",
+   "key": "q3463",
+   "quests": [
+    3463
+   ],
+   "recounted": [
+    "Someone burned the Dark Iron watchtowers of the Searing Gorge.",
+    "The Dark Iron dwarves can no longer see who comes and goes along the slag pits.",
+    "The Thorium Brotherhood has started sending prospectors out past Thorium Point."
+   ],
+   "zone": "Searing Gorge",
+   "zones": [
+    51
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew Gor'tesh, the Firegut ogre Brute Lord.",
+    "The hero put Gor'tesh's head on a stick by Morgan's Vigil.",
+    "The hero made the road to Dreadmaul Rock safer for Morgan's Vigil."
+   ],
+   "faction": "Alliance",
+   "key": "q3825",
+   "quests": [
+    3825
+   ],
+   "recounted": [
+    "Someone killed Gor'tesh the Brute Lord, and his head is on a stick by Morgan's Vigil.",
+    "The Firegut ogres take the long way around Morgan's Vigil now.",
+    "The cooks of Morgan's Vigil have started grilling outdoors again."
+   ],
+   "zone": "Burning Steppes",
+   "zones": [
+    46
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew Krom'Grul, the ogre of Dreadmaul Rock.",
+    "The hero avenged Sha'ni Proudtusk.",
+    "The hero made the path from Kargath to Flame Crest safer for the Horde."
+   ],
+   "faction": "Horde",
+   "key": "q3822",
+   "quests": [
+    3822
+   ],
+   "recounted": [
+    "Someone killed Krom'Grul at Dreadmaul Rock.",
+    "Thal'trak Proudtusk's sister has been avenged.",
+    "Horde scouts pass from Kargath to Flame Crest without losing anyone to ogre ambushes."
+   ],
+   "zone": "Burning Steppes",
+   "zones": [
+    46,
+    3
+   ]
+  },
+  {
+   "addressed": [
+    "The hero set free the souls of Darrowshire's fallen defenders.",
+    "The hero hunted the ghouls of Plaguewood and Corin's Crossing.",
+    "The hero helped little Pamela Redpath of Darrowshire."
+   ],
+   "faction": "Both",
+   "key": "q5211",
+   "quests": [
+    5211
+   ],
+   "recounted": [
+    "Someone freed the souls of the men who died defending Darrowshire.",
+    "The cries heard at night near Darrowshire have grown fainter.",
+    "Little Pamela Redpath says the ghosts who visit her seem happier."
+   ],
+   "zone": "Eastern Plaguelands",
+   "zones": [
+    139
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew the demon servants of Razelikh bound to the stones of the Blasted Lands.",
+    "The hero did the Fallen Hero of the Horde a great service.",
+    "The hero broke the bonds that tied Razelikh's servants to the Blasted Lands."
+   ],
+   "faction": "Both",
+   "key": "q2681",
+   "quests": [
+    2681
+   ],
+   "recounted": [
+    "Someone destroyed the demons bound to the old stones of the Blasted Lands.",
+    "The air near the Altar of Storms feels less heavy.",
+    "The red dust of the Blasted Lands no longer swirls against the wind."
+   ],
+   "zone": "Blasted Lands",
+   "zones": [
+    4,
+    8
+   ]
+  },
+  {
+   "addressed": [
+    "The hero silenced the Scourge plague cauldrons of the Western Plaguelands.",
+    "The hero neutralized the cauldrons at Felstone Field, Dalson's Tears, the Writhing Haunt and Gahrron's Withering.",
+    "The hero stopped the plague from spreading across the farmsteads of the Western Plaguelands."
+   ],
+   "faction": "Both",
+   "key": "q5237",
+   "quests": [
+    5237,
+    5238
+   ],
+   "recounted": [
+    "Someone neutralized the plague cauldrons of the Western Plaguelands.",
+    "The green fog over the farmsteads of the Western Plaguelands is beginning to thin.",
+    "The Argent Dawn has found patches of untainted soil near Felstone Field."
+   ],
+   "zone": "Western Plaguelands",
+   "zones": [
+    28
+   ]
+  },
+  {
+   "addressed": [
+    "The hero killed the witch doctor Zalazane on the Echo Isles.",
+    "The hero freed the Darkspear trolls Zalazane had enslaved.",
+    "The hero did the Darkspear of Sen'jin Village a great service."
+   ],
+   "faction": "Horde",
+   "key": "q826",
+   "quests": [
+    826
+   ],
+   "recounted": [
+    "Someone killed Zalazane, the witch doctor who enslaved the Darkspear.",
+    "Darkspear trolls freed from Zalazane's spell are swimming back to Sen'jin Village.",
+    "There are more Darkspear at the fires of Sen'jin than last week."
+   ],
+   "zone": "Durotar",
+   "zones": [
+    14
+   ]
+  },
+  {
+   "addressed": [
+    "The hero cleansed the Wildmane Water Well that the Venture Co. had poisoned.",
+    "The hero did the tauren of Bloodhoof Village a great service.",
+    "The hero healed the water of northern Mulgore."
+   ],
+   "faction": "Horde",
+   "key": "q760",
+   "quests": [
+    760
+   ],
+   "recounted": [
+    "Someone cleansed the poisoned Wildmane Water Well.",
+    "The kodos of Mulgore drink from the Wildmane Well without sickness.",
+    "The children of Bloodhoof Village are sent to fetch water from the northern wells again."
+   ],
+   "zone": "Mulgore",
+   "zones": [
+    215
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew Ursal the Mauler, who led the Gnarlpine furbolgs astray.",
+    "The hero woke the sleeping Druids of the Talon.",
+    "The hero brought peace to the forest around Gnarlpine Hold."
+   ],
+   "faction": "Alliance",
+   "key": "q486",
+   "quests": [
+    486
+   ],
+   "recounted": [
+    "Someone killed Ursal the Mauler in Teldrassil.",
+    "The Druids of the Talon walk the paths of Dolanaar again.",
+    "The owls have returned to the forest around Gnarlpine Hold."
+   ],
+   "zone": "Teldrassil",
+   "zones": [
+    141
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew the satyr who corrupted the Blackwood furbolgs.",
+    "The hero did Thundris Windweaver of Auberdine a great service.",
+    "The hero began to free the Blackwood furbolgs from their madness."
+   ],
+   "faction": "Alliance",
+   "key": "q4763",
+   "quests": [
+    4763
+   ],
+   "recounted": [
+    "Someone killed the satyr who drove the Blackwood furbolgs mad.",
+    "Some Blackwood furbolgs have been seen without the madness in their eyes.",
+    "The Blackwood furbolgs no longer charge the road to Auberdine on sight."
+   ],
+   "zone": "Darkshore",
+   "zones": [
+    148
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew Warlord Krom'zar and broke the Kolkar counterattack.",
+    "The hero defended the Horde bunkers in the Barrens.",
+    "The hero did Regthar Deathgate a great service."
+   ],
+   "faction": "Horde",
+   "key": "q4021",
+   "quests": [
+    4021
+   ],
+   "recounted": [
+    "Someone killed Warlord Krom'zar of the Kolkar centaur.",
+    "The Kolkar who came from Desolace have fled back west.",
+    "The Crossroads caravans no longer need extra guards on the western road."
+   ],
+   "zone": "The Barrens",
+   "zones": [
+    17
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew Murgut, king of the Foulweald furbolgs.",
+    "The hero did Karang Amakkar of Zoram'gar Outpost a great service.",
+    "The hero made the woods of Ashenvale a little safer for the Horde."
+   ],
+   "faction": "Horde",
+   "key": "q6621",
+   "quests": [
+    6621
+   ],
+   "recounted": [
+    "Someone killed Murgut, king of the Foulweald.",
+    "The Foulweald furbolgs have pulled back deep into the woods southeast of Astranaar.",
+    "Horde scouts pass the Foulweald village without a fight."
+   ],
+   "zone": "Ashenvale",
+   "zones": [
+    331
+   ]
+  },
+  {
+   "addressed": [
+    "The hero killed Gerenzo Wrenchwhistle, the Venture Co. foreman at Windshear Crag.",
+    "The hero did the goblin Ziz Fizziks a great service.",
+    "The hero slowed the Venture Co.'s logging in Stonetalon."
+   ],
+   "faction": "Both",
+   "key": "q1096",
+   "quests": [
+    1096
+   ],
+   "recounted": [
+    "Someone killed Gerenzo Wrenchwhistle at Windshear Crag.",
+    "The Venture Co. shredders at Windshear Crag cut slower now.",
+    "The first saplings have come up on the northern slope of Windshear Crag."
+   ],
+   "zone": "Stonetalon Mountains",
+   "zones": [
+    406
+   ]
+  },
+  {
+   "addressed": [
+    "The hero protected Kanati Greycloud from the Galak centaur's assassins.",
+    "The hero foiled the Galak centaur's plot near Freewind Post.",
+    "The hero fought at Kanati Greycloud's side."
+   ],
+   "faction": "Horde",
+   "key": "q4966",
+   "quests": [
+    4966
+   ],
+   "recounted": [
+    "Someone stopped the Galak centaur from assassinating Kanati Greycloud.",
+    "The elders of Freewind Post say centaur raids on the lower canyon trails have slowed.",
+    "The wind riders of Freewind Post fly out with fewer warnings."
+   ],
+   "zone": "Thousand Needles",
+   "zones": [
+    400
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew Ran Bloodtooth, chieftain of the Thistlefur furbolgs.",
+    "The hero helped Raene Wolfrunner rebuild Dartol's rod.",
+    "The hero made the road to Astranaar safer."
+   ],
+   "faction": "Alliance",
+   "key": "q1046",
+   "quests": [
+    1046
+   ],
+   "recounted": [
+    "Someone killed Ran Bloodtooth of the Thistlefur.",
+    "The Thistlefur furbolgs are leaderless and quarrel among themselves.",
+    "The Sentinels have begun to talk of reclaiming the paths near Thistlefur Village."
+   ],
+   "zone": "Ashenvale",
+   "zones": [
+    331
+   ]
+  },
+  {
+   "addressed": [
+    "The hero killed Tethyr, the sea monster that threatened the Theramore docks.",
+    "The hero did Major Mills of Theramore a great service.",
+    "The hero made the Theramore harbor safe for ships."
+   ],
+   "faction": "Alliance",
+   "key": "q11198",
+   "quests": [
+    11198
+   ],
+   "recounted": [
+    "Someone killed the sea monster Tethyr off the Theramore docks.",
+    "Ships have been arriving at Theramore on schedule again.",
+    "The Theramore dockhands no longer refuse night shifts."
+   ],
+   "zone": "Dustwallow Marsh",
+   "zones": [
+    15
+   ]
+  },
+  {
+   "addressed": [
+    "The hero found the Grimtotem who attacked the Shady Rest Inn.",
+    "The hero brought justice to the Grimtotem behind the Shady Rest attack.",
+    "The hero helped keep the peace between the Horde and Theramore."
+   ],
+   "faction": "Horde",
+   "key": "q11206",
+   "quests": [
+    11206
+   ],
+   "recounted": [
+    "Someone dealt with the Grimtotem who burned the Shady Rest Inn.",
+    "Theramore has eased its patrols near the Horde's borders in Dustwallow Marsh.",
+    "The Grimtotem of Dustwallow Marsh have gone quiet for now."
+   ],
+   "zone": "Dustwallow Marsh",
+   "zones": [
+    15
+   ]
+  },
+  {
+   "addressed": [
+    "The hero brought the Mirage Raceway team the booster that kept their car in one piece.",
+    "The hero helped the goblins and gnomes of the Mirage Raceway.",
+    "The hero made racing on the Shimmering Flats a little safer."
+   ],
+   "faction": "Both",
+   "key": "q1189",
+   "quests": [
+    1189
+   ],
+   "recounted": [
+    "A new booster got a Mirage Raceway car all the way around the track without exploding.",
+    "Crowds are coming back to the Shimmering Flats to watch the races.",
+    "The gnome racers say they'll win next season, as they do every season."
+   ],
+   "zone": "Thousand Needles",
+   "zones": [
+    400
+   ]
+  },
+  {
+   "addressed": [
+    "The hero killed Khan Hratha, leader of the Maraudine centaur.",
+    "The hero fought for one of the centaur clans of Desolace.",
+    "The hero turned the centaur war in Desolace."
+   ],
+   "faction": "Both",
+   "key": "q1380",
+   "quests": [
+    1380,
+    1381
+   ],
+   "recounted": [
+    "Someone killed Khan Hratha of the Maraudine centaur.",
+    "The Maraudine centaur have pulled back into the Valley of Spears.",
+    "The other centaur clans of Desolace think twice before raiding the herds of their rivals."
+   ],
+   "zone": "Desolace",
+   "zones": [
+    405
+   ]
+  },
+  {
+   "addressed": [
+    "The hero broke the Wastewander bandits who robbed Gadgetzan's water caravans.",
+    "The hero did Chief Engineer Bilgewhizzle of Gadgetzan a great service.",
+    "The hero made the roads of Tanaris safer for water caravans."
+   ],
+   "faction": "Both",
+   "key": "q1691",
+   "quests": [
+    1691
+   ],
+   "recounted": [
+    "Someone broke the Wastewander bandits of Tanaris.",
+    "Fewer water barrels go missing on the road to Gadgetzan.",
+    "The price of water at the Gadgetzan tap has gone down by a copper."
+   ],
+   "zone": "Tanaris",
+   "zones": [
+    440
+   ]
+  },
+  {
+   "addressed": [
+    "The hero pushed the Gordunni ogres back from the old night elf ruins of Feralas.",
+    "The hero did Rok Orhan of Camp Mojache a great service.",
+    "The hero made the High Wilderness safer for the Horde."
+   ],
+   "faction": "Horde",
+   "key": "q2980",
+   "quests": [
+    2980
+   ],
+   "recounted": [
+    "Someone drove the Gordunni ogres from the night elf ruins of the High Wilderness.",
+    "The withered trees in the High Wilderness ruins are putting out new leaves.",
+    "Camp Mojache is ready if the Gordunni ogres try again."
+   ],
+   "zone": "Feralas",
+   "zones": [
+    357
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew Lord Shalzaru, the Hatecrest naga lord on the Isle of Dread.",
+    "The hero did Latronicus Moonspear of Feathermoon Stronghold a great service.",
+    "The hero made the Feralas coast safer from naga raids."
+   ],
+   "faction": "Alliance",
+   "key": "q2870",
+   "quests": [
+    2870
+   ],
+   "recounted": [
+    "Someone killed Lord Shalzaru on the Isle of Dread.",
+    "Feathermoon's Sentinels cross to the mainland with fewer escorts.",
+    "Feathermoon's fishing boats go further out each week."
+   ],
+   "zone": "Feralas",
+   "zones": [
+    357
+   ]
+  },
+  {
+   "addressed": [
+    "The hero purged the satyr from the forests of Azshara.",
+    "The hero helped Loh'atu restore the land Cenarius once walked.",
+    "The hero made the old Highborne ruins of Azshara a little safer."
+   ],
+   "faction": "Both",
+   "key": "q5536",
+   "quests": [
+    5536
+   ],
+   "recounted": [
+    "Someone drove many of the satyr out of the forests of Azshara.",
+    "The trees near the old Highborne ruins of Azshara look a little less twisted.",
+    "Birdsong has been heard near the Highborne ruins of Azshara."
+   ],
+   "zone": "Azshara",
+   "zones": [
+    16
+   ]
+  },
+  {
+   "addressed": [
+    "The hero lured out and slew Lar'korwi, the great beast of Un'Goro Crater.",
+    "The hero did the hunter Torwa Pathfinder a great service.",
+    "The hero made the northern trail of Un'Goro safer."
+   ],
+   "faction": "Both",
+   "key": "q4292",
+   "quests": [
+    4292
+   ],
+   "recounted": [
+    "Someone killed Lar'korwi, the great beast of Un'Goro.",
+    "The stalkers of Un'Goro's northern trail have scattered.",
+    "Explorers from Marshal's Refuge reach the crater's edge in half the time."
+   ],
+   "zone": "Un'Goro Crater",
+   "zones": [
+    490
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew Shadow Lord Fel'dan in Shadow Hold.",
+    "The hero struck the final blow against the Shadow Council in Jaedenar.",
+    "The hero did Greta Mosshoof of the Emerald Sanctuary a great service."
+   ],
+   "faction": "Both",
+   "key": "q5242",
+   "quests": [
+    5242
+   ],
+   "recounted": [
+    "Someone killed Shadow Lord Fel'dan of Jaedenar.",
+    "The green haze around Shadow Hold in Felwood has thinned.",
+    "Druids found clean water in a stream near the Emerald Sanctuary."
+   ],
+   "zone": "Felwood",
+   "zones": [
+    361
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew High Chief Winterfall of the Winterfall furbolgs.",
+    "The hero helped Donova Snowden uncover the corruption of the Winterfall furbolgs.",
+    "The hero made the road to Everlook safer."
+   ],
+   "faction": "Both",
+   "key": "q5121",
+   "quests": [
+    5121
+   ],
+   "recounted": [
+    "Someone killed High Chief Winterfall.",
+    "Fewer Winterfall furbolgs have been seen drinking their foul firewater.",
+    "The Timbermaw watch their Winterfall cousins with something like hope."
+   ],
+   "zone": "Winterspring",
+   "zones": [
+    618
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew Vyral the Vile of the Twilight's Hammer in Twilight's Run.",
+    "The hero did Huum Wildmane of Cenarion Hold a great service.",
+    "The hero struck a blow against the Twilight's Hammer in Silithus."
+   ],
+   "faction": "Both",
+   "key": "q8321",
+   "quests": [
+    8321
+   ],
+   "recounted": [
+    "Someone killed Vyral the Vile in Twilight's Run.",
+    "Fewer Twilight's Hammer cultists come near Cenarion Hold.",
+    "Scouts sent toward the ruins of Southwind Village have come back unharmed."
+   ],
+   "zone": "Silithus",
+   "zones": [
+    1377
+   ]
+  },
+  {
+   "addressed": [
+    "The hero broke the Amani troll raid on Farstrider Retreat.",
+    "The hero did Lieutenant Dawnrunner of the Farstriders a great service.",
+    "The hero drove the Amani from the eastern edge of Eversong Woods."
+   ],
+   "faction": "Horde",
+   "key": "q8476",
+   "quests": [
+    8476
+   ],
+   "recounted": [
+    "Someone drove the Amani trolls back from Farstrider Retreat.",
+    "The Farstriders have resumed their patrols toward Zeb'Watha.",
+    "The woods near Farstrider Retreat are quiet enough to hear the birds again."
+   ],
+   "zone": "Eversong Woods",
+   "zones": [
+    3430
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew Chieftain Oomooroo of the crazed wildkin.",
+    "The hero cleared the wildkin out of Stillpine Hold.",
+    "The hero did the Stillpine furbolgs a great service."
+   ],
+   "faction": "Alliance",
+   "key": "q9573",
+   "quests": [
+    9573
+   ],
+   "recounted": [
+    "Someone killed Chieftain Oomooroo in Stillpine Hold.",
+    "The Stillpine have reclaimed the lower halls of their Hold.",
+    "The young ones of Stillpine Hold sleep inside again."
+   ],
+   "zone": "Azuremyst Isle",
+   "zones": [
+    3524
+   ]
+  },
+  {
+   "addressed": [
+    "The hero destroyed the blood elves' Vector Coil on Bloodmyst Isle.",
+    "The hero slew Sironas, the eredar who poisoned Bloodmyst Isle.",
+    "The hero began the healing of Bloodmyst Isle."
+   ],
+   "faction": "Alliance",
+   "key": "q9759",
+   "quests": [
+    9759
+   ],
+   "recounted": [
+    "Someone destroyed the Vector Coil and killed Sironas on Bloodmyst Isle.",
+    "The red mist over the north of Bloodmyst Isle is fading.",
+    "The crystals near the Exodar's crash sites are slowly losing their blood-red colour."
+   ],
+   "zone": "Bloodmyst Isle",
+   "zones": [
+    3525
+   ]
+  },
+  {
+   "addressed": [
+    "The hero destroyed the traitor Dar'Khan Drathir.",
+    "The hero broke the Scourge's hold on the Ghostlands.",
+    "The hero made the roads of southern Quel'Thalas safer."
+   ],
+   "faction": "Horde",
+   "key": "q9167",
+   "quests": [
+    9167
+   ],
+   "recounted": [
+    "Someone destroyed Dar'Khan Drathir, the traitor who let the Scourge into Quel'Thalas.",
+    "The warriors of Silvermoon are purging the last Scourge from the Ghostlands.",
+    "The first flowers are starting to bloom in the cursed land of the Ghostlands."
+   ],
+   "zone": "Ghostlands",
+   "zones": [
+    3433
+   ]
+  },
+  {
+   "addressed": [
+    "The hero shut down the Legion's portal at Invasion Point: Annihilator.",
+    "The hero did Field Marshal Brock of Honor Hold a great service.",
+    "The hero cut off the Legion's demon reinforcements in Hellfire Peninsula."
+   ],
+   "faction": "Alliance",
+   "key": "q10397",
+   "quests": [
+    10397
+   ],
+   "recounted": [
+    "Someone shut down the Legion's portal at Invasion Point: Annihilator.",
+    "Honor Hold's patrols come back from the front with fewer wounded.",
+    "Honor Hold's soldiers have started calling their part of the front a quiet sector."
+   ],
+   "zone": "Hellfire Peninsula",
+   "zones": [
+    3483
+   ]
+  },
+  {
+   "addressed": [
+    "The hero destroyed the terrorfiends massing at the Pools of Aggonar.",
+    "The hero turned a deciphered Legion missive into a victory for Thrallmar.",
+    "The hero did Magister Bloodhawk of Thrallmar a great service."
+   ],
+   "faction": "Horde",
+   "key": "q10389",
+   "quests": [
+    10389
+   ],
+   "recounted": [
+    "Someone scattered the terrorfiends at the Pools of Aggonar before they could march.",
+    "Thrallmar's scouts can reach the western pools and return.",
+    "The Legion's commanders in Hellfire Peninsula seem less sure of their plans."
+   ],
+   "zone": "Hellfire Peninsula",
+   "zones": [
+    3483
+   ]
+  },
+  {
+   "addressed": [
+    "The hero choked the naga steam pumps of Zangarmarsh with ironvine.",
+    "The hero did Ysiel Windsinger of the Cenarion Expedition a great service.",
+    "The hero helped preserve the balance of Zangarmarsh."
+   ],
+   "faction": "Both",
+   "key": "q9720",
+   "quests": [
+    9720
+   ],
+   "recounted": [
+    "Someone jammed the naga pumps draining Zangarmarsh.",
+    "The lakes of Zangarmarsh are rising again.",
+    "The sporebats are back over the water around Umbrafen and Serpent Lake."
+   ],
+   "zone": "Zangarmarsh",
+   "zones": [
+    3521
+   ]
+  },
+  {
+   "addressed": [
+    "The hero killed Shadowmaster Grieve of the Shadow Council.",
+    "The hero uncovered the Shadow Council hiding in the Bone Wastes.",
+    "The hero made the road to Shattrath safer."
+   ],
+   "faction": "Both",
+   "key": "q10042",
+   "quests": [
+    10042,
+    10043
+   ],
+   "recounted": [
+    "Someone killed Shadowmaster Grieve in the Bone Wastes.",
+    "Travellers on the road to Shattrath report fewer disappearances.",
+    "The Shadow Council has lost its foothold in Terokkar Forest."
+   ],
+   "zone": "Terokkar Forest",
+   "zones": [
+    3519
+   ]
+  },
+  {
+   "addressed": [
+    "The hero saved Lantresor's Burning Blade and Boulderfist ogres from extermination at Kil'sorrow.",
+    "The hero carried Lantresor's offer of peace.",
+    "The hero made the plains of Nagrand safer."
+   ],
+   "faction": "Both",
+   "key": "q9933",
+   "quests": [
+    9933,
+    9934
+   ],
+   "recounted": [
+    "Someone made peace with Lantresor of the Burning Blade.",
+    "Lantresor's Boulderfist ogres have stopped raiding the plains of Nagrand.",
+    "The clefthoof graze near the Nagrand road again."
+   ],
+   "zone": "Nagrand",
+   "zones": [
+    3518
+   ]
+  },
+  {
+   "addressed": [
+    "The hero cut down the brutes and shamans of the Boulder'mok ogres.",
+    "The hero made the way past Raven's Wood safer.",
+    "The hero struck a blow against the ogres of Blade's Edge Mountains."
+   ],
+   "faction": "Both",
+   "key": "q10803",
+   "quests": [
+    10803,
+    10786
+   ],
+   "recounted": [
+    "Someone slaughtered the Boulder'mok brutes and shamans.",
+    "The Boulder'mok ogres have stopped raiding the supply lines for now.",
+    "Hunters pass Raven's Wood without trouble."
+   ],
+   "zone": "Blade's Edge Mountains",
+   "zones": [
+    3522
+   ]
+  },
+  {
+   "addressed": [
+    "The hero helped raise a protective field around Kirin'Var Village.",
+    "The hero shielded the spirits of the fallen Kirin Tor from the mana creatures.",
+    "The hero did Lieutenant-Sorcerer Morran a great service."
+   ],
+   "faction": "Both",
+   "key": "q10240",
+   "quests": [
+    10240
+   ],
+   "recounted": [
+    "Someone helped raise a barrier around Kirin'Var Village.",
+    "The mana creatures can no longer reach the spirits of Kirin'Var Village.",
+    "Some of the spirits of Kirin'Var have begun to remember who they were."
+   ],
+   "zone": "Netherstorm",
+   "zones": [
+    3523
+   ]
+  },
+  {
+   "addressed": [
+    "The hero beat back the Burning Legion in Shadowmoon Valley.",
+    "The hero brought the news of victory over the Legion to their stronghold in Shadowmoon Valley.",
+    "The hero let the forces in Shadowmoon Valley turn against Illidan."
+   ],
+   "faction": "Both",
+   "key": "q10744",
+   "quests": [
+    10744,
+    10745
+   ],
+   "recounted": [
+    "Someone beat back the Legion's threat in Shadowmoon Valley.",
+    "The fel fires in the south of Shadowmoon Valley are burning lower.",
+    "The skies over the strongholds of Shadowmoon Valley are clearer."
+   ],
+   "zone": "Shadowmoon Valley",
+   "zones": [
+    3520
+   ]
+  },
+  {
+   "addressed": [
+    "The hero deployed the Shake-n-Quake and collapsed the nerubian tunnels near Fizzcrank Airstrip.",
+    "The hero slew Lord Kryxix of the nerubians.",
+    "The hero did the gnomes of Fizzcrank Airstrip a great service."
+   ],
+   "faction": "Alliance",
+   "key": "q11723",
+   "quests": [
+    11723
+   ],
+   "recounted": [
+    "Someone collapsed the nerubian sinkholes near Fizzcrank Airstrip.",
+    "The nerubians haven't come up near Fizzcrank Airstrip since.",
+    "The gnomes of Fizzcrank Airstrip are already drawing up a Shake-n-Quake 6000."
+   ],
+   "zone": "Borean Tundra",
+   "zones": [
+    3537
+   ]
+  },
+  {
+   "addressed": [
+    "The hero set fire to Baleheim, the Winterskorn vrykul village.",
+    "The hero did Sergeant Gorth of Camp Winterhoof a great service.",
+    "The hero kept the Winterskorn vrykul away from Camp Winterhoof."
+   ],
+   "faction": "Horde",
+   "key": "q11285",
+   "quests": [
+    11285
+   ],
+   "recounted": [
+    "Someone burned Baleheim to the ground.",
+    "The Winterskorn vrykul haven't come down to Camp Winterhoof since Baleheim burned.",
+    "The taunka of Camp Winterhoof go fishing again, and nobody gets eaten."
+   ],
+   "zone": "Howling Fjord",
+   "zones": [
+    495
+   ]
+  },
+  {
+   "addressed": [
+    "The hero neutralized the plague cauldrons of En'kilah.",
+    "The hero joined Taunka'le's assault on the Scourge city of En'kilah.",
+    "The hero did Sage Aeire of Taunka'le a great service."
+   ],
+   "faction": "Horde",
+   "key": "q11647",
+   "quests": [
+    11647
+   ],
+   "recounted": [
+    "Someone silenced the plague cauldrons of En'kilah.",
+    "The wind no longer carries the stench of En'kilah to Taunka'le.",
+    "The herds are drifting back onto the northern plains of the Borean Tundra."
+   ],
+   "zone": "Borean Tundra",
+   "zones": [
+    3537
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew the thane of Skorn before his ritual ascension.",
+    "The hero stopped the vrykul of Skorn from raising a new champion.",
+    "The hero did Westguard Keep a great service."
+   ],
+   "faction": "Alliance",
+   "key": "q11249",
+   "quests": [
+    11249
+   ],
+   "recounted": [
+    "Someone killed the thane of Skorn before he could ascend.",
+    "The fire has gone out of the Skorn vrykul's attacks.",
+    "The soldiers of Westguard have started repairing the keep's outer walls."
+   ],
+   "zone": "Howling Fjord",
+   "zones": [
+    495
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew Necrolord Amarion at the bottom of Wintergarde Crypt.",
+    "The hero stopped the attacks coming out of Wintergarde Crypt.",
+    "The hero did the defenders of Wintergarde Keep a great service."
+   ],
+   "faction": "Alliance",
+   "key": "q12311",
+   "quests": [
+    12311
+   ],
+   "recounted": [
+    "Someone killed Necrolord Amarion in Wintergarde Crypt.",
+    "The soldiers of Wintergarde are clearing rubble from the ruined village.",
+    "Someone has started a small garden behind Wintergarde Keep."
+   ],
+   "zone": "Dragonblight",
+   "zones": [
+    65
+   ]
+  },
+  {
+   "addressed": [
+    "The hero stood with Roanauk Icemist as he swore the taunka into the Horde.",
+    "The hero helped win the taunka for the Horde.",
+    "The hero did Overlord Agmar a great service."
+   ],
+   "faction": "Horde",
+   "key": "q12140",
+   "quests": [
+    12140
+   ],
+   "recounted": [
+    "Someone helped Roanauk Icemist bring the taunka into the Horde at Agmar's Hammer.",
+    "More taunka arrive at Agmar's Hammer every week.",
+    "Horde scouts no longer travel the Dragonblight alone."
+   ],
+   "zone": "Dragonblight",
+   "zones": [
+    65
+   ]
+  },
+  {
+   "addressed": [
+    "The hero killed Iron Thane Furyhammer with a captured war golem.",
+    "The hero stopped the iron dwarves of Dun Argol from pushing into the Grizzly Hills.",
+    "The hero freed the runed giants of the shore from the iron dwarves."
+   ],
+   "faction": "Both",
+   "key": "q12153",
+   "quests": [
+    12153,
+    12199
+   ],
+   "recounted": [
+    "Someone brought down the Iron Thane of Dun Argol.",
+    "The runed giants walk free along the shore of the Grizzly Hills.",
+    "The forest around Dun Argol is quieter."
+   ],
+   "zone": "Grizzly Hills",
+   "zones": [
+    394
+   ]
+  },
+  {
+   "addressed": [
+    "The hero defeated Overlord Drakuru at Voltarus.",
+    "The hero turned Drakuru's own betrayal against him.",
+    "The hero did the Ebon Blade in Zul'Drak a great service."
+   ],
+   "faction": "Both",
+   "key": "q12713",
+   "quests": [
+    12713
+   ],
+   "recounted": [
+    "Someone defeated Overlord Drakuru at Voltarus.",
+    "Drakuru's Scourge-fed army has no leader.",
+    "The Drakkari attacks on Ebon Watch have stopped."
+   ],
+   "zone": "Zul'Drak",
+   "zones": [
+    66
+   ]
+  },
+  {
+   "addressed": [
+    "The hero unleashed the titan construct Etymidian on the Scourge at the Avalanche.",
+    "The hero did the Avatar of Freya a great service.",
+    "The hero broke the Scourge's hold on the Avalanche in Sholazar Basin."
+   ],
+   "faction": "Both",
+   "key": "q12546",
+   "quests": [
+    12546
+   ],
+   "recounted": [
+    "Someone turned the titan construct Etymidian loose on the Scourge at the Avalanche.",
+    "The Scourge at the Avalanche is broken.",
+    "The first vines are creeping back over the stones where the undead marched in Sholazar Basin."
+   ],
+   "zone": "Sholazar Basin",
+   "zones": [
+    3711
+   ]
+  },
+  {
+   "addressed": [
+    "The hero broke Fjorn's siege of Dun Niffelem.",
+    "The hero helped Thorim mend his quarrel with the Sons of Hodir.",
+    "The hero slew Fjorn, the fire giant who besieged Dun Niffelem."
+   ],
+   "faction": "Both",
+   "key": "q12915",
+   "quests": [
+    12915
+   ],
+   "recounted": [
+    "Someone killed Fjorn and broke the siege of Dun Niffelem.",
+    "The Sons of Hodir have come out of Dun Niffelem for the first time since the siege began.",
+    "The Sons of Hodir are willing to talk to Thorim again."
+   ],
+   "zone": "The Storm Peaks",
+   "zones": [
+    67
+   ]
+  },
+  {
+   "addressed": [
+    "The hero slew Thane Ufrang the Mighty.",
+    "The hero secured the Ebon Blade's hold on the Shadow Vault.",
+    "The hero stopped the vrykul raids from the Savage Ledge."
+   ],
+   "faction": "Both",
+   "key": "q12943",
+   "quests": [
+    12943
+   ],
+   "recounted": [
+    "Someone killed Thane Ufrang the Mighty in Icecrown.",
+    "The vrykul of the Savage Ledge have stopped raiding the Shadow Vault.",
+    "The knights of the Ebon Blade patrol the valley below the Shadow Vault freely."
+   ],
+   "zone": "Icecrown",
+   "zones": [
+    210
+   ]
+  }
+ ]
+}

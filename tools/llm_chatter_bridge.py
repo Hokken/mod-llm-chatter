@@ -103,6 +103,11 @@ from chatter_llm import (
     reset_structured_diagnostics, resolve_model, check_structured_dependencies,
     openai_compatible_client_kwargs, openai_compatible_target_error,
 )
+from chatter_letters import (
+    letters_enabled,
+    process_reactivity,
+    rumors_enabled,
+)
 from chatter_structured import structured_output_enabled
 
 # Configure logging
@@ -2341,6 +2346,10 @@ def main():
     last_cache_refill = 0
     cache_refill_interval = 30  # every 30 seconds
     last_question_check = 0
+    last_reactivity = 0
+    reactivity_interval = max(1, int(config.get(
+        'LLMChatter.Letters.PollSeconds', 30
+    )))
     question_check_interval = int(config.get(
         'LLMChatter.GroupChatter.'
         'BotQuestionCheckInterval',
@@ -2365,6 +2374,7 @@ def main():
     bot_question_future = None
     legacy_future = None
     tone_regen_future = None
+    reactivity_future = None
     guild_profile_future = None
     last_guild_profile_scan = 0
     # Track online→offline transition for full wipe
@@ -2445,6 +2455,14 @@ def main():
                     "legacy-requests"
                 )
                 legacy_future = None
+            if (
+                reactivity_future
+                and reactivity_future.done()
+            ):
+                _harvest_future(
+                    reactivity_future, "reactivity",
+                )
+                reactivity_future = None
             if (
                 tone_regen_future
                 and tone_regen_future.done()
@@ -2705,6 +2723,28 @@ def main():
                             _run_in_worker,
                             "bot-question",
                             check_bot_questions,
+                            client, config
+                        )
+                    )
+
+                # Letters and rumors -> worker pool. Deeds and
+                # due letters do not wait for anyone to be online.
+                if (
+                    (
+                        letters_enabled(config)
+                        or rumors_enabled(config)
+                    )
+                    and not reactivity_future
+                    and current_time
+                    - last_reactivity
+                    >= reactivity_interval
+                ):
+                    last_reactivity = current_time
+                    reactivity_future = (
+                        executor.submit(
+                            _run_in_worker,
+                            "reactivity",
+                            process_reactivity,
                             client, config
                         )
                     )

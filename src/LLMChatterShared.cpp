@@ -18,6 +18,7 @@
 #include "Log.h"
 #include "Map.h"
 #include "MotionMaster.h"
+#include "ObjectAccessor.h"
 #include "ObjectMgr.h"
 #include "Player.h"
 #include "Playerbots.h"
@@ -2399,6 +2400,33 @@ std::string BuildBotStateJson(Player* player)
             ChatterJsonEscape(targetName) + "\","
         "\"bot_ai_state\":\"" + botState + "\","
         + BuildBotTravelStateJson(player) + "}";
+}
+
+// Who in the player's group is dead or a ghost. A ghost running
+// back to its body is not travelling with the party, so travel
+// memories leave that stretch out.
+std::string BuildGroupDeathJson(Player* player)
+{
+    std::string json = std::string("\"player_dead\":")
+        + (player && !player->IsAlive() ? "true" : "false")
+        + ",\"dead_bot_guids\":[";
+    Group* group = player ? player->GetGroup() : nullptr;
+    if (group)
+    {
+        bool first = true;
+        for (auto const& slot : group->GetMemberSlots())
+        {
+            Player* member = ObjectAccessor::FindPlayer(slot.guid);
+            if (!member || member->IsAlive()
+                || !IsPlayerBot(member))
+                continue;
+            if (!first)
+                json += ",";
+            first = false;
+            json += std::to_string(member->GetGUID().GetCounter());
+        }
+    }
+    return json + "]";
 }
 
 std::string GetBotTravelMode(Player* player)

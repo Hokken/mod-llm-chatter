@@ -290,6 +290,16 @@ class EventContextTests(unittest.TestCase):
         self.assertNotIn('Time of day', indoor)
         self.assertNotIn('weather', indoor)
 
+    def test_no_travel_memory_while_dead_or_a_ghost(self):
+        ghost = handlers._travelled_as_ghost
+        self.assertTrue(ghost({'player_dead': True}, 7))
+        self.assertTrue(ghost(
+            {'player_dead': False, 'dead_bot_guids': [7]}, 7))
+        self.assertFalse(ghost(
+            {'player_dead': False, 'dead_bot_guids': [8]}, 7))
+        # An older worldserver sends neither field.
+        self.assertFalse(ghost({}, 7))
+
     def test_travel_memory_carries_place_background(self):
         outdoor = handlers._place_background(12, 87, 0, 'Elwynn Forest')
         self.assertTrue(outdoor[0].startswith('About Elwynn Forest: '))

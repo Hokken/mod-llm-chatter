@@ -58,6 +58,10 @@ Built from the ground up for **fantasy roleplay immersion**. Every system, perso
   wider world feel populated.
 * **Social guild chat**: Guildmates greet returning players, answer messages,
   hold conversations, and carry shared context forward during a session.
+* **A world that answers back**: Mail arrives after a dungeon, a raid or a
+  zone's key quest, from a bot who remembers you, and from trainers looking
+  for an apprentice, each with a gift. Friendly NPCs talk about what you
+  did, in the regions where it happened.
 * **Non-blocking architecture**: LLM work runs in a separate, concurrent
   bridge service. Worldserver queues events and delivers completed responses
   without waiting on provider calls.
@@ -781,6 +785,9 @@ docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
 docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
   modules/mod-llm-chatter/data/sql/characters/updates/20261101_memory_active_index.sql
 
+docker exec -i ac-database mysql -uroot -ppassword acore_characters < \
+  modules/mod-llm-chatter/data/sql/characters/updates/20261103_world_reactivity.sql
+
 # Non-Docker
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20260320_bot_memory_system.sql
@@ -871,6 +878,9 @@ mysql -uroot -ppassword acore_characters < \
 
 mysql -uroot -ppassword acore_characters < \
   data/sql/characters/updates/20261101_memory_active_index.sql
+
+mysql -uroot -ppassword acore_characters < \
+  data/sql/characters/updates/20261103_world_reactivity.sql
 ```
 
 Migrations are idempotent — safe to run on an already

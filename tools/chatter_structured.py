@@ -58,6 +58,7 @@ class ResponseContract:
     def __post_init__(self):
         if self.kind not in (
             'statement', 'conversation', 'analysis', 'memory', 'vision',
+            'letter',
         ):
             raise ValueError('Unknown response contract kind')
         if self.action not in ('none', 'optional', 'required'):
@@ -169,6 +170,8 @@ def _build_schema(key):
     if kind == 'memory':
         return _object({'memory': _string(),
                         'emote': _nullable(_enum(EMOTES))})
+    if kind == 'letter':
+        return _object({'subject': _string(), 'body': _string()})
     if kind == 'vision':
         return _object({
             **{name: _nullable(_enum(values))

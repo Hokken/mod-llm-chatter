@@ -1,0 +1,6182 @@
+{
+ "common": [
+  {
+   "cat": "pet",
+   "id": 8497,
+   "min": 1,
+   "name": "Rabbit Crate (Snowshoe)",
+   "note": "Dun Morogh (Alliance)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 8485,
+   "min": 1,
+   "name": "Cat Carrier (Bombay)",
+   "note": "Elwynn Forest (Alliance)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 8486,
+   "min": 1,
+   "name": "Cat Carrier (Cornish Rex)",
+   "note": "Elwynn Forest (Alliance)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 8487,
+   "min": 1,
+   "name": "Cat Carrier (Orange Tabby)",
+   "note": "Elwynn Forest (Alliance)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 8488,
+   "min": 1,
+   "name": "Cat Carrier (Silver Tabby)",
+   "note": "Elwynn Forest (Alliance)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 8489,
+   "min": 1,
+   "name": "Cat Carrier (White Kitten)",
+   "note": "Stormwind City (Alliance)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 8495,
+   "min": 30,
+   "name": "Parrot Cage (Senegal)",
+   "note": "Booty Bay (neutral)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 8496,
+   "min": 30,
+   "name": "Parrot Cage (Cockatiel)",
+   "note": "Booty Bay (neutral)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 8500,
+   "min": 1,
+   "name": "Great Horned Owl",
+   "note": "Darnassus (Alliance)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 8501,
+   "min": 1,
+   "name": "Hawk Owl",
+   "note": "Darnassus (Alliance)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 10360,
+   "min": 1,
+   "name": "Black Kingsnake",
+   "note": "Orgrimmar (Horde)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 10361,
+   "min": 1,
+   "name": "Brown Snake",
+   "note": "Orgrimmar (Horde)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 10392,
+   "min": 1,
+   "name": "Crimson Snake",
+   "note": "Orgrimmar (Horde)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 10393,
+   "min": 1,
+   "name": "Cockroach",
+   "note": "Undercity (Horde)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 10394,
+   "min": 1,
+   "name": "Prairie Dog Whistle",
+   "note": "Thunder Bluff (Horde)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 29901,
+   "min": 1,
+   "name": "Blue Moth Egg",
+   "note": "The Exodar (Alliance)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 29903,
+   "min": 1,
+   "name": "Yellow Moth Egg",
+   "note": "The Exodar (Alliance)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 29904,
+   "min": 1,
+   "name": "White Moth Egg",
+   "note": "The Exodar (Alliance)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 29953,
+   "min": 1,
+   "name": "Golden Dragonhawk Hatchling",
+   "note": "Eversong Woods (Horde)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 29956,
+   "min": 1,
+   "name": "Red Dragonhawk Hatchling",
+   "note": "Eversong Woods (Horde)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 29957,
+   "min": 1,
+   "name": "Silver Dragonhawk Hatchling",
+   "note": "Eversong Woods (Horde)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 11023,
+   "min": 25,
+   "name": "Ancona Chicken",
+   "note": "Thousand Needles (neutral)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 11026,
+   "min": 10,
+   "name": "Tree Frog Box",
+   "note": "Darkmoon Faire",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 11027,
+   "min": 10,
+   "name": "Wood Frog Box",
+   "note": "Darkmoon Faire",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 8490,
+   "min": 61,
+   "name": "Cat Carrier (Siamese)",
+   "note": "Netherstorm (neutral)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 29364,
+   "min": 61,
+   "name": "Brown Rabbit Crate",
+   "note": "Netherstorm (neutral)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 29902,
+   "min": 61,
+   "name": "Red Moth Egg",
+   "note": "Netherstorm (neutral)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 29958,
+   "min": 61,
+   "name": "Blue Dragonhawk Hatchling",
+   "note": "Netherstorm (neutral)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 29363,
+   "min": 61,
+   "name": "Mana Wyrmling",
+   "note": "Netherstorm (neutral); the costliest common pet",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 44822,
+   "min": 71,
+   "name": "Albino Snake",
+   "note": "Dalaran (neutral)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 46398,
+   "min": 71,
+   "name": "Calico Cat",
+   "note": "Dalaran (neutral)",
+   "until": 80
+  },
+  {
+   "cat": "pet",
+   "id": 48120,
+   "min": 71,
+   "name": "Obsidian Hatchling",
+   "note": "Dalaran (neutral)",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 9312,
+   "min": 1,
+   "name": "Blue Firework",
+   "note": "Firework",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 9313,
+   "min": 1,
+   "name": "Green Firework",
+   "note": "Firework",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 9318,
+   "min": 1,
+   "name": "Red Firework",
+   "note": "Firework",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 9315,
+   "min": 1,
+   "name": "Yellow Rose Firework",
+   "note": "Firework",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 9314,
+   "min": 1,
+   "name": "Red Streaks Firework",
+   "note": "Firework",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 5740,
+   "min": 1,
+   "name": "Red Fireworks Rocket",
+   "note": "Firework",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 9317,
+   "min": 1,
+   "name": "Red, White and Blue Firework",
+   "note": "Firework",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 23768,
+   "min": 1,
+   "name": "White Smoke Flare",
+   "note": "Smoke flare",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 23769,
+   "min": 1,
+   "name": "Red Smoke Flare",
+   "note": "Smoke flare",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 23771,
+   "min": 1,
+   "name": "Green Smoke Flare",
+   "note": "Smoke flare",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 5042,
+   "min": 1,
+   "name": "Red Ribboned Wrapping Paper",
+   "note": "Gift wrap: lets the player wrap a present for someone else",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 5048,
+   "min": 1,
+   "name": "Blue Ribboned Wrapping Paper",
+   "note": "Gift wrap",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 17303,
+   "min": 1,
+   "name": "Blue Ribboned Wrapping Paper",
+   "note": "Gift wrap",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 17304,
+   "min": 1,
+   "name": "Green Ribboned Wrapping Paper",
+   "note": "Gift wrap",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 17307,
+   "min": 1,
+   "name": "Purple Ribboned Wrapping Paper",
+   "note": "Gift wrap",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 44482,
+   "min": 71,
+   "name": "Trusty Copper Racer",
+   "note": "Remote-controlled racer, Dalaran toy shop",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 44599,
+   "min": 71,
+   "name": "Zippy Copper Racer",
+   "note": "Racer, Dalaran toy shop",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 44601,
+   "min": 71,
+   "name": "Heavy Copper Racer",
+   "note": "Racer, Dalaran toy shop",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 44481,
+   "min": 71,
+   "name": "Grindgear Toy Gorilla",
+   "note": "Dalaran toy shop",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 37431,
+   "min": 71,
+   "name": "Fetch Ball",
+   "note": "Plays with the player's pet; Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 43352,
+   "min": 71,
+   "name": "Pet Grooming Kit",
+   "note": "For the companion pet; Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 43626,
+   "min": 71,
+   "name": "Happy Pet Snack",
+   "note": "For the companion pet; Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "toy",
+   "id": 34498,
+   "min": 71,
+   "name": "Paper Zeppelin Kit",
+   "note": "Paper toy",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 3428,
+   "min": 1,
+   "name": "Common Gray Shirt",
+   "note": "Vendor",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 16059,
+   "min": 1,
+   "name": "Common Brown Shirt",
+   "note": "Vendor",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 16060,
+   "min": 1,
+   "name": "Common White Shirt",
+   "note": "Vendor",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 6833,
+   "min": 1,
+   "name": "White Tuxedo Shirt",
+   "note": "Vendor",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 3426,
+   "min": 1,
+   "name": "Bold Yellow Shirt",
+   "note": "Vendor",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 3427,
+   "min": 1,
+   "name": "Stylish Black Shirt",
+   "note": "Vendor",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 10034,
+   "min": 20,
+   "name": "Tuxedo Shirt",
+   "note": "World drop",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 41248,
+   "min": 71,
+   "name": "Red Lumberjack Shirt",
+   "note": "Northrend",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 41249,
+   "min": 71,
+   "name": "Blue Lumberjack Shirt",
+   "note": "Northrend",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 41250,
+   "min": 71,
+   "name": "Green Lumberjack Shirt",
+   "note": "Northrend",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 41251,
+   "min": 71,
+   "name": "Yellow Lumberjack Shirt",
+   "note": "Northrend",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 41252,
+   "min": 71,
+   "name": "Red Workman's Shirt",
+   "note": "Northrend",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 41253,
+   "min": 71,
+   "name": "Blue Workman's Shirt",
+   "note": "Northrend",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 41254,
+   "min": 71,
+   "name": "Rustic Workman's Shirt",
+   "note": "Northrend",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 41255,
+   "min": 71,
+   "name": "Green Workman's Shirt",
+   "note": "Northrend",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 2575,
+   "min": 5,
+   "name": "Red Linen Shirt",
+   "note": "Tailoring",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 2577,
+   "min": 5,
+   "name": "Blue Linen Shirt",
+   "note": "Tailoring",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 2579,
+   "min": 10,
+   "name": "Green Linen Shirt",
+   "note": "Tailoring",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 2587,
+   "min": 15,
+   "name": "Gray Woolen Shirt",
+   "note": "Tailoring",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 4330,
+   "min": 20,
+   "name": "Stylish Red Shirt",
+   "note": "Tailoring",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 6384,
+   "min": 20,
+   "name": "Stylish Blue Shirt",
+   "note": "Tailoring",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 6385,
+   "min": 20,
+   "name": "Stylish Green Shirt",
+   "note": "Tailoring",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 4332,
+   "min": 25,
+   "name": "Bright Yellow Shirt",
+   "note": "Tailoring",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 4333,
+   "min": 30,
+   "name": "Dark Silk Shirt",
+   "note": "Tailoring",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 6795,
+   "min": 30,
+   "name": "White Swashbuckler's Shirt",
+   "note": "Tailoring",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 6796,
+   "min": 30,
+   "name": "Red Swashbuckler's Shirt",
+   "note": "Tailoring",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 4334,
+   "min": 30,
+   "name": "Formal White Shirt",
+   "note": "Tailoring",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 4335,
+   "min": 35,
+   "name": "Rich Purple Silk Shirt",
+   "note": "Tailoring",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 42371,
+   "min": 71,
+   "name": "Amber Filigreed Shirt",
+   "note": "Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 42370,
+   "min": 71,
+   "name": "Cerulean Filigreed Shirt",
+   "note": "Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 42372,
+   "min": 71,
+   "name": "Scarlet Filigreed Shirt",
+   "note": "Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 42373,
+   "min": 71,
+   "name": "Golden Filigreed Shirt",
+   "note": "Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 42369,
+   "min": 71,
+   "name": "Ebon Filigreed Shirt",
+   "note": "Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 42375,
+   "min": 71,
+   "name": "Green Martial Shirt",
+   "note": "Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 42374,
+   "min": 71,
+   "name": "Blue Martial Shirt",
+   "note": "Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 42378,
+   "min": 71,
+   "name": "Red Martial Shirt",
+   "note": "Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 42376,
+   "min": 71,
+   "name": "Yellow Martial Shirt",
+   "note": "Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "shirt",
+   "id": 42377,
+   "min": 71,
+   "name": "Purple Martial Shirt",
+   "note": "Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "drink",
+   "id": 23585,
+   "min": 1,
+   "name": "Stouthammer Lite",
+   "note": "Ale",
+   "until": 80
+  },
+  {
+   "cat": "drink",
+   "id": 18269,
+   "min": 45,
+   "name": "Gordok Green Grog",
+   "note": "Dire Maul brew",
+   "until": 80
+  },
+  {
+   "cat": "drink",
+   "id": 18284,
+   "min": 45,
+   "name": "Kreeg's Stout Beatdown",
+   "note": "Dire Maul brew",
+   "until": 80
+  },
+  {
+   "cat": "drink",
+   "id": 44621,
+   "min": 71,
+   "name": "Bottle of Dalaran White",
+   "note": "Wine, Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "drink",
+   "id": 44623,
+   "min": 71,
+   "name": "Bottle of Dalaran Red",
+   "note": "Wine, Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "drink",
+   "id": 44622,
+   "min": 71,
+   "name": "Cask of Dalaran White",
+   "note": "Cask, Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "drink",
+   "id": 44632,
+   "min": 71,
+   "name": "Cask of Dalaran Red",
+   "note": "Cask, Dalaran",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 2447,
+   "min": 1,
+   "name": "Peacebloom",
+   "note": "Small white flower; Herbalism 1",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 785,
+   "min": 10,
+   "name": "Mageroyal",
+   "note": "Purple flower; Herbalism 50",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 3355,
+   "min": 20,
+   "name": "Wild Steelbloom",
+   "note": "Herbalism 115",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 3356,
+   "min": 25,
+   "name": "Kingsblood",
+   "note": "Red flower; Herbalism 125",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 8838,
+   "min": 40,
+   "name": "Sungrass",
+   "note": "Bright yellow flower; Herbalism 230",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 8831,
+   "min": 40,
+   "name": "Purple Lotus",
+   "note": "Herbalism 210",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 4625,
+   "min": 40,
+   "name": "Firebloom",
+   "note": "Fiery red flower; Herbalism 205",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 8836,
+   "min": 40,
+   "name": "Arthas' Tears",
+   "note": "White flower; Herbalism 220",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 13463,
+   "min": 50,
+   "name": "Dreamfoil",
+   "note": "Herbalism 270",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 13464,
+   "min": 50,
+   "name": "Golden Sansam",
+   "note": "Golden flower; Herbalism 260",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 13465,
+   "min": 50,
+   "name": "Mountain Silversage",
+   "note": "Herbalism 280",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 22786,
+   "min": 61,
+   "name": "Dreaming Glory",
+   "note": "Outland; Herbalism 315",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 22791,
+   "min": 65,
+   "name": "Netherbloom",
+   "note": "Outland; Herbalism 350",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 36904,
+   "min": 71,
+   "name": "Tiger Lily",
+   "note": "Northrend; Herbalism 375",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 36907,
+   "min": 71,
+   "name": "Talandra's Rose",
+   "note": "Northrend; Herbalism 385",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 36905,
+   "min": 75,
+   "name": "Lichbloom",
+   "note": "Northrend; Herbalism 425",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 36908,
+   "min": 78,
+   "name": "Frost Lotus",
+   "note": "Northrend; rare, a precious gift",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 30476,
+   "min": 61,
+   "name": "Hypnotic Flower",
+   "note": "Keepsake, no use; Outland drop",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 38517,
+   "min": 71,
+   "name": "Mesmerizing Flower",
+   "note": "Keepsake, no use; Northrend drop",
+   "until": 80
+  },
+  {
+   "cat": "flower",
+   "id": 44207,
+   "min": 71,
+   "name": "Flash-Frozen Flower",
+   "note": "Keepsake, no use; Northrend drop",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 774,
+   "min": 10,
+   "name": "Malachite",
+   "note": "Green",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 818,
+   "min": 10,
+   "name": "Tigerseye",
+   "note": "Orange",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 5498,
+   "min": 15,
+   "name": "Small Lustrous Pearl",
+   "note": "Pearl",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 1210,
+   "min": 15,
+   "name": "Shadowgem",
+   "note": "Purple",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 1206,
+   "min": 20,
+   "name": "Moss Agate",
+   "note": "Green",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 1705,
+   "min": 25,
+   "name": "Lesser Moonstone",
+   "note": "White",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 1529,
+   "min": 30,
+   "name": "Jade",
+   "note": "Green",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 5500,
+   "min": 30,
+   "name": "Iridescent Pearl",
+   "note": "Pearl",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 3864,
+   "min": 30,
+   "name": "Citrine",
+   "note": "Yellow",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 7909,
+   "min": 40,
+   "name": "Aquamarine",
+   "note": "Blue",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 7971,
+   "min": 40,
+   "name": "Black Pearl",
+   "note": "Pearl",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 7910,
+   "min": 45,
+   "name": "Star Ruby",
+   "note": "Red",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 12799,
+   "min": 50,
+   "name": "Large Opal",
+   "note": "White",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 12361,
+   "min": 50,
+   "name": "Blue Sapphire",
+   "note": "Blue",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 12364,
+   "min": 55,
+   "name": "Huge Emerald",
+   "note": "Green",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 12800,
+   "min": 55,
+   "name": "Azerothian Diamond",
+   "note": "White; a precious gift",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 13926,
+   "min": 55,
+   "name": "Golden Pearl",
+   "note": "Pearl; a precious gift",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 23077,
+   "min": 61,
+   "name": "Blood Garnet",
+   "note": "Red; Outland",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 23079,
+   "min": 61,
+   "name": "Deep Peridot",
+   "note": "Green; Outland",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 21929,
+   "min": 61,
+   "name": "Flame Spessarite",
+   "note": "Orange; Outland",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 23112,
+   "min": 61,
+   "name": "Golden Draenite",
+   "note": "Yellow; Outland",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 23107,
+   "min": 61,
+   "name": "Shadow Draenite",
+   "note": "Purple; Outland",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 23117,
+   "min": 61,
+   "name": "Azure Moonstone",
+   "note": "Blue; Outland",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 36917,
+   "min": 72,
+   "name": "Bloodstone",
+   "note": "Red; Northrend",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 36923,
+   "min": 72,
+   "name": "Chalcedony",
+   "note": "Blue; Northrend",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 36932,
+   "min": 72,
+   "name": "Dark Jade",
+   "note": "Green; Northrend",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 36929,
+   "min": 72,
+   "name": "Huge Citrine",
+   "note": "Orange; Northrend",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 36926,
+   "min": 72,
+   "name": "Shadow Crystal",
+   "note": "Purple; Northrend",
+   "until": 80
+  },
+  {
+   "cat": "gem",
+   "id": 36920,
+   "min": 72,
+   "name": "Sun Crystal",
+   "note": "Yellow; Northrend",
+   "until": 80
+  },
+  {
+   "cat": "healing",
+   "id": 118,
+   "min": 1,
+   "name": "Minor Healing Potion",
+   "note": "",
+   "until": 8
+  },
+  {
+   "cat": "healing",
+   "id": 858,
+   "min": 3,
+   "name": "Lesser Healing Potion",
+   "note": "",
+   "until": 17
+  },
+  {
+   "cat": "healing",
+   "id": 929,
+   "min": 12,
+   "name": "Healing Potion",
+   "note": "",
+   "until": 26
+  },
+  {
+   "cat": "healing",
+   "id": 1710,
+   "min": 21,
+   "name": "Greater Healing Potion",
+   "note": "",
+   "until": 40
+  },
+  {
+   "cat": "healing",
+   "id": 3928,
+   "min": 35,
+   "name": "Superior Healing Potion",
+   "note": "",
+   "until": 50
+  },
+  {
+   "cat": "healing",
+   "id": 13446,
+   "min": 45,
+   "name": "Major Healing Potion",
+   "note": "",
+   "until": 60
+  },
+  {
+   "cat": "healing",
+   "id": 22829,
+   "min": 55,
+   "name": "Super Healing Potion",
+   "note": "",
+   "until": 70
+  },
+  {
+   "cat": "healing",
+   "id": 39671,
+   "min": 65,
+   "name": "Resurgent Healing Potion",
+   "note": "",
+   "until": 75
+  },
+  {
+   "cat": "healing",
+   "id": 33447,
+   "min": 70,
+   "name": "Runic Healing Potion",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "mana",
+   "id": 2455,
+   "min": 5,
+   "name": "Minor Mana Potion",
+   "note": "",
+   "until": 19
+  },
+  {
+   "cat": "mana",
+   "id": 3385,
+   "min": 14,
+   "name": "Lesser Mana Potion",
+   "note": "",
+   "until": 27
+  },
+  {
+   "cat": "mana",
+   "id": 3827,
+   "min": 22,
+   "name": "Mana Potion",
+   "note": "",
+   "until": 36
+  },
+  {
+   "cat": "mana",
+   "id": 6149,
+   "min": 31,
+   "name": "Greater Mana Potion",
+   "note": "",
+   "until": 46
+  },
+  {
+   "cat": "mana",
+   "id": 13443,
+   "min": 41,
+   "name": "Superior Mana Potion",
+   "note": "",
+   "until": 54
+  },
+  {
+   "cat": "mana",
+   "id": 13444,
+   "min": 49,
+   "name": "Major Mana Potion",
+   "note": "",
+   "until": 60
+  },
+  {
+   "cat": "mana",
+   "id": 22832,
+   "min": 55,
+   "name": "Super Mana Potion",
+   "note": "",
+   "until": 70
+  },
+  {
+   "cat": "mana",
+   "id": 40067,
+   "min": 65,
+   "name": "Icy Mana Potion",
+   "note": "",
+   "until": 75
+  },
+  {
+   "cat": "mana",
+   "id": 33448,
+   "min": 70,
+   "name": "Runic Mana Potion",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 2680,
+   "min": 1,
+   "name": "Spiced Wolf Meat",
+   "note": "Elwynn / Dun Morogh dish",
+   "until": 10
+  },
+  {
+   "cat": "food",
+   "id": 6888,
+   "min": 1,
+   "name": "Herb Baked Egg",
+   "note": "Teldrassil",
+   "until": 10
+  },
+  {
+   "cat": "food",
+   "id": 5472,
+   "min": 1,
+   "name": "Kaldorei Spider Kabob",
+   "note": "Teldrassil",
+   "until": 10
+  },
+  {
+   "cat": "food",
+   "id": 5474,
+   "min": 1,
+   "name": "Roasted Kodo Meat",
+   "note": "Mulgore",
+   "until": 10
+  },
+  {
+   "cat": "food",
+   "id": 12224,
+   "min": 1,
+   "name": "Crispy Bat Wing",
+   "note": "Tirisfal",
+   "until": 10
+  },
+  {
+   "cat": "food",
+   "id": 17197,
+   "min": 1,
+   "name": "Gingerbread Cookie",
+   "note": "Winter treat",
+   "until": 10
+  },
+  {
+   "cat": "food",
+   "id": 724,
+   "min": 5,
+   "name": "Goretusk Liver Pie",
+   "note": "Westfall",
+   "until": 20
+  },
+  {
+   "cat": "food",
+   "id": 6890,
+   "min": 5,
+   "name": "Smoked Bear Meat",
+   "note": "",
+   "until": 20
+  },
+  {
+   "cat": "food",
+   "id": 733,
+   "min": 5,
+   "name": "Westfall Stew",
+   "note": "Westfall",
+   "until": 20
+  },
+  {
+   "cat": "food",
+   "id": 3662,
+   "min": 5,
+   "name": "Crocolisk Steak",
+   "note": "Wetlands",
+   "until": 20
+  },
+  {
+   "cat": "food",
+   "id": 2683,
+   "min": 5,
+   "name": "Crab Cake",
+   "note": "Westfall",
+   "until": 20
+  },
+  {
+   "cat": "food",
+   "id": 5478,
+   "min": 10,
+   "name": "Dig Rat Stew",
+   "note": "The Barrens",
+   "until": 20
+  },
+  {
+   "cat": "food",
+   "id": 1082,
+   "min": 10,
+   "name": "Redridge Goulash",
+   "note": "Redridge",
+   "until": 20
+  },
+  {
+   "cat": "food",
+   "id": 3726,
+   "min": 15,
+   "name": "Big Bear Steak",
+   "note": "",
+   "until": 30
+  },
+  {
+   "cat": "food",
+   "id": 3727,
+   "min": 15,
+   "name": "Hot Lion Chops",
+   "note": "",
+   "until": 30
+  },
+  {
+   "cat": "food",
+   "id": 3663,
+   "min": 15,
+   "name": "Murloc Fin Soup",
+   "note": "",
+   "until": 30
+  },
+  {
+   "cat": "food",
+   "id": 3664,
+   "min": 15,
+   "name": "Crocolisk Gumbo",
+   "note": "",
+   "until": 30
+  },
+  {
+   "cat": "food",
+   "id": 3666,
+   "min": 15,
+   "name": "Gooey Spider Cake",
+   "note": "",
+   "until": 30
+  },
+  {
+   "cat": "food",
+   "id": 1017,
+   "min": 15,
+   "name": "Seasoned Wolf Kabob",
+   "note": "",
+   "until": 30
+  },
+  {
+   "cat": "food",
+   "id": 20074,
+   "min": 20,
+   "name": "Heavy Crocolisk Stew",
+   "note": "",
+   "until": 30
+  },
+  {
+   "cat": "food",
+   "id": 12213,
+   "min": 25,
+   "name": "Carrion Surprise",
+   "note": "",
+   "until": 40
+  },
+  {
+   "cat": "food",
+   "id": 12210,
+   "min": 25,
+   "name": "Roast Raptor",
+   "note": "Stranglethorn",
+   "until": 40
+  },
+  {
+   "cat": "food",
+   "id": 12214,
+   "min": 25,
+   "name": "Mystery Stew",
+   "note": "",
+   "until": 40
+  },
+  {
+   "cat": "food",
+   "id": 13851,
+   "min": 25,
+   "name": "Hot Wolf Ribs",
+   "note": "",
+   "until": 40
+  },
+  {
+   "cat": "food",
+   "id": 3729,
+   "min": 25,
+   "name": "Soothing Turtle Bisque",
+   "note": "",
+   "until": 40
+  },
+  {
+   "cat": "food",
+   "id": 21217,
+   "min": 30,
+   "name": "Sagefish Delight",
+   "note": "",
+   "until": 40
+  },
+  {
+   "cat": "food",
+   "id": 13928,
+   "min": 35,
+   "name": "Grilled Squid",
+   "note": "Agility",
+   "until": 50
+  },
+  {
+   "cat": "food",
+   "id": 13931,
+   "min": 35,
+   "name": "Nightfin Soup",
+   "note": "Mana regeneration",
+   "until": 50
+  },
+  {
+   "cat": "food",
+   "id": 13932,
+   "min": 35,
+   "name": "Poached Sunscale Salmon",
+   "note": "Mana regeneration",
+   "until": 50
+  },
+  {
+   "cat": "food",
+   "id": 17222,
+   "min": 35,
+   "name": "Spider Sausage",
+   "note": "",
+   "until": 50
+  },
+  {
+   "cat": "food",
+   "id": 12218,
+   "min": 40,
+   "name": "Monster Omelet",
+   "note": "",
+   "until": 50
+  },
+  {
+   "cat": "food",
+   "id": 18045,
+   "min": 40,
+   "name": "Tender Wolf Steak",
+   "note": "",
+   "until": 50
+  },
+  {
+   "cat": "food",
+   "id": 13934,
+   "min": 45,
+   "name": "Mightfish Steak",
+   "note": "",
+   "until": 60
+  },
+  {
+   "cat": "food",
+   "id": 18254,
+   "min": 45,
+   "name": "Runn Tum Tuber Surprise",
+   "note": "Spell power",
+   "until": 60
+  },
+  {
+   "cat": "food",
+   "id": 20452,
+   "min": 45,
+   "name": "Smoked Desert Dumplings",
+   "note": "",
+   "until": 60
+  },
+  {
+   "cat": "food",
+   "id": 27651,
+   "min": 55,
+   "name": "Buzzard Bites",
+   "note": "Hellfire Peninsula",
+   "until": 70
+  },
+  {
+   "cat": "food",
+   "id": 27655,
+   "min": 55,
+   "name": "Ravager Dog",
+   "note": "",
+   "until": 70
+  },
+  {
+   "cat": "food",
+   "id": 27658,
+   "min": 55,
+   "name": "Roasted Clefthoof",
+   "note": "Nagrand",
+   "until": 70
+  },
+  {
+   "cat": "food",
+   "id": 27659,
+   "min": 55,
+   "name": "Warp Burger",
+   "note": "",
+   "until": 70
+  },
+  {
+   "cat": "food",
+   "id": 27660,
+   "min": 55,
+   "name": "Talbuk Steak",
+   "note": "Nagrand",
+   "until": 70
+  },
+  {
+   "cat": "food",
+   "id": 27662,
+   "min": 55,
+   "name": "Feltail Delight",
+   "note": "",
+   "until": 70
+  },
+  {
+   "cat": "food",
+   "id": 27666,
+   "min": 55,
+   "name": "Golden Fish Sticks",
+   "note": "",
+   "until": 70
+  },
+  {
+   "cat": "food",
+   "id": 27657,
+   "min": 55,
+   "name": "Blackened Basilisk",
+   "note": "",
+   "until": 70
+  },
+  {
+   "cat": "food",
+   "id": 31672,
+   "min": 55,
+   "name": "Mok'Nathal Shortribs",
+   "note": "Blade's Edge",
+   "until": 70
+  },
+  {
+   "cat": "food",
+   "id": 30155,
+   "min": 55,
+   "name": "Clam Bar",
+   "note": "",
+   "until": 70
+  },
+  {
+   "cat": "food",
+   "id": 33872,
+   "min": 65,
+   "name": "Spicy Hot Talbuk",
+   "note": "",
+   "until": 75
+  },
+  {
+   "cat": "food",
+   "id": 33825,
+   "min": 65,
+   "name": "Skullfish Soup",
+   "note": "",
+   "until": 75
+  },
+  {
+   "cat": "food",
+   "id": 33052,
+   "min": 65,
+   "name": "Fisherman's Feast",
+   "note": "",
+   "until": 75
+  },
+  {
+   "cat": "food",
+   "id": 34748,
+   "min": 70,
+   "name": "Mammoth Meal",
+   "note": "Northrend",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 34751,
+   "min": 70,
+   "name": "Roasted Worg",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 34752,
+   "min": 70,
+   "name": "Rhino Dogs",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 34755,
+   "min": 70,
+   "name": "Tender Shoveltusk Steak",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 34756,
+   "min": 70,
+   "name": "Spiced Worm Burger",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 34762,
+   "min": 70,
+   "name": "Grilled Sculpin",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 34763,
+   "min": 70,
+   "name": "Smoked Salmon",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 34765,
+   "min": 70,
+   "name": "Pickled Fangtooth",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 34766,
+   "min": 70,
+   "name": "Poached Northern Sculpin",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 34767,
+   "min": 70,
+   "name": "Firecracker Salmon",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 34769,
+   "min": 70,
+   "name": "Imperial Manta Steak",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 42993,
+   "min": 70,
+   "name": "Spicy Fried Herring",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 42994,
+   "min": 70,
+   "name": "Rhinolicious Wormsteak",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 42995,
+   "min": 70,
+   "name": "Hearty Rhino",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 42996,
+   "min": 70,
+   "name": "Snapper Extreme",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 42998,
+   "min": 70,
+   "name": "Cuttlesteak",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 42999,
+   "min": 70,
+   "name": "Blackened Dragonfin",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 43000,
+   "min": 78,
+   "name": "Dragonfin Filet",
+   "note": "Best in class; a generous gift",
+   "until": 80
+  },
+  {
+   "cat": "food",
+   "id": 34768,
+   "min": 70,
+   "name": "Spicy Blue Nettlefish",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "scroll",
+   "id": 1181,
+   "min": 1,
+   "name": "Scroll of Spirit",
+   "note": "",
+   "until": 20,
+   "stat": "caster"
+  },
+  {
+   "cat": "scroll",
+   "id": 3013,
+   "min": 1,
+   "name": "Scroll of Protection",
+   "note": "",
+   "until": 20
+  },
+  {
+   "cat": "scroll",
+   "id": 955,
+   "min": 1,
+   "name": "Scroll of Intellect",
+   "note": "",
+   "until": 20,
+   "stat": "caster"
+  },
+  {
+   "cat": "scroll",
+   "id": 1180,
+   "min": 1,
+   "name": "Scroll of Stamina",
+   "note": "",
+   "until": 20
+  },
+  {
+   "cat": "scroll",
+   "id": 954,
+   "min": 1,
+   "name": "Scroll of Strength",
+   "note": "",
+   "until": 20,
+   "stat": "strength"
+  },
+  {
+   "cat": "scroll",
+   "id": 3012,
+   "min": 1,
+   "name": "Scroll of Agility",
+   "note": "",
+   "until": 20,
+   "stat": "agility"
+  },
+  {
+   "cat": "scroll",
+   "id": 1478,
+   "min": 15,
+   "name": "Scroll of Protection II",
+   "note": "",
+   "until": 35
+  },
+  {
+   "cat": "scroll",
+   "id": 1712,
+   "min": 15,
+   "name": "Scroll of Spirit II",
+   "note": "",
+   "until": 35,
+   "stat": "caster"
+  },
+  {
+   "cat": "scroll",
+   "id": 1711,
+   "min": 15,
+   "name": "Scroll of Stamina II",
+   "note": "",
+   "until": 35
+  },
+  {
+   "cat": "scroll",
+   "id": 2290,
+   "min": 15,
+   "name": "Scroll of Intellect II",
+   "note": "",
+   "until": 35,
+   "stat": "caster"
+  },
+  {
+   "cat": "scroll",
+   "id": 1477,
+   "min": 15,
+   "name": "Scroll of Agility II",
+   "note": "",
+   "until": 35,
+   "stat": "agility"
+  },
+  {
+   "cat": "scroll",
+   "id": 2289,
+   "min": 15,
+   "name": "Scroll of Strength II",
+   "note": "",
+   "until": 35,
+   "stat": "strength"
+  },
+  {
+   "cat": "scroll",
+   "id": 4424,
+   "min": 30,
+   "name": "Scroll of Spirit III",
+   "note": "",
+   "until": 45,
+   "stat": "caster"
+  },
+  {
+   "cat": "scroll",
+   "id": 4421,
+   "min": 30,
+   "name": "Scroll of Protection III",
+   "note": "",
+   "until": 45
+  },
+  {
+   "cat": "scroll",
+   "id": 4422,
+   "min": 30,
+   "name": "Scroll of Stamina III",
+   "note": "",
+   "until": 45
+  },
+  {
+   "cat": "scroll",
+   "id": 4419,
+   "min": 30,
+   "name": "Scroll of Intellect III",
+   "note": "",
+   "until": 45,
+   "stat": "caster"
+  },
+  {
+   "cat": "scroll",
+   "id": 4425,
+   "min": 30,
+   "name": "Scroll of Agility III",
+   "note": "",
+   "until": 45,
+   "stat": "agility"
+  },
+  {
+   "cat": "scroll",
+   "id": 4426,
+   "min": 30,
+   "name": "Scroll of Strength III",
+   "note": "",
+   "until": 45,
+   "stat": "strength"
+  },
+  {
+   "cat": "scroll",
+   "id": 10305,
+   "min": 40,
+   "name": "Scroll of Protection IV",
+   "note": "",
+   "until": 55
+  },
+  {
+   "cat": "scroll",
+   "id": 10306,
+   "min": 40,
+   "name": "Scroll of Spirit IV",
+   "note": "",
+   "until": 55,
+   "stat": "caster"
+  },
+  {
+   "cat": "scroll",
+   "id": 10307,
+   "min": 40,
+   "name": "Scroll of Stamina IV",
+   "note": "",
+   "until": 55
+  },
+  {
+   "cat": "scroll",
+   "id": 10308,
+   "min": 40,
+   "name": "Scroll of Intellect IV",
+   "note": "",
+   "until": 55,
+   "stat": "caster"
+  },
+  {
+   "cat": "scroll",
+   "id": 10309,
+   "min": 40,
+   "name": "Scroll of Agility IV",
+   "note": "",
+   "until": 55,
+   "stat": "agility"
+  },
+  {
+   "cat": "scroll",
+   "id": 10310,
+   "min": 40,
+   "name": "Scroll of Strength IV",
+   "note": "",
+   "until": 55,
+   "stat": "strength"
+  },
+  {
+   "cat": "scroll",
+   "id": 27499,
+   "min": 50,
+   "name": "Scroll of Intellect V",
+   "note": "",
+   "until": 65,
+   "stat": "caster"
+  },
+  {
+   "cat": "scroll",
+   "id": 27498,
+   "min": 50,
+   "name": "Scroll of Agility V",
+   "note": "",
+   "until": 65,
+   "stat": "agility"
+  },
+  {
+   "cat": "scroll",
+   "id": 27500,
+   "min": 50,
+   "name": "Scroll of Protection V",
+   "note": "",
+   "until": 65
+  },
+  {
+   "cat": "scroll",
+   "id": 27501,
+   "min": 50,
+   "name": "Scroll of Spirit V",
+   "note": "",
+   "until": 65,
+   "stat": "caster"
+  },
+  {
+   "cat": "scroll",
+   "id": 27502,
+   "min": 50,
+   "name": "Scroll of Stamina V",
+   "note": "",
+   "until": 65
+  },
+  {
+   "cat": "scroll",
+   "id": 27503,
+   "min": 50,
+   "name": "Scroll of Strength V",
+   "note": "",
+   "until": 65,
+   "stat": "strength"
+  },
+  {
+   "cat": "scroll",
+   "id": 33457,
+   "min": 60,
+   "name": "Scroll of Agility VI",
+   "note": "",
+   "until": 75,
+   "stat": "agility"
+  },
+  {
+   "cat": "scroll",
+   "id": 33458,
+   "min": 60,
+   "name": "Scroll of Intellect VI",
+   "note": "",
+   "until": 75,
+   "stat": "caster"
+  },
+  {
+   "cat": "scroll",
+   "id": 33459,
+   "min": 60,
+   "name": "Scroll of Protection VI",
+   "note": "",
+   "until": 75
+  },
+  {
+   "cat": "scroll",
+   "id": 33460,
+   "min": 60,
+   "name": "Scroll of Spirit VI",
+   "note": "",
+   "until": 75,
+   "stat": "caster"
+  },
+  {
+   "cat": "scroll",
+   "id": 33461,
+   "min": 60,
+   "name": "Scroll of Stamina VI",
+   "note": "",
+   "until": 75
+  },
+  {
+   "cat": "scroll",
+   "id": 33462,
+   "min": 60,
+   "name": "Scroll of Strength VI",
+   "note": "",
+   "until": 75,
+   "stat": "strength"
+  },
+  {
+   "cat": "scroll",
+   "id": 37091,
+   "min": 70,
+   "name": "Scroll of Intellect VII",
+   "note": "",
+   "until": 80,
+   "stat": "caster"
+  },
+  {
+   "cat": "scroll",
+   "id": 37093,
+   "min": 70,
+   "name": "Scroll of Stamina VII",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "scroll",
+   "id": 37097,
+   "min": 70,
+   "name": "Scroll of Spirit VII",
+   "note": "",
+   "until": 80,
+   "stat": "caster"
+  },
+  {
+   "cat": "scroll",
+   "id": 43467,
+   "min": 70,
+   "name": "Scroll of Protection VII",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "scroll",
+   "id": 43463,
+   "min": 70,
+   "name": "Scroll of Agility VII",
+   "note": "",
+   "until": 80,
+   "stat": "agility"
+  },
+  {
+   "cat": "scroll",
+   "id": 43465,
+   "min": 70,
+   "name": "Scroll of Strength VII",
+   "note": "",
+   "until": 80,
+   "stat": "strength"
+  },
+  {
+   "cat": "scroll",
+   "id": 37092,
+   "min": 80,
+   "name": "Scroll of Intellect VIII",
+   "note": "",
+   "until": 80,
+   "stat": "caster"
+  },
+  {
+   "cat": "scroll",
+   "id": 37094,
+   "min": 80,
+   "name": "Scroll of Stamina VIII",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "scroll",
+   "id": 43468,
+   "min": 80,
+   "name": "Scroll of Protection VIII",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "scroll",
+   "id": 37098,
+   "min": 80,
+   "name": "Scroll of Spirit VIII",
+   "note": "",
+   "until": 80,
+   "stat": "caster"
+  },
+  {
+   "cat": "scroll",
+   "id": 43464,
+   "min": 80,
+   "name": "Scroll of Agility VIII",
+   "note": "",
+   "until": 80,
+   "stat": "agility"
+  },
+  {
+   "cat": "scroll",
+   "id": 43466,
+   "min": 80,
+   "name": "Scroll of Strength VIII",
+   "note": "",
+   "until": 80,
+   "stat": "strength"
+  },
+  {
+   "cat": "elixir",
+   "id": 5997,
+   "min": 1,
+   "name": "Elixir of Minor Defense",
+   "note": "Armor",
+   "until": 21
+  },
+  {
+   "cat": "elixir",
+   "id": 2454,
+   "min": 1,
+   "name": "Elixir of Lion's Strength",
+   "note": "Strength",
+   "until": 25,
+   "stat": "strength"
+  },
+  {
+   "cat": "elixir",
+   "id": 2458,
+   "min": 2,
+   "name": "Elixir of Minor Fortitude",
+   "note": "Health",
+   "until": 30
+  },
+  {
+   "cat": "elixir",
+   "id": 2457,
+   "min": 2,
+   "name": "Elixir of Minor Agility",
+   "note": "Agility",
+   "until": 23,
+   "stat": "agility"
+  },
+  {
+   "cat": "elixir",
+   "id": 3383,
+   "min": 10,
+   "name": "Elixir of Wisdom",
+   "note": "Intellect",
+   "until": 42,
+   "stat": "caster"
+  },
+  {
+   "cat": "elixir",
+   "id": 3389,
+   "min": 16,
+   "name": "Elixir of Defense",
+   "note": "Armor",
+   "until": 34
+  },
+  {
+   "cat": "elixir",
+   "id": 3390,
+   "min": 18,
+   "name": "Elixir of Lesser Agility",
+   "note": "Agility",
+   "until": 32,
+   "stat": "agility"
+  },
+  {
+   "cat": "elixir",
+   "id": 3391,
+   "min": 20,
+   "name": "Elixir of Ogre's Strength",
+   "note": "Strength",
+   "until": 43,
+   "stat": "strength"
+  },
+  {
+   "cat": "elixir",
+   "id": 3825,
+   "min": 25,
+   "name": "Elixir of Fortitude",
+   "note": "Health",
+   "until": 55
+  },
+  {
+   "cat": "elixir",
+   "id": 8949,
+   "min": 27,
+   "name": "Elixir of Agility",
+   "note": "Agility",
+   "until": 43,
+   "stat": "agility"
+  },
+  {
+   "cat": "elixir",
+   "id": 8951,
+   "min": 29,
+   "name": "Elixir of Greater Defense",
+   "note": "Armor",
+   "until": 48
+  },
+  {
+   "cat": "elixir",
+   "id": 9179,
+   "min": 37,
+   "name": "Elixir of Greater Intellect",
+   "note": "Intellect",
+   "until": 55,
+   "stat": "caster"
+  },
+  {
+   "cat": "elixir",
+   "id": 9206,
+   "min": 38,
+   "name": "Elixir of Giants",
+   "note": "Strength",
+   "until": 50,
+   "stat": "strength"
+  },
+  {
+   "cat": "elixir",
+   "id": 9187,
+   "min": 38,
+   "name": "Elixir of Greater Agility",
+   "note": "Agility",
+   "until": 51,
+   "stat": "agility"
+  },
+  {
+   "cat": "elixir",
+   "id": 13445,
+   "min": 43,
+   "name": "Elixir of Superior Defense",
+   "note": "Armor",
+   "until": 60
+  },
+  {
+   "cat": "elixir",
+   "id": 13447,
+   "min": 44,
+   "name": "Elixir of the Sages",
+   "note": "Intellect and Spirit",
+   "until": 55,
+   "stat": "caster"
+  },
+  {
+   "cat": "elixir",
+   "id": 13453,
+   "min": 45,
+   "name": "Elixir of Brute Force",
+   "note": "Strength and Stamina",
+   "until": 55,
+   "stat": "strength"
+  },
+  {
+   "cat": "elixir",
+   "id": 13452,
+   "min": 46,
+   "name": "Elixir of the Mongoose",
+   "note": "Agility and critical strike",
+   "until": 55,
+   "stat": "agility"
+  },
+  {
+   "cat": "elixir",
+   "id": 32067,
+   "min": 50,
+   "name": "Elixir of Draenic Wisdom",
+   "note": "Intellect and Spirit",
+   "until": 60,
+   "stat": "caster"
+  },
+  {
+   "cat": "elixir",
+   "id": 22824,
+   "min": 50,
+   "name": "Elixir of Major Strength",
+   "note": "Strength",
+   "until": 75,
+   "stat": "strength"
+  },
+  {
+   "cat": "elixir",
+   "id": 32062,
+   "min": 50,
+   "name": "Elixir of Major Fortitude",
+   "note": "Health",
+   "until": 75
+  },
+  {
+   "cat": "elixir",
+   "id": 22825,
+   "min": 50,
+   "name": "Elixir of Healing Power",
+   "note": "Spell power",
+   "until": 75,
+   "stat": "caster"
+  },
+  {
+   "cat": "elixir",
+   "id": 28104,
+   "min": 50,
+   "name": "Elixir of Mastery",
+   "note": "All stats",
+   "until": 75
+  },
+  {
+   "cat": "elixir",
+   "id": 22834,
+   "min": 55,
+   "name": "Elixir of Major Defense",
+   "note": "Armor",
+   "until": 75
+  },
+  {
+   "cat": "elixir",
+   "id": 22831,
+   "min": 55,
+   "name": "Elixir of Major Agility",
+   "note": "Agility",
+   "until": 75,
+   "stat": "agility"
+  },
+  {
+   "cat": "elixir",
+   "id": 22840,
+   "min": 60,
+   "name": "Elixir of Major Mageblood",
+   "note": "Mana regeneration",
+   "until": 75,
+   "stat": "caster"
+  },
+  {
+   "cat": "elixir",
+   "id": 40072,
+   "min": 70,
+   "name": "Elixir of Spirit",
+   "note": "Spirit",
+   "until": 80,
+   "stat": "caster"
+  },
+  {
+   "cat": "elixir",
+   "id": 44325,
+   "min": 70,
+   "name": "Elixir of Accuracy",
+   "note": "Hit",
+   "until": 80
+  },
+  {
+   "cat": "elixir",
+   "id": 40097,
+   "min": 70,
+   "name": "Elixir of Protection",
+   "note": "Armor",
+   "until": 80
+  },
+  {
+   "cat": "elixir",
+   "id": 40073,
+   "min": 70,
+   "name": "Elixir of Mighty Strength",
+   "note": "Strength",
+   "until": 80,
+   "stat": "strength"
+  },
+  {
+   "cat": "elixir",
+   "id": 40078,
+   "min": 70,
+   "name": "Elixir of Mighty Fortitude",
+   "note": "Health",
+   "until": 80
+  },
+  {
+   "cat": "elixir",
+   "id": 39666,
+   "min": 70,
+   "name": "Elixir of Mighty Agility",
+   "note": "Agility",
+   "until": 80,
+   "stat": "agility"
+  },
+  {
+   "cat": "elixir",
+   "id": 44330,
+   "min": 70,
+   "name": "Elixir of Armor Piercing",
+   "note": "Armor penetration",
+   "until": 80
+  },
+  {
+   "cat": "elixir",
+   "id": 44332,
+   "min": 70,
+   "name": "Elixir of Mighty Thoughts",
+   "note": "Spell power",
+   "until": 80,
+   "stat": "caster"
+  },
+  {
+   "cat": "weapon",
+   "id": 2862,
+   "min": 1,
+   "name": "Rough Sharpening Stone",
+   "note": "Blade",
+   "until": 10,
+   "stat": "physical"
+  },
+  {
+   "cat": "weapon",
+   "id": 3239,
+   "min": 1,
+   "name": "Rough Weightstone",
+   "note": "Blunt",
+   "until": 10,
+   "stat": "physical"
+  },
+  {
+   "cat": "weapon",
+   "id": 2863,
+   "min": 5,
+   "name": "Coarse Sharpening Stone",
+   "note": "Blade",
+   "until": 20,
+   "stat": "physical"
+  },
+  {
+   "cat": "weapon",
+   "id": 3240,
+   "min": 5,
+   "name": "Coarse Weightstone",
+   "note": "Blunt",
+   "until": 20,
+   "stat": "physical"
+  },
+  {
+   "cat": "weapon",
+   "id": 2871,
+   "min": 15,
+   "name": "Heavy Sharpening Stone",
+   "note": "Blade",
+   "until": 30,
+   "stat": "physical"
+  },
+  {
+   "cat": "weapon",
+   "id": 3241,
+   "min": 15,
+   "name": "Heavy Weightstone",
+   "note": "Blunt",
+   "until": 30,
+   "stat": "physical"
+  },
+  {
+   "cat": "weapon",
+   "id": 7964,
+   "min": 25,
+   "name": "Solid Sharpening Stone",
+   "note": "Blade",
+   "until": 40,
+   "stat": "physical"
+  },
+  {
+   "cat": "weapon",
+   "id": 7965,
+   "min": 25,
+   "name": "Solid Weightstone",
+   "note": "Blunt",
+   "until": 40,
+   "stat": "physical"
+  },
+  {
+   "cat": "weapon",
+   "id": 12404,
+   "min": 35,
+   "name": "Dense Sharpening Stone",
+   "note": "Blade",
+   "until": 55,
+   "stat": "physical"
+  },
+  {
+   "cat": "weapon",
+   "id": 12643,
+   "min": 35,
+   "name": "Dense Weightstone",
+   "note": "Blunt",
+   "until": 55,
+   "stat": "physical"
+  },
+  {
+   "cat": "weapon",
+   "id": 23528,
+   "min": 50,
+   "name": "Fel Sharpening Stone",
+   "note": "Blade",
+   "until": 65,
+   "stat": "physical"
+  },
+  {
+   "cat": "weapon",
+   "id": 28420,
+   "min": 50,
+   "name": "Fel Weightstone",
+   "note": "Blunt",
+   "until": 65,
+   "stat": "physical"
+  },
+  {
+   "cat": "weapon",
+   "id": 23529,
+   "min": 60,
+   "name": "Adamantite Sharpening Stone",
+   "note": "Blade",
+   "until": 80,
+   "stat": "physical"
+  },
+  {
+   "cat": "weapon",
+   "id": 28421,
+   "min": 60,
+   "name": "Adamantite Weightstone",
+   "note": "Blunt",
+   "until": 80,
+   "stat": "physical"
+  },
+  {
+   "cat": "weapon",
+   "id": 20744,
+   "min": 5,
+   "name": "Minor Wizard Oil",
+   "note": "Spell power",
+   "until": 35,
+   "stat": "caster"
+  },
+  {
+   "cat": "weapon",
+   "id": 20746,
+   "min": 30,
+   "name": "Lesser Wizard Oil",
+   "note": "Spell power",
+   "until": 45,
+   "stat": "caster"
+  },
+  {
+   "cat": "weapon",
+   "id": 20750,
+   "min": 40,
+   "name": "Wizard Oil",
+   "note": "Spell power",
+   "until": 50,
+   "stat": "caster"
+  },
+  {
+   "cat": "weapon",
+   "id": 20749,
+   "min": 45,
+   "name": "Brilliant Wizard Oil",
+   "note": "Spell power",
+   "until": 63,
+   "stat": "caster"
+  },
+  {
+   "cat": "weapon",
+   "id": 22522,
+   "min": 58,
+   "name": "Superior Wizard Oil",
+   "note": "Spell power",
+   "until": 80,
+   "stat": "caster"
+  },
+  {
+   "cat": "weapon",
+   "id": 20745,
+   "min": 20,
+   "name": "Minor Mana Oil",
+   "note": "Mana regeneration",
+   "until": 45,
+   "stat": "caster"
+  },
+  {
+   "cat": "weapon",
+   "id": 20747,
+   "min": 40,
+   "name": "Lesser Mana Oil",
+   "note": "Mana regeneration",
+   "until": 50,
+   "stat": "caster"
+  },
+  {
+   "cat": "weapon",
+   "id": 20748,
+   "min": 45,
+   "name": "Brilliant Mana Oil",
+   "note": "Mana regeneration",
+   "until": 57,
+   "stat": "caster"
+  },
+  {
+   "cat": "weapon",
+   "id": 22521,
+   "min": 52,
+   "name": "Superior Mana Oil",
+   "note": "Mana regeneration",
+   "until": 80,
+   "stat": "caster"
+  },
+  {
+   "cat": "bag",
+   "id": 4496,
+   "min": 1,
+   "name": "Small Brown Pouch",
+   "note": "",
+   "until": 15
+  },
+  {
+   "cat": "bag",
+   "id": 5762,
+   "min": 1,
+   "name": "Red Linen Bag",
+   "note": "",
+   "until": 15
+  },
+  {
+   "cat": "bag",
+   "id": 4498,
+   "min": 5,
+   "name": "Brown Leather Satchel",
+   "note": "",
+   "until": 20
+  },
+  {
+   "cat": "bag",
+   "id": 4240,
+   "min": 5,
+   "name": "Woolen Bag",
+   "note": "",
+   "until": 20
+  },
+  {
+   "cat": "bag",
+   "id": 5763,
+   "min": 5,
+   "name": "Red Woolen Bag",
+   "note": "",
+   "until": 20
+  },
+  {
+   "cat": "bag",
+   "id": 4245,
+   "min": 15,
+   "name": "Small Silk Pack",
+   "note": "",
+   "until": 30
+  },
+  {
+   "cat": "bag",
+   "id": 4497,
+   "min": 15,
+   "name": "Heavy Brown Bag",
+   "note": "",
+   "until": 30
+  },
+  {
+   "cat": "bag",
+   "id": 10050,
+   "min": 25,
+   "name": "Mageweave Bag",
+   "note": "",
+   "until": 40
+  },
+  {
+   "cat": "bag",
+   "id": 1725,
+   "min": 25,
+   "name": "Large Knapsack",
+   "note": "",
+   "until": 40
+  },
+  {
+   "cat": "bag",
+   "id": 14046,
+   "min": 35,
+   "name": "Runecloth Bag",
+   "note": "",
+   "until": 55
+  },
+  {
+   "cat": "bag",
+   "id": 3914,
+   "min": 35,
+   "name": "Journeyman's Backpack",
+   "note": "",
+   "until": 55
+  },
+  {
+   "cat": "bag",
+   "id": 4500,
+   "min": 45,
+   "name": "Traveler's Backpack",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "bag",
+   "id": 21841,
+   "min": 61,
+   "name": "Netherweave Bag",
+   "note": "",
+   "until": 80
+  },
+  {
+   "cat": "bag",
+   "id": 14155,
+   "min": 50,
+   "name": "Mooncloth Bag",
+   "note": "",
+   "until": 80
+  }
+ ],
+ "professions": {
+  "Alchemy": [
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 2450,
+      "name": "Briarthorn"
+     },
+     {
+      "count": 4,
+      "entry": 785,
+      "name": "Mageroyal"
+     },
+     {
+      "count": 3,
+      "entry": 2452,
+      "name": "Swiftthistle"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Lesser Healing Potion, Minor Mana Potion and Elixir of Minor Agility."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 765,
+      "name": "Silverleaf"
+     },
+     {
+      "count": 5,
+      "entry": 2449,
+      "name": "Earthroot"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Minor Mana Potion and Weak Troll's Blood Elixir."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 2453,
+      "name": "Bruiseweed"
+     },
+     {
+      "count": 3,
+      "entry": 3355,
+      "name": "Wild Steelbloom"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Holy Protection Potion and Minor Magic Resistance Potion."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 3820,
+      "name": "Stranglekelp"
+     },
+     {
+      "count": 3,
+      "entry": 3356,
+      "name": "Kingsblood"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Elixir of Water Breathing and Shadow Protection Potion."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 3821,
+      "name": "Goldthorn"
+     },
+     {
+      "count": 3,
+      "entry": 3358,
+      "name": "Khadgar's Whisker"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Elixir of Fortitude and Elixir of Frost Power."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 3818,
+      "name": "Fadeleaf"
+     },
+     {
+      "count": 4,
+      "entry": 3357,
+      "name": "Liferoot"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Lesser Invisibility Potion and Greater Healing Potion."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 8838,
+      "name": "Sungrass"
+     },
+     {
+      "count": 3,
+      "entry": 8836,
+      "name": "Arthas' Tears"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Invisibility Potion and Elixir of Detect Undead."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 13463,
+      "name": "Dreamfoil"
+     },
+     {
+      "count": 3,
+      "entry": 13465,
+      "name": "Mountain Silversage"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Elixir of the Sages and Major Healing Potion."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 8846,
+      "name": "Gromsblood"
+     },
+     {
+      "count": 2,
+      "entry": 8845,
+      "name": "Ghost Mushroom"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Elixir of Giants and Invisibility Potion."
+   },
+   {
+    "items": [
+     {
+      "count": 6,
+      "entry": 22785,
+      "name": "Felweed"
+     },
+     {
+      "count": 4,
+      "entry": 22786,
+      "name": "Dreaming Glory"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Adept's Elixir and Elixir of Healing Power."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 22789,
+      "name": "Terocone"
+     },
+     {
+      "count": 4,
+      "entry": 22787,
+      "name": "Ragveil"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Elixir of Mastery and Elixir of Camouflage."
+   },
+   {
+    "items": [
+     {
+      "count": 6,
+      "entry": 36901,
+      "name": "Goldclover"
+     },
+     {
+      "count": 4,
+      "entry": 36903,
+      "name": "Adder's Tongue"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Lesser Flask of Toughness and Elixir of Deadly Strikes."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 36907,
+      "name": "Talandra's Rose"
+     },
+     {
+      "count": 4,
+      "entry": 37921,
+      "name": "Deadnettle"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Potion of Nightmares and Lesser Flask of Toughness."
+   }
+  ],
+  "Blacksmithing": [
+   {
+    "items": [
+     {
+      "count": 8,
+      "entry": 2840,
+      "name": "Copper Bar"
+     },
+     {
+      "count": 1,
+      "entry": 774,
+      "name": "Malachite"
+     },
+     {
+      "count": 1,
+      "entry": 818,
+      "name": "Tigerseye"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Copper Bracers, Copper Battle Axe and Heavy Copper Longsword."
+   },
+   {
+    "items": [
+     {
+      "count": 2,
+      "entry": 2842,
+      "name": "Silver Bar"
+     },
+     {
+      "count": 4,
+      "entry": 2836,
+      "name": "Coarse Stone"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Thick War Axe and Coarse Sharpening Stone."
+   },
+   {
+    "items": [
+     {
+      "count": 8,
+      "entry": 2841,
+      "name": "Bronze Bar"
+     },
+     {
+      "count": 4,
+      "entry": 3478,
+      "name": "Coarse Grinding Stone"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Rough Bronze Boots and Pearl-handled Dagger."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 2841,
+      "name": "Bronze Bar"
+     },
+     {
+      "count": 2,
+      "entry": 1210,
+      "name": "Shadowgem"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Rough Bronze Boots and Runed Copper Breastplate."
+   },
+   {
+    "items": [
+     {
+      "count": 8,
+      "entry": 3575,
+      "name": "Iron Bar"
+     },
+     {
+      "count": 3,
+      "entry": 3486,
+      "name": "Heavy Grinding Stone"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Green Iron Gauntlets and Golden Skeleton Key."
+   },
+   {
+    "items": [
+     {
+      "count": 6,
+      "entry": 3859,
+      "name": "Steel Bar"
+     },
+     {
+      "count": 2,
+      "entry": 3577,
+      "name": "Gold Bar"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Golden Scale Shoulders and Golden Rod."
+   },
+   {
+    "items": [
+     {
+      "count": 8,
+      "entry": 3860,
+      "name": "Mithril Bar"
+     },
+     {
+      "count": 4,
+      "entry": 7966,
+      "name": "Solid Grinding Stone"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Orcish War Leggings and Truesilver Gauntlets."
+   },
+   {
+    "items": [
+     {
+      "count": 6,
+      "entry": 12359,
+      "name": "Thorium Bar"
+     },
+     {
+      "count": 2,
+      "entry": 7077,
+      "name": "Heart of Fire"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Thorium Armor and Ornate Mithril Breastplate."
+   },
+   {
+    "items": [
+     {
+      "count": 10,
+      "entry": 23445,
+      "name": "Fel Iron Bar"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Fel Iron Chain Coif."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 23446,
+      "name": "Adamantite Bar"
+     },
+     {
+      "count": 1,
+      "entry": 22452,
+      "name": "Primal Earth"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Adamantite Maul and Great Earthforged Hammer."
+   },
+   {
+    "items": [
+     {
+      "count": 10,
+      "entry": 36916,
+      "name": "Cobalt Bar"
+     },
+     {
+      "count": 3,
+      "entry": 37701,
+      "name": "Crystallized Earth"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Cobalt Chestpiece and Tempered Saronite Legplates."
+   },
+   {
+    "items": [
+     {
+      "count": 6,
+      "entry": 36913,
+      "name": "Saronite Bar"
+     },
+     {
+      "count": 3,
+      "entry": 37705,
+      "name": "Crystallized Water"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Honed Cobalt Cleaver and Reinforced Cobalt Chestpiece."
+   }
+  ],
+  "Cooking": [
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 6889,
+      "name": "Small Egg"
+     },
+     {
+      "count": 5,
+      "entry": 3173,
+      "name": "Bear Meat"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Herb Baked Egg and Smoked Bear Meat."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 5467,
+      "name": "Kodo Meat"
+     },
+     {
+      "count": 3,
+      "entry": 5466,
+      "name": "Scorpid Stinger"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Roasted Kodo Meat and Scorpid Surprise."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 1015,
+      "name": "Lean Wolf Flank"
+     },
+     {
+      "count": 5,
+      "entry": 2677,
+      "name": "Boar Ribs"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Seasoned Wolf Kabob and Dry Pork Ribs."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 2924,
+      "name": "Crocolisk Meat"
+     },
+     {
+      "count": 3,
+      "entry": 3685,
+      "name": "Raptor Egg"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Crocolisk Steak and Curiously Tasty Omelet."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 4655,
+      "name": "Giant Clam Meat"
+     },
+     {
+      "count": 5,
+      "entry": 3712,
+      "name": "Turtle Meat"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Giant Clam Scorcho and Soothing Turtle Bisque."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 12184,
+      "name": "Raptor Flesh"
+     },
+     {
+      "count": 5,
+      "entry": 12202,
+      "name": "Tiger Meat"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Roast Raptor and Jungle Stew."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 12207,
+      "name": "Giant Egg"
+     },
+     {
+      "count": 5,
+      "entry": 12206,
+      "name": "Tender Crab Meat"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Monster Omelet and Spiced Chili Crab."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 13755,
+      "name": "Winter Squid"
+     },
+     {
+      "count": 5,
+      "entry": 13759,
+      "name": "Raw Nightfin Snapper"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Grilled Squid and Nightfin Soup."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 27678,
+      "name": "Clefthoof Meat"
+     },
+     {
+      "count": 5,
+      "entry": 27682,
+      "name": "Talbuk Venison"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Stormchops and Spicy Hot Talbuk."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 27671,
+      "name": "Buzzard Meat"
+     },
+     {
+      "count": 5,
+      "entry": 27422,
+      "name": "Barbed Gill Trout"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Buzzard Bites and Blackened Trout."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 34736,
+      "name": "Chunk o' Mammoth"
+     },
+     {
+      "count": 5,
+      "entry": 43012,
+      "name": "Rhino Meat"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Great Feast and Hearty Rhino."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 41806,
+      "name": "Musselback Sculpin"
+     },
+     {
+      "count": 3,
+      "entry": 41807,
+      "name": "Dragonfin Angelfish"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Poached Northern Sculpin and Blackened Dragonfin."
+   }
+  ],
+  "Enchanting": [
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 10940,
+      "name": "Strange Dust"
+     },
+     {
+      "count": 2,
+      "entry": 10938,
+      "name": "Lesser Magic Essence"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Runed Copper Rod and Lesser Magic Wand."
+   },
+   {
+    "items": [
+     {
+      "count": 1,
+      "entry": 10939,
+      "name": "Greater Magic Essence"
+     },
+     {
+      "count": 3,
+      "entry": 10940,
+      "name": "Strange Dust"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Enchant Cloak - Minor Protection and Runed Copper Rod."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 11083,
+      "name": "Soul Dust"
+     },
+     {
+      "count": 2,
+      "entry": 10998,
+      "name": "Lesser Astral Essence"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Enchant Bracer - Lesser Stamina and Enchant Shield - Minor Stamina."
+   },
+   {
+    "items": [
+     {
+      "count": 8,
+      "entry": 10940,
+      "name": "Strange Dust"
+     },
+     {
+      "count": 2,
+      "entry": 10939,
+      "name": "Greater Magic Essence"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Enchant Bracer - Minor Agility and Enchant Chest - Lesser Mana."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 11137,
+      "name": "Vision Dust"
+     },
+     {
+      "count": 1,
+      "entry": 11134,
+      "name": "Lesser Mystic Essence"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Greater Mystic Wand and Enchant Shield - Lesser Stamina."
+   },
+   {
+    "items": [
+     {
+      "count": 6,
+      "entry": 11083,
+      "name": "Soul Dust"
+     },
+     {
+      "count": 1,
+      "entry": 11082,
+      "name": "Greater Astral Essence"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Enchant Chest - Minor Stats and Enchant Bracer - Lesser Intellect."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 11176,
+      "name": "Dream Dust"
+     },
+     {
+      "count": 1,
+      "entry": 11174,
+      "name": "Lesser Nether Essence"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Enchant Shield - Greater Spirit and Enchant Boots - Lesser Accuracy."
+   },
+   {
+    "items": [
+     {
+      "count": 3,
+      "entry": 16204,
+      "name": "Illusion Dust"
+     },
+     {
+      "count": 1,
+      "entry": 16202,
+      "name": "Lesser Eternal Essence"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Enchant Gloves - Greater Agility and Enchanted Leather."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 22445,
+      "name": "Arcane Dust"
+     },
+     {
+      "count": 1,
+      "entry": 22447,
+      "name": "Lesser Planar Essence"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Enchant Bracer - Assault and Enchant Chest - Restore Mana Prime."
+   },
+   {
+    "items": [
+     {
+      "count": 6,
+      "entry": 22445,
+      "name": "Arcane Dust"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Enchant Bracer - Assault."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 34054,
+      "name": "Infinite Dust"
+     },
+     {
+      "count": 1,
+      "entry": 34056,
+      "name": "Lesser Cosmic Essence"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Enchant Boots - Assault and Enchant Weapon - Greater Potency."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 34054,
+      "name": "Infinite Dust"
+     },
+     {
+      "count": 1,
+      "entry": 34055,
+      "name": "Greater Cosmic Essence"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Enchant Boots - Assault and Enchant Gloves - Gatherer."
+   }
+  ],
+  "Engineering": [
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 4359,
+      "name": "Handful of Copper Bolts"
+     },
+     {
+      "count": 6,
+      "entry": 2840,
+      "name": "Copper Bar"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Rough Copper Bomb and Crafted Light Shot."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 4359,
+      "name": "Handful of Copper Bolts"
+     },
+     {
+      "count": 1,
+      "entry": 774,
+      "name": "Malachite"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Rough Copper Bomb and Crude Scope."
+   },
+   {
+    "items": [
+     {
+      "count": 6,
+      "entry": 2841,
+      "name": "Bronze Bar"
+     },
+     {
+      "count": 2,
+      "entry": 4375,
+      "name": "Whirring Bronze Gizmo"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Target Dummy and Flame Deflector."
+   },
+   {
+    "items": [
+     {
+      "count": 2,
+      "entry": 2842,
+      "name": "Silver Bar"
+     },
+     {
+      "count": 4,
+      "entry": 4377,
+      "name": "Heavy Blasting Powder"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Silver Contact and Crafted Solid Shot."
+   },
+   {
+    "items": [
+     {
+      "count": 6,
+      "entry": 3860,
+      "name": "Mithril Bar"
+     },
+     {
+      "count": 4,
+      "entry": 10505,
+      "name": "Solid Blasting Powder"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Mobile Alarm and Solid Dynamite."
+   },
+   {
+    "items": [
+     {
+      "count": 2,
+      "entry": 10560,
+      "name": "Unstable Trigger"
+     },
+     {
+      "count": 2,
+      "entry": 3864,
+      "name": "Citrine"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Mobile Alarm and Bright-Eye Goggles."
+   },
+   {
+    "items": [
+     {
+      "count": 6,
+      "entry": 12359,
+      "name": "Thorium Bar"
+     },
+     {
+      "count": 4,
+      "entry": 15992,
+      "name": "Dense Blasting Powder"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Salt Shaker and Dense Dynamite."
+   },
+   {
+    "items": [
+     {
+      "count": 1,
+      "entry": 15994,
+      "name": "Thorium Widget"
+     },
+     {
+      "count": 2,
+      "entry": 10561,
+      "name": "Mithril Casing"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as High-powered Flashlight and Firework Launcher."
+   },
+   {
+    "items": [
+     {
+      "count": 8,
+      "entry": 23445,
+      "name": "Fel Iron Bar"
+     },
+     {
+      "count": 6,
+      "entry": 21877,
+      "name": "Netherweave Cloth"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Fel Iron Casing and Blue Smoke Flare."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 23446,
+      "name": "Adamantite Bar"
+     },
+     {
+      "count": 1,
+      "entry": 21884,
+      "name": "Primal Fire"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Adamantite Frame and Khorium Power Core."
+   },
+   {
+    "items": [
+     {
+      "count": 8,
+      "entry": 36916,
+      "name": "Cobalt Bar"
+     },
+     {
+      "count": 4,
+      "entry": 39681,
+      "name": "Handful of Cobalt Bolts"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Bladed Pickaxe and Diamond-cut Refractor Scope."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 36913,
+      "name": "Saronite Bar"
+     },
+     {
+      "count": 2,
+      "entry": 39690,
+      "name": "Volatile Blasting Trigger"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Scrapbot Construction Kit and Explosive Decoy."
+   }
+  ],
+  "First Aid": [
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 1251,
+      "name": "Linen Bandage"
+     }
+    ],
+    "min_level": 1,
+    "min_skill": 1,
+    "until_level": 15,
+    "until_skill": 450,
+    "what": "Ready-made bandages."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 2581,
+      "name": "Heavy Linen Bandage"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 20,
+    "until_level": 20,
+    "until_skill": 450,
+    "what": "Ready-made bandages."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 3530,
+      "name": "Wool Bandage"
+     }
+    ],
+    "min_level": 15,
+    "min_skill": 50,
+    "until_level": 25,
+    "until_skill": 450,
+    "what": "Ready-made bandages."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 3531,
+      "name": "Heavy Wool Bandage"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 75,
+    "until_level": 30,
+    "until_skill": 450,
+    "what": "Ready-made bandages."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 6450,
+      "name": "Silk Bandage"
+     }
+    ],
+    "min_level": 25,
+    "min_skill": 100,
+    "until_level": 35,
+    "until_skill": 450,
+    "what": "Ready-made bandages."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 6451,
+      "name": "Heavy Silk Bandage"
+     }
+    ],
+    "min_level": 30,
+    "min_skill": 125,
+    "until_level": 40,
+    "until_skill": 450,
+    "what": "Ready-made bandages."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 8544,
+      "name": "Mageweave Bandage"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 150,
+    "until_level": 45,
+    "until_skill": 450,
+    "what": "Ready-made bandages."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 8545,
+      "name": "Heavy Mageweave Bandage"
+     }
+    ],
+    "min_level": 40,
+    "min_skill": 175,
+    "until_level": 50,
+    "until_skill": 450,
+    "what": "Ready-made bandages."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 14529,
+      "name": "Runecloth Bandage"
+     }
+    ],
+    "min_level": 45,
+    "min_skill": 200,
+    "until_level": 55,
+    "until_skill": 450,
+    "what": "Ready-made bandages."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 14530,
+      "name": "Heavy Runecloth Bandage"
+     }
+    ],
+    "min_level": 50,
+    "min_skill": 225,
+    "until_level": 62,
+    "until_skill": 450,
+    "what": "Ready-made bandages."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 21990,
+      "name": "Netherweave Bandage"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_level": 68,
+    "until_skill": 450,
+    "what": "Ready-made bandages."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 21991,
+      "name": "Heavy Netherweave Bandage"
+     }
+    ],
+    "min_level": 62,
+    "min_skill": 325,
+    "until_level": 72,
+    "until_skill": 450,
+    "what": "Ready-made bandages."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 34721,
+      "name": "Frostweave Bandage"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 350,
+    "until_level": 76,
+    "until_skill": 450,
+    "what": "Ready-made bandages."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 34722,
+      "name": "Heavy Frostweave Bandage"
+     }
+    ],
+    "min_level": 72,
+    "min_skill": 400,
+    "until_level": 80,
+    "until_skill": 450,
+    "what": "Ready-made bandages."
+   },
+   {
+    "items": [
+     {
+      "count": 15,
+      "entry": 2589,
+      "name": "Linen Cloth"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Linen Bandage."
+   },
+   {
+    "items": [
+     {
+      "count": 10,
+      "entry": 2592,
+      "name": "Wool Cloth"
+     },
+     {
+      "count": 2,
+      "entry": 1475,
+      "name": "Small Venom Sac"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Wool Bandage and Anti-Venom."
+   },
+   {
+    "items": [
+     {
+      "count": 10,
+      "entry": 4306,
+      "name": "Silk Cloth"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Silk Bandage."
+   },
+   {
+    "items": [
+     {
+      "count": 8,
+      "entry": 4338,
+      "name": "Mageweave Cloth"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Mageweave Bandage."
+   },
+   {
+    "items": [
+     {
+      "count": 10,
+      "entry": 14047,
+      "name": "Runecloth"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Runecloth Bandage."
+   },
+   {
+    "items": [
+     {
+      "count": 10,
+      "entry": 21877,
+      "name": "Netherweave Cloth"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Netherweave Bandage."
+   },
+   {
+    "items": [
+     {
+      "count": 10,
+      "entry": 33470,
+      "name": "Frostweave Cloth"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Heavy Frostweave Bandage."
+   }
+  ],
+  "Fishing": [
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 6529,
+      "name": "Shiny Bauble"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 450,
+    "what": "Lure (+25)"
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 6530,
+      "name": "Nightcrawlers"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 50,
+    "until_skill": 450,
+    "what": "Lure (+50)"
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 6532,
+      "name": "Bright Baubles"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 100,
+    "until_skill": 450,
+    "what": "Lure (+75)"
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 6533,
+      "name": "Aquadynamic Fish Attractor"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 100,
+    "until_skill": 450,
+    "what": "Lure (+100)"
+   },
+   {
+    "items": [
+     {
+      "count": 1,
+      "entry": 6365,
+      "name": "Strong Fishing Pole"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 10,
+    "until_skill": 450,
+    "what": "Better fishing pole (+5)"
+   },
+   {
+    "items": [
+     {
+      "count": 1,
+      "entry": 6366,
+      "name": "Darkwood Fishing Pole"
+     }
+    ],
+    "min_level": 15,
+    "min_skill": 50,
+    "until_skill": 450,
+    "what": "Better fishing pole (+15)"
+   },
+   {
+    "items": [
+     {
+      "count": 1,
+      "entry": 6367,
+      "name": "Big Iron Fishing Pole"
+     }
+    ],
+    "min_level": 25,
+    "min_skill": 100,
+    "until_skill": 450,
+    "what": "Better fishing pole (+20)"
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 7307,
+      "name": "Flesh Eating Worm"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 100,
+    "until_skill": 450,
+    "what": "Lure (+75)"
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 34861,
+      "name": "Sharpened Fish Hook"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 100,
+    "until_skill": 450,
+    "what": "Lure (+100); Northrend"
+   }
+  ],
+  "Inscription": [
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 39469,
+      "name": "Moonglow Ink"
+     },
+     {
+      "count": 3,
+      "entry": 39774,
+      "name": "Midnight Ink"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Armor Vellum and Glyph of Arcane Intellect."
+   },
+   {
+    "items": [
+     {
+      "count": 6,
+      "entry": 39151,
+      "name": "Alabaster Pigment"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Ivory Ink."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 43116,
+      "name": "Lion's Ink"
+     },
+     {
+      "count": 4,
+      "entry": 39334,
+      "name": "Dusky Pigment"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Glyph of Aquatic Form and Midnight Ink."
+   },
+   {
+    "items": [
+     {
+      "count": 3,
+      "entry": 43118,
+      "name": "Jadefire Ink"
+     },
+     {
+      "count": 1,
+      "entry": 43103,
+      "name": "Verdant Pigment"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Glyph of Astral Recall and Hunter's Ink."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 43120,
+      "name": "Celestial Ink"
+     },
+     {
+      "count": 4,
+      "entry": 39339,
+      "name": "Emerald Pigment"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Glyph of Safe Fall and Jadefire Ink."
+   },
+   {
+    "items": [
+     {
+      "count": 1,
+      "entry": 43119,
+      "name": "Royal Ink"
+     },
+     {
+      "count": 2,
+      "entry": 43120,
+      "name": "Celestial Ink"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Arcane Tarot and Glyph of Safe Fall."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 43122,
+      "name": "Shimmering Ink"
+     },
+     {
+      "count": 4,
+      "entry": 39341,
+      "name": "Silvery Pigment"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Glyph of Earth Shield and Shimmering Ink."
+   },
+   {
+    "items": [
+     {
+      "count": 2,
+      "entry": 43124,
+      "name": "Ethereal Ink"
+     },
+     {
+      "count": 1,
+      "entry": 43121,
+      "name": "Fiery Ink"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Glyph of Eternal Water and Book of Stars."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 43124,
+      "name": "Ethereal Ink"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Glyph of Earthliving Weapon."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 43126,
+      "name": "Ink of the Sea"
+     },
+     {
+      "count": 1,
+      "entry": 43125,
+      "name": "Darkflame Ink"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Glyph of Blast Wave and Book of Clever Tricks."
+   },
+   {
+    "items": [
+     {
+      "count": 8,
+      "entry": 43126,
+      "name": "Ink of the Sea"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Glyph of Focus."
+   },
+   {
+    "items": [
+     {
+      "count": 1,
+      "entry": 43127,
+      "name": "Snowfall Ink"
+     },
+     {
+      "count": 2,
+      "entry": 43109,
+      "name": "Icy Pigment"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Darkmoon Card of the North and Snowfall Ink."
+   }
+  ],
+  "Jewelcrafting": [
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 20816,
+      "name": "Delicate Copper Wire"
+     },
+     {
+      "count": 2,
+      "entry": 774,
+      "name": "Malachite"
+     },
+     {
+      "count": 1,
+      "entry": 818,
+      "name": "Tigerseye"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Braided Copper Ring, Malachite Pendant and Tigerseye Band."
+   },
+   {
+    "items": [
+     {
+      "count": 2,
+      "entry": 20817,
+      "name": "Bronze Setting"
+     },
+     {
+      "count": 1,
+      "entry": 1210,
+      "name": "Shadowgem"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Simple Pearl Ring and Thick Bronze Necklace."
+   },
+   {
+    "items": [
+     {
+      "count": 3,
+      "entry": 20817,
+      "name": "Bronze Setting"
+     },
+     {
+      "count": 2,
+      "entry": 1705,
+      "name": "Lesser Moonstone"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Brilliant Necklace and Bronze Torc."
+   },
+   {
+    "items": [
+     {
+      "count": 2,
+      "entry": 1206,
+      "name": "Moss Agate"
+     },
+     {
+      "count": 1,
+      "entry": 1529,
+      "name": "Jade"
+     },
+     {
+      "count": 3,
+      "entry": 3575,
+      "name": "Iron Bar"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Brilliant Necklace, Heavy Jade Ring and Barbaric Iron Collar."
+   },
+   {
+    "items": [
+     {
+      "count": 2,
+      "entry": 3864,
+      "name": "Citrine"
+     },
+     {
+      "count": 3,
+      "entry": 20963,
+      "name": "Mithril Filigree"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Blazing Citrine Ring and Jade Pendant of Blasting."
+   },
+   {
+    "items": [
+     {
+      "count": 2,
+      "entry": 1529,
+      "name": "Jade"
+     },
+     {
+      "count": 2,
+      "entry": 3577,
+      "name": "Gold Bar"
+     },
+     {
+      "count": 1,
+      "entry": 6037,
+      "name": "Truesilver Bar"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Silver Rose Pendant, Heavy Golden Necklace of Battle and Engraved Truesilver Ring."
+   },
+   {
+    "items": [
+     {
+      "count": 3,
+      "entry": 21752,
+      "name": "Thorium Setting"
+     },
+     {
+      "count": 1,
+      "entry": 7910,
+      "name": "Star Ruby"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Ruby Crown of Restoration and Red Ring of Destruction."
+   },
+   {
+    "items": [
+     {
+      "count": 2,
+      "entry": 7909,
+      "name": "Aquamarine"
+     },
+     {
+      "count": 2,
+      "entry": 6037,
+      "name": "Truesilver Bar"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Figurine - Truesilver Crab and Ruby Crown of Restoration."
+   },
+   {
+    "items": [
+     {
+      "count": 2,
+      "entry": 23077,
+      "name": "Blood Garnet"
+     },
+     {
+      "count": 2,
+      "entry": 23079,
+      "name": "Deep Peridot"
+     },
+     {
+      "count": 2,
+      "entry": 23112,
+      "name": "Golden Draenite"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Teardrop Blood Garnet, Radiant Deep Peridot and Brilliant Golden Draenite."
+   },
+   {
+    "items": [
+     {
+      "count": 2,
+      "entry": 23107,
+      "name": "Shadow Draenite"
+     },
+     {
+      "count": 2,
+      "entry": 21929,
+      "name": "Flame Spessarite"
+     },
+     {
+      "count": 2,
+      "entry": 23117,
+      "name": "Azure Moonstone"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Glowing Shadow Draenite, Inscribed Flame Spessarite and Solid Azure Moonstone."
+   },
+   {
+    "items": [
+     {
+      "count": 2,
+      "entry": 36932,
+      "name": "Dark Jade"
+     },
+     {
+      "count": 2,
+      "entry": 36929,
+      "name": "Huge Citrine"
+     },
+     {
+      "count": 2,
+      "entry": 36926,
+      "name": "Shadow Crystal"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Jade Dagger Pendant and Icy Prism."
+   },
+   {
+    "items": [
+     {
+      "count": 1,
+      "entry": 41163,
+      "name": "Titanium Bar"
+     },
+     {
+      "count": 1,
+      "entry": 35624,
+      "name": "Eternal Earth"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Emerald Boar and Blood Sun Necklace."
+   }
+  ],
+  "Leatherworking": [
+   {
+    "items": [
+     {
+      "count": 10,
+      "entry": 2318,
+      "name": "Light Leather"
+     },
+     {
+      "count": 6,
+      "entry": 2934,
+      "name": "Ruined Leather Scraps"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Light Armor Kit and Light Leather."
+   },
+   {
+    "items": [
+     {
+      "count": 3,
+      "entry": 783,
+      "name": "Light Hide"
+     },
+     {
+      "count": 3,
+      "entry": 5082,
+      "name": "Thin Kodo Leather"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Cured Light Hide and Kodo Hide Bag."
+   },
+   {
+    "items": [
+     {
+      "count": 10,
+      "entry": 2319,
+      "name": "Medium Leather"
+     },
+     {
+      "count": 2,
+      "entry": 4231,
+      "name": "Cured Light Hide"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Black Whelp Cloak and Embossed Leather Pants."
+   },
+   {
+    "items": [
+     {
+      "count": 2,
+      "entry": 4233,
+      "name": "Cured Medium Hide"
+     },
+     {
+      "count": 4,
+      "entry": 6470,
+      "name": "Deviate Scale"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Dark Leather Belt and Deviate Scale Cloak."
+   },
+   {
+    "items": [
+     {
+      "count": 8,
+      "entry": 4234,
+      "name": "Heavy Leather"
+     },
+     {
+      "count": 2,
+      "entry": 4236,
+      "name": "Cured Heavy Hide"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Barbaric Gloves and Barbaric Bracers."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 4304,
+      "name": "Thick Leather"
+     },
+     {
+      "count": 5,
+      "entry": 8167,
+      "name": "Turtle Scale"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Shadowskin Gloves and Turtle Scale Gloves."
+   },
+   {
+    "items": [
+     {
+      "count": 8,
+      "entry": 8170,
+      "name": "Rugged Leather"
+     },
+     {
+      "count": 1,
+      "entry": 15407,
+      "name": "Cured Rugged Hide"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Rugged Armor Kit and Green Dragonscale Gauntlets."
+   },
+   {
+    "items": [
+     {
+      "count": 8,
+      "entry": 4304,
+      "name": "Thick Leather"
+     },
+     {
+      "count": 4,
+      "entry": 15408,
+      "name": "Heavy Scorpid Scale"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Dragonscale Gauntlets and Heavy Scorpid Bracers."
+   },
+   {
+    "items": [
+     {
+      "count": 10,
+      "entry": 21887,
+      "name": "Knothide Leather"
+     },
+     {
+      "count": 3,
+      "entry": 25700,
+      "name": "Fel Scales"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Comfortable Insoles and Felscale Gloves."
+   },
+   {
+    "items": [
+     {
+      "count": 2,
+      "entry": 23793,
+      "name": "Heavy Knothide Leather"
+     },
+     {
+      "count": 4,
+      "entry": 25708,
+      "name": "Thick Clefthoof Leather"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Magister's Armor Kit and Clefthide Leg Armor."
+   },
+   {
+    "items": [
+     {
+      "count": 10,
+      "entry": 33568,
+      "name": "Borean Leather"
+     },
+     {
+      "count": 2,
+      "entry": 38557,
+      "name": "Icy Dragonscale"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Arctic Gloves and Dragonstompers."
+   },
+   {
+    "items": [
+     {
+      "count": 2,
+      "entry": 38425,
+      "name": "Heavy Borean Leather"
+     },
+     {
+      "count": 4,
+      "entry": 38558,
+      "name": "Nerubian Chitin"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Bracers of Deflection and Black Chitinguard Boots."
+   }
+  ],
+  "Tailoring": [
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 2996,
+      "name": "Bolt of Linen Cloth"
+     },
+     {
+      "count": 2,
+      "entry": 2318,
+      "name": "Light Leather"
+     }
+    ],
+    "min_level": 5,
+    "min_skill": 1,
+    "until_skill": 100,
+    "what": "For recipes such as Brown Linen Shirt and Simple Linen Boots."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 2997,
+      "name": "Bolt of Woolen Cloth"
+     },
+     {
+      "count": 2,
+      "entry": 3182,
+      "name": "Spider's Silk"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Woolen Cape and Spidersilk Boots."
+   },
+   {
+    "items": [
+     {
+      "count": 10,
+      "entry": 2592,
+      "name": "Wool Cloth"
+     },
+     {
+      "count": 1,
+      "entry": 5498,
+      "name": "Small Lustrous Pearl"
+     }
+    ],
+    "min_level": 10,
+    "min_skill": 75,
+    "until_skill": 175,
+    "what": "For recipes such as Bolt of Woolen Cloth and Pearl-clasped Cloak."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 4305,
+      "name": "Bolt of Silk Cloth"
+     },
+     {
+      "count": 2,
+      "entry": 4337,
+      "name": "Thick Spider's Silk"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Azure Silk Vest and Enchanter's Cowl."
+   },
+   {
+    "items": [
+     {
+      "count": 3,
+      "entry": 4339,
+      "name": "Bolt of Mageweave"
+     },
+     {
+      "count": 1,
+      "entry": 10285,
+      "name": "Shadow Silk"
+     }
+    ],
+    "min_level": 20,
+    "min_skill": 150,
+    "until_skill": 250,
+    "what": "For recipes such as Robe of Power and Shadoweave Pants."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 14048,
+      "name": "Bolt of Runecloth"
+     },
+     {
+      "count": 2,
+      "entry": 14227,
+      "name": "Ironweb Spider Silk"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Frostweave Robe and Runecloth Robe."
+   },
+   {
+    "items": [
+     {
+      "count": 5,
+      "entry": 4339,
+      "name": "Bolt of Mageweave"
+     },
+     {
+      "count": 2,
+      "entry": 7077,
+      "name": "Heart of Fire"
+     }
+    ],
+    "min_level": 35,
+    "min_skill": 225,
+    "until_skill": 325,
+    "what": "For recipes such as Cindercloth Robe and Cindercloth Vest."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 21840,
+      "name": "Bolt of Netherweave"
+     },
+     {
+      "count": 2,
+      "entry": 21881,
+      "name": "Netherweb Spider Silk"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Flying Carpet and Imbued Netherweave Bag."
+   },
+   {
+    "items": [
+     {
+      "count": 20,
+      "entry": 21877,
+      "name": "Netherweave Cloth"
+     },
+     {
+      "count": 1,
+      "entry": 21886,
+      "name": "Primal Life"
+     }
+    ],
+    "min_level": 61,
+    "min_skill": 300,
+    "until_skill": 400,
+    "what": "For recipes such as Bolt of Netherweave and Silver Spellthread."
+   },
+   {
+    "items": [
+     {
+      "count": 4,
+      "entry": 41510,
+      "name": "Bolt of Frostweave"
+     },
+     {
+      "count": 1,
+      "entry": 42253,
+      "name": "Iceweb Spider Silk"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Frostwoven Boots and Azure Spellthread."
+   },
+   {
+    "items": [
+     {
+      "count": 1,
+      "entry": 41511,
+      "name": "Bolt of Imbued Frostweave"
+     },
+     {
+      "count": 2,
+      "entry": 34054,
+      "name": "Infinite Dust"
+     }
+    ],
+    "min_level": 71,
+    "min_skill": 375,
+    "until_skill": 450,
+    "what": "For recipes such as Frostguard Drape and Bolt of Imbued Frostweave."
+   }
+  ]
+ },
+ "starters": {
+  "Alchemy": {
+   "items": [
+    {
+     "count": 10,
+     "entry": 3371,
+     "name": "Empty Vial"
+    },
+    {
+     "count": 5,
+     "entry": 2447,
+     "name": "Peacebloom"
+    },
+    {
+     "count": 5,
+     "entry": 765,
+     "name": "Silverleaf"
+    },
+    {
+     "count": 2,
+     "entry": 2449,
+     "name": "Earthroot"
+    }
+   ],
+   "what": "Vials and herbs for the first potions and elixirs (Earthroot for Lion's Strength).",
+   "why": "Alchemists brew healing and mana potions, elixirs that strengthen body and mind, and later transmute one material into another. Their potions are among the most valued supplies an adventurer can carry."
+  },
+  "Blacksmithing": {
+   "items": [
+    {
+     "count": 1,
+     "entry": 5956,
+     "name": "Blacksmith Hammer"
+    },
+    {
+     "count": 10,
+     "entry": 2840,
+     "name": "Copper Bar"
+    },
+    {
+     "count": 5,
+     "entry": 2835,
+     "name": "Rough Stone"
+    }
+   ],
+   "what": "The hammer the first recipes need, copper bars, and stone for sharpening stones.",
+   "why": "Blacksmiths forge weapons and mail and plate armour from metal bars, and make the sharpening and weight stones every fighter uses. A smith keeps their own gear in shape and is always in demand among soldiers."
+  },
+  "Cooking": {
+   "items": [
+    {
+     "count": 5,
+     "entry": 2672,
+     "name": "Stringy Wolf Meat"
+    },
+    {
+     "count": 5,
+     "entry": 769,
+     "name": "Chunk of Boar Meat"
+    }
+   ],
+   "what": "Raw meat for the first recipes. Cooking requires a heat source, such as a campfire or a stove.",
+   "why": "A good cook turns plain meat and fish into hearty meals that leave a traveller well fed and stronger for hours on the road. Cooks are welcome at every campfire, and their dishes always find a buyer."
+  },
+  "Enchanting": {
+   "items": [
+    {
+     "count": 1,
+     "entry": 6217,
+     "name": "Copper Rod"
+    },
+    {
+     "count": 3,
+     "entry": 10940,
+     "name": "Strange Dust"
+    },
+    {
+     "count": 1,
+     "entry": 10938,
+     "name": "Lesser Magic Essence"
+    }
+   ],
+   "what": "Everything for the Runed Copper Rod (Copper Rod, Strange Dust, Lesser Magic Essence), which every enchantment needs, plus dust for the first enchantments.",
+   "why": "Enchanters break unwanted magic items down into dust and essences and use them to imbue weapons and armour with lasting power. Every adventurer wants their gear enchanted, so a good enchanter never lacks work."
+  },
+  "Engineering": {
+   "items": [
+    {
+     "count": 1,
+     "entry": 5956,
+     "name": "Blacksmith Hammer"
+    },
+    {
+     "count": 10,
+     "entry": 2840,
+     "name": "Copper Bar"
+    },
+    {
+     "count": 10,
+     "entry": 2835,
+     "name": "Rough Stone"
+    }
+   ],
+   "what": "The hammer the first recipes need (bolts, tubes, and the Arclight Spanner itself), copper bars, and stone for blasting powder.",
+   "why": "Engineers build gadgets, explosives, guns and scopes, and later even mechanical mounts and devices that can carry them across the world. Their inventions are unpredictable, sometimes dangerous, and never dull."
+  },
+  "First Aid": {
+   "items": [
+    {
+     "count": 10,
+     "entry": 2589,
+     "name": "Linen Cloth"
+    }
+   ],
+   "what": "Linen for the first bandages.",
+   "why": "Anyone who can bind a wound with clean linen keeps themselves and their companions alive when no healer is near. It costs little to learn, and the cloth for bandages comes from the enemies a traveller fights anyway."
+  },
+  "Fishing": {
+   "items": [
+    {
+     "count": 1,
+     "entry": 6256,
+     "name": "Fishing Pole"
+    },
+    {
+     "count": 2,
+     "entry": 6529,
+     "name": "Shiny Bauble"
+    }
+   ],
+   "what": "A first pole and two lures; any fishing trainer teaches the rest.",
+   "why": "A fisher never goes hungry: any lake, river or sea becomes a source of food, and the catch can be cooked, sold or traded. Patient anglers even pull up treasure chests and rare fish worth a small fortune."
+  },
+  "Herbalism": {
+   "items": [
+    {
+     "count": 1,
+     "entry": 22250,
+     "name": "Herb Pouch"
+    },
+    {
+     "count": 3,
+     "entry": 2447,
+     "name": "Peacebloom"
+    },
+    {
+     "count": 3,
+     "entry": 765,
+     "name": "Silverleaf"
+    }
+   ],
+   "what": "A herb pouch, and a few Peacebloom and Silverleaf to show what to look for.",
+   "why": "Herbalists know which flowers and roots grow where and gather them on their travels. Alchemists and scribes pay well for them, and old herbal lore teaches how to draw a little healing from the plants themselves."
+  },
+  "Inscription": {
+   "items": [
+    {
+     "count": 1,
+     "entry": 39505,
+     "name": "Virtuoso Inking Set"
+    },
+    {
+     "count": 10,
+     "entry": 39354,
+     "name": "Light Parchment"
+    },
+    {
+     "count": 5,
+     "entry": 37101,
+     "name": "Ivory Ink"
+    }
+   ],
+   "what": "The inking set, parchment, and Ivory Ink for the first scrolls.",
+   "why": "Scribes grind herbs into pigments and inks and write scrolls, glyphs that shape a fighter's abilities, and even decks of fortune cards. Every kind of fighter and spellcaster wants glyphs, so a scribe's work is always in demand."
+  },
+  "Jewelcrafting": {
+   "items": [
+    {
+     "count": 1,
+     "entry": 20815,
+     "name": "Jeweler's Kit"
+    },
+    {
+     "count": 10,
+     "entry": 2840,
+     "name": "Copper Bar"
+    },
+    {
+     "count": 8,
+     "entry": 2835,
+     "name": "Rough Stone"
+    },
+    {
+     "count": 2,
+     "entry": 774,
+     "name": "Malachite"
+    }
+   ],
+   "what": "The Jeweler's Kit (the very first recipes do without it, but Malachite Pendant, Inlaid Malachite Ring, Bronze Setting and most later ones need it), copper bars for Delicate Copper Wire and the first rings, rough stone for a statue, and two Malachite.",
+   "why": "Jewelcrafters cut raw gems and set them into rings, necklaces and trinkets, and shape stones that add power to gear. They also prospect ore for hidden gems, so a little mining goes a long way."
+  },
+  "Leatherworking": {
+   "items": [
+    {
+     "count": 10,
+     "entry": 2318,
+     "name": "Light Leather"
+    },
+    {
+     "count": 5,
+     "entry": 2320,
+     "name": "Coarse Thread"
+    }
+   ],
+   "what": "Leather and thread for the first pieces.",
+   "why": "Leatherworkers turn hides into sturdy armour for hunters, rogues, druids and shamans, along with armour kits that toughen any piece of gear. It pairs naturally with skinning, so the hunter supplies the craftsman."
+  },
+  "Mining": {
+   "items": [
+    {
+     "count": 1,
+     "entry": 2901,
+     "name": "Mining Pick"
+    }
+   ],
+   "what": "The pick every miner needs (tool category Mining Pick).",
+   "why": "Miners dig copper, tin, iron and rarer ores from the hills, the raw stuff every smith, engineer and jeweller needs. Ore always sells, and mining also toughens the body."
+  },
+  "Skinning": {
+   "items": [
+    {
+     "count": 1,
+     "entry": 7005,
+     "name": "Skinning Knife"
+    }
+   ],
+   "what": "The knife every skinner needs (tool category Skinning Knife).",
+   "why": "A skinner takes leather and hides from the beasts they hunt, so every wolf or boar brought down is worth something. Leather is always in demand among leatherworkers, and the work is said to sharpen a fighter's eye for a weak spot."
+  },
+  "Tailoring": {
+   "items": [
+    {
+     "count": 20,
+     "entry": 2589,
+     "name": "Linen Cloth"
+    },
+    {
+     "count": 5,
+     "entry": 2320,
+     "name": "Coarse Thread"
+    }
+   ],
+   "what": "Linen (two make a bolt) and thread for the first pieces.",
+   "why": "Tailors weave cloth taken from fallen foes into robes, shirts and, most valued of all, bags to carry more on the road. A good tailor never lacks for customers, since every traveller needs more room in their packs."
+  }
+ },
+ "trainers": {
+  "\"Cookie\" McWeaksauce": {
+   "entry": 17246,
+   "faction": "Stormwind",
+   "gender": "male",
+   "race": "Human"
+  },
+  "Adele Fielder": {
+   "entry": 1632,
+   "faction": "Stormwind",
+   "gender": "female",
+   "race": "Human"
+  },
+  "Akham": {
+   "entry": 16728,
+   "faction": "Exodar",
+   "gender": "male",
+   "race": "Draenei"
+  },
+  "Alchemist Mallory": {
+   "entry": 1215,
+   "faction": "Stormwind",
+   "gender": "male",
+   "race": "Human"
+  },
+  "Alestus": {
+   "entry": 16662,
+   "faction": "Silvermoon City",
+   "gender": "male",
+   "race": "Blood Elf"
+  },
+  "Androl Oakhand": {
+   "entry": 3607,
+   "faction": "Darnassus",
+   "gender": "male",
+   "race": "Night Elf"
+  },
+  "Arnok": {
+   "entry": 3373,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Orc"
+  },
+  "Balthus Stoneflayer": {
+   "entry": 6291,
+   "faction": "Ironforge",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Belil": {
+   "entry": 16663,
+   "faction": "Silvermoon City",
+   "gender": "male",
+   "race": "Blood Elf"
+  },
+  "Bemarrin": {
+   "entry": 16669,
+   "faction": "Silvermoon City",
+   "gender": "male",
+   "race": "Blood Elf"
+  },
+  "Bena Winterhoof": {
+   "entry": 3009,
+   "faction": "Thunder Bluff",
+   "gender": "female",
+   "race": "Tauren"
+  },
+  "Botanist Tyniarrel": {
+   "entry": 16367,
+   "faction": "Silvermoon City",
+   "gender": "male",
+   "race": "Blood Elf"
+  },
+  "Brek Stonehoof": {
+   "entry": 3001,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Brom Killian": {
+   "entry": 4598,
+   "faction": "Undercity",
+   "gender": "male",
+   "race": "Undead"
+  },
+  "Bronk Guzzlegear": {
+   "entry": 1702,
+   "faction": "Ironforge",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Byancie": {
+   "entry": 6094,
+   "faction": "Darnassus",
+   "gender": "female",
+   "race": "Night Elf"
+  },
+  "Camberon": {
+   "entry": 16642,
+   "faction": "Silvermoon City",
+   "gender": "male",
+   "race": "Blood Elf"
+  },
+  "Carolai Anise": {
+   "entry": 2132,
+   "faction": "Undercity",
+   "gender": "female",
+   "race": "Undead"
+  },
+  "Catarina Stanford": {
+   "entry": 30713,
+   "faction": "Stormwind",
+   "gender": "female",
+   "race": "Human"
+  },
+  "Chaw Stronghide": {
+   "entry": 3069,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Clyde Kellen": {
+   "entry": 5690,
+   "faction": "Undercity",
+   "gender": "male",
+   "race": "Undead"
+  },
+  "Cyndra Kindwhisper": {
+   "entry": 3603,
+   "faction": "Darnassus",
+   "gender": "female",
+   "race": "Night Elf"
+  },
+  "Danwe": {
+   "entry": 16667,
+   "faction": "Silvermoon City",
+   "gender": "female",
+   "race": "Blood Elf"
+  },
+  "Delfrum Flintbeard": {
+   "entry": 6299,
+   "faction": "Darnassus",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Diktynna": {
+   "entry": 17101,
+   "faction": "Exodar",
+   "gender": "female",
+   "race": "Draenei"
+  },
+  "Drathen": {
+   "entry": 16780,
+   "faction": "Silvermoon City",
+   "gender": "male",
+   "race": "Blood Elf"
+  },
+  "Dulvi": {
+   "entry": 17488,
+   "faction": "Exodar",
+   "gender": "female",
+   "race": "Draenei"
+  },
+  "Dwukk": {
+   "entry": 3174,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Orc"
+  },
+  "Eladriel": {
+   "entry": 6292,
+   "faction": "Darnassus",
+   "gender": "female",
+   "race": "Night Elf"
+  },
+  "Eldrin": {
+   "entry": 1103,
+   "faction": "Stormwind",
+   "gender": "male",
+   "race": "Human"
+  },
+  "Elise Brightletter": {
+   "entry": 30717,
+   "faction": "Ironforge",
+   "gender": "female",
+   "race": "Dwarf"
+  },
+  "Eunice Burch": {
+   "entry": 4552,
+   "faction": "Undercity",
+   "gender": "female",
+   "race": "Undead"
+  },
+  "Farii": {
+   "entry": 19778,
+   "faction": "Exodar",
+   "gender": "female",
+   "race": "Draenei"
+  },
+  "Feyden Darkin": {
+   "entry": 30715,
+   "faction": "Darnassus",
+   "gender": "male",
+   "race": "Night Elf"
+  },
+  "Firodren Mooncaller": {
+   "entry": 4204,
+   "faction": "Darnassus",
+   "gender": "male",
+   "race": "Night Elf"
+  },
+  "Franklin Lloyd": {
+   "entry": 11031,
+   "faction": "Undercity",
+   "gender": "male",
+   "race": "Undead"
+  },
+  "Gelman Stonehand": {
+   "entry": 5513,
+   "faction": "Stormwind",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Gimble Thistlefuzz": {
+   "entry": 5157,
+   "faction": "Gnomeregan Exiles",
+   "gender": "male",
+   "race": "Gnome"
+  },
+  "Godan": {
+   "entry": 3345,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Orc"
+  },
+  "Gremlock Pilsnor": {
+   "entry": 1699,
+   "faction": "Ironforge",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Grimnur Stonebrand": {
+   "entry": 5161,
+   "faction": "Ironforge",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Gurf": {
+   "entry": 17441,
+   "faction": "Stillpine Furbolg"
+  },
+  "Helene Peltskinner": {
+   "entry": 6306,
+   "faction": "Stormwind",
+   "gender": "female",
+   "race": "Human"
+  },
+  "Herbalist Pomeroy": {
+   "entry": 1218,
+   "faction": "Stormwind",
+   "gender": "female",
+   "race": "Human"
+  },
+  "Heur": {
+   "entry": 17983,
+   "faction": "Exodar",
+   "gender": "male",
+   "race": "Draenei"
+  },
+  "James Van Brunt": {
+   "entry": 4596,
+   "faction": "Undercity",
+   "gender": "male",
+   "race": "Undead"
+  },
+  "Jenna Lemkenilli": {
+   "entry": 11037,
+   "faction": "Gnomeregan Exiles",
+   "gender": "female",
+   "race": "Gnome"
+  },
+  "Jo'mah": {
+   "entry": 30706,
+   "faction": "Darkspear Trolls",
+   "gender": "male",
+   "race": "Troll"
+  },
+  "Jormund Stonebrow": {
+   "entry": 5153,
+   "faction": "Ironforge",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Josef Gregorian": {
+   "entry": 4576,
+   "faction": "Undercity",
+   "gender": "male",
+   "race": "Undead"
+  },
+  "Kah Mistrunner": {
+   "entry": 3028,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Kalinda": {
+   "entry": 19775,
+   "faction": "Silvermoon City",
+   "gender": "female",
+   "race": "Blood Elf"
+  },
+  "Karn Stonehoof": {
+   "entry": 2998,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Karolek": {
+   "entry": 3365,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Orc"
+  },
+  "Keelen Sheets": {
+   "entry": 16640,
+   "faction": "Silvermoon City",
+   "gender": "male",
+   "race": "Blood Elf"
+  },
+  "Killian Hagey": {
+   "entry": 7087,
+   "faction": "Undercity",
+   "gender": "male",
+   "race": "Undead"
+  },
+  "Kitta Firewind": {
+   "entry": 11072,
+   "faction": "Stormwind",
+   "gender": "female",
+   "race": "Human"
+  },
+  "Komin Winterhoof": {
+   "entry": 3013,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Krunn": {
+   "entry": 3175,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Orc"
+  },
+  "Kurdram Stonehammer": {
+   "entry": 6297,
+   "faction": "Darnassus",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Lau'Tiki": {
+   "entry": 5941,
+   "faction": "Darkspear Trolls",
+   "gender": "male",
+   "race": "Troll"
+  },
+  "Lavinia Crowe": {
+   "entry": 4616,
+   "faction": "Undercity",
+   "gender": "female",
+   "race": "Undead"
+  },
+  "Lee Brown": {
+   "entry": 1651,
+   "faction": "Stormwind",
+   "gender": "male",
+   "race": "Human"
+  },
+  "Lilliam Sparkspindle": {
+   "entry": 5518,
+   "faction": "Gnomeregan Exiles",
+   "gender": "male",
+   "race": "Gnome"
+  },
+  "Lucc": {
+   "entry": 16723,
+   "faction": "Exodar",
+   "gender": "male",
+   "race": "Draenei"
+  },
+  "Lynalis": {
+   "entry": 16688,
+   "faction": "Silvermoon City",
+   "gender": "female",
+   "race": "Blood Elf"
+  },
+  "Magar": {
+   "entry": 3363,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Orc"
+  },
+  "Margaux Parchley": {
+   "entry": 30711,
+   "faction": "Undercity",
+   "gender": "female",
+   "race": "Undead"
+  },
+  "Martha Alliestar": {
+   "entry": 4614,
+   "faction": "Undercity",
+   "gender": "female",
+   "race": "Undead"
+  },
+  "Me'lynn": {
+   "entry": 4159,
+   "faction": "Darnassus",
+   "gender": "female",
+   "race": "Night Elf"
+  },
+  "Miall": {
+   "entry": 16724,
+   "faction": "Exodar",
+   "gender": "female",
+   "race": "Draenei"
+  },
+  "Miao'zan": {
+   "entry": 3184,
+   "faction": "Darkspear Trolls",
+   "gender": "male",
+   "race": "Troll"
+  },
+  "Michelle Belle": {
+   "entry": 2329,
+   "faction": "Stormwind",
+   "gender": "female",
+   "race": "Human"
+  },
+  "Mishiki": {
+   "entry": 3185,
+   "faction": "Darkspear Trolls",
+   "gender": "female",
+   "race": "Troll"
+  },
+  "Nadyia Maneweaver": {
+   "entry": 3605,
+   "faction": "Darnassus",
+   "gender": "female",
+   "race": "Night Elf"
+  },
+  "Nahogg": {
+   "entry": 16725,
+   "faction": "Exodar",
+   "gender": "male",
+   "race": "Draenei"
+  },
+  "Nissa Firestone": {
+   "entry": 5150,
+   "faction": "Ironforge",
+   "gender": "female",
+   "race": "Dwarf"
+  },
+  "Nurse Neela": {
+   "entry": 5759,
+   "faction": "Undercity",
+   "gender": "female",
+   "race": "Undead"
+  },
+  "Nus": {
+   "entry": 16731,
+   "faction": "Exodar",
+   "gender": "female",
+   "race": "Draenei"
+  },
+  "Ockil": {
+   "entry": 16726,
+   "faction": "Exodar",
+   "gender": "male",
+   "race": "Draenei"
+  },
+  "Pand Stonebinder": {
+   "entry": 2798,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Poshken Hardbinder": {
+   "entry": 30709,
+   "faction": "Undercity",
+   "gender": "male",
+   "race": "Undead"
+  },
+  "Pyall Silentstride": {
+   "entry": 3067,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Quarelestra": {
+   "entry": 16277,
+   "faction": "Silvermoon City",
+   "gender": "female",
+   "race": "Blood Elf"
+  },
+  "Rawrk": {
+   "entry": 5943,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Orc"
+  },
+  "Refik": {
+   "entry": 16729,
+   "faction": "Exodar",
+   "gender": "male",
+   "race": "Draenei"
+  },
+  "Reyna Stonebranch": {
+   "entry": 5137,
+   "faction": "Ironforge",
+   "gender": "female",
+   "race": "Dwarf"
+  },
+  "Roxxik": {
+   "entry": 11017,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Goblin"
+  },
+  "Sedana": {
+   "entry": 16633,
+   "faction": "Silvermoon City",
+   "gender": "female",
+   "race": "Blood Elf"
+  },
+  "Shelene Rhobart": {
+   "entry": 3549,
+   "faction": "Undercity",
+   "gender": "female",
+   "race": "Undead"
+  },
+  "Smith Argus": {
+   "entry": 514,
+   "faction": "Stormwind",
+   "gender": "male",
+   "race": "Human"
+  },
+  "Taladan": {
+   "entry": 4213,
+   "faction": "Darnassus",
+   "gender": "male",
+   "race": "Night Elf"
+  },
+  "Tally Berryfizz": {
+   "entry": 5177,
+   "faction": "Gnomeregan Exiles",
+   "gender": "female",
+   "race": "Gnome"
+  },
+  "Teg Dawnstrider": {
+   "entry": 3011,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Tepa": {
+   "entry": 3004,
+   "faction": "Thunder Bluff",
+   "gender": "female",
+   "race": "Tauren"
+  },
+  "Thoth": {
+   "entry": 30716,
+   "faction": "Exodar",
+   "gender": "male",
+   "race": "Draenei"
+  },
+  "Thuwd": {
+   "entry": 7088,
+   "faction": "Orgrimmar",
+   "gender": "male",
+   "race": "Orc"
+  },
+  "Tognus Flintfire": {
+   "entry": 1241,
+   "faction": "Ironforge",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Tomas": {
+   "entry": 1430,
+   "faction": "Stormwind",
+   "gender": "male",
+   "race": "Human"
+  },
+  "Tyn": {
+   "entry": 16692,
+   "faction": "Silvermoon City",
+   "gender": "male",
+   "race": "Blood Elf"
+  },
+  "Yarr Hammerstone": {
+   "entry": 5392,
+   "faction": "Ironforge",
+   "gender": "male",
+   "race": "Dwarf"
+  },
+  "Yonn Deepcut": {
+   "entry": 6290,
+   "faction": "Thunder Bluff",
+   "gender": "male",
+   "race": "Tauren"
+  },
+  "Zamja": {
+   "entry": 3399,
+   "faction": "Darkspear Trolls",
+   "gender": "female",
+   "race": "Troll"
+  },
+  "Zantasia": {
+   "entry": 30710,
+   "faction": "Silvermoon City",
+   "gender": "female",
+   "race": "Blood Elf"
+  },
+  "Zarrin": {
+   "entry": 6286,
+   "faction": "Darnassus",
+   "gender": "male",
+   "race": "Night Elf"
+  }
+ }
+}

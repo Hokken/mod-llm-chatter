@@ -149,6 +149,10 @@ public:
     bool _lootRollCommentEnable;
     // Bot memories: discovery is scanned in the worldserver
     bool _memoryEnable;
+    bool _lettersEnable;
+    uint32 _lettersPollSeconds;
+    bool _rumorsEnable;
+    uint32 _rumorsRefreshSeconds;
     bool _memoryDiscoveryEnable;
     uint32 _memoryDiscoveryMinLevel;
     uint32 _memoryDiscoveryRange;

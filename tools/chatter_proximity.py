@@ -13,6 +13,12 @@ from chatter_constants import (
     PROXIMITY_PLAYER_WEATHER_TOPICS,
     REACTION_TONES,
 )
+from chatter_reactive_rumors import (
+    RumorTopic,
+    pick_rumor,
+    record_voicing,
+    rumor_prompt_lines,
+)
 from chatter_proximity_pacing import proximity_line_delays
 from chatter_db import insert_chat_message
 from chatter_llm import call_llm
@@ -1062,6 +1068,8 @@ def _single_prompt(
             "Message must use 2-8 words and no more than 50 "
             "characters."
             if brief_casual
+            else "Message must be 12-25 words, natural and local."
+            if isinstance(topic, RumorTopic)
             else "Message must be 8-15 words, natural, local, "
             "and low-stakes."
         ),
@@ -1106,7 +1114,9 @@ def _single_prompt(
                 f"Speaker background: "
                 f"{speaker_backstory}"
             )
-    if not isinstance(extra.get('screenshot_observation'), dict):
+    if isinstance(topic, RumorTopic):
+        lines.extend(rumor_prompt_lines(topic, player_name))
+    elif not isinstance(extra.get('screenshot_observation'), dict):
         lines.append(f"Topic seed: {topic}")
 
     if player_message:
@@ -1162,6 +1172,7 @@ def _single_prompt(
 def _conversation_prompt(
     db, extra: Dict, participants: List[Dict],
     config: Optional[Dict] = None,
+    rumor: Optional[RumorTopic] = None,
 ) -> PromptParts:
     mode = get_chatter_mode(config or {})
     has_playerbot = any(
@@ -1189,6 +1200,8 @@ def _conversation_prompt(
             + "; playerbot angle: "
             + _pick_topic(PROXIMITY_PLAYER_CHAT_TOPICS, extra)
         )
+    if rumor is not None:
+        topic = None
     max_lines = max(
         2, min(
             int(extra.get('max_lines', 3) or 3),
@@ -1250,11 +1263,15 @@ def _conversation_prompt(
     player_addressed = bool(
         extra.get('player_addressed', False)
     )
+    # An addressed rumor is spoken to the player: it lifts the
+    # NPC-only rule for this scene instead of contradicting it.
+    rumor_addressed = bool(rumor is not None and rumor.addressed)
     if not has_playerbot:
         # NPCs talking among themselves: no line goes to the player or
         # the bots with them. Only nearby NPCs stay addressable; a
         # payload without nearby_npc_names offers nobody.
-        player_addressed = False
+        if not rumor_addressed:
+            player_addressed = False
         npc_names = extra.get('nearby_npc_names')
         npc_names = set(npc_names) if isinstance(npc_names, list) else set()
         nearby_names = [n for n in nearby_names if n in npc_names]
@@ -1269,6 +1286,11 @@ def _conversation_prompt(
         "Keep the exchange brief.",
         "",
         *([f"Topic seed: {topic}"] if topic is not None else []),
+        *(
+            rumor_prompt_lines(
+                rumor, extra.get('player_name', 'the player')
+            ) if rumor is not None else []
+        ),
         f"Write EXACTLY {max_lines} messages.",
         "Speakers may address each other by name.",
     ]
@@ -1280,7 +1302,7 @@ def _conversation_prompt(
         extra, mode, participants, db=db, place_topic=place_topic,
         include_player=has_playerbot,
     ))
-    if not has_playerbot:
+    if not has_playerbot and not rumor_addressed:
         lines.append(
             "The speakers talk only among themselves"
             + (" (or to the nearby people named below)"
@@ -1399,6 +1421,17 @@ def _generate_single_line(
     )
 
 
+def _rumor_refused(db, event_id: int, extra: Dict) -> bool:
+    """A scene the worldserver queued only for a fresh rumor, which
+    the bridge will not tell here (an instance, a fight, a screenshot
+    or a hostile speaker): skip it rather than turn it into small talk
+    that skipped the ambient roll."""
+    if not extra.get('rumor_forced'):
+        return False
+    _mark_event(db, event_id, 'skipped')
+    return True
+
+
 def handle_proximity_say(db, client, config, event):
     event_id = int(event['id'])
     extra = parse_extra_data(
@@ -1411,6 +1444,11 @@ def handle_proximity_say(db, client, config, event):
         _mark_event(db, event_id, 'skipped')
         return False
 
+    rumor = pick_rumor(db, config, extra, participants[:1])
+    if rumor is None and _rumor_refused(db, event_id, extra):
+        return False
+    if rumor is not None and rumor.addressed:
+        extra = {**extra, 'player_addressed': True}
     ok = _generate_single_line(
         db,
         client,
@@ -1418,8 +1456,14 @@ def handle_proximity_say(db, client, config, event):
         event_id,
         extra,
         participants[0],
+        topic=rumor,
         label='proximity_say',
     )
+    if ok:
+        record_voicing(
+            db, event_id,
+            int(extra.get('player_guid', 0) or 0), rumor,
+        )
     _mark_event(
         db, event_id,
         'completed' if ok else 'skipped',
@@ -1441,8 +1485,13 @@ def handle_proximity_conversation(
         _mark_event(db, event_id, 'skipped')
         return False
 
+    rumor = pick_rumor(db, config, extra, participants)
+    if rumor is None and _rumor_refused(db, event_id, extra):
+        return False
+    if rumor is not None and rumor.addressed:
+        extra = {**extra, 'player_addressed': True}
     prompt = _conversation_prompt(
-        db, extra, participants, config=config,
+        db, extra, participants, config=config, rumor=rumor,
     )
     max_lines = int(extra.get('max_lines', 3) or 3)
     # Each line needs ~60-80 tokens for JSON structure
@@ -1518,6 +1567,8 @@ def handle_proximity_conversation(
             "to single-line output after parse failure",
             event_id,
         )
+        # The rumor stays the subject: a scene queued for it must not
+        # turn into small talk, and a told rumor is counted.
         fallback = _generate_single_line(
             db,
             client,
@@ -1525,14 +1576,18 @@ def handle_proximity_conversation(
             event_id,
             extra,
             participants[0],
+            topic=rumor,
             label='proximity_conversation_fallback',
         )
+        if fallback:
+            record_voicing(db, event_id, player_guid, rumor)
         _mark_event(
             db, event_id,
             'completed' if fallback else 'skipped',
         )
         return fallback
 
+    record_voicing(db, event_id, player_guid, rumor)
     _mark_event(db, event_id, 'completed')
     return True
 

@@ -78,6 +78,7 @@ std::string BuildBotIdentityFields(
     Player* player, bool includeRoles = false);
 std::string BuildBotStateJson(Player* player);
 std::string BuildBotTravelStateJson(Player* player);
+std::string BuildGroupDeathJson(Player* player);
 std::string GetBotTravelContext(Player* player);
 std::string GetBotTravelMode(Player* player);
 bool HasUnsafeChatterFacingMotion(Unit* unit);

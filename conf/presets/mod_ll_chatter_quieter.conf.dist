@@ -4128,6 +4128,8 @@ LLMChatter.Memory.Enable = 1
 #       the reacting bot records an ambient memory. It holds
 #       only real facts: where the party travels, and the time
 #       of day, season and live weather; no invented incidents.
+#       None is recorded while the player or that bot is dead or
+#       a ghost.
 #       Default: 20
 #
 LLMChatter.Memory.AmbientChance = 20
@@ -5101,3 +5103,227 @@ LLMChatter.Screenshot.Proximity.RequestTimeoutSeconds = 5
 #       Default: 60
 #
 LLMChatter.Screenshot.Proximity.MaxAgeSeconds = 60
+
+###################################################################################################
+# WORLD REACTIVITY: LETTERS
+#
+#   Letters reach the player's mailbox, each with a gift, in answer to
+#   what the player did. Most settings are read by the bridge; restart
+#   it after edits. Requires the 20261103 migrations in data/sql.
+#
+#   Turning a letter type off stops new deeds and new letters of that
+#   type once the process has loaded the config: restart the bridge,
+#   and use .reload config for the keys the worldserver reads. Letters
+#   already scheduled or written are not cancelled.
+#
+#   LLMChatter.Letters.Enable
+#       Master switch for letters. Also read by the worldserver.
+#       Default: 1 (enabled)
+#
+LLMChatter.Letters.Enable = 1
+
+#
+#   LLMChatter.Letters.PollSeconds
+#       How often the bridge reads new deeds and writes due letters.
+#       Default: 30
+#
+LLMChatter.Letters.PollSeconds = 30
+
+#
+#   LLMChatter.Letters.DeliveryPollSeconds
+#       How often the worldserver sends letters that are ready.
+#       Worldserver setting: reload server config after changing it.
+#       Default: 15
+#
+LLMChatter.Letters.DeliveryPollSeconds = 15
+
+#
+#   LLMChatter.Letters.BatchSize
+#       Most letters written per pass, to keep LLM calls even.
+#       Default: 3
+#
+LLMChatter.Letters.BatchSize = 3
+
+#
+#   LLMChatter.Letters.MaxChars
+#       Target letter length. It only steers the prompt: the model is
+#       asked for one word per 8 of these, and the letter it writes is
+#       delivered whole.
+#       Default: 700
+#
+LLMChatter.Letters.MaxChars = 700
+
+#
+#   LLMChatter.Letters.MaxSubjectChars
+#       Target subject length, in the prompt only. A subject is cut
+#       only past its 128-character column, at a whole word.
+#       Default: 60
+#
+LLMChatter.Letters.MaxSubjectChars = 60
+
+#
+#   LLMChatter.Letters.Memories.Enable
+#       Letters from a bot that shares memories with the player and is
+#       not in their group, with a gift for the player's level.
+#       Default: 1 (enabled)
+#
+LLMChatter.Letters.Memories.Enable = 1
+
+#
+#   LLMChatter.Letters.Memories.CooldownMinDays
+#   LLMChatter.Letters.Memories.CooldownMaxDays
+#       Days between memory letters. Rolled anew after each letter.
+#       Defaults: 10, 14
+#
+LLMChatter.Letters.Memories.CooldownMinDays = 10
+LLMChatter.Letters.Memories.CooldownMaxDays = 14
+
+#
+#   LLMChatter.Letters.Memories.PreciousChance
+#       Percent chance (0-100) that a memory letter's gift may be one
+#       of the rare treats in the common gift table.
+#       Default: 10
+#
+LLMChatter.Letters.Memories.PreciousChance = 10
+
+#
+#   LLMChatter.Letters.Dungeons.Enable
+#   LLMChatter.Letters.Dungeons.Chance
+#   LLMChatter.Letters.Dungeons.DelayMinDays
+#   LLMChatter.Letters.Dungeons.DelayMaxDays
+#       Letter after a dungeon achievement: percent chance, decided once
+#       per dungeon, and days until it arrives.
+#       Defaults: 1, 30, 2, 4
+#
+LLMChatter.Letters.Dungeons.Enable = 1
+LLMChatter.Letters.Dungeons.Chance = 30
+LLMChatter.Letters.Dungeons.DelayMinDays = 2
+LLMChatter.Letters.Dungeons.DelayMaxDays = 4
+
+#
+#   LLMChatter.Letters.Raids.Enable
+#   LLMChatter.Letters.Raids.Chance
+#   LLMChatter.Letters.Raids.DelayMinDays
+#   LLMChatter.Letters.Raids.DelayMaxDays
+#       The same for raid achievements.
+#       Defaults: 1, 60, 4, 6
+#
+LLMChatter.Letters.Raids.Enable = 1
+LLMChatter.Letters.Raids.Chance = 60
+LLMChatter.Letters.Raids.DelayMinDays = 4
+LLMChatter.Letters.Raids.DelayMaxDays = 6
+
+#
+#   LLMChatter.Letters.Quests.Enable
+#   LLMChatter.Letters.Quests.Chance
+#   LLMChatter.Letters.Quests.DelayMinDays
+#   LLMChatter.Letters.Quests.DelayMaxDays
+#       The same for each zone's chosen quest.
+#       Defaults: 1, 60, 4, 6
+#
+LLMChatter.Letters.Quests.Enable = 1
+LLMChatter.Letters.Quests.Chance = 60
+LLMChatter.Letters.Quests.DelayMinDays = 4
+LLMChatter.Letters.Quests.DelayMaxDays = 6
+
+#
+#   LLMChatter.Letters.Starters.Enable
+#   LLMChatter.Letters.Starters.FirstMinLevel
+#   LLMChatter.Letters.Starters.FirstMaxLevel
+#   LLMChatter.Letters.Starters.SecondMinLevel
+#   LLMChatter.Letters.Starters.SecondMaxLevel
+#       A trainer invites the player to learn a profession, with a
+#       starter kit. Two letters per character, each at a random level
+#       in its range, about different professions, and only while the
+#       character has a free profession slot.
+#       Defaults: 1, 5, 15, 15, 25
+#
+LLMChatter.Letters.Starters.Enable = 1
+LLMChatter.Letters.Starters.FirstMinLevel = 5
+LLMChatter.Letters.Starters.FirstMaxLevel = 15
+LLMChatter.Letters.Starters.SecondMinLevel = 15
+LLMChatter.Letters.Starters.SecondMaxLevel = 25
+
+#
+#   LLMChatter.Letters.Professions.Enable
+#   LLMChatter.Letters.Professions.FirstLevel
+#   LLMChatter.Letters.Professions.IntervalMinLevels
+#   LLMChatter.Letters.Professions.IntervalMaxLevels
+#       A trainer shares surplus materials suited to the player's skill.
+#       The first letter comes at FirstLevel, then one every so many
+#       levels, rolled anew each time.
+#       Defaults: 1, 25, 14, 20
+#
+LLMChatter.Letters.Professions.Enable = 1
+LLMChatter.Letters.Professions.FirstLevel = 25
+LLMChatter.Letters.Professions.IntervalMinLevels = 14
+LLMChatter.Letters.Professions.IntervalMaxLevels = 20
+
+###################################################################################################
+# WORLD REACTIVITY: RUMORS
+#
+#   Friendly and neutral NPCs near the player talk about what the player
+#   did. Rumors replace the topic of an ordinary proximity scene, so
+#   they need LLMChatter.ProximityChatter.Enable.
+#
+#   Turning a rumor type off stops new rumors of that type once the
+#   bridge has restarted; .reload config applies Rumors.Enable to the
+#   worldserver. Rumors already fresh and lines already queued are not
+#   cancelled.
+#
+#   LLMChatter.Rumors.Enable
+#       Master switch for rumors. Also read by the worldserver.
+#       Default: 1 (enabled)
+#
+LLMChatter.Rumors.Enable = 1
+
+#
+#   LLMChatter.Rumors.RefreshSeconds
+#       How often the worldserver reloads the fresh rumors it keeps in
+#       memory (one async query). A new rumor can wait this long before
+#       it skips the ambient roll. Read by the worldserver: apply with
+#       .reload config. Minimum 1.
+#       Default: 10
+#
+LLMChatter.Rumors.RefreshSeconds = 10
+
+#
+#   LLMChatter.Rumors.Achievements.Enable
+#   LLMChatter.Rumors.Quests.Enable
+#   LLMChatter.Rumors.Dungeons.Enable
+#       Each kind of rumor. Dungeons includes raids.
+#       Defaults: 1, 1, 1
+#
+LLMChatter.Rumors.Achievements.Enable = 1
+LLMChatter.Rumors.Quests.Enable = 1
+LLMChatter.Rumors.Dungeons.Enable = 1
+
+#
+#   LLMChatter.Rumors.Chance
+#       Percent chance that a scene with no fresh rumor uses an older one.
+#       Default: 8
+#
+LLMChatter.Rumors.Chance = 8
+
+#
+#   LLMChatter.Rumors.FreshVoicings
+#       How many delivered lines a new rumor keeps top priority for.
+#       Default: 1
+#
+LLMChatter.Rumors.FreshVoicings = 1
+
+#
+#   LLMChatter.Rumors.RepeatCooldownMinutes
+#       Minutes before an older rumor about a player can be told again.
+#       Default: 360
+#
+LLMChatter.Rumors.RepeatCooldownMinutes = 360
+
+#
+#   LLMChatter.Rumors.AddressedChance
+#       Percent chance (0-100) that a quest or dungeon rumor is spoken
+#       to the player, recognising them; otherwise it is passed on as
+#       local news. Achievement rumors are always spoken to the player.
+#       Default: 50
+#
+LLMChatter.Rumors.AddressedChance = 50

@@ -1,0 +1,4732 @@
+{
+ "dungeons": [
+  {
+   "achievements": [
+    629
+   ],
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 2454,
+      "name": "Elixir of Lion's Strength"
+     }
+    ]
+   },
+   "key": "ragefire_chasm",
+   "letter": "Since Taragaman the Hungerer fell, the Searing Blade cultists below the Cleft of Shadow have scattered into the deepest tunnels. The troggs still claw up from the lava, but fewer of them reach the upper caves, and the shamans no longer post double guards at the chasm's mouth.",
+   "name": "Ragefire Chasm",
+   "origin": "From the Kor'kron stores in the Cleft of Shadow, where the guards drink them before going down after the Searing Blade. The guard sends a few to the player who helped empty the chasm, so they can keep fighting.",
+   "senders": {
+    "any": {
+     "entry": 14304,
+     "faction": "Orgrimmar",
+     "gender": "male",
+     "location": "the Cleft of Shadow, Orgrimmar",
+     "name": "Kor'kron Elite",
+     "race": "Orc",
+     "role": "a Kor'kron guard of the Cleft of Shadow"
+    }
+   }
+  },
+  {
+   "achievements": [
+    630
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 6522,
+      "name": "Deviate Fish"
+     }
+    ]
+   },
+   "key": "wailing_caverns",
+   "letter": "Naralex is awake. He is weak, and the Nightmare still clings to the deepest caves, but the Druids of the Fang have lost their purpose and Mutanus is dead. The wailing from the fissures has softened, and at the Lushwater Oasis I found new grass growing at the water's edge.",
+   "name": "Wailing Caverns",
+   "origin": "Caught by Nalpak in the pools of the Wailing Caverns, which have grown calmer since the Druids of the Fang were stopped. He sends a few to the one who woke Naralex, insisting they are safe to cook.",
+   "senders": {
+    "any": {
+     "entry": 5767,
+     "gender": "male",
+     "location": "Wailing Caverns",
+     "name": "Nalpak",
+     "race": "Tauren",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    628
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 818,
+      "name": "Tigerseye"
+     }
+    ]
+   },
+   "key": "deadmines",
+   "letter": "With Edwin VanCleef dead and his ship crippled in its hidden cove, the Defias Brotherhood has lost its head. Its gangs still roam Westfall, but they fight over what is left, the mines under Moonbrook have gone quiet, and merchant ships sail the coast without fear of a Defias juggernaut.",
+   "name": "Deadmines",
+   "origin": "Found in a seam of the Deadmines that the Defias never worked, by miners who went back in after VanCleef's death. Gryan Stoutmantle (Alliance) or a Booty Bay shipping agent (Horde) sends them as a share of what the mines are starting to give again.",
+   "senders": {
+    "alliance": {
+     "entry": 234,
+     "faction": "Stormwind",
+     "gender": "male",
+     "location": "Sentinel Hill",
+     "name": "Gryan Stoutmantle",
+     "race": "Human",
+     "role": ""
+    },
+    "horde": {
+     "entry": 2496,
+     "faction": "Booty Bay",
+     "location": "Booty Bay",
+     "name": "Baron Revilgaz",
+     "role": "a shipping agent of Booty Bay, writing on the baron's behalf"
+    }
+   }
+  },
+  {
+   "achievements": [
+    631
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 3385,
+      "name": "Lesser Mana Potion"
+     }
+    ]
+   },
+   "key": "shadowfang_keep",
+   "letter": "Archmage Arugal is dead, and the worgen he called his children have lost their master. They still prowl the halls of Shadowfang Keep, but the howls over Pyrewood at night are fewer, and travellers on the south road no longer hurry past the keep before dark.",
+   "name": "Shadowfang Keep",
+   "origin": "From the stores Dalar Dawnweaver (Horde) or a Kirin Tor mage at the Dalaran crater (Alliance) kept for the fight against Arugal's worgen. With Arugal dead they are not needed, so they go to the one who ended him.",
+   "senders": {
+    "alliance": {
+     "entry": 2543,
+     "faction": "Dalaran",
+     "gender": "male",
+     "location": "the Dalaran crater",
+     "name": "Archmage Ansirem Runeweaver",
+     "race": "Human",
+     "role": "a Kirin Tor mage"
+    },
+    "horde": {
+     "entry": 1938,
+     "faction": "Undercity",
+     "gender": "male",
+     "location": "the Sepulcher",
+     "name": "Dalar Dawnweaver",
+     "race": "Undead",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    632
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 5498,
+      "name": "Small Lustrous Pearl"
+     }
+    ]
+   },
+   "key": "blackfathom_deeps",
+   "letter": "With Aku'mai slain, the Twilight's Hammer in Blackfathom Deeps has lost the beast it served. The cultists and naga still hold the drowned temple, but the black water off the Zoram Strand is clearing, and fishermen have seen moonlight on that shore again.",
+   "name": "Blackfathom Deeps",
+   "origin": "Gathered from the shallows below the sunken temple of Elune, where the water is clearing now that the Twilight's Hammer has lost its hold. Je'neu Sancrea (Horde) or a priestess of Elune in Astranaar (Alliance) sends them to the one who drove out Aku'mai's servants.",
+   "senders": {
+    "alliance": {
+     "entry": 3845,
+     "faction": "Darnassus",
+     "gender": "female",
+     "location": "Astranaar",
+     "name": "Shindrell Swiftfire",
+     "race": "Night Elf",
+     "role": "a priestess of Elune"
+    },
+    "horde": {
+     "entry": 12736,
+     "faction": "Darkspear Trolls",
+     "gender": "male",
+     "location": "Zoram'gar Outpost",
+     "name": "Je'neu Sancrea",
+     "race": "Troll",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    633
+   ],
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 2594,
+      "name": "Flagon of Mead"
+     }
+    ]
+   },
+   "key": "stormwind_stockade",
+   "letter": "With Bazil Thredd and the other ringleaders of the riot dealt with, my guards have retaken the Stockade cell by cell. The prisoners are back behind bars where they belong, and the folk of the Canal District no longer bar their doors at night.",
+   "name": "Stormwind Stockade",
+   "origin": "Confiscated from a Defias prisoner's cell by the guards after the riot in the Stockade was put down. Warden Thelwater sends them from the prison stores to the one who ended the riot, since no guard of his will be drinking a prisoner's mead.",
+   "senders": {
+    "any": {
+     "entry": 1719,
+     "faction": "Stormwind",
+     "gender": "male",
+     "location": "Stormwind",
+     "name": "Warden Thelwater",
+     "race": "Human",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    635
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 2450,
+      "name": "Briarthorn"
+     }
+    ]
+   },
+   "key": "razorfen_kraul",
+   "letter": "With Charlga Razorflank dead, the quilboar of the Kraul have lost the crone who bargained with the Scourge. Their raids on the southern Barrens caravans have slowed, and I've reopened my import business. Mostly the legal parts.",
+   "name": "Razorfen Kraul",
+   "origin": "Cut from the thorny undergrowth around the Razorfen, which Willix the Importer can sell again now that the quilboar raid his caravans less. He sends a bundle to the one who once escorted him out of the Kraul, as thanks and a trader's tip.",
+   "senders": {
+    "any": {
+     "entry": 4508,
+     "faction": "Ratchet",
+     "gender": "male",
+     "location": "",
+     "name": "Willix the Importer",
+     "race": "Goblin",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    634
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 1,
+      "entry": 4401,
+      "name": "Mechanical Squirrel Box"
+     }
+    ]
+   },
+   "key": "gnomeregan",
+   "letter": "Mekgineer Thermaplugg is gone, and the leper gnomes in Gnomeregan have no one left to follow. The troggs still own the halls and the radiation lingers, but scouts went deeper this week than anyone has dared since the city fell, and came back with all their limbs.",
+   "name": "Gnomeregan",
+   "origin": "Salvaged from a Gnomeregan workshop once Mekgineer Thermaplugg was gone and scouts could search deeper. Ozzie Togglevolt (Alliance) or Nogg (Horde) sends it as a small reward and a reminder of what gnomish engineering can do.",
+   "senders": {
+    "alliance": {
+     "entry": 1268,
+     "faction": "Gnomeregan Exiles",
+     "gender": "male",
+     "location": "Kharanos",
+     "name": "Ozzie Togglevolt",
+     "race": "Gnome",
+     "role": ""
+    },
+    "horde": {
+     "entry": 3412,
+     "faction": "Orgrimmar",
+     "gender": "male",
+     "location": "Orgrimmar",
+     "name": "Nogg",
+     "race": "Goblin",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    636
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 3821,
+      "name": "Goldthorn"
+     }
+    ]
+   },
+   "key": "razorfen_downs",
+   "letter": "Amnennar the Coldbringer has been destroyed, and the Scourge's grip on the Razorfen Downs is broken. The undead that remain wander without orders, the quilboar have begun fighting to take back their sacred city, and the cold that crept out of the Downs into the Barrens has lifted.",
+   "name": "Razorfen Downs",
+   "origin": "Gathered by Myriam Moonsinger around the Razorfen, where the thorns have started to grow back since Amnennar the Coldbringer's frost lifted. She sends them to the one who destroyed the lich.",
+   "senders": {
+    "any": {
+     "entry": 12866,
+     "gender": "female",
+     "location": "near the Razorfen Downs",
+     "name": "Myriam Moonsinger",
+     "race": "Night Elf",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    637
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 4419,
+      "name": "Scroll of Intellect III"
+     }
+    ]
+   },
+   "key": "scarlet_monastery",
+   "letter": "High Inquisitor Whitemane and Commander Mograine are dead, and the Scarlet Monastery has lost its masters. The Crusaders still hold its halls, but their raiding parties rarely leave the walls now, and the roads of northern Tirisfal are quieter than they have been in years.",
+   "name": "Scarlet Monastery",
+   "origin": "Taken from the monastery library after the Scarlet leaders there were slain. Executor Zygand (Horde) or Raleigh the Devout (Alliance) sends them to the player as a share of the spoils.",
+   "senders": {
+    "alliance": {
+     "entry": 3980,
+     "faction": "Stormwind",
+     "gender": "male",
+     "location": "Southshore",
+     "name": "Raleigh the Devout",
+     "race": "Human",
+     "role": ""
+    },
+    "horde": {
+     "entry": 1515,
+     "faction": "Undercity",
+     "gender": "male",
+     "location": "Brill",
+     "name": "Executor Zygand",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    638
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 1,
+      "entry": 3864,
+      "name": "Citrine"
+     }
+    ]
+   },
+   "key": "uldaman",
+   "letter": "Archaedas stands still again, and the Dark Irons who came for the Discs of Norgannon have been driven out. The excavation teams are back in the outer halls, and the scholars are already arguing about what the discs really say.",
+   "name": "Uldaman",
+   "origin": "Found in the rubble of the titan vault of Uldaman after Archaedas was defeated. Historian Karnik (Alliance) or Jarkal Mossmeld (Horde) sends it as a small share of the dig's finds.",
+   "senders": {
+    "alliance": {
+     "entry": 2916,
+     "faction": "Ironforge",
+     "gender": "male",
+     "location": "Ironforge",
+     "name": "Historian Karnik",
+     "race": "Dwarf",
+     "role": ""
+    },
+    "horde": {
+     "entry": 6868,
+     "faction": "Darkspear Trolls",
+     "gender": "male",
+     "location": "Kargath",
+     "name": "Jarkal Mossmeld",
+     "race": "Troll",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    639
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 7909,
+      "name": "Aquamarine"
+     }
+    ]
+   },
+   "key": "zulfarrak",
+   "letter": "Chief Ukorz Sandscalp is dead, and the Sandfury trolls of Zul'Farrak are fighting among themselves over who should lead. Their raiders no longer harass the caravans between Gadgetzan and Steamwheedle Port, and our water haulers travel without escorts again.",
+   "name": "Zul'Farrak",
+   "origin": "Taken from the Sandfury's hoard in Zul'Farrak after Chief Ukorz Sandscalp died. Tran'rek, who wanted the trolls dealt with but would never keep troll treasure himself, sends the stones to the one who did the job.",
+   "senders": {
+    "any": {
+     "entry": 7876,
+     "faction": "Gadgetzan",
+     "gender": "male",
+     "location": "Gadgetzan",
+     "name": "Tran'rek",
+     "race": "Goblin",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    640
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 7079,
+      "name": "Globe of Water"
+     }
+    ]
+   },
+   "key": "maraudon",
+   "letter": "With Princess Theradras destroyed, the corruption that poisoned Zaetar's tomb is weakening. The water in the pools of Maraudon runs clearer every day, and the plants around its entrance have begun to lose their twisted, sickly colour.",
+   "name": "Maraudon",
+   "origin": "Drawn from the pools near Zaetar's resting place in Maraudon, where the water has run clear since Princess Theradras died. Keeper Marandis (Alliance) or Vark Battlescar (Horde) sends them as proof of the change.",
+   "senders": {
+    "alliance": {
+     "entry": 13698,
+     "faction": "Cenarion Circle",
+     "gender": "male",
+     "location": "Nijel's Point",
+     "name": "Keeper Marandis",
+     "role": ""
+    },
+    "horde": {
+     "entry": 11823,
+     "faction": "Thunder Bluff",
+     "gender": "male",
+     "location": "Shadowprey Village",
+     "name": "Vark Battlescar",
+     "race": "Tauren",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    641
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 15412,
+      "name": "Green Dragonscale"
+     }
+    ]
+   },
+   "key": "sunken_temple",
+   "letter": "The shade of Eranikus is gone from the temple, and the Atal'ai's ritual to call Hakkar has failed once more. My flight still guards the drowned ruins, but the dark dreams that troubled the swamp have faded, and the marsh birds have returned to the lake above the temple.",
+   "name": "Sunken Temple",
+   "origin": "Shed by Itharius's green dragons in the Swamp of Sorrows, after the player defeated Hakkar's avatar and Eranikus. Itharius sends them as the thanks of the green dragonflight.",
+   "senders": {
+    "any": {
+     "entry": 5353,
+     "gender": "male",
+     "location": "Swamp of Sorrows",
+     "name": "Itharius",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    642
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 11325,
+      "name": "Dark Iron Ale Mug"
+     }
+    ]
+   },
+   "key": "blackrock_depths",
+   "letter": "With Emperor Thaurissan dead, Shadowforge City has fallen into quarrels over who will rule. Dark Iron patrols in the Searing Gorge have thinned, and the Thorium Brotherhood does business in the Grim Guzzler more openly than it has in years.",
+   "name": "Blackrock Depths",
+   "origin": "From the Grim Guzzler's own taps, which Lokhtos Darkbargainer has access to. He sends a few mugs to the one who brought down Emperor Dagran Thaurissan.",
+   "senders": {
+    "any": {
+     "entry": 12944,
+     "faction": "Thorium Brotherhood",
+     "gender": "male",
+     "location": "the Grim Guzzler",
+     "name": "Lokhtos Darkbargainer",
+     "race": "Dwarf",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    643
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 13446,
+      "name": "Major Healing Potion"
+     }
+    ]
+   },
+   "key": "lower_blackrock_spire",
+   "letter": "Overlord Wyrmthalak is dead, and Rend's Dark Horde has lost the taskmaster of its barracks. Its legions in the lower Spire are in disorder, and fewer war bands come down the mountain into the Burning Steppes.",
+   "name": "Lower Blackrock Spire",
+   "origin": "From the field stores of Marshal Maxwell's men at Morgan's Vigil (Alliance) or Warlord Goretooth's at Kargath (Horde), sent to the one who struck the Scarshield Legion in Lower Blackrock Spire, for the next fight on the mountain.",
+   "senders": {
+    "alliance": {
+     "entry": 9560,
+     "faction": "Stormwind",
+     "gender": "male",
+     "location": "Morgan's Vigil",
+     "name": "Marshal Maxwell",
+     "race": "Human",
+     "role": ""
+    },
+    "horde": {
+     "entry": 9077,
+     "gender": "male",
+     "location": "Kargath",
+     "name": "Warlord Goretooth",
+     "race": "Orc",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    644
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 18269,
+      "name": "Gordok Green Grog"
+     }
+    ]
+   },
+   "key": "dire_maul",
+   "letter": "Alzzin the Wildshaper, Immol'thar and King Gordok have all fallen. The Warpwood Quarter has begun to heal, the Shen'dralar who remain must find another source of power, and the Gordok ogres now call you their king. They ask when you are coming back to collect tribute.",
+   "name": "Dire Maul",
+   "origin": "Tribute brought by the Gordok ogres to the one who killed their king and took his place. Lorekeeper Lydros sends it on, amused that the ogres now consider the player their ruler.",
+   "senders": {
+    "any": {
+     "entry": 14368,
+     "faction": "Shen'dralar",
+     "gender": "male",
+     "location": "Dire Maul",
+     "name": "Lorekeeper Lydros",
+     "race": "Night Elf",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    645
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 1,
+      "entry": 13926,
+      "name": "Golden Pearl"
+     }
+    ]
+   },
+   "key": "scholomance",
+   "letter": "Darkmaster Gandling and Ras Frostwhisper are gone, and the school of necromancy beneath Caer Darrow has lost its masters. Its last students have fled or hidden, and the ghosts of the island say Caer Darrow is quieter than it has been since the Barovs sold it to the Cult of the Damned.",
+   "name": "Scholomance",
+   "origin": "Found by the fishermen who have started to venture back onto the lake around Caer Darrow. Eva Sarkhoff sends it to the one who ended Darkmaster Gandling.",
+   "senders": {
+    "any": {
+     "entry": 11216,
+     "gender": "female",
+     "location": "Caer Darrow",
+     "name": "Eva Sarkhoff",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    646
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 1,
+      "entry": 12811,
+      "name": "Righteous Orb"
+     }
+    ]
+   },
+   "key": "stratholme",
+   "letter": "Baron Rivendare is destroyed, and so is Balnazzar, the dreadlord who wore the face of the Grand Crusader. The city still burns and the dead still walk its streets, but the Scarlet Bastion and the Scourge slaughterhouse are without masters, and the Argent Dawn has begun planning scouting runs into the ruins.",
+   "name": "Stratholme",
+   "origin": "Taken from the Scourge and the Scarlet Crusade in the ruins of Stratholme, where the Order of the Silver Hand was founded. Duke Nicholas Zverenhoff sends it on behalf of the Argent Dawn to one who helped cleanse the city.",
+   "senders": {
+    "any": {
+     "entry": 11039,
+     "faction": "Argent Dawn",
+     "gender": "male",
+     "location": "Light's Hope Chapel",
+     "name": "Duke Nicholas Zverenhoff",
+     "race": "Human",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    1307
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 15416,
+      "name": "Black Dragonscale"
+     }
+    ]
+   },
+   "key": "upper_blackrock_spire",
+   "letter": "General Drakkisath is dead, and the black dragonflight's hold over the upper Spire is shaken. The Dark Horde still holds the mountain, but its banners hang lower, and the Steppes below have not seen a dragon in the sky for weeks.",
+   "name": "Upper Blackrock Spire",
+   "origin": "Cut from the black dragonspawn of the rookery in Upper Blackrock Spire after General Drakkisath died. Marshal Maxwell (Alliance) or Thrall (Horde) sends them as proof of the victory.",
+   "senders": {
+    "alliance": {
+     "entry": 9560,
+     "faction": "Stormwind",
+     "gender": "male",
+     "location": "Morgan's Vigil",
+     "name": "Marshal Maxwell",
+     "race": "Human",
+     "role": ""
+    },
+    "horde": {
+     "entry": 4949,
+     "gender": "male",
+     "location": "Orgrimmar",
+     "name": "Thrall",
+     "race": "Orc",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    647,
+    667
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 25700,
+      "name": "Fel Scales"
+     }
+    ]
+   },
+   "key": "hellfire_ramparts",
+   "letter": "With Omor the Unscarred and the commanders of the Ramparts dead, the Fel Horde's watch on the citadel walls has grown thin. Its patrols no longer push as far into the peninsula, and our scouts can get close to the citadel without being spotted from the battlements.",
+   "name": "Hellfire Ramparts",
+   "origin": "Cut from the fel creatures on the ramparts of Hellfire Citadel and brought back by the garrison's scouts once Nazan fell. Lieutenant Chadwick (Alliance) or Stone Guard Stok'ton (Horde) sends them to one of those who took the ramparts.",
+   "senders": {
+    "alliance": {
+     "entry": 17557,
+     "faction": "Honor Hold",
+     "gender": "male",
+     "location": "Honor Hold",
+     "name": "Lieutenant Chadwick",
+     "race": "Human",
+     "role": ""
+    },
+    "horde": {
+     "entry": 17493,
+     "faction": "Thrallmar",
+     "gender": "male",
+     "location": "Thrallmar",
+     "name": "Stone Guard Stok'ton",
+     "race": "Orc",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    648,
+    668
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 22829,
+      "name": "Super Healing Potion"
+     }
+    ]
+   },
+   "key": "the_blood_furnace",
+   "letter": "Keli'dan the Breaker is dead and the furnaces where the Fel Horde drained Magtheridon's blood are failing. Fewer fresh fel orcs march out of the citadel each week, and the ones that do look weaker.",
+   "name": "The Blood Furnace",
+   "origin": "From the garrison's own stores. Gunny (Alliance) or Caza'rez (Horde) sends them to the one who shut down the Blood Furnace, adding that they have been earned.",
+   "senders": {
+    "alliance": {
+     "entry": 17479,
+     "faction": "Honor Hold",
+     "gender": "male",
+     "location": "Honor Hold",
+     "name": "Gunny",
+     "race": "Dwarf",
+     "role": ""
+    },
+    "horde": {
+     "entry": 17558,
+     "faction": "Thrallmar",
+     "gender": "male",
+     "location": "Thrallmar",
+     "name": "Caza'rez",
+     "race": "Orc",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    649,
+    669
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 22578,
+      "name": "Mote of Water"
+     }
+    ]
+   },
+   "key": "the_slave_pens",
+   "letter": "Quagmirran is dead and many of the slaves the naga kept in the pens are free. Broken and Lost Ones are trickling into the Cenarion Refuge, and our druids are treating their wounds. The naga still work their pumps, but with fewer hands.",
+   "name": "The Slave Pens",
+   "origin": "Gathered by the slaves freed from the Slave Pens, the first thing they could call their own. Watcher Jhang sends them on behalf of the slaves.",
+   "senders": {
+    "any": {
+     "entry": 17884,
+     "faction": "Cenarion Expedition",
+     "gender": "female",
+     "location": "Coilfang Reservoir",
+     "name": "Watcher Jhang",
+     "race": "Night Elf",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    650,
+    670
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 24245,
+      "name": "Glowcap"
+     }
+    ]
+   },
+   "key": "the_underbog",
+   "letter": "The Black Stalker is dead, and the Underbog's waters are safer. The sporelings say the bog lords near Sporeggar are calmer, and the giant mushrooms at the edge of the Underbog are putting out new caps.",
+   "name": "The Underbog",
+   "origin": "Sporeggar's own currency, sent by the sporelings after the Underbog's master was killed. Khn'nix sends them because the sporelings insisted.",
+   "senders": {
+    "any": {
+     "entry": 17866,
+     "faction": "Sporeggar",
+     "gender": "male",
+     "location": "Sporeggar",
+     "name": "Khn'nix",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    651,
+    671
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 29395,
+      "name": "Ethermead"
+     }
+    ]
+   },
+   "key": "mana_tombs",
+   "letter": "With Nexus-Prince Shaffar gone, his rival ethereals have abandoned their digs in the Mana-Tombs. The Consortium has resumed its own excavations, and profits are up. Your share is enclosed.",
+   "name": "Mana-Tombs",
+   "origin": "From the Consortium's private stocks. Nexus-Prince Haramad sends a few bottles to the one who helped the Consortium in the Mana-Tombs.",
+   "senders": {
+    "any": {
+     "entry": 19674,
+     "faction": "The Consortium",
+     "gender": "male",
+     "location": "Bone Wastes",
+     "name": "Nexus-Prince Haramad",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    666,
+    672
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 21886,
+      "name": "Primal Life"
+     }
+    ]
+   },
+   "key": "auchenai_crypts",
+   "letter": "Exarch Maladaar has fallen, and the Auchenai Crypts are no longer a place where draenei souls are bound and harvested. Many of the spirits that wandered the Bone Wastes seem calmer, and some of our elders went to pray at the crypt doors for the first time.",
+   "name": "Auchenai Crypts",
+   "origin": "Carried out of the Auchenai Crypts by draenei and blessed by the elders of the Refugee Caravan. Soolaveen sends them to the one who laid the crypts to rest.",
+   "senders": {
+    "any": {
+     "entry": 18675,
+     "faction": "Lower City",
+     "gender": "male",
+     "location": "Refugee Caravan",
+     "name": "Soolaveen",
+     "race": "Broken",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    652,
+    673
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 22829,
+      "name": "Super Healing Potion"
+     }
+    ]
+   },
+   "key": "the_escape_from_durnholde",
+   "letter": "Thrall's escape from Durnholde has happened as it should, and the timeway of Old Hillsbrad is steady again. The infinite dragonflight has withdrawn from that stream of time, though it will look for another. The Keepers of Time are grateful.",
+   "name": "The Escape From Durnholde",
+   "origin": "From the stores the bronze dragonflight keeps in the Caverns of Time for those who walk the timeways. Andormu sends them to the one who kept Thrall's escape on its course.",
+   "senders": {
+    "any": {
+     "entry": 19932,
+     "faction": "Keepers of Time",
+     "gender": "male",
+     "location": "Caverns of Time",
+     "name": "Andormu",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    653,
+    674
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 22451,
+      "name": "Primal Air"
+     }
+    ]
+   },
+   "key": "sethekk_halls",
+   "letter": "Talon King Ikiss is dead, and the Sethekk arakkoa have lost the king who led them in Terokk's name. Their shadow priests still chant in the halls, but their raids on travellers in the Bone Wastes have slowed.",
+   "name": "Sethekk Halls",
+   "origin": "Kept by an arakkoa of the Lower City from before the Sethekk turned to shadow, and given up now that Talon King Ikiss is dead. Isfar sends them to the one who defeated him.",
+   "senders": {
+    "any": {
+     "entry": 18933,
+     "faction": "Lower City",
+     "location": "Bone Wastes",
+     "name": "Isfar",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    654,
+    675
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 1,
+      "entry": 22456,
+      "name": "Primal Shadow"
+     }
+    ]
+   },
+   "key": "shadow_labyrinth",
+   "letter": "Murmur has been silenced, and the Cabal in the Shadow Labyrinth has lost Blackheart and Vorpil with it. The Shadow Council's work in Auchindoun is undone for now, and our informants report fewer cultists slipping into Shattrath.",
+   "name": "Shadow Labyrinth",
+   "origin": "Gathered from the deepest halls of the Shadow Labyrinth after Murmur was defeated, by agents of the Lower City. Spymistress Mehlisah Highcrown sends it as a reward from her network.",
+   "senders": {
+    "any": {
+     "entry": 18893,
+     "faction": "Lower City",
+     "gender": "female",
+     "location": "Lower City",
+     "name": "Spymistress Mehlisah Highcrown",
+     "race": "Human",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    655,
+    676
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 1,
+      "entry": 22449,
+      "name": "Large Prismatic Shard"
+     }
+    ]
+   },
+   "key": "the_black_morass",
+   "letter": "Medivh opened the Dark Portal, as history demands, and Aeonus will not trouble the timeway again. The orcs crossed into Azeroth on time, and the long, bitter chain of events that leads to our own day is intact. A strange thing to be grateful for, but we are.",
+   "name": "The Black Morass",
+   "origin": "Recovered by the bronze dragonflight from a rift that closed in the Black Morass during the infinite dragonflight's attack on the Dark Portal. Sa'at sends it to the one who protected Medivh.",
+   "senders": {
+    "any": {
+     "entry": 20201,
+     "faction": "Keepers of Time",
+     "gender": "male",
+     "location": "the Black Morass",
+     "name": "Sa'at",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    656,
+    677
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 21885,
+      "name": "Primal Water"
+     }
+    ]
+   },
+   "key": "the_steamvault",
+   "letter": "Warlord Kalithresh is dead and the great pumps in the Steamvault are slowing. The water level of the marsh has stopped falling, and in some places the bog has begun to rise again.",
+   "name": "The Steamvault",
+   "origin": "Drawn from the Steamvault after the player stopped its pumps, now that the water runs back into the marsh. Watcher Jhang sends them as proof that these pumps won't turn again.",
+   "senders": {
+    "any": {
+     "entry": 17884,
+     "faction": "Cenarion Expedition",
+     "gender": "female",
+     "location": "Coilfang Reservoir",
+     "name": "Watcher Jhang",
+     "race": "Night Elf",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    657,
+    678
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 1,
+      "entry": 23573,
+      "name": "Hardened Adamantite Bar"
+     }
+    ]
+   },
+   "key": "the_shattered_halls",
+   "letter": "Warchief Kargath Bladefist is dead. The Shattered Hand is leaderless, and the Fel Horde has lost its greatest warchief. It still holds the citadel, but for the first time since we came through the Portal, it is the Fel Horde that is on the defensive.",
+   "name": "The Shattered Halls",
+   "origin": "Forged from the metal of the Shattered Halls' armories after Kargath Bladefist fell. Force Commander Danath Trollbane (Alliance) or Nazgrel (Horde) sends it as a trophy.",
+   "senders": {
+    "alliance": {
+     "entry": 16819,
+     "faction": "Honor Hold",
+     "gender": "male",
+     "location": "Honor Hold",
+     "name": "Force Commander Danath Trollbane",
+     "race": "Human",
+     "role": ""
+    },
+    "horde": {
+     "entry": 3230,
+     "faction": "Orgrimmar",
+     "gender": "male",
+     "location": "Thrallmar",
+     "name": "Nazgrel",
+     "race": "Orc",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    658,
+    679
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 32902,
+      "name": "Bottled Nethergon Energy"
+     }
+    ]
+   },
+   "key": "the_mechanar",
+   "letter": "With Pathaleon the Calculator gone, Kael'thas's factory in the Mechanar has lost its overseer. The flow of manacells to the blood elves' manaforges has slowed, and the lights at Area 52 flicker less when the storms come.",
+   "name": "The Mechanar",
+   "origin": "Blood elf stocks taken from the Mechanar after Pathaleon was defeated. Nether-Stalker Khay'ji sends them on, saying the Consortium has more than enough.",
+   "senders": {
+    "any": {
+     "entry": 19880,
+     "faction": "The Consortium",
+     "gender": "male",
+     "location": "Area 52",
+     "name": "Nether-Stalker Khay'ji",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    659,
+    680
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 1,
+      "entry": 22794,
+      "name": "Fel Lotus"
+     }
+    ]
+   },
+   "key": "the_botanica",
+   "letter": "Warp Splinter has been destroyed and the blood elves' experiments in the Botanica are in ruins. Their twisted plants still grow in the satellite, but no new ones have been carried out into the Netherstorm, and the Kirin Tor can study what is left.",
+   "name": "The Botanica",
+   "origin": "Grown under the Botanica's arcane lamps and saved by Archmage Vargoth before Kael'thas's botanists could use it. He sends it to the one who cleared the Botanica.",
+   "senders": {
+    "any": {
+     "entry": 19481,
+     "gender": "male",
+     "location": "the Violet Tower",
+     "name": "Archmage Vargoth",
+     "race": "Human",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    660,
+    681
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 22832,
+      "name": "Super Mana Potion"
+     }
+    ]
+   },
+   "key": "the_arcatraz",
+   "letter": "Harbinger Skyriss is dead, which means I'm free, which means you're welcome. The naaru's prisoners are mostly back in their cells, the wardens are mostly not possessed, and I have mostly forgiven the blood elves for locking me up next to a void lord.",
+   "name": "The Arcatraz",
+   "origin": "Potions Millhouse Manastorm swears he no longer needs, now that he is out of his cell. He sends them to the one who freed him from the Arcatraz.",
+   "senders": {
+    "any": {
+     "entry": 20977,
+     "gender": "male",
+     "location": "",
+     "name": "Millhouse Manastorm",
+     "race": "Gnome",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    661,
+    682
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 1,
+      "entry": 23440,
+      "name": "Dawnstone"
+     }
+    ]
+   },
+   "key": "magisters_terrace",
+   "letter": "Kael'thas Sunstrider has died in his own terrace. The Shattered Sun Offensive is pressing up the Isle of Quel'Danas, and the people of Silvermoon speak his name more quietly every day.",
+   "name": "Magisters' Terrace",
+   "origin": "Cut by the jewelers who have come back to Sun's Reach since Kael'thas's final defeat. Captain Theris Dawnhearth sends it as thanks from Sun's Reach.",
+   "senders": {
+    "any": {
+     "entry": 24967,
+     "faction": "Shattered Sun Offensive",
+     "gender": "male",
+     "location": "Sun's Reach",
+     "name": "Captain Theris Dawnhearth",
+     "race": "Blood Elf",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    477,
+    489
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 33447,
+      "name": "Runic Healing Potion"
+     }
+    ]
+   },
+   "key": "utgarde_keep",
+   "letter": "Prince Keleseth and Ingvar the Plunderer are dead, and the forges of Utgarde Keep are cold. The vrykul still man its walls, but their raids on the coast have stopped for now, and our ships unload without lookouts on every mast.",
+   "name": "Utgarde Keep",
+   "origin": "From the infirmary stock of Valgarde (Alliance) or Vengeance Landing (Horde). Defender Mordun or High Executor Anselm sends them to the one who killed Prince Keleseth and Ingvar the Plunderer.",
+   "senders": {
+    "alliance": {
+     "entry": 24111,
+     "faction": "Valiance Expedition",
+     "gender": "male",
+     "location": "Valgarde",
+     "name": "Defender Mordun",
+     "race": "Dwarf",
+     "role": ""
+    },
+    "horde": {
+     "entry": 23780,
+     "faction": "The Hand of Vengeance",
+     "gender": "male",
+     "location": "Vengeance Landing",
+     "name": "High Executor Anselm",
+     "race": "Undead",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    478,
+    490
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 1,
+      "entry": 34052,
+      "name": "Dream Shard"
+     }
+    ]
+   },
+   "key": "the_nexus",
+   "letter": "Keristrasza is at peace, and the Nexus has lost its frozen guardian and its grand magus. Malygos's blue dragons still circle Coldarra, but the ley lines under the Transitus Shield are calmer, and our mages sleep without nightmares of storms.",
+   "name": "The Nexus",
+   "origin": "Gathered where a ley line runs close to the surface of Coldarra, by the Kirin Tor's allies once the Nexus quieted. Raelorasz sends it to the one who struck into the Nexus.",
+   "senders": {
+    "any": {
+     "entry": 26117,
+     "gender": "male",
+     "location": "Transitus Shield",
+     "name": "Raelorasz",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    480,
+    491
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 38558,
+      "name": "Nerubian Chitin"
+     }
+    ]
+   },
+   "key": "azjol_nerub",
+   "letter": "Anub'arak has been driven from the depths of Azjol-Nerub, and the Scourge's grip on our old kingdom has weakened. The webs of the upper kingdom are quiet, and those of my kin who still remember the old ways have begun to gather at the Pit of Narjun.",
+   "name": "Azjol-Nerub",
+   "origin": "Gathered in the halls of the old nerubian kingdom by Kilix the Unraveler's people. Kilix sends them to the one who drove Anub'arak from the depths.",
+   "senders": {
+    "any": {
+     "entry": 26653,
+     "faction": "Azjol-Nerub",
+     "gender": "male",
+     "location": "Pit of Narjun",
+     "name": "Kilix the Unraveler",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    481,
+    492
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 36926,
+      "name": "Shadow Crystal"
+     }
+    ]
+   },
+   "key": "ahnkahet_the_old_kingdom",
+   "letter": "Herald Volazj is dead, and the faceless ones who served an older master have been driven back into the dark. The Twilight cultists in the Old Kingdom have scattered, and the whispers in the deep tunnels have grown faint.",
+   "name": "Ahn'kahet: The Old Kingdom",
+   "origin": "Taken from Jedoga Shadowseeker's Twilight cultists in Ahn'kahet, who used them in their rites. Kilix the Unraveler sends them to the one who stopped the cult there.",
+   "senders": {
+    "any": {
+     "entry": 26653,
+     "faction": "Azjol-Nerub",
+     "gender": "male",
+     "location": "Pit of Narjun",
+     "name": "Kilix the Unraveler",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    482,
+    493
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 33470,
+      "name": "Frostweave Cloth"
+     }
+    ]
+   },
+   "key": "draktharon_keep",
+   "letter": "The Prophet Tharon'ja is dead, and Drak'Tharon Keep has lost the last Drakkari who still claimed it. The Scourge's road from Zul'Drak into the Grizzly Hills is cut, and fewer undead come down through the pass.",
+   "name": "Drak'Tharon Keep",
+   "origin": "Taken from the Scourge's stores in Drak'Tharon Keep after the Prophet Tharon'ja died. Mack Fearsen sends it to the one who cut the Scourge's road through the keep.",
+   "senders": {
+    "any": {
+     "entry": 26604,
+     "gender": "male",
+     "location": "Grizzly Hills",
+     "name": "Mack Fearsen",
+     "race": "Human",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    483,
+    494
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 42431,
+      "name": "Dalaran Brownie"
+     }
+    ]
+   },
+   "key": "the_violet_hold",
+   "letter": "Cyanigosa is dead and the Violet Hold has held. The portals the blue dragonflight tore open are sealed, the prisoners are back in their cells, and the people of Dalaran walk past the Hold without looking up at its walls.",
+   "name": "The Violet Hold",
+   "origin": "Dalaran's finest pastries, a favourite of the guards at the Violet Hold. Lieutenant Sinclari sends some to the one who held the gates.",
+   "senders": {
+    "any": {
+     "entry": 30658,
+     "gender": "female",
+     "location": "the Violet Hold",
+     "name": "Lieutenant Sinclari",
+     "race": "Human",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    484,
+    495
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 36906,
+      "name": "Icethorn"
+     }
+    ]
+   },
+   "key": "gundrak",
+   "letter": "Gal'darah is dead, and with him the Drakkari's last hope of feeding on the power of their gods in Gundrak. The trolls still fight in Zul'Drak, but they are fighting for their lives now, not for conquest.",
+   "name": "Gundrak",
+   "origin": "Gathered around the shrines of Gundrak after Gal'darah fell, where Chronicler Bah'Kini can finally work. Bah'Kini sends them to the one who cleared the way for Bah'Kini's studies.",
+   "senders": {
+    "any": {
+     "entry": 30676,
+     "location": "Zul'Drak",
+     "name": "Chronicler Bah'Kini",
+     "race": "Troll",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    485,
+    496
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 35624,
+      "name": "Eternal Earth"
+     }
+    ]
+   },
+   "key": "halls_of_stone",
+   "letter": "Sjonnir the Ironshaper is dead and the Tribunal of Ages has spoken. The records confirmed what I'd hoped: the dwarves really are the descendants of the earthen. The iron dwarves in the Halls of Stone are leaderless, and the whole of Ironforge is talking about our history.",
+   "name": "Halls of Stone",
+   "origin": "Taken from the Halls of Stone, where the earthen shaped the titans' records. Brann Bronzebeard sends them to the one who protected him at the Tribunal of Ages.",
+   "senders": {
+    "any": {
+     "entry": 28070,
+     "gender": "male",
+     "location": "Ulduar",
+     "name": "Brann Bronzebeard",
+     "race": "Dwarf",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    488,
+    499
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 41163,
+      "name": "Titanium Bar"
+     }
+    ]
+   },
+   "key": "utgarde_pinnacle",
+   "letter": "King Ymiron is dead, and the vrykul of the Howling Fjord have lost their king. Without him the Ymirjar quarrel among themselves, and the dead no longer rise from the barrows near Utgarde.",
+   "name": "Utgarde Pinnacle",
+   "origin": "Smelted from the iron of King Ymiron's hall after the fight at Utgarde Pinnacle. Brigg Smallshanks sends them to the one who brought the vrykul king down.",
+   "senders": {
+    "any": {
+     "entry": 30871,
+     "gender": "male",
+     "location": "Utgarde Pinnacle",
+     "name": "Brigg Smallshanks",
+     "race": "Dwarf",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    487,
+    498
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 35623,
+      "name": "Eternal Air"
+     }
+    ]
+   },
+   "key": "the_oculus",
+   "letter": "Ley-Guardian Eregos is dead, and the blue dragonflight has lost its hold over the Oculus. The ley lines around Coldarra are calmer, and our drakes fly the skies above the Nexus without being hunted.",
+   "name": "The Oculus",
+   "origin": "Gathered in the rings of the Oculus by the red dragonflight after Ley-Guardian Eregos fell. Belgaristrasz sends them to one of the riders who freed the captured red drakes.",
+   "senders": {
+    "any": {
+     "entry": 27658,
+     "gender": "male",
+     "location": "the Oculus",
+     "name": "Belgaristrasz",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    486,
+    497
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 1,
+      "entry": 43102,
+      "name": "Frozen Orb"
+     }
+    ]
+   },
+   "key": "halls_of_lightning",
+   "letter": "Loken is dead. The iron giants and the iron dwarves of the Storm Peaks have lost the master who corrupted them, and the Sons of Hodir sing of the day the lightning forge went cold. The mountains are still dangerous, but no new armies come out of Ulduar's halls.",
+   "name": "Halls of Lightning",
+   "origin": "Taken from the Halls of Lightning after Loken's death; the giants of Dun Niffelem prize such orbs. King Jokkum sends it to the one who killed Loken.",
+   "senders": {
+    "any": {
+     "entry": 30105,
+     "faction": "The Sons of Hodir",
+     "gender": "male",
+     "location": "Dun Niffelem",
+     "name": "King Jokkum",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    479,
+    500
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 34054,
+      "name": "Infinite Dust"
+     }
+    ]
+   },
+   "key": "the_culling_of_stratholme",
+   "letter": "Arthas purged Stratholme and Mal'Ganis was defeated, just as history needs them to be. The infinite dragonflight's attempt to change the Culling has failed. The past stays as it was, and our present with it.",
+   "name": "The Culling of Stratholme",
+   "origin": "Dust from the infinite dragonflight, gathered by Chromie after the culling of Stratholme was kept on its course. She sends it to the one who helped guard it, and insists it is perfectly safe.",
+   "senders": {
+    "any": {
+     "entry": 26527,
+     "gender": "female",
+     "location": "Caverns of Time",
+     "name": "Chromie",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    3778,
+    4296,
+    4297,
+    4298
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 33448,
+      "name": "Runic Mana Potion"
+     }
+    ]
+   },
+   "key": "trial_of_the_champion",
+   "letter": "You defeated the Argent Crusade's champions and the Black Knight in the Coliseum. The Black Knight's interruption has shaken the Tournament, but the crowds came back, and the Crusade's best are ready to march on Icecrown.",
+   "name": "Trial of the Champion",
+   "origin": "From the Argent Crusade's stores at the tournament grounds, given to champions after the arena. Justicar Mariel Trueheart sends them to the champion who defeated the Black Knight.",
+   "senders": {
+    "any": {
+     "entry": 33817,
+     "faction": "Argent Crusade",
+     "gender": "female",
+     "location": "Argent Tournament Grounds",
+     "name": "Justicar Mariel Trueheart",
+     "race": "Human",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    4516,
+    4519
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 35625,
+      "name": "Eternal Life"
+     }
+    ]
+   },
+   "key": "the_forge_of_souls",
+   "letter": "Bronjahm and the Devourer of Souls are destroyed, and the Forge of Souls no longer feeds the Lich King's citadel. The souls trapped there have been released, and we have taken the first step into the Frozen Halls.",
+   "name": "The Forge of Souls",
+   "origin": "Gathered after the Devourer of Souls fell and the souls in the Forge were set free, by Jaina's (Alliance) or Sylvanas's (Horde) mages. She sends them to the one who freed those souls.",
+   "senders": {
+    "alliance": {
+     "entry": 4968,
+     "faction": "Theramore",
+     "gender": "female",
+     "location": "",
+     "name": "Lady Jaina Proudmoore",
+     "race": "Human",
+     "role": ""
+    },
+    "horde": {
+     "entry": 10181,
+     "faction": "Undercity",
+     "gender": "female",
+     "location": "",
+     "name": "Lady Sylvanas Windrunner",
+     "race": "Undead",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    4517,
+    4520
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 36913,
+      "name": "Saronite Bar"
+     }
+    ]
+   },
+   "key": "pit_of_saron",
+   "letter": "Scourgelord Tyrannus is dead and the slaves of the Pit of Saron are free. Our people are getting their strength back, and the saronite mines are silent for the first time since the Lich King opened them.",
+   "name": "Pit of Saron",
+   "origin": "Mined by the slaves freed from the Pit of Saron, who decided the bars are now theirs to give. Martin Victus (Alliance) or Gorkun Ironskull (Horde) sends them on the slaves' behalf.",
+   "senders": {
+    "alliance": {
+     "entry": 37580,
+     "gender": "male",
+     "location": "",
+     "name": "Martin Victus",
+     "race": "Human",
+     "role": ""
+    },
+    "horde": {
+     "entry": 37581,
+     "gender": "male",
+     "location": "",
+     "name": "Gorkun Ironskull",
+     "race": "Orc",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    4518,
+    4521
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 35622,
+      "name": "Eternal Water"
+     }
+    ]
+   },
+   "key": "halls_of_reflection",
+   "letter": "We escaped the Lich King himself, and we know now what waits at the top of Icecrown Citadel. Falric and Marwyn are dead, and the way to the Frozen Throne is open.",
+   "name": "Halls of Reflection",
+   "origin": "Gathered by Lady Jaina Proudmoore's (Alliance) or Lady Sylvanas Windrunner's (Horde) people after the escape from the Halls of Reflection. She sends them to the one who fought beside her there.",
+   "senders": {
+    "alliance": {
+     "entry": 4968,
+     "faction": "Theramore",
+     "gender": "female",
+     "location": "",
+     "name": "Lady Jaina Proudmoore",
+     "race": "Human",
+     "role": ""
+    },
+    "horde": {
+     "entry": 10181,
+     "faction": "Undercity",
+     "gender": "female",
+     "location": "",
+     "name": "Lady Sylvanas Windrunner",
+     "race": "Undead",
+     "role": ""
+    }
+   }
+  }
+ ],
+ "quests": [
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 2894,
+      "name": "Rhapsody Malt"
+     }
+    ]
+   },
+   "key": "q287",
+   "letter": "Your report on Frostmane Hold made its way to Ironforge, and the Mountaineers have begun patrolling the road to Brewnall Village. The trolls still hold their caves, but their hunting parties have grown wary of the valley, and this week the Brewnall folk went down to fish on Iceflow Lake without an escort.",
+   "origin": "Malt from the Thunderbrew brewery in Kharanos. Senir sends it so the player can drink to the valley's first quiet weeks, as the regulars of the Thunderbrew already do.",
+   "quests": [
+    287
+   ],
+   "senders": {
+    "any": {
+     "entry": 1252,
+     "faction": "Ironforge",
+     "gender": "male",
+     "location": "Kharanos",
+     "name": "Senir Whitebeard",
+     "race": "Dwarf",
+     "role": ""
+    }
+   },
+   "zone": "Dun Morogh",
+   "zone_id": 1
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 6290,
+      "name": "Brilliant Smallfish"
+     }
+    ]
+   },
+   "key": "q39",
+   "letter": "Marshal Dughan read your report and sent more men to the shore of Stone Cairn Lake. The murlocs still croak in the reeds at night, but they no longer come up to the road, and the loggers of Eastvale have stopped carrying their axes everywhere. A few fishermen have even put their boats back in the water.",
+   "origin": "The first catch the Eastvale fishermen brought in from Stone Cairn Lake once they dared to put their boats back in. Guard Thomas asked them for a share to send to the one who found out what happened to his men.",
+   "quests": [
+    39
+   ],
+   "senders": {
+    "any": {
+     "entry": 261,
+     "faction": "Stormwind",
+     "gender": "male",
+     "location": "Eastvale",
+     "name": "Guard Thomas",
+     "race": "Human",
+     "role": ""
+    }
+   },
+   "zone": "Elwynn Forest",
+   "zone_id": 12
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 858,
+      "name": "Lesser Healing Potion"
+     }
+    ]
+   },
+   "key": "q372",
+   "letter": "With Captain Melrache and his bodyguards dead, the Scarlet raids from the northern tower have become rare and timid. Deathguards now walk the road past Faol's Rest without waiting for an escort, and the fields north of Brill are being turned over again.",
+   "origin": "From the stores of the Deathguards at Brill. Executor Zygand sends them to the player who broke the Scarlet tower, for the fights still to come in Tirisfal.",
+   "quests": [
+    372
+   ],
+   "senders": {
+    "any": {
+     "entry": 1515,
+     "faction": "Undercity",
+     "gender": "male",
+     "location": "Brill",
+     "name": "Executor Zygand",
+     "role": ""
+    }
+   },
+   "zone": "Tirisfal Glades",
+   "zone_id": 85
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 4542,
+      "name": "Moist Cornbread"
+     }
+    ]
+   },
+   "key": "q14",
+   "letter": "With a significant number of Defias Gang bandits eliminated, Westfall has become much safer. Some farmers who had fled to Elwynn Forest are gradually returning to revive their abandoned farms. Caravans between Westfall and Stormwind are becoming increasingly active.",
+   "origin": "Baked by the farmers of Westfall at Saldean's Farm, from the first grain brought in by families who have come back to their fields. Farmer Saldean sends it as thanks to the one who made Westfall safe enough to return to.",
+   "quests": [
+    14
+   ],
+   "senders": {
+    "any": {
+     "entry": 233,
+     "faction": "Stormwind",
+     "gender": "male",
+     "location": "Saldean's Farm",
+     "name": "Farmer Saldean",
+     "race": "Human",
+     "role": ""
+    }
+   },
+   "zone": "Westfall",
+   "zone_id": 40
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 4592,
+      "name": "Longjaw Mud Snapper"
+     }
+    ]
+   },
+   "key": "q283",
+   "letter": "Since you disarmed that keg, we have checked every crate that comes up the dam road and found nothing more. The engineers sleep at night again, and the fishermen below the dam have stopped glancing up at the wall every few minutes. The loch is high and calm, the way it should be.",
+   "origin": "Caught by the dam workers in the loch below the Stonewrought Dam, on their first evening off since the keg was found. Hinderweir sends a share to the one who disarmed it.",
+   "quests": [
+    283
+   ],
+   "senders": {
+    "any": {
+     "entry": 1093,
+     "faction": "Ironforge",
+     "gender": "male",
+     "location": "Stonewrought Dam",
+     "name": "Chief Engineer Hinderweir VII",
+     "race": "Dwarf",
+     "role": ""
+    }
+   },
+   "zone": "Loch Modan",
+   "zone_id": 38
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 3383,
+      "name": "Elixir of Wisdom"
+     }
+    ]
+   },
+   "key": "q480",
+   "letter": "Since their archmage fell, the Dalaran mages at Ambermill have stopped working at the ley node, and the hum that could be felt as far as the Sepulcher has faded. Their wards are still up, but our scouts say the mages spend more time packing than casting. The road through Silverpine is a little quieter for it.",
+   "origin": "Brewed by the Forsaken apothecaries of the Sepulcher. Shadow Priest Allister sends them to the player who stopped the Ambermill mages' work at the ley node.",
+   "quests": [
+    480
+   ],
+   "senders": {
+    "any": {
+     "entry": 2121,
+     "faction": "Undercity",
+     "gender": "male",
+     "location": "the Sepulcher",
+     "name": "Shadow Priest Allister",
+     "race": "Undead",
+     "role": ""
+    }
+   },
+   "zone": "Silverpine Forest",
+   "zone_id": 130
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 1082,
+      "name": "Redridge Goulash"
+     }
+    ]
+   },
+   "key": "q219",
+   "letter": "Corporal Keeshan is on his feet again, and the story of how he walked out of Render's Valley has reached every table in the Lakeshire Inn. More young men have come to the town hall to volunteer than we have seen in years. The Blackrock still hold the valley, but for the first time this season Lakeshire feels like it can hold its own.",
+   "origin": "Cooked in the kitchen of the Lakeshire Inn, where the townsfolk now toast Corporal Keeshan's return. Marshal Marris sends a share to the one who brought him home.",
+   "quests": [
+    219
+   ],
+   "senders": {
+    "any": {
+     "entry": 382,
+     "faction": "Stormwind",
+     "gender": "male",
+     "location": "Lakeshire",
+     "name": "Marshal Marris",
+     "race": "Human",
+     "role": ""
+    }
+   },
+   "zone": "Redridge Mountains",
+   "zone_id": 44
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 1710,
+      "name": "Greater Healing Potion"
+     }
+    ]
+   },
+   "key": "q541",
+   "letter": "Dun Garok has not been retaken, but the dwarves there no longer march out to harry our patrols; they wait behind their walls for reinforcements from Ironforge that have not come. Our deathguards walk the southern road for the first time since the Alliance built that barracks.",
+   "origin": "From the deathguards' field stores at Tarren Mill. High Executor Darthalia sends them to the player as a share of the supplies the battle for Hillsbrad freed up.",
+   "quests": [
+    541
+   ],
+   "senders": {
+    "any": {
+     "entry": 2215,
+     "faction": "Undercity",
+     "gender": "female",
+     "location": "Tarren Mill",
+     "name": "High Executor Darthalia",
+     "race": "Undead",
+     "role": ""
+    }
+   },
+   "zone": "Hillsbrad Foothills",
+   "zone_id": 267
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 3729,
+      "name": "Soothing Turtle Bisque"
+     }
+    ]
+   },
+   "key": "q562",
+   "letter": "The Daggerspine have pulled back from the beaches south of Southshore. Fishermen are mending their nets on the sand again, and High Command has taken note of the improvement, although so far it has noted it in my file and not yet with a transfer.",
+   "origin": "Made by Chef Jessen in Southshore, who cooks it from turtles caught on the beaches the naga have left. Farren Orinelle sends it as thanks, since the High Command has so far sent nothing.",
+   "quests": [
+    562
+   ],
+   "senders": {
+    "any": {
+     "entry": 2228,
+     "faction": "Stormwind",
+     "gender": "male",
+     "location": "Southshore",
+     "name": "Lieutenant Farren Orinelle",
+     "race": "Human",
+     "role": ""
+    }
+   },
+   "zone": "Hillsbrad Foothills",
+   "zone_id": 267
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 3369,
+      "name": "Grave Moss"
+     }
+    ]
+   },
+   "key": "q55",
+   "letter": "Since Morbent Fel fell, fewer dead walk out of Raven Hill Cemetery each night. The Night Watch says the graveyard is quieter than it has been in years, and a few families have started tending the graves of their kin again. Duskwood is still dark, but this corner of it feels a little less cursed.",
+   "origin": "Gathered on the graves of Raven Hill, where Sven Yorgen can walk again since Morbent Fel died. Sven brought it back from the cemetery and sends it to the one who freed the hill.",
+   "quests": [
+    55
+   ],
+   "senders": {
+    "any": {
+     "entry": 311,
+     "faction": "Stormwind",
+     "gender": "male",
+     "location": "Sven's Camp",
+     "name": "Sven Yorgen",
+     "race": "Human",
+     "role": ""
+    }
+   },
+   "zone": "Duskwood",
+   "zone_id": 10
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 6308,
+      "name": "Raw Bristle Whisker Catfish"
+     }
+    ]
+   },
+   "key": "q474",
+   "letter": "Without Nek'rosh, the Dragonmaw are bickering over who leads them, and their raids on the road to Dun Algaz have slowed. The convoys from Menethil to Ironforge are getting through with fewer losses, and the harbor feels less like a fort under siege.",
+   "origin": "Caught by the fishermen of Menethil Harbor in waters the Dragonmaw no longer watch. They asked Captain Stoutfist to pass their thanks along to the one who killed Nek'rosh.",
+   "quests": [
+    474
+   ],
+   "senders": {
+    "any": {
+     "entry": 2104,
+     "faction": "Ironforge",
+     "gender": "male",
+     "location": "Menethil Harbor",
+     "name": "Captain Stoutfist",
+     "race": "Dwarf",
+     "role": ""
+    }
+   },
+   "zone": "Wetlands",
+   "zone_id": 11
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 1206,
+      "name": "Moss Agate"
+     }
+    ]
+   },
+   "key": "q696",
+   "letter": "With Trelane's phylactery, orb and agate back in the right hands, the old wards of the Tower of Arathor have flickered back to life. The ogres give the tower a wide berth now, and from Refuge Pointe we can see its lights again at night. A small thing, but the men like it.",
+   "origin": "Chipped from the old foundations of the tower the Syndicate held, by the Refuge Pointe soldiers who now patrol it. Skuerto sends them as a keepsake of the attack.",
+   "quests": [
+    696
+   ],
+   "senders": {
+    "any": {
+     "entry": 2789,
+     "faction": "Ironforge",
+     "gender": "male",
+     "location": "Refuge Pointe",
+     "name": "Skuerto",
+     "race": "Dwarf",
+     "role": ""
+    }
+   },
+   "zone": "Arathi Highlands",
+   "zone_id": 45
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 3391,
+      "name": "Elixir of Ogre's Strength"
+     }
+    ]
+   },
+   "key": "q679",
+   "letter": "The Boulderfist lords are dead, and their shamans with them. The ogres still squat in the ruins of Stromgarde, but they have stopped testing our walls, and Hammerfall's grunts hunt in the hills without watching their backs. Our people were prisoners in these highlands once; now they walk them freely.",
+   "origin": "Taken from the Boulderfist ogres' stores at Boulderfist Hall. The grunts of Hammerfall drew lots for them, and Drum Fel sends them to the player as the winner.",
+   "quests": [
+    679
+   ],
+   "senders": {
+    "any": {
+     "entry": 2771,
+     "faction": "Orgrimmar",
+     "gender": "male",
+     "location": "Hammerfall",
+     "name": "Drum Fel",
+     "race": "Orc",
+     "role": ""
+    }
+   },
+   "zone": "Arathi Highlands",
+   "zone_id": 45
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 3703,
+      "name": "Southshore Stout"
+     }
+    ]
+   },
+   "key": "q523",
+   "letter": "Word has reached Southshore that the Syndicate is quarrelling over who will take Baron Vardus's place. Meanwhile, fewer travellers are waylaid on the road through Strahnbrad, and a few old Alterac families who fled south have asked me whether it might be safe to return to their land. Not yet, but it is the first time they have asked.",
+   "origin": "Bought at the Southshore inn by Magistrate Henry Maleb, who wants the town's thanks to reach the one who ended Baron Vardus.",
+   "quests": [
+    523
+   ],
+   "senders": {
+    "any": {
+     "entry": 2276,
+     "gender": "male",
+     "location": "Southshore",
+     "name": "Magistrate Henry Maleb",
+     "race": "Human",
+     "role": ""
+    }
+   },
+   "zone": "Alterac Mountains",
+   "zone_id": 36
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 4601,
+      "name": "Soft Banana Bread"
+     }
+    ]
+   },
+   "key": "q1398",
+   "letter": "Thanks to your driftwood, my wagon reached Nethergarde with the wizards' reagents intact. The Keep will try the swamp road again with the next supply train, and the Lost Ones have not troubled us since. The road is still long and wet, but it is a road again.",
+   "origin": "Packed by Watcher Biggs for the road while he waited for his wagon to be repaired in the Swamp of Sorrows. He sends some to the player as a small personal thank-you.",
+   "quests": [
+    1398
+   ],
+   "senders": {
+    "any": {
+     "entry": 5476,
+     "faction": "Stormwind",
+     "gender": "male",
+     "location": "",
+     "name": "Watcher Biggs",
+     "race": "Human",
+     "role": ""
+    }
+   },
+   "zone": "Swamp of Sorrows",
+   "zone_id": 8
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 21151,
+      "name": "Rumsey Rum Black Label"
+     }
+    ]
+   },
+   "key": "q608",
+   "letter": "With Firallon and his captains gone, the Bloodsail fleet has scattered along the coast. They're still out there, mind, but no ship has been lost at the mouth of the bay this month, and the docks are full of cargo again. Baron Revilgaz is in a good enough mood to lower the harbor fees. For a week.",
+   "origin": "Taken by the Booty Bay crews from a captured Bloodsail sloop. Fleet Master Seahorn sends a few bottles to the one who has made the Bloodsail think twice about the harbor.",
+   "quests": [
+    608
+   ],
+   "senders": {
+    "any": {
+     "entry": 2487,
+     "faction": "Booty Bay",
+     "gender": "male",
+     "location": "Booty Bay",
+     "name": "Fleet Master Seahorn",
+     "race": "Tauren",
+     "role": ""
+    }
+   },
+   "zone": "Stranglethorn Vale",
+   "zone_id": 33
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 6887,
+      "name": "Spotted Yellowtail"
+     }
+    ]
+   },
+   "key": "q1428",
+   "letter": "The fish men have been driven back from the eastern beaches. Our hunters fish the shallows south of Stonard without fear now, and Tok'Kar spends more time at his forge than mending broken spears.",
+   "origin": "Caught by the fishermen of Stonard in shallows the murlocs used to hold. Katar sends a share to the one who drove the murlocs back.",
+   "quests": [
+    1428
+   ],
+   "senders": {
+    "any": {
+     "entry": 5593,
+     "faction": "Orgrimmar",
+     "gender": "male",
+     "location": "Stonard",
+     "name": "Katar",
+     "race": "Orc",
+     "role": ""
+    }
+   },
+   "zone": "Swamp of Sorrows",
+   "zone_id": 8
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 1,
+      "entry": 7910,
+      "name": "Star Ruby"
+     }
+    ]
+   },
+   "key": "q717",
+   "letter": "With Blacklash and Hematus dead, the black drakes of Lethlor Ravine have lost their masters. They still circle the ravine, but less boldly, and prospectors have been seen in the eastern canyons for the first time in years.",
+   "origin": "Picked up from the floor of Lethlor Ravine by scouts watching the black drakes, now that the rock has finally gone cold. Garek (Alliance) or Gorn (Horde) sends it as a memento of the masters the player killed.",
+   "quests": [
+    717,
+    793
+   ],
+   "senders": {
+    "alliance": {
+     "entry": 2888,
+     "gender": "male",
+     "location": "",
+     "name": "Garek",
+     "role": ""
+    },
+    "horde": {
+     "entry": 1068,
+     "faction": "Orgrimmar",
+     "gender": "male",
+     "location": "Kargath",
+     "name": "Gorn",
+     "race": "Orc",
+     "role": ""
+    }
+   },
+   "zone": "Badlands",
+   "zone_id": 3
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 3928,
+      "name": "Superior Healing Potion"
+     }
+    ]
+   },
+   "key": "q2994",
+   "letter": "Sharpbeak is home and growing fast. The Vilebranch have grown cautious since you broke into Jintha'Alor, and our riders fly patrols over the trolls' lands again. Even the old gryphons seem calmer, or maybe that is just me.",
+   "origin": "From the stores of Aerie Peak, where Sharpbeak is home and healing. Gryphon Master Talonaxe sends them to the one who rescued him.",
+   "quests": [
+    2994
+   ],
+   "senders": {
+    "any": {
+     "entry": 5636,
+     "gender": "male",
+     "location": "Aerie Peak",
+     "name": "Gryphon Master Talonaxe",
+     "race": "Dwarf",
+     "role": ""
+    }
+   },
+   "zone": "The Hinterlands",
+   "zone_id": 47
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 3826,
+      "name": "Major Troll's Blood Elixir"
+     }
+    ]
+   },
+   "key": "q7847",
+   "letter": "My mate is home, and the Revantusk sing by the fires again at night. The Vilebranch hide behind the walls of Jintha'Alor and have not sent raiders down to the coast since. Our boats go out to fish without guards now.",
+   "origin": "Brewed by the Revantusk trolls, who drink it to celebrate Elder Torntusk's rescue. Primal Torntusk sends a few to the one who brought the elder home.",
+   "quests": [
+    7847
+   ],
+   "senders": {
+    "any": {
+     "entry": 14736,
+     "gender": "female",
+     "location": "Revantusk Village",
+     "name": "Primal Torntusk",
+     "race": "Troll",
+     "role": ""
+    }
+   },
+   "zone": "The Hinterlands",
+   "zone_id": 47
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 12359,
+      "name": "Thorium Bar"
+     }
+    ]
+   },
+   "key": "q3463",
+   "letter": "The Dark Iron watchtowers are still black and smoking. Without them the Dark Irons can no longer see who comes and goes along the slag pits, and the Thorium Brotherhood has started sending its own prospectors out past Thorium Point.",
+   "origin": "Smelted at Thorium Point from ore the Dark Iron dwarves can no longer guard. Kalaran Windblade sends the bars as a share of what the Thorium Brotherhood has been able to mine since.",
+   "quests": [
+    3463
+   ],
+   "senders": {
+    "any": {
+     "entry": 8479,
+     "gender": "male",
+     "location": "",
+     "name": "Kalaran Windblade",
+     "role": ""
+    }
+   },
+   "zone": "Searing Gorge",
+   "zone_id": 51
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 8766,
+      "name": "Morning Glory Dew"
+     }
+    ]
+   },
+   "key": "q3825",
+   "letter": "Gor'tesh's head is still on its stick by the Vigil, and the Firegut ogres take the long way around. Our scouts reach Dreadmaul Rock and back without a fight, and the cooks have started grilling outdoors again. I told you it would be a party.",
+   "origin": "Left over from the celebration at Morgan's Vigil after the ogre head went up on its stick. Oralius sends the bottles so the player can join the party from afar.",
+   "quests": [
+    3825
+   ],
+   "senders": {
+    "any": {
+     "entry": 9177,
+     "faction": "Ironforge",
+     "gender": "male",
+     "location": "Morgan's Vigil",
+     "name": "Oralius",
+     "race": "Dwarf",
+     "role": ""
+    }
+   },
+   "zone": "Burning Steppes",
+   "zone_id": 46
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 7077,
+      "name": "Heart of Fire"
+     }
+    ]
+   },
+   "key": "q3822",
+   "letter": "Krom'Grul is dead and my sister's spirit is at rest. The ogres still hold Dreadmaul Rock, but Horde scouts can now pass from Kargath to Flame Crest without losing anyone to their ambushes.",
+   "origin": "Found on the slopes of Dreadmaul Rock after Krom'Grul died, where the ogres used to carry such cinders as charms. Thal'trak sends them to the player as a trophy of the hunt.",
+   "quests": [
+    3822
+   ],
+   "senders": {
+    "any": {
+     "entry": 9082,
+     "faction": "Orgrimmar",
+     "gender": "male",
+     "location": "Kargath",
+     "name": "Thal'trak Proudtusk",
+     "race": "Troll",
+     "role": ""
+    }
+   },
+   "zone": "Burning Steppes",
+   "zone_id": 46
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 13464,
+      "name": "Golden Sansam"
+     }
+    ]
+   },
+   "key": "q5211",
+   "letter": "Since you began hunting the ghouls of Plaguewood and Corin's Crossing, the cries at night near Darrowshire have grown fainter. Pamela says the nice ghosts visit her less often, and that they seem happier. I hope she is right. The Scourge still holds this land, but some of its prisoners have been set free.",
+   "origin": "Gathered by Carlin Redpath near the ruins of Darrowshire, where flowers have begun to grow again. He sends them to the one who helped the spirits of Darrowshire find rest.",
+   "quests": [
+    5211
+   ],
+   "senders": {
+    "any": {
+     "entry": 11063,
+     "faction": "Argent Dawn",
+     "gender": "male",
+     "location": "Light's Hope Chapel",
+     "name": "Carlin Redpath",
+     "race": "Human",
+     "role": ""
+    }
+   },
+   "zone": "Eastern Plaguelands",
+   "zone_id": 139
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 8846,
+      "name": "Gromsblood"
+     }
+    ]
+   },
+   "key": "q2681",
+   "letter": "Word is that the servants bound to the old stones are gone. I can't say the Blasted Lands look any different, but the air near the Altar of Storms feels less heavy, and the red dust no longer swirls against the wind. Small things. In this land, small things are all we get.",
+   "origin": "Found near one of the binding stones, where nothing had grown in years, by a Nethergarde watchman (Alliance) or by the Fallen Hero of the Horde, who keeps watch over the stones (Horde). It is sent to the player as proof that the stones are holding.",
+   "quests": [
+    2681
+   ],
+   "senders": {
+    "alliance": {
+     "entry": 5385,
+     "gender": "male",
+     "location": "Nethergarde Keep",
+     "name": "Watcher Mahar Ba",
+     "role": "a watchman of Nethergarde Keep"
+    },
+    "horde": {
+     "entry": 7572,
+     "gender": "male",
+     "location": "the Blasted Lands",
+     "name": "Fallen Hero of the Horde",
+     "race": "Orc",
+     "role": ""
+    }
+   },
+   "zone": "Blasted Lands",
+   "zone_id": 4
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 8950,
+      "name": "Homemade Cherry Pie"
+     }
+    ]
+   },
+   "key": "q5237",
+   "letter": "With the cauldrons silenced, the green fog over the farmsteads is beginning to thin. The Argent Dawn reports patches of untainted soil near Felstone Field, and a few hardy weeds are coming back where nothing grew last year. The land is far from healed, but it is no longer getting worse.",
+   "origin": "Baked at Chillwind Camp (Alliance) or the Bulwark (Horde) from the first harvest near Felstone Farm, where the Argent Dawn has cleansed the soil. Commander Valorfist (Alliance) or High Executor Derrington (Horde) sends some to the one who silenced the cauldrons.",
+   "quests": [
+    5237,
+    5238
+   ],
+   "senders": {
+    "alliance": {
+     "entry": 10838,
+     "faction": "Stormwind",
+     "gender": "male",
+     "location": "Chillwind Camp",
+     "name": "Commander Ashlam Valorfist",
+     "race": "Human",
+     "role": ""
+    },
+    "horde": {
+     "entry": 10837,
+     "faction": "Undercity",
+     "gender": "male",
+     "location": "the Bulwark",
+     "name": "High Executor Derrington",
+     "race": "Undead",
+     "role": ""
+    }
+   },
+   "zone": "Western Plaguelands",
+   "zone_id": 28
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 6303,
+      "name": "Raw Slitherskin Mackerel"
+     }
+    ]
+   },
+   "key": "q826",
+   "letter": "Zalazane is dead, and the trolls he bound on the Echo Isles are waking up confused and frightened. A few have already swum back to Sen'jin. The isles are not ours again yet, but tonight there were more Darkspear at the fire than last week.",
+   "origin": "Caught by the fishermen of Sen'jin Village, who have started going out past the reef again since Zalazane died. Master Gadrin sends a share to the one who ended the witch doctor.",
+   "quests": [
+    826
+   ],
+   "senders": {
+    "any": {
+     "entry": 3188,
+     "faction": "Darkspear Trolls",
+     "gender": "male",
+     "location": "Sen'jin Village",
+     "name": "Master Gadrin",
+     "race": "Troll",
+     "role": ""
+    }
+   },
+   "zone": "Durotar",
+   "zone_id": 14
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 1179,
+      "name": "Ice Cold Milk"
+     }
+    ]
+   },
+   "key": "q760",
+   "letter": "The water of the Wildmane Well runs clear again. The kodos drink from it without sickness, and this season the children of Bloodhoof have been sent to fetch water from the northern wells. The goblins are still in the hills, but the land remembers who healed it.",
+   "origin": "Milk from the Bloodhoof herds, which graze the plains more calmly since the Wildmane spirit was cleansed. Mull Thunderhorn sends it from the village.",
+   "quests": [
+    760
+   ],
+   "senders": {
+    "any": {
+     "entry": 2948,
+     "faction": "Thunder Bluff",
+     "gender": "male",
+     "location": "Bloodhoof Village",
+     "name": "Mull Thunderhorn",
+     "race": "Tauren",
+     "role": ""
+    }
+   },
+   "zone": "Mulgore",
+   "zone_id": 215
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 2070,
+      "name": "Darnassian Bleu"
+     }
+    ]
+   },
+   "key": "q486",
+   "letter": "The Druids of the Talon are awake. Some are still weak, but they walk the paths of Dolanaar again, and the Gnarlpine have lost the one who led them astray. The forest around Gnarlpine Hold is quieter; the owls have returned to it.",
+   "origin": "Cheese from the larders of Dolanaar, shared out when the village celebrated Ursal's death. Athridas sends some to the one who brought the bear down.",
+   "quests": [
+    486
+   ],
+   "senders": {
+    "any": {
+     "entry": 2078,
+     "faction": "Darnassus",
+     "gender": "male",
+     "location": "Dolanaar",
+     "name": "Athridas Bearmantle",
+     "race": "Night Elf",
+     "role": ""
+    }
+   },
+   "zone": "Teldrassil",
+   "zone_id": 141
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 12238,
+      "name": "Darkshore Grouper"
+     }
+    ]
+   },
+   "key": "q4763",
+   "letter": "Since the satyr's talisman was taken, some of the Blackwood furbolgs have been seen near their northern camp without the madness in their eyes. They do not trust us and still drive visitors off, but they no longer charge the road to Auberdine on sight. It is a beginning.",
+   "origin": "Caught off the coast near Auberdine, where fishermen go out again now that the Blackwood furbolgs are cleansed. Thundris Windweaver sends them to the one who ended the corruption.",
+   "quests": [
+    4763
+   ],
+   "senders": {
+    "any": {
+     "entry": 3649,
+     "faction": "Darnassus",
+     "gender": "male",
+     "location": "Auberdine",
+     "name": "Thundris Windweaver",
+     "race": "Night Elf",
+     "role": ""
+    }
+   },
+   "zone": "Darkshore",
+   "zone_id": 148
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 2287,
+      "name": "Haunch of Meat"
+     }
+    ]
+   },
+   "key": "q4021",
+   "letter": "Krom'zar is dead and the Kolkar who came from Desolace have fled back west. The bunkers stand, and the Crossroads caravans no longer need extra guards on the western road. The centaur will not forget this, but neither will they forget who beat them.",
+   "origin": "Meat from the larder of the Crossroads, served at the feast after the counterattack. Regthar Deathgate sends a share to one of the defenders.",
+   "quests": [
+    4021
+   ],
+   "senders": {
+    "any": {
+     "entry": 3389,
+     "faction": "Orgrimmar",
+     "gender": "male",
+     "location": "",
+     "name": "Regthar Deathgate",
+     "race": "Orc",
+     "role": ""
+    }
+   },
+   "zone": "The Barrens",
+   "zone_id": 17
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 6890,
+      "name": "Smoked Bear Meat"
+     }
+    ]
+   },
+   "key": "q6621",
+   "letter": "Murgut is dead and his totem sits in my tent. The Foulweald have pulled back deep into the woods southeast of Astranaar, and our scouts pass their village without a fight. Ashenvale is still full of enemies, but there is one fewer of them.",
+   "origin": "Smoked by the hunters of Zoram'gar Outpost from bears taken in the woods the Foulweald furbolgs no longer hold. Karang Amakkar sends it as thanks.",
+   "quests": [
+    6621
+   ],
+   "senders": {
+    "any": {
+     "entry": 12757,
+     "faction": "Orgrimmar",
+     "gender": "male",
+     "location": "Zoram'gar Outpost",
+     "name": "Karang Amakkar",
+     "race": "Orc",
+     "role": ""
+    }
+   },
+   "zone": "Ashenvale",
+   "zone_id": 331
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 3825,
+      "name": "Elixir of Fortitude"
+     }
+    ]
+   },
+   "key": "q1096",
+   "letter": "Without Gerenzo, the Venture Co. operation at Windshear Crag has lost its foreman and most of its nerve. The shredders still cut, but slower, and the night elves say the first saplings have come up on the northern slope. Bad for business. Theirs, not mine.",
+   "origin": "Brewed for the workers at Windshear Crag, who can work again since Gerenzo Wrenchwhistle fell. Ziz Fizziks sends a few to the player as thanks.",
+   "quests": [
+    1096
+   ],
+   "senders": {
+    "any": {
+     "entry": 4201,
+     "gender": "male",
+     "location": "Windshear Crag",
+     "name": "Ziz Fizziks",
+     "race": "Goblin",
+     "role": ""
+    }
+   },
+   "zone": "Stonetalon Mountains",
+   "zone_id": 406
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 4544,
+      "name": "Mulgore Spice Bread"
+     }
+    ]
+   },
+   "key": "q4966",
+   "letter": "The Galak have not tried again since you fought at my side. The elders of Freewind Post say the centaur raids on the lower canyon trails have slowed, and the wind riders fly out with fewer warnings.",
+   "origin": "Baked at Freewind Post by Kanati Greycloud's people. He sends it to the one who stood guard over him.",
+   "quests": [
+    4966
+   ],
+   "senders": {
+    "any": {
+     "entry": 10638,
+     "faction": "Thunder Bluff",
+     "gender": "male",
+     "location": "",
+     "name": "Kanati Greycloud",
+     "race": "Tauren",
+     "role": ""
+    }
+   },
+   "zone": "Thousand Needles",
+   "zone_id": 400
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 1705,
+      "name": "Lesser Moonstone"
+     }
+    ]
+   },
+   "key": "q1046",
+   "letter": "With Ran Bloodtooth slain, the Thistlefur are leaderless and quarrel among themselves. Their raids on the road to Astranaar have nearly stopped, and the Sentinels have begun to talk of reclaiming the paths near Thistlefur Village.",
+   "origin": "Gathered on the shore of Iris Lake, where the moonstones can be collected safely again. Raene Wolfrunner sends a pair to the one who helped cleanse the lake.",
+   "quests": [
+    1046
+   ],
+   "senders": {
+    "any": {
+     "entry": 3691,
+     "faction": "Darnassus",
+     "gender": "female",
+     "location": "Astranaar",
+     "name": "Raene Wolfrunner",
+     "race": "Night Elf",
+     "role": ""
+    }
+   },
+   "zone": "Ashenvale",
+   "zone_id": 331
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 4594,
+      "name": "Rockscale Cod"
+     }
+    ]
+   },
+   "key": "q11198",
+   "letter": "Since Tethyr went to the bottom, ships have been arriving at Theramore on schedule again. The marksmen still watch the water from the lighthouse out of habit, but the dockhands no longer refuse night shifts.",
+   "origin": "Caught by the first fishing boat to leave Theramore harbor after Tethyr died. Major Mills sends a share of the catch to the one who killed the beast.",
+   "quests": [
+    11198
+   ],
+   "senders": {
+    "any": {
+     "entry": 23905,
+     "faction": "Theramore",
+     "gender": "male",
+     "location": "Theramore docks",
+     "name": "Major Mills",
+     "race": "Human",
+     "role": ""
+    }
+   },
+   "zone": "Dustwallow Marsh",
+   "zone_id": 15
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 1708,
+      "name": "Sweet Nectar"
+     }
+    ]
+   },
+   "key": "q11206",
+   "letter": "With the culprits of Shady Rest dealt with, Theramore has eased its patrols near our borders, and the Grimtotem have gone quiet for now. It is not peace, but it means fewer reasons for a war that neither Thrall nor Jaina wants.",
+   "origin": "Taken from what the Brackenwall scouts found in the ashes of the Shady Rest Inn. Krog sends them to the player as a keepsake of the justice they delivered.",
+   "quests": [
+    11206
+   ],
+   "senders": {
+    "any": {
+     "entry": 4926,
+     "gender": "male",
+     "location": "Brackenwall Village",
+     "name": "Krog",
+     "race": "Orc",
+     "role": ""
+    }
+   },
+   "zone": "Dustwallow Marsh",
+   "zone_id": 15
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 9318,
+      "name": "Red Firework"
+     }
+    ]
+   },
+   "key": "q1189",
+   "letter": "With the new booster, my car made it all the way around the track without exploding, a first for our team. Word got around, and crowds are coming back to the Shimmering Flats to watch the races. The gnomes say they'll win next season. They say that every season.",
+   "origin": "Left over from the victory lap at the Mirage Raceway. Razzeric sends a handful to the one who made the track safe.",
+   "quests": [
+    1189
+   ],
+   "senders": {
+    "any": {
+     "entry": 4706,
+     "gender": "male",
+     "location": "Mirage Raceway",
+     "name": "Razzeric",
+     "race": "Goblin",
+     "role": ""
+    }
+   },
+   "zone": "Thousand Needles",
+   "zone_id": 400
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 3864,
+      "name": "Citrine"
+     }
+    ]
+   },
+   "key": "q1380",
+   "letter": "With Khan Hratha dead, the Maraudine have pulled back into the Valley of Spears, and our clan grows stronger by the day. The other centaur think twice before raiding our herds. The land is as harsh as ever, but our people are eating well at last.",
+   "origin": "Given by the centaur clan the player fought for, as a token of friendship; Uthek the Wise (Gelkis) or Warug (Magram) sends them on the clan's behalf. Traders in Desolace know what such stones are worth.",
+   "quests": [
+    1380,
+    1381
+   ],
+   "senders": {
+    "1380": {
+     "entry": 5397,
+     "gender": "female",
+     "location": "Gelkis Village",
+     "name": "Uthek the Wise",
+     "role": ""
+    },
+    "1381": {
+     "entry": 5398,
+     "gender": "male",
+     "location": "Magram Village",
+     "name": "Warug",
+     "role": ""
+    }
+   },
+   "zone": "Desolace",
+   "zone_id": 405
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 8529,
+      "name": "Noggenfogger Elixir"
+     }
+    ]
+   },
+   "key": "q1691",
+   "letter": "The Wastewanders have stopped hitting our water caravans on the road. Fewer barrels go missing, and the price at the Gadgetzan tap has gone down by a copper. Don't spend it all at once.",
+   "origin": "From the stock of Marin Noggenfogger's elixirs kept at Gadgetzan. Chief Engineer Bilgewhizzle sends a few to the one who cleared out the Wastewander bandits.",
+   "quests": [
+    1691
+   ],
+   "senders": {
+    "any": {
+     "entry": 7407,
+     "faction": "Gadgetzan",
+     "gender": "male",
+     "location": "Gadgetzan",
+     "name": "Chief Engineer Bilgewhizzle",
+     "race": "Goblin",
+     "role": ""
+    }
+   },
+   "zone": "Tanaris",
+   "zone_id": 440
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 8838,
+      "name": "Sungrass"
+     }
+    ]
+   },
+   "key": "q2980",
+   "letter": "The Gordunni have been pushed back from the old night elf ruins. Our hunters say the withered trees there are putting out new leaves. The ogres will try again, but Camp Mojache will be ready.",
+   "origin": "Gathered among the ruins where the Gordunni ogres once camped, now that the camp has emptied. Rok Orhan sends it to the player as a sign the land is theirs again.",
+   "quests": [
+    2980
+   ],
+   "senders": {
+    "any": {
+     "entry": 7777,
+     "faction": "Orgrimmar",
+     "gender": "female",
+     "location": "Camp Mojache",
+     "name": "Rok Orhan",
+     "race": "Orc",
+     "role": ""
+    }
+   },
+   "zone": "Feralas",
+   "zone_id": 357
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 1645,
+      "name": "Moonberry Juice"
+     }
+    ]
+   },
+   "key": "q2870",
+   "letter": "With Lord Shalzaru dead, the Hatecrest raids on the coast have slowed. Feathermoon's Sentinels cross between the isle and the mainland with fewer escorts, and our fishing boats go further out each week.",
+   "origin": "Pressed at Feathermoon Stronghold from moonberries picked on the shores the naga no longer raid. Latronicus Moonspear sends a few bottles as thanks.",
+   "quests": [
+    2870
+   ],
+   "senders": {
+    "any": {
+     "entry": 7877,
+     "faction": "Darnassus",
+     "gender": "male",
+     "location": "Feathermoon Stronghold",
+     "name": "Latronicus Moonspear",
+     "race": "Night Elf",
+     "role": ""
+    }
+   },
+   "zone": "Feralas",
+   "zone_id": 357
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 8831,
+      "name": "Purple Lotus"
+     }
+    ]
+   },
+   "key": "q5536",
+   "letter": "The satyr in the forests of Azshara have grown fewer since you came. The trees near the old Highborne ruins look a little less twisted, and I heard birdsong there yesterday. Cenarius would be glad.",
+   "origin": "Found by Loh'atu in a glade of Azshara where the satyr no longer gather. Loh'atu sends it to the one who drove them out.",
+   "quests": [
+    5536
+   ],
+   "senders": {
+    "any": {
+     "entry": 11548,
+     "location": "",
+     "name": "Loh'atu",
+     "race": "Tauren",
+     "role": ""
+    }
+   },
+   "zone": "Azshara",
+   "zone_id": 16
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 15417,
+      "name": "Devilsaur Leather"
+     }
+    ]
+   },
+   "key": "q4292",
+   "letter": "With Lar'korwi gone, the stalkers of the northern trail have scattered. The explorers of Marshal's Refuge say they reach the crater's edge in half the time, and none have been lost on the trail this month.",
+   "origin": "Cut from the devilsaurs of Un'Goro Crater, which Torwa Pathfinder hunts with new respect for the one who brought down Lar'korwi. He believes a hunter should have such leather.",
+   "quests": [
+    4292
+   ],
+   "senders": {
+    "any": {
+     "entry": 9619,
+     "gender": "male",
+     "location": "",
+     "name": "Torwa Pathfinder",
+     "race": "Tauren",
+     "role": ""
+    }
+   },
+   "zone": "Un'Goro Crater",
+   "zone_id": 490
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 11951,
+      "name": "Whipper Root Tuber"
+     }
+    ]
+   },
+   "key": "q5242",
+   "letter": "With Fel'dan gone, the Shadow Council in Jaedenar has lost its head. Its servants still hold the caves, but the green haze around Shadow Hold has thinned, and our druids found clean water in a stream near the Emerald Sanctuary.",
+   "origin": "Gathered by the druids of the Emerald Sanctuary from plants they have cleansed of corruption. Greta Mosshoof sends them to the one who struck the final blow.",
+   "quests": [
+    5242
+   ],
+   "senders": {
+    "any": {
+     "entry": 10922,
+     "gender": "female",
+     "location": "Emerald Sanctuary",
+     "name": "Greta Mosshoof",
+     "race": "Tauren",
+     "role": ""
+    }
+   },
+   "zone": "Felwood",
+   "zone_id": 361
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 13467,
+      "name": "Icecap"
+     }
+    ]
+   },
+   "key": "q5121",
+   "letter": "Since High Chief Winterfall fell, fewer of the Winterfall have been seen drinking that foul firewater. They are still hostile, but their raids on the road to Everlook have become rare, and the Timbermaw watch their cousins with something like hope.",
+   "origin": "Gathered near the Winterfall camp by Donova Snowden, now that the furbolgs there are no longer led into corruption. She sends it to the one who ended the high chief.",
+   "quests": [
+    5121
+   ],
+   "senders": {
+    "any": {
+     "entry": 9298,
+     "gender": "female",
+     "location": "",
+     "name": "Donova Snowden",
+     "race": "Dwarf",
+     "role": ""
+    }
+   },
+   "zone": "Winterspring",
+   "zone_id": 618
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 13463,
+      "name": "Dreamfoil"
+     }
+    ]
+   },
+   "key": "q8321",
+   "letter": "Twilight's Run is quiet without Vyral. The cultists are still in the desert, but fewer of them come near Cenarion Hold, and the scouts we sent toward the ruins of Southwind Village have come back unharmed.",
+   "origin": "Grown by the druids of Cenarion Hold, a sign that even Silithus can be coaxed into bloom. Huum Wildmane sends it to the one who ended Vyral the Vile.",
+   "quests": [
+    8321
+   ],
+   "senders": {
+    "any": {
+     "entry": 15270,
+     "faction": "Cenarion Circle",
+     "gender": "male",
+     "location": "Cenarion Hold",
+     "name": "Huum Wildmane",
+     "race": "Tauren",
+     "role": ""
+    }
+   },
+   "zone": "Silithus",
+   "zone_id": 1377
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 44570,
+      "name": "Glass of Eversong Wine"
+     }
+    ]
+   },
+   "key": "q8476",
+   "letter": "The Amani have not returned to the eastern edge of Eversong since you broke their last raid. The Farstriders have resumed their patrols toward Zeb'Watha, and the woods near the Retreat are quiet enough to hear the birds again.",
+   "origin": "Wine from the Farstrider Retreat's own cellar, opened when the Amani were driven back. Lieutenant Dawnrunner sends a few glasses' worth to the one who did it.",
+   "quests": [
+    8476
+   ],
+   "senders": {
+    "any": {
+     "entry": 15399,
+     "faction": "Silvermoon City",
+     "gender": "female",
+     "location": "Farstrider Retreat",
+     "name": "Lieutenant Dawnrunner",
+     "race": "Blood Elf",
+     "role": ""
+    }
+   },
+   "zone": "Eversong Woods",
+   "zone_id": 3430
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 774,
+      "name": "Malachite"
+     }
+    ]
+   },
+   "key": "q9573",
+   "letter": "With Oomooroo dead, the Stillpine have reclaimed the lower halls of their Hold. The crazed wildkin still haunt the hills, but our defenders no longer need a trap at the door, and our young ones sleep inside again.",
+   "origin": "Found in the caves of Stillpine Hold, which the Stillpine can mine again since Chieftain Oomooroo was killed. Stillpine the Younger sends them to the one who ended Chieftain Oomooroo.",
+   "quests": [
+    9573
+   ],
+   "senders": {
+    "any": {
+     "entry": 17445,
+     "faction": "Stillpine Furbolg",
+     "location": "Stillpine Hold",
+     "name": "Stillpine the Younger",
+     "role": ""
+    }
+   },
+   "zone": "Azuremyst Isle",
+   "zone_id": 3524
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 1210,
+      "name": "Shadowgem"
+     }
+    ]
+   },
+   "key": "q9759",
+   "letter": "The Vector Coil is gone, and Sironas with it. The red mist over the north of the isle is fading, and our scholars report that the crystals near the crash sites are slowly losing their blood-red colour. The isle will need years to heal, but it has begun.",
+   "origin": "Found on Bloodmyst Isle by draenei of the Blood Watch, where the land is starting to heal since the player ended the blood elves' work there. Exarch Admetius sends them as a sign that the isle is healing.",
+   "quests": [
+    9759
+   ],
+   "senders": {
+    "any": {
+     "entry": 17658,
+     "faction": "Exodar",
+     "gender": "male",
+     "location": "Blood Watch",
+     "name": "Exarch Admetius",
+     "race": "Draenei",
+     "role": ""
+    }
+   },
+   "zone": "Bloodmyst Isle",
+   "zone_id": 3525
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 785,
+      "name": "Mageroyal"
+     }
+    ]
+   },
+   "key": "q9167",
+   "letter": "Following the destruction of Dar'Khan Drathir, the remaining Scourge forces in the region have lost their cohesion and grown significantly weaker. The warriors of Silvermoon are gradually purging the area of the Scourge remnants. The roads have become safer, and an increasing number of caravans are beginning to travel along them. Although the land in southern Quel'Thalas remains cursed, the curse has begun to wane, and the first flowers are starting to bloom.",
+   "origin": "Picked in the forest near Tranquillien, where it has begun to bloom again for the first time since the Scourge cursed southern Quel'Thalas. Magister Kaendris sends it as a sign of what the player's victory over Dar'Khan made possible.",
+   "quests": [
+    9167
+   ],
+   "senders": {
+    "any": {
+     "entry": 16239,
+     "faction": "Silvermoon City",
+     "gender": "male",
+     "location": "Sanctum of the Sun",
+     "name": "Magister Kaendris",
+     "race": "Blood Elf",
+     "role": ""
+    }
+   },
+   "zone": "Ghostlands",
+   "zone_id": 3433
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 22574,
+      "name": "Mote of Fire"
+     }
+    ]
+   },
+   "key": "q10397",
+   "letter": "The portal at Invasion Point: Annihilator is dark. The Legion still holds its forge camps, but the stream of fresh demons has dried up, and Honor Hold's patrols come back from the front with fewer wounded. The men have started calling it a quiet sector, which in Hellfire means something.",
+   "origin": "Gathered at Invasion Point: Annihilator after the Rune of Spite went dark. Field Marshal Brock sends them to the player who shut the portal.",
+   "quests": [
+    10397
+   ],
+   "senders": {
+    "any": {
+     "entry": 20793,
+     "faction": "Honor Hold",
+     "gender": "male",
+     "location": "Honor Hold",
+     "name": "Field Marshal Brock",
+     "race": "Human",
+     "role": ""
+    }
+   },
+   "zone": "Hellfire Peninsula",
+   "zone_id": 3483
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 27855,
+      "name": "Mag'har Grainbread"
+     }
+    ]
+   },
+   "key": "q10389",
+   "letter": "The terrorfiends at the Pools of Aggonar were scattered before they could march. Thrallmar's scouts can reach the western pools and return, and the Legion's commanders seem less sure of their plans. One broken attack does not end a war, but it buys us time.",
+   "origin": "Baked by the Mag'har at Thrallmar. Magister Bloodhawk sends a few loaves to the one who scattered the terrorfiends at the Pools of Aggonar before they could march.",
+   "quests": [
+    10389
+   ],
+   "senders": {
+    "any": {
+     "entry": 21175,
+     "faction": "Orgrimmar",
+     "gender": "male",
+     "location": "Thrallmar",
+     "name": "Magister Bloodhawk",
+     "race": "Blood Elf",
+     "role": ""
+    }
+   },
+   "zone": "Hellfire Peninsula",
+   "zone_id": 3483
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 27859,
+      "name": "Zangar Caps"
+     }
+    ]
+   },
+   "key": "q9720",
+   "letter": "The pumps are choked with ironvine and the lakes are rising again. Around Umbrafen and Serpent Lake the giant mushrooms are putting out new caps, and the sporebats are back over the water. The naga will try again, but Zangarmarsh can breathe for now.",
+   "origin": "Gathered on the shores of Umbrafen Lake, where the water has started to come back. Ysiel Windsinger sends them to the one who helped restore the balance.",
+   "quests": [
+    9720
+   ],
+   "senders": {
+    "any": {
+     "entry": 17841,
+     "faction": "Cenarion Expedition",
+     "gender": "female",
+     "location": "Cenarion Refuge",
+     "name": "Ysiel Windsinger",
+     "race": "Night Elf",
+     "role": ""
+    }
+   },
+   "zone": "Zangarmarsh",
+   "zone_id": 3521
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 27856,
+      "name": "Skethyl Berries"
+     }
+    ]
+   },
+   "key": "q10042",
+   "letter": "With Shadowmaster Grieve dead, the Shadow Council has lost its foothold near our camp. Travellers on the road to Shattrath report fewer disappearances, and the forest around the stronghold is quiet.",
+   "origin": "Picked along the forest road of Terokkar, now that travelers can stop safely. Lieutenant Gravelhammer (Alliance) or Advisor Faila (Horde) sends them to the one who broke the Shadow Council's foothold.",
+   "quests": [
+    10042,
+    10043
+   ],
+   "senders": {
+    "alliance": {
+     "entry": 18713,
+     "gender": "male",
+     "location": "Allerian Stronghold",
+     "name": "Lieutenant Gravelhammer",
+     "race": "Dwarf",
+     "role": ""
+    },
+    "horde": {
+     "entry": 18712,
+     "gender": "female",
+     "location": "Stonebreaker Hold",
+     "name": "Advisor Faila",
+     "race": "Blood Elf",
+     "role": ""
+    }
+   },
+   "zone": "Terokkar Forest",
+   "zone_id": 3519
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 29451,
+      "name": "Clefthoof Ribs"
+     }
+    ]
+   },
+   "key": "q9933",
+   "letter": "Since Lantresor accepted our offering, his Boulderfist ogres have stopped raiding the plains. Our hunters follow the talbuk herds south without being ambushed, and the clefthoof graze near the road again.",
+   "origin": "From the clefthoof herds of Nagrand, which graze near the road again since Lantresor's ogres stopped raiding. Arechron (Alliance) or a Garadar scout (Horde) sends a share of the hunt to the one who carried the message.",
+   "quests": [
+    9933,
+    9934
+   ],
+   "senders": {
+    "alliance": {
+     "entry": 18183,
+     "faction": "Kurenai",
+     "gender": "male",
+     "location": "Telaar",
+     "name": "Arechron",
+     "race": "Broken",
+     "role": ""
+    },
+    "horde": {
+     "entry": 18407,
+     "faction": "The Mag'har",
+     "location": "Garadar",
+     "name": "Warden Bullrok",
+     "role": "a scout of Garadar, writing for the warden"
+    }
+   },
+   "zone": "Nagrand",
+   "zone_id": 3518
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 1,
+      "entry": 23441,
+      "name": "Nightseye"
+     }
+    ]
+   },
+   "key": "q10803",
+   "letter": "The Boulder'mok have lost many of their brutes and shamans. They still hold their camp, but their raids on our supply lines have stopped for now, and our hunters pass Raven's Wood without trouble.",
+   "origin": "Picked from the streams near Raven's Wood, where the Boulder'mok ogres carried such stones as lucky charms. Lieutenant Fairweather (Alliance) or Tor'chunk Twoclaws (Horde) sends it to the one who proved the charms didn't work.",
+   "quests": [
+    10803,
+    10786
+   ],
+   "senders": {
+    "alliance": {
+     "entry": 22150,
+     "gender": "female",
+     "location": "Sylvanaar",
+     "name": "Lieutenant Fairweather",
+     "race": "Human",
+     "role": ""
+    },
+    "horde": {
+     "entry": 21147,
+     "gender": "male",
+     "location": "Thunderlord Stronghold",
+     "name": "Tor'chunk Twoclaws",
+     "race": "Orc",
+     "role": ""
+    }
+   },
+   "zone": "Blade's Edge Mountains",
+   "zone_id": 3522
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 22457,
+      "name": "Primal Mana"
+     }
+    ]
+   },
+   "key": "q10240",
+   "letter": "The perimeter holds. The mana creatures still circle Kirin'Var, but they can no longer reach the spirits of my brothers and sisters. Some of them have even begun to remember who they were.",
+   "origin": "Gathered by the spirits of Kirin'Var Village, who can tend the village since the perimeter was raised. Lieutenant-Sorcerer Morran sends them to the one who helped raise it.",
+   "quests": [
+    10240
+   ],
+   "senders": {
+    "any": {
+     "entry": 19489,
+     "gender": "male",
+     "location": "Kirin'Var Village",
+     "name": "Lieutenant-Sorcerer Morran",
+     "role": ""
+    }
+   },
+   "zone": "Netherstorm",
+   "zone_id": 3523
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 23448,
+      "name": "Felsteel Bar"
+     }
+    ]
+   },
+   "key": "q10744",
+   "letter": "With the Legion's threat beaten back, we can finally turn our attention to Illidan's forces. Our place here is far from secure, but the skies over the stronghold are clearer, and the riders say the fel fires to the south are burning lower.",
+   "origin": "Smelted from metal taken at a Legion forge in Shadowmoon Valley, now finally cool enough to work. Kurdran Wildhammer (Alliance) or Overlord Or'barokh (Horde) sends them as a keepsake of the victory over the Legion's forces.",
+   "quests": [
+    10744,
+    10745
+   ],
+   "senders": {
+    "alliance": {
+     "entry": 21330,
+     "gender": "male",
+     "location": "Wildhammer Stronghold",
+     "name": "Kurdran Wildhammer",
+     "race": "Dwarf",
+     "role": ""
+    },
+    "horde": {
+     "entry": 21769,
+     "gender": "male",
+     "location": "Shadowmoon Village",
+     "name": "Overlord Or'barokh",
+     "race": "Orc",
+     "role": ""
+    }
+   },
+   "zone": "Shadowmoon Valley",
+   "zone_id": 3520
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 33042,
+      "name": "Black Coffee"
+     }
+    ]
+   },
+   "key": "q11723",
+   "letter": "The Shake-n-Quake 5000 collapsed the southern sinkholes beautifully. The nerubians haven't come up near the airstrip since, and the mechanics work on the planes outside at night. We're already drawing up the Shake-n-Quake 6000.",
+   "origin": "Brewed at Fizzcrank Airstrip, where it keeps the gnomes working. Abner Fizzletorque sends a few cups' worth to the one who deployed the Shake-n-Quake.",
+   "quests": [
+    11723
+   ],
+   "senders": {
+    "any": {
+     "entry": 25780,
+     "faction": "Valiance Expedition",
+     "gender": "male",
+     "location": "Fizzcrank Airstrip",
+     "name": "Abner Fizzletorque",
+     "race": "Gnome",
+     "role": ""
+    }
+   },
+   "zone": "Borean Tundra",
+   "zone_id": 3537
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 34749,
+      "name": "Shoveltusk Steak"
+     }
+    ]
+   },
+   "key": "q11285",
+   "letter": "Baleheim burn good! Winterskorn not come down to Camp Winterhoof since. Taunka go fishing, nobody get eaten. Gorth very happy.",
+   "origin": "Cooked by Sergeant Gorth at Camp Winterhoof. Gorth sends it to the one who burned Baleheim, and admits it is mostly cooked.",
+   "quests": [
+    11285
+   ],
+   "senders": {
+    "any": {
+     "entry": 24027,
+     "faction": "The Hand of Vengeance",
+     "location": "Camp Winterhoof",
+     "name": "Sergeant Gorth",
+     "race": "Undead",
+     "role": ""
+    }
+   },
+   "zone": "Howling Fjord",
+   "zone_id": 495
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 34748,
+      "name": "Mammoth Meal"
+     }
+    ]
+   },
+   "key": "q11647",
+   "letter": "The plague cauldrons of En'kilah are silent. The wind no longer carries their stench to Taunka'le, and our hunters say the herds are drifting back onto the northern plains.",
+   "origin": "A taunka hunter's meal from Taunka'le Village. Sage Aeire sends it to the one who neutralized the cauldrons.",
+   "quests": [
+    11647
+   ],
+   "senders": {
+    "any": {
+     "entry": 24709,
+     "faction": "The Taunka",
+     "gender": "female",
+     "location": "Taunka'le Village",
+     "name": "Sage Aeire",
+     "race": "Tauren",
+     "role": ""
+    }
+   },
+   "zone": "Borean Tundra",
+   "zone_id": 3537
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 34763,
+      "name": "Smoked Salmon"
+     }
+    ]
+   },
+   "key": "q11249",
+   "letter": "The thane of Skorn is dead and his ascension never happened. The vrykul of Skorn are still there, but the fire has gone out of their attacks, and the soldiers of Westguard have started repairing the keep's outer walls.",
+   "origin": "Caught off the coast below Westguard Keep. Father Levariol sends it to the one who stopped the ascension.",
+   "quests": [
+    11249
+   ],
+   "senders": {
+    "any": {
+     "entry": 24038,
+     "faction": "Valiance Expedition",
+     "gender": "male",
+     "location": "Westguard Keep",
+     "name": "Father Levariol",
+     "race": "Human",
+     "role": ""
+    }
+   },
+   "zone": "Howling Fjord",
+   "zone_id": 495
+  },
+  {
+   "faction": "Alliance",
+   "gift": {
+    "items": [
+     {
+      "count": 1,
+      "entry": 36917,
+      "name": "Bloodstone"
+     }
+    ]
+   },
+   "key": "q12311",
+   "letter": "Since Necrolord Amarion fell, the attacks from inside Wintergarde Crypt have stopped. The village is still in ruins, but the soldiers are clearing rubble, and someone has started a small garden behind the keep.",
+   "origin": "Recovered from Wintergarde Crypt; the family it belonged to has no living heirs. Cavalier Durkon sends it to the one who cleared the noble's crypt.",
+   "quests": [
+    12311
+   ],
+   "senders": {
+    "any": {
+     "entry": 27318,
+     "faction": "Valiance Expedition",
+     "gender": "male",
+     "location": "Wintergarde Keep",
+     "name": "Cavalier Durkon",
+     "race": "Dwarf",
+     "role": ""
+    }
+   },
+   "zone": "Dragonblight",
+   "zone_id": 65
+  },
+  {
+   "faction": "Horde",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 33452,
+      "name": "Honey-Spiced Lichen"
+     }
+    ]
+   },
+   "key": "q12140",
+   "letter": "Roanauk Icemist now leads the taunka of the Horde. More of his people arrive at Agmar's Hammer every week, and our scouts no longer travel the Dragonblight alone.",
+   "origin": "A taunka delicacy served at Agmar's Hammer when Roanauk was hailed. Overlord Agmar sends some to the one who made it possible.",
+   "quests": [
+    12140
+   ],
+   "senders": {
+    "any": {
+     "entry": 26379,
+     "faction": "Warsong Offensive",
+     "gender": "male",
+     "location": "Agmar's Hammer",
+     "name": "Overlord Agmar",
+     "race": "Orc",
+     "role": ""
+    }
+   },
+   "zone": "Dragonblight",
+   "zone_id": 65
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 36916,
+      "name": "Cobalt Bar"
+     }
+    ]
+   },
+   "key": "q12153",
+   "letter": "With the Iron Thane gone, the iron dwarves of Dun Argol have stopped pushing into the hills. The runed giants walk free along the shore, and the forest around Dun Argol is quieter.",
+   "origin": "Smelted from the Anvil, the Iron Thane's guardian construct, after the fight at Dun Argol. Raegar Breakbrow (Alliance) or Tormak the Scarred (Horde) sends them as proof that its runes have gone dark.",
+   "quests": [
+    12153,
+    12199
+   ],
+   "senders": {
+    "alliance": {
+     "entry": 26883,
+     "faction": "Valiance Expedition",
+     "gender": "male",
+     "location": "Prospector's Point",
+     "name": "Raegar Breakbrow",
+     "race": "Dwarf",
+     "role": ""
+    },
+    "horde": {
+     "entry": 27221,
+     "faction": "The Taunka",
+     "gender": "male",
+     "location": "Camp Oneqwah",
+     "name": "Tormak the Scarred",
+     "race": "Taunka",
+     "role": ""
+    }
+   },
+   "zone": "Grizzly Hills",
+   "zone_id": 394
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 42778,
+      "name": "Crusader's Rations"
+     }
+    ]
+   },
+   "key": "q12713",
+   "letter": "Drakuru is finished, and his Scourge-fed army has no leader. The Drakkari still fight among themselves, but their attacks on Ebon Watch have stopped, and the Ebon Blade can turn its attention elsewhere.",
+   "origin": "Shared from the supply lines that reach the Ebon Watch. Stefan Vadu sends them to the one who finished Drakuru.",
+   "quests": [
+    12713
+   ],
+   "senders": {
+    "any": {
+     "entry": 28518,
+     "faction": "Knights of the Ebon Blade",
+     "gender": "male",
+     "location": "Ebon Watch",
+     "name": "Stefan Vadu",
+     "race": "Human",
+     "role": ""
+    }
+   },
+   "zone": "Zul'Drak",
+   "zone_id": 66
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 36903,
+      "name": "Adder's Tongue"
+     }
+    ]
+   },
+   "key": "q12546",
+   "letter": "The Scourge at the Avalanche is broken. Where the undead marched, the first vines are already creeping back over the stones. The basin will heal, as it always has.",
+   "origin": "Picked at the Avalanche, where the first vines are creeping back over the stones after the Etymidian's fury swept the Scourge away. The Avatar of Freya sends it to the one who guided the Etymidian.",
+   "quests": [
+    12546
+   ],
+   "senders": {
+    "any": {
+     "entry": 27801,
+     "gender": "female",
+     "location": "",
+     "name": "Avatar of Freya",
+     "role": ""
+    }
+   },
+   "zone": "Sholazar Basin",
+   "zone_id": 3711
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 5,
+      "entry": 37705,
+      "name": "Crystallized Water"
+     }
+    ]
+   },
+   "key": "q12915",
+   "letter": "With Fjorn dead, the Sons of Hodir have come out of Dun Niffelem for the first time since the siege began. They have not forgotten my old failures, but they are willing to talk again.",
+   "origin": "Drawn from the frost springs of Dun Niffelem, where the Sons of Hodir have come out again since Fjorn's death. Thorim sends it with their thanks and his own.",
+   "quests": [
+    12915
+   ],
+   "senders": {
+    "any": {
+     "entry": 29445,
+     "gender": "male",
+     "location": "Temple of Storms",
+     "name": "Thorim",
+     "role": ""
+    }
+   },
+   "zone": "The Storm Peaks",
+   "zone_id": 67
+  },
+  {
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 35627,
+      "name": "Eternal Shadow"
+     }
+    ]
+   },
+   "key": "q12943",
+   "letter": "Thane Ufrang is dead, and the vrykul of the Savage Ledge have stopped raiding the Shadow Vault. Our knights now patrol the valley floor freely.",
+   "origin": "Taken from Thane Ufrang's hall after his death. The Ebon Blade has no use for it, and Duke Lankral sends it to the player as a trophy.",
+   "quests": [
+    12943
+   ],
+   "senders": {
+    "any": {
+     "entry": 30002,
+     "faction": "Knights of the Ebon Blade",
+     "gender": "male",
+     "location": "the Shadow Vault",
+     "name": "Duke Lankral",
+     "race": "Human",
+     "role": ""
+    }
+   },
+   "zone": "Icecrown",
+   "zone_id": 210
+  }
+ ],
+ "raids": [
+  {
+   "achievements": [
+    688
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 10,
+      "entry": 19774,
+      "name": "Souldarite"
+     }
+    ]
+   },
+   "key": "zulgurub",
+   "letter": "Hakkar the Soulflayer has been cast out of this world again, and the priests who called him are dead. The Gurubashi who survived wander Zul'Gurub without masters, and the blood-red haze over northern Stranglethorn is lifting. The Zandalar will keep watch, but for now the jungle breathes.",
+   "name": "Zul'Gurub",
+   "origin": "Brought to Yojamba Isle by Zandalari priests from the shrines of Zul'Gurub after Hakkar fell. Molthor sends them to the player with the formal thanks of the Zandalar Tribe.",
+   "senders": {
+    "any": {
+     "entry": 14875,
+     "faction": "Zandalar Tribe",
+     "gender": "male",
+     "location": "Yojamba Isle",
+     "name": "Molthor",
+     "race": "Troll",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    689
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 14344,
+      "name": "Large Brilliant Shard"
+     }
+    ]
+   },
+   "key": "ruins_of_ahnqiraj",
+   "letter": "Ossirian the Unscarred is dead, and the Ruins of Ahn'Qiraj have lost their general. Silithid still boil out of the hives, but the attacks on Cenarion Hold have weakened, and our scouts report that the Qiraji have pulled back behind the temple walls.",
+   "name": "Ruins of Ahn'Qiraj",
+   "origin": "Recovered from the sands of the ruins by Cenarion scouts after Ossirian's death. Commander Mar'alith sends them to a member of the force that killed the Qiraji general.",
+   "senders": {
+    "any": {
+     "entry": 15181,
+     "faction": "Cenarion Circle",
+     "gender": "male",
+     "location": "Cenarion Hold",
+     "name": "Commander Mar'alith",
+     "race": "Night Elf",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    686
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 10,
+      "entry": 17010,
+      "name": "Fiery Core"
+     },
+     {
+      "count": 10,
+      "entry": 17011,
+      "name": "Lava Core"
+     }
+    ]
+   },
+   "key": "molten_core",
+   "letter": "Ragnaros has been banished from Azeroth, back to the Elemental Plane, and his servants will not easily call him back. My Waterlords feel the difference already: the heat in the depths of Blackrock Mountain is falling, and the springs on its slopes run cooler.",
+   "name": "Molten Core",
+   "origin": "Carried out of the Molten Core by Duke Hydraxis's agents after Ragnaros was banished, once the cores had finally cooled. Duke Hydraxis sends them as proof that the Firelord's hold on the mountain is weakening, and as thanks to one who helped drive him out.",
+   "senders": {
+    "any": {
+     "entry": 13278,
+     "location": "Azshara",
+     "name": "Duke Hydraxis",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    684
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 10,
+      "entry": 15410,
+      "name": "Scale of Onyxia"
+     }
+    ]
+   },
+   "key": "onyxias_lair_level_60",
+   "letter": "Onyxia is dead, and her head hangs at the city gates for all to see. Her brood in Dustwallow Marsh has scattered, the marsh-folk say black dragons are rarely seen over the wetlands now, and a certain unease that hung over the court has lifted.",
+   "name": "Onyxia's Lair (level 60)",
+   "origin": "Cut from Onyxia's hide when her head was brought back to the city. Major Mattingly (Alliance) or Overlord Runthak (Horde) sends them to a member of the band that slew her, as a reward from the city.",
+   "senders": {
+    "alliance": {
+     "entry": 14394,
+     "faction": "Stormwind",
+     "gender": "male",
+     "location": "Stormwind",
+     "name": "Major Mattingly",
+     "race": "Human",
+     "role": ""
+    },
+    "horde": {
+     "entry": 14392,
+     "faction": "Orgrimmar",
+     "gender": "male",
+     "location": "Orgrimmar",
+     "name": "Overlord Runthak",
+     "race": "Orc",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    685
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 1,
+      "entry": 18562,
+      "name": "Elementium Ore"
+     }
+    ]
+   },
+   "key": "blackwing_lair",
+   "letter": "Nefarian is dead, and his head hangs in the city for everyone to see. His chromatic experiments in Blackwing Lair have ended, and without their master the black dragons of Blackrock Spire have lost their hold on the mountain.",
+   "name": "Blackwing Lair",
+   "origin": "Taken from Nefarian's hoard after the fall of Blackwing Lair and handed to the army's quartermasters. Field Marshal Afrasiabi (Alliance) or High Overlord Saurfang (Horde) sends it as a trophy and a reward from the city.",
+   "senders": {
+    "alliance": {
+     "entry": 14721,
+     "faction": "Stormwind",
+     "gender": "male",
+     "location": "Stormwind",
+     "name": "Field Marshal Afrasiabi",
+     "race": "Human",
+     "role": ""
+    },
+    "horde": {
+     "entry": 14720,
+     "faction": "Orgrimmar",
+     "gender": "male",
+     "location": "Orgrimmar",
+     "name": "High Overlord Saurfang",
+     "race": "Orc",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    687
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 20725,
+      "name": "Nexus Crystal"
+     }
+    ]
+   },
+   "key": "temple_of_ahnqiraj",
+   "letter": "C'Thun has fallen, and the Old God that stirred beneath Ahn'Qiraj is silent. The Qiraji empire is broken; its armies will not march on Kalimdor again in our lifetimes. The Scarab Wall still stands, but for the first time in a thousand years the bronze dragonflight does not fear what lies behind it.",
+   "name": "Temple of Ahn'Qiraj",
+   "origin": "Recovered from C'Thun's chamber after the Old God's defeat and cleansed by the bronze dragonflight. Anachronos sends them to one of those who ended the threat he once helped seal away.",
+   "senders": {
+    "any": {
+     "entry": 15192,
+     "faction": "Brood of Nozdormu",
+     "location": "Caverns of Time",
+     "name": "Anachronos",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    533
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 12811,
+      "name": "Righteous Orb"
+     }
+    ]
+   },
+   "key": "naxxramas_level_60",
+   "letter": "Kel'Thuzad has been defeated, and Naxxramas no longer hangs unchallenged over the Plaguelands. His phylactery was not found, so we expect him to return one day, but the plague raining from the necropolis has eased, and the fields around Light's Hope look a little less grey.",
+   "name": "Naxxramas (level 60)",
+   "origin": "Recovered from the Scourge in the battle against Kel'Thuzad, then examined by the Argent Dawn and found clean. Commander Eligor Dawnbringer sends them as the Dawn's reward to one who helped bring Kel'Thuzad down.",
+   "senders": {
+    "any": {
+     "entry": 16115,
+     "faction": "Argent Dawn",
+     "gender": "male",
+     "location": "Light's Hope Chapel",
+     "name": "Commander Eligor Dawnbringer",
+     "race": "Human",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    690
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 22450,
+      "name": "Void Crystal"
+     }
+    ]
+   },
+   "key": "karazhan",
+   "letter": "Prince Malchezaar is gone, and the tower of Karazhan is free of its demon lord. The ghosts still dance in the ballroom and the library still whispers, but the Violet Eye can walk the halls more safely, and the strange lights over Deadwind Pass have grown fainter.",
+   "name": "Karazhan",
+   "origin": "Taken from Prince Malchezaar's wards at the top of Karazhan by the Violet Eye after the demon was destroyed. Archmage Alturus sends them to one of those who cleared the tower, as the Violet Eye's thanks.",
+   "senders": {
+    "any": {
+     "entry": 17613,
+     "faction": "The Violet Eye",
+     "gender": "male",
+     "location": "Deadwind Pass",
+     "name": "Archmage Alturus",
+     "race": "Human",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    692
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 10,
+      "entry": 22452,
+      "name": "Primal Earth"
+     }
+    ]
+   },
+   "key": "gruuls_lair",
+   "letter": "Gruul the Dragonkiller is dead. The ogres of Blade's Edge have lived under the gronn for longer than any of us remember, and now some of them are learning to live without them. More come to Ogri'la every week.",
+   "name": "Gruul's Lair",
+   "origin": "Gathered in Gruul's Lair and brought to Ogri'la, where the ogres celebrate that the Dragonkiller is dead. Chu'a'lor sends them to one of the killers.",
+   "senders": {
+    "any": {
+     "entry": 23233,
+     "faction": "Ogri'la",
+     "gender": "male",
+     "location": "Ogri'la",
+     "name": "Chu'a'lor",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    693
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 23571,
+      "name": "Primal Might"
+     }
+    ]
+   },
+   "key": "magtheridons_lair",
+   "letter": "Magtheridon is dead, and the pit lord whose blood fed the Fel Horde is gone for good. The citadel still stands, but whatever the fel orcs brew in its furnaces now is weaker than before, and the red glow over Hellfire Citadel is fading.",
+   "name": "Magtheridon's Lair",
+   "origin": "Taken from the chamber beneath Hellfire Citadel where Magtheridon was held, after the pit lord was slain. Danath Trollbane (Alliance) or Nazgrel (Horde) sends them as a trophy of the victory the garrison will be telling stories about for years.",
+   "senders": {
+    "alliance": {
+     "entry": 16819,
+     "faction": "Honor Hold",
+     "gender": "male",
+     "location": "Honor Hold",
+     "name": "Force Commander Danath Trollbane",
+     "race": "Human",
+     "role": ""
+    },
+    "horde": {
+     "entry": 3230,
+     "faction": "Orgrimmar",
+     "gender": "male",
+     "location": "Thrallmar",
+     "name": "Nazgrel",
+     "race": "Orc",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    691
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 32249,
+      "name": "Seaspray Emerald"
+     }
+    ]
+   },
+   "key": "zulaman",
+   "letter": "Zul'jin is dead! The Amani have lost their warlord, and the power of their animal gods with him, and the trolls who are left are licking their wounds deep in the forest. The roads of the Ghostlands near Zul'Aman are safer, and I've finally got time to catalogue all that gold. For science, of course.",
+   "name": "Zul'Aman",
+   "origin": "Brought out of Zul'Aman's treasury by Harrison Jones after Zul'jin fell. He decided they were surplus to his collection and sends them to one of the people who made the expedition possible.",
+   "senders": {
+    "any": {
+     "entry": 24358,
+     "gender": "male",
+     "location": "",
+     "name": "Harrison Jones",
+     "race": "Human",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    694
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 32228,
+      "name": "Empyrean Sapphire"
+     }
+    ]
+   },
+   "key": "serpentshrine_cavern",
+   "letter": "Lady Vashj is dead and Coilfang Reservoir has lost its mistress. The great pumps that drained Zangarmarsh are falling still one by one, and the water is rising across the marsh. It will take years, but Zangarmarsh will recover.",
+   "name": "Serpentshrine Cavern",
+   "origin": "Gathered in Serpentshrine Cavern, where the naga had hoarded such stones, and brought to Cenarion Refuge after Lady Vashj's death. Ysiel Windsinger sends them to a member of the force that stopped the draining of the marsh.",
+   "senders": {
+    "any": {
+     "entry": 17841,
+     "faction": "Cenarion Expedition",
+     "gender": "female",
+     "location": "Cenarion Refuge",
+     "name": "Ysiel Windsinger",
+     "race": "Night Elf",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    696
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 32229,
+      "name": "Lionseye"
+     }
+    ]
+   },
+   "key": "tempest_keep",
+   "letter": "Kael'thas has been driven from Tempest Keep, and the naaru's fortress is no longer his. The blood elves who followed him are scattered, and A'dal says the Keep's crystals already sing differently. Whatever Kael'thas does next, he will do it without the power of the Eye.",
+   "name": "Tempest Keep",
+   "origin": "Recovered by the Sha'tar from the Eye after Kael'thas's defeat. Khadgar sends them to one of those who broke Kael'thas's hold on Tempest Keep.",
+   "senders": {
+    "any": {
+     "entry": 18166,
+     "gender": "male",
+     "location": "Shattrath City",
+     "name": "Khadgar",
+     "race": "Human",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    695
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 30183,
+      "name": "Nether Vortex"
+     }
+    ]
+   },
+   "key": "the_battle_for_mount_hyjal",
+   "letter": "Archimonde has fallen at the World Tree, as he did in the true history, and the battle for Mount Hyjal ends as it should. The infinite dragonflight's meddling in that timeway has been undone, and in our own time Nordrassil still grows.",
+   "name": "The Battle for Mount Hyjal",
+   "origin": "Gathered by the bronze dragonflight from the demons that fell at Mount Hyjal on the day Archimonde was defeated, and kept in the Caverns of Time. Soridormi sends them to one of those who made sure the battle ended as history requires.",
+   "senders": {
+    "any": {
+     "entry": 19935,
+     "faction": "The Scale of the Sands",
+     "gender": "female",
+     "location": "Caverns of Time",
+     "name": "Soridormi",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    697
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 32230,
+      "name": "Shadowsong Amethyst"
+     }
+    ]
+   },
+   "key": "black_temple",
+   "letter": "Illidan Stormrage is dead, and the Black Temple belongs to the Ashtongue again. We are cleansing the halls of Karabor one at a time. It will take many years, but the first prayers in a generation have been spoken in its sanctuary.",
+   "name": "Black Temple",
+   "origin": "Taken from the old sanctuary of Karabor, the temple that stood before the Black Temple's dark years. Akama and the Ashtongue give them freely to one of those who freed the temple from Illidan.",
+   "senders": {
+    "any": {
+     "entry": 21700,
+     "faction": "Ashtongue Deathsworn",
+     "gender": "male",
+     "location": "the Black Temple",
+     "name": "Akama",
+     "race": "Broken",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    698
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 32231,
+      "name": "Pyrestone"
+     }
+    ]
+   },
+   "key": "sunwell_plateau",
+   "letter": "Kil'jaeden has been cast back into the Twisting Nether and the Sunwell is restored. Its light feels different now, Light and arcane together, but every elf in Quel'Thalas can feel it. The Shattered Sun stands guard, and for the first time in years Silvermoon looks to the future.",
+   "name": "Sunwell Plateau",
+   "origin": "Gathered from the Sunwell Plateau after Kil'jaeden was driven back and the Sunwell restored. Lady Liadrin sends them as the thanks of the Shattered Sun to one who fought there.",
+   "senders": {
+    "any": {
+     "entry": 17076,
+     "gender": "female",
+     "location": "Isle of Quel'Danas",
+     "name": "Lady Liadrin",
+     "race": "Blood Elf",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    1722,
+    1721,
+    3136,
+    3137,
+    3836,
+    3837,
+    4585,
+    4586
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 43102,
+      "name": "Frozen Orb"
+     }
+    ]
+   },
+   "key": "vault_of_archavon",
+   "letter": "The stone watchers of the Vault of Archavon fall silent each time our forces hold Wintergrasp. The titan relics beneath the fortress stay in our hands, and the soldiers say the vault's halls no longer shake when the battle above begins.",
+   "name": "Vault of Archavon",
+   "origin": "Taken from the Vault of Archavon after one of its titan watchers was defeated, then given to the Wintergrasp commander. Commander Zanneth (Alliance) or Commander Dardosh (Horde) sends them to one of those who went into the Vault.",
+   "senders": {
+    "alliance": {
+     "entry": 31036,
+     "faction": "Valiance Expedition",
+     "gender": "male",
+     "location": "Wintergrasp",
+     "name": "Commander Zanneth",
+     "race": "Human",
+     "role": ""
+    },
+    "horde": {
+     "entry": 31091,
+     "faction": "Warsong Offensive",
+     "gender": "male",
+     "location": "Wintergrasp",
+     "name": "Commander Dardosh",
+     "race": "Orc",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    574,
+    575
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 34057,
+      "name": "Abyss Crystal"
+     }
+    ]
+   },
+   "key": "naxxramas",
+   "letter": "Kel'Thuzad has fallen again, and Naxxramas no longer hangs over the Dragonblight unchallenged. The plague clouds that drifted from the necropolis toward Wyrmrest are thinning, and our patrols see fewer abominations on the plains.",
+   "name": "Naxxramas",
+   "origin": "Recovered from Naxxramas after Kel'Thuzad fell a second time, and studied by the red dragonflight at Wyrmrest Temple until they were found clean. Lord Afrasastrasz sends them to one who helped bring the necropolis down.",
+   "senders": {
+    "any": {
+     "entry": 27575,
+     "faction": "The Wyrmrest Accord",
+     "gender": "male",
+     "location": "Wyrmrest Temple",
+     "name": "Lord Afrasastrasz",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    1876,
+    625
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 36928,
+      "name": "Dreadstone"
+     }
+    ]
+   },
+   "key": "the_obsidian_sanctum",
+   "letter": "Sartharion the Onyx Guardian is dead, and the black dragonflight's hold on the Obsidian Sanctum is broken. The twilight eggs it guarded are being found and destroyed, and the ground beneath Wyrmrest has stopped trembling.",
+   "name": "The Obsidian Sanctum",
+   "origin": "Recovered from the Obsidian Sanctum after Sartharion's death, from the hoard that guarded the twilight eggs. Torastrasza sends them to one of those who stopped the twilight brood.",
+   "senders": {
+    "any": {
+     "entry": 26949,
+     "faction": "The Wyrmrest Accord",
+     "gender": "female",
+     "location": "Wyrmrest Temple",
+     "name": "Torastrasza",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    4396,
+    4397
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 36931,
+      "name": "Ametrine"
+     }
+    ]
+   },
+   "key": "onyxias_lair_level_80",
+   "letter": "Onyxia is dead once more. Whatever brought her back to her lair, her brood in Dustwallow Marsh is again without its mother, and the whelps have stopped harassing the roads.",
+   "name": "Onyxia's Lair (level 80)",
+   "origin": "Taken from Onyxia's hoard after her return was ended. Lady Jaina Proudmoore (Alliance) or Draz'Zilb (Horde) sends them to one of those who killed her.",
+   "senders": {
+    "alliance": {
+     "entry": 4968,
+     "faction": "Theramore",
+     "gender": "female",
+     "location": "Theramore",
+     "name": "Lady Jaina Proudmoore",
+     "race": "Human",
+     "role": ""
+    },
+    "horde": {
+     "entry": 4501,
+     "faction": "Orgrimmar",
+     "gender": "male",
+     "location": "Brackenwall Village",
+     "name": "Draz'Zilb",
+     "race": "Goblin",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    622,
+    623
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 36925,
+      "name": "Majestic Zircon"
+     }
+    ]
+   },
+   "key": "the_eye_of_eternity",
+   "letter": "Malygos is dead, and the Nexus War is over. The blue dragonflight is leaderless and grieving, and the ley lines of Azeroth have stopped bending toward Coldarra. Magic will flow freely again, though I fear what mortals will do with it.",
+   "name": "The Eye of Eternity",
+   "origin": "Taken from the Eye of Eternity after Malygos fell, stones the blue dragonflight used in its spellweaving. Alexstrasza sends them to one of those who ended the Nexus War.",
+   "senders": {
+    "any": {
+     "entry": 26917,
+     "faction": "The Wyrmrest Accord",
+     "gender": "female",
+     "location": "Wyrmrest Temple",
+     "name": "Alexstrasza the Life-Binder",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    2892,
+    2893
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 45087,
+      "name": "Runed Orb"
+     }
+    ]
+   },
+   "key": "ulduar",
+   "letter": "Yogg-Saron has been defeated, and the Old God's whispers in Ulduar have stopped. The keepers are free of his influence, the iron armies have lost their purpose, and the storms over the Storm Peaks are calmer.",
+   "name": "Ulduar",
+   "origin": "Recovered by Kirin Tor mages from the halls of Ulduar after Yogg-Saron was defeated; they still glow with the keepers' power. Archmage Rhydian sends them to one of those who fought their way through the titan city.",
+   "senders": {
+    "any": {
+     "entry": 33696,
+     "faction": "Kirin Tor",
+     "location": "Ulduar",
+     "name": "Archmage Rhydian",
+     "race": "Human",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    3917,
+    3916,
+    3918,
+    3812
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 47556,
+      "name": "Crusader Orb"
+     }
+    ]
+   },
+   "key": "trial_of_the_crusader",
+   "letter": "The Trial of the Crusader is over, and Anub'arak lies dead in the depths beneath the Coliseum. The champions of the Alliance and the Horde have proven themselves, and the Argent Crusade is ready to march on Icecrown Citadel itself.",
+   "name": "Trial of the Crusader",
+   "origin": "Handed out by the Argent Crusade to the champions of the Argent Coliseum after the trials ended with Anub'arak's defeat. Barrett Ramsey sends them to a champion who earned them.",
+   "senders": {
+    "any": {
+     "entry": 34816,
+     "gender": "male",
+     "location": "Argent Coliseum",
+     "name": "Barrett Ramsey",
+     "race": "Human",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    4530,
+    4597,
+    4636,
+    4637
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 2,
+      "entry": 49908,
+      "name": "Primordial Saronite"
+     }
+    ]
+   },
+   "key": "icecrown_citadel",
+   "letter": "The Lich King is dead. The Scourge still walks Northrend, but it walks without its master's will, and many of the undead have simply stopped. The cold over Icecrown feels a little less bitter. Cleansing this land will take us years, but the war that began in Lordaeron is over.",
+   "name": "Icecrown Citadel",
+   "origin": "Taken from the summit of Icecrown Citadel after the Lich King fell. Highlord Tirion Fordring sends them to one of those who stood with him at the Frozen Throne.",
+   "senders": {
+    "any": {
+     "entry": 28179,
+     "faction": "Argent Crusade",
+     "gender": "male",
+     "location": "Icecrown Citadel",
+     "name": "Highlord Tirion Fordring",
+     "race": "Human",
+     "role": ""
+    }
+   }
+  },
+  {
+   "achievements": [
+    4817,
+    4815,
+    4818,
+    4816
+   ],
+   "faction": "Both",
+   "gift": {
+    "items": [
+     {
+      "count": 3,
+      "entry": 36919,
+      "name": "Cardinal Ruby"
+     }
+    ]
+   },
+   "key": "the_ruby_sanctum",
+   "letter": "Halion is dead and the Ruby Sanctum is ours again. The twilight dragonflight's attack on the red dragons has failed, though I fear it was only the first warning of something greater.",
+   "name": "The Ruby Sanctum",
+   "origin": "Gathered from the Ruby Sanctum after Halion was defeated, and given by the red dragonflight in thanks. Krasus sends them to one of those who saved the sanctum.",
+   "senders": {
+    "any": {
+     "entry": 27990,
+     "faction": "The Wyrmrest Accord",
+     "gender": "male",
+     "location": "Dalaran",
+     "name": "Krasus",
+     "role": ""
+    }
+   }
+  }
+ ]
+}

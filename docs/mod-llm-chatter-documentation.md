@@ -1634,6 +1634,29 @@ which `build_bot_state_context()` appends for every combat prompt. The
 kill, combat, and aggro-loss builders also switch their situation line
 for PvP.
 
+### Zone intrusion yells
+
+When an enemy enters a zone owned by the other faction and a real player
+is there to hear it, a nearby defending bot yells a warning
+(`player_enters_zone`, `process_zone_intrusion_event()` in
+`chatter_events.py`, gated by `LLMChatter.ZoneIntrusion.Enable`). The
+prompt (`build_zone_intrusion_prompt()`) carries:
+
+- the defender's persona from `prepare_channel_persona()`, as in General
+  chat, so the yell is in the bot's own voice (normal mode gets the
+  player-style profile);
+- in roleplay, the race outlook, class calling and race+class note of
+  both characters (`character_lore_lines()`), and the zone and subzone
+  descriptions; normal mode keeps the names;
+- the enemy's level in normal mode only: a level is a game term, so
+  roleplay never hears it;
+- "your faction's city" only for a zone in `CAPITAL_CITY_ZONES`, and
+  "your faction's territory" for any other zone. The payload's
+  `is_capital` is not used for this.
+
+The yell is one or two short sentences, with a 100-token reply limit so
+it is never cut off mid-sentence.
+
 ### Duels
 
 `LLMChatterDuel.cpp` queues `bot_group_duel_start` and
@@ -3112,6 +3135,9 @@ Ancients and Isle of Conquest.
   night) are zone-wide General chat and get the zone description only.
 - **General ambient chatter and replies to players in General**: zone
   description only. General is zone-wide, so no subzone is described.
+- **Zone intrusion yells** (`player_enters_zone`): zone and subzone
+  description in roleplay mode, names in normal mode. The payload carries
+  `area_id` and `subzone_name`; an older payload gets the zone only.
 
 ---
 
@@ -3195,7 +3221,7 @@ register of the chat mode.
 | `duel` | a settled duel fought by a bot of the group or by its real player, whoever the opponent (`bot_group_duel_end`) | the duelling bots, and up to `MaxBotsPerEvent` bots the worldserver saw able to watch (`witness_bot_guids`, the same perception check that picks the reactor; an older payload without it gives the duellists only), at `DuelGenerationChance` | "I won / <winner> won a friendly training spar against …", or "…; I watched"; an opponent from outside the party is named with gender, race and class ("Torvald, a male Dwarf Warrior from outside the party"), one that could not be identified as "a stranger"; interrupted duels are skipped |
 | `achievement` | achievement (not in BGs) | up to `MaxBotsPerEvent` bots | "<earner, or I> earned recognition for: <name>"; in roleplay, achievements with a number in the name ("Level 30", "50 Quests") are skipped without an LLM call |
 | `level_up` | a level gained | the reacting bot, and the levelling bot | roleplay: "grew noticeably stronger" in what the calling grows (`CLASS_GROWTH`, as in the party reaction: "a paladin's devotion to the Light and skill at arms"), with the leveler's race and calling; normal: "reached level N" |
-| `ambient` | zone transition (`AmbientChance`) | the reacting bot | the place, plus time of day, season and live weather (indoor instances: none; open-air ones: no weather); "nothing else happened". Background: the zone (or instance) and subzone descriptions; with neither, no memory |
+| `ambient` | zone transition (`AmbientChance`) | the reacting bot | the place, plus time of day, season and live weather (indoor instances: none; open-air ones: no weather); "nothing else happened". Background: the zone (or instance) and subzone descriptions; with neither, no memory. None while the player or the reacting bot is dead or a ghost (`player_dead`, `dead_bot_guids` from the worldserver) |
 | `player_message` | the player's party message (≤ `PlayerMsgMaxLength`, first `PlayerMsgMaxPerSession` per session) | only the bot that answered; never for brief casual lines, bot commands, URLs, or lines marked OOC by chat convention (`((...))`, `[ooc]`); no word lists | "<player> told me: <message>", recorded as a topic, never a guessed intent |
 | `pvp_kill` | open-world or BG kill | the bot | the enemy's name, race, class and faction |
 | `bg_win` / `bg_loss` | BG match end | party bots | "Won/Lost <BG>" |
@@ -5311,6 +5337,114 @@ or themed subject that took the turn keeps it.
 | `LocationTopics.Chance` (callers without a conversation thread) | 40 | 40 | Bridge |
 | `Threads.LocationTopicWeight` | 40 | 40 | Bridge |
 
+## 13zb. World Reactivity: Letters and Rumors
+
+The world answers what a real player did, through two independent
+systems: `LLMChatter.Letters.Enable` and `LLMChatter.Rumors.Enable`.
+The flow and ownership are in the architecture doc. This section covers
+behavior.
+
+Each letter and rumor type also has its own `Enable` key. Turning a type
+off stops new deeds and new generation of that type once the relevant
+process has loaded the config: the bridge reads its keys at start, so it
+needs a restart, and the worldserver's keys take effect after
+`.reload config`. Work already in flight is not cancelled: letters
+already scheduled or written, rumors already fresh and lines already
+queued play out.
+
+### Letters
+
+Each letter is written by the LLM from facts and arrives with a gift.
+`Letters.MaxChars` and `Letters.MaxSubjectChars` steer the length in the
+prompt; the text is delivered whole. Only a subject past its
+128-character column is cut, at a whole word.
+
+| Type | Trigger | Sender | Gift |
+|---|---|---|---|
+| Memories | Every 7-10 days, while the player is online | A bot with active memories of the player, outside their group | Common gift for level and class |
+| Dungeons | Achievement, 50%, 2-4 days later | From the table, by faction | From the table |
+| Raids | Achievement, 100%, 4-6 days later | From the table, by faction | From the table, the tier's valuable goods |
+| Quests | Turn-in, 100%, 4-6 days later | From the table, by faction or clan | From the table |
+| Starters | Random level in 5-15, then in 15-25 | A trainer for the player's race | Starter kit |
+| Professions | Level 25, then every 10-16 levels | A trainer for the player's race | Bundle for the player's skill |
+
+- A dungeon, raid or quest letter comes once per character, whichever
+  listed achievement or quest triggered it.
+- Memory letters give the bot's personality, tone and, in roleplay,
+  background to the prompt, and one random memory.
+- Common gifts respect level range, class fit and stack size, and skip a
+  companion pet the character already knows. Each kind of gift is equally
+  likely, so long tables do not dominate. A rare treat stays in the pool
+  only `Letters.Memories.PreciousChance` percent of the time (10).
+- A deed is removed from the inbox only once it is handled. A failure
+  keeps it for the next pass; after 5 failed attempts it stays in the
+  table for inspection and is no longer picked up.
+- Starters need a free primary profession point and are about different
+  professions. A character past a level window skips that letter. A race
+  outside the trainer table gets a trainer of its faction.
+- Professions letters need a known profession with a gift table.
+  Gatherers have none, so a gatherer-only character gets no letter.
+
+### Rumors
+
+NPCs near the player speak rumors in ordinary proximity scenes. Only
+friendly or neutral NPCs tell them; playerbots and unfriendly or hostile
+NPCs never do.
+
+| Type | Unlocked by | Where |
+|---|---|---|
+| Achievements | Achievement | Anywhere |
+| Quests | Quest turn-in | The quest's regions |
+| Dungeons (and raids) | Achievement | The regions listed per faction |
+
+- Quest and dungeon rumors are "addressed" `Rumors.AddressedChance`
+  percent of the time (50) and "recounted" otherwise, then pick a
+  phrasing. Addressed: the speaker recognises the player and
+  "The hero" becomes their name. Recounted: local news not linked to the
+  player.
+- Achievement rumors are addressed, use the Description and Notes, and
+  are weighted by Frequency. Notes that need facts are filled in: Aldor
+  or Scryers from reputation, the city from the achievement earned, the
+  faction's people by team.
+- A new rumor is fresh: it skips the ambient roll and wins over everything
+  else until `Rumors.FreshVoicings` lines have reached the player. A line
+  counts only once it was actually sent. The worldserver keeps the fresh
+  rumors in memory, refreshed by an async query every
+  `Rumors.RefreshSeconds` (10, minimum 1), so a new rumor can take that
+  long to be noticed. No rumor skips the roll
+  inside an instance. A scene queued only for a fresh rumor carries
+  `rumor_forced`; when the bridge will not tell the rumor there (a fight,
+  a screenshot, a hostile speaker), the scene is skipped rather than
+  becoming ordinary small talk.
+- In an NPC-only conversation, an addressed rumor lets the speakers turn
+  to the player; otherwise NPC-only scenes stay among themselves.
+- Older rumors, including deeds from before the feature, use
+  `Rumors.Chance` and rest for `Rumors.RepeatCooldownMinutes`.
+
+### Editing the content
+
+The tables are `tools/reactivity_letters.json`,
+`tools/reactivity_gifts.json` and `tools/reactivity_rumors.json`. Gifts
+are existing items only: the client shows a question mark in the bags
+for any item missing from its own `Item.dbc` (entries above 56806).
+A gift must also be one anyone can take and use: not unique, not
+class-locked, and not needing a profession to use (trade goods and the
+profession tables excepted). Common gifts that suit only some classes
+say so in an explicit `stat` field (`strength`, `agility`, `caster` or
+`physical`).
+
+Letter senders and the trainers (`trainers` in the gift table) may carry
+optional, curated `race`, `gender` and `faction` fields. Leave a value
+out when it is not clear: dragons in mortal form, ghosts and other
+creatures whose model does not show who they are. Never take them from
+the row's `faction`, which says who can earn the letter.
+
+The tables hold stock 3.3.5 values and work with or without
+`mod-individual-progression`. Where the mod raises an item's required
+level, the live item decides, so a gift never arrives before it can be
+used. Achievements 684 and 533 only exist in practice with that mod, so
+their rows stay silent on a stock server.
+
 ## 14. JSON and Queue Contracts
 
 ### `QueueChatterEvent()`
@@ -5496,6 +5630,12 @@ its original format-reliability limitations.
 | `llm_chatter_race_names` | C++ (startup) | Python | Every race in `ChrRaces` with its `GetRaceName()` name; the bridge names races outside `RACE_NAMES` from it |
 
 ---
+| `llm_reactivity_inbox` | C++ | Python | Real players' deeds waiting for the bridge |
+| `llm_reactivity_letters` | Python | C++ + Python | Letters from scheduling to delivery |
+| `llm_reactivity_player_state` | Python | Python | Per-character letter pacing |
+| `llm_reactivity_rumors` | Python | Python | Rumors unlocked or told, and freshness |
+| `llm_reactivity_rumor_voicings` | Python | Python | Rumor lines waiting to be counted against delivery |
+| `llm_reactivity_fresh_rumor_zones` | Python | C++ + Python | Where a fresh rumor may be told |
 
 ## 16. Important Editing Rules
 

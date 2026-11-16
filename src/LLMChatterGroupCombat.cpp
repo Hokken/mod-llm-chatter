@@ -2735,6 +2735,7 @@ void HandleGroupPlayerUpdateZoneImpl(
     std::string extraData = "{"
         + BuildBotIdentityFields(player) + ","
         + BuildBotStateJson(player) + ","
+        + BuildGroupDeathJson(player) + ","
         "\"group_id\":" +
             std::to_string(groupId) + ","
         "\"zone_id\":" +

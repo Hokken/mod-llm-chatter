@@ -8,6 +8,7 @@
 #include "LLMChatterConfig.h"
 #include "LLMChatterScreenshot.h"
 #include "LLMChatterDelivery.h"
+#include "LLMChatterReactivity.h"
 #include "LLMChatterGuild.h"
 #include "LLMChatterGroup.h"
 #include "LLMChatterGroupAwareness.h"
@@ -340,6 +341,7 @@ public:
 
         _lastTriggerTime = 0;
         _lastDeliveryTime = 0;
+        _lastLetterDeliveryTime = 0;
         _lastGeneralAudienceRefreshTime = 0;
         _lastEnvironmentCheckTime = 0;
         _lastTransportCheckTime = 0;
@@ -381,6 +383,15 @@ public:
             if (sLLMChatterConfig->_proxChatterEnable)
                 ProcessPendingFightMoments();
         }
+
+        if (now - _lastLetterDeliveryTime
+            >= sLLMChatterConfig->_lettersPollSeconds * 1000)
+        {
+            _lastLetterDeliveryTime = now;
+            DeliverPendingReactivityLetters();
+        }
+
+        UpdateFreshRumorZones(now);
 
         if (now - _lastTriggerTime
             >= sLLMChatterConfig->_triggerIntervalSeconds
@@ -546,6 +557,7 @@ public:
 private:
     uint32 _lastTriggerTime = 0;
     uint32 _lastDeliveryTime = 0;
+    uint32 _lastLetterDeliveryTime = 0;
     uint32 _lastGeneralAudienceRefreshTime = 0;
     uint32 _lastEnvironmentCheckTime = 0;
     uint32 _lastTransportCheckTime = 0;

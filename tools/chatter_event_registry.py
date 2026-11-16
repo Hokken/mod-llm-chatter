@@ -622,6 +622,8 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'intruder_is_bot': (int, True),
             'is_capital': (int, True),
             'zone_name': (str, True),
+            'area_id': (int, False),
+            'subzone_name': (str, False),
             'defender_guid': (int, True),
             'defender_name': (str, True),
             'defender_class': (int, True),
@@ -647,6 +649,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'is_dungeon': (bool, False),
             'is_raid': (bool, False),
             'participants': (list, True),
+            'rumor_forced': (bool, False),
         },
     ),
 
@@ -669,6 +672,7 @@ EVENT_REGISTRY: Dict[str, EventSpec] = {
             'is_raid': (bool, False),
             'participants': (list, True),
             'max_lines': (int, True),
+            'rumor_forced': (bool, False),
         },
     ),
 

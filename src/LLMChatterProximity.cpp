@@ -3,6 +3,7 @@
  */
 
 #include "LLMChatterProximity.h"
+#include "LLMChatterReactivity.h"
 
 #include "LLMChatterBossDialogue.h"
 #include "LLMChatterConfig.h"
@@ -1759,7 +1760,7 @@ bool QueueProximityEvent(
     std::vector<ProximityCandidate> const& speakers,
     std::vector<ProximityCandidate> const& allCandidates,
     bool playerAddressed, uint32 maxLines,
-    std::string const& screenshotFields = "")
+    std::string const& extraFields = "")
 {
     if (!player || speakers.empty())
         return false;
@@ -1778,8 +1779,8 @@ bool QueueProximityEvent(
     std::string json = BuildBaseEventJson(
         player, speakers, allCandidates,
         playerAddressed, maxLines);
-    if (!screenshotFields.empty())
-        json.insert(json.size() - 1, "," + screenshotFields);
+    if (!extraFields.empty())
+        json.insert(json.size() - 1, "," + extraFields);
     std::string escaped = EscapeString(json);
 
     QueueChatterEvent(
@@ -2202,9 +2203,21 @@ void MaybeQueueProximityScene(Player* player)
 
     uint32 effectiveChance =
         ComputeEffectiveChance(player);
-    if (effectiveChance == 0
-        || urand(1, 100) > effectiveChance)
+    bool rolled = effectiveChance != 0
+        && urand(1, 100) <= effectiveChance;
+    // A new rumor is told at the first chance, so it does not wait
+    // for the ambient roll. Entity cooldowns still apply. The bridge
+    // never tells a rumor inside an instance, so none skips the roll
+    // there.
+    Map* scanMap = player->GetMap();
+    bool freshRumor = scanMap && !scanMap->Instanceable()
+        && HasFreshRumorHere(player);
+    if (!rolled && !freshRumor)
         return;
+    // A scene that exists only for the rumor: the bridge skips it
+    // when it cannot tell one, rather than making small talk.
+    std::string const rumorForced =
+        rolled ? "" : "\"rumor_forced\":true";
 
     float radius = static_cast<float>(
         sLLMChatterConfig
@@ -2213,6 +2226,26 @@ void MaybeQueueProximityScene(Player* player)
     CollectNearbyBots(player, radius, candidates, true);
     CollectNearbyNPCs(player, radius, candidates);
     DeduplicateCandidates(candidates);
+
+    if (freshRumor)
+    {
+        // Only NPCs tell rumors, and no enemy tells them.
+        std::vector<ProximityCandidate> tellers;
+        for (auto const& candidate : candidates)
+        {
+            if (!candidate.isNPC)
+                continue;
+            std::string const disposition =
+                GetNPCDisposition(candidate.npc, player);
+            if (disposition == "friendly"
+                || disposition == "neutral")
+                tellers.push_back(candidate);
+        }
+        if (!tellers.empty())
+            candidates = std::move(tellers);
+        else if (!rolled)
+            return;
+    }
 
     if (candidates.empty())
         return;
@@ -2264,7 +2297,8 @@ void MaybeQueueProximityScene(Player* player)
             speakers,
             candidates,
             playerAddressed,
-            maxLines);
+            maxLines,
+            rumorForced);
         return;
     }
 
@@ -2276,7 +2310,8 @@ void MaybeQueueProximityScene(Player* player)
         speaker,
         candidates,
         playerAddressed,
-        1);
+        1,
+        rumorForced);
 }
 
 ProximityScene* FindBestScene(Player* player)

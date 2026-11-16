@@ -552,6 +552,20 @@ void LLMChatterConfig::LoadConfig()
     _groupKillCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.KillCooldown", 120);
     _groupDeathCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.DeathCooldown", 30);
     _groupLootCooldown = GetChatterOption<uint32>("LLMChatter.GroupChatter.LootCooldown", 60);
+    _lettersEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.Letters.Enable", true);
+    _lettersPollSeconds = std::max<uint32>(
+        1,
+        GetChatterOption<uint32>(
+            "LLMChatter.Letters.DeliveryPollSeconds", 15));
+    _rumorsEnable =
+        GetChatterOption<bool>(
+            "LLMChatter.Rumors.Enable", true);
+    _rumorsRefreshSeconds = std::max<uint32>(
+        1,
+        GetChatterOption<uint32>(
+            "LLMChatter.Rumors.RefreshSeconds", 10));
     _memoryEnable =
         GetChatterOption<bool>("LLMChatter.Memory.Enable", true);
     _memoryDiscoveryEnable =

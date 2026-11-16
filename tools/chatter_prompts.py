@@ -19,8 +19,9 @@ from chatter_constants import (
     RP_MESSAGE_CATEGORIES, RP_LENGTH_HINTS,
     PERSONALITY_SPICES, RP_PERSONALITY_SPICES,
     CLASS_NAMES, CLASS_ROLE_MAP,
-    BG_MAP_NAMES,
+    BG_MAP_NAMES, CAPITAL_CITY_ZONES,
 )
+from chatter_instance_context import build_location_prompt_lines
 from chatter_shared import (
     get_chatter_mode, get_race_name, build_race_class_context,
     build_race_class_context_parts,
@@ -2905,16 +2906,24 @@ def build_trade_conversation_prompt(
 # ZONE INTRUSION PROMPT
 # =============================================================================
 def build_zone_intrusion_prompt(
-    extra_data, config
+    extra_data, config, *, zone_id=0, persona_block='',
+    lore=None,
 ):
     """Build prompt for zone intrusion yell.
 
-    The defender bot should yell an urgent warning
-    about the enemy intruder, flavored by their
-    race/class personality.
+    The defender bot yells an urgent warning about the enemy
+    intruder in its own voice.
+
+    zone_id: the zone entered. Only a city in CAPITAL_CITY_ZONES
+        is called a city; any other zone is the faction's territory.
+    persona_block: the defender's rendered persona (personality,
+        tone, backstory, mood).
+    lore: {'defender': [...], 'intruder': [...]} third-person
+        race and class lines, shown in roleplay only.
     """
     mode = get_chatter_mode(config)
     is_rp = (mode == 'roleplay')
+    lore = lore or {}
 
     # Defender identity
     defender_name = extra_data.get(
@@ -2949,9 +2958,6 @@ def build_zone_intrusion_prompt(
     zone_name = extra_data.get(
         'zone_name', 'this area'
     )
-    is_capital = extra_data.get(
-        'is_capital', False
-    )
 
     # Race/class personality context
     rc_context = ''
@@ -2960,9 +2966,11 @@ def build_zone_intrusion_prompt(
             defender_race, defender_class
         )
 
-    capital_suffix = (
-        " -- your faction's capital city!"
-        if is_capital
+    # The payload flag cannot be trusted: a bot intruder's event
+    # always claimed a capital. Only real cities are cities.
+    place_suffix = (
+        " -- your faction's city!"
+        if int(zone_id or 0) in CAPITAL_CITY_ZONES
         else " -- your faction's territory!"
     )
 
@@ -2980,27 +2988,52 @@ def build_zone_intrusion_prompt(
     )
     if rc_context:
         parts.append(rc_context)
+    if persona_block:
+        parts.append(persona_block)
+    if is_rp and lore.get('defender'):
+        parts.append(
+            "\nAbout you:\n" + "\n".join(lore['defender'])
+        )
+
+    # Place lore is world knowledge: in-world speakers only.
+    location = build_location_prompt_lines(
+        {**extra_data, 'zone_id': zone_id, 'zone_name': zone_name},
+        describe=is_rp,
+    )
+    if location:
+        parts.append("\nLOCATION:\n" + "\n".join(location))
 
     intruder_gender = extra_data.get('intruder_gender') or ''
     if intruder_gender:
         intruder_race = f"{intruder_gender} {intruder_race}"
+    # A level is a game term: roleplay never hears it.
+    level_text = (
+        '' if is_rp else f" (level {intruder_level})"
+    )
     parts.append(
         f"\nSITUATION: An enemy {intruder_race} "
-        f"{intruder_class} named {intruder_name} "
-        f"(level {intruder_level}) has just been "
+        f"{intruder_class} named {intruder_name}"
+        f"{level_text} has just been "
         f"spotted in {zone_name}"
-        + capital_suffix
+        + place_suffix
     )
+    if is_rp and lore.get('intruder'):
+        parts.append(
+            f"About the enemy, {intruder_name}:\n"
+            + "\n".join(lore['intruder'])
+        )
 
     if is_rp:
         parts.append(
-            "\nYell a brief in-character warning to nearby allies. Let "
-            "race, class, and personality shape the tone."
+            "\nYell a brief in-character warning to nearby allies, "
+            "in your own voice as described above. Your people, "
+            "calling and personality shape how you see this enemy."
         )
     else:
         parts.append(
             "\nGive a brief, urgent player warning about the enemy in "
-            "zone chat. Use natural WoW PvP language without abuse."
+            "zone chat, in your own style as described above. Use "
+            "natural WoW PvP language without abuse."
         )
 
     parts.append(
@@ -3010,7 +3043,8 @@ def build_zone_intrusion_prompt(
         "\n- No *emotes* or action text"
         "\n- No quotation marks"
         "\n- Do NOT use the word 'Hark'"
-        "\n- Keep it short and urgent"
+        "\n- Keep it short and urgent: one or two short sentences, "
+        "at most 25 words"
     )
 
     # Plain-string prompt path — not routed through
