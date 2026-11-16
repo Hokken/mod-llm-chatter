@@ -10,6 +10,8 @@
  * a deed means and every word that is said about it.
  */
 
+#include "Define.h"
+
 class Player;
 
 void AddLLMChatterReactivityScripts();

@@ -31,6 +31,8 @@
 * **No travel memories as a ghost**: a bot no longer records a quiet
   moment on the road while it or the player is dead or running back as a
   ghost (#96, thanks Vladimir37).
+* **Builds cleanly**: `LLMChatterReactivity.h` now includes the core type
+  definitions it uses, so the module compiles.
 
 ### 2026-11-16 - Zone Intrusion Yells in Character
 
