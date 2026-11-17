@@ -1260,6 +1260,7 @@ Line counts are approximate non-blank lines.
 | `src/LLMChatterShared.cpp` | ~2900 | Shared helpers: SQL/JSON escaping, canonical lookups, queue insertion, cooldowns, priorities/delays, delivery helpers, spawn-GUID creature lookup, NPC role descriptions, and the shared named-boss cache/classifier |
 | `src/LLMChatterReplyHold.cpp` | ~160 | `HoldBotForReply()`: keeps a standing ungrouped bot that owes a player a reply in place for `ProximityChatter.ReplyHoldMs` (moving bots are left alone); raises the AI delay without shortening it and, when released on combat or on the delivery or terminal drop of its own reply (matched by the `reply_hold_id` in the event's extra data), takes back only what it added |
 | `src/LLMChatterReplyHold.h` | 50 | `AddLLMChatterReplyHoldScripts()` and the reply-hold entry points used by delivery and proximity |
+| `src/LLMChatterOnlineState.cpp/.h` | ~60 | `OnPlayerCanMarkAccountOffline`: on logout only the character that left is marked offline in `characters.online`, instead of every character of its account. Playerbots share accounts (an alt bot uses its owner's, random bots share theirs), and the bridge reads that column (`any_real_players_online()`, bot and zone queries) |
 | `src/LLMChatterShared.h` | ~175 | Shared declarations still used across domains; `class Unit` forward-declared for `SendUnitTextEmote()`; currently also declares world/player registration |
 | `src/LLMChatterDelivery.cpp` | ~1600 | Outbound DB polling and channel dispatch, including instance-aware local revalidation for `say`/`msay`, screenshot snapshot/scan-radius checks, the BG final-send guard, and safe boss `myell` delivery |
 | `src/LLMChatterDelivery.h` | 4 | Narrow delivery extraction declaration used by `LLMChatterWorld.cpp` |
@@ -1336,6 +1337,9 @@ Line counts are approximate non-blank lines.
 - `AddLLMChatterProximityFightScripts()`
 - `AddLLMChatterCommandScripts()`
 - `AddLLMChatterReplyHoldScripts()`
+- `AddLLMChatterAmbientScripts()`
+- `AddLLMChatterReactivityScripts()`
+- `AddLLMChatterOnlineStateScripts()`
 
 `AddLLMChatterGroupScripts()` in turn registers the group sub-domains:
 `AddLLMChatterGroupJoinScripts()`, `AddLLMChatterGroupQuestScripts()` and
@@ -1354,7 +1358,7 @@ uniform:
   the code that uses it: `LLMChatterBG.h`, `LLMChatterAB.h`,
   `LLMChatterLoot.h`, `LLMChatterRaid.h`, `LLMChatterGuildPvP.h`,
   `LLMChatterGuildWorld.h`, `LLMChatterProximityFight.h`,
-  `LLMChatterReplyHold.h`
+  `LLMChatterReplyHold.h`, `LLMChatterOnlineState.h`
 - `AddLLMChatterCommandScripts()` has no header; `LLMChatterScript.cpp`
   forward-declares it
 

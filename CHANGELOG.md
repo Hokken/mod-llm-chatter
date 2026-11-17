@@ -1,5 +1,21 @@
 # Changelog
 
+### 2026-11-17 - Chatter No Longer Stops When an Alt Bot Logs Out
+
+* **All chatter went silent after one of your own alt bots logged
+  out**: on any logout the server marks every character of that account
+  offline in the database. An alt bot uses your account, so its logout
+  flagged the character you were playing as offline too. The bridge
+  then believed nobody was playing, cleared its session data and
+  stopped: no party, greeting, Guild or General lines until you
+  relogged.
+* The module now marks only the character that actually left as
+  offline. Random bots that share an account are covered the same way.
+* Requires a worldserver rebuild, and a core that has the
+  `OnPlayerCanMarkAccountOffline` hook (AzerothCore since 2026-09-23;
+  update the Playerbot branch if the build reports the hook as
+  unknown). No config change or database migration.
+
 ### 2026-11-16 - Every Guild Join Is Welcomed and Answered
 
 * **Every newcomer is welcomed**: the quieter preset rolled

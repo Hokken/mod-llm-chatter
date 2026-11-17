@@ -355,6 +355,9 @@ Registration coordinator only. Calls, in order:
 - `AddLLMChatterProximityFightScripts()`
 - `AddLLMChatterCommandScripts()`
 - `AddLLMChatterReplyHoldScripts()`
+- `AddLLMChatterAmbientScripts()`
+- `AddLLMChatterReactivityScripts()`
+- `AddLLMChatterOnlineStateScripts()`
 
 ### `src/LLMChatterShared.cpp`
 
@@ -592,6 +595,9 @@ The remaining units, with their full ownership in the C++ module map of
 - `LLMChatterBossDialogue.cpp/.h` - boss pre-aggro dialogue
 - `LLMChatterReplyHold.cpp/.h` - keeps a standing bot in place while its
   reply to a player is pending
+- `LLMChatterOnlineState.cpp/.h` - on logout marks only the character
+  that left offline, so a bot logging out does not flag the other
+  characters of its account (the real player included) as offline
 - `LLMChatterScreenshot.cpp/.h` - screenshot mailbox polling (section 13p)
 - `LLMChatterGuild.cpp/.h` - player-driven Guild chat sessions and login
   greetings (sections 13s and 13t)

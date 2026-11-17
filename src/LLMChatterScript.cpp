@@ -10,6 +10,7 @@
 #include "LLMChatterGuildWorld.h"
 #include "LLMChatterGroup.h"
 #include "LLMChatterLoot.h"
+#include "LLMChatterOnlineState.h"
 #include "LLMChatterProximityFight.h"
 #include "LLMChatterRaid.h"
 #include "LLMChatterReactivity.h"
@@ -36,4 +37,5 @@ void AddLLMChatterScripts()
     AddLLMChatterReplyHoldScripts();
     AddLLMChatterAmbientScripts();
     AddLLMChatterReactivityScripts();
+    AddLLMChatterOnlineStateScripts();
 }

@@ -576,6 +576,23 @@ def test_reply_hold_ends_on_terminal_drops_but_not_on_retry():
     assert 'if (!_keep)\n            ReleaseBotReplyHold(' in header
 
 
+# -- Online flag on logout -----------------------------------------------
+
+def test_logout_marks_only_the_character_that_left_offline():
+    source = _read('LLMChatterOnlineState.cpp')
+    assert '{PLAYERHOOK_CAN_MARK_ACCOUNT_OFFLINE}' in source
+    hook = _function(source, 'bool OnPlayerCanMarkAccountOffline(')
+    # Module off: the core keeps its account-wide update.
+    disabled = hook.index('if (!sLLMChatterConfig->IsEnabled())')
+    assert hook.index('return true;') > disabled
+    update = hook.index(
+        '"UPDATE characters SET online = 0 WHERE guid = {}"')
+    assert disabled < update < hook.index('return false;')
+    assert 'WHERE account' not in source
+    assert 'AddLLMChatterOnlineStateScripts();' in _read(
+        'LLMChatterScript.cpp')
+
+
 if __name__ == '__main__':
     tests = [
         value
